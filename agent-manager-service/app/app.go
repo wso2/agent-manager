@@ -205,9 +205,14 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 
 	// Load the active modules and follow lifecycle changes made elsewhere. The
 	// host gets the core services modules use first, so the snapshot it
-	// builds carries their routes.
+	// builds carries their routes. The default organization is created first,
+	// so it exists when modules activate.
 	modulesCtx, modulesCancel := context.WithCancel(context.Background())
 	defer modulesCancel()
+	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
+		slog.Error("failed to create the default organization", "error", err)
+		os.Exit(1)
+	}
 	stopModules, err := StartModules(modulesCtx, moduleHost(), database, dependencies)
 	if err != nil {
 		slog.Error("failed to start the module host", "error", err)
@@ -215,17 +220,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	}
 	if err := ReconcileModules(modulesCtx, moduleHost()); err != nil {
 		slog.Error("failed to apply the configured modules list", "error", err)
-		os.Exit(1)
-	}
-	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
-		slog.Error("failed to create the default organization", "error", err)
-		os.Exit(1)
-	}
-
-	// For the AI Gateway, registers the gateway named in configuration before
-	// any gateway can connect.
-	if err := bundles.Init(context.Background()); err != nil {
-		slog.Error("failed to initialize the built-in features", "error", err)
 		os.Exit(1)
 	}
 

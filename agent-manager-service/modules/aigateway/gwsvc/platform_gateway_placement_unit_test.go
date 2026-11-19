@@ -79,7 +79,7 @@ func TestAssignGatewayToEnvironmentPlacesTheEnvironment(t *testing.T) {
 	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: "ou-1", GatewayFunctionalityType: gwmodels.GatewayRoleBoth}
 	env := uuid.New()
 	placer := make(recordingPlacer, 1)
-	svc := NewPlatformGatewayService(mappingRepo(gw, 0), nil).WithEnvironmentPlacer(placer)
+	svc := NewPlatformGatewayService(mappingRepo(gw, 0)).WithEnvironmentPlacer(placer)
 
 	require.NoError(t, svc.AssignGatewayToEnvironment(gw.UUID.String(), env.String()))
 
@@ -89,7 +89,7 @@ func TestAssignGatewayToEnvironmentPlacesTheEnvironment(t *testing.T) {
 func TestAssignGatewayToEnvironmentPlacesNothingWhenTheMappingFails(t *testing.T) {
 	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: "ou-1", GatewayFunctionalityType: gwmodels.GatewayRoleBoth}
 	placer := make(recordingPlacer, 1)
-	svc := NewPlatformGatewayService(mappingRepo(gw, 1), nil).WithEnvironmentPlacer(placer)
+	svc := NewPlatformGatewayService(mappingRepo(gw, 1)).WithEnvironmentPlacer(placer)
 
 	require.ErrorIs(t, svc.AssignGatewayToEnvironment(gw.UUID.String(), uuid.NewString()), gwerr.ErrGatewayIngressCapExceeded)
 
@@ -104,7 +104,7 @@ func TestRegisterGatewayPlacesItsEnvironment(t *testing.T) {
 	gw := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleEgress}
 	env := uuid.New()
 	placer := make(recordingPlacer, 1)
-	svc := NewPlatformGatewayService(mappingRepo(gw, 0), nil).WithEnvironmentPlacer(placer)
+	svc := NewPlatformGatewayService(mappingRepo(gw, 0)).WithEnvironmentPlacer(placer)
 
 	_, err := svc.RegisterGateway("ou-1", "gw1", "GW", "", "https://ext.example.com", "", false, "EGRESS", nil,
 		[]string{env.String(), env.String()}, gwmodels.GatewayHostingManaged)

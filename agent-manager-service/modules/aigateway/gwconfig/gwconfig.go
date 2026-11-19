@@ -53,9 +53,9 @@ type DefaultGateway struct {
 	Vhost       string
 	// FunctionalityType is INGRESS, EGRESS or BOTH.
 	FunctionalityType string
-	// OrgOUID and OrgHandle are the Thunder OU the gateway belongs to.
-	OrgOUID   string
-	OrgHandle string
+	// OrgOUID is the Thunder OU of the organization the gateway belongs to,
+	// the core's default organization unless set.
+	OrgOUID string
 	// Token is the registration token the gateway connects with, read from TokenFile when empty.
 	Token     string
 	TokenFile string
@@ -134,7 +134,6 @@ func Load(get func(key string) string) (Settings, error) {
 			Vhost:             r.str("DEFAULT_GATEWAY_VHOST", ""),
 			FunctionalityType: r.str("DEFAULT_GATEWAY_TYPE", "BOTH"),
 			OrgOUID:           r.str("DEFAULT_GATEWAY_ORG_OU_ID", "01900000-0000-7000-8000-000000000001"),
-			OrgHandle:         r.str("DEFAULT_GATEWAY_ORG_HANDLE", "default"),
 			Token:             strings.TrimSpace(r.str("DEFAULT_GATEWAY_TOKEN", "")),
 			TokenFile:         r.str("DEFAULT_GATEWAY_TOKEN_FILE", ""),
 		},

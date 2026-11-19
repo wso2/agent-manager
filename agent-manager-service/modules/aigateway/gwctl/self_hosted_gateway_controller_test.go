@@ -65,7 +65,7 @@ func TestUpdateSelfHostedGateway_ChangesOnlyEditableFields(t *testing.T) {
 			return []gwmodels.GatewayEnvironmentMapping{}, nil
 		},
 	}
-	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), nil, nil)
+	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo), nil, nil)
 	body := `{"displayName":"Edge 2","description":"rack 4","isCritical":true,"properties":{"site":"berlin"}}`
 	w := httptest.NewRecorder()
 
@@ -90,7 +90,7 @@ func TestSelfHostedGatewayRoutes_ANameIsNotFound(t *testing.T) {
 		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
 		DeleteFunc:                func(string, string) error { return nil },
 	}
-	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), nil, nil)
+	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo), nil, nil)
 	req := selfHostedRequest(http.MethodDelete, "", "dev-edge")
 	req = req.WithContext(audit.WithRecorder(req.Context(), audit.NewNoopRecorder()))
 	w := httptest.NewRecorder()
@@ -107,7 +107,7 @@ func TestSelfHostedGatewayRoutes_ManagedGatewayIsNotFound(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return managed, nil },
 	}
-	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), nil, nil)
+	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo), nil, nil)
 	w := httptest.NewRecorder()
 	var logs bytes.Buffer
 	req := selfHostedRequest(http.MethodGet, "", managed.UUID.String())
@@ -140,7 +140,7 @@ func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T)
 			return []*modkit.Environment{{ID: uuid.NewString(), Name: "dev"}}, nil
 		},
 	}
-	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), envs, nil)
+	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo), envs, nil)
 	body := `{"displayName":"Edge","handle":"edge","environment":"dev","functionalityType":"AI","endpoints":["  https://edge.example.com "]}`
 	req := httptest.NewRequest(http.MethodPost, "/orgs/acme/self-hosted-gateways", strings.NewReader(body))
 	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}), "ou-1"))

@@ -64,7 +64,7 @@ func TestRemoveGatewayFromEnvironmentIsRefusedWhileTheGatewayServesTheEnvironmen
 	gateway, env := uuid.New(), uuid.New()
 	var rolledBack bool
 	guard := &stubGuard{serves: true}
-	svc := NewPlatformGatewayService(unmapRepo(&rolledBack), nil).WithEnvironmentGuard(guard)
+	svc := NewPlatformGatewayService(unmapRepo(&rolledBack)).WithEnvironmentGuard(guard)
 
 	err := svc.RemoveGatewayFromEnvironment(context.Background(), gateway.String(), env.String())
 
@@ -76,7 +76,7 @@ func TestRemoveGatewayFromEnvironmentIsRefusedWhileTheGatewayServesTheEnvironmen
 
 func TestRemoveGatewayFromEnvironmentRemovesAMappingTheGatewayDoesNotServe(t *testing.T) {
 	var rolledBack bool
-	svc := NewPlatformGatewayService(unmapRepo(&rolledBack), nil).WithEnvironmentGuard(&stubGuard{})
+	svc := NewPlatformGatewayService(unmapRepo(&rolledBack)).WithEnvironmentGuard(&stubGuard{})
 
 	err := svc.RemoveGatewayFromEnvironment(context.Background(), uuid.NewString(), uuid.NewString())
 
@@ -87,7 +87,7 @@ func TestRemoveGatewayFromEnvironmentRemovesAMappingTheGatewayDoesNotServe(t *te
 func TestRemoveGatewayFromEnvironmentDoesNotReportAFailedCheckAsServing(t *testing.T) {
 	var rolledBack bool
 	checkErr := errors.New("connection refused")
-	svc := NewPlatformGatewayService(unmapRepo(&rolledBack), nil).WithEnvironmentGuard(&stubGuard{err: checkErr})
+	svc := NewPlatformGatewayService(unmapRepo(&rolledBack)).WithEnvironmentGuard(&stubGuard{err: checkErr})
 
 	err := svc.RemoveGatewayFromEnvironment(context.Background(), uuid.NewString(), uuid.NewString())
 

@@ -56,7 +56,7 @@ func TestRemoveGatewayFromEnvironment_ServedEnvironmentIsAConflict(t *testing.T)
 		},
 	}
 	ctrl := &gatewayController{
-		gatewayService: gwsvc.NewPlatformGatewayService(repo, nil).WithEnvironmentGuard(servingGuard{}),
+		gatewayService: gwsvc.NewPlatformGatewayService(repo).WithEnvironmentGuard(servingGuard{}),
 		ocClient:       ocClient,
 	}
 	req := httptest.NewRequest(http.MethodDelete, "/orgs/acme/gateways/"+gateway.UUID.String()+"/environments/default", nil)
@@ -86,7 +86,7 @@ func TestRemoveGatewayFromEnvironment_SelfHostedIsAConflict(t *testing.T) {
 		},
 	}
 	ctrl := &gatewayController{
-		gatewayService: gwsvc.NewPlatformGatewayService(repo, nil),
+		gatewayService: gwsvc.NewPlatformGatewayService(repo),
 		ocClient:       ocClient,
 	}
 	req := httptest.NewRequest(http.MethodDelete, "/orgs/acme/gateways/"+gateway.UUID.String()+"/environments/default", nil)

@@ -35,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 )
 
 // DefaultGatewaySeeder registers the gateway named in configuration, with the registration token the
@@ -72,8 +71,8 @@ func (s *DefaultGatewaySeeder) Seed(ctx context.Context) error {
 	}
 
 	ouID := s.cfg.OrgOUID
-	// Creates the organization, under its handle, and its default environment on first use.
-	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: ouID, OuHandle: s.cfg.OrgHandle})
+	// The core's default organization exists before modules activate; another
+	// organization is created, with its default environment, on first use.
 	env, err := LookupEnvironment(ctx, s.platform, ouID, gwmodels.DefaultEnvironmentName)
 	if err != nil {
 		return fmt.Errorf("default gateway: resolve the default environment: %w", err)

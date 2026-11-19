@@ -44,7 +44,7 @@ func TestAssignGatewaySecondEnvironmentRefused(t *testing.T) {
 				t.Fatal("a gateway already mapped to another environment must not get a second mapping")
 				return nil
 			}
-			svc := NewPlatformGatewayService(repo, nil)
+			svc := NewPlatformGatewayService(repo)
 
 			err := svc.AssignGatewayToEnvironment(gw.UUID.String(), uuid.NewString())
 
@@ -61,7 +61,7 @@ func TestAssignGatewaySameEnvironmentIdempotent(t *testing.T) {
 	repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 		return mappedTo(env, gw), nil
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	require.NoError(t, svc.AssignGatewayToEnvironment(gw.UUID.String(), env.String()))
 }
@@ -79,7 +79,7 @@ func TestAssignGatewayLocksTheGatewayBeforeReadingItsMappings(t *testing.T) {
 		require.True(t, locked, "mappings read before the gateway lock was held")
 		return nil, nil
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	require.NoError(t, svc.AssignGatewayToEnvironment(gw.UUID.String(), uuid.NewString()))
 	require.True(t, locked)
@@ -92,7 +92,7 @@ func TestRegisterGatewayWithTwoEnvironmentsRefused(t *testing.T) {
 		t.Fatal("no gateway row may be written for a two-environment registration")
 		return nil
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	_, err := svc.RegisterGateway("ou-1", "gw1", "GW", "", "https://ext.example.com", "", false, "EGRESS", nil,
 		[]string{uuid.NewString(), uuid.NewString()}, gwmodels.GatewayHostingManaged)

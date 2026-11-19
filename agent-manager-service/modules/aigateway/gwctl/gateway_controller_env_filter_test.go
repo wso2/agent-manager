@@ -42,7 +42,7 @@ func listGatewaysRequest(
 			return []*modkit.Environment{{ID: defaultEnvUUID, Name: "default"}}, nil
 		},
 	}
-	svc := gwsvc.NewPlatformGatewayService(repo, nil)
+	svc := gwsvc.NewPlatformGatewayService(repo)
 	ctrl := &gatewayController{gatewayService: svc, ocClient: ocClient}
 
 	req := httptest.NewRequest(http.MethodGet, "/orgs/acme/gateways?"+query, nil)

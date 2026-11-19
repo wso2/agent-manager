@@ -37,7 +37,7 @@ func TestUpdateGatewayPersistsRuntimeURLColumn(t *testing.T) {
 	id := seedRuntimeURLGateway(t, tx, "api-platform-acme-dev")
 	require.False(t, runtimeURLOf(t, tx, id).Valid, "fixture must start from the NULL state")
 
-	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx), nil)
+	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx))
 	want := "http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893"
 
 	resp, err := svc.UpdateGateway(id.String(), gatewayOrgOf(t, tx, id), nil, nil, nil, nil, &want)
@@ -54,7 +54,7 @@ func TestUpdateGatewayRejectsInvalidRuntimeURL(t *testing.T) {
 	tx := runtimeURLTestTx(t)
 	id := seedRuntimeURLGateway(t, tx, "api-platform-acme-dev")
 
-	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx), nil)
+	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx))
 	bad := "http://exfil.dev:53"
 
 	_, err := svc.UpdateGateway(id.String(), gatewayOrgOf(t, tx, id), nil, nil, nil, nil, &bad)

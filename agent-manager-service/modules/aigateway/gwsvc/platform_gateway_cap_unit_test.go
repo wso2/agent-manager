@@ -77,7 +77,7 @@ func TestAssignGatewayToEnvironment_SecondIngressRejected(t *testing.T) {
 		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
 		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return 1, nil },
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	err := svc.AssignGatewayToEnvironment(gw.UUID.String(), envID)
 
@@ -107,7 +107,7 @@ func TestAssignGatewayToEnvironment_SecondEgressAllowed(t *testing.T) {
 			return nil
 		},
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	require.NoError(t, svc.AssignGatewayToEnvironment(gw.UUID.String(), envID))
 	require.True(t, created)
@@ -144,7 +144,7 @@ func TestAssignGatewayToEnvironment_IdempotentWhenAlreadyMapped(t *testing.T) {
 			return nil
 		},
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	require.NoError(t, svc.AssignGatewayToEnvironment(gw.UUID.String(), envID))
 	require.True(t, existsChecked, "expected the existence check to run inside the transaction")
@@ -175,7 +175,7 @@ func TestRegisterGateway_CapRejectionRollsBackGatewayRow(t *testing.T) {
 		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
 		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return 1, nil },
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	_, err := svc.RegisterGateway("org", "gw1", "GW", "", "http://x", "", false, "BOTH", nil,
 		[]string{uuid.New().String()}, gwmodels.GatewayHostingManaged)

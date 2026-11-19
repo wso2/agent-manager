@@ -141,6 +141,8 @@ tables:
 
 `Activate(ctx, rt)` registers everything the module adds. The host calls it on every replica each time the set of active modules changes, with a fresh `modkit.Runtime`, so it must be cheap and free of side effects. If it returns an error, or a registration fails (a write route without a permission, an undeclared capability, ...), the module stays inactive.
 
+The core's default organization (`DEFAULT_ORG_OU_ID`) and its default environment exist by the time `Activate` runs: the core creates them before any module activates, so no module hook or event sees their creation.
+
 ### Data
 
 - `rt.DB()` is the database handle. Read and write only the module's own `mod_<name>_` tables. Nothing stops a query on another table at run time; the rule is enforced by review and by the migration runner.
@@ -422,13 +424,14 @@ What it already does as a module:
 - **Agent bindings:** an agent create or update carries the agent's LLM providers and MCP proxies as `extensions.ai-gateway` (`{modelConfig, mcpConfig, settings}`). The validate hook checks them, and the apply hook stores them as `pending` bindings in the agent's transaction. The `agent.created` event (and, on update, the module's own `ai-gateway.agent.bindings_changed`) then provisions each binding in the background: a retried, idempotent handler creates its LLM or MCP configuration, adopting one an earlier attempt already made, and marks it `ready`, or `failed` with the last error while it keeps retrying. `GET /m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations` returns the settings and each binding's state. Deleting the agent records a teardown in its transaction; the `agent.deleted` handler revokes and undeploys whatever was provisioned, pending bindings included, and retries until it is done. Until then a new agent with the same name is refused with 409.
 - **Audit and webhooks:** its routes declare their audit actions (`ai-gateway:<resource>.<verb>`, such as `ai-gateway:api-keys.rotate`) and webhook events (`ai-gateway.<type>`, such as `ai-gateway.llm_provider.created`) with `modkit.Audit`, `AuditCoalesce`, `AuditFailClosed` and `Emits`; the manifest declares them with their detail keys (`gwaudit`). Key, token, trust and A2A-proxy routes are fail-closed, and its handlers name what they acted on with `AuditResource` and `AuditDetail`.
 
+- **Lifecycle:** `Activate` builds the gateway on `rt.DB()`, `rt.Logger()`, `rt.Core()` and its settings the first time it runs on a replica, registers the default gateway, and reuses that gateway on later activations while the module stays active, so a change to another module keeps its controller connections. One worker, `gateway`, runs its A2A card reconciler, deployment timeout sweeper and reconcile worker; when the module is disabled or the server stops, it stops them, closes the controllers' WebSockets and its event hub, and the next activation builds a new gateway. This first activation does more than register, against the rule above: building and seeding must finish before its routes are mounted, so no controller connects first.
 - **MCP tools:** its 11 tools are registered with `rt.MCPTool` from `Activate` (`gwmcp`), so they leave `/mcp` with the module, and the MCP endpoint's protected-resource metadata lists their scopes only while it is active.
 - **Agent identity:** its agent-identity pages and MCP proxy scopes reach the environment's directory through the core's `identity.directory/v1`, not a ThunderID client of their own.
 - **Settings:** its settings are module settings, `MODULE_AI_GATEWAY_<KEY>` (or the `config:` block of its `modules:` entry), loaded and checked by `gwconfig`:
 
   | Keys | What they set |
   |---|---|
-  | `DEFAULT_GATEWAY_NAME`, `_DISPLAY_NAME`, `_VHOST`, `_TYPE`, `_ORG_OU_ID`, `_ORG_HANDLE`, `_TOKEN`, `_TOKEN_FILE` | The gateway registered at startup (Compose sets the bundled one). An empty name registers none. |
+  | `DEFAULT_GATEWAY_NAME`, `_DISPLAY_NAME`, `_VHOST`, `_TYPE`, `_ORG_OU_ID`, `_TOKEN`, `_TOKEN_FILE` | The gateway registered when the module activates (Compose sets the bundled one), in the core's default organization unless `_ORG_OU_ID` names another. An empty name registers none. |
   | `A2A_CARD_FETCH_DIAL_ADDR` | The `host:port` platform agent-card fetches dial instead of the card URL's host. |
   | `MANIFEST_CACHE_BACKEND` (`memory` or `redis`), `MANIFEST_CACHE_REDIS_HOST`, `_PORT`, `_PASSWORD`, `_DB`, `_TLS_ENABLED` | Where gateway-reported policy manifests are cached; use `redis` with more than one replica. |
   | `WEBSOCKET_MAX_CONNECTIONS`, `WEBSOCKET_CONNECTION_TIMEOUT`, `WEBSOCKET_RATE_LIMIT_PER_MIN` | Limits on gateway controller connections. |
@@ -439,7 +442,7 @@ What it already does as a module:
 
   `amp init ai-gateway DIR` reads its own keys from the same place: `CONTROLPLANE_HOST`, `ADMIN_PASSWORD`, `AMP_JWKS_URL`, `THUNDER_ISSUER`, `THUNDER_JWKS_URL`, `HOST`, `LISTENER_PORT` and `FILE_OWNER` for the controller's `config.toml`, and `DEFAULT_GATEWAY_TOKEN` as the registration token it writes (it generates and keeps one when unset).
 
-What is left: its workers and settings still come through `builtin.Bundle` (`Build(ctx, *wiring.AppParams)` builds it on the core's Go services and repositories), and its packages import core `services`, `repositories`, `controllers` and `models` (its data types still live in core `models`). Don't copy this for a new module.
+What is left: three of its repositories create the organization through the core's `repositories.EnsureOrg` inside their transactions, and its test helpers (`gwtest`) use the core's test database. Don't copy this for a new module.
 
 ## Module boundaries
 
@@ -605,6 +608,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [`WorkloadSpec.Endpoints`](#workloads) and endpoints in the heartbeat response | A workload learns every URL from its heartbeat, so it holds no module paths and follows a module's internal API when it moves. |
 | [`modkit.APIDescriber`](#api-document) | Each module describes its routes in its own OpenAPI document, kept out of the core's. |
 | [`modkit.InitComponent`](#optional-interfaces) | A module writes its own `amp init` files (the gateway's controller configuration). |
+| [The default organization exists at `Activate`](#activate-and-the-runtime) | Lite is multi-organization and creates organizations on first use; a module that seeds rows for the default organization (the gateway's bundled gateway) needs it to exist before its routes are mounted. |
 | [Core capabilities](#capabilities) (`identity.directory/v1`) | A module reaches a core service through a versioned contract instead of a core import. The proof of concept has only module-to-module capabilities. |
 
 ### Differences in shape or rules

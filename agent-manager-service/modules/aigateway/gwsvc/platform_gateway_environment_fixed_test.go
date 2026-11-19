@@ -39,7 +39,7 @@ func TestAssignGatewayConcurrentEnvironmentsRefused(t *testing.T) {
 	gdb := db.DB(context.Background())
 	id := seedRuntimeURLGateway(t, gdb, "env-fixed-"+uuid.NewString()[:8])
 	org := gatewayOrgOf(t, gdb, id)
-	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(gdb), nil)
+	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(gdb))
 
 	environments := []string{uuid.NewString(), uuid.NewString()}
 	for _, env := range environments {

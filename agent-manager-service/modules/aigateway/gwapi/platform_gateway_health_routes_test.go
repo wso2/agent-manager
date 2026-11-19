@@ -68,7 +68,7 @@ func platformHealthMux(t *testing.T, total, failed, abandoned int64) *http.Serve
 		},
 	}
 	ctrl := gwctl.NewGatewayController(
-		gwsvc.NewPlatformGatewayService(repo, nil).WithFailureSettings(failureSettings),
+		gwsvc.NewPlatformGatewayService(repo).WithFailureSettings(failureSettings),
 		&gwtest.Core{},
 		nil,
 	)

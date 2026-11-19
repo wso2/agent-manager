@@ -24,14 +24,9 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -87,17 +82,6 @@ func stubAppParams(t *testing.T) *wiring.AppParams {
 	return params
 }
 
-// stubBundles is the built-in modules of the full distribution, with
-// controllers that are never called.
-func stubBundles(t *testing.T, params *wiring.AppParams) builtin.Built {
-	t.Helper()
-	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory(), Permissions: gwsvc.NewPermissions(), Secrets: gwsecret.NewStore()}
-	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
-	return builtin.Built{
-		aigateway.Parts(gw),
-	}
-}
-
 // fillControllers calls each constructor with zero arguments and assigns its
 // result to the target's field of that type.
 func fillControllers(t *testing.T, target reflect.Value, ctors []any) {
@@ -140,7 +124,7 @@ func registerAllRoutesForAudit(t *testing.T) *middleware.RouteRegistrar {
 
 	rr := middleware.NewRouteRegistrar(http.NewServeMux(), nil, audit.NewNoopRecorder())
 	params := stubAppParams(t)
-	registerAPIRoutes(rr, params, stubBundles(t, params))
+	registerAPIRoutes(rr, params, nil)
 	return rr
 }
 

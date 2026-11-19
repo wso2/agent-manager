@@ -26,15 +26,12 @@ package aigateway
 import (
 	"context"
 	"embed"
-	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"sync/atomic"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
@@ -48,8 +45,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/resources"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
 // Name is the module's name. It is also the resource of its permissions.
@@ -57,10 +52,7 @@ const Name = gwperm.Module
 
 type module struct{}
 
-func init() {
-	modkit.Register(module{})
-	builtin.Register(builtin.Bundle{Name: Name, Build: Build})
-}
+func init() { modkit.Register(module{}) }
 
 func (module) Manifest() modkit.Manifest {
 	perms := make([]modkit.Permission, 0, len(gwperm.Actions))
@@ -125,17 +117,23 @@ func (module) Init(_ context.Context, req modkit.InitRequest) error {
 	return gwinit.WriteGateway(cfg, req.Dir)
 }
 
-// built is the gateway built at startup; Activate provides its capabilities.
-var built atomic.Pointer[gwwire.Gateway]
+// current is the gateway of the active module. Activate builds it the first
+// time and reuses it on every later activation while the module stays active,
+// so the gateway's connections and workers outlive another module's change;
+// the lifecycle worker tears it down when the module stops.
+var current atomic.Pointer[gwwire.Gateway]
 
-// errNotBuilt is returned by Activate in a process that did not build the
-// gateway (it is built when the server starts).
-var errNotBuilt = errors.New("the gateway is built when the server starts")
-
-func (module) Activate(_ context.Context, rt modkit.Runtime) error {
-	gw := built.Load()
+func (module) Activate(ctx context.Context, rt modkit.Runtime) error {
+	gw := current.Load()
 	if gw == nil {
-		return errNotBuilt
+		built, err := build(ctx, rt)
+		if err != nil {
+			return err
+		}
+		if !current.CompareAndSwap(nil, built) {
+			built.Close()
+		}
+		gw = current.Load()
 	}
 	gw.IdentityDirectory.Use(func() (identityv1.Directory, bool) {
 		return modkit.Lookup[identityv1.Directory](rt, identityv1.ID)
@@ -155,41 +153,22 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		Core:         rt.Core(),
 		Can:          rt.Can,
 	}).Register(rt)
+	rt.Go("gateway", func(ctx context.Context) error { return run(ctx, gw) })
 	return nil
 }
 
-// Current is the gateway built at startup, or nil.
-func Current() *gwwire.Gateway { return built.Load() }
+// Current is the gateway of the active module, or nil.
+func Current() *gwwire.Gateway { return current.Load() }
 
-// SetCurrent sets the gateway Activate mounts, for a process that builds it
-// without Build (tests).
-func SetCurrent(gw *gwwire.Gateway) { built.Store(gw) }
+// SetCurrent sets the gateway Activate mounts instead of building one, for
+// tests.
+func SetCurrent(gw *gwwire.Gateway) { current.Store(gw) }
 
-// Capabilities returns what the module provides, for a process that builds the
-// gateway without a module host (tests).
-func Capabilities(gw *gwwire.Gateway) map[string]any {
-	return map[string]any{
-		llmv1.ID: gw.AgentGateway.LLM(),
-		mcpv1.ID: gw.AgentGateway.MCP(),
-	}
-}
-
-// Build builds the gateway on the core's services and returns what it adds to
-// the server.
-func Build(_ context.Context, core *wiring.AppParams) (*builtin.Parts, error) {
-	gw, err := Wire(core)
-	if err != nil {
-		return nil, err
-	}
-	built.Store(gw)
-	return Parts(gw), nil
-}
-
-// Wire builds the gateway's services without starting anything.
-func Wire(core *wiring.AppParams) (*gwwire.Gateway, error) {
-	settings, err := gwconfig.Load(func(key string) string {
-		return config.Value(config.ModuleConfigKey(gwperm.Module, key))
-	})
+// build builds the gateway on the module's runtime and registers the gateway
+// named in its settings, before its routes are mounted so no gateway can
+// connect first. The core's default organization exists by then.
+func build(ctx context.Context, rt modkit.Runtime) (*gwwire.Gateway, error) {
+	settings, err := gwconfig.Load(rt.Config)
 	if err != nil {
 		return nil, fmt.Errorf("ai-gateway settings: %w", err)
 	}
@@ -197,127 +176,48 @@ func Wire(core *wiring.AppParams) (*gwwire.Gateway, error) {
 	// before anything reads them (see gwsvc.SetGatewayManifestCacheBackend).
 	gwsvc.SetGatewayManifestCacheBackend(gwwire.ProvideGatewayManifestCacheBackend(settings))
 	gwsvc.SetAgentCORSDefaults(settings.AgentCORS)
-	opts := currentOptions()
-	return gwwire.Initialize(core, repositories.NewCoreReadAPI(core.DB), opts.GatewayConfigApplier, settings)
-}
-
-// Options are what a distribution injects into the gateway. The zero value
-// is the open-source behaviour, which cmd/amp uses.
-type Options struct {
-	// GatewayConfigApplier patches the gateway runtime config when an
-	// identity provider changes, keeping the gateway and the AMS mirror in
-	// sync. nil preserves the script-driven behaviour; cloud deployments
-	// inject an implementation. See gwsvc.GatewayConfigApplier.
-	GatewayConfigApplier gwsvc.GatewayConfigApplier
-}
-
-var options atomic.Pointer[Options]
-
-// Configure sets the gateway's options. A distribution's main calls it
-// before the server starts; the gateway reads them when it is built.
-func Configure(o Options) { options.Store(&o) }
-
-func currentOptions() Options {
-	if o := options.Load(); o != nil {
-		return *o
+	gw, err := gwwire.Initialize(rt.DB(), rt.Logger(), rt.Core(), settings)
+	if err != nil {
+		return nil, err
 	}
-	return Options{}
-}
-
-// Parts is what the built gateway adds to the server.
-func Parts(gw *gwwire.Gateway) *builtin.Parts {
-	w := &workers{gw: gw}
-	return &builtin.Parts{
-		Init:  w.seed,
-		Start: w.start,
-		Stop:  w.stop,
+	gw.LLMTemplateStore.Load(resources.BuiltInLLMProviderTemplates)
+	seedCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	if err := gw.DefaultGatewaySeeder.Seed(seedCtx); err != nil {
+		gw.Close()
+		return nil, fmt.Errorf("failed to register the default gateway: %w", err)
 	}
+	return gw, nil
 }
 
-type workers struct {
-	gw     *gwwire.Gateway
-	cancel []context.CancelFunc
-}
-
-// seed registers the gateway named in configuration before any gateway can
-// connect.
-func (w *workers) seed(ctx context.Context) error {
-	seedCtx, seedCancel := context.WithTimeout(ctx, time.Minute)
-	defer seedCancel()
-	if err := w.gw.DefaultGatewaySeeder.Seed(seedCtx); err != nil {
-		return fmt.Errorf("failed to register the default gateway: %w", err)
-	}
-	return nil
-}
-
-func (w *workers) start(ctx context.Context) error {
-	// Started unconditionally: it is a no-op for an org with no A2A agents.
-	for _, s := range []struct {
+// run runs the gateway's workers until ctx ends, when the module is disabled
+// or the server stops (after its servers have drained), then closes the
+// gateway's connections; the next activation builds a new one.
+func run(ctx context.Context, gw *gwwire.Gateway) error {
+	workers := []struct {
 		name  string
 		start func(context.Context) error
+		stop  func() error
 	}{
-		{"A2A card reconciler", w.gw.A2ACardReconciler.Start},
-		{"deployment timeout sweeper", w.gw.DeploymentTimeoutSweeper.Start},
-		{"reconcile worker", w.gw.ReconcileWorker.Start},
-	} {
-		c, cancel := context.WithCancel(ctx)
-		w.cancel = append(w.cancel, cancel)
-		if err := s.start(c); err != nil {
-			return fmt.Errorf("failed to start %s: %w", s.name, err)
+		{"A2A card reconciler", gw.A2ACardReconciler.Start, gw.A2ACardReconciler.Stop},
+		{"deployment timeout sweeper", gw.DeploymentTimeoutSweeper.Start, gw.DeploymentTimeoutSweeper.Stop},
+		{"reconcile worker", gw.ReconcileWorker.Start, gw.ReconcileWorker.Stop},
+	}
+	for i, w := range workers {
+		if err := w.start(ctx); err != nil {
+			for _, started := range workers[:i] {
+				_ = started.stop()
+			}
+			return fmt.Errorf("failed to start %s: %w", w.name, err)
 		}
 	}
-
-	// Load built-in LLM provider templates into memory.
-	if templates := resources.BuiltInLLMProviderTemplates; len(templates) == 0 {
-		slog.Warn("No built-in LLM templates defined")
-	} else {
-		w.gw.LLMTemplateStore.Load(templates)
-		slog.Info("Loaded built-in LLM provider templates into memory", "count", len(templates))
+	<-ctx.Done()
+	for _, w := range workers {
+		if err := w.stop(); err != nil {
+			slog.Error("error stopping "+w.name, "error", err)
+		}
 	}
+	gw.Close()
+	current.CompareAndSwap(gw, nil)
 	return nil
-}
-
-func (w *workers) stop(ctx context.Context) {
-	for _, cancel := range w.cancel {
-		cancel()
-	}
-	if err := w.gw.A2ACardReconciler.Stop(); err != nil {
-		slog.Error("error stopping A2A card reconciler", "error", err)
-	}
-	if err := w.gw.DeploymentTimeoutSweeper.Stop(); err != nil {
-		slog.Error("error stopping deployment timeout sweeper", "error", err)
-	}
-	if err := w.gw.ReconcileWorker.Stop(); err != nil {
-		slog.Error("error stopping reconcile worker", "error", err)
-	}
-
-	// Gateway WebSockets are hijacked connections, which server Shutdown
-	// neither waits for nor closes; the WebSocket manager closes them here.
-	// Shut down in a goroutine since it blocks.
-	wsDone := make(chan struct{})
-	if w.gw.WebSocketManager != nil {
-		go func() {
-			slog.Info("Shutting down WebSocket manager")
-			w.gw.WebSocketManager.Shutdown()
-			close(wsDone)
-		}()
-	} else {
-		close(wsDone)
-	}
-	select {
-	case <-wsDone:
-		slog.Info("WebSocket manager shutdown complete")
-	case <-ctx.Done():
-		slog.Warn("WebSocket manager shutdown timed out")
-	}
-
-	// Close EventHub after the servers drain, so events published by
-	// draining requests are still polled and delivered and the gateway
-	// registration prepared statement stays open, and after the WebSocket
-	// manager, so in-flight events are not dropped.
-	if w.gw.EventHub != nil {
-		if err := w.gw.EventHub.Close(); err != nil {
-			slog.Error("error closing EventHub", "error", err)
-		}
-	}
 }

@@ -96,7 +96,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 				mapped = append(mapped, m.EnvironmentUUID.String())
 				return nil
 			}
-			svc := NewPlatformGatewayService(repo, nil)
+			svc := NewPlatformGatewayService(repo)
 
 			resp, err := svc.RegisterSelfHostedGateway("org", input(functionalityType))
 
@@ -113,7 +113,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 
 	t.Run("regular is refused", func(t *testing.T) {
 		var created *gwmodels.Gateway
-		svc := NewPlatformGatewayService(registerRepo(&created, false), nil)
+		svc := NewPlatformGatewayService(registerRepo(&created, false))
 
 		_, err := svc.RegisterSelfHostedGateway("org", input("regular"))
 
@@ -124,7 +124,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 	t.Run("a missing or invalid handle is refused", func(t *testing.T) {
 		for _, handle := range []string{"", "  ", "Edge One", "-edge", "edge-", "ab", strings.Repeat("a", 65)} {
 			var created *gwmodels.Gateway
-			svc := NewPlatformGatewayService(registerRepo(&created, false), nil)
+			svc := NewPlatformGatewayService(registerRepo(&created, false))
 			in := input("ai")
 			in.Handle = handle
 
@@ -137,7 +137,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 
 	t.Run("a taken handle is a conflict", func(t *testing.T) {
 		var created *gwmodels.Gateway
-		svc := NewPlatformGatewayService(registerRepo(&created, true), nil)
+		svc := NewPlatformGatewayService(registerRepo(&created, true))
 
 		_, err := svc.RegisterSelfHostedGateway("org", input("ai"))
 
@@ -158,7 +158,7 @@ func TestListSelfHostedGatewaysFiltersByHostingAndOrg(t *testing.T) {
 			return nil, nil
 		},
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	_, err := svc.ListSelfHostedGateways("org-1", 10, 5)
 
@@ -196,7 +196,7 @@ func TestRequireSelfHosted(t *testing.T) {
 					return tt.stored, nil
 				},
 			}
-			svc := NewPlatformGatewayService(repo, nil)
+			svc := NewPlatformGatewayService(repo)
 
 			got, err := svc.RequireSelfHosted(uuid.NewString(), "org")
 
@@ -216,22 +216,11 @@ func TestRemoveGatewayFromEnvironment_SelfHostedRefused(t *testing.T) {
 		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		// TransactionFunc left nil: any repository mutation panics.
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	err := svc.RemoveGatewayFromEnvironment(context.Background(), gw.UUID.String(), uuid.NewString())
 
 	require.ErrorIs(t, err, gwerr.ErrGatewayEnvironmentFixed)
-}
-
-// panickingApplier fails the test by panicking on any call.
-type panickingApplier struct{}
-
-func (panickingApplier) ApplyIdentityProvider(context.Context, string, string, gwmodels.GatewayIdentityProvider) error {
-	panic("applier called for a self-hosted gateway")
-}
-
-func (panickingApplier) DeleteIdentityProvider(context.Context, string, string, string) error {
-	panic("applier called for a self-hosted gateway")
 }
 
 func TestIdentityProvider_SelfHostedIsNotFound(t *testing.T) {
@@ -240,7 +229,7 @@ func TestIdentityProvider_SelfHostedIsNotFound(t *testing.T) {
 		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return gw, nil },
 		// Every other func left nil: a repository mutation panics.
 	}
-	svc := NewPlatformGatewayService(repo, panickingApplier{})
+	svc := NewPlatformGatewayService(repo)
 
 	_, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp", "https://issuer", "https://issuer/jwks", "", false)
 	require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)

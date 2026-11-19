@@ -91,7 +91,7 @@ func TestVerifyToken_MalformedInputIsNotLogged(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			buf := captureSecurityLogs(t)
-			svc := NewPlatformGatewayService(&gwrepomocks.GatewayRepositoryMock{}, nil)
+			svc := NewPlatformGatewayService(&gwrepomocks.GatewayRepositoryMock{})
 			result, err := svc.VerifyToken(context.Background(), tc.token)
 			require.Error(t, err)
 			require.Nil(t, result)

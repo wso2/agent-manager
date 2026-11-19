@@ -66,7 +66,7 @@ func TestGetAPIKeysServesBothAgentKinds(t *testing.T) {
 	seedKey(gwmodels.KindRestAPI, otherEnvID)
 
 	controller := &gatewayInternalController{
-		gatewayService: gwsvc.NewPlatformGatewayService(gwrepo.NewGatewayRepo(gdb), nil),
+		gatewayService: gwsvc.NewPlatformGatewayService(gwrepo.NewGatewayRepo(gdb)),
 		apiKeyRepo:     gwrepo.NewAPIKeyRepo(gdb),
 	}
 	recorder := httptest.NewRecorder()
@@ -112,7 +112,7 @@ func newPullFixture(t *testing.T) pullFixture {
 	}))
 
 	gatewayRepo := gwrepo.NewGatewayRepo(gdb)
-	gatewayService := gwsvc.NewPlatformGatewayService(gatewayRepo, nil)
+	gatewayService := gwsvc.NewPlatformGatewayService(gatewayRepo)
 	token, err := gatewayService.RotateToken(gatewayID.String(), ouID)
 	require.NoError(t, err)
 	return pullFixture{

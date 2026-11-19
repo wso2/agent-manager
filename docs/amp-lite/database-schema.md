@@ -98,7 +98,7 @@ Unique: (org_id, name); (org_id, id) for child composite keys.
 
 ### Behaviour
 
-- Every start makes sure the default org exists (`DEFAULT_ORG_HANDLE`, `DEFAULT_ORG_OU_ID`) with its `default` environment; the core does this after the module host boots, so it works with or without modules. With `amp`, the gateway module then seeds the configured default gateway with its registration token, attached to the default environment, and keeps an existing gateway and token.
+- Every start makes sure the default org exists (`DEFAULT_ORG_HANDLE`, `DEFAULT_ORG_OU_ID`) with its `default` environment; the core does this before modules activate, so it works with or without modules and modules can rely on it. With `amp`, the gateway module then seeds the configured default gateway with its registration token, attached to the default environment, and keeps an existing gateway and token.
 - Orgs are never renamed or deleted. Creating an org creates its `default` environment in the same transaction, and its Thunder org unit; if Thunder fails, the org is not saved.
 - Deleting a project is refused while it still has agents, LLM proxies or MCP servers; the conflict names what is left. Its event subscriptions and its entries in event destinations' project lists are removed in the same transaction, before the project row.
 - Dropped from today's API: org `namespace`, project `deploymentPipeline`. There is no pipeline table.

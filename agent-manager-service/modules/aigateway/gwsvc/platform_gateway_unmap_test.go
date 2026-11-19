@@ -74,7 +74,7 @@ func agentLLMProxyUnmapCase(t *testing.T) unmapCase {
 
 func (c unmapCase) unmap(t *testing.T, env uuid.UUID) error {
 	t.Helper()
-	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(db.GetDB()), nil).WithEnvironmentGuard(c.core)
+	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(db.GetDB())).WithEnvironmentGuard(c.core)
 	return svc.RemoveGatewayFromEnvironment(context.Background(), c.gateway.String(), env.String())
 }
 

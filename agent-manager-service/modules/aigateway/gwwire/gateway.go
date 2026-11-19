@@ -14,10 +14,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Package gwwire builds the AI Gateway on the core's services.
+// Package gwwire builds the AI Gateway on its module runtime.
 package gwwire
 
 import (
+	"log/slog"
+	"time"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
@@ -65,4 +68,31 @@ type Gateway struct {
 	IdentityDirectory            *gwsvc.IdentityDirectory
 	Permissions                  *gwsvc.Permissions
 	Secrets                      *gwsecret.Store
+}
+
+// closeTimeout bounds closing the gateway's WebSockets, within the time the
+// module host gives a worker to return.
+const closeTimeout = 5 * time.Second
+
+// Close closes the gateway's WebSockets, which the server's shutdown neither
+// waits for nor closes (they are hijacked connections), and then its event
+// hub, so events published meanwhile are still delivered.
+func (g *Gateway) Close() {
+	if g.WebSocketManager != nil {
+		done := make(chan struct{})
+		go func() {
+			g.WebSocketManager.Shutdown()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(closeTimeout):
+			slog.Warn("WebSocket manager shutdown timed out")
+		}
+	}
+	if g.EventHub != nil {
+		if err := g.EventHub.Close(); err != nil {
+			slog.Error("error closing EventHub", "error", err)
+		}
+	}
 }

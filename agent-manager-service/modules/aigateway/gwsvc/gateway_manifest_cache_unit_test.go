@@ -54,7 +54,7 @@ func TestSaveGatewayPolicyManifestCachesWithoutWritingRow(t *testing.T) {
 		// UpdateGatewayFunc is left nil: calling it panics, which is the assertion that
 		// the push no longer writes the row.
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	manifest := policyManifest("mcp-auth", "v1")
 	require.NoError(t, svc.SaveGatewayPolicyManifest(context.Background(), gateway.UUID.String(), manifest))
@@ -163,7 +163,7 @@ func TestSaveGatewayPolicyManifestUnknownGateway(t *testing.T) {
 			return nil, nil
 		},
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	err := svc.SaveGatewayPolicyManifest(context.Background(), unknownID, map[string]interface{}{})
 	require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
@@ -189,7 +189,7 @@ func TestDeleteGatewayDropsItsCachedManifest(t *testing.T) {
 		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
 		DeleteFunc:                func(string, string) error { return nil },
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	require.NoError(t, svc.DeleteGateway(gateway.UUID.String(), gateway.OUID))
 
@@ -269,7 +269,7 @@ func TestDeleteGatewaySucceedsWhenManifestCacheFails(t *testing.T) {
 		DeleteFunc:                func(string, string) error { return nil },
 	}
 
-	require.NoError(t, NewPlatformGatewayService(repo, nil).DeleteGateway(gateway.UUID.String(), gateway.OUID))
+	require.NoError(t, NewPlatformGatewayService(repo).DeleteGateway(gateway.UUID.String(), gateway.OUID))
 }
 
 // requireKnownManifest asserts gatewayManifest reports want as the gateway's known manifest.

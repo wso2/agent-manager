@@ -156,7 +156,7 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 			return []*modkit.Environment{{ID: uuid.NewString(), Name: "dev"}}, nil
 		},
 	}
-	ctrl := gwctl.NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), ocClient, nil)
+	ctrl := gwctl.NewGatewayController(gwsvc.NewPlatformGatewayService(repo), ocClient, nil)
 	f.mux = http.NewServeMux()
 	RegisterGatewayRoutes(coreRouter{middleware.NewRouteRegistrar(f.mux, nil, f.audits)}, ctrl)
 	return f

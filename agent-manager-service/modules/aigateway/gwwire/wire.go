@@ -19,15 +19,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
-	"github.com/wso2/agent-manager/agent-manager-service/wiring"
-)
-
-// coreSet is what the gateway takes from the core.
-var coreSet = wire.NewSet(
-	wire.FieldsOf(
-		new(*wiring.AppParams),
-		"DB", "Logger",
-	),
 )
 
 var repositoryProviderSet = wire.NewSet(
@@ -114,12 +105,10 @@ var controllerProviderSet = wire.NewSet(
 	gwctl.NewEnvironmentGatewayController,
 )
 
-// Initialize builds the gateway on the core's services, reading core
-// resources through coreAPI. gatewayApplier patches the gateway runtime config
-// when an identity provider changes; nil keeps the script-driven behaviour.
-func Initialize(core *wiring.AppParams, coreAPI modkit.CoreAPI, gatewayApplier gwsvc.GatewayConfigApplier, settings gwconfig.Settings) (*Gateway, error) {
+// Initialize builds the gateway on the module's database handle and logger,
+// reading core resources through coreAPI.
+func Initialize(db *gorm.DB, logger *slog.Logger, coreAPI modkit.CoreAPI, settings gwconfig.Settings) (*Gateway, error) {
 	wire.Build(
-		coreSet,
 		repositoryProviderSet,
 		websocketProviderSet,
 		reconcileProviderSet,
@@ -239,10 +228,9 @@ func ProvideReconcileCore(
 // ProvidePlatformGatewayService makes each new gateway-environment mapping place the environment's artifacts, and
 // refuses to remove a mapping while the gateway serves the environment's artifacts.
 func ProvidePlatformGatewayService(
-	gatewayRepo gwrepo.GatewayRepository, gatewayApplier gwsvc.GatewayConfigApplier, worker *reconcile.Worker,
-	core *reconcile.Core, s gwconfig.Settings,
+	gatewayRepo gwrepo.GatewayRepository, worker *reconcile.Worker, core *reconcile.Core, s gwconfig.Settings,
 ) *gwsvc.PlatformGatewayService {
-	return gwsvc.NewPlatformGatewayService(gatewayRepo, gatewayApplier).WithEnvironmentPlacer(worker).
+	return gwsvc.NewPlatformGatewayService(gatewayRepo).WithEnvironmentPlacer(worker).
 		WithEnvironmentGuard(core).WithFailureSettings(s.Failure)
 }
 

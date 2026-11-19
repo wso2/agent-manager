@@ -47,7 +47,7 @@ func TestRegisterGateway_PersistsTrimmedRuntimeURL(t *testing.T) {
 			return nil
 		},
 	}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	resp, err := svc.RegisterGateway("org", "gw1", "GW", "", "https://ext.example.com",
 		"  "+testRuntimeURL+"  ", false, "BOTH", nil, nil, gwmodels.GatewayHostingManaged)
@@ -61,7 +61,7 @@ func TestRegisterGateway_PersistsTrimmedRuntimeURL(t *testing.T) {
 func TestRegisterGateway_InvalidRuntimeURLRejectedBeforeAnyWrite(t *testing.T) {
 	// Every mock func left nil: reaching the repository at all panics the test.
 	repo := &gwrepomocks.GatewayRepositoryMock{}
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	_, err := svc.RegisterGateway("org", "gw1", "GW", "", "https://ext.example.com",
 		"http://exfil.dev:53", false, "BOTH", nil, nil, gwmodels.GatewayHostingManaged)
@@ -91,7 +91,7 @@ func updateRuntimeURLRepo(
 
 func TestUpdateGateway_RuntimeURLOmittedLeavesStoredValue(t *testing.T) {
 	repo, id, updated := updateRuntimeURLRepo(t, testRuntimeURL)
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 
 	resp, err := svc.UpdateGateway(id, "org", nil, nil, nil, nil, nil)
 
@@ -102,7 +102,7 @@ func TestUpdateGateway_RuntimeURLOmittedLeavesStoredValue(t *testing.T) {
 
 func TestUpdateGateway_ValidRuntimeURLIsStoredTrimmed(t *testing.T) {
 	repo, id, updated := updateRuntimeURLRepo(t, "")
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 	next := "  http://runtime.acme-dev.svc:22893  "
 
 	resp, err := svc.UpdateGateway(id, "org", nil, nil, nil, nil, &next)
@@ -116,7 +116,7 @@ func TestUpdateGateway_ValidRuntimeURLIsStoredTrimmed(t *testing.T) {
 // exercises the TrimSpace guard on the update path.
 func TestUpdateGateway_WhitespaceOnlyRuntimeURLClearsStoredValue(t *testing.T) {
 	repo, id, updated := updateRuntimeURLRepo(t, testRuntimeURL)
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 	blank := "   "
 
 	resp, err := svc.UpdateGateway(id, "org", nil, nil, nil, nil, &blank)
@@ -128,7 +128,7 @@ func TestUpdateGateway_WhitespaceOnlyRuntimeURLClearsStoredValue(t *testing.T) {
 
 func TestUpdateGateway_InvalidRuntimeURLRejectedBeforeWrite(t *testing.T) {
 	repo, id, updated := updateRuntimeURLRepo(t, testRuntimeURL)
-	svc := NewPlatformGatewayService(repo, nil)
+	svc := NewPlatformGatewayService(repo)
 	bad := "http://exfil.dev:53"
 
 	_, err := svc.UpdateGateway(id, "org", nil, nil, nil, nil, &bad)

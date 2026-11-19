@@ -39,7 +39,7 @@ import (
 // failureSummarySvc builds the service under test over repo. gatewayApplier is
 // nil, which is the open-source shape and irrelevant to a read.
 func failureSummarySvc(repo gwrepo.GatewayRepository) *PlatformGatewayService {
-	return NewPlatformGatewayService(repo, nil)
+	return NewPlatformGatewayService(repo)
 }
 
 // summaryQuery is a valid query with both thresholds set, for tests that are

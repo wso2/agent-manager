@@ -111,7 +111,7 @@ func TestRotateGatewayToken_BodyOrgID(t *testing.T) {
 				},
 				CountActiveTokensFunc: func(_ string) (int, error) { return 2, nil },
 			}
-			ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
+			ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(gatewayRepo), nil, nil)
 
 			req, recorder := bodyOrgTestRequest(http.MethodPost, "/orgs/o1/gateways/gw-uuid/tokens", withBodyOrg("", tt.orgID))
 			req.SetPathValue("gatewayID", "gw-uuid")

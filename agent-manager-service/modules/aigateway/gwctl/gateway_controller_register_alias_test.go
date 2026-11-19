@@ -60,7 +60,7 @@ func newRegisterHarness() *registerHarness {
 			return []gwmodels.GatewayEnvironmentMapping{}, nil
 		},
 	}
-	h.ctrl = NewGatewayController(gwsvc.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
+	h.ctrl = NewGatewayController(gwsvc.NewPlatformGatewayService(gatewayRepo), nil, nil)
 	return h
 }
 
@@ -109,7 +109,7 @@ func TestRegisterGateway_DeprecatedAliasesDecodeAndNormalize(t *testing.T) {
 
 func TestRegisterGateway_UnknownGatewayTypeRejected(t *testing.T) {
 	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{} // no calls expected
-	svc := gwsvc.NewPlatformGatewayService(gatewayRepo, nil)
+	svc := gwsvc.NewPlatformGatewayService(gatewayRepo)
 	ctrl := NewGatewayController(svc, nil, nil)
 
 	body := `{"name":"gw-1","displayName":"Gateway","gatewayType":"SIDEWAYS","vhost":"gw.example.com"}`

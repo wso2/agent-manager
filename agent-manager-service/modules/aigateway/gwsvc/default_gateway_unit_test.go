@@ -34,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 )
 
 const seedOUID = "01900000-0000-7000-8000-000000000001"
@@ -45,17 +44,15 @@ func seedConfig(t *testing.T) (gwconfig.DefaultGateway, string) {
 	require.NoError(t, err)
 	return gwconfig.DefaultGateway{
 		Name: "default", DisplayName: "Default AI Gateway", Vhost: "http://gw.localhost:19080",
-		FunctionalityType: "BOTH", OrgOUID: seedOUID, OrgHandle: "default", Token: token,
+		FunctionalityType: "BOTH", OrgOUID: seedOUID, Token: token,
 	}, token
 }
 
 func seedPlatform(t *testing.T) *gwtest.Core {
 	t.Helper()
 	return &gwtest.Core{
-		GetEnvironmentFunc: func(ctx context.Context, ouID, envName string) (*modkit.Environment, error) {
-			resolved, ok := orgctx.GetResolvedOrg(ctx)
-			assert.True(t, ok, "the organization must be created under its handle")
-			assert.Equal(t, "default", resolved.OuHandle)
+		GetEnvironmentFunc: func(_ context.Context, ouID, envName string) (*modkit.Environment, error) {
+			assert.Equal(t, seedOUID, ouID)
 			assert.Equal(t, gwmodels.DefaultEnvironmentName, envName)
 			return &modkit.Environment{ID: uuid.NewString(), Name: envName}, nil
 		},
@@ -65,7 +62,7 @@ func seedPlatform(t *testing.T) *gwtest.Core {
 func TestDefaultGatewaySeederDisabledDoesNothing(t *testing.T) {
 	// Every mock func is nil: any repository call panics.
 	repo := &gwrepomocks.GatewayRepositoryMock{}
-	s := NewDefaultGatewaySeeder(gwconfig.DefaultGateway{}, NewPlatformGatewayService(repo, nil), repo,
+	s := NewDefaultGatewaySeeder(gwconfig.DefaultGateway{}, NewPlatformGatewayService(repo), repo,
 		&gwtest.Core{}, discardLogger())
 	require.NoError(t, s.Seed(context.Background()))
 }
@@ -81,7 +78,7 @@ func TestDefaultGatewaySeederStoresTokenForExistingGateway(t *testing.T) {
 		},
 		CreateTokenFunc: func(tok *gwmodels.GatewayToken) error { stored = tok; return nil },
 	}
-	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo, nil), repo, seedPlatform(t), discardLogger())
+	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo), repo, seedPlatform(t), discardLogger())
 	require.NoError(t, s.Seed(context.Background()))
 
 	require.NotNil(t, stored)
@@ -105,7 +102,7 @@ func TestDefaultGatewaySeederKeepsMatchingToken(t *testing.T) {
 		},
 		// CreateTokenFunc left nil: storing the token again would panic.
 	}
-	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo, nil), repo, seedPlatform(t), discardLogger())
+	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo), repo, seedPlatform(t), discardLogger())
 	require.NoError(t, s.Seed(context.Background()))
 }
 
@@ -120,7 +117,7 @@ func TestDefaultGatewaySeederRefusesTokenOfAnotherGateway(t *testing.T) {
 			return other, nil
 		},
 	}
-	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo, nil), repo, seedPlatform(t), discardLogger())
+	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo), repo, seedPlatform(t), discardLogger())
 	require.ErrorContains(t, s.Seed(context.Background()), "belongs to another token")
 }
 
@@ -147,7 +144,7 @@ func TestDefaultGatewaySeederRegistersMissingGateway(t *testing.T) {
 			return nil
 		},
 	}
-	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo, nil), repo, seedPlatform(t), discardLogger())
+	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo), repo, seedPlatform(t), discardLogger())
 	require.NoError(t, s.Seed(context.Background()))
 	assert.Equal(t, 1, transactions, "the gateway is registered once")
 	assert.Len(t, repo.CreateTokenCalls(), 1)
@@ -157,7 +154,7 @@ func TestDefaultGatewaySeederRejectsMalformedToken(t *testing.T) {
 	cfg, _ := seedConfig(t)
 	cfg.Token = "not-a-token"
 	repo := &gwrepomocks.GatewayRepositoryMock{}
-	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo, nil), repo, &gwtest.Core{}, discardLogger())
+	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo), repo, &gwtest.Core{}, discardLogger())
 	require.ErrorContains(t, s.Seed(context.Background()), "default gateway token")
 }
 
