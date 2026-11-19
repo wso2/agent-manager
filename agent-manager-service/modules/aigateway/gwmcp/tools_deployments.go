@@ -23,8 +23,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // input structs
@@ -48,7 +48,7 @@ func (t *Tools) registerDeploymentTools(reg Registrar) {
 			"project_name": stringProperty("Required. Project name where the agent exists."),
 			"agent_name":   stringProperty("Required. Name of the agent to check deployments for."),
 		}, []string{"project_name", "agent_name"}),
-	}, gwaudit.DeploymentRead, listDeployments(t.Deployments), rbac.AgentRead)
+	}, gwaudit.DeploymentRead, listDeployments(t.Deployments), gwperm.AgentRead)
 }
 
 func listDeployments(handler DeploymentToolsetHandler) func(context.Context, listDeploymentsInput) (any, error) {

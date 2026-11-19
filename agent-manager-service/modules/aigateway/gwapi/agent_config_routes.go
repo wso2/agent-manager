@@ -19,66 +19,65 @@ package gwapi
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // RegisterAgentConfigRoutes registers all agent configuration routes
 func RegisterAgentConfigRoutes(rr Router, ctrl gwctl.AgentConfigurationController) {
 	rr.HandleFuncWithValidationAndAuthz(
 		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs",
-		rbac.AgentUpdate, rr.Track("amp.agent-development.bind-model-config", actionDims("created-model-config-binding"), ctrl.CreateAgentModelConfig),
+		gwperm.AgentUpdate, rr.Track("amp.agent-development.bind-model-config", actionDims("created-model-config-binding"), ctrl.CreateAgentModelConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs",
-		rbac.AgentRead, ctrl.ListAgentModelConfigs,
+		gwperm.AgentRead, ctrl.ListAgentModelConfigs,
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
-		rbac.AgentRead, ctrl.GetAgentModelConfig,
+		gwperm.AgentRead, ctrl.GetAgentModelConfig,
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
-		rbac.AgentUpdate, rr.Track("amp.agent-development.bind-model-config", actionDims("updated-model-config-binding"), ctrl.UpdateAgentModelConfig),
+		gwperm.AgentUpdate, rr.Track("amp.agent-development.bind-model-config", actionDims("updated-model-config-binding"), ctrl.UpdateAgentModelConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
-		rbac.AgentDelete, rr.Track("amp.agent-development.bind-model-config", actionDims("deleted-model-config-binding"), ctrl.DeleteAgentModelConfig),
+		gwperm.AgentDelete, rr.Track("amp.agent-development.bind-model-config", actionDims("deleted-model-config-binding"), ctrl.DeleteAgentModelConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs",
-		rbac.AgentUpdate, rr.Track("amp.agent-development.bind-mcp-config", actionDims("created-mcp-config-binding"), ctrl.CreateAgentMCPConfig),
+		gwperm.AgentUpdate, rr.Track("amp.agent-development.bind-mcp-config", actionDims("created-mcp-config-binding"), ctrl.CreateAgentMCPConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs",
-		rbac.AgentRead, ctrl.ListAgentMCPConfigs,
+		gwperm.AgentRead, ctrl.ListAgentMCPConfigs,
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}",
-		rbac.AgentRead, ctrl.GetAgentMCPConfig,
+		gwperm.AgentRead, ctrl.GetAgentMCPConfig,
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}",
-		rbac.AgentUpdate, rr.Track("amp.agent-development.bind-mcp-config", actionDims("updated-mcp-config-binding"), ctrl.UpdateAgentMCPConfig),
+		gwperm.AgentUpdate, rr.Track("amp.agent-development.bind-mcp-config", actionDims("updated-mcp-config-binding"), ctrl.UpdateAgentMCPConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
 		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}",
-		rbac.AgentDelete, rr.Track("amp.agent-development.bind-mcp-config", actionDims("deleted-mcp-config-binding"), ctrl.DeleteAgentMCPConfig),
+		gwperm.AgentDelete, rr.Track("amp.agent-development.bind-mcp-config", actionDims("deleted-mcp-config-binding"), ctrl.DeleteAgentMCPConfig),
 	)
 
 	// Per-config MCP API keys (external agents): the key an agent uses to call its
 	// MCP server through the gateway, scoped to a configuration + environment.
 	rr.HandleFuncWithValidationAndAuthz(
 		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys",
-		rbac.AgentRead, ctrl.ListMCPConfigAPIKeys,
+		gwperm.AgentRead, ctrl.ListMCPConfigAPIKeys,
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
@@ -100,7 +99,7 @@ func RegisterAgentConfigRoutes(rr Router, ctrl gwctl.AgentConfigurationControlle
 	// LLM provider through the gateway, scoped to a configuration + environment.
 	rr.HandleFuncWithValidationAndAuthz(
 		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys",
-		rbac.AgentRead, ctrl.ListLLMConfigAPIKeys,
+		gwperm.AgentRead, ctrl.ListLLMConfigAPIKeys,
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(

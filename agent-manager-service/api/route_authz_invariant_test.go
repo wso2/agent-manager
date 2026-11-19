@@ -486,6 +486,7 @@ var modulePermissionPackages = []string{filepath.Join("..", "modules", "aigatewa
 func forEachRouteRegistration(t *testing.T, fn func(routeRegistration)) {
 	t.Helper()
 
+	aliases := corePermissionAliases(t)
 	seen := 0
 	for _, dir := range routePackages {
 		forEachFile(t, dir, func(_ *token.FileSet, file *ast.File) {
@@ -512,6 +513,11 @@ func forEachRouteRegistration(t *testing.T, fn func(routeRegistration)) {
 						route.pattern = renderExpr(call.Args[0])
 					}
 					route.permissions = registrarPermissions(call)
+					for i, p := range route.permissions {
+						if core, ok := aliases[p]; ok {
+							route.permissions[i] = core
+						}
+					}
 					seen++
 					fn(route)
 					return true
@@ -586,10 +592,45 @@ func declaredPermissionScopes(t *testing.T) map[string]string {
 
 	scopes := map[string]string{}
 	collectPermissionConsts(t, filepath.Join("..", "rbac"), "", scopes)
+	core := map[string]string{}
+	for name, scope := range scopes {
+		core[scope] = name
+	}
 	for _, dir := range modulePermissionPackages {
-		collectPermissionConsts(t, dir, filepath.Base(dir)+".", scopes)
+		module := map[string]string{}
+		collectPermissionConsts(t, dir, filepath.Base(dir)+".", module)
+		for name, scope := range module {
+			if _, ok := core[scope]; !ok {
+				scopes[name] = scope
+			}
+		}
 	}
 	return scopes
+}
+
+// corePermissionAliases maps the constants of a module's permission package
+// that name a core permission (gwperm.AgentRead) to the core's constant
+// (AgentRead).
+func corePermissionAliases(t *testing.T) map[string]string {
+	t.Helper()
+
+	core := map[string]string{}
+	rbacScopes := map[string]string{}
+	collectPermissionConsts(t, filepath.Join("..", "rbac"), "", rbacScopes)
+	for name, scope := range rbacScopes {
+		core[scope] = name
+	}
+	aliases := map[string]string{}
+	for _, dir := range modulePermissionPackages {
+		module := map[string]string{}
+		collectPermissionConsts(t, dir, filepath.Base(dir)+".", module)
+		for name, scope := range module {
+			if c, ok := core[scope]; ok {
+				aliases[name] = c
+			}
+		}
+	}
+	return aliases
 }
 
 // collectPermissionConsts adds the Permission constants declared in dir to
@@ -607,7 +648,9 @@ func collectPermissionConsts(t *testing.T, dir, prefix string, scopes map[string
 				if !ok {
 					continue
 				}
-				if !isPermissionType(valueSpec.Type) {
+				// A module's permission constants are untyped strings
+				// naming a permission ("<resource>:<action>").
+				if !isPermissionType(valueSpec.Type) && (prefix == "" || valueSpec.Type != nil || !isPermissionValue(valueSpec)) {
 					continue
 				}
 				for i, name := range valueSpec.Names {
@@ -639,6 +682,25 @@ func isPermissionType(e ast.Expr) bool {
 		return ok && pkg.Name == "rbac" && e.Sel.Name == "Permission"
 	}
 	return false
+}
+
+// isPermissionValue is true when every value of spec is a string literal
+// naming a permission.
+func isPermissionValue(spec *ast.ValueSpec) bool {
+	if len(spec.Values) == 0 {
+		return false
+	}
+	for _, v := range spec.Values {
+		lit, ok := v.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return false
+		}
+		value, err := strconv.Unquote(lit.Value)
+		if err != nil || !strings.Contains(value, ":") || strings.Contains(value, " ") {
+			return false
+		}
+	}
+	return true
 }
 
 // moduleGrants is true when a compiled-in module grants the scope to a

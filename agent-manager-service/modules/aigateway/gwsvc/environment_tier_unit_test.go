@@ -75,7 +75,7 @@ func TestRequireEnvTier_ProductionEnvNeedsProductionScope(t *testing.T) {
 	require.ErrorIs(t, err, httpx.ErrForbidden)
 	require.NotNil(t, env, "the environment is returned even on a denial, so the caller can record it")
 	require.True(t, env.IsProduction)
-	require.Contains(t, err.Error(), gwperm.DeployProduction.Scope(),
+	require.Contains(t, err.Error(), gwperm.Scope(gwperm.DeployProduction),
 		"the error must name the scope the caller is missing")
 }
 
@@ -103,7 +103,7 @@ func TestRequireEnvTier_ProductionScopeAloneIsNotEnough(t *testing.T) {
 
 	_, err := svc.requireEnvTier(tierCtx(t, gwperm.DeployProduction), tierOUID, tierProdEnv)
 	require.ErrorIs(t, err, httpx.ErrForbidden)
-	require.Contains(t, err.Error(), gwperm.DeployNonProduction.Scope(),
+	require.Contains(t, err.Error(), gwperm.Scope(gwperm.DeployNonProduction),
 		"the missing floor must be the scope the error names")
 }
 
@@ -125,7 +125,7 @@ func TestRequireEnvTier_NonProductionEnvDeniedWithoutFloor(t *testing.T) {
 
 	_, err := svc.requireEnvTier(tierCtx(t, gwperm.DeployProduction), tierOUID, tierDevEnv)
 	require.ErrorIs(t, err, httpx.ErrForbidden)
-	require.Contains(t, err.Error(), gwperm.DeployNonProduction.Scope())
+	require.Contains(t, err.Error(), gwperm.Scope(gwperm.DeployNonProduction))
 }
 
 // TestRequireEnvTier_NoScopesDenies is the unscoped-token case.
@@ -200,7 +200,7 @@ func TestRequireEnvTier_DenialIsAudited(t *testing.T) {
 
 	event := record("ai-gateway:deploy.non-production")
 	require.Equal(t, "missing-environment-tier-scope", event.Details["reason"])
-	require.Equal(t, gwperm.DeployProduction.Scope(), event.Details["missingScope"])
+	require.Equal(t, gwperm.Scope(gwperm.DeployProduction), event.Details["missingScope"])
 }
 
 // tierChecker calls RequireEnvironmentTier on a fixed repository.

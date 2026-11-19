@@ -29,7 +29,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 type attachLLMProviderInput struct {
@@ -121,7 +120,7 @@ func (t *Tools) registerAgentConfigTools(reg Registrar) {
 				productionEnvironmentsNote, map[string]any{"type": "string"}),
 			"guardrails": arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),
 		}, []string{"project_name", "agent_name", "provider_id"}),
-	}, gwaudit.AgentConfigUpdate, attachLLMProvider(t), rbac.AgentUpdate)
+	}, gwaudit.AgentConfigUpdate, attachLLMProvider(t), gwperm.AgentUpdate)
 
 	addTool(reg, toolDef{
 		Name: "attach_mcp_proxy_to_agent",
@@ -138,7 +137,7 @@ func (t *Tools) registerAgentConfigTools(reg Registrar) {
 			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment, including ones the proxy is not deployed to yet. "+
 				productionEnvironmentsNote, map[string]any{"type": "string"}),
 		}, []string{"project_name", "agent_name", "proxy_id"}),
-	}, gwaudit.AgentConfigUpdate, attachMCPProxy(t), rbac.AgentUpdate)
+	}, gwaudit.AgentConfigUpdate, attachMCPProxy(t), gwperm.AgentUpdate)
 }
 
 func attachLLMProvider(t *Tools) func(context.Context, attachLLMProviderInput) (any, error) {
@@ -264,7 +263,7 @@ func attachConfig(
 	}
 	if len(skipped) > 0 {
 		out.Note += fmt.Sprintf(" Production environments %s were left out: configuring them needs %s.",
-			strings.Join(skipped, ", "), gwperm.DeployProduction.Scope())
+			strings.Join(skipped, ", "), gwperm.Scope(gwperm.DeployProduction))
 	}
 	if configType == gwmodels.AgentConfigTypeLLM {
 		out.Proxies = attachedProxies(resp, envNames)
@@ -318,7 +317,7 @@ func requireProductionTier(
 	}
 	return nil, nil, fmt.Errorf("%s: %s is required to configure production environment %s. "+
 		"Pass only non-production environments, or use a token with that scope",
-		toolName, gwperm.DeployProduction.Scope(), strings.Join(refused, ", "))
+		toolName, gwperm.Scope(gwperm.DeployProduction), strings.Join(refused, ", "))
 }
 
 // attachedProxies lists the per-agent LLM proxy each environment got, so a

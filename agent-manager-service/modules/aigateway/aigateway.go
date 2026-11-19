@@ -48,7 +48,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/resources"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -90,8 +89,8 @@ var ui = modkit.UI{Pages: []modkit.Page{
 	{ID: "ai-gateway/gateways", Permission: "gateways.read"},
 	{ID: "ai-gateway/llm-providers", Permission: "llm-providers.read"},
 	{ID: "ai-gateway/mcp-proxies", Permission: "mcp-servers.read"},
-	{ID: "ai-gateway/agent-security", Permission: string(rbac.AgentRead)},
-	{ID: "ai-gateway/configure-agent", Permission: string(rbac.AgentRead)},
+	{ID: "ai-gateway/agent-security", Permission: gwperm.AgentRead},
+	{ID: "ai-gateway/configure-agent", Permission: gwperm.AgentRead},
 	{ID: "agent-identity/agent-identity", Permission: "agent-identities.read"},
 }}
 

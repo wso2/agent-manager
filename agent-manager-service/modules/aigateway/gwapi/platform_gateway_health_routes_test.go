@@ -98,7 +98,7 @@ func callPlatformHealth(
 	req = req.WithContext(jwtassertion.ContextWithTokenClaimsAndScope(req.Context(),
 		&jwtassertion.TokenClaims{
 			Sub: "user-a", OuId: tokenOUID, OuHandle: "handle-a",
-			Scope: gwperm.Read.Scope(),
+			Scope: gwperm.Scope(gwperm.Read),
 		}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

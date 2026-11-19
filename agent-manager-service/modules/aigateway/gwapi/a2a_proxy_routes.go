@@ -19,18 +19,17 @@ package gwapi
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 const a2aProxyBase = "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy"
 
 // registerA2AProxyRoutes gates writes like the deploy-settings save and the card-source routes.
 func registerA2AProxyRoutes(rr Router, ctrl gwctl.A2AProxyController) {
-	rr.HandleFuncWithValidationAndAuthz("GET "+a2aProxyBase, rbac.AgentRead, ctrl.GetA2AProxy)
+	rr.HandleFuncWithValidationAndAuthz("GET "+a2aProxyBase, gwperm.AgentRead, ctrl.GetA2AProxy)
 	rr.HandleFuncWithValidationAndAllAuthz("PUT "+a2aProxyBase, ctrl.SetA2AProxy,
-		rbac.AgentUpdate, gwperm.DeployNonProduction)
+		gwperm.AgentUpdate, gwperm.DeployNonProduction)
 	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+a2aProxyBase, ctrl.DeleteA2AProxy,
-		rbac.AgentUpdate, gwperm.DeployNonProduction)
+		gwperm.AgentUpdate, gwperm.DeployNonProduction)
 	rr.HandleFuncWithValidationAndAllAuthz("POST "+a2aProxyBase+"/refresh", ctrl.RefreshA2AProxy,
-		rbac.AgentUpdate, gwperm.DeployNonProduction)
+		gwperm.AgentUpdate, gwperm.DeployNonProduction)
 }

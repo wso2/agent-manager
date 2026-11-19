@@ -25,16 +25,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtrack"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // Router takes the gateway's public routes. *middleware.RouteRegistrar is
 // one; NewModuleRouter mounts them on the module runtime at /m/ai-gateway.
 type Router interface {
-	HandleFuncWithValidationAndAuthz(pattern string, perm rbac.Permission, handler http.HandlerFunc)
-	HandleFuncWithValidationAndAllAuthz(pattern string, handler http.HandlerFunc, perms ...rbac.Permission)
-	HandleFuncWithValidationAndAnyAuthz(pattern string, handler http.HandlerFunc, perms ...rbac.Permission)
-	HandleFuncWithValidationAndPlatformAdminAuthz(pattern string, perm rbac.Permission, handler http.HandlerFunc)
+	HandleFuncWithValidationAndAuthz(pattern string, perm string, handler http.HandlerFunc)
+	HandleFuncWithValidationAndAllAuthz(pattern string, handler http.HandlerFunc, perms ...string)
+	HandleFuncWithValidationAndAnyAuthz(pattern string, handler http.HandlerFunc, perms ...string)
+	HandleFuncWithValidationAndPlatformAdminAuthz(pattern string, perm string, handler http.HandlerFunc)
 	// Track reports the requests handler serves as feature usage.
 	Track(feature string, dimensions map[string]any, handler http.HandlerFunc) http.HandlerFunc
 }
@@ -56,11 +55,11 @@ func NewModuleInternalRouter(rt modkit.Runtime) InternalRouter { return moduleIn
 
 type moduleRouter struct{ rt modkit.Runtime }
 
-func (m moduleRouter) HandleFuncWithValidationAndAuthz(pattern string, perm rbac.Permission, h http.HandlerFunc) {
+func (m moduleRouter) HandleFuncWithValidationAndAuthz(pattern string, perm string, h http.HandlerFunc) {
 	m.handle(pattern, perm, h)
 }
 
-func (m moduleRouter) HandleFuncWithValidationAndAllAuthz(pattern string, h http.HandlerFunc, perms ...rbac.Permission) {
+func (m moduleRouter) HandleFuncWithValidationAndAllAuthz(pattern string, h http.HandlerFunc, perms ...string) {
 	also := make([]string, 0, len(perms))
 	for _, p := range perms[1:] {
 		also = append(also, short(p))
@@ -68,7 +67,7 @@ func (m moduleRouter) HandleFuncWithValidationAndAllAuthz(pattern string, h http
 	m.handle(pattern, perms[0], h, modkit.AlsoRequires(also...))
 }
 
-func (m moduleRouter) HandleFuncWithValidationAndAnyAuthz(pattern string, h http.HandlerFunc, perms ...rbac.Permission) {
+func (m moduleRouter) HandleFuncWithValidationAndAnyAuthz(pattern string, h http.HandlerFunc, perms ...string) {
 	anyOf := make([]string, 0, len(perms))
 	for _, p := range perms {
 		anyOf = append(anyOf, short(p))
@@ -76,7 +75,7 @@ func (m moduleRouter) HandleFuncWithValidationAndAnyAuthz(pattern string, h http
 	m.handle(pattern, "", h, modkit.AnyPermission(anyOf...))
 }
 
-func (m moduleRouter) HandleFuncWithValidationAndPlatformAdminAuthz(pattern string, perm rbac.Permission, h http.HandlerFunc) {
+func (m moduleRouter) HandleFuncWithValidationAndPlatformAdminAuthz(pattern string, perm string, h http.HandlerFunc) {
 	m.handle(pattern, perm, h, modkit.PlatformAdmin())
 }
 
@@ -84,7 +83,7 @@ func (m moduleRouter) Track(feature string, dimensions map[string]any, h http.Ha
 	return gwtrack.Wrap(m.rt.Track, feature, dimensions, h)
 }
 
-func (m moduleRouter) handle(pattern string, perm rbac.Permission, h http.HandlerFunc, opts ...modkit.RouteOption) {
+func (m moduleRouter) handle(pattern string, perm string, h http.HandlerFunc, opts ...modkit.RouteOption) {
 	method, path, _ := strings.Cut(pattern, " ")
 	m.rt.Handle(method, path, short(perm), h, append(opts, routeOptions[pattern]...)...)
 }
@@ -104,7 +103,7 @@ const internalBase = "/api/internal/v1"
 
 // short is a permission's name as the module runtime takes it: the module's
 // own without its prefix, a core one as it is.
-func short(p rbac.Permission) string {
+func short(p string) string {
 	return strings.TrimPrefix(string(p), gwperm.Module+":")
 }
 

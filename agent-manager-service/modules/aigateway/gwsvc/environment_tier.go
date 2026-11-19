@@ -25,7 +25,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // RequireEnvironmentTier authorizes the caller to act on the named environment and
@@ -69,20 +68,20 @@ func RequireEnvironmentTier(
 	// it, so the missing scope reported is the first one the caller lacks —
 	// naming the production grant to someone who is also missing the floor would
 	// send them after the wrong permission.
-	required := []rbac.Permission{gwperm.DeployNonProduction}
+	required := []string{gwperm.DeployNonProduction}
 	if env.IsProduction {
 		required = append(required, gwperm.DeployProduction)
 	}
 	for _, perm := range required {
-		if perms.Can(ctx, strings.TrimPrefix(string(perm), gwperm.Module+":")) {
+		if perms.Can(ctx, strings.TrimPrefix(perm, gwperm.Module+":")) {
 			continue
 		}
 		// The request's own audit record carries the refusal: the 403 makes
 		// its outcome a denial, and these say which scope was missing.
 		modkit.AuditDetail(ctx, "reason", "missing-environment-tier-scope")
-		modkit.AuditDetail(ctx, "missingScope", perm.Scope())
+		modkit.AuditDetail(ctx, "missingScope", gwperm.Scope(perm))
 		return env, fmt.Errorf("%w: %s is required to act on environment %q",
-			httpx.ErrForbidden, perm.Scope(), envName)
+			httpx.ErrForbidden, gwperm.Scope(perm), envName)
 	}
 	return env, nil
 }

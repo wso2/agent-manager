@@ -360,17 +360,17 @@ func TestAuthzMiddlewarePutsPerRequestScopesOnContext(t *testing.T) {
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{
 		OuId:  testOrgName,
-		Scope: rbac.AgentBuild.Scope() + " " + gwperm.DeployProduction.Scope(),
+		Scope: rbac.AgentBuild.Scope() + " " + gwperm.Scope(gwperm.DeployProduction),
 	})
 	extra := &gomcp.RequestExtra{TokenInfo: &auth.TokenInfo{
-		Scopes: []string{rbac.AgentBuild.Scope(), gwperm.DeployNonProduction.Scope()},
+		Scopes: []string{rbac.AgentBuild.Scope(), gwperm.Scope(gwperm.DeployNonProduction)},
 		Extra:  map[string]any{TokenInfoOUIDKey: testOrgName},
 	}}
 
 	var sawProduction, sawNonProduction bool
 	next := func(handlerCtx context.Context, _ string, _ gomcp.Request) (gomcp.Result, error) {
-		sawProduction = jwtassertion.HasAllScopes(handlerCtx, []string{gwperm.DeployProduction.Scope()})
-		sawNonProduction = jwtassertion.HasAllScopes(handlerCtx, []string{gwperm.DeployNonProduction.Scope()})
+		sawProduction = jwtassertion.HasAllScopes(handlerCtx, []string{gwperm.Scope(gwperm.DeployProduction)})
+		sawNonProduction = jwtassertion.HasAllScopes(handlerCtx, []string{gwperm.Scope(gwperm.DeployNonProduction)})
 		return &gomcp.CallToolResult{}, nil
 	}
 	req := &gomcp.CallToolRequest{Params: &gomcp.CallToolParamsRaw{Name: "some_tool"}, Extra: extra}
@@ -394,12 +394,12 @@ func TestAuthzMiddlewareKeepsSessionScopesWithoutTokenInfo(t *testing.T) {
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{
 		OuId:  testOrgName,
-		Scope: rbac.AgentBuild.Scope() + " " + gwperm.DeployNonProduction.Scope(),
+		Scope: rbac.AgentBuild.Scope() + " " + gwperm.Scope(gwperm.DeployNonProduction),
 	})
 
 	var sawNonProduction bool
 	next := func(handlerCtx context.Context, _ string, _ gomcp.Request) (gomcp.Result, error) {
-		sawNonProduction = jwtassertion.HasAllScopes(handlerCtx, []string{gwperm.DeployNonProduction.Scope()})
+		sawNonProduction = jwtassertion.HasAllScopes(handlerCtx, []string{gwperm.Scope(gwperm.DeployNonProduction)})
 		return &gomcp.CallToolResult{}, nil
 	}
 	req := &gomcp.CallToolRequest{Params: &gomcp.CallToolParamsRaw{Name: "some_tool"}}

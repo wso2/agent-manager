@@ -19,18 +19,17 @@ package gwapi
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 const agentCardBase = "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card"
 
 // registerA2AAgentCardRoutes gates writes like the deploy-settings save.
 func registerA2AAgentCardRoutes(rr Router, ctrl gwctl.A2AAgentCardController) {
-	rr.HandleFuncWithValidationAndAuthz("GET "+agentCardBase, rbac.AgentRead, ctrl.GetAgentCard)
+	rr.HandleFuncWithValidationAndAuthz("GET "+agentCardBase, gwperm.AgentRead, ctrl.GetAgentCard)
 	rr.HandleFuncWithValidationAndAllAuthz("POST "+agentCardBase+"/refresh", ctrl.RefreshAgentCard,
-		rbac.AgentUpdate, gwperm.DeployNonProduction)
+		gwperm.AgentUpdate, gwperm.DeployNonProduction)
 	rr.HandleFuncWithValidationAndAllAuthz("PUT "+agentCardBase+"/source", ctrl.SetAgentCardSource,
-		rbac.AgentUpdate, gwperm.DeployNonProduction)
+		gwperm.AgentUpdate, gwperm.DeployNonProduction)
 	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+agentCardBase+"/source", ctrl.DeleteAgentCardSource,
-		rbac.AgentUpdate, gwperm.DeployNonProduction)
+		gwperm.AgentUpdate, gwperm.DeployNonProduction)
 }

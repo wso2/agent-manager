@@ -27,11 +27,11 @@ import (
 // TestEnvironmentTierScopes pins the two scopes the environment-tier axis is
 // built on, as ThunderID issues them.
 func TestEnvironmentTierScopes(t *testing.T) {
-	if got, want := DeployNonProduction.Scope(), "amp:ai-gateway:deploy.non-production"; got != want {
-		t.Errorf("DeployNonProduction.Scope() = %q, want %q", got, want)
+	if got, want := Scope(DeployNonProduction), "amp:ai-gateway:deploy.non-production"; got != want {
+		t.Errorf("Scope(DeployNonProduction) = %q, want %q", got, want)
 	}
-	if got, want := DeployProduction.Scope(), "amp:ai-gateway:deploy.production"; got != want {
-		t.Errorf("DeployProduction.Scope() = %q, want %q", got, want)
+	if got, want := Scope(DeployProduction), "amp:ai-gateway:deploy.production"; got != want {
+		t.Errorf("Scope(DeployProduction) = %q, want %q", got, want)
 	}
 }
 

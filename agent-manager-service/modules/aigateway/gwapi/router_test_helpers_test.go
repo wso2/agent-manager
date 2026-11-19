@@ -31,20 +31,20 @@ type coreRouter struct{ *middleware.RouteRegistrar }
 
 func (coreRouter) Track(_ string, _ map[string]any, h http.HandlerFunc) http.HandlerFunc { return h }
 
-func (c coreRouter) HandleFuncWithValidationAndAuthz(pattern string, perm rbac.Permission, h http.HandlerFunc) {
-	c.RouteRegistrar.HandleFuncWithValidationAndAuthz(pattern, perm, withOrgID(h))
+func (c coreRouter) HandleFuncWithValidationAndAuthz(pattern string, perm string, h http.HandlerFunc) {
+	c.RouteRegistrar.HandleFuncWithValidationAndAuthz(pattern, rbac.Permission(perm), withOrgID(h))
 }
 
-func (c coreRouter) HandleFuncWithValidationAndAllAuthz(pattern string, h http.HandlerFunc, perms ...rbac.Permission) {
-	c.RouteRegistrar.HandleFuncWithValidationAndAllAuthz(pattern, withOrgID(h), perms...)
+func (c coreRouter) HandleFuncWithValidationAndAllAuthz(pattern string, h http.HandlerFunc, perms ...string) {
+	c.RouteRegistrar.HandleFuncWithValidationAndAllAuthz(pattern, withOrgID(h), toPerms(perms)...)
 }
 
-func (c coreRouter) HandleFuncWithValidationAndAnyAuthz(pattern string, h http.HandlerFunc, perms ...rbac.Permission) {
-	c.RouteRegistrar.HandleFuncWithValidationAndAnyAuthz(pattern, withOrgID(h), perms...)
+func (c coreRouter) HandleFuncWithValidationAndAnyAuthz(pattern string, h http.HandlerFunc, perms ...string) {
+	c.RouteRegistrar.HandleFuncWithValidationAndAnyAuthz(pattern, withOrgID(h), toPerms(perms)...)
 }
 
-func (c coreRouter) HandleFuncWithValidationAndPlatformAdminAuthz(pattern string, perm rbac.Permission, h http.HandlerFunc) {
-	c.RouteRegistrar.HandleFuncWithValidationAndPlatformAdminAuthz(pattern, perm, withOrgID(h))
+func (c coreRouter) HandleFuncWithValidationAndPlatformAdminAuthz(pattern string, perm string, h http.HandlerFunc) {
+	c.RouteRegistrar.HandleFuncWithValidationAndPlatformAdminAuthz(pattern, rbac.Permission(perm), withOrgID(h))
 }
 
 func withOrgID(h http.HandlerFunc) http.HandlerFunc {
@@ -54,4 +54,12 @@ func withOrgID(h http.HandlerFunc) http.HandlerFunc {
 		}
 		h(w, r)
 	}
+}
+
+func toPerms(perms []string) []rbac.Permission {
+	out := make([]rbac.Permission, len(perms))
+	for i, p := range perms {
+		out[i] = rbac.Permission(p)
+	}
+	return out
 }

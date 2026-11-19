@@ -34,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // The gateway's toolsets, as its MCP tools call them.
@@ -118,7 +117,7 @@ type toolDef struct {
 // error the handler returns is shown to the caller, as the tool's own
 // messages tell the model how to correct the call. A tool whose action is a
 // read is not audited; any other is recorded under its action.
-func addTool[T any](reg Registrar, def toolDef, action gwaudit.Action, h func(ctx context.Context, in T) (any, error), perm rbac.Permission) {
+func addTool[T any](reg Registrar, def toolDef, action gwaudit.Action, h func(ctx context.Context, in T) (any, error), perm string) {
 	schema, err := json.Marshal(def.InputSchema)
 	if err != nil {
 		panic(fmt.Sprintf("mcp tool %s: %v", def.Name, err))
