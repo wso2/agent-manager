@@ -1917,35 +1917,30 @@
             },
             "guardrailCapabilities": {
               "additionalProperties": false,
-              "description": "Guardrail capability flags \u2014 enable policies that require external system configuration. OOTB policies are always shown regardless of these flags.",
+              "description": "Deprecated and ignored; every installed guardrail is shown in the console.",
               "properties": {
                 "awsBedrock": {
-                  "default": false,
-                  "description": "Offer AWS Bedrock guardrails. Allowed values: Unlocks: aws-bedrock-guardrail.",
+                  "description": "Deprecated and ignored.",
                   "title": "awsBedrock",
                   "type": "boolean"
                 },
                 "azureContentSafety": {
-                  "default": false,
-                  "description": "Offer Azure AI Content Safety guardrails. Allowed values: Unlocks: azure-content-safety-content-moderation.",
+                  "description": "Deprecated and ignored.",
                   "title": "azureContentSafety",
                   "type": "boolean"
                 },
                 "graniteGuardian": {
-                  "default": false,
-                  "description": "Offer Granite Guardian guardrails. Allowed values: Unlocks: granite-guardian-prompt-injection.",
+                  "description": "Deprecated and ignored.",
                   "title": "graniteGuardian",
                   "type": "boolean"
                 },
                 "nemoGuard": {
-                  "default": false,
-                  "description": "Offer NVIDIA NeMo Guardrails. Allowed values: Unlocks: nvidia-nemoguard-content-safety.",
+                  "description": "Deprecated and ignored.",
                   "title": "nemoGuard",
                   "type": "boolean"
                 },
                 "semanticGuardrails": {
-                  "default": false,
-                  "description": "Offer semantic guardrails. Allowed values: Unlocks: semantic-prompt-guard, semantic-cache.",
+                  "description": "Deprecated and ignored.",
                   "title": "semanticGuardrails",
                   "type": "boolean"
                 }

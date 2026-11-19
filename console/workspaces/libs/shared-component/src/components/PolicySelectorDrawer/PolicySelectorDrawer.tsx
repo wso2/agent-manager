@@ -53,7 +53,6 @@ import {
   type GuardrailDefinition,
   type GuardrailsCatalogResponse,
 } from "@agent-management-platform/api-client";
-import { globalConfig } from "@agent-management-platform/types";
 import { CodeBlock } from "../CodeBlock";
 import PolicyParameterEditor from "../PolicyParameterEditor/PolicyParameterEditor";
 import type { ParameterValues } from "../../utils/policyParameterEditor";
@@ -261,7 +260,7 @@ export function PolicySelectorDrawer({
     const policies = activeCatalogData?.data ?? [];
     return filterPolicies
       ? filterPolicies(policies)
-      : filterGuardrailPolicies(policies, globalConfig?.guardrailCapabilities);
+      : filterGuardrailPolicies(policies);
   }, [activeCatalogData, filterPolicies]);
 
   const hubAvailable = hubAvailableProp ?? activeCatalogData?.hubAvailable ?? true;

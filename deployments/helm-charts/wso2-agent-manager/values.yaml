@@ -654,14 +654,6 @@ console:
     # When maxRequestBodyBytes is set, the console also holds it under that value
     # (less 8 KB for the rest of the save), e.g. 48 KB with a 56 KB limit.
     fileMountMaxFileBytes: 0
-    # Guardrail capability flags — enable policies that require external system configuration.
-    # OOTB policies are always shown regardless of these flags.
-    guardrailCapabilities:
-      awsBedrock: false          # Unlocks: aws-bedrock-guardrail
-      azureContentSafety: false  # Unlocks: azure-content-safety-content-moderation
-      graniteGuardian: false     # Unlocks: granite-guardian-prompt-injection
-      nemoGuard: false           # Unlocks: nvidia-nemoguard-content-safety
-      semanticGuardrails: false  # Unlocks: semantic-prompt-guard, semantic-cache
     # Feature flags.
     featureFlags:
       # Shows the private Git repository option when building agents from source.
