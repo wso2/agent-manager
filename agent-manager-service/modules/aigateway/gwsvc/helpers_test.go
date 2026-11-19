@@ -96,6 +96,24 @@ func capturingAuditCtx(t *testing.T) (context.Context, *capturingSink, func()) {
 	}
 }
 
+// tierPermissions checks the module's permissions against the scopes on ctx,
+// as Runtime.Can does.
+func tierPermissions() *Permissions {
+	p := NewPermissions()
+	p.Use(func(ctx context.Context, perm string) bool {
+		return jwtassertion.HoldsAnyScope(ctx, rbac.Permission(gwperm.Module+":"+perm))
+	})
+	return p
+}
+
+// scopedCtx returns base carrying an audit request scope, as every API
+// request has, so modkit.AuditDetail and AuditResource land somewhere; the
+// returned func builds the record the scope would give action.
+func scopedCtx(base context.Context) (context.Context, func(action audit.Action) audit.Event) {
+	ctx, _ := audit.NewRequestScope(base)
+	return ctx, func(action audit.Action) audit.Event { return audit.BuildEvent(ctx, action) }
+}
+
 func findEvent(events []audit.Event, action audit.Action) (audit.Event, bool) {
 	for _, e := range events {
 		if e.Action == action {

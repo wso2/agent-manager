@@ -102,7 +102,7 @@ Every record carries these fields where they apply; empty fields are omitted.
 | `requiredPermission` | The scope that gated the call, recorded on allow and deny alike. |
 | `details` | Per-action fields. Only keys the action declares survive; the rest are dropped and listed under `_droppedKeys`. |
 
-Every action may also carry the shared detail keys from `audit/schema.go`: `envelope` (a coverage-tier record), `attemptEventId` (a `Begin` outcome record), `tool` (MCP surface), `suppressedCount` (rate-limited `authn:failure`) and `_droppedKeys`. `pathParams` and `repeatCount` are declared but not set by any emit site today.
+Every action may also carry the shared detail keys from `audit/schema.go`: `envelope` (a coverage-tier record), `attemptEventId` (a `Begin` outcome record), `tool` (MCP surface), `suppressedCount` (rate-limited `authn:failure`), `reason` and `missingScope` (a request a module refused for a scope only it can check, such as the AI Gateway's environment tier) and `_droppedKeys`. `pathParams` and `repeatCount` are declared but not set by any emit site today.
 
 ### Action taxonomy
 
@@ -112,7 +112,7 @@ Actions read as `<resource>:<verb>`. Most are the route's `rbac.Permission` verb
 - A permission naming a different resource than the operation acts on — `publish-kind` is gated by `agent-kind:create` but acts on an agent.
 - A permission narrower than the effect — `deployments/state` is gated by `agent:suspend` but also resumes.
 
-A module's actions carry its name: `<module>:<name>`, where the name is the module's permission or a declared action, often `<resource>.<verb>`. The AI Gateway's read `ai-gateway:<resource>.<verb>` (`ai-gateway:api-keys.rotate`, `ai-gateway:gateways.set-identity-provider`); its routes declare them, and its semantic events and their detail keys are in `modules/aigateway/gwaudit`.
+A module's actions carry its name: `<module>:<name>`, where the name is the module's permission or a declared action, often `<resource>.<verb>`. The AI Gateway's read `ai-gateway:<resource>.<verb>` (`ai-gateway:api-keys.rotate`, `ai-gateway:gateways.set-identity-provider`); its routes declare them, and the manifest declares their detail keys (`modules/aigateway/gwaudit`). A module writes no records of its own: its handlers name what they acted on and add declared details to the route's record (`modkit.AuditResource`, `modkit.AuditDetail`), which also takes the project and environment from the route's path.
 
 `requestPath` holds the **route pattern** on every record a route produced (see the one `authn:failure` exception above). Queries on it are exact, which is what makes deriving the human-readable action safe.
 
@@ -228,7 +228,7 @@ Authentication-failure records are rate-limited to 10 per source IP per minute, 
 
 Refusals are recorded on every surface, because a denied attempt is often more interesting than a successful one:
 
-- **REST** — all five deny sites in `middleware/authorization.go`, with the specific missing scope and the caller's scope count.
+- **REST** — all five deny sites in `middleware/authorization.go`, with the specific missing scope and the caller's scope count. A module route that refuses a request itself (the AI Gateway's environment tier, a body naming another organization) is recorded on the route's own record: outcome `deny`, with `reason` and, for a scope, `missingScope`.
 - **MCP** — insufficient scope, an unknown tool (a probe), and an organization mismatch (a token driving a tool against a different org than its session — the clearest attack signal this surface produces).
 - **Internal** — a missing or invalid gateway `api-key`, and a valid key presented for a *different* gateway, which is recorded separately because a valid credential used out of scope is a stronger signal than an invalid one. These are rate-limited per source, since gateways poll continuously and one with a stale key would otherwise emit forever.
 - **Edge** — rejected tokens, with a classified reason and no token material.
@@ -330,14 +330,16 @@ The operations below emit a record describing what actually changed, not just th
 | Gateways | `ai-gateway:gateways.create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
 | Internal | `ai-gateway:gateways.push-manifest`, `ai-gateway:api-keys.sync` (bulk sync, coalesced per gateway) | Fail-open |
 | Agent config | `ai-gateway:agent-configs.update` / `:delete` | Fail-open |
-| A2A card source | `ai-gateway:agents.set-card-source` / `ai-gateway:agents.remove-card-source` | Fail-open |
+| A2A card source | `ai-gateway:agents.set-card-source` | Fail-open |
+| A2A card source | `ai-gateway:agents.remove-card-source` (it removes the proxy and its stored secret too) | Fail-closed |
 | A2A proxy | `ai-gateway:agents.set-a2a-proxy` / `ai-gateway:agents.remove-a2a-proxy` | Fail-closed |
 | Per-config API keys | `ai-gateway:api-keys.create` / `:rotate` / `:revoke` (model-config, mcp-config) | Fail-closed |
 
 Three of these carry detail worth calling out:
 
 - **`agent:deploy` and `agent:promote` both record the target environment and `isProduction`.** The route declares only the tier floor whatever the agent actually lands on, so the declared permission cannot tell a sandbox push from a production one — only the record can. Both flags come free: the environment-tier check (`requireEnvTier`) has already resolved the environment by the time the record is opened. `agent:promote` records both ends of the move as well.
-- **`ai-gateway:agents.remove-a2a-proxy` is also written when the card source of a proxied environment is removed**, since that discards the stored upstream secret too; the card route's own `ai-gateway:agents.remove-card-source` is written alongside it.
+- **Removing the card source of a proxied environment discards the stored upstream secret too**, so `ai-gateway:agents.remove-card-source` is fail-closed and carries the proxy's `upstreamAuthHeader` and `upstreamAuthChanged`.
+- **AI Gateway fail-closed routes are marked on the route** (`modkit.AuditFailClosed`): the core writes the intent record before the handler runs and answers 503 when it cannot; the route's record is the outcome record.
 - **`role:grant-permission` records the granted scopes in full.** Scope strings are identifiers, not secrets, and "alice granted SRE deploy-production" is the question the event exists to answer.
 
 ## Action reference
@@ -367,7 +369,7 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `agent:promote` | deployment | 3 warning | `agentName`, `environment`, `isProduction`, `sourceEnv`, `targetEnv` |
 | `agent:read` | read | 1 info | — |
 | `ai-gateway:agents.remove-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
-| `ai-gateway:agents.remove-card-source` | config | 2 notice | `agentName` |
+| `ai-gateway:agents.remove-card-source` | config | 2 notice | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
 | `ai-gateway:agents.set-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
 | `ai-gateway:agents.set-card-source` | config | 1 info | `agentName`, `sourceUrl` |
 | `ai-gateway:api-keys.create` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
@@ -390,15 +392,15 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `event-subscription:delete` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
 | `event-subscription:update` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
 | `ai-gateway:gateway-tokens.revoke` | credential | 4 critical | `gatewayName`, `tokenId` |
-| `ai-gateway:gateway-tokens.rotate` | credential | 4 critical | `expiresAt`, `gatewayName`, `tokenId` |
-| `ai-gateway:gateways.assign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
-| `ai-gateway:gateways.create` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
-| `ai-gateway:gateways.delete` | config | 3 warning | `environment`, `gatewayName`, `gatewayType`, `vhost` |
+| `ai-gateway:gateway-tokens.rotate` | credential | 4 critical | `expiresAt`, `gatewayName`, `requestedOrgId`, `tokenId` |
+| `ai-gateway:gateways.assign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
+| `ai-gateway:gateways.create` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
+| `ai-gateway:gateways.delete` | config | 3 warning | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
 | `ai-gateway:gateways.push-manifest` | config | 1 info | `policyCount` |
 | `ai-gateway:gateways.remove-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
 | `ai-gateway:gateways.set-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
-| `ai-gateway:gateways.unassign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
-| `ai-gateway:gateways.update` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
+| `ai-gateway:gateways.unassign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
+| `ai-gateway:gateways.update` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
 | `git-secret:create` | credential | 4 critical | `secretType`, `username` |
 | `git-secret:delete` | credential | 4 critical | — |
 | `group:add-member` | identity | 4 critical | `groupName`, `memberCount`, `memberTypes`, `members` |
@@ -426,6 +428,8 @@ Read actions (`agent:read`, `project:read`, `environment:read`) are declared so 
 ### Sample records
 
 One record per action, produced by the audit emitter on `main` — `audit.Begin`/`Complete`, `Record`, `RecordSync`, `RecordAncillary`, the coverage envelope and `AuthFailureRecorder` — called with the same options, route pattern and permission as the production emit site named beside it, then serialized by the stdout sink's JSON handler. Each was checked for: class and severity matching the registry, no `_droppedKeys`, and for `Begin` actions an intent record with outcome `unknown` whose `eventId` the outcome record carries as `attemptEventId`. Only the outcome record is shown. Identifiers, names and timestamps are illustrative; every key and the shape of every value is real.
+
+The `ai-gateway:*` examples were captured before the gateway became a module, so their emit sites name the old core files. The records keep their keys, but they are now the route's own record: the handler adds the resource and details with `modkit.AuditResource` and `modkit.AuditDetail`, and for a fail-closed route the core writes the intent record before the handler runs.
 
 Not shown: the three read actions, which are never recorded, and `system:audit-dropped`, which nothing emits yet.
 

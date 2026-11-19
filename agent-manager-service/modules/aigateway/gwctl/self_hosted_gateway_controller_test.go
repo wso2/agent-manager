@@ -119,18 +119,6 @@ func TestSelfHostedGatewayRoutes_ManagedGatewayIsNotFound(t *testing.T) {
 	assert.NotContains(t, logs.String(), "level=ERROR")
 }
 
-// capturingRecorder keeps every audit event recorded through it.
-type capturingRecorder struct{ events []audit.Event }
-
-func (r *capturingRecorder) Record(_ context.Context, e audit.Event) { r.events = append(r.events, e) }
-
-func (r *capturingRecorder) RecordSync(_ context.Context, e audit.Event) error {
-	r.events = append(r.events, e)
-	return nil
-}
-
-func (r *capturingRecorder) Close(context.Context) error { return nil }
-
 // The create event records what was registered: the normalised kind and the stored (trimmed) vhost, not the
 // request's spelling of them.
 func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T) {
@@ -154,14 +142,14 @@ func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T)
 	body := `{"displayName":"Edge","handle":"edge","environment":"dev","functionalityType":"AI","endpoints":["  https://edge.example.com "]}`
 	req := httptest.NewRequest(http.MethodPost, "/orgs/acme/self-hosted-gateways", strings.NewReader(body))
 	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
-	recorder := &capturingRecorder{}
-	req = req.WithContext(audit.WithRecorder(req.Context(), recorder))
+	ctx, _ := audit.NewRequestScope(req.Context())
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	ctrl.RegisterSelfHostedGateway(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
-	require.Len(t, recorder.events, 1)
-	assert.Equal(t, "ai", recorder.events[0].Details["gatewayType"])
-	assert.Equal(t, "https://edge.example.com", recorder.events[0].Details["vhost"])
+	event := audit.BuildEvent(ctx, "ai-gateway:gateways.create")
+	assert.Equal(t, "ai", event.Details["gatewayType"])
+	assert.Equal(t, "https://edge.example.com", event.Details["vhost"])
 }

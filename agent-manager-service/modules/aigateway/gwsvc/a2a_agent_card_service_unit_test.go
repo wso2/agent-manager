@@ -86,7 +86,7 @@ func cardServiceWithHooks(
 		RequeueFunc:           func(context.Context, string, string, string, string) error { return nil },
 		DeleteForAgentEnvFunc: func(context.Context, string, string, string, string) error { return nil },
 	}
-	return NewA2AAgentCardService(oc, repo, hooks, testLogger()).(*a2aAgentCardService), repo, oc
+	return NewA2AAgentCardService(oc, repo, hooks, testLogger(), tierPermissions()).(*a2aAgentCardService), repo, oc
 }
 
 func TestGetA2AAgentCardReturnsTheStoredRow(t *testing.T) {

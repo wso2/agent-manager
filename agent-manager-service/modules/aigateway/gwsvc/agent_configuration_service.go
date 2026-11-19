@@ -32,10 +32,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -2957,18 +2956,10 @@ func (s *agentConfigurationService) recordConfigUpdate(ctx context.Context, conf
 		updatedFields = append(updatedFields, "environmentVariables")
 	}
 
-	// A real audit record. This previously wrote only an slog line labelled as
-	// an audit log: it carried no actor, no outcome and no durability, so it
-	// could not answer who changed the configuration.
-	audit.Record(
-		ctx, gwaudit.AgentConfigUpdate,
-		audit.Org(ouID),
-		audit.ResourceNamed("agent-config", configUUID.String(), configName),
-		audit.Project(projectName),
-		audit.Detail("agentName", agentName),
-		audit.Detail("configName", configName),
-		audit.Detail("updatedFields", updatedFields),
-	)
+	modkit.AuditResource(ctx, "agent-config", configUUID.String(), configName)
+	modkit.AuditDetail(ctx, "agentName", agentName)
+	modkit.AuditDetail(ctx, "configName", configName)
+	modkit.AuditDetail(ctx, "updatedFields", updatedFields)
 	s.logger.Info(
 		"Agent configuration updated successfully",
 		"configUUID", configUUID,
@@ -3170,15 +3161,10 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 		return err
 	}
 
-	audit.Record(
-		ctx, gwaudit.AgentConfigDelete,
-		audit.Org(ouID),
-		audit.ResourceNamed("agent-config", configUUID.String(), existingConfig.Name),
-		audit.Project(projectName),
-		audit.Detail("agentName", agentName),
-		audit.Detail("configName", existingConfig.Name),
-		audit.Detail("environmentCount", len(mappings)),
-	)
+	modkit.AuditResource(ctx, "agent-config", configUUID.String(), existingConfig.Name)
+	modkit.AuditDetail(ctx, "agentName", agentName)
+	modkit.AuditDetail(ctx, "configName", existingConfig.Name)
+	modkit.AuditDetail(ctx, "environmentCount", len(mappings))
 	s.logger.Info(
 		"Agent configuration deleted successfully",
 		"configUUID", configUUID,

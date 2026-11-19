@@ -106,7 +106,9 @@ func mountModuleRoute(rr *middleware.RouteRegistrar, r modhost.Route) {
 // webhooks.
 func modulePolicy(r modhost.Route) middleware.ModuleRoutePolicy {
 	return middleware.ModuleRoutePolicy{
-		Audit:            audit.RoutePolicy{Action: audit.Action(r.AuditAction), Read: r.AuditRead, Coalesce: r.AuditCoalesce},
+		Audit: audit.RoutePolicy{
+			Action: audit.Action(r.AuditAction), Read: r.AuditRead, Coalesce: r.AuditCoalesce, FailClosed: r.AuditFailClosed,
+		},
 		Event:            r.Event,
 		EventScope:       events.Scope(r.EventScope),
 		EventWithoutData: r.EventWithoutData,

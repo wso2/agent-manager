@@ -123,6 +123,8 @@ func RegisteredActions() []Action {
 type ModuleAction struct {
 	Class    ActionClass
 	Severity Severity
+	// Details are the detail keys the action's records may carry.
+	Details map[string]FieldKind
 }
 
 // moduleActions are the actions the active modules declare. The module host

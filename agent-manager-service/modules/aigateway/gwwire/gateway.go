@@ -62,4 +62,5 @@ type Gateway struct {
 	AgentConfigurationService    gwsvc.AgentConfigurationService
 	AgentGateway                 *gwsvc.AgentGatewayService
 	IdentityDirectory            *gwsvc.IdentityDirectory
+	Permissions                  *gwsvc.Permissions
 }

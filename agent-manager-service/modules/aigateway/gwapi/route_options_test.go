@@ -19,57 +19,24 @@ package gwapi
 import (
 	"testing"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
-// TestSemanticActionsMatchRouteActions keeps the record a service writes and
-// the record its REST route writes under one action, so "who rotated this
-// key" is one query whichever surface the call came from.
-func TestSemanticActionsMatchRouteActions(t *testing.T) {
-	pairs := map[string]audit.Action{
-		"POST /orgs/{orgName}/llm-providers/{id}/api-keys":                                                     gwaudit.APIKeyCreate,
-		"PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}":                                            gwaudit.APIKeyRotate,
-		"DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}":                                         gwaudit.APIKeyRevoke,
-		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test":       gwaudit.APIKeyIssueTest,
-		"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                                                     gwaudit.GatewayTokenRotate,
-		"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":                                         gwaudit.GatewayTokenRevoke,
-		"POST /orgs/{orgName}/gateways":                                                                        gwaudit.GatewayCreate,
-		"PUT /orgs/{orgName}/gateways/{gatewayID}":                                                             gwaudit.GatewayUpdate,
-		"DELETE /orgs/{orgName}/gateways/{gatewayID}":                                                          gwaudit.GatewayDelete,
-		"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":                                       gwaudit.GatewayAssignEnvironment,
-		"DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":                                     gwaudit.GatewayUnassignEnvironment,
-		"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":                                   gwaudit.GatewaySetIdentityProvider,
-		"DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":                                gwaudit.GatewayRemoveIdentityProvider,
-		"PUT /orgs/{orgName}/llm-providers/{providerId}":                                                       gwaudit.LLMProviderUpdate,
-		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}":                  gwaudit.AgentConfigUpdate,
-		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}":               gwaudit.AgentConfigDelete,
-		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source":    gwaudit.AgentSetCardSource,
-		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source": gwaudit.AgentRemoveCardSource,
-		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy":            gwaudit.AgentSetA2AProxy,
-		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy":         gwaudit.AgentRemoveA2AProxy,
+// TestCredentialRoutesAreFailClosed: a route whose effect lands outside the
+// database (a key or token a gateway receives, what a gateway trusts) must not
+// run unrecorded.
+func TestCredentialRoutesAreFailClosed(t *testing.T) {
+	failClosed := map[string]bool{
+		"api-keys.create": true, "api-keys.rotate": true, "api-keys.revoke": true,
+		"gateway-tokens.rotate": true, "gateway-tokens.revoke": true, "gateways.delete": true,
+		"gateways.set-identity-provider": true, "gateways.remove-identity-provider": true,
+		"agents.set-a2a-proxy": true, "agents.remove-a2a-proxy": true, "agents.remove-card-source": true,
 	}
-	for pattern, want := range pairs {
-		opts, ok := routeOptions[pattern]
-		if !ok {
-			t.Errorf("%s declares no route options", pattern)
-			continue
-		}
-		if got := audit.Action(gwperm.Module + ":" + modkit.Options(opts).AuditAction); got != want {
-			t.Errorf("%s records %q but its service records %q", pattern, got, want)
-		}
-	}
-	internal := map[string]audit.Action{
-		"GET /llm-providers/api-keys":         gwaudit.APIKeySync,
-		"POST /deployments/fetch-batch":       gwaudit.DeploymentSync,
-		"POST /artifacts/exists":              gwaudit.ArtifactCheckExists,
-		"POST /gateways/{gatewayId}/manifest": gwaudit.GatewayPushManifest,
-	}
-	for pattern, want := range internal {
-		if got := audit.Action(gwperm.Module + ":" + modkit.Options(internalRouteOptions[pattern]).AuditAction); got != want {
-			t.Errorf("%s records %q but its handler records %q", pattern, got, want)
+	for pattern, opts := range routeOptions {
+		o := modkit.Options(opts)
+		if o.AuditFailClosed != failClosed[o.AuditAction] {
+			t.Errorf("%s (%s): fail-closed is %v, want %v", pattern, o.AuditAction, o.AuditFailClosed, failClosed[o.AuditAction])
 		}
 	}
 }

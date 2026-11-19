@@ -52,6 +52,9 @@ type Route struct {
 	AuditAction   string
 	AuditRead     bool
 	AuditCoalesce time.Duration
+	// AuditFailClosed refuses the request when its intent record cannot be
+	// written.
+	AuditFailClosed bool
 	// Event, of EventScope, is the webhook event the route emits after a 2xx
 	// response.
 	Event            string

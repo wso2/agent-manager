@@ -17,11 +17,13 @@
 package gwsvc
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
@@ -34,7 +36,7 @@ import (
 // produced a record whose resource name and configName were both "". "Someone
 // changed a configuration" is not an answer; the record has to say which.
 func TestConfigUpdateRecordNamesTheConfigWithoutARename(t *testing.T) {
-	ctx, sink, flush := capturingAuditCtx(t)
+	ctx, record := scopedCtx(context.Background())
 
 	svc := &agentConfigurationService{logger: discardLogger()}
 	configUUID := uuid.New()
@@ -43,10 +45,7 @@ func TestConfigUpdateRecordNamesTheConfigWithoutARename(t *testing.T) {
 	svc.recordConfigUpdate(ctx, configUUID, "ou-1", "proj", "agent",
 		existing, gwmodels.UpdateAgentModelConfigRequest{Description: "new description"})
 
-	flush()
-
-	e, ok := findEvent(sink.captured(), gwaudit.AgentConfigUpdate)
-	require.True(t, ok, "a successful configuration update must be recorded")
+	e := record(audit.Action(gwaudit.AgentConfigUpdate))
 	require.Equal(t, "production-llm", e.ResourceName,
 		"resource name must fall back to the stored name when the request is not a rename")
 	require.Equal(t, "production-llm", e.Details["configName"],
@@ -58,7 +57,7 @@ func TestConfigUpdateRecordNamesTheConfigWithoutARename(t *testing.T) {
 // hiding a rename: when the request does carry a name, that is the name the
 // configuration now has, and it is what the record must show.
 func TestConfigUpdateRecordPrefersTheNewNameOnRename(t *testing.T) {
-	ctx, sink, flush := capturingAuditCtx(t)
+	ctx, record := scopedCtx(context.Background())
 
 	svc := &agentConfigurationService{logger: discardLogger()}
 	configUUID := uuid.New()
@@ -67,10 +66,7 @@ func TestConfigUpdateRecordPrefersTheNewNameOnRename(t *testing.T) {
 	svc.recordConfigUpdate(ctx, configUUID, "ou-1", "proj", "agent",
 		existing, gwmodels.UpdateAgentModelConfigRequest{Name: "new-name"})
 
-	flush()
-
-	e, ok := findEvent(sink.captured(), gwaudit.AgentConfigUpdate)
-	require.True(t, ok)
+	e := record(audit.Action(gwaudit.AgentConfigUpdate))
 	require.Equal(t, "new-name", e.ResourceName)
 	require.Equal(t, []string{"name"}, e.Details["updatedFields"])
 }
@@ -79,7 +75,7 @@ func TestConfigUpdateRecordPrefersTheNewNameOnRename(t *testing.T) {
 // request actually changed. environmentVariables was absent from the list, so a
 // record could report an update that named none of what it altered.
 func TestConfigUpdateRecordListsEveryChangedField(t *testing.T) {
-	ctx, sink, flush := capturingAuditCtx(t)
+	ctx, record := scopedCtx(context.Background())
 
 	svc := &agentConfigurationService{logger: discardLogger()}
 	configUUID := uuid.New()
@@ -93,10 +89,7 @@ func TestConfigUpdateRecordListsEveryChangedField(t *testing.T) {
 			EnvironmentVariables: []gwmodels.EnvironmentVariableConfig{{}},
 		})
 
-	flush()
-
-	e, ok := findEvent(sink.captured(), gwaudit.AgentConfigUpdate)
-	require.True(t, ok)
+	e := record(audit.Action(gwaudit.AgentConfigUpdate))
 	require.ElementsMatch(t,
 		[]string{"name", "description", "envMappings", "environmentVariables"},
 		e.Details["updatedFields"],
@@ -106,7 +99,7 @@ func TestConfigUpdateRecordListsEveryChangedField(t *testing.T) {
 // TestConfigUpdateRecordSurvivesAMissingExistingConfig guards the fallback
 // itself: recording must never panic on the path it exists to serve.
 func TestConfigUpdateRecordSurvivesAMissingExistingConfig(t *testing.T) {
-	ctx, sink, flush := capturingAuditCtx(t)
+	ctx, record := scopedCtx(context.Background())
 
 	svc := &agentConfigurationService{logger: discardLogger()}
 	require.NotPanics(t, func() {
@@ -114,8 +107,6 @@ func TestConfigUpdateRecordSurvivesAMissingExistingConfig(t *testing.T) {
 			nil, gwmodels.UpdateAgentModelConfigRequest{Description: "d"})
 	})
 
-	flush()
-
-	_, ok := findEvent(sink.captured(), gwaudit.AgentConfigUpdate)
-	require.True(t, ok, "a record must still be emitted, even unnamed")
+	require.Equal(t, "agent-config", record(audit.Action(gwaudit.AgentConfigUpdate)).ResourceType,
+		"the record must still name the configuration's kind, even unnamed")
 }

@@ -33,7 +33,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -61,9 +60,6 @@ type module struct{}
 func init() {
 	modkit.Register(module{})
 	builtin.Register(builtin.Bundle{Name: Name, Build: Build})
-	// The environment tier says where an action lands, never what it is.
-	audit.RegisterAxisPermissions(gwperm.DeployNonProduction, gwperm.DeployProduction)
-	// The scopes of the tools the gateway's toolsets add to /mcp.
 }
 
 func (module) Manifest() modkit.Manifest {
@@ -144,6 +140,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	gw.IdentityDirectory.Use(func() (identityv1.Directory, bool) {
 		return modkit.Lookup[identityv1.Directory](rt, identityv1.ID)
 	})
+	gw.Permissions.Use(rt.Can)
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
 	registerHooks(rt, gw.AgentGateway)

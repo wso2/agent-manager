@@ -17,6 +17,7 @@
 package gwctl
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,21 +60,19 @@ func withBodyOrg(fields, orgID string) string {
 	return "{" + fields + `"orgId":"` + orgID + `"}`
 }
 
-func bodyOrgTestRequest(method, target, body string) (*http.Request, *capturingRecorder) {
+func bodyOrgTestRequest(method, target, body string) (*http.Request, context.Context) {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
-	recorder := &capturingRecorder{}
 	ctx := middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: bodyOrgTestCallerOUID})
-	return req.WithContext(audit.WithRecorder(ctx, recorder)), recorder
+	ctx, _ = audit.NewRequestScope(ctx)
+	return req.WithContext(ctx), ctx
 }
 
-// assertBodyOrgDenied checks the refusal and its single audit record, which
-// names the org the body asked for.
-func assertBodyOrgDenied(t *testing.T, w *httptest.ResponseRecorder, recorder *capturingRecorder, requestedOrg string) {
+// assertBodyOrgDenied checks the refusal and the details the route's record
+// carries, which name the org the body asked for.
+func assertBodyOrgDenied(t *testing.T, w *httptest.ResponseRecorder, ctx context.Context, requestedOrg string) {
 	t.Helper()
 	assert.Equal(t, http.StatusForbidden, w.Code, "response body: %s", w.Body.String())
-	require.Len(t, recorder.events, 1)
-	denial := recorder.events[0]
-	assert.Equal(t, audit.ActionAuthzDeny, denial.Action)
+	denial := audit.BuildEvent(ctx, "ai-gateway:gateways.create")
 	assert.Equal(t, "body-org-mismatch", denial.Details["reason"])
 	assert.Equal(t, requestedOrg, denial.Details["requestedOrgId"])
 }

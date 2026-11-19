@@ -253,7 +253,7 @@ func TestCoreSpecHasNoModulePaths(t *testing.T) {
 // never called, and returns its ledgers.
 func mountedGateway(t *testing.T) (*modhost.Host, []audit.RouteMeta, []audit.RouteMeta) {
 	t.Helper()
-	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory()}
+	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory(), Permissions: gwsvc.NewPermissions()}
 	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
 	prev := aigateway.Current()
 	aigateway.SetCurrent(gw)

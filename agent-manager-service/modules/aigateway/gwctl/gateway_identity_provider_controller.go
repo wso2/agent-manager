@@ -22,9 +22,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -170,30 +169,21 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 	// because they decide where the signing keys come from and whether that
 	// fetch validates TLS — an issuer on its own does not say who can actually
 	// mint an accepted token.
-	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "UpsertGatewayIdentityProvider", "Failed to upsert identity provider", gwaudit.GatewaySetIdentityProvider,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceGateway, gatewayID, gatewayID),
-		audit.Detail("identityProviderName", name),
-		audit.Detail("issuer", derefString(req.Issuer)),
-		audit.Detail("jwksUri", derefString(req.JwksUri)),
-		audit.Detail("skipTlsVerify", derefBool(req.SkipTlsVerify)),
-	)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, gatewayID)
+	modkit.AuditDetail(ctx, "identityProviderName", name)
+	modkit.AuditDetail(ctx, "issuer", derefString(req.Issuer))
+	modkit.AuditDetail(ctx, "jwksUri", derefString(req.JwksUri))
+	modkit.AuditDetail(ctx, "skipTlsVerify", derefBool(req.SkipTlsVerify))
 
 	provider, err := c.gatewayService.UpsertIdentityProvider(
 		ctx, gatewayID, ouID, name,
 		derefString(req.Issuer), derefString(req.JwksUri), derefString(req.Description), derefBool(req.SkipTlsVerify),
 	)
 	if err != nil {
-		attempt.Complete(ctx, err)
 		log.Error("UpsertGatewayIdentityProvider: failed to upsert", "error", err)
 		handleGatewayErrors(w, err, "Failed to upsert identity provider")
 		return
 	}
-	attempt.Complete(ctx, nil)
 	httpx.WriteSuccessResponse(w, http.StatusOK, toSpecIdentityProvider(*provider))
 }
 
@@ -209,23 +199,14 @@ func (c *gatewayController) DeleteGatewayIdentityProvider(w http.ResponseWriter,
 	name := strings.TrimSpace(r.PathValue("name"))
 
 	ctx := r.Context()
-	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "DeleteGatewayIdentityProvider", "Failed to delete identity provider", gwaudit.GatewayRemoveIdentityProvider,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceGateway, gatewayID, gatewayID),
-		audit.Detail("identityProviderName", name),
-	)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, gatewayID)
+	modkit.AuditDetail(ctx, "identityProviderName", name)
 
 	if err := c.gatewayService.DeleteIdentityProvider(ctx, gatewayID, ouID, name); err != nil {
-		attempt.Complete(ctx, err)
 		log.Error("DeleteGatewayIdentityProvider: failed to delete", "error", err)
 		handleGatewayErrors(w, err, "Failed to delete identity provider")
 		return
 	}
-	attempt.Complete(ctx, nil)
 	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 

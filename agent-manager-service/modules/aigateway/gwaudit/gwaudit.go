@@ -16,18 +16,39 @@
 
 // Package gwaudit holds the AI Gateway module's audit actions and webhook
 // event types. Actions are recorded as ai-gateway:<resource>.<verb>; the
-// manifest declares them with their class and severity, and this package
-// registers the detail keys its semantic records may carry.
+// manifest declares them with their class, severity and the detail keys
+// their records may carry.
 package gwaudit
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
+// Action is the full name of one of the module's audit actions.
+type Action string
+
+// Resource kinds the module's records name with modkit.AuditResource. Kept as
+// constants so a query written against one route matches every other.
+const (
+	ResourceAPIKey  = "api-key"
+	ResourceGateway = "gateway"
+	ResourceAgent   = "agent"
+)
+
+// APIKeyOwner names the kind of resource an API key belongs to. Every API-key
+// route shares one action, so without it the trail cannot tell an agent key
+// from an LLM-provider key.
+const (
+	APIKeyOwnerAgent       = "agent"
+	APIKeyOwnerLLMProvider = "llm-provider"
+	APIKeyOwnerLLMProxy    = "llm-proxy"
+	APIKeyOwnerModelConfig = "model-config"
+	APIKeyOwnerMCPConfig   = "mcp-config"
+)
+
 // Actions are the module's audit actions, by their manifest names.
-var Actions = []modkit.AuditAction{
+var Actions = withDetails([]modkit.AuditAction{
 	{Name: "agent-configs.delete", Class: "config", Severity: "notice", Description: "Delete (agent configs)"},
 	{Name: "agent-configs.update", Class: "config", Severity: "info", Description: "Update (agent configs)"},
 	{Name: "agent-identities.add-group-member", Class: "credential", Severity: "critical", Description: "Add group member (agent identities)"},
@@ -94,52 +115,21 @@ var Actions = []modkit.AuditAction{
 	{Name: "scopes.create", Class: "identity", Severity: "critical", Description: "Create (scopes)"},
 	{Name: "scopes.delete", Class: "identity", Severity: "critical", Description: "Delete (scopes)"},
 	{Name: "scopes.update", Class: "identity", Severity: "critical", Description: "Update (scopes)"},
-}
+})
 
 // action is the full name of one of Actions.
-func action(name string) audit.Action { return audit.Action(gwperm.Module + ":" + name) }
+func action(name string) Action { return Action(gwperm.Module + ":" + name) }
 
-// The actions the gateway's services and MCP tools record themselves. Each
-// is also the action of the REST route for the same operation.
+// The actions the gateway's MCP tools are recorded under. Each is also the
+// action of the REST route for the same operation.
 var (
-	APIKeyCreate    = action("api-keys.create")
-	APIKeyRotate    = action("api-keys.rotate")
-	APIKeyRevoke    = action("api-keys.revoke")
-	APIKeyIssueTest = action("api-keys.issue-test")
-	// APIKeySync is a data-plane gateway pulling the key material it is
-	// entitled to.
-	APIKeySync = action("api-keys.sync")
-
-	GatewayTokenRotate = action("gateway-tokens.rotate")
-	GatewayTokenRevoke = action("gateway-tokens.revoke")
-
-	GatewayCreate                 = action("gateways.create")
-	GatewayUpdate                 = action("gateways.update")
-	GatewayDelete                 = action("gateways.delete")
-	GatewayAssignEnvironment      = action("gateways.assign-environment")
-	GatewayUnassignEnvironment    = action("gateways.unassign-environment")
-	GatewaySetIdentityProvider    = action("gateways.set-identity-provider")
-	GatewayRemoveIdentityProvider = action("gateways.remove-identity-provider")
-	GatewayPushManifest           = action("gateways.push-manifest")
-
-	// A gateway's startup sync.
-	DeploymentSync      = action("deployments.sync")
-	ArtifactCheckExists = action("artifacts.check-exists")
 	// DeploymentRead is listing an agent's gateway deployments.
-	DeploymentRead = action("deployments.read")
-
+	DeploymentRead    = action("deployments.read")
 	LLMProviderRead   = action("llm-providers.read")
 	LLMProviderUpdate = action("llm-providers.update")
 	MCPServerRead     = action("mcp-servers.read")
-
-	// Model and MCP configurations attached to an agent.
+	// AgentConfigUpdate is a model or MCP configuration attached to an agent.
 	AgentConfigUpdate = action("agent-configs.update")
-	AgentConfigDelete = action("agent-configs.delete")
-
-	AgentSetCardSource    = action("agents.set-card-source")
-	AgentRemoveCardSource = action("agents.remove-card-source")
-	AgentSetA2AProxy      = action("agents.set-a2a-proxy")
-	AgentRemoveA2AProxy   = action("agents.remove-a2a-proxy")
 )
 
 // Event is a webhook event type of the module, with the response body left
@@ -193,97 +183,61 @@ var Events = []modkit.EventType{
 	{Name: AgentAPIKeyRevoked, Scope: "agent", Description: "An API key was revoked."},
 }
 
-//nolint:gochecknoinits // The detail schemas are the audit package's registry.
-func init() {
-	keyFields := map[string]audit.FieldKind{
-		"ownerType":        audit.KindEnum,
-		"ownerName":        audit.KindName,
-		"keyName":          audit.KindName,
-		"gatewayCount":     audit.KindCount,
-		"gatewayConnected": audit.KindFlag,
-		"expiresAt":        audit.KindName,
+// withDetails gives each action the detail keys its records may carry.
+func withDetails(actions []modkit.AuditAction) []modkit.AuditAction {
+	keyFields := map[string]string{
+		"ownerType": "enum", "ownerName": "name", "keyName": "name",
+		"gatewayCount": "count", "gatewayConnected": "flag", "expiresAt": "name",
 	}
-	gatewayFields := map[string]audit.FieldKind{
-		"gatewayName": audit.KindName,
-		"gatewayType": audit.KindEnum,
-		"vhost":       audit.KindName,
-		"environment": audit.KindName,
+	gatewayFields := map[string]string{
+		"gatewayName": "name", "gatewayType": "enum", "vhost": "name", "environment": "name",
+		// A refused request whose body named another organization.
+		"requestedOrgId": "identifier",
 	}
 	// jwksUri and skipTlsVerify are the trust inputs themselves.
-	idpFields := map[string]audit.FieldKind{
-		"gatewayName":          audit.KindName,
-		"identityProviderName": audit.KindName,
-		"issuer":               audit.KindName,
-		"jwksUri":              audit.KindURL,
-		"skipTlsVerify":        audit.KindFlag,
+	idpFields := map[string]string{
+		"gatewayName": "name", "identityProviderName": "name", "issuer": "name",
+		"jwksUri": "url", "skipTlsVerify": "flag",
 	}
-	a2aProxyFields := map[string]audit.FieldKind{
-		"agentName":           audit.KindName,
-		"upstreamAuthHeader":  audit.KindName,
-		"upstreamAuthChanged": audit.KindFlag,
+	a2aProxyFields := map[string]string{
+		"agentName": "name", "upstreamAuthHeader": "name", "upstreamAuthChanged": "flag",
 	}
-	schemas := map[audit.Action]map[string]audit.FieldKind{
-		APIKeyCreate: keyFields,
-		APIKeyRotate: keyFields,
-		APIKeyRevoke: {
-			"ownerType": audit.KindEnum, "ownerName": audit.KindName,
-			"keyName": audit.KindName, "gatewayCount": audit.KindCount,
+	details := map[string]map[string]string{
+		"api-keys.create": keyFields,
+		"api-keys.rotate": keyFields,
+		"api-keys.revoke": {"ownerType": "enum", "ownerName": "name", "keyName": "name", "gatewayCount": "count"},
+		"api-keys.issue-test": {
+			"ownerType": "enum", "ownerName": "name", "keyName": "name", "expiresAt": "name", "rotated": "flag",
 		},
-		APIKeyIssueTest: {
-			"ownerType": audit.KindEnum, "ownerName": audit.KindName, "keyName": audit.KindName,
-			"expiresAt": audit.KindName, "rotated": audit.KindFlag,
+		"api-keys.sync": {"keyCount": "count"},
+		"gateway-tokens.rotate": {
+			"gatewayName": "name", "tokenId": "identifier", "expiresAt": "name", "requestedOrgId": "identifier",
 		},
-		APIKeySync:         {"keyCount": audit.KindCount},
-		GatewayTokenRotate: {"gatewayName": audit.KindName, "tokenId": audit.KindIdentifier, "expiresAt": audit.KindName},
-		GatewayTokenRevoke: {"gatewayName": audit.KindName, "tokenId": audit.KindIdentifier},
+		"gateway-tokens.revoke": {"gatewayName": "name", "tokenId": "identifier"},
 
-		GatewayCreate:                 gatewayFields,
-		GatewayUpdate:                 gatewayFields,
-		GatewayDelete:                 gatewayFields,
-		GatewayAssignEnvironment:      gatewayFields,
-		GatewayUnassignEnvironment:    gatewayFields,
-		GatewaySetIdentityProvider:    idpFields,
-		GatewayRemoveIdentityProvider: idpFields,
-		GatewayPushManifest:           {"policyCount": audit.KindCount},
+		"gateways.create":                   gatewayFields,
+		"gateways.update":                   gatewayFields,
+		"gateways.delete":                   gatewayFields,
+		"gateways.assign-environment":       gatewayFields,
+		"gateways.unassign-environment":     gatewayFields,
+		"gateways.set-identity-provider":    idpFields,
+		"gateways.remove-identity-provider": idpFields,
+		"gateways.push-manifest":            {"policyCount": "count"},
 
-		AgentConfigUpdate: {
-			"configName": audit.KindName, "configType": audit.KindEnum,
-			"agentName": audit.KindName, "updatedFields": audit.KindNameList,
+		"agent-configs.update": {
+			"configName": "name", "configType": "enum", "agentName": "name", "updatedFields": "name-list",
 		},
-		AgentConfigDelete: {
-			"configName": audit.KindName, "configType": audit.KindEnum,
-			"agentName": audit.KindName, "environmentCount": audit.KindCount,
+		"agent-configs.delete": {
+			"configName": "name", "configType": "enum", "agentName": "name", "environmentCount": "count",
 		},
-		AgentSetCardSource:    {"agentName": audit.KindName, "sourceUrl": audit.KindURL},
-		AgentRemoveCardSource: {"agentName": audit.KindName},
-		AgentSetA2AProxy:      a2aProxyFields,
-		AgentRemoveA2AProxy:   a2aProxyFields,
+		"agents.set-card-source": {"agentName": "name", "sourceUrl": "url"},
+		// Removing the source of a proxied environment removes the proxy too.
+		"agents.remove-card-source": a2aProxyFields,
+		"agents.set-a2a-proxy":      a2aProxyFields,
+		"agents.remove-a2a-proxy":   a2aProxyFields,
 	}
-	for _, a := range Actions {
-		full := action(a.Name)
-		class, severity := Classify(a)
-		audit.Register(full, class, severity)
-		fields := schemas[full]
-		if fields == nil {
-			// Route-level records carry no detail of their own.
-			fields = map[string]audit.FieldKind{}
-		}
-		audit.RegisterDetailSchema(full, fields)
+	for i := range actions {
+		actions[i].Details = details[actions[i].Name]
 	}
-}
-
-// Classify is an action's audit class and severity.
-func Classify(a modkit.AuditAction) (audit.ActionClass, audit.Severity) {
-	class := map[string]audit.ActionClass{
-		"credential": audit.ClassCredential, "identity": audit.ClassIdentity,
-		"deployment": audit.ClassDeployment, "read": audit.ClassRead,
-	}[a.Class]
-	if class == "" {
-		class = audit.ClassConfig
-	}
-	severity := map[string]audit.Severity{
-		"info": audit.SeverityInfo, "notice": audit.SeverityNotice,
-		"warning": audit.SeverityWarning, "critical": audit.SeverityCritical,
-	}[a.Severity]
-	return class, severity
+	return actions
 }

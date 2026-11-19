@@ -29,10 +29,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -205,19 +204,16 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	}
 }
 
-// refusedForeignBodyOrg records an authorization denial, writes a 403 and
-// reports true when a request body's optional orgId names an org other than
+// refusedForeignBodyOrg writes a 403, which the route's audit record shows as
+// a denial with its reason, and reports true when a request body's optional orgId names an org other than
 // the caller's. The org always comes from the token; the body field is
 // accepted only so that existing clients that send it keep working.
 func refusedForeignBodyOrg(w http.ResponseWriter, r *http.Request, bodyOrg *string, callerOUID string) bool {
 	if bodyOrg == nil || *bodyOrg == "" || strings.EqualFold(*bodyOrg, callerOUID) {
 		return false
 	}
-	middleware.RecordAuthzDeny(
-		r, "body-org-mismatch",
-		audit.Org(callerOUID),
-		audit.Detail("requestedOrgId", *bodyOrg),
-	)
+	modkit.AuditDetail(r.Context(), "reason", "body-org-mismatch")
+	modkit.AuditDetail(r.Context(), "requestedOrgId", *bodyOrg)
 	httpx.WriteErrorResponse(w, http.StatusForbidden, "orgId does not match the caller's organization")
 	return true
 }
@@ -289,15 +285,10 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		req.EnvironmentIds,
 		gwmodels.GatewayHostingManaged,
 	)
-	audit.Record(
-		ctx, gwaudit.GatewayCreate,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceGateway, gatewayResponseID(gateway), req.Name),
-		audit.Detail("gatewayName", req.Name),
-		audit.Detail("gatewayType", functionalityType),
-		audit.Detail("vhost", req.Vhost),
-		audit.Result(err),
-	)
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayResponseID(gateway), req.Name)
+	modkit.AuditDetail(ctx, "gatewayName", req.Name)
+	modkit.AuditDetail(ctx, "gatewayType", functionalityType)
+	modkit.AuditDetail(ctx, "vhost", req.Vhost)
 	if err != nil {
 		log.Error("RegisterGateway: failed to create gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to register gateway")
@@ -477,12 +468,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 	var properties *map[string]interface{}
 	var description *string // Description not in spec
 	gateway, err := c.gatewayService.UpdateGateway(gatewayID, ouID, description, req.DisplayName, req.IsCritical, properties, req.RuntimeUrl)
-	audit.Record(
-		ctx, gwaudit.GatewayUpdate,
-		audit.Org(ouID),
-		audit.Resource(audit.ResourceGateway, gatewayID),
-		audit.Result(err),
-	)
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
 	if err != nil {
 		log.Error("UpdateGateway: failed to update gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to update gateway")
@@ -502,22 +488,13 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "DeleteGateway", "Failed to delete gateway", gwaudit.GatewayDelete,
-		audit.Org(ouID),
-		audit.Resource(audit.ResourceGateway, gatewayID),
-	)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
 
 	if err := c.gatewayService.DeleteGateway(gatewayID, ouID); err != nil {
-		attempt.Complete(ctx, err)
 		log.Error("DeleteGateway: failed to delete gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to delete gateway")
 		return
 	}
-	attempt.Complete(ctx, nil)
 
 	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
@@ -545,14 +522,8 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 
 	// Assign via service
 	assignErr := c.gatewayService.AssignGatewayToEnvironment(gatewayID, resolvedEnvID)
-	audit.Record(
-		ctx, gwaudit.GatewayAssignEnvironment,
-		audit.Org(ouID),
-		audit.Resource(audit.ResourceGateway, gatewayID),
-		audit.Environment(resolvedEnvID),
-		audit.Detail("environment", resolvedEnvID),
-		audit.Result(assignErr),
-	)
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
+	modkit.AuditDetail(ctx, "environment", resolvedEnvID)
 	if err := assignErr; err != nil {
 		log.Error("AssignGatewayToEnvironment: failed to assign", "error", err)
 		handleGatewayErrors(w, err, "Failed to assign gateway to environment")
@@ -615,14 +586,8 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 
 	// Remove via service
 	removeErr := c.gatewayService.RemoveGatewayFromEnvironment(ctx, gatewayID, resolvedEnvID)
-	audit.Record(
-		ctx, gwaudit.GatewayUnassignEnvironment,
-		audit.Org(ouID),
-		audit.Resource(audit.ResourceGateway, gatewayID),
-		audit.Environment(resolvedEnvID),
-		audit.Detail("environment", resolvedEnvID),
-		audit.Result(removeErr),
-	)
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
+	modkit.AuditDetail(ctx, "environment", resolvedEnvID)
 	if err := removeErr; err != nil {
 		log.Error("RemoveGatewayFromEnvironment: failed to remove mapping", "error", err)
 		if errors.Is(err, utils.ErrGatewayServesEnvironment) {
@@ -754,28 +719,19 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	// Emitted here rather than in the service because RotateToken takes no
-	// context; the audit trail needs the caller identity that only the request
-	// context carries. A rotated gateway token is live credential material, so
-	// the operation is refused when it cannot be recorded.
-	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "RotateGatewayToken", "Failed to rotate gateway token", gwaudit.GatewayTokenRotate,
-		audit.Org(ouID),
-		audit.Resource(audit.ResourceGateway, gatewayID),
-	)
-	if !ok {
-		return
-	}
+	// Named here rather than in the service because RotateToken takes no
+	// context. A rotated gateway token is live credential material, so the
+	// route is fail-closed.
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
 
 	// Call service to rotate the token
 	tokenResp, err := c.gatewayService.RotateToken(gatewayID, ouID)
 	if err != nil {
-		attempt.Complete(ctx, err)
 		log.Error("RotateGatewayToken: failed to rotate token", "error", err)
 		handleGatewayErrors(w, err, "Failed to rotate gateway token")
 		return
 	}
-	attempt.Complete(ctx, nil, audit.Detail("tokenId", tokenResp.ID))
+	modkit.AuditDetail(ctx, "tokenId", tokenResp.ID)
 
 	// Convert to spec response
 	response := gwspec.GatewayTokenResponse{
@@ -798,23 +754,14 @@ func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Re
 
 	log.Info("RevokeGatewayToken: starting", "ouID", ouID, "gatewayID", gatewayID, "tokenID", tokenID)
 
-	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "RevokeGatewayToken", "Failed to revoke token", gwaudit.GatewayTokenRevoke,
-		audit.Org(ouID),
-		audit.Resource(audit.ResourceGateway, gatewayID),
-		audit.Detail("tokenId", tokenID),
-	)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
+	modkit.AuditDetail(ctx, "tokenId", tokenID)
 
 	if err := c.gatewayService.RevokeTokenByID(tokenID, gatewayID, ouID); err != nil {
-		attempt.Complete(ctx, err)
 		log.Error("RevokeGatewayToken: failed to revoke token", "error", err)
 		handleGatewayErrors(w, err, "Failed to revoke token")
 		return
 	}
-	attempt.Complete(ctx, nil)
 
 	log.Info("RevokeGatewayToken: token revoked successfully", "ouID", ouID, "gatewayID", gatewayID, "tokenID", tokenID)
 	w.WriteHeader(http.StatusNoContent)

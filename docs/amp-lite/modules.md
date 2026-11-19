@@ -92,7 +92,7 @@ return modkit.Manifest{
 - **Permissions:** an action (`widget-read`) or a resource and an action (`widgets.read`), each lowercase letters, digits and dashes. `widget-read` in module `testmod` becomes the permission `testmod:widget-read` and the token scope `amp:testmod:widget-read`; the AI Gateway's `llm-providers.read` becomes `ai-gateway:llm-providers.read` and `amp:ai-gateway:llm-providers.read`. Built-in modules may also declare older full names (`git-secret:read`), which are used as written. A permission's `DisplayName` names its action in ThunderID (`Name` when empty).
 - **RoleGrants:** predefined role name (`rbac.RoleAdmin` is `"Agent Manager Admin"`, also `Developer`, `AI Lead`, `Platform Engineer`) to the module's permission names. File sign-in grants them while the module is active. ThunderID roles are rendered by `amp init thunder` from every compiled-in module, so a new module's permissions reach ThunderID on the next `amp init`.
 - **Events:** the event types the module publishes, named `<module>.<event>`, each with a description. An event with a `Scope` (`org`, `project` or `agent`, the narrowest resource it is about) is also a webhook event: while the module is active it is listed in the event catalog (`GET /api/v1/orgs/{org}/events/event-types`) and organizations can subscribe to it. Routes raise it with `modkit.Emits` (see [Route options](#route-options)). An event without a scope only reaches module subscribers.
-- **AuditActions:** the audit actions the module's routes and tools name with `modkit.Audit`, each recorded as `<module>:<name>`, with a class (`credential`, `identity`, `deployment`, `config` or `read`; `config` when empty) and a severity (`info`, `notice`, `warning` or `critical`; `critical` for credential and identity actions and `info` otherwise when empty). An entry named after one of the module's permissions classifies the action that permission names.
+- **AuditActions:** the audit actions the module's routes and tools name with `modkit.Audit`, each recorded as `<module>:<name>`, with a class (`credential`, `identity`, `deployment`, `config` or `read`; `config` when empty) and a severity (`info`, `notice`, `warning` or `critical`; `critical` for credential and identity actions and `info` otherwise when empty). An entry named after one of the module's permissions classifies the action that permission names. `Details` lists the detail keys the action's records may carry, each with its kind (see [Audit records](#audit-records)).
 - **Workloads:** the parts of the module that run outside the binary. See [Workloads](#workloads).
 - **UI:** console pages the module turns on, listed by `GET /api/v1/ui-manifest`. From the gateway:
 
@@ -183,6 +183,7 @@ rt.Handle(http.MethodGet, "/secrets/{name}", "widget-read", read, modkit.Audit("
 
 - `modkit.Audit(action)` records the route under one of the manifest's `AuditActions` (or another of its permissions) instead of its permission, for a permission that gates several operations (create, rotate and revoke). On a read it also records the read, for reads that disclose credentials or security settings; other reads are not recorded. Every route that changes state is recorded either way.
 - `modkit.AuditCoalesce(window)` records the route at most once per caller per window, for routes a machine polls.
+- `modkit.AuditFailClosed()` makes the route refuse to run unrecorded: the core writes an intent record before the handler runs and answers 503 when it can't, and the route's record names that intent record (`attemptEventId`). Use it for routes whose effect lands outside the database, such as minting a credential a runtime receives.
 - `modkit.Emits(event)` raises a webhook event of the manifest's (one with a `Scope`) after a 2xx response, with the response body as its data; `modkit.EmitsWithoutData(event)` leaves the body out, for responses that carry a secret.
 - `modkit.AlsoRequires(perms...)` makes the route need these permissions too, all of them (an environment tier on top of the capability); the route's own permission still names its audit action.
 - `modkit.AnyPermission(perms...)` lets in a caller holding any one of them, on a route registered with no permission of its own; a route that changes state also names its action with `modkit.Audit`.
@@ -190,9 +191,26 @@ rt.Handle(http.MethodGet, "/secrets/{name}", "widget-read", read, modkit.Audit("
 
 A route naming an action or event its manifest doesn't declare keeps the module from activating.
 
+#### Audit records
+
+Every route that changes state gets one audit record, written by the core after the handler returns, with the caller, the outcome from the status code, and the project and environment from the path (`{projName}`, `{envName}`, `{envID}` or `{environmentId}`, else the `environment` query parameter). A handler, or a service it calls, adds to that record:
+
+```go
+modkit.AuditResource(ctx, "widget", w.ID, w.Name)
+modkit.AuditDetail(ctx, "colour", w.Colour)
+```
+
+- `modkit.AuditResource(ctx, kind, id, name)` names what the request acted on.
+- `modkit.AuditDetail(ctx, key, value)` adds a field. The key must be one the action declares in its manifest `Details`, with a kind: `identifier`, `name`, `email`, `name-list`, `count`, `flag`, `enum`, `fingerprint` or `url`. Undeclared keys are dropped when the record is written, a `url` loses its credentials and query, and values are strings, booleans, numbers or string lists, so a request payload cannot reach the trail. An unknown kind keeps the module from activating.
+- A handler that refuses a request for a reason only the module can check answers 403 and sets `reason` (and `missingScope` for a missing scope); every action may carry those two. The record's outcome is then a denial.
+
+The same calls work in an MCP tool, where they add to the tool call's record, and do nothing outside a request, so services stay testable without audit wiring.
+
 #### Fixed internal paths (temporary)
 
 `HandleInternalAt(method, absPath, h, opts...)` mounts a route at a fixed path below `/api/internal/v1` on the internal server, while the module is active (404 otherwise). The core doesn't authenticate its callers: the handler does, and a route that changes state names its audit action with `modkit.Audit`. It exists only so the AI Gateway can keep the paths its released controllers call (`/api/internal/v1/...`, with an `api-key` header) until they can register as workloads ([#2493](https://github.com/wso2/agent-manager/issues/2493)); it goes away then. `TestHandleInternalAtUsers` in `internal/modhost` lists the modules allowed to call it. Use `HandleInternal` instead.
+
+Since the core doesn't know who called such a route, the handler tells it with `modkit.AuditInternalCaller(ctx, modkit.InternalCaller{...})` once it has authenticated the caller, so the route's record names it. With `Refused` set it records an authentication failure instead, at most once a minute per source and reason; the credential itself is never passed. It goes away with `HandleInternalAt`.
 
 ### Background workers
 
@@ -399,7 +417,7 @@ What it already does as a module:
 - **Controller API:** the routes its gateway controllers call, and their WebSocket, stay at `/api/internal/v1/...` with the controllers' `api-key` header, mounted with `rt.HandleInternalAt` until the controllers can register as workloads ([#2493](https://github.com/wso2/agent-manager/issues/2493)).
 - **Tables:** its 32 tables are `mod_ai_gateway_*`, created by its own migrations, with no foreign keys into core; its finalize hooks clean up after agents, projects and environments ([database-schema.md](database-schema.md#gateway-module-tables)).
 - **Agent bindings:** an agent create or update carries the agent's LLM providers and MCP proxies as `extensions.ai-gateway` (`{modelConfig, mcpConfig, settings}`). The validate hook checks them, and the apply hook stores them as `pending` bindings in the agent's transaction. The `agent.created` event (and, on update, the module's own `ai-gateway.agent.bindings_changed`) then provisions each binding in the background: a retried, idempotent handler creates its LLM or MCP configuration, adopting one an earlier attempt already made, and marks it `ready`, or `failed` with the last error while it keeps retrying. `GET /m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations` returns the settings and each binding's state. Deleting the agent records a teardown in its transaction; the `agent.deleted` handler revokes and undeploys whatever was provisioned, pending bindings included, and retries until it is done. Until then a new agent with the same name is refused with 409.
-- **Audit and webhooks:** its routes declare their audit actions (`ai-gateway:<resource>.<verb>`, such as `ai-gateway:api-keys.rotate`) and webhook events (`ai-gateway.<type>`, such as `ai-gateway.llm_provider.created`) with `modkit.Audit`, `AuditCoalesce` and `Emits`; the manifest declares them (`gwaudit`).
+- **Audit and webhooks:** its routes declare their audit actions (`ai-gateway:<resource>.<verb>`, such as `ai-gateway:api-keys.rotate`) and webhook events (`ai-gateway.<type>`, such as `ai-gateway.llm_provider.created`) with `modkit.Audit`, `AuditCoalesce`, `AuditFailClosed` and `Emits`; the manifest declares them with their detail keys (`gwaudit`). Key, token, trust and A2A-proxy routes are fail-closed, and its handlers name what they acted on with `AuditResource` and `AuditDetail`.
 
 - **MCP tools:** its 11 tools are registered with `rt.MCPTool` from `Activate` (`gwmcp`), so they leave `/mcp` with the module, and the MCP endpoint's protected-resource metadata lists their scopes only while it is active.
 - **Agent identity:** its agent-identity pages and MCP proxy scopes reach the environment's directory through the core's `identity.directory/v1`, not a ThunderID client of their own.
@@ -560,6 +578,9 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | --- | --- |
 | [`Manifest.DisplayName`, `Permission.DisplayName`](#the-manifest) | ThunderID shows permissions to administrators, and a readable name is needed there. |
 | [`Manifest.AuditActions`](#routes) and the route options `modkit.Audit`, `AuditCoalesce` | Every core route is audited under a declared action; module routes keep that rule, and machine-polled routes need coalescing. |
+| [`AuditAction.Details`, `modkit.AuditResource`, `AuditDetail`](#audit-records) | A module's records say what was acted on and how, as the core's do; declaring each key with its kind keeps redaction working for module records. |
+| [Route option `modkit.AuditFailClosed`](#route-options) | Routes that mint or revoke credentials a runtime receives must not run unrecorded; the core writes the intent record because only it holds the recorder. |
+| [`modkit.AuditInternalCaller`](#fixed-internal-paths-temporary) | Time-boxed, with `HandleInternalAt`: those routes authenticate their callers themselves, so only the handler can name the caller or report a refused credential. |
 | [Scoped `Manifest.Events`](#events) and the route options `modkit.Emits`, `EmitsWithoutData` | Module events can be offered as webhooks, which needs a scope and a description per event. |
 | Route options [`AlsoRequires`, `AnyPermission`, `PlatformAdmin`](#routes) | Some gateway routes need several permissions, one of several, or the platform-admin organization; one permission per route could not express them. |
 | [`Runtime.Go`](#background-workers) | Modules need workers (reconcilers, sweepers) that start and stop with the module on every replica. |
@@ -590,6 +611,9 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [Modules may import `pkg/`](#leaf-libraries-pkg) as well as `modkit` | `pkg/` holds domain-free libraries with no core imports and no state, so they cannot bypass the contract; copying them into every module would let them drift. |
 | [The import rule](#what-a-module-may-import) applies to non-test files only | Module tests may use the core's test harnesses (`db/dbtest`, `internal/modhost`). |
 | Module permissions and audit actions may be `<resource>.<action>` (`ai-gateway:llm-providers.read`) | A module with many resources groups its permissions by resource; ThunderID accepts the dots. |
+| [A refusal only the module can check](#audit-records) (the gateway's environment tier) is recorded on the route's own record, as a denial with `reason` and `missingScope`, not as a separate `authz:deny` record | The route's record already carries the caller and the outcome; a second record would need the core's audit package in the module. |
+| [Module records take the project and environment from the path](#audit-records) | Handlers name only what they acted on; the path already says where. |
+| Module routes never treat a permission as an "axis": the route's own permission names its action, and `AlsoRequires` permissions never do | The core's axis-permission registry existed only for the gateway's environment tier, which `AlsoRequires` now expresses. |
 | Module secrets use owner kind `mod:<module>` in the core's `secrets` table | No schema change is needed. |
 | Internal routes answer 404 for a wrong method, not 405 | Module internal routes are mounted per path and method, and only while the module is active. |
 | No REST endpoint mints workload credentials | Credentials come from `amp module credential` (operators) or `rt.IssueCredential` (the module itself); nothing else needs one yet. |

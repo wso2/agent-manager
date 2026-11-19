@@ -82,14 +82,7 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		{"POST /orgs/{orgName}/identities/users/invite", nil, ActionUserInvite},
 		{"DELETE /orgs/{orgName}/identities/users/{userID}", nil, ActionUserDelete},
 		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments", nil, ActionAgentDeploy},
-		// The promote route declares only the tier floor, so the action can no
-		// longer be derived from its permission — actionOverrides supplies it.
-		// The audit vocabulary is unchanged: the trail still says agent:promote.
-		{
-			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote",
-			[]rbac.Permission{testTierAxis},
-			ActionAgentPromote,
-		},
+		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote", nil, ActionAgentPromote},
 		{
 			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state",
 			nil, ActionAgentChangeDeploymentState,

@@ -26,7 +26,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -117,7 +116,7 @@ type toolDef struct {
 // error the handler returns is shown to the caller, as the tool's own
 // messages tell the model how to correct the call. A tool whose action is a
 // read is not audited; any other is recorded under its action.
-func addTool[T any](reg Registrar, def toolDef, action audit.Action, h func(ctx context.Context, in T) (any, error), perm rbac.Permission) {
+func addTool[T any](reg Registrar, def toolDef, action gwaudit.Action, h func(ctx context.Context, in T) (any, error), perm rbac.Permission) {
 	schema, err := json.Marshal(def.InputSchema)
 	if err != nil {
 		panic(fmt.Sprintf("mcp tool %s: %v", def.Name, err))

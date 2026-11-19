@@ -45,6 +45,7 @@ import (
 // the agent routes that only exist with a gateway (deploy settings,
 // deployments, configurations).
 type AgentGatewayService struct {
+	perms                     *Permissions
 	db                        *gorm.DB
 	platform                  repositories.PlatformRepository
 	agentConfigRepo           gwrepo.AgentConfigRepository
@@ -76,8 +77,10 @@ func NewAgentGatewayService(
 	a2aCardRepo gwrepo.A2AAgentCardRepository,
 	exposure *AgentExposurePublisher,
 	logger *slog.Logger,
+	perms *Permissions,
 ) *AgentGatewayService {
 	return &AgentGatewayService{
+		perms:                     perms,
 		db:                        db,
 		platform:                  platform,
 		agentConfigRepo:           agentConfigRepo,
@@ -109,7 +112,7 @@ func (s *AgentGatewayService) LLM() llmv1.Proxy { return s }
 func (s *AgentGatewayService) MCP() mcpv1.Proxy { return s }
 
 func (s *AgentGatewayService) requireEnvTier(ctx context.Context, ouID, envName string) (*models.EnvironmentResponse, error) {
-	return RequireEnvironmentTier(ctx, s.platform, s.logger, ouID, envName)
+	return RequireEnvironmentTier(ctx, s.perms, s.platform, s.logger, ouID, envName)
 }
 
 // resolveResilienceTimeoutSeconds resolves the effective resilience timeout from

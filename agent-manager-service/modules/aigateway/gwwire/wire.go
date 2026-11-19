@@ -74,6 +74,7 @@ var serviceProviderSet = wire.NewSet(
 	gwsvc.NewLLMProxyDeploymentService,
 	gwsvc.NewMCPProxyService,
 	gwsvc.NewIdentityDirectory,
+	gwsvc.NewPermissions,
 	wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)),
 	gwsvc.NewMCPProxyScopeService,
 	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to

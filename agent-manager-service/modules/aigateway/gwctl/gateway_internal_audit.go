@@ -18,10 +18,9 @@ package gwctl
 
 import (
 	"net/http"
-	"sync"
-	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -29,69 +28,16 @@ import (
 // recordGatewayAuthFailure records a rejected gateway api-key.
 //
 // The internal server has no JWT middleware, so its authentication happens
-// inside each handler and previously produced no event at all. That left a
-// gateway-credential brute force with no signal anywhere: these keys grant
-// access to every API key the gateway is entitled to sync.
-//
-// The presented key is never recorded, only whether one was supplied and why it
-// was refused. Failures are rate-limited per source so a misconfigured gateway
-// retrying in a loop cannot flood the trail.
+// inside each handler. Without this a gateway-credential brute force would
+// leave no signal anywhere: these keys grant access to every API key the
+// gateway is entitled to sync. The presented key is never recorded, only
+// whether one was supplied and why it was refused; the core rate-limits the
+// records per source and reason.
 func recordGatewayAuthFailure(r *http.Request, reason, gatewayID string) {
-	ip := utils.ClientIP(r)
-	if !gatewayAuthLimiter.allow(ip + "|" + reason) {
-		return
-	}
-
-	audit.RecordAncillary(
-		r.Context(), audit.ActionAuthnFailure,
-		audit.SurfaceOpt(audit.SurfaceInternal),
-		audit.Actor(audit.ActorGateway, gatewayID, ""),
-		audit.AuthMethod("api-key"),
-		audit.OutcomeOpt(audit.OutcomeDeny),
-		audit.Status(http.StatusUnauthorized),
-		audit.Detail("reason", reason),
-		audit.Detail("authHeader", r.Header.Get("api-key") != ""),
-	)
-}
-
-// gatewayAuthLimiter bounds how often an identical gateway auth failure is
-// recorded. Gateways poll continuously, so one with a stale key would otherwise
-// emit an event every few seconds indefinitely.
-var gatewayAuthLimiter = &coalescer{window: time.Minute, seen: map[string]time.Time{}}
-
-// coalescer suppresses repeats of the same key within a window.
-//
-// Used for the internal surface, where gateways poll on a timer: without it the
-// bulk-sync reads and their failures would produce millions of near-identical
-// records and bury everything else.
-type coalescer struct {
-	mu     sync.Mutex
-	window time.Duration
-	seen   map[string]time.Time
-	// lastSweep bounds map growth; a scan runs at most once per window.
-	lastSweep time.Time
-}
-
-// allow reports whether this key should be recorded now.
-func (c *coalescer) allow(key string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	now := time.Now()
-	if now.Sub(c.lastSweep) >= c.window {
-		c.lastSweep = now
-		for k, at := range c.seen {
-			if now.Sub(at) >= c.window {
-				delete(c.seen, k)
-			}
-		}
-	}
-
-	if at, ok := c.seen[key]; ok && now.Sub(at) < c.window {
-		return false
-	}
-	c.seen[key] = now
-	return true
+	modkit.AuditInternalCaller(r.Context(), modkit.InternalCaller{
+		Kind: gwaudit.ResourceGateway, ID: gatewayID, AuthMethod: "api-key",
+		Refused: reason, CredentialPresent: r.Header.Get("api-key") != "",
+	})
 }
 
 // authenticateGateway resolves the gateway behind an internal-API request.
@@ -127,7 +73,7 @@ func (c *gatewayInternalController) authenticateGateway(
 	// Name the caller now that it is known. The coverage envelope is emitted
 	// after the handler returns and coalesces per caller; until this point the
 	// request carries only an address, which cannot tell two gateways apart.
-	audit.IdentifyActor(r.Context(), audit.ActorGateway, gatewayID, "api-key")
+	modkit.AuditInternalCaller(r.Context(), modkit.InternalCaller{Kind: gwaudit.ResourceGateway, ID: gatewayID, AuthMethod: "api-key"})
 
 	return gatewayIdentity{ID: gatewayID, OUID: gateway.OUID}, true
 }

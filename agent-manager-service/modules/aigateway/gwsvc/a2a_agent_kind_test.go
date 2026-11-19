@@ -102,7 +102,7 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	f.publisher = NewA2APublisher(tx, exposures, proxies, cards, artifacts, f.sync.repo, testLogger(),
 		NewAgentExposurePublisher(tx, exposures, artifacts, f.sync.repo, gateways, f.core, testLogger()), kind)
 	f.proxies = NewA2AProxyService(tx, proxies, cards, gwrepo.NewAgentConfigRepo(gormDB),
-		gwrepo.NewArtifactRepo(gormDB), f.publisher, oc, make([]byte, 32), testLogger())
+		gwrepo.NewArtifactRepo(gormDB), f.publisher, oc, make([]byte, 32), testLogger(), tierPermissions())
 	return f
 }
 

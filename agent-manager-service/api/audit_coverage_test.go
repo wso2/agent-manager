@@ -91,7 +91,7 @@ func stubAppParams(t *testing.T) *wiring.AppParams {
 // controllers that are never called.
 func stubBundles(t *testing.T, params *wiring.AppParams) builtin.Built {
 	t.Helper()
-	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory()}
+	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory(), Permissions: gwsvc.NewPermissions()}
 	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
 	return builtin.Built{
 		aigateway.Parts(gw),

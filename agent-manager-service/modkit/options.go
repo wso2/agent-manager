@@ -41,6 +41,9 @@ type RouteOptions struct {
 	// AuditCoalesce records the route at most once per caller per window, for
 	// routes a machine polls on a timer.
 	AuditCoalesce time.Duration
+	// AuditFailClosed writes the route's audit record before the handler
+	// runs and refuses the request when it cannot be written.
+	AuditFailClosed bool
 	// Event is the webhook event the route emits after a 2xx response: one of
 	// the module's Events that has a Scope.
 	Event string
@@ -71,6 +74,15 @@ func Audit(action string) RouteOption {
 // AuditCoalesce records a route at most once per caller per window.
 func AuditCoalesce(window time.Duration) RouteOption {
 	return func(o *RouteOptions) { o.AuditCoalesce = window }
+}
+
+// AuditFailClosed makes a route refuse to run unrecorded: the core writes an
+// intent record before the handler runs and answers 503 when it cannot, and
+// the route's record after the handler names that intent record. For routes
+// whose effect lands outside the core's database, such as minting a
+// credential a gateway receives.
+func AuditFailClosed() RouteOption {
+	return func(o *RouteOptions) { o.AuditFailClosed = true }
 }
 
 // Emits names the webhook event a route emits after a 2xx response, with the
@@ -134,6 +146,12 @@ type AuditAction struct {
 	// critical for credential and identity actions and info otherwise.
 	Severity    string `json:"severity,omitempty"`
 	Description string `json:"description,omitempty"`
+	// Details are the detail keys the action's records may carry (set with
+	// AuditDetail), each with its kind: "identifier", "name", "email",
+	// "name-list", "count", "flag", "enum", "fingerprint" or "url". A key
+	// not listed is dropped when the record is written; a "url" is reduced to
+	// its scheme, host and path.
+	Details map[string]string `json:"details,omitempty"`
 }
 
 // EventType is an event type a module publishes, named "<module>.<event>".

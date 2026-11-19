@@ -137,6 +137,7 @@ func (r *runtime) options(rt *Route, opts []modkit.RouteOption) error {
 		return fmt.Errorf("negative audit coalesce window %s", o.AuditCoalesce)
 	}
 	rt.AuditCoalesce = o.AuditCoalesce
+	rt.AuditFailClosed = o.AuditFailClosed
 	if o.Event != "" {
 		e, ok := r.mf.Event(o.Event)
 		if !ok || e.Scope == "" {

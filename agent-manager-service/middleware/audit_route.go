@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -62,6 +63,22 @@ func WithAudit(recorder audit.Recorder, meta audit.RouteMeta) func(http.HandlerF
 				RequiredPermission: audit.ScopesOf(meta.Perms),
 			})
 			ctx, scope := audit.NewRequestScope(ctx)
+			var scopeOpts []audit.Option
+			if meta.ScopeFromPath {
+				scopeOpts = pathScope(r)
+			}
+
+			var attempt *audit.Attempt
+			if meta.FailClosed {
+				opts := append([]audit.Option{audit.RequiredPermissions(meta.Perms...)}, scopeOpts...)
+				a, err := audit.Begin(ctx, meta.Action, opts...)
+				if err != nil {
+					httpx.WriteErrorResponse(w, http.StatusServiceUnavailable,
+						"The audit trail is unavailable, so the request was not run")
+					return
+				}
+				attempt = a
+			}
 
 			defer func() {
 				// RecovererOnPanic is the outermost middleware in the chain, so a
@@ -73,7 +90,7 @@ func WithAudit(recorder audit.Recorder, meta audit.RouteMeta) func(http.HandlerF
 					rec.setStatus(http.StatusInternalServerError)
 				}
 
-				emitEnvelope(ctx, recorder, meta, rec, scope, start)
+				emitEnvelope(ctx, recorder, meta, rec, scope, start, attempt, scopeOpts)
 
 				if panicked != nil {
 					panic(panicked)
@@ -119,7 +136,22 @@ func emitEnvelope(
 	rec *responseRecorder,
 	scope *audit.RequestScope,
 	start time.Time,
+	attempt *audit.Attempt,
+	scopeOpts []audit.Option,
 ) {
+	opts := append([]audit.Option{
+		audit.Status(rec.Status()),
+		audit.RequiredPermissions(meta.Perms...),
+		audit.Detail("envelope", true),
+	}, scopeOpts...)
+	if attempt != nil {
+		// A fail-closed route's record completes its intent record whatever
+		// else the request recorded.
+		e := audit.BuildEvent(ctx, meta.Action, append(opts, audit.Detail("attemptEventId", attempt.EventID()))...)
+		e.DurationMs = time.Since(start).Milliseconds()
+		recorder.Record(ctx, e)
+		return
+	}
 	if scope.Suppressed() {
 		return
 	}
@@ -136,14 +168,29 @@ func emitEnvelope(
 		return
 	}
 
-	e := audit.BuildEvent(
-		ctx, meta.Action,
-		audit.Status(rec.Status()),
-		audit.RequiredPermissions(meta.Perms...),
-		audit.Detail("envelope", true),
-	)
+	e := audit.BuildEvent(ctx, meta.Action, opts...)
 	e.DurationMs = time.Since(start).Milliseconds()
 	recorder.Record(ctx, e)
+}
+
+// pathScope names the project and environment a module route acts on from
+// its path parameters, or the environment query parameter.
+func pathScope(r *http.Request) []audit.Option {
+	var opts []audit.Option
+	if p := r.PathValue("projName"); p != "" {
+		opts = append(opts, audit.Project(p))
+	}
+	env := r.URL.Query().Get("environment")
+	for _, name := range []string{"envName", "envID", "environmentId"} {
+		if v := r.PathValue(name); v != "" {
+			env = v
+			break
+		}
+	}
+	if env != "" {
+		opts = append(opts, audit.Environment(env))
+	}
+	return opts
 }
 
 // routeCoalescer bounds how often a polled route is recorded per caller.

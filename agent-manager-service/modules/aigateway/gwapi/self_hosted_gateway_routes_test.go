@@ -33,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
@@ -71,13 +70,12 @@ func (c *auditCapture) reset() {
 	c.events = nil
 }
 
-// semanticEvent returns the event a handler emitted for action, ignoring the route
-// envelope the audit middleware writes for any request.
-func (c *auditCapture) semanticEvent(action audit.Action) (audit.Event, bool) {
+// named returns the record that names the resource the handler acted on.
+func (c *auditCapture) named() (audit.Event, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, e := range c.events {
-		if _, isEnvelope := e.Details["envelope"]; e.Action == action && !isEnvelope {
+		if e.ResourceID != "" {
 			return e, true
 		}
 	}
@@ -185,16 +183,16 @@ func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
 		body   string
 		perm   rbac.Permission
 		want   int
-		audit  audit.Action
+		named  bool
 	}{
-		{"list", http.MethodGet, "", "", gwperm.Read, http.StatusOK, ""},
-		{"create", http.MethodPost, "", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["https://edge.example.com"]}`, gwperm.Create, http.StatusCreated, gwaudit.GatewayCreate},
-		{"get", http.MethodGet, "/" + id, "", gwperm.Read, http.StatusOK, ""},
-		{"update", http.MethodPut, "/" + id, `{"description":"edge site"}`, gwperm.Update, http.StatusOK, gwaudit.GatewayUpdate},
-		{"list tokens", http.MethodGet, tokenPath, "", gwperm.TokenManage, http.StatusOK, ""},
-		{"rotate token", http.MethodPost, tokenPath, "", gwperm.TokenManage, http.StatusCreated, gwaudit.GatewayTokenRotate},
-		{"revoke token", http.MethodDelete, tokenPath + "/" + f.token.UUID.String(), "", gwperm.TokenManage, http.StatusNoContent, gwaudit.GatewayTokenRevoke},
-		{"delete", http.MethodDelete, "/" + id, "", gwperm.Delete, http.StatusNoContent, gwaudit.GatewayDelete},
+		{"list", http.MethodGet, "", "", gwperm.Read, http.StatusOK, false},
+		{"create", http.MethodPost, "", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["https://edge.example.com"]}`, gwperm.Create, http.StatusCreated, true},
+		{"get", http.MethodGet, "/" + id, "", gwperm.Read, http.StatusOK, false},
+		{"update", http.MethodPut, "/" + id, `{"description":"edge site"}`, gwperm.Update, http.StatusOK, true},
+		{"list tokens", http.MethodGet, tokenPath, "", gwperm.TokenManage, http.StatusOK, false},
+		{"rotate token", http.MethodPost, tokenPath, "", gwperm.TokenManage, http.StatusCreated, true},
+		{"revoke token", http.MethodDelete, tokenPath + "/" + f.token.UUID.String(), "", gwperm.TokenManage, http.StatusNoContent, true},
+		{"delete", http.MethodDelete, "/" + id, "", gwperm.Delete, http.StatusNoContent, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -203,11 +201,11 @@ func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
 			rec := f.call(tt.method, tt.path, tt.body, tt.perm)
 
 			require.Equal(t, tt.want, rec.Code, "body: %s", rec.Body.String())
-			if tt.audit == "" {
+			if !tt.named {
 				return
 			}
-			event, ok := f.audits.semanticEvent(tt.audit)
-			require.True(t, ok, "want a handler-emitted %s record, not just the route envelope", tt.audit)
+			event, ok := f.audits.named()
+			require.True(t, ok, "the route's record must name the gateway")
 			assert.Equal(t, selfHostedTestOU, event.OUID)
 			if tt.method != http.MethodPost || tt.path != "" {
 				assert.Equal(t, id, event.ResourceID)

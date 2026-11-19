@@ -29,7 +29,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
@@ -1045,11 +1044,10 @@ func (c *agentConfigurationController) CreateMCPConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "CreateMCPConfigAPIKey", "Failed to issue API key", gwaudit.APIKeyCreate, audit.APIKeyOwnerMCPConfig,
-		ouID, projName, agentName, envName, configUUID.String(), name)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceAPIKey, configUUID.String(), name)
+	modkit.AuditDetail(ctx, "ownerType", gwaudit.APIKeyOwnerMCPConfig)
+	modkit.AuditDetail(ctx, "ownerName", agentName)
+	modkit.AuditDetail(ctx, "keyName", name)
 
 	response, err := c.agentConfigService.CreateMCPConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, &gwmodels.CreateAPIKeyRequest{
 		Name:        name,
@@ -1057,11 +1055,9 @@ func (c *agentConfigurationController) CreateMCPConfigAPIKey(w http.ResponseWrit
 		ExpiresAt:   specReq.ExpiresAt,
 	})
 	if err != nil {
-		attempt.Complete(ctx, err)
 		c.writeConfigAPIKeyError(w, log, "CreateMCPConfigAPIKey", err)
 		return
 	}
-	attempt.Complete(ctx, nil)
 	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
@@ -1084,22 +1080,19 @@ func (c *agentConfigurationController) RotateMCPConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "RotateMCPConfigAPIKey", "Failed to issue API key", gwaudit.APIKeyRotate, audit.APIKeyOwnerMCPConfig,
-		ouID, projName, agentName, envName, configUUID.String(), keyName)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceAPIKey, configUUID.String(), keyName)
+	modkit.AuditDetail(ctx, "ownerType", gwaudit.APIKeyOwnerMCPConfig)
+	modkit.AuditDetail(ctx, "ownerName", agentName)
+	modkit.AuditDetail(ctx, "keyName", keyName)
 
 	response, err := c.agentConfigService.RotateMCPConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, keyName, &gwmodels.RotateAPIKeyRequest{
 		DisplayName: specReq.DisplayName,
 		ExpiresAt:   specReq.ExpiresAt,
 	})
 	if err != nil {
-		attempt.Complete(ctx, err)
 		c.writeConfigAPIKeyError(w, log, "RotateMCPConfigAPIKey", err)
 		return
 	}
-	attempt.Complete(ctx, nil)
 	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -1114,18 +1107,15 @@ func (c *agentConfigurationController) RevokeMCPConfigAPIKey(w http.ResponseWrit
 	}
 	keyName := r.PathValue("keyName")
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "RevokeMCPConfigAPIKey", "Failed to revoke API key", gwaudit.APIKeyRevoke, audit.APIKeyOwnerMCPConfig,
-		ouID, projName, agentName, envName, configUUID.String(), keyName)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceAPIKey, configUUID.String(), keyName)
+	modkit.AuditDetail(ctx, "ownerType", gwaudit.APIKeyOwnerMCPConfig)
+	modkit.AuditDetail(ctx, "ownerName", agentName)
+	modkit.AuditDetail(ctx, "keyName", keyName)
 
 	if err := c.agentConfigService.RevokeMCPConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, keyName); err != nil {
-		attempt.Complete(ctx, err)
 		c.writeConfigAPIKeyError(w, log, "RevokeMCPConfigAPIKey", err)
 		return
 	}
-	attempt.Complete(ctx, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -1175,11 +1165,10 @@ func (c *agentConfigurationController) CreateLLMConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "CreateLLMConfigAPIKey", "Failed to issue API key", gwaudit.APIKeyCreate, audit.APIKeyOwnerModelConfig,
-		ouID, projName, agentName, envName, configUUID.String(), name)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceAPIKey, configUUID.String(), name)
+	modkit.AuditDetail(ctx, "ownerType", gwaudit.APIKeyOwnerModelConfig)
+	modkit.AuditDetail(ctx, "ownerName", agentName)
+	modkit.AuditDetail(ctx, "keyName", name)
 
 	response, err := c.agentConfigService.CreateLLMConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, &gwmodels.CreateAPIKeyRequest{
 		Name:        name,
@@ -1187,11 +1176,9 @@ func (c *agentConfigurationController) CreateLLMConfigAPIKey(w http.ResponseWrit
 		ExpiresAt:   specReq.ExpiresAt,
 	})
 	if err != nil {
-		attempt.Complete(ctx, err)
 		c.writeConfigAPIKeyError(w, log, "CreateLLMConfigAPIKey", err)
 		return
 	}
-	attempt.Complete(ctx, nil)
 	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
@@ -1214,22 +1201,19 @@ func (c *agentConfigurationController) RotateLLMConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "RotateLLMConfigAPIKey", "Failed to issue API key", gwaudit.APIKeyRotate, audit.APIKeyOwnerModelConfig,
-		ouID, projName, agentName, envName, configUUID.String(), keyName)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceAPIKey, configUUID.String(), keyName)
+	modkit.AuditDetail(ctx, "ownerType", gwaudit.APIKeyOwnerModelConfig)
+	modkit.AuditDetail(ctx, "ownerName", agentName)
+	modkit.AuditDetail(ctx, "keyName", keyName)
 
 	response, err := c.agentConfigService.RotateLLMConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, keyName, &gwmodels.RotateAPIKeyRequest{
 		DisplayName: specReq.DisplayName,
 		ExpiresAt:   specReq.ExpiresAt,
 	})
 	if err != nil {
-		attempt.Complete(ctx, err)
 		c.writeConfigAPIKeyError(w, log, "RotateLLMConfigAPIKey", err)
 		return
 	}
-	attempt.Complete(ctx, nil)
 	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -1244,18 +1228,15 @@ func (c *agentConfigurationController) RevokeLLMConfigAPIKey(w http.ResponseWrit
 	}
 	keyName := r.PathValue("keyName")
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "RevokeLLMConfigAPIKey", "Failed to revoke API key", gwaudit.APIKeyRevoke, audit.APIKeyOwnerModelConfig,
-		ouID, projName, agentName, envName, configUUID.String(), keyName)
-	if !ok {
-		return
-	}
+	modkit.AuditResource(ctx, gwaudit.ResourceAPIKey, configUUID.String(), keyName)
+	modkit.AuditDetail(ctx, "ownerType", gwaudit.APIKeyOwnerModelConfig)
+	modkit.AuditDetail(ctx, "ownerName", agentName)
+	modkit.AuditDetail(ctx, "keyName", keyName)
 
 	if err := c.agentConfigService.RevokeLLMConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, keyName); err != nil {
-		attempt.Complete(ctx, err)
 		c.writeConfigAPIKeyError(w, log, "RevokeLLMConfigAPIKey", err)
 		return
 	}
-	attempt.Complete(ctx, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 

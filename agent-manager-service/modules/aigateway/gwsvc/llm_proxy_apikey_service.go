@@ -23,7 +23,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -128,19 +127,14 @@ func (s *LLMProxyAPIKeyService) CreateAPIKey(
 		return nil, utils.ErrLLMProxyNotFound
 	}
 
-	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyCreate, apiKeyAuditTarget{
-		OUID:      orgID,
-		OwnerType: audit.APIKeyOwnerLLMProxy,
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerLLMProxy,
 		OwnerID:   proxy.UUID.String(),
 		OwnerName: proxy.Name,
 		KeyName:   keyNameOf(req),
 	})
-	if err != nil {
-		return nil, err
-	}
 
 	resp, err := s.broadcaster.broadcastCreate(ctx, orgID, proxyID, proxy.UUID.String(), req)
-	attempt.Complete(ctx, err)
 	return resp, err
 }
 
@@ -160,19 +154,14 @@ func (s *LLMProxyAPIKeyService) RevokeAPIKey(
 		return utils.ErrLLMProxyNotFound
 	}
 
-	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyRevoke, apiKeyAuditTarget{
-		OUID:      orgID,
-		OwnerType: audit.APIKeyOwnerLLMProxy,
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerLLMProxy,
 		OwnerID:   proxy.UUID.String(),
 		OwnerName: proxy.Name,
 		KeyName:   keyName,
 	})
-	if err != nil {
-		return err
-	}
 
 	err = s.broadcaster.broadcastRevoke(ctx, orgID, proxyID, proxy.UUID.String(), keyName)
-	attempt.Complete(ctx, err)
 	return err
 }
 
@@ -194,18 +183,13 @@ func (s *LLMProxyAPIKeyService) RotateAPIKey(
 		return nil, utils.ErrLLMProxyNotFound
 	}
 
-	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyRotate, apiKeyAuditTarget{
-		OUID:      orgID,
-		OwnerType: audit.APIKeyOwnerLLMProxy,
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerLLMProxy,
 		OwnerID:   proxy.UUID.String(),
 		OwnerName: proxy.Name,
 		KeyName:   keyName,
 	})
-	if err != nil {
-		return nil, err
-	}
 
 	resp, err := s.broadcaster.broadcastRotate(ctx, orgID, proxyID, proxy.UUID.String(), keyName, req)
-	attempt.Complete(ctx, err)
 	return resp, err
 }

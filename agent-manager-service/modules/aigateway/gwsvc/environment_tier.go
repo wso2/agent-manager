@@ -20,10 +20,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -44,10 +44,10 @@ import (
 // two layers describing the same decision differently.
 //
 // The check lives here rather than in route middleware because the MCP surface
-// declares tool permissions statically (mcp/tools/authz.go addTool) and has no
+// declares tool permissions statically and has no
 // HTTP request to read a target environment from. This is the one place both
-// surfaces pass through, and mcp/tools/authz.go's withEffectiveScopes is what
-// guarantees ctx carries the same scopes the tool gate used.
+// surfaces pass through, and Runtime.Can reads the same scopes the route or
+// tool gate used.
 //
 // The environment is returned even on a denial, because the caller wants the
 // production flag for its audit record and this call has already paid for the
@@ -59,7 +59,7 @@ import (
 // non-production, which is what the model says and what the release notes must
 // say too.
 func RequireEnvironmentTier(
-	ctx context.Context, platform repositories.PlatformRepository, logger *slog.Logger, ouID, envName string,
+	ctx context.Context, perms *Permissions, platform repositories.PlatformRepository, logger *slog.Logger, ouID, envName string,
 ) (*models.EnvironmentResponse, error) {
 	env, err := platform.GetEnvironment(ctx, ouID, envName)
 	if err != nil {
@@ -75,29 +75,14 @@ func RequireEnvironmentTier(
 	if env.IsProduction {
 		required = append(required, gwperm.DeployProduction)
 	}
-	if perm, short := jwtassertion.FirstMissingScope(ctx, required...); short {
-		// A middleware denial reaches the trail through recordAuthzDeny, which
-		// uses audit.Record plus audit.Skip: the deny event *replaces* the
-		// envelope, because the request never reached a handler. This denial is
-		// different — the caller did reach the service layer, and on the
-		// change-deployment-state path the controller has already opened an
-		// attempt. RecordAncillary is therefore correct here (audit/emit.go:63-71:
-		// facts about how a request was handled, envelope preserved), and the
-		// consequence is deliberate: a tier refusal writes an authz:deny
-		// alongside the envelope rather than in place of it, so "what was
-		// attempted" survives. Status is left to the envelope for the same
-		// reason. grantedScopes is set because every middleware authz:deny
-		// carries it and anything alerting on the action reads it.
-		audit.RecordAncillary(
-			ctx, audit.ActionAuthzDeny,
-			audit.Org(ouID),
-			audit.Environment(envName),
-			audit.OutcomeOpt(audit.OutcomeDeny),
-			audit.RequiredPermissions(required...),
-			audit.Detail("reason", "missing-environment-tier-scope"),
-			audit.Detail("missingScope", perm.Scope()),
-			audit.Detail("grantedScopes", jwtassertion.GrantedScopeCount(ctx)),
-		)
+	for _, perm := range required {
+		if perms.Can(ctx, strings.TrimPrefix(string(perm), gwperm.Module+":")) {
+			continue
+		}
+		// The request's own audit record carries the refusal: the 403 makes
+		// its outcome a denial, and these say which scope was missing.
+		modkit.AuditDetail(ctx, "reason", "missing-environment-tier-scope")
+		modkit.AuditDetail(ctx, "missingScope", perm.Scope())
 		return env, fmt.Errorf("%w: %s is required to act on environment %q",
 			httpx.ErrForbidden, perm.Scope(), envName)
 	}

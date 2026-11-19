@@ -26,8 +26,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -55,6 +55,7 @@ type a2aAgentCardService struct {
 	cardRepo   gwrepo.A2AAgentCardRepository
 	proxyHooks A2AProxyHooks
 	logger     *slog.Logger
+	perms      *Permissions
 }
 
 // NewA2AAgentCardService creates an A2AAgentCardService.
@@ -63,8 +64,9 @@ func NewA2AAgentCardService(
 	cardRepo gwrepo.A2AAgentCardRepository,
 	proxyHooks A2AProxyHooks,
 	logger *slog.Logger,
+	perms *Permissions,
 ) A2AAgentCardService {
-	return &a2aAgentCardService{ocClient: ocClient, cardRepo: cardRepo, proxyHooks: proxyHooks, logger: logger}
+	return &a2aAgentCardService{ocClient: ocClient, cardRepo: cardRepo, proxyHooks: proxyHooks, logger: logger, perms: perms}
 }
 
 func (s *a2aAgentCardService) GetA2AAgentCard(
@@ -92,7 +94,7 @@ func (s *a2aAgentCardService) RefreshA2AAgentCard(
 	if err != nil {
 		return err
 	}
-	env, err := RequireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName)
+	env, err := RequireEnvironmentTier(ctx, s.perms, s.ocClient, s.logger, ouID, envName)
 	if err != nil {
 		return err
 	}
@@ -119,7 +121,7 @@ func (s *a2aAgentCardService) SetA2ACardSource(
 	if err != nil {
 		return err
 	}
-	env, err := RequireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName)
+	env, err := RequireEnvironmentTier(ctx, s.perms, s.ocClient, s.logger, ouID, envName)
 	if err != nil {
 		return err
 	}
@@ -127,10 +129,9 @@ func (s *a2aAgentCardService) SetA2ACardSource(
 	if err := validateCardSourceURL(ctx, sourceURL); err != nil {
 		return err
 	}
-	err = s.proxyHooks.StoreCardSource(ctx, agent, ouID, projectName, env, sourceURL)
-	recordCardSourceChange(ctx, gwaudit.AgentSetCardSource, agent, ouID, projectName, envName, err,
-		audit.Detail("sourceUrl", sourceURL))
-	return err
+	annotateAgent(ctx, agent)
+	modkit.AuditDetail(ctx, "sourceUrl", sourceURL)
+	return s.proxyHooks.StoreCardSource(ctx, agent, ouID, projectName, env, sourceURL)
 }
 
 func (s *a2aAgentCardService) DeleteA2ACardSource(
@@ -140,29 +141,18 @@ func (s *a2aAgentCardService) DeleteA2ACardSource(
 	if err != nil {
 		return err
 	}
-	env, err := RequireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName)
+	env, err := RequireEnvironmentTier(ctx, s.perms, s.ocClient, s.logger, ouID, envName)
 	if err != nil {
 		return err
 	}
-	err = s.proxyHooks.RemoveCardSource(ctx, agent, ouID, projectName, env)
-	recordCardSourceChange(ctx, gwaudit.AgentRemoveCardSource, agent, ouID, projectName, envName, err)
-	return err
+	annotateAgent(ctx, agent)
+	return s.proxyHooks.RemoveCardSource(ctx, agent, ouID, projectName, env)
 }
 
-// recordCardSourceChange emits the fail-open audit record shared by both card-source actions.
-func recordCardSourceChange(
-	ctx context.Context, action audit.Action, agent *models.AgentResponse,
-	ouID, projectName, envName string, result error, extra ...audit.Option,
-) {
-	opts := append([]audit.Option{
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceAgent, agent.UUID, agent.Name),
-		audit.Project(projectName),
-		audit.Environment(envName),
-		audit.Detail("agentName", agent.Name),
-		audit.Result(result),
-	}, extra...)
-	audit.Record(ctx, action, opts...)
+// annotateAgent names the agent the request's audit record is about.
+func annotateAgent(ctx context.Context, agent *models.AgentResponse) {
+	modkit.AuditResource(ctx, gwaudit.ResourceAgent, agent.UUID, agent.Name)
+	modkit.AuditDetail(ctx, "agentName", agent.Name)
 }
 
 // enqueuePlatform queues a fetch of a platform agent's card; external sources go through the proxy hooks.

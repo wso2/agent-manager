@@ -53,6 +53,13 @@ type RouteMeta struct {
 	// Zero means record every call. Non-zero only for routes a machine polls on
 	// a timer, where one record per request would bury everything else.
 	Coalesce time.Duration
+	// FailClosed writes an intent record before the handler runs and refuses
+	// the request when it cannot be written (modkit.AuditFailClosed).
+	FailClosed bool
+	// ScopeFromPath names the record's project and environment from the
+	// request's path and query, for module routes, whose handlers name only
+	// what they acted on.
+	ScopeFromPath bool
 }
 
 var pathParamPattern = regexp.MustCompile(`\{([^}]+)\}`)
@@ -104,6 +111,8 @@ type RoutePolicy struct {
 	Read bool
 	// Coalesce records the route at most once per caller per window.
 	Coalesce time.Duration
+	// FailClosed refuses the request when its intent record cannot be written.
+	FailClosed bool
 }
 
 // NewRouteMetaWithPolicy resolves the audit policy for a module route. As for
@@ -112,14 +121,16 @@ type RoutePolicy struct {
 func NewRouteMetaWithPolicy(pattern string, params []string, perms []rbac.Permission, surface Surface, p RoutePolicy) RouteMeta {
 	method, path := splitPattern(pattern)
 	meta := RouteMeta{
-		Pattern:  pattern,
-		Method:   method,
-		Path:     path,
-		Params:   params,
-		Perms:    perms,
-		Audited:  shouldAudit(method, path) || p.Read,
-		Surface:  surface,
-		Coalesce: p.Coalesce,
+		Pattern:       pattern,
+		Method:        method,
+		Path:          path,
+		Params:        params,
+		Perms:         perms,
+		Audited:       shouldAudit(method, path) || p.Read || p.FailClosed,
+		Surface:       surface,
+		Coalesce:      p.Coalesce,
+		FailClosed:    p.FailClosed,
+		ScopeFromPath: true,
 	}
 	if !meta.Audited {
 		return meta
@@ -335,48 +346,17 @@ func deriveAction(method, path string, perms []rbac.Permission) Action {
 	if override, ok := actionOverrides[method+" "+path]; ok {
 		return override
 	}
-	named := namingPermissions(perms)
-	if len(named) == 1 {
-		return Action(named[0])
+	if len(perms) == 1 {
+		return Action(perms[0])
 	}
-	if len(named) > 1 {
+	if len(perms) > 1 {
 		verb := methodVerbs[method]
 		if verb == "" {
 			verb = strings.ToLower(method)
 		}
-		return Action(Action(named[0]).Resource() + ":" + verb)
+		return Action(Action(perms[0]).Resource() + ":" + verb)
 	}
 	return ""
-}
-
-// axisPermissions gate an operation on where it lands rather than on what it is.
-// They are an authorization axis of their own, held in addition to the
-// capability the route demands, so they never describe the operation.
-// A module that declares one registers it with RegisterAxisPermissions (the
-// AI Gateway's environment-tier permissions).
-var axisPermissions = map[rbac.Permission]bool{}
-
-// RegisterAxisPermissions marks perms as axis permissions. Call it from a
-// package init, before any route is registered.
-func RegisterAxisPermissions(perms ...rbac.Permission) {
-	for _, p := range perms {
-		axisPermissions[p] = true
-	}
-}
-
-// namingPermissions returns the permissions that can name an action — every one
-// the route declares, less the axes. Filtering here rather than special-casing
-// each tier-gated route is what makes the fail-closed guard cover the next one:
-// a route gated only on an axis derives nothing and panics at startup, instead
-// of quietly registering "agent:env-non-production" as an action.
-func namingPermissions(perms []rbac.Permission) []rbac.Permission {
-	named := make([]rbac.Permission, 0, len(perms))
-	for _, perm := range perms {
-		if !axisPermissions[perm] {
-			named = append(named, perm)
-		}
-	}
-	return named
 }
 
 // OverrideKeys returns every actionOverrides key. Used by the coverage test to

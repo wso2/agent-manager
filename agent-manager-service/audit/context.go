@@ -18,7 +18,11 @@ package audit
 
 import (
 	"context"
+	"net/http"
 	"sync"
+	"time"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
 // Source describes the entry point a request arrived through. It is installed
@@ -91,6 +95,8 @@ type RequestScope struct {
 	suppress bool
 	actor    scopeActor
 	resource resourceRef
+	// details are set by a module with modkit.AuditDetail.
+	details map[string]any
 }
 
 // scopeActor is a principal named by the handler after it authenticated the
@@ -110,6 +116,7 @@ type resourceRef struct {
 // NewRequestScope returns ctx carrying a fresh scope, and the scope itself.
 func NewRequestScope(ctx context.Context) (context.Context, *RequestScope) {
 	scope := &RequestScope{}
+	ctx = modkit.WithAuditScope(ctx, scope)
 	return context.WithValue(ctx, scopeKey{}, scope), scope
 }
 
@@ -236,4 +243,80 @@ func (s *RequestScope) applyTo(e *Event) {
 	if e.ResourceName == "" {
 		e.ResourceName = s.resource.name
 	}
+	for k, v := range s.details {
+		if _, set := e.Details[k]; !set {
+			Detail(k, v)(e)
+		}
+	}
+}
+
+// AuditDetail implements modkit.AuditScope.
+func (s *RequestScope) AuditDetail(key string, value any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.details == nil {
+		s.details = map[string]any{}
+	}
+	s.details[key] = value
+}
+
+// AuditResource implements modkit.AuditScope.
+func (s *RequestScope) AuditResource(kind, id, name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.resource = resourceRef{kind: kind, id: id, name: name}
+}
+
+// AuditInternalCaller implements modkit.AuditScope: it names an
+// authenticated caller as IdentifyActor does, and records a refused one as an
+// authentication failure, rate-limited per source and reason so a caller
+// retrying a stale credential in a loop cannot flood the trail.
+func (s *RequestScope) AuditInternalCaller(ctx context.Context, c modkit.InternalCaller) {
+	if c.Refused == "" {
+		IdentifyActor(ctx, ActorType(c.Kind), c.ID, c.AuthMethod)
+		return
+	}
+	src, _ := SourceFromContext(ctx)
+	if !internalRefusals.allow(src.IP+"|"+c.Refused, time.Now()) {
+		return
+	}
+	RecordAncillary(ctx, ActionAuthnFailure,
+		SurfaceOpt(SurfaceInternal),
+		Actor(ActorType(c.Kind), c.ID, ""),
+		AuthMethod(c.AuthMethod),
+		OutcomeOpt(OutcomeDeny),
+		Status(http.StatusUnauthorized),
+		Detail("reason", c.Refused),
+		Detail("authHeader", c.CredentialPresent),
+	)
+}
+
+// internalRefusals bounds how often an identical internal-route refusal is
+// recorded: callers poll, so one with a stale credential would otherwise
+// write a record every few seconds indefinitely.
+var internalRefusals = &refusalLimiter{window: time.Minute, seen: map[string]time.Time{}}
+
+type refusalLimiter struct {
+	mu        sync.Mutex
+	window    time.Duration
+	seen      map[string]time.Time
+	lastSweep time.Time
+}
+
+func (l *refusalLimiter) allow(key string, now time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if now.Sub(l.lastSweep) >= l.window {
+		l.lastSweep = now
+		for k, at := range l.seen {
+			if now.Sub(at) >= l.window {
+				delete(l.seen, k)
+			}
+		}
+	}
+	if at, ok := l.seen[key]; ok && now.Sub(at) < l.window {
+		return false
+	}
+	l.seen[key] = now
+	return true
 }

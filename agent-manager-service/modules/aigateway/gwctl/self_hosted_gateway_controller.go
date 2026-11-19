@@ -22,9 +22,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -135,16 +135,10 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 	if gateway != nil {
 		vhost = gateway.Vhost
 	}
-	audit.Record(
-		ctx, gwaudit.GatewayCreate,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceGateway, gatewayResponseID(gateway), req.DisplayName),
-		audit.Environment(env.UUID),
-		audit.Detail("gatewayName", req.DisplayName),
-		audit.Detail("gatewayType", gwsvc.SelfHostedFunctionalityType(input.FunctionalityType)),
-		audit.Detail("vhost", vhost),
-		audit.Result(err),
-	)
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayResponseID(gateway), req.DisplayName)
+	modkit.AuditDetail(ctx, "gatewayName", req.DisplayName)
+	modkit.AuditDetail(ctx, "gatewayType", gwsvc.SelfHostedFunctionalityType(input.FunctionalityType))
+	modkit.AuditDetail(ctx, "vhost", vhost)
 	if err != nil {
 		log.Error("RegisterSelfHostedGateway: failed to register gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to register gateway")
@@ -183,12 +177,7 @@ func (c *gatewayController) UpdateSelfHostedGateway(w http.ResponseWriter, r *ht
 		properties = &req.Properties
 	}
 	gateway, err := c.gatewayService.UpdateGateway(existing.UUID.String(), ouID, req.Description, req.DisplayName, req.IsCritical, properties, nil)
-	audit.Record(
-		ctx, gwaudit.GatewayUpdate,
-		audit.Org(ouID),
-		audit.Resource(audit.ResourceGateway, existing.UUID.String()),
-		audit.Result(err),
-	)
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, existing.UUID.String(), "")
 	if err != nil {
 		log.Error("UpdateSelfHostedGateway: failed to update gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to update gateway")

@@ -25,7 +25,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -560,16 +560,8 @@ func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r
 	// gateway is a machine client that retries, so refusing the push when the
 	// trail is unavailable would leave the mirror stale for no gain.
 	err := c.gatewayService.SaveGatewayPolicyManifest(r.Context(), gatewayID, manifest)
-	audit.Record(
-		r.Context(), gwaudit.GatewayPushManifest,
-		audit.Org(identity.OUID),
-		audit.Resource(audit.ResourceGateway, gatewayID),
-		audit.SurfaceOpt(audit.SurfaceInternal),
-		audit.Actor(audit.ActorGateway, gatewayID, ""),
-		audit.AuthMethod("api-key"),
-		audit.Detail("policyCount", len(manifest)),
-		audit.Result(err),
-	)
+	modkit.AuditResource(r.Context(), gwaudit.ResourceGateway, gatewayID, "")
+	modkit.AuditDetail(r.Context(), "policyCount", len(manifest))
 	if err != nil {
 		if errors.Is(err, utils.ErrGatewayNotFound) {
 			http.Error(w, "Gateway not found", http.StatusNotFound)

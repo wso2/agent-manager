@@ -185,7 +185,7 @@ func newAgentArtifactDeletionFixture(t *testing.T, artifacts map[string]uuid.UUI
 	}
 	publisher := withA2ACore(NewA2APublisher(sentinelTx, pubRepo, proxyRepo, cardRepo, artifactRepo, deploymentRepo,
 		testLogger(), NewAgentExposurePublisher(sentinelTx, pubRepo, artifactRepo, deploymentRepo, gatewayRepo, nil, testLogger()), nil), f.hub)
-	f.svc = NewAgentGatewayService(nil, oc, nil, nil, artifactRepo, nil, gatewayRepo, publisher, cardRepo, publisher.exposure, testLogger())
+	f.svc = NewAgentGatewayService(nil, oc, nil, nil, artifactRepo, nil, gatewayRepo, publisher, cardRepo, publisher.exposure, testLogger(), tierPermissions())
 	return f
 }
 

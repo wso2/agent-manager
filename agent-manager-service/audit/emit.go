@@ -116,6 +116,9 @@ func Begin(ctx context.Context, action Action, opts ...Option) (*Attempt, error)
 	return &Attempt{eventID: e.EventID, action: action, base: opts}, nil
 }
 
+// EventID is the id of the attempt's intent record.
+func (a *Attempt) EventID() string { return a.eventID.String() }
+
 // Complete records the outcome of an attempt started with Begin.
 //
 // It is asynchronous: the external mutation has already happened, so failing

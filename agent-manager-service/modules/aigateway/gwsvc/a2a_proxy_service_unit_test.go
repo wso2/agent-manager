@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
@@ -114,7 +113,7 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 		},
 	}
 	h.svc = NewA2AProxyService(m.tx(), m.proxies, h.cards, h.configs, m.artifacts, m.publisher(), h.oc, proxyTestKey,
-		testLogger()).(*a2aProxyService)
+		testLogger(), tierPermissions()).(*a2aProxyService)
 	return h
 }
 
@@ -401,21 +400,6 @@ func TestValidateA2AUpstreamAuth(t *testing.T) {
 	}
 }
 
-func TestSetA2AProxyRefusesWithoutAnAuditRecord(t *testing.T) {
-	h := newProxyHarness(t)
-	err := h.svc.SetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev", nil)
-	assert.ErrorIs(t, err, audit.ErrRecorderUnavailable)
-	h.assertNothingWritten(t)
-}
-
-func TestDeleteA2AProxyRefusesWithoutAnAuditRecord(t *testing.T) {
-	h := newProxyHarness(t)
-	h.proxied("X-Key", "c2VjcmV0")
-	err := h.svc.DeleteA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
-	assert.ErrorIs(t, err, audit.ErrRecorderUnavailable)
-	h.assertNothingWritten(t)
-}
-
 func TestA2AProxyOnADirectEnvironmentIsNotFound(t *testing.T) {
 	h := newProxyHarness(t)
 
@@ -679,25 +663,8 @@ func TestSetA2AProxyDropsItsWritesWhenTheAgentIsDeletedMeanwhile(t *testing.T) {
 	assert.Equal(t, "agent.deleted", string(last.EventType), "the artifact's delete event is written with the delete")
 }
 
-// captureRecorder keeps every audit event so a test can read the outcome a completion recorded.
-type captureRecorder struct {
-	audit.Recorder
-	events []audit.Event
-}
-
-func newCaptureRecorder() *captureRecorder {
-	return &captureRecorder{Recorder: audit.NewNoopRecorder()}
-}
-
-func (c *captureRecorder) Record(_ context.Context, e audit.Event) { c.events = append(c.events, e) }
-
-func (c *captureRecorder) RecordSync(_ context.Context, e audit.Event) error {
-	c.events = append(c.events, e)
-	return nil
-}
-
-// The audit record says what persisted: a write the agent-gone check rolls back is completed as a failure.
-func TestSetA2AProxyAuditsTheRollbackWhenTheAgentIsDeletedMeanwhile(t *testing.T) {
+// A write the agent-gone check rolls back is reported as the failure it is, so the route's record says it did not persist.
+func TestSetA2AProxyReportsTheRollbackWhenTheAgentIsDeletedMeanwhile(t *testing.T) {
 	h := newProxyHarness(t)
 	h.acceptsWrites()
 	h.artifacts.DeleteFunc = func(*gorm.DB, string) error { return nil }
@@ -709,14 +676,9 @@ func TestSetA2AProxyAuditsTheRollbackWhenTheAgentIsDeletedMeanwhile(t *testing.T
 		}
 		return nil, utils.ErrAgentNotFound
 	}
-	recorder := newCaptureRecorder()
-
-	err := h.svc.SetA2AProxy(tierGrantedOn(audit.WithRecorder(context.Background(), recorder)),
-		"org-1", "checkout", "weather", "dev", nil)
+	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
 
 	require.ErrorIs(t, err, utils.ErrAgentNotFound)
-	require.Len(t, recorder.events, 2, "the intent record and its completion")
-	assert.Equal(t, audit.OutcomeFailure, recorder.events[1].Outcome)
 }
 
 // The write has committed, so a lookup failure in the agent-gone check is logged, not turned into a 500.
@@ -731,16 +693,11 @@ func TestSetA2AProxyKeepsACommittedWriteWhenTheAgentCheckFails(t *testing.T) {
 		}
 		return nil, assert.AnError
 	}
-	recorder := newCaptureRecorder()
-
-	err := h.svc.SetA2AProxy(tierGrantedOn(audit.WithRecorder(context.Background(), recorder)),
-		"org-1", "checkout", "weather", "dev", nil)
+	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
 
 	require.NoError(t, err)
 	assert.Len(t, h.txProxies.UpsertCalls(), 1)
 	assert.Empty(t, h.txProxies.DeleteCalls(), "nothing is torn down on an unanswered check")
-	require.Len(t, recorder.events, 2)
-	assert.Equal(t, audit.OutcomeSuccess, recorder.events[1].Outcome)
 }
 
 // The URL write, the parking and the republish are one transaction: the row is never due in between.
@@ -843,8 +800,6 @@ func TestRemoveCardSourceTearsDownAndDeletesTheCard(t *testing.T) {
 	assert.Len(t, h.txCards.DeleteForAgentEnvCalls(), 1)
 	assert.Empty(t, h.txCards.RequeueCalls())
 	assert.Len(t, h.txProxies.DeleteCalls(), 1)
-	assert.ErrorIs(t, h.svc.RemoveCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv()),
-		audit.ErrRecorderUnavailable, "it discards the stored secret, so it is refused unrecorded")
 }
 
 // Removing the source of a direct environment just deletes its card row, with no proxy to audit.
@@ -892,43 +847,6 @@ func TestRefreshCardSource(t *testing.T) {
 		assert.Empty(t, h.txExposures.UpsertCalls())
 		assert.Empty(t, h.txCards.RequeueCalls(), "a requeue would un-park the card before the gateway has the Agent")
 	})
-}
-
-// failingRecorder is an audit sink outage: RecordSync fails with an error that does not name the recorder.
-type failingRecorder struct{ audit.Recorder }
-
-func (failingRecorder) RecordSync(context.Context, audit.Event) error { return assert.AnError }
-
-func sinkOutageCtx() context.Context {
-	return tierGrantedOn(audit.WithRecorder(context.Background(), failingRecorder{audit.NewNoopRecorder()}))
-}
-
-// A real sink failure is the documented 503, not a 500.
-func TestA2AProxyWritesRefuseWhenTheAuditSinkFails(t *testing.T) {
-	calls := map[string]func(h *proxyHarness) error{
-		"set": func(h *proxyHarness) error {
-			return h.svc.SetA2AProxy(sinkOutageCtx(), "org-1", "checkout", "weather", "dev", nil)
-		},
-		"delete": func(h *proxyHarness) error {
-			h.proxied("X-Key", "c2VjcmV0")
-			return h.svc.DeleteA2AProxy(sinkOutageCtx(), "org-1", "checkout", "weather", "dev")
-		},
-		"card source removed": func(h *proxyHarness) error {
-			h.proxied("X-Key", "c2VjcmV0")
-			return h.svc.RemoveCardSource(sinkOutageCtx(), externalAgent(), "org-1", "checkout", devEnv())
-		},
-	}
-	for name, call := range calls {
-		t.Run(name, func(t *testing.T) {
-			h := newProxyHarness(t)
-
-			err := call(h)
-
-			assert.ErrorIs(t, err, audit.ErrRecorderUnavailable)
-			assert.ErrorIs(t, err, assert.AnError)
-			h.assertNothingWritten(t)
-		})
-	}
 }
 
 func TestSetA2AProxyRejectsAnAgentFromAnotherProject(t *testing.T) {

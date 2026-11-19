@@ -27,8 +27,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -185,22 +185,13 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 	}
 	artifactUUID := artifact.UUID.String()
 
-	// The key is minted and broadcast to gateways outside this service, so the
-	// change cannot commit with its record. Write the intent first and refuse
-	// if it fails: a live credential nobody can attribute is worse than a
-	// failed request. The key value itself is never passed to the recorder.
-	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyCreate, apiKeyAuditTarget{
-		OUID:        ouID,
-		OwnerType:   audit.APIKeyOwnerAgent,
-		OwnerID:     artifactUUID,
-		OwnerName:   agentName,
-		KeyName:     keyNameOf(req),
-		Project:     projectName,
-		Environment: envID,
-	}, audit.Detail("gatewayCount", len(gateways)))
-	if err != nil {
-		return nil, err
-	}
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerAgent,
+		OwnerID:   artifactUUID,
+		OwnerName: agentName,
+		KeyName:   keyNameOf(req),
+	})
+	modkit.AuditDetail(ctx, "gatewayCount", len(gateways))
 
 	resp, err := s.broadcaster.broadcastCreateToGateways(gateways, ouID, artifactUUID, artifactUUID, req)
 	if resp != nil {
@@ -209,7 +200,7 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 		// so the key name is added for the event's subject.
 		events.AddData(ctx, "name", resp.KeyID)
 	}
-	attempt.Complete(ctx, err, audit.Detail("gatewayConnected", s.gatewaysConnected(gateways) != nil))
+	modkit.AuditDetail(ctx, "gatewayConnected", s.gatewaysConnected(gateways) != nil)
 	return resp, err
 }
 
@@ -237,22 +228,15 @@ func (s *AgentAPIKeyService) RevokeAPIKey(
 	}
 	artifactUUID := artifact.UUID.String()
 
-	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyRevoke, apiKeyAuditTarget{
-		OUID:        ouID,
-		OwnerType:   audit.APIKeyOwnerAgent,
-		OwnerID:     artifactUUID,
-		OwnerName:   agentName,
-		KeyName:     keyName,
-		Project:     projectName,
-		Environment: envID,
-	}, audit.Detail("gatewayCount", len(gateways)))
-	if err != nil {
-		return err
-	}
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerAgent,
+		OwnerID:   artifactUUID,
+		OwnerName: agentName,
+		KeyName:   keyName,
+	})
+	modkit.AuditDetail(ctx, "gatewayCount", len(gateways))
 
-	err = s.broadcaster.broadcastRevokeToGateways(ctx, gateways, artifactUUID, artifactUUID, keyName)
-	attempt.Complete(ctx, err)
-	return err
+	return s.broadcaster.broadcastRevokeToGateways(ctx, gateways, artifactUUID, artifactUUID, keyName)
 }
 
 // RotateAPIKey generates a new API key value and broadcasts the update to the environment's gateways.
@@ -272,24 +256,19 @@ func (s *AgentAPIKeyService) RotateAPIKey(
 	}
 	artifactUUID := artifact.UUID.String()
 
-	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyRotate, apiKeyAuditTarget{
-		OUID:        ouID,
-		OwnerType:   audit.APIKeyOwnerAgent,
-		OwnerID:     artifactUUID,
-		OwnerName:   agentName,
-		KeyName:     keyName,
-		Project:     projectName,
-		Environment: envID,
-	}, audit.Detail("gatewayCount", len(gateways)))
-	if err != nil {
-		return nil, err
-	}
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerAgent,
+		OwnerID:   artifactUUID,
+		OwnerName: agentName,
+		KeyName:   keyName,
+	})
+	modkit.AuditDetail(ctx, "gatewayCount", len(gateways))
 
 	resp, err := s.broadcaster.broadcastRotateToGateways(gateways, ouID, artifactUUID, artifactUUID, keyName, req)
 	if resp != nil {
 		resp.GatewayConnected = s.gatewaysConnected(gateways)
 	}
-	attempt.Complete(ctx, err, audit.Detail("gatewayConnected", s.gatewaysConnected(gateways) != nil))
+	modkit.AuditDetail(ctx, "gatewayConnected", s.gatewaysConnected(gateways) != nil)
 	return resp, err
 }
 
@@ -365,22 +344,17 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 			log.Info("IssueTestAPIKey: created", "keyName", keyName, "org", ouID, "agent", agentName, "env", envID, "expiresAt", expiresAt)
 		}
 	}
-	// Recorded after the fact rather than fail-closed: a console test key is
+	// The route is not fail-closed: a console test key is
 	// short-lived and scoped to the requesting user, so refusing the Try-It
 	// flow when the trail is unavailable would cost more than it protects.
-	audit.Record(
-		ctx, gwaudit.APIKeyIssueTest,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceAPIKey, artifactUUID, keyName),
-		audit.Project(projectName),
-		audit.Environment(envID),
-		audit.Detail("ownerType", audit.APIKeyOwnerAgent),
-		audit.Detail("ownerName", agentName),
-		audit.Detail("keyName", keyName),
-		audit.Detail("expiresAt", expiresAt),
-		audit.Detail("rotated", existing != nil),
-		audit.Result(err),
-	)
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerAgent,
+		OwnerID:   artifactUUID,
+		OwnerName: agentName,
+		KeyName:   keyName,
+	})
+	modkit.AuditDetail(ctx, "expiresAt", expiresAt)
+	modkit.AuditDetail(ctx, "rotated", existing != nil)
 
 	if err != nil {
 		return nil, err

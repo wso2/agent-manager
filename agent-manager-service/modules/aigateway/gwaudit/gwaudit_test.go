@@ -20,34 +20,47 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
+
+// declared returns the manifest entry of the named action.
+func declared(t *testing.T, name string) modkit.AuditAction {
+	t.Helper()
+	for _, a := range Actions {
+		if a.Name == name {
+			return a
+		}
+	}
+	t.Fatalf("%s is not declared", name)
+	return modkit.AuditAction{}
+}
 
 // TestIdentityProviderTrustInputsAreRecorded pins the fields that decide which
 // tokens a gateway will accept. The issuer alone does not answer that: jwksUri
 // says where the signing keys are fetched from, and skipTlsVerify says whether
 // that fetch validates the certificate.
 func TestIdentityProviderTrustInputsAreRecorded(t *testing.T) {
-	for _, action := range []audit.Action{GatewaySetIdentityProvider, GatewayRemoveIdentityProvider} {
-		schema := audit.DetailSchema(action)
+	for _, name := range []string{"gateways.set-identity-provider", "gateways.remove-identity-provider"} {
+		details := declared(t, name).Details
 		for _, key := range []string{"identityProviderName", "issuer", "jwksUri", "skipTlsVerify"} {
-			if _, ok := schema[key]; !ok {
-				t.Errorf("%s: trust input %q is not a detail key", action, key)
+			if _, ok := details[key]; !ok {
+				t.Errorf("%s: trust input %q is not a detail key", name, key)
 			}
 		}
-		if schema["jwksUri"] != audit.KindURL {
-			t.Errorf("%s: jwksUri must be a URL, so its userinfo and query are stripped", action)
+		if details["jwksUri"] != "url" {
+			t.Errorf("%s: jwksUri must be a URL, so its userinfo and query are stripped", name)
 		}
 	}
 }
 
 // TestCredentialActionsAreCritical pins the severities that drive alerting.
 func TestCredentialActionsAreCritical(t *testing.T) {
-	for _, action := range []audit.Action{
-		APIKeyCreate, APIKeyRotate, APIKeyRevoke, GatewayTokenRotate, GatewayTokenRevoke,
-		GatewaySetIdentityProvider, GatewayRemoveIdentityProvider, AgentSetA2AProxy, AgentRemoveA2AProxy,
+	for _, name := range []string{
+		"api-keys.create", "api-keys.rotate", "api-keys.revoke", "gateway-tokens.rotate", "gateway-tokens.revoke",
+		"gateways.set-identity-provider", "gateways.remove-identity-provider", "agents.set-a2a-proxy", "agents.remove-a2a-proxy",
 	} {
-		if action.Severity() != audit.SeverityCritical || action.Class() != audit.ClassCredential {
-			t.Errorf("%s is %s/%d, want a critical credential action", action, action.Class(), action.Severity())
+		if a := declared(t, name); a.Severity != "critical" || a.Class != "credential" {
+			t.Errorf("%s is %s/%s, want a critical credential action", name, a.Class, a.Severity)
 		}
 	}
 }

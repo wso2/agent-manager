@@ -31,8 +31,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -192,28 +190,18 @@ func TestRequireEnvTier_LookupErrorFailsClosedBeforeTheScopeCheck(t *testing.T) 
 }
 
 // TestRequireEnvTier_DenialIsAudited makes the refusal legible to whoever is
-// alerting on authorization failures. A service-layer denial reaches the trail by
-// a different route than a middleware one, so it needs its own assertion that it
-// arrives at all.
+// alerting on authorization failures: the request's own record, whose
+// outcome the 403 makes a denial, says which scope was missing.
 func TestRequireEnvTier_DenialIsAudited(t *testing.T) {
 	svc, _ := tierService(map[string]bool{tierProdEnv: true}, nil)
-	ctx, sink, flush := capturingAuditCtx(t)
-	ctx = jwtassertion.ContextWithTokenClaimsAndScope(ctx,
-		&jwtassertion.TokenClaims{OuId: tierOUID, Scope: gwperm.DeployNonProduction.Scope()})
+	ctx, record := scopedCtx(tierCtx(t, gwperm.DeployNonProduction))
 
 	_, err := svc.requireEnvTier(ctx, tierOUID, tierProdEnv)
 	require.ErrorIs(t, err, httpx.ErrForbidden)
-	flush()
 
-	event, found := findEvent(sink.captured(), audit.ActionAuthzDeny)
-	require.True(t, found, "the tier denial was not recorded")
-	require.Equal(t, tierProdEnv, event.Environment)
-	require.Equal(t, audit.OutcomeDeny, event.Outcome)
+	event := record("ai-gateway:deploy.non-production")
+	require.Equal(t, "missing-environment-tier-scope", event.Details["reason"])
 	require.Equal(t, gwperm.DeployProduction.Scope(), event.Details["missingScope"])
-	// grantedScopes is on every middleware authz:deny. Anything alerting on the
-	// action reads the field, so a tier denial that omitted it would look like a
-	// token with no scopes at all rather than one missing this scope.
-	require.EqualValues(t, 1, event.Details["grantedScopes"])
 }
 
 // tierChecker calls RequireEnvironmentTier on a fixed repository.
@@ -223,5 +211,5 @@ type tierChecker struct {
 }
 
 func (c *tierChecker) requireEnvTier(ctx context.Context, ouID, envName string) (*models.EnvironmentResponse, error) {
-	return RequireEnvironmentTier(ctx, c.platform, c.logger, ouID, envName)
+	return RequireEnvironmentTier(ctx, tierPermissions(), c.platform, c.logger, ouID, envName)
 }

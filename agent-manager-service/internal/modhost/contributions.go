@@ -40,7 +40,12 @@ var (
 		"": audit.ClassConfig, "credential": audit.ClassCredential, "identity": audit.ClassIdentity,
 		"deployment": audit.ClassDeployment, "config": audit.ClassConfig, "read": audit.ClassRead,
 	}
-	auditSeverities = map[string]audit.Severity{
+	auditDetailKinds = []audit.FieldKind{
+		audit.KindIdentifier, audit.KindName, audit.KindEmail, audit.KindNameList, audit.KindCount,
+		audit.KindFlag, audit.KindEnum, audit.KindFingerprint, audit.KindURL,
+	}
+	detailKeyPattern = regexp.MustCompile(`^[a-z][A-Za-z0-9]*$`)
+	auditSeverities  = map[string]audit.Severity{
 		"info": audit.SeverityInfo, "notice": audit.SeverityNotice,
 		"warning": audit.SeverityWarning, "critical": audit.SeverityCritical,
 	}
@@ -61,6 +66,14 @@ func checkManifest(mf modkit.Manifest) error {
 		}
 		if _, ok := auditSeverities[a.Severity]; !ok && a.Severity != "" {
 			return fmt.Errorf("audit action %s: unknown severity %q", a.Name, a.Severity)
+		}
+		for k, kind := range a.Details {
+			if !detailKeyPattern.MatchString(k) {
+				return fmt.Errorf("audit action %s: detail key %q must be letters and digits, starting with a lowercase letter", a.Name, k)
+			}
+			if !slices.Contains(auditDetailKinds, audit.FieldKind(kind)) {
+				return fmt.Errorf("audit action %s: detail %s has unknown kind %q", a.Name, k, kind)
+			}
 		}
 	}
 	for _, e := range mf.Events {
@@ -112,7 +125,11 @@ func (h *Host) publishCatalogs(v *view) {
 			if slices.ContainsFunc(mf.Permissions, func(p modkit.Permission) bool { return p.Name == a.Name }) {
 				full = mf.PermissionName(a.Name)
 			}
-			actions[audit.Action(full)] = audit.ModuleAction{Class: class, Severity: severity}
+			details := make(map[string]audit.FieldKind, len(a.Details))
+			for k, kind := range a.Details {
+				details[k] = audit.FieldKind(kind)
+			}
+			actions[audit.Action(full)] = audit.ModuleAction{Class: class, Severity: severity, Details: details}
 		}
 		category := mf.DisplayName
 		if category == "" {

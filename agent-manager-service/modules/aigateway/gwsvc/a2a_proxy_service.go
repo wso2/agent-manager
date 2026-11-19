@@ -30,8 +30,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -70,6 +70,7 @@ type A2AProxyService interface {
 }
 
 type a2aProxyService struct {
+	perms           *Permissions
 	tx              TxRunner
 	proxyRepo       gwrepo.A2AProxyRepository
 	cardRepo        gwrepo.A2AAgentCardRepository
@@ -92,8 +93,10 @@ func NewA2AProxyService(
 	ocClient repositories.PlatformRepository,
 	encryptionKey []byte,
 	logger *slog.Logger,
+	perms *Permissions,
 ) A2AProxyService {
 	return &a2aProxyService{
+		perms:           perms,
 		tx:              tx,
 		proxyRepo:       proxyRepo,
 		cardRepo:        cardRepo,
@@ -173,7 +176,6 @@ func (s *a2aProxyService) SetA2AProxy(
 	if err != nil {
 		return err
 	}
-	var attempt *audit.Attempt
 	err = s.tx(ctx, func(tx *gorm.DB) error {
 		existing, err := s.lockedProxy(ctx, tx, t)
 		if err != nil {
@@ -190,10 +192,9 @@ func (s *a2aProxyService) SetA2AProxy(
 		if err := requireHTTPSForSecret(cardURL, proxy.UpstreamAuthSecret); err != nil {
 			return err
 		}
-		// A PUT can set, replace or clear the credential the gateway sends upstream, so it is refused unrecorded.
-		if attempt, err = s.beginAudit(ctx, gwaudit.AgentSetA2AProxy, t, proxy.UpstreamAuthHeader, authChanged); err != nil {
-			return err
-		}
+		// A PUT can set, replace or clear the credential the gateway sends
+		// upstream, so its route is fail-closed.
+		annotateA2AProxy(ctx, t, proxy.UpstreamAuthHeader, authChanged)
 		artifact, err := s.ensureArtifact(tx, t)
 		if err != nil {
 			return err
@@ -211,10 +212,10 @@ func (s *a2aProxyService) SetA2AProxy(
 	})
 	if err == nil {
 		s.publisher.exposure.Nudge()
-		// Completed after the agent-gone check, so the record says whether the credential change stayed.
+		// The route's record follows the agent-gone check, so it says whether
+		// the credential change stayed.
 		err = s.dropIfAgentGone(ctx, t)
 	}
-	attempt.Complete(ctx, err)
 	return err
 }
 
@@ -306,7 +307,7 @@ func (s *a2aProxyService) target(ctx context.Context, ouID, projectName, agentNa
 	if err != nil {
 		return a2aProxyTarget{}, err
 	}
-	env, err := RequireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName)
+	env, err := RequireEnvironmentTier(ctx, s.perms, s.ocClient, s.logger, ouID, envName)
 	if err != nil {
 		return a2aProxyTarget{}, err
 	}
@@ -506,7 +507,6 @@ func deleteCardRow(ctx context.Context, cards gwrepo.A2AAgentCardRepository, key
 
 // removeProxy switches to direct, discarding the secret, so it is refused unrecorded; a direct environment gets ifDirect (nil: ErrEnvironmentNotProxied).
 func (s *a2aProxyService) removeProxy(ctx context.Context, t a2aProxyTarget, cardStep, ifDirect a2aCardStep) error {
-	var attempt *audit.Attempt
 	err := s.tx(ctx, func(tx *gorm.DB) error {
 		existing, err := s.lockedProxy(ctx, tx, t)
 		if err != nil {
@@ -515,13 +515,9 @@ func (s *a2aProxyService) removeProxy(ctx context.Context, t a2aProxyTarget, car
 		if existing == nil {
 			return onDirect(ctx, tx, s.cardRepo, t, ifDirect)
 		}
-		attempt, err = s.beginAudit(ctx, gwaudit.AgentRemoveA2AProxy, t, existing.UpstreamAuthHeader, existing.UpstreamAuthSecret != "")
-		if err != nil {
-			return err
-		}
+		annotateA2AProxy(ctx, t, existing.UpstreamAuthHeader, existing.UpstreamAuthSecret != "")
 		return s.switchToDirect(ctx, tx, t, cardStep)
 	})
-	attempt.Complete(ctx, err)
 	return err
 }
 
@@ -601,29 +597,13 @@ func (s *a2aProxyService) forget(ctx context.Context, t a2aProxyTarget) error {
 	})
 }
 
-// beginAudit opens the fail-closed intent record; a sink failure is reported as the audit outage it is.
-func (s *a2aProxyService) beginAudit(
-	ctx context.Context, action audit.Action, t a2aProxyTarget, upstreamAuthHeader string, authChanged bool,
-) (*audit.Attempt, error) {
-	attempt, err := audit.Begin(
-		ctx, action,
-		audit.Org(t.key.OUID),
-		audit.ResourceNamed(audit.ResourceAgent, t.agent.UUID, t.agent.Name),
-		audit.Project(t.key.ProjectName),
-		audit.Environment(t.key.EnvironmentName),
-		audit.Detail("agentName", t.agent.Name),
-		audit.Detail("upstreamAuthHeader", upstreamAuthHeader),
-		audit.Detail("upstreamAuthChanged", authChanged),
-	)
-	if err == nil {
-		return attempt, nil
-	}
-	s.logger.Error("Refusing the A2A proxy change: audit record could not be written",
-		"action", action, "agentName", t.agent.Name, "error", err)
-	if errors.Is(err, audit.ErrRecorderUnavailable) {
-		return nil, err
-	}
-	return nil, fmt.Errorf("%w: %w", audit.ErrRecorderUnavailable, err)
+// annotateA2AProxy names the agent and the upstream credential change the
+// request's audit record is about.
+func annotateA2AProxy(ctx context.Context, t a2aProxyTarget, upstreamAuthHeader string, authChanged bool) {
+	modkit.AuditResource(ctx, gwaudit.ResourceAgent, t.agent.UUID, t.agent.Name)
+	modkit.AuditDetail(ctx, "agentName", t.agent.Name)
+	modkit.AuditDetail(ctx, "upstreamAuthHeader", upstreamAuthHeader)
+	modkit.AuditDetail(ctx, "upstreamAuthChanged", authChanged)
 }
 
 // ensureDefaultAgentConfig gives a newly proxied environment a platform A2A agent's inbound defaults, minus forwarding the
