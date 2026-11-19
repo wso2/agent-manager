@@ -160,7 +160,7 @@ func TestShadowCreateConnection_Validation(t *testing.T) {
 			"projectIds": []any{}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
 		}},
 		"service account key is not JSON": {Name: "x", Provider: models.ShadowProviderGoogle, Settings: map[string]any{
-			"projectIds": []any{"p"}, "locations": []any{"us-central1"}, "serviceAccountJson": "not json",
+			"projectIds": []any{"my-agents-project"}, "locations": []any{"us-central1"}, "serviceAccountJson": "not json",
 		}},
 	}
 	for name, in := range tests {
@@ -455,7 +455,7 @@ func TestShadowServiceOptions(t *testing.T) {
 	// Google: the engines are always listed, so the registry can be unticked.
 	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
 		Name: "g", Provider: models.ShadowProviderGoogle, Settings: map[string]any{
-			"projectIds": []any{"p"}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
+			"projectIds": []any{"my-agents-project"}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
 			sa.OptGoogleRegistry: false,
 		},
 	})
@@ -464,7 +464,7 @@ func TestShadowServiceOptions(t *testing.T) {
 	for _, k := range []string{"readMonitoring", "readAuditLogs"} {
 		_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
 			Name: "g-" + k, Provider: models.ShadowProviderGoogle, Settings: map[string]any{
-				"projectIds": []any{"p"}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
+				"projectIds": []any{"my-agents-project"}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
 				k: false,
 			},
 		})
@@ -1175,4 +1175,33 @@ func TestShadowOnboardAgent(t *testing.T) {
 	assert.Equal(t, "support-agent", v.Row.LinkedAgent)
 	_, err = svc.Onboard(ctx, shadowTestOU, id, "default", "support-agent")
 	assert.ErrorIs(t, err, utils.ErrShadowAlreadyOnboarded)
+}
+
+// Google project IDs are checked on save: a project name with capitals or a
+// 21-digit service account ID is refused with what to enter instead.
+func TestShadowGoogleProjectIDs(t *testing.T) {
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{}, nil
+		},
+		CreateConnectionFunc: func(context.Context, *models.ShadowConnection) error { return nil },
+	}
+	svc := newShadowSvc(repo)
+	create := func(project string) error {
+		_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+			Name: "g-" + project, Provider: models.ShadowProviderGoogle, Settings: map[string]any{
+				"projectIds": []any{project}, "locations": []any{"us-central1"},
+				"serviceAccountJson": `{"type":"service_account"}`,
+			},
+		})
+		return err
+	}
+	for _, ok := range []string{"shadow-agent-discovery-sasindu", "my-agents-1", "example.com:my-project", "812584083435"} {
+		assert.NoError(t, create(ok), ok)
+	}
+	for _, bad := range []string{"Shadow-agent-Discovery-sasindu", "106904982347791141658", "ab", "1project", "ends-with-"} {
+		err := create(bad)
+		require.ErrorIs(t, err, utils.ErrInvalidInput, bad)
+		assert.Contains(t, err.Error(), "is not a Google Cloud project ID", bad)
+	}
 }

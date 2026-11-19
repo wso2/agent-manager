@@ -88,6 +88,22 @@ func (c *Calls) Skip(call, reason string) {
 	c.list = append(c.list, models.ShadowScanCallResult{Call: call, Outcome: models.ShadowCallSkipped, Message: reason})
 }
 
+// Note adds a short explanation to a recorded call, after any message it
+// has (for example what a listing left out). A call not recorded yet is
+// left as it is.
+func (c *Calls) Note(call, note string) {
+	i, ok := c.index[call]
+	if !ok || note == "" {
+		return
+	}
+	r := &c.list[i]
+	if r.Message == "" {
+		r.Message = note
+	} else {
+		r.Message += "; " + note
+	}
+}
+
 // OK reports whether every record of call succeeded.
 func (c *Calls) OK(call string) bool {
 	i, ok := c.index[call]

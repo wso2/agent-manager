@@ -405,6 +405,7 @@ func TestFoundryTest(t *testing.T) {
 		info := newTestFoundry(f, &logs).Test(t.Context(), foundryConn(f, true))
 		assert.False(t, info.OK)
 		assert.Equal(t, models.ShadowCallAuthFailed, info.Checks[0].Outcome)
+		assert.Contains(t, info.Checks[0].Message, "(AADSTS7000215): the client secret is not valid for this app")
 		assert.ElementsMatch(t, []string{sa.SigFoundryAgentObject, sa.SigFoundryClassicAgent}, info.Checks[0].Unlocks)
 	})
 }

@@ -45,7 +45,7 @@ type probe struct {
 // selected listing works.
 func (c *Connector) Test(ctx context.Context, conn sa.Connection) models.ShadowConnectionTestInfo {
 	st, problems := readSettings(conn)
-	if len(st.projects) == 0 || len(st.runtimeLocations) == 0 {
+	if len(st.projects) == 0 || (!st.discover && len(st.runtimeLocations) == 0) {
 		return models.ShadowConnectionTestInfo{OK: false, Checks: []models.ShadowConnectionCheck{{
 			Name: checkSettings, Outcome: models.ShadowCallFailed, Message: sa.ScrubText(strings.Join(problems, "; ")),
 		}}}
@@ -58,7 +58,12 @@ func (c *Connector) Test(ctx context.Context, conn sa.Connection) models.ShadowC
 		}}}
 	}
 	project := st.projects[0]
-	runtimeLoc := st.runtimeLocations[0]
+	// When the locations are found automatically, the test reads the
+	// locations every project has: us-central1 and the global registry.
+	runtimeLoc, registryLoc := discoveryHost, globalLocation
+	if !st.discover {
+		runtimeLoc, registryLoc = st.runtimeLocations[0], st.runtimeLocations[0]
+	}
 	one := url.Values{"pageSize": {"1"}}
 
 	probes := []probe{
@@ -71,7 +76,7 @@ func (c *Connector) Test(ctx context.Context, conn sa.Connection) models.ShadowC
 			return api.GetJSON(ctx, u, one, &listEnginesResponse{})
 		}},
 		{checkAgents, sa.OptGoogleRegistry, []string{sa.SigGoogleRegistryAgent}, func(ctx context.Context) error {
-			u, err := registryURL(conn, project, runtimeLoc, "agents")
+			u, err := registryURL(conn, project, registryLoc, "agents")
 			if err != nil {
 				return &sa.CallError{Outcome: models.ShadowCallFailed, Message: err.Error()}
 			}

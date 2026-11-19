@@ -113,6 +113,12 @@ func (s *scanner) listAgents(ctx context.Context, project, location string) {
 // it as a platform agent. Google's built-in agents are left out.
 func (s *scanner) addRegistryAgent(project, location string, a *registryAgent) {
 	if strings.HasPrefix(a.AgentID, builtinAgentPrefix) {
+		name := sa.SanitizeName(a.DisplayName)
+		if name == "" {
+			name = lastSegment(a.Name)
+		}
+		s.builtins[a.AgentID] = name
+		s.builtinEntries++
 		return
 	}
 	if m := projectSegRE.FindStringSubmatch(a.Name); m != nil {

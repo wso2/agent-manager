@@ -172,6 +172,10 @@ const (
 	OptGoogleRegistry = "scanAgentRegistry"
 )
 
+// OptGoogleAllLocations finds the locations of each Google project instead
+// of using the Locations field.
+const OptGoogleAllLocations = "allLocations"
+
 // serviceOptions are the option keys stored as DisabledServices when off
 // (OptGoogleRegistry is the same key as OptBedrockRegistry).
 var serviceOptions = map[string]bool{
@@ -235,9 +239,9 @@ var providerSpecs = []ProviderSpec{
 		}},
 		Fields: []FieldSpec{
 			{
-				Key: FieldScopedKeys, Label: "Project keys", Kind: FieldKeyMap, Required: true, Placeholder: "proj_abc123",
-				Help: "A read-only project key (scope api.agents.read or api.all.read) per project ID. GET /v1/agents is a " +
-					"project endpoint: only a project's own key lists its agents.",
+				Key: FieldScopedKeys, Label: "Project keys", Kind: FieldKeyMap, Required: true, Placeholder: "Project label, e.g. proj_abc123",
+				Help: "One read-only project key (scope api.agents.read or api.all.read) per project. OpenAI finds the project " +
+					"from the key itself and never checks the ID you enter: it is only a label, shown as the agents' scope.",
 			},
 		},
 		Permissions: []PermissionSpec{
@@ -250,7 +254,7 @@ var providerSpecs = []ProviderSpec{
 				},
 				Items: []string{
 					"One key per project, ideally a service account key with the scope api.agents.read (or api.all.read).",
-					"Add the project ID (proj_...) and its key as one row.",
+					"Add a label for the project (its ID, proj_..., or its name) and its key as one row. OpenAI never checks the label.",
 					"An Admin API key cannot list agents: GET /v1/agents accepts project keys only.",
 				},
 			},
@@ -350,14 +354,18 @@ var providerSpecs = []ProviderSpec{
 			{Key: EPGoogleToken, Label: "OAuth token endpoint", Default: "https://oauth2.googleapis.com/token", OfficialHostSuffixes: []string{"oauth2.googleapis.com"}, Advanced: true},
 			// Agent Runtime has no global location, and us/eu use the multi-region endpoint.
 			{Key: EPGoogleAIPlatform, Label: "Agent Runtime (regional)", Default: "https://{location}-aiplatform.googleapis.com", Placeholders: []string{"location"}, OfficialHostSuffixes: []string{"aiplatform.googleapis.com"}, FillFrom: "locations", FillExclude: []string{"global", "us", "eu"}},
-			{Key: EPGoogleAIPlatformRep, Label: "Agent Runtime (us/eu multi-region)", Default: "https://aiplatform.{location}.rep.googleapis.com", Placeholders: []string{"location"}, OfficialHostSuffixes: []string{".rep.googleapis.com"}, Option: OptGlobalMulti, FillValues: []string{"us", "eu"}},
+			{Key: EPGoogleAIPlatformRep, Label: "Agent Runtime (us/eu multi-region)", Default: "https://aiplatform.{location}.rep.googleapis.com", Placeholders: []string{"location"}, OfficialHostSuffixes: []string{".rep.googleapis.com"}, FillValues: []string{"us", "eu"}},
 			{Key: EPGoogleRegistry, Label: "Agent Registry", Default: "https://agentregistry.googleapis.com", OfficialHostSuffixes: []string{"agentregistry.googleapis.com"}, Option: OptGoogleRegistry},
 		},
 		Fields: []FieldSpec{
 			{Key: "projectIds", Label: "Project IDs", Kind: FieldList, Required: true, Placeholder: "e.g. my-agents-project"},
-			{Key: "locations", Label: "Locations", Kind: FieldList, Required: true, Placeholder: "e.g. us-central1"},
+			{
+				Key: OptGoogleAllLocations, Label: "Find every location automatically", Kind: FieldCheckbox, DefaultBool: true,
+				Help: "Lists the locations where Agent Runtime and the Agent Registry are available to each project, and scans every one.",
+			},
+			{Key: "locations", Label: "Locations", Kind: FieldList, Required: true, Option: "!" + OptGoogleAllLocations, Placeholder: "e.g. us-central1"},
 			{Key: "serviceAccountJson", Label: "Service account key (JSON)", Kind: FieldSecret, Required: true, Placeholder: "{\"type\": \"service_account\", ...}"},
-			{Key: OptGlobalMulti, Label: "Include the global Agent Registry location and the us/eu multi-regions", Kind: FieldCheckbox, DefaultBool: true, Advanced: true},
+			{Key: OptGlobalMulti, Label: "Include the global Agent Registry location and the us/eu multi-regions", Kind: FieldCheckbox, DefaultBool: true, Advanced: true, Option: "!" + OptGoogleAllLocations},
 			serviceField(OptGoogleRegistry, "Scan the Agent Registry", "Registered agents."),
 		},
 		Permissions: []PermissionSpec{

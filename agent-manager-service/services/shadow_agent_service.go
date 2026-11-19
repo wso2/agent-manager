@@ -688,6 +688,11 @@ func checkCredentialChoice(spec sa.ProviderSpec, secret models.ShadowConnectionS
 	return fmt.Errorf("%w: %s", utils.ErrInvalidInput, choice.Message)
 }
 
+// googleProjectRE is a Google Cloud project ID (also domain-scoped, such as
+// example.com:my-project) or a project number. A 21-digit service account
+// ID or a project name with capitals is refused.
+var googleProjectRE = regexp.MustCompile(`^(([a-z0-9.-]+\.[a-z]+:)?[a-z][a-z0-9-]{4,28}[a-z0-9]|[1-9][0-9]{5,15})$`)
+
 // shadowSecretFields are the secret's members, by form field key.
 var shadowSecretFields = []string{
 	sa.FieldScopedKeys, "clientSecret", "secretAccessKey", "sessionToken", "serviceAccountJson",
@@ -801,6 +806,15 @@ func applyShadowSettings(
 			}
 			if active && f.Required && len(v) == 0 {
 				return fmt.Errorf("%w: %s needs at least one value", utils.ErrInvalidInput, f.Label)
+			}
+			if spec.Provider == models.ShadowProviderGoogle && f.Key == "projectIds" {
+				for _, p := range v {
+					if !googleProjectRE.MatchString(p) {
+						return fmt.Errorf("%w: %q is not a Google Cloud project ID: use the project ID (lowercase letters, digits "+
+							"and hyphens, 6 to 30 characters, starting with a letter) or the project number, as the Google Cloud "+
+							"console's project picker shows them", utils.ErrInvalidInput, sa.Truncate(p, 64))
+					}
+				}
 			}
 			setShadowList(cfg, f.Key, v)
 		case sa.FieldSecret, sa.FieldTextarea:
@@ -963,6 +977,8 @@ func setShadowBool(cfg *models.ShadowConnectionConfig, key string, v bool) {
 		cfg.IncludeClassicAgents = v
 	case sa.OptGlobalMulti:
 		cfg.IncludeGlobalAndMultiRegion = v
+	case sa.OptGoogleAllLocations:
+		cfg.AllLocations = v
 	case sa.OptAllRepositories:
 		cfg.AllRepositories = v
 	case sa.OptAllProjects:
@@ -1055,7 +1071,8 @@ func shadowSettingsOf(provider string, cfg models.ShadowConnectionConfig) map[st
 	bools := map[string]bool{
 		sa.OptAllSubscriptions: cfg.AllSubscriptions,
 		sa.OptClassicAgents:    cfg.IncludeClassicAgents, sa.OptGlobalMulti: cfg.IncludeGlobalAndMultiRegion,
-		sa.OptAllRepositories: cfg.AllRepositories, sa.OptPrivateRepos: cfg.PrivateRepositories,
+		sa.OptGoogleAllLocations: cfg.AllLocations,
+		sa.OptAllRepositories:    cfg.AllRepositories, sa.OptPrivateRepos: cfg.PrivateRepositories,
 		sa.OptAllProjects: cfg.AllProjects, sa.OptReadCI: cfg.ReadCIFiles,
 	}
 	for _, f := range spec.Fields {
