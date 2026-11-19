@@ -73,8 +73,22 @@ func (module) Manifest() modkit.Manifest {
 		Events:       gwaudit.Events,
 		AuditActions: gwaudit.Actions,
 		UI:           &ui,
+		Workloads:    workloads,
 	}
 }
+
+// workloads declares the gateway controllers. Released controllers still
+// authenticate with a gateway token at the fixed internal paths and send no
+// heartbeat (#2493), so nothing uses the protocol yet; declaring them shows
+// the workload in amp module health, where Health reports their connections.
+var workloads = []modkit.WorkloadSpec{{
+	Name:        "gateway-controller",
+	Kind:        modkit.WorkloadService,
+	Trusted:     true,
+	Scopes:      []string{"gateways.connect"},
+	Protocols:   []string{"amp-gateway/v1"},
+	Description: "An AI Gateway controller, which syncs a gateway's configuration over a WebSocket",
+}}
 
 // ui turns on the console's AI Gateway pages and its agent identity page.
 var ui = modkit.UI{Pages: []modkit.Page{
