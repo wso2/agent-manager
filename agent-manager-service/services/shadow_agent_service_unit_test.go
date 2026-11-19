@@ -531,6 +531,136 @@ func TestShadowCreateScan(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrShadowNoConnections)
 }
 
+// TestShadowCreateScan_SkipsSourceHosts: a cloud scan never includes a
+// GitHub or Azure DevOps connection; their scan command runs on the
+// customer's machine.
+func TestShadowCreateScan_SkipsSourceHosts(t *testing.T) {
+	cloud := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderFoundry}
+	gh := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderGitHub}
+	ado := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderAzureDevOps}
+	var created *models.ShadowScan
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{gh, cloud, ado}, nil
+		},
+		CreateScanFunc: func(_ context.Context, s *models.ShadowScan) error {
+			created = s
+			return nil
+		},
+	}
+	svc := newShadowSvc(repo)
+	_, err := svc.CreateScan(auditableCtx(t), shadowTestOU, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{cloud.ID.String()}, created.ConnectionIDs)
+
+	_, err = svc.CreateScan(auditableCtx(t), shadowTestOU, []uuid.UUID{gh.ID})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+
+	repo.ListConnectionsFunc = func(context.Context, string) ([]models.ShadowConnection, error) {
+		return []models.ShadowConnection{gh, ado}, nil
+	}
+	_, err = svc.CreateScan(auditableCtx(t), shadowTestOU, nil)
+	assert.ErrorIs(t, err, utils.ErrShadowNoConnections)
+}
+
+// ---- source hosts (GitHub, Azure DevOps) ----
+
+func TestShadowSourceHostConnection_StoresNoSecret(t *testing.T) {
+	var stored *models.ShadowConnection
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{}, nil
+		},
+		CreateConnectionFunc: func(_ context.Context, c *models.ShadowConnection) error {
+			stored = c
+			return nil
+		},
+	}
+	svc := newShadowSvc(repo)
+
+	// Every repository is not ticked by default, so repositories are required.
+	_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "GitHub", Provider: models.ShadowProviderGitHub,
+		Settings: map[string]any{"organization": "acme"},
+	})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+
+	v, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "GitHub", Provider: models.ShadowProviderGitHub,
+		Settings: map[string]any{"organization": "acme", "repositories": []any{"payments"}},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, stored.SecretEncrypted)
+	assert.Empty(t, stored.SecretHints)
+	assert.False(t, stored.Config.AllRepositories, "not ticked by default")
+	assert.True(t, stored.Config.PrivateRepositories, "ticked by default")
+	assert.True(t, stored.Config.ReadCIFiles, "ticked by default")
+	assert.Equal(t, true, v.Settings[sa.OptPrivateRepos])
+
+	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "Public", Provider: models.ShadowProviderGitHub,
+		Settings: map[string]any{"organization": "acme", sa.OptAllRepositories: true, sa.OptPrivateRepos: false},
+	})
+	require.NoError(t, err)
+	assert.False(t, stored.Config.PrivateRepositories)
+
+	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
+		Settings: map[string]any{"organization": "contoso", sa.OptAllProjects: true},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, stored.SecretEncrypted)
+
+	for _, key := range []string{"personalAccessToken", "useEntra", "clientSecret"} {
+		_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+			Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
+			Settings: map[string]any{"organization": "contoso", sa.OptAllProjects: true, key: "x"},
+		})
+		assert.ErrorIs(t, err, utils.ErrInvalidInput, "%s is not a setting any more", key)
+	}
+}
+
+func TestShadowSourceHostConnection_UpdateWithoutStoredSecret(t *testing.T) {
+	id := uuid.New()
+	existing := &models.ShadowConnection{
+		ID: id, OUID: shadowTestOU, Name: "GitHub", Provider: models.ShadowProviderGitHub,
+		Config: models.ShadowConnectionConfig{
+			Endpoints: sa.DefaultEndpoints(models.ShadowProviderGitHub), Organization: "acme", AllRepositories: true,
+		},
+		// SecretEncrypted nil: a source host stores no secret.
+	}
+	var updated *models.ShadowConnection
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		GetConnectionFunc: func(context.Context, string, uuid.UUID) (*models.ShadowConnection, error) {
+			c := *existing
+			return &c, nil
+		},
+		UpdateConnectionFunc: func(_ context.Context, c *models.ShadowConnection) error {
+			updated = c
+			return nil
+		},
+	}
+	_, err := newShadowSvc(repo).UpdateConnection(auditableCtx(t), shadowTestOU, id, ShadowConnectionInput{
+		Name: "GitHub renamed", Provider: models.ShadowProviderGitHub,
+		Settings: map[string]any{"organization": "acme", sa.OptAllRepositories: false, "repositories": []any{"payments"}},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, updated.SecretEncrypted)
+	assert.Equal(t, []string{"payments"}, updated.Config.Repositories)
+}
+
+func TestShadowTestConnection_SourceHostIsRefused(t *testing.T) {
+	gh := &models.ShadowConnection{ID: uuid.New(), OUID: shadowTestOU, Name: "GitHub", Provider: models.ShadowProviderGitHub}
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		GetConnectionFunc: func(context.Context, string, uuid.UUID) (*models.ShadowConnection, error) {
+			return gh, nil
+		},
+		// SaveConnectionTestFunc nil: must not be reached.
+	}
+	_, err := newShadowSvc(repo).TestConnection(context.Background(), shadowTestOU, gh.ID)
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+}
+
 func TestShadowClearScans(t *testing.T) {
 	repo := &repomocks.ShadowAgentRepositoryMock{
 		DeleteFinishedScansFunc: func(context.Context, string) (int64, error) { return 3, nil },
@@ -696,12 +826,74 @@ func TestToShadowApply_AppliesRetentionAndCatalog(t *testing.T) {
 	assert.False(t, toShadowApply(scan, conn, out, started, started, false, log).Complete)
 }
 
-func TestValidShadowKind_AgentsOnly(t *testing.T) {
-	assert.True(t, validShadowKind(models.ShadowKindPlatformAgent))
-	assert.True(t, validShadowKind(models.ShadowKindRuntime))
-	for _, k := range []string{"api_key", "principal", "tool_infrastructure", "project", "deployment", ""} {
-		assert.False(t, validShadowKind(k), k)
+// TestToShadowApply_KeepsCodeAgentEvidence stores a code agent the source
+// code scan found, with its source evidence and who confirmed it.
+func TestToShadowApply_KeepsCodeAgentEvidence(t *testing.T) {
+	out := &sa.Result{
+		Findings: []*sa.Finding{{
+			Kind: models.ShadowKindCodeAgent, ExternalID: "acme/agent:src/agent.py", DisplayName: "agent",
+			Attributes: map[string]any{"framework": "langgraph", "reviewedBy": "rules", "snippet": shadowPromptMark},
+			Signals:    []sa.Signal{{Code: "github.d1_agent_dependency", Source: "requirements.txt"}},
+		}},
 	}
+	scan := &models.ShadowScan{ID: uuid.New(), OUID: shadowTestOU}
+	conn := &models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderGitHub}
+	now := time.Now().UTC()
+	in := toShadowApply(scan, conn, out, now, now, true, slog.New(slog.DiscardHandler))
+
+	require.Len(t, in.Findings, 1)
+	f := in.Findings[0]
+	assert.Equal(t, models.ShadowKindCodeAgent, f.Finding.Kind)
+	assert.Equal(t, map[string]any{"framework": "langgraph", "reviewedBy": "rules"}, f.Finding.Attributes)
+	require.Len(t, f.Signals, 1)
+	assert.Equal(t, "github.d1_agent_dependency", f.Signals[0].Code)
+	assert.Equal(t, "requirements.txt", f.Signals[0].Source)
+}
+
+func TestValidShadowKind_AgentsOnly(t *testing.T) {
+	assert.True(t, validShadowKind(false, models.ShadowKindPlatformAgent))
+	assert.True(t, validShadowKind(false, models.ShadowKindRuntime))
+	assert.False(t, validShadowKind(false, models.ShadowKindCodeAgent), "an agent platform lists no code agents")
+	assert.True(t, validShadowKind(true, models.ShadowKindCodeAgent))
+	assert.False(t, validShadowKind(true, models.ShadowKindPlatformAgent), "a repository host finds code agents only")
+	assert.False(t, validShadowKind(true, models.ShadowKindRuntime))
+	for _, k := range []string{"api_key", "principal", "tool_infrastructure", "project", "deployment", ""} {
+		assert.False(t, validShadowKind(false, k), k)
+		assert.False(t, validShadowKind(true, k), k)
+	}
+}
+
+func TestToShadowApply_DropsFindingsAndEvidenceOfAnotherPlatform(t *testing.T) {
+	out := &sa.Result{
+		Findings: []*sa.Finding{
+			{
+				Kind: models.ShadowKindPlatformAgent, ExternalID: "asst_1", DisplayName: "platform agent",
+				Signals: []sa.Signal{{Code: "github.d1_agent_dependency", Source: "requirements.txt"}},
+			},
+			{
+				Kind: models.ShadowKindCodeAgent, ExternalID: "acme/agent:src/agent.py", DisplayName: "agent",
+				Signals: []sa.Signal{
+					{Code: "azure_devops.d1_agent_dependency", Source: "requirements.txt"},
+					{Code: "foundry.agent_object", Source: "scan"},
+					{Code: "github.d2_agent_import", Source: "src/agent.py"},
+				},
+			},
+			{
+				Kind: models.ShadowKindCodeAgent, ExternalID: "acme/other:main.py", DisplayName: "other",
+				Signals: []sa.Signal{{Code: "openai.agent_object", Source: "scan"}},
+			},
+		},
+	}
+	scan := &models.ShadowScan{ID: uuid.New(), OUID: shadowTestOU}
+	conn := &models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderGitHub}
+	now := time.Now().UTC()
+	in := toShadowApply(scan, conn, out, now, now, true, slog.New(slog.DiscardHandler))
+
+	require.Len(t, in.Findings, 1, "the platform agent and the finding with only another platform's evidence are dropped")
+	f := in.Findings[0]
+	assert.Equal(t, "acme/agent:src/agent.py", f.Finding.ExternalID)
+	require.Len(t, f.Signals, 1)
+	assert.Equal(t, "github.d2_agent_import", f.Signals[0].Code)
 }
 
 func TestConnectionOutcome(t *testing.T) {
@@ -752,6 +944,7 @@ func newShadowScannerHarness(scan models.ShadowScan, conns ...models.ShadowConne
 		byID[c.ID] = c
 	}
 	h.repo = &repomocks.ShadowAgentRepositoryMock{
+		ExpirePendingScansFunc: func(context.Context, time.Time, time.Time) (int64, error) { return 0, nil },
 		ClaimDueScansFunc: func(context.Context, time.Time, time.Duration, int) ([]models.ShadowScan, error) {
 			return []models.ShadowScan{scan}, nil
 		},
@@ -872,6 +1065,7 @@ func TestShadowScannerGivesUpAfterMaxAttempts(t *testing.T) {
 	scan := models.ShadowScan{ID: uuid.New(), OUID: shadowTestOU, Attempts: shadowScanMaxAttempts + 1, ConnectionIDs: []string{uuid.New().String()}}
 	var finished *models.ShadowScan
 	repo := &repomocks.ShadowAgentRepositoryMock{
+		ExpirePendingScansFunc: func(context.Context, time.Time, time.Time) (int64, error) { return 0, nil },
 		ClaimDueScansFunc: func(context.Context, time.Time, time.Duration, int) ([]models.ShadowScan, error) {
 			return []models.ShadowScan{scan}, nil
 		},
@@ -883,6 +1077,37 @@ func TestShadowScannerGivesUpAfterMaxAttempts(t *testing.T) {
 	NewShadowAgentScanner(repo, ShadowConnectors{}, shadowTestKey, discardLogger()).RunOnce(context.Background())
 	require.NotNil(t, finished)
 	assert.Equal(t, models.ShadowScanFailed, finished.Status)
+}
+
+// TestShadowScannerExpiresPendingScans: every tick fails the pending source
+// code scans older than an hour, then claims queued scans as usual, also when
+// expiring fails.
+func TestShadowScannerExpiresPendingScans(t *testing.T) {
+	now := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)
+	var olderThan time.Time
+	claimed := 0
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ExpirePendingScansFunc: func(_ context.Context, before, at time.Time) (int64, error) {
+			olderThan = before
+			assert.Equal(t, now, at)
+			return 1, nil
+		},
+		ClaimDueScansFunc: func(context.Context, time.Time, time.Duration, int) ([]models.ShadowScan, error) {
+			claimed++
+			return nil, nil
+		},
+	}
+	scanner := NewShadowAgentScanner(repo, ShadowConnectors{}, shadowTestKey, discardLogger())
+	scanner.(*shadowAgentScanner).now = func() time.Time { return now }
+	scanner.RunOnce(context.Background())
+	assert.Equal(t, now.Add(-time.Hour), olderThan)
+	assert.Equal(t, 1, claimed)
+
+	repo.ExpirePendingScansFunc = func(context.Context, time.Time, time.Time) (int64, error) {
+		return 0, errors.New("db down")
+	}
+	scanner.RunOnce(context.Background())
+	assert.Equal(t, 2, claimed, "a failed expiry does not stop the scan worker")
 }
 
 func TestShadowDeleteAgents(t *testing.T) {

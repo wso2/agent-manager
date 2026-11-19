@@ -1,0 +1,14 @@
+# Reviewed licence exceptions for the runner's runtime dependencies.
+#
+# scripts/check_deps.py accepts only MIT or Apache-2.0 runtime dependencies.
+# A package under any other licence can ship only after a licence review, by
+# adding one line here:
+#
+#     name==version    # licence, link to the review decision
+#
+# The exact version is required, so every upgrade is reviewed again. An entry
+# the lock no longer needs fails the check, so remove it with the package.
+# GPL-family licences can never be excepted, and nothing here overrides the
+# denylist (tree-sitter-language-pack).
+#
+# There are no reviewed exceptions yet.

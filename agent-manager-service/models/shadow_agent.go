@@ -30,8 +30,9 @@ const (
 	ShadowProviderBedrock   = "bedrock"
 	ShadowProviderGoogle    = "google"
 	ShadowProviderFoundry   = "foundry"
-	// Source repository hosts (Method 2). Connections are stored now; the
-	// source code analysis that scans them is added separately.
+	// Source repository hosts (Method 2). Their connections hold no
+	// credential: the source code scan runs on the customer's machine and asks
+	// for the Git token there.
 	ShadowProviderGitHub      = "github"
 	ShadowProviderAzureDevOps = "azure_devops"
 )
@@ -52,16 +53,26 @@ const (
 	// ShadowKindRuntime is an AgentCore runtime or a Google Agent Runtime
 	// engine (reasoning engine).
 	ShadowKindRuntime = "runtime"
+	// ShadowKindCodeAgent is an agent found in a repository's source code by
+	// the source code scan.
+	ShadowKindCodeAgent = "code_agent"
 )
 
-// Scan statuses.
+// Scan statuses. A pending scan is a source code scan waiting for its scan
+// command to publish results: the worker never claims it, and it does not
+// count as the org's active scan.
 const (
+	ShadowScanPending   = "pending"
 	ShadowScanQueued    = "queued"
 	ShadowScanRunning   = "running"
 	ShadowScanSucceeded = "succeeded"
 	ShadowScanPartial   = "partial"
 	ShadowScanFailed    = "failed"
 )
+
+// ShadowScanExpiredMessage is the result of a pending scan whose scan command
+// did not publish results within an hour (the life of its scan token).
+const ShadowScanExpiredMessage = "expired: no results within 1 hour"
 
 // Outcomes of one provider call (or one connection) within a scan.
 const (
@@ -85,7 +96,9 @@ type ShadowConnection struct {
 	Provider string                 `gorm:"column:provider;not null"`
 	Config   ShadowConnectionConfig `gorm:"column:config;type:jsonb;serializer:json;not null"`
 	// SecretEncrypted is the AES-GCM encrypted JSON of ShadowConnectionSecret.
-	SecretEncrypted []byte `gorm:"column:secret_encrypted;not null"`
+	// It is NULL for a source host (GitHub, Azure DevOps), which stores no
+	// secret.
+	SecretEncrypted []byte `gorm:"column:secret_encrypted"`
 	// SecretHints are redacted hints of the stored secrets ("sk-a...wxyz"),
 	// so the UI can say which credential is stored without revealing it.
 	SecretHints    map[string]string         `gorm:"column:secret_hints;type:jsonb;serializer:json;not null"`
@@ -107,8 +120,7 @@ type ShadowConnectionConfig struct {
 	// prefilled and may change them.
 	Endpoints map[string]string `json:"endpoints"`
 
-	// Foundry and Azure DevOps (with UseEntra): the Entra app. Foundry: the
-	// subscriptions to scan.
+	// Foundry: the Entra app and the subscriptions to scan.
 	TenantID         string   `json:"tenantId,omitempty"`
 	ClientID         string   `json:"clientId,omitempty"`
 	AllSubscriptions bool     `json:"allSubscriptions,omitempty"`
@@ -136,18 +148,17 @@ type ShadowConnectionConfig struct {
 	// GitHub, Azure DevOps: the organization (or GitHub user account) whose
 	// repositories are scanned.
 	Organization string `json:"organization,omitempty"`
-	// GitHub: every repository the token can read, or only Repositories.
+	// GitHub: every repository of the organization, or only Repositories.
 	AllRepositories bool     `json:"allRepositories,omitempty"`
 	Repositories    []string `json:"repositories,omitempty"`
-	// Azure DevOps: every project the credential can read, or only Projects.
+	// GitHub: the repositories are private, so the scan command asks for a
+	// token when it runs.
+	PrivateRepositories bool `json:"privateRepositories,omitempty"`
+	// Azure DevOps: every project of the organization, or only Projects.
 	AllProjects bool     `json:"allProjects,omitempty"`
 	Projects    []string `json:"projects,omitempty"`
-	// Azure DevOps: sign in with a Microsoft Entra service principal
-	// (TenantID, ClientID and the client secret) instead of a PAT.
-	UseEntra bool `json:"useEntra,omitempty"`
-	// GitHub, Azure DevOps: also read CI pipeline definitions and .env
-	// example files.
-	ReadCIAndEnvFiles bool `json:"readCiAndEnvFiles,omitempty"`
+	// GitHub, Azure DevOps: also read CI pipeline definitions.
+	ReadCIFiles bool `json:"readCiFiles,omitempty"`
 
 	// DisabledServices are the optional services (Bedrock, Google) the user
 	// unticked: the scan does not call them. Listing the disabled ones keeps
@@ -164,16 +175,13 @@ type ShadowConnectionSecret struct {
 	// (An Admin API key stored by an earlier version is not decoded, so it is
 	// dropped when the platform is next saved.)
 	ScopedKeys map[string]string `json:"scopedKeys,omitempty"`
-	// ClientSecret is the Entra app's client secret (Foundry, Azure DevOps).
+	// ClientSecret is the Entra app's client secret (Foundry).
 	ClientSecret string `json:"clientSecret,omitempty"`
 	// SecretAccessKey and SessionToken complete the AWS access key.
 	SecretAccessKey string `json:"secretAccessKey,omitempty"`
 	SessionToken    string `json:"sessionToken,omitempty"`
 	// ServiceAccountJSON is a Google service account key file.
 	ServiceAccountJSON string `json:"serviceAccountJson,omitempty"`
-	// PersonalAccessToken is a GitHub fine-grained or Azure DevOps personal
-	// access token.
-	PersonalAccessToken string `json:"personalAccessToken,omitempty"`
 }
 
 // ShadowConnectionTestInfo is the outcome of a connection test: one entry
@@ -199,6 +207,7 @@ type ShadowScan struct {
 	OUID          string                       `gorm:"column:ou_id;not null"`
 	Status        string                       `gorm:"column:status;not null"`
 	ConnectionIDs []string                     `gorm:"column:connection_ids;type:jsonb;serializer:json;not null"`
+	Options       ShadowScanOptions            `gorm:"column:options;type:jsonb;serializer:json;not null"`
 	Results       []ShadowScanConnectionResult `gorm:"column:results;type:jsonb;serializer:json;not null"`
 	FindingsCount int                          `gorm:"column:findings_count;not null"`
 	RequestedBy   string                       `gorm:"column:requested_by;not null"`
@@ -212,6 +221,15 @@ type ShadowScan struct {
 
 func (ShadowScan) TableName() string { return "shadow_scans" }
 
+// ShadowScanOptions are the choices made in Generate command for a source
+// code scan. Cloud scans have none.
+type ShadowScanOptions struct {
+	// AIReview sends the matches the rules cannot prove to the customer's LLM.
+	AIReview bool `json:"aiReview,omitempty"`
+	// LLMJudge makes a second model confirm the reviewer; needs AIReview.
+	LLMJudge bool `json:"llmJudge,omitempty"`
+}
+
 // ShadowScanConnectionResult is how one connection fared in a scan.
 type ShadowScanConnectionResult struct {
 	ConnectionID   string                 `json:"connectionId"`
@@ -221,6 +239,18 @@ type ShadowScanConnectionResult struct {
 	Message        string                 `json:"message,omitempty"`
 	FindingsCount  int                    `json:"findingsCount"`
 	Calls          []ShadowScanCallResult `json:"calls"`
+	// ScannedRepositories and FailedRepositories are the repositories a
+	// source code scan command scanned and could not scan. Cloud scans have
+	// none.
+	ScannedRepositories []string                     `json:"scannedRepositories,omitempty"`
+	FailedRepositories  []ShadowScanFailedRepository `json:"failedRepositories,omitempty"`
+}
+
+// ShadowScanFailedRepository is a repository a source code scan command
+// could not scan, with its scrubbed reason.
+type ShadowScanFailedRepository struct {
+	Name    string `json:"name"`
+	Message string `json:"message"`
 }
 
 // ShadowScanCallResult is the outcome of one provider call (all its pages
@@ -256,7 +286,7 @@ type ShadowFindingRelation struct {
 }
 
 // ShadowFinding is an agent a platform lists, as one connection found it:
-// what the platform reports about it and its review status. The same agent
+// what the platform reports about it. The same agent
 // found through two connections is two rows with the same provider, kind
 // and external ID; the API shows them as one agent.
 type ShadowFinding struct {

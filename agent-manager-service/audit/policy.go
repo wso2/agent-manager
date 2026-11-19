@@ -238,6 +238,7 @@ var actionOverrides = map[string]Action{
 	"PUT /orgs/{orgName}/shadow-agents/connections/{connectionId}":                                        "shadow-connection:update",
 	"DELETE /orgs/{orgName}/shadow-agents/connections/{connectionId}":                                     "shadow-connection:delete",
 	"POST /orgs/{orgName}/shadow-agents/connections/{connectionId}/test":                                  "shadow-connection:test",
+	"POST /orgs/{orgName}/shadow-agents/connections/{connectionId}/runner-scans":                          "shadow-scan-token:issue",
 	"POST /orgs/{orgName}/shadow-agents/scans":                                                            "shadow-scan:create",
 	"DELETE /orgs/{orgName}/shadow-agents/scans":                                                          "shadow-scan:clear",
 	"POST /orgs/{orgName}/shadow-agents/findings/{findingId}/onboarding":                                  "shadow-finding:onboard",
@@ -393,6 +394,9 @@ var actionOverrides = map[string]Action{
 	// Likewise the build publisher route: a build token (issued to IDP_CLIENT_ID
 	// for one organization) is its only gate, so the action is named here.
 	"POST /build-publisher/builds/{buildName}/workload": "build-workload:publish",
+	// The scan publisher route is gated by the publish permission, which a
+	// scan token alone carries; the action names what it does to the scan.
+	"POST /shadow-agent-publisher/scans/{scanId}/results": "shadow-scan:publish",
 
 	"POST /orgs/{orgName}/repositories/branches":         "repository:list-branches",
 	"POST /orgs/{orgName}/repositories/commits":          "repository:list-commits",

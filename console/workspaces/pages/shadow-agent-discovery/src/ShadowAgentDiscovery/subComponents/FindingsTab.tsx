@@ -48,7 +48,13 @@ import {
   type ShadowFindingListQuery,
   type ShadowFindingSummary,
 } from "@agent-management-platform/types";
-import { AGENT_PLATFORMS, kindLabel, OnboardingChip, providerLabel } from "../shadowUi";
+import {
+  AGENT_PLATFORMS,
+  kindLabel,
+  OnboardingChip,
+  providerLabel,
+  SOURCE_HOSTS,
+} from "../shadowUi";
 
 const PAGE_SIZE = 50;
 
@@ -80,7 +86,8 @@ function sourceLabel(f: ShadowFindingSummary): string {
 
 /**
  * The unregistered agents: every agent the platforms list, once however many
- * connections found it, by name. With scanId, the agents one scan found.
+ * connections found it, most recently seen first. With scanId, the agents one
+ * scan found.
  */
 export function FindingsTab({
   orgName,
@@ -203,7 +210,7 @@ export function FindingsTab({
           slotProps={{ select: { displayEmpty: true, inputProps: { "aria-label": "Platform" } } }}
         >
           <MenuItem value="">All platforms</MenuItem>
-          {AGENT_PLATFORMS.map((p) => (
+          {[...AGENT_PLATFORMS, ...SOURCE_HOSTS].map((p) => (
             <MenuItem key={p} value={p}>
               {providerLabel(p)}
             </MenuItem>

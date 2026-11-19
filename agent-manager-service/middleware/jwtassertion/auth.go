@@ -145,9 +145,8 @@ func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
 }
 
 // BuildClientAuthMiddleware admits only a build token: a token this service
-// obtained for one organization from the identity provider's organization token
-// endpoint with its own client (IDP_CLIENT_ID) and handed to that organization's
-// build. The token must have been issued to that client (client_id) and carry the
+// obtained for one organization from the identity provider with its own client
+// (IDP_CLIENT_ID) and handed to that organization's build. The token must have been issued to that client (client_id) and carry the
 // organization it was issued for (ouId), and carry the build scope
 // (BuildTokenScope) and no other scope; the organization is taken from the token
 // alone, so a build can act only for the organization its token names. A token
@@ -172,6 +171,40 @@ func BuildClientAuthMiddleware() func(http.Handler) http.Handler {
 // BuildClientOrg returns the organization a build token acts for, or "" when
 // the request's token is not a build token (see BuildClientAuthMiddleware).
 func BuildClientOrg(ctx context.Context) string {
+	return issuingClientOrg(ctx, BuildTokenScope())
+}
+
+// ShadowPublisherAuthMiddleware admits only a scan token: a token this
+// service obtained for one organization from the identity provider with its
+// own client (IDP_CLIENT_ID) and handed to a source code scan command. Like a build token, it must have been issued
+// to that client and carry the organization it was issued for (ouId), and
+// carry the scan publish scope (amp:shadow-agent:publish) and no other scope.
+// A user token is refused even when its role grants that permission, and so
+// is any token with another scope.
+// Must be applied after JWTAuthMiddleware so that claims are already in context.
+func ShadowPublisherAuthMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if ShadowPublisherOrg(r.Context()) == "" {
+				utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// ShadowPublisherOrg returns the organization a scan token acts for, or ""
+// when the request's token is not a scan token (see
+// ShadowPublisherAuthMiddleware).
+func ShadowPublisherOrg(ctx context.Context) string {
+	return issuingClientOrg(ctx, rbac.ShadowAgentPublish.Scope())
+}
+
+// issuingClientOrg returns the organization of a token this service's own
+// client (IDP_CLIENT_ID) obtained for one organization with scope and no
+// other scope, or "" for any other token.
+func issuingClientOrg(ctx context.Context, scope string) string {
 	claims := GetTokenClaims(ctx)
 	if claims == nil {
 		return ""
@@ -184,7 +217,7 @@ func BuildClientOrg(ctx context.Context) string {
 	if issuingClient == "" || strings.TrimSpace(claims.ClientID) != issuingClient {
 		return ""
 	}
-	if !HasOnlyScope(claims.Scope, BuildTokenScope()) {
+	if !HasOnlyScope(claims.Scope, scope) {
 		return ""
 	}
 	return strings.TrimSpace(claims.OuId)

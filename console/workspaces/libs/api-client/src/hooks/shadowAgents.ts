@@ -20,6 +20,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   clearShadowScans,
   createShadowConnection,
+  createShadowRunnerScan,
   createShadowScan,
   deleteShadowConnection,
   deleteShadowFinding,
@@ -48,6 +49,8 @@ import type {
   ShadowOnboardingRequest,
   ShadowProviderListResponse,
   ShadowFindingClearResponse,
+  ShadowRunnerScanRequest,
+  ShadowRunnerScanResponse,
   ShadowScanClearResponse,
   ShadowScanListResponse,
   ShadowScanRequest,
@@ -212,6 +215,31 @@ export function useStartShadowScan(orgName: string | undefined) {
   return useApiMutation<ShadowScanResponse, unknown, ShadowScanRequest>({
     action: { verb: "start", target: "scan" },
     mutationFn: (body) => createShadowScan(orgName, body, getToken),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/**
+ * Generate command: creates a pending source code scan for a GitHub or Azure
+ * DevOps connection. The response holds a scan token, so callers keep it in
+ * component state only (it is never put in the query cache).
+ */
+export function useCreateShadowRunnerScan(orgName: string | undefined) {
+  const { getToken } = useAuthHooks();
+  const invalidate = useInvalidateShadow();
+  return useApiMutation<
+    ShadowRunnerScanResponse,
+    unknown,
+    { connectionId: string } & ShadowRunnerScanRequest
+  >({
+    // The panel or dialog shows the command and the error itself.
+    showSuccess: false,
+    showError: false,
+    // The response holds a scan token: drop it from the mutation cache at once.
+    gcTime: 0,
+    mutationFn: ({ connectionId, ...body }) =>
+      createShadowRunnerScan(orgName, connectionId, body, getToken),
+    // The new pending scan shows in Scans.
     onSuccess: () => invalidate(),
   });
 }

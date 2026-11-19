@@ -9,6 +9,13 @@ multi-ecosystem-groups:
       day: "sunday"
       time: "09:00"
       timezone: "Asia/Colombo"
+  # The shadow agent runner's pip updates share one PR.
+  shadow-agent-runner-dependencies:
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "09:00"
+      timezone: "Asia/Colombo"
 
 # Security updates are managed separately by GitHub and can raise extra PRs.
 # Keep target-branch unset so security updates use the default branch.
@@ -60,3 +67,19 @@ updates:
       - "/samples/insurance-support-agent/mcp-server"
     patterns: ["*"]
     multi-ecosystem-group: "sample-dependencies"
+
+  # A pip update edits the pins in requirements.in and pyproject.toml; the PR checks
+  # then fail until someone runs `make lock install-dev licenses` and commits the result.
+  - package-ecosystem: "pip"
+    directory: "/shadow-agent-runner"
+    patterns: ["*"]
+    multi-ecosystem-group: "shadow-agent-runner-dependencies"
+    # Pinned: ruff 0.16 widened its default rule set (the workflow pins it too).
+    # update-types, unlike versions, does not block security updates.
+    ignore:
+      - dependency-name: "ruff"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+    groups:
+      shadow-agent-runner-pip-security:
+        applies-to: "security-updates"
+        patterns: ["*"]

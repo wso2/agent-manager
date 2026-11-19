@@ -1,0 +1,7 @@
+# Fixture: a lock that pulls in the denylisted grammar bundle.
+tree-sitter==0.26.0 \
+    --hash=sha256:0000000000000000000000000000000000000000000000000000000000000000
+    # via -r requirements.in
+tree-sitter-language-pack==0.9.0 \
+    --hash=sha256:0000000000000000000000000000000000000000000000000000000000000000
+    # via -r requirements.in

@@ -302,8 +302,10 @@ export function OnboardFinding({
                 you choose.
               </Typography>
               <Typography component="li" variant="body2">
-                The agent keeps running where it is, on {providerLabel(f.provider)}. Nothing changes
-                on the platform.
+                {f.kind === "code_agent"
+                  ? `Its code stays in the repository. Nothing changes on ${providerLabel(f.provider)}.`
+                  : `The agent keeps running where it is, on ${providerLabel(f.provider)}. ` +
+                    "Nothing changes on the platform."}
               </Typography>
               <Typography component="li" variant="body2">
                 Agent Manager gives it an agent identity, observability and governed model access,

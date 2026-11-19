@@ -44,6 +44,9 @@ const (
 	// shadowConnectionTimeout bounds one connection's scan.
 	shadowConnectionTimeout = 30 * time.Minute
 	shadowConnectionWorkers = 4
+	// shadowPendingScanLife is how long a pending source code scan waits for
+	// its scan command to publish: the life of the scan token.
+	shadowPendingScanLife = time.Hour
 )
 
 // Connection outcomes in a scan result.
@@ -126,7 +129,16 @@ func (s *shadowAgentScanner) Stop() error {
 }
 
 func (s *shadowAgentScanner) RunOnce(ctx context.Context) {
-	scans, err := s.repo.ClaimDueScans(ctx, s.now().UTC(), shadowScanLease, shadowScanBatch)
+	now := s.now().UTC()
+	// One guarded update, safe to run on every replica at every tick.
+	if n, err := s.repo.ExpirePendingScans(ctx, now.Add(-shadowPendingScanLife), now); err != nil {
+		if ctx.Err() == nil {
+			s.logger.Error("Failed to expire pending shadow agent scans", "error", err)
+		}
+	} else if n > 0 {
+		s.logger.Info("Expired pending shadow agent scans", "count", n)
+	}
+	scans, err := s.repo.ClaimDueScans(ctx, now, shadowScanLease, shadowScanBatch)
 	if err != nil {
 		if ctx.Err() == nil {
 			s.logger.Error("Failed to claim shadow agent scans", "error", err)
@@ -363,8 +375,9 @@ func toShadowApply(
 	in := repositories.ShadowConnectionApply{
 		OUID: scan.OUID, ConnectionID: c.ID, ScanID: scan.ID, ScanStartedAt: startedAt, Complete: complete,
 	}
+	spec, _ := sa.Provider(c.Provider)
 	for _, f := range out.Findings {
-		if f == nil || strings.TrimSpace(f.ExternalID) == "" || !validShadowKind(f.Kind) {
+		if f == nil || strings.TrimSpace(f.ExternalID) == "" || !validShadowKind(spec.SourceHost, f.Kind) {
 			continue
 		}
 		fi := repositories.ShadowFindingInput{
@@ -373,7 +386,7 @@ func toShadowApply(
 				Kind:              f.Kind,
 				ExternalID:        sa.Truncate(f.ExternalID, 1024),
 				DisplayName:       sa.SanitizeName(firstNonEmpty(f.DisplayName, f.ExternalID)),
-				Scope:             sa.Truncate(f.Scope, 256),
+				Scope:             sa.NormaliseScope(c.Provider, c.Config.Organization, f.Scope),
 				State:             sa.Truncate(f.State, 64),
 				OwnerHint:         sa.MinimiseOwnerHint(f.OwnerHint),
 				Attributes:        sa.SanitizeAttributes(f.Attributes),
@@ -382,8 +395,8 @@ func toShadowApply(
 		}
 		for _, sig := range f.Signals {
 			d, ok := sa.Def(sig.Code)
-			if !ok {
-				log.Warn("Dropping an unknown evidence code", "provider", c.Provider, "code", sig.Code)
+			if !ok || d.Provider != c.Provider {
+				log.Warn("Dropping evidence unknown to the platform", "provider", c.Provider, "code", sig.Code)
 				continue
 			}
 			fi.Signals = append(fi.Signals, models.ShadowFindingSignal{
@@ -394,8 +407,8 @@ func toShadowApply(
 			})
 		}
 		if len(fi.Signals) == 0 {
-			// Every finding is an agent a listing returned; one without that
-			// evidence is not stored.
+			// Every finding is an agent a platform listing or the source code
+			// scan returned; one without that evidence is not stored.
 			continue
 		}
 		in.Findings = append(in.Findings, fi)
@@ -403,7 +416,13 @@ func toShadowApply(
 	return in
 }
 
-func validShadowKind(kind string) bool {
+// validShadowKind reports whether a finding kind fits its platform: a source
+// repository host finds code agents only, an agent platform lists platform
+// agents and runtimes.
+func validShadowKind(sourceHost bool, kind string) bool {
+	if sourceHost {
+		return kind == models.ShadowKindCodeAgent
+	}
 	return kind == models.ShadowKindPlatformAgent || kind == models.ShadowKindRuntime
 }
 
@@ -450,12 +469,18 @@ func finiteOrNil(f *float64) *float64 {
 // (Foundry stores no endpoint for external agents, so a name match is only a
 // "possible duplicate", never merged).
 func (s *shadowAgentScanner) correlate(ctx context.Context, ouID string) error {
-	findings, err := s.repo.ListOrgFindings(ctx, ouID)
+	return correlateShadowOrg(ctx, s.repo, ouID, s.now().UTC())
+}
+
+// correlateShadowOrg recomputes the org's cross-connection relations, after a
+// scan or a source code scan publish.
+func correlateShadowOrg(ctx context.Context, repo repositories.ShadowAgentRepository, ouID string, now time.Time) error {
+	findings, err := repo.ListOrgFindings(ctx, ouID)
 	if err != nil {
 		return fmt.Errorf("listing findings: %w", err)
 	}
-	relations, signals := CorrelateShadowFindings(findings, s.now().UTC())
-	return s.repo.ApplyCorrelation(ctx, ouID, relations, signals)
+	relations, signals := CorrelateShadowFindings(findings, now)
+	return repo.ApplyCorrelation(ctx, ouID, relations, signals)
 }
 
 // CorrelateShadowFindings computes cross-connection relations and the
@@ -481,7 +506,9 @@ func CorrelateShadowFindings(
 	byName := map[string][]*models.ShadowFinding{}
 	for i := range findings {
 		f := &findings[i]
-		if f.Provider == models.ShadowProviderFoundry {
+		// Code agents are named after code, not an endpoint, so they are not
+		// matched against Foundry external agents.
+		if f.Provider == models.ShadowProviderFoundry || f.Kind == models.ShadowKindCodeAgent {
 			continue
 		}
 		if n := normalizeShadowName(f.DisplayName); n != "" {

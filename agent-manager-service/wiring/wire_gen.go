@@ -34,9 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/anthropic"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/azure"
-	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/azuredevops"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/bedrock"
-	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/github"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/google"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/openai"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -221,7 +219,8 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
 	shadowAgentRepository := repositories.NewShadowAgentRepository(db)
 	shadowConnectors := ProvideShadowConnectors(logger)
-	shadowAgentService := services.NewShadowAgentService(shadowAgentRepository, shadowConnectors, agentManagerService, v, logger)
+	shadowScanRunner := services.NewShadowScanRunner(configConfig, logger)
+	shadowAgentService := services.NewShadowAgentServiceWithScanRunner(shadowAgentRepository, shadowConnectors, agentManagerService, v, logger, shadowScanRunner)
 	shadowAgentController := controllers.NewShadowAgentController(shadowAgentService)
 	monitorAlertService := services.NewMonitorAlertService(monitorAlertRepository, monitorRepository, eventRepository)
 	monitorAlertController := controllers.NewMonitorAlertController(monitorAlertService)
@@ -481,7 +480,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
 	shadowAgentRepository := repositories.NewShadowAgentRepository(db)
 	shadowConnectors := ProvideShadowConnectors(logger)
-	shadowAgentService := services.NewShadowAgentService(shadowAgentRepository, shadowConnectors, agentManagerService, v, logger)
+	shadowScanRunner := services.NewShadowScanRunner(configConfig, logger)
+	shadowAgentService := services.NewShadowAgentServiceWithScanRunner(shadowAgentRepository, shadowConnectors, agentManagerService, v, logger, shadowScanRunner)
 	shadowAgentController := controllers.NewShadowAgentController(shadowAgentService)
 	monitorAlertService := services.NewMonitorAlertService(monitorAlertRepository, monitorRepository, eventRepository)
 	monitorAlertController := controllers.NewMonitorAlertController(monitorAlertService)
@@ -596,7 +596,7 @@ var clientProviderSet = wire.NewSet(
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewProjectMCPCapabilityDiscoveryService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewProjectMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewBuildPublisherService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService, ProvideEventBus,
-	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService, services.NewMonitorAlertService, services.NewMonitorAlertProcessor, ProvideShadowConnectors, services.NewShadowAgentService, wire.Bind(new(services.ShadowAgentLookup), new(services.AgentManagerService)), services.NewShadowAgentScanner,
+	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService, services.NewMonitorAlertService, services.NewMonitorAlertProcessor, ProvideShadowConnectors, services.NewShadowScanRunner, services.NewShadowAgentServiceWithScanRunner, wire.Bind(new(services.ShadowAgentLookup), new(services.AgentManagerService)), services.NewShadowAgentScanner,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -1125,12 +1125,13 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 }
 
 // ProvideShadowConnectors registers the Shadow Agent Discovery connector of
-// each supported platform. They share one HTTP client that follows a
+// each supported cloud platform (source hosts have none: they are scanned by
+// the scan command on the customer's machine). They share one HTTP client that follows a
 // redirect only to the same origin, so a stored credential never leaves the
 // endpoint the org configured.
 func ProvideShadowConnectors(logger *slog.Logger) services.ShadowConnectors {
 	httpClient := shadowagents.NewHTTPClient(nil)
-	all := []shadowagents.Connector{openai.New(httpClient, logger), anthropic.New(httpClient, logger), bedrock.New(httpClient, logger), google.New(httpClient, logger), azure.NewFoundry(httpClient, logger), github.New(httpClient, logger), azuredevops.New(httpClient, logger)}
+	all := []shadowagents.Connector{openai.New(httpClient, logger), anthropic.New(httpClient, logger), bedrock.New(httpClient, logger), google.New(httpClient, logger), azure.NewFoundry(httpClient, logger)}
 	out := make(services.ShadowConnectors, len(all))
 	for _, c := range all {
 		out[c.Provider()] = c

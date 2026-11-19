@@ -17,7 +17,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import type {
   ShadowAgentSummary,
@@ -25,6 +25,8 @@ import type {
   ShadowFindingDetail,
   ShadowFindingListQuery,
   ShadowFindingSummary,
+  ShadowProviderSpec,
+  ShadowRunnerScanResponse,
   ShadowScanResponse,
 } from "@agent-management-platform/types";
 
@@ -108,6 +110,10 @@ const hoisted = vi.hoisted(() => ({
   summary: undefined as ShadowAgentSummary | undefined,
   connections: [] as ShadowConnectionResponse[],
   scans: [] as ShadowScanResponse[],
+  scanDetail: null as ShadowScanResponse | null,
+  scanIds: [] as (string | undefined)[],
+  scanLoading: false,
+  scanError: null as unknown,
   createAgent: vi.fn(),
   onboard: vi.fn(),
   start: vi.fn(),
@@ -115,7 +121,12 @@ const hoisted = vi.hoisted(() => ({
   deleteAgent: vi.fn(),
   deleteAll: vi.fn(),
   test: vi.fn(),
+  generate: vi.fn(),
+  resetGenerate: vi.fn(),
   addConfirmation: vi.fn(),
+  providers: [] as ShadowProviderSpec[],
+  createConnection: vi.fn(),
+  updateConnection: vi.fn(),
 }));
 
 vi.mock("@agent-management-platform/api-client", () => ({
@@ -138,18 +149,38 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useDeleteShadowFindings: () => ({ mutate: hoisted.deleteAll, isPending: false }),
   useTokenScopes: () => ({ enforced: hoisted.enforced, resolved: true, scopes: hoisted.scopes }),
   useShadowSummary: () => ({ data: hoisted.summary, isLoading: false, error: null }),
-  useShadowProviders: () => ({ data: undefined }),
+  useShadowProviders: () => ({
+    data: hoisted.providers.length > 0 ? { providers: hoisted.providers, signals: [] } : undefined,
+    isLoading: false,
+  }),
+  useShadowConnection: () => ({ data: undefined, isLoading: false }),
+  useCreateShadowConnection: () => ({ mutate: hoisted.createConnection, isPending: false }),
+  useUpdateShadowConnection: () => ({ mutate: hoisted.updateConnection, isPending: false }),
   useShadowConnections: () => ({
     data: { connections: hoisted.connections },
     isLoading: false,
     error: null,
   }),
   useShadowScans: () => ({ data: { scans: hoisted.scans }, isLoading: false, error: null }),
-  useShadowScan: () => ({ data: hoisted.scans[0], isLoading: false, error: null }),
+  useShadowScan: (_org: string | undefined, id: string | undefined) => {
+    hoisted.scanIds.push(id);
+    const data =
+      hoisted.scanDetail?.id === id ? hoisted.scanDetail : hoisted.scans.find((s) => s.id === id);
+    return {
+      data: id ? data : undefined,
+      isLoading: !!id && hoisted.scanLoading,
+      error: id ? hoisted.scanError : null,
+    };
+  },
   useClearShadowScans: () => ({ mutate: hoisted.clear, isPending: false }),
   useStartShadowScan: () => ({ mutate: hoisted.start, isPending: false }),
   useDeleteShadowConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useTestShadowConnection: () => ({ mutate: hoisted.test, isPending: false }),
+  useCreateShadowRunnerScan: () => ({
+    mutate: hoisted.generate,
+    reset: hoisted.resetGenerate,
+    isPending: false,
+  }),
   isShadowScanActive: (s: string | undefined) => s === "queued" || s === "running",
   useTrack: () => ({ track: vi.fn() }),
   ConsoleAction: {},
@@ -180,6 +211,7 @@ vi.mock("@agent-management-platform/shared-component", async () => {
     isListEmpty: ({ isLoading, count }: { isLoading: boolean; count: number }) =>
       !isLoading && count === 0,
     formatRelativeTime: () => "2 days ago",
+    CodeBlock: ({ code }: { code: string }) => React.createElement("pre", null, code),
     useConfirmationDialog: () => ({ addConfirmation: hoisted.addConfirmation }),
     useUnsavedChangesGuard: () => ({ allowNavigation: (fn: () => void) => fn() }),
   };
@@ -191,10 +223,14 @@ import { OnboardFinding } from "./subComponents/OnboardFinding";
 import { OverviewPanel } from "./subComponents/OverviewPanel";
 import { RunScanButton } from "./subComponents/RunScanButton";
 import { ConnectionsTab, ScopedKeysChip } from "./subComponents/ConnectionsTab";
-import { ScansTab } from "./subComponents/ScansTab";
+import { ScanDetailsDrawer, ScansTab } from "./subComponents/ScansTab";
 import { ShadowAgentDiscovery } from "./ShadowAgentDiscovery";
-import { SourceRepoPreview } from "../sourceRepoScan/SourceRepoPreview";
 import { AnalyzeSection } from "./subComponents/AnalyzeSection";
+import { ScanStatusChip } from "./shadowUi";
+import { SourceScanGuide } from "./subComponents/SourceScanGuide";
+import { DocLinks } from "./subComponents/PermissionsPanel";
+import { GenerateCommandDialog } from "./subComponents/GenerateCommandDialog";
+import { ConnectionEditor } from "./subComponents/ConnectionEditor";
 
 function ShowLocation() {
   const l = useLocation();
@@ -244,6 +280,11 @@ beforeEach(() => {
   hoisted.summary = undefined;
   hoisted.connections = [];
   hoisted.scans = [];
+  hoisted.scanDetail = null;
+  hoisted.scanIds = [];
+  hoisted.scanLoading = false;
+  hoisted.scanError = null;
+  hoisted.providers = [];
 });
 
 describe("ShadowAgentDiscovery page", () => {
@@ -454,7 +495,7 @@ describe("FindingsTab", () => {
     );
   });
 
-  it("filters by the five agent platforms and by onboarding", () => {
+  it("filters by the agent platforms, the source hosts and onboarding", () => {
     hoisted.findings = [finding()];
     router(<FindingsTab orgName="acme" />);
     expect(openSelect("Platform")).toEqual([
@@ -464,6 +505,8 @@ describe("FindingsTab", () => {
       "Amazon Bedrock",
       "Google Agent Platform",
       "Microsoft Foundry",
+      "GitHub",
+      "Azure DevOps",
     ]);
     fireEvent.click(screen.getByRole("option", { name: "Microsoft Foundry" }));
     expect(lastQuery()).toMatchObject({ provider: "foundry", offset: 0 });
@@ -532,6 +575,89 @@ describe("FindingDetail", () => {
     );
     expect(screen.queryByText(/score|verdict|reviewed|dismiss/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/no longer listed/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Why this is an agent: the platform listing that returned it."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
+  });
+
+  const codeAgent = (reviewedBy: string, over: Partial<ShadowFindingDetail> = {}) =>
+    detail({
+      provider: "github",
+      kind: "code_agent",
+      externalId: "wso2/support-bot:agent.py",
+      attributes: { framework: "langgraph", reviewedBy },
+      signals: [
+        {
+          code: "github.d1_agent_dependency",
+          name: "Agent framework dependency",
+          source: "requirements.txt",
+          condition: "A dependency on an agent framework",
+          observed: { dependency: "langgraph" },
+          detectedAt: "2026-11-10T00:00:00Z",
+        },
+      ],
+      ...over,
+    });
+
+  it("explains code evidence and warns that AI review confirmed a code agent", () => {
+    hoisted.detail = codeAgent("ai_review_judge");
+    renderDetail();
+    expect(
+      screen.getByText("Why this is an agent: the code in the repository that matched each rule."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Why this is an agent: the platform listing that returned it."),
+    ).toBeNull();
+    expect(screen.getByText("requirements.txt")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed by")).toBeInTheDocument();
+    expect(screen.getByText("AI review and LLM judge")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "AI review confirmed this agent. AI review can make mistakes, so check the evidence.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Location in code")).toBeInTheDocument();
+    expect(screen.getByText("wso2/support-bot:agent.py")).toBeInTheDocument();
+    expect(screen.getAllByText("Repository").length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Platform ID")).not.toBeInTheDocument();
+    expect(screen.queryByText("Scope")).not.toBeInTheDocument();
+    expect(screen.getByText(/What the scan command reported/)).toBeInTheDocument();
+  });
+
+  it("warns about AI mistakes for a code agent confirmed by AI review alone", () => {
+    hoisted.detail = codeAgent("ai_review");
+    renderDetail();
+    expect(screen.getByText("AI review")).toBeInTheDocument();
+    expect(screen.getByText(/AI review can make mistakes/)).toBeInTheDocument();
+  });
+
+  it("words a code agent that is no longer found, without platform-only fields", () => {
+    hoisted.detail = codeAgent("ai_review", {
+      present: false,
+      foundBy: [
+        { findingId: "f1", connectionId: "c1", connectionName: "WSO2 GitHub", present: false },
+        { findingId: "f9", connectionId: "c9", connectionName: "WSO2 mirror", present: true },
+      ],
+    });
+    renderDetail();
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(screen.getByText(/no longer found this agent/)).toBeInTheDocument();
+    expect(screen.queryByText(/no longer listed this agent/)).not.toBeInTheDocument();
+    expect(screen.getByText("No longer found")).toBeInTheDocument();
+    expect(screen.queryByText("No longer listed")).not.toBeInTheDocument();
+    expect(screen.getByText("Found")).toBeInTheDocument();
+    expect(screen.getByText(/found through 2 connections/)).toBeInTheDocument();
+    expect(screen.queryByText("State at the platform")).not.toBeInTheDocument();
+    expect(screen.queryByText("Created at the platform")).not.toBeInTheDocument();
+  });
+
+  it("shows a rule-proven code agent without the AI warning", () => {
+    hoisted.detail = codeAgent("rules");
+    renderDetail();
+    expect(screen.getByText("Confirmed by")).toBeInTheDocument();
+    expect(screen.getByText("Rules")).toBeInTheDocument();
+    expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
   });
 
   it("links an onboarded agent to the registered agent", () => {
@@ -639,6 +765,11 @@ describe("RunScanButton", () => {
     unmount();
     hoisted.summary = undefined;
     hoisted.connections = [];
+    const { unmount: unmountEmpty } = router(<RunScanButton orgName="acme" />);
+    expect(screen.getByRole("button", { name: "Run scan" })).toBeDisabled();
+    unmountEmpty();
+    // Source code repositories are scanned by the scan command, not by Run scan.
+    hoisted.connections = [connection({ id: "c2", name: "Repos", provider: "github" })];
     router(<RunScanButton orgName="acme" />);
     expect(screen.getByRole("button", { name: "Run scan" })).toBeDisabled();
   });
@@ -648,19 +779,57 @@ describe("ConnectionsTab (Platforms)", () => {
   const renderTab = () =>
     router(<ConnectionsTab orgName="acme" canManage onAdd={vi.fn()} onEdit={vi.fn()} />);
 
-  it("lists platforms with a Scan action for agent platforms only", () => {
+  it("lists AI platforms and source code repositories in their own sections", () => {
     hoisted.connections = [
       connection(),
-      connection({ id: "c2", name: "Repos", provider: "github" }),
+      connection({
+        id: "c2",
+        name: "Repos",
+        provider: "github",
+        settings: { organization: "acme", allRepositories: true, privateRepositories: true },
+      }),
     ];
     renderTab();
     expect(screen.getByRole("button", { name: "Add platform" })).toBeInTheDocument();
-    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers.slice(0, 2)).toEqual(["Name", "Platform"]);
+    expect(screen.getByText("AI platforms")).toBeInTheDocument();
+    expect(screen.getByText("Source code repositories")).toBeInTheDocument();
+    const [ai, source] = screen.getAllByRole("table");
+    expect(within(ai).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Name",
+      "Platform",
+      "Last test",
+      "Created",
+      "",
+    ]);
+    expect(within(source).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Name",
+      "Host",
+      "What it scans",
+      "Created",
+      "",
+    ]);
+    expect(within(source).getByText("acme · All repositories · Private and public")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Scan OpenAI prod" }));
     expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c1"] });
+    // A source host has no credential to test and no cloud scan.
     expect(screen.queryByRole("button", { name: "Scan Repos" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Test Repos" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Test Repos" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Repos" })).toBeInTheDocument();
+  });
+
+  it("opens Generate command from a source code repository row", () => {
+    hoisted.connections = [connection({ id: "c2", name: "Repos", provider: "github" })];
+    renderTab();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Generate command for Repos" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Generate scan command: Repos");
+  });
+
+  it("shows only the sections that have platforms", () => {
+    hoisted.connections = [connection()];
+    renderTab();
+    expect(screen.getByText("AI platforms")).toBeInTheDocument();
+    expect(screen.queryByText("Source code repositories")).not.toBeInTheDocument();
   });
 
   it("disables Scan while a scan runs", () => {
@@ -677,12 +846,21 @@ describe("ConnectionsTab (Platforms)", () => {
   });
 
   it("deletes a platform after saying what is removed", () => {
-    hoisted.connections = [connection()];
+    hoisted.connections = [
+      connection(),
+      connection({ id: "c2", name: "Repos", provider: "github" }),
+    ];
     renderTab();
     fireEvent.click(screen.getByRole("button", { name: "Delete OpenAI prod" }));
-    expect(hoisted.addConfirmation).toHaveBeenCalledWith(
+    expect(hoisted.addConfirmation).toHaveBeenLastCalledWith(
       expect.objectContaining({
         description: expect.stringContaining("every agent this platform found"),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete Repos" }));
+    expect(hoisted.addConfirmation).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        description: expect.stringContaining("Every agent found in these repositories"),
       }),
     );
   });
@@ -729,17 +907,134 @@ describe("ScansTab", () => {
     opts.onConfirm();
     expect(hoisted.clear).toHaveBeenCalledTimes(1);
   });
+
+  const github = {
+    connectionId: "c2",
+    connectionName: "GitHub acme",
+    provider: "github",
+    outcome: "ok",
+    findingsCount: 1,
+    calls: [],
+  };
+  const openGithubScan = () => {
+    router(<ScansTab orgName="acme" canManage />);
+    fireEvent.click(screen.getByText("GitHub acme"));
+    return screen.getByRole("dialog", { name: "Scan details" });
+  };
+
+  it("opens a scan with its detail, which has the repositories", () => {
+    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
+    hoisted.scanDetail = scan({
+      id: "s2",
+      connectionIds: ["c2"],
+      results: [{ ...github, scannedRepositories: ["acme/api"] }],
+    });
+    router(<ScansTab orgName="acme" canManage />);
+    expect(hoisted.scanIds.filter(Boolean)).toEqual([]);
+    fireEvent.click(screen.getByText("GitHub acme"));
+    expect(hoisted.scanIds).toContain("s2");
+    const drawer = screen.getByRole("dialog", { name: "Scan details" });
+    expect(within(drawer).getByText("1 scanned")).toBeInTheDocument();
+  });
+
+  it("shows the list item, not a detail of another scan", () => {
+    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
+    hoisted.scanDetail = scan({
+      id: "s9",
+      connectionIds: ["c2"],
+      results: [{ ...github, scannedRepositories: ["acme/other"] }],
+    });
+    const drawer = openGithubScan();
+    expect(within(drawer).getByText("GitHub acme")).toBeInTheDocument();
+    expect(within(drawer).queryByText("Repositories")).not.toBeInTheDocument();
+  });
+
+  it("says the repositories are loading while the detail loads", () => {
+    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
+    hoisted.scanLoading = true;
+    const drawer = openGithubScan();
+    expect(within(drawer).getByText("Loading repositories…")).toBeInTheDocument();
+  });
+
+  it("says the repositories could not be loaded when the detail fails", () => {
+    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
+    hoisted.scanError = new Error("boom");
+    const drawer = openGithubScan();
+    expect(
+      within(drawer).getByText("Couldn't load the repositories. Close and reopen to try again."),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing about repositories for an AI platform while the detail loads", () => {
+    hoisted.scans = [scan()];
+    hoisted.scanLoading = true;
+    router(<ScansTab orgName="acme" canManage />);
+    fireEvent.click(screen.getAllByText("OpenAI prod")[0]);
+    const drawer = screen.getByRole("dialog", { name: "Scan details" });
+    expect(within(drawer).queryByText("Loading repositories…")).not.toBeInTheDocument();
+  });
+
+  it("keeps a pending scan when clearing", () => {
+    hoisted.scans = [scan({ id: "s2", status: "pending" })];
+    router(<ScansTab orgName="acme" canManage />);
+    expect(screen.getByRole("button", { name: "Clear scans" })).toBeDisabled();
+  });
 });
 
-describe("SourceRepoPreview", () => {
-  it("labels the sample data and lists suspects of the scanned hosts", () => {
-    router(<SourceRepoPreview hosts={[{ connectionName: "gh", provider: "github" }]} />);
-    expect(screen.getByText("Sample data")).toBeInTheDocument();
-    expect(screen.getByText("acme-corp/support-assistant")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: /Show hits for acme-corp\/support-assistant/ }),
-    );
-    expect(screen.getByText(/value not stored/)).toBeInTheDocument();
+describe("ScanDetailsDrawer", () => {
+  const sourceScan = () =>
+    scan({
+      connectionIds: ["c2"],
+      results: [
+        {
+          connectionId: "c2",
+          connectionName: "GitHub acme",
+          provider: "github",
+          outcome: "partial",
+          findingsCount: 2,
+          calls: [],
+          scannedRepositories: ["acme/api", "acme/web"],
+          failedRepositories: [{ name: "acme/big", message: "clone timed out" }],
+        },
+      ],
+    });
+
+  it("shows the failed repositories with their reasons", () => {
+    render(<ScanDetailsDrawer scan={sourceScan()} onClose={() => undefined} />);
+    expect(screen.getByText("Repositories")).toBeInTheDocument();
+    expect(screen.getByText("2 scanned, 1 failed")).toBeInTheDocument();
+    const failed = screen.getByRole("list", { name: "Failed repositories" });
+    expect(within(failed).getByText("acme/big")).toBeInTheDocument();
+    expect(within(failed).getByText("clone timed out")).toBeInTheDocument();
+  });
+
+  it("lists the scanned repositories on request", () => {
+    render(<ScanDetailsDrawer scan={sourceScan()} onClose={() => undefined} />);
+    expect(screen.queryByText("acme/api")).not.toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: "Show 2 scanned repositories" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    const list = screen.getByRole("list", { name: "Scanned repositories" });
+    expect(toggle).toHaveAttribute("aria-controls", list.id);
+    expect(within(list).getAllByRole("listitem").map((l) => l.textContent)).toEqual([
+      "acme/api",
+      "acme/web",
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Hide scanned repositories" }));
+    expect(screen.queryByText("acme/api")).not.toBeInTheDocument();
+  });
+
+  it("shows no repositories for an AI platform", () => {
+    render(<ScanDetailsDrawer scan={scan()} onClose={() => undefined} />);
+    expect(screen.getByText("OpenAI prod")).toBeInTheDocument();
+    expect(screen.queryByText("Repositories")).not.toBeInTheDocument();
+  });
+});
+
+describe("ScanStatusChip", () => {
+  it("shows a scan waiting for its scan command as Pending", () => {
+    render(<ScanStatusChip status="pending" />);
+    expect(screen.getByText("Pending")).toBeInTheDocument();
   });
 });
 
@@ -786,18 +1081,339 @@ describe("AnalyzeSection", () => {
     expect(dialog).not.toHaveTextContent(/Available|Not available|Needs:/);
   });
 
-  it("keeps the analysis wording for a source repository host", () => {
-    render(<AnalyzeSection providerName="GitHub" statuses={statuses} preview />);
-    expect(screen.getByText("What can Agent Manager analyze?")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "See what it can analyze" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Source code analysis is not available yet",
-    );
+  it("says what the scan looks for in a source repository host", () => {
+    render(<AnalyzeSection providerName="GitHub" statuses={statuses} sourceHost />);
+    expect(screen.getByText("What does the scan look for?")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 with these options.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "See what it looks for" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("The scan runs on your machine");
   });
 
   it("renders nothing for a platform without capabilities", () => {
     const { container } = render(<AnalyzeSection providerName="X" statuses={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+const sourceHostSpec = (over: Partial<ShadowProviderSpec> = {}): ShadowProviderSpec => ({
+  provider: "github",
+  displayName: "GitHub",
+  description: "",
+  endpoints: [],
+  fields: [],
+  permissions: [
+    {
+      title: "Fine-grained personal access token (read-only), for private repositories",
+      summary: "The scan command asks for it in your terminal when it runs.",
+      items: ["Repository permissions: Contents: Read-only."],
+    },
+  ],
+  docs: ["https://docs.github.com/en/authentication"],
+  sourceHost: true,
+  capabilities: [],
+  ...over,
+});
+
+describe("SourceScanGuide", () => {
+  it("explains the GitHub scan in a dialog, with worded documentation links", () => {
+    render(<SourceScanGuide spec={sourceHostSpec()} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "How it works" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("How GitHub scanning works");
+    expect(dialog).toHaveTextContent("Save the organization and repositories here");
+    expect(dialog).toHaveTextContent("when private repositories are included");
+    expect(dialog).toHaveTextContent("Repository permissions: Contents: Read-only.");
+    expect(dialog).toHaveTextContent("Your Git token, your LLM key and your code");
+    const link = within(dialog).getByRole("link", { name: "GitHub documentation" });
+    expect(link).toHaveAttribute("href", "https://docs.github.com/en/authentication");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(dialog).not.toHaveTextContent("docs.github.com");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  });
+
+  it("says projects, and an always-needed token, for Azure DevOps", () => {
+    render(
+      <SourceScanGuide
+        spec={sourceHostSpec({ provider: "azure_devops", displayName: "Azure DevOps" })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "How it works" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Save the organization and projects here");
+    expect(dialog).not.toHaveTextContent("when private repositories are included");
+  });
+});
+
+describe("DocLinks", () => {
+  it("numbers several links of one platform instead of showing their addresses", () => {
+    render(
+      <DocLinks
+        spec={sourceHostSpec({
+          displayName: "Amazon Bedrock",
+          docs: ["https://docs.aws.amazon.com/a", "https://docs.aws.amazon.com/b"],
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("link", { name: "Amazon Bedrock documentation (1 of 2)" }),
+    ).toHaveAttribute("href", "https://docs.aws.amazon.com/a");
+    expect(screen.getByRole("link", { name: "Amazon Bedrock documentation (2 of 2)" })).toBeVisible();
+    expect(screen.queryByText(/docs\.aws\.amazon\.com/)).not.toBeInTheDocument();
+  });
+});
+
+type RunnerMutateOptions = {
+  onSuccess: (r: ShadowRunnerScanResponse) => void;
+  onError: (e: unknown) => void;
+};
+const issuedScan = (over: Partial<ShadowRunnerScanResponse> = {}): ShadowRunnerScanResponse => ({
+  scanId: "s9",
+  token: "tok-1",
+  expiresAt: "2026-11-17T10:00:00Z",
+  ampUrl: "https://amp.example.com",
+  image: "ghcr.io/wso2/scanner:1.0",
+  ...over,
+});
+
+describe("GenerateCommandDialog", () => {
+  type MutateOptions = RunnerMutateOptions;
+  const target = connection({
+    id: "c2",
+    name: "WSO2 GitHub",
+    provider: "github",
+    settings: { organization: "wso2", allRepositories: true },
+  });
+  const spec = sourceHostSpec();
+
+  it("offers the LLM judge only with AI review, with no AI warning in the panel", () => {
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
+    const ai = screen.getByRole("switch", { name: /^AI review/ });
+    const judge = screen.getByRole("switch", { name: /^LLM judge/ });
+    expect(judge).toBeDisabled();
+    fireEvent.click(ai);
+    expect(judge).toBeEnabled();
+    expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
+    fireEvent.click(judge);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c2", aiReview: true, llmJudge: true },
+      expect.anything(),
+    );
+  });
+
+  it("shows the command, composed from the saved settings and the issued scan", () => {
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c2", aiReview: false, llmJudge: false },
+      expect.anything(),
+    );
+    const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
+    act(() => opts.onSuccess(issuedScan()));
+    // The command as one line: its " \\" line continuations joined.
+    const code = (screen.getByText(/AMP_SCAN_TOKEN=tok-1/).textContent ?? "").replace(/ \\\n\s*/g, " ");
+    expect(code).toContain("-e AMP_URL=https://amp.example.com");
+    expect(code).toContain("ghcr.io/wso2/scanner:1.0 scan --scan-id s9");
+    expect(code).toContain("--github-org wso2 --all-repos");
+    expect(screen.getByText(/Shown once: copy it now/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
+  });
+
+  it("never shows a command again after closing, and closes only with Close", () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={onClose} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
+    act(() => opts.onSuccess(issuedScan({ token: "secret", expiresAt: "bad date" })));
+    // The command is kept only in the dialog, not in the mutation cache.
+    expect(hoisted.resetGenerate).toHaveBeenCalled();
+    expect(screen.getByText(/valid for 1 hour;/)).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <GenerateCommandDialog orgName="acme" target={null} spec={spec} onClose={onClose} />,
+    );
+    rerender(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={onClose} />,
+    );
+    expect(screen.queryByText(/AMP_SCAN_TOKEN=secret/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate" })).toBeInTheDocument();
+  });
+
+  it("says why the command could not be generated", () => {
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
+    act(() => opts.onError({ message: "Not found" }));
+    expect(screen.getByText("Not found")).toBeInTheDocument();
+  });
+});
+
+describe("ConnectionEditor (source code repositories)", () => {
+  const githubSpec = (): ShadowProviderSpec =>
+    sourceHostSpec({
+      endpoints: [
+        {
+          key: "api",
+          label: "GitHub API URL",
+          default: "https://api.github.com",
+          placeholders: [],
+          advanced: true,
+          help: "Change only for GitHub Enterprise Server.",
+        },
+      ],
+      fields: [
+        { key: "organization", label: "Organization or user account", kind: "text", required: true },
+        { key: "allRepositories", label: "Scan every repository", kind: "checkbox", required: false },
+        {
+          key: "repositories",
+          label: "Repositories",
+          kind: "list",
+          required: true,
+          option: "!allRepositories",
+        },
+        {
+          key: "privateRepositories",
+          label: "Include private repositories",
+          kind: "checkbox",
+          required: false,
+          defaultBool: true,
+        },
+        {
+          key: "readCiFiles",
+          label: "Also read CI pipeline definitions",
+          kind: "checkbox",
+          required: false,
+          defaultBool: true,
+        },
+      ],
+    });
+  const openNew = () => {
+    hoisted.providers = [githubSpec()];
+    router(
+      <Routes>
+        <Route path="/new" element={<ConnectionEditor orgName="acme" listPath="/list" />} />
+        <Route path="/list" element={<div>Platforms list</div>} />
+      </Routes>,
+      "/new",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Connect GitHub" }));
+  };
+  // The command as one line: its " \\" line continuations joined.
+  const commandText = () =>
+    (screen.getByText(/--scan-id/).textContent ?? "").replace(/ \\\n\s*/g, " ");
+
+  it("shows the scan command next to the form, following the organization field", () => {
+    openNew();
+    expect(screen.getByText("Scan command")).toBeInTheDocument();
+    expect(commandText()).toContain("--github-org <organization> --repos=<repositories>");
+    expect(commandText()).toContain("-e AMP_SCAN_TOKEN=<scan-token>");
+    fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
+      target: { value: "acme" },
+    });
+    expect(commandText()).toContain("--github-org acme --repos=<repositories>");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
+    expect(commandText()).toContain("--github-org acme --all-repos --include-private --read-ci");
+    expect(screen.getByText(/filled in when you save/)).toBeInTheDocument();
+    // The command comes with saving: there is no separate Generate command here.
+    expect(screen.queryByRole("button", { name: "Generate command" })).not.toBeInTheDocument();
+  });
+
+  it("adds the platform, then issues the command and shows it filled in", () => {
+    openNew();
+    fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
+      target: { value: "acme" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
+    fireEvent.click(screen.getByRole("switch", { name: /^AI review/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
+    expect(hoisted.createConnection.mock.lastCall?.[0]).toMatchObject({
+      provider: "github",
+      settings: { organization: "acme", allRepositories: true },
+    });
+    expect(hoisted.generate).not.toHaveBeenCalled();
+    const created = hoisted.createConnection.mock.lastCall?.[1] as {
+      onSuccess: (c: { id: string; name: string }) => void;
+    };
+    act(() => created.onSuccess({ id: "c9", name: "GitHub connection" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c9", aiReview: true, llmJudge: false },
+      expect.anything(),
+    );
+    const opts = hoisted.generate.mock.lastCall?.[1] as RunnerMutateOptions;
+    act(() => opts.onSuccess(issuedScan()));
+    // Kept only in the page's state, not in the mutation cache.
+    expect(hoisted.resetGenerate).toHaveBeenCalled();
+    expect(commandText()).toContain("-e AMP_SCAN_TOKEN=tok-1");
+    expect(commandText()).toContain("ghcr.io/wso2/scanner:1.0 scan --scan-id s9");
+    expect(commandText()).toContain("--ai-review");
+    expect(screen.getByText(/Shown once: copy it now/)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /Organization or user account/ })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Add platform and get command" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/list?tab=platforms");
+  });
+
+  it("retries only the scan command when it fails after the platform is saved", () => {
+    openNew();
+    fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
+      target: { value: "acme" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    const created = hoisted.createConnection.mock.lastCall?.[1] as {
+      onSuccess: (c: { id: string; name: string }) => void;
+    };
+    act(() => created.onSuccess({ id: "c9", name: "GitHub connection" }));
+    const opts = hoisted.generate.mock.lastCall?.[1] as RunnerMutateOptions;
+    act(() => opts.onError({ message: "Scanner unavailable" }));
+    expect(screen.getByText("Scanner unavailable")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
+    expect(hoisted.generate).toHaveBeenCalledTimes(2);
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c9", aiReview: false, llmJudge: false },
+      expect.anything(),
+    );
+  });
+
+  it("keeps the issued command on what was saved: locked chips cannot be removed", () => {
+    openNew();
+    fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
+      target: { value: "acme" },
+    });
+    const repos = screen.getByRole("textbox", { name: /^Repositories/ });
+    fireEvent.change(repos, { target: { value: "payments" } });
+    fireEvent.keyDown(repos, { key: "Enter" });
+    // Removable while the form is open.
+    expect(screen.getByRole("button", { name: "payments" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    const created = hoisted.createConnection.mock.lastCall?.[1] as {
+      onSuccess: (c: { id: string; name: string }) => void;
+    };
+    act(() => created.onSuccess({ id: "c9", name: "GitHub connection" }));
+    const opts = hoisted.generate.mock.lastCall?.[1] as RunnerMutateOptions;
+    act(() => opts.onSuccess(issuedScan()));
+    // Locked: the chip is plain text, not a removable button, so no key removes it.
+    expect(screen.queryByRole("button", { name: "payments" })).not.toBeInTheDocument();
+    fireEvent.keyUp(screen.getByText("payments"), { key: "Delete" });
+    expect(screen.getByText("payments")).toBeInTheDocument();
+    expect(commandText()).toContain("--repos=payments");
   });
 });
 

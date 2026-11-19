@@ -49,9 +49,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents"
 	shadowanthropic "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/anthropic"
 	shadowazure "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/azure"
-	shadowazuredevops "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/azuredevops"
 	shadowbedrock "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/bedrock"
-	shadowgithub "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/github"
 	shadowgoogle "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/google"
 	shadowopenai "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/openai"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -148,7 +146,8 @@ var serviceProviderSet = wire.NewSet(
 	services.NewMonitorAlertService,
 	services.NewMonitorAlertProcessor,
 	ProvideShadowConnectors,
-	services.NewShadowAgentService,
+	services.NewShadowScanRunner,
+	services.NewShadowAgentServiceWithScanRunner,
 	wire.Bind(new(services.ShadowAgentLookup), new(services.AgentManagerService)),
 	services.NewShadowAgentScanner,
 )
@@ -745,7 +744,8 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 }
 
 // ProvideShadowConnectors registers the Shadow Agent Discovery connector of
-// each supported platform. They share one HTTP client that follows a
+// each supported cloud platform (source hosts have none: they are scanned by
+// the scan command on the customer's machine). They share one HTTP client that follows a
 // redirect only to the same origin, so a stored credential never leaves the
 // endpoint the org configured.
 func ProvideShadowConnectors(logger *slog.Logger) services.ShadowConnectors {
@@ -756,8 +756,6 @@ func ProvideShadowConnectors(logger *slog.Logger) services.ShadowConnectors {
 		shadowbedrock.New(httpClient, logger),
 		shadowgoogle.New(httpClient, logger),
 		shadowazure.NewFoundry(httpClient, logger),
-		shadowgithub.New(httpClient, logger),
-		shadowazuredevops.New(httpClient, logger),
 	}
 	out := make(services.ShadowConnectors, len(all))
 	for _, c := range all {

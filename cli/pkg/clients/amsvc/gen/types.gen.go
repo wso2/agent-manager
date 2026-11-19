@@ -1581,6 +1581,7 @@ func (e ShadowFieldSpecKind) Valid() bool {
 
 // Defines values for ShadowFindingDetailKind.
 const (
+	ShadowFindingDetailKindCodeAgent     ShadowFindingDetailKind = "code_agent"
 	ShadowFindingDetailKindPlatformAgent ShadowFindingDetailKind = "platform_agent"
 	ShadowFindingDetailKindRuntime       ShadowFindingDetailKind = "runtime"
 )
@@ -1588,6 +1589,8 @@ const (
 // Valid indicates whether the value is a known member of the ShadowFindingDetailKind enum.
 func (e ShadowFindingDetailKind) Valid() bool {
 	switch e {
+	case ShadowFindingDetailKindCodeAgent:
+		return true
 	case ShadowFindingDetailKindPlatformAgent:
 		return true
 	case ShadowFindingDetailKindRuntime:
@@ -1599,6 +1602,7 @@ func (e ShadowFindingDetailKind) Valid() bool {
 
 // Defines values for ShadowFindingSummaryKind.
 const (
+	ShadowFindingSummaryKindCodeAgent     ShadowFindingSummaryKind = "code_agent"
 	ShadowFindingSummaryKindPlatformAgent ShadowFindingSummaryKind = "platform_agent"
 	ShadowFindingSummaryKindRuntime       ShadowFindingSummaryKind = "runtime"
 )
@@ -1606,6 +1610,8 @@ const (
 // Valid indicates whether the value is a known member of the ShadowFindingSummaryKind enum.
 func (e ShadowFindingSummaryKind) Valid() bool {
 	switch e {
+	case ShadowFindingSummaryKindCodeAgent:
+		return true
 	case ShadowFindingSummaryKindPlatformAgent:
 		return true
 	case ShadowFindingSummaryKindRuntime:
@@ -1688,6 +1694,7 @@ func (e ShadowScanCallResultOutcome) Valid() bool {
 const (
 	ShadowScanResponseStatusFailed    ShadowScanResponseStatus = "failed"
 	ShadowScanResponseStatusPartial   ShadowScanResponseStatus = "partial"
+	ShadowScanResponseStatusPending   ShadowScanResponseStatus = "pending"
 	ShadowScanResponseStatusQueued    ShadowScanResponseStatus = "queued"
 	ShadowScanResponseStatusRunning   ShadowScanResponseStatus = "running"
 	ShadowScanResponseStatusSucceeded ShadowScanResponseStatus = "succeeded"
@@ -1699,6 +1706,8 @@ func (e ShadowScanResponseStatus) Valid() bool {
 	case ShadowScanResponseStatusFailed:
 		return true
 	case ShadowScanResponseStatusPartial:
+		return true
+	case ShadowScanResponseStatusPending:
 		return true
 	case ShadowScanResponseStatusQueued:
 		return true
@@ -6709,8 +6718,11 @@ type ShadowEndpointSpec struct {
 
 	// FillValues Fixed values that fill the placeholder, instead of fillFrom.
 	FillValues *[]string `json:"fillValues,omitempty"`
-	Key        string    `json:"key"`
-	Label      string    `json:"label"`
+
+	// Help When to change the endpoint; the console shows it under the input.
+	Help  *string `json:"help,omitempty"`
+	Key   string  `json:"key"`
+	Label string  `json:"label"`
 
 	// Option The checkbox that enables this endpoint, if any.
 	Option       *string  `json:"option,omitempty"`
@@ -6764,7 +6776,7 @@ type ShadowFindingDetail struct {
 	FoundBy []ShadowFindingSource `json:"foundBy"`
 	Id      openapi_types.UUID    `json:"id"`
 
-	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 	Kind       ShadowFindingDetailKind `json:"kind"`
 	LastSeenAt time.Time               `json:"lastSeenAt"`
 
@@ -6802,7 +6814,7 @@ type ShadowFindingDetail struct {
 	State string `json:"state"`
 }
 
-// ShadowFindingDetailKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+// ShadowFindingDetailKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 type ShadowFindingDetailKind string
 
 // ShadowFindingListResponse defines model for ShadowFindingListResponse.
@@ -6854,7 +6866,7 @@ type ShadowFindingSummary struct {
 	FoundBy []ShadowFindingSource `json:"foundBy"`
 	Id      openapi_types.UUID    `json:"id"`
 
-	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 	Kind       ShadowFindingSummaryKind `json:"kind"`
 	LastSeenAt time.Time                `json:"lastSeenAt"`
 
@@ -6883,7 +6895,7 @@ type ShadowFindingSummary struct {
 	State string `json:"state"`
 }
 
-// ShadowFindingSummaryKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+// ShadowFindingSummaryKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 type ShadowFindingSummaryKind string
 
 // ShadowOnboardingRequest defines model for ShadowOnboardingRequest.
@@ -6952,6 +6964,32 @@ type ShadowProviderSpec struct {
 // ShadowProviderSpecProvider defines model for ShadowProviderSpec.Provider.
 type ShadowProviderSpecProvider string
 
+// ShadowRunnerScanRequest The choices made in Generate command for a source code scan.
+type ShadowRunnerScanRequest struct {
+	// AiReview Matches the rules cannot prove go to the customer's LLM for review.
+	AiReview bool `json:"aiReview"`
+
+	// LlmJudge A second model must confirm the reviewer. Only with aiReview.
+	LlmJudge bool `json:"llmJudge"`
+}
+
+// ShadowRunnerScanResponse The pending scan and the parts of the scan command that runs it. The
+// token is shown once.
+type ShadowRunnerScanResponse struct {
+	// AmpUrl The Agent Manager address the scan command publishes to.
+	AmpUrl string `json:"ampUrl"`
+
+	// ExpiresAt When the scan token expires.
+	ExpiresAt time.Time `json:"expiresAt"`
+
+	// Image The scan command's container image.
+	Image  string             `json:"image"`
+	ScanId openapi_types.UUID `json:"scanId"`
+
+	// Token The scan token the command publishes its results with.
+	Token string `json:"token"`
+}
+
 // ShadowScanCallResult defines model for ShadowScanCallResult.
 type ShadowScanCallResult struct {
 	Call    string                      `json:"call"`
@@ -6974,15 +7012,37 @@ type ShadowScanConnectionResult struct {
 	Calls          []ShadowScanCallResult `json:"calls"`
 	ConnectionId   string                 `json:"connectionId"`
 	ConnectionName string                 `json:"connectionName"`
-	FindingsCount  int                    `json:"findingsCount"`
-	Message        *string                `json:"message,omitempty"`
-	Outcome        string                 `json:"outcome"`
-	Provider       string                 `json:"provider"`
+
+	// FailedRepositories The repositories a source code scan command could not scan. Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+	FailedRepositories *[]ShadowScanFailedRepository `json:"failedRepositories,omitempty"`
+	FindingsCount      int                           `json:"findingsCount"`
+	Message            *string                       `json:"message,omitempty"`
+	Outcome            string                        `json:"outcome"`
+	Provider           string                        `json:"provider"`
+
+	// ScannedRepositories The repositories a source code scan command scanned (a GitHub repository name, or an Azure DevOps project/repository). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+	ScannedRepositories *[]string `json:"scannedRepositories,omitempty"`
+}
+
+// ShadowScanFailedRepository defines model for ShadowScanFailedRepository.
+type ShadowScanFailedRepository struct {
+	// Message Why the repository could not be scanned, scrubbed of anything credential-like.
+	Message string `json:"message"`
+	Name    string `json:"name"`
 }
 
 // ShadowScanListResponse defines model for ShadowScanListResponse.
 type ShadowScanListResponse struct {
 	Scans []ShadowScanResponse `json:"scans"`
+}
+
+// ShadowScanOptions The choices made in Generate command for a source code scan. Cloud scans have none.
+type ShadowScanOptions struct {
+	// AiReview Matches the rules cannot prove go to the customer's LLM for review.
+	AiReview *bool `json:"aiReview,omitempty"`
+
+	// LlmJudge A second model must confirm the reviewer. Only with aiReview.
+	LlmJudge *bool `json:"llmJudge,omitempty"`
 }
 
 // ShadowScanRequest defines model for ShadowScanRequest.
@@ -6997,16 +7057,21 @@ type ShadowScanResponse struct {
 	CreatedAt     time.Time `json:"createdAt"`
 
 	// FindingsCount Agents found, counted per connection.
-	FindingsCount int                          `json:"findingsCount"`
-	FinishedAt    *time.Time                   `json:"finishedAt,omitempty"`
-	Id            openapi_types.UUID           `json:"id"`
-	RequestedBy   string                       `json:"requestedBy"`
-	Results       []ShadowScanConnectionResult `json:"results"`
-	StartedAt     *time.Time                   `json:"startedAt,omitempty"`
-	Status        ShadowScanResponseStatus     `json:"status"`
+	FindingsCount int                `json:"findingsCount"`
+	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
+	Id            openapi_types.UUID `json:"id"`
+
+	// Options The choices made in Generate command for a source code scan. Cloud scans have none.
+	Options     *ShadowScanOptions           `json:"options,omitempty"`
+	RequestedBy string                       `json:"requestedBy"`
+	Results     []ShadowScanConnectionResult `json:"results"`
+	StartedAt   *time.Time                   `json:"startedAt,omitempty"`
+
+	// Status pending: a source code scan waiting for its scan command to publish results (it fails after 1 hour without them); queued and running: a cloud scan in progress.
+	Status ShadowScanResponseStatus `json:"status"`
 }
 
-// ShadowScanResponseStatus defines model for ShadowScanResponse.Status.
+// ShadowScanResponseStatus pending: a source code scan waiting for its scan command to publish results (it fails after 1 hour without them); queued and running: a cloud scan in progress.
 type ShadowScanResponseStatus string
 
 // ShadowSignalDefinition One kind of evidence that a platform lists an agent.
@@ -8657,6 +8722,9 @@ type CreateShadowConnectionJSONRequestBody = ShadowConnectionRequest
 
 // UpdateShadowConnectionJSONRequestBody defines body for UpdateShadowConnection for application/json ContentType.
 type UpdateShadowConnectionJSONRequestBody = ShadowConnectionRequest
+
+// CreateShadowRunnerScanJSONRequestBody defines body for CreateShadowRunnerScan for application/json ContentType.
+type CreateShadowRunnerScanJSONRequestBody = ShadowRunnerScanRequest
 
 // OnboardShadowFindingJSONRequestBody defines body for OnboardShadowFinding for application/json ContentType.
 type OnboardShadowFindingJSONRequestBody = ShadowOnboardingRequest

@@ -26,18 +26,26 @@ export type ShadowProvider =
   | "bedrock"
   | "google"
   | "foundry"
-  /** Source repository hosts: real connection test, source code analysis not available yet. */
+  /** Source repository hosts: scanned by the scan command on the customer's machine. */
   | "github"
   | "azure_devops";
 
 /**
  * runtime: an AgentCore runtime or a Google Agent Runtime engine;
- * platform_agent: any other agent object.
+ * platform_agent: any other agent object;
+ * code_agent: an agent found in a repository by the source code scan.
  */
-export type ShadowFindingKind = "platform_agent" | "runtime";
+export type ShadowFindingKind = "platform_agent" | "runtime" | "code_agent";
 
 
-export type ShadowScanStatus = "queued" | "running" | "succeeded" | "partial" | "failed";
+/** pending: a source code scan waiting for its scan command to publish results. */
+export type ShadowScanStatus =
+  | "pending"
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "partial"
+  | "failed";
 
 export type ShadowCallOutcome =
   | "ok"
@@ -65,6 +73,8 @@ export interface ShadowEndpointSpec {
   fillValues?: string[];
   /** Kept behind the "Advanced configuration" button. */
   advanced?: boolean;
+  /** When to change the endpoint; shown under the input. */
+  help?: string;
 }
 
 export interface ShadowFieldSpec {
@@ -121,8 +131,8 @@ export interface ShadowProviderSpec {
   docs: string[];
   credentialChoice?: ShadowCredentialChoice;
   /**
-   * A source repository host (GitHub, Azure DevOps); its source code analysis is
-   * not available yet.
+   * A source repository host (GitHub, Azure DevOps): no credential is stored, and
+   * its repositories are scanned by the scan command on the customer's machine.
    */
   sourceHost?: boolean;
   capabilities: ShadowCapabilitySpec[];
@@ -199,6 +209,40 @@ export interface ShadowScanConnectionResult {
   message?: string;
   findingsCount: number;
   calls: ShadowScanCallResult[];
+  /** Repositories a source code scan scanned. Only on GET a scan, never the list. */
+  scannedRepositories?: string[];
+  /** Repositories a source code scan could not scan. Only on GET a scan, never the list. */
+  failedRepositories?: ShadowScanFailedRepository[];
+}
+
+/** A repository a source code scan could not scan, and why. */
+export interface ShadowScanFailedRepository {
+  name: string;
+  message: string;
+}
+
+/** Generate command for a GitHub or Azure DevOps connection. */
+export interface ShadowRunnerScanRequest {
+  /** Send matches the rules cannot prove to the customer's LLM for review. */
+  aiReview: boolean;
+  /** A second model must agree with the reviewer; needs aiReview. */
+  llmJudge: boolean;
+}
+
+/**
+ * The pending scan and the parts of the command that runs it; the console
+ * composes the command. The token is shown once and never cached.
+ */
+export interface ShadowRunnerScanResponse {
+  scanId: string;
+  /** The scan token the command publishes results with. */
+  token: string;
+  /** When the scan token expires (1 hour). */
+  expiresAt: string;
+  /** The Agent Manager address the scanner publishes to. */
+  ampUrl: string;
+  /** The scanner container image. */
+  image: string;
 }
 
 export interface ShadowScanRequest {

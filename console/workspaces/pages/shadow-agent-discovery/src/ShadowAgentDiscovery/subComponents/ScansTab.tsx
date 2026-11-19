@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   Box,
   Button,
@@ -33,6 +33,7 @@ import { returnToState } from "@agent-management-platform/views";
 import {
   isShadowScanActive,
   useClearShadowScans,
+  useShadowScan,
   useShadowScans,
 } from "@agent-management-platform/api-client";
 import {
@@ -41,8 +42,19 @@ import {
   ResourceListShell,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
-import { absoluteRouteMap, type ShadowScanResponse } from "@agent-management-platform/types";
-import { itemCount, OutcomeChip, providerLabel, ScanStatusChip } from "../shadowUi";
+import {
+  absoluteRouteMap,
+  type ShadowScanConnectionResult,
+  type ShadowScanResponse,
+} from "@agent-management-platform/types";
+import {
+  formatCount,
+  itemCount,
+  OutcomeChip,
+  providerLabel,
+  ScanStatusChip,
+  SOURCE_HOSTS,
+} from "../shadowUi";
 
 /** The path of a scan's agents page. */
 export function scanFindingsPath(orgName: string, scanId: string): string {
@@ -55,13 +67,140 @@ export function scanFindingsPath(orgName: string, scanId: string): string {
   );
 }
 
+const monoCaptionSx = { fontFamily: "monospace", wordBreak: "break-all" } as const;
+
+/**
+ * A plain scrollable list: a scan can report thousands of repositories, so
+ * rows are bare list items rather than components.
+ */
+const repoListSx = {
+  typography: "caption",
+  m: 0,
+  p: 0,
+  listStyle: "none",
+  maxHeight: 320,
+  overflowY: "auto",
+  "& .repo": monoCaptionSx,
+  "& .reason": { color: "text.secondary" },
+  "& li + li": { mt: 0.5 },
+} as const;
+
+/** How loading the scan detail, which has the repositories, is going. */
+export interface RepositoriesLoad {
+  isLoading: boolean;
+  failed: boolean;
+}
+
+/**
+ * The repositories a source code scan scanned and could not scan. Only the
+ * scan detail has them; a list item or a scan that never published has none.
+ */
+function ScanRepositories({
+  result,
+  load,
+}: {
+  result: ShadowScanConnectionResult;
+  load?: RepositoriesLoad;
+}) {
+  const [showScanned, setShowScanned] = useState(false);
+  const listId = useId();
+  const scanned = result.scannedRepositories ?? [];
+  const failed = result.failedRepositories ?? [];
+  if (scanned.length === 0 && failed.length === 0) {
+    if (!load || !SOURCE_HOSTS.includes(result.provider)) return null;
+    const note = load.isLoading
+      ? "Loading repositories…"
+      : load.failed
+        ? "Couldn't load the repositories. Close and reopen to try again."
+        : "";
+    if (!note) return null;
+    return (
+      <>
+        <Divider />
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          component="p"
+          sx={{ px: 1.5, py: 1 }}
+        >
+          {note}
+        </Typography>
+      </>
+    );
+  }
+  const n = scanned.length;
+  return (
+    <>
+      <Divider />
+      <Box sx={{ px: 1.5, py: 1 }}>
+        <Typography variant="body2" fontWeight={500}>
+          Repositories
+        </Typography>
+        <Typography variant="caption" color="text.secondary" component="p">
+          {formatCount(n)} scanned
+          {failed.length > 0 && `, ${formatCount(failed.length)} failed`}
+        </Typography>
+        {failed.length > 0 && (
+          <Box
+            component="ul"
+            aria-label="Failed repositories"
+            tabIndex={0}
+            sx={{ ...repoListSx, mt: 1 }}
+          >
+            {failed.map((f) => (
+              <li key={f.name}>
+                <div className="repo">{f.name}</div>
+                {f.message && <div className="reason">{f.message}</div>}
+              </li>
+            ))}
+          </Box>
+        )}
+        {n > 0 && (
+          <>
+            <Button
+              variant="text"
+              size="small"
+              sx={{ mt: 0.5, px: 0 }}
+              aria-expanded={showScanned}
+              aria-controls={listId}
+              onClick={() => setShowScanned((v) => !v)}
+            >
+              {showScanned
+                ? "Hide scanned repositories"
+                : `Show ${formatCount(n)} scanned ${n === 1 ? "repository" : "repositories"}`}
+            </Button>
+            {showScanned && (
+              <Box
+                component="ul"
+                id={listId}
+                aria-label="Scanned repositories"
+                tabIndex={0}
+                sx={repoListSx}
+              >
+                {scanned.map((name) => (
+                  <li key={name} className="repo">
+                    {name}
+                  </li>
+                ))}
+              </Box>
+            )}
+          </>
+        )}
+      </Box>
+    </>
+  );
+}
+
 /** The outcome of every platform call of a scan, per connection. */
 export function ScanDetailsDrawer({
   scan,
   onClose,
+  repositoriesLoad,
 }: {
   scan: ShadowScanResponse | null;
   onClose: () => void;
+  /** Set when the scan shown may be a list item, which has no repositories. */
+  repositoriesLoad?: RepositoriesLoad;
 }) {
   return (
     <Drawer anchor="right" open={!!scan} onClose={onClose}>
@@ -110,19 +249,14 @@ export function ScanDetailsDrawer({
                     {r.message}
                   </Typography>
                 )}
-                <Divider />
+                {(r.calls ?? []).length > 0 && <Divider />}
                 <Stack divider={<Divider />}>
-                  {r.calls.map((c) => (
+                  {(r.calls ?? []).map((c) => (
                     <Box key={c.call} sx={{ px: 1.5, py: 1 }}>
                       <Stack direction="row" spacing={1} alignItems="center">
                         <Typography
                           variant="caption"
-                          sx={{
-                            flex: 1,
-                            minWidth: 0,
-                            fontFamily: "monospace",
-                            wordBreak: "break-all",
-                          }}
+                          sx={{ flex: 1, minWidth: 0, ...monoCaptionSx }}
                         >
                           {c.call}
                         </Typography>
@@ -139,6 +273,7 @@ export function ScanDetailsDrawer({
                     </Box>
                   ))}
                 </Stack>
+                <ScanRepositories result={r} load={repositoriesLoad} />
               </Box>
             ))}
           </Stack>
@@ -173,9 +308,19 @@ export function ScansTab({
   const clear = useClearShadowScans(orgName);
   const { addConfirmation } = useConfirmationDialog();
   const [open, setOpen] = useState<ShadowScanResponse | null>(null);
+  // The list omits a source code scan's repositories; the scan detail has them.
+  const detail = useShadowScan(orgName, open?.id);
   const scans = data?.scans ?? [];
-  const current = open ? (scans.find((s) => s.id === open.id) ?? open) : null;
-  const finished = scans.filter((s) => !isShadowScanActive(s.status)).length;
+  const current = open
+    ? detail.data?.id === open.id
+      ? detail.data
+      : (scans.find((s) => s.id === open.id) ?? open)
+    : null;
+  // Clear scans keeps a scan that is queued, running or pending (waiting for
+  // its scan command to publish results).
+  const finished = scans.filter(
+    (s) => !isShadowScanActive(s.status) && s.status !== "pending",
+  ).length;
   const active = scans.length - finished;
 
   const handleClear = () =>
@@ -183,7 +328,7 @@ export function ScansTab({
       title: "Clear all scans?",
       description:
         `Every finished scan is deleted, with its call results and its list of agents.${
-          active > 0 ? " The scan that is queued or running is kept." : ""
+          active > 0 ? " Scans that are queued, running or pending are kept." : ""
         } Unregistered Agents and their evidence are kept, and the next scan updates them as usual. ` +
         "This can't be undone.",
       confirmButtonText: "Clear scans",
@@ -282,7 +427,11 @@ export function ScansTab({
         </ListingTable>
       </ResourceListShell>
 
-      <ScanDetailsDrawer scan={current} onClose={() => setOpen(null)} />
+      <ScanDetailsDrawer
+        scan={current}
+        onClose={() => setOpen(null)}
+        repositoriesLoad={{ isLoading: detail.isLoading, failed: !!detail.error }}
+      />
     </>
   );
 }

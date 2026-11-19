@@ -92,6 +92,14 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
   description: "Description",
   displayName: "Display name",
   runtimeReference: "Runtime reference",
+  reviewedBy: "Confirmed by",
+};
+
+/** Who confirmed a code agent before the scan published it. */
+const REVIEWED_BY_LABELS: Record<string, string> = {
+  rules: "Rules",
+  ai_review: "AI review",
+  ai_review_judge: "AI review and LLM judge",
 };
 
 /** Attributes that are lists, shown as chips. */
@@ -107,6 +115,12 @@ const ID_ATTRIBUTES = [
   "serviceAccount",
   "otelAgentId",
 ];
+
+/** An attribute's value, as shown on the page. */
+function attributeValue(key: string, v: unknown): string {
+  if (key === "reviewedBy" && typeof v === "string") return REVIEWED_BY_LABELS[v] ?? v;
+  return scalarText(v);
+}
 
 function scalarText(v: unknown): string {
   if (v === null || v === undefined || v === "") return "—";
@@ -161,6 +175,7 @@ function SectionTitle({ title, hint }: { title: string; hint?: string }) {
 
 /** What the platform's agent listing reports, grouped: facts, lists and identifiers. */
 function DetailsCard({ f }: { f: ShadowFindingDetail }) {
+  const isCode = f.kind === "code_agent";
   const attrs = f.attributes ?? {};
   const entries = Object.entries(attrs).filter(
     ([, v]) => v !== null && v !== undefined && v !== "",
@@ -176,7 +191,11 @@ function DetailsCard({ f }: { f: ShadowFindingDetail }) {
       <CardContent>
         <SectionTitle
           title="Details"
-          hint={`What ${providerLabel(f.provider)} reports about this agent. Instructions, prompts, tool definitions and secrets are never stored.`}
+          hint={
+            isCode
+              ? "What the scan command reported from the repository's code. Source code, prompts and secrets are never stored."
+              : `What ${providerLabel(f.provider)} reports about this agent. Instructions, prompts, tool definitions and secrets are never stored.`
+          }
         />
         <Stack spacing={2.5}>
           {description && <Typography variant="body2">{description}</Typography>}
@@ -186,12 +205,12 @@ function DetailsCard({ f }: { f: ShadowFindingDetail }) {
             </Grid>
             {f.scope && (
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Field label="Scope">{f.scope}</Field>
+                <Field label={isCode ? "Repository" : "Scope"}>{f.scope}</Field>
               </Grid>
             )}
             {facts.map(([k, v]) => (
               <Grid key={k} size={{ xs: 12, sm: 6 }}>
-                <Field label={ATTRIBUTE_LABELS[k] ?? k}>{scalarText(v)}</Field>
+                <Field label={ATTRIBUTE_LABELS[k] ?? k}>{attributeValue(k, v)}</Field>
               </Grid>
             ))}
           </Grid>
@@ -233,11 +252,19 @@ function DetailsCard({ f }: { f: ShadowFindingDetail }) {
 
 /** The platform connections that list the agent. */
 function SourceCard({ f }: { f: ShadowFindingDetail }) {
+  const isCode = f.kind === "code_agent";
   const sources = f.foundBy ?? [];
   return (
     <Card variant="outlined">
       <CardContent>
-        <SectionTitle title="Source" hint="The platform connections that list this agent." />
+        <SectionTitle
+          title="Source"
+          hint={
+            isCode
+              ? "The GitHub or Azure DevOps platforms whose scans found this agent."
+              : "The platform connections that list this agent."
+          }
+        />
         <Stack divider={<Divider flexItem />} spacing={1.25}>
           {sources.map((src) => (
             <Stack
@@ -256,7 +283,7 @@ function SourceCard({ f }: { f: ShadowFindingDetail }) {
                   color="success"
                   variant="outlined"
                   icon={<CircleCheck size={14} />}
-                  label="Listed"
+                  label={isCode ? "Found" : "Listed"}
                 />
               ) : (
                 <Chip
@@ -264,7 +291,7 @@ function SourceCard({ f }: { f: ShadowFindingDetail }) {
                   color="warning"
                   variant="outlined"
                   icon={<TriangleAlert size={14} />}
-                  label="No longer listed"
+                  label={isCode ? "No longer found" : "No longer listed"}
                 />
               )}
             </Stack>
@@ -341,12 +368,17 @@ function ActivityCard({ f }: { f: ShadowFindingDetail }) {
 
 /** The listings that returned the agent: what was called, the exact condition, what was seen. */
 function EvidenceCard({ f }: { f: ShadowFindingDetail }) {
+  const isCode = f.kind === "code_agent";
   return (
     <Card variant="outlined">
       <CardContent>
         <SectionTitle
           title="Evidence"
-          hint="Why this is an agent: the platform listing that returned it."
+          hint={
+            isCode
+              ? "Why this is an agent: the code in the repository that matched each rule."
+              : "Why this is an agent: the platform listing that returned it."
+          }
         />
         {f.signals.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
@@ -454,6 +486,9 @@ export function FindingDetail({
     );
   }
 
+  const isCode = f.kind === "code_agent";
+  const reviewedBy = f.attributes?.reviewedBy;
+  const aiReviewed = reviewedBy === "ai_review" || reviewedBy === "ai_review_judge";
   const agentPath =
     f.onboarded && f.linkedProject && f.linkedAgent
       ? generatePath(absoluteRouteMap.children.org.children.projects.children.agents.path, {
@@ -500,13 +535,16 @@ export function FindingDetail({
       }
       meta={
         <>
-          <PageMetaItem icon={<Fingerprint size={12} />} label="Platform ID">
+          <PageMetaItem
+            icon={<Fingerprint size={12} />}
+            label={isCode ? "Location in code" : "Platform ID"}
+          >
             <Box component="span" sx={{ fontFamily: "monospace", fontSize: 12 }}>
               {f.externalId}
             </Box>
           </PageMetaItem>
           {f.scope && (
-            <PageMetaItem icon={<MapPin size={12} />} label="Scope">
+            <PageMetaItem icon={<MapPin size={12} />} label={isCode ? "Repository" : "Scope"}>
               {f.scope}
             </PageMetaItem>
           )}
@@ -532,9 +570,24 @@ export function FindingDetail({
         )}
         {!f.present && (
           <Alert severity="warning">
-            The latest complete scan of {f.connectionName} no longer listed this agent: it was
-            deleted at the platform, or it is no longer in the connection&apos;s scope. It was last
-            seen {shortDate(f.lastSeenAt)}.
+            {isCode ? (
+              <>
+                The latest complete scan of {f.connectionName} no longer found this agent: it was
+                removed from the repository&apos;s code, or the repository is no longer in the
+                platform&apos;s scope. It was last seen {shortDate(f.lastSeenAt)}.
+              </>
+            ) : (
+              <>
+                The latest complete scan of {f.connectionName} no longer listed this agent: it was
+                deleted at the platform, or it is no longer in the connection&apos;s scope. It was
+                last seen {shortDate(f.lastSeenAt)}.
+              </>
+            )}
+          </Alert>
+        )}
+        {aiReviewed && (
+          <Alert severity="info">
+            AI review confirmed this agent. AI review can make mistakes, so check the evidence.
           </Alert>
         )}
         <Grid container spacing={3}>

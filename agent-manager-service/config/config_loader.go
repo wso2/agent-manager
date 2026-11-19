@@ -196,6 +196,10 @@ func loadEnvs() {
 		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", "http://thunder.amp.localhost:8080/oauth2/token"),
 		ClientID:     r.readOptionalString("IDP_CLIENT_ID", "amp-api-client"),
 		ClientSecret: r.readOptionalString("IDP_CLIENT_SECRET", "amp-api-client-secret"),
+		// See IDPConfig.OrgTokenEndpointEnabled: true (the default) for multi-org
+		// deployments whose identity provider serves /ou/<ouId>/oauth2/token;
+		// single-org on-prem installs set false.
+		OrgTokenEndpointEnabled: r.readOptionalBool("IDP_ORG_TOKEN_ENDPOINT_ENABLED", true),
 	}
 
 	// JWT Signing configuration for agent API tokens
@@ -315,6 +319,13 @@ func loadEnvs() {
 		Resource:    strings.TrimSpace(r.readOptionalString("AMP_BUILD_CLIENT_RESOURCE", "")),
 	}
 	validateBuildClientConfig(config, r)
+
+	config.ShadowRunner = ShadowRunnerConfig{
+		Enabled:  r.readOptionalBool("AMP_SHADOW_RUNNER_ENABLED", false),
+		Image:    shadowRunnerImage(r.readOptionalString("AMP_SHADOW_RUNNER_IMAGE", "")),
+		Resource: strings.TrimSpace(r.readOptionalString("AMP_SHADOW_RUNNER_RESOURCE", "")),
+	}
+	validateShadowRunnerConfig(config, r)
 
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
@@ -637,12 +648,12 @@ func validateThunderConfig(cfg *Config, r *configReader) {
 }
 
 // validateBuildClientConfig checks the build-token settings together. A build
-// token is minted with this service's own identity provider client on the
-// organization token endpoint derived from IDP_TOKEN_URL, so enabling it without
-// that client, or with a token URL the endpoint cannot be derived from, would make
-// every build that takes the token fail rather than the service fail at startup;
-// and an empty workflow list would leave the flag on with nothing it could ever
-// apply to.
+// token is minted with this service's own identity provider client from
+// IDP_TOKEN_URL (or the organization token endpoint derived from it), so
+// enabling it without that client, or with a token URL the endpoint cannot be
+// derived from, would make every build that takes the token fail rather than the
+// service fail at startup; and an empty workflow list would leave the flag on
+// with nothing it could ever apply to.
 func validateBuildClientConfig(cfg *Config, r *configReader) {
 	if !cfg.BuildClient.Enabled {
 		return
@@ -668,6 +679,33 @@ func validateBuildClientConfig(cfg *Config, r *configReader) {
 			r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_RESOURCE %q must be an absolute URI without a fragment", res))
 		} else if !audienceAdmits(cfg.KeyManagerConfigurations.Audience, res) {
 			r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_RESOURCE %q must also be admitted by KEY_MANAGER_AUDIENCE: it is the build tokens' audience", res))
+		}
+	}
+}
+
+// defaultShadowRunnerImage is the scan command's image when
+// AMP_SHADOW_RUNNER_IMAGE is unset or blank.
+const defaultShadowRunnerImage = "ghcr.io/wso2/amp-shadow-runner:latest"
+
+// shadowRunnerImage trims AMP_SHADOW_RUNNER_IMAGE and falls back to the
+// default image when nothing is left.
+func shadowRunnerImage(v string) string {
+	if v = strings.TrimSpace(v); v != "" {
+		return v
+	}
+	return defaultShadowRunnerImage
+}
+
+// validateShadowRunnerConfig checks the scan token's resource indicator the
+// way validateBuildClientConfig checks the build token's: it becomes every scan
+// token's audience, so a value KEY_MANAGER_AUDIENCE does not admit would make
+// every publish of a scan command fail with 401.
+func validateShadowRunnerConfig(cfg *Config, r *configReader) {
+	if res := cfg.ShadowRunner.Resource; res != "" {
+		if parsed, err := url.Parse(res); err != nil || parsed.Scheme == "" || !resourceIndicatorPattern.MatchString(res) {
+			r.errors = append(r.errors, fmt.Errorf("AMP_SHADOW_RUNNER_RESOURCE %q must be an absolute URI without a fragment", res))
+		} else if !audienceAdmits(cfg.KeyManagerConfigurations.Audience, res) {
+			r.errors = append(r.errors, fmt.Errorf("AMP_SHADOW_RUNNER_RESOURCE %q must also be admitted by KEY_MANAGER_AUDIENCE: it is the scan tokens' audience", res))
 		}
 	}
 }

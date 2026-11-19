@@ -284,6 +284,24 @@ agentManagerService:
     # here silently advertises the wrong issuer. Set only if it must differ.
     oauthAuthorizationServers: ""
 
+    # Shadow Agent Discovery source code scans: the scan command a customer
+    # runs for a GitHub or Azure DevOps platform publishes its results to
+    # serverPublicURL with an organization-scoped token obtained with
+    # oidc.clientId.
+    shadowRunner:
+      # Turns on scan commands and their results (AMP_SHADOW_RUNNER_ENABLED).
+      # Off by default: the scan token is issued to oidc.clientId and shown to
+      # the customer for an hour, so turn it on only where that client may be
+      # handed out that way.
+      enabled: false
+      # The scan command's container image (AMP_SHADOW_RUNNER_IMAGE).
+      # Empty: ghcr.io/wso2/amp-shadow-runner:latest.
+      image: ""
+      # RFC 8707 resource indicator the scan token is requested for
+      # (AMP_SHADOW_RUNNER_RESOURCE). Empty requests none. When set,
+      # keyManager.audience must admit it.
+      resource: ""
+
     # Domain suffix env-Thunder developer-facing hostnames are built from:
     # "<handle>.<idpHostBaseDomain>". Override on custom-domain /
     # sslip.io installs so the reported identity-provider endpoints match the
@@ -314,7 +332,7 @@ agentManagerService:
 
     # Comma-separated list of OAuth 2.0 scopes supported by this resource,
     # advertised in RFC 9728 protected resource metadata.
-    oauthScopesSupported: "amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete,amp:events:read,amp:events:manage,amp:shadow-agent:read,amp:shadow-agent:manage"
+    oauthScopesSupported: "amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete,amp:events:read,amp:events:manage,amp:shadow-agent:read,amp:shadow-agent:manage,amp:shadow-agent:publish"
 
     # On-premise deployment flag
     isOnPremDeployment: "true"
@@ -329,6 +347,11 @@ agentManagerService:
       existingSecret: ""
       existingSecretKey: "idp-client-secret"
       clientSecret: "amp-api-client-secret"
+      # Request organization tokens (build token, source code scan token) from
+      # /ou/{ouId}/oauth2/token. On-prem runs a single organization, and its
+      # Thunder 1.x has no such endpoint, so this stays false. Set true only for
+      # a multi-org identity provider that serves it.
+      orgTokenEndpointEnabled: false
     # JWT Signing configuration
     jwtSigning:
       privateKeyPath: "/app/keys/private.pem"
