@@ -87,6 +87,10 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
   // switches wait; the others stay usable.
   const [saving, setSaving] = useState<Record<string, SubscriptionPlan["status"]>>({});
   const [deleteTarget, setDeleteTarget] = useState<SubscriptionPlan | null>(null);
+  // A delete confirmed after the organization changed would go to the new one: close the dialog.
+  useEffect(() => {
+    setDeleteTarget(null);
+  }, [orgId]);
 
   const plans = data?.list ?? [];
   const total = data?.pagination.total ?? 0;

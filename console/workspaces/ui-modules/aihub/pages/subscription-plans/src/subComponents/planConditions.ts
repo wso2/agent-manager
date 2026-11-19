@@ -325,6 +325,20 @@ const wholeNumber = (text: string): number => {
   return Number.isSafeInteger(value) ? value : Infinity;
 };
 
+/** The size of `value` as the server measures it: its JSON with `<`, `>`, `&`, U+2028 and U+2029
+ * escaped as `\uXXXX` (six bytes each), as Go's encoder writes them. */
+export const serverJsonBytes = (value: unknown): number => {
+  const json = JSON.stringify(value);
+  let extra = 0;
+  for (const ch of json) {
+    // One byte each in UTF-8, six escaped.
+    if (ch === "<" || ch === ">" || ch === "&") extra += 5;
+    // Three bytes each in UTF-8, six escaped.
+    else if (ch === "\u2028" || ch === "\u2029") extra += 3;
+  }
+  return new TextEncoder().encode(json).length + extra;
+};
+
 /** Checks the conditions as the subscription plans API does, and builds what is sent. */
 export const checkConditions = (drafts: ConditionDraft[]): ConditionsCheck => {
   const errors = new Map<string, FieldError>();
@@ -412,7 +426,7 @@ export const checkConditions = (drafts: ConditionDraft[]): ConditionsCheck => {
           version: version.startsWith("v") ? version : `v${version}`,
         };
       }
-      if (new TextEncoder().encode(JSON.stringify(params)).length > MAX_CUSTOM_PARAMS_BYTES) {
+      if (serverJsonBytes(params) > MAX_CUSTOM_PARAMS_BYTES) {
         fail(draft.key, fieldKeys.params(draft.key), {
           message: messages.paramsTooLarge(MAX_CUSTOM_PARAMS_BYTES),
         });

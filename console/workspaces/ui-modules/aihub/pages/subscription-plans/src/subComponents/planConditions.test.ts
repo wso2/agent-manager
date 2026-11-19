@@ -22,6 +22,7 @@ import {
   checkConditions,
   customPolicyOf,
   draftsFromConditions,
+  serverJsonBytes,
   fieldKeys,
   isBuiltInType,
   MAX_WHOLE_NUMBER,
@@ -346,5 +347,13 @@ describe("a custom condition’s policy (params.policy)", () => {
     ]);
     const { body } = checkConditions([{ ...draft, policyName: "tier-guard" }]);
     expect(body?.[0].params).toEqual({ region: "eu", policy: { name: "tier-guard", version: "v1" } });
+  });
+
+  it("measures custom values as the server does, with <, > and & escaped", () => {
+    expect(serverJsonBytes({ x: "a" })).toBe(9);
+    expect(serverJsonBytes({ x: "<&>" })).toBe(9 + 2 + 15);
+    const [draft] = draftsFromConditions([{ id: "tier", type: "custom", params: {} }]);
+    const html = { ...draft, pairs: [{ ...draft.pairs[0], name: "x", value: "<".repeat(700) }] };
+    expect(checkConditions([html]).errors.has(fieldKeys.params(html.key))).toBe(true);
   });
 });
