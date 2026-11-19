@@ -57,6 +57,11 @@ type stubAgentThunderProvisioning struct {
 	GetAgentGroupsFunc                   func(ctx context.Context, orgName, projectName, agentName, envName string) ([]thundersvc.ThunderGroup, error)
 	GetIdentityViewsFunc                 func(ctx context.Context, ouID, projectName, agentName string) ([]models.AgentIdentityEnvironmentView, error)
 	ProvisionForEnvironmentIfMissingFunc func(ctx context.Context, ouID, projectName, agentName, envName string, ownership models.AgentProvisioningType, requestedBy string) (bool, error)
+	ListAgentCreatorsFunc                func(ctx context.Context, ouID string) ([]repositories.AgentRef, error)
+}
+
+func (s *stubAgentThunderProvisioning) ListAgentCreators(ctx context.Context, ouID string) ([]repositories.AgentRef, error) {
+	return s.ListAgentCreatorsFunc(ctx, ouID)
 }
 
 func (s *stubAgentThunderProvisioning) GetBindingState(ctx context.Context, orgName, projectName, agentName, envName string) (*AgentThunderBindingState, error) {
@@ -2515,6 +2520,15 @@ func TestListOrgAgentRegistry_FillsRecordFromComponent(t *testing.T) {
 				},
 			}, nil
 		},
+		ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return nil, nil
+		},
+		ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
+			return nil, nil
+		},
+		ListAgentDeploymentStatesFunc: func(_ context.Context, _ string) ([]models.AgentDeploymentState, error) {
+			return nil, nil
+		},
 	}
 	s := &agentManagerService{ocClient: ocClient, logger: discardLogger()}
 
@@ -2538,6 +2552,184 @@ func TestListOrgAgentRegistry_FillsRecordFromComponent(t *testing.T) {
 	require.NotNil(t, outside.Registry)
 	assert.Equal(t, models.AgentRegistryHostingExternal, outside.Registry.Hosting)
 	assert.Equal(t, map[string]string{}, outside.Registry.Labels, "no labels must be an empty map, not null")
+}
+
+// registryConfigStub returns fixed LLM provider and MCP server rows for the registry list.
+type registryConfigStub struct {
+	AgentConfigurationService
+	llmProviders []repositories.AgentEnvironmentResource
+	mcpServers   []repositories.AgentEnvironmentResource
+}
+
+func (s *registryConfigStub) ListOrgAgentLLMProviders(context.Context, string) ([]repositories.AgentEnvironmentResource, error) {
+	return s.llmProviders, nil
+}
+
+func (s *registryConfigStub) ListOrgAgentMCPServers(context.Context, string) ([]repositories.AgentEnvironmentResource, error) {
+	return s.mcpServers, nil
+}
+
+func TestListOrgAgentRegistry_FillsEnvironmentsAndCreator(t *testing.T) {
+	devUUID, prodUUID := uuid.New(), uuid.New()
+	deployedAt := time.Date(2026, 11, 2, 9, 30, 0, 0, time.UTC)
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{}, nil
+		},
+		ListProjectsFunc: func(_ context.Context, _ string) ([]*models.ProjectResponse, error) {
+			return []*models.ProjectResponse{{Name: "proj1", DeploymentPipeline: "default-pipeline"}}, nil
+		},
+		ListComponentsFunc: func(_ context.Context, _ string, _ string) ([]*models.AgentResponse, error) {
+			return []*models.AgentResponse{
+				{Name: "notes", ProjectName: "proj1"},
+				{Name: "outside", ProjectName: "proj1"},
+			}, nil
+		},
+		ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{
+				{UUID: devUUID.String(), Name: "development", DisplayName: "Development"},
+				{UUID: prodUUID.String(), Name: "production", DisplayName: "Production", IsProduction: true},
+			}, nil
+		},
+		ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
+			return []*models.DeploymentPipelineResponse{{
+				Name: "default-pipeline",
+				PromotionPaths: []models.PromotionPath{{
+					SourceEnvironmentRef:  "development",
+					TargetEnvironmentRefs: []models.TargetEnvironmentRef{{Name: "production"}},
+				}},
+			}}, nil
+		},
+		ListAgentDeploymentStatesFunc: func(_ context.Context, _ string) ([]models.AgentDeploymentState, error) {
+			return []models.AgentDeploymentState{{
+				ProjectName: "proj1", AgentName: "notes", EnvironmentName: "development",
+				Status: client.DeploymentStatusActive, LastDeployedAt: &deployedAt,
+			}}, nil
+		},
+	}
+	configs := &registryConfigStub{
+		llmProviders: []repositories.AgentEnvironmentResource{
+			{ProjectName: "proj1", AgentID: "notes", EnvironmentUUID: devUUID, Handle: "openai", Name: "OpenAI"},
+			// An environment that is no longer in the organization is dropped.
+			{ProjectName: "proj1", AgentID: "notes", EnvironmentUUID: uuid.New(), Handle: "old", Name: "Old"},
+		},
+		mcpServers: []repositories.AgentEnvironmentResource{
+			{ProjectName: "proj1", AgentID: "notes", EnvironmentUUID: prodUUID, Handle: "github-mcp", Name: "GitHub MCP"},
+		},
+	}
+	provisioning := &stubAgentThunderProvisioning{
+		ListAgentCreatorsFunc: func(_ context.Context, _ string) ([]repositories.AgentRef, error) {
+			return []repositories.AgentRef{{ProjectName: "proj1", AgentName: "notes", RequestedBy: "user-1"}}, nil
+		},
+	}
+	identity := &clientmocks.IdentityClientMock{
+		GetUserFunc: func(_ context.Context, userID string) (*thundersvc.ThunderUser, error) {
+			return &thundersvc.ThunderUser{ID: userID, Attributes: map[string]any{"username": "alice"}}, nil
+		},
+	}
+	s := &agentManagerService{
+		ocClient: ocClient, agentConfigurationService: configs, agentThunderProvisioning: provisioning,
+		identityClient: identity, logger: discardLogger(),
+	}
+
+	agents, err := s.ListOrgAgentRegistry(context.Background(), "acme")
+
+	require.NoError(t, err)
+	require.Len(t, agents, 2)
+	notes, outside := agents[0], agents[1]
+	assert.Equal(t, []models.AgentRegistryEnvironment{
+		{
+			Name: "development", DisplayName: "Development", DeploymentStatus: client.DeploymentStatusActive,
+			LastDeployedAt: &deployedAt,
+			LLMProviders:   []models.AgentRegistryResourceRef{{ID: "openai", DisplayName: "OpenAI"}},
+			MCPServers:     []models.AgentRegistryResourceRef{},
+		},
+		{
+			Name: "production", DisplayName: "Production", IsProduction: true,
+			DeploymentStatus: client.DeploymentStatusNotDeployed,
+			LLMProviders:     []models.AgentRegistryResourceRef{},
+			MCPServers:       []models.AgentRegistryResourceRef{{ID: "github-mcp", DisplayName: "GitHub MCP"}},
+		},
+	}, notes.Registry.Environments)
+	assert.Equal(t, &models.AgentCreatedBy{ID: "user-1", Display: "alice"}, notes.Registry.CreatedBy)
+
+	assert.Nil(t, outside.Registry.CreatedBy, "an agent without a recorded creator has no createdBy")
+	require.Len(t, outside.Registry.Environments, 2)
+	for _, env := range outside.Registry.Environments {
+		assert.Equal(t, client.DeploymentStatusNotDeployed, env.DeploymentStatus)
+		assert.Nil(t, env.LastDeployedAt)
+	}
+}
+
+func TestListOrgAgentRegistry_CreatorLookupFailureKeepsID(t *testing.T) {
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{}, nil
+		},
+		ListProjectsFunc: func(_ context.Context, _ string) ([]*models.ProjectResponse, error) {
+			return []*models.ProjectResponse{{Name: "proj1"}}, nil
+		},
+		ListComponentsFunc: func(_ context.Context, _ string, _ string) ([]*models.AgentResponse, error) {
+			return []*models.AgentResponse{{Name: "notes", ProjectName: "proj1"}}, nil
+		},
+		ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return nil, nil
+		},
+		ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
+			return nil, nil
+		},
+		ListAgentDeploymentStatesFunc: func(_ context.Context, _ string) ([]models.AgentDeploymentState, error) {
+			return nil, nil
+		},
+	}
+	provisioning := &stubAgentThunderProvisioning{
+		ListAgentCreatorsFunc: func(_ context.Context, _ string) ([]repositories.AgentRef, error) {
+			return []repositories.AgentRef{{ProjectName: "proj1", AgentName: "notes", RequestedBy: "user-1"}}, nil
+		},
+	}
+	identity := &clientmocks.IdentityClientMock{
+		GetUserFunc: func(_ context.Context, _ string) (*thundersvc.ThunderUser, error) {
+			return nil, errors.New("identity provider unavailable")
+		},
+	}
+	s := &agentManagerService{
+		ocClient: ocClient, agentThunderProvisioning: provisioning, identityClient: identity, logger: discardLogger(),
+	}
+
+	agents, err := s.ListOrgAgentRegistry(context.Background(), "acme")
+
+	require.NoError(t, err, "a failed user lookup must not fail the list")
+	require.Len(t, agents, 1)
+	assert.Equal(t, &models.AgentCreatedBy{ID: "user-1"}, agents[0].Registry.CreatedBy)
+}
+
+func TestListOrgAgentRegistry_DeploymentReadFailureFailsList(t *testing.T) {
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{}, nil
+		},
+		ListProjectsFunc: func(_ context.Context, _ string) ([]*models.ProjectResponse, error) {
+			return []*models.ProjectResponse{{Name: "proj1"}}, nil
+		},
+		ListComponentsFunc: func(_ context.Context, _ string, _ string) ([]*models.AgentResponse, error) {
+			return []*models.AgentResponse{{Name: "notes", ProjectName: "proj1"}}, nil
+		},
+		ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return nil, nil
+		},
+		ListDeploymentPipelinesFunc: func(_ context.Context, _ string) ([]*models.DeploymentPipelineResponse, error) {
+			return nil, nil
+		},
+		ListAgentDeploymentStatesFunc: func(_ context.Context, _ string) ([]models.AgentDeploymentState, error) {
+			return nil, errors.New("openchoreo unavailable")
+		},
+	}
+	s := &agentManagerService{ocClient: ocClient, logger: discardLogger()}
+
+	_, err := s.ListOrgAgentRegistry(context.Background(), "acme")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "openchoreo unavailable")
 }
 
 func TestListOrgAgents_HasNoRegistryRecord(t *testing.T) {

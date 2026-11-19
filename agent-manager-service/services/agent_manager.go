@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -1612,13 +1613,18 @@ func (s *agentManagerService) ListOrgAgentRegistry(ctx context.Context, ouID str
 		return nil, err
 	}
 
+	// Step 3: who created each agent. Best-effort, like GetAgent's createdBy.
+	s.attachRegistryCreators(ctx, ouID, summaries)
+
 	s.logger.Info("Listed org agent registry successfully", "ouID", ouID, "totalAgents", len(summaries))
 	return summaries, nil
 }
 
 // attachRegistryEnvironments fills each agent's environments, in its project pipeline's
-// order, with the status and last deploy time of its release binding there. It costs three
-// org-wide reads (environments, pipelines, release bindings), however many agents there are.
+// order, with the status and last deploy time of its release binding there and the LLM
+// providers and MCP servers it is configured with there. It costs five org-wide reads
+// (environments, pipelines, release bindings, LLM providers, MCP servers), however many
+// agents there are.
 func (s *agentManagerService) attachRegistryEnvironments(
 	ctx context.Context, ouID string, projects []*models.ProjectResponse, summaries []*models.AgentSummary,
 ) error {
@@ -1626,6 +1632,8 @@ func (s *agentManagerService) attachRegistryEnvironments(
 		environments []*models.EnvironmentResponse
 		pipelines    []*models.DeploymentPipelineResponse
 		deployments  []models.AgentDeploymentState
+		llmProviders []repositories.AgentEnvironmentResource
+		mcpServers   []repositories.AgentEnvironmentResource
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
@@ -1652,13 +1660,33 @@ func (s *agentManagerService) attachRegistryEnvironments(
 		}
 		return nil
 	})
+	if s.agentConfigurationService != nil {
+		g.Go(func() error {
+			var err error
+			llmProviders, err = s.agentConfigurationService.ListOrgAgentLLMProviders(gctx, ouID)
+			if err != nil {
+				return fmt.Errorf("failed to list agent LLM providers: %w", err)
+			}
+			return nil
+		})
+		g.Go(func() error {
+			var err error
+			mcpServers, err = s.agentConfigurationService.ListOrgAgentMCPServers(gctx, ouID)
+			if err != nil {
+				return fmt.Errorf("failed to list agent MCP servers: %w", err)
+			}
+			return nil
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return err
 	}
 
 	environmentByName := make(map[string]*models.EnvironmentResponse, len(environments))
+	environmentNameByUUID := make(map[string]string, len(environments))
 	for _, env := range environments {
 		environmentByName[env.Name] = env
+		environmentNameByUUID[env.UUID] = env.Name
 	}
 	pipelineOrder := make(map[string][]string, len(pipelines))
 	for _, p := range pipelines {
@@ -1672,6 +1700,8 @@ func (s *agentManagerService) attachRegistryEnvironments(
 	for _, d := range deployments {
 		deploymentByKey[agentEnvironmentKey(d.ProjectName, d.AgentName, d.EnvironmentName)] = d
 	}
+	llmProvidersByKey := registryResourcesByKey(llmProviders, environmentNameByUUID)
+	mcpServersByKey := registryResourcesByKey(mcpServers, environmentNameByUUID)
 
 	for _, summary := range summaries {
 		order := pipelineOrder[projectPipeline[summary.ProjectName]]
@@ -1691,15 +1721,102 @@ func (s *agentManagerService) attachRegistryEnvironments(
 				entry.IsProduction = env.IsProduction
 			}
 			// No binding in an environment means the agent was never deployed there.
-			if d, ok := deploymentByKey[agentEnvironmentKey(summary.ProjectName, summary.Name, envName)]; ok {
+			key := agentEnvironmentKey(summary.ProjectName, summary.Name, envName)
+			if d, ok := deploymentByKey[key]; ok {
 				entry.DeploymentStatus = d.Status
 				entry.LastDeployedAt = d.LastDeployedAt
+			}
+			if refs, ok := llmProvidersByKey[key]; ok {
+				entry.LLMProviders = refs
+			}
+			if refs, ok := mcpServersByKey[key]; ok {
+				entry.MCPServers = refs
 			}
 			envs = append(envs, entry)
 		}
 		summary.Registry.Environments = envs
 	}
 	return nil
+}
+
+// registryResourcesByKey groups LLM providers or MCP servers by agent and environment name.
+// A row whose environment is not in the organization any more is dropped.
+func registryResourcesByKey(
+	rows []repositories.AgentEnvironmentResource, environmentNameByUUID map[string]string,
+) map[string][]models.AgentRegistryResourceRef {
+	byKey := make(map[string][]models.AgentRegistryResourceRef)
+	for _, row := range rows {
+		envName, ok := environmentNameByUUID[row.EnvironmentUUID.String()]
+		if !ok {
+			continue
+		}
+		key := agentEnvironmentKey(row.ProjectName, row.AgentID, envName)
+		byKey[key] = append(byKey[key], models.AgentRegistryResourceRef{ID: row.Handle, DisplayName: row.Name})
+	}
+	return byKey
+}
+
+// attachRegistryCreators sets each agent's creator from its AgentID record, with the user's
+// name looked up once per distinct user. Best-effort: an agent whose creator was not
+// recorded has no CreatedBy, and a user who cannot be looked up keeps only the id.
+func (s *agentManagerService) attachRegistryCreators(ctx context.Context, ouID string, summaries []*models.AgentSummary) {
+	if s.agentThunderProvisioning == nil {
+		return
+	}
+	creators, err := s.agentThunderProvisioning.ListAgentCreators(ctx, ouID)
+	if err != nil {
+		s.logger.Warn("Failed to list agent creators", "ouID", ouID, "error", err)
+		return
+	}
+	creatorByAgent := make(map[string]string, len(creators))
+	for _, c := range creators {
+		creatorByAgent[c.ProjectName+"/"+c.AgentName] = c.RequestedBy
+	}
+
+	// Look up each distinct user once.
+	displayByUser := make(map[string]string)
+	for _, userID := range creatorByAgent {
+		displayByUser[userID] = ""
+	}
+	if s.identityClient != nil {
+		var mu sync.Mutex
+		g, gctx := errgroup.WithContext(ctx)
+		g.SetLimit(8)
+		for userID := range displayByUser {
+			g.Go(func() error {
+				display := s.resolveUserDisplay(gctx, userID)
+				mu.Lock()
+				displayByUser[userID] = display
+				mu.Unlock()
+				return nil
+			})
+		}
+		_ = g.Wait() // the lookups never return an error
+	}
+
+	for _, summary := range summaries {
+		userID, ok := creatorByAgent[summary.ProjectName+"/"+summary.Name]
+		if !ok {
+			continue
+		}
+		summary.Registry.CreatedBy = &models.AgentCreatedBy{ID: userID, Display: displayByUser[userID]}
+	}
+}
+
+// resolveUserDisplay returns the user's username, else their display name, else "" when the
+// user cannot be looked up (for example, deleted).
+func (s *agentManagerService) resolveUserDisplay(ctx context.Context, userID string) string {
+	user, err := s.identityClient.GetUser(ctx, userID)
+	if err != nil || user == nil {
+		if err != nil && !thundersvc.IsNotFound(err) {
+			s.logger.Warn("Failed to resolve agent creator", "requestedBy", userID, "error", err)
+		}
+		return ""
+	}
+	if username, ok := user.Attributes["username"].(string); ok && username != "" {
+		return username
+	}
+	return user.Display
 }
 
 // agentEnvironmentKey identifies one agent in one environment; agent names are unique only

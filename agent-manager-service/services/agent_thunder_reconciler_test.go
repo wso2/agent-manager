@@ -389,6 +389,10 @@ func (f *fakeProvisioningService) GetIdentityViews(context.Context, string, stri
 	return nil, nil
 }
 
+func (f *fakeProvisioningService) ListAgentCreators(context.Context, string) ([]repositories.AgentRef, error) {
+	return nil, nil
+}
+
 func (f *fakeProvisioningService) GetBindingState(context.Context, string, string, string, string) (*AgentThunderBindingState, error) {
 	return nil, nil
 }

@@ -58,6 +58,12 @@ type AgentConfigurationService interface {
 	Create(ctx context.Context, ouID, projectName, agentID string,
 		req models.CreateAgentModelConfigRequest, createdBy string) (*models.AgentModelConfigResponse, error)
 	ValidateProvidersInCatalog(ctx context.Context, ouID string, providerHandles []string) error
+	// ListOrgAgentLLMProviders returns the LLM providers every agent in the organization is
+	// configured with, per environment.
+	ListOrgAgentLLMProviders(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error)
+	// ListOrgAgentMCPServers returns the MCP proxies every agent in the organization is
+	// configured with, per environment.
+	ListOrgAgentMCPServers(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error)
 	// ProviderEnvironments returns, in org order, the environments where the agent can use the LLM
 	// provider: those where the provider is placed on a gateway this kind of agent may use. It is the
 	// check Create makes per environment, so a create mapped to these environments passes it.
@@ -996,6 +1002,14 @@ func (s *agentConfigurationService) compensatingDeleteConfig(ctx context.Context
 // ValidateProvidersInCatalog verifies each handle resolves to an existing provider
 // that is in catalog. Returns ErrLLMProviderNotFound (missing) or ErrInvalidInput
 // (empty handle / not in catalog). Handles are deduped.
+func (s *agentConfigurationService) ListOrgAgentLLMProviders(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error) {
+	return s.envMappingRepo.ListAgentLLMProvidersByOu(ctx, ouID)
+}
+
+func (s *agentConfigurationService) ListOrgAgentMCPServers(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error) {
+	return s.envMCPMappingRepo.ListAgentMCPServersByOu(ctx, ouID)
+}
+
 func (s *agentConfigurationService) ValidateProvidersInCatalog(
 	_ context.Context, ouID string, providerHandles []string,
 ) error {

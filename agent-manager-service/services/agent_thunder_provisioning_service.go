@@ -175,6 +175,10 @@ type AgentThunderProvisioningService interface {
 	// architecture doc) apply it on top of this org-wide result.
 	GetIdentityViews(ctx context.Context, ouID, projectName, agentName string) ([]models.AgentIdentityEnvironmentView, error)
 
+	// ListAgentCreators returns, for every agent in the organization whose creator was
+	// recorded, the id of the user who created it (RequestedBy).
+	ListAgentCreators(ctx context.Context, ouID string) ([]repositories.AgentRef, error)
+
 	// GetBindingState returns the raw provisioning state for one (agent, env)
 	// binding — status, whether a secret is currently stored, and the last
 	// recorded error. Used by callers that need more than "is it ready" (e.g.
@@ -1592,6 +1596,10 @@ func (s *agentThunderProvisioningService) GetIdentityViews(ctx context.Context, 
 	}
 
 	return views, nil
+}
+
+func (s *agentThunderProvisioningService) ListAgentCreators(ctx context.Context, ouID string) ([]repositories.AgentRef, error) {
+	return s.repo.ListCreatorsByOu(ctx, ouID)
 }
 
 func (s *agentThunderProvisioningService) GetBindingState(ctx context.Context, ouID, projectName, agentName, envName string) (*AgentThunderBindingState, error) {

@@ -34,6 +34,9 @@ import (
 //			ListAgentConsumersByProxyUUIDsFunc: func(ctx context.Context, proxyUUIDs []uuid.UUID) ([]repositories.AgentConsumer, error) {
 //				panic("mock out the ListAgentConsumersByProxyUUIDs method")
 //			},
+//			ListAgentLLMProvidersByOuFunc: func(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error) {
+//				panic("mock out the ListAgentLLMProvidersByOu method")
+//			},
 //			ListByConfigFunc: func(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentModelMapping, error) {
 //				panic("mock out the ListByConfig method")
 //			},
@@ -61,6 +64,9 @@ type EnvAgentModelMappingRepositoryMock struct {
 
 	// ListAgentConsumersByProxyUUIDsFunc mocks the ListAgentConsumersByProxyUUIDs method.
 	ListAgentConsumersByProxyUUIDsFunc func(ctx context.Context, proxyUUIDs []uuid.UUID) ([]repositories.AgentConsumer, error)
+
+	// ListAgentLLMProvidersByOuFunc mocks the ListAgentLLMProvidersByOu method.
+	ListAgentLLMProvidersByOuFunc func(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error)
 
 	// ListByConfigFunc mocks the ListByConfig method.
 	ListByConfigFunc func(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentModelMapping, error)
@@ -113,6 +119,13 @@ type EnvAgentModelMappingRepositoryMock struct {
 			// ProxyUUIDs is the proxyUUIDs argument value.
 			ProxyUUIDs []uuid.UUID
 		}
+		// ListAgentLLMProvidersByOu holds details about calls to the ListAgentLLMProvidersByOu method.
+		ListAgentLLMProvidersByOu []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+		}
 		// ListByConfig holds details about calls to the ListByConfig method.
 		ListByConfig []struct {
 			// Ctx is the ctx argument value.
@@ -135,6 +148,7 @@ type EnvAgentModelMappingRepositoryMock struct {
 	lockDeleteByConfig                 sync.RWMutex
 	lockGetByConfigAndEnv              sync.RWMutex
 	lockListAgentConsumersByProxyUUIDs sync.RWMutex
+	lockListAgentLLMProvidersByOu      sync.RWMutex
 	lockListByConfig                   sync.RWMutex
 	lockUpdate                         sync.RWMutex
 }
@@ -332,6 +346,42 @@ func (mock *EnvAgentModelMappingRepositoryMock) ListAgentConsumersByProxyUUIDsCa
 	mock.lockListAgentConsumersByProxyUUIDs.RLock()
 	calls = mock.calls.ListAgentConsumersByProxyUUIDs
 	mock.lockListAgentConsumersByProxyUUIDs.RUnlock()
+	return calls
+}
+
+// ListAgentLLMProvidersByOu calls ListAgentLLMProvidersByOuFunc.
+func (mock *EnvAgentModelMappingRepositoryMock) ListAgentLLMProvidersByOu(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error) {
+	if mock.ListAgentLLMProvidersByOuFunc == nil {
+		panic("EnvAgentModelMappingRepositoryMock.ListAgentLLMProvidersByOuFunc: method is nil but EnvAgentModelMappingRepository.ListAgentLLMProvidersByOu was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+	}
+	mock.lockListAgentLLMProvidersByOu.Lock()
+	mock.calls.ListAgentLLMProvidersByOu = append(mock.calls.ListAgentLLMProvidersByOu, callInfo)
+	mock.lockListAgentLLMProvidersByOu.Unlock()
+	return mock.ListAgentLLMProvidersByOuFunc(ctx, ouID)
+}
+
+// ListAgentLLMProvidersByOuCalls gets all the calls that were made to ListAgentLLMProvidersByOu.
+// Check the length with:
+//
+//	len(mockedEnvAgentModelMappingRepository.ListAgentLLMProvidersByOuCalls())
+func (mock *EnvAgentModelMappingRepositoryMock) ListAgentLLMProvidersByOuCalls() []struct {
+	Ctx  context.Context
+	OuID string
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+	}
+	mock.lockListAgentLLMProvidersByOu.RLock()
+	calls = mock.calls.ListAgentLLMProvidersByOu
+	mock.lockListAgentLLMProvidersByOu.RUnlock()
 	return calls
 }
 
