@@ -1,7 +1,7 @@
 # Insurance Support Agent
 
-An end-to-end sample: a Strands agent that sends its traces to WSO2 Agent
-Manager as an external agent, plus a browser UI that chats with it and can log a
+An end-to-end sample: a Strands agent registered with WSO2 Agent Manager as an
+external agent, plus a browser UI that chats with it and can log a
 customer in with OAuth2.
 
 The agent works on its own — run it and call `/chat`. The UI is an optional
@@ -51,16 +51,19 @@ and hosting the server, not custom server or client code.
 
 ## Register it in Agent Manager
 
-You run the agent yourself; Agent Manager registers it and issues the token its
-traces are sent with.
+You run the agent yourself; Agent Manager registers it and issues its API key.
 
-1. Sign in to the console at <http://localhost:9000> as `admin` (the password is
-   `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
-2. Open the **Default** project, click **Add Agent**, and register an agent
-   named `Insurance Support Agent`.
-3. In the **Set up agent** panel that opens, choose **Python**, pick a token
-   duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and
-   `AMP_AGENT_API_KEY` values it shows.
+1. Sign in to the console at <http://localhost:9000> (the port is
+   `AMP_API_PORT` in `deployments/standalone/.env`) as `admin`; the password
+   is `AMP_ADMIN_PASSWORD` in the same file.
+2. A new install has no projects, so create one first: click **Add project**
+   (**Create project** on the organization overview), enter a **Name** and
+   click **Create**.
+3. Open the project, click **New agent**, enter the name
+   `Insurance Support Agent` and click **Register**.
+4. The **Setup Agent** panel opens with an API key already generated. Copy it
+   as `AMP_AGENT_API_KEY`; it is shown only once. To change how long it is
+   valid, pick another **Token Duration** and click **Regenerate**.
 
 ## Run it
 
@@ -69,7 +72,7 @@ cd samples/insurance-support-agent/agent
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt amp-instrumentation==0.4.1
 
-export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_OTEL_ENDPOINT="http://localhost:4318"   # your own OpenTelemetry collector
 export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY=<your-key>
 export CORS_ALLOW_ORIGINS="http://localhost:5173"
@@ -80,6 +83,10 @@ amp-instrument python main.py
 Set the `AMP_*` values as shell variables, not in `.env`, so `amp-instrument`
 can read them. To run it without tracing, leave out `amp-instrument` and the two
 `AMP_*` variables.
+
+AMP Lite does not store traces, so `AMP_OTEL_ENDPOINT` is the OTLP/HTTP base
+URL (without `/v1/traces`) of an OpenTelemetry collector you run; see the
+[user guide](../../docs/user-guide.md).
 
 Then call it:
 
@@ -138,8 +145,8 @@ client-side implications.
 Run the agent under `amp-instrument`. It installs a global OpenTelemetry tracer
 provider, and the Strands agent emits its agent, event-loop and tool spans into
 it — so this sample needs no tracing code and does not install
-`strands-agents[otel]`. Each chat turn appears under the agent's
-**Observability → Traces** in the console.
+`strands-agents[otel]`. Each chat turn produces a trace in the backend behind
+your collector; AMP Lite stores no traces and has no traces page.
 
 Two details matter if you adapt this sample:
 

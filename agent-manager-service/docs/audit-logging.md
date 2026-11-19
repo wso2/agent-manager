@@ -4,7 +4,7 @@ Agent Manager records who did what, to which resource, with what outcome. This d
 
 ## What gets recorded
 
-Every state-changing API call, every authorization denial, and every rejected token *attempts* one record. Records are written to **stdout as structured JSON** tagged `log_type=audit`, for the cluster log pipeline to collect.
+Every state-changing API call, every authorization denial, and every rejected token *attempts* one record. Records are written to **stdout as structured JSON** tagged `log_type=audit`, for a log pipeline to collect from the `amp-api` container.
 
 "Attempts" rather than "produces", because two paths deliberately emit less than one record per event: authentication and internal-surface denials are rate-limited per source (see [Denials](#denials)), and ordinary buffered records are dropped rather than allowed to block a request when the buffer fills. The two end up in different places. Suppressed JWT authentication failures are reported in the trail: their count rides on the next emitted `authn:failure` record as `suppressedCount` (repeats on the internal surface are suppressed without a count). Buffer drops are counted and logged only to the application log (`audit buffer full; event dropped`, with a running `droppedTotal`) — they do **not** reach the audit trail, because `system:audit-dropped` is registered but nothing emits it (see [Not yet covered](#not-yet-covered)). Either way, the record count is a floor, not an exact tally. The one path with no such allowance is `audit.Begin`, which refuses the operation rather than losing the record (see [Reliability](#reliability)).
 
@@ -30,7 +30,7 @@ When a semantic event describes a successful request, the coverage tier stands d
 
 - **Every non-GET route.** A test (`api/audit_coverage_test.go`) fails the build if a mutating route is not audited, so this cannot drift.
 - **Every MCP tool that changes state.** `addTool` requires an `audit.Action` alongside its permissions and panics without one, so a new mutating tool cannot ship unattributed — the same registration-time guarantee the route registrar gives REST. Read-only tools declare a read action and are not recorded.
-- **Reads only when they disclose credentials or security configuration** — API-key listings, git secrets, gateway tokens, role assignments, identity-provider configuration. Auditing every GET would multiply volume several-fold for little forensic gain.
+- **Reads only when they disclose credentials or security configuration** — API-key listings, gateway tokens, agent identities, role assignments, identity-provider configuration. Auditing every GET would multiply volume several-fold for little forensic gain.
 - One documented exemption: `POST /orgs/{orgName}/utils/generate-name`, which suggests a name and persists nothing.
 - **Module routes and tools follow the same rules.** A module's mutating route (`/m/<module>/...`) is recorded under its permission, or under an action its manifest declares and the route names with `modkit.Audit`; the manifest gives that action its class and severity, and `modkit.Audit` on a read records the read. `api/module_routes_invariant_test.go` checks it for the test module and the AI Gateway.
 
@@ -43,7 +43,7 @@ When a semantic event describes a successful request, the coverage tier stands d
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-08-05T08:13:37Z",
-    "action": "git-secret:create",
+    "action": "ai-gateway:api-keys.create",
     "actionClass": "credential",
     "severity": 4,
     "actorType": "user",
@@ -56,15 +56,27 @@ When a semantic event describes a successful request, the coverage tier stands d
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-…",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/git-secrets",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
-    "resourceType": "git-secret",
-    "resourceId": "gs-7",
-    "resourceName": "github-deploy-key",
+    "resourceType": "api-key",
+    "resourceId": "5b1e7c2a-9d4f-4a3b-8e6c-0f2d1a9b7c34",
+    "resourceName": "ci-key",
+    "projectName": "payments",
+    "environment": "production",
     "outcome": "success",
     "statusCode": 201,
-    "requiredPermission": "amp:git-secret:create"
+    "durationMs": 412,
+    "requiredPermission": "amp:ai-gateway:agent-api-keys.manage",
+    "details": {
+      "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
+      "envelope": true,
+      "gatewayConnected": true,
+      "gatewayCount": 1,
+      "keyName": "ci-key",
+      "ownerName": "checkout-agent",
+      "ownerType": "agent"
+    }
   }
 }
 ```
@@ -96,7 +108,7 @@ Every record carries these fields where they apply; empty fields are omitted.
 | `requestMethod` · `requestPath` | HTTP verb and the **route pattern**, never the raw URL. The one exception is `authn:failure` on the REST edge: the token is rejected before route matching, so the record carries the URL path — without its query string. |
 | `ouId` · `orgHandle` | Tenant, taken from the token — never from the URL path. |
 | `resourceType` · `resourceId` · `resourceName` | What was acted on. Names are recorded deliberately, including secret names. |
-| `projectName` · `environment` | Scope. For deployments, `environment` is what separates a sandbox push from a production one. |
+| `projectName` · `environment` | Scope. On an environment-scoped operation, such as an agent API key, `environment` is what separates a sandbox change from a production one. |
 | `statusCode` · `durationMs` | HTTP status and request duration, on coverage-tier records. |
 | `errorCode` · `errorMessage` | Failure detail. `errorMessage` passes through the secret-shaped masker, since upstream errors can echo whole response bodies. |
 | `requiredPermission` | The scope that gated the call, recorded on allow and deny alike. |
@@ -109,8 +121,8 @@ Every action may also carry the shared detail keys from `audit/schema.go`: `enve
 Actions read as `<resource>:<verb>`. Most are the route's `rbac.Permission` verbatim; where a permission does not describe the effect, `audit/policy.go` maps the route explicitly. The three recurring cases:
 
 - One permission gating several operations — every API-key route is gated by `*:api-key-manage`, so create, rotate and revoke would otherwise be indistinguishable.
-- A permission naming a different resource than the operation acts on — `publish-kind` is gated by `agent-kind:create` but acts on an agent.
-- A permission narrower than the effect — `deployments/state` is gated by `agent:suspend` but also resumes.
+- A permission naming a different resource than the operation acts on — the user routes are gated by `org:invite-member` / `org:remove-member` but act on a user, so they record `user:invite`, `user:create`, `user:update` and `user:delete`.
+- A permission broader than the effect — event destinations and subscriptions are gated by the permission of the scope they belong to (`events:manage` for the organization's), which says nothing about whether one was created, rotated or deleted.
 
 A module's actions carry its name: `<module>:<name>`, where the name is the module's permission or a declared action, often `<resource>.<verb>`. The AI Gateway's read `ai-gateway:<resource>.<verb>` (`ai-gateway:api-keys.rotate`, `ai-gateway:gateways.set-identity-provider`); its routes declare them, and the manifest declares their detail keys (`modules/aigateway/gwaudit`). A module writes no records of its own: its handlers name what they acted on and add declared details to the route's record (`modkit.AuditResource`, `modkit.AuditDetail`), which also takes the project and environment from the route's path.
 
@@ -120,13 +132,13 @@ A module's actions carry its name: `<module>:<name>`, where the name is the modu
 
 ### Severity 4 — the events worth alerting on
 
-`authz:root-ou-bypass`, and everything in `actionClass: credential` or `identity` with a mutating verb — notably `role:*`, `group:*`, `user:*`, `ai-gateway:api-keys.create` / `:rotate` / `:revoke`, `git-secret:*`, `agent-identity:*`, `agent-token:*`, `ai-gateway:gateway-tokens.*`, `service-account:*`, and `ai-gateway:gateways.set-identity-provider` / `:remove-identity-provider` (changing which issuer a gateway trusts changes who can mint tokens it accepts). `ai-gateway:api-keys.issue-test` is the deliberate exception: console Try-It keys are short-lived, so they rank as a notice.
+`authz:root-ou-bypass`, `authz:org-override`, and everything in `actionClass: credential` or `identity` with a mutating verb — notably `authn:login`, `role:*`, `group:*`, `user:*`, `agent-identity:*`, `agent-token:mint`, `workload-credential:*`, `workload-token:exchange`, `event-destination:create` / `:update` / `:delete` / `:rotate-secret`, `ai-gateway:api-keys.create` / `:rotate` / `:revoke`, `ai-gateway:gateway-tokens.rotate` / `:revoke`, `ai-gateway:agents.set-a2a-proxy` / `:remove-a2a-proxy`, `ai-gateway:agent-identities.*`, `ai-gateway:scopes.*`, and `ai-gateway:gateways.set-identity-provider` / `:remove-identity-provider` (changing which issuer a gateway trusts changes who can mint tokens it accepts). `ai-gateway:api-keys.issue-test` is the deliberate exception: console Try-It keys are short-lived, so they rank as a notice.
 
 ## What is never recorded
 
 Two properties are **structural** rather than filtered, which is what makes the coverage tier safe to run on every route:
 
-1. **Request and response bodies are never read.** The secrets that flow through this API — git credentials, client secrets, upstream auth values, user-creation password attributes, and the API keys and tokens returned once on creation — are out of reach of a record, not merely redacted out of one.
+1. **Request and response bodies are never read.** The secrets that flow through this API — sign-in passwords, client secrets, upstream auth values, event-destination signing secrets, user-creation password attributes, and the API keys and tokens returned once on creation — are out of reach of a record, not merely redacted out of one.
 2. **`requestPath` is the route pattern for matched requests.** Once a route has matched, path and query-string leakage is eliminated by construction. Edge `authn:failure` records precede route matching and carry the request's `URL.Path` after generic log sanitization, so concrete path segments (org, project, agent names) may remain — but the query string is never read.
 
 On top of that, anything a caller attaches by hand passes an **allow-list keyed by action** (`audit/schema.go`). A key nobody declared is dropped and reported under `_droppedKeys`. This is deliberately not a deny-list: a deny-list fails on the field nobody thought of.
@@ -139,17 +151,17 @@ Where a secret must be referenced, `audit.SecretRef` stores a SHA-256 prefix plu
 
 **Authentication failures carry no token material** — only a classified reason (see [The authentication gap](#the-authentication-gap)).
 
-Resource **names** are recorded deliberately, including secret names. A name is not a credential, and "which git secret was deleted" is where an investigation starts.
+Resource **names** are recorded deliberately, including secret names. A name is not a credential, and "which API key was revoked" is where an investigation starts.
 
 ## Looking things up
 
 Records are newline-delimited JSON on stdout. These work with `jq` against a collected log file and translate directly to a SIEM query.
 
-Who triggered this build?
+Who issued this agent API key?
 
 ```bash
-jq 'select(.event.action=="agent:build" and .event.details.buildName=="build-42")
-   | {who: .event.actorId, when: .event.occurredAt, agent: .event.resourceName}'
+jq 'select(.event.action=="ai-gateway:api-keys.create" and .event.details.keyName=="ci-key")
+   | {who: .event.actorId, when: .event.occurredAt, agent: .event.details.ownerName, env: .event.environment}'
 ```
 
 Everything one person did (`actorId` is a Thunder user id — look it up first if you only have a name):
@@ -196,7 +208,7 @@ jq 'select(.correlation_id=="c0ffee-…" or .event.correlationId=="c0ffee-…")'
 
 Records go to stdout. **Retention, immutability and access control are properties of your log pipeline, not of Agent Manager.**
 
-The observability plane's default log retention is far shorter than the evidence period most audits require (SOC 2 evidence periods typically run 3–12 months; ISO 27001 A.5.33 requires retention per a defined policy). **Route `log_type=audit` records to a dedicated index or bucket with a retention period that matches your obligations**, ideally write-once storage.
+Docker keeps a container's stdout only as long as the container and its log driver allow, which is far shorter than the evidence period most audits require (SOC 2 evidence periods typically run 3–12 months; ISO 27001 A.5.33 requires retention per a defined policy). **Route `log_type=audit` records to a dedicated index or bucket with a retention period that matches your obligations**, ideally write-once storage.
 
 This is the single most important thing to get right. Everything else here is already done for you.
 
@@ -210,9 +222,11 @@ Anyone who can grant permissions can grant themselves any permission, and that g
 
 ## The authentication gap
 
-**Login, logout, failed login, MFA, password change and session revocation are not recorded here, because they do not happen here.** Authentication is performed by WSO2 Thunder; Agent Manager only ever sees an already-minted JWT. There is no login endpoint in this service.
+**With ThunderID as the identity provider, login, logout, failed login, MFA, password change and session revocation are not recorded here, because they do not happen here.** Authentication is performed by Thunder; Agent Manager only ever sees an already-minted JWT.
 
-These are precisely the events SOC 2 CC6.1/CC6.6 and ISO 27001 A.8.15 expect. **A complete trail requires collecting Thunder's own audit events as well.** Any claim of completeness based on Agent Manager alone is wrong.
+The exception is file-based login, where this service is the identity provider: `POST /auth/login` checks a username and password against the configured users file and mints the token itself. Every attempt that reaches the login service is recorded as `authn:login` — a success with the `username`, the `roles` the token went out with and its `expiresIn`, written synchronously before the token is returned (a sign-in that cannot be recorded is refused); a refusal with the `username` and a `reason` of `unknown-user` or `bad-password`, written asynchronously. The response never says which of the two it was; only the record does. A request rejected before the login service (a body that is not JSON, or an empty username or password, answered 400) is not recorded.
+
+These are precisely the events SOC 2 CC6.1/CC6.6 and ISO 27001 A.8.15 expect. **With Thunder, a complete trail requires collecting Thunder's own audit events as well.** Any claim of completeness based on Agent Manager alone is wrong.
 
 What this service does record, and which makes the two joinable:
 
@@ -228,7 +242,7 @@ Authentication-failure records are rate-limited to 10 per source IP per minute, 
 
 Refusals are recorded on every surface, because a denied attempt is often more interesting than a successful one:
 
-- **REST** — all five deny sites in `middleware/authorization.go`, with the specific missing scope and the caller's scope count. A module route that refuses a request itself (the AI Gateway's environment tier, a body naming another organization) is recorded on the route's own record: outcome `deny`, with `reason` and, for a scope, `missingScope`.
+- **REST** — all five deny sites in `middleware/authorization.go`, with the specific missing scope and the caller's scope count, and an `X-Impersonate-Org` request the deployment does not allow (`middleware/apply_org_override.go`, reason `org-override-*`). A module route that refuses a request itself (the AI Gateway's environment tier, a body naming another organization) is recorded on the route's own record: outcome `deny`, with `reason` and, for a scope, `missingScope`.
 - **MCP** — insufficient scope, an unknown tool (a probe), and an organization mismatch (a token driving a tool against a different org than its session — the clearest attack signal this surface produces).
 - **Internal** — a missing or invalid gateway `api-key`, and a valid key presented for a *different* gateway, which is recorded separately because a valid credential used out of scope is a stronger signal than an invalid one. These are rate-limited per source, since gateways poll continuously and one with a stale key would otherwise emit forever.
 - **Edge** — rejected tokens, with a classified reason and no token material.
@@ -236,6 +250,8 @@ Refusals are recorded on every surface, because a denied attempt is often more i
 ## Enforcement posture is part of the trail
 
 Authorization is always enforced: every audited route carries the `requiredPermission` that was checked, so a record names the decision that was made rather than the one that might have been.
+
+Two ways past the ordinary check are recorded even when the request succeeds, alongside the route's own record: `authz:root-ou-bypass`, a token admitted through the root-OU bypass whatever scopes it carries, and `authz:org-override`, a request switched to another organization by `X-Impersonate-Org`. The second is filed under the target organization, with the caller's `clientId`, the token's `tokenOuID` and the `targetOuID`; it happens only on routes that allow it (`modkit.AllowOrgOverride`, today the AI Gateway's `GET /m/ai-gateway/orgs/{orgName}/gateways` and `PUT /m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}`) and only when the deployment installs an `OrgOverrideResolver` (`app.Options`). The stock binary installs none, so it never emits one.
 
 `system:startup` is recorded when the service starts, which bounds any gap in the trail to a restart — a reader can tell "nothing happened" apart from "the service was not running".
 
@@ -250,11 +266,9 @@ Drops are counted and logged to the application log, at most once every 30 secon
 
 **The honest limit of "fail-closed" here:** a successful write means the record reached the process's output, not that it reached durable storage. This catches the common failure — the process is running but its sink is broken — but it is not the atomic "change and record commit together" guarantee a same-database write would give. `audit.Begin` therefore writes an *intent* record before an external mutation and an *outcome* record after. A record left at `outcome: "unknown"` means the process died mid-operation; that orphan is deliberate forensic signal, not a defect.
 
-**Where the intent record sits, and what that costs.** `audit.Begin` is placed immediately before the *commit point* — the irreversible external call — not at the top of the operation. In the multi-step lifecycle operations (`DeleteAgent`, `DeployAgent`, `PromoteAgent`) that means some local preparation has already run when the intent is written: secret references cleaned up, the Component CR updated, a target-environment config row upserted. If `Begin` fails there, the operation is refused *after* that preparation, and only the coverage-tier envelope records the attempt.
+**Where the intent record sits.** `audit.Begin` is placed immediately before the *commit point* — the first change — not at the top of the operation. In `DeleteAgent` and the project delete only read-only checks run before it (the project exists, no module refuses the delete, the project holds no agents), so a refused `Begin` leaves nothing changed and only the coverage-tier envelope records the attempt. On a fail-closed AI Gateway route (`modkit.AuditFailClosed`) the core writes the intent record before the handler runs at all.
 
-This is a deliberate trade, not an oversight. Beginning at the top of those operations would mean every intermediate return path — and there are many, since each validates as it goes — has to resolve the attempt or leave a false `outcome: "unknown"` orphan. Orphans are the signal that the process died mid-operation; manufacturing them on ordinary validation failures would devalue the one thing they mean. The narrow placement keeps the orphan window at "we made the change and did not learn the result", which is exactly the condition worth investigating.
-
-The gap is real and bounded: the preparation that can precede an intent record is confined to this service's own state, and every one of those steps sits behind a route the coverage tier already recorded. What cannot happen unrecorded is the external mutation itself.
+This is a deliberate trade, not an oversight. Beginning at the top of an operation would mean every intermediate return path — and there are many, since each validates as it goes — has to resolve the attempt or leave a false `outcome: "unknown"` orphan. Orphans are the signal that the process died mid-operation; manufacturing them on ordinary validation failures would devalue the one thing they mean. The narrow placement keeps the orphan window small: an orphan means the process stopped between `Begin` and the result, so the change may or may not have been made. Its outcome is unknown, which is the condition worth investigating.
 
 The buffer is flushed on shutdown **after both HTTP servers stop**, so in-flight requests finish recording first.
 
@@ -267,7 +281,7 @@ The buffer is flushed on shutdown **after both HTTP servers stop**, so in-flight
 | `AUDIT_BATCH_SIZE` | `200` | Events written per sink call. |
 | `AUDIT_FLUSH_INTERVAL_MS` | `1000` | Maximum time an event waits before being written. |
 
-Helm: `agentManagerService.config.audit.*`.
+Docker Compose: the stack (`deployments/standalone/docker-compose.yml`) sets none of these, so the defaults apply. To change one, add it to the `environment` of the `amp-api` service.
 
 ## Adding a semantic event
 
@@ -275,26 +289,28 @@ Services and controllers emit through package-level functions that take only a c
 
 ```go
 // Ordinary: asynchronous, fail-open.
-audit.Record(ctx, audit.Action("agent:deploy"),
-    audit.ResourceNamed("agent", agent.ID, agentName),
+audit.Record(ctx, audit.ActionSystemAgentIdentityExhausted,
+    audit.ResourceNamed(audit.ResourceAgentIdentity, agentName, agentName),
     audit.Project(projName),
     audit.Environment(envName),
-    audit.Result(err),
+    audit.Detail("reason", reason),
 )
 
 // Security-critical: refuse the operation if the record cannot be written.
-attempt, err := audit.Begin(ctx, audit.Action("git-secret:create"),
-    audit.ResourceNamed("git-secret", req.Name, req.Name))
+attempt, err := audit.Begin(ctx, audit.ActionProjectDelete,
+    audit.Org(ouID),
+    audit.ResourceNamed("project", projectName, projectName),
+    audit.Detail("projectName", projectName))
 if err != nil {
-    return nil, err // do NOT perform the operation
+    return err // do NOT perform the operation
 }
-result, err := s.client.CreateGitSecret(ctx, ouID, ocReq)
+err = s.platform.DeleteProject(ctx, ouID, projectName)
 attempt.Complete(ctx, err)
 ```
 
 Domain actions are declared in `audit/actions_domain.go`, which registers each one's class, severity and permitted detail keys together so the three cannot drift apart. A test fails if a registered action has no detail schema, so the decision cannot be skipped.
 
-**Use the same action constant the coverage tier derives for the route.** `TestDomainActionsMatchRouteDerivedActions` fails the build if a semantic emit and its route disagree — otherwise "who deployed agent X" returns half the answer depending on which tier recorded it.
+**Use the same action constant the coverage tier derives for the route.** `TestDomainActionsMatchRouteDerivedActions` fails the build if a semantic emit and its route disagree — otherwise "who deleted agent X" returns half the answer depending on which tier recorded it.
 
 `audit.Detail` accepts only scalars and string slices. Refusing structs and maps is what keeps request payloads structurally unable to reach a record.
 
@@ -310,22 +326,19 @@ The operations below emit a record describing what actually changed, not just th
 |---|---|---|
 | API keys | `ai-gateway:api-keys.create` / `:rotate` / `:revoke` (agent, LLM provider, LLM proxy) | Fail-closed |
 | API keys | `ai-gateway:api-keys.issue-test` (console Try-It) | Fail-open |
-| Git secrets | `git-secret:create` / `:delete` | Fail-closed |
 | Gateway tokens | `ai-gateway:gateway-tokens.rotate` / `:revoke` | Fail-closed |
-| Agent tokens | `agent-token:mint`, `agent-token:regenerate-tracing` | Fail-closed |
+| Sign-in | `authn:login` (file-based login only; a refusal is fail-open, since it issues nothing) | Fail-closed |
+| Agent tokens | `agent-token:mint` | Fail-closed |
 | Module workloads | `workload-credential:issue`, `workload-token:exchange` | Fail-closed |
 | Module workloads | `workload-credential:revoke` | Fail-open |
 | Agent OAuth identity | `agent-identity:provision` / `:regenerate-secret` / `:revoke-secret` / `:retry-provisioning` | Fail-closed |
 | Agent OAuth identity | `system:agent-identity-provisioned` / `system:agent-identity-exhausted` (reconciler, system actor) | Fail-open |
-| Env identity credential | `service-account:configure` / `:remove` | Fail-closed |
-| Env Thunder URL | `thunder-url:set` / `:delete` | Fail-closed |
 | Privilege | `role:grant-permission` / `:revoke-permission` / `role:assign` / `:unassign` | Fail-closed |
 | Membership | `group:add-member` / `:remove-member` | Fail-closed |
 | Users | `user:invite` / `:create` / `:delete` | Fail-closed |
-| Agent lifecycle | `agent:deploy`, `agent:promote`, `agent:change-deployment-state`, `agent:delete`, `project:delete` | Fail-closed |
-| Agent lifecycle | `agent:build` | Fail-open |
-| Builds | `build-workload:publish` (a build's workload step, through the build publisher endpoint; service actor: the client its build token was issued to, `IDP_CLIENT_ID`) | Fail-closed |
-| Build token | `build-token:issue` (organization-scoped access token a build uses to call the build publisher endpoint, obtained with `IDP_CLIENT_ID` and stored in the secret store) | Fail-closed |
+| Agent lifecycle | `agent:delete`, `project:delete` | Fail-closed |
+| Event destinations | `event-destination:create` / `:update` / `:delete` / `:rotate-secret` | Fail-closed |
+| Event subscriptions | `event-subscription:create` / `:update` / `:delete` (organization, project and agent scope) | Fail-closed |
 | Gateways | `ai-gateway:gateways.delete`, `ai-gateway:gateways.set-identity-provider`, `ai-gateway:gateways.remove-identity-provider` | Fail-closed |
 | Gateways | `ai-gateway:gateways.create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
 | Internal | `ai-gateway:gateways.push-manifest`, `ai-gateway:api-keys.sync` (bulk sync, coalesced per gateway) | Fail-open |
@@ -337,51 +350,33 @@ The operations below emit a record describing what actually changed, not just th
 
 Three of these carry detail worth calling out:
 
-- **`agent:deploy` and `agent:promote` both record the target environment and `isProduction`.** The route declares only the tier floor whatever the agent actually lands on, so the declared permission cannot tell a sandbox push from a production one — only the record can. Both flags come free: the environment-tier check (`requireEnvTier`) has already resolved the environment by the time the record is opened. `agent:promote` records both ends of the move as well.
 - **Removing the card source of a proxied environment discards the stored upstream secret too**, so `ai-gateway:agents.remove-card-source` is fail-closed and carries the proxy's `upstreamAuthHeader` and `upstreamAuthChanged`.
 - **AI Gateway fail-closed routes are marked on the route** (`modkit.AuditFailClosed`): the core writes the intent record before the handler runs and answers 503 when it cannot; the route's record is the outcome record.
 - **`role:grant-permission` records the granted scopes in full.** Scope strings are identifiers, not secrets, and "alice granted SRE deploy-production" is the question the event exists to answer.
 
 ## Action reference
 
-The explicitly registered actions — the class and severity that drive alerting, and the detail keys each is **permitted** to carry beyond the shared ones. A key not listed is dropped before the record is written. A permitted key is not necessarily set: the [sample records](#sample-records) below show what each emit site actually writes. Coverage-tier actions derived from a route's permission and not listed here are classified by `classify` in `audit/actions.go`.
+Every explicitly registered action this build can record — the class and severity that drive alerting, and the detail keys each is **permitted** to carry beyond the shared ones. A key not listed is dropped before the record is written. A permitted key is not necessarily set: the [sample records](#sample-records) below show what each emit site actually writes. Coverage-tier actions derived from a route's permission and not listed here are classified by `classify` in `audit/actions.go`.
 
-The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.go`); `audit.RegisteredActions()` enumerates it.
+The registries are the source of truth: `audit/actions.go` and `audit/actions_domain.go` for the core (`audit.RegisteredActions()` enumerates them), and the AI Gateway manifest's `gwaudit.Actions` for the module. The core registry also declares `agent:build`, `agent:deploy`, `agent:promote`, `agent:change-deployment-state`, `agent-token:regenerate-tracing` and `service-account:configure` / `:remove`, which nothing in this build emits; they are left out. (The `thunder-system-client` routes are stubs that answer 501, so the only record under the `service-account:*` actions is the coverage envelope of that failure.)
+
+Core actions (`audit/actions.go`, `audit/actions_domain.go`, plus the shared keys in `audit/schema.go`):
 
 | Action | Class | Severity | Detail keys |
 |---|---|---|---|
-| `ai-gateway:agent-configs.delete` | config | 2 notice | `agentName`, `configName`, `configType`, `environmentCount` |
-| `ai-gateway:agent-configs.update` | config | 1 info | `agentName`, `configName`, `configType`, `updatedFields` |
 | `agent-identity:provision` | credential | 4 critical | `agentName`, `alreadyExisted`, `clientId`, `environment` |
 | `agent-identity:regenerate-secret` | credential | 4 critical | `agentName`, `clientId`, `environment` |
 | `agent-identity:retry-provisioning` | credential | 4 critical | `agentName`, `environment` |
 | `agent-identity:revoke-secret` | credential | 4 critical | `agentName`, `clientId`, `environment` |
 | `agent-token:mint` | credential | 4 critical | `agentName`, `expiresIn` |
-| `agent-token:regenerate-tracing` | credential | 4 critical | `agentName` |
-| `agent:build` | deployment | 2 notice | `agentName`, `buildName`, `commitId` |
-| `workload-credential:issue` | credential | 4 critical | `module`, `workload`, `subject` |
-| `workload-credential:revoke` | credential | 4 critical | `module` |
-| `workload-token:exchange` | credential | 4 critical | `module`, `workload`, `instance`, `credentialId`, `expiresIn`, `reason` |
-| `agent:change-deployment-state` | deployment | 3 warning | `agentName`, `environment`, `toState` |
-| `agent:create` | config | 2 notice | `agentName`, `agentType` |
+| `agent:create` | config | 2 notice | `agentName`, `agentType`, `tool` |
 | `agent:delete` | config | 3 warning | `agentName` |
-| `agent:deploy` | deployment | 2 notice | `agentName`, `environment`, `imageId`, `isProduction` |
-| `agent:promote` | deployment | 3 warning | `agentName`, `environment`, `isProduction`, `sourceEnv`, `targetEnv` |
 | `agent:read` | read | 1 info | — |
-| `ai-gateway:agents.remove-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
-| `ai-gateway:agents.remove-card-source` | config | 2 notice | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
-| `ai-gateway:agents.set-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
-| `ai-gateway:agents.set-card-source` | config | 1 info | `agentName`, `sourceUrl` |
-| `ai-gateway:api-keys.create` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
-| `ai-gateway:api-keys.issue-test` | credential | 2 notice | `expiresAt`, `keyName`, `ownerName`, `ownerType`, `rotated` |
-| `ai-gateway:api-keys.revoke` | credential | 4 critical | `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
-| `ai-gateway:api-keys.rotate` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
-| `ai-gateway:api-keys.sync` | read | 2 notice | `keyCount` |
 | `authn:failure` | authn | 3 warning | `authHeader`, `reason` |
-| `authz:deny` | authz | 3 warning | `grantedScopes`, `imageId`, `missingScope`, `reason` |
+| `authn:login` | credential | 4 critical | `expiresIn`, `reason`, `roles`, `username` |
+| `authz:deny` | authz | 3 warning | `grantedScopes`, `imageId`, `missingScope`, `reason`, `requestedOrgId` |
+| `authz:org-override` | authz | 4 critical | `clientId`, `targetOuID`, `tokenOuID` |
 | `authz:root-ou-bypass` | authz | 4 critical | `rootOUBypass` |
-| `build-token:issue` | credential | 4 critical | `clientId` |
-| `build-workload:publish` | deployment | 2 notice | `agentName`, `buildName`, `imageId` |
 | `environment:read` | read | 1 info | — |
 | `event-destination:create` | credential | 4 critical | `availability`, `destination`, `kind`, `projects` |
 | `event-destination:delete` | credential | 4 critical | `availability`, `destination`, `kind`, `projects` |
@@ -391,29 +386,15 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `event-subscription:create` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
 | `event-subscription:delete` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
 | `event-subscription:update` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
-| `ai-gateway:gateway-tokens.revoke` | credential | 4 critical | `gatewayName`, `tokenId` |
-| `ai-gateway:gateway-tokens.rotate` | credential | 4 critical | `expiresAt`, `gatewayName`, `requestedOrgId`, `tokenId` |
-| `ai-gateway:gateways.assign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
-| `ai-gateway:gateways.create` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
-| `ai-gateway:gateways.delete` | config | 3 warning | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
-| `ai-gateway:gateways.push-manifest` | config | 1 info | `policyCount` |
-| `ai-gateway:gateways.remove-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
-| `ai-gateway:gateways.set-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
-| `ai-gateway:gateways.unassign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
-| `ai-gateway:gateways.update` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
-| `git-secret:create` | credential | 4 critical | `secretType`, `username` |
-| `git-secret:delete` | credential | 4 critical | — |
 | `group:add-member` | identity | 4 critical | `groupName`, `memberCount`, `memberTypes`, `members` |
 | `group:remove-member` | identity | 4 critical | `groupName`, `memberCount`, `memberTypes`, `members` |
-| `project:create` | config | 2 notice | `projectName` |
+| `project:create` | config | 2 notice | `projectName`, `tool` |
 | `project:delete` | config | 3 warning | `projectName` |
 | `project:read` | read | 1 info | — |
 | `role:assign` | identity | 4 critical | `assigneeCount`, `assigneeTypes`, `assignees`, `roleName` |
 | `role:grant-permission` | identity | 4 critical | `permissionCount`, `permissions`, `resourceServerId`, `roleName` |
 | `role:revoke-permission` | identity | 4 critical | `permissionCount`, `permissions`, `resourceServerId`, `roleName` |
 | `role:unassign` | identity | 4 critical | `assigneeCount`, `assigneeTypes`, `assignees`, `roleName` |
-| `service-account:configure` | credential | 4 critical | `clientId`, `environment` |
-| `service-account:remove` | credential | 4 critical | `environment` |
 | `system:agent-identity-exhausted` | credential | 3 warning | `agentName`, `environment`, `reason` |
 | `system:agent-identity-provisioned` | credential | 2 notice | `agentName`, `clientId`, `environment` |
 | `system:audit-dropped` | system | 4 critical | `droppedTotal`, `sink` |
@@ -422,21 +403,95 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `user:delete` | identity | 4 critical | `username` |
 | `user:invite` | identity | 4 critical | `attributeCount`, `attributeKeys`, `containsSensitiveKey`, `email`, `groups`, `userType`, `username` |
 | `user:update` | identity | 4 critical | `attributeCount`, `attributeKeys`, `containsSensitiveKey`, `email`, `groups`, `userType`, `username` |
+| `workload-credential:issue` | credential | 4 critical | `module`, `workload`, `subject` |
+| `workload-credential:revoke` | credential | 4 critical | `module` |
+| `workload-token:exchange` | credential | 4 critical | `module`, `workload`, `instance`, `credentialId`, `expiresIn`, `reason` |
 
-Read actions (`agent:read`, `project:read`, `environment:read`) are declared so every MCP tool can name what it does; they are classified as reads and not recorded.
+AI Gateway actions (`modules/aigateway/gwaudit/gwaudit.go`), all 66 the module's manifest declares. A dash means the action permits only the shared keys:
+
+| Action | Class | Severity | Detail keys |
+|---|---|---|---|
+| `ai-gateway:agent-configs.delete` | config | 2 notice | `agentName`, `configName`, `configType`, `environmentCount` |
+| `ai-gateway:agent-configs.update` | config | 1 info | `agentName`, `configName`, `configType`, `updatedFields` |
+| `ai-gateway:agent-identities.add-group-member` | credential | 4 critical | — |
+| `ai-gateway:agent-identities.assign-role` | credential | 4 critical | — |
+| `ai-gateway:agent-identities.create` | credential | 4 critical | — |
+| `ai-gateway:agent-identities.delete` | credential | 4 critical | — |
+| `ai-gateway:agent-identities.remove-group-member` | credential | 4 critical | — |
+| `ai-gateway:agent-identities.unassign-role` | credential | 4 critical | — |
+| `ai-gateway:agent-identities.update` | credential | 4 critical | — |
+| `ai-gateway:agents.refresh-a2a-proxy` | config | 1 info | — |
+| `ai-gateway:agents.refresh-card` | config | 1 info | — |
+| `ai-gateway:agents.remove-a2a-proxy` | credential | 4 critical | — |
+| `ai-gateway:agents.remove-card-source` | config | 2 notice | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
+| `ai-gateway:agents.set-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
+| `ai-gateway:agents.set-card-source` | config | 1 info | `agentName`, `sourceUrl` |
+| `ai-gateway:agents.update-deploy-settings` | config | 1 info | — |
+| `ai-gateway:api-keys.create` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
+| `ai-gateway:api-keys.issue-test` | credential | 2 notice | `expiresAt`, `keyName`, `ownerName`, `ownerType`, `rotated` |
+| `ai-gateway:api-keys.list` | read | 2 notice | — |
+| `ai-gateway:api-keys.revoke` | credential | 4 critical | `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
+| `ai-gateway:api-keys.rotate` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
+| `ai-gateway:api-keys.sync` | read | 2 notice | `keyCount` |
+| `ai-gateway:artifacts.check-exists` | read | 1 info | — |
+| `ai-gateway:deployments.read` | read | 1 info | — |
+| `ai-gateway:deployments.sync` | read | 2 notice | — |
+| `ai-gateway:environments.list-identity-providers` | read | 1 info | — |
+| `ai-gateway:gateway-tokens.list` | read | 2 notice | — |
+| `ai-gateway:gateway-tokens.revoke` | credential | 4 critical | `gatewayName`, `tokenId` |
+| `ai-gateway:gateway-tokens.rotate` | credential | 4 critical | `expiresAt`, `gatewayName`, `requestedOrgId`, `tokenId` |
+| `ai-gateway:gateways.assign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
+| `ai-gateway:gateways.create` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
+| `ai-gateway:gateways.delete` | config | 3 warning | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
+| `ai-gateway:gateways.list-identity-providers` | read | 1 info | — |
+| `ai-gateway:gateways.push-manifest` | config | 1 info | `policyCount` |
+| `ai-gateway:gateways.read` | read | 1 info | — |
+| `ai-gateway:gateways.remove-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
+| `ai-gateway:gateways.set-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
+| `ai-gateway:gateways.unassign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
+| `ai-gateway:gateways.update` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
+| `ai-gateway:llm-provider-templates.create` | config | 1 info | — |
+| `ai-gateway:llm-provider-templates.delete` | config | 2 notice | — |
+| `ai-gateway:llm-provider-templates.update` | config | 1 info | — |
+| `ai-gateway:llm-providers.create` | config | 1 info | — |
+| `ai-gateway:llm-providers.delete` | config | 2 notice | — |
+| `ai-gateway:llm-providers.delete-deployment` | config | 1 info | — |
+| `ai-gateway:llm-providers.deploy` | deployment | 2 notice | — |
+| `ai-gateway:llm-providers.read` | read | 1 info | — |
+| `ai-gateway:llm-providers.restore` | deployment | 2 notice | — |
+| `ai-gateway:llm-providers.undeploy` | deployment | 2 notice | — |
+| `ai-gateway:llm-providers.update` | config | 1 info | — |
+| `ai-gateway:llm-providers.update-catalog` | config | 1 info | — |
+| `ai-gateway:llm-proxies.create` | config | 1 info | — |
+| `ai-gateway:llm-proxies.delete` | config | 2 notice | — |
+| `ai-gateway:llm-proxies.delete-deployment` | config | 1 info | — |
+| `ai-gateway:llm-proxies.deploy` | deployment | 2 notice | — |
+| `ai-gateway:llm-proxies.restore` | deployment | 2 notice | — |
+| `ai-gateway:llm-proxies.undeploy` | deployment | 2 notice | — |
+| `ai-gateway:llm-proxies.update` | config | 1 info | — |
+| `ai-gateway:mcp-servers.create` | config | 1 info | — |
+| `ai-gateway:mcp-servers.delete` | config | 2 notice | — |
+| `ai-gateway:mcp-servers.fetch-server-info` | read | 1 info | — |
+| `ai-gateway:mcp-servers.read` | read | 1 info | — |
+| `ai-gateway:mcp-servers.update` | config | 1 info | — |
+| `ai-gateway:scopes.create` | identity | 4 critical | — |
+| `ai-gateway:scopes.delete` | identity | 4 critical | — |
+| `ai-gateway:scopes.update` | identity | 4 critical | — |
+
+Core read actions (`agent:read`, `project:read`, `environment:read`) are declared so every MCP tool can name what it does; they are classified as reads and not recorded. An AI Gateway read action is recorded when a route names it with `modkit.Audit` — the API-key and gateway-token listings, the identity-provider listings, `gateways.read` on the platform failure summary and the gateway sync routes (`api-keys.sync`, `deployments.sync`, `artifacts.check-exists`). `deployments.read`, `llm-providers.read` and `mcp-servers.read` name MCP read tools and are not recorded.
 
 ### Sample records
 
 One record per action, produced by the audit emitter on `main` — `audit.Begin`/`Complete`, `Record`, `RecordSync`, `RecordAncillary`, the coverage envelope and `AuthFailureRecorder` — called with the same options, route pattern and permission as the production emit site named beside it, then serialized by the stdout sink's JSON handler. Each was checked for: class and severity matching the registry, no `_droppedKeys`, and for `Begin` actions an intent record with outcome `unknown` whose `eventId` the outcome record carries as `attemptEventId`. Only the outcome record is shown. Identifiers, names and timestamps are illustrative; every key and the shape of every value is real.
 
-The `ai-gateway:*` examples were captured before the gateway became a module, so their emit sites name the old core files. The records keep their keys, but they are now the route's own record: the handler adds the resource and details with `modkit.AuditResource` and `modkit.AuditDetail`, and for a fail-closed route the core writes the intent record before the handler runs.
+The `ai-gateway:*` examples were captured before the gateway became a module. The records keep their keys, but they are now the route's own record: the handler or service named beside each adds the resource and details with `modkit.AuditResource` and `modkit.AuditDetail`, and for a fail-closed route the core writes the intent record before the handler runs. As the route's record, each also carries `statusCode`, `durationMs` and `details.envelope`, which the samples predate.
 
-Not shown: the three read actions, which are never recorded, and `system:audit-dropped`, which nothing emits yet.
+Not shown: the three core read actions, which are never recorded; `system:audit-dropped`, which nothing emits yet; and the actions with no captured sample: `authn:login`, `authz:org-override`, `workload-credential:*`, `workload-token:exchange`, `event-destination:*`, `event-subscription:*`, and the AI Gateway actions not listed below. Their permitted detail keys are in the [action reference](#action-reference).
 
 Where two emit sites share an action, the sample shows the first listed; the others differ as noted.
 
 <details>
-<summary><code>ai-gateway:agent-configs.update</code> — Record · `services/agent_configuration_service.go:3534`</summary>
+<summary><code>ai-gateway:agent-configs.update</code> — Route record · `modules/aigateway/gwsvc/agent_configuration_service.go:2785`</summary>
 
 Model configs only; MCP-config updates produce the coverage envelope alone.
 
@@ -484,7 +539,7 @@ Model configs only; MCP-config updates produce the coverage envelope alone.
 </details>
 
 <details>
-<summary><code>ai-gateway:agent-configs.delete</code> — Record · `services/agent_configuration_service.go:3820`</summary>
+<summary><code>ai-gateway:agent-configs.delete</code> — Route record · `modules/aigateway/gwsvc/agent_configuration_service.go:2957`</summary>
 
 Model configs only; MCP-config deletes produce the coverage envelope alone.
 
@@ -529,7 +584,7 @@ Model configs only; MCP-config deletes produce the coverage envelope alone.
 </details>
 
 <details>
-<summary><code>agent-identity:provision</code> — Begin + Complete · `controllers/agent_controller.go:1263`</summary>
+<summary><code>agent-identity:provision</code> — Begin + Complete · `controllers/agent_controller.go:592`</summary>
 
 ```json
 {
@@ -573,7 +628,7 @@ Model configs only; MCP-config deletes produce the coverage envelope alone.
 </details>
 
 <details>
-<summary><code>agent-identity:regenerate-secret</code> — Begin + Complete · `controllers/agent_controller.go:1156`</summary>
+<summary><code>agent-identity:regenerate-secret</code> — Begin + Complete · `controllers/agent_controller.go:485`</summary>
 
 ```json
 {
@@ -617,7 +672,7 @@ Model configs only; MCP-config deletes produce the coverage envelope alone.
 </details>
 
 <details>
-<summary><code>agent-identity:retry-provisioning</code> — Begin + Complete · `controllers/agent_controller.go:1329`</summary>
+<summary><code>agent-identity:retry-provisioning</code> — Begin + Complete · `controllers/agent_controller.go:658`</summary>
 
 ```json
 {
@@ -661,7 +716,7 @@ Model configs only; MCP-config deletes produce the coverage envelope alone.
 </details>
 
 <details>
-<summary><code>agent-identity:revoke-secret</code> — Begin + Complete · `controllers/agent_controller.go:1208`</summary>
+<summary><code>agent-identity:revoke-secret</code> — Begin + Complete · `controllers/agent_controller.go:537`</summary>
 
 ```json
 {
@@ -705,7 +760,7 @@ Model configs only; MCP-config deletes produce the coverage envelope alone.
 </details>
 
 <details>
-<summary><code>agent-token:mint</code> — RecordSync · `services/agent_token_manager.go:364`</summary>
+<summary><code>agent-token:mint</code> — RecordSync · `services/agent_token_manager.go:367`</summary>
 
 ```json
 {
@@ -748,142 +803,7 @@ Model configs only; MCP-config deletes produce the coverage envelope alone.
 </details>
 
 <details>
-<summary><code>agent-token:regenerate-tracing</code> — Begin + Complete · `controllers/agent_controller.go:692`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "agent-token:regenerate-tracing",
-    "actionClass": "credential",
-    "severity": 4,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/tracing-token/regenerate",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "agent",
-    "resourceId": "checkout-agent",
-    "resourceName": "checkout-agent",
-    "projectName": "payments",
-    "environment": "development",
-    "outcome": "success",
-    "requiredPermission": "amp:agent:token-manage",
-    "details": {
-      "agentName": "checkout-agent",
-      "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>agent:build</code> — Record · `services/agent_manager.go:2938`</summary>
-
-Builds through MCP (`build_agent`) additionally produce a bare wrapper record carrying only `tool`.
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "agent:build",
-    "actionClass": "deployment",
-    "severity": 2,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/builds",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "agent",
-    "resourceId": "5b1e7c2a-9d4f-4a3b-8e6c-0f2d1a9b7c34",
-    "resourceName": "checkout-agent",
-    "projectName": "payments",
-    "outcome": "success",
-    "requiredPermission": "amp:agent:build",
-    "details": {
-      "agentName": "checkout-agent",
-      "buildName": "checkout-agent-build-42",
-      "commitId": "9f3c2e1"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>agent:change-deployment-state</code> — Begin + Complete · `controllers/agent_controller.go:887`</summary>
-
-Changes through MCP (`update_deployment_state`) produce a bare wrapper record carrying only `tool`.
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "agent:change-deployment-state",
-    "actionClass": "deployment",
-    "severity": 3,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "agent",
-    "resourceId": "checkout-agent",
-    "resourceName": "checkout-agent",
-    "projectName": "payments",
-    "environment": "production",
-    "outcome": "success",
-    "requiredPermission": "amp:agent:suspend amp:ai-gateway:deploy.non-production",
-    "details": {
-      "agentName": "checkout-agent",
-      "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
-      "environment": "production",
-      "toState": "Undeploy"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>agent:create</code> — Record · `mcp/tools/helpers.go:195`</summary>
+<summary><code>agent:create</code> — Record · `mcp/tools/helpers.go:181`</summary>
 
 MCP only (`create_external_agent`, `create_internal_agent_python`). REST agent creation is covered by the coverage envelope alone.
 
@@ -920,7 +840,7 @@ MCP only (`create_external_agent`, `create_internal_agent_python`). REST agent c
 </details>
 
 <details>
-<summary><code>agent:delete</code> — Begin + Complete · `services/agent_manager.go:2646`</summary>
+<summary><code>agent:delete</code> — Begin + Complete · `services/agent_manager.go:513`</summary>
 
 ```json
 {
@@ -962,104 +882,9 @@ MCP only (`create_external_agent`, `create_internal_agent_python`). REST agent c
 </details>
 
 <details>
-<summary><code>agent:deploy</code> — Begin + Complete · `services/agent_manager.go:3281`</summary>
+<summary><code>ai-gateway:api-keys.create</code> — Fail-closed route record · `modules/aigateway/gwsvc/agent_apikey_service.go:187`</summary>
 
-Deploys through MCP (`deploy_agent`) additionally produce a bare wrapper record carrying only `tool`.
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "agent:deploy",
-    "actionClass": "deployment",
-    "severity": 2,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "agent",
-    "resourceId": "5b1e7c2a-9d4f-4a3b-8e6c-0f2d1a9b7c34",
-    "resourceName": "checkout-agent",
-    "projectName": "payments",
-    "environment": "development",
-    "outcome": "success",
-    "requiredPermission": "amp:ai-gateway:deploy.non-production",
-    "details": {
-      "agentName": "checkout-agent",
-      "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
-      "environment": "development",
-      "imageId": "registry.example/checkout-agent:9f3c2e1",
-      "isProduction": false
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>agent:promote</code> — Begin + Complete · `services/agent_manager.go:4496`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "agent:promote",
-    "actionClass": "deployment",
-    "severity": 3,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/promote",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "agent",
-    "resourceId": "5b1e7c2a-9d4f-4a3b-8e6c-0f2d1a9b7c34",
-    "resourceName": "checkout-agent",
-    "projectName": "payments",
-    "environment": "production",
-    "outcome": "success",
-    "requiredPermission": "amp:ai-gateway:deploy.non-production",
-    "details": {
-      "agentName": "checkout-agent",
-      "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
-      "environment": "production",
-      "isProduction": true,
-      "sourceEnv": "staging",
-      "targetEnv": "production"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>ai-gateway:api-keys.create</code> — Begin + Complete · `services/agent_apikey_service.go:189`</summary>
-
-Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_controller.go`) use `ownerType` `model-config` / `mcp-config` and carry no `gatewayCount`; LLM-provider and LLM-proxy keys carry no project or environment.
+Agent key. Model-config and MCP-config keys (`modules/aigateway/gwctl/agent_configuration_controller.go`) use `ownerType` `model-config` / `mcp-config` and carry no `gatewayCount`; LLM-provider and LLM-proxy keys carry no project or environment.
 
 ```json
 {
@@ -1106,7 +931,7 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
 </details>
 
 <details>
-<summary><code>ai-gateway:api-keys.issue-test</code> — Record · `services/agent_apikey_service.go:365`</summary>
+<summary><code>ai-gateway:api-keys.issue-test</code> — Route record · `modules/aigateway/gwsvc/agent_apikey_service.go:349`</summary>
 
 ```json
 {
@@ -1152,7 +977,7 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
 </details>
 
 <details>
-<summary><code>ai-gateway:api-keys.revoke</code> — Begin + Complete · `services/agent_apikey_service.go:234`</summary>
+<summary><code>ai-gateway:api-keys.revoke</code> — Fail-closed route record · `modules/aigateway/gwsvc/agent_apikey_service.go:230`</summary>
 
 Agent key; the other owners differ as for `ai-gateway:api-keys.create`.
 
@@ -1200,7 +1025,7 @@ Agent key; the other owners differ as for `ai-gateway:api-keys.create`.
 </details>
 
 <details>
-<summary><code>ai-gateway:api-keys.rotate</code> — Begin + Complete · `services/agent_apikey_service.go:269`</summary>
+<summary><code>ai-gateway:api-keys.rotate</code> — Fail-closed route record · `modules/aigateway/gwsvc/agent_apikey_service.go:258`</summary>
 
 Agent key; the other owners differ as for `ai-gateway:api-keys.create`.
 
@@ -1249,7 +1074,7 @@ Agent key; the other owners differ as for `ai-gateway:api-keys.create`.
 </details>
 
 <details>
-<summary><code>ai-gateway:api-keys.sync</code> — coverage envelope · `middleware/audit_route.go:139 (coverage envelope)`</summary>
+<summary><code>ai-gateway:api-keys.sync</code> — coverage envelope · `middleware/audit_route.go:131 (coverage envelope)`</summary>
 
 No semantic emit: the coverage envelope for the gateway bulk-sync routes, coalesced to one record per gateway per window.
 
@@ -1285,9 +1110,9 @@ No semantic emit: the coverage envelope for the gateway bulk-sync routes, coales
 </details>
 
 <details>
-<summary><code>authn:failure</code> — Record · `audit/authn.go:110`</summary>
+<summary><code>authn:failure</code> — Record · `audit/authn.go:112`</summary>
 
-REST edge. The internal gateway server records its own (`controllers/gateway_internal_audit.go`) with surface `internal`, actor `gateway` and auth method `api-key`.
+REST edge. The internal gateway server records its own (`modules/aigateway/gwctl/gateway_internal_audit.go`) with surface `internal`, actor `gateway` and auth method `api-key`.
 
 ```json
 {
@@ -1320,9 +1145,9 @@ REST edge. The internal gateway server records its own (`controllers/gateway_int
 </details>
 
 <details>
-<summary><code>authz:deny</code> — Record · `middleware/authorization.go:51`</summary>
+<summary><code>authz:deny</code> — Record · `middleware/authorization.go:53`</summary>
 
-REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grantedScopes`; environment-tier denials (`requireEnvTier`) carry reason `missing-environment-tier-scope`. Deploys of an image the agent does not own (`requireImageOwnedByAgent`) carry reason `image-not-owned-by-agent` and the rejected `imageId`.
+REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grantedScopes`; a refused `X-Impersonate-Org` request carries a reason of `org-override-not-permitted`, `org-override-target-not-found` or `org-override-path-mismatch`. An AI Gateway environment-tier refusal is not an `authz:deny`: it is the route's own record, with outcome `deny`, reason `missing-environment-tier-scope` and the `missingScope`.
 
 ```json
 {
@@ -1362,7 +1187,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>authz:root-ou-bypass</code> — RecordAncillary · `middleware/authorization.go:178`</summary>
+<summary><code>authz:root-ou-bypass</code> — RecordAncillary · `middleware/authorization.go:179`</summary>
 
 ```json
 {
@@ -1384,11 +1209,11 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/git-secrets",
+    "requestPath": "/orgs/{orgName}/identities/roles/{roleID}/permissions/add",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "outcome": "success",
-    "requiredPermission": "amp:git-secret:create",
+    "requiredPermission": "amp:role:update",
     "details": {
       "rootOUBypass": true
     }
@@ -1399,7 +1224,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateway-tokens.revoke</code> — Begin + Complete · `controllers/gateway_controller.go:642`</summary>
+<summary><code>ai-gateway:gateway-tokens.revoke</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_controller.go:734`</summary>
 
 ```json
 {
@@ -1439,7 +1264,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateway-tokens.rotate</code> — Begin + Complete · `controllers/gateway_controller.go:602`</summary>
+<summary><code>ai-gateway:gateway-tokens.rotate</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_controller.go:702`</summary>
 
 ```json
 {
@@ -1479,7 +1304,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.assign-environment</code> — Record · `controllers/gateway_controller.go:430`</summary>
+<summary><code>ai-gateway:gateways.assign-environment</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:502`</summary>
 
 ```json
 {
@@ -1519,7 +1344,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.create</code> — Record · `controllers/gateway_controller.go:204`</summary>
+<summary><code>ai-gateway:gateways.create</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:286`</summary>
 
 ```json
 {
@@ -1561,7 +1386,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.delete</code> — Begin + Complete · `controllers/gateway_controller.go:387`</summary>
+<summary><code>ai-gateway:gateways.delete</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_controller.go:468`</summary>
 
 ```json
 {
@@ -1600,7 +1425,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.push-manifest</code> — Record · `controllers/gateway_internal_controller.go:455`</summary>
+<summary><code>ai-gateway:gateways.push-manifest</code> — Route record · `modules/aigateway/gwctl/gateway_internal_controller.go:565`</summary>
 
 ```json
 {
@@ -1635,7 +1460,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.remove-identity-provider</code> — Begin + Complete · `controllers/gateway_identity_provider_controller.go:196`</summary>
+<summary><code>ai-gateway:gateways.remove-identity-provider</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_identity_provider_controller.go:189`</summary>
 
 ```json
 {
@@ -1676,7 +1501,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.set-identity-provider</code> — Begin + Complete · `controllers/gateway_identity_provider_controller.go:157`</summary>
+<summary><code>ai-gateway:gateways.set-identity-provider</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_identity_provider_controller.go:159`</summary>
 
 `jwksUri` was supplied as `https://svc:s3cret@idp.example.com/oauth2/jwks?key=abc`; userinfo and query are stripped at write time.
 
@@ -1722,7 +1547,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.unassign-environment</code> — Record · `controllers/gateway_controller.go:470`</summary>
+<summary><code>ai-gateway:gateways.unassign-environment</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:566`</summary>
 
 ```json
 {
@@ -1762,7 +1587,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.update</code> — Record · `controllers/gateway_controller.go:362`</summary>
+<summary><code>ai-gateway:gateways.update</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:448`</summary>
 
 ```json
 {
@@ -1798,89 +1623,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>git-secret:create</code> — Begin + Complete · `services/git_secret_service.go:79`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "git-secret:create",
-    "actionClass": "credential",
-    "severity": 4,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/git-secrets",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "git-secret",
-    "resourceId": "github-deploy-key",
-    "resourceName": "github-deploy-key",
-    "outcome": "success",
-    "requiredPermission": "amp:git-secret:create",
-    "details": {
-      "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
-      "secretType": "basic-auth",
-      "username": "deploy-bot"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>git-secret:delete</code> — Begin + Complete · `services/git_secret_service.go:154`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "git-secret:delete",
-    "actionClass": "credential",
-    "severity": 4,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/git-secrets/{secretName}",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "git-secret",
-    "resourceId": "github-deploy-key",
-    "resourceName": "github-deploy-key",
-    "outcome": "success",
-    "requiredPermission": "amp:git-secret:delete",
-    "details": {
-      "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>group:add-member</code> — Begin + Complete · `controllers/identity_controller.go:716`</summary>
+<summary><code>group:add-member</code> — Begin + Complete · `controllers/identity_controller.go:717`</summary>
 
 ```json
 {
@@ -1925,7 +1668,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>group:remove-member</code> — Begin + Complete · `controllers/identity_controller.go:780`</summary>
+<summary><code>group:remove-member</code> — Begin + Complete · `controllers/identity_controller.go:781`</summary>
 
 ```json
 {
@@ -1970,7 +1713,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>project:create</code> — Record · `mcp/tools/helpers.go:195`</summary>
+<summary><code>project:create</code> — Record · `mcp/tools/helpers.go:181`</summary>
 
 MCP only (`create_project`). REST project creation is covered by the coverage envelope alone.
 
@@ -2007,7 +1750,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
 </details>
 
 <details>
-<summary><code>project:delete</code> — Begin + Complete · `services/infra_resource_manager.go:298`</summary>
+<summary><code>project:delete</code> — Begin + Complete · `services/infra_resource_manager.go:183`</summary>
 
 ```json
 {
@@ -2049,7 +1792,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
 </details>
 
 <details>
-<summary><code>role:assign</code> — Begin + Complete · `controllers/identity_controller.go:1291`</summary>
+<summary><code>role:assign</code> — Begin + Complete · `controllers/identity_controller.go:1292`</summary>
 
 ```json
 {
@@ -2097,7 +1840,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
 </details>
 
 <details>
-<summary><code>role:grant-permission</code> — Begin + Complete · `controllers/identity_controller.go:1176`</summary>
+<summary><code>role:grant-permission</code> — Begin + Complete · `controllers/identity_controller.go:1177`</summary>
 
 ```json
 {
@@ -2143,7 +1886,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
 </details>
 
 <details>
-<summary><code>role:revoke-permission</code> — Begin + Complete · `controllers/identity_controller.go:1235`</summary>
+<summary><code>role:revoke-permission</code> — Begin + Complete · `controllers/identity_controller.go:1236`</summary>
 
 ```json
 {
@@ -2189,7 +1932,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
 </details>
 
 <details>
-<summary><code>role:unassign</code> — Begin + Complete · `controllers/identity_controller.go:1347`</summary>
+<summary><code>role:unassign</code> — Begin + Complete · `controllers/identity_controller.go:1348`</summary>
 
 ```json
 {
@@ -2237,92 +1980,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
 </details>
 
 <details>
-<summary><code>service-account:configure</code> — Begin + Complete · `controllers/environment_controller.go:426`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "service-account:configure",
-    "actionClass": "credential",
-    "severity": 4,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "PUT",
-    "requestPath": "/orgs/{orgName}/environments/{envID}/thunder-system-client",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "service-account",
-    "resourceId": "production",
-    "resourceName": "production",
-    "environment": "production",
-    "outcome": "success",
-    "requiredPermission": "amp:org:manage-service-account",
-    "details": {
-      "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
-      "clientId": "amp-sys-client-prod",
-      "environment": "production"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>service-account:remove</code> — Begin + Complete · `controllers/environment_controller.go:462`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "service-account:remove",
-    "actionClass": "credential",
-    "severity": 4,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/environments/{envID}/thunder-system-client",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "service-account",
-    "resourceId": "production",
-    "resourceName": "production",
-    "environment": "production",
-    "outcome": "success",
-    "requiredPermission": "amp:org:manage-service-account",
-    "details": {
-      "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
-      "environment": "production"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>system:agent-identity-exhausted</code> — Record · `services/agent_thunder_provisioning_service.go:876`</summary>
+<summary><code>system:agent-identity-exhausted</code> — Record · `services/agent_thunder_provisioning_service.go:790`</summary>
 
 ```json
 {
@@ -2358,7 +2016,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
 </details>
 
 <details>
-<summary><code>system:agent-identity-provisioned</code> — Record · `services/agent_thunder_provisioning_service.go:816`</summary>
+<summary><code>system:agent-identity-provisioned</code> — Record · `services/agent_thunder_provisioning_service.go:733`</summary>
 
 ```json
 {
@@ -2394,7 +2052,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
 </details>
 
 <details>
-<summary><code>system:startup</code> — RecordAncillary · `app/app.go:345`</summary>
+<summary><code>system:startup</code> — RecordAncillary · `app/app.go:436`</summary>
 
 ```json
 {
@@ -2423,7 +2081,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
 </details>
 
 <details>
-<summary><code>user:create</code> — Begin + Complete · `controllers/identity_controller.go:198`</summary>
+<summary><code>user:create</code> — Begin + Complete · `controllers/identity_controller.go:199`</summary>
 
 The request's attribute map held `username`, `email`, `password` and `department`; only the key names reach the record.
 
@@ -2475,7 +2133,7 @@ The request's attribute map held `username`, `email`, `password` and `department
 </details>
 
 <details>
-<summary><code>user:delete</code> — Begin + Complete · `controllers/identity_controller.go:308`</summary>
+<summary><code>user:delete</code> — Begin + Complete · `controllers/identity_controller.go:309`</summary>
 
 ```json
 {
@@ -2516,7 +2174,7 @@ The request's attribute map held `username`, `email`, `password` and `department
 </details>
 
 <details>
-<summary><code>user:invite</code> — Begin + Complete · `controllers/identity_controller.go:436`</summary>
+<summary><code>user:invite</code> — Begin + Complete · `controllers/identity_controller.go:437`</summary>
 
 ```json
 {
@@ -2557,7 +2215,7 @@ The request's attribute map held `username`, `email`, `password` and `department
 </details>
 
 <details>
-<summary><code>user:update</code> — coverage envelope · `middleware/audit_route.go:139 (coverage envelope)`</summary>
+<summary><code>user:update</code> — coverage envelope · `middleware/audit_route.go:131 (coverage envelope)`</summary>
 
 No semantic emit: the coverage envelope for the route.
 
@@ -2599,8 +2257,7 @@ No semantic emit: the coverage envelope for the route.
 
 ## Not yet covered
 
-Semantic-event coverage is incomplete, not absent, in these places: some events are never emitted, and others are emitted but not registered, so they lack a detail schema. Each is a real gap in coverage today:
+Semantic-event coverage is incomplete, not absent, in these places. Each is a real gap in coverage today:
 
-- **Thunder's own events** — see the authentication gap above. This is the one gap that cannot be closed from this repository.
+- **Thunder's own events** — with ThunderID as the identity provider, see the authentication gap above. This is the one gap that cannot be closed from this repository.
 - **`system:audit-dropped`** — registered, but the recorder only logs drops to the application log; no record reaches the trail.
-- **`thunder-url:set` / `:delete`** — emitted (fail-closed) but not registered, so they are classified by heuristic (`config`, info / notice) and their `handle` and `url` details are dropped into `_droppedKeys`.

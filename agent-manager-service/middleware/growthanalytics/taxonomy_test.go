@@ -52,9 +52,8 @@ const (
 )
 
 // routeDirs pairs each package of routes with the package of the controllers
-// they call: the core's, and those of the built-in modules the full
-// distribution links. The legacy module's routes only answer 501 and track
-// nothing.
+// they call: the core's, and those of the modules the full distribution
+// links. Add a module's packages here when it calls rt.Track.
 var routeDirs = [][2]string{
 	{apiRoutesDir, controllersDir},
 	{"../../modules/aigateway/gwapi", "../../modules/aigateway/gwctl"},

@@ -32,11 +32,12 @@ Two employees are seeded in memory so you can exercise both the happy path and t
 
 ## Register it in Agent Manager
 
-You run the agent yourself; Agent Manager registers it and issues the token its traces are sent with.
+You run the agent yourself; Agent Manager registers it and issues its API key.
 
-1. Sign in to the console at <http://localhost:9000> as `admin` (the password is `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
-2. Open the **Default** project, click **Add Agent**, and register an agent named `Leave Assistant`.
-3. In the **Set up agent** panel that opens, choose **Ballerina** and version **2201.13.x**, pick a token duration and click **Generate**. Copy the endpoint and API key it shows.
+1. Sign in to the console at <http://localhost:9000> (the port is `AMP_API_PORT` in `deployments/standalone/.env`) as `admin`; the password is `AMP_ADMIN_PASSWORD` in the same file.
+2. A new install has no projects, so create one first: click **Add project** (**Create project** on the organization overview), enter a **Name** and click **Create**.
+3. Open the project, click **New agent**, enter the name `Leave Assistant` and click **Register**.
+4. The **Setup Agent** panel opens with an API key already generated. Copy it as `BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY`; it is shown only once. To change how long it is valid, pick another **Token Duration** and click **Regenerate**.
 
 ## Run it
 
@@ -46,13 +47,13 @@ Ballerina reads `configurable` values from environment variables named `BAL_CONF
 cd samples/leave-assistant-agent
 
 export BAL_CONFIG_VAR_OPENAIAPIKEY="<your-openai-api-key>"
-export BAL_CONFIG_VAR_BALLERINAX_AMP_OTELENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export BAL_CONFIG_VAR_BALLERINAX_AMP_OTELENDPOINT="http://localhost:4318"   # your own OpenTelemetry collector
 export BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY="<key-from-the-console>"
 
 bal run    # serves on http://localhost:8000
 ```
 
-The Python samples in this repository read a plain `OPENAI_API_KEY` instead. You can also put the values in a git-ignored `Config.toml`; never commit real credentials to it.
+AMP Lite does not store traces, so the trace endpoint is an OpenTelemetry collector you run; see the [user guide](../../docs/user-guide.md). The Python samples in this repository read a plain `OPENAI_API_KEY` instead. You can also put the values in a git-ignored `Config.toml`; never commit real credentials to it.
 
 ## Try it
 
@@ -114,7 +115,7 @@ Approve the pending 5-day leave request for E-3001
 
 ### Observe the traces
 
-Open the agent in the console and go to **Observability → Traces**. Open a trace to see which tools were called for each message. `getCurrentDate` should appear before `requestLeave` whenever the message uses a relative date like "tomorrow" or "next Monday"
+AMP Lite does not store traces, so open them in the backend behind your collector. Open a trace to see which tools were called for each message. `getCurrentDate` should appear before `requestLeave` whenever the message uses a relative date like "tomorrow" or "next Monday"
 
 ## Notes
 

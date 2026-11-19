@@ -75,13 +75,13 @@ rr.HandleFuncWithValidationAndAuthz(
     "GET /orgs/{orgName}/projects/{projName}/agents", rbac.AgentRead, ctrl.ListAgents)
 ```
 
-`HandleFuncWithValidationAndAuthz` composes: path-param validation → `RequirePermission` (token scope via `jwtassertion.HasAllScopes`) → `RequireOrgMatch` (when the path has `{orgName}`). Variants: `...AndAnyAuthz` (any-of), `RequireDynamicPermission` (permission depends on the request), `...AndPlatformAdminAuthz` (see below). `...AndAuthzAndOrgOverride` composes `middleware.ApplyOrgOverride` between `RequireOrgMatch` and the permission check, so a caller the deployment's `OrgOverrideResolver` trusts can act on the org named in `X-Impersonate-Org`; only the project MCP proxy routes use it.
+`HandleFuncWithValidationAndAuthz` composes: path-param validation → `RequirePermission` (token scope via `jwtassertion.HasAllScopes`) → `RequireOrgMatch` (when the path has `{orgName}`). Variants: `...AndAnyAuthz` (any-of), `RequireDynamicPermission` (permission depends on the request), `...AndPlatformAdminAuthz` (see below). `...AndAuthzAndOrgOverride` composes `middleware.ApplyOrgOverride` between `RequireOrgMatch` and the permission check, so a caller the deployment's `OrgOverrideResolver` trusts can act on the org named in `X-Impersonate-Org`; no core route uses it now. Module routes opt in with `modkit.AllowOrgOverride()` (the AI Gateway's gateway list and gateway identity-provider routes).
 
-**The one non-org-scoped surface: `/platform/...`.** Every other route in the table takes its org from the token. Routes under `/platform` read across *all* organizations with no `ou_id` predicate, and are registered with `HandleFuncWithValidationAndPlatformAdminAuthz`, which panics at startup on a pattern containing `{orgName}`. They are guarded by `middleware.RequirePlatformAdminOU` — a check on `claims.OuId` against `config.PlatformAdminOUID` (`PLATFORM_ADMIN_OU_ID`) that is **unconditional and fail-closed**, because the permission such a route declares (`gateway:read`) is an ordinary org-level grant every tenant's admin holds, so its scope check — which always runs — cannot separate tenants. Handlers on these routes must also call `middleware.IsPlatformAdminRequest(ctx)` and refuse when false, so a route re-registered through the ordinary registrar fails closed instead of leaking cross-tenant data. Currently one route: `GET /platform/gateways/failure-summary`.
+**The one non-org-scoped surface: `/platform/...`.** Every other route in the table takes its org from the token. Routes under `/platform` read across *all* organizations with no `ou_id` predicate, and are registered with `HandleFuncWithValidationAndPlatformAdminAuthz`, which panics at startup on a pattern containing `{orgName}`. They are guarded by `middleware.RequirePlatformAdminOU` — a check on `claims.OuId` against `config.PlatformAdminOUID` (`PLATFORM_ADMIN_OU_ID`) that is **unconditional and fail-closed**, because the permission such a route declares is an ordinary org-level grant every tenant's admin holds, so its scope check — which always runs — cannot separate tenants. Handlers on these routes must also call `middleware.IsPlatformAdminRequest(ctx)` and refuse when false, so a route re-registered through the ordinary registrar fails closed instead of leaking cross-tenant data. No core route uses it now; the AI Gateway's `GET /m/ai-gateway/platform/gateways/failure-summary` gets the same check from `modkit.PlatformAdmin()` (its permission, `ai-gateway:gateways.read`, is again an ordinary grant).
 
 Rules:
 
-- **Every route declares its own permission.** 188 of 190 routes use an authz registrar; the 2 plain `HandleFuncWithValidation` routes are deliberate exceptions. Default to authz; do not add an unauthenticated route without a reason.
+- **Every route declares its own permission.** Almost every route uses an authz registrar; the few plain `HandleFuncWithValidation` routes are deliberate exceptions. Default to authz; do not add an unauthenticated route without a reason.
 - **Name permissions `resource:verb`** — `:create`/`:read`/`:update`/`:delete`, or a coarser `:manage` only where existing resources do.
 - **Every new permission must be granted by at least one role** in `PredefinedRolePermissions` (`RoleAdmin` / `RoleDeveloper` / `RoleAILead` / `RolePlatformEngineer`) — an ungranted permission is unreachable.
 - Scope/audience is a first-pass filter; the per-route permission is enforcement. `RequireOrgMatch` checks org-vs-path, but the service must **also** validate org against the target resource it loads (defense in depth).
@@ -97,8 +97,8 @@ Every route registered through `RouteRegistrar` is audited automatically: non-GE
 **2. The permission does not describe the effect.** Same fix, and this is the common case. Add an override when:
 
 - one permission gates several operations — every API-key route is `*:api-key-manage`, so create/rotate/revoke would otherwise be indistinguishable;
-- the permission names a different resource than the operation acts on (`publish-kind` is gated by `agent-kind:create` but acts on an agent);
-- the permission is narrower than the effect (`deployments/state` is gated by `agent:suspend` but also resumes).
+- the permission names a different resource than the operation acts on;
+- the permission is narrower than the effect.
 
 Queries stay exact regardless, because `requestPath` records the route pattern — the derived action is only the human-readable label.
 
@@ -120,14 +120,14 @@ Rules:
 | `make codegen` | wire DI + mocks (`repomocks/`, `clientmocks/`) | `//go:generate` directives | `moq` on PATH |
 | `make mocks` | mocks only (`repomocks/`, `clientmocks/`), no wire. `PKG=./repositories/...` to scope it | `//go:generate moq` directives | `moq` **`v0.5.3`** installed |
 
-Generated files are checked in and **never hand-edited**. Regenerate and commit the output with your change. `make codegen`/`make mocks` need the `moq` binary pinned at **`v0.5.3`** (`go install github.com/matryer/moq@v0.5.3`) — it can't run via `go run` because the module is `-mod=vendor`. `make mocks` checks the installed version and fails fast if it isn't `v0.5.3`, since a different `moq` version reformats import ordering across every mock file it touches even with no interface change; `make codegen` only checks that `moq` is present on PATH, so if `git status` shows unrelated mock diffs after running it, check `moq --version` before committing. A new repository interface needs a `//go:generate moq ... -pkg repomocks -out repomocks/<file>_mock.go` directive above its declaration (copy an existing one).
+Generated files are checked in and **never hand-edited**. Regenerate and commit the output with your change. `make codegen`/`make mocks` need the `moq` binary pinned at **`v0.5.3`** (`go install github.com/matryer/moq@v0.5.3`) (`make tools` installs it). `make mocks` checks the installed version and fails fast if it isn't `v0.5.3`, since a different `moq` version reformats import ordering across every mock file it touches even with no interface change; `make codegen` only checks that `moq` is present on PATH, so if `git status` shows unrelated mock diffs after running it, check `moq --version` before committing. A new repository interface needs a `//go:generate moq ... -pkg repomocks -out repomocks/<file>_mock.go` directive above its declaration (copy an existing one).
 
 ## Engineering rules
 
 - **Errors** — map the specific sentinel (`gorm.ErrRecordNotFound` → `utils.ErrXxxNotFound`); wrap everything else `fmt.Errorf("...: %w", err)`. Never flatten an unexpected error into not-found; never silently fall back to a default on a non-not-found error. Compare sentinels with `errors.Is`, never `==` or string match.
 - **Context** — every I/O method takes `context.Context` first and propagates it. HTTP clients use `NewRequestWithContext`.
 - **Org scoping** — always set `org_id` from the caller's token (Thunder OU ID / `ouID`), never from the request path or body. Missing tenant identity is an error, not a wildcard. Every org-scoped table maps the tenant column as `ou_id`.
-- **Tenant isolation is DB-only** — org isolation happens at the DB (`ou_id`) layer alone. Organizations, projects, the per-org `default` environment and agents live in `repositories.PlatformRepository`. ThunderID addressing uses one configured org name (`AMP_ORG_NAMESPACE`, default `"default"`, `config.OrgNamespace`); the gateway's trace ingest, when enabled, scopes spans by the agent token's `organization` claim.
+- **Tenant isolation is DB-only** — org isolation happens at the DB (`ou_id`) layer alone. Organizations, projects, the per-org `default` environment and agents live in `repositories.PlatformRepository`. ThunderID addressing uses one configured org name (`AMP_ORG_NAMESPACE`, default `"default"`, `config.OrgNamespace`).
 - **Concurrency** — never hold a lock across I/O. Atomic upserts (`ON CONFLICT`), not read-then-write. Serialize expensive side effects per-key, not globally.
 - **Config** — validate at startup, not first use; check co-dependent values together.
 - **Observability** — log with correlation context (org, resource ID, request ID). Debug = hot paths, Info = rare events, Error = destructive ops.
@@ -139,7 +139,7 @@ Generated files are checked in and **never hand-edited**. Regenerate and commit 
 | Tier | Build tag | DB? | Run |
 |---|---|---|---|
 | **Unit** | none | no | `make test-unit` |
-| **Integration** | `//go:build integration` | yes (isolated Postgres) | `make test-integration` |
+| **Integration** | `//go:build integration` | yes (a throwaway SQLite file, or Postgres with `DB_DRIVER=postgres`) | `make test-integration` |
 
 `make test` = both. `make test-coverage` = merged HTML report. Unit coverage is reported per-package (no `-coverpkg=./...`).
 
@@ -151,7 +151,7 @@ Generated files are checked in and **never hand-edited**. Regenerate and commit 
 
 ## Write a service unit test
 
-Reference: **`services/agent_kind_service_unit_test.go`** — copy its shape.
+Reference: **`services/infra_resource_manager_unit_test.go`** — copy its shape.
 
 - `services/<service>_unit_test.go`, `package services`, **no build tag** (omit the `//go:build` line entirely; if present it would be an integration test).
 - Inject mocks via the `NewXxx(...)` constructor.
@@ -202,7 +202,7 @@ platform := &repomocks.PlatformRepositoryMock{
 
 ## Shared test helpers — reuse, don't redeclare (duplicate = compile error)
 
-- `strPtr(s string) *string` — in `llm_deployment_service_test.go`.
+- `strPtr(s string) *string` — in `services/helpers_test.go`.
 - `discardLogger() *slog.Logger` — in `helpers_test.go`.
 
 If your helper name also exists in an `integration`-tagged file, they collide only under `-tags=integration`; give the unit-tier copy a distinct name (e.g. `intPtrU`) rather than editing the integration file.
@@ -213,7 +213,7 @@ If your helper name also exists in an `integration`-tagged file, they collide on
 make test-run RUN=TestAgentKindService PKG=./services/
 ```
 
-`PKG` defaults to `./...` if omitted. This sets the same config env var defaults as `make test-unit` (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `OPEN_CHOREO_BASE_URL`, `ENCRYPTION_KEY`, `SERVER_PORT`) and runs `make gen-keys` first, since services that sign tokens need the RSA keys present. Equivalent to running `go test -run <pattern> <pkg>` by hand with those env vars exported — see `scripts/run_single_test.sh` if you need the raw invocation.
+`PKG` defaults to `./...` if omitted. This sets the same config env var defaults as `make test-unit` (`DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `ENCRYPTION_KEY`, `SERVER_PORT`) and runs `make gen-keys` first, since services that sign tokens need the RSA keys present. Equivalent to running `go test -run <pattern> <pkg>` by hand with those env vars exported — see `scripts/run_single_test.sh` if you need the raw invocation.
 
 ## Done checklist
 

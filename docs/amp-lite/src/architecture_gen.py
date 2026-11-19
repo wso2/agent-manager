@@ -90,10 +90,10 @@ box("cluster", 260, 230, 1800, 630, "#1D63ED", fill="none", arc=1, sw=2, dashed=
 image("cl_logo", 840, 242, 24, 24, STACK_ICON)
 text("cl_lbl", 872, 244, 420, 20, "Docker Compose stack (docker compose up)", size=14, color="#1D63ED", valign="middle")
 
-pill("lb_cp", 350, 221, 440, "PORTS · console + API + MCP :9000 · ThunderID :8080")
+pill("lb_cp", 350, 221, 540, "PORTS · console + API + MCP :9000 · internal :9243 · ThunderID :8080")
 pill("egress", 1260, 221, 100, "EGRESS", fill="#7f1d1d")
 pill("lb_dp", 1400, 221, 610, "PORT :19080 · AI Gateway runtime · agent endpoints")
-for pid, x, y, w in (("lb_cp", 350, 221, 440), ("egress", 1260, 221, 100), ("lb_dp", 1400, 221, 610)):
+for pid, x, y, w in (("lb_cp", 350, 221, 540), ("egress", 1260, 221, 100), ("lb_dp", 1400, 221, 610)):
     reg(pid, x, y, w, 18)
 
 # ---------------------------------------------------------------- control plane
@@ -139,7 +139,7 @@ text("dp_lbl", 1200, 298, 820, 20, "DATA PLANE", size=13, color=INDIGO, bold=Tru
 comp("gw", 1200, 330, 820, 140, INDIGO, "AI Gateway",
      "• inbound: entry point for agent endpoints; checks API keys and OAuth tokens<br/>"
      "• outbound: LLM and MCP proxy, guardrails, token and cost limits<br/>"
-     "• gateway-controller syncs its config over the controller API (/api/internal/v1 :9243, gateway token; a workload after #2493)<br/>"
+     "• gateway-controller syncs its config over the controller API (/api/internal/v1 :9243, api-key header; a workload after #2493)<br/>"
      "• gateway-runtime (Envoy) serves the traffic",
      logos=[IMG["gw_logo0"]], prod="amp installs the ai-gateway module by default · its worker registers the default gateway · more per org", prod_color=INDIGO)
 

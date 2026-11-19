@@ -17,7 +17,7 @@ Nine in-process tools over mock JSON cover the core helpdesk flows. On top of th
 | Known-issue triage rules in the system prompt | The agent checks the IT team's issue tracker before opening a ticket, and may only read it |
 | Session memory (LangGraph checkpointer) | Multi-turn "verify me, then act" flows work across turns |
 | `AGENT_VERSION` echoed in `/health` and every chat response | Makes a rollout or rollback visible from the outside |
-| `scripts/seed_traffic.py` | Generates enough traces for a monitor to score |
+| `scripts/seed_traffic.py` | Sends scripted conversations to generate a batch of traffic |
 
 With `USE_MCP=false` (the default) the agent runs entirely on its in-process tools,
 which is all Chapters 1 and 2 need.
@@ -48,17 +48,21 @@ GitHub credential into the agent.
 
 ## Register it in Agent Manager
 
-You run the agent yourself; Agent Manager registers it and issues the token its
-traces are sent with. Start Agent Manager with `make up` from the repository root
+You run the agent yourself; Agent Manager registers it and issues its API key.
+Start Agent Manager with `make up` from the repository root
 (see [`deployments/standalone`](../../deployments/standalone/README.md)), then:
 
-1. Sign in to the console at <http://localhost:9000> as `admin` (the password is
-   `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
-2. Open the **Default** project, click **Add Agent**, and register an agent named
-   `IT Helpdesk Agent`.
-3. In the **Set up agent** panel that opens, choose **Python**, pick a token
-   duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and
-   `AMP_AGENT_API_KEY` values it shows.
+1. Sign in to the console at <http://localhost:9000> (the port is
+   `AMP_API_PORT` in `deployments/standalone/.env`) as `admin`; the password
+   is `AMP_ADMIN_PASSWORD` in the same file.
+2. A new install has no projects, so create one first: click **Add project**
+   (**Create project** on the organization overview), enter a **Name** and
+   click **Create**.
+3. Open the project, click **New agent**, enter the name
+   `IT Helpdesk Agent` and click **Register**.
+4. The **Setup Agent** panel opens with an API key already generated. Copy it
+   as `AMP_AGENT_API_KEY`; it is shown only once. To change how long it is
+   valid, pick another **Token Duration** and click **Regenerate**.
 
 ## Run it
 
@@ -67,7 +71,7 @@ cd samples/it-helpdesk-agent
 python -m venv env && source env/bin/activate
 pip install -r requirements.txt amp-instrumentation
 
-export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_OTEL_ENDPOINT="http://localhost:4318"   # your own OpenTelemetry collector
 export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY=sk-...
 amp-instrument python main.py
@@ -76,6 +80,10 @@ amp-instrument python main.py
 Set these as shell variables, not in a `.env` file, so `amp-instrument` can read
 them. To run it without tracing, leave out `amp-instrument` and the two `AMP_*`
 variables.
+
+AMP Lite does not store traces, so `AMP_OTEL_ENDPOINT` is the OTLP/HTTP base
+URL (without `/v1/traces`) of an OpenTelemetry collector you run; see the
+[user guide](../../docs/user-guide.md).
 
 Then:
 
@@ -88,7 +96,8 @@ curl -s localhost:8000/chat -H 'Content-Type: application/json' -d '{
 }'
 ```
 
-Each chat turn appears under the agent's **Observability → Traces** in the console.
+Each chat turn produces a trace in the backend behind your collector; AMP Lite
+has no traces page.
 
 Reuse the same `session_id` across calls to continue a conversation. Omit it and
 each request starts its own.

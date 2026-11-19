@@ -29,7 +29,7 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 </style>
 </head>
 <body>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2880 2402" width="100%" role="img" aria-labelledby="dtitle ddesc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2880 2432" width="100%" role="img" aria-labelledby="dtitle ddesc">
 <title id="dtitle">AMP Lite data model</title>
 <desc id="ddesc">Main tables of AMP Lite grouped into tenancy, agents, AI gateway, secrets, events, audit, and internals, with labelled relationships.</desc>
 <defs>
@@ -39,7 +39,7 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <marker id="arrowp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/></marker>
 <marker id="arrowc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#0891b2"/></marker>
 </defs>
-<rect x="0" y="0" width="2880" height="2402" fill="#ffffff"/>
+<rect x="0" y="0" width="2880" height="2432" fill="#ffffff"/>
 <text x="30" y="52" class="title">AMP Lite data model</text>
 <text x="32" y="80" class="subtitle">WSO2 Agent Manager without OpenChoreo. One database holds everything the control plane manages; environments exist but stay hidden.</text>
 <rect x="1560" y="14" width="1290" height="112" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
@@ -68,9 +68,9 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="1628" y="120" class="legtext">dashed card: hidden, deferred, or outside this database</text>
 <rect x="30" y="132" width="885" height="390" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="48" y="162" class="aname" fill="#2563eb">TENANCY</text>
-<rect x="30" y="544" width="885" height="1606" rx="14" fill="#ecfdf5" stroke="#059669" stroke-opacity="0.45" stroke-width="1.5"/>
+<rect x="30" y="544" width="885" height="1636" rx="14" fill="#ecfdf5" stroke="#059669" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="48" y="574" class="aname" fill="#059669">AGENTS AND IDENTITY</text>
-<rect x="945" y="132" width="1057" height="2018" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-opacity="0.45" stroke-width="1.5"/>
+<rect x="945" y="132" width="1057" height="2048" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="963" y="162" class="aname" fill="#7c3aed">GATEWAY MODULE: GATEWAYS, ARTIFACTS, LLM AND MCP</text>
 <rect x="2022" y="132" width="828" height="294" rx="14" fill="#fef2f2" stroke="#dc2626" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="2040" y="162" class="aname" fill="#dc2626">SECRETS</text>
@@ -78,19 +78,19 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2040" y="478" class="aname" fill="#0891b2">EVENTS AND WEBHOOKS</text>
 <rect x="2022" y="1036" width="828" height="272" rx="14" fill="#fffbeb" stroke="#b45309" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="2040" y="1066" class="aname" fill="#b45309">AUDIT LOG AND CONSOLE USAGE</text>
-<rect x="2022" y="1330" width="828" height="240" rx="14" fill="#f8fafc" stroke="#475569" stroke-opacity="0.45" stroke-width="1.5"/>
+<rect x="2022" y="1330" width="828" height="270" rx="14" fill="#f8fafc" stroke="#475569" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="2040" y="1360" class="aname" fill="#475569">INTERNALS (WORKERS)</text>
-<rect x="2022" y="1592" width="828" height="558" rx="14" fill="#f0fdfa" stroke="#0f766e" stroke-opacity="0.45" stroke-width="1.5"/>
-<text x="2040" y="1622" class="aname" fill="#0f766e">MODULE HOST</text>
-<rect x="30" y="2172" width="2820" height="200" rx="14" fill="#ffffff" stroke="#64748b" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="8 6"/>
-<text x="48" y="2202" class="aname" fill="#64748b">NOT IN AMP LITE YET, OR KEPT OUTSIDE THIS DATABASE</text>
+<rect x="2022" y="1622" width="828" height="558" rx="14" fill="#f0fdfa" stroke="#0f766e" stroke-opacity="0.45" stroke-width="1.5"/>
+<text x="2040" y="1652" class="aname" fill="#0f766e">MODULE HOST</text>
+<rect x="30" y="2202" width="2820" height="200" rx="14" fill="#ffffff" stroke="#64748b" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="8 6"/>
+<text x="48" y="2232" class="aname" fill="#64748b">NOT IN AMP LITE YET, OR KEPT OUTSIDE THIS DATABASE</text>
 <text x="320" y="438" class="anote">Every table carries org_id, and children point at parents through (org_id, parent id),</text>
 <text x="320" y="456" class="anote">so no row can reach another org's data.</text>
 <text x="320" y="482" class="anote">Core creates the default org and its default environment at startup; the gateway</text>
 <text x="320" y="500" class="anote">module seeds the bundled gateway and its token.</text>
 <text x="975" y="510" class="anote">amp installs the gateway module by default; amp-core lacks it.</text>
 <text x="975" y="528" class="anote">Its tables are named mod_ai_gateway_&lt;table&gt;.</text>
-<text x="2202" y="1622" class="anote">Core tables; module-owned tables are mod_&lt;module&gt;_&lt;table&gt;.</text>
+<text x="2202" y="1652" class="anote">Core tables; module-owned tables are mod_&lt;module&gt;_&lt;table&gt;.</text>
 <text x="2402" y="1066" class="anote">No foreign keys: rows outlive what they describe.</text>
 <text x="2380" y="214" class="anote2">Referenced by secret_id from event</text>
 <text x="2380" y="233" class="anote2">destinations. Modules keep theirs by path</text>
@@ -101,43 +101,43 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2380" y="328" class="anote2"></text>
 <text x="2380" y="347" class="anote2">Production can keep values in an external</text>
 <text x="2380" y="366" class="anote2">vault instead (provider + external_ref).</text>
-<text x="347" y="614" class="alabel">each agent owns these; they are deleted with it</text>
+<text x="347" y="614" class="alabel">labels and identity go with the agent; dashed gateway rows go when the gateway tears the agent down</text>
 <path d="M 350.0 266.0 L 280.0 266.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 590.0 240.0 L 660.0 240.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 470.0 190.0 L 470.0 174.0 L 1340.0 174.0 L 1340.0 190.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 975.0 230.0 L 890.0 230.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 1280.0 230.0 L 1220.0 230.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
 <path d="M 260.0 386.0 L 260.0 640.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
-<path d="M 185.0 808.0 L 185.0 864.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
-<path d="M 185.0 1028.0 L 185.0 1084.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M 185.0 808.0 L 185.0 864.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
+<path d="M 185.0 1072.0 L 185.0 1128.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
 <path d="M 310.0 680.0 L 335.0 680.0" fill="none" stroke="#334155" stroke-width="1.7"/>
 <path d="M 335.0 622.0 L 335.0 1166.0" fill="none" stroke="#334155" stroke-width="1.7"/>
-<path d="M 335.0 622.0 L 620.0 622.0 L 620.0 1365.0" fill="none" stroke="#334155" stroke-width="1.7"/>
+<path d="M 335.0 622.0 L 620.0 622.0 L 620.0 1365.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4"/>
 <path d="M 335.0 716.0 L 360.0 716.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
 <path d="M 335.0 930.0 L 360.0 930.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
-<path d="M 335.0 1166.0 L 360.0 1166.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
-<path d="M 620.0 722.0 L 640.0 722.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
-<path d="M 620.0 921.0 L 640.0 921.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
-<path d="M 620.0 1147.0 L 640.0 1147.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
-<path d="M 620.0 1365.0 L 640.0 1365.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M 335.0 1166.0 L 360.0 1166.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
+<path d="M 620.0 722.0 L 640.0 722.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
+<path d="M 620.0 921.0 L 640.0 921.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
+<path d="M 620.0 1147.0 L 640.0 1147.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
+<path d="M 620.0 1365.0 L 640.0 1365.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 1530.0 240.0 L 1590.0 240.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
 <path d="M 1490.0 390.0 L 1490.0 505.0 L 1725.0 505.0 L 1725.0 620.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 1530.0 660.0 L 1590.0 660.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
-<path d="M 1530.0 780.0 L 1560.0 780.0 L 1560.0 834.0 L 1590.0 834.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
+<path d="M 1530.0 764.0 L 1560.0 764.0 L 1560.0 834.0 L 1590.0 834.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
 <path d="M 1280.0 660.0 L 1220.0 660.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
 <path d="M 1080.0 1054.0 L 1080.0 1020.0" fill="none" stroke="#7c3aed" stroke-width="1.7"/>
 <path d="M 1340.0 1054.0 L 1340.0 1020.0" fill="none" stroke="#7c3aed" stroke-width="1.7"/>
 <path d="M 1600.0 1054.0 L 1600.0 1020.0" fill="none" stroke="#7c3aed" stroke-width="1.7"/>
 <path d="M 1860.0 1054.0 L 1860.0 1020.0" fill="none" stroke="#7c3aed" stroke-width="1.7"/>
 <path d="M 1080.0 1020.0 L 1860.0 1020.0" fill="none" stroke="#7c3aed" stroke-width="1.7"/>
-<path d="M 1405.0 1020.0 L 1405.0 820.0" fill="none" stroke="#7c3aed" stroke-width="1.7" marker-end="url(#arrowp)"/>
+<path d="M 1405.0 1020.0 L 1405.0 804.0" fill="none" stroke="#7c3aed" stroke-width="1.7" marker-end="url(#arrowp)"/>
 <path d="M 1235.0 1194.0 L 1185.0 1194.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 1080.0 1234.0 L 1080.0 1304.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 1755.0 1176.0 L 1705.0 1176.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 1565.0 1206.0 L 1565.0 1304.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
 <path d="M 1675.0 1206.0 L 1675.0 1282.0 L 1815.0 1282.0 L 1815.0 1304.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
-<path d="M 150.0 1294.0 L 150.0 2104.0 L 1275.0 2104.0 L 1275.0 1234.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
-<path d="M 220.0 1294.0 L 220.0 2126.0 L 1470.0 2126.0 L 1470.0 1180.0 L 1495.0 1180.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
+<path d="M 150.0 1338.0 L 150.0 2134.0 L 1275.0 2134.0 L 1275.0 1234.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
+<path d="M 220.0 1338.0 L 220.0 2156.0 L 1470.0 2156.0 L 1470.0 1180.0 L 1495.0 1180.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 2230.0 546.0 L 2230.0 516.0 L 2375.0 516.0 L 2375.0 546.0" fill="none" stroke="#64748b" stroke-width="1.7" stroke-dasharray="6 4" marker-end="url(#arrowg)"/>
 <path d="M 2495.0 546.0 L 2495.0 516.0 L 2640.0 516.0 L 2640.0 546.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
 <path d="M 2100.0 714.0 L 2100.0 818.0" fill="none" stroke="#334155" stroke-width="1.7" marker-end="url(#arrow)"/>
@@ -150,7 +150,7 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="1250.0" y="222.0" text-anchor="middle" class="alabel">has</text>
 <text x="252.0" y="416.0" text-anchor="end" class="alabel">has many agents</text>
 <text x="193.0" y="840.0" text-anchor="start" class="alabel">has many</text>
-<text x="193.0" y="1060.0" text-anchor="start" class="alabel">binds</text>
+<text x="193.0" y="1104.0" text-anchor="start" class="alabel">binds</text>
 <text x="1560.0" y="232.0" text-anchor="middle" class="alabel">has</text>
 <text x="1733.0" y="566.5" text-anchor="start" class="alabel">receives deployments</text>
 <text x="1560.0" y="652.0" text-anchor="middle" class="alabel">has</text>
@@ -158,8 +158,8 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="1395.0" y="1010.0" text-anchor="end" class="alabel">each is an artifact (same id), deleted with it</text>
 <text x="1088.0" y="1273.0" text-anchor="start" class="alabel">built from (by handle)</text>
 <text x="1573.0" y="1259.0" text-anchor="start" class="alabel">has</text>
-<text x="650.0" y="2097.0" text-anchor="middle" class="alabel">an LLM config uses an LLM proxy</text>
-<text x="650.0" y="2141.0" text-anchor="middle" class="alabel">an MCP config uses an MCP proxy</text>
+<text x="650.0" y="2127.0" text-anchor="middle" class="alabel">an LLM config uses an LLM proxy</text>
+<text x="650.0" y="2171.0" text-anchor="middle" class="alabel">an MCP config uses an MCP proxy</text>
 <text x="2302.5" y="508.0" text-anchor="middle" class="alabel">sends to; in-use can't be deleted</text>
 <text x="2567.5" y="508.0" text-anchor="middle" class="alabel">keeps delivery history</text>
 <text x="2108.0" y="770.0" text-anchor="start" class="alabel">filtered by</text>
@@ -266,6 +266,8 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="374" y="1218"><tspan class="fkey">timeout_seconds</tspan></text>
 <rect x="374" y="1228" width="108" height="18" rx="9" fill="#e2e8f0"/>
 <text x="428" y="1241" class="chip" fill="#334155" text-anchor="middle">per environment</text>
+<rect x="487.5" y="1228" width="101" height="18" rx="9" fill="#f5f3ff"/>
+<text x="538" y="1241" class="chip" fill="#6d28d9" text-anchor="middle">gateway module</text>
 </g>
 <g class="card" id="card-aiapp">
 <rect x="640" y="640" width="250" height="164" rx="9" fill="#ffffff" stroke="#059669" stroke-width="1.6" filter="url(#shadow)"/>
@@ -335,35 +337,38 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="705" y="1427" class="chip" fill="#6d28d9" text-anchor="middle">gateway module</text>
 </g>
 <g class="card" id="card-mconf">
-<rect x="60" y="864" width="250" height="164" rx="9" fill="#ffffff" stroke="#059669" stroke-width="1.6" filter="url(#shadow)"/>
-<rect x="60" y="864" width="6" height="164" rx="3" fill="#059669"/>
+<rect x="60" y="864" width="250" height="208" rx="9" fill="#ffffff" stroke="#059669" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="60" y="864" width="6" height="208" rx="3" fill="#059669"/>
 <text x="74" y="888" class="ctitle" fill="#0f172a">Agent model config</text>
 <text x="74" y="902" class="ctable">agent_model_configs</text>
 <text x="74" y="924" class="cpurpose" fill="#0f172a">A named LLM or MCP connection the</text>
 <text x="74" y="940" class="cpurpose" fill="#0f172a">agent uses.</text>
-<line x1="74" y1="949" x2="298" y2="949" stroke="#e2e8f0"/>
-<text x="74" y="966"><tspan class="fkey">name</tspan><tspan class="fnote" dx="7">unique per agent</tspan></text>
-<text x="74" y="982"><tspan class="fkey">type</tspan><tspan class="fnote" dx="7">llm | mcp</tspan></text>
-<rect x="74" y="992" width="101" height="18" rx="9" fill="#f5f3ff"/>
-<text x="125" y="1005" class="chip" fill="#6d28d9" text-anchor="middle">gateway module</text>
+<text x="74" y="958" class="crel" fill="#059669">agent_bindings tracks each binding's</text>
+<text x="74" y="972" class="crel" fill="#059669">provisioning; agent_teardowns holds a</text>
+<text x="74" y="986" class="crel" fill="#059669">deleted agent until cleanup.</text>
+<line x1="74" y1="993" x2="298" y2="993" stroke="#e2e8f0"/>
+<text x="74" y="1010"><tspan class="fkey">name</tspan><tspan class="fnote" dx="7">unique per agent</tspan></text>
+<text x="74" y="1026"><tspan class="fkey">type</tspan><tspan class="fnote" dx="7">llm | mcp | agent</tspan></text>
+<rect x="74" y="1036" width="101" height="18" rx="9" fill="#f5f3ff"/>
+<text x="125" y="1049" class="chip" fill="#6d28d9" text-anchor="middle">gateway module</text>
 </g>
 <g class="card" id="card-mlinks">
-<rect x="60" y="1084" width="250" height="210" rx="9" fill="#ffffff" stroke="#059669" stroke-width="1.6" filter="url(#shadow)"/>
-<rect x="60" y="1084" width="6" height="210" rx="3" fill="#059669"/>
-<text x="74" y="1108" class="ctitle" fill="#0f172a">Config bindings</text>
-<text x="74" y="1122" class="ctable">agent_model_config_llm, _mcp,</text>
-<text x="74" y="1136" class="ctable">_mcp_envs, _vars</text>
-<text x="74" y="1158" class="cpurpose" fill="#0f172a">Which proxy each config points at,</text>
-<text x="74" y="1174" class="cpurpose" fill="#0f172a">and the env-var names given to the</text>
-<text x="74" y="1190" class="cpurpose" fill="#0f172a">agent.</text>
-<line x1="74" y1="1199" x2="298" y2="1199" stroke="#e2e8f0"/>
-<text x="74" y="1216"><tspan class="fkey">llm_proxy_id</tspan><tspan class="fnote" dx="7">+ policy settings</tspan></text>
-<text x="74" y="1232"><tspan class="fkey">mcp_proxy_id</tspan><tspan class="fnote" dx="7">+ excluded / mapping</tspan></text>
-<text x="74" y="1248"><tspan class="fkey">variable_key</tspan><tspan class="fnote" dx="7">-&gt; variable_name</tspan></text>
-<rect x="74" y="1258" width="108" height="18" rx="9" fill="#e2e8f0"/>
-<text x="128" y="1271" class="chip" fill="#334155" text-anchor="middle">per environment</text>
-<rect x="187.5" y="1258" width="101" height="18" rx="9" fill="#f5f3ff"/>
-<text x="238" y="1271" class="chip" fill="#6d28d9" text-anchor="middle">gateway module</text>
+<rect x="60" y="1128" width="250" height="210" rx="9" fill="#ffffff" stroke="#059669" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="60" y="1128" width="6" height="210" rx="3" fill="#059669"/>
+<text x="74" y="1152" class="ctitle" fill="#0f172a">Config bindings</text>
+<text x="74" y="1166" class="ctable">agent_model_config_llm, _mcp,</text>
+<text x="74" y="1180" class="ctable">_mcp_envs, _vars</text>
+<text x="74" y="1202" class="cpurpose" fill="#0f172a">Which proxy each config points at,</text>
+<text x="74" y="1218" class="cpurpose" fill="#0f172a">and the env-var names given to the</text>
+<text x="74" y="1234" class="cpurpose" fill="#0f172a">agent.</text>
+<line x1="74" y1="1243" x2="298" y2="1243" stroke="#e2e8f0"/>
+<text x="74" y="1260"><tspan class="fkey">llm_proxy_id</tspan><tspan class="fnote" dx="7">+ policy settings</tspan></text>
+<text x="74" y="1276"><tspan class="fkey">mcp_proxy_id</tspan><tspan class="fnote" dx="7">+ excluded / mapping</tspan></text>
+<text x="74" y="1292"><tspan class="fkey">variable_key</tspan><tspan class="fnote" dx="7">-&gt; variable_name</tspan></text>
+<rect x="74" y="1302" width="108" height="18" rx="9" fill="#e2e8f0"/>
+<text x="128" y="1315" class="chip" fill="#334155" text-anchor="middle">per environment</text>
+<rect x="187.5" y="1302" width="101" height="18" rx="9" fill="#f5f3ff"/>
+<text x="238" y="1315" class="chip" fill="#6d28d9" text-anchor="middle">gateway module</text>
 </g>
 <g class="card" id="card-gwenv">
 <rect x="975" y="190" width="245" height="238" rx="9" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6" filter="url(#shadow)"/>
@@ -430,8 +435,8 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="989" y="786"><tspan class="fkey">expires_at</tspan></text>
 </g>
 <g class="card" id="card-artifact">
-<rect x="1280" y="620" width="250" height="200" rx="9" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6" filter="url(#shadow)"/>
-<rect x="1280" y="620" width="6" height="200" rx="3" fill="#7c3aed"/>
+<rect x="1280" y="620" width="250" height="184" rx="9" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="1280" y="620" width="6" height="184" rx="3" fill="#7c3aed"/>
 <text x="1294" y="644" class="ctitle" fill="#0f172a">Artifact</text>
 <text x="1294" y="658" class="ctable">artifacts</text>
 <text x="1294" y="680" class="cpurpose" fill="#0f172a">Base row for anything deployable to</text>
@@ -439,10 +444,9 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <line x1="1294" y1="705" x2="1518" y2="705" stroke="#e2e8f0"/>
 <text x="1294" y="722"><tspan class="fkey">kind</tspan><tspan class="fnote" dx="7">LlmProvider | LlmProxy |</tspan></text>
 <text x="1294" y="738"><tspan class="fkey"></tspan><tspan class="fnote" dx="7">McpProxy | McpProxyMapping |</tspan></text>
-<text x="1294" y="754"><tspan class="fkey"></tspan><tspan class="fnote" dx="7">Agent | RestApi | WebSubAPI |</tspan></text>
-<text x="1294" y="770"><tspan class="fkey"></tspan><tspan class="fnote" dx="7">OtelIngest</tspan></text>
-<text x="1294" y="786"><tspan class="fkey">handle</tspan><tspan class="fnote" dx="7">unique per org</tspan></text>
-<text x="1294" y="802"><tspan class="fkey">name, version</tspan><tspan class="fnote" dx="7">unique per org</tspan></text>
+<text x="1294" y="754"><tspan class="fkey"></tspan><tspan class="fnote" dx="7">Agent | RestApi | WebSubAPI</tspan></text>
+<text x="1294" y="770"><tspan class="fkey">handle</tspan><tspan class="fnote" dx="7">unique per org</tspan></text>
+<text x="1294" y="786"><tspan class="fkey">name, version</tspan><tspan class="fnote" dx="7">unique per org</tspan></text>
 </g>
 <g class="card" id="card-deploy">
 <rect x="1590" y="620" width="270" height="152" rx="9" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6" filter="url(#shadow)"/>
@@ -689,16 +693,18 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2454" y="1244"><tspan class="fkey">dimensions</tspan><tspan class="fnote" dx="7">JSON</tspan></text>
 </g>
 <g class="card" id="card-locks">
-<rect x="2050" y="1388" width="360" height="152" rx="9" fill="#ffffff" stroke="#475569" stroke-width="1.6" filter="url(#shadow)"/>
-<rect x="2050" y="1388" width="6" height="152" rx="3" fill="#475569"/>
+<rect x="2050" y="1388" width="360" height="182" rx="9" fill="#ffffff" stroke="#475569" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="2050" y="1388" width="6" height="182" rx="3" fill="#475569"/>
 <text x="2064" y="1412" class="ctitle" fill="#0f172a">Lock</text>
 <text x="2064" y="1426" class="ctable">locks</text>
 <text x="2064" y="1448" class="cpurpose" fill="#0f172a">A lease that lets only one instance run a singleton</text>
 <text x="2064" y="1464" class="cpurpose" fill="#0f172a">worker.</text>
-<line x1="2064" y1="1473" x2="2398" y2="1473" stroke="#e2e8f0"/>
-<text x="2064" y="1490"><tspan class="fkey">name</tspan><tspan class="fnote" dx="7">e.g. agent_identity.reconciler</tspan></text>
-<text x="2064" y="1506"><tspan class="fkey">owner</tspan><tspan class="fnote" dx="7">empty = free</tspan></text>
-<text x="2064" y="1522"><tspan class="fkey">expires_at</tspan></text>
+<text x="2064" y="1482" class="crel" fill="#475569">The gateway's drift-scan lease is in its own</text>
+<text x="2064" y="1496" class="crel" fill="#475569">mod_ai_gateway_locks.</text>
+<line x1="2064" y1="1503" x2="2398" y2="1503" stroke="#e2e8f0"/>
+<text x="2064" y="1520"><tspan class="fkey">name</tspan><tspan class="fnote" dx="7">e.g. agent_identity.reconciler</tspan></text>
+<text x="2064" y="1536"><tspan class="fkey">owner</tspan><tspan class="fnote" dx="7">empty = free</tspan></text>
+<text x="2064" y="1552"><tspan class="fkey">expires_at</tspan></text>
 </g>
 <g class="card" id="card-queues">
 <rect x="2440" y="1388" width="380" height="140" rx="9" fill="#ffffff" stroke="#475569" stroke-width="1.6" filter="url(#shadow)"/>
@@ -712,116 +718,116 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2499" y="1507" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
 </g>
 <g class="card" id="card-modules">
-<rect x="2050" y="1650" width="240" height="216" rx="9" fill="#ffffff" stroke="#0f766e" stroke-width="1.6" filter="url(#shadow)"/>
-<rect x="2050" y="1650" width="6" height="216" rx="3" fill="#0f766e"/>
-<text x="2064" y="1674" class="ctitle" fill="#0f172a">Module</text>
-<text x="2064" y="1688" class="ctable">modules, module_generation</text>
-<text x="2064" y="1710" class="cpurpose" fill="#0f172a">Install and enable state of each</text>
-<text x="2064" y="1726" class="cpurpose" fill="#0f172a">compiled-in module; no row =</text>
-<text x="2064" y="1742" class="cpurpose" fill="#0f172a">available (purge deletes it).</text>
-<text x="2064" y="1758" class="cpurpose" fill="#0f172a">Every change bumps the generation;</text>
-<text x="2064" y="1774" class="cpurpose" fill="#0f172a">replicas poll it.</text>
-<line x1="2064" y1="1783" x2="2278" y2="1783" stroke="#e2e8f0"/>
-<text x="2064" y="1800"><tspan class="fkey">name</tspan></text>
-<text x="2064" y="1816"><tspan class="fkey">version</tspan></text>
-<text x="2064" y="1832"><tspan class="fkey">state</tspan></text>
-<text x="2080" y="1848" class="fnote">active | disabled | uninstalled</text>
+<rect x="2050" y="1680" width="240" height="216" rx="9" fill="#ffffff" stroke="#0f766e" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="2050" y="1680" width="6" height="216" rx="3" fill="#0f766e"/>
+<text x="2064" y="1704" class="ctitle" fill="#0f172a">Module</text>
+<text x="2064" y="1718" class="ctable">modules, module_generation</text>
+<text x="2064" y="1740" class="cpurpose" fill="#0f172a">Install and enable state of each</text>
+<text x="2064" y="1756" class="cpurpose" fill="#0f172a">compiled-in module; no row =</text>
+<text x="2064" y="1772" class="cpurpose" fill="#0f172a">available (purge deletes it).</text>
+<text x="2064" y="1788" class="cpurpose" fill="#0f172a">Every change bumps the generation;</text>
+<text x="2064" y="1804" class="cpurpose" fill="#0f172a">replicas poll it.</text>
+<line x1="2064" y1="1813" x2="2278" y2="1813" stroke="#e2e8f0"/>
+<text x="2064" y="1830"><tspan class="fkey">name</tspan></text>
+<text x="2064" y="1846"><tspan class="fkey">version</tspan></text>
+<text x="2064" y="1862"><tspan class="fkey">state</tspan></text>
+<text x="2080" y="1878" class="fnote">active | disabled | uninstalled</text>
 </g>
 <g class="card" id="card-modmig">
-<rect x="2315" y="1650" width="240" height="152" rx="9" fill="#ffffff" stroke="#0f766e" stroke-width="1.6" filter="url(#shadow)"/>
-<rect x="2315" y="1650" width="6" height="152" rx="3" fill="#0f766e"/>
-<text x="2329" y="1674" class="ctitle" fill="#0f172a">Module migration</text>
-<text x="2329" y="1688" class="ctable">module_migrations</text>
-<text x="2329" y="1710" class="cpurpose" fill="#0f172a">Each module's applied migrations.</text>
-<text x="2329" y="1726" class="cpurpose" fill="#0f172a">Module tables are named</text>
-<text x="2329" y="1742" class="cpurpose" fill="#0f172a">mod_&lt;module&gt;_&lt;table&gt;.</text>
-<line x1="2329" y1="1751" x2="2543" y2="1751" stroke="#e2e8f0"/>
-<text x="2329" y="1768"><tspan class="fkey">module, version</tspan></text>
-<text x="2329" y="1784"><tspan class="fkey">checksum</tspan><tspan class="fnote" dx="7">sha256</tspan></text>
+<rect x="2315" y="1680" width="240" height="152" rx="9" fill="#ffffff" stroke="#0f766e" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="2315" y="1680" width="6" height="152" rx="3" fill="#0f766e"/>
+<text x="2329" y="1704" class="ctitle" fill="#0f172a">Module migration</text>
+<text x="2329" y="1718" class="ctable">module_migrations</text>
+<text x="2329" y="1740" class="cpurpose" fill="#0f172a">Each module's applied migrations.</text>
+<text x="2329" y="1756" class="cpurpose" fill="#0f172a">Module tables are named</text>
+<text x="2329" y="1772" class="cpurpose" fill="#0f172a">mod_&lt;module&gt;_&lt;table&gt;.</text>
+<line x1="2329" y1="1781" x2="2543" y2="1781" stroke="#e2e8f0"/>
+<text x="2329" y="1798"><tspan class="fkey">module, version</tspan></text>
+<text x="2329" y="1814"><tspan class="fkey">checksum</tspan><tspan class="fnote" dx="7">sha256</tspan></text>
 </g>
 <g class="card" id="card-modev">
-<rect x="2580" y="1650" width="240" height="210" rx="9" fill="#ffffff" stroke="#0f766e" stroke-width="1.6" filter="url(#shadow)"/>
-<rect x="2580" y="1650" width="6" height="210" rx="3" fill="#0f766e"/>
-<text x="2594" y="1674" class="ctitle" fill="#0f172a">Module event</text>
-<text x="2594" y="1688" class="ctable">module_events,</text>
-<text x="2594" y="1702" class="ctable">module_event_deliveries</text>
-<text x="2594" y="1724" class="cpurpose" fill="#0f172a">Events for modules, one delivery</text>
-<text x="2594" y="1740" class="cpurpose" fill="#0f172a">per subscribing module, retried</text>
-<text x="2594" y="1756" class="cpurpose" fill="#0f172a">with backoff.</text>
-<line x1="2594" y1="1765" x2="2808" y2="1765" stroke="#e2e8f0"/>
-<text x="2594" y="1782"><tspan class="fkey">type</tspan><tspan class="fnote" dx="7">e.g. agent.created</tspan></text>
-<text x="2594" y="1798"><tspan class="fkey">source</tspan><tspan class="fnote" dx="7">core or a module</tspan></text>
-<text x="2594" y="1814"><tspan class="fkey">attempts</tspan></text>
-<rect x="2594" y="1824" width="89" height="18" rx="9" fill="#e0e7ff"/>
-<text x="2639" y="1837" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
+<rect x="2580" y="1680" width="240" height="210" rx="9" fill="#ffffff" stroke="#0f766e" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="2580" y="1680" width="6" height="210" rx="3" fill="#0f766e"/>
+<text x="2594" y="1704" class="ctitle" fill="#0f172a">Module event</text>
+<text x="2594" y="1718" class="ctable">module_events,</text>
+<text x="2594" y="1732" class="ctable">module_event_deliveries</text>
+<text x="2594" y="1754" class="cpurpose" fill="#0f172a">Events for modules, one delivery</text>
+<text x="2594" y="1770" class="cpurpose" fill="#0f172a">per subscribing module, retried</text>
+<text x="2594" y="1786" class="cpurpose" fill="#0f172a">with backoff.</text>
+<line x1="2594" y1="1795" x2="2808" y2="1795" stroke="#e2e8f0"/>
+<text x="2594" y="1812"><tspan class="fkey">type</tspan><tspan class="fnote" dx="7">e.g. agent.created</tspan></text>
+<text x="2594" y="1828"><tspan class="fkey">source</tspan><tspan class="fnote" dx="7">core or a module</tspan></text>
+<text x="2594" y="1844"><tspan class="fkey">attempts</tspan></text>
+<rect x="2594" y="1854" width="89" height="18" rx="9" fill="#e0e7ff"/>
+<text x="2639" y="1867" class="chip" fill="#3730a3" text-anchor="middle">worker queue</text>
 </g>
 <g class="card" id="card-wlcred">
-<rect x="2050" y="1890" width="240" height="230" rx="9" fill="#ffffff" stroke="#0f766e" stroke-width="1.6" filter="url(#shadow)"/>
-<rect x="2050" y="1890" width="6" height="230" rx="3" fill="#0f766e"/>
-<text x="2064" y="1914" class="ctitle" fill="#0f172a">Workload credential</text>
-<text x="2064" y="1928" class="ctable">workload_credentials,</text>
-<text x="2064" y="1942" class="ctable">workload_instances</text>
-<text x="2064" y="1964" class="cpurpose" fill="#0f172a">A module workload's credential,</text>
-<text x="2064" y="1980" class="cpurpose" fill="#0f172a">presented in heartbeats for</text>
-<text x="2064" y="1996" class="cpurpose" fill="#0f172a">short-lived tokens, and the</text>
-<text x="2064" y="2012" class="cpurpose" fill="#0f172a">instances that heartbeat. Only a</text>
-<text x="2064" y="2028" class="cpurpose" fill="#0f172a">hash is kept.</text>
-<line x1="2064" y1="2037" x2="2278" y2="2037" stroke="#e2e8f0"/>
-<text x="2064" y="2054"><tspan class="fkey">module, workload</tspan></text>
-<text x="2064" y="2070"><tspan class="fkey">subject</tspan></text>
-<text x="2064" y="2086"><tspan class="fkey">revoked_at</tspan></text>
-<text x="2064" y="2102"><tspan class="fkey">last_seen</tspan><tspan class="fnote" dx="7">per instance</tspan></text>
+<rect x="2050" y="1920" width="240" height="230" rx="9" fill="#ffffff" stroke="#0f766e" stroke-width="1.6" filter="url(#shadow)"/>
+<rect x="2050" y="1920" width="6" height="230" rx="3" fill="#0f766e"/>
+<text x="2064" y="1944" class="ctitle" fill="#0f172a">Workload credential</text>
+<text x="2064" y="1958" class="ctable">workload_credentials,</text>
+<text x="2064" y="1972" class="ctable">workload_instances</text>
+<text x="2064" y="1994" class="cpurpose" fill="#0f172a">A module workload's credential,</text>
+<text x="2064" y="2010" class="cpurpose" fill="#0f172a">presented in heartbeats for</text>
+<text x="2064" y="2026" class="cpurpose" fill="#0f172a">short-lived tokens, and the</text>
+<text x="2064" y="2042" class="cpurpose" fill="#0f172a">instances that heartbeat. Only a</text>
+<text x="2064" y="2058" class="cpurpose" fill="#0f172a">hash is kept.</text>
+<line x1="2064" y1="2067" x2="2278" y2="2067" stroke="#e2e8f0"/>
+<text x="2064" y="2084"><tspan class="fkey">module, workload</tspan></text>
+<text x="2064" y="2100"><tspan class="fkey">subject</tspan></text>
+<text x="2064" y="2116"><tspan class="fkey">revoked_at</tspan></text>
+<text x="2064" y="2132"><tspan class="fkey">last_seen</tspan><tspan class="fnote" dx="7">per instance</tspan></text>
 </g>
 <g class="card" id="card-d_eval">
-<rect x="60" y="2230" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="74" y="2254" class="ctitle" fill="#64748b">Evaluation</text>
-<text x="74" y="2268" class="ctable">monitors, runs, scores, evaluators, alerts,</text>
-<text x="74" y="2282" class="ctable">eval credentials</text>
-<text x="74" y="2304" class="cpurpose" fill="#64748b">Not in Lite; returns as a module. Its credentials</text>
-<text x="74" y="2320" class="cpurpose" fill="#64748b">would live in secrets.</text>
+<rect x="60" y="2260" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="74" y="2284" class="ctitle" fill="#64748b">Evaluation</text>
+<text x="74" y="2298" class="ctable">monitors, runs, scores, evaluators, alerts,</text>
+<text x="74" y="2312" class="ctable">eval credentials</text>
+<text x="74" y="2334" class="cpurpose" fill="#64748b">Not in Lite; returns as a module. Its credentials</text>
+<text x="74" y="2350" class="cpurpose" fill="#64748b">would live in secrets.</text>
 </g>
 <g class="card" id="card-d_host">
-<rect x="444" y="2230" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="458" y="2254" class="ctitle" fill="#64748b">Hosted-agent runtime</text>
-<text x="458" y="2268" class="ctable">builds, deployments, env vars, resources,</text>
-<text x="458" y="2282" class="ctable">git credentials, agent kinds</text>
-<text x="458" y="2304" class="cpurpose" fill="#64748b">Lite only connects external agents. Added if hosted</text>
-<text x="458" y="2320" class="cpurpose" fill="#64748b">agents come to Lite.</text>
+<rect x="444" y="2260" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="458" y="2284" class="ctitle" fill="#64748b">Hosted-agent runtime</text>
+<text x="458" y="2298" class="ctable">builds, deployments, env vars, resources,</text>
+<text x="458" y="2312" class="ctable">git credentials, agent kinds</text>
+<text x="458" y="2334" class="cpurpose" fill="#64748b">Lite only connects external agents. Added if hosted</text>
+<text x="458" y="2350" class="cpurpose" fill="#64748b">agents come to Lite.</text>
 </g>
 <g class="card" id="card-d_pmcp">
-<rect x="828" y="2230" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="842" y="2254" class="ctitle" fill="#64748b">Project MCP proxies</text>
-<text x="842" y="2276" class="cpurpose" fill="#64748b">Exposing a hosted agent's own MCP endpoint. Deferred.</text>
+<rect x="828" y="2260" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="842" y="2284" class="ctitle" fill="#64748b">Project MCP proxies</text>
+<text x="842" y="2306" class="cpurpose" fill="#64748b">Exposing a hosted agent's own MCP endpoint. Deferred.</text>
 </g>
 <g class="card" id="card-d_envs">
-<rect x="1212" y="2230" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="1226" y="2254" class="ctitle" fill="#64748b">More environments</text>
-<text x="1226" y="2268" class="ctable">environment rows, deployment pipeline,</text>
-<text x="1226" y="2282" class="ctable">per-env Thunder</text>
-<text x="1226" y="2304" class="cpurpose" fill="#64748b">Full product only. Per-environment tables already</text>
-<text x="1226" y="2320" class="cpurpose" fill="#64748b">carry environment_id.</text>
+<rect x="1212" y="2260" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="1226" y="2284" class="ctitle" fill="#64748b">More environments</text>
+<text x="1226" y="2298" class="ctable">environment rows, deployment pipeline,</text>
+<text x="1226" y="2312" class="ctable">per-env Thunder</text>
+<text x="1226" y="2334" class="cpurpose" fill="#64748b">Full product only. Per-environment tables already</text>
+<text x="1226" y="2350" class="cpurpose" fill="#64748b">carry environment_id.</text>
 </g>
 <g class="card" id="card-o_thunder">
-<rect x="1626" y="2230" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="1640" y="2254" class="ctitle" fill="#64748b">Thunder</text>
-<text x="1640" y="2268" class="ctable">own database</text>
-<text x="1640" y="2290" class="cpurpose" fill="#64748b">Issues agent identities. Ours stores only the IDs it</text>
-<text x="1640" y="2306" class="cpurpose" fill="#64748b">returns. One Thunder per install, set in config.</text>
+<rect x="1626" y="2260" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="1640" y="2284" class="ctitle" fill="#64748b">Thunder</text>
+<text x="1640" y="2298" class="ctable">own database</text>
+<text x="1640" y="2320" class="cpurpose" fill="#64748b">Issues agent identities. Ours stores only the IDs it</text>
+<text x="1640" y="2336" class="cpurpose" fill="#64748b">returns. One Thunder per install, set in config.</text>
 </g>
 <g class="card" id="card-o_obs">
-<rect x="2010" y="2230" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="2024" y="2254" class="ctitle" fill="#64748b">Traces, logs, metrics</text>
-<text x="2024" y="2268" class="ctable">observability module (later)</text>
-<text x="2024" y="2290" class="cpurpose" fill="#64748b">Not stored in Lite. When observability returns as a</text>
-<text x="2024" y="2306" class="cpurpose" fill="#64748b">module, they live in its own store, not this</text>
-<text x="2024" y="2322" class="cpurpose" fill="#64748b">database.</text>
+<rect x="2010" y="2260" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="2024" y="2284" class="ctitle" fill="#64748b">Traces, logs, metrics</text>
+<text x="2024" y="2298" class="ctable">observability module (later)</text>
+<text x="2024" y="2320" class="cpurpose" fill="#64748b">Not stored in Lite. When observability returns as a</text>
+<text x="2024" y="2336" class="cpurpose" fill="#64748b">module, they live in its own store, not this</text>
+<text x="2024" y="2352" class="cpurpose" fill="#64748b">database.</text>
 </g>
 <g class="card" id="card-o_users">
-<rect x="2394" y="2230" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
-<text x="2408" y="2254" class="ctitle" fill="#64748b">Users and roles</text>
-<text x="2408" y="2268" class="ctable">config file</text>
-<text x="2408" y="2290" class="cpurpose" fill="#64748b">Console sign-in and role mapping come from a file.</text>
-<text x="2408" y="2306" class="cpurpose" fill="#64748b">Tables refer to users by username.</text>
+<rect x="2394" y="2260" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<text x="2408" y="2284" class="ctitle" fill="#64748b">Users and roles</text>
+<text x="2408" y="2298" class="ctable">config file</text>
+<text x="2408" y="2320" class="cpurpose" fill="#64748b">Console sign-in and role mapping come from a file.</text>
+<text x="2408" y="2336" class="cpurpose" fill="#64748b">Tables refer to users by username.</text>
 </g>
 </svg>
 </body>
