@@ -31,14 +31,25 @@ export interface CoreUIProps {
    * read the token. Pass the same function on every render. Omit to allow everything.
    */
   useFeatureAccess?: UseFeatureAccess;
+  /**
+   * Suffix for every browser tab title ("<page> | <documentTitle>"). Omit to use
+   * the host page's initial `<title>`.
+   */
+  documentTitle?: string;
 }
 
-function CoreUI({ externalPageModules, featureFlags, useFeatureAccess }: CoreUIProps) {
+function CoreUI({
+  externalPageModules,
+  featureFlags,
+  useFeatureAccess,
+  documentTitle,
+}: CoreUIProps) {
   return (
     <GlobalProviders
       externalPageModules={externalPageModules}
       featureFlags={featureFlags}
       useFeatureAccess={useFeatureAccess}
+      documentTitle={documentTitle}
     >
       <RootRouter />
     </GlobalProviders>

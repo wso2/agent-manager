@@ -16,12 +16,15 @@ import {
   HeaderBreadcrumbs,
   type HeaderBreadcrumbsItem,
   type HeaderBreadcrumbsLevel,
+  readHeaderBreadcrumbsState,
+  writeHeaderBreadcrumbsState,
 } from "@wso2/oxygen-ui";
-import { Bot, Building2, Folder } from "@wso2/oxygen-ui-icons-react";
+import { Bot, Building2, Box as ProjectIcon } from "@wso2/oxygen-ui-icons-react";
 import {
   Component,
   forwardRef,
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type MouseEvent,
@@ -178,7 +181,24 @@ export function TopNavigation() {
   const switchingToName = externalSwitcher?.organizations.find(
     (organization) => organization.id === externalSwitcher.switchingId,
   )?.name;
-  const canSwitchOrg = hasOtherOrgs || !!externalSwitcher;
+
+  // Remember the org and project in the URL in the shared breadcrumb storage
+  // (oxygen-ui's HeaderBreadcrumbs persistence), so the next sign-in — or another
+  // app on this origin — starts in the same context. On an org-level page the
+  // last project of that org is kept rather than cleared.
+  useEffect(() => {
+    if (!orgId) {
+      return;
+    }
+    const stored = readHeaderBreadcrumbsState()?.value;
+    if (projectId) {
+      if (stored?.[ORG_LEVEL] !== orgId || stored?.[PROJECT_LEVEL] !== projectId) {
+        writeHeaderBreadcrumbsState({ [ORG_LEVEL]: orgId, [PROJECT_LEVEL]: projectId });
+      }
+    } else if (stored?.[ORG_LEVEL] !== orgId) {
+      writeHeaderBreadcrumbsState({ [ORG_LEVEL]: orgId });
+    }
+  }, [orgId, projectId]);
 
   // Get all projects for the organization
   const { data: projects, isLoading: projectsLoading } = useListProjects({
@@ -233,6 +253,11 @@ export function TopNavigation() {
             },
       );
     }
+    // Always list the current org, even when it is the only one or the org list
+    // failed, so the switcher never opens empty.
+    if (!orgItems.some((item) => item.id === currentOrgItem.id)) {
+      orgItems = [currentOrgItem, ...orgItems];
+    }
 
     const result: HeaderBreadcrumbsLevel[] = [
       {
@@ -246,7 +271,7 @@ export function TopNavigation() {
       {
         id: PROJECT_LEVEL,
         label: "Project",
-        icon: <Folder size={16} />,
+        icon: <ProjectIcon size={16} />,
         loading: projectsLoading,
         items: (projects?.projects ?? []).map((project) => ({
           id: project.name,
@@ -387,15 +412,7 @@ export function TopNavigation() {
                 openTrailNameInNewTab(event);
               }
             }}
-            sx={{
-              display: "contents",
-              // With one organization there is nothing to switch to.
-              ...(!canSwitchOrg && {
-                '& button[aria-label="Switch organization"]': {
-                  display: "none",
-                },
-              }),
-            }}
+            sx={{ display: "contents" }}
           >
             <HeaderBreadcrumbs
               levels={levels}

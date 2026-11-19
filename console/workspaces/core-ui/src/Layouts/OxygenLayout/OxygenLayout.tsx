@@ -191,7 +191,7 @@ export function OxygenLayout() {
             footer={
               <Footer variant="plain">
                 <Footer.Copyright>
-                  © {new Date().getFullYear()} WSO2 LLC.
+                  © {new Date().getFullYear()} Choreo Labs LLC.
                 </Footer.Copyright>
                 {
                   // Plain array, not a Fragment: Footer's React.Children.toArray()

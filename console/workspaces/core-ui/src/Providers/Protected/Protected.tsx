@@ -30,6 +30,7 @@ import {
     useSessionAnalytics,
 } from "@agent-management-platform/api-client";
 import { ErrorPages, getErrorMessage } from "@agent-management-platform/shared-component";
+import { useHeaderBreadcrumbsValue } from "@wso2/oxygen-ui";
 
 export const Protected = ({ children }: { children: React.ReactNode }) => {
     const {
@@ -66,13 +67,20 @@ export const Protected = ({ children }: { children: React.ReactNode }) => {
         error: organizationsError,
     } = useListOrganizations();
     const { orgId } = useParams();
+    // The org and project the user was last in, kept by the header breadcrumb
+    // (see TopNavigation). Ids are URL ids: org handle (or name), project name.
+    const preserved = useHeaderBreadcrumbsValue();
 
-    // When authenticated without an org in the URL, land the user inside their
-    // first organization. We only resolve this once organizations have loaded;
-    // the project list query stays skipped (empty orgName) until then.
-    const firstOrg = organizations?.organizations?.[0];
-    const targetOrg = firstOrg?.name; // namespace, for API calls
-    const targetOrgId = orgRouteId(firstOrg); // handle (or name), for URLs
+    // When authenticated without an org in the URL, land the user in the org they
+    // were last in, if they still belong to it, else their first organization.
+    // We only resolve this once organizations have loaded; the project list
+    // query stays skipped (empty orgName) until then.
+    const landingOrg =
+        organizations?.organizations?.find(
+            (org) => orgRouteId(org) === preserved.organization,
+        ) ?? organizations?.organizations?.[0];
+    const targetOrg = landingOrg?.name; // namespace, for API calls
+    const targetOrgId = orgRouteId(landingOrg); // handle (or name), for URLs
     const shouldResolveLanding =
         isAuthenticated && !isLoadingOrganizations && !!targetOrg && !!targetOrgId && !orgId;
     const { data: projectList, isLoading: isLoadingProjects } = useListProjects({
@@ -130,10 +138,18 @@ export const Protected = ({ children }: { children: React.ReactNode }) => {
     // rendering children prematurely.
     if (!orgId && shouldResolveLanding) {
         const projects = projectList?.projects ?? [];
-        // Prefer the default project, fall back to the first available
-        // project, and if the org has no projects yet, land on the
-        // project listing so the user can create one.
-        const landingProject = projects.find((p) => p.name === "default") ?? projects[0];
+        // Prefer the project the user was last in (when it is in this org and
+        // still exists), then the default project, then the first available
+        // one; if the org has no projects yet, land on the project listing so
+        // the user can create one.
+        const preservedProject =
+            preserved.organization === targetOrgId
+                ? projects.find((p) => p.name === preserved.project)
+                : undefined;
+        const landingProject =
+            preservedProject ??
+            projects.find((p) => p.name === "default") ??
+            projects[0];
         const landingPath = landingProject
             ? generatePath(absoluteRouteMap.children.org.children.projects.path, {
                 orgId: targetOrgId,
