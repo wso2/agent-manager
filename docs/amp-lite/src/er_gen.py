@@ -2,24 +2,13 @@
 """Render the core tables of db_migrations/schema/lite.yaml as a Mermaid ER diagram.
 
 Usage: python3 er_gen.py <lite.yaml> <out.md>
-Tables used only by the gateway module are left out; database-schema.md lists them.
+Module tables (mod_<module>_<table>) come from each module's own migrations; database-schema.md lists them.
 Parses only the flow-style subset lite.yaml uses, so it needs no YAML library.
 """
 import re
 import sys
 
 SRC, OUT = sys.argv[1], sys.argv[2]
-
-GATEWAY = {
-    "gateways", "gateway_environments", "environment_default_gateways", "gateway_tokens",
-    "gateway_identity_providers", "gateway_event_states", "gateway_events", "artifacts",
-    "artifact_deployments", "artifact_gateway_status", "llm_provider_templates", "llm_providers",
-    "llm_proxies", "mcp_proxies", "mcp_proxy_mappings", "mcp_proxy_scopes", "mcp_proxy_scope_tools",
-    "mcp_proxy_endpoints", "mcp_proxy_endpoint_environments", "agent_model_configs",
-    "agent_model_config_llm", "agent_model_config_mcp", "agent_model_config_mcp_envs",
-    "agent_model_config_vars", "ai_applications", "api_keys", "agent_exposures", "agent_cards",
-    "a2a_proxies",
-}
 
 
 def flow(s):
@@ -53,7 +42,7 @@ for line in open(SRC):
     elif m and section == "foreign_keys":
         cur["fks"].append(flow(m.group(1)))
 
-core = [t for t in tables if t["name"] not in GATEWAY]
+core = tables
 names = {t["name"] for t in core}
 lines = ["erDiagram"]
 for t in core:
@@ -78,7 +67,7 @@ doc = f"""# Database ER diagram
 
 Core tables of AMP Lite, rendered from [`db_migrations/schema/lite.yaml`](../db_migrations/schema/lite.yaml) by `docs/amp-lite/src/er_gen.py` (run through `docs/amp-lite/src/render.sh`). "owns" means the child is deleted with its parent.
 
-The {len(tables) - len(core)} tables the gateway module uses, module tables (`mod_<module>_<table>`), column rules and decisions are in the [AMP Lite database schema](../../docs/amp-lite/database-schema.md).
+Module tables (`mod_<module>_<table>`, such as the AI Gateway's), column rules and decisions are in the [AMP Lite database schema](../../docs/amp-lite/database-schema.md).
 
 ```mermaid
 {chr(10).join(lines)}

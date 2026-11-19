@@ -80,7 +80,7 @@ Run these in `agent-manager-service`:
 | The OpenAPI spec | `make spec` |
 | Wiring in `wiring/wire.go` or `modules/aigateway/gwwire/wire.go` | `make wire` (regenerates both) |
 | A repository or client interface | `make mocks` (needs moq v0.5.3 from `make tools`) |
-| The database schema in `db_migrations/schema/lite.yaml`, or a module's in `modules/<name>/schema/` | `make schema`, which regenerates the SQLite and PostgreSQL migrations |
+| The database schema in `db_migrations/schema/lite.yaml`, or a module's in `modules/<dir>/schema/` (the module name without dashes) | `make schema`, which regenerates the SQLite and PostgreSQL migrations |
 | Anything you want to run outside Compose | `make build` (`bin/amp`, `bin/amp-core`; run `make console-embed` first to include the console) |
 
 CI fails if generated code is out of date (`make codegenfmt-check`). Commit the generated files with your change.

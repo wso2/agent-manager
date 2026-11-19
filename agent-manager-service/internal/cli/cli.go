@@ -53,7 +53,7 @@ const usage = `Usage: %[1]s [--config amp.yaml] <command>
   %[1]s init <component> <dir> [<component> <dir>...]
                                                      write a component's configuration into dir and exit;
                                                      components: thunder, fileauth, and those of the
-                                                     compiled-in modules (gateway)
+                                                     compiled-in modules (ai-gateway)
   %[1]s module list                                  list the modules compiled into this binary
   %[1]s module install <name> [--with-deps]          install a module (and the providers it needs)
   %[1]s module enable <name>

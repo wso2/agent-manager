@@ -69,7 +69,7 @@ export async function listAgents(params, query, getToken) {
 }
 ```
 - HTTP helpers are `httpGET/POST/PUT/PATCH/DELETE` from `shared/utils` — they read `globalConfig.apiBaseUrl` and set the `Authorization: Bearer` header. Do not hand-roll `fetch`.
-- `SERVICE_BASE = '/api/v1'` (`utils/utils.ts`). Observer calls go through `httpGETObserver`, which needs a trace service URL set with `setObserverBaseUrl`; nothing sets it while the stack runs no trace service.
+- `SERVICE_BASE = '/api/v1'` (`utils/utils.ts`). Module APIs use `moduleBase('<module>')`, which is `/m/<module>`; `GATEWAY_BASE` is `moduleBase('ai-gateway')`. Observer calls go through `httpGETObserver`, which needs a trace service URL set with `setObserverBaseUrl`; nothing sets it while the stack runs no trace service.
 
 **`hooks/<resource>.ts`** — wrap with `useApiQuery` / `useApiMutation` (not raw `useQuery`/`useMutation`):
 ```ts
@@ -115,9 +115,9 @@ The console is split into six **UI modules** under `workspaces/ui-modules/`, eac
 
 | Module | Pages |
 |---|---|
-| `acp-core` | overview, level-resource-listing, add-new-project, add-new-agent (the agent-type picker only), settings (+ events), identities |
+| `acp-core` | overview, level-resource-listing, add-new-project, add-new-agent (the agent-type picker only), external-agent (Externally-Hosted agent type and its register form), settings (+ events), identities |
 | `agent-runtime` | platform-agent (Platform-Hosted agent type, its create form and the samples), build, deploy, test, deployment-pipelines |
-| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too), external-agent (Externally-Hosted agent type and its register form) |
+| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too) |
 | `ai-observability` | traces, logs, metrics, eval |
 | `agent-identity` | env-thunders (Agent ID, groups, roles) |
 | `agent-portal` | agent-kind (catalog, publish, and the From-catalog agent type and its create pages, active only with agent-runtime) |
@@ -151,7 +151,7 @@ If a change needs `if (module X is installed)` inside another module's page, sto
 
 ### Recipes
 
-**New page package** (copy a sibling such as `ai-gateway/pages/external-agent`):
+**New page package** (copy a sibling such as `acp-core/pages/external-agent` or `ai-gateway/pages/gateways`):
 1. Create `ui-modules/<module>/pages/<feature>/` with `package.json` exporting `.` and `./plugin` (the `pnpm-workspace.yaml` globs already cover it; run `make install`).
 2. Write `src/plugin.ts` (a `PluginManifest`; its `id` is the page id) and export page components from `src/index.ts`.
 3. Add the package as a dependency of the module and list its plugin in `<module>/src/index.ts`, importing from `<feature>/plugin` only.

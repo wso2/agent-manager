@@ -458,16 +458,16 @@ func TestSecurityInvariantHandlersNeverReadOrgFromPath(t *testing.T) {
 // routePackages is the reviewed list of packages that register public or
 // internal HTTP endpoints. Add any new routing package here as part of its
 // security-policy review.
-// routePackages are the core's routes and those of the built-in modules the
-// full distribution links.
+// routePackages are the core's routes and those of the modules the full
+// distribution links.
 var routePackages = []string{
 	".", filepath.Join("..", "mcp"),
 	filepath.Join("..", "modules", "aigateway", "gwapi"),
 	filepath.Join("..", "modules", "aihub"),
 }
 
-// modulePermissionPackages declare permissions of built-in modules, as
-// <package>.<Name> constants of type rbac.Permission.
+// modulePermissionPackages declare the modules' permissions, as
+// <package>.<Name> string constants.
 var modulePermissionPackages = []string{
 	filepath.Join("..", "modules", "aigateway", "gwperm"),
 	filepath.Join("..", "modules", "aihub", "aihubperm"),
@@ -749,7 +749,7 @@ func predefinedRolePermissions(t *testing.T) map[string]bool {
 			}
 		}
 	})
-	// A built-in module's own permissions are granted by its manifest.
+	// A module's own permissions are granted by its manifest.
 	for ident, scope := range declared {
 		if strings.Contains(ident, ".") && moduleGrants(scope) {
 			granted[ident] = true

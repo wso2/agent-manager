@@ -2,7 +2,7 @@
 
 This directory contains black-box end-to-end tests for agent-manager. Tests use
 [Ginkgo](https://onsi.github.io/ginkgo/) + [Gomega](https://onsi.github.io/gomega/)
-and run against a real deployment (local quick-start by default).
+and run against a real deployment (the local Compose stack, `make up`, by default).
 
 ## Two test stacks
 
@@ -29,6 +29,7 @@ operations/         HTTP operation wrappers per resource
 operations/cli/     CLI operation wrappers per resource (mirror operations/)
   project/
   agent/
+  gateway/
   llmprovider/
 tests/              HTTP Ginkgo specs
   project/
@@ -36,9 +37,8 @@ tests/              HTTP Ginkgo specs
   ...
 tests/cli/          CLI Ginkgo specs
   project/          CRUD lifecycle
-  agent/            build-free agent CRUD (keyless)
+  agent/            agent CRUD (keyless)
   llmprovider/      llm-provider CRUD (keyless)
-  agentplatform/    owns a running platform agent; deploy + observability + agent llm (requires OPENAI_API_KEY)
 testsetup/          suite-wide setup / teardown / stale cleanup
 ```
 
@@ -158,7 +158,7 @@ var _ = Describe("amctl widget CRUD", Label("cli", "widget"), Ordered, func() {
 
 `framework.LoadConfig()` reads the usual environment variables:
 
-- `AMP_API_BASE_URL` (default `http://api.amp.localhost:8080`)
+- `AMP_API_BASE_URL` (default `http://localhost:9000`)
 - `IDP_TOKEN_URL`, `IDP_CLIENT_ID`, `IDP_CLIENT_SECRET`
 - `DEFAULT_ORG`, `DEFAULT_PROJECT`, `DEFAULT_ENV`
 - `AMCTL_BIN` — optional pre-built CLI binary for CLI specs
@@ -187,12 +187,11 @@ picked up automatically with no CI change.
 ## Rules of thumb
 
 - **HTTP operations** go in `operations/<resource>/`; **CLI operations** go in
-  `operations/cli/<resource>/`. The `agentplatform` suite owns a dedicated
-  running platform agent and hosts its mutating/observability/llm/mcp commands;
-  the keyless `agent` suite covers build-free agent CRUD. Every e2e run executes
-  all suites together. The `agent mcp` specs additionally require a running AI
-  gateway in `DefaultEnv` and reachability of `framework.TestMCPServerURL`, since
-  an mcp config can only bind a gateway-deployed catalog proxy.
+  `operations/cli/<resource>/`. The `agent` suite covers agent CRUD. The default
+  run executes all suites together; `SUITE=<name>` and the focused package
+  commands run only the suites they select, so they are not a full e2e run. The
+  `mcp-proxy` specs (`tests/mcpproxy`) additionally require a running AI gateway
+  in `DefaultEnv` and reachability of `framework.TestMCPServerURL`.
 - Keep `framework/amctl` resource-agnostic. Never add project/agent/etc.
   knowledge to the harness.
 - CLI specs assert exit codes and JSON envelopes, not human-readable text.

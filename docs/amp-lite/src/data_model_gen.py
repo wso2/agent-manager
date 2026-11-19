@@ -220,7 +220,7 @@ card("identity", "agents", 360, 0, 240, "Agent identity", "agent_identities",
 card("gwset", "agents", 360, 0, 240, "Agent gateway settings", "agent_gateway_settings",
      "How the gateway protects calls to this agent.",
      [("api_key_security", ""), ("oauth_*", "issuers, audiences"), ("cors_*", "origins, methods"),
-      ("timeout_seconds", "")], chips=["env"])
+      ("timeout_seconds", "")], chips=["env", "gwmod"])
 card("aiapp", "agents", 640, AY, 250, "AI application", "ai_applications",
      "The agent's application record on the gateway.",
      [("handle", ""), ("name", "")], chips=["env", "gwmod"])
@@ -235,7 +235,9 @@ card("a2a", "agents", 640, 0, 250, "A2A proxy", "a2a_proxies",
      [("upstream_auth_header", "")], chips=["env", "secret", "gwmod"])
 card("mconf", "agents", 60, 0, 250, "Agent model config", "agent_model_configs",
      "A named LLM or MCP connection the agent uses.",
-     [("name", "unique per agent"), ("type", "llm | mcp")], chips=["gwmod"])
+     [("name", "unique per agent"), ("type", "llm | mcp | agent")],
+     rel="agent_bindings tracks each binding's provisioning; agent_teardowns holds a deleted agent until cleanup.",
+     chips=["gwmod"])
 card("mlinks", "agents", 60, 0, 250, "Config bindings",
      "agent_model_config_llm, _mcp, _mcp_envs, _vars",
      "Which proxy each config points at, and the env-var names given to the agent.",
@@ -276,7 +278,7 @@ card("apikeys", "gateway", 975, RY, 245, "API key", "api_keys",
      [("name", "unique per artifact"), ("key_hash", ""), ("masked_key", ""), ("status", ""), ("expires_at", "")])
 card("artifact", "gateway", 1280, RY, 250, "Artifact", "artifacts",
      "Base row for anything deployable to a gateway.",
-     [("kind", "LlmProvider | LlmProxy |"), ("", "McpProxy | McpProxyMapping |"), ("", "Agent | RestApi | WebSubAPI |"), ("", "OtelIngest"),
+     [("kind", "LlmProvider | LlmProxy |"), ("", "McpProxy | McpProxyMapping |"), ("", "Agent | RestApi | WebSubAPI"),
       ("handle", "unique per org"), ("name, version", "unique per org")])
 card("deploy", "gateway", 1590, RY, 270, "Gateway deployment", "artifact_deployments",
      "Each rendered version of an artifact sent to a gateway.",
@@ -359,7 +361,8 @@ card("usage", "audit", RX + 390, 0, 380, "Usage event", "usage_events",
       ("dimensions", "JSON")])
 card("locks", "internal", RX, 0, 360, "Lock", "locks",
      "A lease that lets only one instance run a singleton worker.",
-     [("name", "e.g. agent_identity.reconciler"), ("owner", "empty = free"), ("expires_at", "")])
+     [("name", "e.g. agent_identity.reconciler"), ("owner", "empty = free"), ("expires_at", "")],
+     rel="The gateway's drift-scan lease is in its own mod_ai_gateway_locks.")
 card("queues", "internal", RX + 390, 0, 380, "Queue columns", "claimed_by, claimed_until",
      "Rows a worker claims carry a lease instead of a lock: agent identities, agent cards, deployment status, event outbox, event deliveries, module event deliveries.",
      [], chips=["queue"])
@@ -490,7 +493,7 @@ arrow([(px, c["project"].y + c["project"].h), (px, c["agent"].y)], "has many age
       (px - 8, c["project"].y + c["project"].h + 30, "end"), "ref")
 # agent -> model config -> bindings
 arrow([c["agent"].bottom(), c["mconf"].top()], "has many",
-      (c["agent"].x + c["agent"].w / 2 + 8, c["agent"].y + c["agent"].h + 32, "start"), "own")
+      (c["agent"].x + c["agent"].w / 2 + 8, c["agent"].y + c["agent"].h + 32, "start"), "ref")
 arrow([c["mconf"].bottom(), c["mlinks"].top()], "binds",
       (c["mconf"].x + c["mconf"].w / 2 + 8, c["mconf"].y + c["mconf"].h + 32, "start"), "own")
 # agent bus
@@ -500,13 +503,13 @@ bus_end1 = c["gwset"].y + c["gwset"].h / 2
 bus_end2 = c["a2a"].y + c["a2a"].h / 2
 arrow([(c["agent"].x + c["agent"].w, c["agent"].y + 40), (T1, c["agent"].y + 40)], head=False)
 arrow([(T1, BUS_TOP), (T1, bus_end1)], head=False)
-arrow([(T1, BUS_TOP), (T2, BUS_TOP), (T2, bus_end2)], head=False)
+arrow([(T1, BUS_TOP), (T2, BUS_TOP), (T2, bus_end2)], style="ref", head=False)
 for k in ("labels", "identity", "gwset"):
     yy = c[k].y + c[k].h / 2
-    arrow([(T1, yy), (c[k].x, yy)])
+    arrow([(T1, yy), (c[k].x, yy)], style="ref" if k == "gwset" else "own")
 for k in ("aiapp", "exposure", "acard", "a2a"):
     yy = c[k].y + c[k].h / 2
-    arrow([(T2, yy), (c[k].x, yy)])
+    arrow([(T2, yy), (c[k].x, yy)], style="ref")
 # gateway -> kids
 kids_y = c["gateway"].y + 50
 arrow([(c["gateway"].x + c["gateway"].w, kids_y), (c["gwkids"].x, kids_y)], "has",
@@ -680,7 +683,7 @@ def render_svg(viewbox=None, width=None):
              "vault instead (provider + external_ref)."]
     for i, ln in enumerate(notes):
         out.append(f'<text x="{sc.x + sc.w + 30}" y="{sc.y + 24 + i * 19}" class="anote2">{esc(ln)}</text>')
-    out.append(f'<text x="{T1 + 12}" y="{BUS_TOP - 8}" class="alabel">each agent owns these; they are deleted with it</text>')
+    out.append(f'<text x="{T1 + 12}" y="{BUS_TOP - 8}" class="alabel">labels and identity go with the agent; dashed gateway rows go when the gateway tears the agent down</text>')
     for pts, label, lpos, style, head in arrows:
         s = STYLE[style]
         dash = f' stroke-dasharray="{s["dash"]}"' if s["dash"] else ""
