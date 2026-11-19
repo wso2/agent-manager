@@ -16,16 +16,20 @@
  * under the License.
  */
 
-import { Chip, Tooltip } from "@wso2/oxygen-ui";
+import { Box } from "@wso2/oxygen-ui";
+import { TriangleAlert } from "@wso2/oxygen-ui-icons-react";
 
 /**
- * Marks a shadow agent next to its name. Registration says whether Agent Manager
- * knows the agent at all, so it sits with the name, not in the Lifecycle column.
+ * "Unknown" owner, with a warning icon: the creator could not be resolved (older agents).
+ * The colour is on the icon only: amber text on a light background is too low in contrast.
  */
-export function UnregisteredBadge() {
+export function UnknownOwnerLabel() {
   return (
-    <Tooltip title="Found outside Agent Manager and not onboarded yet">
-      <Chip size="small" variant="outlined" color="error" label="Unregistered" />
-    </Tooltip>
+    <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+      <Box component="span" sx={{ color: "warning.main", display: "inline-flex" }}>
+        <TriangleAlert size={14} aria-hidden />
+      </Box>
+      Unknown
+    </Box>
   );
 }

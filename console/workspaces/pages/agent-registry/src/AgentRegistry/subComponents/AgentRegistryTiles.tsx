@@ -17,22 +17,13 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Box,
-  Divider,
-  ListingCard,
-  Stack,
-  TablePagination,
-  Typography,
-} from "@wso2/oxygen-ui";
+import { Box, ListingCard, Stack, TablePagination, Typography } from "@wso2/oxygen-ui";
 import { Bot } from "@wso2/oxygen-ui-icons-react";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import type { AgentRegistryEntry } from "@agent-management-platform/types";
-import { agentTypeText, canOpenAgent, useOpenAgent } from "./agentRow";
-import { EnvironmentStatusChips } from "./EnvironmentStatusChips";
-import { LifecycleChip } from "./LifecycleChip";
-import { NoOwnerLabel } from "./NoOwnerLabel";
-import { UnregisteredBadge } from "./UnregisteredBadge";
+import { lastDeployedAt, ownerHintText } from "../agentRegistryFilters";
+import { agentTypeText, useOpenAgent } from "./agentRow";
+import { UnknownOwnerLabel } from "./UnknownOwnerLabel";
 
 // Multiples of the columns at each breakpoint, so a full page has no ragged last row.
 const TILES_PER_PAGE_OPTIONS = [12, 24, 48];
@@ -45,59 +36,75 @@ const GRID_TEMPLATE = {
   xl: "repeat(4, minmax(0, 1fr))",
 };
 
-function AgentTile({ orgId, agent }: { orgId: string; agent: AgentRegistryEntry }) {
-  const openAgent = useOpenAgent(orgId);
-
-  const details = (
-    <Stack spacing={1} component="span" sx={{ display: "flex" }}>
+/** Two short lines under the title; ListingCard clips its description to two lines. */
+function TileLines({ first, second }: { first: React.ReactNode; second: string }) {
+  return (
+    <Stack spacing={0.5} component="span" sx={{ display: "flex" }}>
       <Typography variant="body2" color="text.secondary" component="span" noWrap>
-        {agent.registration === "unregistered" ? (
-          // A shadow agent has no project or owner; show who made it when its platform says.
-          agent.discovery?.ownerHint ? (
-            <>Owner hint: {agent.discovery.ownerHint}</>
-          ) : (
-            <NoOwnerLabel />
-          )
-        ) : (
-          <>
-            {agent.projectDisplayName} ·{" "}
-            {agent.owner ? agent.owner.displayName : <NoOwnerLabel />}
-          </>
-        )}
+        {first}
       </Typography>
-      {/* ListingCard shows only text in its title, so the badge leads this line. */}
-      <Stack direction="row" spacing={0.75} alignItems="center" component="span" sx={{ display: "flex" }}>
-        {agent.registration === "unregistered" && <UnregisteredBadge />}
-        <Typography variant="caption" color="text.secondary" component="span" noWrap>
-          {agentTypeText(agent)}
-        </Typography>
-      </Stack>
-      {/* Lifecycle and environments exist only for registered agents. */}
-      {agent.lifecycleState && (
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
-          component="span"
-          divider={<Divider orientation="vertical" flexItem />}
-          sx={{ display: "flex" }}
-        >
-          <LifecycleChip state={agent.lifecycleState} variant="filled" />
-          <EnvironmentStatusChips environments={agent.environments} />
-        </Stack>
-      )}
+      <Typography variant="caption" color="text.secondary" component="span" noWrap>
+        {second}
+      </Typography>
     </Stack>
   );
+}
 
+/** A registered agent: project and owner, its type, and when it was last deployed. */
+function RegisteredTile({ orgId, agent }: { orgId: string; agent: AgentRegistryEntry }) {
+  const openAgent = useOpenAgent(orgId);
+  const deployedAt = lastDeployedAt(agent);
   return (
     <ListingCard
       title={agent.displayName}
-      description={details}
+      description={
+        <TileLines
+          first={
+            <>
+              {agent.projectDisplayName} ·{" "}
+              {agent.createdBy ? agent.createdBy.displayName : <UnknownOwnerLabel />}
+            </>
+          }
+          second={agentTypeText(agent)}
+        />
+      }
       icon={<Bot size={20} />}
-      updatedLabel={agent.registration === "unregistered" ? "Last seen" : "Last active"}
-      updatedTime={agent.lastActivityAt ? formatRelativeTime(agent.lastActivityAt) : "never"}
-      updatedDateTime={agent.lastActivityAt ?? undefined}
-      onClick={canOpenAgent(agent) ? () => openAgent(agent) : undefined}
+      updatedLabel="Last deployed"
+      // External agents are never deployed by Agent Manager.
+      updatedTime={
+        deployedAt
+          ? formatRelativeTime(deployedAt)
+          : agent.hosting === "external"
+            ? "—"
+            : "never"
+      }
+      updatedDateTime={deployedAt ?? undefined}
+      onClick={() => openAgent(agent)}
+    />
+  );
+}
+
+/** An unregistered (shadow) agent: who made it, where it was found, when it was last seen. */
+function UnregisteredTile({ agent }: { agent: AgentRegistryEntry }) {
+  const discovery = agent.discovery;
+  const ownerHint = ownerHintText(discovery?.ownerHint);
+  const foundOn = discovery
+    ? [discovery.providerDisplayName, discovery.scope].filter(Boolean).join(" · ")
+    : "Found outside Agent Manager";
+  return (
+    // Not clickable yet: it will open its Shadow Agent Discovery page.
+    <ListingCard
+      title={agent.displayName}
+      description={
+        <TileLines
+          first={ownerHint ? `Owner hint: ${ownerHint}` : "No owner hint"}
+          second={foundOn}
+        />
+      }
+      icon={<Bot size={20} />}
+      updatedLabel="Last seen"
+      updatedTime={discovery ? formatRelativeTime(discovery.lastSeenAt) : "—"}
+      updatedDateTime={discovery?.lastSeenAt}
     />
   );
 }
@@ -107,7 +114,7 @@ export interface AgentRegistryTilesProps {
   agents: AgentRegistryEntry[];
 }
 
-/** The registry's agents as a grid of tiles. A tile opens the agent in its project. */
+/** The registry's agents as a grid of tiles. A registered agent's tile opens its overview. */
 export function AgentRegistryTiles({ orgId, agents }: AgentRegistryTilesProps) {
   const [page, setPage] = useState(0);
   const [tilesPerPage, setTilesPerPage] = useState(TILES_PER_PAGE_OPTIONS[0]);
@@ -125,9 +132,13 @@ export function AgentRegistryTiles({ orgId, agents }: AgentRegistryTilesProps) {
   return (
     <Box>
       <Box sx={{ display: "grid", gridTemplateColumns: GRID_TEMPLATE, gap: 2 }}>
-        {pageOfAgents.map((agent) => (
-          <AgentTile key={`${agent.projectName}/${agent.name}`} orgId={orgId} agent={agent} />
-        ))}
+        {pageOfAgents.map((agent) =>
+          agent.registration === "registered" ? (
+            <RegisteredTile key={`${agent.projectName}/${agent.name}`} orgId={orgId} agent={agent} />
+          ) : (
+            <UnregisteredTile key={agent.discovery?.findingId ?? agent.name} agent={agent} />
+          ),
+        )}
       </Box>
       {agents.length > TILES_PER_PAGE_OPTIONS[0] && (
         <TablePagination

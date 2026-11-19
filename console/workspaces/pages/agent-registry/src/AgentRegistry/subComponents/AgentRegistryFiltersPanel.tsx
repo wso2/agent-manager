@@ -19,49 +19,62 @@
 import React, { useCallback, useEffect } from "react";
 import {
   Button,
-  Checkbox,
   Divider,
-  FormControlLabel,
-  FormHelperText,
   Grow,
   IconButton,
   MenuItem,
   Paper,
   Popper,
+  type PopperProps,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
 import { X as CloseIcon } from "@wso2/oxygen-ui-icons-react";
+import type { AgentRegistryRegistration } from "@agent-management-platform/types";
 import { TextInput } from "@agent-management-platform/views";
 import {
   ALL,
+  ALL_LABELS,
   type AgentRegistryFilterOptions,
   PANEL_FILTER_NAMES,
-  type PanelDraft,
   type PanelFilterKey,
-  registrationFromTicks,
-  registrationTicks,
+  type PanelFilters,
 } from "../agentRegistryFilters";
 
 export const FILTERS_PANEL_ID = "agent-registry-filters-panel";
 
-// Wide enough for two columns of fields.
-const PANEL_WIDTH = 640;
-
-/** The option that filters nothing; "All", as in the header's "All environments". */
-const ALL_LABELS: Record<PanelFilterKey, string> = {
-  project: "All projects",
-  owner: "All owners",
-  tag: "All tags",
-  llmProvider: "All LLM providers",
-  mcpServer: "All MCP servers",
+// Two columns of fields for registered agents; one short column for unregistered ones.
+const PANEL_WIDTH: Record<AgentRegistryRegistration, number> = {
+  registered: 680,
+  unregistered: 360,
 };
+
+// Space between the Filters button and the panel.
+const PANEL_GAP = 6;
+
+// Caps the panel's height at the space left below the button (16px margin), as the
+// traces filter panel does, so Filter stays on screen. Popper reruns it on resize.
+const PANEL_MODIFIERS: PopperProps["modifiers"] = [
+  { name: "offset", options: { offset: [0, PANEL_GAP] } },
+  {
+    name: "fitBelowAnchor",
+    enabled: true,
+    phase: "beforeWrite",
+    fn: ({ state }) => {
+      const anchorBottom = state.elements.reference.getBoundingClientRect().bottom;
+      state.elements.popper.style.setProperty(
+        "--registry-filters-max-height",
+        `${window.innerHeight - anchorBottom - PANEL_GAP - 16}px`,
+      );
+    },
+  },
+];
 
 interface PanelSelectProps {
   filterKey: PanelFilterKey;
-  draft: PanelDraft;
+  draft: PanelFilters;
   options: AgentRegistryFilterOptions;
-  onDraftChange: (draft: PanelDraft) => void;
+  onDraftChange: (draft: PanelFilters) => void;
 }
 
 /** One field of the panel: a select with "All …" and the values agents have. */
@@ -85,71 +98,91 @@ function PanelSelect({ filterKey, draft, options, onDraftChange }: PanelSelectPr
   );
 }
 
-interface RegistrationChecksProps {
-  draft: PanelDraft;
-  onDraftChange: (draft: PanelDraft) => void;
-}
-
-/** Registered and Unregistered (shadow) agents; Unregistered is unticked by default. */
-function RegistrationChecks({ draft, onDraftChange }: RegistrationChecksProps) {
-  // While both are unticked the draft holds null, which reads as neither ticked.
-  const ticks = draft.registration
-    ? registrationTicks(draft.registration)
-    : { registered: false, unregistered: false };
-  const setTicks = (registered: boolean, unregistered: boolean) =>
-    onDraftChange({ ...draft, registration: registrationFromTicks(registered, unregistered) });
-
+/** A titled group of panel fields. */
+function FilterSection({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  /** One line under the title saying how the fields apply. */
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <Stack spacing={0}>
-      <FormControlLabel
-        label="Registered"
-        control={
-          <Checkbox
-            size="small"
-            checked={ticks.registered}
-            onChange={(e) => setTicks(e.target.checked, ticks.unregistered)}
-          />
-        }
-        slotProps={{ typography: { variant: "body2" } }}
-      />
-      <FormControlLabel
-        label="Unregistered (shadow agents found outside Agent Manager)"
-        control={
-          <Checkbox
-            size="small"
-            checked={ticks.unregistered}
-            onChange={(e) => setTicks(ticks.registered, e.target.checked)}
-          />
-        }
-        slotProps={{ typography: { variant: "body2" } }}
-      />
-      {draft.registration === null && (
-        <FormHelperText error>Tick at least one.</FormHelperText>
+    <Stack component="section" spacing={1.5}>
+      <Typography variant="subtitle2" component="h3" sx={{ fontWeight: 600 }}>
+        {title}
+      </Typography>
+      {hint && (
+        <Typography variant="caption" color="text.secondary">
+          {hint}
+        </Typography>
       )}
+      {children}
     </Stack>
   );
 }
 
-/** A titled group of panel fields. */
-function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
+interface FieldsProps {
+  draft: PanelFilters;
+  options: AgentRegistryFilterOptions;
+  onDraftChange: (draft: PanelFilters) => void;
+}
+
+/** Registered agents: what they are and who has them on the left; where they run on the right. */
+function RegisteredFields(fieldProps: FieldsProps) {
+  const column = { flex: 1, minWidth: 0 };
   return (
-    <Stack component="section" spacing={1.5} sx={{ flex: 1, minWidth: 0 }}>
-      <Typography variant="subtitle2" component="h3" sx={{ fontWeight: 600 }}>
-        {title}
-      </Typography>
-      {children}
+    <Stack
+      direction={{ xs: "column", sm: "row" }}
+      spacing={3}
+      divider={<Divider orientation="vertical" flexItem />}
+    >
+      <Stack spacing={2.5} divider={<Divider flexItem />} sx={column}>
+        <FilterSection title="Agent">
+          <PanelSelect filterKey="hosting" {...fieldProps} />
+          <PanelSelect filterKey="interface" {...fieldProps} />
+        </FilterSection>
+        <FilterSection title="Ownership">
+          <PanelSelect filterKey="project" {...fieldProps} />
+          <PanelSelect filterKey="owner" {...fieldProps} />
+          <PanelSelect filterKey="tag" {...fieldProps} />
+        </FilterSection>
+      </Stack>
+      <Stack spacing={2.5} divider={<Divider flexItem />} sx={column}>
+        <FilterSection
+          title="Deployment"
+          hint="Status, LLM provider and MCP server look only at the chosen environment."
+        >
+          <PanelSelect filterKey="environment" {...fieldProps} />
+          <PanelSelect filterKey="status" {...fieldProps} />
+        </FilterSection>
+        <FilterSection title="Access">
+          <PanelSelect filterKey="llmProvider" {...fieldProps} />
+          <PanelSelect filterKey="mcpServer" {...fieldProps} />
+        </FilterSection>
+      </Stack>
     </Stack>
+  );
+}
+
+/** Unregistered agents carry only where Shadow Agent Discovery found them. */
+function UnregisteredFields(fieldProps: FieldsProps) {
+  return (
+    <FilterSection title="Discovery">
+      <PanelSelect filterKey="foundOn" {...fieldProps} />
+    </FilterSection>
   );
 }
 
 export interface AgentRegistryFiltersPanelProps {
   /** The Filters button the panel hangs from. */
   anchorEl: HTMLElement;
-  draft: PanelDraft;
+  registration: AgentRegistryRegistration;
+  draft: PanelFilters;
   options: AgentRegistryFilterOptions;
-  /** Says where the Access filters look, e.g. "Production" or "any environment". */
-  environmentLabel: string;
-  onDraftChange: (draft: PanelDraft) => void;
+  onDraftChange: (draft: PanelFilters) => void;
   onReset: () => void;
   onApply: () => void;
   onClose: () => void;
@@ -158,16 +191,15 @@ export interface AgentRegistryFiltersPanelProps {
 /** Panel under the Filters button that edits a draft; Filter applies it, Escape discards it. */
 export function AgentRegistryFiltersPanel({
   anchorEl,
+  registration,
   draft,
   options,
-  environmentLabel,
   onDraftChange,
   onReset,
   onApply,
   onClose,
 }: AgentRegistryFiltersPanelProps) {
   const fieldProps = { draft, options, onDraftChange };
-  const isValid = draft.registration !== null;
 
   // A callback ref, as the panel mounts in the portal after this component.
   const focusOnMount = useCallback(
@@ -191,7 +223,7 @@ export function AgentRegistryFiltersPanel({
       placement="bottom-end"
       transition
       role="presentation"
-      modifiers={[{ name: "offset", options: { offset: [0, 6] } }]}
+      modifiers={PANEL_MODIFIERS}
       sx={{ zIndex: (theme) => theme.zIndex.mobileStepper }}
     >
       {({ TransitionProps }) => (
@@ -204,8 +236,12 @@ export function AgentRegistryFiltersPanel({
             tabIndex={-1}
             elevation={8}
             sx={{
-              width: PANEL_WIDTH,
+              width: PANEL_WIDTH[registration],
               maxWidth: "calc(100vw - 32px)",
+              // Scrolls inside on short windows, so Filter stays reachable.
+              maxHeight: "var(--registry-filters-max-height)",
+              display: "flex",
+              flexDirection: "column",
               border: 1,
               borderColor: "divider",
               borderRadius: 1.5,
@@ -229,30 +265,12 @@ export function AgentRegistryFiltersPanel({
                 <CloseIcon size={18} />
               </IconButton>
             </Stack>
-            {/* Two columns; they stack on narrow windows. */}
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={3}
-              divider={<Divider orientation="vertical" flexItem />}
-              sx={{ px: 2.5, py: 2 }}
-            >
-              <FilterSection title="Ownership">
-                <PanelSelect filterKey="project" {...fieldProps} />
-                <PanelSelect filterKey="owner" {...fieldProps} />
-                <PanelSelect filterKey="tag" {...fieldProps} />
-              </FilterSection>
-              <Stack spacing={2.5} divider={<Divider flexItem />} sx={{ flex: 1, minWidth: 0 }}>
-                <FilterSection title="Access">
-                  <Typography variant="caption" color="text.secondary">
-                    What the agent can reach in {environmentLabel}.
-                  </Typography>
-                  <PanelSelect filterKey="llmProvider" {...fieldProps} />
-                  <PanelSelect filterKey="mcpServer" {...fieldProps} />
-                </FilterSection>
-                <FilterSection title="Registration">
-                  <RegistrationChecks draft={draft} onDraftChange={onDraftChange} />
-                </FilterSection>
-              </Stack>
+            <Stack sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.5, py: 2 }}>
+              {registration === "registered" ? (
+                <RegisteredFields {...fieldProps} />
+              ) : (
+                <UnregisteredFields {...fieldProps} />
+              )}
             </Stack>
             <Stack
               direction="row"
@@ -263,7 +281,7 @@ export function AgentRegistryFiltersPanel({
               <Button variant="text" onClick={onReset}>
                 Reset
               </Button>
-              <Button variant="contained" disabled={!isValid} onClick={onApply}>
+              <Button variant="contained" onClick={onApply}>
                 Filter
               </Button>
             </Stack>

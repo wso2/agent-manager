@@ -18,59 +18,169 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Box, ListingTable, Stack, TablePagination, Typography } from "@wso2/oxygen-ui";
-import { Users } from "@wso2/oxygen-ui-icons-react";
 import { EntityAvatar } from "@agent-management-platform/views";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
-import type { AgentRegistryEntry } from "@agent-management-platform/types";
-import { agentTypeText, canOpenAgent, useOpenAgent } from "./agentRow";
-import { EnvironmentStatusChips } from "./EnvironmentStatusChips";
-import { LifecycleChip } from "./LifecycleChip";
-import { NoOwnerLabel } from "./NoOwnerLabel";
-import { UnregisteredBadge } from "./UnregisteredBadge";
+import type {
+  AgentRegistryEntry,
+  AgentRegistryRegistration,
+} from "@agent-management-platform/types";
+import { lastDeployedAt, ownerHintText } from "../agentRegistryFilters";
+import { agentTypeText, useOpenAgent } from "./agentRow";
+import { UnknownOwnerLabel } from "./UnknownOwnerLabel";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
-function OwnerCell({ agent }: { agent: AgentRegistryEntry }) {
-  // A shadow agent has no owner yet; show who made it when its platform says.
-  const ownerHint = agent.registration === "unregistered" ? agent.discovery?.ownerHint : undefined;
-  if (ownerHint) {
-    return (
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        noWrap
-        title={ownerHint}
-        sx={{ maxWidth: 150 }}
-      >
-        Owner hint: {ownerHint}
-      </Typography>
-    );
-  }
-  if (!agent.owner) {
-    return (
-      <Typography variant="body2" noWrap>
-        <NoOwnerLabel />
-      </Typography>
-    );
-  }
+/** Avatar, name and one line under it. */
+function AgentCell({ agent, detail }: { agent: AgentRegistryEntry; detail?: string }) {
   return (
-    <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minWidth: 0 }}>
-      {agent.owner.type === "group" && <Users size={14} aria-label="Group" />}
-      <Typography variant="body2" noWrap>
-        {agent.owner.displayName}
-      </Typography>
+    <Stack direction="row" alignItems="center" spacing={2} sx={{ minWidth: 0 }}>
+      <EntityAvatar
+        name={agent.displayName}
+        color="primary.main"
+        shape="circular"
+        size={32}
+        sx={{ flexShrink: 0 }}
+      />
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="body1" noWrap title={agent.displayName} sx={{ maxWidth: 260 }}>
+          {agent.displayName}
+        </Typography>
+        {detail && (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            noWrap
+            component="div"
+            title={detail}
+            sx={{ maxWidth: 260 }}
+          >
+            {detail}
+          </Typography>
+        )}
+      </Box>
     </Stack>
+  );
+}
+
+function TimeText({ value, empty }: { value: string | null | undefined; empty: string }) {
+  return (
+    <Typography variant="body2" color="text.secondary" noWrap>
+      {value ? formatRelativeTime(value) : empty}
+    </Typography>
+  );
+}
+
+/** Registered agents: name, project, owner (the creator) and when it was last deployed. */
+function RegisteredRows({ orgId, agents }: { orgId: string; agents: AgentRegistryEntry[] }) {
+  const openAgent = useOpenAgent(orgId);
+  return (
+    <ListingTable variant="card">
+      <ListingTable.Head>
+        <ListingTable.Row>
+          <ListingTable.Cell>Agent</ListingTable.Cell>
+          <ListingTable.Cell>Project</ListingTable.Cell>
+          <ListingTable.Cell>Created By</ListingTable.Cell>
+          <ListingTable.Cell align="right">Last deployed</ListingTable.Cell>
+        </ListingTable.Row>
+      </ListingTable.Head>
+      <ListingTable.Body>
+        {agents.map((agent) => (
+          <ListingTable.Row
+            key={`${agent.projectName}/${agent.name}`}
+            variant="card"
+            hover
+            clickable
+            onClick={() => openAgent(agent)}
+          >
+            <ListingTable.Cell>
+              <AgentCell agent={agent} detail={agentTypeText(agent)} />
+            </ListingTable.Cell>
+            <ListingTable.Cell>
+              <Typography variant="body2" noWrap>
+                {agent.projectDisplayName}
+              </Typography>
+            </ListingTable.Cell>
+            <ListingTable.Cell>
+              <Typography variant="body2" noWrap>
+                {agent.createdBy ? agent.createdBy.displayName : <UnknownOwnerLabel />}
+              </Typography>
+            </ListingTable.Cell>
+            <ListingTable.Cell align="right">
+              {/* External agents are never deployed by Agent Manager. */}
+              <TimeText
+                value={lastDeployedAt(agent)}
+                empty={agent.hosting === "external" ? "—" : "Never"}
+              />
+            </ListingTable.Cell>
+          </ListingTable.Row>
+        ))}
+      </ListingTable.Body>
+    </ListingTable>
+  );
+}
+
+/** Unregistered (shadow) agents: where they were found and when scans saw them. */
+function UnregisteredRows({ agents }: { agents: AgentRegistryEntry[] }) {
+  return (
+    <ListingTable variant="card">
+      <ListingTable.Head>
+        <ListingTable.Row>
+          <ListingTable.Cell>Agent</ListingTable.Cell>
+          <ListingTable.Cell>Found on</ListingTable.Cell>
+          <ListingTable.Cell>Owner hint</ListingTable.Cell>
+          <ListingTable.Cell align="right">First seen</ListingTable.Cell>
+          <ListingTable.Cell align="right">Last seen</ListingTable.Cell>
+        </ListingTable.Row>
+      </ListingTable.Head>
+      <ListingTable.Body>
+        {agents.map((agent) => (
+          // Not clickable yet: it will open its Shadow Agent Discovery page.
+          <ListingTable.Row key={agent.discovery?.findingId ?? agent.name} variant="card">
+            <ListingTable.Cell>
+              <AgentCell agent={agent} />
+            </ListingTable.Cell>
+            <ListingTable.Cell>
+              <Typography variant="body2" noWrap>
+                {agent.discovery?.providerDisplayName ?? "—"}
+              </Typography>
+              {agent.discovery?.scope && (
+                <Typography variant="caption" color="text.secondary" noWrap component="div">
+                  {agent.discovery.scope}
+                </Typography>
+              )}
+            </ListingTable.Cell>
+            <ListingTable.Cell>
+              {/* The name, else the email; the email shows on hover when both are known. */}
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                noWrap
+                title={agent.discovery?.ownerHint.email}
+              >
+                {ownerHintText(agent.discovery?.ownerHint) ?? "—"}
+              </Typography>
+            </ListingTable.Cell>
+            <ListingTable.Cell align="right">
+              <TimeText value={agent.discovery?.firstSeenAt} empty="—" />
+            </ListingTable.Cell>
+            <ListingTable.Cell align="right">
+              <TimeText value={agent.discovery?.lastSeenAt} empty="—" />
+            </ListingTable.Cell>
+          </ListingTable.Row>
+        ))}
+      </ListingTable.Body>
+    </ListingTable>
   );
 }
 
 export interface AgentRegistryTableProps {
   orgId: string;
+  registration: AgentRegistryRegistration;
   agents: AgentRegistryEntry[];
 }
 
-/** The registry's agents, one row each. A row opens the agent in its project. */
-export function AgentRegistryTable({ orgId, agents }: AgentRegistryTableProps) {
-  const openAgent = useOpenAgent(orgId);
+/** The registry's agents, one row each, with the columns of the chosen registration. */
+export function AgentRegistryTable({ orgId, registration, agents }: AgentRegistryTableProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(ROWS_PER_PAGE_OPTIONS[0]);
 
@@ -85,104 +195,14 @@ export function AgentRegistryTable({ orgId, agents }: AgentRegistryTableProps) {
   );
 
   return (
-    // Wide table: it scrolls inside its own box so the page itself never scrolls sideways.
+    // Scrolls inside its own box on narrow screens, so the page never scrolls sideways.
     <Box sx={{ overflowX: "auto" }}>
-      <Box sx={{ minWidth: 900 }}>
-        <ListingTable variant="card">
-          <ListingTable.Head>
-            <ListingTable.Row>
-              <ListingTable.Cell>Agent</ListingTable.Cell>
-              <ListingTable.Cell>Project</ListingTable.Cell>
-              <ListingTable.Cell>Owner</ListingTable.Cell>
-              <ListingTable.Cell>Lifecycle</ListingTable.Cell>
-              <ListingTable.Cell>Environments</ListingTable.Cell>
-              <ListingTable.Cell align="right">Last activity</ListingTable.Cell>
-            </ListingTable.Row>
-          </ListingTable.Head>
-          <ListingTable.Body>
-            {pageOfAgents.map((agent) => (
-              <ListingTable.Row
-                key={`${agent.projectName}/${agent.name}`}
-                variant="card"
-                hover={canOpenAgent(agent)}
-                clickable={canOpenAgent(agent)}
-                onClick={() => openAgent(agent)}
-              >
-                <ListingTable.Cell>
-                  <Stack direction="row" alignItems="center" spacing={2} sx={{ minWidth: 0 }}>
-                    <EntityAvatar
-                      name={agent.displayName}
-                      color="primary.main"
-                      shape="circular"
-                      size={32}
-                      sx={{ flexShrink: 0 }}
-                    />
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography
-                        variant="body1"
-                        noWrap
-                        title={agent.displayName}
-                        sx={{ maxWidth: 180 }}
-                      >
-                        {agent.displayName}
-                      </Typography>
-                      {/* The badge goes on the second line so the column stays narrow. */}
-                      <Stack direction="row" spacing={0.75} alignItems="center">
-                        {agent.registration === "unregistered" && <UnregisteredBadge />}
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          noWrap
-                          component="div"
-                          title={agentTypeText(agent)}
-                          sx={{ maxWidth: agent.registration === "unregistered" ? 80 : 180 }}
-                        >
-                          {agentTypeText(agent)}
-                        </Typography>
-                      </Stack>
-                    </Box>
-                  </Stack>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Typography
-                    variant="body2"
-                    noWrap
-                    color={agent.projectDisplayName ? "text.primary" : "text.secondary"}
-                  >
-                    {agent.projectDisplayName || "—"}
-                  </Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <OwnerCell agent={agent} />
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  {agent.lifecycleState ? (
-                    <LifecycleChip state={agent.lifecycleState} />
-                  ) : (
-                    // Unregistered agents have no lifecycle until they are onboarded.
-                    <Typography variant="body2" color="text.secondary">
-                      —
-                    </Typography>
-                  )}
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  {agent.registration === "unregistered" ? (
-                    <Typography variant="body2" color="text.secondary">
-                      —
-                    </Typography>
-                  ) : (
-                    <EnvironmentStatusChips environments={agent.environments} />
-                  )}
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right">
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {agent.lastActivityAt ? formatRelativeTime(agent.lastActivityAt) : "Never"}
-                  </Typography>
-                </ListingTable.Cell>
-              </ListingTable.Row>
-            ))}
-          </ListingTable.Body>
-        </ListingTable>
+      <Box sx={{ minWidth: 720 }}>
+        {registration === "registered" ? (
+          <RegisteredRows orgId={orgId} agents={pageOfAgents} />
+        ) : (
+          <UnregisteredRows agents={pageOfAgents} />
+        )}
       </Box>
       {agents.length > ROWS_PER_PAGE_OPTIONS[0] && (
         <TablePagination

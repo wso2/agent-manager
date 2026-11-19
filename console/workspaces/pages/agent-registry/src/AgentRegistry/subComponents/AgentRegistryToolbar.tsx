@@ -34,58 +34,64 @@ import {
   ListFilter,
   X as RemoveIcon,
 } from "@wso2/oxygen-ui-icons-react";
+import type { AgentRegistryRegistration } from "@agent-management-platform/types";
 import {
   ALL,
   type AgentRegistryFilterOptions,
   type AgentRegistryFilters,
   EMPTY_FILTERS,
   type FilterChip,
-  type PanelDraft,
+  PANEL_FILTER_KEYS,
+  type PanelFilters,
   filterChips,
+  withRegistration,
 } from "../agentRegistryFilters";
 import { AgentRegistryFiltersPanel, FILTERS_PANEL_ID } from "./AgentRegistryFiltersPanel";
 
 /** How the list shows agents. */
 export type AgentRegistryView = "table" | "tiles";
 
-function panelDraftOf(filters: AgentRegistryFilters): PanelDraft {
+function panelFiltersOf(filters: AgentRegistryFilters): PanelFilters {
   return {
-    registration: filters.registration,
+    hosting: filters.hosting,
+    interface: filters.interface,
     project: filters.project,
     owner: filters.owner,
     tag: filters.tag,
+    environment: filters.environment,
+    status: filters.status,
     llmProvider: filters.llmProvider,
     mcpServer: filters.mcpServer,
+    foundOn: filters.foundOn,
   };
 }
 
-const EMPTY_PANEL_DRAFT = panelDraftOf(EMPTY_FILTERS);
-
-interface LifecycleToggleProps {
-  value: string;
-  options: AgentRegistryFilterOptions["lifecycleStates"];
-  onChange: (value: string) => void;
+interface RegistrationToggleProps {
+  value: AgentRegistryRegistration;
+  counts: Record<AgentRegistryRegistration, number>;
+  onChange: (value: AgentRegistryRegistration) => void;
 }
 
-/** All, or one lifecycle state; applies straight away. */
-function LifecycleToggle({ value, options, onChange }: LifecycleToggleProps) {
+/**
+ * Registered agents, or shadow agents found outside Agent Manager. One at a time: the
+ * two have almost no fields in common, so they don't share a table.
+ */
+function RegistrationToggle({ value, counts, onChange }: RegistrationToggleProps) {
   return (
     <ToggleButtonGroup
       exclusive
       size="small"
       value={value}
-      aria-label="Lifecycle state"
-      onChange={(_, next: string | null) => {
+      aria-label="Registration"
+      onChange={(_, next: AgentRegistryRegistration | null) => {
         if (next !== null) onChange(next);
       }}
       sx={{ "& .MuiToggleButton-root": { px: 1.75, textTransform: "none" } }}
     >
-      <ToggleButton value={ALL}>All</ToggleButton>
-      {options.map((option) => (
-        <ToggleButton key={option.value} value={option.value}>
-          {option.label}
-        </ToggleButton>
-      ))}
+      <ToggleButton value="registered">Registered ({counts.registered})</ToggleButton>
+      <Tooltip title="Shadow agents: found outside Agent Manager and not onboarded yet">
+        <ToggleButton value="unregistered">Unregistered ({counts.unregistered})</ToggleButton>
+      </Tooltip>
     </ToggleButtonGroup>
   );
 }
@@ -173,15 +179,13 @@ export interface AgentRegistryToolbarProps {
   onChange: (filters: AgentRegistryFilters) => void;
   view: AgentRegistryView;
   onViewChange: (view: AgentRegistryView) => void;
+  counts: Record<AgentRegistryRegistration, number>;
   shownCount: number;
-  totalCount: number;
-  /** Unregistered agents the default registration filter hides; 0 when none are hidden. */
-  hiddenUnregisteredCount: number;
 }
 
 /**
- * First row: search and the lifecycle toggle on the left, Filters and the view toggle
- * on the right. Second row, when anything is filtered: the applied filters as chips.
+ * First row: search and the registration toggle on the left, Filters and the view
+ * toggle on the right. Second row, when anything is filtered: the applied filters as chips.
  */
 export function AgentRegistryToolbar({
   filters,
@@ -189,58 +193,61 @@ export function AgentRegistryToolbar({
   onChange,
   view,
   onViewChange,
+  counts,
   shownCount,
-  totalCount,
-  hiddenUnregisteredCount,
 }: AgentRegistryToolbarProps) {
   const [panelOpen, setPanelOpen] = useState(false);
-  const [draft, setDraft] = useState<PanelDraft>(() => panelDraftOf(filters));
+  const [draft, setDraft] = useState<PanelFilters>(() => panelFiltersOf(filters));
   const [filtersButton, setFiltersButton] = useState<HTMLButtonElement | null>(null);
 
   const chips = filterChips(filters, options);
-  const environmentLabel =
-    filters.environment === ALL
-      ? "any environment"
-      : (options.environments.find((e) => e.value === filters.environment)?.label ??
-        filters.environment);
-  const isAnythingFiltered =
-    chips.length > 0 || filters.lifecycleState !== ALL || filters.search.trim() !== "";
+  const isAnythingFiltered = chips.length > 0 || filters.search.trim() !== "";
 
   /** Opens the panel on the applied filters; an open panel keeps its draft. */
   const openPanel = () => {
     if (panelOpen) return;
-    setDraft(panelDraftOf(filters));
+    setDraft(panelFiltersOf(filters));
     setPanelOpen(true);
   };
-  /** Applies the draft; the panel's Filter button is disabled while registration is null. */
   const applyDraft = () => {
-    if (draft.registration === null) return;
-    onChange({ ...filters, ...draft, registration: draft.registration });
+    onChange({ ...filters, ...draft });
     setPanelOpen(false);
   };
-  /** Puts the chip's filter back to its default: ALL, or registered agents only. */
   const removeChip = (chip: FilterChip) => {
-    const defaultValue = EMPTY_FILTERS[chip.key];
-    onChange({ ...filters, [chip.key]: defaultValue });
-    setDraft((d) => ({ ...d, [chip.key]: defaultValue }));
+    onChange({ ...filters, [chip.key]: ALL });
+    setDraft((d) => ({ ...d, [chip.key]: ALL }));
   };
-  const showUnregistered = () => {
-    onChange({ ...filters, registration: "both" });
-    setDraft((d) => ({ ...d, registration: "both" }));
+  /** Sets this registration's panel filters back to ALL in the draft; Filter applies it. */
+  const resetDraft = () => {
+    const next = { ...draft };
+    for (const key of PANEL_FILTER_KEYS[filters.registration]) next[key] = ALL;
+    setDraft(next);
   };
-  /** Clears search, lifecycle and panel filters. The environment is the page scope, so it stays. */
+  /** Clears search and the panel filters; the registration toggle stays. */
   const clearAll = () => {
-    onChange({ ...EMPTY_FILTERS, environment: filters.environment });
-    setDraft(EMPTY_PANEL_DRAFT);
+    const cleared = { ...EMPTY_FILTERS, registration: filters.registration };
+    onChange(cleared);
+    setDraft(panelFiltersOf(cleared));
+  };
+  /** Switching drops the other registration's filters, which mean nothing here. */
+  const switchRegistration = (registration: AgentRegistryRegistration) => {
+    const next = withRegistration(filters, registration);
+    onChange(next);
+    setDraft(panelFiltersOf(next));
+    setPanelOpen(false);
   };
 
-  const panelFilterCount = chips.length;
+  const total = counts[filters.registration];
 
   return (
     <Stack spacing={1.5}>
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
         <SearchBar
-          placeholder="Search by name, project, owner or tag"
+          placeholder={
+            filters.registration === "registered"
+              ? "Search by name, project, owner or tag"
+              : "Search by name, platform or owner hint"
+          }
           size="small"
           width="standard"
           value={filters.search}
@@ -248,10 +255,10 @@ export function AgentRegistryToolbar({
             onChange({ ...filters, search: e.target.value })
           }
         />
-        <LifecycleToggle
-          value={filters.lifecycleState}
-          options={options.lifecycleStates}
-          onChange={(lifecycleState) => onChange({ ...filters, lifecycleState })}
+        <RegistrationToggle
+          value={filters.registration}
+          counts={counts}
+          onChange={switchRegistration}
         />
         <Box sx={{ flexGrow: 1 }} />
         <Button
@@ -264,27 +271,10 @@ export function AgentRegistryToolbar({
           onClick={() => (panelOpen ? setPanelOpen(false) : openPanel())}
           sx={{ textTransform: "none", borderColor: "divider" }}
         >
-          {panelFilterCount > 0 ? `Filters (${panelFilterCount})` : "Filters"}
+          {chips.length > 0 ? `Filters (${chips.length})` : "Filters"}
         </Button>
         <ViewToggle value={view} onChange={onViewChange} />
       </Stack>
-
-      {/* Hidden by default, so say so: otherwise people take the list as complete. */}
-      {hiddenUnregisteredCount > 0 && (
-        <Typography variant="body2" color="text.secondary">
-          {hiddenUnregisteredCount === 1
-            ? "1 unregistered agent found outside Agent Manager is not shown."
-            : `${hiddenUnregisteredCount} unregistered agents found outside Agent Manager are not shown.`}{" "}
-          <Button
-            variant="text"
-            size="small"
-            onClick={showUnregistered}
-            sx={{ p: 0, minWidth: 0, verticalAlign: "baseline" }}
-          >
-            Show
-          </Button>
-        </Typography>
-      )}
 
       {isAnythingFiltered && (
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
@@ -301,7 +291,7 @@ export function AgentRegistryToolbar({
           </Button>
           <Box sx={{ flexGrow: 1 }} />
           <Typography variant="body2" color="text.secondary">
-            Showing {shownCount} of {totalCount} agents
+            Showing {shownCount} of {total} agents
           </Typography>
         </Stack>
       )}
@@ -309,11 +299,11 @@ export function AgentRegistryToolbar({
       {panelOpen && filtersButton && (
         <AgentRegistryFiltersPanel
           anchorEl={filtersButton}
+          registration={filters.registration}
           draft={draft}
           options={options}
-          environmentLabel={environmentLabel}
           onDraftChange={setDraft}
-          onReset={() => setDraft(EMPTY_PANEL_DRAFT)}
+          onReset={resetDraft}
           onApply={applyDraft}
           onClose={() => setPanelOpen(false)}
         />

@@ -21,13 +21,15 @@ import type {
   AgentRegistryEnvironment,
   AgentRegistryListResponse,
   AgentRegistryResourceRef,
+  GetAgentRegistryEntryPathParams,
   ListAgentRegistryPathParams,
 } from "@agent-management-platform/types";
 
 // SAMPLE DATA. The registry API (GET /orgs/{org}/agents with registry fields,
 // issue #78) does not exist yet. Unregistered agents will come from Shadow Agent
-// Discovery (issue #71). When it does, replace the body of
-// listAgentRegistry with an httpGET call and delete the sample data below.
+// Discovery (issue #71). When it does, replace the bodies of listAgentRegistry
+// and getAgentRegistryEntry with httpGET calls and delete the sample data below.
+// "createdBy" stands in for the owner: owners do not exist yet.
 
 const LLM = {
   openai: { id: "openai-gpt", displayName: "OpenAI GPT" },
@@ -51,12 +53,18 @@ function dev(
   status: AgentRegistryEnvironment["deploymentStatus"],
   llmProviders: AgentRegistryResourceRef[],
   mcpServers: AgentRegistryResourceRef[],
+  deployedMinutesAgo?: number,
 ): AgentRegistryEnvironment {
   return {
     name: "development",
     displayName: "Development",
     isProduction: false,
     deploymentStatus: status,
+    // External agents pass no time: Agent Manager never deploys them.
+    lastDeployedAt:
+      status === "not-deployed" || deployedMinutesAgo === undefined
+        ? null
+        : minutesAgo(deployedMinutesAgo),
     llmProviders,
     mcpServers,
   };
@@ -66,12 +74,18 @@ function prod(
   status: AgentRegistryEnvironment["deploymentStatus"],
   llmProviders: AgentRegistryResourceRef[],
   mcpServers: AgentRegistryResourceRef[],
+  deployedMinutesAgo?: number,
 ): AgentRegistryEnvironment {
   return {
     name: "production",
     displayName: "Production",
     isProduction: true,
     deploymentStatus: status,
+    // External agents pass no time: Agent Manager never deploys them.
+    lastDeployedAt:
+      status === "not-deployed" || deployedMinutesAgo === undefined
+        ? null
+        : minutesAgo(deployedMinutesAgo),
     llmProviders,
     mcpServers,
   };
@@ -88,15 +102,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       projectDisplayName: "Travel",
       hosting: "platform",
       interface: "a2a-agent",
-      owner: { type: "group", id: "g-travel", displayName: "Travel platform team" },
-      lifecycleState: "active",
-      visibility: "org",
+      createdBy: { id: "u-sanduni", displayName: "Sanduni Jayasuriya" },
       labels: { team: "travel", "data-class": "confidential" },
       environments: [
-        dev("active", [LLM.openai], [MCP.hotels, MCP.payments]),
-        prod("active", [LLM.openai], [MCP.hotels, MCP.payments]),
+        dev("active", [LLM.openai], [MCP.hotels, MCP.payments], 1200),
+        prod("active", [LLM.openai], [MCP.hotels, MCP.payments], 2880),
       ],
-      lastActivityAt: minutesAgo(12),
       createdAt: minutesAgo(60 * 24 * 120),
     },
     {
@@ -110,15 +121,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       interface: "custom-api",
       kindName: "policy-checker",
       kindVersion: "1.2.0",
-      owner: { type: "user", id: "u-nimal", displayName: "Nimal Perera" },
-      lifecycleState: "active",
-      visibility: "project",
+      createdBy: { id: "u-nimal", displayName: "Nimal Perera" },
       labels: { team: "finance" },
       environments: [
-        dev("active", [LLM.azure], [MCP.payments]),
-        prod("active", [LLM.azure], [MCP.payments]),
+        dev("active", [LLM.azure], [MCP.payments], 300),
+        prod("active", [LLM.azure], [MCP.payments], 8640),
       ],
-      lastActivityAt: minutesAgo(60 * 3),
       createdAt: minutesAgo(60 * 24 * 90),
     },
     {
@@ -130,15 +138,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       projectDisplayName: "Finance",
       hosting: "external",
       interface: "custom-api",
-      owner: null,
-      lifecycleState: "active",
-      visibility: "project",
+      createdBy: null,
       labels: {},
       environments: [
         dev("active", [LLM.anthropic], []),
         prod("active", [LLM.anthropic], []),
       ],
-      lastActivityAt: minutesAgo(60 * 24 * 41),
       createdAt: minutesAgo(60 * 24 * 200),
     },
     {
@@ -150,15 +155,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       projectDisplayName: "Customer support",
       hosting: "platform",
       interface: "chat-api",
-      owner: { type: "group", id: "g-support", displayName: "Support engineering" },
-      lifecycleState: "active",
-      visibility: "org",
+      createdBy: { id: "u-ravindu", displayName: "Ravindu Wickramasinghe" },
       labels: { team: "support", channel: "web" },
       environments: [
-        dev("active", [LLM.anthropic], [MCP.jira]),
-        prod("active", [LLM.anthropic], [MCP.jira]),
+        dev("active", [LLM.anthropic], [MCP.jira], 120),
+        prod("active", [LLM.anthropic], [MCP.jira], 1440),
       ],
-      lastActivityAt: minutesAgo(2),
       createdAt: minutesAgo(60 * 24 * 300),
     },
     {
@@ -170,15 +172,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       projectDisplayName: "Customer support",
       hosting: "platform",
       interface: "custom-api",
-      owner: { type: "user", id: "u-amaya", displayName: "Amaya Silva" },
-      lifecycleState: "deprecated",
-      visibility: "project",
+      createdBy: { id: "u-amaya", displayName: "Amaya Silva" },
       labels: { team: "support" },
       environments: [
-        dev("suspended", [LLM.openai], [MCP.jira]),
-        prod("active", [LLM.openai], [MCP.jira]),
+        dev("suspended", [LLM.openai], [MCP.jira], 43200),
+        prod("active", [LLM.openai], [MCP.jira], 57600),
       ],
-      lastActivityAt: minutesAgo(60 * 26),
       createdAt: minutesAgo(60 * 24 * 400),
     },
     {
@@ -190,15 +189,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       projectDisplayName: "Customer support",
       hosting: "platform",
       interface: "chat-api",
-      owner: { type: "group", id: "g-support", displayName: "Support engineering" },
-      lifecycleState: "retired",
-      visibility: "project",
+      createdBy: { id: "u-ravindu", displayName: "Ravindu Wickramasinghe" },
       labels: { team: "support" },
       environments: [
         dev("not-deployed", [], []),
-        prod("suspended", [LLM.openai], []),
+        prod("suspended", [LLM.openai], [], 172800),
       ],
-      lastActivityAt: minutesAgo(60 * 24 * 95),
       createdAt: minutesAgo(60 * 24 * 600),
     },
     {
@@ -212,15 +208,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       interface: "a2a-agent",
       kindName: "reviewer",
       kindVersion: "0.4.1",
-      owner: { type: "user", id: "u-kasun", displayName: "Kasun Fernando" },
-      lifecycleState: "draft",
-      visibility: "project",
+      createdBy: { id: "u-kasun", displayName: "Kasun Fernando" },
       labels: { team: "devex" },
       environments: [
-        dev("in-progress", [LLM.anthropic], [MCP.github]),
+        dev("in-progress", [LLM.anthropic], [MCP.github], 30),
         prod("not-deployed", [], []),
       ],
-      lastActivityAt: null,
       createdAt: minutesAgo(60 * 5),
     },
     {
@@ -232,15 +225,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       projectDisplayName: "Engineering",
       hosting: "external",
       interface: "a2a-agent",
-      owner: null,
-      lifecycleState: "active",
-      visibility: "org",
+      createdBy: null,
       labels: { team: "devex" },
       environments: [
         dev("active", [LLM.openai], [MCP.github, MCP.jira]),
         prod("active", [LLM.openai], [MCP.github, MCP.jira]),
       ],
-      lastActivityAt: minutesAgo(60 * 8),
       createdAt: minutesAgo(60 * 24 * 30),
     },
     {
@@ -252,15 +242,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       projectDisplayName: "HR",
       hosting: "platform",
       interface: "chat-api",
-      owner: { type: "group", id: "g-hr", displayName: "People systems" },
-      lifecycleState: "active",
-      visibility: "project",
+      createdBy: { id: "u-tharushi", displayName: "Tharushi Fernando" },
       labels: { team: "hr", "data-class": "personal" },
       environments: [
-        dev("active", [LLM.azure], [MCP.hr]),
-        prod("failed", [LLM.azure], [MCP.hr]),
+        dev("active", [LLM.azure], [MCP.hr], 180),
+        prod("failed", [LLM.azure], [MCP.hr], 540),
       ],
-      lastActivityAt: minutesAgo(45),
       createdAt: minutesAgo(60 * 24 * 60),
     },
     {
@@ -272,15 +259,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       projectDisplayName: "HR",
       hosting: "platform",
       interface: "chat-api",
-      owner: null,
-      lifecycleState: "draft",
-      visibility: "project",
+      createdBy: null,
       labels: { team: "hr", "data-class": "personal" },
       environments: [
-        dev("failed", [LLM.azure], [MCP.hr, MCP.payments]),
+        dev("failed", [LLM.azure], [MCP.hr, MCP.payments], 1440),
         prod("not-deployed", [], []),
       ],
-      lastActivityAt: null,
       createdAt: minutesAgo(60 * 24 * 2),
     },
     // Unregistered: shadow agents that Shadow Agent Discovery found outside Agent Manager.
@@ -293,20 +277,19 @@ function sampleAgents(): AgentRegistryEntry[] {
         provider: "openai",
         providerDisplayName: "OpenAI",
         scope: "proj_customer-success",
-        ownerHint: "dilini@example.com",
+        ownerHint: { name: "Dilini Rajapaksha", email: "dilini@example.com" },
         firstSeenAt: minutesAgo(60 * 24 * 20),
         lastSeenAt: minutesAgo(60 * 6),
+        present: true,
+        onboarded: false,
       },
       projectName: "",
       projectDisplayName: "",
       hosting: "external",
       interface: null,
-      owner: null,
-      lifecycleState: null,
-      visibility: "project",
+      createdBy: null,
       labels: {},
       environments: [],
-      lastActivityAt: minutesAgo(60 * 6),
       createdAt: minutesAgo(60 * 24 * 20),
     },
     {
@@ -318,19 +301,20 @@ function sampleAgents(): AgentRegistryEntry[] {
         provider: "bedrock",
         providerDisplayName: "Amazon Bedrock",
         scope: "us-east-1",
+        // Bedrock's listing doesn't say who created it.
+        ownerHint: {},
         firstSeenAt: minutesAgo(60 * 24 * 3),
         lastSeenAt: minutesAgo(60 * 6),
+        present: true,
+        onboarded: false,
       },
       projectName: "",
       projectDisplayName: "",
       hosting: "external",
       interface: null,
-      owner: null,
-      lifecycleState: null,
-      visibility: "project",
+      createdBy: null,
       labels: {},
       environments: [],
-      lastActivityAt: minutesAgo(60 * 6),
       createdAt: minutesAgo(60 * 24 * 3),
     },
     {
@@ -341,22 +325,71 @@ function sampleAgents(): AgentRegistryEntry[] {
         findingId: "f-google-1",
         provider: "google",
         providerDisplayName: "Google Vertex AI",
-        scope: "marketing-prod / europe-west1",
-        ownerHint: "Marketing ops",
+        scope: "projects/marketing-prod/locations/europe-west1",
+        ownerHint: { email: "marketing-ops@example.com" },
         firstSeenAt: minutesAgo(60 * 24 * 45),
         lastSeenAt: minutesAgo(60 * 30),
+        present: true,
+        onboarded: false,
       },
       projectName: "",
       projectDisplayName: "",
       hosting: "external",
       interface: null,
-      owner: null,
-      lifecycleState: null,
-      visibility: "project",
+      createdBy: null,
       labels: {},
       environments: [],
-      lastActivityAt: minutesAgo(60 * 30),
       createdAt: minutesAgo(60 * 24 * 45),
+    },
+    // Two findings the registry must not list: one onboarded (it is now the
+    // registered external agent "Invoice reader"), and one its platform no longer lists.
+    {
+      name: "invoice-reader-openai",
+      displayName: "Invoice reader (OpenAI)",
+      registration: "unregistered",
+      discovery: {
+        findingId: "f-openai-2",
+        provider: "openai",
+        providerDisplayName: "OpenAI",
+        scope: "proj_finance",
+        ownerHint: { email: "finance-dev@example.com" },
+        firstSeenAt: minutesAgo(60 * 24 * 210),
+        lastSeenAt: minutesAgo(60 * 4),
+        present: true,
+        onboarded: true,
+      },
+      projectName: "",
+      projectDisplayName: "",
+      hosting: "external",
+      interface: null,
+      createdBy: null,
+      labels: {},
+      environments: [],
+      createdAt: minutesAgo(60 * 24 * 210),
+    },
+    {
+      name: "old-faq-bot",
+      displayName: "Old FAQ bot",
+      registration: "unregistered",
+      discovery: {
+        findingId: "f-google-2",
+        provider: "google",
+        providerDisplayName: "Google Vertex AI",
+        scope: "projects/support-sandbox/locations/us-central1",
+        ownerHint: {},
+        firstSeenAt: minutesAgo(60 * 24 * 90),
+        lastSeenAt: minutesAgo(60 * 24 * 12),
+        present: false,
+        onboarded: false,
+      },
+      projectName: "",
+      projectDisplayName: "",
+      hosting: "external",
+      interface: null,
+      createdBy: null,
+      labels: {},
+      environments: [],
+      createdAt: minutesAgo(60 * 24 * 90),
     },
   ];
 }
@@ -370,4 +403,22 @@ export async function listAgentRegistry(
   void params;
   void getToken;
   return { agents: sampleAgents() };
+}
+
+/**
+ * One registered agent's registry record, or null when there is no such agent.
+ * Returns sample data for now.
+ */
+export async function getAgentRegistryEntry(
+  params: GetAgentRegistryEntryPathParams,
+  getToken?: () => Promise<string>,
+): Promise<AgentRegistryEntry | null> {
+  void getToken;
+  const agent = sampleAgents().find(
+    (a) =>
+      a.registration === "registered" &&
+      a.projectName === params.projName &&
+      a.name === params.agentName,
+  );
+  return agent ?? null;
 }

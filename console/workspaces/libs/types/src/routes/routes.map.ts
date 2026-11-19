@@ -299,7 +299,15 @@ export const rootRouteMap: AppRoute = {
                 agentRegistry: {
                     path: 'agent-registry',
                     index: true,
-                    children: {},
+                    children: {
+                        // Own param names: the layout reads :projectId and :agentId to
+                        // show the project and agent menus, which this org page must not.
+                        agent: {
+                            path: 'projects/:registryProjectId/agents/:registryAgentId',
+                            index: true,
+                            children: {},
+                        },
+                    },
                 },
                 newProject: {
                     path: 'newProject',

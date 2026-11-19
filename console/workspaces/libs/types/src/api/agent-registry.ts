@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { OrgPathParams } from './common';
+import type { AgentPathParams, OrgPathParams } from './common';
 
 // Org-level agent registry (product-management issue #78). The backend API does
 // not exist yet; these shapes are what the console expects it to return.
@@ -27,12 +27,6 @@ export type AgentRegistryHosting = 'platform' | 'external';
 /** How callers talk to the agent. Same values as the agent sub-type. */
 export type AgentRegistryInterface = 'a2a-agent' | 'custom-api' | 'chat-api';
 
-/** The agent's place in its life, set by its owner. */
-export type AgentRegistryLifecycleState = 'draft' | 'active' | 'deprecated' | 'retired';
-
-/** Who can see the agent: its project's users only, or everyone in the organization. */
-export type AgentRegistryVisibility = 'project' | 'org';
-
 /** Deployment status of the agent in one environment. */
 export type AgentRegistryDeploymentStatus =
   | 'not-deployed'
@@ -41,9 +35,11 @@ export type AgentRegistryDeploymentStatus =
   | 'failed'
   | 'suspended';
 
-/** The user or group that owns the agent. */
-export interface AgentRegistryOwner {
-  type: 'user' | 'group';
+/**
+ * The user who created the agent, which the registry shows as its owner until owners
+ * exist. Same data as AgentResponse.createdBy (resolved from the AgentID record).
+ */
+export interface AgentRegistryCreatedBy {
   id: string;
   displayName: string;
 }
@@ -60,6 +56,8 @@ export interface AgentRegistryEnvironment {
   displayName: string;
   isProduction: boolean;
   deploymentStatus: AgentRegistryDeploymentStatus;
+  /** Null when the agent was never deployed here. Platform agents only. */
+  lastDeployedAt: string | null;
   llmProviders: AgentRegistryResourceRef[];
   mcpServers: AgentRegistryResourceRef[];
 }
@@ -71,21 +69,34 @@ export interface AgentRegistryEnvironment {
  */
 export type AgentRegistryRegistration = 'registered' | 'unregistered';
 
+/** Who created a shadow agent, as its platform's listing reports it. Same as ShadowOwnerHint. */
+export interface AgentRegistryOwnerHint {
+  name?: string;
+  email?: string;
+}
+
 /**
- * Where Shadow Agent Discovery found an unregistered agent. Field names follow
- * ShadowFindingSummary on the shadow-agent-registry branch.
+ * The fields of a Shadow Agent Discovery finding the registry uses. Names follow
+ * ShadowFindingSummary on the shadow-agent-registry branch (findingId is its id).
  */
 export interface AgentRegistryDiscovery {
   findingId: string;
   /** The platform, e.g. "openai" or "bedrock". */
   provider: string;
+  /** Not on the finding: the platform's name from the discovery provider list. */
   providerDisplayName: string;
   /** Where the agent lives at the platform (project, workspace, region or location). */
   scope: string;
-  /** Who created it, only when the platform's listing says so. */
-  ownerHint?: string;
+  /** Who created it, only when the platform's listing says so; may be empty. */
+  ownerHint: AgentRegistryOwnerHint;
+  /** When a scan first found the agent. */
   firstSeenAt: string;
+  /** The latest scan that still found it. */
   lastSeenAt: string;
+  /** False once a complete listing of its connection no longer returns the agent. */
+  present: boolean;
+  /** True once it is onboarded as an external agent, which then lists it as registered. */
+  onboarded: boolean;
 }
 
 /** One row of the registry: one agent, from any project, or one found outside Agent Manager. */
@@ -104,19 +115,11 @@ export interface AgentRegistryEntry {
   interface: AgentRegistryInterface | null;
   kindName?: string;
   kindVersion?: string;
-  /** Null when no owner has been set. Always null for unregistered agents. */
-  owner: AgentRegistryOwner | null;
-  /** Null for unregistered agents: lifecycle is set when an agent is onboarded. */
-  lifecycleState: AgentRegistryLifecycleState | null;
-  visibility: AgentRegistryVisibility;
+  /** Null when it could not be resolved (older agents). Always null for unregistered agents. */
+  createdBy: AgentRegistryCreatedBy | null;
   labels: Record<string, string>;
   /** Empty for unregistered agents. */
   environments: AgentRegistryEnvironment[];
-  /**
-   * Time of the agent's latest trace, or for an unregistered agent the last time a
-   * scan saw it. Null when a registered agent has never been called.
-   */
-  lastActivityAt: string | null;
   createdAt: string;
 }
 
@@ -125,3 +128,6 @@ export interface AgentRegistryListResponse {
 }
 
 export type ListAgentRegistryPathParams = OrgPathParams;
+
+/** One registered agent's registry record, for the org-level agent overview page. */
+export type GetAgentRegistryEntryPathParams = AgentPathParams;

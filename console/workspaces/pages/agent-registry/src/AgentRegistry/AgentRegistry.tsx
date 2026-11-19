@@ -25,12 +25,12 @@ import { ResourceListShell } from "@agent-management-platform/shared-component";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   type AgentRegistryFilters,
-  EMPTY_FILTERS,
   buildFilterOptions,
+  countByRegistration,
   filterAgents,
   filtersFromSearchParams,
   filtersToSearchParams,
-  hiddenUnregisteredCount,
+  isFiltered,
 } from "./agentRegistryFilters";
 import { AgentRegistryTable } from "./subComponents/AgentRegistryTable";
 import { AgentRegistryTiles } from "./subComponents/AgentRegistryTiles";
@@ -38,7 +38,6 @@ import {
   AgentRegistryToolbar,
   type AgentRegistryView,
 } from "./subComponents/AgentRegistryToolbar";
-import { FilterSelect } from "./subComponents/FilterSelect";
 
 const VIEW_PARAM = "view";
 
@@ -82,28 +81,14 @@ export function AgentRegistry() {
   const agents = useMemo(() => data?.agents ?? [], [data?.agents]);
   const filterOptions = useMemo(() => buildFilterOptions(agents), [agents]);
   const shownAgents = useMemo(() => filterAgents(agents, filters), [agents, filters]);
-  // "Showing X of Y" counts only the agents the registration choice lets in, so
-  // hidden shadow agents don't make the list look filtered when it isn't.
-  const inScopeCount = useMemo(
-    () => filterAgents(agents, { ...EMPTY_FILTERS, registration: filters.registration }).length,
-    [agents, filters.registration],
-  );
+  const counts = useMemo(() => countByRegistration(agents), [agents]);
+  // With nothing filtered, an empty Unregistered list means discovery found nothing.
+  const noShadowAgents = filters.registration === "unregistered" && !isFiltered(filters);
 
   return (
     <PageLayout
       title="Agent Registry"
       avatar={null}
-      actions={
-        agents.length > 0 && (
-          <FilterSelect
-            allLabel="All environments"
-            ariaLabel="Environment"
-            value={filters.environment}
-            options={filterOptions.environments}
-            onChange={(environment) => setFilters({ ...filters, environment })}
-          />
-        )
-      }
     >
       <ResourceListShell
         resourceName="agent-registry"
@@ -116,9 +101,8 @@ export function AgentRegistry() {
             onChange={setFilters}
             view={view}
             onViewChange={setView}
+            counts={counts}
             shownCount={shownAgents.length}
-            totalCount={inScopeCount}
-            hiddenUnregisteredCount={hiddenUnregisteredCount(agents, filters)}
           />
         }
         error={error}
@@ -131,16 +115,29 @@ export function AgentRegistry() {
           title: "No agents yet",
           description: "Agents created or registered in any project of this organization appear here.",
         }}
-        searchEmptyState={{
-          illustration: <Bot size={64} />,
-          title: "No agents match",
-          description: "No agents match the search and filters. Change or clear the filters.",
-        }}
+        searchEmptyState={
+          noShadowAgents
+            ? {
+                illustration: <Bot size={64} />,
+                title: "No unregistered agents",
+                description:
+                  "Shadow Agent Discovery has not found any agents outside Agent Manager.",
+              }
+            : {
+                illustration: <Bot size={64} />,
+                title: "No agents match",
+                description: "No agents match the search and filters. Change or clear the filters.",
+              }
+        }
       >
         {view === "tiles" ? (
           <AgentRegistryTiles orgId={orgId} agents={shownAgents} />
         ) : (
-          <AgentRegistryTable orgId={orgId} agents={shownAgents} />
+          <AgentRegistryTable
+            orgId={orgId}
+            registration={filters.registration}
+            agents={shownAgents}
+          />
         )}
       </ResourceListShell>
     </PageLayout>
