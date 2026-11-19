@@ -630,7 +630,7 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 			return err
 		}
 		for _, s := range steps {
-			if err := h.schemaReady(tx, s.Module); err != nil {
+			if err := h.schemaReady(ctx, tx, s.Module); err != nil {
 				return err
 			}
 			if _, err := setState(tx, s.Module, h.manifests[s.Module].Version, StateActive); err != nil {
@@ -672,7 +672,7 @@ func (h *Host) Enable(ctx context.Context, name string) error {
 		if _, err := Plan(name, h.manifests, states, false); err != nil {
 			return err
 		}
-		if err := h.schemaReady(tx, name); err != nil {
+		if err := h.schemaReady(ctx, tx, name); err != nil {
 			return err
 		}
 		if err := dropDeliveries(tx, name, dbx.Now().Add(-EventRetention)); err != nil {

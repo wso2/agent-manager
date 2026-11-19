@@ -33,6 +33,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
@@ -41,6 +42,8 @@ type migration struct {
 	Version    string
 	Statements []string
 	Checksum   string
+	// body is an external schema file, applied by its store as it is.
+	body []byte
 }
 
 // migrationFile is the name every module migration has: a three-digit version,
@@ -132,10 +135,18 @@ func pending(db *gorm.DB, module string, ms []migration) ([]migration, error) {
 		return nil, fmt.Errorf("reading module migrations: %w", err)
 	}
 	applied := map[string]string{}
-	last := ""
 	for _, r := range rows {
 		applied[r.Version] = r.Checksum
-		last = max(last, r.Version)
+	}
+	return pendingFrom("module "+module+" migration", applied, ms)
+}
+
+// pendingFrom returns the migrations in ms not in applied (version to
+// checksum), with pending's refusals; what names a migration in errors.
+func pendingFrom(what string, applied map[string]string, ms []migration) ([]migration, error) {
+	last := ""
+	for v := range applied {
+		last = max(last, v)
 	}
 	known := map[string]bool{}
 	var out []migration
@@ -144,17 +155,17 @@ func pending(db *gorm.DB, module string, ms []migration) ([]migration, error) {
 		sum, ok := applied[m.Version]
 		switch {
 		case ok && sum != m.Checksum:
-			return nil, fmt.Errorf("module %s migration %s changed after it was applied; add a new migration instead", module, m.Version)
+			return nil, fmt.Errorf("%s %s changed after it was applied; add a new migration instead", what, m.Version)
 		case ok:
 		case m.Version < last:
-			return nil, fmt.Errorf("module %s migration %s sorts before the applied migration %s; give it a later number", module, m.Version, last)
+			return nil, fmt.Errorf("%s %s sorts before the applied migration %s; give it a later number", what, m.Version, last)
 		default:
 			out = append(out, m)
 		}
 	}
 	for _, v := range slices.Sorted(maps.Keys(applied)) {
 		if !known[v] {
-			return nil, fmt.Errorf("module %s migration %s is applied but not part of this binary; the database is newer than this build", module, v)
+			return nil, fmt.Errorf("%s %s is applied but not part of this binary; the database is newer than this build", what, v)
 		}
 	}
 	return out, nil
@@ -165,6 +176,18 @@ type MigrationResult struct {
 	Module  string `json:"module"`
 	Applied int    `json:"applied"`
 	Total   int    `json:"total"`
+	// External is what Migrate did for the module's external store, if it
+	// has one.
+	External *ExternalResult `json:"external,omitempty"`
+}
+
+// ExternalResult is what Migrate did for one module's external store.
+type ExternalResult struct {
+	Store   string `json:"store,omitempty"`
+	Applied int    `json:"applied"`
+	Total   int    `json:"total"`
+	// Skipped says why nothing was done, when the store is not configured.
+	Skipped string `json:"skipped,omitempty"`
 }
 
 // Migrate applies the pending migrations of every compiled-in module,
@@ -174,7 +197,8 @@ type MigrationResult struct {
 //
 // Each module migrates in its own transaction, so a failing module leaves
 // nothing of itself half-applied. It also moves installed modules' recorded
-// version to the compiled one.
+// version to the compiled one. Then it applies the module's external schema
+// (modkit.ExternalMigrator), if any.
 func (h *Host) Migrate(ctx context.Context) ([]MigrationResult, error) {
 	if err := h.checkCoreTables(); err != nil {
 		return nil, err
@@ -184,6 +208,11 @@ func (h *Host) Migrate(ctx context.Context) ([]MigrationResult, error) {
 		r, err := h.migrateModule(ctx, name)
 		if err != nil {
 			return out, err
+		}
+		if _, ok := h.mods[name].(modkit.ExternalMigrator); ok {
+			if r.External, err = h.migrateExternal(ctx, name); err != nil {
+				return out, err
+			}
 		}
 		out = append(out, r)
 	}
@@ -288,9 +317,10 @@ func (h *Host) checkCoreTables() error {
 	return nil
 }
 
-// schemaReady is the install/enable precondition: the module's migrations
-// must already have been applied by Migrate.
-func (h *Host) schemaReady(tx *gorm.DB, name string) error {
+// schemaReady is the install/enable precondition: the module's migrations,
+// and its external schema when its store is configured, must already have
+// been applied by Migrate.
+func (h *Host) schemaReady(ctx context.Context, tx *gorm.DB, name string) error {
 	ms, err := loadMigrations(name, h.driver, h.mods[name].Migrations())
 	if err != nil {
 		return err
@@ -305,5 +335,5 @@ func (h *Host) schemaReady(tx *gorm.DB, name string) error {
 			Hint: "run `amp migrate` with this binary first; module tables are created at migrate time, not at install",
 		}
 	}
-	return nil
+	return h.externalReady(ctx, name)
 }
