@@ -276,6 +276,16 @@ func (c *UpstreamCredential) Open(ctx context.Context) (string, error) {
 	return string(value), err
 }
 
+// OpenAsStored is Open for an owner that hands the store a form it encrypted itself: a row written before the vault
+// existed is returned as it is. It opens the snapshot's own row, so a locally sealed snapshot never reaches an
+// external vault even if the row has been promoted since.
+func (c *UpstreamCredential) OpenAsStored(ctx context.Context) (string, error) {
+	if c.row.KeyID == nil && c.row.ExternalRef == nil {
+		return string(c.row.Ciphertext), nil
+	}
+	return c.Open(ctx)
+}
+
 // LockVersion keeps the rendered credential current until the deployment commits.
 func (c *UpstreamCredential) LockVersion(ctx context.Context, tx *gorm.DB) error {
 	return dbx.LockRow(tx.WithContext(ctx), models.Secret{}.TableName(), "version", "id = ? AND version = ?", c.row.ID, c.row.Version)

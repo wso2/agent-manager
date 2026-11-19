@@ -131,7 +131,8 @@ func (r *a2aProxyRepository) loadSecret(ctx context.Context, db *gorm.DB, row *m
 		row.UpstreamAuthExternal = externalSecret{snapshot}
 		return nil
 	}
-	row.UpstreamAuthSecret, err = r.secrets.GetAsStored(db, row.UpstreamAuthSecretID)
+	// Open the row as classified: reading it again could find it promoted and open the external vault here.
+	row.UpstreamAuthSecret, err = snapshot.OpenAsStored(ctx)
 	return err
 }
 

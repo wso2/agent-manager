@@ -164,9 +164,13 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 		return gorm.ErrRecordNotFound
 	}
 	db := tx.WithContext(ctx)
+	// Lock the endpoint before reading its secret id, so a concurrent update or delete reads this one's result.
+	if err := lockEndpoint(db, endpoint.UUID); err != nil {
+		return err
+	}
 	var stored models.MCPProxyEndpoint
 	if err := db.Select("id", "org_id", "upstream_secret_id").Where("id = ?", endpoint.UUID).Take(&stored).Error; err != nil {
-		return err
+		return fmt.Errorf("failed to read MCP proxy endpoint: %w", err)
 	}
 	secretID, restore, err := r.saveUpstreamCredential(db, endpoint, stored.OrgID, stored.UpstreamSecretID)
 	if err != nil {
@@ -199,11 +203,12 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 
 func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, keepSecrets ...uuid.UUID) error {
 	db := tx.WithContext(ctx)
+	// Lock the endpoint before reading its secret id, so the release below sees what a concurrent update committed.
+	if err := lockEndpoint(db, endpointUUID); err != nil {
+		return err
+	}
 	var stored models.MCPProxyEndpoint
 	if err := db.Select("id", "upstream_secret_id").Where("id = ?", endpointUUID).Take(&stored).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
 		return fmt.Errorf("failed to read MCP proxy endpoint: %w", err)
 	}
 	result := db.Where("id = ?", endpointUUID).Delete(&models.MCPProxyEndpoint{})
@@ -219,6 +224,15 @@ func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gor
 		}
 	}
 	return nil
+}
+
+// lockEndpoint locks an endpoint row for the rest of tx; a missing endpoint is gorm.ErrRecordNotFound.
+func lockEndpoint(db *gorm.DB, id uuid.UUID) error {
+	err := dbx.LockRow(db, models.MCPProxyEndpoint{}.TableName(), "status", "id = ?", id)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("failed to lock MCP proxy endpoint %s: %w", id, err)
+	}
+	return err
 }
 
 func (r *mcpProxyEndpointRepository) GetEndpoint(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error) {
