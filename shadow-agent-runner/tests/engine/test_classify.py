@@ -111,6 +111,20 @@ def test_external_ids_are_unique_and_deterministic() -> None:
     assert [f.external_id for f in _classify(*reversed(files))] == ids
 
 
+def test_one_agent_per_branch_of_a_conditional_gets_no_repeat_number() -> None:
+    source = (
+        "from langchain.agents import create_agent\n"
+        "if is_fast_api:\n    graph = create_agent(model=m, checkpointer=memory)\n"
+        "else:\n    graph = create_agent(model=m)\n"
+        "agent = create_agent(model=m)\nagent = create_agent(model=n)\n"
+    )
+    assert [(f.external_id, f.line) for f in _classify(_file("agent.py", source))] == [
+        ("support-bot:agent.py:graph", 3),
+        ("support-bot:agent.py:agent", 6),
+        ("support-bot:agent.py:agent@2", 7),
+    ]
+
+
 def test_a_repeat_skips_a_number_already_taken() -> None:
     source = "from crewai import Agent\nAgent(name='x@2')\nx = Agent()\nx = Agent()\n"
     assert [f.external_id for f in _classify(_file("a.py", source))] == [

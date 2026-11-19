@@ -25,7 +25,12 @@ to (``support = Agent(...)``, or the attribute in ``self.support = Agent(...)``)
 subclass; the nearest enclosing function (``def researcher(self): return Agent(...)``, the CrewAI
 template); else ``<framework>-agent``. No name holds a line number, so adding code above an agent never
 renames it. ``Match.named`` tells a ``name=`` literal apart; ``naming`` decides the name the agent is shown
-with, which replaces a weak name (``agent``, ``graph``, ``build_agent``) by the project's name.
+with, which replaces a weak name (``agent``, ``graph``, ``build_agent``) by the project's name. An assignment is
+seen through a conditional expression (``graph = A() if fast else B()``).
+
+Matches of one framework named after the same variable in one scope, in different branches of an ``if``,
+``try``/``except``, ``match`` or conditional expression, are one agent: only the first is kept (see
+``branches``). The same variable assigned twice in one block is two agents.
 
 ``Match.qualified`` places the name in its scope: the enclosing classes and functions, then the name
 (``support.agent``, ``Bot.__init__.agent``, just ``agent`` at module level). A name taken from the
@@ -71,6 +76,7 @@ from dataclasses import dataclass
 
 import tree_sitter
 
+from amp_shadow_runner.engine.branches import branch_table, repeats
 from amp_shadow_runner.engine.imports import ImportKind, ImportTable, Symbol
 from amp_shadow_runner.engine.signatures import Condition, RuleSet, Shape, Signature, Wiring
 from amp_shadow_runner.engine.signatures.python import PYTHON
@@ -88,6 +94,12 @@ _CLASS_SHAPES = (Shape.SUBCLASS,)
 _SCOPES = frozenset({"function_definition", "class_definition"})
 _IMPORT_PARTS = frozenset({"dotted_name", "aliased_import"})
 """Parents of the identifiers an import statement names; such an identifier is no reference."""
+_BRANCHES = branch_table(
+    {
+        "if_statement": frozenset({"consequence", "alternative"}),
+        "try_statement": frozenset({"body", "except_clause"}),
+    }
+)
 
 
 def plain_literal(value: str) -> bool:
@@ -182,9 +194,34 @@ def match_python_file(
             continue
         if item is not None:
             found.append(item)
+    repeated = repeats([(f.node, _repeat_key(f)) for f in found], _branch)
+    found = [f for f in found if f.node.id not in repeated]
     absorbed = _absorbed(found, reader)
     kept = [f for f in found if f.node.id not in absorbed]
     return PythonMatches(tuple(f.match for f in _link_crews(kept, reader, imports, rules)), frozenset(wiring))
+
+
+def _repeat_key(f: _Found) -> tuple[str, int, str] | None:
+    """What a match named after the variable it is assigned to must share with another to be its repeat. A
+    crew has none: each crew links its own agents."""
+    if f.match.named or f.variable is None or f.match.signature.condition == Condition.CREW:
+        return None
+    return f.match.framework, f.scope, f.match.qualified
+
+
+def _branch(parent: tree_sitter.Node, child: tree_sitter.Node) -> bool:
+    """Whether ``child`` is a branch of ``parent`` (see ``branches``)."""
+    if parent.type == "conditional_expression":
+        return _outcome(parent, child)
+    if parent.type == "block":  # The cases of a ``match`` statement are children of its body.
+        return child.type == "case_clause" and parent.parent is not None and parent.parent.type == "match_statement"
+    return _BRANCHES(parent, child)
+
+
+def _outcome(conditional: tree_sitter.Node, child: tree_sitter.Node) -> bool:
+    """Whether ``child`` is one of the two values of ``a if test else b``, not its test."""
+    values = [c for c in conditional.named_children if c.type != "comment"]
+    return len(values) == 3 and child.id in (values[0].id, values[2].id)
 
 
 def _walk(root: tree_sitter.Node) -> Iterator[tree_sitter.Node]:
@@ -569,9 +606,12 @@ class _Reader:
         return values[index] if index < len(values) else None
 
     def assigned_target(self, call: tree_sitter.Node) -> str | None:
-        """What ``call`` is assigned to, as written: ``x`` or an attribute chain such as ``self.x``."""
-        parent = call.parent
-        if parent is None or parent.type != "assignment" or parent.child_by_field_name("right") != call:
+        """What ``call`` is assigned to, as written: ``x`` or an attribute chain such as ``self.x``, also as a
+        value of a conditional expression (``x = call if test else other``)."""
+        node, parent = call, call.parent
+        while parent is not None and parent.type == "conditional_expression" and _outcome(parent, node):
+            node, parent = parent, parent.parent
+        if parent is None or parent.type != "assignment" or parent.child_by_field_name("right") != node:
             return None
         return self.reference_part(parent.child_by_field_name("left"))
 

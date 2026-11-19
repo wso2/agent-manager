@@ -472,3 +472,52 @@ def test_ballerina_line_numbers_are_counted_once() -> None:
     matches, _ = match_ballerina_file("m.bal", "import ballerina/ai;\n" + "x = new ai:Agent()\n" * 50_000)
     assert (len(matches), matches[-1].line) == (50_000, 50_001)
     assert time.monotonic() - started < 2
+
+
+# One agent written once in each branch of a conditional: only the first is kept. (body, its line)
+ONE_AGENT_IN_BRANCHES = [
+    ("if (fast) { graph = new ChatCompletionAgent(); } else { graph = new ChatCompletionAgent(); }", 3),
+    (
+        "if (a) graph = new ChatCompletionAgent();\nelse if (b) graph = new ChatCompletionAgent();\n"
+        "else graph = new ChatCompletionAgent();",
+        3,
+    ),
+    (
+        "try { graph = new ChatCompletionAgent(); }\ncatch (IOException) { graph = new ChatCompletionAgent(); }\n"
+        "catch { graph = new ChatCompletionAgent(); }",
+        3,
+    ),
+    ("var graph = fast ? new ChatCompletionAgent() : new ChatCompletionAgent();", 3),
+    ("graph = await (fast ? OpenAIAssistantAgent.CreateAsync(c) : OpenAIAssistantAgent.CreateAsync(d));", 3),
+    (
+        "switch (mode) {\ncase 1: graph = new ChatCompletionAgent(); break;\n"
+        "default: graph = new ChatCompletionAgent(); break;\n}",
+        4,
+    ),
+    ("if (fast) { this.graph = new ChatCompletionAgent(); } else { this.graph = new ChatCompletionAgent(); }", 3),
+]
+
+
+@pytest.mark.parametrize(("body", "line"), ONE_AGENT_IN_BRANCHES)
+def test_one_variable_in_exclusive_branches_is_one_agent(body: str, line: int) -> None:
+    (match,) = _matches(f"{SK}class Bot {{ async Task M() {{\n{body}\n}} }}\n")
+    assert (match.name, match.qualified, match.line) == ("graph", "Bot.M.graph", line)
+
+
+# Still two agents: a reassignment in one block, two scopes, ``try`` and ``finally`` (both run), ``Name``
+# literals, no variable at all, or two in one path.
+TWO_AGENTS = [
+    "void M() { var graph = new ChatCompletionAgent(); graph = new ChatCompletionAgent(); }",
+    "void M() { if (fast) { graph = new ChatCompletionAgent(); graph = new ChatCompletionAgent(); } }",
+    "void A() { var graph = new ChatCompletionAgent(); }\nvoid B() { var graph = new ChatCompletionAgent(); }",
+    "void M() { try { graph = new ChatCompletionAgent(); } finally { graph = new ChatCompletionAgent(); } }",
+    'void M() { if (f) { new ChatCompletionAgent { Name = "A" }; } else { new ChatCompletionAgent { Name = "B" }; } }',
+    "void M() { if (fast) { Use(new ChatCompletionAgent()); } else { Use(new ChatCompletionAgent()); } }",
+    "void M() { if (a) { g = new ChatCompletionAgent(); }\n"
+    "else { g = new ChatCompletionAgent(); g = new ChatCompletionAgent(); } }",
+]
+
+
+@pytest.mark.parametrize("members", TWO_AGENTS)
+def test_two_agents_stay_two(members: str) -> None:
+    assert len(_matches(f"{SK}class Bot {{\n{members}\n}}\n")) == 2

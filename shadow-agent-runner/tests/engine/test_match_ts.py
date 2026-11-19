@@ -563,3 +563,44 @@ def test_a_commonjs_export_is_named_after_its_project(tmp_path: Path) -> None:
         ("r:support-bot/index.js:openai-agents-agent", "support-bot (index.js)"),
         ("r:support-bot/other.js:openai-agents-agent", "support-bot (other.js)"),
     ]
+
+
+# One agent written once in each branch of a conditional: only the first is kept. (code, its line)
+ONE_AGENT_IN_BRANCHES = [
+    ("let graph;\nif (fast) {\n  graph = new Agent({});\n} else {\n  graph = new Agent({});\n}", 4),
+    ("let graph;\nif (a) graph = new Agent({});\nelse if (b) graph = new Agent({});\nelse graph = new Agent({});", 3),
+    ("let graph;\ntry {\n  graph = new Agent({});\n} catch (e) {\n  graph = new Agent({});\n}", 4),
+    ("const graph = fast ? new Agent({}) : new Agent({});", 2),
+    ("const graph = await (a ? new Agent({}) : b ? new Agent({}) : new Agent({}));", 2),
+    (
+        "class Bot {\n  init(fast) {\n    if (fast) { this.graph = new Agent({}); }\n"
+        "    else { this.graph = new Agent({}); }\n  }\n}",
+        4,
+    ),
+]
+
+
+@pytest.mark.parametrize(("code", "line"), ONE_AGENT_IN_BRANCHES)
+def test_one_variable_in_exclusive_branches_is_one_agent(code: str, line: int) -> None:
+    (match,) = _matches(f'import {{ Agent }} from "@mastra/core/agent";\n{code}\n')
+    assert (match.name, match.line) == ("graph", line)
+
+
+# Still two agents: a reassignment in one block, two scopes, ``try`` and ``finally`` (both run), two
+# ``switch`` cases (a case can fall through), ``name:`` literals, no variable at all, or two in one path.
+TWO_AGENTS = [
+    "let graph = new Agent({});\ngraph = new Agent({});",
+    "let graph;\nif (fast) {\n  graph = new Agent({});\n  graph = new Agent({});\n}",
+    "function a() { const graph = new Agent({}); }\nfunction b() { const graph = new Agent({}); }",
+    "let graph;\ntry { graph = new Agent({}); } finally { graph = new Agent({}); }",
+    "if (fast) { new Agent({ name: 'fast' }); } else { new Agent({ name: 'slow' }); }",
+    "if (fast) { new Agent({}); } else { new Agent({}); }",
+    "let graph;\nswitch (mode) {\n  case 'fast':\n    graph = new Agent({});\n    break;\n"
+    "  default:\n    graph = new Agent({});\n}",
+    "let graph;\nif (a) { graph = new Agent({}); } else { graph = new Agent({}); graph = new Agent({}); }",
+]
+
+
+@pytest.mark.parametrize("code", TWO_AGENTS)
+def test_two_agents_stay_two(code: str) -> None:
+    assert len(_matches(f'import {{ Agent }} from "@mastra/core/agent";\n{code}\n')) == 2

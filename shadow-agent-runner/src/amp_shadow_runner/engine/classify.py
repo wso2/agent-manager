@@ -55,7 +55,9 @@ becomes the project's name). That never changes the ``external_id``.
 
 ``external_id`` is ``<repository>:<path>:<qualified name>`` (see ``Match.qualified``), so it holds no line
 number and code added elsewhere never changes it. Only a real repeat of the same qualified name (two
-unnamed agents in one scope) gets ``@2``, ``@3`` and so on, numbered in source order. An ID over
+unnamed agents in one scope, such as one variable assigned twice in a block) gets ``@2``, ``@3`` and so on,
+numbered in source order; the matchers already keep only the first of one variable's agents written in
+different branches of a conditional, which is one agent. An ID over
 MAX_EXTERNAL_ID_CHARS keeps a readable prefix and ends with ``#`` and 12 hex characters of the full ID's
 SHA-256, so it stays stable and unique within Agent Manager's limit.
 """

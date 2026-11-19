@@ -27,12 +27,16 @@ subpath of the package.
 A match's name is, in order: a short string literal in the ``name:`` property of the first argument (an
 options object); the variable the call is assigned to (``const support = new Agent(...)``, ``this.support =``,
 a class field ``support = new Agent(...)``, ``exports.support =``; not a bare CommonJS export such as
-``module.exports =`` or ``exports.default =``), seen through ``await``, parentheses, ``as`` and method chains
-(``new StateGraph(s).addNode(...).compile()``); the nearest enclosing named function (a function or
-method, or an arrow function or function expression named by the ``const``, property or field it is
-assigned to); else ``<framework>-agent``. A signature that ``runs`` the agent (AI SDK ``generateText``)
-skips the variable, which holds a result. ``Match.qualified`` places the name in the named classes and
-functions that enclose it; anonymous functions (callbacks) add nothing.
+``module.exports =`` or ``exports.default =``), seen through ``await``, parentheses, ``as``, method chains
+(``new StateGraph(s).addNode(...).compile()``) and the values of ``c ? a : b``; the nearest enclosing
+named function (a function or method, or an arrow function or function expression named by the ``const``,
+property or field it is assigned to); else ``<framework>-agent``. A signature that ``runs`` the agent (AI
+SDK ``generateText``) skips the variable, which holds a result. ``Match.qualified`` places the name in the
+named classes and functions that enclose it; anonymous functions (callbacks) add nothing.
+
+Matches of one framework named after the same variable in one scope, in different branches of an ``if``,
+``try``/``catch`` or ``?:``, are one agent: only the first is kept (see ``branches``). The same
+variable assigned twice in one block, or in two ``switch`` cases (a case can fall through), is two agents.
 
 Only these facts are read from the options object: ``model`` when it is a short string literal that looks
 like a model name (no ``://``, ``@`` or whitespace), and tool names: the plain identifiers of a
@@ -58,6 +62,7 @@ from dataclasses import dataclass
 
 import tree_sitter
 
+from amp_shadow_runner.engine.branches import branch_table, repeats
 from amp_shadow_runner.engine.imports import ImportTable, Symbol, package_root
 from amp_shadow_runner.engine.match import MAX_REFERENCE_PARTS, MAX_TOOLS, Match, plain_literal
 from amp_shadow_runner.engine.signatures import Condition, RuleSet, Shape, Signature, Wiring
@@ -98,6 +103,14 @@ _EMPTY = frozenset({"undefined", "null"})
 _EXPORTS = frozenset({"exports", "module.exports", "exports.default", "module.exports.default"})
 """CommonJS export targets: what a module exports, not a name."""
 _INTEGER = re.compile(r"[0-9][0-9_]*")
+_BRANCHES = branch_table(
+    {
+        "if_statement": frozenset({"consequence", "alternative"}),
+        "try_statement": frozenset({"body", "handler"}),
+        "ternary_expression": frozenset({"consequence", "alternative"}),
+    }
+)
+"""A ``switch`` is not listed: a case without ``break`` falls through into the next."""
 
 
 @dataclass(frozen=True)
@@ -141,8 +154,17 @@ def match_script_file(
             and reader.wiring_reference(node)
         ):
             wiring.add(Wiring.TOOLS_CONDITION)
+    repeated = repeats([(f.node, _repeat_key(f)) for f in found], _BRANCHES)
+    found = [f for f in found if f.node.id not in repeated]
     absorbed = _absorbed(found, reader)
     return ScriptMatches(tuple(f.match for f in found if f.node.id not in absorbed), frozenset(wiring))
+
+
+def _repeat_key(f: _Found) -> tuple[str, int, str] | None:
+    """What a match named after the variable it is assigned to must share with another to be its repeat."""
+    if f.match.named or f.variable is None or f.match.signature.runs:
+        return None
+    return f.match.framework, f.scope, f.match.qualified
 
 
 def _walk(root: tree_sitter.Node) -> Iterator[tree_sitter.Node]:
@@ -175,10 +197,10 @@ def _scope_id(node: tree_sitter.Node) -> int:
 
 
 def _outer(node: tree_sitter.Node) -> tree_sitter.Node:
-    """The outermost expression that is still ``node``'s object: through ``await``, parentheses, ``as`` and
-    method chains (``new StateGraph(s).addNode(...).compile()``)."""
+    """The outermost expression that is still ``node``'s object: through ``await``, parentheses, ``as``, method
+    chains (``new StateGraph(s).addNode(...).compile()``) and the values of ``c ? a : b``."""
     while (parent := node.parent) is not None:
-        if parent.type in _TRANSPARENT:
+        if parent.type in _TRANSPARENT or (parent.type == "ternary_expression" and _BRANCHES(parent, node)):
             node = parent
         elif (
             parent.type == "member_expression"

@@ -34,10 +34,14 @@ written with (``class ChatCompletionAgent``): that type may be the one meant.
 
 A match's name is, in order: the ``Name = "..."`` object-initializer property or the ``name: "..."``
 named argument, when a short plain string literal; the variable, field or property it is assigned to (seen
-through ``await`` and parentheses; ``this.agent = ...`` gives ``agent``); the nearest enclosing method,
-constructor, local function or property; the nearest enclosing class, struct, record or interface; else
-``<framework>-agent``. ``Match.qualified`` places it in its classes and members, without the namespace.
-No other argument, initializer or literal is read.
+through ``await``, parentheses and the values of ``c ? a : b``; ``this.agent = ...`` gives ``agent``); the
+nearest enclosing method, constructor, local function or property; the nearest enclosing class, struct,
+record or interface; else ``<framework>-agent``. ``Match.qualified`` places it in its classes and members,
+without the namespace. No other argument, initializer or literal is read.
+
+Matches of one framework named after the same variable in one scope, in different branches of an ``if``,
+``try``/``catch``, ``switch`` or ``?:``, are one agent: only the first is kept (see ``branches``). The same
+variable assigned twice in one block is two agents.
 """
 
 from collections.abc import Iterable, Iterator
@@ -45,6 +49,7 @@ from dataclasses import dataclass
 
 import tree_sitter
 
+from amp_shadow_runner.engine.branches import branch_table, repeats
 from amp_shadow_runner.engine.imports import ImportKind, ImportTable, Symbol
 from amp_shadow_runner.engine.match import MAX_REFERENCE_PARTS, Match, plain_literal
 from amp_shadow_runner.engine.signatures import Condition, RuleSet, Shape, Signature
@@ -66,6 +71,14 @@ _SCOPES = _TYPES | _MEMBERS
 _TRANSPARENT = frozenset({"await_expression", "parenthesized_expression"})
 _CREATIONS = frozenset({"object_creation_expression", "implicit_object_creation_expression"})
 _DECLARED = _TYPES | {"enum_declaration", "delegate_declaration"}
+_BRANCHES = branch_table(
+    {
+        "if_statement": frozenset({"consequence", "alternative"}),
+        "try_statement": frozenset({"body", "catch_clause"}),
+        "conditional_expression": frozenset({"consequence", "alternative"}),
+        "switch_body": frozenset({"switch_section"}),
+    }
+)
 
 
 def mentions(source: bytes, rules: RuleSet = CSHARP, aliases: Iterable[str] = ()) -> bool:
@@ -106,13 +119,16 @@ def match_csharp_file(
     resolves but is written with such a name first (``new ChatCompletionAgent()`` with a project class
     ``ChatCompletionAgent``) may be the project's own, so it is Not sure (``condition_met`` false)."""
     reader = _Reader(source, imports, rules, _bare(rules), _extensions(rules, imports), local_types)
-    found: list[Match] = []
+    found: list[tuple[tree_sitter.Node, Match, tuple[str, int, str] | None]] = []
     for node in _walk(tree.root_node):
         if node.type in _CREATIONS or node.type == "invocation_expression":
             match = reader.match(node, path)
             if match is not None:
-                found.append(match)
-    return tuple(found)
+                assigned = not match.named and reader.assigned_to(node) is not None
+                key = (match.framework, _scope_id(node), match.qualified) if assigned else None
+                found.append((node, match, key))
+    repeated = repeats([(node, key) for node, _, key in found], _BRANCHES)
+    return tuple(match for node, match, _ in found if node.id not in repeated)
 
 
 def _bare(rules: RuleSet) -> dict[str, Signature]:
@@ -161,10 +177,22 @@ def _scopes(node: tree_sitter.Node) -> list[tree_sitter.Node]:
     return scopes[::-1]
 
 
+def _scope_id(node: tree_sitter.Node) -> int:
+    """The id of the nearest type or member enclosing ``node``, else of the file."""
+    parent = node.parent
+    while parent is not None:
+        if parent.type in _SCOPES or parent.parent is None:
+            return parent.id
+        parent = parent.parent
+    return node.id
+
+
 def _outer(node: tree_sitter.Node) -> tree_sitter.Node:
-    """``node`` with the ``await`` and parentheses around it."""
-    while node.parent is not None and node.parent.type in _TRANSPARENT:
-        node = node.parent
+    """``node`` with the ``await``, parentheses and ``c ? a : b`` (as one of its values) around it."""
+    while (parent := node.parent) is not None and (
+        parent.type in _TRANSPARENT or (parent.type == "conditional_expression" and _BRANCHES(parent, node))
+    ):
+        node = parent
     return node
 
 
