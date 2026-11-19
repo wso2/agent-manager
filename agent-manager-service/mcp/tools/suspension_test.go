@@ -21,6 +21,8 @@ import (
 	"errors"
 	"testing"
 
+	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -95,22 +97,39 @@ func TestAuthzMiddlewareRefusesGatewayPushWhileSuspended(t *testing.T) {
 	}
 }
 
-func TestAuthzMiddlewareAllowsGatewayPushUnlessSuspended(t *testing.T) {
-	for name, policyErr := range map[string]error{
-		"active organization":       nil,
-		"policy that cannot decide": errors.New("lifecycle store unreachable"),
-	} {
-		t.Run(name, func(t *testing.T) {
-			reg := newToolRegistry()
-			reg.permissions["attach_llm_provider_to_agent"] = []rbac.Permission{rbac.LLMProviderUpdate}
-			var checked []string
+func TestAuthzMiddlewareAllowsGatewayPushForActiveOrganization(t *testing.T) {
+	reg := newToolRegistry()
+	reg.permissions["attach_llm_provider_to_agent"] = []rbac.Permission{rbac.LLMProviderUpdate}
+	var checked []string
 
-			_, nextCalled := callToolViaMiddleware(t, reg, suspendedGuardCtx(policyErr, &checked), "attach_llm_provider_to_agent")
+	_, nextCalled := callToolViaMiddleware(t, reg, suspendedGuardCtx(nil, &checked), "attach_llm_provider_to_agent")
 
-			if !nextCalled {
-				t.Fatal("gateway push refused although the organization is not suspended")
-			}
-		})
+	if !nextCalled {
+		t.Fatal("gateway push refused although the organization is active")
+	}
+}
+
+// A policy that cannot decide stops the gateway push, as it stops the
+// equivalent API request, instead of letting it through unchecked.
+func TestAuthzMiddlewareStopsGatewayPushWhenPolicyFails(t *testing.T) {
+	reg := newToolRegistry()
+	reg.permissions["attach_llm_provider_to_agent"] = []rbac.Permission{rbac.LLMProviderUpdate}
+	var checked []string
+	policyErr := errors.New("lifecycle store unreachable")
+	nextCalled := false
+	next := func(context.Context, string, gomcp.Request) (gomcp.Result, error) {
+		nextCalled = true
+		return &gomcp.CallToolResult{}, nil
+	}
+	req := &gomcp.CallToolRequest{Params: &gomcp.CallToolParamsRaw{Name: "attach_llm_provider_to_agent"}}
+
+	_, err := reg.authzMiddleware()(next)(suspendedGuardCtx(policyErr, &checked), "tools/call", req)
+
+	if !errors.Is(err, policyErr) {
+		t.Fatalf("middleware error = %v, want the policy's error", err)
+	}
+	if nextCalled {
+		t.Fatal("a gateway push ran although the workload policy failed")
 	}
 }
 

@@ -18,7 +18,6 @@ package tools
 
 import (
 	"context"
-	"errors"
 
 	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
@@ -41,12 +40,14 @@ var gatewayPushTools = map[string]bool{
 
 const subscriptionSuspendedMessage = "The Agent Manager subscription is suspended. Renew the subscription to resume."
 
-// refusedWhileSuspended reports whether the workload policy on ctx refuses tool
-// for the organization ouID. Only a suspension refuses; a policy that cannot
-// decide lets the call through, as it does for the equivalent API request.
-func refusedWhileSuspended(ctx context.Context, tool, ouID string) bool {
+// checkSuspension applies the workload policy on ctx to tool for the
+// organization ouID. It returns nil for a tool that pushes nothing to a gateway
+// and when the policy allows the call, workloadpolicy.ErrSuspended when the
+// organization is suspended, and the policy's error when it cannot decide, so
+// the call stops as the equivalent API request does.
+func checkSuspension(ctx context.Context, tool, ouID string) error {
 	if !gatewayPushTools[tool] {
-		return false
+		return nil
 	}
-	return errors.Is(workloadpolicy.Check(ctx, ouID), workloadpolicy.ErrSuspended)
+	return workloadpolicy.Check(ctx, ouID)
 }

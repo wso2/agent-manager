@@ -18,6 +18,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -26,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
 
 // methodCallTool is the MCP method name for tool invocations. The SDK's own
@@ -131,8 +133,12 @@ func (reg *toolRegistry) authzMiddleware() gomcp.Middleware {
 					audit.Detail("missingScope", missing.Scope()))
 				return denyResult(fmt.Sprintf("insufficient permissions: this tool requires the %s scope", missing.Scope())), nil
 			}
-			if refusedWhileSuspended(ctx, call.Params.Name, resolveOUID(ctx)) {
-				return denyResult(subscriptionSuspendedMessage), nil
+			if err := checkSuspension(ctx, call.Params.Name, resolveOUID(ctx)); err != nil {
+				if errors.Is(err, workloadpolicy.ErrSuspended) {
+					recordToolDeny(ctx, call.Params.Name, "subscription-suspended")
+					return denyResult(subscriptionSuspendedMessage), nil
+				}
+				return nil, fmt.Errorf("check workload policy for tool %q: %w", call.Params.Name, err)
 			}
 			return next(ctx, method, req)
 		}
