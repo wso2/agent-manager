@@ -14926,7 +14926,7 @@ paths:
         - Shadow Agent Discovery
       summary: Create a source code scan command
       description: |
-        Creates a pending scan of a GitHub or Azure DevOps connection and a
+        Creates a pending scan of a GitHub connection and a
         scan token, valid for about one hour, that lets the scan command
         publish its results for this organization only. Returns the parts the
         console composes the scan command from. The token is returned once and
@@ -24593,7 +24593,7 @@ components:
       properties:
         provider:
           type: string
-          enum: [openai, anthropic, bedrock, google, foundry, custom, github, azure_devops]
+          enum: [openai, anthropic, bedrock, google, foundry, custom, github]
         displayName:
           type: string
         description:
@@ -24619,7 +24619,7 @@ components:
         sourceHost:
           type: boolean
           description: >-
-            A source repository host (GitHub, Azure DevOps). Its connection test is real; its source code
+            A source repository host (GitHub). Its connection test is real; its source code
             analysis is not available yet, so a scan records it as skipped.
         capabilities:
           type: array
@@ -24820,7 +24820,7 @@ components:
           maxLength: 100
         provider:
           type: string
-          enum: [openai, anthropic, bedrock, google, foundry, custom, github, azure_devops]
+          enum: [openai, anthropic, bedrock, google, foundry, custom, github]
         endpoints:
           type: object
           description: Base URL per endpoint key; missing keys use the official default.
@@ -25064,7 +25064,7 @@ components:
             $ref: "#/components/schemas/ShadowScanCallResult"
         scannedRepositories:
           type: array
-          description: The repositories a source code scan command scanned (a GitHub repository name, or an Azure DevOps project/repository). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+          description: The repositories a source code scan command scanned (GitHub repository names). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
           items:
             type: string
         failedRepositories:

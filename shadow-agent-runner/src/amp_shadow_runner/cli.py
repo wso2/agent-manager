@@ -24,7 +24,6 @@ from pathlib import Path
 
 from amp_shadow_runner._version import __version__
 from amp_shadow_runner.config import (
-    DEFAULT_AZURE_DEVOPS_URL,
     DEFAULT_GITHUB_API_URL,
     ConfigError,
     agent_manager_env,
@@ -120,9 +119,9 @@ def _add_scan_arguments(sub: argparse.ArgumentParser) -> None:
         "Agent Manager builds the whole command; copy it from there."
     )
     sub.add_argument("--scan-id", required=True, help="The scan ID that Agent Manager issued.")
-    org = sub.add_mutually_exclusive_group(required=True)
-    org.add_argument("--github-org", metavar="ORG", help="Scan this GitHub organization or user account.")
-    org.add_argument("--azure-devops-org", metavar="ORG", help="Scan this Azure DevOps organization.")
+    sub.add_argument(
+        "--github-org", metavar="ORG", required=True, help="Scan this GitHub organization or user account."
+    )
 
     github = sub.add_argument_group("GitHub")
     repos = github.add_mutually_exclusive_group()
@@ -135,20 +134,9 @@ def _add_scan_arguments(sub: argparse.ArgumentParser) -> None:
         help=f"The GitHub API address, for GitHub Enterprise (default {DEFAULT_GITHUB_API_URL}).",
     )
 
-    ado = sub.add_argument_group("Azure DevOps")
-    projects = ado.add_mutually_exclusive_group()
-    projects.add_argument("--all-projects", action="store_true", help="Scan every project.")
-    projects.add_argument("--projects", metavar="NAMES", help="Scan these projects (comma-separated names).")
-    ado.add_argument(
-        "--azure-devops-url",
-        metavar="URL",
-        help=f"The Azure DevOps Server address (default {DEFAULT_AZURE_DEVOPS_URL}).",
-    )
-
-    both = sub.add_argument_group("GitHub and Azure DevOps")
-    both.add_argument("--read-ci", action="store_true", help="Also read CI pipeline definitions.")
-    both.add_argument("--ai-review", action="store_true", help="Have an LLM review the agents the rules find.")
-    both.add_argument("--judge", action="store_true", help="Have a second LLM check the AI review (needs --ai-review).")
+    sub.add_argument("--read-ci", action="store_true", help="Also read CI pipeline definitions.")
+    sub.add_argument("--ai-review", action="store_true", help="Have an LLM review the agents the rules find.")
+    sub.add_argument("--judge", action="store_true", help="Have a second LLM check the AI review (needs --ai-review).")
     sub.add_argument(
         "--yes",
         action="store_true",

@@ -56,7 +56,7 @@ import {
   type ShadowRunnerScanResponse,
   type ShadowSettingValue,
 } from "@agent-management-platform/types";
-import { selectCardSx } from "../shadowUi";
+import { CUSTOM_PLATFORM, selectCardSx } from "../shadowUi";
 import {
   credentialChoiceError,
   evaluateCapabilities,
@@ -222,7 +222,7 @@ export function endpointVisible(
 
 /**
  * Whether a field is shown: a field tied to a checkbox shows while it is
- * ticked, or with "!key" while it is not (Azure DevOps: a PAT or Entra).
+ * ticked, or with "!key" while it is not.
  */
 export function fieldVisible(f: ShadowFieldSpec, draft: ConnectionDraft): boolean {
   return optionActive(f.option, draft.values);
@@ -739,7 +739,7 @@ export function ConnectionEditor({
   const [serverError, setServerError] = useState<string | null>(null);
   // null until the user toggles Advanced configuration.
   const [advancedOpen, setAdvancedOpen] = useState<boolean | null>(null);
-  // GitHub and Azure DevOps: the scan command options, the saved platform
+  // GitHub: the scan command options, the saved platform
   // (the form is then locked) and the command issued for it. The command
   // holds a scan token, so it lives only in this state.
   const [aiReview, setAiReview] = useState(false);
@@ -872,11 +872,19 @@ export function ConnectionEditor({
           {[
             {
               title: "AI agent platforms",
-              list: (providers.data?.providers ?? []).filter((p) => !p.sourceHost),
+              list: (providers.data?.providers ?? []).filter(
+                (p) => !p.sourceHost && p.provider !== CUSTOM_PLATFORM,
+              ),
             },
             {
               title: "Source code repositories",
               list: (providers.data?.providers ?? []).filter((p) => p.sourceHost),
+            },
+            {
+              title: "Custom platforms",
+              list: (providers.data?.providers ?? []).filter(
+                (p) => p.provider === CUSTOM_PLATFORM,
+              ),
             },
           ]
             .filter((g) => g.list.length > 0)

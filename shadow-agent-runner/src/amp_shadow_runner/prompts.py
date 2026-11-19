@@ -35,7 +35,6 @@ Check = Callable[[str], str | None]
 """Returns an error message to show (never containing the secret), or None when the secret is fine."""
 
 GITHUB_TOKEN_ENV = "GITHUB_TOKEN"
-AZURE_DEVOPS_TOKEN_ENV = "AZURE_DEVOPS_TOKEN"
 
 
 _BAD_CHARACTERS = "The value contains spaces or control characters."
@@ -141,22 +140,17 @@ def git_token(
 
     GitHub asks for a token only with ``--include-private``. Without it, a set
     ``GITHUB_TOKEN`` is still used (it raises the API rate limit) but never asked
-    for. Azure DevOps always needs a token. Before a token is used over plain
-    http, warn that it will be sent unencrypted.
+    for. Before a token is used over plain http, warn that it will be sent
+    unencrypted.
     """
     stream: TextIO = sys.stderr if out is None else out
-    if config.provider == "github":
-        label, env_var, noun = "GitHub token (fine-grained, Contents read-only)", GITHUB_TOKEN_ENV, "GitHub token"
-        need = "A GitHub token is needed for private repositories."
-        if not config.include_private:
-            token = ask_secret(label, env_var, need=need, optional=True, env=env, is_tty=False, out=stream)
-            if token is not None:
-                _warn_if_plain_http(config, noun, stream)
-            return token
-    else:
-        label = "Azure DevOps personal access token (Code read, Project and team read)"
-        env_var, noun = AZURE_DEVOPS_TOKEN_ENV, "Azure DevOps token"
-        need = "An Azure DevOps personal access token is needed."
+    label, env_var, noun = "GitHub token (fine-grained, Contents read-only)", GITHUB_TOKEN_ENV, "GitHub token"
+    need = "A GitHub token is needed for private repositories."
+    if not config.include_private:
+        token = ask_secret(label, env_var, need=need, optional=True, env=env, is_tty=False, out=stream)
+        if token is not None:
+            _warn_if_plain_http(config, noun, stream)
+        return token
     _warn_if_plain_http(config, noun, stream)
     return ask_secret(label, env_var, need=need, env=env, is_tty=is_tty, read=read, out=stream)
 

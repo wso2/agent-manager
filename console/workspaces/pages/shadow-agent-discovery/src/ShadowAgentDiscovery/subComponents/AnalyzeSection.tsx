@@ -106,7 +106,7 @@ export function AnalyzeSection({
   setupSteps?: string[];
   /** The OpenAPI contract to implement (Custom platform), offered for download. */
   apiContract?: string;
-  /** GitHub, Azure DevOps: what the scan command looks for in the repositories. */
+  /** GitHub: what the scan command looks for in the repositories. */
   sourceHost?: boolean;
 }) {
   const [open, setOpen] = useState(false);

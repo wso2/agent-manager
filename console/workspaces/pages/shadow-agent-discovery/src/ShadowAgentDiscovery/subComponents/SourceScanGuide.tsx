@@ -33,14 +33,12 @@ import type { ShadowProviderSpec } from "@agent-management-platform/types";
 import { DocLinks, Section } from "./PermissionsPanel";
 
 /**
- * "How it works" for a source repository host (GitHub, Azure DevOps): a
+ * "How it works" for a source repository host (GitHub): a
  * button next to the platform name that opens the whole flow in a dialog, so
  * the form itself holds only the fields.
  */
 export function SourceScanGuide({ spec }: { spec: ShadowProviderSpec }) {
   const [open, setOpen] = useState(false);
-  const github = spec.provider === "github";
-  const repos = github ? "repositories" : "projects";
   return (
     <>
       <Button
@@ -59,17 +57,16 @@ export function SourceScanGuide({ spec }: { spec: ShadowProviderSpec }) {
               <Typography variant="subtitle2">The steps</Typography>
               <Box component="ol" sx={{ pl: 2.5, my: 0.5 }}>
                 <Typography component="li" variant="body2" color="text.secondary">
-                  Save the organization and {repos} here. No token is entered or stored.
+                  Save the organization and repositories here. No token is entered or stored.
                 </Typography>
                 <Typography component="li" variant="body2" color="text.secondary">
                   Turn AI review on or off next to the form and save: the command is shown
                   there. Later, get a new one from Generate command on the Platforms tab.
                 </Typography>
                 <Typography component="li" variant="body2" color="text.secondary">
-                  Run the command in a terminal. It asks for a read-only token
-                  {github ? " when private repositories are included" : ""}, and for an LLM API
-                  key when AI review is on. It scans on your machine and publishes only the agents
-                  it confirms.
+                  Run the command in a terminal. It asks for a read-only token when private
+                  repositories are included, and for an LLM API key when AI review is on. It
+                  scans on your machine and publishes only the agents it confirms.
                 </Typography>
               </Box>
             </Box>

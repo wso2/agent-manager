@@ -30,16 +30,16 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, get_args
 from urllib.parse import urlsplit
 
 from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.scantoken import DEFAULT_MIN_SECONDS, require_lifetime
 
-Provider = Literal["github", "azure_devops"]
+Provider = Literal["github"]
+"""The Git hosts the runner scans. Any other provider is refused as unsupported."""
 
 DEFAULT_GITHUB_API_URL = "https://api.github.com"
-DEFAULT_AZURE_DEVOPS_URL = "https://dev.azure.com"
 MAX_REPOSITORIES = 5000
 """The most GitHub repositories ``--repos`` lists (the server's limit on a published repository list)."""
 
@@ -47,8 +47,6 @@ _COPY_AGAIN = "Copy the whole command from Agent Manager again."
 _SCAN_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
 _GITHUB_ORG = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|-[A-Za-z0-9]){0,38}")
 _GITHUB_REPO = re.compile(r"[A-Za-z0-9._-]{1,100}")
-_ADO_ORG_FORBIDDEN = frozenset("/\\?#% \t")
-_ADO_PROJECT_FORBIDDEN = frozenset("/\\?#%")
 
 
 class ConfigError(Exception):
@@ -69,13 +67,17 @@ class ScanConfig:
     organization: str
     all_repositories: bool
     repositories: tuple[str, ...]
-    """Repository names for GitHub, project names for Azure DevOps. Empty with ``all_repositories``."""
+    """Repository names. Empty with ``all_repositories``."""
     include_private: bool
     read_ci: bool
     api_url: str
-    """The GitHub API or Azure DevOps address, with no trailing slash."""
+    """The GitHub API address, with no trailing slash."""
     ai_review: bool
     judge: bool
+
+    def __post_init__(self) -> None:
+        if self.provider not in get_args(Provider):
+            raise ConfigError(f"{self.provider!r} is not a supported provider. This runner scans GitHub only.")
 
 
 def _url(raw: str, label: str) -> str:
@@ -131,19 +133,7 @@ def _names(
     return tuple(names)
 
 
-def _misplaced(args: argparse.Namespace, flags: Mapping[str, str], org_flag: str) -> None:
-    """Refuse flags that belong to the other provider."""
-    given = [flag for dest, flag in flags.items() if getattr(args, dest) not in (None, False)]
-    if given:
-        raise ConfigError(f"{', '.join(given)} can only be used with {org_flag}.")
-
-
 def _github(args: argparse.Namespace) -> tuple[str, bool, tuple[str, ...], str]:
-    _misplaced(
-        args,
-        {"all_projects": "--all-projects", "projects": "--projects", "azure_devops_url": "--azure-devops-url"},
-        "--azure-devops-org",
-    )
     org: str = args.github_org.strip()
     if not _GITHUB_ORG.fullmatch(org):
         raise ConfigError(f"{org!r} is not a GitHub organization or user name, such as my-org.")
@@ -169,38 +159,6 @@ def _github(args: argparse.Namespace) -> tuple[str, bool, tuple[str, ...], str]:
     if args.github_api_url is not None:
         api_url = _url(args.github_api_url, "--github-api-url")
     return org, all_repos, repos, api_url
-
-
-def _azure_devops(args: argparse.Namespace) -> tuple[str, bool, tuple[str, ...], str]:
-    _misplaced(
-        args,
-        {
-            "all_repos": "--all-repos",
-            "repos": "--repos",
-            "include_private": "--include-private",
-            "github_api_url": "--github-api-url",
-        },
-        "--github-org",
-    )
-    org: str = args.azure_devops_org.strip()
-    if not org or _ADO_ORG_FORBIDDEN.intersection(org):
-        raise ConfigError(f"{org!r} is not an Azure DevOps organization name. Give the name only, not a URL.")
-    all_projects: bool = args.all_projects
-    projects: tuple[str, ...] = ()
-    if args.projects is not None:
-
-        def project_name(item: str) -> str:
-            if _ADO_PROJECT_FORBIDDEN.intersection(item):
-                raise ConfigError(f"{item!r} is not an Azure DevOps project name.")
-            return item
-
-        projects = _names(args.projects, "--projects", "project", name_of=project_name, fold_case=False)
-    elif not all_projects:
-        raise ConfigError("Choose what to scan: --all-projects, or --projects with a comma-separated list of names.")
-    api_url = DEFAULT_AZURE_DEVOPS_URL
-    if args.azure_devops_url is not None:
-        api_url = _url(args.azure_devops_url, "--azure-devops-url")
-    return org, all_projects, projects, api_url
 
 
 def check_scan_id(raw: str) -> str:
@@ -246,13 +204,8 @@ def build_scan_config(
     or cannot be read. Both have exit code CONFIG_ERROR.
     """
     scan_id = check_scan_id(args.scan_id)
-    provider: Provider
-    if args.github_org is not None:
-        provider = "github"
-        org, all_repos, repos, api_url = _github(args)
-    else:
-        provider = "azure_devops"
-        org, all_repos, repos, api_url = _azure_devops(args)
+    provider: Provider = "github"
+    org, all_repos, repos, api_url = _github(args)
     ai_review: bool = args.ai_review
     judge: bool = args.judge
     if judge and not ai_review:

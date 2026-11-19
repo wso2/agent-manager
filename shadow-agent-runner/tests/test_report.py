@@ -239,6 +239,7 @@ def test_read_rejects_what_is_not_a_report(tmp_path: Path, content: str, problem
     ("change", "problem"),
     [
         (lambda d: d.update(provider="gitlab"), "an unknown provider"),
+        (lambda d: d.update(provider="azure_devops"), "an unknown provider"),
         (lambda d: d["repositories"][0].update(status="lost"), "lost"),
         (lambda d: d["repositories"][0].update(filesScanned="12"), "filesScanned is not a number"),
         (lambda d: d["repositories"][0]["findings"][0].update(tag="vendor"), "an unknown tag"),

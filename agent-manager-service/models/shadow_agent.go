@@ -37,15 +37,14 @@ const (
 	// Source repository hosts (Method 2). Their connections hold no
 	// credential: the source code scan runs on the customer's machine and asks
 	// for the Git token there.
-	ShadowProviderGitHub      = "github"
-	ShadowProviderAzureDevOps = "azure_devops"
+	ShadowProviderGitHub = "github"
 )
 
 // ShadowProviders lists every supported platform, in display order.
 var ShadowProviders = []string{
 	ShadowProviderOpenAI, ShadowProviderAnthropic,
 	ShadowProviderBedrock, ShadowProviderGoogle, ShadowProviderFoundry, ShadowProviderCustom,
-	ShadowProviderGitHub, ShadowProviderAzureDevOps,
+	ShadowProviderGitHub,
 }
 
 // Finding kinds: what an agent is at its platform.
@@ -100,7 +99,7 @@ type ShadowConnection struct {
 	Provider string                 `gorm:"column:provider;not null"`
 	Config   ShadowConnectionConfig `gorm:"column:config;type:jsonb;serializer:json;not null"`
 	// SecretEncrypted is the AES-GCM encrypted JSON of ShadowConnectionSecret.
-	// It is NULL for a source host (GitHub, Azure DevOps), which stores no
+	// It is NULL for a source host (GitHub), which stores no
 	// secret.
 	SecretEncrypted []byte `gorm:"column:secret_encrypted"`
 	// SecretHints are redacted hints of the stored secrets ("sk-a...wxyz"),
@@ -152,7 +151,7 @@ type ShadowConnectionConfig struct {
 	// the secret (the keys themselves are in the secret).
 	ScopedKeyIDs []string `json:"scopedKeyIds,omitempty"`
 
-	// GitHub, Azure DevOps: the organization (or GitHub user account) whose
+	// GitHub: the organization or user account whose
 	// repositories are scanned.
 	Organization string `json:"organization,omitempty"`
 	// GitHub: every repository of the organization, or only Repositories.
@@ -161,10 +160,7 @@ type ShadowConnectionConfig struct {
 	// GitHub: the repositories are private, so the scan command asks for a
 	// token when it runs.
 	PrivateRepositories bool `json:"privateRepositories,omitempty"`
-	// Azure DevOps: every project of the organization, or only Projects.
-	AllProjects bool     `json:"allProjects,omitempty"`
-	Projects    []string `json:"projects,omitempty"`
-	// GitHub, Azure DevOps: also read CI pipeline definitions.
+	// GitHub: also read CI pipeline definitions.
 	ReadCIFiles bool `json:"readCiFiles,omitempty"`
 
 	// Custom platform: the URL of the customer's agent list (GET).
