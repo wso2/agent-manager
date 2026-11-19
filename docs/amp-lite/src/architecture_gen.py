@@ -109,17 +109,17 @@ sub("console", 318, 404, 190, 150,
     "pages from GET /api/v1/ui-manifest",
     GREEN, "#F2FBF7")
 reg("console", 318, 404, 190, 150)
-reg("core", 520, 404, 236, 150)
-sub("core", 520, 404, 236, 150,
+reg("core", 520, 404, 226, 150)
+sub("core", 520, 404, 226, 150,
     "<b>Core</b><br/>REST API and MCP server<br/>orgs, projects, external agents and their tokens<br/>"
     "RBAC, audit log, events, secrets<br/>at startup: migrates the database and creates the default org",
     GREEN, "#F2FBF7")
-reg("modhost", 812, 404, 290, 150)
-sub("modhost", 812, 404, 290, 150,
+reg("modhost", 830, 404, 272, 150)
+sub("modhost", 830, 404, 272, 150,
     "<b>Module host</b> · install · enable · disable<br/>"
-    "modules reach the core only through modkit: rt.Core · rt.Secrets · hooks · events · capabilities",
+    "modules reach the core only through modkit:<br/>rt.Core · rt.Secrets · hooks · events · capabilities",
     GREEN, "#F2FBF7")
-sub("mod_gw", 822, 474, 270, 72,
+sub("mod_gw", 840, 478, 252, 68,
     "<b>ai-gateway</b> · on by default<br/>gateways, LLM and MCP proxies; provides llm.proxy, mcp.proxy",
     INDIGO, "#F5F5FF")
 comp("thunder", 300, 600, 820, 135, RED, "ThunderID",
@@ -134,20 +134,19 @@ sub("init", 300, 745, 820, 62,
     SLATE, "#F1F5F9")
 
 # ---------------------------------------------------------------- data plane
-box("dp", 1180, 290, 860, 280, INDIGO, fill="#F5F5FF", arc=2)
+box("dp", 1180, 290, 860, 200, INDIGO, fill="#F5F5FF", arc=2)
 text("dp_lbl", 1200, 298, 820, 20, "DATA PLANE", size=13, color=INDIGO, bold=True, valign="middle")
-comp("gw", 1200, 330, 820, 220, INDIGO, "AI Gateway",
-     "• inbound: the public entry point for agent endpoints; API keys and OAuth tokens checked here<br/>"
-     "• outbound: LLM and MCP proxy, guardrails, token and cost limits; provider keys stay in the gateway<br/>"
-     "• gateway-controller pulls its config from Agent Manager over the controller API on /api/internal/v1 (:9243), "
-     "authenticated with its gateway token (api-key); once controllers register as module workloads (#2493), with core-issued credentials and heartbeats<br/>"
-     "• gateway-runtime (Envoy) serves the traffic; upstream credentials are kept by Agent Manager in its secrets, not in the gateway's rows",
+comp("gw", 1200, 330, 820, 140, INDIGO, "AI Gateway",
+     "• inbound: entry point for agent endpoints; checks API keys and OAuth tokens<br/>"
+     "• outbound: LLM and MCP proxy, guardrails, token and cost limits<br/>"
+     "• gateway-controller syncs its config over the controller API (/api/internal/v1 :9243, gateway token; a workload after #2493)<br/>"
+     "• gateway-runtime (Envoy) serves the traffic",
      logos=[IMG["gw_logo0"]], prod="amp installs the ai-gateway module by default · its worker registers the default gateway · more per org", prod_color=INDIGO)
 
 # ---------------------------------------------------------------- not in Lite
-box("later", 1180, 610, 860, 210, GREY, fill="#F8FAFC", arc=2, dashed=True)
-text("later_lbl", 1200, 618, 820, 20, "NOT IN AMP LITE", size=13, color="#64748b", bold=True, valign="middle")
-text("later_body", 1200, 650, 820, 150,
+box("later", 1180, 530, 860, 190, GREY, fill="#F8FAFC", arc=2, dashed=True)
+text("later_lbl", 1200, 538, 820, 20, "NOT IN AMP LITE", size=13, color="#64748b", bold=True, valign="middle")
+text("later_body", 1200, 570, 820, 150,
      "No trace store, trace query service or evaluation runs in this stack. Agents may still be instrumented, "
      "but nothing here receives or keeps their spans.<br/><br/>"
      "Observability (trace ingest, storage and queries) and evaluation (evaluators, monitors, scores and alerts) "
@@ -162,9 +161,9 @@ def backing(id, x, y, w, h, sub_text=""):
         text(f"{id}_sub", x + 14, y + 26, w - 28, 30, sub_text, size=10.5, italic=True)
 
 backing("bk_left", 40, 290, 200, 530)
-comp("sqldb", 54, 340, 172, 270, BLUE, "SQL database",
-     "core tables and module tables (mod_&lt;name&gt;_*), audit log, and secrets encrypted with ENCRYPTION_KEY (AES-256-GCM), "
-     "including modules' secrets (rt.Secrets(), such as the gateway's upstream credentials)<br/><i>SQLite by default, PostgreSQL 18 with the postgres profile; SQL Server 2025 and Oracle 19c planned</i>",
+comp("sqldb", 54, 340, 172, 200, BLUE, "SQL database",
+     "core tables, module tables (mod_&lt;name&gt;_*), audit log, secrets (incl. module secrets via rt.Secrets) encrypted with ENCRYPTION_KEY<br/>"
+     "<i>SQLite default, PostgreSQL 18 profile</i>",
      logos=[DB_ICON], logo_size=22, title_size=13)
 comp("thdb", 54, 640, 172, 160, BLUE, "ThunderID data",
      "users, agent identities and OAuth clients<br/>Thunder's own database, separate from Agent Manager's",
@@ -193,17 +192,17 @@ edge("f_eg_ag", [(1350, 221), (1350, 204), (1700, 204), (1700, 190)], INDIGO, "e
 label("l_llm", 1318, 270, 150, "LLM · MCP · to agents", INDIGO)
 
 # control plane
-edge("f_core_mod", [(756, 470), (812, 470)], GREEN, "core", "modhost")
-edge("f_mod_core", [(812, 500), (756, 500)], GREEN, "modhost", "core")
-label("l_modkit", 758, 476, 52, "modkit<br/>rt.*", GREEN, align="center", fill="#F2FBF7", h=22)
+edge("f_core_mod", [(746, 490), (830, 490)], GREEN, "core", "modhost")
+edge("f_mod_core", [(830, 512), (746, 512)], GREEN, "modhost", "core")
+label("l_modkit", 750, 466, 76, "modkit · rt.*", GREEN, align="center", fill="#F2FBF7", h=16)
 edge("f_api_gwcfg", [(1200, 440), (1120, 440)], GREEN, "gw", "amapi")
 label("l_gwcfg", 1124, 400, 72, "controller API<br/>:9243", GREEN, align="center", fill="#FFFFFF", h=30)
 edge("f_sso", [(420, 554), (420, 600)], RED, "console", "thunder", dashed=True)
 label("l_sso", 428, 580, 100, "single sign-on", RED)
 edge("f_api_th", [(620, 570), (620, 600)], RED, "amapi", "thunder", dashed=True)
 label("l_ids", 628, 580, 160, "creates agent identities", RED)
-edge("f_api_db", [(300, 545), (226, 545)], BLUE, "amapi", "sqldb")
-label("l_data", 230, 527, 70, "read / write", BLUE)
+edge("f_api_db", [(300, 500), (226, 500)], BLUE, "amapi", "sqldb")
+label("l_data", 226, 466, 34, "read<br/>write", BLUE, align="center", fill="#FFFFFF", h=28)
 edge("f_th_db", [(300, 700), (226, 700)], BLUE, "thunder", "thdb")
 
 # ---------------------------------------------------------------- legend
