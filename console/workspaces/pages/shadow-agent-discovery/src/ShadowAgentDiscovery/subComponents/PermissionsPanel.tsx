@@ -25,6 +25,7 @@ import {
   Card,
   CardContent,
   IconButton,
+  Link,
   Stack,
   Tooltip,
   Typography,
@@ -150,7 +151,13 @@ function StepsList({ items }: { items: string[] }) {
  * One credential or source: a collapsible section with what is read, how to
  * set it up and the policy.
  */
-function Section({ p, defaultExpanded }: { p: ShadowPermissionSpec; defaultExpanded: boolean }) {
+export function Section({
+  p,
+  defaultExpanded = true,
+}: {
+  p: ShadowPermissionSpec;
+  defaultExpanded?: boolean;
+}) {
   return (
     <Accordion
       defaultExpanded={defaultExpanded}
@@ -204,13 +211,29 @@ function Section({ p, defaultExpanded }: { p: ShadowPermissionSpec; defaultExpan
   );
 }
 
-function linkLabel(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.hostname}${u.pathname === "/" ? "" : u.pathname}`;
-  } catch {
-    return url;
-  }
+/**
+ * A provider's official documentation as worded links that open in a new
+ * tab ("GitHub documentation"), without showing the addresses.
+ */
+export function DocLinks({ spec }: { spec: ShadowProviderSpec }) {
+  return (
+    <Stack spacing={0.5} sx={{ mt: 0.5 }} alignItems="flex-start">
+      {spec.docs.map((d, i) => (
+        <Link
+          key={d}
+          href={d}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="body2"
+          sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
+        >
+          {spec.displayName} documentation
+          {spec.docs.length > 1 ? ` (${i + 1} of ${spec.docs.length})` : ""}
+          <ExternalLink size={14} aria-hidden />
+        </Link>
+      ))}
+    </Stack>
+  );
 }
 
 /**
@@ -252,27 +275,10 @@ export function PermissionsPanel({ spec }: { spec: ShadowProviderSpec }) {
           ))}
           {spec.docs.length > 0 && (
             <Box sx={{ pt: 0.5 }}>
-              <Typography variant="caption" color="text.secondary" component="p" sx={{ mb: 0.5 }}>
+              <Typography variant="caption" color="text.secondary" component="p">
                 Official documentation
               </Typography>
-              <Stack spacing={0.5}>
-                {spec.docs.map((d) => (
-                  <Stack
-                    key={d}
-                    direction="row"
-                    spacing={0.75}
-                    alignItems="center"
-                    sx={{ minWidth: 0 }}
-                  >
-                    <Typography variant="body2" sx={{ wordBreak: "break-all", minWidth: 0 }}>
-                      <a href={d} target="_blank" rel="noreferrer noopener">
-                        {linkLabel(d)}
-                      </a>
-                    </Typography>
-                    <ExternalLink size={12} />
-                  </Stack>
-                ))}
-              </Stack>
+              <DocLinks spec={spec} />
             </Box>
           )}
         </Stack>

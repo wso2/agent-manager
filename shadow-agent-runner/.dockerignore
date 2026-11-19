@@ -1,0 +1,8 @@
+# Send only what the image build copies.
+*
+!pyproject.toml
+!README.md
+!src/
+!locks/requirements-linux-py312.txt
+**/__pycache__
+**/*.py[co]

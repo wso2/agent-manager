@@ -46,6 +46,16 @@ func TestEvidenceCatalog(t *testing.T) {
 		SigGoogleAgentEngine, SigGoogleRegistryAgent,
 		SigFoundryAgentObject, SigFoundryClassicAgent, SigFoundryPossibleDupOf,
 	}
+	sourceSlugs := []string{
+		"d1_agent_dependency", "d2_agent_import", "d3_mcp_client_config", "d4_mcp_client_code",
+		"d5_a2a_artifact", "d6_agent_platform_iac", "d7_tool_calling", "d8_mcp_server_code",
+		"d9_agent_definition", "d10_model_sdk", "d11_llm_env_var", "d12_developer_tooling",
+	}
+	for _, host := range []string{"github", "azure_devops"} {
+		for _, slug := range sourceSlugs {
+			want = append(want, host+"."+slug)
+		}
+	}
 	providers := map[string]bool{}
 	for _, p := range models.ShadowProviders {
 		providers[p] = true
@@ -331,6 +341,7 @@ func TestSanitizeAttributesAllowList(t *testing.T) {
 		"models":       []string{"gpt-4.1"},
 		"sessionCount": 4,
 		"apiSources":   []string{"agents_api"},
+		"reviewedBy":   "ai_review_judge",
 	}
 	out := SanitizeAttributes(in)
 	b, err := json.Marshal(out)
@@ -345,6 +356,7 @@ func TestSanitizeAttributesAllowList(t *testing.T) {
 	assert.Equal(t, []MCPServerRef{{Label: "github", Origin: "https://mcp.example.com"}}, out["mcpServers"])
 	assert.Len(t, out["description"], maxAttrString)
 	assert.Equal(t, 3, out["toolCount"])
+	assert.Equal(t, "ai_review_judge", out["reviewedBy"])
 	for _, k := range []string{"models", "sessionCount", "apiSources"} {
 		assert.NotContains(t, out, k, "%s is no longer kept", k)
 	}

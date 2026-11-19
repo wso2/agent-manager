@@ -14906,6 +14906,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/shadow-agents/connections/{connectionId}/runner-scans:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: connectionId
+        in: path
+        required: true
+        description: Connection ID
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - Shadow Agent Discovery
+      summary: Create a source code scan command
+      description: |
+        Creates a pending scan of a GitHub or Azure DevOps connection and a
+        scan token, valid for about one hour, that lets the scan command
+        publish its results for this organization only. Returns the parts the
+        console composes the scan command from. The token is returned once and
+        is not stored; the response is not cached. A pending scan with no
+        results within one hour fails as expired.
+      operationId: createShadowRunnerScan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShadowRunnerScanRequest"
+      responses:
+        "201":
+          description: Pending scan created
+          headers:
+            Cache-Control:
+              description: Always no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowRunnerScanResponse"
+        "400":
+          description: Invalid request, or the connection is not a source code repository host
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Source code scans are turned off or not set up on this server, or the identity provider or audit trail is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/shadow-agents/scans:
     parameters:
       - name: orgName
@@ -15062,8 +15132,8 @@ paths:
       summary: List unregistered agents
       description: |
         The agents the platforms list, one row per agent however many
-        connections found it (the same platform, kind and platform ID), by
-        name. Without scanId, only the agents their connection's latest
+        connections found it (the same platform, kind and platform ID), most
+        recently seen first. Without scanId, only the agents their connection's latest
         complete listing still returned; with scanId, the agents that scan
         found.
       operationId: listShadowFindings
@@ -24572,6 +24642,9 @@ components:
         advanced:
           type: boolean
           description: An endpoint the console keeps behind the "Advanced configuration" button.
+        help:
+          type: string
+          description: When to change the endpoint; the console shows it under the input.
 
     ShadowFieldSpec:
       type: object
@@ -24795,11 +24868,16 @@ components:
           format: uuid
         status:
           type: string
-          enum: [queued, running, succeeded, partial, failed]
+          description: >-
+            pending: a source code scan waiting for its scan command to publish results (it
+            fails after 1 hour without them); queued and running: a cloud scan in progress.
+          enum: [pending, queued, running, succeeded, partial, failed]
         connectionIds:
           type: array
           items:
             type: string
+        options:
+          $ref: "#/components/schemas/ShadowScanOptions"
         results:
           type: array
           items:
@@ -24818,6 +24896,53 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    ShadowScanOptions:
+      type: object
+      description: The choices made in Generate command for a source code scan. Cloud scans have none.
+      properties:
+        aiReview:
+          type: boolean
+          description: Matches the rules cannot prove go to the customer's LLM for review.
+        llmJudge:
+          type: boolean
+          description: A second model must confirm the reviewer. Only with aiReview.
+
+    ShadowRunnerScanRequest:
+      type: object
+      description: The choices made in Generate command for a source code scan.
+      required: [aiReview, llmJudge]
+      properties:
+        aiReview:
+          type: boolean
+          description: Matches the rules cannot prove go to the customer's LLM for review.
+        llmJudge:
+          type: boolean
+          description: A second model must confirm the reviewer. Only with aiReview.
+
+    ShadowRunnerScanResponse:
+      type: object
+      description: |
+        The pending scan and the parts of the scan command that runs it. The
+        token is shown once.
+      required: [scanId, token, expiresAt, ampUrl, image]
+      properties:
+        scanId:
+          type: string
+          format: uuid
+        token:
+          type: string
+          description: The scan token the command publishes its results with.
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the scan token expires.
+        ampUrl:
+          type: string
+          description: The Agent Manager address the scan command publishes to.
+        image:
+          type: string
+          description: The scan command's container image.
 
     ShadowScanListResponse:
       type: object
@@ -24866,6 +24991,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ShadowScanCallResult"
+        scannedRepositories:
+          type: array
+          description: The repositories a source code scan command scanned (a GitHub repository name, or an Azure DevOps project/repository). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+          items:
+            type: string
+        failedRepositories:
+          type: array
+          description: The repositories a source code scan command could not scan. Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+          items:
+            $ref: "#/components/schemas/ShadowScanFailedRepository"
+
+    ShadowScanFailedRepository:
+      type: object
+      required: [name, message]
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+          description: Why the repository could not be scanned, scrubbed of anything credential-like.
 
     ShadowScanCallResult:
       type: object
@@ -24918,10 +25063,11 @@ components:
           type: string
         kind:
           type: string
-          enum: [platform_agent, runtime]
+          enum: [platform_agent, runtime, code_agent]
           description: >-
             runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent
-            object a platform lists.
+            object a platform lists; code_agent is an agent found in a repository's source code by the source
+            code scan.
         externalId:
           type: string
           description: The platform's own ID of the agent (agent ID, ARN or resource name).

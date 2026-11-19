@@ -39,6 +39,7 @@ import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { PageLayout, TextInput, useReturnTo } from "@agent-management-platform/views";
 import {
   useCreateShadowConnection,
+  useCreateShadowRunnerScan,
   useShadowConnection,
   useShadowProviders,
   useUpdateShadowConnection,
@@ -52,6 +53,7 @@ import {
   type ShadowFieldSpec,
   type ShadowProvider,
   type ShadowProviderSpec,
+  type ShadowRunnerScanResponse,
   type ShadowSettingValue,
 } from "@agent-management-platform/types";
 import { selectCardSx } from "../shadowUi";
@@ -63,6 +65,9 @@ import {
 } from "../capabilities";
 import { AnalyzeSection } from "./AnalyzeSection";
 import { PermissionsPanel } from "./PermissionsPanel";
+import { SourceScanGuide } from "./SourceScanGuide";
+import { ScanCommandPanel } from "./ScanCommandPanel";
+import type { ScanCommandInput } from "../scanCommand";
 
 type KeyMapRow = { id: string; key: string };
 
@@ -295,6 +300,7 @@ function ChipListInput({
   error,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   placeholder?: string;
@@ -302,6 +308,8 @@ function ChipListInput({
   error?: string;
   value: string;
   onChange: (v: string) => void;
+  /** Locked form: chips cannot be removed, not even from the keyboard. */
+  disabled?: boolean;
 }) {
   const [text, setText] = useState("");
   const items = listItems(value);
@@ -344,7 +352,9 @@ function ChipListInput({
               key={it}
               label={it}
               size="small"
-              onDelete={() => onChange(items.filter((x) => x !== it).join("\n"))}
+              onDelete={
+                disabled ? undefined : () => onChange(items.filter((x) => x !== it).join("\n"))
+              }
               aria-label={it}
             />
           ))}
@@ -415,6 +425,7 @@ function FieldInput({
   error,
   storedHint,
   inChoice,
+  disabled,
 }: {
   field: ShadowFieldSpec;
   draft: ConnectionDraft;
@@ -423,6 +434,8 @@ function FieldInput({
   storedHint?: string;
   /** The field is one of the provider's "one of these credentials". */
   inChoice?: boolean;
+  /** The form is locked. */
+  disabled?: boolean;
 }) {
   const setValue = (v: string | boolean) =>
     setDraft({ ...draft, values: { ...draft.values, [field.key]: v } });
@@ -533,6 +546,7 @@ function FieldInput({
         error={error}
         value={String(draft.values[field.key] ?? "")}
         onChange={setValue}
+        disabled={disabled}
       />
     );
   }
@@ -675,13 +689,14 @@ function EndpointInput({
       error={!!error}
       helperText={
         error ??
-        (custom
+        // A source host holds no credential and may be self-hosted on any host.
+        (custom && !spec?.sourceHost
           ? `Not the official endpoint (${e.default}).`
           : regions
             ? `{${e.placeholders[0]}} is filled in for each ${
                 spec?.fields.find((f) => f.key === e.fillFrom)?.label.toLowerCase() ?? "value"
               } you add; then you can change the URL of each one.`
-            : undefined)
+            : e.help)
       }
     />
   );
@@ -702,6 +717,7 @@ export function ConnectionEditor({
   const existing = useShadowConnection(orgName, connectionId);
   const create = useCreateShadowConnection(orgName);
   const update = useUpdateShadowConnection(orgName, connectionId);
+  const runner = useCreateShadowRunnerScan(orgName);
   const isEdit = !!connectionId;
   const [draft, setDraft] = useState<ConnectionDraft | null>(null);
   const [initial, setInitial] = useState<string>("");
@@ -709,6 +725,16 @@ export function ConnectionEditor({
   const [serverError, setServerError] = useState<string | null>(null);
   // null until the user toggles Advanced configuration.
   const [advancedOpen, setAdvancedOpen] = useState<boolean | null>(null);
+  // GitHub and Azure DevOps: the scan command options, the saved platform
+  // (the form is then locked) and the command issued for it. The command
+  // holds a scan token, so it lives only in this state.
+  const [aiReview, setAiReview] = useState(false);
+  const [llmJudge, setLlmJudge] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [issued, setIssued] = useState<ShadowRunnerScanResponse | null>(null);
+  // What was saved: the issued command is built from it, not from the form.
+  const [savedInput, setSavedInput] = useState<ScanCommandInput | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const spec = useMemo(
     () =>
@@ -742,16 +768,39 @@ export function ConnectionEditor({
     (!!spec &&
       !!draft &&
       (advancedInUse(spec, draft, existing.data) ||
-        spec.fields.some((f) => f.advanced && !!errors[f.key])));
+        spec.fields.some((f) => f.advanced && !!errors[f.key]) ||
+        spec.endpoints.some((e) => e.advanced && !!errors[`endpoint:${e.key}`])));
 
   const isDirty = !!draft && JSON.stringify(draft) !== initial;
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+  const saving = create.isPending || update.isPending;
+  const locked = !!savedId || saving;
 
   const choose = (p: ShadowProviderSpec) => {
     const d = initialDraft(p, undefined);
     d.name = draft?.name || `${p.displayName} connection`;
     setDraft(d);
     setErrors({});
+  };
+
+  // Issues the scan command of the saved platform; Try again repeats only this.
+  const issueCommand = (id: string) => {
+    setScanError(null);
+    runner.mutate(
+      { connectionId: id, aiReview, llmJudge: aiReview && llmJudge },
+      {
+        onSuccess: (r) => {
+          setIssued(r);
+          // The response holds a token: keep it only in this page's state.
+          runner.reset();
+        },
+        onError: (e) =>
+          setScanError(
+            (e as { message?: string })?.message ??
+              "The platform is saved, but the scan command could not be generated.",
+          ),
+      },
+    );
   };
 
   const save = () => {
@@ -773,6 +822,19 @@ export function ConnectionEditor({
         (e as { message?: string })?.message ??
           "The platform could not be saved. Check the values and try again.",
       );
+    if (spec.sourceHost) {
+      // Saved: lock the form, then issue the scan command for it.
+      const onSaved = (id: string) => {
+        setInitial(JSON.stringify(draft));
+        setSavedInput({ settings: body.settings, endpoints: body.endpoints });
+        setSavedId(id);
+        issueCommand(id);
+      };
+      if (!connectionId) create.mutate(body, { onSuccess: (c) => onSaved(c.id), onError });
+      else if (!isDirty) onSaved(connectionId);
+      else update.mutate(body, { onSuccess: () => onSaved(connectionId), onError });
+      return;
+    }
     if (isEdit) update.mutate(body, { onSuccess, onError });
     else create.mutate(body, { onSuccess, onError });
   };
@@ -799,7 +861,7 @@ export function ConnectionEditor({
               list: (providers.data?.providers ?? []).filter((p) => !p.sourceHost),
             },
             {
-              title: "Source repositories",
+              title: "Source code repositories",
               list: (providers.data?.providers ?? []).filter((p) => p.sourceHost),
             },
           ]
@@ -819,7 +881,9 @@ export function ConnectionEditor({
                           <CardContent>
                             <Stack direction="row" spacing={1} alignItems="center">
                               <Typography variant="subtitle1">{p.displayName}</Typography>
-                              {p.sourceHost && <Chip size="small" label="Analysis coming soon" />}
+                              {p.sourceHost && (
+                                <Chip size="small" variant="outlined" label="Runs on your machine" />
+                              )}
                             </Stack>
                             <Typography variant="body2" color="text.secondary">
                               {p.description}
@@ -839,61 +903,169 @@ export function ConnectionEditor({
             <Stack spacing={2.5}>
               <Stack direction="row" spacing={1} alignItems="center">
                 <Typography variant="subtitle1">{spec.displayName}</Typography>
-                {!isEdit && (
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={() => setDraft({ ...draft, provider: "" })}
-                  >
-                    Change platform
-                  </Button>
-                )}
+                {spec.sourceHost && <SourceScanGuide spec={spec} />}
               </Stack>
               <AnalyzeSection
                 providerName={spec.displayName}
                 statuses={statuses}
-                preview={!!spec.sourceHost}
+                sourceHost={!!spec.sourceHost}
               />
-              {spec.sourceHost && (
-                <Alert severity="info">
-                  Source code analysis is not available yet. Test connection checks the{" "}
-                  {draft.values.useEntra === true ? "service principal" : "token"} now, with
-                  read-only calls; scans list this platform as skipped until the analysis is added.
-                </Alert>
-              )}
-              <TextInput
-                label="Name"
-                placeholder="e.g. OpenAI production"
-                value={draft.name}
-                maxLength={INPUT_LIMITS.NAME}
-                hideCharacterCount
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                error={!!errors.name}
-                helperText={errors.name}
-              />
-              {(() => {
-                const visible = spec.fields.filter((f) => fieldVisible(f, draft));
-                const endpointsUnder = (f: ShadowFieldSpec) =>
-                  spec.endpoints.filter(
+              {/* Locked while saving, and once a source host is saved. */}
+              <Box
+                component="fieldset"
+                disabled={locked}
+                sx={{
+                  border: 0,
+                  p: 0,
+                  m: 0,
+                  minWidth: 0,
+                  ...(locked && { pointerEvents: "none", opacity: 0.7 }),
+                }}
+              >
+                <Stack spacing={2.5}>
+                  <TextInput
+                    label="Name"
+                    placeholder={
+                      spec.sourceHost ? `e.g. ${spec.displayName} my-org` : "e.g. OpenAI production"
+                    }
+                    value={draft.name}
+                    maxLength={INPUT_LIMITS.NAME}
+                    hideCharacterCount
+                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                    error={!!errors.name}
+                    helperText={errors.name}
+                  />
+                  {(() => {
+                    const visible = spec.fields.filter((f) => fieldVisible(f, draft));
+                    const endpointsUnder = (f: ShadowFieldSpec) =>
+                      spec.endpoints.filter(
+                        (e) =>
+                          endpointHost(spec, e)?.key === f.key &&
+                          endpointVisible(spec, draft, existing.data, e.option),
+                      );
+                    const renderField = (f: ShadowFieldSpec) => {
+                      const under = endpointsUnder(f);
+                      return (
+                        <Box key={f.key}>
+                          <FieldInput
+                            field={f}
+                            draft={draft}
+                            setDraft={setDraft}
+                            error={errors[f.key]}
+                            storedHint={existing.data?.secretHints?.[f.key]}
+                            inChoice={spec.credentialChoice?.fields.includes(f.key)}
+                            disabled={locked}
+                          />
+                          {under.length > 0 && (
+                            <Stack spacing={2} sx={{ pl: f.kind === "checkbox" ? 4 : 0, mt: 1.5 }}>
+                              {under.map((e) => (
+                                <EndpointInput
+                                  key={e.key}
+                                  endpoint={e}
+                                  draft={draft}
+                                  setDraft={setDraft}
+                                  error={errors[`endpoint:${e.key}`]}
+                                  regions={endpointRegions(spec, e, draft)}
+                                  errors={errors}
+                                  spec={spec}
+                                />
+                              ))}
+                            </Stack>
+                          )}
+                        </Box>
+                      );
+                    };
+                    const advanced = visible.filter((f) => f.advanced);
+                    const advancedEndpoints = spec.endpoints.filter(
+                      (e) =>
+                        e.advanced &&
+                        !endpointHost(spec, e) &&
+                        endpointVisible(spec, draft, existing.data, e.option),
+                    );
+                    const advancedBlock = (
+                      <Box
+                        key="advanced"
+                        sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}
+                      >
+                        <Button
+                          variant="text"
+                          onClick={() => setAdvancedOpen(!showAdvanced)}
+                          startIcon={
+                            showAdvanced ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                          }
+                          aria-expanded={showAdvanced}
+                          sx={{ m: 0.5 }}
+                        >
+                          {spec.sourceHost ? "Self-hosted server" : "Advanced configuration"}
+                        </Button>
+                        {showAdvanced && (
+                          <Stack spacing={2.5} sx={{ px: 2, pb: 2 }}>
+                            {advanced.map(renderField)}
+                            {advancedEndpoints.map((e) => (
+                              <EndpointInput
+                                key={e.key}
+                                endpoint={e}
+                                draft={draft}
+                                setDraft={setDraft}
+                                error={errors[`endpoint:${e.key}`]}
+                                regions={endpointRegions(spec, e, draft)}
+                                errors={errors}
+                                spec={spec}
+                              />
+                            ))}
+                          </Stack>
+                        )}
+                      </Box>
+                    );
+                    const out: React.ReactNode[] = [];
+                    let lastSection: string | undefined;
+                    let placed = false;
+                    for (const f of visible) {
+                      if (f.advanced) {
+                        if (!placed) out.push(advancedBlock);
+                        placed = true;
+                        continue;
+                      }
+                      if (f.section && f.section !== lastSection) {
+                        out.push(
+                          <Typography key={`section:${f.section}`} variant="subtitle1">
+                            {f.section}
+                          </Typography>,
+                        );
+                      }
+                      lastSection = f.section;
+                      out.push(renderField(f));
+                    }
+                    if (!placed && advancedEndpoints.length > 0) out.push(advancedBlock);
+                    return out;
+                  })()}
+                  {errors.credentialChoice && (
+                    <Alert severity="error">{errors.credentialChoice}</Alert>
+                  )}
+
+                  {spec.endpoints.some(
                     (e) =>
-                      endpointHost(spec, e)?.key === f.key &&
+                      !endpointHost(spec, e) &&
+                      !e.advanced &&
                       endpointVisible(spec, draft, existing.data, e.option),
-                  );
-                const renderField = (f: ShadowFieldSpec) => {
-                  const under = endpointsUnder(f);
-                  return (
-                    <Box key={f.key}>
-                      <FieldInput
-                        field={f}
-                        draft={draft}
-                        setDraft={setDraft}
-                        error={errors[f.key]}
-                        storedHint={existing.data?.secretHints?.[f.key]}
-                        inChoice={spec.credentialChoice?.fields.includes(f.key)}
-                      />
-                      {under.length > 0 && (
-                        <Stack spacing={2} sx={{ pl: f.kind === "checkbox" ? 4 : 0, mt: 1.5 }}>
-                          {under.map((e) => (
+                  ) && (
+                    <Box>
+                      <Typography variant="subtitle1">Endpoints</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                        The official endpoints are filled in. Change one only to reach the
+                        platform through a host you trust: the credential is sent to it.
+                        Placeholders such as {"{region}"} are filled in for each region or location
+                        you scan.
+                      </Typography>
+                      <Stack spacing={2}>
+                        {spec.endpoints
+                          .filter(
+                            (e) =>
+                              !endpointHost(spec, e) &&
+                              !e.advanced &&
+                              endpointVisible(spec, draft, existing.data, e.option),
+                          )
+                          .map((e) => (
                             <EndpointInput
                               key={e.key}
                               endpoint={e}
@@ -905,131 +1077,68 @@ export function ConnectionEditor({
                               spec={spec}
                             />
                           ))}
-                        </Stack>
-                      )}
-                    </Box>
-                  );
-                };
-                const advanced = visible.filter((f) => f.advanced);
-                const advancedEndpoints = spec.endpoints.filter(
-                  (e) =>
-                    e.advanced &&
-                    !endpointHost(spec, e) &&
-                    endpointVisible(spec, draft, existing.data, e.option),
-                );
-                const advancedBlock = (
-                  <Box key="advanced" sx={{ border: 1, borderColor: "divider", borderRadius: 1 }}>
-                    <Button
-                      variant="text"
-                      onClick={() => setAdvancedOpen(!showAdvanced)}
-                      startIcon={
-                        showAdvanced ? <ChevronDown size={16} /> : <ChevronRight size={16} />
-                      }
-                      aria-expanded={showAdvanced}
-                      sx={{ m: 0.5 }}
-                    >
-                      Advanced configuration
-                    </Button>
-                    {showAdvanced && (
-                      <Stack spacing={2.5} sx={{ px: 2, pb: 2 }}>
-                        {advanced.map(renderField)}
-                        {advancedEndpoints.map((e) => (
-                          <EndpointInput
-                            key={e.key}
-                            endpoint={e}
-                            draft={draft}
-                            setDraft={setDraft}
-                            error={errors[`endpoint:${e.key}`]}
-                            regions={endpointRegions(spec, e, draft)}
-                            errors={errors}
-                            spec={spec}
-                          />
-                        ))}
                       </Stack>
-                    )}
-                  </Box>
-                );
-                const out: React.ReactNode[] = [];
-                let lastSection: string | undefined;
-                let placed = false;
-                for (const f of visible) {
-                  if (f.advanced) {
-                    if (!placed) out.push(advancedBlock);
-                    placed = true;
-                    continue;
-                  }
-                  if (f.section && f.section !== lastSection) {
-                    out.push(
-                      <Typography key={`section:${f.section}`} variant="subtitle1">
-                        {f.section}
-                      </Typography>,
-                    );
-                  }
-                  lastSection = f.section;
-                  out.push(renderField(f));
-                }
-                if (!placed && advancedEndpoints.length > 0) out.push(advancedBlock);
-                return out;
-              })()}
-              {errors.credentialChoice && <Alert severity="error">{errors.credentialChoice}</Alert>}
-
-              {spec.endpoints.some(
-                (e) =>
-                  !endpointHost(spec, e) &&
-                  !e.advanced &&
-                  endpointVisible(spec, draft, existing.data, e.option),
-              ) && (
-                <Box>
-                  <Typography variant="subtitle1">Endpoints</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    The official endpoints are filled in. Change one only to reach the platform
-                    through a host you trust: the credential is sent to it. Placeholders such as{" "}
-                    {"{region}"} are filled in for each region or location you scan.
-                  </Typography>
-                  <Stack spacing={2}>
-                    {spec.endpoints
-                      .filter(
-                        (e) =>
-                          !endpointHost(spec, e) &&
-                          !e.advanced &&
-                          endpointVisible(spec, draft, existing.data, e.option),
-                      )
-                      .map((e) => (
-                        <EndpointInput
-                          key={e.key}
-                          endpoint={e}
-                          draft={draft}
-                          setDraft={setDraft}
-                          error={errors[`endpoint:${e.key}`]}
-                          regions={endpointRegions(spec, e, draft)}
-                          errors={errors}
-                          spec={spec}
-                        />
-                      ))}
-                  </Stack>
-                </Box>
-              )}
+                    </Box>
+                  )}
+                </Stack>
+              </Box>
 
               {serverError && <Alert severity="error">{serverError}</Alert>}
               <Stack direction="row" spacing={1.5} justifyContent="flex-start">
-                <Button
-                  variant="contained"
-                  onClick={save}
-                  disabled={create.isPending || update.isPending}
-                >
-                  {isEdit ? "Save" : "Add platform"}
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => allowNavigation(() => navigate(returnTo))}
-                >
-                  Cancel
-                </Button>
+                {savedId ? (
+                  <Button
+                    variant="contained"
+                    onClick={() => allowNavigation(() => navigate(returnTo))}
+                    disabled={runner.isPending}
+                  >
+                    Done
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="contained" onClick={save} disabled={saving}>
+                      {spec.sourceHost
+                        ? isEdit
+                          ? "Save and get command"
+                          : "Add platform and get command"
+                        : isEdit
+                          ? "Save"
+                          : "Add platform"}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => allowNavigation(() => navigate(returnTo))}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                )}
               </Stack>
             </Stack>
           </Grid>
           <Grid size={{ xs: 12, lg: 5 }}>
-            <PermissionsPanel spec={spec} />
+            {spec.sourceHost ? (
+              <ScanCommandPanel
+                spec={spec}
+                draft={
+                  savedInput ?? {
+                    settings: toSettings(spec, draft),
+                    endpoints: endpointsToSave(spec, draft),
+                  }
+                }
+                aiReview={aiReview}
+                llmJudge={llmJudge}
+                onChange={(next) => {
+                  setAiReview(next.aiReview);
+                  setLlmJudge(next.llmJudge);
+                }}
+                issued={issued}
+                disabled={saving || runner.isPending}
+                error={scanError}
+                onRetry={savedId ? () => issueCommand(savedId) : undefined}
+              />
+            ) : (
+              <PermissionsPanel spec={spec} />
+            )}
           </Grid>
         </Grid>
       )}

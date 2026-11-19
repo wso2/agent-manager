@@ -1,0 +1,12 @@
+# Runtime dependency inputs for the shadow agent runner.
+# Every entry is an exact pin and must match [project].dependencies in
+# pyproject.toml (scripts/check_lock.py checks both). The image installs the
+# hash-pinned lock compiled from this file by `make lock`, never this file.
+#
+# Allowed licences: MIT or Apache-2.0 (scripts/check_deps.py). Never add
+# tree-sitter-language-pack: it bundles GPL and unlicensed grammars.
+tree-sitter==0.26.0
+tree-sitter-python==0.25.0
+tree-sitter-javascript==0.25.0
+tree-sitter-typescript==0.23.2
+tree-sitter-c-sharp==0.23.5

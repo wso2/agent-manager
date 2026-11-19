@@ -337,3 +337,30 @@ func TestLoadEnvs_BuildClientDefaults(t *testing.T) {
 		t.Errorf("BuildClient.SecretStore = %q, want the trimmed AMP_BUILD_CLIENT_SECRET_STORE", config.BuildClient.SecretStore)
 	}
 }
+
+func TestLoadEnvs_IDPOrgTokenEndpointEnabled(t *testing.T) {
+	// loadEnvs replaces the package-level config; put it back afterwards.
+	prevConfig, prevWorkload := config, agentWorkloadConfig
+	t.Cleanup(func() { config, agentWorkloadConfig = prevConfig, prevWorkload })
+
+	for k, v := range map[string]string{
+		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
+		"DB_HOST":              "localhost",
+		"DB_USER":              "unit",
+		"DB_PASSWORD":          "unit",
+		"DB_NAME":              "unit",
+	} {
+		t.Setenv(k, v)
+	}
+	t.Setenv("IDP_ORG_TOKEN_ENDPOINT_ENABLED", "")
+	loadEnvs()
+	if !config.IDP.OrgTokenEndpointEnabled {
+		t.Errorf("IDP.OrgTokenEndpointEnabled = false, want true by default")
+	}
+
+	t.Setenv("IDP_ORG_TOKEN_ENDPOINT_ENABLED", "false")
+	loadEnvs()
+	if config.IDP.OrgTokenEndpointEnabled {
+		t.Errorf("IDP.OrgTokenEndpointEnabled = true, want false with IDP_ORG_TOKEN_ENDPOINT_ENABLED=false")
+	}
+}

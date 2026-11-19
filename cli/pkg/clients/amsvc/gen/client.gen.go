@@ -1165,6 +1165,11 @@ type ClientInterface interface {
 
 	UpdateShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateShadowRunnerScanWithBody request with any body
+	CreateShadowRunnerScanWithBody(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateShadowRunnerScan(ctx context.Context, orgName string, connectionId openapi_types.UUID, body CreateShadowRunnerScanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// TestShadowConnection request
 	TestShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5913,6 +5918,30 @@ func (c *Client) UpdateShadowConnectionWithBody(ctx context.Context, orgName str
 
 func (c *Client) UpdateShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateShadowConnectionRequest(c.Server, orgName, connectionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateShadowRunnerScanWithBody(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateShadowRunnerScanRequestWithBody(c.Server, orgName, connectionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateShadowRunnerScan(ctx context.Context, orgName string, connectionId openapi_types.UUID, body CreateShadowRunnerScanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateShadowRunnerScanRequest(c.Server, orgName, connectionId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -23005,6 +23034,60 @@ func NewUpdateShadowConnectionRequestWithBody(server string, orgName string, con
 	return req, nil
 }
 
+// NewCreateShadowRunnerScanRequest calls the generic CreateShadowRunnerScan builder with application/json body
+func NewCreateShadowRunnerScanRequest(server string, orgName string, connectionId openapi_types.UUID, body CreateShadowRunnerScanJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateShadowRunnerScanRequestWithBody(server, orgName, connectionId, "application/json", bodyReader)
+}
+
+// NewCreateShadowRunnerScanRequestWithBody generates requests for CreateShadowRunnerScan with any type of body
+func NewCreateShadowRunnerScanRequestWithBody(server string, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "connectionId", connectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/connections/%s/runner-scans", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewTestShadowConnectionRequest generates requests for TestShadowConnection
 func NewTestShadowConnectionRequest(server string, orgName string, connectionId openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -24870,6 +24953,11 @@ type ClientWithResponsesInterface interface {
 	UpdateShadowConnectionWithBodyWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateShadowConnectionResp, error)
 
 	UpdateShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateShadowConnectionResp, error)
+
+	// CreateShadowRunnerScanWithBodyWithResponse request with any body
+	CreateShadowRunnerScanWithBodyWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateShadowRunnerScanResp, error)
+
+	CreateShadowRunnerScanWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, body CreateShadowRunnerScanJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateShadowRunnerScanResp, error)
 
 	// TestShadowConnectionWithResponse request
 	TestShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*TestShadowConnectionResp, error)
@@ -32171,6 +32259,32 @@ func (r UpdateShadowConnectionResp) StatusCode() int {
 	return 0
 }
 
+type CreateShadowRunnerScanResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ShadowRunnerScanResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+	JSON503      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateShadowRunnerScanResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateShadowRunnerScanResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type TestShadowConnectionResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -35957,6 +36071,23 @@ func (c *ClientWithResponses) UpdateShadowConnectionWithResponse(ctx context.Con
 		return nil, err
 	}
 	return ParseUpdateShadowConnectionResp(rsp)
+}
+
+// CreateShadowRunnerScanWithBodyWithResponse request with arbitrary body returning *CreateShadowRunnerScanResp
+func (c *ClientWithResponses) CreateShadowRunnerScanWithBodyWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateShadowRunnerScanResp, error) {
+	rsp, err := c.CreateShadowRunnerScanWithBody(ctx, orgName, connectionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateShadowRunnerScanResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateShadowRunnerScanWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, body CreateShadowRunnerScanJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateShadowRunnerScanResp, error) {
+	rsp, err := c.CreateShadowRunnerScan(ctx, orgName, connectionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateShadowRunnerScanResp(rsp)
 }
 
 // TestShadowConnectionWithResponse request returning *TestShadowConnectionResp
@@ -49486,6 +49617,60 @@ func ParseUpdateShadowConnectionResp(rsp *http.Response) (*UpdateShadowConnectio
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateShadowRunnerScanResp parses an HTTP response from a CreateShadowRunnerScanWithResponse call
+func ParseCreateShadowRunnerScanResp(rsp *http.Response) (*CreateShadowRunnerScanResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateShadowRunnerScanResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ShadowRunnerScanResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 

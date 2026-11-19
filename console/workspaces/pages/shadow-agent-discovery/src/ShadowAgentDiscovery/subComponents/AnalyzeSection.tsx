@@ -20,7 +20,6 @@ import { useState } from "react";
 import {
   Box,
   Button,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -80,22 +79,22 @@ function ListedRow({ title, description }: { title: string; description: string 
 /**
  * "What does Agent Manager list?": a short description of what a scan of the
  * platform lists, and a dialog with each listing. For a source repository
- * host ("What can Agent Manager analyze?"), how many capabilities the form's
- * credentials and options unlock, each with what it still needs.
+ * host ("What does the scan look for?"), how many capabilities the form's
+ * options unlock, each with what it still needs.
  */
 export function AnalyzeSection({
   providerName,
   statuses,
-  preview = false,
+  sourceHost = false,
 }: {
   providerName: string;
   statuses: CapabilityStatus[];
-  /** Source repository hosts: what the source code analysis will cover once it is added. */
-  preview?: boolean;
+  /** GitHub, Azure DevOps: what the scan command looks for in the repositories. */
+  sourceHost?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   if (statuses.length === 0) return null;
-  if (!preview) {
+  if (!sourceHost) {
     const titles = statuses.map((s) => s.capability.title);
     return (
       <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
@@ -145,7 +144,6 @@ export function AnalyzeSection({
   }
   const available = statuses.filter((s) => s.available);
   const unavailable = statuses.filter((s) => !s.available);
-  const heading = "What can Agent Manager analyze?";
   return (
     <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
       <Stack
@@ -155,40 +153,24 @@ export function AnalyzeSection({
         justifyContent="space-between"
       >
         <Box>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="subtitle2">{heading}</Typography>
-            {preview && <Chip size="small" label="Coming soon" />}
-          </Stack>
+          <Typography variant="subtitle2">What does the scan look for?</Typography>
           <Typography variant="body2" color="text.secondary">
-            {available.length} of {statuses.length}{" "}
-            {preview ? "covered once source code analysis is added" : "available"} with these
-            credentials and options.
+            {available.length} of {statuses.length} with these options.
           </Typography>
         </Box>
         <Button variant="outlined" size="small" onClick={() => setOpen(true)}>
-          {preview ? "See what it can analyze" : "See what it lists"}
+          See what it looks for
         </Button>
       </Stack>
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {preview ? "What Agent Manager can analyze" : "What Agent Manager lists"}
-        </DialogTitle>
+        <DialogTitle>What the scan looks for</DialogTitle>
         <DialogContent>
           <Stack spacing={2.5}>
             <Typography variant="body2" color="text.secondary">
-              {providerName}, with the credentials and options in this form. Every read is
-              read-only;{" "}
-              {preview
-                ? "prompts, completions and tool payloads are never stored."
-                : "only the platform's agent listings are called, and instructions, prompts and secrets are never stored."}
+              {providerName}, with the options in this form. The scan runs on your machine: the
+              code is read there and deleted, and only confirmed agents are sent to Agent Manager
+              (name, repository, file, line, framework, matched symbol and commit).
             </Typography>
-            {preview && (
-              <Typography variant="body2" color="text.secondary">
-                Source code analysis is not available yet: this is what it will cover. Code is read
-                in memory and never stored; only the repository, path, line, matched symbol and
-                commit are kept.
-              </Typography>
-            )}
             <Box>
               <Typography variant="overline" color="text.secondary">
                 Available ({available.length})

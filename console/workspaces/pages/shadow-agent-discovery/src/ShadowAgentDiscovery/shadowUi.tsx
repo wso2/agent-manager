@@ -37,7 +37,7 @@ export const PROVIDER_LABELS: Record<ShadowProvider, string> = {
   azure_devops: "Azure DevOps",
 };
 
-/** Source repository hosts: connection test only until source code analysis is added. */
+/** Source repository hosts: scanned by the scan command on the customer's machine. */
 export const SOURCE_HOSTS: string[] = ["github", "azure_devops"];
 
 /** The platforms whose agent listings a scan reads, in display order. */
@@ -53,9 +53,37 @@ export function providerLabel(p: string): string {
   return PROVIDER_LABELS[p as ShadowProvider] ?? p;
 }
 
+function countOf(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** What a GitHub or Azure DevOps connection scans: "acme · All repositories · Public only". */
+export function sourceScopeLabel(
+  provider: string,
+  settings: Record<string, unknown> | undefined,
+): string {
+  const s = settings ?? {};
+  const listed = (v: unknown) => (Array.isArray(v) ? v.length : 0);
+  const parts = [typeof s.organization === "string" ? s.organization : ""];
+  if (provider === "azure_devops") {
+    parts.push(
+      s.allProjects === true ? "All projects" : countOf(listed(s.projects), "project", "projects"),
+    );
+  } else {
+    parts.push(
+      s.allRepositories === true
+        ? "All repositories"
+        : countOf(listed(s.repositories), "repository", "repositories"),
+      s.privateRepositories === true ? "Private and public" : "Public only",
+    );
+  }
+  return parts.filter(Boolean).join(" · ");
+}
+
 export const KIND_LABELS: Record<ShadowFindingKind, string> = {
   platform_agent: "Agent",
   runtime: "Agent runtime",
+  code_agent: "Agent in code",
 };
 
 /** What an agent is at its platform, in the platform's own words. */
@@ -148,6 +176,7 @@ export function CodeHint({ code, label }: { code: string; label: string }) {
 }
 
 const SCAN_STATUS_LABELS: Record<ShadowScanStatus, string> = {
+  pending: "Pending",
   queued: "Queued",
   running: "Running",
   succeeded: "Succeeded",
@@ -163,7 +192,9 @@ export function ScanStatusChip({ status }: { status: ShadowScanStatus }) {
         ? "error"
         : status === "partial"
           ? "warning"
-          : "info";
+          : status === "pending"
+            ? "default"
+            : "info";
   return <Chip size="small" color={color} label={SCAN_STATUS_LABELS[status] ?? status} />;
 }
 

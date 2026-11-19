@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -26,8 +25,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
@@ -44,9 +41,11 @@ import (
 // build publisher endpoint with.
 //
 // The token is an access token this service obtains for the build's organization
-// from the identity provider's organization token endpoint
-// (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token) with its own
-// client (IDP_CLIENT_ID / IDP_CLIENT_SECRET). It names that organization in its
+// from the identity provider with its own client (IDP_CLIENT_ID /
+// IDP_CLIENT_SECRET): from the organization token endpoint
+// (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token) when
+// IDP_ORG_TOKEN_ENDPOINT_ENABLED is true, otherwise from IDP_TOKEN_URL itself,
+// which issues tokens for the client's own organization only. It names that organization in its
 // ouId claim and that client in its client_id claim, which is exactly what
 // jwtassertion.BuildClientAuthMiddleware requires of a caller, so a build can only
 // ever publish for the organization its token was issued for. It carries the
@@ -96,16 +95,11 @@ const (
 var errBuildToken = errors.New("build token could not be issued")
 
 type buildTokenIssuer struct {
-	idpTokenURL  string
-	clientID     string
-	clientSecret string
-	// resource is the RFC 8707 resource indicator the token is requested for
-	// (config.BuildClient.Resource); empty requests none.
-	resource     string
-	httpClient   requests.HttpClient
+	// minter obtains the organization's token from the identity provider. Its
+	// resource is config.BuildClient.Resource.
+	minter       *orgClientTokenMinter
 	secretClient secretmanagersvc.SecretManagementClient
 	logger       *slog.Logger
-	now          func() time.Time
 
 	mu      sync.RWMutex
 	baseCtx context.Context
@@ -127,24 +121,20 @@ func NewBuildTokenIssuer(
 	logger.Info("Build tokens enabled", "workflows", cfg.BuildClient.Workflows, "clientId", cfg.IDP.ClientID,
 		"scope", jwtassertion.BuildTokenScope(), "resource", cfg.BuildClient.Resource)
 	return newBuildTokenIssuer(cfg.IDP.TokenURL, cfg.IDP.ClientID, cfg.IDP.ClientSecret, cfg.BuildClient.Resource,
-		requests.NewRetryableHTTPClient(&http.Client{}), secretClient, logger)
+		cfg.IDP.OrgTokenEndpointEnabled, requests.NewRetryableHTTPClient(&http.Client{}), secretClient, logger)
 }
 
 func newBuildTokenIssuer(
 	idpTokenURL, clientID, clientSecret, resource string,
+	orgTokenEndpoint bool,
 	httpClient requests.HttpClient,
 	secretClient secretmanagersvc.SecretManagementClient,
 	logger *slog.Logger,
 ) *buildTokenIssuer {
 	return &buildTokenIssuer{
-		idpTokenURL:  idpTokenURL,
-		clientID:     strings.TrimSpace(clientID),
-		clientSecret: clientSecret,
-		resource:     strings.TrimSpace(resource),
-		httpClient:   httpClient,
+		minter:       newOrgClientTokenMinter(idpTokenURL, clientID, clientSecret, resource, orgTokenEndpoint, httpClient),
 		secretClient: secretClient,
 		logger:       logger,
-		now:          time.Now,
 		baseCtx:      context.Background(),
 	}
 }
@@ -193,8 +183,7 @@ func (i *buildTokenIssuer) IssueBuildToken(ctx context.Context, ouID string) (*c
 	if strings.TrimSpace(ouID) == "" {
 		return nil, fmt.Errorf("%w: organization is required", errBuildToken)
 	}
-	tokenURL, err := config.OrganizationTokenURL(i.idpTokenURL, ouID)
-	if err != nil {
+	if _, err := config.OrganizationTokenURL(i.minter.idpTokenURL, ouID); err != nil {
 		return nil, fmt.Errorf("%w: %w", errBuildToken, err)
 	}
 
@@ -203,25 +192,29 @@ func (i *buildTokenIssuer) IssueBuildToken(ctx context.Context, ouID string) (*c
 	attempt, err := audit.Begin(ctx, audit.ActionBuildTokenIssue,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceBuildToken, buildTokenSecretEntity, buildTokenSecretEntity),
-		audit.Detail("clientId", i.clientID),
+		audit.Detail("clientId", i.minter.clientID),
 	)
 	if err != nil {
 		return nil, err
 	}
-	params, err := i.issue(ctx, tokenURL, ouID)
+	params, err := i.issue(ctx, ouID)
 	attempt.Complete(ctx, err)
 	return params, err
 }
 
-func (i *buildTokenIssuer) issue(ctx context.Context, tokenURL, ouID string) (*client.BuildClientParams, error) {
+// issue obtains the organization's build token and stores it. The token must be
+// exactly a build token for the organization: one for another organization, or
+// one naming no organization, which could act for any, is never handed to a
+// build. The build publisher endpoint admits only a token carrying the build
+// scope alone and verifies its signature when the build presents it, and a build
+// must still hold a valid token when its workload step publishes, so the token
+// must be valid for at least buildTokenMinValidity.
+func (i *buildTokenIssuer) issue(ctx context.Context, ouID string) (*client.BuildClientParams, error) {
 	requestCtx, cancel := context.WithTimeout(ctx, buildTokenRequestTimeout)
 	defer cancel()
-	token, err := i.requestToken(requestCtx, tokenURL)
+	token, _, err := i.minter.mint(requestCtx, ouID, jwtassertion.BuildTokenScope(), buildTokenMinValidity)
 	if err != nil {
-		return nil, err
-	}
-	if err := i.checkToken(token, ouID); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", errBuildToken, err)
 	}
 
 	storeCtx, cancelStore := i.storeContext(ctx, ouID)
@@ -242,98 +235,6 @@ func (i *buildTokenIssuer) issue(ctx context.Context, tokenURL, ouID string) (*c
 	if secretRefName == "" {
 		return nil, fmt.Errorf("%w: the secret store returned no SecretReference for organization %s", errBuildToken, ouID)
 	}
-	i.logger.Info("Issued build token", "ouID", ouID, "clientId", i.clientID, "secretRefName", secretRefName)
+	i.logger.Info("Issued build token", "ouID", ouID, "clientId", i.minter.clientID, "secretRefName", secretRefName)
 	return &client.BuildClientParams{SecretRefName: secretRefName}, nil
-}
-
-// buildTokenResponse is the identity provider's token response.
-type buildTokenResponse struct {
-	AccessToken string `json:"access_token"`
-}
-
-// requestToken asks the organization token endpoint for a client_credentials
-// token, authenticating with client_secret_basic as this service's other token
-// requests do. It requests the build scope only (jwtassertion.BuildTokenScope),
-// for the configured resource server when there is one: an identity provider
-// issues a scope only for the resource server that defines it, and drops it
-// otherwise. Without a resource the token's audience is this service's client
-// ID; with one it is the resource, which KEY_MANAGER_AUDIENCE must admit.
-func (i *buildTokenIssuer) requestToken(ctx context.Context, tokenURL string) (string, error) {
-	req := &requests.HttpRequest{
-		Name:   "buildtoken.requestToken",
-		URL:    tokenURL,
-		Method: http.MethodPost,
-	}
-	form := map[string]string{
-		"grant_type": "client_credentials",
-		"scope":      jwtassertion.BuildTokenScope(),
-	}
-	if i.resource != "" {
-		form["resource"] = i.resource
-	}
-	req.SetFormData(form)
-	req.SetHeader("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(i.clientID+":"+i.clientSecret)))
-
-	var resp buildTokenResponse
-	if err := requests.SendRequest(ctx, i.httpClient, req).ScanResponse(&resp, http.StatusOK); err != nil {
-		// An identity provider that cannot be reached, fails (5xx) or is rate
-		// limiting (429) is a temporary outage: utils.ErrServiceUnavailable lets
-		// the build be retried. Any other answer (a refused client, say) is a
-		// configuration problem and is not marked.
-		var httpErr *requests.HttpError
-		if !errors.As(err, &httpErr) || httpErr.StatusCode >= http.StatusInternalServerError ||
-			httpErr.StatusCode == http.StatusTooManyRequests {
-			return "", fmt.Errorf("%w: %w: token request failed: %w", errBuildToken, utils.ErrServiceUnavailable, err)
-		}
-		return "", fmt.Errorf("%w: token request failed: %w", errBuildToken, err)
-	}
-	if resp.AccessToken == "" {
-		return "", fmt.Errorf("%w: the identity provider returned no access token", errBuildToken)
-	}
-	return resp.AccessToken, nil
-}
-
-// checkToken refuses a token that is not exactly a build token for the
-// organization: issued to this service's client, naming the organization,
-// carrying the build scope and nothing else, and valid for at least
-// buildTokenMinValidity. The token comes straight from the
-// identity provider, so its claims are read without verifying its signature
-// (the build publisher endpoint verifies it when the build presents it); this
-// check only makes sure no other token (one for another organization, or one
-// naming no organization, which could act for any) is ever handed to a build.
-// The token itself never appears in an error.
-func (i *buildTokenIssuer) checkToken(token, ouID string) error {
-	// The claims are read through jwtassertion.TokenClaims, the type
-	// BuildClientOrg reads the same token with, so both sides agree on the claim
-	// names.
-	claims := &jwtassertion.TokenClaims{}
-	if _, _, err := jwt.NewParser().ParseUnverified(token, claims); err != nil {
-		return fmt.Errorf("%w: the identity provider's access token is not a readable JWT", errBuildToken)
-	}
-	if got := claims.OuId; strings.TrimSpace(got) != ouID {
-		return fmt.Errorf("%w: the token was issued for organization %q, not %q", errBuildToken, got, ouID)
-	}
-	if got := claims.ClientID; strings.TrimSpace(got) != i.clientID {
-		return fmt.Errorf("%w: the token was issued to client %q, not %q", errBuildToken, got, i.clientID)
-	}
-	// The build publisher endpoint admits only a token carrying the build scope
-	// alone, so a token the identity provider issued without it (a scope it does
-	// not define or does not grant this client is dropped, not refused), or with
-	// more, could not publish and would be broader than a build needs.
-	if scope := jwtassertion.BuildTokenScope(); !jwtassertion.HasOnlyScope(claims.Scope, scope) {
-		if strings.TrimSpace(claims.Scope) == "" {
-			return fmt.Errorf("%w: the identity provider did not grant scope %q to client %q for organization %q",
-				errBuildToken, scope, i.clientID, ouID)
-		}
-		return fmt.Errorf("%w: the token carries scopes %q, not only %q", errBuildToken, claims.Scope, scope)
-	}
-	expiry := claims.ExpiresAt
-	if expiry == nil {
-		return fmt.Errorf("%w: the token carries no valid expiry", errBuildToken)
-	}
-	if remaining := expiry.Sub(i.now()); remaining < buildTokenMinValidity {
-		return fmt.Errorf("%w: the token is valid for %s, less than the %s a build needs",
-			errBuildToken, remaining.Truncate(time.Second), buildTokenMinValidity)
-	}
-	return nil
 }

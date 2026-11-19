@@ -136,6 +136,9 @@ type Config struct {
 	// workload step uses to call this service's build publisher endpoint instead
 	// of the OpenChoreo API. See BuildClientConfig.
 	BuildClient BuildClientConfig
+	// ShadowRunner configures the source code scan command of Shadow Agent
+	// Discovery. See ShadowRunnerConfig.
+	ShadowRunner ShadowRunnerConfig
 	// IdentityManagementMode controls project AgentID creation. Existing
 	// installations remain on direct environment-Thunder management.
 	IdentityManagementMode string
@@ -423,6 +426,15 @@ type IDPConfig struct {
 	TokenURL     string
 	ClientID     string
 	ClientSecret string `json:"-"`
+	// OrgTokenEndpointEnabled (IDP_ORG_TOKEN_ENDPOINT_ENABLED) says where
+	// organization tokens (the build token and the source code scan token) are
+	// requested. True (the default) requests them from the organization token
+	// endpoint <IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token, for
+	// multi-org deployments such as WSO2 Cloud; the identity provider must serve
+	// that route. False requests them from IDP_TOKEN_URL itself, where the token
+	// names the client's own organization, so only that organization can be
+	// issued tokens. Single-org on-prem installs set it to false.
+	OrgTokenEndpointEnabled bool
 }
 
 type KeyManagerConfigurations struct {
@@ -627,11 +639,13 @@ type InternalServerConfig struct {
 //
 // When Enabled, every source build of an agent whose build workflow is listed in
 // Workflows carries an access token for its organization. This service obtains it
-// from the identity provider's organization token endpoint
-// (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token) with its own
-// client (IDP_CLIENT_ID / IDP_CLIENT_SECRET), stores it in the secret store and
-// passes the run only the name of the SecretReference holding it, as the run's
-// ampBuild parameter. The build's workload step hands the generated Workload,
+// from the identity provider with its own client (IDP_CLIENT_ID /
+// IDP_CLIENT_SECRET): from the organization token endpoint
+// (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token) when
+// IDP_ORG_TOKEN_ENDPOINT_ENABLED is true, otherwise from IDP_TOKEN_URL itself,
+// which only issues tokens for the client's own organization. It stores the
+// token in the secret store and passes the run only the name of the
+// SecretReference holding it, as the run's ampBuild parameter. The build's workload step hands the generated Workload,
 // with that token, to this service's build publisher endpoint, which performs the
 // OpenChoreo writes for that organization only. The build never holds a client
 // secret and needs no OpenChoreo credential of its own.
@@ -641,8 +655,9 @@ type InternalServerConfig struct {
 // declare it is not given the parameter, and its build keeps its previous path. A
 // ClusterWorkflow is not read: listing it in Workflows is taken to mean it
 // declares ampBuild (and ampBuild.secretStore when SecretStore is set), so list
-// only ClusterWorkflows that are installed that way. The identity provider must
-// support the organization token endpoint, and KEY_MANAGER_AUDIENCE must admit
+// only ClusterWorkflows that are installed that way. With
+// IDP_ORG_TOKEN_ENDPOINT_ENABLED the identity provider must support the
+// organization token endpoint. KEY_MANAGER_AUDIENCE must admit
 // IDP_CLIENT_ID, the audience of the tokens it issues.
 type BuildClientConfig struct {
 	// Enabled turns on build tokens and the build publisher endpoint
@@ -668,6 +683,35 @@ type BuildClientConfig struct {
 	// carry none and every build would fail). It becomes the token's audience, so
 	// KEY_MANAGER_AUDIENCE must admit it, which startup checks. Empty requests none,
 	// and the token's audience is IDP_CLIENT_ID.
+	Resource string
+}
+
+// ShadowRunnerConfig controls the source code scan command of Shadow Agent
+// Discovery, which a customer runs on their own machine for a GitHub or Azure
+// DevOps connection. The command publishes its results to SERVER_PUBLIC_URL with
+// an organization-scoped scan token this service obtains, like the build token,
+// from the identity provider (see IDPConfig.OrgTokenEndpointEnabled) with
+// IDP_CLIENT_ID and IDP_CLIENT_SECRET. While it is off, or without SERVER_PUBLIC_URL
+// or that client, creating a scan command is refused (503); the rest of the service
+// is unaffected.
+type ShadowRunnerConfig struct {
+	// Enabled turns on source code scan commands: issuing scan tokens and
+	// accepting their results (AMP_SHADOW_RUNNER_ENABLED). Off by default. The
+	// scan token is issued to IDP_CLIENT_ID and shown to the customer for an
+	// hour, so turn it on only where that client may be handed out that way,
+	// such as WSO2 Cloud. Requires IDP_TOKEN_URL, IDP_CLIENT_ID,
+	// IDP_CLIENT_SECRET and SERVER_PUBLIC_URL.
+	Enabled bool
+	// Image is the scan command's container image (AMP_SHADOW_RUNNER_IMAGE).
+	Image string
+	// Resource is the RFC 8707 resource indicator the scan token is requested
+	// for (AMP_SHADOW_RUNNER_RESOURCE): the identifier of the resource server
+	// that defines amp:shadow-agent:publish, for an identity provider whose
+	// default resource server does not (it drops a scope it does not define, so
+	// the token would carry none and no scan command could be created). It
+	// becomes the token's audience, so KEY_MANAGER_AUDIENCE must admit it, which
+	// startup checks. Empty requests none, and the token's audience is
+	// IDP_CLIENT_ID.
 	Resource string
 }
 

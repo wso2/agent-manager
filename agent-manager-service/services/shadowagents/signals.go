@@ -47,8 +47,9 @@ const (
 	SigFoundryPossibleDupOf = "foundry.external_possible_duplicate"
 )
 
-// defs is the evidence catalog, in display order.
-var defs = []SignalDef{
+// defs is the evidence catalog, in display order: the platform listings,
+// then the source evidence of each repository host.
+var defs = append([]SignalDef{
 	{
 		Code: SigOpenAIAgentObject, Provider: models.ShadowProviderOpenAI, Name: "Agent object",
 		Condition: `GET /v1/agents (OpenAI-Beta: agents=v1, project key): an item in data`,
@@ -89,6 +90,59 @@ var defs = []SignalDef{
 		Code: SigFoundryPossibleDupOf, Provider: models.ShadowProviderFoundry, Name: "Possibly registered elsewhere",
 		Condition: `definition.kind == "external": Foundry stores no endpoint for external agents, so an agent from another connection with the same name is flagged as a possible duplicate`,
 	},
+}, sourceDefs()...)
+
+// sourceEvidence is what the source code scan finds in a repository: the
+// design's detectors D1 to D12. GitHub and Azure DevOps share it, so their
+// codes cannot drift.
+var sourceEvidence = []struct{ slug, name, condition string }{
+	{
+		"d1_agent_dependency", "Agent framework dependency",
+		"A manifest or lockfile declares an agent framework (LangChain or LangGraph, CrewAI, AutoGen, Semantic Kernel, " +
+			"OpenAI Agents SDK, Google ADK, Spring AI)",
+	},
+	{"d2_agent_import", "Agent framework import", "A source file imports an agent framework"},
+	{"d3_mcp_client_config", "MCP client config", "An .mcp.json or mcp.json file, or an MCP client section in a Spring application.yml"},
+	{"d4_mcp_client_code", "MCP client code", "A source file creates an MCP client"},
+	{"d5_a2a_artifact", "A2A artifact", "A .well-known/agent-card.json file, or a dependency on or import of the A2A SDK"},
+	{
+		"d6_agent_platform_iac", "Agent platform IaC",
+		"Terraform, CloudFormation or Bicep declares an agent platform resource (Bedrock agent or AgentCore runtime, " +
+			"Vertex AI reasoning engine, Azure AI Foundry agent)",
+	},
+	{"d7_tool_calling", "Tool calling with a model SDK", "A source file passes tool definitions to a model SDK call"},
+	{"d8_mcp_server_code", "MCP server code", "A source file creates an MCP server"},
+	{"d9_agent_definition", "Agent or prompt definition file", "A *.prompty or agent.yaml file"},
+	{"d10_model_sdk", "Model SDK only", "A manifest or lockfile declares a model SDK and no agent framework"},
+	{
+		"d11_llm_env_var", "LLM environment variable name",
+		"A model provider variable name (never its value) in a CI pipeline definition",
+	},
+	{
+		"d12_developer_tooling", "Developer AI tooling",
+		"A .vscode/mcp.json, .cursor/mcp.json, AGENTS.md or CLAUDE.md file; context only, not an agent on its own",
+	},
+}
+
+// sourceProviders are the repository hosts the source code scan reads, in
+// display order.
+var sourceProviders = []string{models.ShadowProviderGitHub, models.ShadowProviderAzureDevOps}
+
+// sourceSignalCode is the evidence code of a source detector at a
+// repository host, e.g. github.d1_agent_dependency.
+func sourceSignalCode(provider, slug string) string {
+	return provider + "." + slug
+}
+
+// sourceDefs returns the source evidence of every repository host.
+func sourceDefs() []SignalDef {
+	out := make([]SignalDef, 0, len(sourceProviders)*len(sourceEvidence))
+	for _, p := range sourceProviders {
+		for _, e := range sourceEvidence {
+			out = append(out, SignalDef{Code: sourceSignalCode(p, e.slug), Provider: p, Name: e.name, Condition: e.condition})
+		}
+	}
+	return out
 }
 
 var catalog = func() map[string]SignalDef {

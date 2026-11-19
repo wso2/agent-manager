@@ -142,52 +142,61 @@ var providerCredentialChoices = map[string]CredentialChoice{
 	},
 }
 
-// sourceCapabilities is what the source code analysis of a repository host
-// (GitHub, Azure DevOps) will analyze: the design's detectors D1 to D12. The
-// analysis is added separately; the console marks these as not available yet.
-func sourceCapabilities(prefix string) []CapabilitySpec {
+// sourceCapabilities is what the source code scan of a repository host
+// (GitHub, Azure DevOps) analyzes: the design's detectors D1 to D12. Signals
+// are the evidence codes the scan command publishes.
+func sourceCapabilities(provider, prefix string) []CapabilitySpec {
+	codes := func(slugs ...string) []string {
+		out := make([]string, 0, len(slugs))
+		for _, s := range slugs {
+			out = append(out, sourceSignalCode(provider, s))
+		}
+		return out
+	}
 	return []CapabilitySpec{
 		{
 			Key: prefix + ".dependencies", Title: "Agent framework and model SDK dependencies",
-			Description: "Agent frameworks, MCP and A2A SDKs and model SDKs in manifests and lockfiles (detectors D1, D10).",
+			Description: "Agent frameworks and model SDKs in manifests and lockfiles (detectors D1, D10).",
+			Signals:     codes("d1_agent_dependency", "d10_model_sdk"),
 		},
 		{
 			Key: prefix + ".code", Title: "Agent, MCP and tool-calling code",
 			Description: "Agent framework imports, MCP client and server code, and tool calling with a model SDK in source files " +
 				"(detectors D2, D4, D7, D8).",
+			Signals: codes("d2_agent_import", "d4_mcp_client_code", "d7_tool_calling", "d8_mcp_server_code"),
 		},
 		{
 			Key: prefix + ".config", Title: "MCP client configuration and A2A agent cards",
 			Description: ".mcp.json, mcp.json and Spring application.yml MCP clients, and .well-known/agent-card.json (detectors D3, D5).",
+			Signals:     codes("d3_mcp_client_config", "d5_a2a_artifact"),
 		},
 		{
 			Key: prefix + ".iac", Title: "Agent platform infrastructure as code",
 			Description: "Agent platform resources in Terraform, CloudFormation and Bicep (detector D6).",
+			Signals:     codes("d6_agent_platform_iac"),
 		},
 		{
 			Key: prefix + ".definitions", Title: "Agent and prompt definition files",
 			Description: "*.prompty and agent.yaml files (detector D9).",
+			Signals:     codes("d9_agent_definition"),
 		},
 		{
-			Key: prefix + ".ciEnv", Title: "LLM environment variable names in CI and .env examples",
-			Description: "Model provider variable names (never values) in pipeline definitions, Helm and Kubernetes files and " +
-				".env.example (detector D11).",
-			Needs: []string{OptReadCIAndEnv},
+			Key: prefix + ".ci", Title: "LLM environment variable names in CI pipelines",
+			Description: "Model provider variable names (never values) in CI pipeline definitions (detector D11).",
+			Signals:     codes("d11_llm_env_var"),
+			Needs:       []string{OptReadCI},
 		},
 		{
 			Key: prefix + ".developerTooling", Title: "Developer AI tooling",
 			Description: ".vscode/mcp.json, .cursor/mcp.json, AGENTS.md and CLAUDE.md, as context only (detector D12).",
-		},
-		{
-			Key: prefix + ".secrets", Title: "Hard-coded provider keys",
-			Description: "The type, file and line of a hard-coded key, never the value or a hash of it.",
+			Signals:     codes("d12_developer_tooling"),
 		},
 	}
 }
 
 func init() {
-	providerCapabilities[models.ShadowProviderGitHub] = sourceCapabilities("github")
-	providerCapabilities[models.ShadowProviderAzureDevOps] = sourceCapabilities("azureDevOps")
+	providerCapabilities[models.ShadowProviderGitHub] = sourceCapabilities(models.ShadowProviderGitHub, "github")
+	providerCapabilities[models.ShadowProviderAzureDevOps] = sourceCapabilities(models.ShadowProviderAzureDevOps, "azureDevOps")
 }
 
 // Capabilities returns what a platform's scan lists.
