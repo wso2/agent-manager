@@ -21,6 +21,12 @@ including those in test code (which are never published). It holds what publishi
 saved report can be published later. It never holds source code, prompts, secrets or tokens: only the
 fields below, built from findings, which carry names, paths, line numbers, short labels and counts.
 
+With ``--ai-review``, each Not-sure finding outside test code has the attribute ``aiReview``: its outcome
+and a short reason (printable, at most 200 characters, in the LLM's words when it answered, so it may
+quote a few words of code; the report stays on the customer's machine), and the summary
+counts the outcomes (see ``review``). A confirmed finding keeps ``reviewedBy: "ai_review"``, so ``upload``
+publishes it again. Reports without them (no ``--ai-review``, or an older runner) read the same.
+
 Inside the container ``/out`` is the folder the command mounts with ``-v "$PWD:/out"``. The file is written
 to a temporary file in the same folder and then renamed, so a failed write never leaves half a report.
 """
@@ -43,6 +49,7 @@ from amp_shadow_runner.engine.files import Tag
 from amp_shadow_runner.engine.scan import ScanResult
 from amp_shadow_runner.engine.version import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
+from amp_shadow_runner.review import ReviewOutcome, review_counts
 
 REPORT_VERSION = 1
 DEFAULT_REPORT_PATH = Path("/out/report.json")
@@ -152,6 +159,15 @@ class Report:
         if summary.test:
             notes.append(TEST_NOTE)
         notes.extend(n for n in self.notes if n not in notes)
+        agents: dict[str, object] = {"proven": summary.proven, "notSure": summary.not_sure, "test": summary.test}
+        reviews = review_counts(self.findings)
+        if any(reviews.values()):
+            agents["aiReview"] = {
+                "confirmed": reviews[ReviewOutcome.CONFIRMED],
+                "rejected": reviews[ReviewOutcome.REJECTED],
+                "failed": reviews[ReviewOutcome.FAILED],
+                "notReviewed": reviews[ReviewOutcome.NOT_REVIEWED],
+            }
         return {
             "reportVersion": REPORT_VERSION,
             "runnerVersion": self.runner_version,
@@ -165,11 +181,7 @@ class Report:
             "complete": self.complete,
             "summary": {
                 "repositories": {status.value: count for status, count in summary.repositories.items()},
-                "agents": {
-                    "proven": summary.proven,
-                    "notSure": summary.not_sure,
-                    "test": summary.test,
-                },
+                "agents": agents,
                 "filesScanned": summary.files_scanned,
                 "filesSkipped": summary.files_skipped,
                 "parseErrors": summary.parse_errors,

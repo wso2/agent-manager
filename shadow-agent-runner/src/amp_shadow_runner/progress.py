@@ -55,6 +55,10 @@ class Progress:
     def scanning(self, index: int, total: int, name: str) -> None:
         self._repo(index, total, name, "scanning")
 
+    def reviewing(self, index: int, total: int, name: str, n: int, due: int) -> None:
+        """Before the n-th of a repository's ``due`` AI reviews."""
+        self._repo(index, total, name, f"AI review, {n} of {due}")
+
     def scanned(self, index: int, total: int, name: str, result: ScanResult) -> None:
         agents = sum(f.tag != "test" for f in result.findings)
         text = f"done, {_plural(agents, 'agent')}"

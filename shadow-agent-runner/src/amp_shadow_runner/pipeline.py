@@ -39,8 +39,11 @@ Exit codes: OK when every repository was scanned, the list was complete and the 
 PARTIAL_FAILURE when it published but some repositories failed or the list was incomplete, including when
 every repository failed (Agent Manager then marks the scan failed); a publish error's own code otherwise.
 
-Not-sure findings are published only after AI review confirms them. This version asks for the LLM settings
-but does not review yet, so with or without ``--ai-review`` they stay in the report and are not published.
+Not-sure findings are published only after AI review confirms them (``--ai-review``, see ``review``). Each
+repository's findings are reviewed right after its scan, while its files are still on disk; without
+``--ai-review`` they stay in the report and are not published. The LLM judge (``--judge``) is not built yet:
+the command says so once and publishes the AI review results without it. No review is started with less than
+``review.REVIEW_ALLOWANCE_SECONDS`` left before the repository deadline, so the publish still fits in the hour.
 """
 
 import os
@@ -59,7 +62,7 @@ from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.fetch import ArchiveError, extract, remove_tree, workspace
 from amp_shadow_runner.gitsource import GitSourceError, Repository, RepositoryError, RepositoryList
 from amp_shadow_runner.gitsource.github import GitHubSource
-from amp_shadow_runner.llm import LlmSettings
+from amp_shadow_runner.llm import LlmClient, LlmSettings
 from amp_shadow_runner.progress import Progress
 from amp_shadow_runner.prompts import git_token, llm_settings
 from amp_shadow_runner.publish import (
@@ -80,6 +83,7 @@ from amp_shadow_runner.report import (
     check_writable,
     write_report,
 )
+from amp_shadow_runner.review import REVIEW_ALLOWANCE_SECONDS, Completer, Reviewer, ReviewOutcome, review_counts
 from amp_shadow_runner.scantoken import ScanTokenError
 
 YES_ENV = "AMP_SCAN_YES"
@@ -92,6 +96,9 @@ TOKEN_MARGIN_SECONDS = 180
 """No repository is started with less than this much token lifetime left, so the results can still be published."""
 TOKEN_RAN_OUT = (
     "not scanned: the scan token's hour ran out; scan the rest with a new command (for example with --repos)"
+)
+JUDGE_NOT_AVAILABLE = (
+    "The LLM judge is not available in this version of the runner, so AI review results are published without it."
 )
 _EMPTY = ScanResult((), 0, 0, 0)
 
@@ -143,6 +150,7 @@ def run_scan(
     report_path: Path | None = None,
     ask_token: Callable[[ScanConfig], str | None] = git_token,
     ask_llm: Callable[[ScanConfig], LlmSettings] = llm_settings,
+    make_llm: Callable[[LlmSettings], Completer] = LlmClient,
     make_source: SourceFactory = _github_source,
     make_publisher: PublisherFactory = _publisher,
     is_tty: Callable[[], bool] | None = None,
@@ -170,7 +178,9 @@ def run_scan(
         return ExitCode.RUNTIME_ERROR
     check_writable(report_path)
     token = ask_token(config)
-    _llm = ask_llm(config) if config.ai_review else None  # AI review (a later step) uses these settings.
+    settings = ask_llm(config) if config.ai_review else None
+    if settings is not None and config.judge:
+        say(JUDGE_NOT_AVAILABLE)
     tty = is_tty() if is_tty is not None else sys.stdin is not None and sys.stdin.isatty()
     if not yes and not tty:
         raise ConfigError(
@@ -203,7 +213,16 @@ def run_scan(
             "The scan token has too little time left to scan and publish. "
             "Generate a new command in Agent Manager and run it again."
         )
-    repositories = _scan_all(config, source, listing.repositories, Progress(stream), deadline, clock)
+    reviewer = None
+    if settings is not None:
+        reviewer = Reviewer(
+            make_llm(settings),
+            settings.model,
+            deadline=deadline - REVIEW_ALLOWANCE_SECONDS,
+            clock=clock,
+            notify=say,
+        )
+    repositories = _scan_all(config, source, listing.repositories, Progress(stream), deadline, clock, reviewer)
     repositories += [RepositoryReport(name, RepositoryStatus.GONE) for name in listing.gone]
     repositories += [RepositoryReport(f.name, RepositoryStatus.FAILED, reason=f.reason) for f in listing.failed]
     report = Report(
@@ -248,6 +267,7 @@ def _scan_all(
     progress: Progress,
     deadline: float,
     clock: Callable[[], float],
+    reviewer: Reviewer | None = None,
 ) -> list[RepositoryReport]:
     """Scan each repository in turn. None is started after ``deadline``: it and the rest are failed."""
     reports: list[RepositoryReport] = []
@@ -262,7 +282,7 @@ def _scan_all(
                 reports.append(RepositoryReport(repo.name, RepositoryStatus.FAILED, reason=stopped))
                 continue
             try:
-                result = _scan_one(config, source, repo, root / f"repo-{index}", index, total, progress)
+                result = _scan_one(config, source, repo, root / f"repo-{index}", index, total, progress, reviewer)
             except RepositoryError as exc:
                 reason = exc.reason
             except GitSourceError as exc:  # The host refuses every repository now, so stop asking it.
@@ -281,9 +301,17 @@ def _scan_all(
 
 
 def _scan_one(
-    config: ScanConfig, source: GitSource, repo: Repository, tree: Path, index: int, total: int, progress: Progress
+    config: ScanConfig,
+    source: GitSource,
+    repo: Repository,
+    tree: Path,
+    index: int,
+    total: int,
+    progress: Progress,
+    reviewer: Reviewer | None = None,
 ) -> ScanResult:
-    """Download, extract, scan and delete one repository. Raises what ``_scan_all`` turns into a failure."""
+    """Download, extract, scan, review and delete one repository. Raises what ``_scan_all`` turns into a
+    failure; AI review never raises."""
     progress.downloading(index, total, repo.name)
     resolved = source.resolve_commit(repo)
     if resolved.empty:
@@ -297,6 +325,12 @@ def _scan_one(
         raise
     except Exception:  # An engine bug in one repository must not stop the others; its text is not shown.
         raise RepositoryError(repo.name, "the runner could not scan it (an internal error)") from None
+    else:
+        if reviewer is not None:  # While the files are still on disk.
+            findings = reviewer.review(
+                result.findings, tree, progress=lambda n, due: progress.reviewing(index, total, repo.name, n, due)
+            )
+            result = replace(result, findings=findings)
     finally:
         remove_tree(tree)  # The code is deleted before the next repository is downloaded.
     return replace(result, files_skipped=result.files_skipped + extracted.skipped)
@@ -325,6 +359,9 @@ def _print_listing(say: Callable[[str], None], config: ScanConfig, listing: Repo
 
 
 def _print_unpublished(say: Callable[[str], None], config: ScanConfig, report: Report) -> None:
+    if config.ai_review:
+        _print_review(say, report)
+        return
     # Test code is never published, so its not-sure agents are not counted here (as in the summary).
     unconfirmed = sum(
         f.verdict == Verdict.NOT_SURE and f.tag != "test" and reviewed_by(f) is None for f in report.findings
@@ -332,10 +369,27 @@ def _print_unpublished(say: Callable[[str], None], config: ScanConfig, report: R
     if not unconfirmed:
         return
     count = f"{_plural(unconfirmed, 'not-sure agent')} {'is' if unconfirmed == 1 else 'are'} not published"
-    if config.ai_review:
-        say(f"AI review is not available in this version of the runner, so {count}.")
-    else:
-        say(f"{count[0].upper()}{count[1:]}: without --ai-review, only agents the rules prove are published.")
+    say(f"{count[0].upper()}{count[1:]}: without --ai-review, only agents the rules prove are published.")
+
+
+def _print_review(say: Callable[[str], None], report: Report) -> None:
+    counts = review_counts(report.findings)
+    confirmed = counts[ReviewOutcome.CONFIRMED]
+    rejected = counts[ReviewOutcome.REJECTED]
+    failed = counts[ReviewOutcome.FAILED]
+    skipped = counts[ReviewOutcome.NOT_REVIEWED]
+    reviewed = confirmed + rejected + failed
+    if not reviewed and not skipped:
+        say("AI review: no not-sure agents to review.")
+        return
+    say(
+        f"AI review: {reviewed} reviewed, {confirmed} confirmed as {'an agent' if confirmed == 1 else 'agents'}, "
+        f"{rejected} not {'an agent' if rejected == 1 else 'agents'}, {failed} failed; {skipped} not reviewed."
+    )
+    if confirmed:
+        say('The confirmed agents are published, shown as "Confirmed by: AI review".')
+    if rejected + failed + skipped:
+        say("The other not-sure agents are not published; the report says why for each.")
 
 
 def _plural(count: int, noun: str, plural: str | None = None) -> str:
