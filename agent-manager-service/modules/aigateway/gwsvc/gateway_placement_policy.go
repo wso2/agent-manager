@@ -54,10 +54,6 @@ func placementPolicyFor(agent *modkit.Agent) placementPolicy {
 // external is true when AMS hands the agent its credentials instead of injecting them into a hosted workload.
 func (p placementPolicy) external() bool { return p.consumer == externalAgentConsumer }
 
-// storesCredentials is true when AMS keeps the consumer's proxy key in the secret store to inject it later.
-// An external agent is handed its key once and nothing reads it back, so it is not stored.
-func (p placementPolicy) storesCredentials() bool { return !p.external() }
-
 func (p placementPolicy) allowsSelfHosted() bool { return p.consumer == externalAgentConsumer }
 
 // providerHosting is the hosting the consumer's LLM provider placement may have.

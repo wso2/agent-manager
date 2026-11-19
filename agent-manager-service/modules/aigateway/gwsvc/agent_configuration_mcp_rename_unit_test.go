@@ -35,10 +35,10 @@ import (
 )
 
 // renameVarRows builds one environment's url + apikey rows under the pre-rename names.
-func renameVarRows(configUUID, envUUID uuid.UUID, secretRef string) []gwmodels.AgentEnvConfigVariable {
+func renameVarRows(configUUID, envUUID uuid.UUID) []gwmodels.AgentEnvConfigVariable {
 	return []gwmodels.AgentEnvConfigVariable{
 		{ConfigUUID: configUUID, EnvironmentUUID: envUUID, VariableKey: "url", VariableName: "GITHUB_MCP_URL"},
-		{ConfigUUID: configUUID, EnvironmentUUID: envUUID, VariableKey: "apikey", VariableName: "GITHUB_MCP_API_KEY", SecretReference: secretRef},
+		{ConfigUUID: configUUID, EnvironmentUUID: envUUID, VariableKey: "apikey", VariableName: "GITHUB_MCP_API_KEY"},
 	}
 }
 
@@ -108,7 +108,7 @@ func TestUpdateMCPConfigEnvironmentVariableNames_RejectsOtherConfigOwnership(t *
 				},
 				ListByConfigForUpdateFunc: func(context.Context, *gorm.DB, uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 					require.True(t, locked, "agent ownership lock must precede row locks")
-					return renameVarRows(configID, f.envUUID, "secret"), nil
+					return renameVarRows(configID, f.envUUID), nil
 				},
 			}
 			svc.envVariableRepo = repo

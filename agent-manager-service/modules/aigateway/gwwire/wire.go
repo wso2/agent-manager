@@ -26,7 +26,7 @@ import (
 var coreSet = wire.NewSet(
 	wire.FieldsOf(
 		new(*wiring.AppParams),
-		"DB", "Logger", "SecretManagementClient",
+		"DB", "Logger",
 	),
 )
 
@@ -86,7 +86,6 @@ var serviceProviderSet = wire.NewSet(
 	wire.Bind(new(gwctl.MCPResourceServerIdentifierResolver), new(*gwsvc.MCPProxyService)),
 	gwsvc.NewGatewayInternalAPIService,
 	gwsvc.NewCatalogService,
-	gwsvc.NewLLMProxyProvisioner,
 	gwsvc.NewAgentConfigurationService,
 	gwsvc.NewLLMTemplateStore,
 	gwsvc.NewAIApplicationService,

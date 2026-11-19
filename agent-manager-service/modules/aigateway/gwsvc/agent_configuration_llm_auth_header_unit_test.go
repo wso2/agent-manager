@@ -182,9 +182,7 @@ func TestLLMProxyAPIKeySecurity(t *testing.T) {
 // A proxy fronting a provider takes the provider's own configured name and location,
 // so what an admin sets on the provider is what their agents authenticate with —
 // including when the provider reads its own key from the query string, which used to
-// be silently collapsed to a header-based default (CRIT: this was the actual cause of
-// a proxy still reporting "header"/the default name after its provider was switched
-// to query — ProvisionProxy and the resync path both went through this function).
+// be silently collapsed to a header-based default.
 func TestProviderProxyAPIKeySecurity(t *testing.T) {
 	providerWithAPIKey := func(apiKey *gwmodels.APIKeySecurity) *gwmodels.LLMProvider {
 		return llmProviderWith("", &gwmodels.SecurityConfig{APIKey: apiKey})

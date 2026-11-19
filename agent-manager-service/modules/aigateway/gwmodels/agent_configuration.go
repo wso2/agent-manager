@@ -257,8 +257,6 @@ type AgentEnvConfigVariable struct {
 	OrgID           string    `gorm:"column:org_id" json:"-"`
 	VariableName    string    `gorm:"column:variable_name" json:"name"`
 	CreatedAt       time.Time `gorm:"column:created_at" json:"-"`
-	// SecretReference named a secret only hosted workloads mounted; external agents are handed their keys.
-	SecretReference string `gorm:"-" json:"-"`
 }
 
 // TableName returns the table name for the AgentEnvConfigVariable model

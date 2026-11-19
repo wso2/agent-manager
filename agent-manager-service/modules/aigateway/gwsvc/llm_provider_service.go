@@ -290,7 +290,7 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 		return httpx.ErrInvalidInput
 	}
 
-	// Fail fast if a provider with this handle already exists, before touching KV.
+	// Fail fast if a provider with this handle already exists, before storing its credential.
 	if _, err := s.providerRepo.GetByHandle(handle, ouID); err == nil {
 		slog.Warn("LLMProviderService.Create: provider already exists", "ouID", ouID, "handle", handle)
 		return gwerr.ErrLLMProviderExists

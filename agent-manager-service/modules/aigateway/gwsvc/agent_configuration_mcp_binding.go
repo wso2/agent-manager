@@ -892,18 +892,14 @@ func (s *agentConfigurationService) activateMCPMappingForEnv(
 		}
 	}()
 
-	// Must precede credential provisioning: ensureMCPMappingCredentials points the API-key
-	// row at the secret it mints, and fails when that row does not exist yet.
 	if err = s.ensureMCPEnvVarRows(ctx, config.UUID, envUUID, inputs.envTemplates); err != nil {
 		return fmt.Errorf("failed to create MCP environment variables: %w", err)
 	}
 
 	if mcpProxyAPIKeySecurityEnabled(sourceProxy, envUUID.String()) {
-		if _, err = s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID, inputs.policy); err != nil {
+		if err = s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID); err != nil {
 			return err
 		}
-	} else if err = s.updateMCPMappingSecretReference(ctx, config.UUID, envUUID, ""); err != nil {
-		return fmt.Errorf("failed to clear MCP API key secret reference: %w", err)
 	}
 
 	return nil

@@ -55,10 +55,6 @@ type AgentEnvConfigVariableRepository interface {
 
 	// DeleteByConfigAndEnv deletes variables for config and environment (use within transaction)
 	DeleteByConfigAndEnv(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error
-
-	// ListSecretReferencesByAgentAndEnv returns distinct non-empty secret_reference values stored
-	// for all LLM config variables belonging to this agent in the given environment.
-	ListSecretReferencesByAgentAndEnv(ctx context.Context, agentID, ouID string, envUUID uuid.UUID) ([]string, error)
 }
 
 type agentEnvConfigVariableRepository struct {
@@ -150,12 +146,6 @@ func (r *agentEnvConfigVariableRepository) DeleteByConfigAndEnv(ctx context.Cont
 	return tx.WithContext(ctx).
 		Where("config_id = ? AND environment_id = ?", configUUID, envUUID).
 		Delete(&gwmodels.AgentEnvConfigVariable{}).Error
-}
-
-// ListSecretReferencesByAgentAndEnv returns nothing: secret references named secrets that hosted workloads mounted,
-// and external agents are handed their keys instead, so none are stored.
-func (r *agentEnvConfigVariableRepository) ListSecretReferencesByAgentAndEnv(context.Context, string, string, uuid.UUID) ([]string, error) {
-	return nil, nil
 }
 
 // LockAndListByAgent takes the agent lock before any configuration row lock. A

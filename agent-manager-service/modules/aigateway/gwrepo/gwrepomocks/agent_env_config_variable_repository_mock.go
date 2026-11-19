@@ -36,9 +36,6 @@ import (
 //			ListByConfigForUpdateFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 //				panic("mock out the ListByConfigForUpdate method")
 //			},
-//			ListSecretReferencesByAgentAndEnvFunc: func(ctx context.Context, agentID string, ouID string, envUUID uuid.UUID) ([]string, error) {
-//				panic("mock out the ListSecretReferencesByAgentAndEnv method")
-//			},
 //			LockAndListByAgentFunc: func(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]gwmodels.AgentEnvConfigVariable, error) {
 //				panic("mock out the LockAndListByAgent method")
 //			},
@@ -69,9 +66,6 @@ type AgentEnvConfigVariableRepositoryMock struct {
 
 	// ListByConfigForUpdateFunc mocks the ListByConfigForUpdate method.
 	ListByConfigForUpdateFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error)
-
-	// ListSecretReferencesByAgentAndEnvFunc mocks the ListSecretReferencesByAgentAndEnv method.
-	ListSecretReferencesByAgentAndEnvFunc func(ctx context.Context, agentID string, ouID string, envUUID uuid.UUID) ([]string, error)
 
 	// LockAndListByAgentFunc mocks the LockAndListByAgent method.
 	LockAndListByAgentFunc func(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]gwmodels.AgentEnvConfigVariable, error)
@@ -135,17 +129,6 @@ type AgentEnvConfigVariableRepositoryMock struct {
 			// ConfigUUID is the configUUID argument value.
 			ConfigUUID uuid.UUID
 		}
-		// ListSecretReferencesByAgentAndEnv holds details about calls to the ListSecretReferencesByAgentAndEnv method.
-		ListSecretReferencesByAgentAndEnv []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// AgentID is the agentID argument value.
-			AgentID string
-			// OuID is the ouID argument value.
-			OuID string
-			// EnvUUID is the envUUID argument value.
-			EnvUUID uuid.UUID
-		}
 		// LockAndListByAgent holds details about calls to the LockAndListByAgent method.
 		LockAndListByAgent []struct {
 			// Ctx is the ctx argument value.
@@ -171,15 +154,14 @@ type AgentEnvConfigVariableRepositoryMock struct {
 			KeyNameMap map[string]string
 		}
 	}
-	lockCreateBatch                       sync.RWMutex
-	lockDeleteByConfig                    sync.RWMutex
-	lockDeleteByConfigAndEnv              sync.RWMutex
-	lockListByConfig                      sync.RWMutex
-	lockListByConfigAndEnv                sync.RWMutex
-	lockListByConfigForUpdate             sync.RWMutex
-	lockListSecretReferencesByAgentAndEnv sync.RWMutex
-	lockLockAndListByAgent                sync.RWMutex
-	lockUpdateVariableNames               sync.RWMutex
+	lockCreateBatch           sync.RWMutex
+	lockDeleteByConfig        sync.RWMutex
+	lockDeleteByConfigAndEnv  sync.RWMutex
+	lockListByConfig          sync.RWMutex
+	lockListByConfigAndEnv    sync.RWMutex
+	lockListByConfigForUpdate sync.RWMutex
+	lockLockAndListByAgent    sync.RWMutex
+	lockUpdateVariableNames   sync.RWMutex
 }
 
 // CreateBatch calls CreateBatchFunc.
@@ -419,50 +401,6 @@ func (mock *AgentEnvConfigVariableRepositoryMock) ListByConfigForUpdateCalls() [
 	mock.lockListByConfigForUpdate.RLock()
 	calls = mock.calls.ListByConfigForUpdate
 	mock.lockListByConfigForUpdate.RUnlock()
-	return calls
-}
-
-// ListSecretReferencesByAgentAndEnv calls ListSecretReferencesByAgentAndEnvFunc.
-func (mock *AgentEnvConfigVariableRepositoryMock) ListSecretReferencesByAgentAndEnv(ctx context.Context, agentID string, ouID string, envUUID uuid.UUID) ([]string, error) {
-	if mock.ListSecretReferencesByAgentAndEnvFunc == nil {
-		panic("AgentEnvConfigVariableRepositoryMock.ListSecretReferencesByAgentAndEnvFunc: method is nil but AgentEnvConfigVariableRepository.ListSecretReferencesByAgentAndEnv was just called")
-	}
-	callInfo := struct {
-		Ctx     context.Context
-		AgentID string
-		OuID    string
-		EnvUUID uuid.UUID
-	}{
-		Ctx:     ctx,
-		AgentID: agentID,
-		OuID:    ouID,
-		EnvUUID: envUUID,
-	}
-	mock.lockListSecretReferencesByAgentAndEnv.Lock()
-	mock.calls.ListSecretReferencesByAgentAndEnv = append(mock.calls.ListSecretReferencesByAgentAndEnv, callInfo)
-	mock.lockListSecretReferencesByAgentAndEnv.Unlock()
-	return mock.ListSecretReferencesByAgentAndEnvFunc(ctx, agentID, ouID, envUUID)
-}
-
-// ListSecretReferencesByAgentAndEnvCalls gets all the calls that were made to ListSecretReferencesByAgentAndEnv.
-// Check the length with:
-//
-//	len(mockedAgentEnvConfigVariableRepository.ListSecretReferencesByAgentAndEnvCalls())
-func (mock *AgentEnvConfigVariableRepositoryMock) ListSecretReferencesByAgentAndEnvCalls() []struct {
-	Ctx     context.Context
-	AgentID string
-	OuID    string
-	EnvUUID uuid.UUID
-} {
-	var calls []struct {
-		Ctx     context.Context
-		AgentID string
-		OuID    string
-		EnvUUID uuid.UUID
-	}
-	mock.lockListSecretReferencesByAgentAndEnv.RLock()
-	calls = mock.calls.ListSecretReferencesByAgentAndEnv
-	mock.lockListSecretReferencesByAgentAndEnv.RUnlock()
 	return calls
 }
 
