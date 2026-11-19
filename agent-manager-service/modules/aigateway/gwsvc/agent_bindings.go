@@ -30,14 +30,11 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // An agent's LLM and MCP bindings come in its extensions.ai-gateway block.
@@ -268,7 +265,7 @@ func (s *AgentGatewayService) StoreAgentExtension(ctx context.Context, tx *gorm.
 			return false, modkit.Reject("extensions.ai-gateway.settings: %v", err)
 		}
 		api := resolveAPIConfig(nil, st.EnableApiKeySecurity, st.CorsConfig, st.EnableOAuthSecurity, st.OauthConfig, true)
-		cfg := agentConfigFromAPIConfig(req.OrgID, project, name, models.DefaultEnvironmentName, api)
+		cfg := agentConfigFromAPIConfig(req.OrgID, project, name, gwmodels.DefaultEnvironmentName, api)
 		cfg.EnableAutoInstrumentation = resolveTracingConfig(nil, nil, true).EnableAutoInstrumentation
 		cfg.ResilienceTimeoutSeconds = &timeout
 		if err := gwrepo.NewAgentConfigRepo(tx).Upsert(ctx, cfg); err != nil {
@@ -341,10 +338,10 @@ func replaceBindings(tx *gorm.DB, orgID, agentID uuid.UUID, kind string, reqs []
 
 // AgentBindings lists an agent's bindings, LLM first, in request order.
 func (s *AgentGatewayService) AgentBindings(ctx context.Context, ouID, projectName, agentName string) ([]AgentBinding, error) {
-	agentID, err := models.AgentIDByNames(s.db.WithContext(ctx), ouID, projectName, agentName)
+	agentID, err := gwmodels.AgentIDByNames(s.db.WithContext(ctx), ouID, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, models.ErrAgentRefNotFound) {
-			return nil, utils.ErrAgentNotFound
+		if errors.Is(err, gwmodels.ErrAgentRefNotFound) {
+			return nil, gwerr.ErrAgentNotFound
 		}
 		return nil, err
 	}
@@ -450,13 +447,13 @@ func (s *AgentGatewayService) createBindingConfig(ctx context.Context, orgID, pr
 		if err := json.Unmarshal(b.Request, &mc); err != nil {
 			return "", err
 		}
-		return s.createLLMConfig(ctx, orgID, projectName, agentName, models.DefaultEnvironmentName, name, mc)
+		return s.createLLMConfig(ctx, orgID, projectName, agentName, gwmodels.DefaultEnvironmentName, name, mc)
 	case bindingKindMCP:
 		var mc gwspec.MCPConfigRequest
 		if err := json.Unmarshal(b.Request, &mc); err != nil {
 			return "", err
 		}
-		return s.createMCPConfig(ctx, orgID, projectName, agentName, []string{models.DefaultEnvironmentName}, name, mc)
+		return s.createMCPConfig(ctx, orgID, projectName, agentName, []string{gwmodels.DefaultEnvironmentName}, name, mc)
 	}
 	return "", fmt.Errorf("unknown binding kind %q", b.Kind)
 }
@@ -555,7 +552,7 @@ func (s *AgentGatewayService) TeardownAgent(ctx context.Context, agentID string)
 // AgentConfigurations reads an agent's gateway settings in an environment
 // (nil when none are stored yet) and its bindings.
 func (s *AgentGatewayService) AgentConfigurations(ctx context.Context, ouID, projectName, agentName, environment string) (*gwmodels.AgentConfig, []AgentBinding, error) {
-	if _, err := services.GetProjectAgent(ctx, s.platform, ouID, projectName, agentName); err != nil {
+	if _, err := LookupAgent(ctx, s.platform, ouID, projectName, agentName); err != nil {
 		return nil, nil, err
 	}
 	cfg, err := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, environment)

@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
@@ -39,7 +38,7 @@ func TestAgentConfigCreateIfAbsentKeepsAnExistingRow(t *testing.T) {
 		OUID: testOrg(t), ProjectName: "checkout",
 		AgentName: "cfg-" + uuid.New().String()[:8], EnvironmentName: "Development",
 		EnableApiKeySecurity: false, CORSEnabled: false,
-		OAuthHeaderName: "X-Saved", OAuthAuthHeaderPrefix: models.DefaultOAuthAuthHeaderPrefix,
+		OAuthHeaderName: "X-Saved", OAuthAuthHeaderPrefix: gwmodels.DefaultOAuthAuthHeaderPrefix,
 	}
 	seedAgent(t, saved.OUID, saved.ProjectName, saved.AgentName, saved.EnvironmentName)
 	t.Cleanup(func() { _ = repo.DeleteAllByAgent(ctx, saved.OUID, saved.ProjectName, saved.AgentName) })
@@ -48,7 +47,7 @@ func TestAgentConfigCreateIfAbsentKeepsAnExistingRow(t *testing.T) {
 	defaults := *saved
 	defaults.ID = uuid.Nil
 	defaults.EnableApiKeySecurity, defaults.CORSEnabled = true, true
-	defaults.OAuthHeaderName = models.DefaultOAuthHeaderName
+	defaults.OAuthHeaderName = gwmodels.DefaultOAuthHeaderName
 	require.NoError(t, repo.CreateIfAbsent(ctx, &defaults))
 
 	got, err := repo.Get(ctx, saved.OUID, saved.ProjectName, saved.AgentName, "Development")
@@ -63,7 +62,7 @@ func TestAgentConfigCreateIfAbsentInsertsDefaults(t *testing.T) {
 		OUID: testOrg(t), ProjectName: "checkout",
 		AgentName: "cfg-new-" + uuid.New().String()[:8], EnvironmentName: "Development",
 		EnableApiKeySecurity: true, CORSEnabled: true, CORSAllowOrigins: []string{"*"},
-		OAuthHeaderName: models.DefaultOAuthHeaderName, OAuthAuthHeaderPrefix: models.DefaultOAuthAuthHeaderPrefix,
+		OAuthHeaderName: gwmodels.DefaultOAuthHeaderName, OAuthAuthHeaderPrefix: gwmodels.DefaultOAuthAuthHeaderPrefix,
 	}
 	seedAgent(t, cfg.OUID, cfg.ProjectName, cfg.AgentName, cfg.EnvironmentName)
 	t.Cleanup(func() { _ = repo.DeleteAllByAgent(ctx, cfg.OUID, cfg.ProjectName, cfg.AgentName) })
@@ -86,7 +85,7 @@ func TestAgentConfigDeleteForEnvironmentDropsEveryAgentsConfig(t *testing.T) {
 	newConfig := func(agent, env string) *gwmodels.AgentConfig {
 		return &gwmodels.AgentConfig{
 			OUID: ouID, ProjectName: "checkout", AgentName: agent, EnvironmentName: env,
-			OAuthHeaderName: models.DefaultOAuthHeaderName, OAuthAuthHeaderPrefix: models.DefaultOAuthAuthHeaderPrefix,
+			OAuthHeaderName: gwmodels.DefaultOAuthHeaderName, OAuthAuthHeaderPrefix: gwmodels.DefaultOAuthAuthHeaderPrefix,
 		}
 	}
 	t.Cleanup(func() {

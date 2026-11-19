@@ -31,12 +31,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -50,17 +49,17 @@ const (
 func tierService(envs map[string]bool, lookupErr error) (*tierChecker, *int) {
 	calls := 0
 	return &tierChecker{
-		platform: &repomocks.PlatformRepositoryMock{
-			GetEnvironmentFunc: func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
+		platform: &gwtest.Core{
+			GetEnvironmentFunc: func(_ context.Context, _, envName string) (*modkit.Environment, error) {
 				calls++
 				if lookupErr != nil {
 					return nil, lookupErr
 				}
 				isProduction, known := envs[envName]
 				if !known {
-					return nil, utils.ErrEnvironmentNotFound
+					return nil, gwerr.ErrEnvironmentNotFound
 				}
-				return &models.EnvironmentResponse{Name: envName, IsProduction: isProduction}, nil
+				return &modkit.Environment{Name: envName, IsProduction: isProduction}, nil
 			},
 		},
 		logger: discardLogger(),
@@ -143,7 +142,7 @@ func TestRequireEnvTier_UnknownEnvIsNotFound(t *testing.T) {
 	svc, _ := tierService(map[string]bool{tierDevEnv: false}, nil)
 
 	_, err := svc.requireEnvTier(tierCtx(t, gwperm.DeployNonProduction), tierOUID, "nope")
-	require.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
+	require.ErrorIs(t, err, gwerr.ErrEnvironmentNotFound)
 }
 
 // TestRequireEnvTier_LookupFailureDenies is the fail-closed guarantee: an
@@ -206,10 +205,10 @@ func TestRequireEnvTier_DenialIsAudited(t *testing.T) {
 
 // tierChecker calls RequireEnvironmentTier on a fixed repository.
 type tierChecker struct {
-	platform repositories.PlatformRepository
+	platform modkit.CoreAPI
 	logger   *slog.Logger
 }
 
-func (c *tierChecker) requireEnvTier(ctx context.Context, ouID, envName string) (*models.EnvironmentResponse, error) {
+func (c *tierChecker) requireEnvTier(ctx context.Context, ouID, envName string) (*modkit.Environment, error) {
 	return RequireEnvironmentTier(ctx, tierPermissions(), c.platform, c.logger, ouID, envName)
 }

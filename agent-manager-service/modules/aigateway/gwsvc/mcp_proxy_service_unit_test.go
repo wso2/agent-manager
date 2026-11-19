@@ -27,7 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -35,7 +37,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -272,8 +273,8 @@ func TestMCPProxyDelete_CleansThunderResourceServers(t *testing.T) {
 			return []gwmodels.MCPProxyScope{{Action: "read"}, {Action: "write"}}, nil
 		},
 	}
-	infra := stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-		return []*models.EnvironmentResponse{{Name: "env-a", UUID: envUUID.String()}}, nil
+	infra := &gwtest.Core{ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
+		return []*modkit.Environment{{Name: "env-a", ID: envUUID.String()}}, nil
 	}}
 
 	var deletedHandle string
@@ -315,7 +316,7 @@ func TestMCPProxyDelete_CleansThunderResourceServers(t *testing.T) {
 		repo:              proxyRepo,
 		endpointRepo:      endpointRepo,
 		mcpProxyScopeRepo: scopeRepo,
-		infraManager:      infra,
+		coreAPI:           infra,
 		resolver:          resolver,
 		logger:            discardLogger(),
 	}
@@ -348,8 +349,8 @@ func TestMCPProxyDelete_CleanupSurvivesResolverError(t *testing.T) {
 			return []gwmodels.MCPProxyScope{{Action: "read"}}, nil
 		},
 	}
-	infra := stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-		return []*models.EnvironmentResponse{{Name: "env-a", UUID: envUUID.String()}}, nil
+	infra := &gwtest.Core{ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
+		return []*modkit.Environment{{Name: "env-a", ID: envUUID.String()}}, nil
 	}}
 	resolver := &identitymocks.DirectoryMock{
 		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
@@ -361,7 +362,7 @@ func TestMCPProxyDelete_CleanupSurvivesResolverError(t *testing.T) {
 		repo:              proxyRepo,
 		endpointRepo:      endpointRepo,
 		mcpProxyScopeRepo: scopeRepo,
-		infraManager:      infra,
+		coreAPI:           infra,
 		resolver:          resolver,
 		logger:            discardLogger(),
 	}

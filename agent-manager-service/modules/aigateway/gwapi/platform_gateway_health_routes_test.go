@@ -37,7 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // platformHealthMux builds the failure-summary route exactly as MakeHTTPHandler
@@ -69,7 +69,7 @@ func platformHealthMux(t *testing.T, total, failed, abandoned int64) *http.Serve
 	}
 	ctrl := gwctl.NewGatewayController(
 		gwsvc.NewPlatformGatewayService(repo, nil).WithFailureSettings(failureSettings),
-		&repomocks.PlatformRepositoryMock{},
+		&gwtest.Core{},
 		nil,
 	)
 

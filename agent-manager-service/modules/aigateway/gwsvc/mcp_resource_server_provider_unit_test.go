@@ -24,11 +24,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 func deployedIdentityProxy(envA, envB uuid.UUID) (*gwmodels.MCPProxy, *MCPProxyService) {
@@ -47,8 +48,8 @@ func deployedIdentityProxy(envA, envB uuid.UUID) (*gwmodels.MCPProxy, *MCPProxyS
 		}},
 	}
 	svc := &MCPProxyService{
-		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{Name: "dev", UUID: envA.String()}, {Name: "prod", UUID: envB.String()}}, nil
+		coreAPI: &gwtest.Core{ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{Name: "dev", ID: envA.String()}, {Name: "prod", ID: envB.String()}}, nil
 		}},
 		deploymentRepo: &gwrepomocks.DeploymentRepositoryMock{
 			PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {

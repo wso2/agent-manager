@@ -17,7 +17,7 @@
 package gwsvc
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 )
@@ -49,9 +49,9 @@ func agentGatewayShapeForProtocol(protocol gwmodels.AgentExposureProtocol) (agen
 }
 
 // agentGatewayShapeOf is a2aAgentShape for every external agent: its artifacts are always of kind Agent.
-func agentGatewayShapeOf(agent *models.AgentResponse) (agentGatewayShape, bool) {
+func agentGatewayShapeOf(agent *modkit.Agent) (agentGatewayShape, bool) {
 	if isExternalProvisioned(agent) {
 		return a2aAgentShape, true
 	}
-	return agentGatewayShapeFor(agent.Type.SubType)
+	return agentGatewayShape{}, false
 }

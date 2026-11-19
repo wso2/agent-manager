@@ -21,6 +21,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
@@ -29,12 +31,10 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // mcpURLTestFixture bundles the UUIDs and mocks shared by the three regression tests below:
@@ -133,11 +133,11 @@ func (f *mcpURLTestFixture) newService() *agentConfigurationService {
 func TestBuildConfigResponse_MCPURLUsesSharedArtifact(t *testing.T) {
 	f := newMCPURLTestFixture()
 	svc := f.newService()
-	svc.infraResourceManager = stubInfraManager{
-		listOrgEnvs: func(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(ctx context.Context, ouID string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
 		},
-	}
+	})
 
 	config := &gwmodels.AgentConfiguration{
 		UUID:           uuid.New(),
@@ -161,11 +161,11 @@ func TestBuildConfigResponse_MCPURLUsesSharedArtifact(t *testing.T) {
 func TestExternalAgentConfig_MCPURLUsesSharedArtifact(t *testing.T) {
 	f := newMCPURLTestFixture()
 	svc := f.newService()
-	svc.infraResourceManager = stubInfraManager{
-		listOrgEnvs: func(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(ctx context.Context, ouID string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
 		},
-	}
+	})
 
 	config := &gwmodels.AgentConfiguration{
 		UUID:        uuid.New(),
@@ -243,16 +243,16 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 	svc.envVariableRepo = &gwrepomocks.AgentEnvConfigVariableRepositoryMock{
 		ListByConfigFunc: func(context.Context, uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) { return nil, nil },
 	}
-	svc.infraResourceManager = stubInfraManager{
-		listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
 		},
-	}
-	svc.ocClient = &repomocks.PlatformRepositoryMock{
-		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(gwutil.InternalAgent)}}, nil
+	})
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
+			return &modkit.Agent{Provisioning: string(gwutil.InternalAgent)}, nil
 		},
-	}
+	})
 	return svc, f
 }
 
@@ -278,13 +278,13 @@ func TestMCPConfig_SelfHostedRefusalAppliesNothing(t *testing.T) {
 		}
 		return &gwmodels.Gateway{UUID: selfHostedGateway, Hosting: gwmodels.GatewayHostingSelfHosted}, nil
 	}
-	svc.infraResourceManager = stubInfraManager{
-		listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{
-				{UUID: managedEnv.String(), Name: "managed"}, {UUID: f.envUUID.String(), Name: "selfhosted"},
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{
+				{ID: managedEnv.String(), Name: "managed"}, {ID: f.envUUID.String(), Name: "selfhosted"},
 			}, nil
 		},
-	}
+	})
 	scopeRecorded := false
 	repo := svc.agentConfigRepo.(*gwrepomocks.AgentConfigurationRepositoryMock)
 	repo.SetMCPEnvScopeFunc = func(context.Context, *gorm.DB, uuid.UUID, []uuid.UUID, []uuid.UUID) error {
@@ -389,16 +389,16 @@ func selfHostedBackfillService(
 	svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
 		GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*gwmodels.AgentConfiguration, error) { return config, nil },
 	}
-	svc.ocClient = &repomocks.PlatformRepositoryMock{
-		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(provisioning)}}, nil
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
+			return &modkit.Agent{Provisioning: string(provisioning)}, nil
 		},
-	}
-	svc.infraResourceManager = stubInfraManager{
-		listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: models.DefaultEnvironmentName}}, nil
+	})
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: f.envUUID.String(), Name: gwmodels.DefaultEnvironmentName}}, nil
 		},
-	}
+	})
 	activated = &[]uuid.UUID{}
 	svc.envVariableRepo = &gwrepomocks.AgentEnvConfigVariableRepositoryMock{
 		ListByConfigAndEnvFunc: func(_ context.Context, _ uuid.UUID, envUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
@@ -436,7 +436,7 @@ func TestReconcileMCPBindings_SkipsIdentityProxyOnSelfHostedForExternalAgent(t *
 // requested environments through resolveMCPEnvGateways, which accepts the gateway for it.
 func TestMCPConfig_ExternalAgentBindsToSelfHostedProxy(t *testing.T) {
 	svc, f := selfHostedMCPConfigService(t)
-	envMap := map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}}
+	envMap := map[string]*modkit.Environment{"dev": {ID: f.envUUID.String(), Name: "dev"}}
 	proxiesByEnv := map[string]*gwmodels.MCPProxy{"dev": f.mapping.MCPProxy}
 
 	resolved, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, proxiesByEnv, envMap, externalAgentPolicy)
@@ -455,7 +455,7 @@ func TestMCPConfig_ExternalAgentRefusedForIdentityProxyOnSelfHosted(t *testing.T
 	on := true
 	proxy := f.mapping.MCPProxy
 	proxy.Endpoints[0].Configuration.Security = &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}}
-	envMap := map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}}
+	envMap := map[string]*modkit.Environment{"dev": {ID: f.envUUID.String(), Name: "dev"}}
 
 	_, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, map[string]*gwmodels.MCPProxy{"dev": proxy}, envMap, externalAgentPolicy)
 
@@ -478,11 +478,11 @@ func TestExternalAgentMCPURL_UsesSelfHostedGateway(t *testing.T) {
 	}
 	newService := func() *agentConfigurationService {
 		svc := f.newService()
-		svc.infraResourceManager = stubInfraManager{
-			listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-				return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+		svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+			ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+				return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
 			},
-		}
+		})
 		svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
 			GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*gwmodels.AgentConfiguration, error) { return config, nil },
 		}
@@ -529,11 +529,11 @@ func TestExternalAgentMCPURL_SelfHostedGatewayBySecurity(t *testing.T) {
 				EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
 			}
 			svc := f.newService()
-			svc.infraResourceManager = stubInfraManager{
-				listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-					return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+			svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+				ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+					return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
 				},
-			}
+			})
 			svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
 				GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*gwmodels.AgentConfiguration, error) { return config, nil },
 			}
@@ -567,11 +567,11 @@ func TestAgentMCPURLs_EmptyOnSelfHostedGateway(t *testing.T) {
 
 	t.Run("config response", func(t *testing.T) {
 		svc := f.newService()
-		svc.infraResourceManager = stubInfraManager{
-			listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-				return []*models.EnvironmentResponse{{UUID: f.envUUID.String(), Name: "dev"}}, nil
+		svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+			ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+				return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
 			},
-		}
+		})
 		resp, err := svc.buildConfigResponse(ctx, config, platformAgentPolicy)
 		require.NoError(t, err)
 		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)

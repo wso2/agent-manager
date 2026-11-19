@@ -23,7 +23,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -31,14 +33,12 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/events"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // stubEventHub is a hand-written EventHub stub (no generated mock exists for
@@ -103,9 +103,9 @@ func newAPIKeyServiceFixture(t *testing.T, existing *gwmodels.StoredAPIKey) *api
 	envUUID := "dada1090-0ddb-457a-a116-7f03d3cd0c4c"
 	gatewayUUID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
-	oc := &repomocks.PlatformRepositoryMock{
-		GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
+	oc := &gwtest.Core{
+		GetEnvironmentFunc: func(_ context.Context, _, _ string) (*modkit.Environment, error) {
+			return &modkit.Environment{ID: envUUID, Name: "dev"}, nil
 		},
 	}
 	artifactRepo := &gwrepomocks.ArtifactRepositoryMock{

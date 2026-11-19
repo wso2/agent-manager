@@ -32,14 +32,13 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // a2aFixture is an org with an ingress gateway mapped to env, and the A2A kind over the real repositories with a
@@ -55,26 +54,26 @@ type a2aFixture struct {
 	publisher *A2APublisher
 	// proxies serves external agents; external is the agent the platform reports, with no subtype (#2184).
 	proxies  A2AProxyService
-	external *models.AgentResponse
+	external *modkit.Agent
 }
 
 func newA2AFixture(t *testing.T) *a2aFixture {
 	t.Helper()
 	f := &a2aFixture{sync: newSyncFixture(t), env: uuid.New(), hub: &recordingEventHub{}}
-	f.external = &models.AgentResponse{
-		UUID: uuid.NewString(), Name: "ext-" + uuid.NewString()[:8], ProjectName: "proj",
-		Provisioning: models.Provisioning{Type: "external"}, Type: models.AgentType{Type: "external-agent-api"},
+	f.external = &modkit.Agent{
+		ID: uuid.NewString(), Name: "ext-" + uuid.NewString()[:8], ProjectName: "proj",
+		Provisioning: "external",
 	}
 	gormDB := db.GetDB()
 	dbtest.EnvironmentNamed(t, gormDB, f.sync.ouID, f.env, "dev")
 	f.gateway = gwtest.GatewayIn(t, gormDB, f.sync.ouID, gwmodels.GatewayRoleIngress, f.env).UUID
-	f.external.UUID = dbtest.EnsureAgent(t, gormDB, f.sync.ouID, f.external.ProjectName, f.external.Name).String()
-	oc := &repomocks.PlatformRepositoryMock{
-		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	f.external.ID = dbtest.EnsureAgent(t, gormDB, f.sync.ouID, f.external.ProjectName, f.external.Name).String()
+	oc := &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
 			return f.external, nil
 		},
-		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{Name: name, UUID: f.env.String()}, nil
+		GetEnvironmentFunc: func(_ context.Context, _, name string) (*modkit.Environment, error) {
+			return &modkit.Environment{Name: name, ID: f.env.String()}, nil
 		},
 	}
 	fetcher := &fakeA2ACardFetcher{
@@ -107,8 +106,8 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 }
 
 // env is the fixture's environment as OpenChoreo reports it.
-func (f *a2aFixture) envResponse() *models.EnvironmentResponse {
-	return &models.EnvironmentResponse{Name: "dev", UUID: f.env.String()}
+func (f *a2aFixture) envResponse() *modkit.Environment {
+	return &modkit.Environment{Name: "dev", ID: f.env.String()}
 }
 
 // registerCard registers the external agent's origin card URL while its environment is direct.
@@ -307,10 +306,9 @@ func TestPlacementPassPlacesAnExternalAgentFromItsProxyAlone(t *testing.T) {
 	assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
 }
 
-// #2184: an external agent created with no subtype is placed and deployed through its proxy.
+// #2184: an external agent, which has no subtype, is placed and deployed through its proxy.
 func TestAnExternalAgentWithNoSubtypeIsPlacedThroughItsProxy(t *testing.T) {
 	f := newA2AFixture(t)
-	require.Empty(t, f.external.Type.SubType)
 	f.registerCard(t)
 
 	artifact := f.proxy(t)

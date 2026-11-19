@@ -24,11 +24,11 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // waitingForEndpoint is what a platform agent's row waits on until its release binding publishes a service URL.
@@ -39,14 +39,14 @@ const waitingForEndpoint = "waiting for the agent's endpoint"
 type PlatformAgentExposures struct {
 	exposureRepo gwrepo.PlatformAgentExposureRepository
 	gatewayRepo  gwrepo.GatewayRepository
-	ocClient     repositories.PlatformRepository
+	ocClient     modkit.CoreAPI
 }
 
 // NewPlatformAgentExposures creates PlatformAgentExposures.
 func NewPlatformAgentExposures(
 	exposureRepo gwrepo.PlatformAgentExposureRepository,
 	gatewayRepo gwrepo.GatewayRepository,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 ) *PlatformAgentExposures {
 	return &PlatformAgentExposures{exposureRepo: exposureRepo, gatewayRepo: gatewayRepo, ocClient: ocClient}
 }

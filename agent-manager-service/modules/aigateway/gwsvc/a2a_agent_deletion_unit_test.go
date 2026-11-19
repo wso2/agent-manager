@@ -32,7 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // undeployedAgentID decodes the artifact UUID an agent.undeployed event names.
@@ -91,7 +91,7 @@ func newAgentArtifactDeletionFixture(t *testing.T, artifacts map[string]uuid.UUI
 	f.hub.onPublish = func() { f.steps = append(f.steps, "broadcast") }
 
 	// OpenChoreo is not consulted: the artifacts themselves say which environments to clear.
-	oc := &repomocks.PlatformRepositoryMock{}
+	oc := &gwtest.Core{}
 	stored := []*gwmodels.Artifact{{UUID: uuid.New(), Handle: agentEnvAPIArtifactHandle("proj", "agent-2", "env-dev"), Kind: gwmodels.KindAgent}}
 	for env, id := range artifacts {
 		handle := agentEnvAPIArtifactHandle("proj", "agent", f.env(env).String())

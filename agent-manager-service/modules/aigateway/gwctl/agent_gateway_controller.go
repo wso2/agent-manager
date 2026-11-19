@@ -22,11 +22,11 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -102,7 +102,7 @@ func (c *AgentGatewayController) GetAgentConfigurations(w http.ResponseWriter, r
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	environment := r.URL.Query().Get("environment")
 	if environment == "" {
-		environment = models.DefaultEnvironmentName
+		environment = gwmodels.DefaultEnvironmentName
 	}
 	cfg, bindings, err := c.agentService.AgentConfigurations(ctx, ouID, projName, agentName, environment)
 	if err != nil {

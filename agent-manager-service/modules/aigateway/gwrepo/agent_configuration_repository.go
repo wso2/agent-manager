@@ -24,7 +24,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
@@ -188,7 +187,7 @@ func (r *agentConfigurationRepository) GetByAgentID(ctx context.Context, agentID
 // byAgent narrows q to one agent's configurations.
 func (r *agentConfigurationRepository) byAgent(q *gorm.DB, ouID, projectName, agentName string) *gorm.DB {
 	return q.Where("mod_ai_gateway_agent_model_configs.org_id = ? AND mod_ai_gateway_agent_model_configs.agent_id IN (?)", ouID,
-		models.AgentIDQuery(r.db, ouID, projectName, agentName))
+		gwmodels.AgentIDQuery(r.db, ouID, projectName, agentName))
 }
 
 // ListMCPConfigsByAgent lists an agent's MCP configurations with their mappings, proxies and

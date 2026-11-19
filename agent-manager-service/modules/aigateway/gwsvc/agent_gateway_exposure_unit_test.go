@@ -26,13 +26,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // gatewayExposureHarness exposes agents through a reconcile core over publisherMocks, whose plain and
@@ -122,13 +122,15 @@ func (h *gatewayExposureHarness) deployedRow() gwmodels.DeploymentStatusRecord {
 }
 
 // defaultEnvPlatform reports an external agent in the org's default environment.
-func defaultEnvPlatform(envUUID uuid.UUID) *repomocks.PlatformRepositoryMock {
-	return &repomocks.PlatformRepositoryMock{
-		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return externalAgent(), nil
+func defaultEnvPlatform(envUUID uuid.UUID) *gwtest.Core {
+	return &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
+			agent := externalAgent()
+			agent.ProjectName = "" // the project asked for
+			return agent, nil
 		},
-		GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{UUID: envUUID.String(), Name: models.DefaultEnvironmentName}, nil
+		GetEnvironmentFunc: func(context.Context, string, string) (*modkit.Environment, error) {
+			return &modkit.Environment{ID: envUUID.String(), Name: gwmodels.DefaultEnvironmentName}, nil
 		},
 	}
 }
@@ -148,7 +150,7 @@ func TestDeploymentResponseCarriesStatusReason(t *testing.T) {
 	require.NoError(t, err)
 	response := gwconv.ConvertToDeploymentDetailsResponse(deployments)
 
-	deployment := response[models.DefaultEnvironmentName]
+	deployment := response[gwmodels.DefaultEnvironmentName]
 	require.NotNil(t, deployment.GatewayStatus)
 	assert.Equal(t, string(gwmodels.DeploymentStatusDeploying), *deployment.GatewayStatus)
 	require.NotNil(t, deployment.GatewayStatusReason)
@@ -168,7 +170,7 @@ func TestDeploymentResponseFallsBackWhenGatewayUnreadable(t *testing.T) {
 
 	deployments, err := s.GetAgentDeployments(context.Background(), "acme", "proj1", "my-agent")
 	require.NoError(t, err)
-	deployment := gwconv.ConvertToDeploymentDetailsResponse(deployments)[models.DefaultEnvironmentName]
+	deployment := gwconv.ConvertToDeploymentDetailsResponse(deployments)[gwmodels.DefaultEnvironmentName]
 
 	assert.Nil(t, deployment.GatewayStatus)
 	assert.Nil(t, deployment.GatewayStatusReason)
@@ -187,7 +189,7 @@ func TestDeploymentResponseOmitsGatewayStatusWithoutExposure(t *testing.T) {
 
 	deployments, err := s.GetAgentDeployments(context.Background(), "acme", "proj1", "my-agent")
 	require.NoError(t, err)
-	deployment := gwconv.ConvertToDeploymentDetailsResponse(deployments)[models.DefaultEnvironmentName]
+	deployment := gwconv.ConvertToDeploymentDetailsResponse(deployments)[gwmodels.DefaultEnvironmentName]
 
 	assert.Nil(t, deployment.GatewayStatus)
 	assert.Nil(t, deployment.GatewayStatusReason)

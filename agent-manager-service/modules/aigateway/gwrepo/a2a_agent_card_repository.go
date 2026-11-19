@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -122,7 +121,7 @@ func (r *a2aAgentCardRepository) Enqueue(ctx context.Context, card *gwmodels.A2A
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if card.AgentUUID == nil || *card.AgentUUID == uuid.Nil {
-			id, err := models.AgentIDByNames(tx, card.OUID, card.ProjectName, card.AgentName)
+			id, err := gwmodels.AgentIDByNames(tx, card.OUID, card.ProjectName, card.AgentName)
 			if err != nil {
 				return err
 			}
@@ -398,7 +397,7 @@ func listForEnvironment[T agentNamed](ctx context.Context, db *gorm.DB, table, o
 func listEnvironmentUUIDs[T any](ctx context.Context, db *gorm.DB, ouID, environmentName string) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
 	err := db.WithContext(ctx).Model(new(T)).
-		Where("org_id = ? AND environment_id IN (?)", ouID, models.EnvironmentIDQuery(db, ouID, environmentName)).
+		Where("org_id = ? AND environment_id IN (?)", ouID, gwmodels.EnvironmentIDQuery(db, ouID, environmentName)).
 		Distinct().Pluck("environment_id", &ids).Error
 	return ids, err
 }

@@ -23,7 +23,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -168,7 +167,7 @@ func (r *agentEnvConfigVariableRepository) LockAndListByAgent(ctx context.Contex
 	var variables []gwmodels.AgentEnvConfigVariable
 	err := tx.WithContext(ctx).Table("mod_ai_gateway_agent_model_config_vars v").Select("v.*").
 		Joins("JOIN mod_ai_gateway_agent_model_configs c ON c.id = v.config_id").
-		Where("c.org_id = ? AND c.agent_id IN (?)", ouID, models.AgentIDQuery(tx, ouID, projectName, agentID)).
+		Where("c.org_id = ? AND c.agent_id IN (?)", ouID, gwmodels.AgentIDQuery(tx, ouID, projectName, agentID)).
 		Find(&variables).Error
 	return variables, err
 }

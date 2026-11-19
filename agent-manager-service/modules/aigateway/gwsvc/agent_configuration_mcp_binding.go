@@ -26,7 +26,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -285,7 +285,7 @@ const (
 // the same as one attached before its pipeline grew.
 func (s *agentConfigurationService) recordMCPRequestScope(
 	ctx context.Context, kind mcpScopeRequest, snapshot *gwmodels.AgentConfiguration, ouID, projectName string,
-	envMap map[string]*models.EnvironmentResponse, reqEnvs map[string]gwmodels.EnvModelConfigRequest,
+	envMap map[string]*modkit.Environment, reqEnvs map[string]gwmodels.EnvModelConfigRequest,
 ) error {
 	requested := make(map[uuid.UUID]struct{}, len(reqEnvs))
 	include := make([]uuid.UUID, 0, len(reqEnvs))
@@ -294,7 +294,7 @@ func (s *agentConfigurationService) recordMCPRequestScope(
 		if !ok {
 			continue
 		}
-		if envUUID, err := uuid.Parse(env.UUID); err == nil {
+		if envUUID, err := uuid.Parse(env.ID); err == nil {
 			requested[envUUID] = struct{}{}
 			include = append(include, envUUID)
 		}
@@ -311,8 +311,8 @@ func (s *agentConfigurationService) recordMCPRequestScope(
 
 	pipeline := map[uuid.UUID]struct{}{}
 	if kind == mcpScopeCreate || legacyUpdate {
-		if env, ok := envMap[models.DefaultEnvironmentName]; ok {
-			if envUUID, parseErr := uuid.Parse(env.UUID); parseErr == nil {
+		if env, ok := envMap[gwmodels.DefaultEnvironmentName]; ok {
+			if envUUID, parseErr := uuid.Parse(env.ID); parseErr == nil {
 				pipeline[envUUID] = struct{}{}
 			}
 		}
@@ -399,7 +399,7 @@ func (r *mcpReconcileScope) pipelineEnvironments(ctx context.Context, projectNam
 		return cached, nil
 	}
 
-	names := []string{models.DefaultEnvironmentName}
+	names := []string{gwmodels.DefaultEnvironmentName}
 	index, err := r.envs()
 	if err != nil {
 		return mcpPipelineEnvs{envs: nil, restrict: false}, err
@@ -422,7 +422,7 @@ func (r *mcpReconcileScope) pipelineEnvironments(ctx context.Context, projectNam
 func (s *agentConfigurationService) ReconcileMCPBindingsForProxy(ctx context.Context, ouID, proxyHandle string) error {
 	// Every collaborator the reconcile dereferences, guarded together: a partially wired
 	// service must skip the backfill, not panic partway through it.
-	if s.envMCPMappingRepo == nil || s.mcpProxyRepo == nil || s.agentConfigRepo == nil || s.infraResourceManager == nil {
+	if s.envMCPMappingRepo == nil || s.mcpProxyRepo == nil || s.agentConfigRepo == nil || s.ocClient == nil {
 		return nil
 	}
 	// Reloaded rather than taken from the caller so the endpoint→environment rows this
@@ -448,7 +448,7 @@ func (s *agentConfigurationService) ReconcileMCPBindingsForProxy(ctx context.Con
 // with no trigger of its own that left every affected agent permanently unbound until
 // someone re-saved the proxy.
 func (s *agentConfigurationService) ReconcileMCPBindingsForEnvironment(ctx context.Context, ouID string, envUUID uuid.UUID) error {
-	if s.envMCPMappingRepo == nil || s.mcpProxyRepo == nil || s.agentConfigRepo == nil || s.infraResourceManager == nil {
+	if s.envMCPMappingRepo == nil || s.mcpProxyRepo == nil || s.agentConfigRepo == nil || s.ocClient == nil {
 		return nil
 	}
 	proxies, err := s.mcpProxiesBoundToEnvironment(ctx, ouID, envUUID)
@@ -588,7 +588,7 @@ func (s *agentConfigurationService) mcpConfigUUIDsForProxy(
 }
 
 func (s *agentConfigurationService) mcpEnvironmentIndex(ctx context.Context, ouID string) (mcpEnvIndex, error) {
-	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return mcpEnvIndex{}, fmt.Errorf("failed to list environments for MCP binding reconcile: %w", err)
 	}
@@ -597,7 +597,7 @@ func (s *agentConfigurationService) mcpEnvironmentIndex(ctx context.Context, ouI
 		uuidByName: make(map[string]uuid.UUID, len(envs)),
 	}
 	for _, env := range envs {
-		envUUID, parseErr := uuid.Parse(env.UUID)
+		envUUID, parseErr := uuid.Parse(env.ID)
 		if parseErr != nil {
 			continue
 		}
@@ -824,7 +824,7 @@ func (s *agentConfigurationService) mcpActivationInputsForConfig(
 }
 
 func (s *agentConfigurationService) agentDeploymentShape(ctx context.Context, ouID, projectName, agentName string) (policy placementPolicy, firstEnvName string, err error) {
-	agentComp, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
+	agentComp, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentName)
 	if err != nil {
 		return platformAgentPolicy, "", fmt.Errorf("failed to determine agent type for %s: %w", agentName, err)
 	}
@@ -832,7 +832,7 @@ func (s *agentConfigurationService) agentDeploymentShape(ctx context.Context, ou
 	if policy.external() {
 		return policy, "", nil
 	}
-	return platformAgentPolicy, models.DefaultEnvironmentName, nil
+	return platformAgentPolicy, gwmodels.DefaultEnvironmentName, nil
 }
 
 // activateMCPMappingForEnv binds config to sourceProxy in a deployable environment: it

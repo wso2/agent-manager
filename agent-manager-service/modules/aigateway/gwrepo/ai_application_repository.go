@@ -21,7 +21,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
@@ -119,9 +118,9 @@ func (r *AIApplicationRepo) DeleteByAgentEnv(ctx context.Context, tx *gorm.DB, o
 // appCond matches the named agent's applications, in the named environment unless envName is empty.
 func appCond(db *gorm.DB, ouID, projectName, agentName, envName string) *gorm.DB {
 	q := db.Session(&gorm.Session{NewDB: true}).
-		Where("org_id = ? AND agent_id IN (?)", ouID, models.AgentIDQuery(db, ouID, projectName, agentName))
+		Where("org_id = ? AND agent_id IN (?)", ouID, gwmodels.AgentIDQuery(db, ouID, projectName, agentName))
 	if envName != "" {
-		q = q.Where("environment_id IN (?)", models.EnvironmentIDQuery(db, ouID, envName))
+		q = q.Where("environment_id IN (?)", gwmodels.EnvironmentIDQuery(db, ouID, envName))
 	}
 	return q
 }

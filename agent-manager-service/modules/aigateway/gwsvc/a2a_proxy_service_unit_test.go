@@ -23,7 +23,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
@@ -31,14 +33,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const proxyTestEnvUUID = "55555555-5555-5555-5555-555555555555"
@@ -54,7 +53,7 @@ type proxyHarness struct {
 	txProxies          *gwrepomocks.A2AProxyRepositoryMock
 	cards, txCards     *gwrepomocks.A2AAgentCardRepositoryMock
 	configs, txConfigs *gwrepomocks.AgentConfigRepositoryMock
-	oc                 *repomocks.PlatformRepositoryMock
+	oc                 *gwtest.Core
 	artifactUUID       uuid.UUID
 	// steps records the order of the transition lock and the proxy reads.
 	steps []string
@@ -107,12 +106,12 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 			return h.txConfigs
 		},
 	}
-	h.oc = &repomocks.PlatformRepositoryMock{
-		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc = &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
 			return externalAgent(), nil
 		},
-		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{UUID: proxyTestEnvUUID, Name: name}, nil
+		GetEnvironmentFunc: func(_ context.Context, _, name string) (*modkit.Environment, error) {
+			return &modkit.Environment{ID: proxyTestEnvUUID, Name: name}, nil
 		},
 	}
 	h.svc = NewA2AProxyService(m.tx(), m.proxies, h.cards, h.configs, m.artifacts, m.publisher(), h.oc, proxyTestKey,
@@ -189,8 +188,8 @@ func decryptForTest(t *testing.T, secretRef string) string {
 	return plaintext
 }
 
-func devEnv() *models.EnvironmentResponse {
-	return &models.EnvironmentResponse{UUID: proxyTestEnvUUID, Name: "dev"}
+func devEnv() *modkit.Environment {
+	return &modkit.Environment{ID: proxyTestEnvUUID, Name: "dev"}
 }
 
 // tierOnlyCtx authorises both tiers but carries no audit recorder.
@@ -614,18 +613,18 @@ func TestRefreshA2AProxyNeverRequeuesTheCard(t *testing.T) {
 }
 
 func TestSetA2AProxyRejectsAnInternalAgent(t *testing.T) {
-	cases := map[string]*models.AgentResponse{
+	cases := map[string]*modkit.Agent{
 		"an internal A2A agent": {
-			Name: "weather", ProjectName: "checkout", Provisioning: models.Provisioning{Type: "internal"}, Type: models.AgentType{SubType: "a2a-agent"},
+			Name: "weather", ProjectName: "checkout", Provisioning: "internal",
 		},
 		"an internal non-A2A agent": {
-			Name: "weather", ProjectName: "checkout", Provisioning: models.Provisioning{Type: "internal"}, Type: models.AgentType{SubType: "chat-api"},
+			Name: "weather", ProjectName: "checkout", Provisioning: "internal",
 		},
 	}
 	for name, agent := range cases {
 		t.Run(name, func(t *testing.T) {
 			h := newProxyHarness(t)
-			h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) { return agent, nil }
+			h.oc.GetAgentFunc = func(context.Context, string, string, string) (*modkit.Agent, error) { return agent, nil }
 			assert.ErrorIs(t, h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil), gwerr.ErrA2AProxyAgentNotExternal)
 		})
 	}
@@ -633,8 +632,8 @@ func TestSetA2AProxyRejectsAnInternalAgent(t *testing.T) {
 
 func TestSetA2AProxyEnforcesTheEnvironmentTier(t *testing.T) {
 	h := newProxyHarness(t)
-	h.oc.GetEnvironmentFunc = func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-		return &models.EnvironmentResponse{UUID: proxyTestEnvUUID, Name: name, IsProduction: true}, nil
+	h.oc.GetEnvironmentFunc = func(_ context.Context, _, name string) (*modkit.Environment, error) {
+		return &modkit.Environment{ID: proxyTestEnvUUID, Name: name, IsProduction: true}, nil
 	}
 	err := h.svc.SetA2AProxy(tierCtx(t, gwperm.DeployNonProduction), "org-1", "checkout", "weather", "prod", nil)
 	assert.ErrorIs(t, err, httpx.ErrForbidden)
@@ -647,17 +646,17 @@ func TestSetA2AProxyDropsItsWritesWhenTheAgentIsDeletedMeanwhile(t *testing.T) {
 	h.acceptsWrites()
 	h.artifacts.DeleteFunc = func(*gorm.DB, string) error { return nil }
 	lookups := 0
-	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*modkit.Agent, error) {
 		lookups++
 		if lookups == 1 {
 			return externalAgent(), nil
 		}
-		return nil, utils.ErrAgentNotFound
+		return nil, gwerr.ErrAgentNotFound
 	}
 
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
 
-	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrAgentNotFound)
 	assert.Len(t, h.artifacts.DeleteCalls(), 1)
 	assert.Len(t, h.txProxies.DeleteCalls(), 1)
 	assert.Len(t, h.txCards.DeleteForAgentEnvCalls(), 1, "the card row the proxy service may have written goes too")
@@ -672,16 +671,16 @@ func TestSetA2AProxyReportsTheRollbackWhenTheAgentIsDeletedMeanwhile(t *testing.
 	h.acceptsWrites()
 	h.artifacts.DeleteFunc = func(*gorm.DB, string) error { return nil }
 	lookups := 0
-	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*modkit.Agent, error) {
 		lookups++
 		if lookups == 1 {
 			return externalAgent(), nil
 		}
-		return nil, utils.ErrAgentNotFound
+		return nil, gwerr.ErrAgentNotFound
 	}
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
 
-	require.ErrorIs(t, err, utils.ErrAgentNotFound)
+	require.ErrorIs(t, err, gwerr.ErrAgentNotFound)
 }
 
 // The write has committed, so a lookup failure in the agent-gone check is logged, not turned into a 500.
@@ -689,7 +688,7 @@ func TestSetA2AProxyKeepsACommittedWriteWhenTheAgentCheckFails(t *testing.T) {
 	h := newProxyHarness(t)
 	h.acceptsWrites()
 	lookups := 0
-	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*modkit.Agent, error) {
 		lookups++
 		if lookups == 1 {
 			return externalAgent(), nil
@@ -854,12 +853,12 @@ func TestRefreshCardSource(t *testing.T) {
 
 func TestSetA2AProxyRejectsAnAgentFromAnotherProject(t *testing.T) {
 	h := newProxyHarness(t)
-	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.oc.GetAgentFunc = func(context.Context, string, string, string) (*modkit.Agent, error) {
 		agent := externalAgent()
 		agent.ProjectName = "other"
 		return agent, nil
 	}
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
-	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrAgentNotFound)
 	assert.Zero(t, h.transactions)
 }

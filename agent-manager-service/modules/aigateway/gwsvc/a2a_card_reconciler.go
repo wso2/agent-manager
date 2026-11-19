@@ -27,6 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -34,8 +36,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -71,7 +71,7 @@ type a2aCardReconcilerService struct {
 	proxyRepo   gwrepo.A2AProxyRepository
 	gatewayRepo gwrepo.GatewayRepository
 	fetcher     A2ACardFetcher
-	ocClient    repositories.PlatformRepository
+	ocClient    modkit.CoreAPI
 	logger      *slog.Logger
 	stopCh      chan struct{}
 	stopOnce    sync.Once
@@ -86,7 +86,7 @@ func NewA2ACardReconcilerService(
 	proxyRepo gwrepo.A2AProxyRepository,
 	gatewayRepo gwrepo.GatewayRepository,
 	fetcher A2ACardFetcher,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 	logger *slog.Logger,
 ) A2ACardReconcilerService {
 	return &a2aCardReconcilerService{
@@ -194,14 +194,14 @@ func (s *a2aCardReconcilerService) agentReplaced(ctx context.Context, row gwmode
 	if row.AgentUUID == nil {
 		return false
 	}
-	current, err := s.ocClient.GetAgent(ctx, row.OUID, row.ProjectName, row.AgentName)
+	current, err := LookupAgent(ctx, s.ocClient, row.OUID, row.ProjectName, row.AgentName)
 	switch {
-	case errors.Is(err, utils.ErrAgentNotFound), errors.Is(err, httpx.ErrNotFound):
+	case errors.Is(err, gwerr.ErrAgentNotFound), errors.Is(err, httpx.ErrNotFound):
 		return true
 	case err != nil:
 		return false
 	}
-	return current.UUID != "" && current.UUID != row.AgentUUID.String()
+	return current.ID != "" && current.ID != row.AgentUUID.String()
 }
 
 // dropReplacedCard removes the card of a replaced agent; a row re-queued meanwhile is kept.

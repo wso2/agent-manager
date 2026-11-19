@@ -26,26 +26,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // deploySettingsService wires UpdateAgentDeploySettings for the external agent in externalAgent.
 func deploySettingsService(configs *gwrepomocks.AgentConfigRepositoryMock, publisher *A2APublisher) *AgentGatewayService {
-	oc := &repomocks.PlatformRepositoryMock{
-		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
-			return &models.OrganizationResponse{Name: name}, nil
-		},
-		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	oc := &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
 			return externalAgent(), nil
 		},
-		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{Name: name, UUID: proxyTestEnvUUID}, nil
+		GetEnvironmentFunc: func(_ context.Context, _, name string) (*modkit.Environment, error) {
+			return &modkit.Environment{Name: name, ID: proxyTestEnvUUID}, nil
 		},
 		// UpdateReleaseBindingTraitConfigsFunc is nil: an external agent has no release binding.
 	}

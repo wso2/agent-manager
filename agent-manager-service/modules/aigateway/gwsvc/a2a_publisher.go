@@ -22,13 +22,12 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
@@ -72,13 +71,13 @@ func NewA2APublisher(
 	}
 }
 
-// ShouldPublish is true for every internal A2A agent, and for an external agent only while its environment is
-// proxied; a non-nil tx reads the proxy row inside the caller's transaction.
+// ShouldPublish is true for an external agent only while its environment is proxied (Lite has no platform-hosted
+// agents); a non-nil tx reads the proxy row inside the caller's transaction.
 func (p *A2APublisher) ShouldPublish(
-	ctx context.Context, tx *gorm.DB, agent *models.AgentResponse, ouID, projectName string, envUUID uuid.UUID,
+	ctx context.Context, tx *gorm.DB, agent *modkit.Agent, ouID, projectName string, envUUID uuid.UUID,
 ) (bool, error) {
 	if !isExternalProvisioned(agent) {
-		return gwutil.IsA2AAgentSubType(agent.Type.SubType), nil
+		return false, nil
 	}
 	_, err := p.proxies(tx).GetByEnvUUID(ctx, ouID, projectName, agent.Name, envUUID)
 	switch {
@@ -97,7 +96,7 @@ func (p *A2APublisher) ShouldPublish(
 // its placed rows are marked stale once the save commits. The save stands if that fails: the next save or proxy
 // refresh re-renders them.
 func (p *A2APublisher) SaveAndRepublish(
-	ctx context.Context, agent *models.AgentResponse, key agentExposureKey,
+	ctx context.Context, agent *modkit.Agent, key agentExposureKey,
 	artifact func(tx *gorm.DB) (*gwmodels.Artifact, error), save func(tx *gorm.DB) error,
 ) error {
 	external := isExternalProvisioned(agent)

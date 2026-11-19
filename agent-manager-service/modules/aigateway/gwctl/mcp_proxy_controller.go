@@ -37,8 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // MCPProxyController defines handlers for MCP proxy operations.
@@ -55,7 +53,7 @@ type MCPProxyController interface {
 type mcpProxyController struct {
 	mcpProxyService    *gwsvc.MCPProxyService
 	agentConfigService gwsvc.AgentConfigurationService
-	ocClient           repositories.PlatformRepository
+	ocClient           modkit.CoreAPI
 }
 
 // NewMCPProxyController creates a new MCP proxy controller.
@@ -66,7 +64,7 @@ type mcpProxyController struct {
 func NewMCPProxyController(
 	mcpProxyService *gwsvc.MCPProxyService,
 	agentConfigService gwsvc.AgentConfigurationService,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 ) MCPProxyController {
 	return &mcpProxyController{
 		mcpProxyService:    mcpProxyService,
@@ -145,17 +143,17 @@ func (c *mcpProxyController) ListMCPProxies(w http.ResponseWriter, r *http.Reque
 	// picker). Without it the MCP proxy page keeps seeing org-level proxies only.
 	var projectUUID *string
 	if projName := r.URL.Query().Get("project"); projName != "" {
-		project, err := c.ocClient.GetProject(ctx, ouID, projName)
-		if err != nil && !errors.Is(err, utils.ErrProjectNotFound) {
+		project, err := gwsvc.LookupProject(ctx, c.ocClient, ouID, projName)
+		if err != nil && !errors.Is(err, gwerr.ErrProjectNotFound) {
 			log.Error("ListMCPProxies: failed to resolve project", "ouID", ouID, "project", projName, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve project")
 			return
 		}
 		if err != nil || project == nil {
-			httpx.WriteErrorResponseWithReason(w, http.StatusNotFound, "Project not found", "", utils.ErrCodeProjectNotFound)
+			httpx.WriteErrorResponseWithReason(w, http.StatusNotFound, "Project not found", "", gwerr.ErrCodeProjectNotFound)
 			return
 		}
-		projectUUID = &project.UUID
+		projectUUID = &project.ID
 	}
 
 	log.Info("ListMCPProxies: starting", "ouID", ouID, "limit", limit, "offset", offset)

@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
@@ -32,7 +33,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
 
 // GatewayInternalAPIService handles internal gateway API operations
@@ -42,7 +42,7 @@ type GatewayInternalAPIService struct {
 	deploymentRepo   gwrepo.DeploymentRepository
 	artifactRepo     gwrepo.ArtifactRepository
 	gatewayRepo      gwrepo.GatewayRepository
-	infraResourceMgr services.InfraResourceManager
+	infraResourceMgr modkit.CoreAPI
 	encryptionKey    []byte
 	artifacts        GatewayArtifacts
 }
@@ -73,7 +73,7 @@ func NewGatewayInternalAPIService(
 	deploymentRepo gwrepo.DeploymentRepository,
 	artifactRepo gwrepo.ArtifactRepository,
 	gatewayRepo gwrepo.GatewayRepository,
-	infraResourceMgr services.InfraResourceManager,
+	infraResourceMgr modkit.CoreAPI,
 	encryptionKey []byte,
 	artifacts GatewayArtifacts,
 ) *GatewayInternalAPIService {

@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -123,7 +123,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 		DisplayName:       req.DisplayName,
 		Handle:            req.Handle,
 		Description:       derefString(req.Description),
-		Environment:       env.UUID,
+		Environment:       env.ID,
 		FunctionalityType: derefString(req.FunctionalityType),
 		Version:           derefString(req.Version),
 		Endpoints:         req.Endpoints,
@@ -146,7 +146,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 	}
 
 	// A self-hosted gateway is mapped to exactly the environment it was registered in.
-	environments := []models.GatewayEnvironmentResponse{gatewayEnvironmentResponse(env, ouID)}
+	environments := []gwmodels.GatewayEnvironmentResponse{gatewayEnvironmentResponse(env, ouID)}
 	httpx.WriteSuccessResponse(w, http.StatusCreated, convertGatewayToSpecResponse(gateway, ouID, environments))
 }
 

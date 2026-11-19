@@ -29,15 +29,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const a2aCardSourceURLMaxLen = 2048
@@ -54,7 +50,7 @@ type A2AAgentCardService interface {
 }
 
 type a2aAgentCardService struct {
-	ocClient   repositories.PlatformRepository
+	ocClient   modkit.CoreAPI
 	cardRepo   gwrepo.A2AAgentCardRepository
 	proxyHooks A2AProxyHooks
 	logger     *slog.Logger
@@ -63,7 +59,7 @@ type a2aAgentCardService struct {
 
 // NewA2AAgentCardService creates an A2AAgentCardService.
 func NewA2AAgentCardService(
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 	cardRepo gwrepo.A2AAgentCardRepository,
 	proxyHooks A2AProxyHooks,
 	logger *slog.Logger,
@@ -83,7 +79,7 @@ func (s *a2aAgentCardService) GetA2AAgentCard(
 	if !errors.Is(err, gwrepo.ErrA2AAgentCardNotFound) {
 		return nil, fmt.Errorf("failed to read agent card: %w", err)
 	}
-	if _, err := services.GetProjectAgent(ctx, s.ocClient, ouID, projectName, agentName); err != nil {
+	if _, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentName); err != nil {
 		return nil, err
 	}
 	// No row means no fetch is queued; a synthetic pending would never resolve.
@@ -153,16 +149,16 @@ func (s *a2aAgentCardService) DeleteA2ACardSource(
 }
 
 // annotateAgent names the agent the request's audit record is about.
-func annotateAgent(ctx context.Context, agent *models.AgentResponse) {
-	modkit.AuditResource(ctx, gwaudit.ResourceAgent, agent.UUID, agent.Name)
+func annotateAgent(ctx context.Context, agent *modkit.Agent) {
+	modkit.AuditResource(ctx, gwaudit.ResourceAgent, agent.ID, agent.Name)
 	modkit.AuditDetail(ctx, "agentName", agent.Name)
 }
 
 // enqueuePlatform queues a fetch of a platform agent's card; external sources go through the proxy hooks.
 func (s *a2aAgentCardService) enqueuePlatform(
-	ctx context.Context, agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse,
+	ctx context.Context, agent *modkit.Agent, ouID, projectName string, env *modkit.Environment,
 ) error {
-	envUUID, err := uuid.Parse(env.UUID)
+	envUUID, err := uuid.Parse(env.ID)
 	if err != nil {
 		return fmt.Errorf("invalid UUID for environment %s: %w", env.Name, err)
 	}
@@ -182,21 +178,21 @@ func (s *a2aAgentCardService) enqueuePlatform(
 
 // dropIfAgentGone deletes the just-written row when the agent was deleted or replaced during the upsert.
 func (s *a2aAgentCardService) dropIfAgentGone(
-	ctx context.Context, agent *models.AgentResponse, ouID, projectName, envName string,
+	ctx context.Context, agent *modkit.Agent, ouID, projectName, envName string,
 ) error {
-	gone, err := agentGoneOrReplaced(ctx, s.ocClient, ouID, projectName, agent.Name, agent.UUID)
+	gone, err := agentGoneOrReplaced(ctx, s.ocClient, ouID, projectName, agent.Name, agent.ID)
 	if err != nil || !gone {
 		return err
 	}
 	if err := s.cardRepo.DeleteForAgentEnv(ctx, ouID, projectName, agent.Name, envName); err != nil {
 		return fmt.Errorf("failed to drop agent card of a deleted agent: %w", err)
 	}
-	return utils.ErrAgentNotFound
+	return gwerr.ErrAgentNotFound
 }
 
 // getA2AAgent is GetProjectAgent refusing an agent that cannot serve A2A with gwerr.ErrAgentNotA2A.
-func getA2AAgent(ctx context.Context, oc repositories.PlatformRepository, ouID, projectName, agentName string) (*models.AgentResponse, error) {
-	agent, err := services.GetProjectAgent(ctx, oc, ouID, projectName, agentName)
+func getA2AAgent(ctx context.Context, oc modkit.CoreAPI, ouID, projectName, agentName string) (*modkit.Agent, error) {
+	agent, err := LookupAgent(ctx, oc, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -208,9 +204,9 @@ func getA2AAgent(ctx context.Context, oc repositories.PlatformRepository, ouID, 
 
 // getExternalAgent fetches an agent, refusing a platform-provisioned one with notExternalErr.
 func getExternalAgent(
-	ctx context.Context, oc repositories.PlatformRepository, ouID, projectName, agentName string, notExternalErr error,
-) (*models.AgentResponse, error) {
-	agent, err := services.GetProjectAgent(ctx, oc, ouID, projectName, agentName)
+	ctx context.Context, oc modkit.CoreAPI, ouID, projectName, agentName string, notExternalErr error,
+) (*modkit.Agent, error) {
+	agent, err := LookupAgent(ctx, oc, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -221,25 +217,25 @@ func getExternalAgent(
 }
 
 // agentGoneOrReplaced is true when the agent read as agentUUID was since deleted or its name reused.
-func agentGoneOrReplaced(ctx context.Context, oc repositories.PlatformRepository, ouID, projectName, agentName, agentUUID string) (bool, error) {
-	current, err := services.GetProjectAgent(ctx, oc, ouID, projectName, agentName)
+func agentGoneOrReplaced(ctx context.Context, oc modkit.CoreAPI, ouID, projectName, agentName, agentUUID string) (bool, error) {
+	current, err := LookupAgent(ctx, oc, ouID, projectName, agentName)
 	switch {
-	case errors.Is(err, utils.ErrAgentNotFound):
+	case errors.Is(err, gwerr.ErrAgentNotFound):
 		return true, nil
 	case err != nil:
 		return false, err
 	}
-	return current.UUID != agentUUID, nil
+	return current.ID != agentUUID, nil
 }
 
-func isExternalProvisioned(agent *models.AgentResponse) bool {
-	return agent.Provisioning.Type == string(gwutil.ExternalAgent)
+func isExternalProvisioned(agent *modkit.Agent) bool {
+	return agent.Provisioning == string(gwutil.ExternalAgent)
 }
 
-// a2aCapable is true for every external agent, which serves A2A wherever it registers a card URL, and for an
-// internal agent built as an A2A agent.
-func a2aCapable(agent *models.AgentResponse) bool {
-	return isExternalProvisioned(agent) || gwutil.IsA2AAgentSubType(agent.Type.SubType)
+// a2aCapable is true for every external agent, which serves A2A wherever it registers a card URL. Lite has no
+// platform-hosted agents.
+func a2aCapable(agent *modkit.Agent) bool {
+	return isExternalProvisioned(agent)
 }
 
 // validateCardSourceURL wraps every rejection in ssrf.ErrInvalidURL.

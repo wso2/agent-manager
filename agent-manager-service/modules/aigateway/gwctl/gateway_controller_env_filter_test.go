@@ -23,12 +23,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 const defaultEnvUUID = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
@@ -37,9 +37,9 @@ func listGatewaysRequest(
 	t *testing.T, query string, repo *gwrepomocks.GatewayRepositoryMock,
 ) (*gatewayController, *httptest.ResponseRecorder, *http.Request) {
 	t.Helper()
-	ocClient := &repomocks.PlatformRepositoryMock{
-		ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{UUID: defaultEnvUUID, Name: "default"}}, nil
+	ocClient := &gwtest.Core{
+		ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: defaultEnvUUID, Name: "default"}}, nil
 		},
 	}
 	svc := gwsvc.NewPlatformGatewayService(repo, nil)

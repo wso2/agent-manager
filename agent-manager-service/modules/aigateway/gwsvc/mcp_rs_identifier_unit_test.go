@@ -24,12 +24,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // mcpIdentitySecurity builds an identity(OAuth2)-enabled SecurityConfig,
@@ -56,8 +57,8 @@ func TestMCPResourceServerIdentifier_DerivesPublicURI(t *testing.T) {
 		}},
 	}
 	svc := &MCPProxyService{
-		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{Name: "dev", UUID: envUUID.String()}}, nil
+		coreAPI: &gwtest.Core{ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{Name: "dev", ID: envUUID.String()}}, nil
 		}},
 		deploymentRepo: &gwrepomocks.DeploymentRepositoryMock{
 			PlacedGatewaysFunc: func(_ context.Context, _ string, providerUUID uuid.UUID) ([]string, error) {
@@ -97,15 +98,15 @@ func TestMCPResourceServerIdentifier_NotDeployedToEnvironment(t *testing.T) {
 
 func TestEnvironmentUUIDByName_NotFound(t *testing.T) {
 	svc := &MCPProxyService{
-		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{Name: "dev", UUID: uuid.NewString()}}, nil
+		coreAPI: &gwtest.Core{ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{Name: "dev", ID: uuid.NewString()}}, nil
 		}},
 		logger: discardLogger(),
 	}
 
 	_, err := svc.EnvironmentUUIDByName(context.Background(), "ou-1", "prod")
 
-	require.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
+	require.ErrorIs(t, err, gwerr.ErrEnvironmentNotFound)
 }
 
 // TestEnsureResourceServersForProxy_RegistersOnlyIdentitySecuredDeployedEnvironments
@@ -140,10 +141,10 @@ func TestEnsureResourceServersForProxy_RegistersOnlyIdentitySecuredDeployedEnvir
 	var resolvedEnvs []string
 	var ensuredActions [][]string
 	svc := &MCPProxyService{
-		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{
-				{Name: "env-a", UUID: envA.String()},
-				{Name: "env-b", UUID: envB.String()},
+		coreAPI: &gwtest.Core{ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{
+				{Name: "env-a", ID: envA.String()},
+				{Name: "env-b", ID: envB.String()},
 			}, nil
 		}},
 		deploymentRepo: &gwrepomocks.DeploymentRepositoryMock{
@@ -197,8 +198,8 @@ func TestEnsureResourceServersForProxy_SkipsUndeployedEnvironment(t *testing.T) 
 		}},
 	}
 	svc := &MCPProxyService{
-		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{Name: "env-a", UUID: envA.String()}}, nil
+		coreAPI: &gwtest.Core{ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{Name: "env-a", ID: envA.String()}}, nil
 		}},
 		logger: discardLogger(),
 		// resolver deliberately left nil: reaching it would panic, proving the
@@ -220,7 +221,7 @@ func TestEnsureResourceServersForProxy_SkipsWhenNoIdentityEndpoint(t *testing.T)
 		Endpoints: []gwmodels.MCPProxyEndpoint{{}},
 	}
 	svc := &MCPProxyService{logger: discardLogger()}
-	// infraManager/resolver deliberately left nil: reaching either would panic.
+	// coreAPI/resolver deliberately left nil: reaching either would panic.
 
 	require.NotPanics(t, func() {
 		svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
@@ -247,8 +248,8 @@ func TestEnsureResourceServersForProxy_SurvivesResolverError(t *testing.T) {
 		}},
 	}
 	svc := &MCPProxyService{
-		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{Name: "env-a", UUID: envA.String()}}, nil
+		coreAPI: &gwtest.Core{ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{Name: "env-a", ID: envA.String()}}, nil
 		}},
 		deploymentRepo: &gwrepomocks.DeploymentRepositoryMock{
 			PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {

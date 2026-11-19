@@ -21,20 +21,20 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 const seedOUID = "01900000-0000-7000-8000-000000000001"
@@ -49,15 +49,15 @@ func seedConfig(t *testing.T) (gwconfig.DefaultGateway, string) {
 	}, token
 }
 
-func seedPlatform(t *testing.T) *repomocks.PlatformRepositoryMock {
+func seedPlatform(t *testing.T) *gwtest.Core {
 	t.Helper()
-	return &repomocks.PlatformRepositoryMock{
-		GetEnvironmentFunc: func(ctx context.Context, ouID, envName string) (*models.EnvironmentResponse, error) {
+	return &gwtest.Core{
+		GetEnvironmentFunc: func(ctx context.Context, ouID, envName string) (*modkit.Environment, error) {
 			resolved, ok := orgctx.GetResolvedOrg(ctx)
 			assert.True(t, ok, "the organization must be created under its handle")
 			assert.Equal(t, "default", resolved.OuHandle)
-			assert.Equal(t, models.DefaultEnvironmentName, envName)
-			return &models.EnvironmentResponse{UUID: uuid.NewString(), Name: envName}, nil
+			assert.Equal(t, gwmodels.DefaultEnvironmentName, envName)
+			return &modkit.Environment{ID: uuid.NewString(), Name: envName}, nil
 		},
 	}
 }
@@ -66,7 +66,7 @@ func TestDefaultGatewaySeederDisabledDoesNothing(t *testing.T) {
 	// Every mock func is nil: any repository call panics.
 	repo := &gwrepomocks.GatewayRepositoryMock{}
 	s := NewDefaultGatewaySeeder(gwconfig.DefaultGateway{}, NewPlatformGatewayService(repo, nil), repo,
-		&repomocks.PlatformRepositoryMock{}, discardLogger())
+		&gwtest.Core{}, discardLogger())
 	require.NoError(t, s.Seed(context.Background()))
 }
 
@@ -157,7 +157,7 @@ func TestDefaultGatewaySeederRejectsMalformedToken(t *testing.T) {
 	cfg, _ := seedConfig(t)
 	cfg.Token = "not-a-token"
 	repo := &gwrepomocks.GatewayRepositoryMock{}
-	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo, nil), repo, &repomocks.PlatformRepositoryMock{}, discardLogger())
+	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo, nil), repo, &gwtest.Core{}, discardLogger())
 	require.ErrorContains(t, s.Seed(context.Background()), "default gateway token")
 }
 

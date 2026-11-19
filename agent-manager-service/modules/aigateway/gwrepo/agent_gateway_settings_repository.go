@@ -22,7 +22,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -144,6 +143,6 @@ func (r *AgentConfigRepo) DeleteAllByAgent(ctx context.Context, ouID, projectNam
 // DeleteForEnvironment removes every agent's config for a deleted environment.
 func (r *AgentConfigRepo) DeleteForEnvironment(ctx context.Context, ouID, environmentName string) error {
 	return r.db.WithContext(ctx).
-		Where("org_id = ? AND environment_id IN (?)", ouID, models.EnvironmentIDQuery(r.db, ouID, environmentName)).
+		Where("org_id = ? AND environment_id IN (?)", ouID, gwmodels.EnvironmentIDQuery(r.db, ouID, environmentName)).
 		Delete(&gwmodels.AgentConfig{}).Error
 }

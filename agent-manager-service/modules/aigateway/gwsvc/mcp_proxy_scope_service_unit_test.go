@@ -25,34 +25,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
 
 // stubInfraManager overrides only ListOrgEnvironments; any other call panics
 // via the nil embedded interface, which is exactly what a unit test wants.
-type stubInfraManager struct {
-	services.InfraResourceManager
-	listOrgEnvs func(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error)
-}
-
-func (s stubInfraManager) ListOrgEnvironments(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
-	return s.listOrgEnvs(ctx, ouID)
-}
-
 // scopeTestProxy builds an endpoint-era proxy: capabilities live on the endpoint's
 // MCPEndpointConfig (migration 032), not on the parent proxy config.
 func scopeTestProxy(handle string, tools ...string) *gwmodels.MCPProxy {
@@ -310,10 +301,10 @@ func TestMCPProxyScopeDelete_CleansThunderBestEffort(t *testing.T) {
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
 		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*gwmodels.MCPProxy, error) { return proxy, nil },
 	}
-	infra := stubInfraManager{listOrgEnvs: func(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
-		return []*models.EnvironmentResponse{
-			{Name: "env-a", UUID: envA.String()},
-			{Name: "env-b", UUID: envB.String()},
+	infra := &gwtest.Core{ListEnvironmentsFunc: func(ctx context.Context, ouID string) ([]*modkit.Environment, error) {
+		return []*modkit.Environment{
+			{Name: "env-a", ID: envA.String()},
+			{Name: "env-b", ID: envB.String()},
 		}, nil
 	}}
 
@@ -385,8 +376,8 @@ func TestMCPProxyScopeDelete_BestEffortSurvivesResolverError(t *testing.T) {
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
 		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*gwmodels.MCPProxy, error) { return proxy, nil },
 	}
-	infra := stubInfraManager{listOrgEnvs: func(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
-		return []*models.EnvironmentResponse{{Name: "env-a", UUID: envA.String()}}, nil
+	infra := &gwtest.Core{ListEnvironmentsFunc: func(ctx context.Context, ouID string) ([]*modkit.Environment, error) {
+		return []*modkit.Environment{{Name: "env-a", ID: envA.String()}}, nil
 	}}
 	resolver := &identitymocks.DirectoryMock{
 		ForFunc: func(ctx context.Context, ouID, envName string) (identityv1.Client, error) {
@@ -452,8 +443,8 @@ func TestListEnvironmentScopes_IncludesUndeployedIdentityProxies(t *testing.T) {
 			}, nil
 		},
 	}
-	infra := stubInfraManager{listOrgEnvs: func(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
-		return []*models.EnvironmentResponse{{Name: "dev", UUID: envUUID.String()}}, nil
+	infra := &gwtest.Core{ListEnvironmentsFunc: func(ctx context.Context, ouID string) ([]*modkit.Environment, error) {
+		return []*modkit.Environment{{Name: "dev", ID: envUUID.String()}}, nil
 	}}
 	svc := NewMCPProxyScopeService(scopeRepo, proxyRepo, infra, nil, nil, slog.Default())
 	entries, err := svc.ListEnvironmentScopes(context.Background(), "org-uuid", "dev")

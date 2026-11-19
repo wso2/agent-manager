@@ -25,6 +25,19 @@ const (
 	// ErrCodeContextInUse: an artifact's gateway context overlaps another artifact's on that gateway.
 	ErrCodeContextInUse            = "CONTEXT_IN_USE"
 	ErrCodeGatewayEnvironmentFixed = "GATEWAY_ENVIRONMENT_FIXED"
+	ErrCodeOrganizationNotFound    = "ORGANIZATION_NOT_FOUND"
+	ErrCodeProjectNotFound         = "PROJECT_NOT_FOUND"
+	ErrCodeAgentNotFound           = "AGENT_NOT_FOUND"
+	ErrCodeEnvironmentNotFound     = "ENVIRONMENT_NOT_FOUND"
+)
+
+// The core resources a gateway route addresses by name, when they do not
+// exist.
+var (
+	ErrOrganizationNotFound = errors.New("organization not found")
+	ErrProjectNotFound      = errors.New("project not found")
+	ErrAgentNotFound        = errors.New("agent not found")
+	ErrEnvironmentNotFound  = errors.New("environment not found")
 )
 
 var (

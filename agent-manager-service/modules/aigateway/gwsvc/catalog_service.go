@@ -23,9 +23,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // Environment mapping cache with TTL to reduce external API calls
@@ -107,14 +107,14 @@ type CatalogService interface {
 type catalogService struct {
 	logger       *slog.Logger
 	catalogRepo  gwrepo.CatalogRepository
-	platformRepo repositories.PlatformRepository
+	platformRepo modkit.CoreAPI
 }
 
 // NewCatalogService creates a new catalog service
 func NewCatalogService(
 	logger *slog.Logger,
 	catalogRepo gwrepo.CatalogRepository,
-	platformRepo repositories.PlatformRepository,
+	platformRepo modkit.CoreAPI,
 ) CatalogService {
 	return &catalogService{
 		logger:       logger,
@@ -255,7 +255,7 @@ func (s *catalogService) ListLLMProviders(ctx context.Context, filters *gwmodels
 // buildEnvironmentMapping fetches all environments and builds UUID to name mapping
 func (s *catalogService) buildEnvironmentMapping(ctx context.Context, ouID string) (map[string]string, error) {
 	// Fetch all environments
-	environments, err := s.platformRepo.ListEnvironments(ctx, ouID)
+	environments, err := ListEnvironments(ctx, s.platformRepo, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
@@ -264,7 +264,7 @@ func (s *catalogService) buildEnvironmentMapping(ctx context.Context, ouID strin
 	envMap := make(map[string]string)
 	if environments != nil {
 		for _, env := range environments {
-			envMap[env.UUID] = env.Name
+			envMap[env.ID] = env.Name
 		}
 		s.logger.Info("Built environment mapping", "count", len(envMap))
 	}

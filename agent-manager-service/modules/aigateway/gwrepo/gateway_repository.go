@@ -28,7 +28,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -546,7 +545,7 @@ func (r *GatewayRepo) EnvironmentMappingExists(gatewayID, environmentID string) 
 // UpsertIdentityProvider creates or updates an identity provider mirror row,
 // keyed by (gateway_id, name). The reserved internal provider is never mirrored.
 func (r *GatewayRepo) UpsertIdentityProvider(provider *gwmodels.GatewayIdentityProvider) error {
-	if provider.Name == models.ReservedIdentityProviderName {
+	if provider.Name == gwmodels.ReservedIdentityProviderName {
 		return httpx.ErrInvalidInput
 	}
 	if provider.OrgID == uuid.Nil {
@@ -570,7 +569,7 @@ func (r *GatewayRepo) UpsertIdentityProvider(provider *gwmodels.GatewayIdentityP
 // DeleteIdentityProvider removes an identity provider mirror row by gateway and
 // name. System providers (and the reserved internal provider) cannot be deleted.
 func (r *GatewayRepo) DeleteIdentityProvider(gatewayID, name string) error {
-	if name == models.ReservedIdentityProviderName || models.IsSystemIdentityProvider(name) {
+	if name == gwmodels.ReservedIdentityProviderName || gwmodels.IsSystemIdentityProvider(name) {
 		return httpx.ErrInvalidInput
 	}
 	var existing gwmodels.GatewayIdentityProvider
@@ -589,7 +588,7 @@ func (r *GatewayRepo) DeleteIdentityProvider(gatewayID, name string) error {
 // gateway, excluding the reserved internal provider.
 func (r *GatewayRepo) ListIdentityProvidersByGateway(gatewayID string) ([]gwmodels.GatewayIdentityProvider, error) {
 	var providers []gwmodels.GatewayIdentityProvider
-	err := r.db.Where("gateway_id = ? AND name <> ?", gatewayID, models.ReservedIdentityProviderName).
+	err := r.db.Where("gateway_id = ? AND name <> ?", gatewayID, gwmodels.ReservedIdentityProviderName).
 		Order("name ASC").
 		Find(&providers).Error
 	return providers, err
@@ -602,7 +601,7 @@ func (r *GatewayRepo) ListIdentityProvidersByEnvironment(environmentID string) (
 	var rows []gwmodels.GatewayIdentityProvider
 	err := r.db.
 		Joins("JOIN mod_ai_gateway_gateway_environments ON mod_ai_gateway_gateway_environments.gateway_id = mod_ai_gateway_gateway_identity_providers.gateway_id").
-		Where("mod_ai_gateway_gateway_environments.environment_id = ? AND mod_ai_gateway_gateway_identity_providers.name <> ?", environmentID, models.ReservedIdentityProviderName).
+		Where("mod_ai_gateway_gateway_environments.environment_id = ? AND mod_ai_gateway_gateway_identity_providers.name <> ?", environmentID, gwmodels.ReservedIdentityProviderName).
 		Order("mod_ai_gateway_gateway_identity_providers.name ASC").
 		Find(&rows).Error
 	if err != nil {
@@ -631,7 +630,7 @@ func (r *GatewayRepo) ListIdentityProvidersByOrg(ouID string) ([]IdentityProvide
 		Select("mod_ai_gateway_gateway_identity_providers.*, mod_ai_gateway_gateways.name AS gateway_name, mod_ai_gateway_gateway_environments.environment_id AS environment_uuid").
 		Joins("JOIN mod_ai_gateway_gateways ON mod_ai_gateway_gateways.id = mod_ai_gateway_gateway_identity_providers.gateway_id").
 		Joins("LEFT JOIN mod_ai_gateway_gateway_environments ON mod_ai_gateway_gateway_environments.gateway_id = mod_ai_gateway_gateway_identity_providers.gateway_id").
-		Where("mod_ai_gateway_gateways.org_id = ? AND mod_ai_gateway_gateway_identity_providers.name <> ?", ouID, models.ReservedIdentityProviderName).
+		Where("mod_ai_gateway_gateways.org_id = ? AND mod_ai_gateway_gateway_identity_providers.name <> ?", ouID, gwmodels.ReservedIdentityProviderName).
 		Order("mod_ai_gateway_gateway_identity_providers.name ASC").
 		Scan(&results).Error
 	return results, err

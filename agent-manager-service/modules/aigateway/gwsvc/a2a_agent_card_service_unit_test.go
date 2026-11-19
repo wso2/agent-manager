@@ -22,20 +22,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // proxyHooksStub records what the card service hands the proxy service, which owns every external-source write.
@@ -46,17 +45,17 @@ type proxyHooksStub struct {
 	err       error
 }
 
-func (s *proxyHooksStub) StoreCardSource(_ context.Context, _ *models.AgentResponse, _, _ string, _ *models.EnvironmentResponse, sourceURL string) error {
+func (s *proxyHooksStub) StoreCardSource(_ context.Context, _ *modkit.Agent, _, _ string, _ *modkit.Environment, sourceURL string) error {
 	s.stored = append(s.stored, sourceURL)
 	return s.err
 }
 
-func (s *proxyHooksStub) RemoveCardSource(context.Context, *models.AgentResponse, string, string, *models.EnvironmentResponse) error {
+func (s *proxyHooksStub) RemoveCardSource(context.Context, *modkit.Agent, string, string, *modkit.Environment) error {
 	s.removed++
 	return s.err
 }
 
-func (s *proxyHooksStub) RefreshCardSource(context.Context, *models.AgentResponse, string, string, *models.EnvironmentResponse) error {
+func (s *proxyHooksStub) RefreshCardSource(context.Context, *modkit.Agent, string, string, *modkit.Environment) error {
 	s.refreshed++
 	return s.err
 }
@@ -64,23 +63,22 @@ func (s *proxyHooksStub) RefreshCardSource(context.Context, *models.AgentRespons
 // cardServiceFor builds the service over an agent of the given provisioning and subtype.
 const cardTestEnvUUID = "55555555-5555-5555-5555-555555555555"
 
-func cardServiceFor(provisioning, subType string) (*a2aAgentCardService, *gwrepomocks.A2AAgentCardRepositoryMock, *repomocks.PlatformRepositoryMock) {
+func cardServiceFor(provisioning, subType string) (*a2aAgentCardService, *gwrepomocks.A2AAgentCardRepositoryMock, *gwtest.Core) {
 	return cardServiceWithHooks(provisioning, subType, &proxyHooksStub{})
 }
 
 func cardServiceWithHooks(
 	provisioning, subType string, hooks A2AProxyHooks,
-) (*a2aAgentCardService, *gwrepomocks.A2AAgentCardRepositoryMock, *repomocks.PlatformRepositoryMock) {
-	oc := &repomocks.PlatformRepositoryMock{
-		GetAgentFunc: func(_ context.Context, _, project, name string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{
-				UUID: "agent-uuid", Name: name, ProjectName: project,
-				Provisioning: models.Provisioning{Type: provisioning},
-				Type:         models.AgentType{SubType: subType},
+) (*a2aAgentCardService, *gwrepomocks.A2AAgentCardRepositoryMock, *gwtest.Core) {
+	oc := &gwtest.Core{
+		GetAgentFunc: func(_ context.Context, _, project, name string) (*modkit.Agent, error) {
+			return &modkit.Agent{
+				ID: "agent-uuid", Name: name, ProjectName: project,
+				Provisioning: provisioning,
 			}, nil
 		},
-		GetEnvironmentFunc: func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{UUID: cardTestEnvUUID, Name: name}, nil
+		GetEnvironmentFunc: func(_ context.Context, _, name string) (*modkit.Environment, error) {
+			return &modkit.Environment{ID: cardTestEnvUUID, Name: name}, nil
 		},
 	}
 	repo := &gwrepomocks.A2AAgentCardRepositoryMock{
@@ -150,21 +148,11 @@ func TestGetA2AAgentCardMapsAMissingAgent(t *testing.T) {
 	repo.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
 		return nil, gwrepo.ErrA2AAgentCardNotFound
 	}
-	oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
-		return nil, utils.ErrAgentNotFound
+	oc.GetAgentFunc = func(context.Context, string, string, string) (*modkit.Agent, error) {
+		return nil, gwerr.ErrAgentNotFound
 	}
 	_, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
-	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
-}
-
-// A platform-hosted agent has no deployment without an agent runtime, so the card worker could only
-// wait it out and then fail as "rolling out".
-func TestRefreshA2AAgentCardRefusesAPlatformAgent(t *testing.T) {
-	svc, repo, _ := cardServiceFor("internal", "a2a-agent")
-	repo.EnqueueFunc = nil
-
-	err := svc.RefreshA2AAgentCard(tierGrantedCtx(t), "org", "proj", "agent", "dev")
-	assert.ErrorIs(t, err, gwerr.ErrAgentNotDeployedInEnvironment)
+	assert.ErrorIs(t, err, gwerr.ErrAgentNotFound)
 }
 
 // The proxy service requeues or republishes under its lock; a plain requeue here could un-park a proxied card.
@@ -191,13 +179,15 @@ func TestRefreshA2AAgentCardRejectsANonA2AAgent(t *testing.T) {
 }
 
 func TestRefreshA2AAgentCardEnforcesTheEnvironmentTier(t *testing.T) {
-	svc, repo, oc := cardServiceFor("internal", "a2a-agent")
-	oc.GetEnvironmentFunc = func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-		return &models.EnvironmentResponse{Name: name, IsProduction: true}, nil
+	hooks := &proxyHooksStub{}
+	svc, repo, oc := cardServiceWithHooks("external", "a2a-agent", hooks)
+	oc.GetEnvironmentFunc = func(_ context.Context, _, name string) (*modkit.Environment, error) {
+		return &modkit.Environment{Name: name, IsProduction: true}, nil
 	}
 	err := svc.RefreshA2AAgentCard(tierCtx(t, gwperm.DeployNonProduction), "org", "proj", "agent", "prod")
 	assert.ErrorIs(t, err, httpx.ErrForbidden)
 	assert.Empty(t, repo.EnqueueCalls())
+	assert.Zero(t, hooks.refreshed)
 }
 
 // The proxy service stores the URL under its lock, whether or not the environment is proxied.
@@ -249,11 +239,11 @@ func TestSetA2ACardSourceRejects(t *testing.T) {
 
 func TestSetA2ACardSourceRejectsAnUnknownEnvironment(t *testing.T) {
 	svc, repo, oc := cardServiceFor("external", "a2a-agent")
-	oc.GetEnvironmentFunc = func(context.Context, string, string) (*models.EnvironmentResponse, error) {
-		return nil, utils.ErrEnvironmentNotFound
+	oc.GetEnvironmentFunc = func(context.Context, string, string) (*modkit.Environment, error) {
+		return nil, gwerr.ErrEnvironmentNotFound
 	}
 	err := svc.SetA2ACardSource(tierGrantedCtx(t), "org", "proj", "agent", "nope", "https://93.184.215.14/c")
-	assert.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrEnvironmentNotFound)
 	assert.Empty(t, repo.EnqueueCalls())
 }
 
@@ -291,8 +281,8 @@ func TestSetA2ACardSourceHidesWhyAHostIsRefused(t *testing.T) {
 // Only callers allowed on the environment may probe URLs through it.
 func TestSetA2ACardSourceChecksTheTierBeforeTheURL(t *testing.T) {
 	svc, repo, oc := cardServiceFor("external", "a2a-agent")
-	oc.GetEnvironmentFunc = func(_ context.Context, _, name string) (*models.EnvironmentResponse, error) {
-		return &models.EnvironmentResponse{Name: name, IsProduction: true}, nil
+	oc.GetEnvironmentFunc = func(_ context.Context, _, name string) (*modkit.Environment, error) {
+		return &modkit.Environment{Name: name, IsProduction: true}, nil
 	}
 	err := svc.SetA2ACardSource(tierCtx(t, gwperm.DeployNonProduction), "org", "proj", "agent", "prod", "https://10.0.0.1/c")
 	assert.ErrorIs(t, err, httpx.ErrForbidden)
@@ -319,15 +309,14 @@ func TestA2ACapable(t *testing.T) {
 		{"external", "", true},
 		{"external", "custom-api", true},
 		{"external", "a2a-agent", true},
-		{"internal", "a2a-agent", true},
+		{"internal", "a2a-agent", false},
 		{"internal", "chat-api", false},
 		{"internal", "custom-api", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.provisioning+"/"+tc.subType, func(t *testing.T) {
-			agent := &models.AgentResponse{
-				Provisioning: models.Provisioning{Type: tc.provisioning},
-				Type:         models.AgentType{SubType: tc.subType},
+			agent := &modkit.Agent{
+				Provisioning: tc.provisioning,
 			}
 			assert.Equal(t, tc.want, a2aCapable(agent))
 		})
@@ -338,10 +327,10 @@ func TestA2ACapable(t *testing.T) {
 func TestSetA2ACardSourceRejectsAnAgentFromAnotherProject(t *testing.T) {
 	hooks := &proxyHooksStub{}
 	svc, _, oc := cardServiceWithHooks("external", "", hooks)
-	oc.GetAgentFunc = func(_ context.Context, _, _, name string) (*models.AgentResponse, error) {
-		return &models.AgentResponse{Name: name, ProjectName: "other", Provisioning: models.Provisioning{Type: "external"}}, nil
+	oc.GetAgentFunc = func(_ context.Context, _, _, name string) (*modkit.Agent, error) {
+		return &modkit.Agent{Name: name, ProjectName: "other", Provisioning: "external"}, nil
 	}
 	err := svc.SetA2ACardSource(tierGrantedCtx(t), "org", "proj", "agent", "dev", "https://93.184.215.14/.well-known/agent-card.json")
-	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrAgentNotFound)
 	assert.Empty(t, hooks.stored)
 }

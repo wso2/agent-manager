@@ -31,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProxyAPIKeyController handles API key operations for LLM proxies
@@ -69,7 +68,7 @@ func (c *llmProxyAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Re
 	response, err := c.apiKeyService.ListAPIKeys(ctx, ouID, projName, proxyID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrProjectNotFound):
+		case errors.Is(err, gwerr.ErrProjectNotFound):
 			log.Warn("ListLLMProxyAPIKeys: project not found", "ouID", ouID, "projName", projName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return

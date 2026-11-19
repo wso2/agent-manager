@@ -22,7 +22,9 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
@@ -30,19 +32,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // llmPlacementFixture is an org whose providers are placed on one managed or one self-hosted gateway; every
 // gateway is mapped to every environment. Mocks the code under test must not reach have no funcs and panic.
 type llmPlacementFixture struct {
 	svc         *agentConfigurationService
-	envs        map[string]*models.EnvironmentResponse
+	envs        map[string]*modkit.Environment
 	providers   map[string]*gwmodels.LLMProvider
 	placedOn    map[uuid.UUID]*gwmodels.Gateway
 	gatewayRepo *gwrepomocks.GatewayRepositoryMock
@@ -53,12 +53,12 @@ const llmPlacementOU = "org1"
 func newLLMPlacementFixture(t *testing.T, envNames ...string) *llmPlacementFixture {
 	t.Helper()
 	f := &llmPlacementFixture{
-		envs:      map[string]*models.EnvironmentResponse{},
+		envs:      map[string]*modkit.Environment{},
 		providers: map[string]*gwmodels.LLMProvider{},
 		placedOn:  map[uuid.UUID]*gwmodels.Gateway{},
 	}
 	for _, name := range envNames {
-		f.envs[name] = &models.EnvironmentResponse{UUID: uuid.NewString(), Name: name}
+		f.envs[name] = &modkit.Environment{ID: uuid.NewString(), Name: name}
 	}
 	f.gatewayRepo = &gwrepomocks.GatewayRepositoryMock{
 		EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
@@ -92,9 +92,9 @@ func newLLMPlacementFixture(t *testing.T, envNames ...string) *llmPlacementFixtu
 		gatewayRepo:               f.gatewayRepo,
 		llmProviderRepo:           providerRepo,
 		llmProxyDeploymentService: &LLMProxyDeploymentService{deploymentRepo: deployments},
-		infraResourceManager: stubInfraManager{
-			listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-				out := make([]*models.EnvironmentResponse, 0, len(f.envs))
+		ocClient: &gwtest.Core{
+			ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+				out := make([]*modkit.Environment, 0, len(f.envs))
 				for _, e := range f.envs {
 					out = append(out, e)
 				}
@@ -115,7 +115,7 @@ func (f *llmPlacementFixture) provider(handle, hosting string) *gwmodels.LLMProv
 	return p
 }
 
-func (f *llmPlacementFixture) env(name string) uuid.UUID { return uuid.MustParse(f.envs[name].UUID) }
+func (f *llmPlacementFixture) env(name string) uuid.UUID { return uuid.MustParse(f.envs[name].ID) }
 
 func TestLLMConfig_AcceptsManagedProvider(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
@@ -242,11 +242,11 @@ func TestResolveGatewayForProvider_IgnoresSelfHostedOnlyAnchor(t *testing.T) {
 }
 
 // externalAgentComponent is an OpenChoreo client whose agent is externally provisioned.
-func externalAgentComponent() *repomocks.PlatformRepositoryMock {
-	return &repomocks.PlatformRepositoryMock{
-		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{
-				Provisioning: models.Provisioning{Type: string(gwutil.ExternalAgent)},
+func externalAgentComponent() *gwtest.Core {
+	return &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
+			return &modkit.Agent{
+				Provisioning: string(gwutil.ExternalAgent),
 			}, nil
 		},
 	}
@@ -333,7 +333,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 				}, nil
 			},
 		}
-		f.svc.ocClient = externalAgentComponent()
+		f.svc.ocClient = gwtest.Merge(f.svc.ocClient, externalAgentComponent())
 
 		_, err := f.svc.Update(context.Background(), uuid.New(), llmPlacementOU, "proj", "agent",
 			gwmodels.UpdateAgentModelConfigRequest{Name: "renamed", EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
@@ -360,11 +360,11 @@ func TestLLMConfig_ExternalAgentNewEnvOnSelfHostedProvider(t *testing.T) {
 			return []*gwmodels.Gateway{selfHosted}, nil
 		}
 		f.svc.logger = slog.Default()
-		f.svc.ocClient = &repomocks.PlatformRepositoryMock{
-			GetProjectFunc: func(context.Context, string, string) (*models.ProjectResponse, error) {
-				return &models.ProjectResponse{UUID: uuid.NewString()}, nil
+		f.svc.ocClient = gwtest.Merge(f.svc.ocClient, &gwtest.Core{
+			GetProjectFunc: func(context.Context, string, string) (*modkit.Project, error) {
+				return &modkit.Project{ID: uuid.NewString()}, nil
 			},
-		}
+		})
 		f.svc.llmProxyService = &LLMProxyService{providerRepo: &gwrepomocks.LLMProviderRepositoryMock{
 			GetByUUIDFunc: func(string, string) (*gwmodels.LLMProvider, error) { return nil, errReachedProxyWrite },
 		}}
@@ -447,11 +447,11 @@ func TestExternalAgentLLMURL_AddsSchemeToBareVhost(t *testing.T) {
 
 // agent sets the agent ProviderEnvironments reads its placement policy from.
 func (f *llmPlacementFixture) agent(provisioning string) {
-	f.svc.ocClient = &repomocks.PlatformRepositoryMock{
-		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{Provisioning: models.Provisioning{Type: provisioning}}, nil
+	f.svc.ocClient = gwtest.Merge(f.svc.ocClient, &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
+			return &modkit.Agent{Provisioning: provisioning}, nil
 		},
-	}
+	})
 }
 
 // ProviderEnvironments is the default the MCP attach tool maps a provider into, so it must be exactly the
@@ -460,7 +460,7 @@ func TestProviderEnvironments_OnlyEnvironmentsTheProviderIsPlacedIn(t *testing.T
 	f := newLLMPlacementFixture(t, "dev", "prod")
 	f.agent(string(gwutil.InternalAgent))
 	f.provider("dev-only", gwmodels.GatewayHostingManaged)
-	devUUID := f.envs["dev"].UUID
+	devUUID := f.envs["dev"].ID
 	f.gatewayRepo.EnvironmentMappingExistsFunc = func(_ string, envUUID string) (bool, error) { return envUUID == devUUID, nil }
 
 	got, err := f.svc.ProviderEnvironments(context.Background(), llmPlacementOU, "proj", "agent", "dev-only")

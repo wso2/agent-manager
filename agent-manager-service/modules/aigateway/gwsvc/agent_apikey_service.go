@@ -37,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // GatewayConnectionChecker reports live websocket connections for a gateway.
@@ -74,7 +73,7 @@ type AgentAPIKeyServiceInterface interface {
 // AgentAPIKeyService handles API key management for agents
 type AgentAPIKeyService struct {
 	artifactRepo gwrepo.ArtifactRepository
-	ocClient     repositories.PlatformRepository
+	ocClient     modkit.CoreAPI
 	apiKeyRepo   gwrepo.APIKeyRepository
 	gatewayRepo  gwrepo.GatewayRepository
 	broadcaster  apiKeyBroadcaster
@@ -84,7 +83,7 @@ type AgentAPIKeyService struct {
 // NewAgentAPIKeyService creates a new agent API key service instance
 func NewAgentAPIKeyService(
 	artifactRepo gwrepo.ArtifactRepository,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 	gatewayRepo gwrepo.GatewayRepository,
 	gatewayService *GatewayEventsService,
 	apiKeyRepo gwrepo.APIKeyRepository,
@@ -133,18 +132,18 @@ func (s *AgentAPIKeyService) gatewaysConnected(gateways []*gwmodels.Gateway) *bo
 }
 
 func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, projectName, agentName, envID string) (*gwmodels.Artifact, string, error) {
-	environment, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
+	environment, err := LookupEnvironment(ctx, s.ocClient, ouID, envID)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get environment: %w", err)
 	}
 	// envID may be a name or a UUID; events always carry the name.
 	events.SetEnvironment(ctx, environment.Name)
 
-	artifact, err := agentEnvAPIArtifact(s.artifactRepo, ouID, projectName, agentName, environment.UUID, gwmodels.AgentArtifactKinds...)
+	artifact, err := agentEnvAPIArtifact(s.artifactRepo, ouID, projectName, agentName, environment.ID, gwmodels.AgentArtifactKinds...)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get agent API artifact: %w", err)
 	}
-	return artifact, environment.UUID, nil
+	return artifact, environment.ID, nil
 }
 
 // resolveEnvGateways returns the environment's ingress-capable gateways. This is a

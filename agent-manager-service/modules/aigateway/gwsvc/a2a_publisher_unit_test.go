@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -135,34 +135,30 @@ func testA2AKey() agentExposureKey {
 }
 
 // externalAgent carries no subtype: an external agent serves A2A wherever it registers a card URL.
-func externalAgent() *models.AgentResponse {
-	return &models.AgentResponse{
-		UUID: "agent-uuid", Name: "weather", ProjectName: "checkout",
-		Provisioning: models.Provisioning{Type: "external"},
-		Type:         models.AgentType{Type: "external-agent-api"},
+func externalAgent() *modkit.Agent {
+	return &modkit.Agent{
+		ID: "agent-uuid", Name: "weather", ProjectName: "checkout",
+		Provisioning: "external",
 	}
 }
 
 // legacyExternalA2AAgent was created when A2A was an external subtype; its label no longer matters.
-func legacyExternalA2AAgent() *models.AgentResponse {
-	agent := externalAgent()
-	agent.Type.SubType = "a2a-agent"
-	return agent
+func legacyExternalA2AAgent() *modkit.Agent {
+	return externalAgent()
 }
 
 func TestA2APublisherShouldPublish(t *testing.T) {
-	internal := &models.AgentResponse{
-		Name: "weather", Provisioning: models.Provisioning{Type: "internal"},
-		Type: models.AgentType{Type: "agent-api", SubType: "a2a-agent"},
+	internal := &modkit.Agent{
+		Name: "weather", Provisioning: "internal",
 	}
-	chat := &models.AgentResponse{Name: "weather", Type: models.AgentType{Type: "agent-api", SubType: "chat-api"}}
+	chat := &modkit.Agent{Name: "weather"}
 	cases := []struct {
 		name   string
-		agent  *models.AgentResponse
+		agent  *modkit.Agent
 		lookup func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error)
 		want   bool
 	}{
-		{name: "an internal A2A agent always, without a proxy lookup", agent: internal, want: true},
+		{name: "an internal agent never, without a proxy lookup", agent: internal, want: false},
 		{name: "a non-A2A agent never", agent: chat, want: false},
 		{
 			name: "an external agent in a direct environment", agent: externalAgent(),
@@ -200,46 +196,6 @@ func TestA2APublisherShouldPublishDoesNotMaskALookupFailure(t *testing.T) {
 		return nil, assert.AnError
 	}
 	_, err := m.publisher().ShouldPublish(context.Background(), nil, externalAgent(), "org-1", "checkout", uuid.New())
-	assert.ErrorIs(t, err, assert.AnError)
-}
-
-// An internal agent always publishes and has no proxy row to race with, so its save takes no lock.
-func TestA2APublisherSaveAndRepublishSkipsTheLockForAnInternalAgent(t *testing.T) {
-	m := newPublisherMocks(t)
-	internal := &models.AgentResponse{
-		Name: "weather", Provisioning: models.Provisioning{Type: "internal"},
-		Type: models.AgentType{Type: "agent-api", SubType: "a2a-agent"},
-	}
-	m.proxies.WithTxFunc = func(*gorm.DB) gwrepo.A2AProxyRepository { return m.proxies }
-	m.txExposures.UpsertFunc = func(context.Context, *gwmodels.PlatformAgentExposure) error { return nil }
-	var savedIn *gorm.DB
-
-	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), testA2AArtifact, func(tx *gorm.DB) error {
-		savedIn = tx
-		return nil
-	})
-
-	require.NoError(t, err)
-	assert.Same(t, txSentinel, savedIn)
-	assert.Empty(t, m.proxies.LockAgentEnvCalls())
-	assert.Empty(t, m.proxies.GetByEnvUUIDCalls())
-	require.Len(t, m.txExposures.UpsertCalls(), 1)
-	assert.Equal(t, gwmodels.AgentExposureProtocolA2A, m.txExposures.UpsertCalls()[0].Exposure.Protocol)
-}
-
-// An internal agent's save and exposure are one transaction: a failed exposure fails the save.
-func TestA2APublisherSaveAndRepublishFailsWhenTheExposureCannotBeWritten(t *testing.T) {
-	m := newPublisherMocks(t)
-	internal := &models.AgentResponse{
-		Name: "weather", Provisioning: models.Provisioning{Type: "internal"},
-		Type: models.AgentType{Type: "agent-api", SubType: "a2a-agent"},
-	}
-	m.txExposures.UpsertFunc = func(context.Context, *gwmodels.PlatformAgentExposure) error { return assert.AnError }
-
-	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), testA2AArtifact, func(*gorm.DB) error {
-		return nil
-	})
-
 	assert.ErrorIs(t, err, assert.AnError)
 }
 

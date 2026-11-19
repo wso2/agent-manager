@@ -37,8 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMController defines interface for LLM provider HTTP handlers
@@ -80,7 +78,7 @@ type llmController struct {
 	// also has its config reclaimed from the gateways still holding it.
 	proxyDeploymentService *gwsvc.LLMProxyDeploymentService
 	artifactRepo           gwrepo.ArtifactRepository
-	ocClient               repositories.PlatformRepository
+	ocClient               modkit.CoreAPI
 }
 
 // NewLLMController creates a new LLM controller
@@ -91,7 +89,7 @@ func NewLLMController(
 	deploymentService *gwsvc.LLMProviderDeploymentService,
 	proxyDeploymentService *gwsvc.LLMProxyDeploymentService,
 	artifactRepo gwrepo.ArtifactRepository,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 ) LLMController {
 	return &llmController{
 		templateService:        templateService,
@@ -106,19 +104,19 @@ func NewLLMController(
 
 // resolveProjectUUID resolves project name to UUID using the platform repository
 func (c *llmController) resolveProjectUUID(ctx context.Context, ouID, projectName string) (string, error) {
-	project, err := c.ocClient.GetProject(ctx, ouID, projectName)
+	project, err := gwsvc.LookupProject(ctx, c.ocClient, ouID, projectName)
 	if err != nil {
 		// Check if it's specifically a not-found error
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			return "", utils.ErrProjectNotFound
+		if errors.Is(err, gwerr.ErrProjectNotFound) {
+			return "", gwerr.ErrProjectNotFound
 		}
 		// Return other errors (network, RPC, backend failures) as-is
 		return "", fmt.Errorf("GetProject: %w", err)
 	}
 	if project == nil {
-		return "", utils.ErrProjectNotFound
+		return "", gwerr.ErrProjectNotFound
 	}
-	return project.UUID, nil
+	return project.ID, nil
 }
 
 // ---- Template Handlers ----
@@ -845,7 +843,7 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	// Resolve project name to UUID
 	projectUUID, err := c.resolveProjectUUID(ctx, ouID, projectName)
 	if err != nil {
-		if errors.Is(err, utils.ErrProjectNotFound) {
+		if errors.Is(err, gwerr.ErrProjectNotFound) {
 			log.Error("CreateLLMProxy: project not found", "ouID", ouID, "projectName", projectName, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
@@ -882,7 +880,7 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, gwerr.ErrLLMProviderBeingDeleted):
 			httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrLLMProviderBeingDeleted.Error())
 			return
-		case errors.Is(err, utils.ErrProjectNotFound):
+		case errors.Is(err, gwerr.ErrProjectNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -909,7 +907,7 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 	// Resolve project name to UUID
 	projectUUID, err := c.resolveProjectUUID(ctx, ouID, projectName)
 	if err != nil {
-		if errors.Is(err, utils.ErrProjectNotFound) {
+		if errors.Is(err, gwerr.ErrProjectNotFound) {
 			log.Error("ListLLMProxies: project not found", "ouID", ouID, "projectName", projectName, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
@@ -936,7 +934,7 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 
 	proxies, totalCount, err := c.proxyService.List(ouID, &projectUUID, limit, offset)
 	if err != nil {
-		if errors.Is(err, utils.ErrProjectNotFound) {
+		if errors.Is(err, gwerr.ErrProjectNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		}
@@ -1022,7 +1020,7 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	// Resolve project name to UUID (validates project exists)
 	_, err := c.resolveProjectUUID(ctx, ouID, projectName)
 	if err != nil {
-		if errors.Is(err, utils.ErrProjectNotFound) {
+		if errors.Is(err, gwerr.ErrProjectNotFound) {
 			log.Error("GetLLMProxy: project not found", "ouID", ouID, "projectName", projectName, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
@@ -1063,7 +1061,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	// Resolve project name to UUID (validates project exists)
 	projectUUID, err := c.resolveProjectUUID(ctx, ouID, projectName)
 	if err != nil {
-		if errors.Is(err, utils.ErrProjectNotFound) {
+		if errors.Is(err, gwerr.ErrProjectNotFound) {
 			log.Error("UpdateLLMProxy: project not found", "ouID", ouID, "projectName", projectName, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
@@ -1133,7 +1131,7 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 	// Resolve project name to UUID (validates project exists)
 	projectUUID, err := c.resolveProjectUUID(ctx, ouID, projectName)
 	if err != nil {
-		if errors.Is(err, utils.ErrProjectNotFound) {
+		if errors.Is(err, gwerr.ErrProjectNotFound) {
 			log.Error("DeleteLLMProxy: project not found", "ouID", ouID, "projectName", projectName, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return

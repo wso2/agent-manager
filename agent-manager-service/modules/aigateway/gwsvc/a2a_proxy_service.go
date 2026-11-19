@@ -33,13 +33,10 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -55,11 +52,11 @@ type A2AProxyHooks interface {
 	// Each decides direct vs proxied under the environment's transition lock.
 
 	// StoreCardSource stores the URL; on a proxied environment it also parks the card and republishes.
-	StoreCardSource(ctx context.Context, agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse, sourceURL string) error
+	StoreCardSource(ctx context.Context, agent *modkit.Agent, ouID, projectName string, env *modkit.Environment, sourceURL string) error
 	// RemoveCardSource deletes the card row; on a proxied environment it also switches to direct.
-	RemoveCardSource(ctx context.Context, agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse) error
+	RemoveCardSource(ctx context.Context, agent *modkit.Agent, ouID, projectName string, env *modkit.Environment) error
 	// RefreshCardSource requeues the card fetch; on a proxied environment it republishes, and the fetch follows.
-	RefreshCardSource(ctx context.Context, agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse) error
+	RefreshCardSource(ctx context.Context, agent *modkit.Agent, ouID, projectName string, env *modkit.Environment) error
 }
 
 // A2AProxyService publishes external agents over A2A through their environment's ingress gateway.
@@ -80,7 +77,7 @@ type a2aProxyService struct {
 	agentConfigRepo gwrepo.AgentConfigRepository
 	artifactRepo    gwrepo.ArtifactRepository
 	publisher       *A2APublisher
-	ocClient        repositories.PlatformRepository
+	ocClient        modkit.CoreAPI
 	encryptionKey   []byte
 	logger          *slog.Logger
 }
@@ -93,7 +90,7 @@ func NewA2AProxyService(
 	agentConfigRepo gwrepo.AgentConfigRepository,
 	artifactRepo gwrepo.ArtifactRepository,
 	publisher *A2APublisher,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 	encryptionKey []byte,
 	logger *slog.Logger,
 	perms *Permissions,
@@ -114,19 +111,19 @@ func NewA2AProxyService(
 
 // a2aProxyTarget is the agent and environment one proxy operation acts on.
 type a2aProxyTarget struct {
-	agent *models.AgentResponse
-	env   *models.EnvironmentResponse
+	agent *modkit.Agent
+	env   *modkit.Environment
 	key   agentExposureKey
 }
 
-func newA2AProxyTarget(agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse) (a2aProxyTarget, error) {
-	envUUID, err := uuid.Parse(env.UUID)
+func newA2AProxyTarget(agent *modkit.Agent, ouID, projectName string, env *modkit.Environment) (a2aProxyTarget, error) {
+	envUUID, err := uuid.Parse(env.ID)
 	if err != nil {
 		return a2aProxyTarget{}, fmt.Errorf("invalid UUID for environment %s: %w", env.Name, err)
 	}
 	key := agentExposureKey{
 		OUID: ouID, ProjectName: projectName, AgentName: agent.Name, EnvironmentName: env.Name, EnvironmentUUID: envUUID,
-		AgentUUID: parseAgentUUID(agent.UUID),
+		AgentUUID: parseAgentUUID(agent.ID),
 	}
 	return a2aProxyTarget{agent: agent, env: env, key: key}, nil
 }
@@ -239,7 +236,7 @@ func (s *a2aProxyService) RefreshA2AProxy(ctx context.Context, ouID, projectName
 }
 
 func (s *a2aProxyService) StoreCardSource(
-	ctx context.Context, agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse, sourceURL string,
+	ctx context.Context, agent *modkit.Agent, ouID, projectName string, env *modkit.Environment, sourceURL string,
 ) error {
 	t, err := newA2AProxyTarget(agent, ouID, projectName, env)
 	if err != nil {
@@ -285,7 +282,7 @@ func (s *a2aProxyService) StoreCardSource(
 }
 
 func (s *a2aProxyService) RemoveCardSource(
-	ctx context.Context, agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse,
+	ctx context.Context, agent *modkit.Agent, ouID, projectName string, env *modkit.Environment,
 ) error {
 	t, err := newA2AProxyTarget(agent, ouID, projectName, env)
 	if err != nil {
@@ -295,7 +292,7 @@ func (s *a2aProxyService) RemoveCardSource(
 }
 
 func (s *a2aProxyService) RefreshCardSource(
-	ctx context.Context, agent *models.AgentResponse, ouID, projectName string, env *models.EnvironmentResponse,
+	ctx context.Context, agent *modkit.Agent, ouID, projectName string, env *modkit.Environment,
 ) error {
 	t, err := newA2AProxyTarget(agent, ouID, projectName, env)
 	if err != nil {
@@ -426,7 +423,7 @@ func (s *a2aProxyService) switchFromDirect(ctx context.Context, tx *gorm.DB, t a
 
 // ensureArtifact creates the proxied environment's agent artifact, which the gateway serves the agent and its keys under.
 func (s *a2aProxyService) ensureArtifact(tx *gorm.DB, t a2aProxyTarget) (gwmodels.ArtifactRef, error) {
-	artifact, err := ensureAgentEnvAPIArtifact(tx, s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID, gwmodels.KindAgent)
+	artifact, err := ensureAgentEnvAPIArtifact(tx, s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.ID, gwmodels.KindAgent)
 	if err != nil {
 		return gwmodels.ArtifactRef{}, fmt.Errorf("failed to ensure the agent's API artifact: %w", err)
 	}
@@ -544,7 +541,7 @@ func (s *a2aProxyService) switchToDirect(ctx context.Context, tx *gorm.DB, t a2a
 
 // artifact is the environment's agent artifact; its ArtifactUUID is uuid.Nil when it has none.
 func (s *a2aProxyService) artifact(t a2aProxyTarget) (gwmodels.ArtifactRef, error) {
-	artifact, err := agentEnvAPIArtifact(s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID, gwmodels.KindAgent)
+	artifact, err := agentEnvAPIArtifact(s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.ID, gwmodels.KindAgent)
 	if errors.Is(err, gwerr.ErrArtifactNotFound) {
 		return gwmodels.ArtifactRef{OUID: t.key.OUID, Kind: gwmodels.KindAgent}, nil
 	}
@@ -557,7 +554,7 @@ func (s *a2aProxyService) artifact(t a2aProxyTarget) (gwmodels.ArtifactRef, erro
 // dropIfAgentGone undoes this request's writes when the agent was deleted or replaced meanwhile; the deletion could not
 // see them. An unanswered check keeps the committed writes: failing the request now would report a false failure.
 func (s *a2aProxyService) dropIfAgentGone(ctx context.Context, t a2aProxyTarget) error {
-	gone, err := agentGoneOrReplaced(ctx, s.ocClient, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.agent.UUID)
+	gone, err := agentGoneOrReplaced(ctx, s.ocClient, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.agent.ID)
 	if err != nil {
 		s.logger.Warn("Could not confirm the agent still exists after an A2A proxy write; keeping it",
 			"agentName", t.key.AgentName, "environment", t.key.EnvironmentName, "error", err)
@@ -570,7 +567,7 @@ func (s *a2aProxyService) dropIfAgentGone(ctx context.Context, t a2aProxyTarget)
 		s.logger.Error("Failed to drop the A2A proxy of a deleted agent",
 			"agentName", t.key.AgentName, "environment", t.key.EnvironmentName, "error", err)
 	}
-	return utils.ErrAgentNotFound
+	return gwerr.ErrAgentNotFound
 }
 
 // forget removes the proxy row, the card row and the environment's artifact, whose exposure and deployments cascade;
@@ -603,7 +600,7 @@ func (s *a2aProxyService) forget(ctx context.Context, t a2aProxyTarget) error {
 // annotateA2AProxy names the agent and the upstream credential change the
 // request's audit record is about.
 func annotateA2AProxy(ctx context.Context, t a2aProxyTarget, upstreamAuthHeader string, authChanged bool) {
-	modkit.AuditResource(ctx, gwaudit.ResourceAgent, t.agent.UUID, t.agent.Name)
+	modkit.AuditResource(ctx, gwaudit.ResourceAgent, t.agent.ID, t.agent.Name)
 	modkit.AuditDetail(ctx, "agentName", t.agent.Name)
 	modkit.AuditDetail(ctx, "upstreamAuthHeader", upstreamAuthHeader)
 	modkit.AuditDetail(ctx, "upstreamAuthChanged", authChanged)

@@ -24,21 +24,21 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // EnvironmentGatewayService lists the gateways that serve an environment.
 type EnvironmentGatewayService struct {
 	logger      *slog.Logger
-	ocClient    repositories.PlatformRepository
+	ocClient    modkit.CoreAPI
 	gatewayRepo gwrepo.GatewayRepository
 }
 
 // NewEnvironmentGatewayService creates the service.
-func NewEnvironmentGatewayService(logger *slog.Logger, gatewayRepo gwrepo.GatewayRepository, ocClient repositories.PlatformRepository) *EnvironmentGatewayService {
+func NewEnvironmentGatewayService(logger *slog.Logger, gatewayRepo gwrepo.GatewayRepository, ocClient modkit.CoreAPI) *EnvironmentGatewayService {
 	return &EnvironmentGatewayService{logger: logger, ocClient: ocClient, gatewayRepo: gatewayRepo}
 }
 
@@ -47,19 +47,19 @@ func (s *EnvironmentGatewayService) GetEnvironmentGateways(ctx context.Context, 
 	s.logger.Info("Getting environment gateways", "envID", envID, "ouID", ouID)
 
 	// Verify environment exists (envID is environment name)
-	env, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
+	env, err := LookupEnvironment(ctx, s.ocClient, ouID, envID)
 	if err != nil {
 		s.logger.Error("Failed to get environment", "ouID", ouID, "envID", envID, "error", err)
-		if errors.Is(err, utils.ErrEnvironmentNotFound) {
-			return nil, utils.ErrEnvironmentNotFound
+		if errors.Is(err, gwerr.ErrEnvironmentNotFound) {
+			return nil, gwerr.ErrEnvironmentNotFound
 		}
 		return nil, fmt.Errorf("failed to verify environment: %w", err)
 	}
 
 	// Parse environment UUID
-	envUUID, err := uuid.Parse(env.UUID)
+	envUUID, err := uuid.Parse(env.ID)
 	if err != nil {
-		s.logger.Error("Failed to parse environment UUID", "uuid", env.UUID, "error", err)
+		s.logger.Error("Failed to parse environment UUID", "uuid", env.ID, "error", err)
 		return nil, fmt.Errorf("invalid environment UUID: %w", err)
 	}
 

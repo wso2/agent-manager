@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -32,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // envListMock lists envs as the organization's environments.
@@ -310,7 +310,7 @@ func TestAttachNoteFollowsTheAgentKind(t *testing.T) {
 func TestAttachFailsBeforeCreateWhenTheAgentLookupFails(t *testing.T) {
 	mock := agentKindMock{
 		providerEnvsMock: providerEnvsMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev"}},
-		err:              utils.ErrAgentNotFound,
+		err:              gwerr.ErrAgentNotFound,
 	}
 	failed, text := callAttachAs(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID})
 	if !failed {

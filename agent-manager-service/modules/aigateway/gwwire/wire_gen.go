@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/wire"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
@@ -19,17 +20,16 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 	"gorm.io/gorm"
 )
 
 // Injectors from wire.go:
 
-// Initialize builds the gateway on the core's services. gatewayApplier
-// patches the gateway runtime config when an identity provider changes; nil
-// keeps the script-driven behaviour.
-func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplier, settings gwconfig.Settings) (*Gateway, error) {
+// Initialize builds the gateway on the core's services, reading core
+// resources through coreAPI. gatewayApplier patches the gateway runtime config
+// when an identity provider changes; nil keeps the script-driven behaviour.
+func Initialize(core *wiring.AppParams, coreAPI modkit.CoreAPI, gatewayApplier gwsvc.GatewayConfigApplier, settings gwconfig.Settings) (*Gateway, error) {
 	db := core.DB
 	gatewayRepository := ProvideGatewayRepository(db)
 	deploymentRepository := ProvideDeploymentRepository(db)
@@ -43,8 +43,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	mcpProxyKind := gwsvc.NewMCPProxyKind(db, gatewayRepository, deploymentRepository)
 	txRunner := ProvideTxRunner(db)
 	platformAgentExposureRepository := ProvidePlatformAgentExposureRepository(db)
-	platformRepository := core.PlatformRepository
-	platformAgentExposures := gwsvc.NewPlatformAgentExposures(platformAgentExposureRepository, gatewayRepository, platformRepository)
+	platformAgentExposures := gwsvc.NewPlatformAgentExposures(platformAgentExposureRepository, gatewayRepository, coreAPI)
 	a2AProxyRepository := ProvideA2AProxyRepository(db)
 	a2AAgentCardRepository := ProvideA2AAgentCardRepository(db)
 	agentConfigRepository := gwrepo.NewAgentConfigRepo(db)
@@ -52,7 +51,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	apiKeyRepository := ProvideAPIKeyRepository(db)
 	gatewayEventsService := gwsvc.NewGatewayEventsService(eventHub)
 	v := core.EncryptionKey
-	a2AAgentKind := gwsvc.NewA2AAgentKind(db, txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, platformRepository, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
+	a2AAgentKind := gwsvc.NewA2AAgentKind(db, txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, coreAPI, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
 	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind)
 	reconcileCore := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, settings, logger)
 	worker := reconcile.NewWorker(reconcileCore, logger)
@@ -66,60 +65,59 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	llmProxyRepository := ProvideLLMProxyRepository(db)
 	llmProxyService := gwsvc.NewLLMProxyService(llmProxyRepository, llmProviderRepository, v)
 	mcpProxyEndpointRepository := gwrepo.NewMCPProxyEndpointRepository(db)
-	infraResourceManager := core.InfraResourceManager
 	mcpProxyScopeRepository := gwrepo.NewMCPProxyScopeRepository(db)
 	identityDirectory := gwsvc.NewIdentityDirectory()
-	mcpProxyService := gwsvc.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, logger, v, mcpProxyScopeRepository, identityDirectory, reconcileCore, mcpProxyKind, platformRepository)
+	mcpProxyService := gwsvc.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, logger, v, mcpProxyScopeRepository, identityDirectory, reconcileCore, mcpProxyKind, coreAPI)
 	llmProxyDeploymentService := gwsvc.NewLLMProxyDeploymentService(txRunner, deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService, reconcileCore, llmProxyKind)
-	llmProxyAPIKeyService := gwsvc.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, platformRepository)
+	llmProxyAPIKeyService := gwsvc.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, coreAPI)
 	llmProviderAPIKeyService := gwsvc.NewLLMProviderAPIKeyService(llmProviderRepository, gatewayRepository, gatewayEventsService, apiKeyRepository)
 	aiApplicationRepository := ProvideAIApplicationRepository(db)
 	aiApplicationService := gwsvc.NewAIApplicationService(aiApplicationRepository, gatewayRepository, gatewayEventsService, logger)
 	secretManagementClient := core.SecretManagementClient
-	agentConfigurationService := gwsvc.NewAgentConfigurationService(db, agentConfigurationRepository, envAgentModelMappingRepository, envAgentMCPMappingRepository, agentEnvConfigVariableRepository, llmProviderRepository, mcpProxyRepository, gatewayRepository, llmProxyService, mcpProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, gatewayEventsService, apiKeyRepository, infraResourceManager, platformRepository, llmProviderAPIKeyService, aiApplicationService, logger, secretManagementClient, v)
-	gatewayController := gwctl.NewGatewayController(platformGatewayService, platformRepository, agentConfigurationService)
+	agentConfigurationService := gwsvc.NewAgentConfigurationService(db, agentConfigurationRepository, envAgentModelMappingRepository, envAgentMCPMappingRepository, agentEnvConfigVariableRepository, llmProviderRepository, mcpProxyRepository, gatewayRepository, llmProxyService, mcpProxyService, llmProxyDeploymentService, llmProxyAPIKeyService, gatewayEventsService, apiKeyRepository, coreAPI, llmProviderAPIKeyService, aiApplicationService, logger, secretManagementClient, v)
+	gatewayController := gwctl.NewGatewayController(platformGatewayService, coreAPI, agentConfigurationService)
 	llmProviderTemplateRepository := ProvideLLMProviderTemplateRepository(db)
 	llmTemplateStore := gwsvc.NewLLMTemplateStore()
 	llmProviderTemplateService := gwsvc.NewLLMProviderTemplateService(llmProviderTemplateRepository, llmTemplateStore)
 	artifactRepository := ProvideArtifactRepository(db)
 	llmProviderService := gwsvc.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmTemplateStore, llmProxyRepository, artifactRepository, v, gatewayRepository, deploymentRepository, envAgentModelMappingRepository, llmProviderAPIKeyService)
 	llmProviderDeploymentService := gwsvc.NewLLMProviderDeploymentService(txRunner, deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService, reconcileCore)
-	llmController := gwctl.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, llmProxyDeploymentService, artifactRepository, platformRepository)
+	llmController := gwctl.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, llmProxyDeploymentService, artifactRepository, coreAPI)
 	llmDeploymentController := gwctl.NewLLMDeploymentController(llmProviderDeploymentService)
 	llmProviderAPIKeyController := gwctl.NewLLMProviderAPIKeyController(llmProviderAPIKeyService)
 	llmProxyAPIKeyController := gwctl.NewLLMProxyAPIKeyController(llmProxyAPIKeyService)
 	manager := ProvideWebSocketManager(settings, eventHub)
 	gatewayConnectionChecker := ProvideGatewayConnectionChecker(manager)
-	agentAPIKeyService := gwsvc.NewAgentAPIKeyService(artifactRepository, platformRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, gatewayConnectionChecker)
+	agentAPIKeyService := gwsvc.NewAgentAPIKeyService(artifactRepository, coreAPI, gatewayRepository, gatewayEventsService, apiKeyRepository, gatewayConnectionChecker)
 	agentAPIKeyController := gwctl.NewAgentAPIKeyController(agentAPIKeyService)
 	agentExposurePublisher := gwsvc.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, reconcileCore, logger)
 	a2APublisher := gwsvc.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
 	permissions := gwsvc.NewPermissions()
-	a2AProxyService := gwsvc.NewA2AProxyService(txRunner, a2AProxyRepository, a2AAgentCardRepository, agentConfigRepository, artifactRepository, a2APublisher, platformRepository, v, logger, permissions)
+	a2AProxyService := gwsvc.NewA2AProxyService(txRunner, a2AProxyRepository, a2AAgentCardRepository, agentConfigRepository, artifactRepository, a2APublisher, coreAPI, v, logger, permissions)
 	a2AProxyHooks := ProvideA2AProxyHooks(a2AProxyService)
-	a2AAgentCardService := gwsvc.NewA2AAgentCardService(platformRepository, a2AAgentCardRepository, a2AProxyHooks, logger, permissions)
+	a2AAgentCardService := gwsvc.NewA2AAgentCardService(coreAPI, a2AAgentCardRepository, a2AProxyHooks, logger, permissions)
 	a2AAgentCardController := gwctl.NewA2AAgentCardController(a2AAgentCardService)
 	a2AProxyController := gwctl.NewA2AProxyController(a2AProxyService)
 	llmProxyDeploymentController := gwctl.NewLLMProxyDeploymentController(llmProxyDeploymentService)
-	mcpProxyController := gwctl.NewMCPProxyController(mcpProxyService, agentConfigurationService, platformRepository)
+	mcpProxyController := gwctl.NewMCPProxyController(mcpProxyService, agentConfigurationService, coreAPI)
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository, reconcileCore)
 	webSocketController := ProvideWebSocketController(manager, eventHub, platformGatewayService, deploymentAckHandler, settings)
-	gatewayInternalAPIService := gwsvc.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, artifactRepository, gatewayRepository, infraResourceManager, v, reconcileCore)
+	gatewayInternalAPIService := gwsvc.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, artifactRepository, gatewayRepository, coreAPI, v, reconcileCore)
 	gatewayInternalController := gwctl.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService, apiKeyRepository, aiApplicationRepository)
 	catalogRepository := ProvideCatalogRepository(db)
-	catalogService := gwsvc.NewCatalogService(logger, catalogRepository, platformRepository)
+	catalogService := gwsvc.NewCatalogService(logger, catalogRepository, coreAPI)
 	catalogController := gwctl.NewCatalogController(catalogService)
 	agentConfigurationController := gwctl.NewAgentConfigurationController(agentConfigurationService)
-	mcpProxyScopeService := gwsvc.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, identityDirectory, mcpProxyService, logger)
+	mcpProxyScopeService := gwsvc.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, coreAPI, identityDirectory, mcpProxyService, logger)
 	mcpProxyScopeController := gwctl.NewMCPProxyScopeController(mcpProxyScopeService)
 	agentIdentityController := gwctl.NewAgentIdentityController(identityDirectory, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
-	agentGatewayService := gwsvc.NewAgentGatewayService(db, platformRepository, agentConfigRepository, agentConfigurationService, artifactRepository, aiApplicationService, gatewayRepository, a2APublisher, a2AAgentCardRepository, agentExposurePublisher, logger, permissions)
+	agentGatewayService := gwsvc.NewAgentGatewayService(db, coreAPI, agentConfigRepository, agentConfigurationService, artifactRepository, aiApplicationService, gatewayRepository, a2APublisher, a2AAgentCardRepository, agentExposurePublisher, logger, permissions)
 	agentGatewayController := gwctl.NewAgentGatewayController(agentGatewayService)
-	environmentGatewayService := gwsvc.NewEnvironmentGatewayService(logger, gatewayRepository, platformRepository)
+	environmentGatewayService := gwsvc.NewEnvironmentGatewayService(logger, gatewayRepository, coreAPI)
 	environmentGatewayController := gwctl.NewEnvironmentGatewayController(environmentGatewayService)
-	a2ACardReconcilerService := gwsvc.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, platformRepository, logger)
+	a2ACardReconcilerService := gwsvc.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, coreAPI, logger)
 	deploymentTimeoutSweeper := gwsvc.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, settings)
-	defaultGatewaySeeder := ProvideDefaultGatewaySeeder(settings, platformGatewayService, gatewayRepository, platformRepository, logger)
+	defaultGatewaySeeder := ProvideDefaultGatewaySeeder(settings, platformGatewayService, gatewayRepository, coreAPI, logger)
 	gateway := &Gateway{
 		GatewayController:            gatewayController,
 		LLMController:                llmController,
@@ -163,8 +161,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 // coreSet is what the gateway takes from the core.
 var coreSet = wire.NewSet(wire.FieldsOf(
 	new(*wiring.AppParams),
-	"DB", "Logger", "PlatformRepository", "InfraResourceManager",
-	"EncryptionKey", "SecretManagementClient",
+	"DB", "Logger", "EncryptionKey", "SecretManagementClient",
 ),
 )
 
@@ -251,7 +248,7 @@ func ProvideWebSocketController(
 // ProvideDefaultGatewaySeeder registers the gateway named in configuration.
 func ProvideDefaultGatewaySeeder(
 	s gwconfig.Settings, gateways *gwsvc.PlatformGatewayService, repo gwrepo.GatewayRepository,
-	platform repositories.PlatformRepository, logger *slog.Logger,
+	platform modkit.CoreAPI, logger *slog.Logger,
 ) *gwsvc.DefaultGatewaySeeder {
 	return gwsvc.NewDefaultGatewaySeeder(s.DefaultGateway, gateways, repo, platform, logger)
 }

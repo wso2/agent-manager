@@ -49,6 +49,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/resources"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -197,7 +198,7 @@ func Wire(core *wiring.AppParams) (*gwwire.Gateway, error) {
 	gwsvc.SetGatewayManifestCacheBackend(gwwire.ProvideGatewayManifestCacheBackend(settings))
 	gwsvc.SetAgentCORSDefaults(settings.AgentCORS)
 	opts := currentOptions()
-	return gwwire.Initialize(core, opts.GatewayConfigApplier, settings)
+	return gwwire.Initialize(core, repositories.NewCoreReadAPI(core.DB), opts.GatewayConfigApplier, settings)
 }
 
 // Options are what a distribution injects into the gateway. The zero value

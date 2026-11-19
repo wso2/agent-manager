@@ -20,17 +20,17 @@ import (
 	"context"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 func projectScopedProxy(projectUUID, projectName string) *gwmodels.MCPProxy {
@@ -73,9 +73,9 @@ func TestValidateMCPProxiesInCatalog_ProjectScope(t *testing.T) {
 				return nil, gorm.ErrRecordNotFound
 			},
 		},
-		ocClient: &repomocks.PlatformRepositoryMock{
-			GetProjectFunc: func(_ context.Context, _, name string) (*models.ProjectResponse, error) {
-				return &models.ProjectResponse{Name: name, UUID: "p-1"}, nil
+		ocClient: &gwtest.Core{
+			GetProjectFunc: func(_ context.Context, _, name string) (*modkit.Project, error) {
+				return &modkit.Project{Name: name, ID: "p-1"}, nil
 			},
 		},
 	}

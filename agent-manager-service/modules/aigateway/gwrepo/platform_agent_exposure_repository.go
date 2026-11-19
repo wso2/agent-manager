@@ -23,7 +23,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -91,7 +90,7 @@ func (r *platformAgentExposureRepository) Upsert(ctx context.Context, exposure *
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if exposure.AgentUUID == nil || *exposure.AgentUUID == uuid.Nil {
-			id, err := models.AgentIDByNames(tx, exposure.OUID, exposure.ProjectName, exposure.AgentName)
+			id, err := gwmodels.AgentIDByNames(tx, exposure.OUID, exposure.ProjectName, exposure.AgentName)
 			if err != nil {
 				return err
 			}

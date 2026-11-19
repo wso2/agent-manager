@@ -39,7 +39,6 @@ import (
 	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -965,7 +964,7 @@ func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*gw
 // gateway out of band, so only custom providers are applied here. Open-source builds
 // (nil applier) write the mirror only and rely on manage-identity-provider.sh.
 func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gatewayID, ouID, name, issuer, jwksURI, description string, skipTLS bool) (*gwmodels.GatewayIdentityProvider, error) {
-	if name == models.ReservedIdentityProviderName {
+	if name == gwmodels.ReservedIdentityProviderName {
 		return nil, httpx.ErrInvalidInput
 	}
 	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
@@ -977,7 +976,7 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 		return nil, gwerr.ErrGatewayNotFound
 	}
 	providerType := gwmodels.IdentityProviderTypeCustom
-	if models.IsSystemIdentityProvider(name) {
+	if gwmodels.IsSystemIdentityProvider(name) {
 		providerType = gwmodels.IdentityProviderTypeSystem
 	}
 	now := time.Now()
@@ -1027,7 +1026,7 @@ func (s *PlatformGatewayService) DeleteIdentityProvider(ctx context.Context, gat
 		return err
 	}
 	removed := false
-	if s.gatewayApplier != nil && !models.IsSystemIdentityProvider(name) {
+	if s.gatewayApplier != nil && !gwmodels.IsSystemIdentityProvider(name) {
 		if err := s.gatewayApplier.DeleteIdentityProvider(ctx, gatewayID, ouID, name); err != nil {
 			return err
 		}

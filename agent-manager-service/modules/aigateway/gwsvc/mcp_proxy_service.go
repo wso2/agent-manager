@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
@@ -39,16 +40,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // mcpProxyHandleRe constrains proxy handles to kebab-case. The handle becomes the
@@ -91,6 +88,7 @@ const (
 
 // MCPProxyService handles MCP proxy operations.
 type MCPProxyService struct {
+	coreAPI              modkit.CoreAPI
 	db                   *gorm.DB
 	tx                   TxRunner
 	repo                 gwrepo.MCPProxyRepository
@@ -103,7 +101,6 @@ type MCPProxyService struct {
 	mcpProxyScopeRepo    gwrepo.MCPProxyScopeRepository
 	gatewayEventsService *GatewayEventsService
 	apiKeyBroadcaster    apiKeyBroadcaster
-	infraManager         services.InfraResourceManager
 	client               *http.Client
 	logger               *slog.Logger
 	encryptionKey        []byte
@@ -112,7 +109,7 @@ type MCPProxyService struct {
 	kind                 *MCPProxyKind
 	isExternalAgent      externalAgentLookup
 	// getProject resolves a project by name; nil treats every project as existing.
-	getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
+	getProject func(ctx context.Context, ouID, projectName string) (*modkit.Project, error)
 }
 
 // externalAgentLookup reports whether the named agent of an organization is an external agent
@@ -130,20 +127,22 @@ func NewMCPProxyService(
 	agentConfigRepo gwrepo.AgentConfigurationRepository,
 	gatewayEventsService *GatewayEventsService,
 	apiKeyRepo gwrepo.APIKeyRepository,
-	infraManager services.InfraResourceManager,
 	logger *slog.Logger,
 	encryptionKey []byte,
 	mcpProxyScopeRepo gwrepo.MCPProxyScopeRepository,
 	resolver identityv1.Directory,
 	core *reconcile.Core,
 	kind *MCPProxyKind,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 ) *MCPProxyService {
-	var getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
+	var getProject func(ctx context.Context, ouID, projectName string) (*modkit.Project, error)
 	if ocClient != nil {
-		getProject = ocClient.GetProject
+		getProject = func(ctx context.Context, ouID, projectName string) (*modkit.Project, error) {
+			return LookupProject(ctx, ocClient, ouID, projectName)
+		}
 	}
 	return &MCPProxyService{
+		coreAPI:              ocClient,
 		isExternalAgent:      externalAgentLookupFrom(ocClient),
 		getProject:           getProject,
 		core:                 core,
@@ -164,7 +163,6 @@ func NewMCPProxyService(
 			gatewayService: gatewayEventsService,
 			apiKeyRepo:     apiKeyRepo,
 		},
-		infraManager:  infraManager,
 		client:        ssrf.NewClient(mcpRequestTimeout),
 		logger:        logger,
 		encryptionKey: encryptionKey,
@@ -174,12 +172,12 @@ func NewMCPProxyService(
 
 // externalAgentLookupFrom reads an agent's provisioning type from its agent record. The
 // component is looked up by organization and name only, so no project is passed.
-func externalAgentLookupFrom(ocClient repositories.PlatformRepository) externalAgentLookup {
+func externalAgentLookupFrom(ocClient modkit.CoreAPI) externalAgentLookup {
 	if ocClient == nil {
 		return nil
 	}
 	return func(ctx context.Context, ouID, agentName string) (bool, error) {
-		component, err := ocClient.GetAgent(ctx, ouID, "", agentName)
+		component, err := LookupAgent(ctx, ocClient, ouID, "", agentName)
 		if err != nil {
 			return false, err
 		}
@@ -712,12 +710,12 @@ func (s *MCPProxyService) projectGone(ctx context.Context, orgUUID string, proxy
 	}
 	project, err := s.getProject(ctx, orgUUID, projectName)
 	if err != nil {
-		if errors.Is(err, utils.ErrProjectNotFound) {
+		if errors.Is(err, gwerr.ErrProjectNotFound) {
 			return true, nil
 		}
 		return false, fmt.Errorf("failed to resolve the MCP proxy's project: %w", err)
 	}
-	return project != nil && proxy.ProjectUUID != nil && project.UUID != *proxy.ProjectUUID, nil
+	return project != nil && proxy.ProjectUUID != nil && project.ID != *proxy.ProjectUUID, nil
 }
 
 // ensureMCPProxyNotInUse refuses (gwerr.ErrMCPProxyHasMappings) while an agent still
@@ -813,14 +811,14 @@ func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID 
 		actions[i] = scope.Action
 	}
 
-	envs, err := s.infraManager.ListOrgEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.coreAPI, ouID)
 	if err != nil {
 		s.logger.Warn("proxy delete: listing environments failed", "proxy", handle, "error", err)
 		return
 	}
 	envName := make(map[string]string, len(envs)) // env UUID -> name (resolver keys on names)
 	for _, env := range envs {
-		envName[env.UUID] = env.Name
+		envName[env.ID] = env.Name
 	}
 
 	provider := mcpResourceServerProviderFor(s.resolver, s.logger)
@@ -1677,7 +1675,7 @@ func (s *MCPProxyService) anyInternalAgent(ctx context.Context, configs []gwmode
 			return true, nil
 		}
 		external, err := s.isExternalAgent(ctx, config.OUID, config.AgentID)
-		if errors.Is(err, utils.ErrAgentNotFound) || errors.Is(err, httpx.ErrNotFound) {
+		if errors.Is(err, gwerr.ErrAgentNotFound) || errors.Is(err, httpx.ErrNotFound) {
 			continue
 		}
 		if err != nil {

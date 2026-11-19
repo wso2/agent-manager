@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
 	"github.com/google/uuid"
@@ -36,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
 
 // MCPProxyScopeService manages per-proxy MCP scopes: validation, CRUD, and
@@ -61,7 +61,7 @@ type MCPProxyRedeployer interface {
 type mcpProxyScopeService struct {
 	scopeRepo    gwrepo.MCPProxyScopeRepository
 	proxyRepo    gwrepo.MCPProxyRepository
-	infraManager services.InfraResourceManager
+	infraManager modkit.CoreAPI
 	resolver     identityv1.Directory
 	proxySvc     MCPProxyRedeployer
 	logger       *slog.Logger
@@ -71,7 +71,7 @@ type mcpProxyScopeService struct {
 func NewMCPProxyScopeService(
 	scopeRepo gwrepo.MCPProxyScopeRepository,
 	proxyRepo gwrepo.MCPProxyRepository,
-	infraManager services.InfraResourceManager,
+	infraManager modkit.CoreAPI,
 	resolver identityv1.Directory,
 	proxySvc MCPProxyRedeployer,
 	logger *slog.Logger,
@@ -332,14 +332,14 @@ func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID str
 	handle := proxyHandleOf(proxy)
 	scopeStr := handle + ":" + action
 
-	envs, err := s.infraManager.ListOrgEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.infraManager, ouID)
 	if err != nil {
 		s.logger.Warn("scope cleanup: listing environments failed", "scope", scopeStr, "error", err)
 		return
 	}
 	envName := make(map[string]string, len(envs)) // env UUID -> name (resolver keys on names)
 	for _, env := range envs {
-		envName[env.UUID] = env.Name
+		envName[env.ID] = env.Name
 	}
 
 	provider := mcpResourceServerProviderFor(s.resolver, s.logger)

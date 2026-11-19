@@ -24,10 +24,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // ensureResourceServerPerEnvTimeout bounds one environment's ensure attempt
@@ -43,9 +43,9 @@ const ensureResourceServerPerEnvTimeout = 15 * time.Second
 var ErrMCPProxyNotDeployedToEnvironment = errors.New("MCP proxy is not deployed to this environment")
 
 // environmentUUIDByName resolves an environment's UUID from its name, wrapping
-// a missing environment in utils.ErrEnvironmentNotFound.
-func environmentUUIDByName(ctx context.Context, infra services.InfraResourceManager, ouID, envName string) (uuid.UUID, error) {
-	envs, err := infra.ListOrgEnvironments(ctx, ouID)
+// a missing environment in gwerr.ErrEnvironmentNotFound.
+func environmentUUIDByName(ctx context.Context, infra modkit.CoreAPI, ouID, envName string) (uuid.UUID, error) {
+	envs, err := ListEnvironments(ctx, infra, ouID)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to list org environments: %w", err)
 	}
@@ -53,20 +53,20 @@ func environmentUUIDByName(ctx context.Context, infra services.InfraResourceMana
 		if env.Name != envName {
 			continue
 		}
-		envUUID, err := uuid.Parse(env.UUID)
+		envUUID, err := uuid.Parse(env.ID)
 		if err != nil {
-			return uuid.Nil, fmt.Errorf("failed to parse environment UUID %q: %w", env.UUID, err)
+			return uuid.Nil, fmt.Errorf("failed to parse environment UUID %q: %w", env.ID, err)
 		}
 		return envUUID, nil
 	}
-	return uuid.Nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
+	return uuid.Nil, fmt.Errorf("%w: %s", gwerr.ErrEnvironmentNotFound, envName)
 }
 
 // EnvironmentUUIDByName resolves the named environment's UUID for the org.
 // Callers deriving identifiers for several proxies in one environment resolve
 // once and pass the UUID to each MCPResourceServerIdentifier call.
 func (s *MCPProxyService) EnvironmentUUIDByName(ctx context.Context, ouID, envName string) (uuid.UUID, error) {
-	return environmentUUIDByName(ctx, s.infraManager, ouID, envName)
+	return environmentUUIDByName(ctx, s.coreAPI, ouID, envName)
 }
 
 // MCPResourceServerIdentifier derives the absolute public URI the proxy is
@@ -151,14 +151,14 @@ func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouI
 	}
 
 	handle := proxyHandleOf(proxy)
-	envs, err := s.infraManager.ListOrgEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.coreAPI, ouID)
 	if err != nil {
 		s.logger.Warn("ensure resource server: listing environments failed", "proxy", handle, "error", err)
 		return
 	}
 	envName := make(map[string]string, len(envs)) // env UUID -> name (resolver keys on names)
 	for _, env := range envs {
-		envName[env.UUID] = env.Name
+		envName[env.ID] = env.Name
 	}
 
 	for i := range proxy.Endpoints {

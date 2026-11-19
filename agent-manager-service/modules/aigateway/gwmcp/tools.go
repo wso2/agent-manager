@@ -35,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // The gateway's toolsets, as its MCP tools call them.
@@ -214,13 +213,13 @@ func wrapToolError(toolName string, err error) error {
 		return nil
 	}
 	switch {
-	case errors.Is(err, utils.ErrOrganizationNotFound):
+	case errors.Is(err, gwerr.ErrOrganizationNotFound):
 		return fmt.Errorf("%s: the organization on your token was not found. Re-authenticate and try again", toolName)
-	case errors.Is(err, utils.ErrProjectNotFound):
+	case errors.Is(err, gwerr.ErrProjectNotFound):
 		return fmt.Errorf("%s: invalid project name. Call list_projects to see valid projects", toolName)
-	case errors.Is(err, utils.ErrAgentNotFound), errors.Is(err, modkit.ErrNotFound):
+	case errors.Is(err, gwerr.ErrAgentNotFound), errors.Is(err, modkit.ErrNotFound):
 		return fmt.Errorf("%s: invalid agent name. Call list_agents or list_project_agent_pairs to see valid agents", toolName)
-	case errors.Is(err, utils.ErrEnvironmentNotFound):
+	case errors.Is(err, gwerr.ErrEnvironmentNotFound):
 		return fmt.Errorf("%s: invalid environment name. Call list_environments to see valid environments", toolName)
 	case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 		return fmt.Errorf("%s: LLM provider not found. Call list_llm_providers to see valid providers", toolName)

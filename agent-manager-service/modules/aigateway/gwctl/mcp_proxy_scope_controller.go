@@ -32,7 +32,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // MCPProxyScopeController defines HTTP handlers for per-MCP-proxy scopes.
@@ -228,7 +227,7 @@ func (c *mcpProxyScopeController) ListAgentIdentityScopes(w http.ResponseWriter,
 	entries, err := c.svc.ListEnvironmentScopes(ctx, ouID, envName)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrEnvironmentNotFound):
+		case errors.Is(err, gwerr.ErrEnvironmentNotFound):
 			log.Warn("ListAgentIdentityScopes: environment not found", "ouID", ouID, "envName", envName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 		default:

@@ -22,13 +22,14 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
@@ -193,8 +194,8 @@ func TestListEnvironmentScopesExcludesProjectProxies(t *testing.T) {
 		},
 	}
 	envUUID := uuid.New()
-	infra := stubInfraManager{listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-		return []*models.EnvironmentResponse{{Name: "dev", UUID: envUUID.String()}}, nil
+	infra := &gwtest.Core{ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+		return []*modkit.Environment{{Name: "dev", ID: envUUID.String()}}, nil
 	}}
 	svc := NewMCPProxyScopeService(&gwrepomocks.MCPProxyScopeRepositoryMock{}, proxyRepo, infra, nil, nil, slog.Default())
 

@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -39,8 +38,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -127,14 +124,14 @@ type GatewayController interface {
 
 type gatewayController struct {
 	gatewayService     *gwsvc.PlatformGatewayService
-	ocClient           repositories.PlatformRepository
+	ocClient           modkit.CoreAPI
 	agentConfigService gwsvc.AgentConfigurationService
 }
 
 // NewGatewayController creates a new gateway controller
 func NewGatewayController(
 	gatewayService *gwsvc.PlatformGatewayService,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 	agentConfigService gwsvc.AgentConfigurationService,
 ) GatewayController {
 	return &gatewayController{
@@ -154,24 +151,24 @@ func (c *gatewayController) resolveEnvironmentUUID(ctx context.Context, ouID, en
 	if err != nil {
 		return "", err
 	}
-	return env.UUID, nil
+	return env.ID, nil
 }
 
 // resolveEnvironment is resolveEnvironmentUUID returning the whole environment, for
 // callers that also need its name.
-func (c *gatewayController) resolveEnvironment(ctx context.Context, ouID, envIdentifier string) (*models.EnvironmentResponse, error) {
-	environments, err := c.ocClient.ListEnvironments(ctx, ouID)
+func (c *gatewayController) resolveEnvironment(ctx context.Context, ouID, envIdentifier string) (*modkit.Environment, error) {
+	environments, err := gwsvc.ListEnvironments(ctx, c.ocClient, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 
 	for _, env := range environments {
-		if env.Name == envIdentifier || strings.EqualFold(env.UUID, envIdentifier) {
+		if env.Name == envIdentifier || strings.EqualFold(env.ID, envIdentifier) {
 			return env, nil
 		}
 	}
 
-	return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envIdentifier)
+	return nil, fmt.Errorf("%w: %s", gwerr.ErrEnvironmentNotFound, envIdentifier)
 }
 
 func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
@@ -192,7 +189,7 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		httpx.WriteErrorResponse(w, http.StatusNotFound, "Token not found")
 	case errors.Is(err, httpx.ErrBadRequest):
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, utils.ErrEnvironmentNotFound):
+	case errors.Is(err, gwerr.ErrEnvironmentNotFound):
 		httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 	case httpx.IsValidationError(err) != nil:
 		httpx.WriteValidationErrorResponse(w, err)
@@ -236,7 +233,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 
 	// Validate environments if present
 	if len(req.EnvironmentIds) > 0 {
-		envs, err := c.ocClient.ListEnvironments(ctx, ouID)
+		envs, err := gwsvc.ListEnvironments(ctx, c.ocClient, ouID)
 		if err != nil {
 			log.Error("environment validation failed: failed to list environments")
 			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "environment validation erro")
@@ -248,7 +245,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		}
 		envMap := make(map[string]string)
 		for _, env := range envs {
-			envMap[env.UUID] = env.Name
+			envMap[env.ID] = env.Name
 		}
 		for _, envId := range req.EnvironmentIds {
 			if _, ok := envMap[envId]; !ok {
@@ -354,7 +351,7 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 	if envParam := r.URL.Query().Get("environment"); envParam != "" {
 		envUUID, err := c.resolveEnvironmentUUID(ctx, ouID, envParam)
 		switch {
-		case errors.Is(err, utils.ErrEnvironmentNotFound):
+		case errors.Is(err, gwerr.ErrEnvironmentNotFound):
 			// A 400 rather than a 404: the collection exists, the filter value does
 			// not. listGateways declares 400 but no 404.
 			log.Error("ListGateways: unknown environment filter", "environment", envParam)
@@ -402,7 +399,7 @@ func gatewayPagination(r *http.Request) (limit, offset int) {
 func (c *gatewayController) toSpecGatewayList(ctx context.Context, ouID string, gatewaysResp *gwsvc.GatewayListResponse, limit, offset int) gwspec.GatewayListResponse {
 	log := logger.GetLogger(ctx)
 	// Fetch environments ONCE for the entire organization (not per-gateway)
-	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, ouID)
+	ocEnvironments, err := gwsvc.ListEnvironments(ctx, c.ocClient, ouID)
 	if err != nil {
 		log.Warn("failed to list environments", "error", err)
 		ocEnvironments = nil // Continue with empty environments
@@ -771,25 +768,25 @@ func (c *gatewayController) GetGatewayStatus(w http.ResponseWriter, r *http.Requ
 
 // getGatewayEnvironmentsFromDB retrieves environments associated with a gateway
 // Fetches environment UUIDs from service layer, then gets environment details
-func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, ouID, gatewayID string) []models.GatewayEnvironmentResponse {
+func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, ouID, gatewayID string) []gwmodels.GatewayEnvironmentResponse {
 	log := logger.GetLogger(ctx)
 
 	// Get environment mappings via service
 	mappings, err := c.gatewayService.GetGatewayEnvironmentMappings(gatewayID)
 	if err != nil {
 		log.Warn("getGatewayEnvironmentsFromDB: failed to get environment mappings", "error", err)
-		return []models.GatewayEnvironmentResponse{}
+		return []gwmodels.GatewayEnvironmentResponse{}
 	}
 
 	if len(mappings) == 0 {
-		return []models.GatewayEnvironmentResponse{}
+		return []gwmodels.GatewayEnvironmentResponse{}
 	}
 
 	// Fetch all environments for this organization
-	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, ouID)
+	ocEnvironments, err := gwsvc.ListEnvironments(ctx, c.ocClient, ouID)
 	if err != nil {
 		log.Warn("getGatewayEnvironmentsFromDB: failed to list environments", "error", err)
-		return []models.GatewayEnvironmentResponse{}
+		return []gwmodels.GatewayEnvironmentResponse{}
 	}
 
 	return c.matchGatewayEnvironments(mappings, ocEnvironments, ouID)
@@ -818,25 +815,25 @@ func (c *gatewayController) getGatewayEnvironmentMappingsBulk(ctx context.Contex
 // This function is used by both single-gateway and bulk-gateway queries
 func (c *gatewayController) matchGatewayEnvironments(
 	mappings []gwmodels.GatewayEnvironmentMapping,
-	ocEnvironments []*models.EnvironmentResponse,
+	ocEnvironments []*modkit.Environment,
 	ouID string,
-) []models.GatewayEnvironmentResponse {
+) []gwmodels.GatewayEnvironmentResponse {
 	if len(mappings) == 0 {
-		return []models.GatewayEnvironmentResponse{}
+		return []gwmodels.GatewayEnvironmentResponse{}
 	}
 
 	if ocEnvironments == nil {
-		return []models.GatewayEnvironmentResponse{}
+		return []gwmodels.GatewayEnvironmentResponse{}
 	}
 
 	// Create a map of environment UUIDs for quick lookup
-	envMap := make(map[string]*models.EnvironmentResponse)
+	envMap := make(map[string]*modkit.Environment)
 	for _, env := range ocEnvironments {
-		envMap[env.UUID] = env
+		envMap[env.ID] = env
 	}
 
 	// Match mapped environments with environment data
-	var environments []models.GatewayEnvironmentResponse
+	var environments []gwmodels.GatewayEnvironmentResponse
 	for _, mapping := range mappings {
 		envUUIDStr := mapping.EnvironmentUUID.String()
 		if ocEnv, found := envMap[envUUIDStr]; found {
@@ -848,15 +845,13 @@ func (c *gatewayController) matchGatewayEnvironments(
 }
 
 // gatewayEnvironmentResponse is an environment as a gateway response lists it.
-func gatewayEnvironmentResponse(env *models.EnvironmentResponse, ouID string) models.GatewayEnvironmentResponse {
-	return models.GatewayEnvironmentResponse{
-		UUID:             env.UUID,
+func gatewayEnvironmentResponse(env *modkit.Environment, ouID string) gwmodels.GatewayEnvironmentResponse {
+	return gwmodels.GatewayEnvironmentResponse{
+		UUID:             env.ID,
 		OrganizationName: ouID,
 		Name:             env.Name,
 		DisplayName:      env.DisplayName,
 		Description:      "",
-		DataplaneRef:     env.DataplaneRef,
-		DNSPrefix:        env.DNSPrefix,
 		IsProduction:     env.IsProduction,
 		CreatedAt:        env.CreatedAt,
 		UpdatedAt:        env.CreatedAt,
@@ -870,7 +865,7 @@ func canonicalGatewayType(role string) gwspec.GatewayType {
 	return gwspec.GatewayType(strings.ToUpper(role))
 }
 
-func convertGatewayToSpecResponse(gw *gwsvc.GatewayResponse, ouID string, environments []models.GatewayEnvironmentResponse) gwspec.GatewayResponse {
+func convertGatewayToSpecResponse(gw *gwsvc.GatewayResponse, ouID string, environments []gwmodels.GatewayEnvironmentResponse) gwspec.GatewayResponse {
 	response := gwspec.GatewayResponse{
 		Uuid:        gw.ID,
 		Name:        gw.Name,
@@ -912,7 +907,7 @@ func convertStatusToGatewayStatus(isActive bool) gwspec.GatewayStatus {
 	return "INACTIVE"
 }
 
-func convertGatewayEnvironmentToSpecResponse(env *models.GatewayEnvironmentResponse) gwspec.GatewayEnvironmentResponse {
+func convertGatewayEnvironmentToSpecResponse(env *gwmodels.GatewayEnvironmentResponse) gwspec.GatewayEnvironmentResponse {
 	response := gwspec.GatewayEnvironmentResponse{
 		Id:           env.UUID,
 		Name:         env.Name,

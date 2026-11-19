@@ -39,7 +39,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Note: uuid import retained for configUUID parsing in path parameters
@@ -126,7 +125,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 		case errors.Is(err, gwerr.ErrAgentConfigAlreadyExists):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "Agent configuration already exists")
 			return
-		case errors.Is(err, utils.ErrAgentNotFound):
+		case errors.Is(err, gwerr.ErrAgentNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
@@ -305,7 +304,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 		case errors.Is(err, gwerr.ErrAgentConfigNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
-		case errors.Is(err, utils.ErrAgentNotFound):
+		case errors.Is(err, gwerr.ErrAgentNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
@@ -430,7 +429,7 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 		case errors.Is(err, gwerr.ErrAgentConfigAlreadyExists):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "Agent MCP configuration already exists")
 			return
-		case errors.Is(err, utils.ErrAgentNotFound):
+		case errors.Is(err, gwerr.ErrAgentNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, gwerr.ErrMCPProxyNotFound):
@@ -587,7 +586,7 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 		case errors.Is(err, gwerr.ErrAgentConfigNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
-		case errors.Is(err, utils.ErrAgentNotFound):
+		case errors.Is(err, gwerr.ErrAgentNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, gwerr.ErrMCPProxyNotFound):

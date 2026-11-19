@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
@@ -78,9 +79,9 @@ func (c *gatewayController) ListIdentityProviders(w http.ResponseWriter, r *http
 	// mapping to a display name via the platform repository (same source the gateways
 	// list uses). Best-effort: rows still render without an env name on failure.
 	envNames := make(map[string]string)
-	if envs, envErr := c.ocClient.ListEnvironments(ctx, ouID); envErr == nil {
+	if envs, envErr := gwsvc.ListEnvironments(ctx, c.ocClient, ouID); envErr == nil {
 		for _, env := range envs {
-			envNames[env.UUID] = env.Name
+			envNames[env.ID] = env.Name
 		}
 	} else {
 		log.Warn("ListIdentityProviders: failed to list environments", "error", envErr)

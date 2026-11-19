@@ -25,11 +25,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
@@ -37,23 +37,23 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 	const envUUID = "33333333-3333-3333-3333-333333333333"
 
 	t.Run("maps env not-found to ErrEnvironmentNotFound", func(t *testing.T) {
-		oc := &repomocks.PlatformRepositoryMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return nil, utils.ErrEnvironmentNotFound
+		oc := &gwtest.Core{
+			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*modkit.Environment, error) {
+				return nil, gwerr.ErrEnvironmentNotFound
 			},
 		}
 		svc := newEnvGatewayService(&gwrepomocks.GatewayRepositoryMock{}, oc)
 
 		_, err := svc.GetEnvironmentGateways(context.Background(), org, envID)
 
-		assert.ErrorIs(t, err, utils.ErrEnvironmentNotFound)
+		assert.ErrorIs(t, err, gwerr.ErrEnvironmentNotFound)
 	})
 
 	t.Run("wraps a mapping-lookup error", func(t *testing.T) {
 		boom := errors.New("mapping query failed")
-		oc := &repomocks.PlatformRepositoryMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
+		oc := &gwtest.Core{
+			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*modkit.Environment, error) {
+				return &modkit.Environment{ID: envUUID, Name: "dev"}, nil
 			},
 		}
 		repo := &gwrepomocks.GatewayRepositoryMock{
@@ -74,9 +74,9 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 		errorGW := uuid.New()
 		missingGW := uuid.New()
 
-		oc := &repomocks.PlatformRepositoryMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
+		oc := &gwtest.Core{
+			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*modkit.Environment, error) {
+				return &modkit.Environment{ID: envUUID, Name: "dev"}, nil
 			},
 		}
 		repo := &gwrepomocks.GatewayRepositoryMock{
@@ -124,9 +124,9 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 
 	t.Run("maps an inactive gateway to inactive status", func(t *testing.T) {
 		gw := uuid.New()
-		oc := &repomocks.PlatformRepositoryMock{
-			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*models.EnvironmentResponse, error) {
-				return &models.EnvironmentResponse{UUID: envUUID, Name: "dev"}, nil
+		oc := &gwtest.Core{
+			GetEnvironmentFunc: func(_ context.Context, _, _ string) (*modkit.Environment, error) {
+				return &modkit.Environment{ID: envUUID, Name: "dev"}, nil
 			},
 		}
 		repo := &gwrepomocks.GatewayRepositoryMock{
@@ -147,6 +147,6 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 	})
 }
 
-func newEnvGatewayService(repo *gwrepomocks.GatewayRepositoryMock, oc *repomocks.PlatformRepositoryMock) *EnvironmentGatewayService {
+func newEnvGatewayService(repo *gwrepomocks.GatewayRepositoryMock, oc *gwtest.Core) *EnvironmentGatewayService {
 	return NewEnvironmentGatewayService(discardLogger(), repo, oc)
 }

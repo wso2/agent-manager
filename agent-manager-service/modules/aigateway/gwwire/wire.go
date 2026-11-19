@@ -9,6 +9,7 @@ import (
 	"github.com/google/wire"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
@@ -17,7 +18,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -25,8 +25,7 @@ import (
 var coreSet = wire.NewSet(
 	wire.FieldsOf(
 		new(*wiring.AppParams),
-		"DB", "Logger", "PlatformRepository", "InfraResourceManager",
-		"EncryptionKey", "SecretManagementClient",
+		"DB", "Logger", "EncryptionKey", "SecretManagementClient",
 	),
 )
 
@@ -113,10 +112,10 @@ var controllerProviderSet = wire.NewSet(
 	gwctl.NewEnvironmentGatewayController,
 )
 
-// Initialize builds the gateway on the core's services. gatewayApplier
-// patches the gateway runtime config when an identity provider changes; nil
-// keeps the script-driven behaviour.
-func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplier, settings gwconfig.Settings) (*Gateway, error) {
+// Initialize builds the gateway on the core's services, reading core
+// resources through coreAPI. gatewayApplier patches the gateway runtime config
+// when an identity provider changes; nil keeps the script-driven behaviour.
+func Initialize(core *wiring.AppParams, coreAPI modkit.CoreAPI, gatewayApplier gwsvc.GatewayConfigApplier, settings gwconfig.Settings) (*Gateway, error) {
 	wire.Build(
 		coreSet,
 		repositoryProviderSet,
@@ -202,7 +201,7 @@ func ProvideWebSocketController(
 // ProvideDefaultGatewaySeeder registers the gateway named in configuration.
 func ProvideDefaultGatewaySeeder(
 	s gwconfig.Settings, gateways *gwsvc.PlatformGatewayService, repo gwrepo.GatewayRepository,
-	platform repositories.PlatformRepository, logger *slog.Logger,
+	platform modkit.CoreAPI, logger *slog.Logger,
 ) *gwsvc.DefaultGatewaySeeder {
 	return gwsvc.NewDefaultGatewaySeeder(s.DefaultGateway, gateways, repo, platform, logger)
 }

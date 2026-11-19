@@ -20,7 +20,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -85,11 +84,11 @@ func TestResolveAPIConfig_OAuthDefaults(t *testing.T) {
 	if cfg.EnableOAuthSecurity {
 		t.Errorf("expected OAuth security off by default")
 	}
-	if cfg.OAuthHeaderName != models.DefaultOAuthHeaderName {
-		t.Errorf("expected header name %q, got %q", models.DefaultOAuthHeaderName, cfg.OAuthHeaderName)
+	if cfg.OAuthHeaderName != gwmodels.DefaultOAuthHeaderName {
+		t.Errorf("expected header name %q, got %q", gwmodels.DefaultOAuthHeaderName, cfg.OAuthHeaderName)
 	}
-	if cfg.OAuthAuthHeaderPrefix != models.DefaultOAuthAuthHeaderPrefix {
-		t.Errorf("expected header prefix %q, got %q", models.DefaultOAuthAuthHeaderPrefix, cfg.OAuthAuthHeaderPrefix)
+	if cfg.OAuthAuthHeaderPrefix != gwmodels.DefaultOAuthAuthHeaderPrefix {
+		t.Errorf("expected header prefix %q, got %q", gwmodels.DefaultOAuthAuthHeaderPrefix, cfg.OAuthAuthHeaderPrefix)
 	}
 	if !cfg.OAuthForwardToken {
 		t.Errorf("expected forwardToken to default to true")
@@ -158,8 +157,8 @@ func TestBuildPolicies_Modes(t *testing.T) {
 		CORSAllowOrigins:      []string{"*"},
 		CORSAllowMethods:      []string{"GET"},
 		CORSAllowHeaders:      []string{"Authorization"},
-		OAuthHeaderName:       models.DefaultOAuthHeaderName,
-		OAuthAuthHeaderPrefix: models.DefaultOAuthAuthHeaderPrefix,
+		OAuthHeaderName:       gwmodels.DefaultOAuthHeaderName,
+		OAuthAuthHeaderPrefix: gwmodels.DefaultOAuthAuthHeaderPrefix,
 	}
 
 	t.Run("no auth", func(t *testing.T) {
@@ -176,8 +175,8 @@ func TestBuildPolicies_Modes(t *testing.T) {
 		// Must be non-nil so it marshals to [] not null — the api-configuration
 		// trait rejects a null policies field.
 		p := buildPolicies(resolvedCORSConfig{
-			OAuthHeaderName:       models.DefaultOAuthHeaderName,
-			OAuthAuthHeaderPrefix: models.DefaultOAuthAuthHeaderPrefix,
+			OAuthHeaderName:       gwmodels.DefaultOAuthHeaderName,
+			OAuthAuthHeaderPrefix: gwmodels.DefaultOAuthAuthHeaderPrefix,
 		})
 		if p == nil {
 			t.Fatalf("expected non-nil empty slice, got nil")
@@ -230,7 +229,7 @@ func TestBuildPolicies_Modes(t *testing.T) {
 		if params["forwardToken"] != true {
 			t.Errorf("expected forwardToken true, got %v", params["forwardToken"])
 		}
-		if params["headerName"] != models.DefaultOAuthHeaderName || params["authHeaderPrefix"] != models.DefaultOAuthAuthHeaderPrefix {
+		if params["headerName"] != gwmodels.DefaultOAuthHeaderName || params["authHeaderPrefix"] != gwmodels.DefaultOAuthAuthHeaderPrefix {
 			t.Errorf("expected default header params, got %v / %v", params["headerName"], params["authHeaderPrefix"])
 		}
 	})

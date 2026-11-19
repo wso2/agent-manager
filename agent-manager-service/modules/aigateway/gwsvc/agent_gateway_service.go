@@ -23,20 +23,19 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/constants"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // AgentGatewayService is the gateway's side of an agent: the LLM and MCP
@@ -48,7 +47,7 @@ import (
 type AgentGatewayService struct {
 	perms                     *Permissions
 	db                        *gorm.DB
-	platform                  repositories.PlatformRepository
+	platform                  modkit.CoreAPI
 	agentConfigRepo           gwrepo.AgentConfigRepository
 	agentConfigurationService AgentConfigurationService
 	artifactRepo              gwrepo.ArtifactRepository
@@ -68,7 +67,7 @@ var (
 // NewAgentGatewayService creates the gateway's side of agents.
 func NewAgentGatewayService(
 	db *gorm.DB,
-	platform repositories.PlatformRepository,
+	platform modkit.CoreAPI,
 	agentConfigRepo gwrepo.AgentConfigRepository,
 	agentConfigurationService AgentConfigurationService,
 	artifactRepo gwrepo.ArtifactRepository,
@@ -112,7 +111,7 @@ func (s *AgentGatewayService) LLM() llmv1.Proxy { return s }
 // MCP is the service as mcp.proxy/v1.
 func (s *AgentGatewayService) MCP() mcpv1.Proxy { return s }
 
-func (s *AgentGatewayService) requireEnvTier(ctx context.Context, ouID, envName string) (*models.EnvironmentResponse, error) {
+func (s *AgentGatewayService) requireEnvTier(ctx context.Context, ouID, envName string) (*modkit.Environment, error) {
 	return RequireEnvironmentTier(ctx, s.perms, s.platform, s.logger, ouID, envName)
 }
 
@@ -401,7 +400,7 @@ func resolveAPIConfig(existingConfig *gwmodels.AgentConfig, enableApiKeySecurity
 			CORSAllowHeaders:     strings.Split(defaultCORS.AllowHeaders, ","),
 			CORSAllowCredentials: defaultCORS.AllowCredentials,
 			EnableOAuthSecurity:  false,
-			OAuthForwardToken:    models.DefaultOAuthForwardToken,
+			OAuthForwardToken:    gwmodels.DefaultOAuthForwardToken,
 		}
 	}
 
@@ -475,10 +474,10 @@ func resolveAPIConfig(existingConfig *gwmodels.AgentConfig, enableApiKeySecurity
 	// Header name/prefix are NOT NULL columns — guarantee non-empty values so the
 	// Upsert never writes an empty string over the gateway-compatible defaults.
 	if resolved.OAuthHeaderName == "" {
-		resolved.OAuthHeaderName = models.DefaultOAuthHeaderName
+		resolved.OAuthHeaderName = gwmodels.DefaultOAuthHeaderName
 	}
 	if resolved.OAuthAuthHeaderPrefix == "" {
-		resolved.OAuthAuthHeaderPrefix = models.DefaultOAuthAuthHeaderPrefix
+		resolved.OAuthAuthHeaderPrefix = gwmodels.DefaultOAuthAuthHeaderPrefix
 	}
 
 	return resolved
@@ -568,7 +567,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 		return fmt.Errorf("%w: environmentName is required", httpx.ErrInvalidInput)
 	}
 
-	agent, err := s.platform.GetAgent(ctx, ouID, projectName, agentName)
+	agent, err := LookupAgent(ctx, s.platform, ouID, projectName, agentName)
 	if err != nil {
 		return err
 	}
@@ -586,7 +585,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 		return err
 	}
 	req.EnvironmentName = targetEnv.Name
-	pubKey, publishes, err := s.agentExposureKeyFor(ctx, agent, ouID, projectName, agentName, req.EnvironmentName, targetEnv.UUID)
+	pubKey, publishes, err := s.agentExposureKeyFor(ctx, agent, ouID, projectName, agentName, req.EnvironmentName, targetEnv.ID)
 	if err != nil {
 		return err
 	}
@@ -626,7 +625,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	if err := validateOAuthSecurityConfig(apiCfg); err != nil {
 		return err
 	}
-	if err := s.validateOAuthIssuersInEnvironment(targetEnv.UUID, apiCfg); err != nil {
+	if err := s.validateOAuthIssuersInEnvironment(targetEnv.ID, apiCfg); err != nil {
 		return err
 	}
 	var existingInstrumentationVersion *string
@@ -645,7 +644,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	agentConfig.InstrumentationVersion = resolvedInstrumentationVersion
 	agentConfig.ResilienceTimeoutSeconds = settingsResilienceTimeoutSeconds
 	agentConfig.SetCardCORSOverride(cardCORSOverride)
-	artifact := s.agentEnvArtifactFunc(agent, ouID, projectName, agentName, targetEnv.UUID)
+	artifact := s.agentEnvArtifactFunc(agent, ouID, projectName, agentName, targetEnv.ID)
 	if err := s.saveDeploySettings(ctx, agent, pubKey, artifact, agentConfig); err != nil {
 		s.logger.Error("Failed to persist agent deploy settings", "agentName", agentName, "environment", req.EnvironmentName, "error", err)
 		return fmt.Errorf("failed to persist agent deploy settings: %w", err)
@@ -659,11 +658,11 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 // for the organization's default environment, carrying its gateway URL and
 // deployment status when the gateway serves the agent.
 func (s *AgentGatewayService) GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*gwmodels.DeploymentResponse, error) {
-	agent, err := s.platform.GetAgent(ctx, ouID, projectName, agentName)
+	agent, err := LookupAgent(ctx, s.platform, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
 	}
-	env, err := s.platform.GetEnvironment(ctx, ouID, models.DefaultEnvironmentName)
+	env, err := LookupEnvironment(ctx, s.platform, ouID, gwmodels.DefaultEnvironmentName)
 	if err != nil {
 		return nil, err
 	}
@@ -673,7 +672,7 @@ func (s *AgentGatewayService) GetAgentDeployments(ctx context.Context, ouID stri
 		Status:                 deploymentStatusActive,
 		Environment:            env.Name,
 		EnvironmentDisplayName: env.DisplayName,
-		EnvironmentUUID:        env.UUID,
+		EnvironmentUUID:        env.ID,
 		Endpoints:              []gwmodels.Endpoint{},
 	}
 	deployments := []*gwmodels.DeploymentResponse{deployment}
@@ -687,7 +686,7 @@ func (s *AgentGatewayService) GetAgentDeployments(ctx context.Context, ouID stri
 // the agent's gateway URL, and the gateway deployment's status. Best-effort: an environment whose gateway deployment
 // can't be read keeps its direct URLs and shows no gateway status.
 func (s *AgentGatewayService) resolveGatewayDeployments(
-	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName string, deployments []*gwmodels.DeploymentResponse,
+	ctx context.Context, agent *modkit.Agent, ouID, projectName, agentName string, deployments []*gwmodels.DeploymentResponse,
 ) {
 	for _, deployment := range deployments {
 		if deployment == nil || deployment.EnvironmentUUID == "" || deployment.Status == deploymentStatusNotDeployed {
@@ -711,7 +710,7 @@ func (s *AgentGatewayService) resolveGatewayDeployments(
 
 // resolveAgentURL says where the agent is reached in the environment and what its gateway deployment shows.
 func (s *AgentGatewayService) resolveAgentURL(
-	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName, environmentName, environmentUUID string,
+	ctx context.Context, agent *modkit.Agent, ouID, projectName, agentName, environmentName, environmentUUID string,
 ) (AgentURL, error) {
 	key, err := agentExposureKeyOf(agent, ouID, projectName, agentName, environmentName, environmentUUID)
 	if err != nil {
@@ -734,7 +733,7 @@ func parseAgentUUID(raw string) *uuid.UUID {
 }
 
 // exposesAgent is true for an agent its environment's ingress gateway serves, on a service wired to expose it.
-func (s *AgentGatewayService) exposesAgent(agent *models.AgentResponse) bool {
+func (s *AgentGatewayService) exposesAgent(agent *modkit.Agent) bool {
 	_, ok := agentGatewayShapeOf(agent)
 	return ok && s.exposure != nil && s.a2aPublisher != nil
 }
@@ -743,7 +742,7 @@ func (s *AgentGatewayService) exposesAgent(agent *models.AgentResponse) bool {
 // its gateway shape names, switching a legacy REST agent's Agent row in place; nil for an agent the gateway does
 // not serve.
 func (s *AgentGatewayService) agentEnvArtifactFunc(
-	agent *models.AgentResponse, ouID, projectName, agentName, envUUID string,
+	agent *modkit.Agent, ouID, projectName, agentName, envUUID string,
 ) func(tx *gorm.DB) (*gwmodels.Artifact, error) {
 	shape, ok := agentGatewayShapeOf(agent)
 	if !ok {
@@ -761,7 +760,7 @@ func (s *AgentGatewayService) agentEnvArtifactFunc(
 // saveDeploySettings saves the environment's config in one transaction with the agent's gateway exposure, so
 // neither lands without the other; the agent republishes as SaveAndRepublish describes.
 func (s *AgentGatewayService) saveDeploySettings(
-	ctx context.Context, agent *models.AgentResponse, key agentExposureKey,
+	ctx context.Context, agent *modkit.Agent, key agentExposureKey,
 	artifact func(tx *gorm.DB) (*gwmodels.Artifact, error), cfg *gwmodels.AgentConfig,
 ) error {
 	save := func(tx *gorm.DB) error { return s.agentConfigRepo.WithTx(tx).Upsert(ctx, cfg) }
@@ -770,7 +769,7 @@ func (s *AgentGatewayService) saveDeploySettings(
 
 // agentExposureKeyOf names the agent's exposure in the environment.
 func agentExposureKeyOf(
-	agent *models.AgentResponse, ouID, projectName, agentName, environmentName, environmentUUID string,
+	agent *modkit.Agent, ouID, projectName, agentName, environmentName, environmentUUID string,
 ) (agentExposureKey, error) {
 	envUUID, err := uuid.Parse(environmentUUID)
 	if err != nil {
@@ -778,7 +777,7 @@ func agentExposureKeyOf(
 	}
 	return agentExposureKey{
 		OUID: ouID, ProjectName: projectName, AgentName: agentName, EnvironmentName: environmentName,
-		EnvironmentUUID: envUUID, AgentUUID: parseAgentUUID(agent.UUID),
+		EnvironmentUUID: envUUID, AgentUUID: parseAgentUUID(agent.ID),
 	}, nil
 }
 
@@ -787,7 +786,7 @@ func agentExposureKeyOf(
 // environment is proxied.
 func (s *AgentGatewayService) agentExposureKeyFor(
 	ctx context.Context,
-	agent *models.AgentResponse,
+	agent *modkit.Agent,
 	ouID, projectName, agentName, environmentName, environmentUUID string,
 ) (agentExposureKey, bool, error) {
 	if !s.exposesAgent(agent) {

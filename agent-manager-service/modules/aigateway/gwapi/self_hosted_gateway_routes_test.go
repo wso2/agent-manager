@@ -24,7 +24,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -34,7 +36,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
@@ -42,7 +43,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 const selfHostedTestOU = "ou-1"
@@ -151,9 +151,9 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 		return nil
 	}
 
-	ocClient := &repomocks.PlatformRepositoryMock{
-		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{UUID: uuid.NewString(), Name: "dev"}}, nil
+	ocClient := &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: uuid.NewString(), Name: "dev"}}, nil
 		},
 	}
 	ctrl := gwctl.NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), ocClient, nil)

@@ -19,7 +19,7 @@
 // fast unit tier with all collaborators mocked:
 //
 //   - repositories.CatalogRepository -> repomocks.CatalogRepositoryMock
-//   - repositories.PlatformRepository        -> repomocks.PlatformRepositoryMock
+//   - modkit.CoreAPI        -> gwtest.Core
 //
 // The service has no sentinel errors of its own; it validates input, branches on
 // the kind/deployment shape, wraps repository/client errors with %w, and (for
@@ -42,15 +42,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // newCatalogService wires the service with a discard logger and the two mocked
 // dependencies.
-func newCatalogService(repo *gwrepomocks.CatalogRepositoryMock, oc *repomocks.PlatformRepositoryMock) CatalogService {
+func newCatalogService(repo *gwrepomocks.CatalogRepositoryMock, oc *gwtest.Core) CatalogService {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return NewCatalogService(logger, repo, oc)
 }
@@ -63,7 +63,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 	t.Run("rejects empty ouID", func(t *testing.T) {
 		// Both repo methods left nil: hitting either would panic, proving the
 		// guard short-circuits before any data access.
-		svc := newCatalogService(&gwrepomocks.CatalogRepositoryMock{}, &repomocks.PlatformRepositoryMock{})
+		svc := newCatalogService(&gwrepomocks.CatalogRepositoryMock{}, &gwtest.Core{})
 
 		entries, total, err := svc.ListCatalog(context.Background(), "", "agent", 10, 0)
 
@@ -84,7 +84,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 			},
 			// ListByKind left nil: must NOT be reached.
 		}
-		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
+		svc := newCatalogService(repo, &gwtest.Core{})
 
 		entries, total, err := svc.ListCatalog(context.Background(), "acme", "", 10, 5)
 
@@ -105,7 +105,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 			},
 			// ListAll left nil: must NOT be reached.
 		}
-		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
+		svc := newCatalogService(repo, &gwtest.Core{})
 
 		entries, total, err := svc.ListCatalog(context.Background(), "acme", "agent", 20, 0)
 
@@ -122,7 +122,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 				return nil, 0, boom
 			},
 		}
-		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
+		svc := newCatalogService(repo, &gwtest.Core{})
 
 		entries, total, err := svc.ListCatalog(context.Background(), "acme", "", 10, 0)
 
@@ -142,7 +142,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 func TestCatalogService_ListLLMProviders(t *testing.T) {
 	t.Run("rejects nil filters", func(t *testing.T) {
 		// Repo left nil: must NOT be reached.
-		svc := newCatalogService(&gwrepomocks.CatalogRepositoryMock{}, &repomocks.PlatformRepositoryMock{})
+		svc := newCatalogService(&gwrepomocks.CatalogRepositoryMock{}, &gwtest.Core{})
 
 		entries, total, err := svc.ListLLMProviders(context.Background(), nil)
 
@@ -153,7 +153,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 
 	t.Run("rejects invalid filters (empty org)", func(t *testing.T) {
 		// Validate() fails on empty OrganizationName before any repo access.
-		svc := newCatalogService(&gwrepomocks.CatalogRepositoryMock{}, &repomocks.PlatformRepositoryMock{})
+		svc := newCatalogService(&gwrepomocks.CatalogRepositoryMock{}, &gwtest.Core{})
 
 		_, _, err := svc.ListLLMProviders(context.Background(), &gwmodels.CatalogListFilters{
 			OrganizationName: "",
@@ -170,7 +170,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 				return nil, 0, boom
 			},
 		}
-		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
+		svc := newCatalogService(repo, &gwtest.Core{})
 
 		_, _, err := svc.ListLLMProviders(context.Background(), &gwmodels.CatalogListFilters{
 			OrganizationName: "wrap-org",
@@ -191,7 +191,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 		}
 		// ListEnvironments left nil: hitting it would panic, asserting the
 		// service does NOT make the external call when there is nothing to enrich.
-		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
+		svc := newCatalogService(repo, &gwtest.Core{})
 
 		entries, total, err := svc.ListLLMProviders(context.Background(), &gwmodels.CatalogListFilters{
 			OrganizationName: "no-deploy-org",
@@ -224,12 +224,12 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 			},
 		}
 		listEnvCalled := false
-		oc := &repomocks.PlatformRepositoryMock{
-			ListEnvironmentsFunc: func(_ context.Context, namespace string) ([]*models.EnvironmentResponse, error) {
+		oc := &gwtest.Core{
+			ListEnvironmentsFunc: func(_ context.Context, namespace string) ([]*modkit.Environment, error) {
 				listEnvCalled = true
 				assert.Equal(t, "resolve-org", namespace)
-				return []*models.EnvironmentResponse{
-					{UUID: envUUID, Name: "production"},
+				return []*modkit.Environment{
+					{ID: envUUID, Name: "production"},
 				}, nil
 			},
 		}
@@ -271,8 +271,8 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 				}, 1, nil
 			},
 		}
-		oc := &repomocks.PlatformRepositoryMock{
-			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+		oc := &gwtest.Core{
+			ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*modkit.Environment, error) {
 				return nil, errors.New("openchoreo unreachable")
 			},
 		}

@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
@@ -34,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // a2aAgentEnv is the agent and environment a per-environment Agent artifact exposes.
@@ -54,7 +54,7 @@ type A2AAgentKind struct {
 	cardRepo        gwrepo.A2AAgentCardRepository
 	deploymentRepo  gwrepo.DeploymentRepository
 	agentConfigRepo gwrepo.AgentConfigRepository
-	ocClient        repositories.PlatformRepository
+	ocClient        modkit.CoreAPI
 	fetcher         A2ACardFetcher
 	apiKeyRepo      gwrepo.APIKeyRepository
 	events          *GatewayEventsService
@@ -71,7 +71,7 @@ func NewA2AAgentKind(
 	cardRepo gwrepo.A2AAgentCardRepository,
 	deploymentRepo gwrepo.DeploymentRepository,
 	agentConfigRepo gwrepo.AgentConfigRepository,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 	fetcher A2ACardFetcher,
 	apiKeyRepo gwrepo.APIKeyRepository,
 	events *GatewayEventsService,

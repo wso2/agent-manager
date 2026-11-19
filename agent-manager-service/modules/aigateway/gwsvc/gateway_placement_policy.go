@@ -22,7 +22,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -44,7 +44,7 @@ var (
 	externalAgentPolicy = placementPolicy{externalAgentConsumer}
 )
 
-func placementPolicyFor(agent *models.AgentResponse) placementPolicy {
+func placementPolicyFor(agent *modkit.Agent) placementPolicy {
 	if isExternalProvisioned(agent) {
 		return externalAgentPolicy
 	}

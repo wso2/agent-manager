@@ -22,12 +22,10 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // RequireEnvironmentTier authorizes the caller to act on the named environment and
@@ -59,9 +57,9 @@ import (
 // non-production, which is what the model says and what the release notes must
 // say too.
 func RequireEnvironmentTier(
-	ctx context.Context, perms *Permissions, platform repositories.PlatformRepository, logger *slog.Logger, ouID, envName string,
-) (*models.EnvironmentResponse, error) {
-	env, err := platform.GetEnvironment(ctx, ouID, envName)
+	ctx context.Context, perms *Permissions, platform modkit.CoreAPI, logger *slog.Logger, ouID, envName string,
+) (*modkit.Environment, error) {
+	env, err := LookupEnvironment(ctx, platform, ouID, envName)
 	if err != nil {
 		logger.Error("Failed to resolve environment for the tier check",
 			"ouID", ouID, "environment", envName, "error", err)

@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
 	"gorm.io/gorm"
@@ -28,15 +29,13 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProxyAPIKeyService handles API key management for LLM proxies
 type LLMProxyAPIKeyService struct {
 	proxyRepo   gwrepo.LLMProxyRepository
 	apiKeyRepo  gwrepo.APIKeyRepository
-	ocClient    repositories.PlatformRepository
+	ocClient    modkit.CoreAPI
 	broadcaster apiKeyBroadcaster
 }
 
@@ -46,7 +45,7 @@ func NewLLMProxyAPIKeyService(
 	gatewayRepo gwrepo.GatewayRepository,
 	gatewayService *GatewayEventsService,
 	apiKeyRepo gwrepo.APIKeyRepository,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 ) *LLMProxyAPIKeyService {
 	return &LLMProxyAPIKeyService{
 		proxyRepo:  proxyRepo,
@@ -69,18 +68,18 @@ func (s *LLMProxyAPIKeyService) resolveProjectScopedProxy(
 	ctx context.Context,
 	orgID, projName, proxyID string,
 ) (*gwmodels.LLMProxy, error) {
-	project, err := s.ocClient.GetProject(ctx, orgID, projName)
+	project, err := LookupProject(ctx, s.ocClient, orgID, projName)
 	if err != nil {
-		if errors.Is(err, utils.ErrProjectNotFound) {
-			return nil, utils.ErrProjectNotFound
+		if errors.Is(err, gwerr.ErrProjectNotFound) {
+			return nil, gwerr.ErrProjectNotFound
 		}
 		return nil, fmt.Errorf("failed to resolve project: %w", err)
 	}
 	if project == nil {
-		return nil, utils.ErrProjectNotFound
+		return nil, gwerr.ErrProjectNotFound
 	}
 
-	proxy, err := s.proxyRepo.GetByIDAndProject(proxyID, orgID, project.UUID)
+	proxy, err := s.proxyRepo.GetByIDAndProject(proxyID, orgID, project.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, gwerr.ErrLLMProxyNotFound

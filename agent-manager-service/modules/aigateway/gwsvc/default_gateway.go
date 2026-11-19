@@ -25,18 +25,17 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // DefaultGatewaySeeder registers the gateway named in configuration, with the registration token the
@@ -46,14 +45,14 @@ type DefaultGatewaySeeder struct {
 	cfg      gwconfig.DefaultGateway
 	gateways *PlatformGatewayService
 	repo     gwrepo.GatewayRepository
-	platform repositories.PlatformRepository
+	platform modkit.CoreAPI
 	logger   *slog.Logger
 }
 
 // NewDefaultGatewaySeeder builds the seeder.
 func NewDefaultGatewaySeeder(
 	cfg gwconfig.DefaultGateway, gateways *PlatformGatewayService, repo gwrepo.GatewayRepository,
-	platform repositories.PlatformRepository, logger *slog.Logger,
+	platform modkit.CoreAPI, logger *slog.Logger,
 ) *DefaultGatewaySeeder {
 	return &DefaultGatewaySeeder{cfg: cfg, gateways: gateways, repo: repo, platform: platform, logger: logger}
 }
@@ -75,7 +74,7 @@ func (s *DefaultGatewaySeeder) Seed(ctx context.Context) error {
 	ouID := s.cfg.OrgOUID
 	// Creates the organization, under its handle, and its default environment on first use.
 	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: ouID, OuHandle: s.cfg.OrgHandle})
-	env, err := s.platform.GetEnvironment(ctx, ouID, models.DefaultEnvironmentName)
+	env, err := LookupEnvironment(ctx, s.platform, ouID, gwmodels.DefaultEnvironmentName)
 	if err != nil {
 		return fmt.Errorf("default gateway: resolve the default environment: %w", err)
 	}
@@ -84,7 +83,7 @@ func (s *DefaultGatewaySeeder) Seed(ctx context.Context) error {
 	switch {
 	case errors.Is(err, gwerr.ErrGatewayNotFound) || (err == nil && gateway == nil):
 		created, regErr := s.gateways.RegisterGateway(ouID, s.cfg.Name, s.cfg.DisplayName, "", s.cfg.Vhost, "",
-			false, s.cfg.FunctionalityType, nil, []string{env.UUID}, gwmodels.GatewayHostingManaged)
+			false, s.cfg.FunctionalityType, nil, []string{env.ID}, gwmodels.GatewayHostingManaged)
 		if regErr != nil {
 			return fmt.Errorf("default gateway: register %q: %w", s.cfg.Name, regErr)
 		}

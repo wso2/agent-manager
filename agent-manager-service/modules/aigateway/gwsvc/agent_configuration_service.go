@@ -37,7 +37,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -45,9 +44,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // AgentConfigurationService interface defines agent configuration business logic
@@ -133,8 +129,7 @@ type agentConfigurationService struct {
 	apiKeyBroadcaster         *apiKeyBroadcaster
 	llmProviderAPIKeyService  *LLMProviderAPIKeyService
 	aiApplicationService      *AIApplicationService
-	infraResourceManager      services.InfraResourceManager
-	ocClient                  repositories.PlatformRepository
+	ocClient                  modkit.CoreAPI
 	logger                    *slog.Logger
 	secretClient              secretmanagersvc.SecretManagementClient
 	encryptionKey             []byte
@@ -270,14 +265,14 @@ func mcpMappingProxyName(projectName, agentID, configName, envName string) strin
 // fails closed: if the agent type cannot be resolved the underlying error is
 // returned and the action is rejected.
 func (s *agentConfigurationService) ensureExternalAgentForAPIKey(ctx context.Context, ouID, projectName, agentName string) error {
-	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
+	agent, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentNotFound) {
+		if errors.Is(err, gwerr.ErrAgentNotFound) {
 			return gwerr.ErrAgentConfigNotFound
 		}
 		return fmt.Errorf("failed to determine agent type: %w", err)
 	}
-	if agent.Provisioning.Type != string(gwutil.ExternalAgent) {
+	if agent.Provisioning != string(gwutil.ExternalAgent) {
 		return gwerr.ErrAgentConfigNotExternal
 	}
 	return nil
@@ -555,13 +550,13 @@ func (s *agentConfigurationService) resolveConfigAndEnvUUID(
 		return nil, "", gwerr.ErrAgentConfigNotFound
 	}
 
-	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to list environments: %w", err)
 	}
 	for _, env := range envs {
 		if env.Name == envName {
-			return config, env.UUID, nil
+			return config, env.ID, nil
 		}
 	}
 	return nil, "", gwerr.ErrAgentConfigNotFound
@@ -792,8 +787,7 @@ func NewAgentConfigurationService(
 	llmProxyAPIKeyService *LLMProxyAPIKeyService,
 	gatewayService *GatewayEventsService,
 	apiKeyRepo gwrepo.APIKeyRepository,
-	infraResourceManager services.InfraResourceManager,
-	ocClient repositories.PlatformRepository,
+	ocClient modkit.CoreAPI,
 	llmProviderAPIKeyService *LLMProviderAPIKeyService,
 	aiApplicationService *AIApplicationService,
 	logger *slog.Logger,
@@ -819,7 +813,6 @@ func NewAgentConfigurationService(
 			apiKeyRepo:     apiKeyRepo,
 		},
 		aiApplicationService:     aiApplicationService,
-		infraResourceManager:     infraResourceManager,
 		ocClient:                 ocClient,
 		llmProviderAPIKeyService: llmProviderAPIKeyService,
 		logger:                   logger,
@@ -914,11 +907,11 @@ func (s *agentConfigurationService) Create(ctx context.Context, ouID, projectNam
 	req gwmodels.CreateAgentModelConfigRequest, createdBy string,
 ) (*gwmodels.AgentModelConfigResponse, error) {
 	// Validate agent exists and determine type
-	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentID)
+	agent, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentID)
 	if err != nil {
 		// Check if it's a 404 error (agent not found) vs other errors
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			return nil, utils.ErrAgentNotFound
+		if errors.Is(err, gwerr.ErrAgentNotFound) {
+			return nil, gwerr.ErrAgentNotFound
 		}
 		// For other errors (unauthorized, internal, etc), return as-is
 		return nil, fmt.Errorf("failed to validate agent: %w", err)
@@ -969,18 +962,18 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 	}
 
 	// Validate environment UUIDs exist
-	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
-	envMap := make(map[string]*models.EnvironmentResponse)
+	envMap := make(map[string]*modkit.Environment)
 	for _, env := range envs {
 		envMap[env.Name] = env
 	}
 
 	for envName := range req.EnvMappings {
 		if _, exists := envMap[envName]; !exists {
-			return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
+			return nil, fmt.Errorf("%w: %s", gwerr.ErrEnvironmentNotFound, envName)
 		}
 	}
 
@@ -1044,10 +1037,10 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		env, exists := envMap[envName]
 		if !exists {
 			s.processRollBack(ctx, rollbackResources, ouID, config.UUID)
-			return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
+			return nil, fmt.Errorf("%w: %s", gwerr.ErrEnvironmentNotFound, envName)
 		}
 
-		envUUID, err := uuid.Parse(env.UUID)
+		envUUID, err := uuid.Parse(env.ID)
 		if err != nil {
 			s.processRollBack(ctx, rollbackResources, ouID, config.UUID)
 			return nil, fmt.Errorf("invalid environment id %q: %w", envName, err)
@@ -1261,17 +1254,17 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		return nil, err
 	}
 
-	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
-	envMap := make(map[string]*models.EnvironmentResponse)
+	envMap := make(map[string]*modkit.Environment)
 	for _, env := range envs {
 		envMap[env.Name] = env
 	}
 	for envName := range req.EnvMappings {
 		if _, exists := envMap[envName]; !exists {
-			return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
+			return nil, fmt.Errorf("%w: %s", gwerr.ErrEnvironmentNotFound, envName)
 		}
 	}
 
@@ -1328,7 +1321,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 
 	for envName := range req.EnvMappings {
 		env := envMap[envName]
-		envUUID, err := uuid.Parse(env.UUID)
+		envUUID, err := uuid.Parse(env.ID)
 		if err != nil {
 			s.cleanupMCPConfig(ctx, config.UUID, ouID)
 			return nil, fmt.Errorf("invalid environment id %q: %w", envName, err)
@@ -1400,7 +1393,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		// The agent configuration deploys nothing: the proxy already deployed the single
 		// gateway artifact for this environment. We only mint the per-agent inbound key
 		// (against the shared artifact) and inject the env vars pointing at its URL.
-		sharedArtifactUUID := mcpProxyEnvArtifactUUID(sourceProxy, env.UUID)
+		sharedArtifactUUID := mcpProxyEnvArtifactUUID(sourceProxy, env.ID)
 		scopedID := scopedProxyIdentifier(config.ProjectName, config.AgentID, config.Name, env.Name)
 		// Only provision an inbound API key when the source MCP proxy has api-key
 		// security enabled. When disabled, no gateway key / app binding is created and no
@@ -1519,7 +1512,7 @@ func (s *agentConfigurationService) Get(ctx context.Context, configUUID uuid.UUI
 	}
 
 	// Check if agent is external
-	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
+	agent, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentName)
 	if err != nil {
 		// If we can't determine agent type, assume internal (safer default)
 		s.logger.Warn("Failed to get agent type, assuming internal", "error", err)
@@ -1543,7 +1536,7 @@ func (s *agentConfigurationService) GetMCP(ctx context.Context, configUUID uuid.
 		return nil, gwerr.ErrAgentConfigNotFound
 	}
 
-	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
+	agent, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentName)
 	if err != nil {
 		s.logger.Warn("Failed to get agent type, assuming internal", "error", err)
 		return s.buildConfigResponse(ctx, config, platformAgentPolicy)
@@ -1649,7 +1642,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	ctx context.Context,
 	configUUID uuid.UUID,
 	config *gwmodels.AgentConfiguration,
-	env *models.EnvironmentResponse,
+	env *modkit.Environment,
 	envUUID uuid.UUID,
 	envName string,
 	envMapping gwmodels.EnvModelConfigRequest,
@@ -1794,7 +1787,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 func (s *agentConfigurationService) processEnvProxyUpdate(
 	ctx context.Context,
 	config *gwmodels.AgentConfiguration,
-	env *models.EnvironmentResponse,
+	env *modkit.Environment,
 	envUUID uuid.UUID,
 	envName string,
 	envMapping gwmodels.EnvModelConfigRequest,
@@ -1915,7 +1908,7 @@ func (s *agentConfigurationService) processNewEnv(
 	ctx context.Context,
 	configUUID uuid.UUID,
 	config *gwmodels.AgentConfiguration,
-	env *models.EnvironmentResponse,
+	env *modkit.Environment,
 	envUUID uuid.UUID,
 	envName string,
 	envMapping gwmodels.EnvModelConfigRequest,
@@ -2093,15 +2086,15 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		return nil, fmt.Errorf("MCP configuration service is not fully configured")
 	}
 
-	allEnvs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
+	allEnvs, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
-	envMap := make(map[string]*models.EnvironmentResponse, len(allEnvs))
+	envMap := make(map[string]*modkit.Environment, len(allEnvs))
 	uuidToEnvName := make(map[string]string, len(allEnvs))
 	for _, e := range allEnvs {
 		envMap[e.Name] = e
-		uuidToEnvName[e.UUID] = e.Name
+		uuidToEnvName[e.ID] = e.Name
 	}
 
 	// Resolved before anything is persisted: a failure here aborts the update, and the name
@@ -2149,7 +2142,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 	proxiesByEnv := make(map[string]*gwmodels.MCPProxy, len(req.EnvMappings))
 	for envName, envMapping := range req.EnvMappings {
 		if _, exists := envMap[envName]; !exists {
-			return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
+			return nil, fmt.Errorf("%w: %s", gwerr.ErrEnvironmentNotFound, envName)
 		}
 		proxyHandle := strings.TrimSpace(envMapping.ProviderName)
 		if proxyHandle == "" {
@@ -2203,7 +2196,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 
 	for envName := range req.EnvMappings {
 		env := envMap[envName]
-		envUUID, err := uuid.Parse(env.UUID)
+		envUUID, err := uuid.Parse(env.ID)
 		if err != nil {
 			return nil, fmt.Errorf("invalid environment id %q: %w", envName, err)
 		}
@@ -2585,7 +2578,7 @@ func (s *agentConfigurationService) UpdateMCP(ctx context.Context, configUUID uu
 		return nil, gwerr.ErrAgentConfigNotFound
 	}
 
-	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
+	agent, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate agent: %w", err)
 	}
@@ -2619,7 +2612,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		return nil, gwerr.ErrAgentConfigNotFound
 	}
 
-	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
+	agent, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate agent: %w", err)
 	}
@@ -2634,15 +2627,15 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	}
 
 	// Load environments once; used to key existingEnvMap by name and to validate request envs.
-	allEnvs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
+	allEnvs, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
-	envMap := make(map[string]*models.EnvironmentResponse, len(allEnvs))
+	envMap := make(map[string]*modkit.Environment, len(allEnvs))
 	uuidToEnvName := make(map[string]string, len(allEnvs))
 	for _, e := range allEnvs {
 		envMap[e.Name] = e
-		uuidToEnvName[e.UUID] = e.Name
+		uuidToEnvName[e.ID] = e.Name
 	}
 
 	// Build map of existing environment mappings for comparison, keyed by environment name.
@@ -2790,10 +2783,10 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		env, exists := envMap[envName]
 		if !exists {
 			s.rollbackProxies(ctx, rollbackResources, ouID)
-			return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
+			return nil, fmt.Errorf("%w: %s", gwerr.ErrEnvironmentNotFound, envName)
 		}
 
-		envUUID, err := uuid.Parse(env.UUID)
+		envUUID, err := uuid.Parse(env.ID)
 		if err != nil {
 			s.rollbackProxies(ctx, rollbackResources, ouID)
 			return nil, fmt.Errorf("invalid environment id %q: %w", envName, err)
@@ -3022,7 +3015,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 		return fmt.Errorf("failed to list environment mappings: %w", err)
 	}
 
-	environments, err := s.ocClient.ListEnvironments(ctx, ouID)
+	environments, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return fmt.Errorf("error while listing environments: %w", err)
 	}
@@ -3030,7 +3023,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 	envIDNameMap := make(map[string]string)
 
 	for _, env := range environments {
-		envIDNameMap[env.UUID] = env.Name
+		envIDNameMap[env.ID] = env.Name
 	}
 
 	// Steps 1-4: Per-mapping cleanup in strict order before DB deletion.
@@ -3212,13 +3205,13 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 		return fmt.Errorf("failed to list environment mappings: %w", err)
 	}
 
-	environments, err := s.ocClient.ListEnvironments(ctx, ouID)
+	environments, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return fmt.Errorf("failed to list environments: %w", err)
 	}
 	envIDNameMap := make(map[string]string, len(environments))
 	for _, env := range environments {
-		envIDNameMap[env.UUID] = env.Name
+		envIDNameMap[env.ID] = env.Name
 	}
 
 	var cleanupErrs []string
@@ -3340,13 +3333,13 @@ func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existin
 		return fmt.Errorf("failed to list MCP environment mappings: %w", err)
 	}
 
-	envs, err := s.ocClient.ListEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return fmt.Errorf("error while listing environments: %w", err)
 	}
 	envIDNameMap := make(map[string]string, len(envs))
 	for _, env := range envs {
-		envIDNameMap[env.UUID] = env.Name
+		envIDNameMap[env.ID] = env.Name
 	}
 
 	for _, mapping := range mappings {
@@ -3374,13 +3367,13 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 	if err != nil {
 		return fmt.Errorf("failed to list MCP environment mappings: %w", err)
 	}
-	envs, err := s.ocClient.ListEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		s.logger.Warn("failed to list environments for MCP credential cleanup during agent deletion", "err", err)
 	}
 	envIDNameMap := make(map[string]string, len(envs))
 	for _, env := range envs {
-		envIDNameMap[env.UUID] = env.Name
+		envIDNameMap[env.ID] = env.Name
 	}
 
 	for _, mapping := range mappings {
@@ -3415,10 +3408,10 @@ func (s *agentConfigurationService) resolveGatewayForProvider(
 func (s *agentConfigurationService) ProviderEnvironments(
 	ctx context.Context, ouID, projectName, agentID, providerHandle string,
 ) ([]string, error) {
-	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentID)
+	agent, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentID)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentNotFound) {
-			return nil, utils.ErrAgentNotFound
+		if errors.Is(err, gwerr.ErrAgentNotFound) {
+			return nil, gwerr.ErrAgentNotFound
 		}
 		return nil, fmt.Errorf("failed to validate agent: %w", err)
 	}
@@ -3435,14 +3428,14 @@ func (s *agentConfigurationService) ProviderEnvironments(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployed gateways for provider %s: %w", provider.UUID, err)
 	}
-	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
+	envs, err := ListEnvironments(ctx, s.ocClient, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 
 	names := []string{}
 	for _, env := range envs {
-		envUUID, err := uuid.Parse(env.UUID)
+		envUUID, err := uuid.Parse(env.ID)
 		if err != nil {
 			return nil, fmt.Errorf("invalid environment id %q: %w", env.Name, err)
 		}
@@ -3464,7 +3457,7 @@ func (s *agentConfigurationService) ProviderEnvironments(
 // by environment name (nil on create); an environment keeping its provider is not re-checked.
 func (s *agentConfigurationService) requireProviderPlacements(
 	ctx context.Context, ouID string, requested map[string]gwmodels.EnvModelConfigRequest,
-	envMap map[string]*models.EnvironmentResponse, existing map[string]*gwmodels.EnvAgentModelMapping,
+	envMap map[string]*modkit.Environment, existing map[string]*gwmodels.EnvAgentModelMapping,
 	policy placementPolicy,
 ) error {
 	envNames := make([]string, 0, len(requested))
@@ -3477,7 +3470,7 @@ func (s *agentConfigurationService) requireProviderPlacements(
 		if !ok {
 			continue
 		}
-		envUUID, err := uuid.Parse(env.UUID)
+		envUUID, err := uuid.Parse(env.ID)
 		if err != nil {
 			return fmt.Errorf("invalid environment id %q: %w", envName, err)
 		}
@@ -3566,12 +3559,12 @@ type mcpEnvGateway struct {
 // self-hosted gateways cannot validate. A resolution that fails is kept in the result for the caller's
 // per-environment handling (deferred, strict or not deployable).
 func (s *agentConfigurationService) resolveMCPEnvGateways(
-	ctx context.Context, ouID string, proxiesByEnv map[string]*gwmodels.MCPProxy, envMap map[string]*models.EnvironmentResponse,
+	ctx context.Context, ouID string, proxiesByEnv map[string]*gwmodels.MCPProxy, envMap map[string]*modkit.Environment,
 	policy placementPolicy,
 ) (map[string]mcpEnvGateway, error) {
 	resolved := make(map[string]mcpEnvGateway, len(proxiesByEnv))
 	for envName, proxy := range proxiesByEnv {
-		envUUID, err := uuid.Parse(envMap[envName].UUID)
+		envUUID, err := uuid.Parse(envMap[envName].ID)
 		if err != nil {
 			return nil, fmt.Errorf("invalid environment id %q: %w", envName, err)
 		}
@@ -3661,7 +3654,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	envName string,
 	envMapping gwmodels.EnvModelConfigRequest,
 ) (*gwmodels.LLMProxy, string, string, *secretmanagersvc.SecretLocation, string, error) {
-	project, err := s.ocClient.GetProject(ctx, config.OUID, config.ProjectName)
+	project, err := LookupProject(ctx, s.ocClient, config.OUID, config.ProjectName)
 	if err != nil {
 		return nil, "", "", nil, "", fmt.Errorf("failed to get project: %w", err)
 	}
@@ -3684,7 +3677,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	var providerSecretLoc *secretmanagersvc.SecretLocation
 
 	// Parse project UUID
-	projectUUID, err := uuid.Parse(project.UUID)
+	projectUUID, err := uuid.Parse(project.ID)
 	if err != nil {
 		return nil, "", "", nil, "", fmt.Errorf("invalid project UUID: %w", err)
 	}
@@ -4081,7 +4074,7 @@ func (s *agentConfigurationService) CleanupEnvironmentMCPArtifacts(ctx context.C
 		}
 
 		policy := platformAgentPolicy
-		if agentComp, agentErr := s.ocClient.GetAgent(ctx, ouID, config.ProjectName, config.AgentID); agentErr != nil {
+		if agentComp, agentErr := LookupAgent(ctx, s.ocClient, ouID, config.ProjectName, config.AgentID); agentErr != nil {
 			s.logger.Warn("failed to determine agent type during MCP env cleanup, assuming internal", "configUUID", config.UUID, "err", agentErr)
 		} else {
 			policy = placementPolicyFor(agentComp)
@@ -4590,13 +4583,13 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 // buildConfigResponse builds the full configuration response
 func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, config *gwmodels.AgentConfiguration, policy placementPolicy) (*gwmodels.AgentModelConfigResponse, error) {
 	// Get environment names
-	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, config.OUID)
+	envs, err := ListEnvironments(ctx, s.ocClient, config.OUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 	envMap := make(map[string]string)
 	for _, env := range envs {
-		envMap[env.UUID] = env.Name
+		envMap[env.ID] = env.Name
 	}
 
 	s.logger.Info("Building config response", "configUUID", config.UUID, "envCount", len(envs))
@@ -4726,13 +4719,13 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 	)
 
 	// Get environment names
-	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, config.OUID)
+	envs, err := ListEnvironments(ctx, s.ocClient, config.OUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list environments: %w", err)
 	}
 	envMap := make(map[string]string)
 	for _, env := range envs {
-		envMap[env.UUID] = env.Name
+		envMap[env.ID] = env.Name
 	}
 
 	// Build environment model config map WITH credentials
@@ -4928,11 +4921,11 @@ func (s *agentConfigurationService) requireMCPProxyBindable(
 ) error {
 	agentProjectUUID := ""
 	if proxy.ProjectUUID != nil {
-		project, err := s.ocClient.GetProject(ctx, ouID, projectName)
+		project, err := LookupProject(ctx, s.ocClient, ouID, projectName)
 		if err != nil {
 			return fmt.Errorf("failed to resolve project %s: %w", projectName, err)
 		}
-		agentProjectUUID = project.UUID
+		agentProjectUUID = project.ID
 	}
 	return mcpProxyBindableFromProject(proxy, agentProjectUUID)
 }

@@ -30,9 +30,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // testdata/golden/a2a_agent_*.yaml were first produced by the a20829291 writer from this fixture (main's
@@ -108,7 +108,7 @@ func goldenA2AKind(t *testing.T, proxy *gwmodels.A2AProxy, fetcher A2ACardFetche
 	configs := &gwrepomocks.AgentConfigRepositoryMock{
 		GetFunc: func(context.Context, string, string, string, string) (*gwmodels.AgentConfig, error) { return cfg, nil },
 	}
-	oc := &repomocks.PlatformRepositoryMock{}
+	oc := &gwtest.Core{}
 	return NewA2AAgentKind(nil, sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil,
 		bytes.Repeat([]byte{7}, 32), testLogger())
 }

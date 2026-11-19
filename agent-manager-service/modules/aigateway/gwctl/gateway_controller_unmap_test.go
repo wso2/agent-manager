@@ -23,17 +23,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 type servingGuard struct{}
@@ -50,9 +50,9 @@ func TestRemoveGatewayFromEnvironment_ServedEnvironmentIsAConflict(t *testing.T)
 		DeleteEnvironmentMappingFunc: func(string, string) error { return nil },
 	}
 	repo.WithTxFunc = func(*gorm.DB) gwrepo.GatewayRepository { return repo }
-	ocClient := &repomocks.PlatformRepositoryMock{
-		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{UUID: defaultEnvUUID, Name: "default"}}, nil
+	ocClient := &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: defaultEnvUUID, Name: "default"}}, nil
 		},
 	}
 	ctrl := &gatewayController{
@@ -80,9 +80,9 @@ func TestRemoveGatewayFromEnvironment_SelfHostedIsAConflict(t *testing.T) {
 		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gateway, nil },
 		// TransactionFunc left nil: the refusal must come before any mutation.
 	}
-	ocClient := &repomocks.PlatformRepositoryMock{
-		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{UUID: defaultEnvUUID, Name: "default"}}, nil
+	ocClient := &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: defaultEnvUUID, Name: "default"}}, nil
 		},
 	}
 	ctrl := &gatewayController{

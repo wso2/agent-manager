@@ -30,8 +30,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // renameVarRows builds one environment's url + apikey rows under the pre-rename names.
@@ -116,7 +116,7 @@ func TestUpdateMCPConfigEnvironmentVariableNames_RejectsOtherConfigOwnership(t *
 				repo.UpdateVariableNamesFunc = func(context.Context, *gorm.DB, uuid.UUID, map[string]string) error { return nil }
 			}
 			// No client methods are configured: rejected requests must never write live values.
-			svc.ocClient = &repomocks.PlatformRepositoryMock{}
+			svc.ocClient = &gwtest.Core{}
 			policy := platformAgentPolicy
 			if scenario == "own names allowed" {
 				policy = externalAgentPolicy

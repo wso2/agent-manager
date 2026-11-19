@@ -19,6 +19,7 @@ package gwsvc
 import (
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
@@ -28,7 +29,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
@@ -50,10 +50,9 @@ func TestAgentGatewayShapeTable(t *testing.T) {
 }
 
 func TestAgentGatewayShapeOf(t *testing.T) {
-	agentOf := func(provisioning gwutil.AgentProvisioningType, subType gwutil.AgentSubType) *models.AgentResponse {
-		return &models.AgentResponse{
-			Provisioning: models.Provisioning{Type: string(provisioning)},
-			Type:         models.AgentType{Type: string(gwutil.AgentTypeAPI), SubType: string(subType)},
+	agentOf := func(provisioning gwutil.AgentProvisioningType, subType gwutil.AgentSubType) *modkit.Agent {
+		return &modkit.Agent{
+			Provisioning: string(provisioning),
 		}
 	}
 

@@ -33,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // apiKeyNameRegex mirrors the gateway-side validation so we fail fast at the
@@ -119,7 +118,7 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("CreateAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
-		case errors.Is(err, utils.ErrEnvironmentNotFound):
+		case errors.Is(err, gwerr.ErrEnvironmentNotFound):
 			log.Warn("CreateAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
@@ -157,7 +156,7 @@ func (c *agentAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Reque
 			log.Warn("ListAgentAPIKeys: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
-		case errors.Is(err, utils.ErrEnvironmentNotFound):
+		case errors.Is(err, gwerr.ErrEnvironmentNotFound):
 			log.Warn("ListAgentAPIKeys: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
@@ -193,7 +192,7 @@ func (c *agentAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("RevokeAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
-		case errors.Is(err, utils.ErrEnvironmentNotFound):
+		case errors.Is(err, gwerr.ErrEnvironmentNotFound):
 			log.Warn("RevokeAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
@@ -245,7 +244,7 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("RotateAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
-		case errors.Is(err, utils.ErrEnvironmentNotFound):
+		case errors.Is(err, gwerr.ErrEnvironmentNotFound):
 			log.Warn("RotateAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
@@ -294,7 +293,7 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 			log.Warn("IssueTestAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
-		case errors.Is(err, utils.ErrEnvironmentNotFound):
+		case errors.Is(err, gwerr.ErrEnvironmentNotFound):
 			log.Warn("IssueTestAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return

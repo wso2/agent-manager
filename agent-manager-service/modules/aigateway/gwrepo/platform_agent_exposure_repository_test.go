@@ -29,7 +29,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
@@ -60,7 +59,7 @@ func exposureRowsFor(t *testing.T, ouID, agentName string) []gwmodels.PlatformAg
 	t.Helper()
 	var rows []gwmodels.PlatformAgentExposure
 	gdb := db.GetDB()
-	require.NoError(t, gdb.Where("org_id = ? AND agent_id IN (?)", ouID, models.AgentIDQuery(gdb, ouID, "checkout", agentName)).
+	require.NoError(t, gdb.Where("org_id = ? AND agent_id IN (?)", ouID, gwmodels.AgentIDQuery(gdb, ouID, "checkout", agentName)).
 		Find(&rows).Error)
 	return rows
 }

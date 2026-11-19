@@ -31,12 +31,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // externalPendingCard is a pending card fetched from the agent's own origin: platform rows can no longer be fetched.
@@ -63,7 +63,7 @@ type cardReconcilerHarness struct {
 	svc      *a2aCardReconcilerService
 	repo     *gwrepomocks.A2AAgentCardRepositoryMock
 	fetcher  *fakeA2ACardFetcher
-	ocClient *repomocks.PlatformRepositoryMock
+	ocClient *gwtest.Core
 	proxies  *gwrepomocks.A2AProxyRepositoryMock
 	gateways *gwrepomocks.GatewayRepositoryMock
 }
@@ -85,7 +85,7 @@ func newCardReconcilerHarness(vhost string) *cardReconcilerHarness {
 			return json.RawMessage(validTestCard), nil
 		},
 	}
-	oc := &repomocks.PlatformRepositoryMock{}
+	oc := &gwtest.Core{}
 	proxies := &gwrepomocks.A2AProxyRepositoryMock{
 		GetByEnvUUIDFunc: func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 			return nil, gwrepo.ErrA2AProxyNotFound
@@ -127,19 +127,19 @@ func TestCardReconcilerSkipsTheReplacementCheckOnAFailedAttempt(t *testing.T) {
 	row := externalPendingCard()
 	agentUUID := uuid.New()
 	row.AgentUUID = &agentUUID
-	h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
-		return &models.AgentResponse{UUID: agentUUID.String()}, nil
+	h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*modkit.Agent, error) {
+		t.Error("the agent was looked up")
+		return &modkit.Agent{ID: agentUUID.String()}, nil
 	}
 
 	h.svc.fetchOne(context.Background(), row)
 
 	assert.Len(t, h.repo.MarkAttemptFailedCalls(), 1)
-	assert.Empty(t, h.ocClient.GetAgentCalls())
 }
 
 func TestCardReconcilerDropsAReplacedAgentsUndeployedCardAsReplaced(t *testing.T) {
 	h := newCardReconcilerHarness("http://dev-org.gw.example/trip-planner/")
-	h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+	h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*modkit.Agent, error) {
 		return nil, httpx.ErrNotFound
 	}
 	h.repo.DeleteIfUnchangedFunc = func(context.Context, gwmodels.A2AAgentCard) error { return nil }
@@ -550,25 +550,25 @@ func TestCardReconcilerDropsTheCardOfAReplacedAgent(t *testing.T) {
 	recorded := uuid.New()
 	cases := map[string]struct {
 		agentUUID *uuid.UUID
-		component func() (*models.AgentResponse, error)
+		component func() (*modkit.Agent, error)
 		dropped   bool
 	}{
-		"replaced": {&recorded, func() (*models.AgentResponse, error) {
-			return &models.AgentResponse{UUID: uuid.NewString()}, nil
+		"replaced": {&recorded, func() (*modkit.Agent, error) {
+			return &modkit.Agent{ID: uuid.NewString()}, nil
 		}, true},
-		"deleted": {&recorded, func() (*models.AgentResponse, error) { return nil, httpx.ErrNotFound }, true},
-		"same agent": {&recorded, func() (*models.AgentResponse, error) {
-			return &models.AgentResponse{UUID: recorded.String()}, nil
+		"deleted": {&recorded, func() (*modkit.Agent, error) { return nil, httpx.ErrNotFound }, true},
+		"same agent": {&recorded, func() (*modkit.Agent, error) {
+			return &modkit.Agent{ID: recorded.String(), ProjectName: "checkout"}, nil
 		}, false},
-		"no recorded UUID": {nil, func() (*models.AgentResponse, error) {
-			return &models.AgentResponse{UUID: uuid.NewString()}, nil
+		"no recorded UUID": {nil, func() (*modkit.Agent, error) {
+			return &modkit.Agent{ID: uuid.NewString()}, nil
 		}, false},
-		"lookup failed": {&recorded, func() (*models.AgentResponse, error) { return nil, assert.AnError }, false},
+		"lookup failed": {&recorded, func() (*modkit.Agent, error) { return nil, assert.AnError }, false},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			h := newCardReconcilerHarness("http://dev-org.gw.example/trip-planner/")
-			h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+			h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*modkit.Agent, error) {
 				return tc.component()
 			}
 			h.repo.DeleteIfUnchangedFunc = func(context.Context, gwmodels.A2AAgentCard) error { return nil }

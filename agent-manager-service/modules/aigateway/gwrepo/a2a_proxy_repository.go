@@ -23,7 +23,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -127,7 +126,7 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *gwmodels.A2AProx
 	proxy.UpdatedAt = now
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if proxy.AgentUUID == nil || *proxy.AgentUUID == uuid.Nil {
-			id, err := models.AgentIDByNames(tx, proxy.OUID, proxy.ProjectName, proxy.AgentName)
+			id, err := gwmodels.AgentIDByNames(tx, proxy.OUID, proxy.ProjectName, proxy.AgentName)
 			if err != nil {
 				return err
 			}

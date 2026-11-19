@@ -27,15 +27,14 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // Every public route that changes an LLM proxy refuses one AMS created for an agent or monitor. The mutating
@@ -100,9 +99,9 @@ func TestLLMProxyMutatingRoutes_RefuseAgentOrMonitorProxy(t *testing.T) {
 					return true, nil
 				},
 			}
-			ocClient := &repomocks.PlatformRepositoryMock{
-				GetProjectFunc: func(_ context.Context, _, projectName string) (*models.ProjectResponse, error) {
-					return &models.ProjectResponse{UUID: "00000000-0000-0000-0000-000000000003", Name: projectName}, nil
+			ocClient := &gwtest.Core{
+				GetProjectFunc: func(_ context.Context, _, projectName string) (*modkit.Project, error) {
+					return &modkit.Project{ID: "00000000-0000-0000-0000-000000000003", Name: projectName}, nil
 				},
 			}
 			proxyDeployments := gwsvc.NewLLMProxyDeploymentService(nil, nil, proxyRepo, nil, nil, nil, nil, nil)
