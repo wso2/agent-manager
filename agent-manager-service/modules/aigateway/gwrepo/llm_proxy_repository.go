@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -62,14 +64,17 @@ type LLMProxyRepo struct {
 	db           *gorm.DB
 	artifactRepo ArtifactRepository
 	providerRepo LLMProviderRepository
+	secrets      modkit.Secrets
 }
 
-// NewLLMProxyRepo creates a new LLM proxy repository
-func NewLLMProxyRepo(db *gorm.DB) LLMProxyRepository {
+// NewLLMProxyRepo creates a new LLM proxy repository. secrets keeps the
+// proxies' upstream credentials; a repository that only reads may pass nil.
+func NewLLMProxyRepo(db *gorm.DB, secrets modkit.Secrets) LLMProxyRepository {
 	return &LLMProxyRepo{
 		db:           db,
-		artifactRepo: NewArtifactRepo(db),
-		providerRepo: NewLLMProviderRepo(db),
+		artifactRepo: NewArtifactRepo(db, nil),
+		providerRepo: NewLLMProviderRepo(db, nil),
+		secrets:      secrets,
 	}
 }
 
@@ -162,6 +167,10 @@ func (r *LLMProxyRepo) Create(ctx context.Context, p *gwmodels.LLMProxy, handle,
 			UpdatedAt: now,
 		}); err != nil {
 			return fmt.Errorf("failed to create artifact: %w", err)
+		}
+
+		if err := gwsecret.Seal(ctx, r.secrets.In(tx), ouID, gwsecret.LLMProxy(p.UUID), p.Configuration.UpstreamAuth); err != nil {
+			return err
 		}
 
 		// Insert into llm_proxies table
@@ -319,6 +328,10 @@ func (r *LLMProxyRepo) Update(p *gwmodels.LLMProxy, handle string, ouID string) 
 			return err
 		}
 
+		if err := gwsecret.Seal(tx.Statement.Context, r.secrets.In(tx), ouID, gwsecret.LLMProxy(proxyUUID), p.Configuration.UpstreamAuth); err != nil {
+			return err
+		}
+
 		// Update llm_proxies table
 		updateResult := tx.Model(&gwmodels.LLMProxy{}).
 			Where("id = ?", proxyUUID).
@@ -349,6 +362,9 @@ func (r *LLMProxyRepo) Delete(proxyID, ouID string) error {
 
 		// Delete from llm_proxies first
 		if err := tx.Where("id = ?", proxyUUID).Delete(&gwmodels.LLMProxy{}).Error; err != nil {
+			return err
+		}
+		if err := r.secrets.In(tx).Delete(tx.Statement.Context, ouID, gwsecret.LLMProxy(proxyUUID)); err != nil {
 			return err
 		}
 
@@ -402,6 +418,9 @@ func (r *LLMProxyRepo) DeleteInProjectTx(ctx context.Context, tx *gorm.DB, proxy
 		}
 		if result.RowsAffected == 0 {
 			return gorm.ErrRecordNotFound
+		}
+		if err := r.secrets.In(tx).Delete(ctx, ouID, gwsecret.LLMProxy(proxy.UUID)); err != nil {
+			return err
 		}
 		return r.artifactRepo.Delete(tx, proxy.UUID.String())
 	})

@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -58,7 +57,7 @@ type A2AAgentKind struct {
 	fetcher         A2ACardFetcher
 	apiKeyRepo      gwrepo.APIKeyRepository
 	events          *GatewayEventsService
-	encryptionKey   []byte
+	secrets         modkit.Secrets
 	logger          *slog.Logger
 }
 
@@ -75,14 +74,14 @@ func NewA2AAgentKind(
 	fetcher A2ACardFetcher,
 	apiKeyRepo gwrepo.APIKeyRepository,
 	events *GatewayEventsService,
-	encryptionKey []byte,
+	secrets modkit.Secrets,
 	logger *slog.Logger,
 ) *A2AAgentKind {
 	return &A2AAgentKind{
 		db: db,
 		tx: tx, exposures: exposures, proxyRepo: proxyRepo, cardRepo: cardRepo,
 		deploymentRepo: deploymentRepo, agentConfigRepo: agentConfigRepo, ocClient: ocClient, fetcher: fetcher,
-		apiKeyRepo: apiKeyRepo, events: events, encryptionKey: encryptionKey, logger: logger,
+		apiKeyRepo: apiKeyRepo, events: events, secrets: secrets, logger: logger,
 	}
 }
 
@@ -226,7 +225,7 @@ func (k *A2AAgentKind) externalOrigin(ctx context.Context, env a2aAgentEnv) (*a2
 		if _, err := a2aProxyUpstream(card.SourceURL); err != nil {
 			return reconcile.Permanent(err)
 		}
-		header, err := k.originCardHeader(proxy)
+		header, err := k.originCardHeader(ctx, tx, proxy)
 		if err != nil {
 			return err
 		}
@@ -236,13 +235,13 @@ func (k *A2AAgentKind) externalOrigin(ctx context.Context, env a2aAgentEnv) (*a2
 	return origin, err
 }
 
-func (k *A2AAgentKind) originCardHeader(proxy *gwmodels.A2AProxy) (*A2ACardFetchHeader, error) {
+func (k *A2AAgentKind) originCardHeader(ctx context.Context, tx *gorm.DB, proxy *gwmodels.A2AProxy) (*A2ACardFetchHeader, error) {
 	if proxy.UpstreamAuthHeader == "" || proxy.UpstreamAuthSecret == "" {
 		return nil, nil //nolint:nilnil // A proxy without a stored credential fetches the card unauthenticated.
 	}
-	value, err := gwutil.DecryptSecretRef(proxy.UpstreamAuthSecret, k.encryptionKey)
+	value, err := k.secrets.In(tx).Get(ctx, proxy.OUID, proxy.UpstreamAuthSecret)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt the upstream secret: %w", err)
+		return nil, fmt.Errorf("failed to read the upstream secret: %w", err)
 	}
 	return &A2ACardFetchHeader{Name: proxy.UpstreamAuthHeader, Value: value}, nil
 }

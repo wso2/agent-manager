@@ -142,6 +142,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		return modkit.Lookup[identityv1.Directory](rt, identityv1.ID)
 	})
 	gw.Permissions.Use(rt.Can)
+	gw.Secrets.Use(rt.Secrets())
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
 	registerHooks(rt, gw.AgentGateway)

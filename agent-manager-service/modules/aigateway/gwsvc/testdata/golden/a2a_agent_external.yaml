@@ -11,7 +11,7 @@ spec:
         auth:
             type: api-key
             header: X-Origin-Key
-            secretRef: VcsBaZXo9TyzcVjkEME432aIVqbceeyGcIdue/YLzutNtkkJoVTThPU=
+            secretRef: a2a-proxies/22222222-3333-4444-5555-666666666666/upstream-auth
     a2a:
         protocolVersion: "1.0"
         operationConfigs:

@@ -60,8 +60,8 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind(gormDB), f.kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(core, slog.New(slog.DiscardHandler))
-	f.proxies = NewLLMProxyDeploymentService(NewTxRunner(gormDB), f.sync.repo, gwrepo.NewLLMProxyRepo(gormDB),
-		gwrepo.NewLLMProviderRepo(gormDB), gateways, nil, core, f.kind)
+	f.proxies = NewLLMProxyDeploymentService(NewTxRunner(gormDB), f.sync.repo, gwrepo.NewLLMProxyRepo(gormDB, gwtest.NewSecrets()),
+		gwrepo.NewLLMProviderRepo(gormDB, gwtest.NewSecrets()), gateways, nil, core, f.kind)
 	created, err := f.providers.Create(context.Background(), f.sync.ouID, "me", f.newProvider(t))
 	require.NoError(t, err)
 	f.provider = created
@@ -81,10 +81,13 @@ func (f *proxyFixture) newProxy(t *testing.T) *gwmodels.LLMProxy {
 	proxy := goldenProxy()
 	proxy.UUID = uuid.Nil
 	proxy.Handle = "px-" + uuid.NewString()[:8]
+	// A new proxy hands its repository the credential to store.
+	key := "proxy-upstream-key"
+	proxy.Configuration.UpstreamAuth.SecretRef, proxy.Configuration.UpstreamAuth.Value = nil, &key
 	proxy.ProjectUUID = dbtest.EnsureProject(t, db.GetDB(), f.sync.ouID, "p")
 	proxy.ProviderUUID = f.provider.UUID
 	proxy.Configuration.Provider = f.provider.UUID.String()
-	require.NoError(t, gwrepo.NewLLMProxyRepo(db.GetDB()).Create(context.Background(), proxy, proxy.Handle,
+	require.NoError(t, gwrepo.NewLLMProxyRepo(db.GetDB(), gwtest.NewSecrets()).Create(context.Background(), proxy, proxy.Handle,
 		proxy.Handle, "v1.0", f.sync.ouID))
 	return proxy
 }
@@ -135,7 +138,7 @@ func TestAgentConfigProxyWithAnInvalidSecurityConfigCommitsNothing(t *testing.T)
 	f := newProxyFixture(t)
 	proxy := f.newProxy(t)
 	proxy.Configuration.Security.APIKey.Key = ""
-	require.NoError(t, gwrepo.NewLLMProxyRepo(db.GetDB()).Update(proxy, proxy.Handle, f.sync.ouID))
+	require.NoError(t, gwrepo.NewLLMProxyRepo(db.GetDB(), gwtest.NewSecrets()).Update(proxy, proxy.Handle, f.sync.ouID))
 
 	t.Run("with a gateway", func(t *testing.T) {
 		env := uuid.New()
@@ -277,9 +280,9 @@ func TestAgentConfigProxyUpdateAfterAPublicUndeploySaves(t *testing.T) {
 	svc := &agentConfigurationService{
 		db:                        gormDB,
 		envMappingRepo:            mappings,
-		llmProviderRepo:           gwrepo.NewLLMProviderRepo(gormDB),
+		llmProviderRepo:           gwrepo.NewLLMProviderRepo(gormDB, gwtest.NewSecrets()),
 		gatewayRepo:               gwrepo.NewGatewayRepo(gormDB),
-		llmProxyService:           NewLLMProxyService(gwrepo.NewLLMProxyRepo(gormDB), gwrepo.NewLLMProviderRepo(gormDB), make([]byte, 32)),
+		llmProxyService:           NewLLMProxyService(gwrepo.NewLLMProxyRepo(gormDB, gwtest.NewSecrets()), gwrepo.NewLLMProviderRepo(gormDB, gwtest.NewSecrets())),
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}
@@ -332,7 +335,7 @@ func TestLLMProxyEventReadsTheVhostInTheDeployingTransaction(t *testing.T) {
 
 	err := NewTxRunner(db.GetDB())(context.Background(), func(tx *gorm.DB) error {
 		proxy.Configuration.Vhost = &vhost
-		if err := gwrepo.NewLLMProxyRepo(tx).Update(proxy, proxy.Handle, f.sync.ouID); err != nil {
+		if err := gwrepo.NewLLMProxyRepo(tx, gwtest.NewSecrets()).Update(proxy, proxy.Handle, f.sync.ouID); err != nil {
 			return err
 		}
 		_, err := f.proxies.core.Deploy(context.Background(), tx, proxyPlacement(proxy, proxy.Handle, f.sync.ouID, gateway))
@@ -359,14 +362,14 @@ func scenarioBRollback(t *testing.T, f *proxyFixture) (
 	require.NoError(t, err)
 
 	gormDB := db.GetDB()
-	proxies := gwrepo.NewLLMProxyRepo(gormDB)
+	proxies := gwrepo.NewLLMProxyRepo(gormDB, gwtest.NewSecrets())
 	prior, err = proxies.GetByID(proxy.Handle, f.sync.ouID)
 	require.NoError(t, err)
 	prior.Handle = proxy.Handle
 
 	svc = &agentConfigurationService{
 		db:                        gormDB,
-		llmProxyService:           NewLLMProxyService(proxies, gwrepo.NewLLMProviderRepo(gormDB), make([]byte, 32)),
+		llmProxyService:           NewLLMProxyService(proxies, gwrepo.NewLLMProviderRepo(gormDB, gwtest.NewSecrets())),
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}
@@ -422,7 +425,7 @@ func TestScenarioBRollbackRestoresTheOldDeploymentWithoutUndeploying(t *testing.
 	assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
 	assert.Equal(t, gwmodels.DeploymentStatusDeployed, row.StatusDesired)
 	assert.False(t, deploymentExists(t, next.DeploymentID))
-	stored, err := gwrepo.NewLLMProxyRepo(db.GetDB()).GetByID(proxy.Handle, f.sync.ouID)
+	stored, err := gwrepo.NewLLMProxyRepo(db.GetDB(), gwtest.NewSecrets()).GetByID(proxy.Handle, f.sync.ouID)
 	require.NoError(t, err)
 	assert.Equal(t, prior.Description, stored.Description)
 }
@@ -436,12 +439,12 @@ func TestScenarioBRollbackOfAnUnchangedDeploymentLeavesItLive(t *testing.T) {
 	f.mapToAgent(t, proxy, env)
 	old, err := f.proxies.DeployForEnvironment(context.Background(), proxy, f.sync.ouID, env, gateway)
 	require.NoError(t, err)
-	proxies := gwrepo.NewLLMProxyRepo(db.GetDB())
+	proxies := gwrepo.NewLLMProxyRepo(db.GetDB(), gwtest.NewSecrets())
 	prior, err := proxies.GetByID(proxy.Handle, f.sync.ouID)
 	require.NoError(t, err)
 	prior.Handle = proxy.Handle
 	svc := &agentConfigurationService{
-		llmProxyService:           NewLLMProxyService(proxies, gwrepo.NewLLMProviderRepo(db.GetDB()), make([]byte, 32)),
+		llmProxyService:           NewLLMProxyService(proxies, gwrepo.NewLLMProviderRepo(db.GetDB(), gwtest.NewSecrets())),
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}
@@ -517,9 +520,9 @@ func TestScenarioBPolicyWriteFailureRollsBackWithoutUndeploying(t *testing.T) {
 	svc := &agentConfigurationService{
 		db:                        gormDB,
 		envMappingRepo:            mappings,
-		llmProviderRepo:           gwrepo.NewLLMProviderRepo(gormDB),
+		llmProviderRepo:           gwrepo.NewLLMProviderRepo(gormDB, gwtest.NewSecrets()),
 		gatewayRepo:               gwrepo.NewGatewayRepo(gormDB),
-		llmProxyService:           NewLLMProxyService(gwrepo.NewLLMProxyRepo(gormDB), gwrepo.NewLLMProviderRepo(gormDB), make([]byte, 32)),
+		llmProxyService:           NewLLMProxyService(gwrepo.NewLLMProxyRepo(gormDB, gwtest.NewSecrets()), gwrepo.NewLLMProviderRepo(gormDB, gwtest.NewSecrets())),
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}

@@ -22,7 +22,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -60,14 +62,25 @@ type LLMProviderRepository interface {
 type LLMProviderRepo struct {
 	db           *gorm.DB
 	artifactRepo ArtifactRepository
+	secrets      modkit.Secrets
 }
 
-// NewLLMProviderRepo creates a new LLM provider repository
-func NewLLMProviderRepo(db *gorm.DB) LLMProviderRepository {
+// NewLLMProviderRepo creates a new LLM provider repository. secrets keeps the
+// providers' upstream credentials; a repository that only reads may pass nil.
+func NewLLMProviderRepo(db *gorm.DB, secrets modkit.Secrets) LLMProviderRepository {
 	return &LLMProviderRepo{
 		db:           db,
-		artifactRepo: NewArtifactRepo(db),
+		artifactRepo: NewArtifactRepo(db, nil),
+		secrets:      secrets,
 	}
+}
+
+// providerAuth is the provider's main upstream auth, the one credential it stores.
+func providerAuth(p *gwmodels.LLMProvider) *gwmodels.UpstreamAuth {
+	if p.Configuration.Upstream == nil || p.Configuration.Upstream.Main == nil {
+		return nil
+	}
+	return p.Configuration.Upstream.Main.Auth
 }
 
 // Create inserts a new LLM provider
@@ -100,6 +113,10 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *gwmodels.LLMProvider, handle, n
 	}); err != nil {
 		slog.Error("LLMProviderRepo.Create: failed to create artifact", "handle", handle, "uuid", p.UUID, "error", err)
 		return fmt.Errorf("failed to create artifact: %w", err)
+	}
+
+	if err := gwsecret.Seal(tx.Statement.Context, r.secrets.In(tx), orgUUID, gwsecret.LLMProvider(p.UUID), providerAuth(p)); err != nil {
+		return err
 	}
 
 	// Insert into llm_providers table
@@ -212,6 +229,10 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *gwmodels.LLMProvider, p
 		parsedUUID, err := uuid.Parse(providerID)
 		if err != nil {
 			return fmt.Errorf("error parsing provider id: %s, error: %w", providerID, err)
+		}
+
+		if err := gwsecret.Seal(ctx, r.secrets.In(tx), orgUUID, gwsecret.LLMProvider(parsedUUID), providerAuth(p)); err != nil {
+			return err
 		}
 
 		// Update llm_providers table
@@ -376,6 +397,10 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 			return gwerr.ErrLLMProviderHasProxies
 		}
 		slog.Error("LLMProviderRepo.Delete: failed to delete provider", "providerID", providerID, "uuid", providerUUID, "error", err)
+		return err
+	}
+
+	if err := r.secrets.In(tx).Delete(tx.Statement.Context, orgUUID, gwsecret.LLMProvider(providerUUID)); err != nil {
 		return err
 	}
 

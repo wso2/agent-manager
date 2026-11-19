@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // Delete removes the gateway outright, and with it what only it used: its token stops authenticating, its archived
@@ -52,7 +53,7 @@ func TestGatewayDeleteRemovesTheGatewayAndWhatOnlyItUsed(t *testing.T) {
 	}))
 
 	// Archived history only: DeleteGateway refuses a gateway with status rows.
-	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
+	require.NoError(t, NewArtifactRepo(gdb, gwtest.NewSecrets()).Create(gdb, &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: "proj/agent/" + artifactUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
 		Version: "v1.0", Kind: gwmodels.KindAgent, OUID: ouID,
 	}))

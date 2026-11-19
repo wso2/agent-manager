@@ -90,18 +90,18 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	apiKeys := gwrepo.NewAPIKeyRepo(gormDB)
 	tx := NewTxRunner(gormDB)
 	exposures := gwrepo.NewPlatformAgentExposureRepository(gormDB)
-	proxies := gwrepo.NewA2AProxyRepository(gormDB)
+	proxies := gwrepo.NewA2AProxyRepository(gormDB, gwtest.NewSecrets())
 	cards := gwrepo.NewA2AAgentCardRepository(gormDB)
 	gateways := gwrepo.NewGatewayRepo(gormDB)
-	kind := NewA2AAgentKind(gormDB, tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, apiKeys, f.events, nil, testLogger())
+	kind := NewA2AAgentKind(gormDB, tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, apiKeys, f.events, gwtest.NewSecrets(), testLogger())
 	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(f.core, slog.New(slog.DiscardHandler))
-	artifacts := gwrepo.NewArtifactRepo(gormDB)
+	artifacts := gwrepo.NewArtifactRepo(gormDB, gwtest.NewSecrets())
 	f.publisher = NewA2APublisher(tx, exposures, proxies, cards, artifacts, f.sync.repo, testLogger(),
 		NewAgentExposurePublisher(tx, exposures, artifacts, f.sync.repo, gateways, f.core, testLogger()), kind)
 	f.proxies = NewA2AProxyService(tx, proxies, cards, gwrepo.NewAgentConfigRepo(gormDB),
-		gwrepo.NewArtifactRepo(gormDB), f.publisher, oc, make([]byte, 32), testLogger(), tierPermissions())
+		gwrepo.NewArtifactRepo(gormDB, gwtest.NewSecrets()), f.publisher, oc, testLogger(), tierPermissions())
 	return f
 }
 
@@ -126,7 +126,7 @@ func (f *a2aFixture) proxy(t *testing.T) gwmodels.ArtifactRef {
 
 func (f *a2aFixture) externalArtifact(t *testing.T) gwmodels.ArtifactRef {
 	t.Helper()
-	artifact, err := agentEnvAPIArtifact(gwrepo.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj", f.external.Name,
+	artifact, err := agentEnvAPIArtifact(gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()), f.sync.ouID, "proj", f.external.Name,
 		f.env.String(), gwmodels.KindAgent)
 	require.NoError(t, err)
 	return agentArtifactRef(artifact)
@@ -181,7 +181,7 @@ func (f *a2aFixture) replayedKeyNames(t *testing.T) []string {
 func (f *a2aFixture) platformAgent(t *testing.T) (gwmodels.ArtifactRef, agentExposureKey) {
 	t.Helper()
 	name := "agent-" + uuid.NewString()[:8]
-	artifact, err := ensureAgentEnvAPIArtifact(db.GetDB(), gwrepo.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
+	artifact, err := ensureAgentEnvAPIArtifact(db.GetDB(), gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()), f.sync.ouID, "proj",
 		name, f.env.String(), gwmodels.KindAgent)
 	require.NoError(t, err)
 	agentUUID := dbtest.EnsureAgent(t, db.GetDB(), f.sync.ouID, "proj", name)
@@ -204,7 +204,7 @@ func TestAgentDeleteReachesTheOrgsGatewaysForAnArtifactWithNoRows(t *testing.T) 
 	f := newA2AFixture(t)
 	artifact, key := f.platformAgent(t)
 	svc := &AgentGatewayService{
-		db: db.GetDB(), artifactRepo: gwrepo.NewArtifactRepo(db.GetDB()),
+		db: db.GetDB(), artifactRepo: gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()),
 		a2aCardRepo: gwrepo.NewA2AAgentCardRepository(db.GetDB()), a2aPublisher: f.publisher, logger: testLogger(),
 	}
 
@@ -256,7 +256,7 @@ func TestRemovingAProxiedEnvironmentsCardURLUndeploysAndDeletesTheProxyTogether(
 	f.registerCard(t)
 	artifact := f.proxy(t)
 	f.render(t, artifact)
-	proxies := gwrepo.NewA2AProxyRepository(db.GetDB())
+	proxies := gwrepo.NewA2AProxyRepository(db.GetDB(), gwtest.NewSecrets())
 	cards := gwrepo.NewA2AAgentCardRepository(db.GetDB())
 	f.hub.fail = func(evt eventhub.Event) error {
 		if evt.EventType == "agent.undeployed" {
@@ -289,10 +289,10 @@ func TestRemovingAProxiedEnvironmentsCardURLUndeploysAndDeletesTheProxyTogether(
 func TestPlacementPassPlacesAnExternalAgentFromItsProxyAlone(t *testing.T) {
 	f := newA2AFixture(t)
 	f.registerCard(t)
-	created, err := ensureAgentEnvAPIArtifact(db.GetDB(), gwrepo.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
+	created, err := ensureAgentEnvAPIArtifact(db.GetDB(), gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()), f.sync.ouID, "proj",
 		f.external.Name, f.env.String(), gwmodels.KindAgent)
 	require.NoError(t, err)
-	require.NoError(t, gwrepo.NewA2AProxyRepository(db.GetDB()).Upsert(context.Background(), &gwmodels.A2AProxy{
+	require.NoError(t, gwrepo.NewA2AProxyRepository(db.GetDB(), gwtest.NewSecrets()).Upsert(context.Background(), &gwmodels.A2AProxy{
 		OUID: f.sync.ouID, ProjectName: "proj", AgentName: f.external.Name, EnvironmentName: "dev", EnvironmentUUID: f.env,
 		ArtifactUUID: created.UUID,
 	}))

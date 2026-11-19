@@ -47,7 +47,7 @@ func newSyncFixture(t *testing.T) *syncFixture {
 	t.Helper()
 	f := &syncFixture{ouID: dbtest.Org(t, db.GetDB()), repo: gwrepo.NewDeploymentRepo(db.GetDB())}
 	f.gateway = f.seedGateway(t, f.ouID)
-	f.svc = NewGatewayInternalAPIService(nil, nil, f.repo, gwrepo.NewArtifactRepo(db.GetDB()), nil, nil, nil,
+	f.svc = NewGatewayInternalAPIService(nil, nil, f.repo, gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()), nil, nil, nil,
 		gatewayKinds())
 	return f
 }
@@ -61,7 +61,7 @@ func (f *syncFixture) seedArtifact(t *testing.T, ouID, kind string) gwmodels.Art
 	t.Helper()
 	artifactUUID := uuid.New()
 	handle := "sync-" + artifactUUID.String()[:8]
-	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB()).Create(db.GetDB(), &gwmodels.Artifact{
+	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()).Create(db.GetDB(), &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
 	return gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle}
@@ -181,9 +181,9 @@ func TestCheckArtifactsExistOverTheDatabase(t *testing.T) {
 	f.deploy(t, onAnotherGateway, f.seedGateway(t, f.ouID))
 	proxy := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProxy)
 	deleted := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProvider)
-	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB()).Delete(db.GetDB(), deleted.ArtifactUUID.String()))
+	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()).Delete(db.GetDB(), deleted.ArtifactUUID.String()))
 	deletedProxy := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProxy)
-	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB()).Delete(db.GetDB(), deletedProxy.ArtifactUUID.String()))
+	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()).Delete(db.GetDB(), deletedProxy.ArtifactUUID.String()))
 	otherOrgID := dbtest.Org(t, db.GetDB())
 	otherOrg := f.seedArtifact(t, otherOrgID, gwmodels.KindLLMProvider)
 	otherOrgProxy := f.seedArtifact(t, otherOrgID, gwmodels.KindLLMProxy)

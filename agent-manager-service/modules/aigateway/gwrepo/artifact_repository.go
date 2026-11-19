@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
 	"github.com/google/uuid"
@@ -52,17 +53,19 @@ type ArtifactRepository interface {
 
 // ArtifactRepo implements ArtifactRepository using GORM
 type ArtifactRepo struct {
-	db *gorm.DB
+	db      *gorm.DB
+	secrets modkit.Secrets
 }
 
-// NewArtifactRepo creates a new artifact repository
-func NewArtifactRepo(db *gorm.DB) ArtifactRepository {
-	return &ArtifactRepo{db: db}
+// NewArtifactRepo creates a new artifact repository. secrets deletes the stored credentials of an agent artifact's
+// A2A proxies; a repository that deletes no agent artifacts may pass nil.
+func NewArtifactRepo(db *gorm.DB, secrets modkit.Secrets) ArtifactRepository {
+	return &ArtifactRepo{db: db, secrets: secrets}
 }
 
 // WithTx returns the repository bound to tx.
 func (r *ArtifactRepo) WithTx(tx *gorm.DB) ArtifactRepository {
-	return &ArtifactRepo{db: tx}
+	return &ArtifactRepo{db: tx, secrets: r.secrets}
 }
 
 // Create inserts a new artifact within a transaction
@@ -79,7 +82,7 @@ func (r *ArtifactRepo) Create(tx *gorm.DB, artifact *gwmodels.Artifact) error {
 // Delete removes an artifact within a transaction
 func (r *ArtifactRepo) Delete(tx *gorm.DB, uuid string) error {
 	return tx.Transaction(func(tx *gorm.DB) error {
-		if err := deleteArtifactDependents(tx, uuid); err != nil {
+		if err := r.deleteArtifactDependents(tx, uuid); err != nil {
 			return err
 		}
 		result := tx.Where("id = ?", uuid).Delete(&gwmodels.Artifact{})
@@ -96,27 +99,27 @@ func (r *ArtifactRepo) Delete(tx *gorm.DB, uuid string) error {
 // deleteArtifactDependents removes the rows that exist only for the artifact: an agent exposure, an A2A proxy (with its
 // upstream secret) and an MCP endpoint's environment binding. Their tables already cascade from their parent, and
 // schema rule 7 allows one cascading key per table, so they go here rather than by a second cascade.
-func deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
+func (r *ArtifactRepo) deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
 	if err := tx.Where("artifact_id = ?", artifactID).Delete(&gwmodels.MCPProxyEndpointEnvironment{}).Error; err != nil {
 		return err
 	}
 	if err := tx.Where("artifact_id = ?", artifactID).Delete(&gwmodels.PlatformAgentExposure{}).Error; err != nil {
 		return err
 	}
-	var proxies []gwmodels.A2AProxy
-	if err := tx.Session(&gorm.Session{SkipHooks: true}).Select("id, upstream_auth_secret_id").
-		Where("artifact_id = ?", artifactID).Find(&proxies).Error; err != nil {
+	var proxies int64
+	if err := tx.Model(&gwmodels.A2AProxy{}).Where("artifact_id = ?", artifactID).Count(&proxies).Error; err != nil {
 		return err
 	}
-	for _, p := range proxies {
-		if err := tx.Where("id = ?", p.ID).Delete(&gwmodels.A2AProxy{}).Error; err != nil {
-			return err
-		}
-		if err := repositories.DeleteSecret(tx, p.UpstreamAuthSecretID); err != nil {
-			return err
-		}
+	if proxies == 0 {
+		return nil
 	}
-	return nil
+	if r.secrets == nil {
+		return fmt.Errorf("artifact %s has an A2A proxy, and this repository holds no secret store to delete its credential", artifactID)
+	}
+	if err := DeleteA2AProxySecrets(tx.Statement.Context, tx, r.secrets, "artifact_id = ?", artifactID); err != nil {
+		return err
+	}
+	return tx.Where("artifact_id = ?", artifactID).Delete(&gwmodels.A2AProxy{}).Error
 }
 
 // Update modifies an artifact within a transaction

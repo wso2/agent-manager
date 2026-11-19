@@ -28,7 +28,6 @@ import (
 	"unicode"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -78,7 +77,6 @@ type a2aProxyService struct {
 	artifactRepo    gwrepo.ArtifactRepository
 	publisher       *A2APublisher
 	ocClient        modkit.CoreAPI
-	encryptionKey   []byte
 	logger          *slog.Logger
 }
 
@@ -91,7 +89,6 @@ func NewA2AProxyService(
 	artifactRepo gwrepo.ArtifactRepository,
 	publisher *A2APublisher,
 	ocClient modkit.CoreAPI,
-	encryptionKey []byte,
 	logger *slog.Logger,
 	perms *Permissions,
 ) A2AProxyService {
@@ -104,7 +101,6 @@ func NewA2AProxyService(
 		artifactRepo:    artifactRepo,
 		publisher:       publisher,
 		ocClient:        ocClient,
-		encryptionKey:   encryptionKey,
 		logger:          logger,
 	}
 }
@@ -189,7 +185,7 @@ func (s *a2aProxyService) SetA2AProxy(
 		if err != nil {
 			return err
 		}
-		if err := requireHTTPSForSecret(cardURL, proxy.UpstreamAuthSecret); err != nil {
+		if err := requireHTTPSForSecret(cardURL, proxy.HasUpstreamSecret()); err != nil {
 			return err
 		}
 		// A PUT can set, replace or clear the credential the gateway sends
@@ -347,8 +343,8 @@ func (s *a2aProxyService) requireCardSource(ctx context.Context, tx *gorm.DB, t 
 }
 
 // requireHTTPSForSecret refuses to store a credential the control plane and the gateway would send to cardURL in cleartext.
-func requireHTTPSForSecret(cardURL, secret string) error {
-	if secret == "" {
+func requireHTTPSForSecret(cardURL string, hasSecret bool) error {
+	if !hasSecret {
 		return nil
 	}
 	u, err := url.Parse(cardURL)
@@ -362,7 +358,7 @@ func requireHTTPSForSecret(cardURL, secret string) error {
 func (s *a2aProxyService) requireSecretStaysOnOrigin(
 	ctx context.Context, tx *gorm.DB, t a2aProxyTarget, proxy *gwmodels.A2AProxy, sourceURL string,
 ) error {
-	if proxy.UpstreamAuthSecret == "" {
+	if !proxy.HasUpstreamSecret() {
 		return nil
 	}
 	card, err := s.lockedCard(ctx, tx, t)
@@ -388,7 +384,7 @@ func (s *a2aProxyService) proxyRow(
 		OUID: t.key.OUID, ProjectName: t.key.ProjectName, AgentName: t.key.AgentName,
 		EnvironmentUUID: t.key.EnvironmentUUID, EnvironmentName: t.key.EnvironmentName,
 	}
-	stored := existing != nil && existing.UpstreamAuthSecret != ""
+	stored := existing != nil && existing.HasUpstreamSecret()
 	switch {
 	case auth == nil:
 		return row, stored, nil
@@ -398,11 +394,7 @@ func (s *a2aProxyService) proxyRow(
 		row.UpstreamAuthHeader, row.UpstreamAuthSecret = auth.Header, existing.UpstreamAuthSecret
 		return row, auth.Header != existing.UpstreamAuthHeader, nil
 	}
-	secret, err := gwutil.EncryptSecretRef(*auth.Value, s.encryptionKey)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to encrypt the upstream secret: %w", err)
-	}
-	row.UpstreamAuthHeader, row.UpstreamAuthSecret = auth.Header, secret
+	row.UpstreamAuthHeader, row.UpstreamAuthValue = auth.Header, auth.Value
 	return row, true, nil
 }
 
@@ -515,7 +507,7 @@ func (s *a2aProxyService) removeProxy(ctx context.Context, t a2aProxyTarget, car
 		if existing == nil {
 			return onDirect(ctx, tx, s.cardRepo, t, ifDirect)
 		}
-		annotateA2AProxy(ctx, t, existing.UpstreamAuthHeader, existing.UpstreamAuthSecret != "")
+		annotateA2AProxy(ctx, t, existing.UpstreamAuthHeader, existing.HasUpstreamSecret())
 		return s.switchToDirect(ctx, tx, t, cardStep)
 	})
 	return err

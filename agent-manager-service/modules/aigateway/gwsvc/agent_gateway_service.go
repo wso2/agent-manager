@@ -52,6 +52,7 @@ const (
 // deployments, configurations).
 type AgentGatewayService struct {
 	perms                     *Permissions
+	secrets                   modkit.Secrets
 	db                        *gorm.DB
 	platform                  modkit.CoreAPI
 	agentConfigRepo           gwrepo.AgentConfigRepository
@@ -84,9 +85,11 @@ func NewAgentGatewayService(
 	exposure *AgentExposurePublisher,
 	logger *slog.Logger,
 	perms *Permissions,
+	secrets modkit.Secrets,
 ) *AgentGatewayService {
 	return &AgentGatewayService{
 		perms:                     perms,
+		secrets:                   secrets,
 		db:                        db,
 		platform:                  platform,
 		agentConfigRepo:           agentConfigRepo,

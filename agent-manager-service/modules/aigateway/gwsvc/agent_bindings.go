@@ -540,6 +540,9 @@ func (s *AgentGatewayService) TeardownAgent(ctx context.Context, agentID string)
 		return err
 	}
 	return db.Transaction(func(tx *gorm.DB) error {
+		if err := gwrepo.DeleteA2AProxySecrets(ctx, tx, s.secrets, "org_id = ? AND agent_id = ?", orgID, agentID); err != nil {
+			return err
+		}
 		for _, table := range TeardownTables {
 			if err := tx.Exec("DELETE FROM "+table+" WHERE org_id = ? AND agent_id = ?", orgID, agentID).Error; err != nil {
 				return fmt.Errorf("delete %s of agent %s: %w", table, agentID, err)

@@ -1,7 +1,8 @@
 module: ai-gateway
 # The AI Gateway's tables. They reference core rows (organizations, projects,
-# agents, environments, secrets) by id without foreign keys: the module's
-# finalize hooks remove or protect them when the core row goes.
+# agents, environments) by id without foreign keys: the module's finalize
+# hooks remove or protect them when the core row goes. Credentials are kept
+# in the module's secret store under paths named after their rows (gwsecret).
 tables:
 
   - name: mod_ai_gateway_agent_gateway_settings
@@ -275,13 +276,12 @@ tables:
       - {name: model_list, type: longtext, nullable: true}
       - {name: status, type: text, size: 20}
       - {name: configuration, type: json}
-      - {name: upstream_secret_id, type: id, nullable: true}
       - {name: created_by, type: text, size: 255, nullable: true}
     primary_key: [id]
     unique: [[org_id, id]]
     foreign_keys:
       - {columns: [org_id, id], references: mod_ai_gateway_artifacts, ref_columns: [org_id, id], on_delete: cascade}
-    indexes: [[template_handle], [upstream_secret_id]]
+    indexes: [[template_handle]]
 
   - name: mod_ai_gateway_llm_proxies
     columns:
@@ -293,14 +293,13 @@ tables:
       - {name: openapi_spec, type: longtext, nullable: true}
       - {name: status, type: text, size: 20}
       - {name: configuration, type: json}
-      - {name: upstream_secret_id, type: id, nullable: true}
       - {name: created_by, type: text, size: 255, nullable: true}
     primary_key: [id]
     unique: [[org_id, id]]
     foreign_keys:
       - {columns: [org_id, id], references: mod_ai_gateway_artifacts, ref_columns: [org_id, id], on_delete: cascade}
       - {columns: [org_id, provider_id], references: mod_ai_gateway_llm_providers, ref_columns: [org_id, id]}
-    indexes: [[org_id, project_id], [provider_id], [upstream_secret_id]]
+    indexes: [[org_id, project_id], [provider_id]]
 
   # --- MCP proxies --------------------------------------------------------------------------
 
@@ -367,14 +366,12 @@ tables:
       - {name: name, type: text, size: 255, nullable: true}
       - {name: status, type: text, size: 20}
       - {name: configuration, type: json}
-      - {name: upstream_secret_id, type: id, nullable: true}
       - {name: created_at, type: time}
       - {name: updated_at, type: time}
     primary_key: [id]
     unique: [[mcp_proxy_id, handle], [mcp_proxy_id, id]]
     foreign_keys:
       - {columns: [org_id, mcp_proxy_id], references: mod_ai_gateway_mcp_proxies, ref_columns: [org_id, id], on_delete: cascade}
-    indexes: [[upstream_secret_id]]
 
   - name: mod_ai_gateway_mcp_proxy_endpoint_environments
     columns:
@@ -547,11 +544,9 @@ tables:
       - {name: environment_id, type: id}
       - {name: artifact_id, type: id}
       - {name: upstream_auth_header, type: text, size: 255, nullable: true}
-      - {name: upstream_auth_secret_id, type: id, nullable: true}
       - {name: created_at, type: time}
       - {name: updated_at, type: time}
     primary_key: [id]
     unique: [[agent_id, environment_id], [artifact_id]]
     foreign_keys:
       - {columns: [org_id, artifact_id], references: mod_ai_gateway_artifacts, ref_columns: [org_id, id]}
-    indexes: [[upstream_auth_secret_id]]

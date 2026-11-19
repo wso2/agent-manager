@@ -34,6 +34,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -59,11 +61,11 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(core, slog.New(slog.DiscardHandler))
 	f.svc = &MCPProxyService{
-		db: gormDB, tx: NewTxRunner(gormDB), repo: gwrepo.NewMCPProxyRepo(gormDB), deploymentRepo: f.sync.repo,
-		gatewayRepo: gateways, artifactRepo: gwrepo.NewArtifactRepo(gormDB),
+		db: gormDB, tx: NewTxRunner(gormDB), repo: gwrepo.NewMCPProxyRepo(gormDB, gwtest.NewSecrets()), deploymentRepo: f.sync.repo,
+		gatewayRepo: gateways, artifactRepo: gwrepo.NewArtifactRepo(gormDB, gwtest.NewSecrets()),
 		mcpProxyScopeRepo: gwrepo.NewMCPProxyScopeRepository(gormDB), logger: slog.New(slog.DiscardHandler),
 		endpointRepo: gwrepo.NewMCPProxyEndpointRepository(gormDB), core: core, kind: kind,
-		envMCPMappingRepo: gwrepo.NewEnvAgentMCPMappingRepository(gormDB),
+		envMCPMappingRepo: gwrepo.NewEnvAgentMCPMappingRepository(gormDB), secrets: gwtest.NewSecrets(),
 	}
 
 	proxy, _ := goldenMCPProxy()
@@ -77,14 +79,17 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 	proxy.Endpoints[0].Environments[0].EnvironmentUUID = f.env
 	proxy.Endpoints[0].Environments[0].ArtifactUUID = f.artifact
 	proxy.Endpoints[0].Environments[0].MCPProxyUUID = proxy.UUID
+	// The stored credential lives where the proxy's endpoint keeps it.
+	ref := gwsecret.MCPEndpoint(proxy.UUID, proxy.Endpoints[0].Handle)
+	proxy.Endpoints[0].Configuration.Upstream.Auth.SecretRef = &ref
 	require.NoError(t, gormDB.Transaction(func(tx *gorm.DB) error {
 		handle := mcpProxyEnvArtifactHandle(proxy.Handle, "primary", f.env.String())
-		if err := gwrepo.NewArtifactRepo(tx).Create(tx, &gwmodels.Artifact{
+		if err := gwrepo.NewArtifactRepo(tx, gwtest.NewSecrets()).Create(tx, &gwmodels.Artifact{
 			UUID: f.artifact, Handle: handle, Name: handle, Version: "v1.0", Kind: gwmodels.KindMCPMapping, OUID: f.sync.ouID,
 		}); err != nil {
 			return err
 		}
-		return gwrepo.NewMCPProxyRepo(gormDB).Create(context.Background(), tx, proxy, proxy.Handle, proxy.Handle,
+		return gwrepo.NewMCPProxyRepo(gormDB, gwtest.NewSecrets()).Create(context.Background(), tx, proxy, proxy.Handle, proxy.Handle,
 			"v1.0", f.sync.ouID, nil, nil)
 	}))
 	loaded, err := f.svc.repo.GetByUUID(context.Background(), proxy.UUID.String(), f.sync.ouID)

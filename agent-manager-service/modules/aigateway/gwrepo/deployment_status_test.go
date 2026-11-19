@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +45,7 @@ func seedPlacement(t *testing.T, kind string) gwmodels.Placement {
 	ouID := newOrg(t)
 	gatewayID, artifactUUID := newGateway(t, ouID, gwmodels.GatewayRoleEgress), uuid.New()
 	handle := "handle-" + artifactUUID.String()[:8]
-	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
+	require.NoError(t, NewArtifactRepo(gdb, gwtest.NewSecrets()).Create(gdb, &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
 	return gwmodels.Placement{

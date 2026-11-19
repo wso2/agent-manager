@@ -18,12 +18,11 @@ package gwsvc
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -139,12 +138,11 @@ func TestActiveArtifactDeploymentByGatewayRepoErrorIsNotNotFound(t *testing.T) {
 }
 
 // The stored Agent YAML holds the proxy's upstream secret only as secretRef; the gateway is served the value.
-func TestActiveAgentDeploymentDecryptsTheUpstreamSecret(t *testing.T) {
-	key := make([]byte, 32)
-	ciphertext, err := aesgcm.Encrypt([]byte("s3cret"), key)
-	require.NoError(t, err)
+func TestActiveAgentDeploymentResolvesTheUpstreamSecret(t *testing.T) {
+	secrets := gwtest.NewSecrets()
+	secretRef := "a2a-proxies/1/upstream-auth"
+	require.NoError(t, secrets.Put(context.Background(), "ou-1", secretRef, "s3cret"))
 	in := proxiedA2AInput()
-	secretRef := base64.StdEncoding.EncodeToString(ciphertext)
 	in.UpstreamAuth.SecretRef = &secretRef
 	stored, err := generateA2AAgentDeploymentYAML(in)
 	require.NoError(t, err)
@@ -153,7 +151,7 @@ func TestActiveAgentDeploymentDecryptsTheUpstreamSecret(t *testing.T) {
 			return &gwmodels.Deployment{Content: []byte(stored)}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds())
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, secrets, gatewayKinds())
 
 	got, err := svc.GetActiveAgentDeploymentByGateway(context.Background(), testArtifactID, "ou-1", "gw-1")
 	require.NoError(t, err)

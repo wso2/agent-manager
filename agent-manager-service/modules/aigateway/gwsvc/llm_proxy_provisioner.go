@@ -22,7 +22,6 @@ package gwsvc
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -30,7 +29,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
 
 	"github.com/google/uuid"
 
@@ -114,7 +112,6 @@ type LLMProxyProvisioner struct {
 	llmProxyAPIKeyService     *LLMProxyAPIKeyService
 	llmProviderAPIKeyService  *LLMProviderAPIKeyService
 	secretClient              secretmanagersvc.SecretManagementClient
-	encryptionKey             []byte
 }
 
 // NewLLMProxyProvisioner creates a new LLMProxyProvisioner.
@@ -127,7 +124,6 @@ func NewLLMProxyProvisioner(
 	llmProxyAPIKeyService *LLMProxyAPIKeyService,
 	llmProviderAPIKeyService *LLMProviderAPIKeyService,
 	secretClient secretmanagersvc.SecretManagementClient,
-	encryptionKey []byte,
 ) *LLMProxyProvisioner {
 	return &LLMProxyProvisioner{
 		logger:                    logger,
@@ -138,7 +134,6 @@ func NewLLMProxyProvisioner(
 		llmProxyAPIKeyService:     llmProxyAPIKeyService,
 		llmProviderAPIKeyService:  llmProviderAPIKeyService,
 		secretClient:              secretClient,
-		encryptionKey:             encryptionKey,
 	}
 }
 
@@ -221,17 +216,11 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 				return nil, fmt.Errorf("provider %s has no artifact handle", provider.UUID.String())
 			}
 
-			encrypted, err := aesgcm.Encrypt([]byte(apiKey.APIKey), p.encryptionKey)
-			if err != nil {
-				p.RollbackProxy(ctx, rb, params.OrgName)
-				return nil, fmt.Errorf("failed to encrypt provider API key: %w", err)
-			}
-			encoded := base64.StdEncoding.EncodeToString(encrypted)
+			// The proxy's repository stores the key when the proxy is created.
 			proxyConfig.Configuration.UpstreamAuth = &gwmodels.UpstreamAuth{
-				Type:      gwutil.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
-				Header:    gwutil.StrAsStrPointer(upstreamHeader),
-				SecretRef: &encoded,
-				Value:     nil,
+				Type:   gwutil.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
+				Header: gwutil.StrAsStrPointer(upstreamHeader),
+				Value:  &apiKey.APIKey,
 			}
 		}
 	}

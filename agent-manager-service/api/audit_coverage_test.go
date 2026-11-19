@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
@@ -90,7 +91,7 @@ func stubAppParams(t *testing.T) *wiring.AppParams {
 // controllers that are never called.
 func stubBundles(t *testing.T, params *wiring.AppParams) builtin.Built {
 	t.Helper()
-	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory(), Permissions: gwsvc.NewPermissions()}
+	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory(), Permissions: gwsvc.NewPermissions(), Secrets: gwsecret.NewStore()}
 	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
 	return builtin.Built{
 		aigateway.Parts(gw),

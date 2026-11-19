@@ -277,7 +277,6 @@ CREATE TABLE mod_ai_gateway_llm_providers (
     model_list TEXT,
     status TEXT NOT NULL,
     configuration TEXT NOT NULL,
-    upstream_secret_id TEXT,
     created_by TEXT,
     CONSTRAINT pk_mod_ai_gateway_llm_providers PRIMARY KEY (id),
     CONSTRAINT uq_mod_ai_gateway_llm_providers_org_id_id UNIQUE (org_id, id),
@@ -285,7 +284,6 @@ CREATE TABLE mod_ai_gateway_llm_providers (
     CONSTRAINT ck_mod_ai_gateway_llm_providers_1 CHECK (json_valid(configuration))
 );
 CREATE INDEX idx_mod_ai_gateway_llm_providers_template_handle ON mod_ai_gateway_llm_providers (template_handle);
-CREATE INDEX idx_mod_ai_gateway_llm_providers_upstream_secret_id ON mod_ai_gateway_llm_providers (upstream_secret_id);
 
 CREATE TABLE mod_ai_gateway_llm_proxies (
     id TEXT NOT NULL,
@@ -296,7 +294,6 @@ CREATE TABLE mod_ai_gateway_llm_proxies (
     openapi_spec TEXT,
     status TEXT NOT NULL,
     configuration TEXT NOT NULL,
-    upstream_secret_id TEXT,
     created_by TEXT,
     CONSTRAINT pk_mod_ai_gateway_llm_proxies PRIMARY KEY (id),
     CONSTRAINT uq_mod_ai_gateway_llm_proxies_org_id_id UNIQUE (org_id, id),
@@ -306,7 +303,6 @@ CREATE TABLE mod_ai_gateway_llm_proxies (
 );
 CREATE INDEX idx_mod_ai_gateway_llm_proxies_org_id_project_id ON mod_ai_gateway_llm_proxies (org_id, project_id);
 CREATE INDEX idx_mod_ai_gateway_llm_proxies_provider_id ON mod_ai_gateway_llm_proxies (provider_id);
-CREATE INDEX idx_mod_ai_gateway_llm_proxies_upstream_secret_id ON mod_ai_gateway_llm_proxies (upstream_secret_id);
 
 CREATE TABLE mod_ai_gateway_mcp_proxies (
     id TEXT NOT NULL,
@@ -369,7 +365,6 @@ CREATE TABLE mod_ai_gateway_mcp_proxy_endpoints (
     name TEXT,
     status TEXT NOT NULL,
     configuration TEXT NOT NULL,
-    upstream_secret_id TEXT,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
     CONSTRAINT pk_mod_ai_gateway_mcp_proxy_endpoints PRIMARY KEY (id),
@@ -378,7 +373,6 @@ CREATE TABLE mod_ai_gateway_mcp_proxy_endpoints (
     CONSTRAINT fk_mod_ai_gateway_mcp_proxy_endpoints_org_id_mcp_proxy_id FOREIGN KEY (org_id, mcp_proxy_id) REFERENCES mod_ai_gateway_mcp_proxies (org_id, id) ON DELETE CASCADE,
     CONSTRAINT ck_mod_ai_gateway_mcp_proxy_endpoints_1 CHECK (json_valid(configuration))
 );
-CREATE INDEX idx_mod_ai_gateway_mcp_proxy_endpoints_upstream_secret_id ON mod_ai_gateway_mcp_proxy_endpoints (upstream_secret_id);
 
 CREATE TABLE mod_ai_gateway_mcp_proxy_endpoint_environments (
     endpoint_id TEXT NOT NULL,
@@ -544,7 +538,6 @@ CREATE TABLE mod_ai_gateway_a2a_proxies (
     environment_id TEXT NOT NULL,
     artifact_id TEXT NOT NULL,
     upstream_auth_header TEXT,
-    upstream_auth_secret_id TEXT,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL,
     CONSTRAINT pk_mod_ai_gateway_a2a_proxies PRIMARY KEY (id),
@@ -552,4 +545,3 @@ CREATE TABLE mod_ai_gateway_a2a_proxies (
     CONSTRAINT uq_mod_ai_gateway_a2a_proxies_artifact_id UNIQUE (artifact_id),
     CONSTRAINT fk_mod_ai_gateway_a2a_proxies_org_id_artifact_id FOREIGN KEY (org_id, artifact_id) REFERENCES mod_ai_gateway_artifacts (org_id, id)
 );
-CREATE INDEX idx_mod_ai_gateway_a2a_proxies_upstream_auth_secret_id ON mod_ai_gateway_a2a_proxies (upstream_auth_secret_id);

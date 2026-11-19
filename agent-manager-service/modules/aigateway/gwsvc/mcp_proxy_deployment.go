@@ -408,7 +408,7 @@ func deleteMCPArtifactRows(tx *gorm.DB, artifactUUID uuid.UUID, ouID string) err
 	if inOrg == 0 {
 		return nil
 	}
-	return gwrepo.NewArtifactRepo(tx).Delete(tx, artifactUUID.String())
+	return gwrepo.NewArtifactRepo(tx, nil).Delete(tx, artifactUUID.String())
 }
 
 // prepareMCPArtifactDeletes builds the artifacts' delete events in tx, before their rows are deleted.

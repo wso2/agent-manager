@@ -17,7 +17,6 @@
 package gwsvc
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -26,7 +25,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -41,8 +39,6 @@ import (
 )
 
 const proxyTestEnvUUID = "55555555-5555-5555-5555-555555555555"
-
-var proxyTestKey = bytes.Repeat([]byte{7}, 32)
 
 // proxyHarness serves an external A2A agent whose dev environment has a registered card URL and is
 // still direct. Writes are wired only on the tx-bound mocks, and only by acceptsWrites; tx-bound reads
@@ -114,7 +110,7 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 			return &modkit.Environment{ID: proxyTestEnvUUID, Name: name}, nil
 		},
 	}
-	h.svc = NewA2AProxyService(m.tx(), m.proxies, h.cards, h.configs, m.artifacts, m.publisher(), h.oc, proxyTestKey,
+	h.svc = NewA2AProxyService(m.tx(), m.proxies, h.cards, h.configs, m.artifacts, m.publisher(), h.oc,
 		testLogger(), tierPermissions()).(*a2aProxyService)
 	return h
 }
@@ -181,11 +177,11 @@ func (h *proxyHarness) acceptsWrites() {
 // proxyTestGateway is the gateway the proxied environment's agent is placed on.
 var proxyTestGateway = uuid.New()
 
-func decryptForTest(t *testing.T, secretRef string) string {
+// newSecretValue is the credential a row hands the repository to store.
+func newSecretValue(t *testing.T, row *gwmodels.A2AProxy) string {
 	t.Helper()
-	plaintext, err := gwutil.DecryptSecretRef(secretRef, proxyTestKey)
-	require.NoError(t, err)
-	return plaintext
+	require.NotNil(t, row.UpstreamAuthValue, "the row carries a new credential")
+	return *row.UpstreamAuthValue
 }
 
 func devEnv() *modkit.Environment {
@@ -208,7 +204,7 @@ func TestSetA2AProxySwitchesADirectEnvironmentToProxied(t *testing.T) {
 	upserted := h.txProxies.UpsertCalls()
 	require.Len(t, upserted, 1)
 	assert.Equal(t, "X-Upstream-Key", upserted[0].Proxy.UpstreamAuthHeader)
-	assert.Equal(t, value, decryptForTest(t, upserted[0].Proxy.UpstreamAuthSecret))
+	assert.Equal(t, value, newSecretValue(t, upserted[0].Proxy))
 	assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), upserted[0].Proxy.EnvironmentUUID)
 
 	configs := h.txConfigs.CreateIfAbsentCalls()
@@ -307,13 +303,13 @@ func TestSetA2AProxyUpdatesAProxiedEnvironmentInPlace(t *testing.T) {
 func TestSetA2AProxySecretSemantics(t *testing.T) {
 	replacement, empty := "n3w", ""
 	cases := []struct {
-		name        string
-		stored      string
-		auth        *gwmodels.A2AProxyAuthUpdate
-		wantHeader  string
-		wantSecret  string
-		wantDecrypt string
-		wantErr     error
+		name       string
+		stored     string
+		auth       *gwmodels.A2AProxyAuthUpdate
+		wantHeader string
+		wantSecret string
+		wantValue  string
+		wantErr    error
 	}{
 		{name: "omitting auth clears it", stored: "b2xk", auth: nil},
 		{
@@ -322,7 +318,7 @@ func TestSetA2AProxySecretSemantics(t *testing.T) {
 		},
 		{
 			name: "a value replaces it", stored: "b2xk",
-			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key", Value: &replacement}, wantHeader: "X-Key", wantDecrypt: "n3w",
+			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key", Value: &replacement}, wantHeader: "X-Key", wantValue: "n3w",
 		},
 		{
 			name: "an empty value is rejected", stored: "b2xk",
@@ -349,8 +345,8 @@ func TestSetA2AProxySecretSemantics(t *testing.T) {
 			require.NoError(t, err)
 			row := h.txProxies.UpsertCalls()[0].Proxy
 			assert.Equal(t, tc.wantHeader, row.UpstreamAuthHeader)
-			if tc.wantDecrypt != "" {
-				assert.Equal(t, tc.wantDecrypt, decryptForTest(t, row.UpstreamAuthSecret))
+			if tc.wantValue != "" {
+				assert.Equal(t, tc.wantValue, newSecretValue(t, row))
 				return
 			}
 			assert.Equal(t, tc.wantSecret, row.UpstreamAuthSecret)

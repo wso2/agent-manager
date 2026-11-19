@@ -37,13 +37,13 @@ type A2AProxy struct {
 	ArtifactUUID uuid.UUID `gorm:"column:artifact_id"`
 	// UpstreamAuthHeader is empty when the gateway adds no credential upstream.
 	UpstreamAuthHeader string `gorm:"column:upstream_auth_header"`
-	// UpstreamAuthSecretID is the secrets row holding the header value.
-	UpstreamAuthSecretID *uuid.UUID `gorm:"column:upstream_auth_secret_id"`
-	// UpstreamAuthSecret is the header value as base64 AES-256-GCM ciphertext, read from and written to the secrets
-	// row by the repository; it is never returned.
-	UpstreamAuthSecret string    `gorm:"-"`
-	CreatedAt          time.Time `gorm:"column:created_at"`
-	UpdatedAt          time.Time `gorm:"column:updated_at"`
+	// UpstreamAuthSecret is the secretRef of the stored header value (its path in the module's secret store), set
+	// by the repository while the row has a header.
+	UpstreamAuthSecret string `gorm:"-"`
+	// UpstreamAuthValue is a new header value for the repository to store; it is never read back.
+	UpstreamAuthValue *string   `gorm:"-"`
+	CreatedAt         time.Time `gorm:"column:created_at"`
+	UpdatedAt         time.Time `gorm:"column:updated_at"`
 }
 
 func (A2AProxy) TableName() string { return "mod_ai_gateway_a2a_proxies" }
@@ -57,6 +57,11 @@ func (p *A2AProxy) BeforeCreate(tx *gorm.DB) error { return p.ref().resolve(tx) 
 
 // AfterFind fills the agent's and environment's names.
 func (p *A2AProxy) AfterFind(tx *gorm.DB) error { return p.ref().fill(tx) }
+
+// HasUpstreamSecret reports whether the gateway sends a credential upstream: a stored one or a new one.
+func (p *A2AProxy) HasUpstreamSecret() bool {
+	return p.UpstreamAuthHeader != "" && (p.UpstreamAuthSecret != "" || p.UpstreamAuthValue != nil)
+}
 
 // UpstreamAuth is the gateway's upstream credential as a secretRef, or nil when there is none.
 func (p *A2AProxy) UpstreamAuth() *UpstreamAuth {

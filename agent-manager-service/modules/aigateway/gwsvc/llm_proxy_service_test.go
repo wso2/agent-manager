@@ -50,7 +50,7 @@ func TestLLMProxyService_Create_PropagatesProviderBeingDeletedFromRepo(t *testin
 			return gwerr.ErrLLMProviderBeingDeleted
 		},
 	}
-	svc := NewLLMProxyService(proxyRepo, providerRepo, make([]byte, 32))
+	svc := NewLLMProxyService(proxyRepo, providerRepo)
 
 	proxy := &gwmodels.LLMProxy{
 		ProjectUUID: uuid.New(),

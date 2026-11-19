@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 )
 
@@ -60,7 +61,7 @@ func registerHooks(rt modkit.Runtime, agents *gwsvc.AgentGatewayService) {
 		return gwsvc.RecordAgentTeardown(req.Tx, req)
 	})
 	rt.Hook(modkit.ResourceProject, modkit.Finalize, finalizeProject)
-	rt.Hook(modkit.ResourceEnvironment, modkit.Finalize, finalizeEnvironment)
+	rt.Hook(modkit.ResourceEnvironment, modkit.Finalize, finalizeEnvironment(rt.Secrets()))
 
 	reconcile := func(ctx context.Context, e modkit.Event) error {
 		var d struct {
@@ -131,8 +132,15 @@ var environmentTables = []string{
 }
 
 // finalizeEnvironment refuses while a gateway mapped to the environment
-// serves artifacts, and otherwise removes the module's rows of it.
-func finalizeEnvironment(_ context.Context, req modkit.HookRequest) error {
+// serves artifacts, and otherwise removes the module's rows of it and the
+// credentials they own.
+func finalizeEnvironment(secrets modkit.Secrets) modkit.HookFunc {
+	return func(ctx context.Context, req modkit.HookRequest) error {
+		return finalizeEnvironmentRows(ctx, secrets, req)
+	}
+}
+
+func finalizeEnvironmentRows(ctx context.Context, secrets modkit.Secrets, req modkit.HookRequest) error {
 	var serving int64
 	err := req.Tx.Raw(`SELECT COUNT(*) FROM mod_ai_gateway_artifact_gateway_status s
 		JOIN mod_ai_gateway_gateway_environments ge ON ge.gateway_id = s.gateway_id
@@ -146,6 +154,9 @@ func finalizeEnvironment(_ context.Context, req modkit.HookRequest) error {
 			Status:  http.StatusConflict,
 			Message: fmt.Sprintf("environment %q has gateways serving %d artifact(s); undeploy them or unmap the gateways first", name, serving),
 		}
+	}
+	if err := gwrepo.DeleteA2AProxySecrets(ctx, req.Tx, secrets, "org_id = ? AND environment_id = ?", req.OrgID, req.ID); err != nil {
+		return err
 	}
 	for _, table := range environmentTables {
 		if err := req.Tx.Exec("DELETE FROM "+table+" WHERE org_id = ? AND environment_id = ?", req.OrgID, req.ID).Error; err != nil {

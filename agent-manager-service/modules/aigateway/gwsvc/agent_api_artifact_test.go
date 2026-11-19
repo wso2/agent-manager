@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +44,7 @@ var errRollback = errors.New("roll back the test transaction")
 // misses it, as when a concurrent first enable inserts between the lookup and the insert.
 func lostInsertRace(t *testing.T) (ouID, envID string, winner *gwmodels.Artifact, racing gwrepo.ArtifactRepository) {
 	t.Helper()
-	artifacts := gwrepo.NewArtifactRepo(db.GetDB())
+	artifacts := gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets())
 	ouID, envID = dbtest.Org(t, db.GetDB()), uuid.New().String()
 	winner = &gwmodels.Artifact{
 		UUID: uuid.New(), Handle: agentEnvAPIArtifactHandle("checkout", "weather", envID),
@@ -73,7 +74,7 @@ func lostInsertRace(t *testing.T) (ouID, envID string, winner *gwmodels.Artifact
 
 // Inside a transaction the artifact is read through it, so one the transaction created is found, not inserted again.
 func TestEnsureAgentEnvAPIArtifactReadsThroughTheCallersTransaction(t *testing.T) {
-	artifacts := gwrepo.NewArtifactRepo(db.GetDB())
+	artifacts := gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets())
 	ouID, envID := dbtest.Org(t, db.GetDB()), uuid.New().String()
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
@@ -110,7 +111,7 @@ func TestEnsureAgentEnvAPIArtifactReturnsTheWinnerOutsideATransaction(t *testing
 }
 
 func TestEnsureAgentEnvAPIArtifactCreatesKind(t *testing.T) {
-	artifacts := gwrepo.NewArtifactRepo(db.GetDB())
+	artifacts := gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets())
 	ouID, envID := dbtest.Org(t, db.GetDB()), uuid.New().String()
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
@@ -135,7 +136,7 @@ func TestEnsureAgentEnvAPIArtifactRefusesTheWinnerOfAnotherKindInTheInsertRace(t
 
 // An agent's prefix must not match a longer agent name, or a name its LIKE wildcards would.
 func TestListByHandlePrefixFindsOnlyThatAgentsArtifacts(t *testing.T) {
-	artifacts := gwrepo.NewArtifactRepo(db.GetDB())
+	artifacts := gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets())
 	ouID := dbtest.Org(t, db.GetDB())
 	create := func(agentName, kind string) *gwmodels.Artifact {
 		envID := uuid.New().String()

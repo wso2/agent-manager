@@ -25,15 +25,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"regexp"
 	"time"
-
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
 )
 
 const AgentTypeAPI AgentType = "agent-api"
@@ -152,28 +149,6 @@ func ExponentialBackoff(attempt int, base, maxDelay time.Duration) time.Duration
 		delay *= 2
 	}
 	return min(delay, maxDelay)
-}
-
-// EncryptSecretRef encrypts plaintext with EncryptBytes into a base64 secretRef.
-func EncryptSecretRef(plaintext string, key []byte) (string, error) {
-	ciphertext, err := aesgcm.Encrypt([]byte(plaintext), key)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(ciphertext), nil
-}
-
-// DecryptSecretRef reverses EncryptSecretRef.
-func DecryptSecretRef(ref string, key []byte) (string, error) {
-	ciphertext, err := base64.StdEncoding.DecodeString(ref)
-	if err != nil {
-		return "", fmt.Errorf("failed to base64-decode: %w", err)
-	}
-	plaintext, err := aesgcm.Decrypt(ciphertext, key)
-	if err != nil {
-		return "", err
-	}
-	return string(plaintext), nil
 }
 
 // GenerateAPIKey generates a cryptographically secure random API key for gateway authentication.

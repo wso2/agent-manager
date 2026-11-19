@@ -33,6 +33,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 )
 
 func newTestProxy(t *testing.T, agentName string) *gwmodels.A2AProxy {
@@ -54,7 +57,7 @@ func newTestProxyIn(t *testing.T, env, agentName string) *gwmodels.A2AProxy {
 		EnvironmentUUID:    envID,
 		ArtifactUUID:       newArtifact(t, ou, gwmodels.KindAgent, "checkout/"+agentName+"/"+envID.String()),
 		UpstreamAuthHeader: "X-Upstream-Key",
-		UpstreamAuthSecret: "c2VjcmV0",
+		UpstreamAuthValue:  gwutil.StrAsStrPointer("secret"),
 	}
 }
 
@@ -66,7 +69,8 @@ func cleanupProxy(t *testing.T, repo A2AProxyRepository, proxy *gwmodels.A2AProx
 }
 
 func TestA2AProxyUpsertCreatesAndUpdates(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	secrets := gwtest.NewSecrets()
+	repo := NewA2AProxyRepository(db.GetDB(), secrets)
 	ctx := context.Background()
 	proxy := newTestProxy(t, "upsert-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
@@ -75,22 +79,34 @@ func TestA2AProxyUpsertCreatesAndUpdates(t *testing.T) {
 	byName, err := repo.Get(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, "Development")
 	require.NoError(t, err)
 	assert.Equal(t, "X-Upstream-Key", byName.UpstreamAuthHeader)
+	assert.Equal(t, gwsecret.A2AProxy(byName.ID), byName.UpstreamAuthSecret, "the row refers to its stored credential")
+	stored, err := secrets.Get(ctx, proxy.OUID, byName.UpstreamAuthSecret)
+	require.NoError(t, err)
+	assert.Equal(t, "secret", stored)
+
+	kept := *proxy
+	kept.UpstreamAuthValue = nil
+	require.NoError(t, repo.Upsert(ctx, &kept))
+	stored, err = secrets.Get(ctx, proxy.OUID, byName.UpstreamAuthSecret)
+	require.NoError(t, err)
+	assert.Equal(t, "secret", stored, "an upsert without a new value keeps the stored one")
 	byUUID, err := repo.GetByEnvUUID(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, proxy.EnvironmentUUID)
 	require.NoError(t, err)
 	assert.Equal(t, byName.ID, byUUID.ID)
 
 	cleared := *proxy
-	cleared.UpstreamAuthHeader, cleared.UpstreamAuthSecret = "", ""
+	cleared.UpstreamAuthHeader, cleared.UpstreamAuthValue = "", nil
 	require.NoError(t, repo.Upsert(ctx, &cleared))
 	got, err := repo.GetByEnvUUID(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, proxy.EnvironmentUUID)
 	require.NoError(t, err)
 	assert.Equal(t, byName.ID, got.ID, "the same row is updated")
 	assert.Empty(t, got.UpstreamAuthHeader)
 	assert.Empty(t, got.UpstreamAuthSecret, "clearing auth drops the secret")
+	assert.Zero(t, secrets.Len(), "and its stored value")
 }
 
 func TestA2AProxyLookupsAreOrgScopedAndReportAMissingRow(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), gwtest.NewSecrets())
 	ctx := context.Background()
 	proxy := newTestProxy(t, "scoped-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
@@ -103,18 +119,20 @@ func TestA2AProxyLookupsAreOrgScopedAndReportAMissingRow(t *testing.T) {
 }
 
 func TestA2AProxyDeleteReportsAMissingRow(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	secrets := gwtest.NewSecrets()
+	repo := NewA2AProxyRepository(db.GetDB(), secrets)
 	ctx := context.Background()
 	proxy := newTestProxy(t, "delete-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
 	require.NoError(t, repo.Upsert(ctx, proxy))
 
 	require.NoError(t, repo.Delete(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, proxy.EnvironmentUUID))
+	assert.Zero(t, secrets.Len(), "the proxy's credential goes with it")
 	assert.ErrorIs(t, repo.Delete(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, proxy.EnvironmentUUID), ErrA2AProxyNotFound)
 }
 
 func TestA2AProxyDeletesForAgentAndEnvironment(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), gwtest.NewSecrets())
 	ctx := context.Background()
 	dev := newTestProxy(t, "bulk-"+uuid.New().String()[:8])
 	prod := newTestProxyIn(t, "Production", dev.AgentName)
@@ -134,7 +152,7 @@ func TestA2AProxyDeletesForAgentAndEnvironment(t *testing.T) {
 }
 
 func TestA2AProxyWithTxRollsBack(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), gwtest.NewSecrets())
 	ctx := context.Background()
 	proxy := newTestProxy(t, "tx-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
@@ -152,7 +170,7 @@ func TestA2AProxyWithTxRollsBack(t *testing.T) {
 // The lock holds a second transaction on the same environment until the first ends, and only that one.
 func TestA2AProxyLockAgentEnvSerialisesOneEnvironment(t *testing.T) {
 	gormDB := db.GetDB()
-	repo := NewA2AProxyRepository(gormDB)
+	repo := NewA2AProxyRepository(gormDB, gwtest.NewSecrets())
 	ctx := context.Background()
 	ouID := dbtest.Org(t, gormDB)
 	dbtest.Agent(t, gormDB, ouID, dbtest.Project(t, gormDB, ouID, "checkout"), "weather")
@@ -184,7 +202,7 @@ func TestA2AProxyLockAgentEnvSerialisesOneEnvironment(t *testing.T) {
 }
 
 func TestA2AProxyListsTheEnvironmentUUIDsUnderAName(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), gwtest.NewSecrets())
 	ctx := context.Background()
 	old := newTestProxy(t, "names-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, old)

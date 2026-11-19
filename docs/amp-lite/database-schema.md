@@ -227,8 +227,8 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 ### LLM
 
 - `llm_provider_templates`: org templates only (built-ins ship in code, `modules/aigateway/resources/builtin_llm_templates.go`). org_id NOT NULL, unique (org_id, handle). `is_system` dropped.
-- `llm_providers`: id = artifact id. Upstream API key moves out of `configuration` JSON into `secrets` (`upstream_secret_id`).
-- `llm_proxies`: id = artifact id. (org_id, project_id) FK → projects. provider_id → llm_providers, restrict (a provider in use can't be deleted). Upstream auth moves out of `configuration` JSON into `secrets` (`upstream_secret_id`); this includes the key minted on the provider for a proxy.
+- `llm_providers`: id = artifact id. The upstream API key is in the module's secret store; `configuration` carries its path as `secretRef` ([modules.md](modules.md#where-the-gateway-stands)).
+- `llm_proxies`: id = artifact id. (org_id, project_id) FK → projects. provider_id → llm_providers, restrict (a provider in use can't be deleted). Upstream auth, including the key minted on the provider for a proxy, is in the module's secret store; `configuration` carries its path as `secretRef`.
 
 ### Agent model and MCP configs
 
@@ -247,7 +247,7 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 - `mcp_proxy_mappings`: unchanged apart from common changes.
 - `mcp_proxy_scopes`: unique (mcp_proxy_id, action), description.
 - `mcp_proxy_scope_tools`: (scope_id, tool_name) PK; replaces the JSON tools list because agent-identity screens look scopes up by tool.
-- `mcp_proxy_endpoints`: kept as today (cascade from the proxy): upstream, capabilities, security and policies per endpoint. Upstream auth moves into `secrets` (`upstream_secret_id`). Unique (mcp_proxy_id, id) for the child key below. Lite creates one endpoint per proxy.
+- `mcp_proxy_endpoints`: kept as today (cascade from the proxy): upstream, capabilities, security and policies per endpoint. Upstream auth is in the module's secret store, under the proxy and the endpoint's handle. Unique (mcp_proxy_id, id) for the child key below. Lite creates one endpoint per proxy.
 - `mcp_proxy_endpoint_environments`: PK (endpoint_id, environment_id), mcp_proxy_id, artifact_id (not null, unique, no action), status. One FK (mcp_proxy_id, endpoint_id) → mcp_proxy_endpoints(mcp_proxy_id, id) cascade, so there is one cascade path; deleting the proxy deletes these artifacts in the service. Unique (mcp_proxy_id, environment_id) keeps "one endpoint per environment per proxy". Lite has one row: the single endpoint in the default environment.
 - Project MCP proxies (expose a hosted agent's MCP endpoint) are deferred.
 
@@ -257,7 +257,7 @@ One row per agent per environment each, unique (agent_id, environment_id), casca
 
 - `agent_exposures` (was `platform_agent_exposures`): protocol (a2a | rest), artifact_id unique.
 - `agent_cards`: source, source_url, card JSON, card_hash, fetched_at, status, attempt_count, last_error, next_attempt_at, claimed_by, claimed_until. OpenChoreo release-name columns dropped.
-- `a2a_proxies`: upstream_auth_header; the value moves to `secrets` (`upstream_auth_secret_id`).
+- `a2a_proxies`: upstream_auth_header; the value is in the module's secret store while the header is set.
 
 ### Per-environment Thunder
 

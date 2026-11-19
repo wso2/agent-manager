@@ -25,10 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 func TestIsAgentOrMonitorProxy(t *testing.T) {
-	repo := NewLLMProxyRepo(db.GetDB())
+	repo := NewLLMProxyRepo(db.GetDB(), gwtest.NewSecrets())
 	ctx := context.Background()
 	ouID := newOrg(t)
 

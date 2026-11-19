@@ -86,7 +86,7 @@ func loadMCPArtifact(ctx context.Context, tx *gorm.DB, artifact gwmodels.Artifac
 	if err := tx.Where("artifact_id = ?", artifact.ArtifactUUID).Take(&binding).Error; err != nil {
 		return nil, err
 	}
-	proxy, err := gwrepo.NewMCPProxyRepo(tx).GetByUUID(ctx, binding.MCPProxyUUID.String(), artifact.OUID)
+	proxy, err := gwrepo.NewMCPProxyRepo(tx, nil).GetByUUID(ctx, binding.MCPProxyUUID.String(), artifact.OUID)
 	if err != nil {
 		return nil, err
 	}

@@ -62,7 +62,7 @@ func TestLLMProxyCreate_InvalidConfigurationLogsFixedKeys(t *testing.T) {
 			case "provider":
 				cfg.Provider = ""
 			}
-			svc := NewLLMProxyService(&gwrepomocks.LLMProxyRepositoryMock{}, &gwrepomocks.LLMProviderRepositoryMock{}, nil)
+			svc := NewLLMProxyService(&gwrepomocks.LLMProxyRepositoryMock{}, &gwrepomocks.LLMProviderRepositoryMock{})
 			ctx := logger.WithLogger(context.Background(), slog.Default().With("correlation_id", "request-123"))
 			result, err := svc.Create(ctx, "org", "actor", &gwmodels.LLMProxy{Configuration: cfg})
 			require.ErrorIs(t, err, httpx.ErrInvalidInput)

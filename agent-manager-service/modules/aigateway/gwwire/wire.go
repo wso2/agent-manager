@@ -15,6 +15,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
@@ -25,7 +26,7 @@ import (
 var coreSet = wire.NewSet(
 	wire.FieldsOf(
 		new(*wiring.AppParams),
-		"DB", "Logger", "EncryptionKey", "SecretManagementClient",
+		"DB", "Logger", "SecretManagementClient",
 	),
 )
 
@@ -74,7 +75,9 @@ var serviceProviderSet = wire.NewSet(
 	gwsvc.NewMCPProxyService,
 	gwsvc.NewIdentityDirectory,
 	gwsvc.NewPermissions,
+	gwsecret.NewStore,
 	wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)),
+	wire.Bind(new(modkit.Secrets), new(*gwsecret.Store)),
 	gwsvc.NewMCPProxyScopeService,
 	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to
 	// the concrete service so scope mutations can re-emit gateway policies.
@@ -252,16 +255,16 @@ func ProvideLLMProviderTemplateRepository(db *gorm.DB) gwrepo.LLMProviderTemplat
 	return gwrepo.NewLLMProviderTemplateRepo(db)
 }
 
-func ProvideLLMProviderRepository(db *gorm.DB) gwrepo.LLMProviderRepository {
-	return gwrepo.NewLLMProviderRepo(db)
+func ProvideLLMProviderRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.LLMProviderRepository {
+	return gwrepo.NewLLMProviderRepo(db, secrets)
 }
 
-func ProvideLLMProxyRepository(db *gorm.DB) gwrepo.LLMProxyRepository {
-	return gwrepo.NewLLMProxyRepo(db)
+func ProvideLLMProxyRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.LLMProxyRepository {
+	return gwrepo.NewLLMProxyRepo(db, secrets)
 }
 
-func ProvideMCPProxyRepository(db *gorm.DB) gwrepo.MCPProxyRepository {
-	return gwrepo.NewMCPProxyRepo(db)
+func ProvideMCPProxyRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.MCPProxyRepository {
+	return gwrepo.NewMCPProxyRepo(db, secrets)
 }
 
 func ProvideDeploymentRepository(db *gorm.DB) gwrepo.DeploymentRepository {
@@ -272,8 +275,8 @@ func ProvideA2AAgentCardRepository(db *gorm.DB) gwrepo.A2AAgentCardRepository {
 	return gwrepo.NewA2AAgentCardRepository(db)
 }
 
-func ProvideA2AProxyRepository(db *gorm.DB) gwrepo.A2AProxyRepository {
-	return gwrepo.NewA2AProxyRepository(db)
+func ProvideA2AProxyRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.A2AProxyRepository {
+	return gwrepo.NewA2AProxyRepository(db, secrets)
 }
 
 // ProvideA2AProxyHooks gives the card service the proxy hooks only, not the whole proxy service.
@@ -290,8 +293,8 @@ func ProvidePlatformAgentExposureRepository(db *gorm.DB) gwrepo.PlatformAgentExp
 	return gwrepo.NewPlatformAgentExposureRepository(db)
 }
 
-func ProvideArtifactRepository(db *gorm.DB) gwrepo.ArtifactRepository {
-	return gwrepo.NewArtifactRepo(db)
+func ProvideArtifactRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.ArtifactRepository {
+	return gwrepo.NewArtifactRepo(db, secrets)
 }
 
 func ProvideAPIKeyRepository(db *gorm.DB) gwrepo.APIKeyRepository {

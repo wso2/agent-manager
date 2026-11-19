@@ -55,7 +55,7 @@ type envAgentMCPMappingRepository struct {
 func NewEnvAgentMCPMappingRepository(db *gorm.DB) EnvAgentMCPMappingRepository {
 	return &envAgentMCPMappingRepository{
 		db:           db,
-		artifactRepo: NewArtifactRepo(db),
+		artifactRepo: NewArtifactRepo(db, nil),
 	}
 }
 

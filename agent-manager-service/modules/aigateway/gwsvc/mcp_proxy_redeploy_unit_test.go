@@ -27,6 +27,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
 
@@ -45,7 +46,7 @@ func TestRedeployMCPProxyQueuesNothingWhenAnArtifactFailsToRender(t *testing.T) 
 	// QueueRenderFunc is nil: queueing a redeploy panics.
 	core := reconcile.NewCore(nil, &gwrepomocks.DeploymentRepositoryMock{}, nil, reconcile.Kinds{kind}, reconcile.Config{},
 		slog.New(slog.DiscardHandler))
-	svc := NewMCPProxyService(nil, nil, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler), nil,
+	svc := NewMCPProxyService(nil, nil, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler), gwtest.NewSecrets(),
 		nil, nil, core, kind, nil)
 	proxy := &gwmodels.MCPProxy{Endpoints: []gwmodels.MCPProxyEndpoint{{
 		Environments: []gwmodels.MCPProxyEndpointEnvironment{{ArtifactUUID: healthy}, {ArtifactUUID: broken}},

@@ -25,7 +25,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -43,7 +42,7 @@ type GatewayInternalAPIService struct {
 	artifactRepo     gwrepo.ArtifactRepository
 	gatewayRepo      gwrepo.GatewayRepository
 	infraResourceMgr modkit.CoreAPI
-	encryptionKey    []byte
+	secrets          modkit.Secrets
 	artifacts        GatewayArtifacts
 }
 
@@ -74,7 +73,7 @@ func NewGatewayInternalAPIService(
 	artifactRepo gwrepo.ArtifactRepository,
 	gatewayRepo gwrepo.GatewayRepository,
 	infraResourceMgr modkit.CoreAPI,
-	encryptionKey []byte,
+	secrets modkit.Secrets,
 	artifacts GatewayArtifacts,
 ) *GatewayInternalAPIService {
 	return &GatewayInternalAPIService{
@@ -85,7 +84,7 @@ func NewGatewayInternalAPIService(
 		artifactRepo:     artifactRepo,
 		gatewayRepo:      gatewayRepo,
 		infraResourceMgr: infraResourceMgr,
-		encryptionKey:    encryptionKey,
+		secrets:          secrets,
 	}
 }
 
@@ -123,7 +122,7 @@ func (s *GatewayInternalAPIService) getActiveArtifactDeploymentByGateway(
 		return nil, notFound
 	}
 
-	resolvedYaml, err := s.resolveSecretsFor(ctx, gatewayKind, string(deployment.Content))
+	resolvedYaml, err := s.resolveSecretsFor(ctx, ouID, gatewayKind, string(deployment.Content))
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in "+gatewayKind+" YAML",
 			"artifactID", artifactID, "error", err)
@@ -159,7 +158,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(ctx 
 	providerYaml := string(deployment.Content)
 
 	// Resolve secret references in the YAML
-	resolvedYaml, err := s.resolveSecretsFor(ctx, gwmodels.KindLLMProvider, providerYaml)
+	resolvedYaml, err := s.resolveSecretsFor(ctx, ouID, gwmodels.KindLLMProvider, providerYaml)
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in provider YAML",
 			"providerID", providerID, "error", err)
@@ -196,7 +195,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx con
 	proxyYaml := string(deployment.Content)
 
 	// Resolve secret references in the YAML
-	resolvedYaml, err := s.resolveSecretsFor(ctx, gwmodels.KindLLMProxy, proxyYaml)
+	resolvedYaml, err := s.resolveSecretsFor(ctx, ouID, gwmodels.KindLLMProxy, proxyYaml)
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in proxy YAML",
 			"proxyID", proxyID, "error", err)
@@ -209,11 +208,11 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx con
 	return proxyYamlMap, nil
 }
 
-// resolveSecretsInYAML parses YAML, finds auth.secretRef, decrypts it,
+// resolveSecretsInYAML parses YAML, finds auth.secretRef, reads the secret it names,
 // and replaces secretRef with the actual plaintext value.
 // authPath indicates where in the YAML structure the auth block lives
 // (e.g., "upstream.auth" for providers, "provider.auth" for proxies).
-func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, yamlContent, authPath string) (string, error) {
+func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, ouID, yamlContent, authPath string) (string, error) {
 	var doc map[string]interface{}
 	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
 		return "", fmt.Errorf("failed to parse YAML: %w", err)
@@ -259,12 +258,12 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, ya
 		return yamlContent, nil // No secretRef, return as-is
 	}
 
-	plaintext, err := s.decryptSecretRef(secretRef)
+	plaintext, err := s.readSecretRef(ctx, ouID, secretRef)
 	if err != nil {
 		return "", err
 	}
 
-	// Replace secretRef with decrypted value
+	// Replace secretRef with the secret value
 	auth["value"] = plaintext
 	delete(auth, "secretRef")
 
@@ -277,18 +276,18 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, ya
 	return string(resolved), nil
 }
 
-// resolveAllSecretsInYAML walks the entire YAML and decrypts every `secretRef` field it
+// resolveAllSecretsInYAML walks the entire YAML and reads the secret of every `secretRef` field it
 // finds, replacing it with `value: <plaintext>`. Use this when secrets may appear at
 // multiple or unknown locations in the doc (e.g. MCP proxy YAML, where the upstream auth
 // is re-expressed as headers inside a set-headers policy). For YAMLs with a single
 // known secret location, prefer resolveSecretsInYAML — it's targeted and won't touch
 // any field outside the specified path.
-func (s *GatewayInternalAPIService) resolveAllSecretsInYAML(_ context.Context, yamlContent string) (string, error) {
+func (s *GatewayInternalAPIService) resolveAllSecretsInYAML(ctx context.Context, ouID, yamlContent string) (string, error) {
 	var doc interface{}
 	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
 		return "", fmt.Errorf("failed to parse YAML: %w", err)
 	}
-	changed, err := s.decryptSecretRefsIn(doc)
+	changed, err := s.readSecretRefsIn(ctx, ouID, doc)
 	if err != nil {
 		return "", err
 	}
@@ -302,15 +301,15 @@ func (s *GatewayInternalAPIService) resolveAllSecretsInYAML(_ context.Context, y
 	return string(out), nil
 }
 
-// decryptSecretRefsIn recursively visits v. For every map that has a non-empty string
-// `secretRef`, it decrypts the value and rewrites the map to carry `value: <plaintext>`
+// readSecretRefsIn recursively visits v. For every map that has a non-empty string
+// `secretRef`, it reads the secret and rewrites the map to carry `value: <plaintext>`
 // instead. Returns true if any rewrite happened.
-func (s *GatewayInternalAPIService) decryptSecretRefsIn(v interface{}) (bool, error) {
+func (s *GatewayInternalAPIService) readSecretRefsIn(ctx context.Context, ouID string, v interface{}) (bool, error) {
 	switch x := v.(type) {
 	case map[string]interface{}:
 		changed := false
 		if ref, ok := x["secretRef"].(string); ok && ref != "" {
-			plaintext, err := s.decryptSecretRef(ref)
+			plaintext, err := s.readSecretRef(ctx, ouID, ref)
 			if err != nil {
 				return false, err
 			}
@@ -319,7 +318,7 @@ func (s *GatewayInternalAPIService) decryptSecretRefsIn(v interface{}) (bool, er
 			changed = true
 		}
 		for _, child := range x {
-			c, err := s.decryptSecretRefsIn(child)
+			c, err := s.readSecretRefsIn(ctx, ouID, child)
 			if err != nil {
 				return changed, err
 			}
@@ -329,7 +328,7 @@ func (s *GatewayInternalAPIService) decryptSecretRefsIn(v interface{}) (bool, er
 	case []interface{}:
 		changed := false
 		for _, child := range x {
-			c, err := s.decryptSecretRefsIn(child)
+			c, err := s.readSecretRefsIn(ctx, ouID, child)
 			if err != nil {
 				return changed, err
 			}
@@ -341,10 +340,12 @@ func (s *GatewayInternalAPIService) decryptSecretRefsIn(v interface{}) (bool, er
 	}
 }
 
-func (s *GatewayInternalAPIService) decryptSecretRef(secretRef string) (string, error) {
-	plaintext, err := gwutil.DecryptSecretRef(secretRef, s.encryptionKey)
+// readSecretRef reads the value a secretRef names in the organization's secret store. The controller-facing routes
+// carry no caller organization, so it is passed explicitly.
+func (s *GatewayInternalAPIService) readSecretRef(ctx context.Context, ouID, secretRef string) (string, error) {
+	plaintext, err := s.secrets.Get(ctx, ouID, secretRef)
 	if err != nil {
-		return "", fmt.Errorf("failed to decrypt secretRef: %w", err)
+		return "", fmt.Errorf("failed to read secretRef: %w", err)
 	}
 	return plaintext, nil
 }

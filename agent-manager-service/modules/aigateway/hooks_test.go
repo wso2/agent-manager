@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/sqlitedialect"
 )
 
@@ -160,13 +161,13 @@ func TestFinalizeHooks(t *testing.T) {
 		exec(`INSERT INTO mod_ai_gateway_artifact_gateway_status (artifact_id, gateway_id, org_id, status, status_desired, performed_at, attempt_count, updated_at)
 			VALUES (?, ?, ?, 'PENDING', 'DEPLOYED', ?, 0, ?)`, artifact, gateway, org, now, now)
 		req := modkit.HookRequest{OrgID: org, ID: env, Object: map[string]any{"name": "e"}}
-		err := g.Transaction(func(tx *gorm.DB) error { req.Tx = tx; return finalizeEnvironment(ctx, req) })
+		err := g.Transaction(func(tx *gorm.DB) error { req.Tx = tx; return finalizeEnvironmentRows(ctx, gwtest.NewSecrets(), req) })
 		var refused *modkit.Error
 		require.True(t, errors.As(err, &refused), "a gateway of the environment serves an artifact: %v", err)
 		assert.Equal(t, http.StatusConflict, refused.Status)
 
 		exec(`DELETE FROM mod_ai_gateway_artifact_gateway_status`)
-		require.NoError(t, g.Transaction(func(tx *gorm.DB) error { req.Tx = tx; return finalizeEnvironment(ctx, req) }))
+		require.NoError(t, g.Transaction(func(tx *gorm.DB) error { req.Tx = tx; return finalizeEnvironmentRows(ctx, gwtest.NewSecrets(), req) }))
 		assert.Zero(t, count(`SELECT COUNT(*) FROM mod_ai_gateway_gateway_environments WHERE environment_id = ?`, env), "its mappings go")
 		assert.EqualValues(t, 1, count(`SELECT COUNT(*) FROM mod_ai_gateway_gateways WHERE id = ?`, gateway), "the gateway stays")
 	})

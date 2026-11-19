@@ -34,7 +34,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -103,7 +103,7 @@ type MCPProxyService struct {
 	apiKeyBroadcaster    apiKeyBroadcaster
 	client               *http.Client
 	logger               *slog.Logger
-	encryptionKey        []byte
+	secrets              modkit.Secrets
 	resolver             identityv1.Directory
 	core                 *reconcile.Core
 	kind                 *MCPProxyKind
@@ -128,7 +128,7 @@ func NewMCPProxyService(
 	gatewayEventsService *GatewayEventsService,
 	apiKeyRepo gwrepo.APIKeyRepository,
 	logger *slog.Logger,
-	encryptionKey []byte,
+	secrets modkit.Secrets,
 	mcpProxyScopeRepo gwrepo.MCPProxyScopeRepository,
 	resolver identityv1.Directory,
 	core *reconcile.Core,
@@ -155,7 +155,7 @@ func NewMCPProxyService(
 		gatewayRepo:          gatewayRepo,
 		envMCPMappingRepo:    envMCPMappingRepo,
 		agentConfigRepo:      agentConfigRepo,
-		artifactRepo:         gwrepo.NewArtifactRepo(db),
+		artifactRepo:         gwrepo.NewArtifactRepo(db, nil),
 		mcpProxyScopeRepo:    mcpProxyScopeRepo,
 		gatewayEventsService: gatewayEventsService,
 		apiKeyBroadcaster: apiKeyBroadcaster{
@@ -163,10 +163,10 @@ func NewMCPProxyService(
 			gatewayService: gatewayEventsService,
 			apiKeyRepo:     apiKeyRepo,
 		},
-		client:        ssrf.NewClient(mcpRequestTimeout),
-		logger:        logger,
-		encryptionKey: encryptionKey,
-		resolver:      resolver,
+		client:   ssrf.NewClient(mcpRequestTimeout),
+		logger:   logger,
+		secrets:  secrets,
+		resolver: resolver,
 	}
 }
 
@@ -600,8 +600,18 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 
 		// Endpoint config is fully specified on each PUT, so reconcile by replacing the
 		// endpoint set: delete existing endpoints (cascade removes their join rows) and
-		// re-insert. Preserved env artifact UUIDs keep agent bindings resolving.
+		// re-insert. Preserved env artifact UUIDs keep agent bindings resolving. A
+		// dropped endpoint's credential goes with it.
+		kept := make(map[string]bool, len(endpoints))
+		for _, endpoint := range endpoints {
+			kept[endpoint.handle] = true
+		}
 		for _, endpoint := range proxy.Endpoints {
+			if !kept[endpoint.Handle] {
+				if err := s.secrets.In(tx).Delete(ctx, orgUUID, gwsecret.MCPEndpoint(proxy.UUID, endpoint.Handle)); err != nil {
+					return err
+				}
+			}
 			if err := s.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID); err != nil &&
 				!errors.Is(err, gorm.ErrRecordNotFound) {
 				return fmt.Errorf("failed to delete existing MCP proxy endpoint: %w", err)
@@ -885,6 +895,9 @@ func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, pr
 					if err := s.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 						return err
 					}
+					if err := s.secrets.In(tx).Delete(ctx, proxy.OrgID, gwsecret.MCPEndpoint(proxy.UUID, endpoint.Handle)); err != nil {
+						return err
+					}
 				}
 				return nil
 			}); err != nil {
@@ -999,15 +1012,6 @@ func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *gw
 	}
 	if hasHeader != hasCredential {
 		return nil, fmt.Errorf("%w: authentication header and value must be provided together", httpx.ErrInvalidInput)
-	}
-
-	if auth.Value != nil {
-		encoded, err := gwutil.EncryptSecretRef(*auth.Value, s.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
-		}
-		auth.SecretRef = &encoded
-		auth.Value = nil
 	}
 
 	return auth, nil
@@ -1143,8 +1147,8 @@ func sanitizeMCPUpstreamAuthForResponse(auth *gwmodels.UpstreamAuth) *gwmodels.U
 	}
 	sanitized := *auth
 	sanitized.Value = nil
-	// SecretRef is the AES-256-GCM ciphertext of the same credential and is not
-	// declared on the spec's UpstreamAuth, so it must not reach a response body.
+	// SecretRef is where the credential is stored and is not declared on the
+	// spec's UpstreamAuth, so it must not reach a response body.
 	sanitized.SecretRef = nil
 	return &sanitized
 }
@@ -1931,6 +1935,12 @@ func applyRequestedGatewayUUIDs(proxy *gwmodels.MCPProxy, endpoints []gwmodels.M
 func (s *MCPProxyService) persistMCPEndpoints(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, proxyHandle, proxyVersion string, endpoints []storableMCPEndpoint, ouID string) error {
 	now := time.Now()
 	for _, endpoint := range endpoints {
+		if endpoint.config.Upstream != nil {
+			path := gwsecret.MCPEndpoint(proxyUUID, endpoint.handle)
+			if err := gwsecret.Seal(ctx, s.secrets.In(tx), ouID, path, endpoint.config.Upstream.Auth); err != nil {
+				return err
+			}
+		}
 		endpointUUID := uuid.New()
 		row := &gwmodels.MCPProxyEndpoint{
 			UUID:          endpointUUID,

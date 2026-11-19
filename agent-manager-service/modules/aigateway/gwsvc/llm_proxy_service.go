@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -37,21 +36,18 @@ import (
 
 // LLMProxyService handles LLM proxy business logic
 type LLMProxyService struct {
-	proxyRepo     gwrepo.LLMProxyRepository
-	providerRepo  gwrepo.LLMProviderRepository
-	encryptionKey []byte
+	proxyRepo    gwrepo.LLMProxyRepository
+	providerRepo gwrepo.LLMProviderRepository
 }
 
 // NewLLMProxyService creates a new LLM proxy service
 func NewLLMProxyService(
 	proxyRepo gwrepo.LLMProxyRepository,
 	providerRepo gwrepo.LLMProviderRepository,
-	encryptionKey []byte,
 ) *LLMProxyService {
 	return &LLMProxyService{
-		proxyRepo:     proxyRepo,
-		providerRepo:  providerRepo,
-		encryptionKey: encryptionKey,
+		proxyRepo:    proxyRepo,
+		providerRepo: providerRepo,
 	}
 }
 
@@ -119,18 +115,7 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 		return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 
-	// Encrypt upstream auth value if provided
-	if proxy.Configuration.UpstreamAuth != nil &&
-		proxy.Configuration.UpstreamAuth.Value != nil {
-		encoded, err := gwutil.EncryptSecretRef(*proxy.Configuration.UpstreamAuth.Value, s.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
-		}
-		proxy.Configuration.UpstreamAuth.SecretRef = &encoded
-		proxy.Configuration.UpstreamAuth.Value = nil
-	}
-
-	// Create proxy
+	// Create proxy; the repository stores an upstream auth value in the secret store.
 	if err := s.proxyRepo.Create(ctx, proxy, handle, name, version, ouID); err != nil {
 		if errors.Is(err, gwerr.ErrLLMProviderBeingDeleted) {
 			return nil, gwerr.ErrLLMProviderBeingDeleted
@@ -250,18 +235,7 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *gwmodels.LLMProx
 		updates.Configuration.AuthRolloutPendingGateways = existing.Configuration.AuthRolloutPendingGateways
 	}
 
-	// Encrypt upstream auth value if a new value is provided
-	if updates.Configuration.UpstreamAuth != nil &&
-		updates.Configuration.UpstreamAuth.Value != nil {
-		encoded, err := gwutil.EncryptSecretRef(*updates.Configuration.UpstreamAuth.Value, s.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
-		}
-		updates.Configuration.UpstreamAuth.SecretRef = &encoded
-		updates.Configuration.UpstreamAuth.Value = nil
-	}
-
-	// Update proxy
+	// Update proxy; the repository stores a new upstream auth value in the secret store.
 	if err := s.proxyRepo.Update(updates, proxyID, ouID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, gwerr.ErrLLMProxyNotFound

@@ -98,7 +98,7 @@ func (s *GatewayInternalAPIService) FetchDeploymentBatch(
 		if !ok {
 			continue
 		}
-		resolved, err := s.resolveSecretsFor(ctx, kind, string(c.Content))
+		resolved, err := s.resolveSecretsFor(ctx, ouID, kind, string(c.Content))
 		if err != nil {
 			slog.Error("GatewayInternalAPIService: leaving a deployment out of the gateway's batch: its secrets can't be resolved",
 				"deploymentID", c.DeploymentID, "artifactUUID", c.ArtifactUUID, "gatewayID", gatewayID, "error", err)
@@ -111,15 +111,16 @@ func (s *GatewayInternalAPIService) FetchDeploymentBatch(
 	return batch, nil
 }
 
-// resolveSecretsFor decrypts the secrets in a deployment's YAML, by the kind the gateway knows the artifact as.
-func (s *GatewayInternalAPIService) resolveSecretsFor(ctx context.Context, gatewayKind, content string) (string, error) {
+// resolveSecretsFor reads the organization's secrets a deployment's YAML refers to, by the kind the gateway knows
+// the artifact as.
+func (s *GatewayInternalAPIService) resolveSecretsFor(ctx context.Context, ouID, gatewayKind, content string) (string, error) {
 	switch gatewayKind {
 	case gwmodels.KindLLMProvider:
-		return s.resolveSecretsInYAML(ctx, content, "upstream.auth")
+		return s.resolveSecretsInYAML(ctx, ouID, content, "upstream.auth")
 	case gwmodels.KindLLMProxy:
-		return s.resolveSecretsInYAML(ctx, content, "provider.auth")
+		return s.resolveSecretsInYAML(ctx, ouID, content, "provider.auth")
 	default:
-		return s.resolveAllSecretsInYAML(ctx, content)
+		return s.resolveAllSecretsInYAML(ctx, ouID, content)
 	}
 }
 

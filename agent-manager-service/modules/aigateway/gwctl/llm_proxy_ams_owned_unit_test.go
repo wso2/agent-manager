@@ -106,7 +106,7 @@ func TestLLMProxyMutatingRoutes_RefuseAgentOrMonitorProxy(t *testing.T) {
 			}
 			proxyDeployments := gwsvc.NewLLMProxyDeploymentService(nil, nil, proxyRepo, nil, nil, nil, nil, nil)
 			deployments := NewLLMProxyDeploymentController(proxyDeployments)
-			llm := NewLLMController(nil, nil, gwsvc.NewLLMProxyService(proxyRepo, nil, nil), nil, proxyDeployments, nil, ocClient)
+			llm := NewLLMController(nil, nil, gwsvc.NewLLMProxyService(proxyRepo, nil), nil, proxyDeployments, nil, ocClient)
 
 			req := httptest.NewRequest(tt.method, "/llm-proxies/"+proxyHandle+tt.query, strings.NewReader(tt.body))
 			req.SetPathValue("id", proxyHandle)

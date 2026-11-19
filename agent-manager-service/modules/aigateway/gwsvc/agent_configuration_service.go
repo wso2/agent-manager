@@ -19,7 +19,6 @@ package gwsvc
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -31,7 +30,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -132,7 +130,6 @@ type agentConfigurationService struct {
 	ocClient                  modkit.CoreAPI
 	logger                    *slog.Logger
 	secretClient              secretmanagersvc.SecretManagementClient
-	encryptionKey             []byte
 }
 
 // rollbackResource tracks a proxy, its deployment, and API keys for cleanup
@@ -792,7 +789,6 @@ func NewAgentConfigurationService(
 	aiApplicationService *AIApplicationService,
 	logger *slog.Logger,
 	secretClient secretmanagersvc.SecretManagementClient,
-	encryptionKey []byte,
 ) AgentConfigurationService {
 	svc := &agentConfigurationService{
 		db:                        db,
@@ -817,7 +813,6 @@ func NewAgentConfigurationService(
 		llmProviderAPIKeyService: llmProviderAPIKeyService,
 		logger:                   logger,
 		secretClient:             secretClient,
-		encryptionKey:            encryptionKey,
 	}
 	// Register the deletion reconciler now that this service exists; MCPProxyService is
 	// constructed first and calls back into here when a proxy is deleted to strip the
@@ -3725,25 +3720,10 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 
 			apiKeyId = apiKey.KeyID
 
-			// Encrypt the provider API key for storage in UpstreamAuth.SecretRef
-			encrypted, err := aesgcm.Encrypt([]byte(apiKey.APIKey), s.encryptionKey)
-			if err != nil {
-				// revoke created api key
-				if revokeErr := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, config.OUID, provider.UUID.String(), proxyName); revokeErr != nil {
-					s.logger.Error(
-						"Failed to revoke provider API key after encryption failure",
-						"providerUUID", provider.UUID.String(),
-						"providerKeyName", proxyName,
-						"error", revokeErr,
-					)
-				}
-				return nil, "", "", nil, "", fmt.Errorf("failed to encrypt provider API key: %w", err)
-			}
-			encoded := base64.StdEncoding.EncodeToString(encrypted)
+			// The proxy's repository stores the key when the proxy is saved.
 			upstreamAuthConfig.Type = gwutil.StrAsStrPointer(gwmodels.AuthTypeAPIKey)
 			upstreamAuthConfig.Header = gwutil.StrAsStrPointer(upstreamHeader)
-			upstreamAuthConfig.SecretRef = &encoded // Store encrypted value instead of plaintext
-			upstreamAuthConfig.Value = nil          // No plaintext in DB
+			upstreamAuthConfig.Value = &apiKey.APIKey
 			proxyConfig.Configuration.UpstreamAuth = &upstreamAuthConfig
 		}
 	}

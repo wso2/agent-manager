@@ -28,6 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // seedArtifactOn writes another artifact of kind in ouID and places it on p's gateway, with no status row.
@@ -36,7 +37,7 @@ func seedArtifactOn(t *testing.T, p gwmodels.Placement, ouID, kind string) gwmod
 	gdb := db.GetDB()
 	artifactUUID := uuid.New()
 	handle := "handle-" + artifactUUID.String()[:8]
-	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
+	require.NoError(t, NewArtifactRepo(gdb, gwtest.NewSecrets()).Create(gdb, &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
 	t.Cleanup(func() { gdb.Exec(`DELETE FROM mod_ai_gateway_artifacts WHERE id = ?`, artifactUUID) })
@@ -164,7 +165,7 @@ func TestListContentForGateway(t *testing.T) {
 }
 
 func TestArtifactListExisting(t *testing.T) {
-	repo := NewArtifactRepo(db.GetDB())
+	repo := NewArtifactRepo(db.GetDB(), gwtest.NewSecrets())
 	provider := seedPlacement(t, gwmodels.KindLLMProvider)
 	proxy := seedArtifactOn(t, provider, provider.OUID, gwmodels.KindLLMProxy)
 	notAProxy := seedArtifactOn(t, provider, provider.OUID, gwmodels.KindMCPMapping)

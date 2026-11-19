@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
 )
 
@@ -42,7 +43,7 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			gdb := db.GetDB()
-			repo := NewLLMProviderRepo(gdb)
+			repo := NewLLMProviderRepo(gdb, gwtest.NewSecrets())
 			orgUUID := newOrg(t)
 			create := func(handle, name, version string) *gwmodels.LLMProvider {
 				provider := &gwmodels.LLMProvider{
@@ -103,7 +104,7 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 // so without this sync a rename silently never shows up anywhere in the API.
 func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 	gdb := db.GetDB()
-	repo := NewLLMProviderRepo(gdb)
+	repo := NewLLMProviderRepo(gdb, gwtest.NewSecrets())
 	orgUUID := newOrg(t)
 
 	provider := &gwmodels.LLMProvider{
@@ -142,7 +143,7 @@ func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 // literal empty-string overwrite.
 func TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged(t *testing.T) {
 	gdb := db.GetDB()
-	repo := NewLLMProviderRepo(gdb)
+	repo := NewLLMProviderRepo(gdb, gwtest.NewSecrets())
 	orgUUID := newOrg(t)
 
 	provider := &gwmodels.LLMProvider{

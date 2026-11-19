@@ -17,7 +17,6 @@
 package gwsvc
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
@@ -66,12 +65,15 @@ const (
 		`{"protocolBinding":"HTTP+JSON","url":"https://agent.example/team/a2a/rest","protocolVersion":"1.0"}]}`
 )
 
+// goldenA2ASecretRef is where the golden proxy's upstream credential is stored.
+const goldenA2ASecretRef = "a2a-proxies/22222222-3333-4444-5555-666666666666/upstream-auth"
+
 // goldenA2AProxy is the external agent's proxy, with an upstream credential.
 func goldenA2AProxy() *gwmodels.A2AProxy {
 	return &gwmodels.A2AProxy{
 		OUID: "ou-golden", ProjectName: "checkout", AgentName: "trip-planner", EnvironmentName: "dev",
 		EnvironmentUUID: goldenA2AEnvUUID, UpstreamAuthHeader: "X-Origin-Key",
-		UpstreamAuthSecret: "VcsBaZXo9TyzcVjkEME432aIVqbceeyGcIdue/YLzutNtkkJoVTThPU=", // gitleaks:allow
+		UpstreamAuthSecret: goldenA2ASecretRef,
 	}
 }
 
@@ -109,8 +111,7 @@ func goldenA2AKind(t *testing.T, proxy *gwmodels.A2AProxy, fetcher A2ACardFetche
 		GetFunc: func(context.Context, string, string, string, string) (*gwmodels.AgentConfig, error) { return cfg, nil },
 	}
 	oc := &gwtest.Core{}
-	return NewA2AAgentKind(nil, sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil,
-		bytes.Repeat([]byte{7}, 32), testLogger())
+	return NewA2AAgentKind(nil, sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil, goldenA2ASecrets(t), testLogger())
 }
 
 func goldenA2AArtifact() gwmodels.ArtifactRef {
@@ -118,6 +119,13 @@ func goldenA2AArtifact() gwmodels.ArtifactRef {
 		OUID: "ou-golden", ArtifactUUID: uuid.New(), Kind: gwmodels.KindAgent,
 		Handle: agentEnvAPIArtifactHandle("checkout", "trip-planner", goldenA2AEnvUUID.String()),
 	}
+}
+
+// goldenA2ASecrets holds the golden proxy's upstream credential.
+func goldenA2ASecrets(t *testing.T) *gwtest.Secrets {
+	secrets := gwtest.NewSecrets()
+	require.NoError(t, secrets.Put(context.Background(), "ou-golden", goldenA2ASecretRef, "origin-secret"))
+	return secrets
 }
 
 func TestA2AAgentKindRendersTodaysYAMLForAnExternalAgent(t *testing.T) {
@@ -153,7 +161,7 @@ func TestA2AAgentKindTargetsReadThroughTheSavesTransaction(t *testing.T) {
 		assert.Same(t, txSentinel, tx)
 		return txGateways
 	}}
-	kind := NewA2AAgentKind(nil, nil, NewPlatformAgentExposures(nil, pool, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, testLogger())
+	kind := NewA2AAgentKind(nil, nil, NewPlatformAgentExposures(nil, pool, nil), nil, nil, nil, nil, nil, nil, nil, nil, gwtest.NewSecrets(), testLogger())
 
 	gateway, ok, err := kind.Targets(gwtx.With(context.Background(), txSentinel), reconcile.Record{
 		ArtifactRef:     gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindAgent},

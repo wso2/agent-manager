@@ -232,7 +232,7 @@ card("acard", "agents", 640, 0, 250, "Agent card", "agent_cards",
      [("source_url", ""), ("card", "JSON"), ("card_hash", ""), ("status", "")], chips=["env", "queue", "gwmod"])
 card("a2a", "agents", 640, 0, 250, "A2A proxy", "a2a_proxies",
      "Gateway route to an A2A agent's upstream.",
-     [("upstream_auth_header", ""), ("upstream_auth_secret_id", "")], chips=["env", "secret", "gwmod"])
+     [("upstream_auth_header", "")], chips=["env", "secret", "gwmod"])
 card("mconf", "agents", 60, 0, 250, "Agent model config", "agent_model_configs",
      "A named LLM or MCP connection the agent uses.",
      [("name", "unique per agent"), ("type", "llm | mcp")], chips=["gwmod"])
@@ -291,12 +291,12 @@ TY = cards["status"].y + cards["status"].h + 80
 TW = 210
 card("prov", "gateway", 975, TY, TW, "LLM provider", "llm_providers",
      "An org-wide connection to an LLM service.",
-     [("template_handle", ""), ("model_list", ""), ("configuration", "JSON"), ("upstream_secret_id", "")],
+     [("template_handle", ""), ("model_list", ""), ("configuration", "JSON")],
      chips=["secret"])
 card("lproxy", "gateway", 1235, TY, TW, "LLM proxy", "llm_proxies",
      "A project's governed route to a provider. What agents call.",
-     [("project_id", "owning project"), ("provider_id", "LLM provider"), ("configuration", "policies"),
-      ("upstream_secret_id", "")], chips=["secret"])
+     [("project_id", "owning project"), ("provider_id", "LLM provider"), ("configuration", "policies")],
+     chips=["secret"])
 card("mproxy", "gateway", 1495, TY, TW, "MCP proxy", "mcp_proxies",
      "Gateway front for an MCP server.",
      [("project_id", "empty = org-level"), ("configuration", "JSON"), ("status", "")])
@@ -312,7 +312,7 @@ card("scopes", "gateway", 1495, BY, TW, "MCP scope", "mcp_proxy_scopes, mcp_prox
      [("action", "unique per proxy"), ("tool_name", "one row per tool")])
 card("endpoint", "gateway", 1755, BY, 232, "MCP endpoint", "mcp_proxy_endpoints, mcp_proxy_endpoint_environments",
      "The upstream MCP server. One per proxy in Lite, placed in the default environment.",
-     [("configuration", "upstream, policies"), ("upstream_secret_id", ""), ("artifact_id", "per env")],
+     [("configuration", "upstream, policies"), ("artifact_id", "per env")],
      chips=["env", "secret"])
 
 # ---------------------------------------------------------------- Right column
@@ -669,10 +669,11 @@ def render_svg(viewbox=None, width=None):
     ab = area_boxes["audit"]
     out.append(f'<text x="{ab[0] + 380}" y="{ab[1] + 30}" class="anote">No foreign keys: rows outlive what they describe.</text>')
     sc = cards["secret"]
-    notes = ["Referenced by secret_id from LLM providers,",
-             "LLM proxies, MCP endpoints, A2A proxies and",
-             "event destinations. The service deletes a",
-             "secret after its owner.",
+    notes = ["Referenced by secret_id from event",
+             "destinations. Modules keep theirs by path",
+             "(the AI Gateway's LLM providers, LLM proxies,",
+             "MCP endpoints and A2A proxies), deleted",
+             "with the owning row.",
              "",
              "Production can keep values in an external",
              "vault instead (provider + external_ref)."]

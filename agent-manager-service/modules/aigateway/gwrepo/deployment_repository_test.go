@@ -28,6 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // seedAgentDeployment writes a gateway, an agent artifact and one deployment of it.
@@ -36,7 +37,7 @@ func seedAgentDeployment(t *testing.T) (artifactUUID uuid.UUID, ouID string) {
 	gdb := db.GetDB()
 	ouID = newOrg(t)
 	gatewayID, artifactUUID := newGateway(t, ouID, gwmodels.GatewayRoleIngress), uuid.New()
-	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
+	require.NoError(t, NewArtifactRepo(gdb, gwtest.NewSecrets()).Create(gdb, &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: "proj/agent/" + artifactUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
 		Version: "v1.0", Kind: gwmodels.KindAgent, OUID: ouID,
 	}))

@@ -50,7 +50,7 @@ type LLMProviderKind struct {
 // NewLLMProviderKind reads providers through the request's transaction when there is one.
 func NewLLMProviderKind(db *gorm.DB) *LLMProviderKind {
 	return &LLMProviderKind{db: db, load: func(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProvider, error) {
-		return gwrepo.NewLLMProviderRepo(gwtx.Or(ctx, db)).GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
+		return gwrepo.NewLLMProviderRepo(gwtx.Or(ctx, db), nil).GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
 	}}
 }
 

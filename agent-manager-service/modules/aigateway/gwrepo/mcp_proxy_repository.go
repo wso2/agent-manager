@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -103,14 +104,17 @@ type MCPProxyRepo struct {
 	db           *gorm.DB
 	core         modkit.CoreAPI
 	artifactRepo ArtifactRepository
+	secrets      modkit.Secrets
 }
 
-// NewMCPProxyRepo creates a new MCP proxy repository.
-func NewMCPProxyRepo(db *gorm.DB) MCPProxyRepository {
+// NewMCPProxyRepo creates a new MCP proxy repository. secrets deletes a deleted proxy's endpoint credentials; a
+// repository that deletes no proxies may pass nil.
+func NewMCPProxyRepo(db *gorm.DB, secrets modkit.Secrets) MCPProxyRepository {
 	return &MCPProxyRepo{
 		db:           db,
 		core:         repositories.NewCoreReadAPI(db),
-		artifactRepo: NewArtifactRepo(db),
+		artifactRepo: NewArtifactRepo(db, nil),
+		secrets:      secrets,
 	}
 }
 
@@ -358,11 +362,21 @@ func (r *MCPProxyRepo) Delete(ctx context.Context, handle, orgUUID string) error
 			Delete(&gwmodels.Deployment{}).Error; err != nil {
 			return err
 		}
+		var handles []string
+		if err := tx.Model(&gwmodels.MCPProxyEndpoint{}).Where("mcp_proxy_id = ?", proxy.UUID).
+			Pluck("handle", &handles).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("id = ?", proxy.UUID).Delete(&gwmodels.MCPProxy{}).Error; err != nil {
 			if dberr.IsForeignKeyViolation(err) {
 				return gwerr.ErrMCPProxyHasMappings
 			}
 			return err
+		}
+		for _, handle := range handles {
+			if err := r.secrets.In(tx).Delete(ctx, orgUUID, gwsecret.MCPEndpoint(proxy.UUID, handle)); err != nil {
+				return err
+			}
 		}
 		return r.artifactRepo.Delete(tx, proxy.UUID.String())
 	})

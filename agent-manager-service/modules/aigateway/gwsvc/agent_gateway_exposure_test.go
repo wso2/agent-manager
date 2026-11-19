@@ -27,11 +27,12 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 func (f *a2aFixture) storedArtifact(t *testing.T, artifact gwmodels.ArtifactRef) *gwmodels.Artifact {
 	t.Helper()
-	stored, err := gwrepo.NewArtifactRepo(db.GetDB()).GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
+	stored, err := gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()).GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
 	require.NoError(t, err)
 	return stored
 }
@@ -39,7 +40,7 @@ func (f *a2aFixture) storedArtifact(t *testing.T, artifact gwmodels.ArtifactRef)
 func TestEnsureExposedArtifactKeepsAnAgentRow(t *testing.T) {
 	f := newA2AFixture(t)
 	gdb := db.GetDB()
-	artifacts := gwrepo.NewArtifactRepo(gdb)
+	artifacts := gwrepo.NewArtifactRepo(gdb, gwtest.NewSecrets())
 
 	t.Run("an A2A agent's Agent row stays", func(t *testing.T) {
 		a2a, a2aKey := f.platformAgent(t)

@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -57,7 +58,7 @@ func handles(proxies []*gwmodels.MCPProxy) []string {
 }
 
 func TestCreateProjectProxyNotInCatalog(t *testing.T) {
-	repo := NewMCPProxyRepo(db.GetDB())
+	repo := NewMCPProxyRepo(db.GetDB(), gwtest.NewSecrets())
 	ou := newOrg(t)
 	projectName := "checkout"
 	project := dbtest.Project(t, db.GetDB(), ou, projectName).String()
@@ -81,7 +82,7 @@ func TestCreateProjectProxyNotInCatalog(t *testing.T) {
 }
 
 func TestListFilters(t *testing.T) {
-	repo := NewMCPProxyRepo(db.GetDB())
+	repo := NewMCPProxyRepo(db.GetDB(), gwtest.NewSecrets())
 	ctx := context.Background()
 	ou := newOrg(t)
 	n1, n2 := "one", "two"
@@ -143,7 +144,7 @@ func TestListFilters(t *testing.T) {
 }
 
 func TestGetInProjectRejectsOtherProject(t *testing.T) {
-	repo := NewMCPProxyRepo(db.GetDB())
+	repo := NewMCPProxyRepo(db.GetDB(), gwtest.NewSecrets())
 	ctx := context.Background()
 	ou := newOrg(t)
 	name := "n"

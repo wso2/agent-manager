@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // seedCatalogProvider writes a catalog-listed provider and an environment its gateway is mapped to, and returns the
@@ -44,9 +45,9 @@ func seedCatalogProvider(t *testing.T) (gwmodels.Placement, uuid.UUID) {
 		},
 		Status: "CREATED",
 	}
-	require.NoError(t, NewLLMProviderRepo(gdb).Create(gdb, provider, provider.Configuration.Handle,
+	require.NoError(t, NewLLMProviderRepo(gdb, gwtest.NewSecrets()).Create(gdb, provider, provider.Configuration.Handle,
 		provider.Configuration.Name, "v1.0", p.OUID))
-	require.NoError(t, NewArtifactRepo(gdb).UpdateCatalogStatus(gdb, provider.UUID.String(), p.OUID, true))
+	require.NoError(t, NewArtifactRepo(gdb, gwtest.NewSecrets()).UpdateCatalogStatus(gdb, provider.UUID.String(), p.OUID, true))
 	env := dbtest.Environment(t, gdb, p.OUID) // the gateway is mapped to it
 	p.ArtifactUUID, p.Handle = provider.UUID, provider.Configuration.Handle
 	return p, env

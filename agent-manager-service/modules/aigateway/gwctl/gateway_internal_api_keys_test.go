@@ -53,7 +53,7 @@ func TestGetAPIKeysServesBothAgentKinds(t *testing.T) {
 			UUID: uuid.New(), Handle: "proj/" + kind + "/" + env.String(), Name: kind + "-" + uuid.NewString()[:8],
 			Version: "v1.0", Kind: kind, OUID: ouID,
 		}
-		require.NoError(t, gwrepo.NewArtifactRepo(gdb).Create(gdb, artifact))
+		require.NoError(t, gwrepo.NewArtifactRepo(gdb, gwtest.NewSecrets()).Create(gdb, artifact))
 		require.NoError(t, gdb.Create(&gwmodels.StoredAPIKey{
 			UUID: uuid.New(), Name: "key", ArtifactUUID: artifact.UUID, OUID: ouID, APIKeyHash: "hash",
 			Status: "active", Purpose: gwmodels.APIKeyPurposeUserManaged,
@@ -97,7 +97,7 @@ func newPullFixture(t *testing.T) pullFixture {
 	ouID := dbtest.Org(t, db.GetDB())
 	gatewayID, artifactID := gwtest.GatewayIn(t, gdb, ouID, gwmodels.GatewayRoleBoth).UUID, uuid.New()
 	handle := "handle-" + artifactID.String()[:8]
-	require.NoError(t, gwrepo.NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
+	require.NoError(t, gwrepo.NewArtifactRepo(gdb, gwtest.NewSecrets()).Create(gdb, &gwmodels.Artifact{
 		UUID: artifactID, Handle: handle, Name: handle, Version: "v1.0", Kind: gwmodels.KindRestAPI, OUID: ouID,
 	}))
 	placement := gwmodels.Placement{

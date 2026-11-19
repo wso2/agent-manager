@@ -37,7 +37,7 @@ import (
 func goldenProxy() *gwmodels.LLMProxy {
 	enabled := true
 	ctxPath, vhost, timeout := "/agent-proxy", "proxy.example.com", "10s"
-	authType, authHeader, ref := "api-key", "X-Upstream-Key", "proxy-upstream-key"
+	authType, authHeader, ref := "api-key", "X-Upstream-Key", "llm-proxies/7a2d3b63-1e8f-4d2b-8b4f-1f6c7a8b9cad/upstream-auth"
 	return &gwmodels.LLMProxy{
 		UUID:   uuid.MustParse("7a2d3b63-1e8f-4d2b-8b4f-1f6c7a8b9cad"),
 		Handle: "acme-agent-proxy",

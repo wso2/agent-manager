@@ -52,7 +52,7 @@ func deploySettingsService(configs *gwrepomocks.AgentConfigRepositoryMock, publi
 		},
 	}
 	artifacts.WithTxFunc = func(*gorm.DB) gwrepo.ArtifactRepository { return artifacts }
-	return NewAgentGatewayService(nil, oc, configs, nil, artifacts, nil, nil, publisher, nil, publisher.exposure, testLogger(), tierPermissions())
+	return NewAgentGatewayService(nil, oc, configs, nil, artifacts, nil, nil, publisher, nil, publisher.exposure, testLogger(), tierPermissions(), gwtest.NewSecrets())
 }
 
 // savedConfigs accepts the upsert inside the save transaction only; a plain Upsert reaches a nil func and panics.

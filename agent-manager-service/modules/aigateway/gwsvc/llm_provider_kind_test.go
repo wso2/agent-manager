@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
 
@@ -49,12 +50,12 @@ func newProviderFixture(t *testing.T) *providerFixture {
 	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind(gormDB)}, reconcile.Config{},
 		slog.New(slog.DiscardHandler))
 	gateways := gwrepo.NewGatewayRepo(gormDB)
-	providerRepo := gwrepo.NewLLMProviderRepo(gormDB)
+	providerRepo := gwrepo.NewLLMProviderRepo(gormDB, gwtest.NewSecrets())
 	f.deployment = NewLLMProviderDeploymentService(NewTxRunner(gormDB), f.sync.repo, providerRepo, nil, gateways, nil, core)
 	templates := NewLLMTemplateStore()
 	templates.Load([]*gwmodels.LLMProviderTemplate{{Handle: "openai"}})
 	f.providers = NewLLMProviderService(gormDB, providerRepo, gwrepo.NewLLMProviderTemplateRepo(gormDB),
-		templates, nil, nil, make([]byte, 32), gateways, f.sync.repo, nil, nil)
+		templates, nil, nil, gateways, f.sync.repo, nil, nil)
 	return f
 }
 

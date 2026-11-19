@@ -64,7 +64,6 @@ type LLMProviderService struct {
 	templateStore    *LLMTemplateStore
 	proxyRepo        gwrepo.LLMProxyRepository
 	artifactRepo     gwrepo.ArtifactRepository
-	encryptionKey    []byte
 	gatewayRepo      gwrepo.GatewayRepository
 	deploymentRepo   gwrepo.DeploymentRepository
 	agentMappingRepo gwrepo.EnvAgentModelMappingRepository
@@ -95,7 +94,6 @@ func NewLLMProviderService(
 	templateStore *LLMTemplateStore,
 	proxyRepo gwrepo.LLMProxyRepository,
 	artifactRepo gwrepo.ArtifactRepository,
-	encryptionKey []byte,
 	gatewayRepo gwrepo.GatewayRepository,
 	deploymentRepo gwrepo.DeploymentRepository,
 	agentMappingRepo gwrepo.EnvAgentModelMappingRepository,
@@ -108,7 +106,6 @@ func NewLLMProviderService(
 		templateStore:    templateStore,
 		proxyRepo:        proxyRepo,
 		artifactRepo:     artifactRepo,
-		encryptionKey:    encryptionKey,
 		gatewayRepo:      gatewayRepo,
 		deploymentRepo:   deploymentRepo,
 		agentMappingRepo: agentMappingRepo,
@@ -365,27 +362,6 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 		return fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 
-	// Encrypt upstream API key if provided
-	if provider.Configuration.Upstream != nil &&
-		provider.Configuration.Upstream.Main != nil &&
-		provider.Configuration.Upstream.Main.Auth != nil &&
-		provider.Configuration.Upstream.Main.Auth.Value != nil {
-
-		encoded, err := gwutil.EncryptSecretRef(*provider.Configuration.Upstream.Main.Auth.Value, s.encryptionKey)
-		if err != nil {
-			slog.Error("LLMProviderService.Create: failed to encrypt upstream key",
-				"ouID", ouID, "handle", handle, "error", err)
-			return fmt.Errorf("failed to encrypt upstream API key: %w", err)
-		}
-
-		// Replace plaintext with encrypted reference
-		provider.Configuration.Upstream.Main.Auth.SecretRef = &encoded
-		provider.Configuration.Upstream.Main.Auth.Value = nil
-
-		slog.Info("LLMProviderService.Create: encrypted upstream key",
-			"ouID", ouID, "handle", handle)
-	}
-
 	return nil
 }
 
@@ -600,23 +576,6 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 	}
 	if err := updates.Configuration.Resilience.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
-	}
-
-	// Encrypt upstream API key if a new value is provided
-	if updates.Configuration.Upstream != nil &&
-		updates.Configuration.Upstream.Main != nil &&
-		updates.Configuration.Upstream.Main.Auth != nil &&
-		updates.Configuration.Upstream.Main.Auth.Value != nil {
-
-		encoded, err := gwutil.EncryptSecretRef(*updates.Configuration.Upstream.Main.Auth.Value, s.encryptionKey)
-		if err != nil {
-			slog.Error("LLMProviderService.Update: failed to encrypt upstream key",
-				"ouID", ouID, "providerID", providerID, "error", err)
-			return nil, fmt.Errorf("failed to encrypt upstream API key: %w", err)
-		}
-		// Replace plaintext with encrypted reference
-		updates.Configuration.Upstream.Main.Auth.SecretRef = &encoded
-		updates.Configuration.Upstream.Main.Auth.Value = nil
 	}
 
 	// Snapshot whether API key auth was enabled before this update, so we can revoke
@@ -1288,18 +1247,11 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 		if err != nil {
 			return nil, fmt.Errorf("failed to mint upstream api key for proxy %s: %w", proxy.Handle, err)
 		}
-		encoded, err := gwutil.EncryptSecretRef(apiKey.APIKey, s.encryptionKey)
-		if err != nil {
-			if revokeErr := s.apiKeyService.RevokeAPIKey(ctx, ouID, provider.UUID.String(), keyName); revokeErr != nil {
-				slog.Error("nextProxyUpstreamAuth: failed to revoke api key after encryption failure",
-					"proxyHandle", proxy.Handle, "providerUUID", provider.UUID.String(), "error", revokeErr)
-			}
-			return nil, fmt.Errorf("failed to encrypt upstream api key for proxy %s: %w", proxy.Handle, err)
-		}
+		// The proxy's repository stores the key when the proxy is saved.
 		return &gwmodels.UpstreamAuth{
-			Type:      gwutil.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
-			Header:    gwutil.StrAsStrPointer(upstreamHeader),
-			SecretRef: &encoded,
+			Type:   gwutil.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
+			Header: gwutil.StrAsStrPointer(upstreamHeader),
+			Value:  &apiKey.APIKey,
 		}, nil
 	}
 	return nil, fmt.Errorf(

@@ -12,7 +12,7 @@ spec:
         auth:
             type: api-key
             header: X-Upstream-Key
-            secretRef: proxy-upstream-key
+            secretRef: llm-proxies/7a2d3b63-1e8f-4d2b-8b4f-1f6c7a8b9cad/upstream-auth
     resilience:
         timeout: 10s
     policies:

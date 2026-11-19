@@ -110,11 +110,10 @@ func newProxySyncFixture(t *testing.T) *proxySyncFixture {
 	core := reconcile.NewCore(database, f.deployRepo, &stubEventHub{}, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 
-	encryptionKey := make([]byte, 32)
 	apiKeySvc := NewLLMProviderAPIKeyService(providerRepo, gatewayRepo, NewGatewayEventsService(&stubEventHub{}), apiKeyRepo)
-	f.svc = NewLLMProviderService(nil, providerRepo, nil, nil, f.proxyRepo, nil, encryptionKey, gatewayRepo, f.deployRepo,
+	f.svc = NewLLMProviderService(nil, providerRepo, nil, nil, f.proxyRepo, nil, gatewayRepo, f.deployRepo,
 		nil, apiKeySvc)
-	f.proxySvc = NewLLMProxyService(f.proxyRepo, providerRepo, encryptionKey)
+	f.proxySvc = NewLLMProxyService(f.proxyRepo, providerRepo)
 	f.deploySvc = NewLLMProxyDeploymentService(nil, f.deployRepo, f.proxyRepo, providerRepo, gatewayRepo, nil, core, kind)
 	return f
 }
@@ -179,7 +178,7 @@ func TestSyncProxyAuthHeaderKeepsHeadersWhenALaterGatewayFails(t *testing.T) {
 	assert.Equal(t, newProxyIngressSecurity(f.provider), saved.Security)
 	require.NotNil(t, saved.UpstreamAuth)
 	assert.Equal(t, proxySyncUpstreamHeader, *saved.UpstreamAuth.Header)
-	assert.NotNil(t, saved.UpstreamAuth.SecretRef)
+	assert.NotNil(t, saved.UpstreamAuth.Value, "the minted key goes to the proxy's repository, which stores it")
 	assert.Empty(t, f.revokedKeys, "the first gateway authenticates with the minted key")
 }
 

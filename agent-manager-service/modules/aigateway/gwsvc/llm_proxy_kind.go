@@ -58,11 +58,11 @@ func NewLLMProxyKind(db *gorm.DB, gatewayRepo gwrepo.GatewayRepository, deployme
 }
 
 func loadLLMProxy(ctx context.Context, tx *gorm.DB, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error) {
-	proxy, err := gwrepo.NewLLMProxyRepo(tx).GetByIDCtx(ctx, artifact.Handle, artifact.OUID)
+	proxy, err := gwrepo.NewLLMProxyRepo(tx, nil).GetByIDCtx(ctx, artifact.Handle, artifact.OUID)
 	if err != nil {
 		return nil, nil, err
 	}
-	provider, err := gwrepo.NewLLMProviderRepo(tx).GetByUUID(proxy.Configuration.Provider, artifact.OUID)
+	provider, err := gwrepo.NewLLMProviderRepo(tx, nil).GetByUUID(proxy.Configuration.Provider, artifact.OUID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil, reconcile.Permanent(gwerr.ErrLLMProviderNotFound)
 	}
@@ -101,7 +101,7 @@ func proxyEventVhost(tx *gorm.DB, artifact gwmodels.ArtifactRef) string {
 	if tx == nil {
 		return ""
 	}
-	proxy, err := gwrepo.NewLLMProxyRepo(tx).GetByIDCtx(context.Background(), artifact.Handle, artifact.OUID)
+	proxy, err := gwrepo.NewLLMProxyRepo(tx, nil).GetByIDCtx(context.Background(), artifact.Handle, artifact.OUID)
 	if err != nil {
 		return ""
 	}

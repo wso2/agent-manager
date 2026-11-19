@@ -30,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // newTestExposure is an exposure of a fresh per-environment agent artifact, removed with it at cleanup.
@@ -39,7 +40,7 @@ func newTestExposure(t *testing.T, ouID, agentName string, envUUID uuid.UUID) *g
 	ensureAgent(t, ouID, "checkout", agentName)
 	envWithID(t, ouID, envUUID, "Development")
 	artifactUUID := uuid.New()
-	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
+	require.NoError(t, NewArtifactRepo(gdb, gwtest.NewSecrets()).Create(gdb, &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: "checkout/" + agentName + "/" + envUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
 		Version: "v1.0", Kind: gwmodels.KindAgent, OUID: ouID,
 	}))
@@ -119,7 +120,7 @@ func TestPlatformAgentExposureGoesWithItsArtifact(t *testing.T) {
 	require.NoError(t, repo.Upsert(ctx, exposure))
 
 	gdb := db.GetDB()
-	require.NoError(t, NewArtifactRepo(gdb).Delete(gdb, exposure.ArtifactUUID.String()))
+	require.NoError(t, NewArtifactRepo(gdb, gwtest.NewSecrets()).Delete(gdb, exposure.ArtifactUUID.String()))
 
 	_, err := repo.GetByArtifact(ctx, exposure.OUID, exposure.ArtifactUUID)
 	assert.ErrorIs(t, err, ErrPlatformAgentExposureNotFound)

@@ -20,6 +20,7 @@ package gwwire
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
@@ -63,4 +64,5 @@ type Gateway struct {
 	AgentGateway                 *gwsvc.AgentGatewayService
 	IdentityDirectory            *gwsvc.IdentityDirectory
 	Permissions                  *gwsvc.Permissions
+	Secrets                      *gwsecret.Store
 }

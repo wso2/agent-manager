@@ -18,13 +18,12 @@ package gwsvc
 
 import (
 	"context"
-	"encoding/base64"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -127,10 +126,9 @@ func TestSyncEtagChangesWithTheDeploymentAndItsTime(t *testing.T) {
 }
 
 func TestFetchDeploymentBatch(t *testing.T) {
-	key := make([]byte, 32)
-	ciphertext, err := aesgcm.Encrypt([]byte("s3cret"), key)
-	require.NoError(t, err)
-	secretRef := base64.StdEncoding.EncodeToString(ciphertext)
+	secretRef := "llm-providers/1/upstream-auth"
+	secrets := gwtest.NewSecrets()
+	require.NoError(t, secrets.Put(context.Background(), "ou-1", secretRef, "s3cret"))
 
 	provider := gwmodels.GatewayDeploymentContent{
 		ArtifactRef:  gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindLLMProvider, Handle: "provider"},
@@ -140,7 +138,7 @@ func TestFetchDeploymentBatch(t *testing.T) {
 	proxy := gwmodels.GatewayDeploymentContent{
 		ArtifactRef:  gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindLLMProxy, Handle: "proxy-handle"},
 		DeploymentID: uuid.New(),
-		Content:      []byte("spec:\n  provider:\n    auth:\n      secretRef: not-decryptable\n"),
+		Content:      []byte("spec:\n  provider:\n    auth:\n      secretRef: not-stored\n"),
 	}
 	mcp := gwmodels.GatewayDeploymentContent{
 		ArtifactRef:  gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindMCPMapping, Handle: "mcp"},
@@ -161,7 +159,7 @@ func TestFetchDeploymentBatch(t *testing.T) {
 			return []gwmodels.GatewayDeploymentContent{provider, proxy, mcp, restAPI}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds())
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, secrets, gatewayKinds())
 
 	got, err := svc.FetchDeploymentBatch(context.Background(), "ou-1", "gw-1", []string{
 		strings.ToUpper(provider.DeploymentID.String()), "", proxy.DeploymentID.String(), "not-a-uuid",

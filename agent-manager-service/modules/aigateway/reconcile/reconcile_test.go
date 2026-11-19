@@ -266,7 +266,7 @@ func seedArtifact(t *testing.T, ouID, kind string) gwmodels.ArtifactRef {
 	gdb := db.GetDB()
 	artifactUUID := uuid.New()
 	handle := "handle-" + artifactUUID.String()[:8]
-	require.NoError(t, gwrepo.NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
+	require.NoError(t, gwrepo.NewArtifactRepo(gdb, gwtest.NewSecrets()).Create(gdb, &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
 	return gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle}

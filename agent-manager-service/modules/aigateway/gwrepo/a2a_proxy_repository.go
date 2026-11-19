@@ -23,7 +23,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
@@ -66,16 +68,24 @@ type A2AProxyRepository interface {
 }
 
 type a2aProxyRepository struct {
-	db *gorm.DB
+	db      *gorm.DB
+	secrets modkit.Secrets
 }
 
-// NewA2AProxyRepository creates an A2AProxyRepository.
-func NewA2AProxyRepository(db *gorm.DB) A2AProxyRepository {
-	return &a2aProxyRepository{db: db}
+// NewA2AProxyRepository creates an A2AProxyRepository; secrets keeps the proxies' upstream credentials.
+func NewA2AProxyRepository(db *gorm.DB, secrets modkit.Secrets) A2AProxyRepository {
+	return &a2aProxyRepository{db: db, secrets: secrets}
 }
 
 func (r *a2aProxyRepository) WithTx(tx *gorm.DB) A2AProxyRepository {
-	return &a2aProxyRepository{db: tx}
+	return &a2aProxyRepository{db: tx, secrets: r.secrets}
+}
+
+// withSecretRef points a read row at its stored credential: a row has one exactly while it has a header.
+func withSecretRef(row *gwmodels.A2AProxy) {
+	if row.UpstreamAuthHeader != "" {
+		row.UpstreamAuthSecret = gwsecret.A2AProxy(row.ID)
+	}
 }
 
 // LockAgentEnv locks the agent's row: Lite has one environment per agent, so the agent row serialises its proxy.
@@ -112,14 +122,9 @@ func (r *a2aProxyRepository) first(ctx context.Context, query string, args ...in
 	if err != nil {
 		return nil, err
 	}
-	if row.UpstreamAuthSecret, err = repositories.GetSecret(db, row.UpstreamAuthSecretID); err != nil {
-		return nil, err
-	}
+	withSecretRef(&row)
 	return &row, nil
 }
-
-// a2aProxySecretOwner is the owner_kind of an A2A proxy's upstream credential.
-const a2aProxySecretOwner = "a2a_proxy"
 
 func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *gwmodels.A2AProxy) error {
 	now := dbx.Now()
@@ -142,54 +147,68 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *gwmodels.A2AProx
 				proxy.ID = repositories.NewID()
 			}
 			proxy.CreatedAt = now
-			secretID, err := repositories.PutSecret(tx, proxy.OUID, a2aProxySecretOwner, proxy.ID, nil, secretIfHeader(proxy))
-			if err != nil {
+			if err := r.storeSecret(ctx, tx, proxy); err != nil {
 				return err
 			}
-			proxy.UpstreamAuthSecretID = secretID
 			return tx.Create(proxy).Error
 		}
 		current := existing[0]
 		proxy.ID, proxy.CreatedAt = current.ID, current.CreatedAt
-		secretID, err := repositories.PutSecret(tx, proxy.OUID, a2aProxySecretOwner, proxy.ID, current.UpstreamAuthSecretID, secretIfHeader(proxy))
-		if err != nil {
+		if err := r.storeSecret(ctx, tx, proxy); err != nil {
 			return err
 		}
-		// Clearing the reference first lets an emptied credential's secret go.
-		if err := tx.Model(&gwmodels.A2AProxy{}).Where("id = ?", proxy.ID).Updates(map[string]any{
-			"artifact_id": proxy.ArtifactUUID, "upstream_auth_header": proxy.UpstreamAuthHeader,
-			"upstream_auth_secret_id": secretID, "updated_at": now,
-		}).Error; err != nil {
-			return err
-		}
-		proxy.UpstreamAuthSecretID = secretID
-		if secretID == nil {
-			return repositories.DeleteSecret(tx, current.UpstreamAuthSecretID)
-		}
-		return nil
+		return tx.Model(&gwmodels.A2AProxy{}).Where("id = ?", proxy.ID).Updates(map[string]any{
+			"artifact_id": proxy.ArtifactUUID, "upstream_auth_header": proxy.UpstreamAuthHeader, "updated_at": now,
+		}).Error
 	})
 }
 
-// secretIfHeader is the credential to store: none without a header to send it in.
-func secretIfHeader(proxy *gwmodels.A2AProxy) string {
-	if proxy.UpstreamAuthHeader == "" {
-		return ""
+// storeSecret writes the proxy's new credential, or deletes the stored one when there is no header to send it in.
+// Without a new value the stored one stays.
+func (r *a2aProxyRepository) storeSecret(ctx context.Context, tx *gorm.DB, proxy *gwmodels.A2AProxy) error {
+	secrets, path := r.secrets.In(tx), gwsecret.A2AProxy(proxy.ID)
+	switch {
+	case proxy.UpstreamAuthHeader == "":
+		proxy.UpstreamAuthSecret = ""
+		return secrets.Delete(ctx, proxy.OUID, path)
+	case proxy.UpstreamAuthValue != nil:
+		if err := secrets.Put(ctx, proxy.OUID, path, *proxy.UpstreamAuthValue); err != nil {
+			return err
+		}
+		proxy.UpstreamAuthValue = nil
 	}
-	return proxy.UpstreamAuthSecret
+	proxy.UpstreamAuthSecret = path
+	return nil
+}
+
+// DeleteA2AProxySecrets deletes, in tx, the stored credentials of the A2A proxies matching cond, before their rows
+// go.
+func DeleteA2AProxySecrets(ctx context.Context, tx *gorm.DB, secrets modkit.Secrets, cond string, args ...any) error {
+	var rows []gwmodels.A2AProxy
+	if err := tx.Session(&gorm.Session{SkipHooks: true}).Select("id, org_id").Where(cond, args...).
+		Find(&rows).Error; err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if err := secrets.In(tx).Delete(ctx, row.OUID, gwsecret.A2AProxy(row.ID)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // deleteProxies removes the proxies matching cond and their secrets, and reports how many it removed.
 func (r *a2aProxyRepository) deleteProxies(ctx context.Context, cond string, args ...any) (int, error) {
 	var rows []gwmodels.A2AProxy
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Select("id, upstream_auth_secret_id").Where(cond, args...).Find(&rows).Error; err != nil {
+		if err := tx.Select("id, org_id").Where(cond, args...).Find(&rows).Error; err != nil {
 			return err
 		}
 		for _, row := range rows {
 			if err := tx.Where("id = ?", row.ID).Delete(&gwmodels.A2AProxy{}).Error; err != nil {
 				return err
 			}
-			if err := repositories.DeleteSecret(tx, row.UpstreamAuthSecretID); err != nil {
+			if err := r.secrets.In(tx).Delete(ctx, row.OUID, gwsecret.A2AProxy(row.ID)); err != nil {
 				return err
 			}
 		}
@@ -227,9 +246,7 @@ func (r *a2aProxyRepository) ListForEnvironment(ctx context.Context, ouID string
 		return nil, err
 	}
 	for i := range rows {
-		if rows[i].UpstreamAuthSecret, err = repositories.GetSecret(r.db.WithContext(ctx), rows[i].UpstreamAuthSecretID); err != nil {
-			return nil, err
-		}
+		withSecretRef(&rows[i])
 	}
 	return rows, nil
 }

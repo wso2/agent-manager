@@ -39,7 +39,7 @@ import (
 func TestProxyDelete_RejectsWrongProjectBeforeCleanup(t *testing.T) {
 	proxy := &gwmodels.LLMProxy{UUID: uuid.New(), ProjectUUID: uuid.New()}
 	repo := &gwrepomocks.LLMProxyRepositoryMock{GetByIDCtxFunc: func(context.Context, string, string) (*gwmodels.LLMProxy, error) { return proxy, nil }}
-	svc := NewLLMProxyService(repo, nil, nil)
+	svc := NewLLMProxyService(repo, nil)
 	err := svc.DeleteInProject(context.Background(), "proxy", "org", uuid.NewString(), &LLMProxyDeploymentService{})
 	require.ErrorIs(t, err, gwerr.ErrLLMProxyNotFound)
 	assert.Empty(t, repo.DeleteInProjectCalls())
@@ -49,7 +49,7 @@ func TestProxyDelete_PropagatesLookupErrors(t *testing.T) {
 	for _, cause := range []error{errors.New("database unavailable"), context.Canceled, gorm.ErrRecordNotFound} {
 		t.Run(cause.Error(), func(t *testing.T) {
 			repo := &gwrepomocks.LLMProxyRepositoryMock{GetByIDCtxFunc: func(context.Context, string, string) (*gwmodels.LLMProxy, error) { return nil, cause }}
-			svc := NewLLMProxyService(repo, nil, nil)
+			svc := NewLLMProxyService(repo, nil)
 			err := svc.Delete(context.Background(), "proxy", "org", nil)
 			if errors.Is(cause, gorm.ErrRecordNotFound) {
 				require.ErrorIs(t, err, gwerr.ErrLLMProxyNotFound)
@@ -88,7 +88,7 @@ func TestProxyDeleteSendsItsDeleteEventsInTheDeletingTransaction(t *testing.T) {
 	core := reconcile.NewCore(nil, deployments, hub, reconcile.Kinds{proxyKindOf(proxy)}, reconcile.Config{},
 		slog.New(slog.DiscardHandler))
 
-	err := NewLLMProxyService(repo, nil, nil).DeleteInProject(context.Background(), "proxy", "org",
+	err := NewLLMProxyService(repo, nil).DeleteInProject(context.Background(), "proxy", "org",
 		proxy.ProjectUUID.String(), &LLMProxyDeploymentService{tx: sentinelTx, core: core})
 
 	require.NoError(t, err)
