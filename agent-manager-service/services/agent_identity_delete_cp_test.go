@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -352,4 +353,45 @@ func TestDeleteAgentCPManagedReturnsFailureWithoutDeletingComponent(t *testing.T
 	require.ErrorIs(t, err, utils.ErrServiceUnavailable)
 	require.Empty(t, oc.DeleteComponentCalls())
 	require.NotContains(t, f.events, "db-delete")
+}
+
+func TestDeleteAllBindingsCPManagedIncludesEnvironmentRemovedFromPipeline(t *testing.T) {
+	for _, ownership := range []models.AgentProvisioningType{models.AgentProvisioningTypeInternal, models.AgentProvisioningTypeExternal} {
+		t.Run(string(ownership), func(t *testing.T) {
+			f := newCPDeleteFixture(t, ownership)
+			for i := range f.seed {
+				switch f.seed[i].EnvironmentName {
+				case "development":
+					f.seed[i].EnvironmentName = "x"
+				case "stage":
+					f.seed[i].EnvironmentName = "y"
+					f.seed[i].PromotionSource = "x"
+				case "production":
+					f.seed[i].EnvironmentName = "z"
+					f.seed[i].PromotionSource = "y"
+				}
+			}
+			svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
+			svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
+				return "x", []ProjectIdentityEnvironment{{Name: "x", PromotesTo: []string{"z"}}, {Name: "z"}}, nil
+			}))
+			concrete := svc.(*agentThunderProvisioningService)
+			steps, err := concrete.projectPromotionSteps(context.Background(), "org-a", "project-a")
+			require.NoError(t, err)
+			require.Equal(t, []promotionStep{{Environment: "x"}, {Environment: "z", Source: "x"}}, steps)
+			_, err = concrete.writePromotionBindings(context.Background(), repositories.AgentRef{
+				OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a", ProvisioningType: ownership,
+			}, steps, "")
+			require.NoError(t, err)
+			require.NotContains(t, f.events, "db-delete", "pipeline reconciliation must retain the old y binding")
+
+			svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+
+			require.Equal(t, []string{"x", "y", "z"}, f.providerEnvs())
+			require.True(t, f.requests[0].Source)
+			require.False(t, f.requests[1].Source)
+			require.Equal(t, "agent-id-stage", f.requests[1].AgentID, "delete the identity recorded for removed environment y")
+			require.Equal(t, "db-delete", f.events[len(f.events)-1])
+		})
+	}
 }
