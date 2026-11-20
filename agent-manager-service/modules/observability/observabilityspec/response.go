@@ -1,7 +1,7 @@
 /*
 Observability module API
 
-The observability module's trace routes. They mirror the Agent Manager Observer's trace endpoints under `/m/observability` and return the same bodies, so the console reads either by changing only its observer base URL.  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
+The observability module's trace routes, under `/m/observability`. They take the Agent Manager Observer's trace paths and response shapes, but serve a subset: the observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
 
 API version: 1.0.0
 */

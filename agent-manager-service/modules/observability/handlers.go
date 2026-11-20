@@ -113,7 +113,11 @@ func (h handlers) scope(r *http.Request, project, agent string) (tracesv1.Scope,
 
 // listTraces serves GET /api/v1/traces.
 func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		h.fail(w, r, badRequest("invalid query: %v", err))
+		return
+	}
 	for _, p := range unsupportedParams {
 		if query.Has(p) {
 			h.fail(w, r, badRequest("%s is not supported by this trace store", p))
@@ -155,7 +159,7 @@ func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
 	if n := len(page.Traces); n > 0 && n < page.Total {
 		resp.LookedBackTo = formatTime(page.Traces[n-1].StartTime)
 	}
-	writeJSON(w, http.StatusOK, resp)
+	h.ok(w, r, resp)
 }
 
 // listSpans serves GET /api/v1/traces/{traceId}/spans.
@@ -189,7 +193,7 @@ func (h handlers) listSpans(w http.ResponseWriter, r *http.Request) {
 		}
 		resp.Spans = append(resp.Spans, sum)
 	}
-	writeJSON(w, http.StatusOK, resp)
+	h.ok(w, r, resp)
 }
 
 // getSpan serves GET /api/v1/traces/{traceId}/spans/{spanId}.
@@ -216,7 +220,7 @@ func (h handlers) getSpan(w http.ResponseWriter, r *http.Request) {
 		span.Status, span.StatusMessage = strings.ToLower(d.Status.Code), d.Status.Message
 		span.AmpAttributes.Status.Message = d.Status.Message
 	}
-	writeJSON(w, http.StatusOK, span)
+	h.ok(w, r, span)
 }
 
 // fail writes err with its status: a request error as is, a store error by kind.
@@ -293,6 +297,20 @@ func formatTime(t time.Time) string {
 
 func isError(s *tracesv1.SpanStatus) bool {
 	return s != nil && strings.EqualFold(s.Code, "error")
+}
+
+// ok writes v as a 200 JSON response, or a 500 if v can't be encoded.
+func (h handlers) ok(w http.ResponseWriter, r *http.Request, v any) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "observability: encode response failed",
+			"org", modkit.OrgID(r.Context()), "path", r.URL.Path, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to encode the response")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(append(b, '\n'))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

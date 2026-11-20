@@ -18,8 +18,10 @@ package observability
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -131,10 +133,27 @@ func TestListTracesRequests(t *testing.T) {
 		{"no window", "project=shop&agent=bot", http.StatusBadRequest},
 		{"unsupported filter", "project=shop&agent=bot&model=gpt-4o&" + testWindow, http.StatusBadRequest},
 		{"cursor", "project=shop&agent=bot&cursor=x&" + testWindow, http.StatusBadRequest},
+		{"malformed unsupported filter", "project=shop&agent=bot&model=%zz&" + testWindow, http.StatusBadRequest},
 	} {
 		if got := serve(t, h.listTraces, "org-a", "/?"+tc.query); got != tc.want {
 			t.Errorf("%s: listTraces = %d, want %d", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestUnencodableSpanIsA500(t *testing.T) {
+	traces := memory.New()
+	traces.Add(tracesv1.Scope{OrgID: "org-a", Names: tracesv1.Names{Org: "acme"}},
+		tracesv1.Trace{TraceID: "t"},
+		tracesv1.SpanDetails{SpanID: "s", Attributes: map[string]any{"score": math.NaN()}})
+	h := handlers{core: fakeCore{}, traces: guarded{traces: traces}, log: slog.New(slog.DiscardHandler)}
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.SetPathValue("traceId", "t")
+	r.SetPathValue("spanId", "s")
+	w := httptest.NewRecorder()
+	h.getSpan(w, r.WithContext(modkit.WithOrgID(r.Context(), "org-a")))
+	if w.Code != http.StatusInternalServerError || !json.Valid(w.Body.Bytes()) {
+		t.Errorf("getSpan of an unencodable span = %d %q, want a JSON 500", w.Code, w.Body.String())
 	}
 }
 
