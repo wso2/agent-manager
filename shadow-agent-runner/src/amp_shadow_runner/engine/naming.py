@@ -47,9 +47,10 @@ Each matcher names its match from the code (``match``, ``match_ts``, ``match_cs`
 
    a. a renamed agent whose new name is also another agent's gets its original name in parentheses
       (``insurance-support-agent (graph)``);
-   b. renamed agents whose names still repeat get, instead, their file's name (``svc-bot (a.py)``), or
-      when file names repeat too, their path from the project's folder (``svc-bot (api/a.py)``). Repeats
-      left inside one file stay.
+   b. agents whose names still repeat, renamed or not, get instead what tells them apart: the first part
+      of their path where the paths differ, after the folders they all share (``crew-ai (agent-auth-flow)``,
+      ``svc-bot (a.py)``), and for agents in one file, the function or class they are built in
+      (``it-agent (ask)``), or both (``bot (api, ask)``). Repeats left in one scope of one file stay.
 
 Only the display name changes. ``Finding.external_id`` is built from ``Match.qualified`` and stays the same,
 so a renamed agent is the same agent in Agent Manager, which takes the new name on the next publish. Crew
@@ -143,23 +144,57 @@ def display_names(findings: Iterable[Finding], *, repository: str, names: Mappin
             shown[i] = f"{projects[i][0]} ({found[i].name})"
     counts = repeated()
     clashes: dict[tuple[bool, str], list[int]] = defaultdict(list)
-    for i in projects:
-        if counts[(found[i].tag == "test", shown[i])] > 1:
-            clashes[(found[i].tag == "test", shown[i])].append(i)
+    for i, f in enumerate(found):
+        if counts[(f.tag == "test", shown[i])] > 1:
+            clashes[(f.tag == "test", shown[i])].append(i)
     for clash in clashes.values():
-        files = {found[i].path for i in clash}
-        short = len({PurePosixPath(p).name for p in files}) == len(files)
-        for i in clash:
-            name, folder = projects[i]
-            path = PurePosixPath(found[i].path)
-            shown[i] = f"{name} ({path.name if short else _relative(path, folder)})"
+        for i, label in _tell_apart([found[i] for i in clash], repository).items():
+            if label:
+                base = projects[clash[i]][0] if clash[i] in projects else found[clash[i]].name
+                shown[clash[i]] = f"{base} ({label})"
     return tuple(
-        dataclasses.replace(f, name=shown[i][:MAX_NAME_CHARS]) if i in projects else f for i, f in enumerate(found)
+        dataclasses.replace(f, name=shown[i][:MAX_NAME_CHARS]) if shown[i] != f.name else f for i, f in enumerate(found)
     )
 
 
-def _relative(path: PurePosixPath, folder: PurePosixPath) -> str:
-    return str(path if folder == _ROOT else path.relative_to(folder))
+def _tell_apart(clash: list[Finding], repository: str) -> dict[int, str]:
+    """By position in ``clash`` (findings shown with one name), what tells each apart from the others: the
+    first part of its path that differs from every other path, after the folders all the paths share, and
+    the scope it is built in when another of them is in the same file. Empty when nothing does."""
+    parts = [PurePosixPath(f.path).parts for f in clash]
+    shared = 0
+    while all(len(p) > shared + 1 and p[shared] == parts[0][shared] for p in parts):
+        shared += 1
+    scopes = [_scope(f, repository) for f in clash]
+    labels: dict[int, str] = {}
+    for i, path in enumerate(parts):
+        others = [p for p in parts if p != path]
+        label = []
+        if others:
+            k = shared + 1
+            while k < len(path) and any(p[:k] == path[:k] for p in others):
+                k += 1
+            label.append("/".join(path[shared:k]))
+        siblings = [scopes[j] for j, p in enumerate(parts) if p == path and j != i]
+        if siblings and scopes[i] and scopes[i] not in siblings:
+            label.append(scopes[i])
+        labels[i] = ", ".join(label)
+    return labels
+
+
+def _scope(finding: Finding, repository: str) -> str:
+    """The function or class ``finding`` is built in, from its external ID (``<repo>:<path>:<qualified>``);
+    empty at module level."""
+    prefix = f"{repository}:{finding.path}:"
+    if not finding.external_id.startswith(prefix):
+        return ""  # A long ID is cut and hashed.
+    qualified = finding.external_id.removeprefix(prefix)
+    head, at, count = qualified.rpartition("@")
+    if at and count.isdigit():
+        qualified = head
+    if finding.named:  # The last part is the name literal, which may hold dots.
+        return qualified.removesuffix(finding.name).removesuffix(".") if qualified.endswith(finding.name) else ""
+    return qualified.rpartition(".")[0]
 
 
 def _names_by_folder(names: Mapping[str, str]) -> dict[str, str]:

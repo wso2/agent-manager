@@ -24,6 +24,7 @@ import type {
   ShadowFindingKind,
   ShadowOwnerHint,
   ShadowProvider,
+  ShadowReviewedBy,
   ShadowScanStatus,
 } from "@agent-management-platform/types";
 
@@ -52,6 +53,17 @@ export const AGENT_PLATFORMS: ShadowProvider[] = [
   "foundry",
   "custom",
 ];
+
+/** What a scan of each platform discovers, one line for the Add platform cards. */
+export const DISCOVERS: Record<string, string> = {
+  openai: "Assistants and agents in your OpenAI projects",
+  anthropic: "Managed agents in your Anthropic workspaces",
+  bedrock: "Bedrock agents and AgentCore runtimes",
+  google: "Agent Runtime engines and Agent Registry agents",
+  foundry: "Agents in your Foundry projects",
+  custom: "The agents your own inventory API lists",
+  github: "Agents in your repositories' code",
+};
 
 export function providerLabel(p: string): string {
   return PROVIDER_LABELS[p as ShadowProvider] ?? p;
@@ -117,6 +129,26 @@ export function OnboardingChip({ onboarded }: { onboarded: boolean }) {
     />
   ) : (
     <Chip size="small" variant="outlined" icon={<CircleDashed size={14} />} label="Not onboarded" />
+  );
+}
+
+/**
+ * Marks a code agent that AI-enhanced detection confirmed; nothing for agents
+ * the rules proved.
+ */
+export function AiReviewChip({ reviewedBy }: { reviewedBy?: ShadowReviewedBy }) {
+  if (reviewedBy !== "ai_review" && reviewedBy !== "ai_review_judge") return null;
+  // describeChild keeps "AI" as the chip's accessible name.
+  return (
+    <Tooltip
+      title={
+        "Confirmed by AI-enhanced detection, not by the scan's rules. " +
+        "Open the agent to check its evidence."
+      }
+      describeChild
+    >
+      <Chip size="small" variant="outlined" label="AI" />
+    </Tooltip>
   );
 }
 

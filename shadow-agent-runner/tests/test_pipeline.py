@@ -19,6 +19,7 @@
 import dataclasses
 import io
 import json
+import re
 import tarfile
 import time
 from collections.abc import Callable, Iterable
@@ -31,9 +32,13 @@ import pytest
 from amp_shadow_runner.config import ConfigError, ScanConfig
 from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.gitsource import FailedRepository, GitSourceError, Repository, RepositoryError, RepositoryList
+from amp_shadow_runner.llm import LlmError, LlmSettings
 from amp_shadow_runner.pipeline import (
+    ANONYMOUS_HINT,
     ANONYMOUS_WARNING,
     EXPIRES_NOTE,
+    EXPORT_IGNORE_HINT,
+    JUDGE_NOT_AVAILABLE,
     TOKEN_RAN_OUT,
     PublishInterrupted,
     assume_yes,
@@ -42,14 +47,21 @@ from amp_shadow_runner.pipeline import (
 from amp_shadow_runner.publish import PublishError, PublishResult, build_body
 from amp_shadow_runner.report import EXPORT_IGNORE_NOTE, Report, ReportError, read_report
 from amp_shadow_runner.scantoken import ScanTokenError
+from amp_shadow_runner.terminal import Ui
 from tests.test_config import _token
 
 SCAN_ID = "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f"
 SCAN_TOKEN = _token(time.time() + 3600)
 GIT_TOKEN = "github_pat_s3cr3t-git-token"
+LLM_KEY = "sk-s3cr3t-llm-key"
+LLM = LlmSettings("openai", "https://api.openai.com/v1", "gpt-x", None, LLM_KEY)
 SHA = "0123456789abcdef0123456789abcdef01234567"
 AGENT = "from crewai import Agent\nsupport = Agent(role='support')\n"
 MAYBE = "from crewai import Agent\n"  # No agent: a file that is scanned and matches nothing.
+BAL_AGENT = "import ballerina/ai;\n// CODE-MARKER-THAT-MUST-STAY-LOCAL\nfinal ai:Agent {name} = check new (model);\n"
+"""A Ballerina agent: always Not sure, so AI review decides."""
+YES = '{"agent": true, "reason": "Creates an agent with tools."}'
+NO = '{"agent": false, "reason": "Only a chat completion."}'
 
 
 def _config(**changes: Any) -> ScanConfig:
@@ -106,7 +118,7 @@ class FakeSource:
             return dataclasses.replace(repo, empty=True)
         return dataclasses.replace(repo, commit_sha=SHA)
 
-    def download_tarball(self, repo: Repository, dest_dir: Path) -> Path:
+    def download_tarball(self, repo: Repository, dest_dir: Path, *, on_progress: Any = None) -> Path:
         self.calls.append(f"download:{repo.name}")
         if repo.name in self.fail:
             raise self.fail[repo.name]
@@ -132,6 +144,7 @@ class FakePublisher:
         self.error = error
         self.reports: list[Report] = []
         self.report_on_disk: list[bool] = []
+        self.status = "partial"
 
     def publish(self, report: Report, *, report_location: str | None = None) -> PublishResult:
         self.reports.append(report)
@@ -139,15 +152,42 @@ class FakePublisher:
         if self.error is not None:
             raise self.error
         agents = len(build_body(report)["agents"])
-        return PublishResult("partial", agents)
+        return PublishResult(self.status, agents)
+
+
+class FakeLlm:
+    """Answers each AI review with the answer for the file named in the request (default ``default``)."""
+
+    def __init__(self, answers: dict[str, str | Exception] | None = None, default: str | Exception = YES) -> None:
+        self.answers = answers or {}
+        self.default = default
+        self.users: list[str] = []
+
+    def complete(self, system: str, user: str, *, model: str, max_tokens: int) -> str:
+        self.users.append(user)
+        answer = next((a for path, a in self.answers.items() if f"File: {path}\n" in user), self.default)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+class Log(io.StringIO):
+    """stderr off a terminal, in UTF-8 (as in CI)."""
+
+    encoding = "utf-8"
 
 
 class Run:
-    def __init__(self, tmp_path: Path, source: FakeSource, *, error: BaseException | None = None) -> None:
+    def __init__(
+        self, tmp_path: Path, source: FakeSource, *, error: BaseException | None = None, llm: FakeLlm | None = None
+    ) -> None:
         self.report_path = tmp_path / "report.json"
         self.source = source
+        self.llm = FakeLlm() if llm is None else llm
         self.publisher = FakePublisher(self.report_path, error=error)
-        self.out = io.StringIO()
+        self.out: io.StringIO = Log()
+        self.asked: list[tuple[str, list[str]]] = []
+        """Each prompt asked, with the Git host calls made before it."""
 
     def __call__(
         self,
@@ -165,11 +205,21 @@ class Run:
                 raise answer_error
             return answer
 
+        def ask_token(_config: ScanConfig, _ui: Ui) -> str | None:
+            self.asked.append(("ask_token", list(self.source.calls)))
+            return token
+
+        def ask_llm(_config: ScanConfig, _ui: Ui) -> LlmSettings:
+            self.asked.append(("ask_llm", list(self.source.calls)))
+            return LLM
+
         return run_scan(
             config or _config(),
             yes=yes,
             report_path=self.report_path,
-            ask_token=lambda _: token,
+            ask_token=ask_token,
+            ask_llm=ask_llm,
+            make_llm=lambda _settings: self.llm,
             make_source=lambda _config, _token: self.source,
             make_publisher=lambda _config: self.publisher,
             is_tty=lambda: tty,
@@ -201,10 +251,10 @@ def test_one_failed_repository_gives_a_partial_failure(tmp_path: Path) -> None:
     assert body["scannedRepositories"] == ["support-bot"]
     assert body["failedRepositories"] == [{"name": "legacy-app", "reason": "GitHub answered HTTP 502"}]
     assert [(a["name"], a["attributes"]["reviewedBy"]) for a in body["agents"]] == [("support", "rules")]
-    assert "[2/2] legacy-app: failed: GitHub answered HTTP 502" in run.text
-    assert "Published to Agent Manager: scan partial, 1 agent saved." in run.text
-    assert EXPORT_IGNORE_NOTE in run.text
-    assert f"Report: {run.report_path}" in run.text
+    assert "  ✗ legacy-app    GitHub answered HTTP 502\n" in run.text
+    assert run.text.endswith(f"\n! Published to Agent Manager: 1 agent saved (scan partial).\n  {EXPORT_IGNORE_HINT}\n")
+    assert EXPORT_IGNORE_NOTE in run.report_path.read_text()  # The report keeps the long form.
+    assert f"  Report     {run.report_path}\n" in run.text
 
 
 def test_everything_scanned_is_ok_and_the_code_is_deleted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -225,7 +275,7 @@ def test_gone_repositories_count_as_scanned(tmp_path: Path) -> None:
     assert run.source.calls[0] == "list_named:a,old-repo"
     assert run.body["scannedRepositories"] == ["a", "old-repo"]
     assert run.body["failedRepositories"] == []
-    assert "Not found, counted as scanned with no agents (1):\n  old-repo\n" in run.text
+    assert "  ! old-repo   not found, counted as scanned with no agents\n" in run.text
 
 
 def test_listing_failures_and_an_incomplete_list_are_partial(tmp_path: Path) -> None:
@@ -234,7 +284,7 @@ def test_listing_failures_and_an_incomplete_list_are_partial(tmp_path: Path) -> 
     assert run() == ExitCode.PARTIAL_FAILURE
     assert run.body["complete"] is False
     assert run.body["failedRepositories"] == [{"name": "hidden", "reason": "not found"}]
-    assert "Cannot be scanned (1):\n  hidden: not found\n" in run.text
+    assert "  ✗ hidden   cannot be scanned: not found\n" in run.text
     assert "The list may be incomplete" in run.text
 
 
@@ -279,7 +329,7 @@ def test_skipped_count_includes_the_archive_entries_left_out(tmp_path: Path) -> 
     assert run() == ExitCode.OK
     [repo] = read_report(run.report_path).repositories
     assert repo.files_skipped == 1
-    assert "Files: 1 scanned, 1 skipped." in run.text
+    assert "  Files      1 scanned, 1 skipped\n" in run.text
 
 
 def test_declining_publishes_nothing(tmp_path: Path) -> None:
@@ -287,7 +337,7 @@ def test_declining_publishes_nothing(tmp_path: Path) -> None:
     assert run(yes=False, tty=True, answer="n\n") == ExitCode.OK
     assert run.publisher.reports == []
     assert run.source.calls == ["list_all"]
-    assert "Scan 1 repository and publish the results? [y/N]" in run.text
+    assert "\n? Scan 1 repository and publish the results? (y/N) \n" in run.text  # Ended for the log.
     assert EXPIRES_NOTE in run.text
     assert not run.report_path.exists()
 
@@ -298,7 +348,7 @@ def test_confirming_scans(tmp_path: Path) -> None:
     assert len(run.publisher.reports) == 1
 
 
-def test_no_terminal_without_yes_is_a_config_error_before_listing(tmp_path: Path) -> None:
+def test_noterminal_without_yes_is_a_config_error_before_listing(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))))
     with pytest.raises(ConfigError, match="--yes") as raised:
         run(yes=False, tty=False)
@@ -321,7 +371,7 @@ def test_an_unwritable_report_folder_stops_before_listing(tmp_path: Path) -> Non
 def test_anonymous_github_warning(tmp_path: Path, token: str | None, warned: bool) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))))
     run(_config(include_private=False), token=token)
-    assert (ANONYMOUS_WARNING in run.text) is warned
+    assert (f"  ! {ANONYMOUS_WARNING}\n    {ANONYMOUS_HINT}\n" in run.text) is warned
 
 
 def test_a_publish_error_keeps_the_report(tmp_path: Path) -> None:
@@ -329,7 +379,7 @@ def test_a_publish_error_keeps_the_report(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}), error=error)
     assert run() == ExitCode.AUTH_ERROR
     assert read_report(run.report_path).scan_id == SCAN_ID
-    assert "amp-shadow-runner: Agent Manager refused the scan token (HTTP 401)." in run.text
+    assert run.text.endswith("\n✗ Not published: Agent Manager refused the scan token (HTTP 401).\n")
 
 
 def test_a_listing_error_exits_with_its_code(tmp_path: Path) -> None:
@@ -340,33 +390,117 @@ def test_a_listing_error_exits_with_its_code(tmp_path: Path) -> None:
     run = Run(tmp_path, Refusing(RepositoryList(())))
     assert run() == ExitCode.CONFIG_ERROR
     assert run.publisher.reports == []
-    assert "amp-shadow-runner: GitHub refused the token." in run.text
+    assert run.text.endswith("\n\n✗ GitHub refused the token.\n")
 
 
-@pytest.mark.parametrize(
-    ("ai_review", "message"),
-    [
-        (False, "1 not-sure agent is not published"),
-        (True, "AI review is not available in this version of the runner, so 1 not-sure agent is not published."),
-    ],
-)
-def test_not_sure_agents_are_not_published(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ai_review: bool, message: str
+def test_not_sure_agents_are_not_published_without_ai_review(tmp_path: Path) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"main.bal": BAL_AGENT.format(name="x")}}))
+    assert run(_config()) == ExitCode.OK
+    assert "  Agents     1 not sure (published only with --ai-review)\n" in run.text
+    assert run.body["agents"] == []
+    assert run.llm.users == []
+    assert "aiReview" not in run.report_path.read_text()
+
+
+def _two_repos(tmp_path: Path, llm: FakeLlm) -> Run:
+    files = {
+        "a": {"main.bal": BAL_AGENT.format(name="helper"), "other.bal": BAL_AGENT.format(name="chat")},
+        "b": {"agent.py": AGENT, "tests/test_x.bal": BAL_AGENT.format(name="double")},
+    }
+    return Run(tmp_path, FakeSource(RepositoryList((_repo("a"), _repo("b"))), files), llm=llm)
+
+
+def test_ai_review_publishes_only_the_confirmed_agents(tmp_path: Path) -> None:
+    run = _two_repos(tmp_path, FakeLlm({"other.bal": NO}))
+    assert run(_config(ai_review=True)) == ExitCode.OK
+    reviewed = {a["name"]: a["attributes"]["reviewedBy"] for a in run.body["agents"]}
+    assert reviewed == {"helper": "ai_review", "support": "rules"}  # Not "chat" (rejected) or "double" (test code).
+    assert len(run.llm.users) == 2
+    assert all("tests/test_x.bal" not in u for u in run.llm.users)
+    assert "  [1/2] a  scanning\n  [1/2] a  AI check of 2 not-sure agents\n  ✓ a   2 agents · 2 files\n" in run.text
+    assert "  Agents     3: 1 proven, 1 confirmed by AI, 1 not confirmed\n" in run.text
+    assert "  AI         1 rejected (not published; the report says why)\n" in run.text
+    assert all("aiReview" not in a["attributes"] for a in run.body["agents"])
+
+
+def test_the_report_records_the_review_without_the_code_and_upload_publishes_it_again(tmp_path: Path) -> None:
+    run = _two_repos(tmp_path, FakeLlm({"other.bal": NO}))
+    run(_config(ai_review=True))
+    saved = run.report_path.read_text()
+    assert "CODE-MARKER-THAT-MUST-STAY-LOCAL" in "".join(run.llm.users)
+    assert "CODE-MARKER-THAT-MUST-STAY-LOCAL" not in saved
+    assert "CODE-MARKER-THAT-MUST-STAY-LOCAL" not in run.text
+    data = json.loads(saved)
+    assert data["summary"]["agents"]["aiReview"] == {"confirmed": 1, "rejected": 1, "failed": 0, "notReviewed": 0}
+    findings = {f["path"]: f for r in data["repositories"] for f in r["findings"]}
+    assert findings["main.bal"]["attributes"]["aiReview"] == {
+        "outcome": "confirmed",
+        "reason": "Creates an agent with tools.",
+    }
+    assert findings["other.bal"]["attributes"]["aiReview"]["outcome"] == "rejected"
+    assert "aiReview" not in findings["tests/test_x.bal"]["attributes"]
+    assert build_body(read_report(run.report_path)) == run.body  # ``upload`` publishes the same agents.
+
+
+def test_a_refused_llm_key_stops_review_and_still_publishes(tmp_path: Path) -> None:
+    error = LlmError("The LLM at api.openai.com refused the API key (HTTP 401).", status=401)
+    run = _two_repos(tmp_path, FakeLlm(default=error))
+    assert run(_config(ai_review=True)) == ExitCode.OK
+    assert len(run.llm.users) == 1
+    assert run.text.count("AI-enhanced detection stopped") == 1
+    assert "  Agents     3: 1 proven, 2 not confirmed\n" in run.text
+    assert "  AI         1 failed, 1 not reviewed (not published; the report says why)\n" in run.text
+    assert [a["attributes"]["reviewedBy"] for a in run.body["agents"]] == ["rules"]
+
+
+def test_reviews_stop_before_the_token_runs_too_low(tmp_path: Path) -> None:
+    # Repositories start until T0+820; reviews only until T0+340.
+    config = _config(ai_review=True, token_expires_at=datetime.fromtimestamp(T0 + 1000, UTC))
+    run = _two_repos(tmp_path, FakeLlm())
+    assert run(config, clock=lambda: T0 + 400) == ExitCode.OK
+    assert run.llm.users == []
+    assert "  AI         2 not reviewed (not published; the report says why)\n" in run.text
+    data = json.loads(run.report_path.read_text())
+    [finding, *_] = data["repositories"][0]["findings"]
+    assert finding["attributes"]["aiReview"] == {
+        "outcome": "not_reviewed",
+        "reason": "too little scan token time was left to review it",
+    }
+
+
+def test_ai_review_with_nothing_to_review(tmp_path: Path) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}))
+    assert run(_config(ai_review=True)) == ExitCode.OK
+    assert "  Agents     1 proven\n  AI         nothing to review\n" in run.text
+
+
+def test_the_judge_is_not_available_yet(tmp_path: Path) -> None:
+    run = _two_repos(tmp_path, FakeLlm())
+    run(_config(ai_review=True, judge=True))
+    assert run.text.count(JUDGE_NOT_AVAILABLE) == 1
+    assert {a["attributes"]["reviewedBy"] for a in run.body["agents"]} == {"ai_review", "rules"}
+    run = _two_repos(tmp_path, FakeLlm())
+    run(_config(ai_review=True))
+    assert JUDGE_NOT_AVAILABLE not in run.text
+
+
+def test_not_sure_agents_in_test_code_are_not_counted_as_unpublished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from amp_shadow_runner import report as report_module
     from amp_shadow_runner.engine.classify import Verdict
 
     original = report_module.RepositoryReport.scanned
 
-    def not_sure(name: str, result: Any) -> Any:
-        findings = tuple(dataclasses.replace(f, verdict=Verdict.NOT_SURE) for f in result.findings)
+    def not_sure_in_tests(name: str, result: Any) -> Any:
+        findings = tuple(dataclasses.replace(f, verdict=Verdict.NOT_SURE, tag="test") for f in result.findings)
         return original(name, dataclasses.replace(result, findings=findings))
 
-    monkeypatch.setattr(report_module.RepositoryReport, "scanned", staticmethod(not_sure))
+    monkeypatch.setattr(report_module.RepositoryReport, "scanned", staticmethod(not_sure_in_tests))
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}))
-    assert run(_config(ai_review=ai_review)) == ExitCode.OK
-    assert message.lower() in run.text.lower()
-    assert run.body["agents"] == []
+    assert run(_config()) == ExitCode.OK
+    assert "not-sure agent" not in run.text.lower()
+    assert "  Agents     none found\n  Test code  1 more, not published\n" in run.text
 
 
 def test_secrets_are_never_printed_or_saved(tmp_path: Path) -> None:
@@ -376,9 +510,10 @@ def test_secrets_are_never_printed_or_saved(tmp_path: Path) -> None:
         fail={"b": RepositoryError("b", "GitHub answered HTTP 500")},
     )
     run = Run(tmp_path, source)
-    run()
+    run(_config(ai_review=True, judge=True))
+    assert [name for name, _ in run.asked] == ["ask_token", "ask_llm"]
     saved = run.report_path.read_text()
-    for secret in (GIT_TOKEN, SCAN_TOKEN):
+    for secret in (GIT_TOKEN, SCAN_TOKEN, LLM_KEY):
         assert secret not in run.text
         assert secret not in saved
         assert secret not in json.dumps(run.body)
@@ -402,7 +537,7 @@ def test_a_refused_archive_or_an_engine_bug_fails_only_that_repository(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     class Hostile(FakeSource):
-        def download_tarball(self, repo: Repository, dest_dir: Path) -> Path:
+        def download_tarball(self, repo: Repository, dest_dir: Path, *, on_progress: Any = None) -> Path:
             if repo.name != "evil":
                 return super().download_tarball(repo, dest_dir)
             dest = dest_dir / f"{SHA}.tar.gz"
@@ -414,10 +549,10 @@ def test_a_refused_archive_or_an_engine_bug_fails_only_that_repository(
     import amp_shadow_runner.pipeline as pipeline
     from amp_shadow_runner.engine.scan import scan_tree as real_scan
 
-    def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> Any:
+    def scan_tree(root: Path, *, repository: str, read_ci: bool = False, progress: Any = None) -> Any:
         if repository == "buggy":
             raise RecursionError("source text that must not be shown")
-        return real_scan(root, repository=repository, read_ci=read_ci)
+        return real_scan(root, repository=repository, read_ci=read_ci, progress=progress)
 
     monkeypatch.setattr(pipeline, "scan_tree", scan_tree)
     source = Hostile(RepositoryList((_repo("evil"), _repo("buggy"), _repo("a"))), {"a": {"agent.py": AGENT}})
@@ -442,7 +577,7 @@ def test_an_unsaved_report_is_still_published(tmp_path: Path, monkeypatch: pytes
     assert run() == ExitCode.CONFIG_ERROR
     assert len(run.publisher.reports) == 1
     assert "No space left on device). The results are published anyway." in run.text
-    assert "Report: not saved" in run.text
+    assert "  Report     not saved\n" in run.text
 
 
 T0 = 1_800_000_000.0
@@ -455,7 +590,7 @@ class SlowSource(FakeSource):
         super().__init__(*args, **kwargs)
         self.now = now
 
-    def download_tarball(self, repo: Repository, dest_dir: Path) -> Path:
+    def download_tarball(self, repo: Repository, dest_dir: Path, *, on_progress: Any = None) -> Path:
         self.now[0] += 500
         return super().download_tarball(repo, dest_dir)
 
@@ -471,7 +606,7 @@ def test_a_scan_that_outlasts_the_token_publishes_what_it_finished(tmp_path: Pat
     assert len(run.body["agents"]) == 1
     assert run.publisher.report_on_disk == [True]
     assert "download:c" not in run.source.calls
-    assert f"[3/4] c: failed: {TOKEN_RAN_OUT}" in run.text
+    assert f"  ✗ c   {TOKEN_RAN_OUT}\n" in run.text
 
 
 def test_too_little_token_time_after_confirming_stops_before_scanning(tmp_path: Path) -> None:
@@ -497,3 +632,159 @@ def test_ctrl_c_while_publishing_is_told_apart(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))), error=KeyboardInterrupt())
     with pytest.raises(PublishInterrupted):
         run()
+
+
+@pytest.mark.parametrize("ai_review", [True, False])
+def test_llm_settings_are_asked_after_the_token_and_before_listing(tmp_path: Path, ai_review: bool) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}))
+    assert run(_config(ai_review=ai_review)) == ExitCode.OK
+    expected: list[tuple[str, list[str]]] = [("ask_token", []), ("ask_llm", [])] if ai_review else [("ask_token", [])]
+    assert run.asked == expected
+    assert run.source.calls[0] == "list_all"
+
+
+def test_noterminal_is_found_only_after_the_llm_settings_are_asked(tmp_path: Path) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))))
+    with pytest.raises(ConfigError, match="no terminal"):
+        run(_config(ai_review=True), yes=False, tty=False)
+    assert run.asked == [("ask_token", []), ("ask_llm", [])]
+    assert run.source.calls == []
+
+
+class _Terminal(io.StringIO):
+    encoding = "utf-8"
+
+    def isatty(self) -> bool:
+        return True
+
+
+def _clean_lines(text: str) -> bool:
+    """Every permanent line starts on a clean line: a live line drawn before it was erased first."""
+    return all("\r" not in line or line.rsplit("\r", 1)[1].startswith("\x1b[K") for line in text.split("\n"))
+
+
+def test_on_aterminal_every_message_clears_the_live_line_first(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TERM", "xterm")
+    monkeypatch.setenv("NO_COLOR", "1")
+    error = LlmError("The LLM at api.openai.com refused the API key (HTTP 401).", status=401)
+    run = _two_repos(tmp_path, FakeLlm(default=error))
+    run.out = terminal = _Terminal()
+    assert run(_config(ai_review=True)) == ExitCode.OK
+    text = terminal.getvalue()
+    assert (
+        "\r  [1/2] a  scanning" in text and "AI-enhanced detection" in text and "Publishing to Agent Manager…" in text
+    )
+    assert "\r\x1b[K  ! AI-enhanced detection stopped: " in text  # Printed over the live line, not into it.
+    assert re.search(r"\n  ✓ a   2 agents · 2 files · [0-9.]+s\n", text)
+    assert "  Scanned    2 repositories in " in text
+    assert "AI check of" not in text
+    assert _clean_lines(text)
+    assert text.endswith("\n")
+
+
+def test_ctrl_c_on_aterminal_leaves_a_clean_line(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TERM", "xterm")
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))), error=KeyboardInterrupt())
+    run.out = terminal = _Terminal()
+    with pytest.raises(PublishInterrupted):
+        run()
+    assert terminal.getvalue().endswith("Publishing to Agent Manager…\x1b[K\r\x1b[K")
+
+
+def test_published_agents_carry_branch_project_path_and_language(tmp_path: Path) -> None:
+    files = {
+        "a": {"agent.py": AGENT},
+        "b": {"services/support/pyproject.toml": '[project]\nname = "support"\n', "services/support/bot.py": AGENT},
+    }
+    listing = RepositoryList((_repo("a"), _repo("b", branch="release/2.0")))
+    run = Run(tmp_path, FakeSource(listing, files))
+    assert run(_config()) == ExitCode.OK
+    attributes = {a["repository"]: a["attributes"] for a in run.body["agents"]}
+    assert attributes == {
+        "a": {"framework": "crewai", "language": "python", "branch": "main", "reviewedBy": "rules"},
+        "b": {
+            "framework": "crewai",
+            "language": "python",
+            "projectPath": "/services/support",
+            "branch": "release/2.0",
+            "reviewedBy": "rules",
+        },
+    }
+    saved = json.loads(run.report_path.read_text())
+    assert [f["attributes"].get("branch") for r in saved["repositories"] for f in r["findings"]] == [
+        "main",
+        "release/2.0",
+    ]
+    assert build_body(read_report(run.report_path)) == run.body  # ``upload`` publishes the same attributes.
+
+
+def test_the_whole_output_off_a_terminal(tmp_path: Path) -> None:
+    files = {"agent-manager": {"agent.py": AGENT, "tests/test_a.py": AGENT}, "docs": {"x.py": MAYBE}}
+    listing = RepositoryList((_repo("agent-manager"), dataclasses.replace(_repo("docs"), private=True)))
+    run = Run(tmp_path, FakeSource(listing, files))
+    run.publisher.status = "succeeded"
+    assert run(_config(include_private=False), token=None, yes=False, tty=True, answer="y\n") == ExitCode.OK
+    assert run.text == (
+        "AMP shadow agent scan · acme on github.com\n"
+        "\n"
+        "◆ Repositories (2)\n"
+        "  agent-manager\n"
+        "  docs            private\n"
+        f"  ! {ANONYMOUS_WARNING}\n"
+        f"    {ANONYMOUS_HINT}\n"
+        "\n"
+        "? Scan 2 repositories and publish the results? (y/N) \n"
+        "\n"
+        "◆ Scanning\n"
+        "  [1/2] agent-manager  downloading\n"
+        "  [1/2] agent-manager  scanning\n"
+        "  ✓ agent-manager   1 agent · 1 in test code · 2 files\n"
+        "  [2/2] docs  downloading\n"
+        "  [2/2] docs  scanning\n"
+        "  ✓ docs            no agents · 1 file\n"
+        "\n"
+        "◆ Results\n"
+        "  Scanned    2 repositories\n"
+        "  Agents     1 proven\n"
+        "  Test code  1 more, not published\n"
+        "  Files      3 scanned\n"
+        f"  Report     {run.report_path}\n"
+        "\n"
+        "✓ Published to Agent Manager: 1 agent saved.\n"
+        f"  {EXPORT_IGNORE_HINT}\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("api_url", "host"),
+    [
+        ("https://api.github.com", "github.com"),
+        ("https://api.acme.ghe.com", "acme.ghe.com"),
+        ("http://ghe.internal:8080/api/v3", "ghe.internal:8080"),
+    ],
+)
+def test_the_header_names_the_organization_and_the_host(tmp_path: Path, api_url: str, host: str) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList(())))
+    run(_config(api_url=api_url, organization="wso2"))
+    assert run.text.startswith(f"AMP shadow agent scan · wso2 on {host}\n")
+
+
+def test_a_long_list_shows_the_first_twenty(tmp_path: Path) -> None:
+    listing = RepositoryList(tuple(_repo(f"r{i:02d}") for i in range(25)), gone=tuple(f"g{i:02d}" for i in range(22)))
+    run = Run(tmp_path, FakeSource(listing))
+    run()
+    text = run.text.split("◆ Scanning")[0]
+    assert "◆ Repositories (25)\n" in text
+    assert "  r19\n" in text and "  r20\n" not in text and "  … and 5 more\n" in text
+    assert "  ! g19 " in text and "  ! g20 " not in text and "    … and 2 more\n" in text
+
+
+def test_the_default_report_path_is_named_as_this_folder() -> None:
+    from amp_shadow_runner.pipeline import _print_results
+    from amp_shadow_runner.report import DEFAULT_REPORT_PATH
+
+    out = Log()
+    report = Report(SCAN_ID, "github", "acme", datetime.now(UTC), datetime.now(UTC), ())
+    _print_results(Ui(out), _config(), report, DEFAULT_REPORT_PATH, None, None)
+    assert out.getvalue().endswith("  Report     report.json in this folder\n")
+    assert "Scanned" not in out.getvalue()  # Only with more than one repository, or one not scanned.

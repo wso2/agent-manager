@@ -78,6 +78,65 @@ var allowedAttributes = map[string]bool{
 	"agentUrl":          true, // Custom platform: the agent's endpoint or page (scheme, host and path only)
 }
 
+// Attributes only a code agent (kind code_agent) may store: where in its
+// repository it is and in what language, so it can be deployed from the
+// finding. Each must be a string its rule accepts, or it is dropped. The scan
+// command publishes them; no other kind keeps them.
+var codeAgentAttributes = map[string]func(string) bool{
+	"branch":      validCodeAgentBranch,      // the default branch the scan read
+	"projectPath": validCodeAgentProjectPath, // the agent's project folder: "/", "/samples/support-agent"
+	"language":    validCodeAgentLanguage,    // python | typescript | javascript | csharp | ballerina
+}
+
+const (
+	maxCodeAgentBranch      = 255
+	maxCodeAgentProjectPath = 1024
+)
+
+var (
+	codeAgentRefChars  = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
+	codeAgentLanguages = map[string]bool{
+		"python": true, "typescript": true, "javascript": true, "csharp": true, "ballerina": true,
+	}
+)
+
+// validCodeAgentBranch accepts a branch name of safe characters that Git
+// also accepts: no "..", no leading "-", no empty or dot-led component, and
+// no trailing "/", "." or ".lock".
+func validCodeAgentBranch(s string) bool {
+	if len(s) > maxCodeAgentBranch || !codeAgentRefChars.MatchString(s) ||
+		strings.HasPrefix(s, "-") || strings.Contains(s, "..") ||
+		strings.HasSuffix(s, ".") || strings.HasSuffix(s, ".lock") {
+		return false
+	}
+	for _, part := range strings.Split(s, "/") {
+		if part == "" || strings.HasPrefix(part, ".") {
+			return false
+		}
+	}
+	return true
+}
+
+// validCodeAgentProjectPath accepts "/" or a repository folder path starting
+// with "/" of safe characters, with no empty, "." or ".." segment and no
+// trailing "/".
+func validCodeAgentProjectPath(s string) bool {
+	if s == "/" {
+		return true
+	}
+	if len(s) > maxCodeAgentProjectPath || !strings.HasPrefix(s, "/") || !codeAgentRefChars.MatchString(s) {
+		return false
+	}
+	for _, part := range strings.Split(s[1:], "/") {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+func validCodeAgentLanguage(s string) bool { return codeAgentLanguages[s] }
+
 // AllowedAttributes returns the attributes whose keys are on the allow-list,
 // so a stored attribute an earlier version kept is not shown.
 func AllowedAttributes(in map[string]any) map[string]any {
@@ -85,6 +144,35 @@ func AllowedAttributes(in map[string]any) map[string]any {
 	for k, v := range in {
 		if allowedAttributes[k] {
 			out[k] = v
+		}
+	}
+	return out
+}
+
+// AllowedFindingAttributes is AllowedAttributes for a finding of kind, which
+// also keeps a code agent's own attributes (codeAgentAttributes).
+func AllowedFindingAttributes(kind string, in map[string]any) map[string]any {
+	out := AllowedAttributes(in)
+	if kind == models.ShadowKindCodeAgent {
+		for k := range codeAgentAttributes {
+			if v, ok := in[k]; ok {
+				out[k] = v
+			}
+		}
+	}
+	return out
+}
+
+// SanitizeFindingAttributes is SanitizeAttributes for a finding of kind. A
+// code agent also keeps its own attributes (codeAgentAttributes) when they
+// are valid; an invalid one is dropped, never cut down.
+func SanitizeFindingAttributes(kind string, in map[string]any) map[string]any {
+	out := SanitizeAttributes(in)
+	if kind == models.ShadowKindCodeAgent {
+		for k, valid := range codeAgentAttributes {
+			if s, ok := in[k].(string); ok && valid(s) {
+				out[k] = s
+			}
 		}
 	}
 	return out

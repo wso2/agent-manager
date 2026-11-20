@@ -21,9 +21,6 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardActionArea,
-  CardContent,
   Checkbox,
   Chip,
   FormControlLabel,
@@ -56,7 +53,8 @@ import {
   type ShadowRunnerScanResponse,
   type ShadowSettingValue,
 } from "@agent-management-platform/types";
-import { CUSTOM_PLATFORM, selectCardSx } from "../shadowUi";
+import { ProviderLogoTile } from "../providerLogos";
+import { PlatformPicker } from "./PlatformPicker";
 import {
   credentialChoiceError,
   evaluateCapabilities,
@@ -867,65 +865,15 @@ export function ConnectionEditor({
   return (
     <PageLayout title={title} disableIcon {...back}>
       {!spec ? (
-        <Stack spacing={2}>
-          <Typography variant="body1">Choose the platform to add.</Typography>
-          {[
-            {
-              title: "AI agent platforms",
-              list: (providers.data?.providers ?? []).filter(
-                (p) => !p.sourceHost && p.provider !== CUSTOM_PLATFORM,
-              ),
-            },
-            {
-              title: "Source code repositories",
-              list: (providers.data?.providers ?? []).filter((p) => p.sourceHost),
-            },
-            {
-              title: "Custom platforms",
-              list: (providers.data?.providers ?? []).filter(
-                (p) => p.provider === CUSTOM_PLATFORM,
-              ),
-            },
-          ]
-            .filter((g) => g.list.length > 0)
-            .map((g) => (
-              <Stack key={g.title} spacing={1.5}>
-                <Typography variant="subtitle1">{g.title}</Typography>
-                <Grid container spacing={2}>
-                  {g.list.map((p) => (
-                    <Grid key={p.provider} size={{ xs: 12, sm: 6, lg: 4 }}>
-                      <Card variant="outlined" sx={{ height: "100%" }}>
-                        <CardActionArea
-                          onClick={() => choose(p)}
-                          sx={selectCardSx}
-                          aria-label={`Connect ${p.displayName}`}
-                        >
-                          <CardContent>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                              <Typography variant="subtitle1">{p.displayName}</Typography>
-                              {p.sourceHost && (
-                                <Chip size="small" variant="outlined" label="Runs on your machine" />
-                              )}
-                            </Stack>
-                            <Typography variant="body2" color="text.secondary">
-                              {p.description}
-                            </Typography>
-                          </CardContent>
-                        </CardActionArea>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
-              </Stack>
-            ))}
-        </Stack>
+        <PlatformPicker providers={providers.data?.providers ?? []} onChoose={choose} />
       ) : (
         <Grid container spacing={3}>
           {/* One field per row. An agent platform's form spans the page; a source host keeps
               its scan command panel beside the form. */}
           <Grid size={{ xs: 12, lg: spec.sourceHost ? 7 : 12 }}>
             <Stack spacing={2.5}>
-              <Stack direction="row" spacing={1} alignItems="center">
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <ProviderLogoTile provider={spec.provider} size={36} />
                 <Typography variant="subtitle1">{spec.displayName}</Typography>
                 {spec.sourceHost && <SourceScanGuide spec={spec} />}
               </Stack>

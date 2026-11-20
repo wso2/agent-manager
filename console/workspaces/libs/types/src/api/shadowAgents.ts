@@ -341,9 +341,14 @@ export interface ShadowFindingSummary {
   linkedProject?: string;
   linkedAgent?: string;
   onboardedAt?: string;
+  /** For code agents, who confirmed the agent; absent for other kinds. */
+  reviewedBy?: ShadowReviewedBy;
   /** The onboarded agent was removed from the Unregistered Agents list. */
   hidden: boolean;
 }
+
+/** Who confirmed a code agent: the scan's rules, AI review, or AI review and the LLM judge. */
+export type ShadowReviewedBy = "rules" | "ai_review" | "ai_review_judge";
 
 export interface ShadowFindingListResponse {
   findings: ShadowFindingSummary[];
@@ -402,4 +407,26 @@ export interface ShadowFindingHiddenRequest {
 export interface ShadowOnboardingRequest {
   projectName: string;
   agentName: string;
+}
+
+/**
+ * Values that prefill the platform-hosted agent form, passed in router state
+ * (`agentSourceSeed`) when a code agent found by a scan is deployed. No secrets.
+ */
+export interface AgentSourceSeed {
+  displayName: string;
+  name: string;
+  description: string;
+  repositoryUrl: string;
+  branch: string;
+  appPath: string;
+  language: "python" | "ballerina" | "docker";
+  /** The found agent to link the created agent to. */
+  shadowFinding?: { orgName: string; findingId: string };
+}
+
+/** Router state of the platform-hosted agent form when opened from a found agent. */
+export interface AgentSourceSeedState {
+  from?: string;
+  agentSourceSeed?: AgentSourceSeed;
 }

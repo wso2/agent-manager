@@ -140,7 +140,7 @@ Each piece of a code agent's evidence has one of twelve codes, `github.d1_agent_
 
 These are evidence codes only: an agent is published because the rules proved it or AI review confirmed it, never by a score.
 
-**Details.** An agent shows what its listing reports, through an allow-list: model, framework, kind, version, status, tools and MCP servers (type and name; server label and URL origin), skills, image, source repository, region or location, project or workspace, execution role, protocol, labels and the platform's short description. Owner details are shown only when the agent listing reports who created the agent. A code agent also has the `reviewedBy` attribute in the API: who confirmed it (`rules`, `ai_review` or `ai_review_judge`). The console shows it as **Confirmed by**: Rules, AI review, or AI review and LLM judge. With AI review, the agent detail page notes that AI review can make mistakes.
+**Details.** An agent shows what its listing reports, through an allow-list: model, framework, kind, version, status, tools and MCP servers (type and name; server label and URL origin), skills, image, source repository, region or location, project or workspace, execution role, protocol, labels and the platform's short description. Owner details are shown only when the agent listing reports who created the agent. A code agent also has the `reviewedBy` attribute in the API: who confirmed it (`rules`, `ai_review` or `ai_review_judge`). It can also have what deploying it needs: `branch` (the default branch scanned), `projectPath` (its project folder from the repository root, such as `/` or `/samples/support-agent`) and `language` (`python`, `typescript`, `javascript`, `csharp` or `ballerina`). The console shows it as **Confirmed by**: Rules, AI review, or AI review and LLM judge. With AI review, the agent detail page notes that AI review can make mistakes.
 
 ## Data retention
 
@@ -173,7 +173,7 @@ All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`
     "externalId": "support-bot:src/agent.py:SupportAgent",
     "name": "SupportAgent",
     "repository": "support-bot",
-    "attributes": { "framework": "langgraph", "reviewedBy": "rules" },
+    "attributes": { "framework": "langgraph", "reviewedBy": "rules", "branch": "main", "projectPath": "/", "language": "python" },
     "evidence": [{ "code": "github.d2_agent_import", "source": "src/agent.py", "observed": { "imports": 1 } }]
   }]
 }
@@ -182,7 +182,7 @@ All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`
 - `complete`: the command could list every repository the connection's settings name.
 - Repository names are GitHub repository names.
 - Limits: a body of at most 8 MiB (413 above it); at most 1000 agents, 50 pieces of evidence per agent and 5000 names in each repository list (400 above them).
-- The whole publish is rejected (400) when one agent is invalid: no `externalId`, an `externalId` repeated, no `repository`, no evidence, an evidence code that is not one of the connection's platform's codes, or `attributes.reviewedBy` missing or not allowed (`ai_review` needs a scan created with AI review, `ai_review_judge` one created with the LLM judge). Attributes outside the allow-list are dropped, and so is an attribute of the wrong shape: `tools` is a list of `{type, name}`, `mcpServers` a list of `{label, origin}`, `skills` and `protocolType` lists of strings, `labels` an object of strings, and every other attribute a single value. Unknown request fields are ignored.
+- The whole publish is rejected (400) when one agent is invalid: no `externalId`, an `externalId` repeated, no `repository`, no evidence, an evidence code that is not one of the connection's platform's codes, or `attributes.reviewedBy` missing or not allowed (`ai_review` needs a scan created with AI review, `ai_review_judge` one created with the LLM judge). Attributes outside the allow-list are dropped, and so is an attribute of the wrong shape: `tools` is a list of `{type, name}`, `mcpServers` a list of `{label, origin}`, `skills` and `protocolType` lists of strings, `labels` an object of strings, and every other attribute a single value. `branch`, `projectPath` and `language` are kept only when valid: `branch` at most 255 characters of `A-Z a-z 0-9 . _ / -`, with no `..`, no leading `-`, and no empty or dot-led part; `projectPath` `/` or a path of at most 1024 such characters that starts with `/`, with no `.`, `..` or empty segment and no trailing `/`; `language` one of `python`, `typescript`, `javascript`, `csharp` and `ballerina`. Unknown request fields are ignored.
 
 Response (200): `{"scanId": "…", "status": "partial", "findingsCount": 1}`, the scan's new status and the number of agents saved. 404 when the scan is not a source code scan of the token's organization or source code scans are turned off; 409 under the publish rules above; 503 when the audit trail is unavailable.
 

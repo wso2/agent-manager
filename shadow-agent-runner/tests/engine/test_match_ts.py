@@ -151,6 +151,16 @@ def test_no_match(source: str) -> None:
         ("{ model, tools, maxSteps: MAX_STEPS }", False),
         ("{ model, tools, maxSteps: 0x10 }", False),
         ("{ model, tools, maxSteps }", False),
+        # Only an integer literal of 2 or more counts; a stopWhen of one step, or none, does not.
+        ("{ model, tools, maxSteps: 1.5 }", False),
+        ("{ model, tools, maxSteps: 2.0 }", False),
+        ("{ model, tools, maxSteps: 1_0 }", True),
+        ("{ model, tools, stopWhen: undefined }", False),
+        ("{ model, tools, stopWhen: null, maxSteps: 1 }", False),
+        ("{ model, tools, stopWhen: stepCountIs(1) }", False),
+        ("{ model, tools, stopWhen: ai.stepCountIs(0) }", False),
+        ("{ model, tools, stopWhen: stepCountIs(n) }", True),
+        ("{ model, tools, stopWhen: [stepCountIs(1)] }", True),
     ],
 )
 def test_ai_sdk_tool_loop(options: str, met: bool) -> None:
@@ -168,6 +178,11 @@ def test_ai_sdk_tool_loop(options: str, met: bool) -> None:
         'import { generateText } from "ai";\nawait generateText({ model, prompt: "hi", maxSteps: 5 });',
         'import { streamText } from "ai";\nstreamText({ model, messages });',
         'import { generateText } from "ai";\ngenerateText(options);',
+        # Tools that are not there.
+        'import { generateText } from "ai";\ngenerateText({ model, tools: undefined, maxSteps: 5 });',
+        'import { generateText } from "ai";\ngenerateText({ model, tools: null, maxSteps: 5 });',
+        'import { generateText } from "ai";\ngenerateText({ model, tools: {}, stopWhen: stepCountIs(5) });',
+        'import { generateText } from "ai";\ngenerateText({ model, tools: [ /* none */ ], maxSteps: 5 });',
     ],
 )
 def test_ai_sdk_call_without_tools_is_no_match(source: str) -> None:
@@ -209,6 +224,13 @@ NAME_CASES = [
     ("function outer() {\n  app.get('/', () => new Agent({}));\n}", ("outer", "outer")),
     ("module.exports.make = function () {\n  return new Agent({});\n};", ("make", "make")),
     ("const [a, b] = [new Agent({}), 1];", ("mastra-agent", "mastra-agent")),
+    # CommonJS export targets are no name: the agent is anonymous, as for ``export default``.
+    ("module.exports = new Agent({});", ("mastra-agent", "mastra-agent")),
+    ("exports = new Agent({});", ("mastra-agent", "mastra-agent")),
+    ("exports.default = new Agent({});", ("mastra-agent", "mastra-agent")),
+    ("module.exports.default = new Agent({});", ("mastra-agent", "mastra-agent")),
+    ("exports.supportAgent = new Agent({});", ("supportAgent", "supportAgent")),
+    ("module.exports.supportAgent = new Agent({});", ("supportAgent", "supportAgent")),
 ]
 
 
@@ -280,13 +302,25 @@ def test_executor_absorbs_the_agent_it_runs() -> None:
     ]
 
 
-def test_absorbs_only_in_the_same_scope() -> None:
+def test_absorbs_from_an_enclosing_scope() -> None:
     source = (
         'import { AgentExecutor, createReactAgent } from "langchain/agents";\n'
         "const agent = await createReactAgent({ llm });\n"
         "function f() {\n  return new AgentExecutor({ agent, tools });\n}\n"
+        "class C {\n  agent = createReactAgent({ llm });\n"
+        "  run() { return new AgentExecutor({ agent, tools }); }\n}\n"
     )
-    assert _found(source) == [("langchain", 2, "agent"), ("langchain", 4, "f")]
+    # The class field is no variable of the method: the method's ``agent`` is the module's, which it absorbs.
+    assert _found(source) == [("langchain", 4, "f"), ("langchain", 7, "agent"), ("langchain", 8, "run")]
+
+
+def test_absorbs_only_from_its_own_or_an_enclosing_scope() -> None:
+    source = (
+        'import { AgentExecutor, createReactAgent } from "langchain/agents";\n'
+        "function a() { const agent = createReactAgent({ llm }); }\n"
+        "function b() { return new AgentExecutor({ agent, tools }); }\n"
+    )
+    assert _found(source) == [("langchain", 2, "agent"), ("langchain", 3, "b")]
 
 
 GRAPH = 'import { StateGraph } from "@langchain/langgraph";\nconst workflow = new StateGraph(MessagesAnnotation);\n'
@@ -386,6 +420,8 @@ def test_scan_tree_classifies_typescript(tmp_path: Path) -> None:
     assert triage.verdict == "proven"
     assert triage.attributes == {
         "framework": "openai-agents",
+        "language": "typescript",
+        "projectPath": "/",
         "model": "gpt-4.1",
         "tools": [{"type": "function", "name": "lookup"}],
     }
@@ -402,6 +438,7 @@ def test_scan_tree_classifies_typescript(tmp_path: Path) -> None:
     assert [(e.code, dict(e.observed)) for e in wired.evidence][-1] == ("d7_tool_calling", {"toolNode": True})
     assert findings["web:src/agent.test.ts:fake"].tag == "test"
     assert findings["web:examples/demo.js:demo"].attributes["labels"] == {"codeArea": "example"}
+    assert findings["web:examples/demo.js:demo"].attributes["language"] == "javascript"
 
 
 def test_python_and_typescript_keep_their_own_manifests(tmp_path: Path) -> None:
@@ -421,3 +458,152 @@ def test_python_and_typescript_keep_their_own_manifests(tmp_path: Path) -> None:
         ("agent.ts", ["d1_agent_dependency", "d2_agent_import"]),
     ]
     assert [f.service_folder for f in findings] == [".", "."]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        # A binding of the imported name in a function, block or catch around the call: not the import.
+        "function make(Agent) { return new Agent({}); }",
+        "function make(Agent: any) { return new Agent({}); }",
+        "function make({ Agent }) { return new Agent({}); }",
+        "function make({ x: Agent }) { return new Agent({}); }",
+        "function make([Agent]) { return new Agent({}); }",
+        "function make(Agent = Base) { return new Agent({}); }",
+        "function make(...Agent) { return new Agent({}); }",
+        "const make = (Agent) => new Agent({});",
+        "const make = Agent => new Agent({});",
+        "class S { make(Agent: any) { return new Agent({}); } }",
+        "function f() { class Agent {}\n  const x = new Agent({}); }",
+        "function f() { function Agent() {}\n  const x = new Agent({}); }",
+        "function f() { const Agent = class {}; const x = new Agent({}); }",
+        "function f() { let { Agent } = local; const x = new Agent({}); }",
+        "function f() { if (y) { var Agent = Other; } return new Agent({}); }",
+        "try { run(); } catch (Agent) { new Agent({}); }",
+        "for (const Agent of kinds) { new Agent({}); }",
+        "{ class Agent {} new Agent({}); }",
+        "function f(m) { return new m.Agent({}); }",
+    ],
+)
+def test_a_local_binding_shadows_the_import(code: str) -> None:
+    imports = 'import { Agent } from "@mastra/core/agent";\nimport * as m from "@mastra/core/agent";\n'
+    assert _matches(imports + code + "\n") == ()
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        # Bindings elsewhere do not shadow the import where it is used.
+        "function other(Agent) {}\nfunction make() { return new Agent({}); }",
+        "function make() { const helper = (Agent) => 1; return new Agent({}); }",
+        "function make() { const o = { Agent: 1 }; return new Agent({}); }",
+        "function make({ Agent: other }) { return new Agent({}); }",
+        "function make(x = Agent) { return new Agent({}); }",
+        "class Agent2 { Agent() { return new Agent({}); } }",
+    ],
+)
+def test_a_binding_elsewhere_does_not_shadow(code: str) -> None:
+    (match,) = _matches('import { Agent } from "@mastra/core/agent";\n' + code + "\n")
+    assert match.framework == "mastra"
+
+
+def test_an_import_inside_a_function_is_not_a_shadow() -> None:
+    source = (
+        "function make() {\n"
+        '  const { Agent } = require("@openai/agents");\n'
+        '  const oa = require("@openai/agents");\n'
+        "  return [new Agent({}), new oa.Agent({})];\n}\n"
+    )
+    assert [m.framework for m in _matches(source, Language.JAVASCRIPT)] == ["openai-agents", "openai-agents"]
+
+
+@pytest.mark.parametrize("parts", [1000, 5000])
+def test_a_long_member_chain_is_read_without_recursion(parts: int) -> None:
+    assert _matches('import * as z from "x";\nfoo' + ".x" * parts + "();\n") == ()
+    assert _matches('import * as oa from "@openai/agents";\nconst b = new oa' + ".x" * parts + ".Agent({});\n") == ()
+
+
+def test_a_name_literal_that_is_not_utf8_is_no_name() -> None:
+    data = b'import { Agent } from "@openai/agents";\nconst bot = new Agent({ name: "B\xffot", model: "g\xff" });\n'
+    tree = parse(Language.TYPESCRIPT, data)
+    assert tree is not None
+    (match,) = match_script_file("a.ts", tree, data, extract_imports(Language.TYPESCRIPT, tree, data)).matches
+    assert (match.name, match.named, match.model) == ("bot", False, None)
+
+
+def test_a_file_too_deep_to_match_is_skipped_not_fatal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    real = match_script_file
+
+    def deep(path: str, *args: object, **kwargs: object) -> ScriptMatches:
+        if path == "src/deep.ts":
+            raise RecursionError("maximum recursion depth exceeded")
+        return real(path, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("amp_shadow_runner.engine.scan.match_script_file", deep)
+    _write(
+        tmp_path,
+        {
+            "src/deep.ts": 'import { Agent } from "@openai/agents";\nconst a = new Agent({});\n',
+            "src/bot.ts": 'import { Agent } from "@openai/agents";\nconst bot = new Agent({ name: "Bot" });\n',
+        },
+    )
+    result = scan_tree(tmp_path, repository="r")
+    assert [f.external_id for f in result.findings] == ["r:src/bot.ts:Bot"]
+    assert (result.files_scanned, result.files_skipped) == (1, 1)
+
+
+def test_a_commonjs_export_is_named_after_its_project(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        {
+            "support-bot/package.json": '{"name": "support-bot"}',
+            "support-bot/index.js": 'const { Agent } = require("@openai/agents");\nmodule.exports = new Agent({});\n',
+            "support-bot/other.js": 'const { Agent } = require("@openai/agents");\nexports.default = new Agent({});\n',
+        },
+    )
+    findings = scan_tree(tmp_path, repository="r").findings
+    assert [(f.external_id, f.name) for f in findings] == [
+        ("r:support-bot/index.js:openai-agents-agent", "support-bot (index.js)"),
+        ("r:support-bot/other.js:openai-agents-agent", "support-bot (other.js)"),
+    ]
+
+
+# One agent written once in each branch of a conditional: only the first is kept. (code, its line)
+ONE_AGENT_IN_BRANCHES = [
+    ("let graph;\nif (fast) {\n  graph = new Agent({});\n} else {\n  graph = new Agent({});\n}", 4),
+    ("let graph;\nif (a) graph = new Agent({});\nelse if (b) graph = new Agent({});\nelse graph = new Agent({});", 3),
+    ("let graph;\ntry {\n  graph = new Agent({});\n} catch (e) {\n  graph = new Agent({});\n}", 4),
+    ("const graph = fast ? new Agent({}) : new Agent({});", 2),
+    ("const graph = await (a ? new Agent({}) : b ? new Agent({}) : new Agent({}));", 2),
+    (
+        "class Bot {\n  init(fast) {\n    if (fast) { this.graph = new Agent({}); }\n"
+        "    else { this.graph = new Agent({}); }\n  }\n}",
+        4,
+    ),
+]
+
+
+@pytest.mark.parametrize(("code", "line"), ONE_AGENT_IN_BRANCHES)
+def test_one_variable_in_exclusive_branches_is_one_agent(code: str, line: int) -> None:
+    (match,) = _matches(f'import {{ Agent }} from "@mastra/core/agent";\n{code}\n')
+    assert (match.name, match.line) == ("graph", line)
+
+
+# Still two agents: a reassignment in one block, two scopes, ``try`` and ``finally`` (both run), two
+# ``switch`` cases (a case can fall through), ``name:`` literals, no variable at all, or two in one path.
+TWO_AGENTS = [
+    "let graph = new Agent({});\ngraph = new Agent({});",
+    "let graph;\nif (fast) {\n  graph = new Agent({});\n  graph = new Agent({});\n}",
+    "function a() { const graph = new Agent({}); }\nfunction b() { const graph = new Agent({}); }",
+    "let graph;\ntry { graph = new Agent({}); } finally { graph = new Agent({}); }",
+    "if (fast) { new Agent({ name: 'fast' }); } else { new Agent({ name: 'slow' }); }",
+    "if (fast) { new Agent({}); } else { new Agent({}); }",
+    "let graph;\nswitch (mode) {\n  case 'fast':\n    graph = new Agent({});\n    break;\n"
+    "  default:\n    graph = new Agent({});\n}",
+    "let graph;\nif (a) { graph = new Agent({}); } else { graph = new Agent({}); graph = new Agent({}); }",
+]
+
+
+@pytest.mark.parametrize("code", TWO_AGENTS)
+def test_two_agents_stay_two(code: str) -> None:
+    assert len(_matches(f'import {{ Agent }} from "@mastra/core/agent";\n{code}\n')) == 2

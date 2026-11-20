@@ -16,7 +16,9 @@
 
 """amp_shadow_runner.engine.match_cs, match_bal and their signatures: C# and Ballerina agents."""
 
+import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -24,7 +26,7 @@ from amp_shadow_runner.engine.imports import extract_imports
 from amp_shadow_runner.engine.languages import Language, parse
 from amp_shadow_runner.engine.match import Match
 from amp_shadow_runner.engine.match_bal import ballerina_imports, match_ballerina_file
-from amp_shadow_runner.engine.match_cs import match_csharp_file, mentions
+from amp_shadow_runner.engine.match_cs import declared_types, match_csharp_file, mentions
 from amp_shadow_runner.engine.scan import scan_tree
 
 SK = "using Microsoft.SemanticKernel.Agents;\n"
@@ -123,6 +125,9 @@ def test_lookalike_without_using_is_not_sure(source: str, framework: str) -> Non
         "var x = new();",
         SK + "var x = this.ChatCompletionAgent();",
         SK + "var x = ChatCompletionAgent.Parse(s);",
+        # A using imports a namespace's types, not the namespaces under it.
+        "using Microsoft.SemanticKernel;\nvar x = new Agents.ChatCompletionAgent();",
+        "using Microsoft.SemanticKernel.Agents;\nvar x = await OpenAI.OpenAIAssistantAgent.CreateAsync(c, d);",
     ],
 )
 def test_no_match(source: str) -> None:
@@ -225,6 +230,53 @@ LOOKALIKE = "namespace App;\nclass Host {\n  void Run() { var agent = new ChatCo
         # With no csproj, the repository is the project.
         ({"Usings.cs": "global " + SK, "src/Host.cs": LOOKALIKE}, "proven"),
         ({"src/App/Host.cs": LOOKALIKE}, "not_sure"),
+        # A global alias in another file: the file that uses only the alias is matched too.
+        (
+            {
+                "src/App/App.csproj": CSPROJ,
+                "src/App/Usings.cs": "global using CCA = Microsoft.SemanticKernel.Agents.ChatCompletionAgent;\n",
+                "src/App/Host.cs": LOOKALIKE.replace("new ChatCompletionAgent", "new CCA"),
+            },
+            "proven",
+        ),
+        # The <Using> items of the nearest Directory.Build.props at or above the project, and only those.
+        (
+            {
+                "Directory.Build.props": '<Project><ItemGroup><Using Include="Microsoft.SemanticKernel.Agents" />'
+                "</ItemGroup></Project>",
+                "src/App/App.csproj": CSPROJ,
+                "src/App/Host.cs": LOOKALIKE,
+            },
+            "proven",
+        ),
+        (
+            {
+                "src/Directory.Build.props": '<Project><ItemGroup><Using Alias="CCA" '
+                'Include="Microsoft.SemanticKernel.Agents.ChatCompletionAgent" /></ItemGroup></Project>',
+                "src/App/App.csproj": CSPROJ,
+                "src/App/Host.cs": LOOKALIKE.replace("new ChatCompletionAgent", "new CCA"),
+            },
+            "proven",
+        ),
+        (
+            {
+                "Directory.Build.props": '<Project><ItemGroup><Using Include="Microsoft.SemanticKernel.Agents" />'
+                "</ItemGroup></Project>",
+                "src/Directory.Build.props": "<Project />",
+                "src/App/App.csproj": CSPROJ,
+                "src/App/Host.cs": LOOKALIKE,
+            },
+            "not_sure",
+        ),
+        # A type of that name declared in the project may be the one meant.
+        (
+            {
+                "src/App/App.csproj": CSPROJ,
+                "src/App/Host.cs": SK + LOOKALIKE,
+                "src/App/Fakes.cs": "namespace App;\ninternal sealed class ChatCompletionAgent { }\n",
+            },
+            "not_sure",
+        ),
         # A csproj with a DOCTYPE is refused: no usings, and the scan goes on.
         (
             {
@@ -270,7 +322,7 @@ def test_scan_tree_classifies_csharp(tmp_path: Path) -> None:
     host = findings["r:src/App/Host.cs:Host.Run.agent"]
     assert (host.verdict, host.attributes, host.service_folder) == (
         "proven",
-        {"framework": "semantic-kernel"},
+        {"framework": "semantic-kernel", "language": "csharp", "projectPath": "/src/App"},
         "src/App",
     )
     assert [(e.code, e.source, dict(e.observed)) for e in host.evidence] == [
@@ -351,3 +403,121 @@ def test_ballerina_is_always_not_sure(tmp_path: Path) -> None:
         ("d2_agent_import", "agents.bal", {"imports": 1}),
     ]
     assert (result.files_scanned, result.parse_errors) == (1, 0)
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "class ChatCompletionAgent { }",
+        "struct ChatCompletionAgent { }",
+        "record ChatCompletionAgent(int A);",
+        "interface ChatCompletionAgent { }",
+        "enum ChatCompletionAgent { A }",
+        "delegate void ChatCompletionAgent();",
+    ],
+)
+def test_a_type_declared_in_the_project_makes_it_not_sure(declaration: str) -> None:
+    source = SK + "namespace MyApp { " + declaration + " class P { void M() { var x = new ChatCompletionAgent(); } } }"
+    data = source.encode()
+    tree = parse(Language.C_SHARP, data)
+    assert tree is not None
+    assert declared_types(tree, data) >= {"ChatCompletionAgent"}
+    imports = extract_imports(Language.C_SHARP, tree, data)
+    (match,) = match_csharp_file("a.cs", tree, data, imports, local_types=declared_types(tree, data))
+    assert (match.framework, match.condition_met) == ("semantic-kernel", False)
+    # A fully qualified name is not shadowed by it.
+    qualified = SK + "class ChatCompletionAgent { }\nvar x = new Microsoft.SemanticKernel.Agents.ChatCompletionAgent();"
+    (match,) = match_csharp_file("a.cs", *_parsed(qualified), local_types=frozenset({"ChatCompletionAgent"}))
+    assert match.condition_met is True
+
+
+def _parsed(source: str) -> tuple[Any, bytes, Any]:
+    data = source.encode()
+    tree = parse(Language.C_SHARP, data)
+    assert tree is not None
+    return tree, data, extract_imports(Language.C_SHARP, tree, data)
+
+
+@pytest.mark.parametrize("parts", [1000, 5000])
+def test_a_long_qualified_name_is_read_without_recursion(parts: int) -> None:
+    assert _matches("class P { void M() { var y = foo" + ".x" * parts + "(); var z = ChatClientAgent.X; } }") == ()
+    assert _matches("class P { void M() { var y = new " + "A." * parts + "ChatCompletionAgent(); } }") == ()
+
+
+def test_a_name_literal_that_is_not_utf8_is_no_name() -> None:
+    data = MAF.encode() + b'var writer = new ChatClientAgent(c, name: "W\xffriter");\n'
+    tree = parse(Language.C_SHARP, data)
+    assert tree is not None
+    (match,) = match_csharp_file("a.cs", tree, data, extract_imports(Language.C_SHARP, tree, data))
+    assert (match.name, match.named) == ("writer", False)
+
+
+def test_ballerina_lines_and_a_byte_order_mark(tmp_path: Path) -> None:
+    text = "import ballerina/ai;\n\nfinal ai:Agent a = check new (m);\n\n\nai:Agent b = new (m);\nx = new ai:Agent();\n"
+    matches, imports = match_ballerina_file("main.bal", "import ballerina/http;\n" + text)
+    assert [i.line for i in imports.imports] == [1, 2]
+    assert [(m.name, m.line) for m in matches] == [("a", 4), ("b", 7), ("x", 8)]
+    (tmp_path / "main.bal").write_bytes(b"\xef\xbb\xbf" + text.encode())
+    findings = scan_tree(tmp_path, repository="r").findings
+    assert [(f.external_id, f.line) for f in findings] == [
+        ("r:main.bal:a", 3),
+        ("r:main.bal:b", 6),
+        ("r:main.bal:x", 7),
+    ]
+
+
+def test_ballerina_line_numbers_are_counted_once() -> None:
+    # Counting from the file's start for every match took about 7 s here; counting on takes milliseconds.
+    started = time.monotonic()
+    matches, _ = match_ballerina_file("m.bal", "import ballerina/ai;\n" + "x = new ai:Agent()\n" * 50_000)
+    assert (len(matches), matches[-1].line) == (50_000, 50_001)
+    assert time.monotonic() - started < 2
+
+
+# One agent written once in each branch of a conditional: only the first is kept. (body, its line)
+ONE_AGENT_IN_BRANCHES = [
+    ("if (fast) { graph = new ChatCompletionAgent(); } else { graph = new ChatCompletionAgent(); }", 3),
+    (
+        "if (a) graph = new ChatCompletionAgent();\nelse if (b) graph = new ChatCompletionAgent();\n"
+        "else graph = new ChatCompletionAgent();",
+        3,
+    ),
+    (
+        "try { graph = new ChatCompletionAgent(); }\ncatch (IOException) { graph = new ChatCompletionAgent(); }\n"
+        "catch { graph = new ChatCompletionAgent(); }",
+        3,
+    ),
+    ("var graph = fast ? new ChatCompletionAgent() : new ChatCompletionAgent();", 3),
+    ("graph = await (fast ? OpenAIAssistantAgent.CreateAsync(c) : OpenAIAssistantAgent.CreateAsync(d));", 3),
+    (
+        "switch (mode) {\ncase 1: graph = new ChatCompletionAgent(); break;\n"
+        "default: graph = new ChatCompletionAgent(); break;\n}",
+        4,
+    ),
+    ("if (fast) { this.graph = new ChatCompletionAgent(); } else { this.graph = new ChatCompletionAgent(); }", 3),
+]
+
+
+@pytest.mark.parametrize(("body", "line"), ONE_AGENT_IN_BRANCHES)
+def test_one_variable_in_exclusive_branches_is_one_agent(body: str, line: int) -> None:
+    (match,) = _matches(f"{SK}class Bot {{ async Task M() {{\n{body}\n}} }}\n")
+    assert (match.name, match.qualified, match.line) == ("graph", "Bot.M.graph", line)
+
+
+# Still two agents: a reassignment in one block, two scopes, ``try`` and ``finally`` (both run), ``Name``
+# literals, no variable at all, or two in one path.
+TWO_AGENTS = [
+    "void M() { var graph = new ChatCompletionAgent(); graph = new ChatCompletionAgent(); }",
+    "void M() { if (fast) { graph = new ChatCompletionAgent(); graph = new ChatCompletionAgent(); } }",
+    "void A() { var graph = new ChatCompletionAgent(); }\nvoid B() { var graph = new ChatCompletionAgent(); }",
+    "void M() { try { graph = new ChatCompletionAgent(); } finally { graph = new ChatCompletionAgent(); } }",
+    'void M() { if (f) { new ChatCompletionAgent { Name = "A" }; } else { new ChatCompletionAgent { Name = "B" }; } }',
+    "void M() { if (fast) { Use(new ChatCompletionAgent()); } else { Use(new ChatCompletionAgent()); } }",
+    "void M() { if (a) { g = new ChatCompletionAgent(); }\n"
+    "else { g = new ChatCompletionAgent(); g = new ChatCompletionAgent(); } }",
+]
+
+
+@pytest.mark.parametrize("members", TWO_AGENTS)
+def test_two_agents_stay_two(members: str) -> None:
+    assert len(_matches(f"{SK}class Bot {{\n{members}\n}}\n")) == 2

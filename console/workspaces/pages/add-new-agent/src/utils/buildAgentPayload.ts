@@ -18,7 +18,9 @@
 
 import {
   AgentKindConfigSchemaItem,
+  AgentSourceSeed,
   CreateAgentRequest,
+  INPUT_LIMITS,
   MCPConfigRequest,
   ModelConfigRequest,
   OrgProjPathParams,
@@ -90,6 +92,52 @@ export function deriveSampleAgentSeed(
       value: envVar.value ?? "",
       isSensitive: !!envVar.isSensitive,
     })),
+  };
+}
+
+const SEED_LANGUAGES: AgentSourceSeed["language"][] = ["python", "ballerina", "docker"];
+
+/**
+ * The seed a code agent found by Shadow Agent Discovery passes in router state
+ * (`agentSourceSeed`), or undefined when there is none or it is malformed. A
+ * link to a found agent is kept only within the current organization.
+ */
+export function readAgentSourceSeed(
+  state: unknown,
+  orgName: string | undefined,
+): AgentSourceSeed | undefined {
+  const seed = (state as { agentSourceSeed?: unknown } | null)?.agentSourceSeed;
+  if (!seed || typeof seed !== "object") return undefined;
+  const s = seed as Record<string, unknown>;
+  const text = (key: string) => (typeof s[key] === "string" ? (s[key] as string) : "");
+  const language = SEED_LANGUAGES.find((l) => l === s.language) ?? "docker";
+  const link = s.shadowFinding as { orgName?: unknown; findingId?: unknown } | undefined;
+  const shadowFinding =
+    link && link.orgName === orgName && typeof link.findingId === "string" && link.findingId
+      ? { orgName: link.orgName as string, findingId: link.findingId }
+      : undefined;
+  return {
+    displayName: text("displayName").slice(0, INPUT_LIMITS.NAME),
+    name: text("name"),
+    description: text("description").slice(0, INPUT_LIMITS.DESCRIPTION),
+    repositoryUrl: text("repositoryUrl"),
+    branch: text("branch") || "main",
+    appPath: text("appPath") || "/",
+    language,
+    shadowFinding,
+  };
+}
+
+/** The form values a found agent's seed fills in; the link to it is not a form value. */
+export function agentSourceSeedValues(seed: AgentSourceSeed): Partial<CreateAgentFormValues> {
+  return {
+    displayName: seed.displayName,
+    name: seed.name,
+    description: seed.description,
+    repositoryUrl: seed.repositoryUrl,
+    branch: seed.branch,
+    appPath: seed.appPath,
+    language: seed.language,
   };
 }
 

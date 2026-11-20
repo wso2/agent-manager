@@ -25,6 +25,7 @@ import type {
   ShadowFindingDetail,
   ShadowFindingListQuery,
   ShadowFindingSummary,
+  ShadowProvider,
   ShadowProviderSpec,
   ShadowRunnerScanResponse,
   ShadowScanResponse,
@@ -110,6 +111,9 @@ const hoisted = vi.hoisted(() => ({
   detail: null as ShadowFindingDetail | null,
   summary: undefined as ShadowAgentSummary | undefined,
   connections: [] as ShadowConnectionResponse[],
+  connection: undefined as ShadowConnectionResponse | undefined,
+  connectionError: null as unknown,
+  projectsError: null as unknown,
   scans: [] as ShadowScanResponse[],
   scanDetail: null as ShadowScanResponse | null,
   scanIds: [] as (string | undefined)[],
@@ -145,8 +149,11 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useSetShadowFindingHidden: () => ({ mutate: hoisted.setHidden, isPending: false }),
   useCreateAgent: () => ({ mutate: hoisted.createAgent, isPending: false }),
   useListProjects: () => ({
-    data: { projects: [{ name: "default", displayName: "Default" }] },
+    data: hoisted.projectsError
+      ? undefined
+      : { projects: [{ name: "default", displayName: "Default" }] },
     isLoading: false,
+    error: hoisted.projectsError,
   }),
   useDeleteShadowFinding: () => ({ mutate: hoisted.deleteAgent, isPending: false }),
   useDeleteShadowFindings: () => ({ mutate: hoisted.deleteAll, isPending: false }),
@@ -156,7 +163,11 @@ vi.mock("@agent-management-platform/api-client", () => ({
     data: hoisted.providers.length > 0 ? { providers: hoisted.providers, signals: [] } : undefined,
     isLoading: false,
   }),
-  useShadowConnection: () => ({ data: undefined, isLoading: false }),
+  useShadowConnection: () => ({
+    data: hoisted.connection,
+    isLoading: false,
+    error: hoisted.connectionError,
+  }),
   useCreateShadowConnection: () => ({ mutate: hoisted.createConnection, isPending: false }),
   useUpdateShadowConnection: () => ({ mutate: hoisted.updateConnection, isPending: false }),
   useShadowConnections: () => ({
@@ -234,6 +245,13 @@ import { SourceScanGuide } from "./subComponents/SourceScanGuide";
 import { DocLinks } from "./subComponents/PermissionsPanel";
 import { GenerateCommandDialog } from "./subComponents/GenerateCommandDialog";
 import { CUSTOM_CONTRACT_FILE, ConnectionEditor } from "./subComponents/ConnectionEditor";
+import { FeatureManagementProvider } from "@agent-management-platform/feature-management";
+import {
+  buildAgentSourceSeed,
+  folderAppPath,
+  seedAppPath,
+  seedLanguage,
+} from "./platformHostedSeed";
 
 function ShowLocation() {
   const l = useLocation();
@@ -282,6 +300,9 @@ beforeEach(() => {
   hoisted.detail = null;
   hoisted.summary = undefined;
   hoisted.connections = [];
+  hoisted.connection = undefined;
+  hoisted.connectionError = null;
+  hoisted.projectsError = null;
   hoisted.scans = [];
   hoisted.scanDetail = null;
   hoisted.scanIds = [];
@@ -432,6 +453,30 @@ describe("FindingsTab", () => {
     expect(screen.getByText(/· agent_one$/)).toBeInTheDocument();
     expect(screen.getByText(/· agent_two$/)).toBeInTheDocument();
     expect(screen.queryByText(/agent_three/)).not.toBeInTheDocument();
+  });
+
+  it("marks code agents confirmed by AI-enhanced detection, not the ones the rules proved", async () => {
+    const code = (
+      id: string,
+      displayName: string,
+      reviewedBy: ShadowFindingSummary["reviewedBy"],
+    ) => finding({ id, displayName, provider: "github", kind: "code_agent", externalId: id, reviewedBy });
+    hoisted.findings = [
+      code("a", "triage", "ai_review"),
+      code("b", "planner", "ai_review_judge"),
+      code("c", "router", "rules"),
+    ];
+    router(<FindingsTab orgName="acme" />);
+    const row = (name: string) => screen.getByText(name).closest("tr") as HTMLElement;
+    expect(within(row("triage")).getByText("AI")).toBeInTheDocument();
+    expect(within(row("planner")).getByText("AI")).toBeInTheDocument();
+    expect(within(row("router")).queryByText("AI")).not.toBeInTheDocument();
+    expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
+    fireEvent.mouseOver(within(row("triage")).getByText("AI"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Confirmed by AI-enhanced detection, not by the scan's rules. " +
+        "Open the agent to check its evidence.",
+    );
   });
 
   it("has no delete actions without the manage permission, or for a scan's agents", () => {
@@ -606,7 +651,7 @@ describe("FindingDetail", () => {
       ...over,
     });
 
-  it("explains code evidence and warns that AI review confirmed a code agent", () => {
+  it("explains code evidence and warns that AI confirmed a code agent", () => {
     hoisted.detail = codeAgent("ai_review_judge");
     renderDetail();
     expect(
@@ -617,12 +662,8 @@ describe("FindingDetail", () => {
     ).toBeNull();
     expect(screen.getByText("requirements.txt")).toBeInTheDocument();
     expect(screen.getByText("Confirmed by")).toBeInTheDocument();
-    expect(screen.getByText("AI review and LLM judge")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "AI review confirmed this agent. AI review can make mistakes, so check the evidence.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("AI and LLM judge")).toBeInTheDocument();
+    expect(screen.getByText("AI can make mistakes, so check the evidence.")).toBeInTheDocument();
     expect(screen.getByLabelText("Location in code")).toBeInTheDocument();
     expect(screen.getByText("wso2/support-bot:agent.py")).toBeInTheDocument();
     expect(screen.getAllByText("Repository").length).toBeGreaterThan(0);
@@ -631,11 +672,11 @@ describe("FindingDetail", () => {
     expect(screen.getByText(/What the scan command reported/)).toBeInTheDocument();
   });
 
-  it("warns about AI mistakes for a code agent confirmed by AI review alone", () => {
+  it("warns about AI mistakes for a code agent confirmed by AI alone", () => {
     hoisted.detail = codeAgent("ai_review");
     renderDetail();
-    expect(screen.getByText("AI review")).toBeInTheDocument();
-    expect(screen.getByText(/AI review can make mistakes/)).toBeInTheDocument();
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.getByText(/AI can make mistakes/)).toBeInTheDocument();
   });
 
   it("words a code agent that is no longer found, without platform-only fields", () => {
@@ -728,6 +769,199 @@ describe("FindingDetail", () => {
     expect(
       screen.queryByRole("link", { name: "Onboard as external agent" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Onboarding a code agent", () => {
+  const githubConnection = (over: Partial<ShadowConnectionResponse> = {}) =>
+    connection({
+      provider: "github",
+      name: "WSO2 GitHub",
+      endpoints: { api: "https://api.github.com" },
+      settings: { organization: "wso2" },
+      ...over,
+    });
+
+  const codeFinding = (over: Partial<ShadowFindingDetail> = {}) =>
+    detail({
+      provider: "github",
+      kind: "code_agent",
+      displayName: "Customer Support Agent",
+      scope: "support-bot",
+      externalId: "support-bot:samples/support/agent.py:SupportAgent",
+      attributes: {
+        framework: "langgraph",
+        branch: "develop",
+        projectPath: "/samples/support",
+        language: "python",
+      },
+      signals: [
+        {
+          code: "github.d1_agent_dependency",
+          name: "Agent framework dependency",
+          source: "samples/support/requirements.txt",
+          condition: "A dependency on an agent framework",
+          observed: {},
+          detectedAt: "2026-11-10T00:00:00Z",
+        },
+        {
+          code: "github.d2_agent_import",
+          name: "Agent framework import",
+          source: "samples/support/app/agent.py",
+          condition: "An import of an agent framework",
+          observed: {},
+          detectedAt: "2026-11-10T00:00:00Z",
+        },
+      ],
+      ...over,
+    });
+
+  function ShowState() {
+    const l = useLocation();
+    return <pre data-testid="state">{JSON.stringify(l.state)}</pre>;
+  }
+
+  const renderDetail = (canCreateAgent = true) =>
+    router(
+      <FeatureManagementProvider featureAccess={{ agent_create: canCreateAgent }}>
+        <Routes>
+          <Route
+            path="/organizations/:orgId/shadow-agent-discovery/agents/:findingId"
+            element={
+              <FindingDetail
+                orgName="acme"
+                canManage
+                listPath="/organizations/acme/shadow-agent-discovery"
+              />
+            }
+          />
+          <Route
+            path="/organizations/:orgId/projects/:projectId/newAgent/create/source"
+            element={<ShowState />}
+          />
+        </Routes>
+      </FeatureManagementProvider>,
+      "/organizations/acme/shadow-agent-discovery/agents/f1",
+    );
+
+  const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Onboard" }));
+  const deployItem = () =>
+    screen.getByRole("menuitem", { name: /^Deploy as platform-hosted agent/ });
+
+  it("offers registering as an external agent or deploying as a platform-hosted agent", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connection = githubConnection();
+    renderDetail();
+    expect(
+      screen.queryByRole("link", { name: "Onboard as external agent" }),
+    ).not.toBeInTheDocument();
+    openMenu();
+    expect(deployItem()).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Register as external agent/ }));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/organizations/acme/shadow-agent-discovery/agents/f1/onboard",
+    );
+  });
+
+  it.each([
+    [
+      "a GitHub Enterprise Server repository",
+      {},
+      githubConnection({ endpoints: { api: "https://github.acme.com/api/v3" } }),
+    ],
+  ])("does not deploy %s as a platform-hosted agent", (_name, over, conn) => {
+    hoisted.detail = codeFinding(over);
+    hoisted.connection = conn;
+    renderDetail();
+    openMenu();
+    expect(deployItem()).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByLabelText(
+        "Only repositories on github.com can be deployed as platform-hosted agents.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not deploy without permission to create agents", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connection = githubConnection();
+    renderDetail(false);
+    openMenu();
+    expect(deployItem()).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByLabelText("You don't have permission to create agents.")).toBeVisible();
+  });
+
+  it("says so when the platform's details could not be loaded", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connectionError = new Error("boom");
+    renderDetail();
+    openMenu();
+    expect(deployItem()).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByLabelText("Could not load the platform's details. Try again later."),
+    ).toBeInTheDocument();
+  });
+
+  it("says so when the projects could not be loaded", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connection = githubConnection();
+    hoisted.projectsError = new Error("boom");
+    renderDetail();
+    openMenu();
+    fireEvent.click(deployItem());
+    const dialog = screen.getByRole("dialog", { name: "Deploy as platform-hosted agent" });
+    expect(within(dialog).getByText("Could not load the projects.")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/There are no projects/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Continue" })).toBeDisabled();
+  });
+
+  it("asks for a project, then opens the platform-hosted agent form with a seed", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connection = githubConnection();
+    renderDetail();
+    openMenu();
+    fireEvent.click(deployItem());
+    const dialog = screen.getByRole("dialog", { name: "Deploy as platform-hosted agent" });
+    expect(within(dialog).getByRole("combobox")).toHaveTextContent("Default");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/organizations/acme/projects/default/newAgent/create/source",
+    );
+    const state = JSON.parse(screen.getByTestId("state").textContent ?? "{}");
+    expect(state.from).toBe("/organizations/acme/shadow-agent-discovery/agents/f1");
+    expect(state.agentSourceSeed).toEqual({
+      displayName: "Customer Support Agent",
+      name: "customer-support-agent",
+      description: expect.stringContaining("Discovered by Shadow Agent Discovery"),
+      repositoryUrl: "https://github.com/wso2/support-bot",
+      branch: "develop",
+      appPath: "/samples/support",
+      language: "python",
+      shadowFinding: { orgName: "acme", findingId: "f1" },
+    });
+  });
+
+  it("falls back to the manifest's folder, then the agent file's folder, and main", () => {
+    const f = codeFinding({ attributes: { framework: "langgraph" } });
+    expect(seedAppPath(f)).toBe("/samples/support");
+    const seed = buildAgentSourceSeed(f, githubConnection(), "acme");
+    expect(seed.branch).toBe("main");
+    expect(seed.language).toBe("python");
+    const noManifest = codeFinding({
+      attributes: {},
+      signals: codeFinding().signals.filter((s) => s.code === "github.d2_agent_import"),
+    });
+    expect(seedAppPath(noManifest)).toBe("/samples/support/app");
+    const noSignals = codeFinding({ attributes: {}, signals: [] });
+    expect(seedAppPath(noSignals)).toBe("/samples/support");
+    expect(seedLanguage(noSignals)).toBe("python");
+    expect(seedAppPath(codeFinding({ attributes: {}, signals: [], externalId: "r:main.bal:x" })))
+      .toBe("/");
+    expect(seedLanguage(codeFinding({ attributes: {}, signals: [], externalId: "r:main.bal:x" })))
+      .toBe("ballerina");
+    expect(seedLanguage(codeFinding({ attributes: { language: "typescript" } }))).toBe("docker");
+    expect(seedAppPath(codeFinding({ attributes: { projectPath: "/" } }))).toBe("/");
+    expect(folderAppPath("requirements.txt")).toBe("/");
   });
 });
 
@@ -1207,20 +1441,42 @@ describe("GenerateCommandDialog", () => {
   });
   const spec = sourceHostSpec();
 
-  it("offers the LLM judge only with AI review, with no AI warning in the panel", () => {
+  it("shows the LLM judge only with AI-enhanced detection, with no AI warning", () => {
     render(
       <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
     );
-    const ai = screen.getByRole("switch", { name: /^AI review/ });
-    const judge = screen.getByRole("switch", { name: /^LLM judge/ });
-    expect(judge).toBeDisabled();
+    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
+    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
     fireEvent.click(ai);
+    const judge = screen.getByRole("switch", { name: /^LLM judge/ });
     expect(judge).toBeEnabled();
+    expect(
+      screen.getByText("A second model must agree before an agent is published."),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
     fireEvent.click(judge);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
       { connectionId: "c2", aiReview: true, llmJudge: true },
+      expect.anything(),
+    );
+  });
+
+  it("turns the LLM judge off when AI-enhanced detection is turned off", () => {
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
+    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
+    fireEvent.click(ai);
+    fireEvent.click(screen.getByRole("switch", { name: /^LLM judge/ }));
+    fireEvent.click(ai);
+    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
+    fireEvent.click(ai);
+    expect(screen.getByRole("switch", { name: /^LLM judge/ })).not.toBeChecked();
+    fireEvent.click(ai);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c2", aiReview: false, llmJudge: false },
       expect.anything(),
     );
   });
@@ -1336,6 +1592,76 @@ describe("ConnectionEditor (source code repositories)", () => {
   const commandText = () =>
     (screen.getByText(/--scan-id/).textContent ?? "").replace(/ \\\n\s*/g, " ");
 
+  const openPicker = (providers: ShadowProviderSpec[]) => {
+    hoisted.providers = providers;
+    router(
+      <Routes>
+        <Route path="/new" element={<ConnectionEditor orgName="acme" listPath="/list" />} />
+      </Routes>,
+      "/new",
+    );
+  };
+  const aiPlatform = (provider: ShadowProvider, displayName: string): ShadowProviderSpec =>
+    sourceHostSpec({ provider, displayName, sourceHost: false, permissions: [], docs: [] });
+
+  it("groups the platforms to add into AI platforms and Source code, with logos and tags", () => {
+    openPicker([
+      githubSpec(),
+      aiPlatform("anthropic", "Anthropic"),
+      aiPlatform("openai", "OpenAI"),
+    ]);
+    const ai = screen.getByRole("region", { name: "AI platforms" });
+    const source = screen.getByRole("region", { name: "Source code repositories" });
+    // In display order, whatever order the server lists them in.
+    expect(within(ai).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Connect OpenAI",
+      "Connect Anthropic",
+    ]);
+    expect(within(ai).getAllByText("Read-only key")).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Connect OpenAI" }),
+    ).toHaveAccessibleDescription("Assistants and agents in your OpenAI projects");
+    expect(within(source).getByRole("button", { name: "Connect GitHub" })).toBeInTheDocument();
+    expect(within(source).getByText("Runs on your machine")).toBeInTheDocument();
+    expect(within(source).getByText("Agents in your repositories' code")).toBeInTheDocument();
+  });
+
+  it("chooses a platform card from the keyboard", () => {
+    openPicker([githubSpec(), aiPlatform("openai", "OpenAI")]);
+    const card = screen.getByRole("button", { name: "Connect GitHub" });
+    expect(card).toHaveAttribute("tabindex", "0");
+    act(() => card.focus());
+    expect(card).toHaveFocus();
+    fireEvent.keyDown(card, { key: "Enter" });
+    expect(screen.getByText("Scan command")).toBeInTheDocument();
+  });
+
+  it("chooses a platform card with Space", () => {
+    openPicker([aiPlatform("openai", "OpenAI")]);
+    const card = screen.getByRole("button", { name: "Connect OpenAI" });
+    act(() => card.focus());
+    fireEvent.keyDown(card, { key: " " });
+    fireEvent.keyUp(card, { key: " " });
+    expect(screen.queryByRole("button", { name: "Connect OpenAI" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /Name/ })).toHaveValue("OpenAI connection");
+  });
+
+  it("hides the LLM judge until AI-enhanced detection is on, and resets it", () => {
+    openNew();
+    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
+    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
+    fireEvent.click(ai);
+    fireEvent.click(screen.getByRole("switch", { name: /^LLM judge/ }));
+    expect(commandText()).toContain("--ai-review");
+    expect(commandText()).toContain("--judge");
+    fireEvent.click(ai);
+    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
+    expect(commandText()).not.toContain("--judge");
+    fireEvent.click(ai);
+    expect(screen.getByRole("switch", { name: /^LLM judge/ })).not.toBeChecked();
+    expect(commandText()).not.toContain("--judge");
+  });
+
   it("shows the scan command next to the form, following the organization field", () => {
     openNew();
     expect(screen.getByText("Scan command")).toBeInTheDocument();
@@ -1358,7 +1684,7 @@ describe("ConnectionEditor (source code repositories)", () => {
       target: { value: "acme" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
-    fireEvent.click(screen.getByRole("switch", { name: /^AI review/ }));
+    fireEvent.click(screen.getByRole("switch", { name: /^AI-enhanced detection/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
     expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
     expect(hoisted.createConnection.mock.lastCall?.[0]).toMatchObject({
@@ -1604,10 +1930,13 @@ describe("ConnectionEditor (Custom platform)", () => {
       "/new",
     );
     const groups = screen
-      .getAllByText(/^(AI agent platforms|Custom platforms|Source code repositories)$/)
+      .getAllByRole("heading", { name: /^(AI platforms|Custom platforms|Source code repositories)$/ })
       .map((h) => h.textContent);
-    expect(groups).toEqual(["AI agent platforms", "Source code repositories", "Custom platforms"]);
-    expect(screen.getByRole("button", { name: "Connect Custom platform" })).toBeInTheDocument();
+    expect(groups).toEqual(["AI platforms", "Source code repositories", "Custom platforms"]);
+    const custom = screen.getByRole("region", { name: "Custom platforms" });
+    expect(
+      within(custom).getByRole("button", { name: "Connect Custom platform" }),
+    ).toHaveAccessibleDescription("The agents your own inventory API lists");
     expect(screen.queryByText("Azure DevOps")).not.toBeInTheDocument();
   });
 

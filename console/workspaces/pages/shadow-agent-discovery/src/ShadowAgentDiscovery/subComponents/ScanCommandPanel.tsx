@@ -39,7 +39,10 @@ export function expiryTime(expiresAt: string | undefined): string {
   return d && !Number.isNaN(d.getTime()) ? d.toLocaleTimeString() : "";
 }
 
-/** The AI review switch and, under it, the LLM judge switch it enables. */
+/**
+ * The AI-enhanced detection switch and, only while it is on, the LLM judge
+ * switch. Turning AI-enhanced detection off also turns the judge off.
+ */
 export function ScanOptions({
   aiReview,
   llmJudge,
@@ -63,7 +66,7 @@ export function ScanOptions({
         }
         label={
           <Stack>
-            <Typography variant="body2">AI review</Typography>
+            <Typography variant="body2">AI-enhanced detection</Typography>
             <Typography variant="caption" color="text.secondary">
               Your LLM checks the matches the rules cannot prove. The command asks for your LLM API
               key.
@@ -71,24 +74,25 @@ export function ScanOptions({
           </Stack>
         }
       />
-      <FormControlLabel
-        sx={{ pl: 4 }}
-        disabled={disabled || !aiReview}
-        control={
-          <Switch
-            checked={llmJudge}
-            onChange={(e) => onChange({ aiReview, llmJudge: e.target.checked })}
-          />
-        }
-        label={
-          <Stack>
-            <Typography variant="body2">LLM judge</Typography>
-            <Typography variant="caption" color="text.secondary">
-              A second, smaller model must agree before an agent is published. Needs AI review.
-            </Typography>
-          </Stack>
-        }
-      />
+      {aiReview && (
+        <FormControlLabel
+          disabled={disabled}
+          control={
+            <Switch
+              checked={llmJudge}
+              onChange={(e) => onChange({ aiReview, llmJudge: e.target.checked })}
+            />
+          }
+          label={
+            <Stack>
+              <Typography variant="body2">LLM judge</Typography>
+              <Typography variant="caption" color="text.secondary">
+                A second model must agree before an agent is published.
+              </Typography>
+            </Stack>
+          }
+        />
+      )}
     </Stack>
   );
 }

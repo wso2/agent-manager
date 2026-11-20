@@ -17,7 +17,8 @@
 """Find the files of a source tree the engine scans, without reading them.
 
 Three kinds of file are kept: source files (by extension, see ``languages``),
-dependency manifests, and, only with ``read_ci``, CI pipeline definitions
+dependency manifests (with ``Directory.Build.props``, for its project-wide
+usings), and, only with ``read_ci``, CI pipeline definitions
 (``.github/workflows/*.yml`` at the root, and ``azure-pipelines*.yml``
 anywhere or any ``*.yml`` at any depth under a root ``.azure-pipelines/``
 folder).
@@ -72,12 +73,30 @@ PRUNED_FOLDERS = frozenset(
 """Folder names (case-insensitive) never entered: dependencies, build output and caches. Hidden folders are
 pruned separately."""
 _VISIBLE_DOT_FOLDERS = frozenset({".github", ".azure-pipelines"})
-_TEST_FOLDERS = frozenset({"__tests__", "spec", "specs", "testing"})
-_TEST_FOLDER = re.compile(r"(^|[._-])(unit|integration)?tests?$")
-"""Lower-case folder names such as ``tests``, ``Agents.Tests``, ``MyApp.UnitTests`` and ``integration_tests``."""
+_TEST_FOLDERS = frozenset(
+    {
+        "__tests__",
+        "spec",
+        "specs",
+        "testing",
+        "__mocks__",
+        "__fixtures__",
+        "fixtures",
+        "mocks",
+        "e2e",
+        "cypress",
+        "playwright",
+        "test-utils",
+        "testutils",
+    }
+)
+_TEST_FOLDER = re.compile(r"(^|[._-])(unit|integration)?tests?$|\.[a-z0-9]*tests$")
+"""Lower-case folder names such as ``tests``, ``Agents.Tests``, ``MyApp.UnitTests``, ``integration_tests`` and
+any .NET test project ``MyApp.<Kind>Tests`` (``FunctionalTests``, ``E2ETests``). The ``<Kind>Tests`` form is
+plural only, so ``Foo.Latest`` and ``Foo.Manifest`` are not tests."""
 _EXAMPLE_FOLDERS = frozenset({"example", "examples", "sample", "samples", "demo", "demos"})
 _TEST_FILE = re.compile(
-    r"^test_.*\.py$|_test\.py$|^(tests?|conftest)\.py$|\.(test|spec)\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$|Tests?\.cs$"
+    r"^test_.*\.py$|_test\.py$|^(tests?|conftest)\.py$|\.(test|spec|cy|e2e-spec)\.(js|jsx|mjs|cjs|ts|tsx|mts|cts)$|Tests?\.cs$"
 )
 _MINIFIED = re.compile(r"\.min\.(js|mjs|cjs)$|\.bundle\.js$")
 _MANIFEST_NAMES = frozenset(
@@ -89,7 +108,7 @@ _MANIFEST_NAMES = frozenset(
         "Ballerina.toml",
     }
 )
-_DOTNET_MANIFEST_NAMES = frozenset({"directory.packages.props", "packages.config"})
+_DOTNET_MANIFEST_NAMES = frozenset({"directory.packages.props", "directory.build.props", "packages.config"})
 """Compared in lower case, like ``*.csproj``: .NET tooling ignores case."""
 _REQUIREMENTS = re.compile(r"^requirements.*\.txt$")
 _YAML = (".yml", ".yaml")

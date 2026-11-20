@@ -235,7 +235,7 @@ func checkShadowReviewedBy(attrs map[string]any, opts models.ShadowScanOptions) 
 }
 
 // shadowPublishAttributes copies the attributes in the typed forms the cloud
-// connectors store, which SanitizeAttributes then applies the allow-list and
+// connectors store, which SanitizeFindingAttributes then applies the allow-list and
 // limits to. Attributes decoded from JSON arrive as []any and map[string]any:
 // tools become []sa.ToolRef ({type, name}), mcpServers []sa.MCPServerRef
 // ({label, origin}), any other list of strings []string and any object of
