@@ -47,7 +47,7 @@ safely (``read_packages`` gives None) counts as not read.
 """
 
 import functools
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
@@ -192,10 +192,17 @@ class _CSharp:
         return found
 
 
-def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResult:
+def scan_tree(
+    root: Path,
+    *,
+    repository: str,
+    read_ci: bool = False,
+    progress: Callable[[int, int], None] | None = None,
+) -> ScanResult:
     """Scan the tree at ``root`` (one repository, named ``repository``) and return its findings.
 
-    Raises OSError only when ``root`` itself cannot be listed.
+    ``progress(done, total)`` is called before each of the walked files and once more when all ``total``
+    are read; it does not change the result. Raises OSError only when ``root`` itself cannot be listed.
     """
     walked = walk(root, read_ci=read_ci)
     state = _Scan(walked.skipped)
@@ -208,7 +215,9 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
     wiring: dict[str, frozenset[Wiring]] = {}
     csharp = _CSharp(tuple(f.path for f in walked.files if f.kind == FileKind.MANIFEST and _csproj(f.path)))
     modules = RepoModules(f.path for f in walked.files if f.kind == FileKind.SOURCE and f.language == Language.PYTHON)
-    for file in walked.files:
+    for done, file in enumerate(walked.files):
+        if progress is not None:
+            progress(done, len(walked.files))
         if file.kind == FileKind.MANIFEST and PurePosixPath(file.path).name.lower() == "directory.build.props":
             if (data := _read(file, state)) is not None:
                 csharp.add_props(file.path, data)
@@ -236,6 +245,8 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
             csharp.add(file, state)
         elif file.language == Language.BALLERINA:
             _scan_ballerina(file, state, ballerina)
+    if progress is not None:
+        progress(len(walked.files), len(walked.files))
     every = {path for found in manifests.values() for path in found} | unread
 
     def dependencies(kind: Ecosystem) -> Dependencies:

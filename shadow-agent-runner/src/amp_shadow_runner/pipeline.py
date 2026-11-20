@@ -62,6 +62,7 @@ from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.fetch import ArchiveError, extract, remove_tree, workspace
 from amp_shadow_runner.gitsource import GitSourceError, Repository, RepositoryError, RepositoryList
 from amp_shadow_runner.gitsource.github import GitHubSource
+from amp_shadow_runner.httpclient import ProgressCallback
 from amp_shadow_runner.llm import LlmClient, LlmSettings
 from amp_shadow_runner.progress import Progress
 from amp_shadow_runner.prompts import git_token, llm_settings
@@ -116,7 +117,9 @@ class GitSource(Protocol):
 
     def resolve_commit(self, repo: Repository) -> Repository: ...
 
-    def download_tarball(self, repo: Repository, dest_dir: Path) -> Path: ...
+    def download_tarball(
+        self, repo: Repository, dest_dir: Path, *, on_progress: ProgressCallback | None = None
+    ) -> Path: ...
 
 
 class ResultPublisher(Protocol):
@@ -158,7 +161,8 @@ def run_scan(
     clock: Callable[[], float] = time.time,
     out: TextIO | None = None,
 ) -> int:
-    """Run the scan ``config`` describes and return the exit code. Messages go to ``out`` (default stderr).
+    """Run the scan ``config`` describes and return the exit code. Messages go to ``out`` (default stderr),
+    through ``Progress``, which shows a live status line when ``out`` is a terminal.
 
     The report is written to ``report_path`` (default ``/out/report.json``).
 
@@ -169,9 +173,8 @@ def run_scan(
     """
     stream = sys.stderr if out is None else out
     report_path = DEFAULT_REPORT_PATH if report_path is None else report_path
-
-    def say(line: str = "") -> None:
-        print(line, file=stream, flush=True)
+    progress = Progress(stream)
+    say = progress.say  # Erases a live status line before printing.
 
     if config.provider != "github":
         say("amp-shadow-runner: Azure DevOps scans are not available in this version of the runner yet.")
@@ -213,51 +216,57 @@ def run_scan(
             "The scan token has too little time left to scan and publish. "
             "Generate a new command in Agent Manager and run it again."
         )
-    reviewer = None
-    if settings is not None:
-        reviewer = Reviewer(
-            make_llm(settings),
-            settings.model,
-            deadline=deadline - REVIEW_ALLOWANCE_SECONDS,
-            clock=clock,
-            notify=say,
-        )
-    repositories = _scan_all(config, source, listing.repositories, Progress(stream), deadline, clock, reviewer)
-    repositories += [RepositoryReport(name, RepositoryStatus.GONE) for name in listing.gone]
-    repositories += [RepositoryReport(f.name, RepositoryStatus.FAILED, reason=f.reason) for f in listing.failed]
-    report = Report(
-        scan_id=config.scan_id,
-        provider=config.provider,
-        organization=config.organization,
-        started_at=started,
-        finished_at=datetime.fromtimestamp(clock(), UTC),
-        repositories=tuple(repositories),
-        complete=listing.complete,
-    )
-
-    report_error: ReportError | None = None
+    progress.begin()
     try:
-        write_report(report, report_path)
-    except ReportError as exc:
-        report_error = exc
-        say(f"amp-shadow-runner: {exc} The results are published anyway.")
-    Progress(stream).summary(report, str(report_path) if report_error is None else "not saved")
-    _print_unpublished(say, config, report)
-    say(EXPORT_IGNORE_NOTE)
-
-    try:
-        result = make_publisher(config).publish(
-            report, report_location=str(report_path) if report_error is None else None
+        reviewer = None
+        if settings is not None:
+            reviewer = Reviewer(
+                make_llm(settings),
+                settings.model,
+                deadline=deadline - REVIEW_ALLOWANCE_SECONDS,
+                clock=clock,
+                notify=say,
+            )
+        repositories = _scan_all(config, source, listing.repositories, progress, deadline, clock, reviewer)
+        repositories += [RepositoryReport(name, RepositoryStatus.GONE) for name in listing.gone]
+        repositories += [RepositoryReport(f.name, RepositoryStatus.FAILED, reason=f.reason) for f in listing.failed]
+        report = Report(
+            scan_id=config.scan_id,
+            provider=config.provider,
+            organization=config.organization,
+            started_at=started,
+            finished_at=datetime.fromtimestamp(clock(), UTC),
+            repositories=tuple(repositories),
+            complete=listing.complete,
         )
-        say(published_line(result))
-    except PublishError as exc:
-        say(f"amp-shadow-runner: {exc}")
-        return exc.exit_code
-    except KeyboardInterrupt:
-        raise PublishInterrupted from None
-    if report_error is not None:
-        return report_error.exit_code
-    return report_exit_code(report)
+
+        report_error: ReportError | None = None
+        try:
+            write_report(report, report_path)
+        except ReportError as exc:
+            report_error = exc
+            say(f"amp-shadow-runner: {exc} The results are published anyway.")
+        progress.summary(report, str(report_path) if report_error is None else "not saved")
+        _print_unpublished(say, config, report)
+        say(EXPORT_IGNORE_NOTE)
+
+        try:
+            progress.publishing()
+            result = make_publisher(config).publish(
+                report, report_location=str(report_path) if report_error is None else None
+            )
+            say(published_line(result))
+        except PublishError as exc:
+            say(f"amp-shadow-runner: {exc}")
+            return exc.exit_code
+        except KeyboardInterrupt:
+            raise PublishInterrupted from None
+        if report_error is not None:
+            return report_error.exit_code
+        return report_exit_code(report)
+
+    finally:
+        progress.close()  # Also on Ctrl-C, so the cursor is left on a clean line.
 
 
 def _scan_all(
@@ -316,11 +325,19 @@ def _scan_one(
     resolved = source.resolve_commit(repo)
     if resolved.empty:
         return _EMPTY  # No commits: scanned, with no agents.
-    archive = source.download_tarball(resolved, tree.parent)
+    archive = source.download_tarball(
+        resolved, tree.parent, on_progress=lambda done, length: progress.received(index, total, repo.name, done, length)
+    )
+    progress.extracting(index, total, repo.name)
     extracted = extract(archive, tree, kind="tar.gz")  # It deletes the archive, and the tree on a failure.
     try:
         progress.scanning(index, total, repo.name)
-        result = scan_tree(tree, repository=repo.name, read_ci=config.read_ci)
+        result = scan_tree(
+            tree,
+            repository=repo.name,
+            read_ci=config.read_ci,
+            progress=lambda done, count: progress.scanning_files(index, total, repo.name, done, count),
+        )
     except OSError:
         raise
     except Exception:  # An engine bug in one repository must not stop the others; its text is not shown.

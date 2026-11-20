@@ -114,7 +114,7 @@ class FakeSource:
             return dataclasses.replace(repo, empty=True)
         return dataclasses.replace(repo, commit_sha=SHA)
 
-    def download_tarball(self, repo: Repository, dest_dir: Path) -> Path:
+    def download_tarball(self, repo: Repository, dest_dir: Path, *, on_progress: Any = None) -> Path:
         self.calls.append(f"download:{repo.name}")
         if repo.name in self.fail:
             raise self.fail[repo.name]
@@ -337,7 +337,7 @@ def test_confirming_scans(tmp_path: Path) -> None:
     assert len(run.publisher.reports) == 1
 
 
-def test_no_terminal_without_yes_is_a_config_error_before_listing(tmp_path: Path) -> None:
+def test_noterminal_without_yes_is_a_config_error_before_listing(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))))
     with pytest.raises(ConfigError, match="--yes") as raised:
         run(yes=False, tty=False)
@@ -406,7 +406,7 @@ def test_ai_review_publishes_only_the_confirmed_agents(tmp_path: Path) -> None:
     assert reviewed == {"helper": "ai_review", "support": "rules"}  # Not "chat" (rejected) or "double" (test code).
     assert len(run.llm.users) == 2
     assert all("tests/test_x.bal" not in u for u in run.llm.users)
-    assert "[1/2] a: AI review, 1 of 2\n[1/2] a: AI review, 2 of 2\n[1/2] a: done" in run.text
+    assert "[1/2] a: scanning\n[1/2] a: AI review of 2 not-sure agents\n[1/2] a: done" in run.text
     assert "AI review: 2 reviewed, 1 confirmed as an agent, 1 not an agent, 0 failed; 0 not reviewed." in run.text
     assert 'The confirmed agents are published, shown as "Confirmed by: AI review".' in run.text
     assert all("aiReview" not in a["attributes"] for a in run.body["agents"])
@@ -525,7 +525,7 @@ def test_a_refused_archive_or_an_engine_bug_fails_only_that_repository(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     class Hostile(FakeSource):
-        def download_tarball(self, repo: Repository, dest_dir: Path) -> Path:
+        def download_tarball(self, repo: Repository, dest_dir: Path, *, on_progress: Any = None) -> Path:
             if repo.name != "evil":
                 return super().download_tarball(repo, dest_dir)
             dest = dest_dir / f"{SHA}.tar.gz"
@@ -537,10 +537,10 @@ def test_a_refused_archive_or_an_engine_bug_fails_only_that_repository(
     import amp_shadow_runner.pipeline as pipeline
     from amp_shadow_runner.engine.scan import scan_tree as real_scan
 
-    def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> Any:
+    def scan_tree(root: Path, *, repository: str, read_ci: bool = False, progress: Any = None) -> Any:
         if repository == "buggy":
             raise RecursionError("source text that must not be shown")
-        return real_scan(root, repository=repository, read_ci=read_ci)
+        return real_scan(root, repository=repository, read_ci=read_ci, progress=progress)
 
     monkeypatch.setattr(pipeline, "scan_tree", scan_tree)
     source = Hostile(RepositoryList((_repo("evil"), _repo("buggy"), _repo("a"))), {"a": {"agent.py": AGENT}})
@@ -578,7 +578,7 @@ class SlowSource(FakeSource):
         super().__init__(*args, **kwargs)
         self.now = now
 
-    def download_tarball(self, repo: Repository, dest_dir: Path) -> Path:
+    def download_tarball(self, repo: Repository, dest_dir: Path, *, on_progress: Any = None) -> Path:
         self.now[0] += 500
         return super().download_tarball(repo, dest_dir)
 
@@ -631,9 +631,46 @@ def test_llm_settings_are_asked_after_the_token_and_before_listing(tmp_path: Pat
     assert run.source.calls[0] == "list_all"
 
 
-def test_no_terminal_is_found_only_after_the_llm_settings_are_asked(tmp_path: Path) -> None:
+def test_noterminal_is_found_only_after_the_llm_settings_are_asked(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))))
     with pytest.raises(ConfigError, match="no terminal"):
         run(_config(ai_review=True), yes=False, tty=False)
     assert run.asked == [("ask_token", []), ("ask_llm", [])]
     assert run.source.calls == []
+
+
+class _Terminal(io.StringIO):
+    encoding = "utf-8"
+
+    def isatty(self) -> bool:
+        return True
+
+
+def _clean_lines(text: str) -> bool:
+    """Every permanent line starts on a clean line: a live line drawn before it was erased first."""
+    return all("\r" not in line or line.rsplit("\r", 1)[1].startswith("\x1b[K") for line in text.split("\n"))
+
+
+def test_on_aterminal_every_message_clears_the_live_line_first(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TERM", "xterm")
+    monkeypatch.setenv("NO_COLOR", "1")
+    error = LlmError("The LLM at api.openai.com refused the API key (HTTP 401).", status=401)
+    run = _two_repos(tmp_path, FakeLlm(default=error))
+    run.out = terminal = _Terminal()
+    assert run(_config(ai_review=True)) == ExitCode.OK
+    text = terminal.getvalue()
+    assert "\r[1/2] a  scanning" in text and "AI review" in text and "Publishing to Agent Manager…" in text
+    assert "\r\x1b[Kamp-shadow-runner: AI review stopped: " in text  # Printed over the live line, not into it.
+    assert "[1/2] a: done in " in text and "Scanned 2 repositories in " in text
+    assert "AI review of" not in text
+    assert _clean_lines(text)
+    assert text.endswith("\n")
+
+
+def test_ctrl_c_on_aterminal_leaves_a_clean_line(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TERM", "xterm")
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))), error=KeyboardInterrupt())
+    run.out = terminal = _Terminal()
+    with pytest.raises(PublishInterrupted):
+        run()
+    assert terminal.getvalue().endswith("Publishing to Agent Manager…\x1b[K\r\x1b[K")

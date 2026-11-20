@@ -63,6 +63,8 @@ _MAX_ERROR_BODY = 64 * 1024
 _MAX_SERVER_MESSAGE = 200
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504, 529})  # 529: Anthropic is overloaded.
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+ProgressCallback = Callable[[int, int | None], None]
+"""``on_progress(received, length)`` for a download: bytes so far, and the Content-Length or None."""
 # Dropped on a cross-origin redirect. Send credentials in Authorization: only GETs follow
 # redirects, so another credential header (such as x-api-key) is safe only on a POST.
 _CREDENTIAL_HEADERS = frozenset({"authorization", "proxy-authorization", "cookie"})
@@ -181,17 +183,26 @@ class HttpClient:
         return self._send("POST", url, data, sent, retry, self._read_json)
 
     def download(
-        self, url: str, dest: Path, *, max_bytes: int, headers: Mapping[str, str] | None = None
+        self,
+        url: str,
+        dest: Path,
+        *,
+        max_bytes: int,
+        headers: Mapping[str, str] | None = None,
+        on_progress: ProgressCallback | None = None,
     ) -> DownloadResponse:
         """GET ``url`` and stream the body to ``dest``, replacing it.
 
         Fails when the body is larger than ``max_bytes``. A partial file is
         removed on any failure. An error opening or writing ``dest`` is raised
-        as the OSError itself.
+        as the OSError itself. ``on_progress(received, length)`` is called with
+        0 when the body starts and after each chunk; ``length`` is the
+        Content-Length, or None when the body is chunked. A retry starts again
+        from 0.
         """
 
         def save(response: http.client.HTTPResponse, method: str, current: str) -> DownloadResponse:
-            return _save(response, method, current, dest, max_bytes)
+            return _save(response, method, current, dest, max_bytes, on_progress)
 
         return self._send("GET", url, None, _headers("*/*", headers), True, save)
 
@@ -424,18 +435,29 @@ def _read_capped(response: http.client.HTTPResponse, limit: int, method: str, ur
     return b"".join(chunks)
 
 
-def _save(response: http.client.HTTPResponse, method: str, url: str, dest: Path, max_bytes: int) -> DownloadResponse:
+def _save(
+    response: http.client.HTTPResponse,
+    method: str,
+    url: str,
+    dest: Path,
+    max_bytes: int,
+    on_progress: ProgressCallback | None = None,
+) -> DownloadResponse:
     length = _content_length(response)
     if length is not None and length > max_bytes:
         raise _too_large(method, url, max_bytes, response.status)
     size = 0
     try:
         with dest.open("wb") as out:
+            if on_progress is not None:
+                on_progress(0, length)
             while chunk := _read(response, _CHUNK, method, url):
                 size += len(chunk)
                 if size > max_bytes:
                     raise _too_large(method, url, max_bytes, response.status)
                 out.write(chunk)
+                if on_progress is not None:
+                    on_progress(size, length)
         if length is not None and size != length:
             raise _incomplete(method, url)
     except BaseException:

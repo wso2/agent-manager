@@ -29,7 +29,7 @@ from amp_shadow_runner.engine.classify import (
     cap_external_id,
     classify,
 )
-from amp_shadow_runner.engine.files import Tag
+from amp_shadow_runner.engine.files import Tag, walk
 from amp_shadow_runner.engine.imports import extract_imports
 from amp_shadow_runner.engine.languages import Language, parse
 from amp_shadow_runner.engine.manifests import Dependencies
@@ -236,6 +236,23 @@ def test_scan_tree(tmp_path: Path) -> None:
     assert [f.service_folder for f in result.findings] == ["examples", ".", "."]
     # web/index.ts is scanned too (it only imports): six files, one link skipped.
     assert (result.files_scanned, result.files_skipped, result.parse_errors) == (6, 1, 1)
+
+
+def test_scan_tree_progress_counts_every_walked_file_and_changes_nothing(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        {
+            "requirements.txt": "crewai\n",
+            "a.py": "from crewai import Agent\nx = Agent()\n",
+            "b.py": "x = 1\n",
+            "c.ts": "import { Agent } from '@mastra/core';\n",
+        },
+    )
+    calls: list[tuple[int, int]] = []
+    result = scan_tree(tmp_path, repository="r", progress=lambda done, total: calls.append((done, total)))
+    total = len(walk(tmp_path).files)
+    assert calls == [(n, total) for n in range(total + 1)]
+    assert result == scan_tree(tmp_path, repository="r")
 
 
 def test_scan_tree_counts_an_unreadable_file_as_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

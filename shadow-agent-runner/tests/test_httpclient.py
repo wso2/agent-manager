@@ -271,6 +271,18 @@ def test_download_writes_the_file(server: _Server, client: HttpClient, tmp_path:
 
 
 @pytest.mark.parametrize("with_length", [True, False])
+def test_download_reports_progress(server: _Server, client: HttpClient, tmp_path: Path, with_length: bool) -> None:
+    headers = {"Content-Length": "200000"} if with_length else {}
+    url = server.route("/archive", (200, headers, b"z" * 200_000))
+    calls: list[tuple[int, int | None]] = []
+    client.download(url, tmp_path / "a", max_bytes=1_000_000, on_progress=lambda n, length: calls.append((n, length)))
+    received = [n for n, _ in calls]
+    assert received[0] == 0 and received[-1] == 200_000 and len(received) > 2
+    assert received == sorted(set(received))
+    assert {length for _, length in calls} == {200_000 if with_length else None}
+
+
+@pytest.mark.parametrize("with_length", [True, False])
 def test_download_over_max_bytes_leaves_no_file(
     server: _Server, client: HttpClient, tmp_path: Path, with_length: bool
 ) -> None:

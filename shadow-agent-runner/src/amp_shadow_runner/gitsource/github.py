@@ -33,7 +33,7 @@ from urllib.parse import quote, urlsplit
 from amp_shadow_runner.config import MAX_REPOSITORIES, ScanConfig
 from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.gitsource import FailedRepository, GitSourceError, Repository, RepositoryError, RepositoryList
-from amp_shadow_runner.httpclient import HttpClient, HttpError, JsonResponse, origin
+from amp_shadow_runner.httpclient import HttpClient, HttpError, JsonResponse, ProgressCallback, origin
 
 API_VERSION = "2022-11-28"
 PER_PAGE = 100
@@ -185,12 +185,15 @@ class GitHubSource:
             raise RepositoryError(repo.name, "GitHub sent an unexpected response")
         return replace(repo, commit_sha=sha)
 
-    def download_tarball(self, repo: Repository, dest_dir: Path) -> Path:
+    def download_tarball(
+        self, repo: Repository, dest_dir: Path, *, on_progress: ProgressCallback | None = None
+    ) -> Path:
         """Download ``repo`` at its resolved commit into ``dest_dir`` and return the archive's path.
 
-        The archive is for ``fetch.extract(kind="tar.gz")``. Raises RepositoryError when this repository
-        cannot be downloaded (including when it is over MAX_TARBALL_BYTES), or GitSourceError for a refused
-        token or a rate limit. An error writing the file is raised as the OSError itself.
+        The archive is for ``fetch.extract(kind="tar.gz")``. ``on_progress`` is passed to ``HttpClient.download``
+        (GitHub usually sends archives without a length). Raises RepositoryError when this repository cannot be
+        downloaded (including when it is over MAX_TARBALL_BYTES), or GitSourceError for a refused token or a
+        rate limit. An error writing the file is raised as the OSError itself.
         """
         if repo.commit_sha is None:
             raise ValueError("resolve the repository's commit before downloading it")
@@ -199,7 +202,11 @@ class GitHubSource:
         # GitHub redirects to a signed codeload URL; the client drops Authorization on that redirect.
         headers = {k: v for k, v in self._headers().items() if k != "Accept"}
         try:
-            self._call(lambda: self._http.download(url, dest, max_bytes=MAX_TARBALL_BYTES, headers=headers))
+            self._call(
+                lambda: self._http.download(
+                    url, dest, max_bytes=MAX_TARBALL_BYTES, headers=headers, on_progress=on_progress
+                )
+            )
         except HttpError as exc:
             raise self._repository_error(repo.name, exc) from None
         return dest
