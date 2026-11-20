@@ -51,6 +51,7 @@ import {
 import { useShadowFinding } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type ShadowFindingDetail } from "@agent-management-platform/types";
 import { kindLabel, OnboardingChip, ownerLabel, providerLabel, shortDate } from "../shadowUi";
+import { CodeAgentOnboardActions } from "./OnboardActions";
 
 /** A related agent's relation, as a short label. */
 export function relationLabel(relation: string): string {
@@ -450,7 +451,8 @@ function EvidenceCard({ f }: { f: ShadowFindingDetail }) {
 
 /**
  * One unregistered agent: what its platform reports, where it comes from, the
- * evidence, and onboarding it as an external agent.
+ * evidence, and onboarding it (a code agent can also be deployed as a
+ * platform-hosted agent).
  */
 export function FindingDetail({
   orgName,
@@ -512,6 +514,8 @@ export function FindingDetail({
     >
       Open registered agent
     </Button>
+  ) : canManage && isCode ? (
+    <CodeAgentOnboardActions f={f} orgName={orgName ?? ""} onboardPath={onboardPath} />
   ) : canManage ? (
     <Button
       component={RouterLink}
@@ -557,7 +561,7 @@ export function FindingDetail({
       <Stack spacing={3}>
         {f.onboarded && (
           <Alert severity="success">
-            Onboarded as an external agent:{" "}
+            Onboarded as an agent:{" "}
             {agentPath ? (
               <RouterLink to={agentPath}>
                 {f.linkedProject} / {f.linkedAgent}

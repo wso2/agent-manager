@@ -18,18 +18,20 @@
 
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Form, Link } from "@wso2/oxygen-ui";
-import { PageLayout, useFormValidation } from "@agent-management-platform/views";
+import { PageLayout, useFormValidation, useSnackBar } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
 import {
   absoluteRouteMap,
+  type AgentSourceSeed,
   OrgProjPathParams,
 } from "@agent-management-platform/types";
 import {
   useAgentBuildOptions,
   useCreateAgent,
   useGetDeploymentPipeline,
+  useOnboardShadowFinding,
 } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry, type MCPProxyFormEntry } from "../form/schema";
 import { InternalAgentForm } from "../forms/InternalAgentForm";
@@ -37,6 +39,8 @@ import { CreateButtons } from "./CreateButtons";
 import {
   buildAgentCreationPayload,
   deriveSampleAgentSeed,
+  agentSourceSeedValues,
+  readAgentSourceSeed,
   findLowestEnvironmentName,
   hasMultipleEnvironments,
 } from "../utils/buildAgentPayload";
@@ -52,6 +56,7 @@ import {
 
 const buildInitialFormValues = (
   sample: SampleAgentDefinition | undefined,
+  seed: AgentSourceSeed | undefined,
 ): CreateAgentFormValues => {
   const defaults: CreateAgentFormValues = {
     deploymentType: "new" as const,
@@ -77,11 +82,15 @@ const buildInitialFormValues = (
     files: [],
   };
 
-  return sample ? { ...defaults, ...deriveSampleAgentSeed(sample) } : defaults;
+  if (sample) return { ...defaults, ...deriveSampleAgentSeed(sample) };
+  if (seed) return { ...defaults, ...agentSourceSeedValues(seed) };
+  return defaults;
 };
 
 export const InternalAgentFlow: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { pushSnackBar } = useSnackBar();
   const { orgId, projectId } = useParams<{
     orgId: string;
     projectId?: string;
@@ -91,8 +100,12 @@ export const InternalAgentFlow: React.FC = () => {
   const [selectedSample] = useState(() =>
     getSampleAgentById(new URLSearchParams(window.location.search).get("sample"))
   );
+  // A code agent found by Shadow Agent Discovery, passed in router state, if any.
+  const [sourceSeed] = useState(() =>
+    selectedSample ? undefined : readAgentSourceSeed(location.state, orgId)
+  );
   const [initialFormData] = useState<CreateAgentFormValues>(() =>
-    buildInitialFormValues(selectedSample)
+    buildInitialFormValues(selectedSample, sourceSeed)
   );
   const [formData, setFormData] = useState<CreateAgentFormValues>(initialFormData);
 
@@ -103,6 +116,11 @@ export const InternalAgentFlow: React.FC = () => {
   const [mcpProxies, setMCPProxies] = useState<MCPProxyFormEntry[]>([]);
 
   const { mutate: createAgent, isPending, error } = useCreateAgent();
+  const { mutate: linkFinding, isPending: isLinking } = useOnboardShadowFinding(
+    sourceSeed?.shadowFinding?.orgName,
+    sourceSeed?.shadowFinding?.findingId,
+    { silent: true },
+  );
 
   // InternalAgentForm seeds languageVersion / instrumentationVersion from the
   // build options once they load. Mirror that seeding here (same cached
@@ -139,9 +157,12 @@ export const InternalAgentFlow: React.FC = () => {
     return (
       llmProviders.length > 0 ||
       mcpProxies.length > 0 ||
-      JSON.stringify(withSeeded(formData)) !== JSON.stringify(baselineFormData)
+      // The form regenerates a seeded handle from the display name, so that
+      // generated handle alone is not a user change.
+      JSON.stringify(sourceSeed ? { ...withSeeded(formData), name: "" } : withSeeded(formData)) !==
+        JSON.stringify(sourceSeed ? { ...baselineFormData, name: "" } : baselineFormData)
     );
-  }, [formData, baselineFormData, llmProviders, mcpProxies]);
+  }, [formData, baselineFormData, llmProviders, mcpProxies, sourceSeed]);
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
   const { returnTo, wizardState } = useAgentWizardReturn();
 
@@ -197,19 +218,53 @@ export const InternalAgentFlow: React.FC = () => {
       initialEnvironmentName,
       mcpProxies,
     );
+    const openAgent = () =>
+      allowNavigation(() => {
+        // Drop the seed from this history entry, so Back does not fill the form in again.
+        if (sourceSeed) {
+          navigate(`${location.pathname}${location.search}`, {
+            replace: true,
+            state: { from: returnTo },
+          });
+        }
+        navigate(
+          generatePath(
+            absoluteRouteMap.children.org.children.projects.children.agents.path,
+            {
+              orgId: params.orgName ?? "",
+              projectId: params.projName ?? "",
+              agentId: payload.body.name,
+            }
+          ) + "?setup=true"
+        );
+      });
     createAgent(payload, {
       onSuccess: () => {
-        allowNavigation(() =>
-          navigate(
-            generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents.path,
-              {
-                orgId: params.orgName ?? "",
-                projectId: params.projName ?? "",
-                agentId: payload.body.name,
-              }
-            ) + "?setup=true"
-          )
+        if (!sourceSeed?.shadowFinding) return openAgent();
+        // Mark the found agent onboarded. The agent exists either way, so open it.
+        linkFinding(
+          { projectName: params.projName ?? "", agentName: payload.body.name },
+          {
+            onSuccess: openAgent,
+            onError: (e: unknown) => {
+              // 409: the found agent is already linked to an agent.
+              const alreadyOnboarded = (e as { status?: number } | null)?.status === 409;
+              pushSnackBar(
+                alreadyOnboarded
+                  ? {
+                      message:
+                        "The agent was created. The found agent was already onboarded as " +
+                        "another agent, so it was not linked.",
+                      type: "info",
+                    }
+                  : {
+                      message: "The agent was created but could not be linked to the found agent.",
+                      type: "error",
+                    },
+              );
+              openAgent();
+            },
+          },
         );
       },
       onError: (e: unknown) => {
@@ -225,6 +280,12 @@ export const InternalAgentFlow: React.FC = () => {
     allowNavigation,
     params,
     errors,
+    sourceSeed,
+    linkFinding,
+    pushSnackBar,
+    location.pathname,
+    location.search,
+    returnTo,
     llmProviders,
     mcpProxies,
     initialEnvironmentName,
@@ -234,10 +295,17 @@ export const InternalAgentFlow: React.FC = () => {
   // A sample is picked on Add New Agent, skipping source type selection, so
   // send the user back to where they actually came from.
   const newAgentRoute = absoluteRouteMap.children.org.children.projects.children.newAgent;
-  const backHref = generatePath(
-    selectedSample ? newAgentRoute.path : newAgentRoute.children.create.path,
-    { orgId: orgId ?? "", projectId: projectId ?? "default" },
-  );
+  const backHref = sourceSeed
+    ? returnTo
+    : generatePath(
+        selectedSample ? newAgentRoute.path : newAgentRoute.children.create.path,
+        { orgId: orgId ?? "", projectId: projectId ?? "default" },
+      );
+  const backLabel = sourceSeed
+    ? "Back to the found agent"
+    : selectedSample
+      ? "Back to add new agent"
+      : "Back to source type selection";
 
   return (
     <PageLayout
@@ -245,8 +313,8 @@ export const InternalAgentFlow: React.FC = () => {
       description="Specify the source repository, select the agent type, and deploy it on the platform."
       disableIcon
       backHref={backHref}
-      backState={wizardState}
-      backLabel={selectedSample ? "Back to add new agent" : "Back to source type selection"}
+      backState={sourceSeed ? undefined : wizardState}
+      backLabel={backLabel}
     >
       <Form.Stack spacing={3}>
         {selectedSample && (
@@ -256,6 +324,12 @@ export const InternalAgentFlow: React.FC = () => {
               README
             </Link>{" "}
             for setup and testing details.
+          </Alert>
+        )}
+        {sourceSeed && (
+          <Alert severity="info">
+            Filled in from a code agent found by Shadow Agent Discovery. Check the values and fill
+            in the rest, such as the run command.
           </Alert>
         )}
         <InternalAgentForm
@@ -283,6 +357,7 @@ export const InternalAgentFlow: React.FC = () => {
           lastSubmittedValidationErrors={lastSubmittedValidationErrors}
           isPending={
             isPending ||
+            isLinking ||
             ((llmProviders.length > 0 || mcpProxies.length > 0) && isDeploymentPipelineLoading)
           }
           onCancel={handleCancel}

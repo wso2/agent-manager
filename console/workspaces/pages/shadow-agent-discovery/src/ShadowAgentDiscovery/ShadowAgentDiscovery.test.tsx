@@ -109,6 +109,9 @@ const hoisted = vi.hoisted(() => ({
   detail: null as ShadowFindingDetail | null,
   summary: undefined as ShadowAgentSummary | undefined,
   connections: [] as ShadowConnectionResponse[],
+  connection: undefined as ShadowConnectionResponse | undefined,
+  connectionError: null as unknown,
+  projectsError: null as unknown,
   scans: [] as ShadowScanResponse[],
   scanDetail: null as ShadowScanResponse | null,
   scanIds: [] as (string | undefined)[],
@@ -142,8 +145,11 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useOnboardShadowFinding: () => ({ mutate: hoisted.onboard, isPending: false }),
   useCreateAgent: () => ({ mutate: hoisted.createAgent, isPending: false }),
   useListProjects: () => ({
-    data: { projects: [{ name: "default", displayName: "Default" }] },
+    data: hoisted.projectsError
+      ? undefined
+      : { projects: [{ name: "default", displayName: "Default" }] },
     isLoading: false,
+    error: hoisted.projectsError,
   }),
   useDeleteShadowFinding: () => ({ mutate: hoisted.deleteAgent, isPending: false }),
   useDeleteShadowFindings: () => ({ mutate: hoisted.deleteAll, isPending: false }),
@@ -153,7 +159,11 @@ vi.mock("@agent-management-platform/api-client", () => ({
     data: hoisted.providers.length > 0 ? { providers: hoisted.providers, signals: [] } : undefined,
     isLoading: false,
   }),
-  useShadowConnection: () => ({ data: undefined, isLoading: false }),
+  useShadowConnection: () => ({
+    data: hoisted.connection,
+    isLoading: false,
+    error: hoisted.connectionError,
+  }),
   useCreateShadowConnection: () => ({ mutate: hoisted.createConnection, isPending: false }),
   useUpdateShadowConnection: () => ({ mutate: hoisted.updateConnection, isPending: false }),
   useShadowConnections: () => ({
@@ -231,6 +241,13 @@ import { SourceScanGuide } from "./subComponents/SourceScanGuide";
 import { DocLinks } from "./subComponents/PermissionsPanel";
 import { GenerateCommandDialog } from "./subComponents/GenerateCommandDialog";
 import { ConnectionEditor } from "./subComponents/ConnectionEditor";
+import { FeatureManagementProvider } from "@agent-management-platform/feature-management";
+import {
+  buildAgentSourceSeed,
+  folderAppPath,
+  seedAppPath,
+  seedLanguage,
+} from "./platformHostedSeed";
 
 function ShowLocation() {
   const l = useLocation();
@@ -279,6 +296,9 @@ beforeEach(() => {
   hoisted.detail = null;
   hoisted.summary = undefined;
   hoisted.connections = [];
+  hoisted.connection = undefined;
+  hoisted.connectionError = null;
+  hoisted.projectsError = null;
   hoisted.scans = [];
   hoisted.scanDetail = null;
   hoisted.scanIds = [];
@@ -746,6 +766,200 @@ describe("FindingDetail", () => {
     expect(
       screen.queryByRole("link", { name: "Onboard as external agent" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Onboarding a code agent", () => {
+  const githubConnection = (over: Partial<ShadowConnectionResponse> = {}) =>
+    connection({
+      provider: "github",
+      name: "WSO2 GitHub",
+      endpoints: { api: "https://api.github.com" },
+      settings: { organization: "wso2" },
+      ...over,
+    });
+
+  const codeFinding = (over: Partial<ShadowFindingDetail> = {}) =>
+    detail({
+      provider: "github",
+      kind: "code_agent",
+      displayName: "Customer Support Agent",
+      scope: "support-bot",
+      externalId: "support-bot:samples/support/agent.py:SupportAgent",
+      attributes: {
+        framework: "langgraph",
+        branch: "develop",
+        projectPath: "/samples/support",
+        language: "python",
+      },
+      signals: [
+        {
+          code: "github.d1_agent_dependency",
+          name: "Agent framework dependency",
+          source: "samples/support/requirements.txt",
+          condition: "A dependency on an agent framework",
+          observed: {},
+          detectedAt: "2026-11-10T00:00:00Z",
+        },
+        {
+          code: "github.d2_agent_import",
+          name: "Agent framework import",
+          source: "samples/support/app/agent.py",
+          condition: "An import of an agent framework",
+          observed: {},
+          detectedAt: "2026-11-10T00:00:00Z",
+        },
+      ],
+      ...over,
+    });
+
+  function ShowState() {
+    const l = useLocation();
+    return <pre data-testid="state">{JSON.stringify(l.state)}</pre>;
+  }
+
+  const renderDetail = (canCreateAgent = true) =>
+    router(
+      <FeatureManagementProvider featureAccess={{ agent_create: canCreateAgent }}>
+        <Routes>
+          <Route
+            path="/organizations/:orgId/shadow-agent-discovery/agents/:findingId"
+            element={
+              <FindingDetail
+                orgName="acme"
+                canManage
+                listPath="/organizations/acme/shadow-agent-discovery"
+              />
+            }
+          />
+          <Route
+            path="/organizations/:orgId/projects/:projectId/newAgent/create/source"
+            element={<ShowState />}
+          />
+        </Routes>
+      </FeatureManagementProvider>,
+      "/organizations/acme/shadow-agent-discovery/agents/f1",
+    );
+
+  const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Onboard" }));
+  const deployItem = () =>
+    screen.getByRole("menuitem", { name: /^Deploy as platform-hosted agent/ });
+
+  it("offers registering as an external agent or deploying as a platform-hosted agent", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connection = githubConnection();
+    renderDetail();
+    expect(
+      screen.queryByRole("link", { name: "Onboard as external agent" }),
+    ).not.toBeInTheDocument();
+    openMenu();
+    expect(deployItem()).not.toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Register as external agent/ }));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/organizations/acme/shadow-agent-discovery/agents/f1/onboard",
+    );
+  });
+
+  it.each([
+    ["an Azure DevOps repository", { provider: "azure_devops" as const }, githubConnection()],
+    [
+      "a GitHub Enterprise Server repository",
+      {},
+      githubConnection({ endpoints: { api: "https://github.acme.com/api/v3" } }),
+    ],
+  ])("does not deploy %s as a platform-hosted agent", (_name, over, conn) => {
+    hoisted.detail = codeFinding(over);
+    hoisted.connection = conn;
+    renderDetail();
+    openMenu();
+    expect(deployItem()).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByLabelText(
+        "Only repositories on github.com can be deployed as platform-hosted agents.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not deploy without permission to create agents", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connection = githubConnection();
+    renderDetail(false);
+    openMenu();
+    expect(deployItem()).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByLabelText("You don't have permission to create agents.")).toBeVisible();
+  });
+
+  it("says so when the platform's details could not be loaded", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connectionError = new Error("boom");
+    renderDetail();
+    openMenu();
+    expect(deployItem()).toHaveAttribute("aria-disabled", "true");
+    expect(
+      screen.getByLabelText("Could not load the platform's details. Try again later."),
+    ).toBeInTheDocument();
+  });
+
+  it("says so when the projects could not be loaded", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connection = githubConnection();
+    hoisted.projectsError = new Error("boom");
+    renderDetail();
+    openMenu();
+    fireEvent.click(deployItem());
+    const dialog = screen.getByRole("dialog", { name: "Deploy as platform-hosted agent" });
+    expect(within(dialog).getByText("Could not load the projects.")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/There are no projects/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Continue" })).toBeDisabled();
+  });
+
+  it("asks for a project, then opens the platform-hosted agent form with a seed", () => {
+    hoisted.detail = codeFinding();
+    hoisted.connection = githubConnection();
+    renderDetail();
+    openMenu();
+    fireEvent.click(deployItem());
+    const dialog = screen.getByRole("dialog", { name: "Deploy as platform-hosted agent" });
+    expect(within(dialog).getByRole("combobox")).toHaveTextContent("Default");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Continue" }));
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/organizations/acme/projects/default/newAgent/create/source",
+    );
+    const state = JSON.parse(screen.getByTestId("state").textContent ?? "{}");
+    expect(state.from).toBe("/organizations/acme/shadow-agent-discovery/agents/f1");
+    expect(state.agentSourceSeed).toEqual({
+      displayName: "Customer Support Agent",
+      name: "customer-support-agent",
+      description: expect.stringContaining("Discovered by Shadow Agent Discovery"),
+      repositoryUrl: "https://github.com/wso2/support-bot",
+      branch: "develop",
+      appPath: "/samples/support",
+      language: "python",
+      shadowFinding: { orgName: "acme", findingId: "f1" },
+    });
+  });
+
+  it("falls back to the manifest's folder, then the agent file's folder, and main", () => {
+    const f = codeFinding({ attributes: { framework: "langgraph" } });
+    expect(seedAppPath(f)).toBe("/samples/support");
+    const seed = buildAgentSourceSeed(f, githubConnection(), "acme");
+    expect(seed.branch).toBe("main");
+    expect(seed.language).toBe("python");
+    const noManifest = codeFinding({
+      attributes: {},
+      signals: codeFinding().signals.filter((s) => s.code === "github.d2_agent_import"),
+    });
+    expect(seedAppPath(noManifest)).toBe("/samples/support/app");
+    const noSignals = codeFinding({ attributes: {}, signals: [] });
+    expect(seedAppPath(noSignals)).toBe("/samples/support");
+    expect(seedLanguage(noSignals)).toBe("python");
+    expect(seedAppPath(codeFinding({ attributes: {}, signals: [], externalId: "r:main.bal:x" })))
+      .toBe("/");
+    expect(seedLanguage(codeFinding({ attributes: {}, signals: [], externalId: "r:main.bal:x" })))
+      .toBe("ballerina");
+    expect(seedLanguage(codeFinding({ attributes: { language: "typescript" } }))).toBe("docker");
+    expect(seedAppPath(codeFinding({ attributes: { projectPath: "/" } }))).toBe("/");
+    expect(folderAppPath("requirements.txt")).toBe("/");
   });
 });
 
