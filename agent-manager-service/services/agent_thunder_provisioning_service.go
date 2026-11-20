@@ -530,6 +530,11 @@ func NewAgentThunderProvisioningService(
 	return svc
 }
 
+// lockAgentIdentity reserves the empty environment key for CP lifecycle operations across replicas.
+func (s *agentThunderProvisioningService) lockAgentIdentity(ctx context.Context, ouID, projectName, agentName string) (func(), error) {
+	return s.lockBinding(ctx, ouID, projectName, agentName, "")
+}
+
 // lockBinding serializes AttemptProvision, RegenerateSecret, RevokeSecret and
 // DeleteAllBindings per binding across every replica, so two of them can't
 // interleave their Thunder calls and secret store writes and leave the stored
@@ -675,6 +680,14 @@ func (s *agentThunderProvisioningService) writeAheadBindings(
 	ctx context.Context, ouID, projectName, agentName string, ownership models.AgentProvisioningType,
 	envNames []string, requestedBy string,
 ) []models.AgentThunderClient {
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		release, err := s.lockAgentIdentity(ctx, ouID, projectName, agentName)
+		if err != nil {
+			s.logger.Error("Failed to lock project identity before writing bindings", "ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
+			return nil
+		}
+		defer release()
+	}
 	bindings := make([]models.AgentThunderClient, 0, len(envNames))
 	for _, env := range envNames {
 		b := models.AgentThunderClient{
@@ -847,6 +860,14 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	// creating request's context while every retry runs from the reconciler's, which has no
 	// organization. Name the binding's organization here, once, for every caller and every call below.
 	ctx = agentThunderBindingOrgContext(ctx, binding)
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		releaseAgent, err := s.lockAgentIdentity(ctx, binding.OUID, binding.ProjectName, binding.AgentName)
+		if err != nil {
+			s.logger.Warn("Agent identity attempt cancelled while waiting for project identity lock", "bindingID", binding.ID, "error", err)
+			return
+		}
+		defer releaseAgent()
+	}
 
 	// Held for the entire attempt so this can't interleave its Thunder
 	// RegenerateAgentSecret/OpenBao Store calls with a concurrent
@@ -1210,7 +1231,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				OUID: binding.OUID, ProjectName: binding.ProjectName, AgentName: binding.AgentName,
 				ProvisioningType: binding.ProvisioningType,
 			}
-			if targets, topologyErr := s.ensureProjectPromotionBindings(ctx, ref, binding.RequestedBy); topologyErr != nil {
+			if targets, topologyErr := s.ensureProjectPromotionBindingsLocked(ctx, ref, binding.RequestedBy); topologyErr != nil {
 				s.logger.Warn("Failed to create downstream project AgentID promotion bindings",
 					"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName, "error", topologyErr)
 			} else if len(targets) > 0 {

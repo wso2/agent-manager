@@ -197,6 +197,39 @@ func (s *agentThunderProvisioningService) ensureProjectPromotionBindings(
 func (s *agentThunderProvisioningService) writePromotionBindings(
 	ctx context.Context, ref repositories.AgentRef, steps []promotionStep, requestedBy string,
 ) ([]models.AgentThunderClient, error) {
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		release, err := s.lockAgentIdentity(ctx, ref.OUID, ref.ProjectName, ref.AgentName)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+	}
+	// A topology pass may have read the source before a concurrent deletion finished.
+	if ref.EnvironmentName != "" {
+		if _, err := s.repo.Get(ctx, ref.OUID, ref.ProjectName, ref.AgentName, ref.EnvironmentName); err != nil {
+			if errors.Is(err, repositories.ErrAgentThunderClientNotFound) {
+				return []models.AgentThunderClient{}, nil
+			}
+			return nil, fmt.Errorf("read identity source before topology reconciliation: %w", err)
+		}
+	}
+	return s.writePromotionBindingsLocked(ctx, ref, steps, requestedBy)
+}
+
+func (s *agentThunderProvisioningService) ensureProjectPromotionBindingsLocked(
+	ctx context.Context, ref repositories.AgentRef, requestedBy string,
+) ([]models.AgentThunderClient, error) {
+	steps, err := s.projectPromotionSteps(ctx, ref.OUID, ref.ProjectName)
+	if err != nil {
+		return nil, err
+	}
+	return s.writePromotionBindingsLocked(ctx, ref, steps, requestedBy)
+}
+
+// Caller holds the CP per-agent lifecycle lock before inserting promotion bindings.
+func (s *agentThunderProvisioningService) writePromotionBindingsLocked(
+	ctx context.Context, ref repositories.AgentRef, steps []promotionStep, requestedBy string,
+) ([]models.AgentThunderClient, error) {
 	created := make([]models.AgentThunderClient, 0, len(steps))
 	requestedByResolved := requestedBy != ""
 	for _, step := range steps {

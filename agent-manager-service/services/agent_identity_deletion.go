@@ -48,6 +48,12 @@ func (s *agentThunderProvisioningService) deleteCPIdentityBindings(
 	if s.projectIdentityDeletionProvider == nil {
 		return errors.New("project AgentID deletion provider is not configured")
 	}
+	// Serialize CP provisioning and binding insertion before taking the deletion snapshot.
+	releaseAgent, err := s.lockAgentIdentity(ctx, ouID, projectName, agentName)
+	if err != nil {
+		return fmt.Errorf("lock project identity for deletion: %w", err)
+	}
+	defer releaseAgent()
 	snapshot, err := s.repo.FindByAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return fmt.Errorf("read AgentID bindings for deletion: %w", err)
@@ -82,7 +88,11 @@ func (s *agentThunderProvisioningService) deleteCPIdentityBindings(
 			s.logger.Error("Failed to remove AgentID from pipeline environment; retaining agent identity bindings for retry",
 				"ouID", ouID, "projectName", projectName, "agentName", agentName,
 				"environment", target.Environment, "agentID", target.AgentID, "error", err)
-			failures = append(failures, fmt.Errorf("remove AgentID from environment %q: %w", target.Environment, err))
+			failure := fmt.Errorf("remove AgentID from environment %q: %w", target.Environment, err)
+			if target.Source {
+				return failure
+			}
+			failures = append(failures, failure)
 		}
 	}
 	if err := errors.Join(failures...); err != nil {
@@ -93,24 +103,33 @@ func (s *agentThunderProvisioningService) deleteCPIdentityBindings(
 			return err
 		}
 	}
-	// Keep the lifecycle locks through credential cleanup so a recreation cannot lose its new secret.
+	// FAILED prevents credential injection and automatic provisioning while preserving cleanup markers.
 	for _, binding := range bindings {
-		if err := s.repo.UpdateSecretRef(ctx, binding.ID, ""); err != nil {
-			return fmt.Errorf("clear deleted AgentID credential reference: %w", err)
-		}
-	}
-	for _, binding := range bindings {
-		if binding.ProvisioningType != models.AgentProvisioningTypeInternal {
+		if err := s.repo.UpdateAfterAttempt(ctx, binding.ID, repositories.AgentThunderAttemptUpdate{
+			Status:    models.AgentThunderStatusFailed,
+			LastError: "Agent identity deletion is incomplete. Retry agent deletion.",
+		}); err != nil {
+			failures = append(failures, fmt.Errorf("disable deleted AgentID binding in %q: %w", binding.EnvironmentName, err))
 			continue
 		}
-		if err := s.deleteCredential(ctx, ouID, projectName, agentName, binding.EnvironmentName); err != nil {
-			return fmt.Errorf("delete AgentID credential in %q: %w", binding.EnvironmentName, err)
-		}
-		if isLegacySecretRefPath(binding.SecretRefPath) {
-			if err := s.cleanupLegacySecretRef(ctx, ouID, agentName, binding.EnvironmentName); err != nil {
-				return err
+		if binding.ProvisioningType == models.AgentProvisioningTypeInternal {
+			if err := s.deleteCredential(ctx, ouID, projectName, agentName, binding.EnvironmentName); err != nil {
+				failures = append(failures, fmt.Errorf("delete AgentID credential in %q: %w", binding.EnvironmentName, err))
+				continue
+			}
+			if isLegacySecretRefPath(binding.SecretRefPath) {
+				if err := s.cleanupLegacySecretRef(ctx, ouID, agentName, binding.EnvironmentName); err != nil {
+					failures = append(failures, fmt.Errorf("delete legacy AgentID reference in %q: %w", binding.EnvironmentName, err))
+					continue
+				}
 			}
 		}
+		if err := s.repo.UpdateSecretRef(ctx, binding.ID, ""); err != nil {
+			failures = append(failures, fmt.Errorf("clear deleted AgentID credential reference in %q: %w", binding.EnvironmentName, err))
+		}
+	}
+	if err := errors.Join(failures...); err != nil {
+		return err
 	}
 	ids := make([]uuid.UUID, 0, len(bindings))
 	for _, binding := range bindings {

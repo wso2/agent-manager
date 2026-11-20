@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -54,6 +56,7 @@ type cpDeleteFixture struct {
 	events    []string
 	requests  []ProjectAgentIdentityDeleteRequest
 	deleteErr map[string]error
+	secretErr map[string]error
 	// legacyDeleted records AgentIDs deleted through the legacy client.
 	legacyDeleted []string
 	seed          []models.AgentThunderClient
@@ -73,6 +76,7 @@ func newCPDeleteFixture(t *testing.T, ownership models.AgentProvisioningType) *c
 	return &cpDeleteFixture{
 		t:         t,
 		deleteErr: map[string]error{},
+		secretErr: map[string]error{},
 		// The source is deliberately not first, to prove ordering is by role.
 		seed: []models.AgentThunderClient{
 			binding("stage", "development"),
@@ -93,9 +97,24 @@ func (f *cpDeleteFixture) repo() *repomocks.AgentThunderClientRepositoryMock {
 					return &b, nil
 				}
 			}
-			return nil, errors.New("not found")
+			return nil, repositories.ErrAgentThunderClientNotFound
 		},
-		UpdateSecretRefFunc: func(context.Context, uuid.UUID, string) error { return nil },
+		UpdateAfterAttemptFunc: func(_ context.Context, id uuid.UUID, fields repositories.AgentThunderAttemptUpdate) error {
+			for i := range f.seed {
+				if f.seed[i].ID == id {
+					f.seed[i].Status = fields.Status
+				}
+			}
+			return nil
+		},
+		UpdateSecretRefFunc: func(_ context.Context, id uuid.UUID, value string) error {
+			for i := range f.seed {
+				if f.seed[i].ID == id {
+					f.seed[i].SecretRefPath = value
+				}
+			}
+			return nil
+		},
 		DeleteByIDsFunc: func(context.Context, []uuid.UUID) error {
 			f.events = append(f.events, "db-delete")
 			return nil
@@ -107,7 +126,7 @@ func (f *cpDeleteFixture) store() *clientmocks.SecretManagementClientMock {
 	return &clientmocks.SecretManagementClientMock{
 		DeleteSecretFunc: func(_ context.Context, location secretmanagersvc.SecretLocation, _ string) error {
 			f.events = append(f.events, "secret-delete:"+location.EnvironmentName)
-			return nil
+			return f.secretErr[location.EnvironmentName]
 		},
 	}
 }
@@ -153,7 +172,7 @@ func (f *cpDeleteFixture) service(
 	require.NoError(f.t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(mode, provider))
 	if mode == thundersvc.IdentityManagementCPManaged {
 		svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
-			return "development", []ProjectIdentityEnvironment{{Name: "development"}, {Name: "stage"}, {Name: "production"}}, nil
+			return "development", []ProjectIdentityEnvironment{{Name: "development", PromotesTo: []string{"stage"}}, {Name: "stage", PromotesTo: []string{"production"}}, {Name: "production"}}, nil
 		}))
 	}
 	return svc
@@ -199,7 +218,11 @@ func TestDeleteAllBindingsCPManagedRetainsRecordsOnAnyEnvironmentFailure(t *test
 			f.deleteErr[env] = errors.New("environment unavailable")
 			svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
 			svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
-			require.ElementsMatch(t, []string{"development", "stage", "production"}, f.providerEnvs())
+			if env == "development" {
+				require.Equal(t, []string{"development"}, f.providerEnvs(), "promoted deletion requires successful source removal")
+			} else {
+				require.ElementsMatch(t, []string{"development", "stage", "production"}, f.providerEnvs())
+			}
 			require.NotContains(t, f.events, "db-delete")
 			require.NotContains(t, f.events, "secret-delete:development")
 			require.Contains(t, f.logs.String(), "retaining agent identity bindings for retry")
@@ -300,7 +323,7 @@ func TestDeleteAllBindingsCPManagedIncludesPipelineEnvironmentsWithoutBindings(t
 	f.seed = f.seed[1:2]
 	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
 	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
-		return "development", []ProjectIdentityEnvironment{{Name: "development"}, {Name: "stage"}, {Name: "production"}}, nil
+		return "development", []ProjectIdentityEnvironment{{Name: "development", PromotesTo: []string{"stage"}}, {Name: "stage", PromotesTo: []string{"production"}}, {Name: "production"}}, nil
 	}))
 	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
 	require.Equal(t, []string{"development", "stage", "production"}, f.providerEnvs())
@@ -394,4 +417,122 @@ func TestDeleteAllBindingsCPManagedIncludesEnvironmentRemovedFromPipeline(t *tes
 			require.Equal(t, "db-delete", f.events[len(f.events)-1])
 		})
 	}
+}
+
+func TestDeleteAllBindingsCPManagedContinuesCredentialCleanupAfterFailure(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
+	f.secretErr["development"] = errors.New("secret store unavailable")
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
+	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+	for _, env := range []string{"development", "stage", "production"} {
+		require.Contains(t, f.events, "secret-delete:"+env)
+	}
+	require.NotContains(t, f.events, "db-delete")
+	for _, binding := range f.seed {
+		require.Equal(t, models.AgentThunderStatusFailed, binding.Status)
+		if binding.EnvironmentName == "development" {
+			require.Equal(t, "ref-development", binding.SecretRefPath)
+		}
+	}
+	delete(f.secretErr, "development")
+	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+	require.Equal(t, "db-delete", f.events[len(f.events)-1])
+}
+
+func TestDeleteAllBindingsCPManagedRetainsLegacyMarkerUntilCleanupSucceeds(t *testing.T) {
+	for _, failSecret := range []bool{true, false} {
+		t.Run(fmt.Sprint(failSecret), func(t *testing.T) {
+			f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
+			for i := range f.seed {
+				f.seed[i].SecretRefPath = "secret/data/legacy/" + f.seed[i].EnvironmentName
+			}
+			if failSecret {
+				f.secretErr["development"] = errors.New("delete credential failed")
+			}
+			failLegacy := !failSecret
+			legacyCalls := []string{}
+			svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
+			svc.(WorkloadInjectorSetter).SetWorkloadInjector(&agentIdentityInjectorStub{
+				CleanupForEnvironmentFunc: func(_ context.Context, _, _, env string) error {
+					legacyCalls = append(legacyCalls, env)
+					if env == "development" && failLegacy {
+						return errors.New("delete reference failed")
+					}
+					return nil
+				},
+			})
+			svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+			require.NotContains(t, f.events, "db-delete")
+			for _, binding := range f.seed {
+				require.Equal(t, models.AgentThunderStatusFailed, binding.Status, "failed bindings are not injectable or automatically provisioned")
+				injection := &agentIdentityInjectionService{repo: svc.(*agentThunderProvisioningService).repo}
+				injectable, injectErr := injection.injectableBinding(context.Background(), "org-a", "project-a", "agent-a", binding.EnvironmentName)
+				require.NoError(t, injectErr)
+				require.Nil(t, injectable, "retaining the legacy marker must not allow credential reinjection")
+				if binding.EnvironmentName == "development" {
+					require.True(t, isLegacySecretRefPath(binding.SecretRefPath))
+				}
+			}
+			delete(f.secretErr, "development")
+			failLegacy = false
+			svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+			require.Contains(t, legacyCalls, "development")
+			require.Equal(t, "db-delete", f.events[len(f.events)-1])
+		})
+	}
+}
+
+func TestDeleteAgentCPManagedWaitsForSourcePromotionBindingInsert(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
+	source := f.seed[1]
+	f.seed = []models.AgentThunderClient{source}
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider()).(*agentThunderProvisioningService)
+	repo := svc.repo.(*repomocks.AgentThunderClientRepositoryMock)
+	repo.UpsertFunc = func(_ context.Context, binding *models.AgentThunderClient) error {
+		binding.ID = uuid.New()
+		f.seed = append(f.seed, *binding)
+		return nil
+	}
+	repo.DeleteByIDsFunc = func(_ context.Context, ids []uuid.UUID) error {
+		require.Len(t, ids, 3, "source attempt's newly inserted targets must also be deleted")
+		f.seed = nil
+		return nil
+	}
+	release, err := svc.lockAgentIdentity(context.Background(), "org-a", "project-a", "agent-a")
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	started := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		close(started)
+		_, deleteErr := svc.DeleteAgentWithIdentityCleanup(ctx, "org-a", "project-a", "agent-a", func(context.Context) error { return nil })
+		done <- deleteErr
+	}()
+	<-started
+	require.Empty(t, repo.FindByAgentCalls(), "deletion must take the agent lock before reading the binding snapshot")
+	// The source attempt inserts promotion rows while holding this same lifecycle lock.
+	created, err := svc.ensureProjectPromotionBindingsLocked(ctx, repositories.AgentRef{OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a", ProvisioningType: models.AgentProvisioningTypeExternal}, "")
+	require.NoError(t, err)
+	release()
+	require.NoError(t, <-done)
+	require.ElementsMatch(t, []string{"development", "stage", "production"}, f.providerEnvs())
+	require.Empty(t, f.seed)
+	repo.ClaimForAttemptFunc = func(context.Context, uuid.UUID) (bool, error) { return false, nil }
+	require.Len(t, created, 2)
+	svc.AttemptProvision(ctx, created[0])
+	require.Len(t, repo.ClaimForAttemptCalls(), 1, "a queued target attempt cannot claim a deleted binding")
+	require.Len(t, f.requests, 3)
+}
+
+func TestProjectPromotionBindingsDoNotRecreateDeletedSource(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider()).(*agentThunderProvisioningService)
+	f.seed = nil
+	created, err := svc.writePromotionBindings(context.Background(), repositories.AgentRef{
+		OUID: "org-a", ProjectName: "project-a", AgentName: "agent-a", EnvironmentName: "development",
+	}, []promotionStep{{Environment: "development"}, {Environment: "stage", Source: "development"}}, "")
+	require.NoError(t, err)
+	require.Empty(t, created)
+	require.Empty(t, svc.repo.(*repomocks.AgentThunderClientRepositoryMock).UpsertCalls())
 }
