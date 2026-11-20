@@ -48,6 +48,21 @@ func (r *changeRecorder) PlanChanged(_ context.Context, org string, a subplanv1.
 	return nil
 }
 
+// overtakingRecorder records sends; during runs once, inside the first send, as an overlapping delivery would.
+type overtakingRecorder struct {
+	sent   []sentChange
+	during func()
+}
+
+func (r *overtakingRecorder) PlanChanged(_ context.Context, org string, a subplanv1.Action, p subplanv1.Plan) error {
+	if f := r.during; f != nil {
+		r.during = nil
+		f()
+	}
+	r.sent = append(r.sent, sentChange{org, a, p})
+	return nil
+}
+
 func planChangeEvent(t *testing.T, ch subplanv1.PlanChange) modkit.Event {
 	t.Helper()
 	data, err := json.Marshal(ch)
@@ -103,6 +118,25 @@ func TestPlanChangeHandler(t *testing.T) {
 		require.Len(t, rec.sent, 2)
 		assert.Equal(t, "Gold", rec.sent[0].plan.Name)
 		assert.Equal(t, "Gold", rec.sent[1].plan.Name)
+	})
+
+	t.Run("a delivery overtaken while it sends sends the current state again", func(t *testing.T) {
+		now := time.Now()
+		newer, older := gold, gold
+		newer.UpdatedAt, older.Name, older.UpdatedAt = now, "Gold (older)", now.Add(-time.Minute)
+		current := older
+		ch := subplanv1.PlanChange{PlanID: "p1", Handle: "gold", Action: subplanv1.Updated}
+		var h modkit.EventHandler
+		rec := &overtakingRecorder{}
+		// While the older state is being sent, the newer change commits and its delivery runs to the end.
+		rec.during = func() {
+			current = newer
+			require.NoError(t, h(ctx, planChangeEvent(t, ch)))
+		}
+		h = PlanChangeHandler(func() (subplanv1.Source, bool) { return planList{current}, true }, rec)
+		require.NoError(t, h(ctx, planChangeEvent(t, ch)))
+		require.Len(t, rec.sent, 3, "older, newer (overtaking), then newer again")
+		assert.Equal(t, "Gold", rec.sent[len(rec.sent)-1].plan.Name, "the last send is the newest state")
 	})
 
 	t.Run("an unknown action is an error", func(t *testing.T) {

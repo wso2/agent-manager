@@ -40,8 +40,10 @@ type PlanGateways interface {
 // id, handle and name.
 //
 // Deliveries can overlap, so a delivery that read an older state of a plan than one already sent from this
-// replica sends nothing: the newer state is on the gateways. The check holds no lock across I/O. Every pushed
-// plan carries its updatedAt, so a gateway can also drop an older state sent by another replica.
+// replica sends nothing: the newer state is on the gateways. One that sent while a newer state was claimed may
+// have reached the gateways after it, so it reads the plan again and sends its current state: the last send of
+// a plan is never older than the newest state this replica read. No lock is held across I/O. Every pushed plan
+// carries its updatedAt, so a gateway can also drop an older state sent by another replica.
 func PlanChangeHandler(plans func() (subplanv1.Source, bool), gateways PlanGateways) modkit.EventHandler {
 	var sent sentVersions
 	return func(ctx context.Context, e modkit.Event) error {
@@ -63,26 +65,48 @@ func PlanChangeHandler(plans func() (subplanv1.Source, bool), gateways PlanGatew
 		default:
 			return fmt.Errorf("plan change %q has an unknown action %q", ch.Handle, ch.Action)
 		}
-		source, ok := plans()
-		if !ok {
-			return nil
-		}
-		list, err := source.ListPlans(ctx, orgID)
-		if err != nil {
-			return fmt.Errorf("reading plan %s: %w", ch.Handle, err)
-		}
-		for _, p := range list {
-			if p.ID != ch.PlanID {
-				continue
+		action := ch.Action
+		for range maxPlanResends + 1 {
+			p, found, err := currentPlan(ctx, plans, orgID, ch.PlanID)
+			if err != nil {
+				return fmt.Errorf("reading plan %s: %w", ch.Handle, err)
 			}
-			if !sent.claim(key, p.UpdatedAt) {
+			// Inactive owner, or deleted since (its own deletion event follows).
+			if !found || !sent.claim(key, p.UpdatedAt) {
 				return nil
 			}
-			return gateways.PlanChanged(ctx, orgID, ch.Action, p)
+			if err := gateways.PlanChanged(ctx, orgID, action, p); err != nil {
+				return err
+			}
+			if !sent.newerThan(key, p.UpdatedAt) {
+				return nil
+			}
+			action = subplanv1.Updated
 		}
-		// Deleted since: its own deletion event follows.
 		return nil
 	}
+}
+
+// maxPlanResends bounds how often one delivery sends a plan again because a newer state was claimed meanwhile.
+const maxPlanResends = 3
+
+// currentPlan reads the plan from the module that owns plans. found is false while that module is inactive or
+// when the plan is gone.
+func currentPlan(ctx context.Context, plans func() (subplanv1.Source, bool), orgID, planID string) (subplanv1.Plan, bool, error) {
+	source, ok := plans()
+	if !ok {
+		return subplanv1.Plan{}, false, nil
+	}
+	list, err := source.ListPlans(ctx, orgID)
+	if err != nil {
+		return subplanv1.Plan{}, false, err
+	}
+	for _, p := range list {
+		if p.ID == planID {
+			return p, true, nil
+		}
+	}
+	return subplanv1.Plan{}, false, nil
 }
 
 // sentVersions remembers, per plan, the newest state this replica has sent (its updatedAt).
@@ -104,6 +128,14 @@ func (v *sentVersions) claim(key string, at time.Time) bool {
 	}
 	v.last[key] = at
 	return true
+}
+
+// newerThan reports whether a newer state than at has been claimed for the plan.
+func (v *sentVersions) newerThan(key string, at time.Time) bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	prev, ok := v.last[key]
+	return ok && prev.After(at)
 }
 
 // forget drops a deleted plan, so the map holds only plans that exist.
