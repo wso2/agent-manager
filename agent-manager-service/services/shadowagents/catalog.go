@@ -117,7 +117,7 @@ type ProviderSpec struct {
 	// APIContract is the OpenAPI document of the API the customer
 	// implements (Custom platform); the console offers it for download.
 	APIContract string
-	// SourceHost marks a source repository host (GitHub, Azure DevOps). Its
+	// SourceHost marks a source repository host (GitHub). Its
 	// connection holds no credential and no cloud scan reads it: the source
 	// code scan runs on the customer's machine.
 	SourceHost bool
@@ -139,7 +139,6 @@ const (
 	EPGoogleAIPlatformRep = "aiplatformMultiRegion"
 	EPGoogleRegistry      = "agentRegistry"
 	EPGitHubAPI           = "api"
-	EPAzureDevOps         = "azureDevOps"
 )
 
 // Option (checkbox) keys.
@@ -148,7 +147,6 @@ const (
 	OptClassicAgents    = "includeClassicAgents"
 	OptGlobalMulti      = "includeGlobalAndMultiRegion"
 	OptAllRepositories  = "allRepositories"
-	OptAllProjects      = "allProjects"
 	OptPrivateRepos     = "privateRepositories"
 	OptReadCI           = "readCiFiles"
 )
@@ -501,55 +499,6 @@ var sourceHostSpecs = []ProviderSpec{
 			},
 		},
 		Docs: []string{"https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"},
-	},
-	{
-		Provider:    models.ShadowProviderAzureDevOps,
-		DisplayName: "Azure DevOps",
-		SourceHost:  true,
-		Description: "Azure Repos repositories of an Azure DevOps organization: agent framework and model SDK dependencies, MCP and A2A configuration, and agent code.",
-		Endpoints: []EndpointSpec{
-			{
-				// No official hosts: Azure DevOps Server is self-hosted.
-				Key: EPAzureDevOps, Label: "Azure DevOps Server URL", Default: "https://dev.azure.com", Advanced: true,
-				Help: "Change only for Azure DevOps Server: your server address, for example " +
-					"https://ado.contoso.com/tfs. Then enter the collection as Organization.",
-			},
-		},
-		Fields: []FieldSpec{
-			{
-				Key: "organization", Label: "Organization", Kind: FieldText, Required: true, Placeholder: "e.g. contoso",
-				Help: "The organization name from your Azure DevOps address.",
-			},
-			{Key: OptAllProjects, Label: "Scan every project", Kind: FieldCheckbox},
-			{
-				Key: "projects", Label: "Projects", Kind: FieldList, Required: true, Option: "!" + OptAllProjects,
-				Placeholder: "e.g. Payments", Help: "Project names in the organization, one per line.",
-			},
-			readCIField("Azure Pipelines YAML definitions."),
-		},
-		Permissions: []PermissionSpec{
-			{
-				Title:   "Personal access token (read-only)",
-				Summary: "The scan command asks for it in your terminal when it runs. It is not entered here and Agent Manager never receives it.",
-				Items: []string{
-					"In Azure DevOps, open User settings > Personal access tokens and create a token for this organization only. Global tokens (all accessible organizations) are being retired.",
-					"Scopes: Code (read) and Project and team (read).",
-					"Organization policies can restrict creating tokens and limit their lifetime.",
-				},
-			},
-			{
-				Title:   "Azure DevOps Server",
-				Summary: "Point the connection at your server instead of dev.azure.com.",
-				Items: []string{
-					"Open Self-hosted server, set Azure DevOps Server URL to your server address (for example " +
-						"https://ado.contoso.com/tfs) and enter the collection as Organization.",
-					"Azure DevOps Server needs a personal access token too, with the same scopes, created in your server's user settings.",
-				},
-			},
-		},
-		Docs: []string{
-			"https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate",
-		},
 	},
 }
 

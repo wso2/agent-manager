@@ -61,6 +61,7 @@ import type {
   ShadowConnectionTest,
 } from "@agent-management-platform/types";
 import {
+  CUSTOM_PLATFORM,
   OutcomeChip,
   providerLabel,
   SOURCE_HOSTS,
@@ -147,7 +148,10 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
     </Button>
   ) : undefined;
 
-  const aiPlatforms = filtered.filter((c) => !SOURCE_HOSTS.includes(c.provider));
+  const aiPlatforms = filtered.filter(
+    (c) => !SOURCE_HOSTS.includes(c.provider) && c.provider !== CUSTOM_PLATFORM,
+  );
+  const customPlatforms = filtered.filter((c) => c.provider === CUSTOM_PLATFORM);
   const sourceHosts = filtered.filter((c) => SOURCE_HOSTS.includes(c.provider));
 
   const handleDelete = (c: ShadowConnectionResponse) =>
@@ -163,6 +167,127 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
 
   const handleTest = (c: ShadowConnectionResponse) =>
     test.mutate(c.id, { onSuccess: (result) => setTestResult({ name: c.name, result }) });
+
+  // The table of platforms a scan calls (AI platforms and Custom platforms):
+  // Scan, Test connection, Edit and Delete on each row.
+  const cloudTable = (list: ShadowConnectionResponse[]) => (
+      <ListingTable>
+        <ListingTable.Head>
+          <ListingTable.Row>
+            <ListingTable.Cell>Name</ListingTable.Cell>
+            <ListingTable.Cell>Platform</ListingTable.Cell>
+            <ListingTable.Cell>Last test</ListingTable.Cell>
+            <ListingTable.Cell>Created</ListingTable.Cell>
+            <ListingTable.Cell align="right" />
+          </ListingTable.Row>
+        </ListingTable.Head>
+        <ListingTable.Body>
+          {list.map((c) => (
+            <ListingTable.Row key={c.id}>
+              <ListingTable.Cell>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" fontWeight={500}>
+                    {c.name}
+                  </Typography>
+                  {c.endpointWarnings.length > 0 && (
+                    <Tooltip title={c.endpointWarnings.join(". ")}>
+                      <Box
+                        component="span"
+                        aria-label="Custom endpoint"
+                        sx={{ display: "inline-flex", color: "warning.main" }}
+                      >
+                        <TriangleAlert size={16} />
+                      </Box>
+                    </Tooltip>
+                  )}
+                </Stack>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  flexWrap="wrap"
+                  useFlexGap
+                >
+                  <Typography variant="body2">{providerLabel(c.provider)}</Typography>
+                  <ScopedKeysChip provider={c.provider} secretHints={c.secretHints} />
+                </Stack>
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                {c.lastTest ? (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <OutcomeChip outcome={c.lastTest.ok ? "ok" : "failed"} />
+                    <Typography variant="caption" color="text.secondary">
+                      {c.lastTestedAt ? formatRelativeTime(c.lastTestedAt) : ""}
+                    </Typography>
+                  </Stack>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Not tested
+                  </Typography>
+                )}
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Typography variant="body2" color="text.secondary">
+                  {formatRelativeTime(c.createdAt)}
+                </Typography>
+              </ListingTable.Cell>
+              <ListingTable.Cell align="right">
+                {canManage && (
+                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                    <Tooltip
+                      title={scanActive ? "A scan is running" : "Scan this platform"}
+                    >
+                      <span>
+                        <IconButton
+                          size="small"
+                          aria-label={`Scan ${c.name}`}
+                          disabled={scanActive || scan.isPending}
+                          onClick={() => scan.mutate({ connectionIds: [c.id] })}
+                        >
+                          <Radar size={18} />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Test connection">
+                      <span>
+                        <IconButton
+                          size="small"
+                          aria-label={`Test ${c.name}`}
+                          disabled={test.isPending}
+                          onClick={() => handleTest(c)}
+                        >
+                          <PlugZap size={18} />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Edit">
+                      <IconButton
+                        size="small"
+                        aria-label={`Edit ${c.name}`}
+                        onClick={() => onEdit(c)}
+                      >
+                        <Pencil size={18} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete">
+                      <IconButton
+                        size="small"
+                        aria-label={`Delete ${c.name}`}
+                        onClick={() => handleDelete(c)}
+                      >
+                        <Trash2 size={18} />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                )}
+              </ListingTable.Cell>
+            </ListingTable.Row>
+          ))}
+        </ListingTable.Body>
+      </ListingTable>
+  );
 
   const toolbar = (
     <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
@@ -200,7 +325,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
           illustration: <PlugZap size={64} />,
           title: "No platforms added",
           description:
-            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, your own agent inventory API as a Custom platform, or a GitHub or Azure DevOps organization to scan its source code.",
+            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, your own agent inventory API as a Custom platform, or a GitHub organization to scan its source code.",
           action: addButton,
         }}
         searchEmptyState={{
@@ -216,122 +341,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                 title="AI platforms"
                 description="Agent Manager reads their agent listings with a read-only credential when you run a scan."
               />
-              <ListingTable>
-                <ListingTable.Head>
-                  <ListingTable.Row>
-                    <ListingTable.Cell>Name</ListingTable.Cell>
-                    <ListingTable.Cell>Platform</ListingTable.Cell>
-                    <ListingTable.Cell>Last test</ListingTable.Cell>
-                    <ListingTable.Cell>Created</ListingTable.Cell>
-                    <ListingTable.Cell align="right" />
-                  </ListingTable.Row>
-                </ListingTable.Head>
-                <ListingTable.Body>
-                  {aiPlatforms.map((c) => (
-                    <ListingTable.Row key={c.id}>
-                      <ListingTable.Cell>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Typography variant="body2" fontWeight={500}>
-                            {c.name}
-                          </Typography>
-                          {c.endpointWarnings.length > 0 && (
-                            <Tooltip title={c.endpointWarnings.join(". ")}>
-                              <Box
-                                component="span"
-                                aria-label="Custom endpoint"
-                                sx={{ display: "inline-flex", color: "warning.main" }}
-                              >
-                                <TriangleAlert size={16} />
-                              </Box>
-                            </Tooltip>
-                          )}
-                        </Stack>
-                      </ListingTable.Cell>
-                      <ListingTable.Cell>
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          alignItems="center"
-                          flexWrap="wrap"
-                          useFlexGap
-                        >
-                          <Typography variant="body2">{providerLabel(c.provider)}</Typography>
-                          <ScopedKeysChip provider={c.provider} secretHints={c.secretHints} />
-                        </Stack>
-                      </ListingTable.Cell>
-                      <ListingTable.Cell>
-                        {c.lastTest ? (
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <OutcomeChip outcome={c.lastTest.ok ? "ok" : "failed"} />
-                            <Typography variant="caption" color="text.secondary">
-                              {c.lastTestedAt ? formatRelativeTime(c.lastTestedAt) : ""}
-                            </Typography>
-                          </Stack>
-                        ) : (
-                          <Typography variant="body2" color="text.secondary">
-                            Not tested
-                          </Typography>
-                        )}
-                      </ListingTable.Cell>
-                      <ListingTable.Cell>
-                        <Typography variant="body2" color="text.secondary">
-                          {formatRelativeTime(c.createdAt)}
-                        </Typography>
-                      </ListingTable.Cell>
-                      <ListingTable.Cell align="right">
-                        {canManage && (
-                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                            <Tooltip
-                              title={scanActive ? "A scan is running" : "Scan this platform"}
-                            >
-                              <span>
-                                <IconButton
-                                  size="small"
-                                  aria-label={`Scan ${c.name}`}
-                                  disabled={scanActive || scan.isPending}
-                                  onClick={() => scan.mutate({ connectionIds: [c.id] })}
-                                >
-                                  <Radar size={18} />
-                                </IconButton>
-                              </span>
-                            </Tooltip>
-                            <Tooltip title="Test connection">
-                              <span>
-                                <IconButton
-                                  size="small"
-                                  aria-label={`Test ${c.name}`}
-                                  disabled={test.isPending}
-                                  onClick={() => handleTest(c)}
-                                >
-                                  <PlugZap size={18} />
-                                </IconButton>
-                              </span>
-                            </Tooltip>
-                            <Tooltip title="Edit">
-                              <IconButton
-                                size="small"
-                                aria-label={`Edit ${c.name}`}
-                                onClick={() => onEdit(c)}
-                              >
-                                <Pencil size={18} />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Delete">
-                              <IconButton
-                                size="small"
-                                aria-label={`Delete ${c.name}`}
-                                onClick={() => handleDelete(c)}
-                              >
-                                <Trash2 size={18} />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        )}
-                      </ListingTable.Cell>
-                    </ListingTable.Row>
-                  ))}
-                </ListingTable.Body>
-              </ListingTable>
+              {cloudTable(aiPlatforms)}
             </Stack>
           )}
           {sourceHosts.length > 0 && (
@@ -408,6 +418,15 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                   ))}
                 </ListingTable.Body>
               </ListingTable>
+            </Stack>
+          )}
+          {customPlatforms.length > 0 && (
+            <Stack spacing={1.5}>
+              <SectionHeading
+                title="Custom platforms"
+                description="Your own agent inventory APIs. Agent Manager calls each one's Agents URL with its API key when you run a scan."
+              />
+              {cloudTable(customPlatforms)}
             </Stack>
           )}
         </Stack>

@@ -532,16 +532,14 @@ func TestShadowCreateScan(t *testing.T) {
 }
 
 // TestShadowCreateScan_SkipsSourceHosts: a cloud scan never includes a
-// GitHub or Azure DevOps connection; their scan command runs on the
-// customer's machine.
+// GitHub connection; its scan command runs on the customer's machine.
 func TestShadowCreateScan_SkipsSourceHosts(t *testing.T) {
 	cloud := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderFoundry}
 	gh := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderGitHub}
-	ado := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderAzureDevOps}
 	var created *models.ShadowScan
 	repo := &repomocks.ShadowAgentRepositoryMock{
 		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
-			return []models.ShadowConnection{gh, cloud, ado}, nil
+			return []models.ShadowConnection{gh, cloud}, nil
 		},
 		CreateScanFunc: func(_ context.Context, s *models.ShadowScan) error {
 			created = s
@@ -557,13 +555,13 @@ func TestShadowCreateScan_SkipsSourceHosts(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrInvalidInput)
 
 	repo.ListConnectionsFunc = func(context.Context, string) ([]models.ShadowConnection, error) {
-		return []models.ShadowConnection{gh, ado}, nil
+		return []models.ShadowConnection{gh}, nil
 	}
 	_, err = svc.CreateScan(auditableCtx(t), shadowTestOU, nil)
 	assert.ErrorIs(t, err, utils.ErrShadowNoConnections)
 }
 
-// ---- source hosts (GitHub, Azure DevOps) ----
+// ---- source hosts (GitHub) ----
 
 func TestShadowSourceHostConnection_StoresNoSecret(t *testing.T) {
 	var stored *models.ShadowConnection
@@ -604,20 +602,31 @@ func TestShadowSourceHostConnection_StoresNoSecret(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, stored.Config.PrivateRepositories)
 
-	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
-		Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
-		Settings: map[string]any{"organization": "contoso", sa.OptAllProjects: true},
-	})
-	require.NoError(t, err)
-	assert.Nil(t, stored.SecretEncrypted)
-
 	for _, key := range []string{"personalAccessToken", "useEntra", "clientSecret"} {
 		_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
-			Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
-			Settings: map[string]any{"organization": "contoso", sa.OptAllProjects: true, key: "x"},
+			Name: "GitHub " + key, Provider: models.ShadowProviderGitHub,
+			Settings: map[string]any{"organization": "acme", sa.OptAllRepositories: true, key: "x"},
 		})
 		assert.ErrorIs(t, err, utils.ErrInvalidInput, "%s is not a setting any more", key)
 	}
+}
+
+// Azure DevOps is not a platform any more: a connection for it is refused.
+func TestShadowAzureDevOpsIsNotAPlatform(t *testing.T) {
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{}, nil
+		},
+	}
+	svc := newShadowSvc(repo)
+	_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "Azure DevOps", Provider: "azure_devops",
+		Settings: map[string]any{"organization": "contoso", "allProjects": true},
+	})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Empty(t, repo.CreateConnectionCalls())
+	_, ok := sa.Provider("azure_devops")
+	assert.False(t, ok)
 }
 
 func TestShadowSourceHostConnection_UpdateWithoutStoredSecret(t *testing.T) {
@@ -873,7 +882,7 @@ func TestToShadowApply_DropsFindingsAndEvidenceOfAnotherPlatform(t *testing.T) {
 			{
 				Kind: models.ShadowKindCodeAgent, ExternalID: "acme/agent:src/agent.py", DisplayName: "agent",
 				Signals: []sa.Signal{
-					{Code: "azure_devops.d1_agent_dependency", Source: "requirements.txt"},
+					{Code: "bedrock.classic_agent", Source: "requirements.txt"},
 					{Code: "foundry.agent_object", Source: "scan"},
 					{Code: "github.d2_agent_import", Source: "src/agent.py"},
 				},

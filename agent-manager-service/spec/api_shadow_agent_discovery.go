@@ -305,7 +305,7 @@ func (r ApiCreateShadowRunnerScanRequest) Execute() (*ShadowRunnerScanResponse, 
 /*
 CreateShadowRunnerScan Create a source code scan command
 
-Creates a pending scan of a GitHub or Azure DevOps connection and a
+Creates a pending scan of a GitHub connection and a
 scan token, valid for about one hour, that lets the scan command
 publish its results for this organization only. Returns the parts the
 console composes the scan command from. The token is returned once and

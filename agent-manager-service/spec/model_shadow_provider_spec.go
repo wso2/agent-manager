@@ -27,7 +27,7 @@ type ShadowProviderSpec struct {
 	Permissions      []ShadowPermissionSpec  `json:"permissions"`
 	Docs             []string                `json:"docs"`
 	CredentialChoice *ShadowCredentialChoice `json:"credentialChoice,omitempty"`
-	// A source repository host (GitHub, Azure DevOps). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
+	// A source repository host (GitHub). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
 	SourceHost *bool `json:"sourceHost,omitempty"`
 	// What a scan lists, and the fields or options each capability needs.
 	Capabilities []ShadowCapabilitySpec `json:"capabilities"`

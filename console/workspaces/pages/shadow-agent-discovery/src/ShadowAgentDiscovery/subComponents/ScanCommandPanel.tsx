@@ -94,7 +94,7 @@ export function ScanOptions({
 }
 
 /**
- * The scan command of a GitHub or Azure DevOps platform, next to its form.
+ * The scan command of a GitHub platform, next to its form.
  * It follows the form until the platform is saved; then it shows the issued
  * command once (it holds a scan token, so it lives only in the caller's state).
  */

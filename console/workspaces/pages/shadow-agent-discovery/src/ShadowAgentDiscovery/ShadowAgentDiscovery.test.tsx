@@ -507,7 +507,6 @@ describe("FindingsTab", () => {
       "Microsoft Foundry",
       "Custom platform",
       "GitHub",
-      "Azure DevOps",
     ]);
     fireEvent.click(screen.getByRole("option", { name: "Microsoft Foundry" }));
     expect(lastQuery()).toMatchObject({ provider: "foundry", offset: 0, onboarded: "false" });
@@ -821,6 +820,27 @@ describe("ConnectionsTab (Platforms)", () => {
     expect(screen.queryByRole("button", { name: "Scan Repos" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Test Repos" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Repos" })).toBeInTheDocument();
+  });
+
+  it("lists Custom platforms in their own section, after AI platforms and source code", () => {
+    hoisted.connections = [
+      connection(),
+      connection({ id: "c3", name: "Inventory", provider: "custom" }),
+      connection({ id: "c2", name: "Repos", provider: "github", settings: { organization: "acme" } }),
+    ];
+    renderTab();
+    const headings = screen
+      .getAllByText(/^(AI platforms|Custom platforms|Source code repositories)$/)
+      .map((h) => h.textContent);
+    expect(headings).toEqual(["AI platforms", "Source code repositories", "Custom platforms"]);
+    const [ai, , custom] = screen.getAllByRole("table");
+    expect(within(ai).queryByText("Inventory")).not.toBeInTheDocument();
+    expect(within(custom).getByText("Inventory")).toBeInTheDocument();
+    expect(within(custom).getByText("Custom platform")).toBeInTheDocument();
+    // A Custom platform is scanned and tested like an AI platform.
+    fireEvent.click(within(custom).getByRole("button", { name: "Scan Inventory" }));
+    expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c3"] });
+    expect(within(custom).getByRole("button", { name: "Test Inventory" })).toBeInTheDocument();
   });
 
   it("opens Generate command from a source code repository row", () => {
@@ -1143,18 +1163,6 @@ describe("SourceScanGuide", () => {
     expect(link).toHaveAttribute("target", "_blank");
     expect(dialog).not.toHaveTextContent("docs.github.com");
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
-  });
-
-  it("says projects, and an always-needed token, for Azure DevOps", () => {
-    render(
-      <SourceScanGuide
-        spec={sourceHostSpec({ provider: "azure_devops", displayName: "Azure DevOps" })}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "How it works" }));
-    const dialog = screen.getByRole("dialog");
-    expect(dialog).toHaveTextContent("Save the organization and projects here");
-    expect(dialog).not.toHaveTextContent("when private repositories are included");
   });
 });
 
@@ -1582,6 +1590,26 @@ describe("ConnectionEditor (Custom platform)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Connect Custom platform" }));
   };
+
+  it("shows Custom platforms as their own group when adding a platform", () => {
+    hoisted.providers = [
+      { ...customSpec(), provider: "openai", displayName: "OpenAI" },
+      customSpec(),
+      sourceHostSpec(),
+    ];
+    router(
+      <Routes>
+        <Route path="/new" element={<ConnectionEditor orgName="acme" listPath="/list" />} />
+      </Routes>,
+      "/new",
+    );
+    const groups = screen
+      .getAllByText(/^(AI agent platforms|Custom platforms|Source code repositories)$/)
+      .map((h) => h.textContent);
+    expect(groups).toEqual(["AI agent platforms", "Source code repositories", "Custom platforms"]);
+    expect(screen.getByRole("button", { name: "Connect Custom platform" })).toBeInTheDocument();
+    expect(screen.queryByText("Azure DevOps")).not.toBeInTheDocument();
+  });
 
   it("offers the OpenAPI contract and explains the steps in See what it lists", () => {
     const createObjectURL = vi.fn(() => "blob:contract");

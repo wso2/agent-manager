@@ -160,7 +160,7 @@ func (s *shadowAgentService) CreateRunnerScan(
 		return nil, err
 	}
 	if spec, ok := sa.Provider(c.Provider); !ok || !spec.SourceHost {
-		return nil, fmt.Errorf("%w: only source code repository connections (GitHub, Azure DevOps) have a scan command",
+		return nil, fmt.Errorf("%w: only source code repository connections (GitHub) have a scan command",
 			utils.ErrInvalidInput)
 	}
 	if !s.runner.Enabled || s.runner.Issuer == nil || s.runner.AMPURL == "" {

@@ -1,6 +1,6 @@
 # Shadow Agent Runner
 
-`amp-shadow-runner` is the source code scan of Shadow Agent Discovery in WSO2 Agent Manager. It finds AI agents in GitHub and Azure DevOps repositories and publishes the confirmed agents to Agent Manager.
+`amp-shadow-runner` is the source code scan of Shadow Agent Discovery in WSO2 Agent Manager. It finds AI agents in GitHub repositories (including GitHub Enterprise Server) and publishes the confirmed agents to Agent Manager.
 
 It runs on the customer's machine, as the `docker run` command that the Agent Manager console builds for a source code platform. When complete, the command will ask for the Git token only for private repositories, and for the LLM key only with AI review. It will then fetch the repositories, scan them, delete the code and publish only the confirmed agents. Agent Manager never stores the Git token and never pulls the code.
 
@@ -9,7 +9,7 @@ The package has two parts:
 - `amp_shadow_runner`: the command line.
 - `amp_shadow_runner.engine`: the scan engine, a pure library that parses a local source tree with tree-sitter. It never opens a network connection or starts a process (`tests/engine/test_purity.py` enforces this).
 
-> `scan` works for GitHub with the rules for Python, TypeScript, JavaScript, C# and Ballerina agents (Ballerina matches are always Not sure). Azure DevOps and AI review come in later versions.
+> `scan` works for GitHub with the rules for Python, TypeScript, JavaScript, C# and Ballerina agents (Ballerina matches are always Not sure). AI review comes in a later version.
 
 ## Command line
 
@@ -25,21 +25,18 @@ Agent Manager builds the `scan` command, so its options match what the console s
 | Option | Meaning |
 |---|---|
 | `--scan-id <id>` | The scan that Agent Manager issued. Required. |
-| `--github-org <org>` | Scan a GitHub organization or user account. Give this or `--azure-devops-org`. |
+| `--github-org <org>` | Scan a GitHub organization or user account. Required. |
 | `--all-repos` or `--repos a,b` | GitHub: every repository, or the named ones. |
 | `--include-private` | GitHub: also scan private repositories. |
 | `--github-api-url <url>` | GitHub: the API address of GitHub Enterprise. The default is `https://api.github.com`. |
-| `--azure-devops-org <org>` | Scan an Azure DevOps organization. |
-| `--all-projects` or `--projects a,b` | Azure DevOps: every project, or the named ones. |
-| `--azure-devops-url <url>` | Azure DevOps: the address of Azure DevOps Server. The default is `https://dev.azure.com`. |
 | `--read-ci` | Also read CI pipeline definitions. |
 | `--ai-review` | Have an LLM review the agents the rules find. |
 | `--judge` | Have a second LLM check the AI review. Needs `--ai-review`. |
 | `--yes` | Scan without asking to confirm the repository list (also `AMP_SCAN_YES=1`). Needed without a terminal. |
 
-`--repos` takes at most 5000 names, given as `name` or `<org>/name`. `AMP_URL`, `--github-api-url` and `--azure-devops-url` accept `http://` or `https://` addresses.
+`--repos` takes at most 5000 names, given as `name` or `<org>/name`. `AMP_URL` and `--github-api-url` accept `http://` or `https://` addresses.
 
-The command asks in the terminal, with hidden input, for the secrets Agent Manager never receives. It asks for a GitHub token only with `--include-private` (a fine-grained token with read-only Contents access), and always for an Azure DevOps personal access token (Code read, and Project and team read). `docker run -it` gives the command the terminal it needs. To skip the question, or to run without a terminal, export `GITHUB_TOKEN` or `AZURE_DEVOPS_TOKEN` in your shell and pass it to the container with `-e NAME`, which copies an exported variable into the container. A GitHub scan of public repositories also uses `GITHUB_TOKEN` when it is passed, for a higher API rate limit, but never asks for it. When the GitHub or Azure DevOps address is plain `http://`, the command warns that the token will be sent to it unencrypted.
+The command asks in the terminal, with hidden input, for the secrets Agent Manager never receives. It asks for a GitHub token only with `--include-private` (a fine-grained token with read-only Contents access). `docker run -it` gives the command the terminal it needs. To skip the question, or to run without a terminal, export `GITHUB_TOKEN` in your shell and pass it to the container with `-e GITHUB_TOKEN`, which copies an exported variable into the container. A GitHub scan of public repositories also uses `GITHUB_TOKEN` when it is passed, for a higher API rate limit, but never asks for it. When the GitHub address is plain `http://`, the command warns that the token will be sent to it unencrypted.
 
 The command lists the repositories it will scan, with those not found (counted as scanned, with no agents) and those it cannot scan shown apart, and asks to confirm. Declining publishes nothing and exits 0; the pending scan in Agent Manager expires on its own after 1 hour. Ctrl-C cancels with exit 1. Each repository is downloaded as an archive into a private temporary folder, scanned, and deleted before the next. Files a repository's `.gitattributes` marks `export-ignore` are not in the archive, so they are not scanned. A repository that fails is reported as failed and the scan goes on. The report is written to `/out/report.json` (the folder the command runs in) before the results are published, once.
 
