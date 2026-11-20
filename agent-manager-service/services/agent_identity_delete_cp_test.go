@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -33,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // projectAgentIdentityDeletionProviderStub is a provider that can also delete AgentIDs.
@@ -150,6 +150,11 @@ func (f *cpDeleteFixture) service(
 	f.t.Helper()
 	svc := NewAgentThunderProvisioningService(f.repo(), resolver, f.store(), nil, slog.New(slog.NewTextHandler(&f.logs, nil)))
 	require.NoError(f.t, svc.(ProjectAgentIdentityProviderSetter).SetProjectAgentIdentityProvider(mode, provider))
+	if mode == thundersvc.IdentityManagementCPManaged {
+		svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
+			return "development", []ProjectIdentityEnvironment{{Name: "development"}, {Name: "stage"}, {Name: "production"}}, nil
+		}))
+	}
 	return svc
 }
 
@@ -161,113 +166,112 @@ func (f *cpDeleteFixture) providerEnvs() []string {
 	return envs
 }
 
-func TestDeleteAllBindingsCPManagedDeletesSourceFirstThenPromotedInOrder(t *testing.T) {
-	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
-	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
-
-	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
-
-	require.Equal(t, []string{"development", "stage", "production"}, f.providerEnvs())
-	for _, r := range f.requests {
-		assert.Equal(t, r.Environment == "development", r.Source, "only the source request is flagged Source: %s", r.Environment)
-		assert.Equal(t, "org-a", r.OrganizationID)
-		assert.Equal(t, "project-a", r.ProjectID)
-		assert.Equal(t, "project-a", r.ProjectName)
-		assert.Equal(t, "agent-a", r.AgentName)
-		assert.Equal(t, "agent-id-"+r.Environment, r.AgentID)
-		assert.Equal(t, "client-"+r.Environment, r.ClientID)
-	}
-	assert.Equal(t, "db-delete", f.events[0], "rows are deleted before any external call")
-}
-
-func TestDeleteAllBindingsCPManagedSourceFailureSkipsPromotedDeletions(t *testing.T) {
-	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
-	f.deleteErr["development"] = errors.New("control plane unavailable")
-	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
-
-	require.NotPanics(t, func() { svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a") })
-
-	assert.Equal(t, []string{"development"}, f.providerEnvs(), "no promoted AgentID is removed while the source one remains")
-	assert.Contains(t, f.events, "secret-delete:stage", "secret cleanup still runs for the skipped environments")
-	assert.Contains(t, f.events, "secret-delete:production")
-
-	// One line names every AgentID left behind: the source and both skipped ones.
-	logs := f.logs.String()
-	assert.Equal(t, 1, strings.Count(logs, "need manual cleanup"), "exactly one leftover line per agent")
-	assert.Contains(t, logs, "level=ERROR")
-	for _, leftover := range []string{"development=agent-id-development", "stage=agent-id-stage", "production=agent-id-production"} {
-		assert.Contains(t, logs, leftover)
+func TestDeleteAllBindingsCPManagedDeletesEveryEnvironmentBeforeBindings(t *testing.T) {
+	for _, ownership := range []models.AgentProvisioningType{models.AgentProvisioningTypeInternal, models.AgentProvisioningTypeExternal} {
+		t.Run(string(ownership), func(t *testing.T) {
+			f := newCPDeleteFixture(t, ownership)
+			svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
+			svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+			require.Len(t, f.requests, 3)
+			require.Equal(t, "development", f.requests[0].Environment)
+			require.ElementsMatch(t, []string{"development", "stage", "production"}, f.providerEnvs())
+			for _, r := range f.requests {
+				assert.Equal(t, r.Environment == "development", r.Source)
+				assert.Equal(t, "org-a", r.OrganizationID)
+				assert.Equal(t, "project-a", r.ProjectID)
+				assert.Equal(t, "project-a", r.ProjectName)
+				assert.Equal(t, "agent-a", r.AgentName)
+				assert.Equal(t, "agent-id-"+r.Environment, r.AgentID)
+			}
+			assert.Equal(t, "db-delete", f.events[len(f.events)-1])
+			if ownership == models.AgentProvisioningTypeExternal {
+				require.Len(t, f.events, 4)
+			}
+		})
 	}
 }
 
-func TestDeleteAllBindingsCPManagedLogsPromotedDeletionFailureAsLeftover(t *testing.T) {
-	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
-	f.deleteErr["stage"] = errors.New("stage unavailable")
-	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
-
-	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
-
-	logs := f.logs.String()
-	assert.Equal(t, 1, strings.Count(logs, "need manual cleanup"))
-	assert.Contains(t, logs, "level=ERROR")
-	assert.Contains(t, logs, "stage=agent-id-stage")
+func TestDeleteAllBindingsCPManagedRetainsRecordsOnAnyEnvironmentFailure(t *testing.T) {
+	for _, env := range []string{"development", "stage", "production"} {
+		t.Run(env, func(t *testing.T) {
+			f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
+			f.deleteErr[env] = errors.New("environment unavailable")
+			svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
+			svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+			require.ElementsMatch(t, []string{"development", "stage", "production"}, f.providerEnvs())
+			require.NotContains(t, f.events, "db-delete")
+			require.NotContains(t, f.events, "secret-delete:development")
+			require.Contains(t, f.logs.String(), "retaining agent identity bindings for retry")
+		})
+	}
 }
 
-func TestDeleteAllBindingsCPManagedPromotedFailureDoesNotStopTheRest(t *testing.T) {
-	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
-	f.deleteErr["stage"] = errors.New("stage unavailable")
-	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
-
-	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
-
-	assert.Equal(t, []string{"development", "stage", "production"}, f.providerEnvs())
-}
-
-func TestDeleteAllBindingsCPManagedWithoutDeletionProviderFailsClosedButCleansSecrets(t *testing.T) {
-	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
-	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
-	// SetProjectAgentIdentityProvider rejects a provider that cannot delete, so
-	// this exercises the defensive branch by clearing the capability afterwards.
-	svc.(*agentThunderProvisioningService).projectIdentityDeletionProvider = nil
-
-	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
-
-	assert.Empty(t, f.requests)
-	assert.Empty(t, f.legacyDeleted)
-	assert.ElementsMatch(t,
-		[]string{"db-delete", "secret-delete:development", "secret-delete:stage", "secret-delete:production"}, f.events,
-		"stored credentials are still deleted even though the AgentIDs are left behind")
-	assert.Equal(t, 1, strings.Count(f.logs.String(), "no project AgentID deletion provider is configured"))
-	assert.Contains(t, f.logs.String(), "level=ERROR")
-}
-
-func TestDeleteAllBindingsCPManagedSkipsBindingsWithoutAnAgentID(t *testing.T) {
-	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
+func TestDeleteAllBindingsCPManagedRecoversUnrecordedPromotedID(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
 	for i := range f.seed {
 		if f.seed[i].EnvironmentName == "stage" {
 			f.seed[i].ThunderAgentID = ""
-			f.seed[i].ThunderClientID = ""
 		}
 	}
 	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
-
 	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
-
-	assert.Equal(t, []string{"development", "production"}, f.providerEnvs())
-	assert.Contains(t, f.events, "secret-delete:stage", "the credential of a binding that never reached the platform is still cleaned up")
+	for _, request := range f.requests {
+		if request.Environment == "stage" {
+			require.Equal(t, "agent-id-development", request.AgentID)
+			require.False(t, request.Source)
+		}
+	}
+	require.Len(t, f.requests, 3)
 }
 
-func TestDeleteAllBindingsCPManagedExternalAgentsUseTheSameProviderPath(t *testing.T) {
+func TestDeleteAgentWithIdentityCleanupKeepsComponentUntilAllEnvironmentsSucceed(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider()).(ProjectAgentIdentityCleanup)
+	f.deleteErr["stage"] = errors.New("stage unavailable")
+	componentDeletes := 0
+	removeComponent := func(context.Context) error {
+		componentDeletes++
+		f.events = append(f.events, "component-delete")
+		return nil
+	}
+	handled, err := svc.DeleteAgentWithIdentityCleanup(context.Background(), "org-a", "project-a", "agent-a", removeComponent)
+	require.True(t, handled)
+	require.Error(t, err)
+	require.Zero(t, componentDeletes)
+	require.NotContains(t, f.events, "db-delete")
+	delete(f.deleteErr, "stage")
+	handled, err = svc.DeleteAgentWithIdentityCleanup(context.Background(), "org-a", "project-a", "agent-a", removeComponent)
+	require.True(t, handled)
+	require.NoError(t, err)
+	require.Equal(t, 1, componentDeletes)
+	require.Equal(t, "db-delete", f.events[len(f.events)-1])
+	require.Greater(t, len(f.events), 7)
+}
+
+func TestDeleteAgentWithIdentityCleanupRetainsBindingsWhenComponentDeleteFails(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider()).(ProjectAgentIdentityCleanup)
+	_, err := svc.DeleteAgentWithIdentityCleanup(context.Background(), "org-a", "project-a", "agent-a", func(context.Context) error { return errors.New("component unavailable") })
+	require.ErrorContains(t, err, "component unavailable")
+	require.NotContains(t, f.events, "db-delete")
+}
+
+func TestDeleteAgentWithIdentityCleanupLegacyDoesNotInterceptDeletion(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeInternal)
+	svc := f.service(f.legacyResolver(), thundersvc.IdentityManagementLegacyDirect, nil).(ProjectAgentIdentityCleanup)
+	handled, err := svc.DeleteAgentWithIdentityCleanup(context.Background(), "org-a", "project-a", "agent-a", func(context.Context) error { t.Fatal("legacy deletion must remain in the caller"); return nil })
+	require.NoError(t, err)
+	require.False(t, handled)
+	require.Empty(t, f.events)
+}
+
+func TestDeleteAllBindingsCPManagedRequiresDeletionProvider(t *testing.T) {
 	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
 	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
-
+	svc.(*agentThunderProvisioningService).projectIdentityDeletionProvider = nil
 	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
-
-	assert.Equal(t, []string{"development", "stage", "production"}, f.providerEnvs())
-	assert.True(t, f.requests[0].Source)
-	for _, e := range f.events {
-		assert.NotContains(t, e, "secret-delete", "external agents store no secret, so none is deleted")
-	}
+	require.Empty(t, f.events)
+	require.Contains(t, f.logs.String(), "project AgentID deletion provider is not configured")
 }
 
 func TestDeleteAllBindingsLegacyDirectIgnoresADeletionProvider(t *testing.T) {
@@ -288,4 +292,64 @@ func TestDeleteAllBindingsLegacyDirectKeepsSnapshotOrder(t *testing.T) {
 	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
 
 	assert.Equal(t, []string{"agent-id-stage", "agent-id-development", "agent-id-production"}, f.legacyDeleted)
+}
+
+func TestDeleteAllBindingsCPManagedIncludesPipelineEnvironmentsWithoutBindings(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
+	f.seed = f.seed[1:2]
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
+	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(projectPipelineReaderFunc(func(context.Context, string, string) (string, []ProjectIdentityEnvironment, error) {
+		return "development", []ProjectIdentityEnvironment{{Name: "development"}, {Name: "stage"}, {Name: "production"}}, nil
+	}))
+	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+	require.Equal(t, []string{"development", "stage", "production"}, f.providerEnvs())
+	for _, request := range f.requests {
+		require.Equal(t, "agent-id-development", request.AgentID)
+	}
+}
+
+func TestDeleteAllBindingsCPManagedPipelineFailureDoesNotPartiallyDelete(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider())
+	svc.(ProjectPipelineReaderSetter).SetProjectPipelineReader(sourceOnlyReader("", errors.New("pipeline unavailable")))
+	svc.DeleteAllBindings(context.Background(), "org-a", "project-a", "agent-a")
+	require.Empty(t, f.events)
+	require.Contains(t, f.logs.String(), "pipeline unavailable")
+}
+
+type deletionAgentKindStub struct{ AgentKindService }
+
+func (deletionAgentKindStub) HasKindsSourcedFrom(context.Context, string, string, string) (bool, error) {
+	return false, nil
+}
+
+func TestDeleteAgentCPManagedReturnsFailureWithoutDeletingComponent(t *testing.T) {
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
+	f.deleteErr["stage"] = errors.New("stage unavailable")
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(context.Context, string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{}, nil
+		},
+		GetProjectFunc: func(context.Context, string, string) (*models.ProjectResponse, error) {
+			return &models.ProjectResponse{}, nil
+		},
+		GetWorkloadSecretRefNamesFunc: func(context.Context, string, string, string) ([]string, error) { return nil, nil },
+		GetComponentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{}, nil
+		},
+		DeleteComponentFunc: func(context.Context, string, string, string) error {
+			t.Fatal("component must remain when identity cleanup fails")
+			return nil
+		},
+	}
+	manager := &agentManagerService{
+		ocClient:                 oc,
+		agentKindService:         deletionAgentKindStub{},
+		logger:                   discardLogger(),
+		agentThunderProvisioning: f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider()),
+	}
+	err := manager.DeleteAgent(auditableCtx(t), "org-a", "project-a", "agent-a")
+	require.ErrorIs(t, err, utils.ErrServiceUnavailable)
+	require.Empty(t, oc.DeleteComponentCalls())
+	require.NotContains(t, f.events, "db-delete")
 }
