@@ -132,7 +132,7 @@ def test_terminal_redraws_one_line_in_place_and_ends_with_the_permanent_line() -
     assert any(f.endswith("downloading  4.0 MB  3.3 MB/s") for f in frames)
     assert any("extracting" in f for f in frames)
     assert any(f.endswith("scanning ██████████░░░░░░░░░░ 5/10 files") for f in frames)
-    assert any(f.endswith("AI review ██████████░░░░░░░░░░ 1/2") for f in frames)
+    assert any(f.endswith("AI check ██████████░░░░░░░░░░ 1/2") for f in frames)
     assert "Publishing to Agent Manager…" in frames[-1]
     permanent = [line.rsplit("\x1b[K", 1)[-1] for line in text.split("\n")[:-1]]
     assert permanent == [
@@ -140,7 +140,7 @@ def test_terminal_redraws_one_line_in_place_and_ends_with_the_permanent_line() -
         "Published 1 agent.",
     ]
     assert text.endswith("\r\x1b[KPublished 1 agent.\n")  # The live line is erased before each permanent one.
-    assert "AI review of" not in text  # No milestone line on a terminal.
+    assert "AI check of" not in text  # No milestone line on a terminal.
 
 
 def test_redraws_are_throttled_but_the_final_state_is_drawn() -> None:
@@ -217,7 +217,7 @@ def test_plain_lines_off_a_terminal(out: io.StringIO) -> None:
     assert text.splitlines() == [
         "  [1/2] ag-ui-copy  downloading",
         "  [1/2] ag-ui-copy  scanning",
-        "  [1/2] ag-ui-copy  AI review of 2 not-sure agents",  # Once, not per review.
+        "  [1/2] ag-ui-copy  AI check of 2 not-sure agents",  # Once, not per review.
         f"  {mark} ag-ui-copy   1 agent{sep}1 in test code{sep}10 files",  # No time.
         "Published 1 agent.",
     ]

@@ -426,7 +426,7 @@ def test_llm_settings_without_a_terminal_default_the_judge_model_but_not_the_add
     with pytest.raises(ConfigError) as info:
         _llm(env=env, tty=False)
     assert str(info.value) == (
-        "AI review needs the LLM address, such as https://api.anthropic.com. "
+        "AI-enhanced detection needs the LLM address, such as https://api.anthropic.com. "
         "Run it with docker run -it, or set AMP_LLM_URL and pass it with -e AMP_LLM_URL."
     )
 
@@ -470,7 +470,7 @@ def test_llm_settings_refuse_a_bad_provider_or_address() -> None:
     settings, _, _ = _llm(answers=("x", "openai", "ftp://h", "https://h", "m"), secret=(LLM_KEY,), out=out)
     assert settings.url == "https://h"
     assert out.getvalue() == (
-        "\n◆ AI review\n"
+        "\n◆ AI-enhanced detection\n"
         "  ! The LLM provider must be openai (for any OpenAI-compatible API) or anthropic.\n"
         "  ! The LLM address must start with http:// or https://.\n"
         "  Provider   openai · https://h\n"
@@ -491,7 +491,7 @@ def test_llm_settings_refuse_a_bad_provider_or_address() -> None:
 def test_llm_settings_without_a_terminal_name_the_missing_variable(env: dict[str, str], variable: str) -> None:
     with pytest.raises(ConfigError) as info:
         _llm(env=env, tty=False)
-    assert str(info.value).startswith("AI review needs ")
+    assert str(info.value).startswith("AI-enhanced detection needs ")
     assert str(info.value).endswith(f"set {variable} and pass it with -e {variable}.")
 
 
@@ -512,7 +512,7 @@ def test_llm_settings_warn_before_sending_the_key_over_plain_http() -> None:
     )
     assert settings.url == "http://ollama.internal:11434/v1"
     assert out.getvalue() == (
-        "\n◆ AI review\n"
+        "\n◆ AI-enhanced detection\n"
         "  Provider   openai · http://ollama.internal:11434/v1\n"
         "  Model      m\n"
         "  ! ollama.internal:11434 uses plain http, so the LLM API key will be sent to it unencrypted.\n"
@@ -547,7 +547,7 @@ def test_llm_settings_rows_are_printed_before_the_key_and_never_hold_it() -> Non
         read_secret=read_secret,
     )
     assert out.getvalue() == (
-        "\n◆ AI review\n"
+        "\n◆ AI-enhanced detection\n"
         "  Provider   openai · https://gateway.example.com/llm/v1\n"
         "  Model      gpt-x\n"
         "  Judge      gpt-y\n"
@@ -556,7 +556,7 @@ def test_llm_settings_rows_are_printed_before_the_key_and_never_hold_it() -> Non
     out = Log()
     _llm(env=LLM_ENV, tty=False, out=out)
     assert out.getvalue() == (
-        "\n◆ AI review\n"
+        "\n◆ AI-enhanced detection\n"
         "  Provider   anthropic · https://api.anthropic.com\n"
         "  Model      claude-x\n"
         "  API key    ✓ from AMP_LLM_API_KEY\n"
@@ -600,7 +600,7 @@ def test_on_a_terminal_the_provider_is_a_menu_and_each_answer_replaces_its_quest
     settings = llm_settings(AI, ui, env={}, is_tty=True, read=read, keyboard=keys)
     assert settings == LlmSettings("anthropic", "https://api.anthropic.com", "claude-x", None, LLM_KEY)
     assert screen(out.getvalue()) == (
-        "\n◆ AI review\n"
+        "\n◆ AI-enhanced detection\n"
         "  Provider   anthropic · https://api.anthropic.com\n"  # The refused address is erased too.
         "  Model      claude-x\n"
         "  API key    ✓ received (17 characters)\n"
@@ -616,7 +616,9 @@ def test_on_a_terminal_a_set_provider_skips_the_menu() -> None:
     env = {"AMP_LLM_PROVIDER": "openai", "AMP_LLM_MODEL": "gpt-x"}
     settings = llm_settings(AI, ui, env=env, is_tty=True, read=_typed(out, "\n"), keyboard=keys)
     assert (settings.provider, settings.url) == ("openai", "https://api.openai.com/v1")
-    assert screen(out.getvalue()).startswith("\n◆ AI review\n  Provider   openai · https://api.openai.com/v1\n")
+    assert screen(out.getvalue()).startswith(
+        "\n◆ AI-enhanced detection\n  Provider   openai · https://api.openai.com/v1\n"
+    )
 
 
 def test_ctrl_c_in_the_menu_cancels() -> None:

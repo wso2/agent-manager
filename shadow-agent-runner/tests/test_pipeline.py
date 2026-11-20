@@ -417,9 +417,9 @@ def test_ai_review_publishes_only_the_confirmed_agents(tmp_path: Path) -> None:
     assert reviewed == {"helper": "ai_review", "support": "rules"}  # Not "chat" (rejected) or "double" (test code).
     assert len(run.llm.users) == 2
     assert all("tests/test_x.bal" not in u for u in run.llm.users)
-    assert "  [1/2] a  scanning\n  [1/2] a  AI review of 2 not-sure agents\n  ✓ a   2 agents · 2 files\n" in run.text
-    assert "  Agents     3: 1 proven, 1 confirmed by AI review, 1 not confirmed\n" in run.text
-    assert "  AI review  1 rejected (not published; the report says why)\n" in run.text
+    assert "  [1/2] a  scanning\n  [1/2] a  AI check of 2 not-sure agents\n  ✓ a   2 agents · 2 files\n" in run.text
+    assert "  Agents     3: 1 proven, 1 confirmed by AI, 1 not confirmed\n" in run.text
+    assert "  AI         1 rejected (not published; the report says why)\n" in run.text
     assert all("aiReview" not in a["attributes"] for a in run.body["agents"])
 
 
@@ -447,9 +447,9 @@ def test_a_refused_llm_key_stops_review_and_still_publishes(tmp_path: Path) -> N
     run = _two_repos(tmp_path, FakeLlm(default=error))
     assert run(_config(ai_review=True)) == ExitCode.OK
     assert len(run.llm.users) == 1
-    assert run.text.count("AI review stopped") == 1
+    assert run.text.count("AI-enhanced detection stopped") == 1
     assert "  Agents     3: 1 proven, 2 not confirmed\n" in run.text
-    assert "  AI review  1 failed, 1 not reviewed (not published; the report says why)\n" in run.text
+    assert "  AI         1 failed, 1 not reviewed (not published; the report says why)\n" in run.text
     assert [a["attributes"]["reviewedBy"] for a in run.body["agents"]] == ["rules"]
 
 
@@ -459,7 +459,7 @@ def test_reviews_stop_before_the_token_runs_too_low(tmp_path: Path) -> None:
     run = _two_repos(tmp_path, FakeLlm())
     assert run(config, clock=lambda: T0 + 400) == ExitCode.OK
     assert run.llm.users == []
-    assert "  AI review  2 not reviewed (not published; the report says why)\n" in run.text
+    assert "  AI         2 not reviewed (not published; the report says why)\n" in run.text
     data = json.loads(run.report_path.read_text())
     [finding, *_] = data["repositories"][0]["findings"]
     assert finding["attributes"]["aiReview"] == {
@@ -471,7 +471,7 @@ def test_reviews_stop_before_the_token_runs_too_low(tmp_path: Path) -> None:
 def test_ai_review_with_nothing_to_review(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}))
     assert run(_config(ai_review=True)) == ExitCode.OK
-    assert "  Agents     1 proven\n  AI review  nothing to review\n" in run.text
+    assert "  Agents     1 proven\n  AI         nothing to review\n" in run.text
 
 
 def test_the_judge_is_not_available_yet(tmp_path: Path) -> None:
@@ -671,11 +671,13 @@ def test_on_aterminal_every_message_clears_the_live_line_first(tmp_path: Path, m
     run.out = terminal = _Terminal()
     assert run(_config(ai_review=True)) == ExitCode.OK
     text = terminal.getvalue()
-    assert "\r  [1/2] a  scanning" in text and "AI review" in text and "Publishing to Agent Manager…" in text
-    assert "\r\x1b[K  ! AI review stopped: " in text  # Printed over the live line, not into it.
+    assert (
+        "\r  [1/2] a  scanning" in text and "AI-enhanced detection" in text and "Publishing to Agent Manager…" in text
+    )
+    assert "\r\x1b[K  ! AI-enhanced detection stopped: " in text  # Printed over the live line, not into it.
     assert re.search(r"\n  ✓ a   2 agents · 2 files · [0-9.]+s\n", text)
     assert "  Scanned    2 repositories in " in text
-    assert "AI review of" not in text
+    assert "AI check of" not in text
     assert _clean_lines(text)
     assert text.endswith("\n")
 

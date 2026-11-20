@@ -284,9 +284,9 @@ class Reviewer:
 
     def _skip_reason(self) -> str | None:
         if self.stopped is not None:
-            return f"AI review stopped: {self.stopped}"
+            return f"AI-enhanced detection stopped: {self.stopped}"
         if self.requests >= self._limit:
-            return f"the scan reached its limit of {self._limit} AI reviews"
+            return f"the scan reached its limit of {self._limit} AI checks"
         if self._clock() >= self._deadline:
             return "too little scan token time was left to review it"
         return None
@@ -325,7 +325,7 @@ class Reviewer:
 
     def _stop(self, message: str) -> None:
         self.stopped = message
-        self._notify(f"AI review stopped: {message} The other not-sure agents are not reviewed.")
+        self._notify(f"AI-enhanced detection stopped: {message} The other not-sure agents are not reviewed.")
 
 
 def _with(finding: Finding, outcome: ReviewOutcome, reason: str) -> Finding:

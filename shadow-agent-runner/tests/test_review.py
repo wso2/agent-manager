@@ -311,7 +311,7 @@ def test_a_refused_key_or_unknown_model_stops_review_for_the_scan(tmp_path: Path
     assert _outcomes(first + second) == [ReviewOutcome.FAILED, ReviewOutcome.NOT_REVIEWED, ReviewOutcome.NOT_REVIEWED]
     assert len(llm.calls) == 1
     assert notes == [
-        f"AI review stopped: The LLM at api.example.com answered HTTP {status}. "
+        f"AI-enhanced detection stopped: The LLM at api.example.com answered HTTP {status}. "
         "The other not-sure agents are not reviewed."
     ]
 
@@ -345,7 +345,7 @@ def test_at_most_the_limit_of_reviews_across_repositories(tmp_path: Path) -> Non
     assert _outcomes(reviewed) == [ReviewOutcome.CONFIRMED] * 3 + [ReviewOutcome.NOT_REVIEWED] * 2
     assert reviewed[3].attributes[AI_REVIEW_ATTRIBUTE] == {
         "outcome": "not_reviewed",
-        "reason": "the scan reached its limit of 3 AI reviews",
+        "reason": "the scan reached its limit of 3 AI checks",
     }
     assert review_counts(reviewed)[ReviewOutcome.NOT_REVIEWED] == 2
 

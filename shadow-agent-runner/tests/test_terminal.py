@@ -82,7 +82,7 @@ def _layout(ui: Ui) -> None:
     ui.item(pad("billing", 14) + ui.dim("private"))
     ui.warn("No GitHub token: about 25 repositories an hour.", hint="Pass -e GITHUB_TOKEN for more.")
     ui.section("Results")
-    ui.row("Agents", "6: 5 proven, 1 confirmed by AI review")
+    ui.row("Agents", "6: 5 proven, 1 confirmed by AI")
     ui.row("API key", f"{ui.mark(Mark.OK)} received (164 characters)")
     ui.fail("legacy   download failed")
     ui.note("A dim note.")
@@ -100,7 +100,7 @@ PLAIN = """AMP shadow agent scan · acme on github.com
     Pass -e GITHUB_TOKEN for more.
 
 ◆ Results
-  Agents     6: 5 proven, 1 confirmed by AI review
+  Agents     6: 5 proven, 1 confirmed by AI
   API key    ✓ received (164 characters)
   ✗ legacy   download failed
   A dim note.

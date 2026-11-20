@@ -19,7 +19,7 @@
 
 On a terminal, each repository has one live status line under the section, ``  [1/2] repo  ⠋ downloading``:
 downloading (bytes and speed, with a bar when the size is known), extracting, scanning (files done of the
-total) and AI review (reviews done of those due). It is redrawn in place at most every REDRAW_INTERVAL
+total) and AI checks (done of those due). It is redrawn in place at most every REDRAW_INTERVAL
 seconds and cut to the terminal's width; a spinner turns while nothing else changes. When the repository
 ends, the live line is replaced by its permanent row, with the time it took::
 
@@ -30,7 +30,7 @@ Names are padded to one column. Publishing shows a spinner too.
 
 Anywhere else (CI, ``docker run`` without ``-t``, tests), each step prints one plain line
 (``  [1/2] repo  downloading``) and the same permanent rows, with no carriage returns, escape codes, byte
-counts or times: AI review prints one line when it starts, not one per review.
+counts or times: AI checks print one line when it starts, not one per review.
 """
 
 import time
@@ -175,9 +175,9 @@ class Progress:
         """Before the n-th of a repository's ``due`` AI reviews. Off a terminal, only the first says so."""
         if self.live:
             fraction = (n - 1) / due
-            self._show(index, total, name, "AI review", tail=f"{n - 1}/{due}", fraction=fraction, spin=True)
+            self._show(index, total, name, "AI check", tail=f"{n - 1}/{due}", fraction=fraction, spin=True)
         elif n == 1:
-            self._step(index, total, name, f"AI review of {plural(due, 'not-sure agent')}")
+            self._step(index, total, name, f"AI check of {plural(due, 'not-sure agent')}")
 
     def scanned(self, index: int, total: int, name: str, result: ScanResult) -> None:
         """The repository's permanent row: ``✓ name   2 agents · 1 in test code · 120 files · 5.7s``."""

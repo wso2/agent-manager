@@ -147,8 +147,14 @@ def _add_scan_arguments(sub: argparse.ArgumentParser) -> None:
 
     both = sub.add_argument_group("GitHub and Azure DevOps")
     both.add_argument("--read-ci", action="store_true", help="Also read CI pipeline definitions.")
-    both.add_argument("--ai-review", action="store_true", help="Have an LLM review the agents the rules find.")
-    both.add_argument("--judge", action="store_true", help="Have a second LLM check the AI review (needs --ai-review).")
+    both.add_argument(
+        "--ai-review",
+        action="store_true",
+        help="Use AI-enhanced detection: an LLM checks the agents the rules are not sure of.",
+    )
+    both.add_argument(
+        "--judge", action="store_true", help="Have a second LLM check the AI-enhanced detection (needs --ai-review)."
+    )
     sub.add_argument(
         "--yes",
         action="store_true",

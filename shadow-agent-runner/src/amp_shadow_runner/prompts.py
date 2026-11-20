@@ -21,7 +21,7 @@ output (see ``terminal``): ``  ? LLM model``. On a terminal a secret is read key
 (``keyboard.read_secret``), the LLM provider is chosen from a menu (``keyboard.choose``), and each question
 is replaced by its answer's row once answered::
 
-    ◆ AI review
+    ◆ AI-enhanced detection
       Provider   openai · https://api.openai.com/v1
       Model      gpt-4o-mini
       API key    ✓ received (164 characters)
@@ -290,7 +290,7 @@ def llm_settings(
 ) -> LlmSettings:
     """Return the LLM settings for ``--ai-review``: provider, address, model, judge model and API key.
 
-    Prints the AI review section. Each value comes from its ``AMP_LLM_*``
+    Prints the AI-enhanced detection section. Each value comes from its ``AMP_LLM_*``
     variable or is asked for. At the prompt the address defaults to the
     provider's own; without a terminal ``AMP_LLM_URL`` is required, so a
     gateway's key is never sent to the public API by mistake. The judge model
@@ -310,8 +310,8 @@ def llm_settings(
     def ask(label: str, env_var: str, need: str, *, default: str | None = None, parse: Parse | None = None) -> str:
         return ask_value(label, env_var, need=need, default=default, parse=parse, env=env, is_tty=tty, read=read, ui=ui)
 
-    need = "AI review needs"
-    ui.section("AI review")
+    need = "AI-enhanced detection needs"
+    ui.section("AI-enhanced detection")
     start = ui.rows
     if not env.get(LLM_PROVIDER_ENV, "").strip() and tty and keyboard is not None and ui.live:
         try:

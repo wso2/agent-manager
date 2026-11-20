@@ -43,8 +43,9 @@ every repository failed (Agent Manager then marks the scan failed); a publish er
 Not-sure findings are published only after AI review confirms them (``--ai-review``, see ``review``). Each
 repository's findings are reviewed right after its scan, while its files are still on disk; without
 ``--ai-review`` they stay in the report and are not published. The LLM judge (``--judge``) is not built yet:
-the command says so once and publishes the AI review results without it. No review is started with less than
-``review.REVIEW_ALLOWANCE_SECONDS`` left before the repository deadline, so the publish still fits in the hour.
+the command says so once and publishes the AI-enhanced detection results without it. No review is started
+with less than ``review.REVIEW_ALLOWANCE_SECONDS`` left before the repository deadline, so the publish still
+fits in the hour.
 """
 
 import os
@@ -98,7 +99,8 @@ TOKEN_RAN_OUT = (
     "not scanned: the scan token's hour ran out; scan the rest with a new command (for example with --repos)"
 )
 JUDGE_NOT_AVAILABLE = (
-    "The LLM judge is not available in this version of the runner, so AI review results are published without it."
+    "The LLM judge is not available in this version of the runner, "
+    "so AI-enhanced detection results are published without it."
 )
 _EMPTY = ScanResult((), 0, 0, 0)
 
@@ -466,7 +468,7 @@ def _print_results(
     error: ReportError | None,
     elapsed: float | None,
 ) -> None:
-    """The Results section: repositories (when more than one), agents, AI review, test code, files, report."""
+    """The Results section: repositories (when more than one), agents, AI, test code, files, report."""
     summary = report.summary
     ui.section("Results")
     repos = summary.repositories
@@ -499,9 +501,9 @@ def _print_results(
             if counts[outcome]
         ]
         if outcomes:
-            ui.row("AI review", ", ".join(outcomes) + ui.dim(" (not published; the report says why)"))
+            ui.row("AI", ", ".join(outcomes) + ui.dim(" (not published; the report says why)"))
         elif not summary.not_sure:
-            ui.row("AI review", ui.dim("nothing to review"))
+            ui.row("AI", ui.dim("nothing to review"))
     if summary.test:
         ui.row("Test code", f"{number(summary.test)} more, not published")
     files = f"{number(summary.files_scanned)} scanned"
@@ -518,14 +520,14 @@ def _print_results(
 
 
 def _agents(proven: int, not_sure: int, report: Report, *, ai_review: bool) -> str:
-    """``6: 5 proven, 1 confirmed by AI review``. Agents in test code are counted apart."""
+    """``6: 5 proven, 1 confirmed by AI``. Agents in test code are counted apart."""
     if not proven + not_sure:
         return "none found"
     parts = [f"{number(proven)} proven"] if proven else []
     if ai_review:
         confirmed = review_counts(report.findings)[ReviewOutcome.CONFIRMED]
         if confirmed:
-            parts.append(f"{number(confirmed)} confirmed by AI review")
+            parts.append(f"{number(confirmed)} confirmed by AI")
         if not_sure - confirmed:
             parts.append(f"{number(not_sure - confirmed)} not confirmed")
     elif not_sure:
