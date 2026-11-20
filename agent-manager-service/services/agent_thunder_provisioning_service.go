@@ -1665,7 +1665,7 @@ func (s *agentThunderProvisioningService) GetBindingState(ctx context.Context, o
 
 func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context, ouID, projectName, agentName string) {
 	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
-		if err := s.deleteCPIdentityBindings(ctx, ouID, projectName, agentName, nil); err != nil {
+		if _, err := s.deleteCPIdentityBindings(ctx, ouID, projectName, agentName, nil); err != nil {
 			s.logger.Error("Failed to delete CP-managed AgentIDs; identity bindings retained for retry",
 				"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
 		}

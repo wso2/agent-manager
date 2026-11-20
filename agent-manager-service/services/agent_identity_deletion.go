@@ -21,49 +21,71 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
+// AgentDeleteWarning reports something the user must finish after an agent was deleted.
+type AgentDeleteWarning struct {
+	Code         string
+	Message      string
+	Environments []string
+}
+
+// outsidePipelineWarning reports AgentIDs left in environments that are no longer in the project pipeline.
+// The agent is already deleted, so the identities there can only be removed through the identity provider.
+func outsidePipelineWarning(environments []string) AgentDeleteWarning {
+	return AgentDeleteWarning{
+		Code: utils.ErrCodeAgentIdentityOutsidePipeline,
+		Message: "The agent was deleted, but its identity may still exist in environments outside the current deployment pipeline: " +
+			strings.Join(environments, ", ") + ". Remove it in those environments through your identity provider console.",
+		Environments: environments,
+	}
+}
+
 // ProjectAgentIdentityCleanup keeps the component and binding records available until CP cleanup succeeds.
+// The second result lists environments outside the current pipeline that may still hold the AgentID.
 type ProjectAgentIdentityCleanup interface {
-	DeleteAgentWithIdentityCleanup(ctx context.Context, ouID, projectName, agentName string, deleteComponent func(context.Context) error) (bool, error)
+	DeleteAgentWithIdentityCleanup(ctx context.Context, ouID, projectName, agentName string, deleteComponent func(context.Context) error) (bool, []string, error)
 }
 
 func (s *agentThunderProvisioningService) DeleteAgentWithIdentityCleanup(
 	ctx context.Context, ouID, projectName, agentName string, deleteComponent func(context.Context) error,
-) (bool, error) {
+) (bool, []string, error) {
 	if s.identityManagementMode != thundersvc.IdentityManagementCPManaged {
-		return false, nil
+		return false, nil, nil
 	}
-	return true, s.deleteCPIdentityBindings(ctx, ouID, projectName, agentName, deleteComponent)
+	outside, err := s.deleteCPIdentityBindings(ctx, ouID, projectName, agentName, deleteComponent)
+	return true, outside, err
 }
 
 func (s *agentThunderProvisioningService) deleteCPIdentityBindings(
 	ctx context.Context, ouID, projectName, agentName string, deleteComponent func(context.Context) error,
-) error {
+) ([]string, error) {
 	if s.projectIdentityDeletionProvider == nil {
-		return errors.New("project AgentID deletion provider is not configured")
+		return nil, errors.New("project AgentID deletion provider is not configured")
 	}
 	// Serialize CP provisioning and binding insertion before taking the deletion snapshot.
 	releaseAgent, err := s.lockAgentIdentity(ctx, ouID, projectName, agentName)
 	if err != nil {
-		return fmt.Errorf("lock project identity for deletion: %w", err)
+		return nil, fmt.Errorf("lock project identity for deletion: %w", err)
 	}
 	defer releaseAgent()
 	snapshot, err := s.repo.FindByAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
-		return fmt.Errorf("read AgentID bindings for deletion: %w", err)
+		return nil, fmt.Errorf("read AgentID bindings for deletion: %w", err)
 	}
 	sort.Slice(snapshot, func(i, j int) bool { return snapshot[i].EnvironmentName < snapshot[j].EnvironmentName })
 	bindings := make([]models.AgentThunderClient, 0, len(snapshot))
 	for _, binding := range snapshot {
 		release, lockErr := s.lockBinding(ctx, ouID, projectName, agentName, binding.EnvironmentName)
 		if lockErr != nil {
-			return lockErr
+			return nil, lockErr
 		}
 		defer release()
 		current, getErr := s.repo.Get(ctx, ouID, projectName, agentName, binding.EnvironmentName)
@@ -71,36 +93,43 @@ func (s *agentThunderProvisioningService) deleteCPIdentityBindings(
 			continue
 		}
 		if getErr != nil {
-			return fmt.Errorf("read locked AgentID binding: %w", getErr)
+			return nil, fmt.Errorf("read locked AgentID binding: %w", getErr)
 		}
 		if current.ID != binding.ID {
-			return errors.New("agent identity changed during deletion; retry the request")
+			return nil, errors.New("agent identity changed during deletion; retry the request")
 		}
 		bindings = append(bindings, *current)
 	}
-	targets, err := s.cpIdentityDeletionTargets(ctx, bindings)
+	targets, outside, err := s.cpIdentityDeletionTargets(ctx, bindings)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var failures []error
+	blocked := make(map[string]bool)
 	for _, target := range targets {
+		if target.SourceEnvironment != "" && blocked[target.SourceEnvironment] {
+			blocked[target.Environment] = true
+			failures = append(failures, fmt.Errorf("cannot remove AgentID from %q until removal from %q succeeds", target.Environment, target.SourceEnvironment))
+			continue
+		}
 		if err := s.projectIdentityDeletionProvider.DeleteAgentIdentity(ctx, target); err != nil {
 			s.logger.Error("Failed to remove AgentID from pipeline environment; retaining agent identity bindings for retry",
 				"ouID", ouID, "projectName", projectName, "agentName", agentName,
 				"environment", target.Environment, "agentID", target.AgentID, "error", err)
 			failure := fmt.Errorf("remove AgentID from environment %q: %w", target.Environment, err)
 			if target.Source {
-				return failure
+				return nil, failure
 			}
+			blocked[target.Environment] = true
 			failures = append(failures, failure)
 		}
 	}
 	if err := errors.Join(failures...); err != nil {
-		return err
+		return nil, err
 	}
 	if deleteComponent != nil {
 		if err := deleteComponent(ctx); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	// FAILED prevents credential injection and automatic provisioning while preserving cleanup markers.
@@ -129,23 +158,23 @@ func (s *agentThunderProvisioningService) deleteCPIdentityBindings(
 		}
 	}
 	if err := errors.Join(failures...); err != nil {
-		return err
+		return nil, err
 	}
 	ids := make([]uuid.UUID, 0, len(bindings))
 	for _, binding := range bindings {
 		ids = append(ids, binding.ID)
 	}
 	if err := s.repo.DeleteByIDs(ctx, ids); err != nil {
-		return fmt.Errorf("delete cleaned AgentID bindings: %w", err)
+		return nil, fmt.Errorf("delete cleaned AgentID bindings: %w", err)
 	}
-	return nil
+	return outside, nil
 }
 
 func (s *agentThunderProvisioningService) cpIdentityDeletionTargets(
 	ctx context.Context, bindings []models.AgentThunderClient,
-) ([]ProjectAgentIdentityDeleteRequest, error) {
+) ([]ProjectAgentIdentityDeleteRequest, []string, error) {
 	if len(bindings) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var source *models.AgentThunderClient
 	hasIdentity := false
@@ -157,55 +186,82 @@ func (s *agentThunderProvisioningService) cpIdentityDeletionTargets(
 		hasIdentity = true
 		if binding.PromotionSource == "" {
 			if source != nil {
-				return nil, errors.New("multiple source AgentIDs require cleanup before agent deletion")
+				return nil, nil, errors.New("multiple source AgentIDs require cleanup before agent deletion")
 			}
 			source = binding
 		}
 	}
 	if !hasIdentity {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if source == nil {
-		return nil, errors.New("source AgentID binding is missing; cannot safely delete project identities")
+		return nil, nil, errors.New("source AgentID binding is missing; cannot safely delete project identities")
 	}
 	projectID, err := s.projectIdentityID(ctx, source.OUID, source.ProjectName)
 	if err != nil {
-		return nil, fmt.Errorf("resolve identity project for deletion: %w", err)
+		return nil, nil, fmt.Errorf("resolve identity project for deletion: %w", err)
 	}
-	targets := make([]ProjectAgentIdentityDeleteRequest, 0, len(bindings))
-	known := make(map[string]bool, len(bindings))
-	appendTarget := func(binding models.AgentThunderClient) {
+	steps, err := s.projectPromotionSteps(ctx, source.OUID, source.ProjectName)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(steps) == 0 {
+		return nil, nil, errors.New("project identity deletion pipeline is empty")
+	}
+	pipeline := make(map[string]promotionStep, len(steps))
+	for _, step := range steps {
+		pipeline[step.Environment] = step
+	}
+	byEnvironment := make(map[string]models.AgentThunderClient, len(bindings))
+	requestFor := func(binding models.AgentThunderClient) ProjectAgentIdentityDeleteRequest {
 		id := binding.ThunderAgentID
 		if id == "" {
 			id = source.ThunderAgentID
 		}
-		known[binding.EnvironmentName] = true
-		targets = append(targets, ProjectAgentIdentityDeleteRequest{
+		return ProjectAgentIdentityDeleteRequest{
 			OrganizationID: source.OUID, ProjectID: projectID, ProjectName: source.ProjectName,
 			AgentName: source.AgentName, Environment: binding.EnvironmentName, AgentID: id,
-			ClientID: binding.ThunderClientID, Source: binding.EnvironmentName == source.EnvironmentName,
-		})
+			ClientID: binding.ThunderClientID,
+			// The caller sets the pipeline position of each target.
+			Source: false, SourceEnvironment: "",
+		}
 	}
-	appendTarget(*source)
+	// Environments outside the current pipeline are never blocked on: the pipeline is cleaned up and the
+	// agent deleted first, then the user is told where an identity may remain. An environment is left out of
+	// the warning only when the provider confirms the AgentID is gone; an unanswered check counts as present.
+	var outside []string
+	checker, canCheck := s.projectIdentityDeletionProvider.(ProjectAgentIdentityPresenceProvider)
 	for _, binding := range bindings {
-		if !known[binding.EnvironmentName] {
-			appendTarget(binding)
+		byEnvironment[binding.EnvironmentName] = binding
+		if _, ok := pipeline[binding.EnvironmentName]; ok {
+			continue
 		}
-	}
-	if s.pipelineReader == nil {
-		return nil, errProjectPipelineReaderUnavailable
-	}
-	_, environments, err := s.pipelineReader.ProjectPipeline(ctx, source.OUID, source.ProjectName)
-	if err != nil {
-		return nil, fmt.Errorf("resolve all project identity deletion environments: %w", err)
-	}
-	for _, environment := range environments {
-		if environment.Name == "" {
-			return nil, errors.New("project pipeline contains an unnamed environment")
+		if canCheck {
+			exists, err := checker.AgentIdentityExists(ctx, requestFor(binding))
+			if err == nil && !exists {
+				continue
+			}
+			if err != nil {
+				s.logger.Warn("Could not confirm AgentID absence outside the pipeline; reporting it for manual cleanup",
+					"environment", binding.EnvironmentName, "error", err)
+			}
 		}
-		if !known[environment.Name] {
-			appendTarget(models.AgentThunderClient{EnvironmentName: environment.Name})
-		}
+		outside = append(outside, binding.EnvironmentName)
 	}
-	return targets, nil
+	sort.Strings(outside)
+	if steps[0].Environment != source.EnvironmentName {
+		return nil, nil, fmt.Errorf("%w: the identity source changed from %q to %q; reconcile the identity in the identity provider before deleting this agent", utils.ErrConflict, source.EnvironmentName, steps[0].Environment)
+	}
+	targets := make([]ProjectAgentIdentityDeleteRequest, 0, len(steps))
+	for _, step := range steps {
+		binding, ok := byEnvironment[step.Environment]
+		if !ok {
+			binding.EnvironmentName = step.Environment
+		}
+		request := requestFor(binding)
+		request.Source = step.Source == ""
+		request.SourceEnvironment = step.Source
+		targets = append(targets, request)
+	}
+	return targets, outside, nil
 }

@@ -54,6 +54,8 @@ import {
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
 
+import { AgentDeletionWarning } from "./AgentDeletionWarning";
+
 const projectRoutes = absoluteRouteMap.children.org.children.projects;
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
@@ -109,7 +111,7 @@ export const AgentList: React.FC<AgentListProps> = ({
     orgName: orgId,
     projName: projectId,
   });
-  const { mutate: deleteAgent } = useDeleteAgent();
+  const { mutate: deleteAgent, data: deleteResult, reset: resetDeleteResult } = useDeleteAgent();
   const canCreate = useFeatureAccess("agent_create");
   const canDelete = useFeatureAccess("agent_delete");
   const { data: kindsData } = useListAgentKinds({ orgName: orgId });
@@ -143,6 +145,12 @@ export const AgentList: React.FC<AgentListProps> = ({
     setPage(0);
   }, [search]);
 
+  // The listing stays mounted when the route changes project, so a deletion warning from one
+  // project must not carry over to another.
+  useEffect(() => {
+    resetDeleteResult();
+  }, [orgId, projectId, resetDeleteResult]);
+
   // Deleting rows can leave the current page past the end; step back to the last page.
   useEffect(() => {
     const lastPage = Math.max(0, Math.ceil(filteredAgents.length / rowsPerPage) - 1);
@@ -159,8 +167,10 @@ export const AgentList: React.FC<AgentListProps> = ({
       analytics: { entity: "agent", action: "delete" },
       title: "Delete Agent?",
       description: `Are you sure you want to delete the agent "${displayName}"? This action cannot be undone.`,
-      onConfirm: () =>
-        deleteAgent({ orgName: orgId, projName: projectId, agentName }),
+      onConfirm: () => {
+        resetDeleteResult();
+        deleteAgent({ orgName: orgId, projName: projectId, agentName });
+      },
       confirmButtonColor: "error",
       confirmButtonIcon: <DeleteOutlineOutlined size={16} />,
       confirmButtonText: "Delete",
@@ -170,6 +180,7 @@ export const AgentList: React.FC<AgentListProps> = ({
 
   return (
     <Stack direction="column" spacing={2}>
+      <AgentDeletionWarning warnings={deleteResult?.warnings} onClose={resetDeleteResult} />
       {error ? (
         <Alert severity="error" variant="outlined">
           {getErrorMessage(error)}

@@ -197,6 +197,21 @@ export type ListAgentsPathParams = OrgProjPathParams;
 export type CreateAgentPathParams = OrgProjPathParams;
 export type GetAgentPathParams = AgentPathParams;
 export type DeleteAgentPathParams = AgentPathParams;
+
+/** Follow-up the user must do after an agent was deleted. */
+export interface AgentDeleteWarning {
+  /** Machine-readable code, for example AGENT_IDENTITY_OUTSIDE_PIPELINE. */
+  code: string;
+  /** What the user must do next. */
+  message: string;
+  /** Environments the warning concerns. */
+  environments: string[];
+}
+
+/** Returned with status 200 when a deleted agent needs follow-up; a plain delete is 204. */
+export interface AgentDeleteResponse {
+  warnings: AgentDeleteWarning[];
+}
 export type UpdateAgentPathParams = AgentPathParams;
 export type UpdateAgentBasicInfoPathParams = AgentPathParams;
 export type UpdateAgentBuildParametersPathParams = AgentPathParams;

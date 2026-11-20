@@ -264,6 +264,58 @@ func TestDelete_Success204(t *testing.T) {
 	}
 }
 
+func TestDelete_Success200WithWarnings(t *testing.T) {
+	io, out, _ := newTestIO(false)
+	client, _, closeFn := newTestClient(t, http.StatusOK, map[string]any{
+		"warnings": []map[string]any{{
+			"code":         "AGENT_IDENTITY_OUTSIDE_PIPELINE",
+			"message":      "Remove the identity in y through your identity provider console.",
+			"environments": []string{"y"},
+		}},
+	})
+	defer closeFn()
+
+	err := runDelete(context.Background(), &DeleteOptions{
+		IO: io, Prompter: &fakePrompter{}, Client: client, Scope: baseScope(),
+		Org: "acme", Proj: "triage", AgentName: "order-triage", Yes: true,
+	})
+	if err != nil {
+		t.Fatalf("a delete with warnings is still a success: %v", err)
+	}
+	data, ok := decodeEnvelope(t, out.String())["data"].(map[string]any)
+	if !ok || data["deleted"] != true {
+		t.Fatalf("data = %v, want deleted=true", data)
+	}
+	warnings, _ := data["warnings"].([]any)
+	if len(warnings) != 1 || !strings.Contains(warnings[0].(string), "identity provider console") {
+		t.Errorf("warnings = %v, want the identity cleanup warning", data["warnings"])
+	}
+}
+
+func TestDelete_TextShowsWarnings(t *testing.T) {
+	io, _, _, errOut := iostreams.Test()
+	io.JSON = false
+	io.SetTerminal(true, true, true)
+	client, _, closeFn := newTestClient(t, http.StatusOK, map[string]any{
+		"warnings": []map[string]any{{
+			"code": "AGENT_IDENTITY_OUTSIDE_PIPELINE", "message": "Remove the identity in y.", "environments": []string{"y"},
+		}},
+	})
+	defer closeFn()
+
+	err := runDelete(context.Background(), &DeleteOptions{
+		IO: io, Prompter: &fakePrompter{}, Client: client, Scope: baseScope(),
+		Org: "acme", Proj: "triage", AgentName: "order-triage", Yes: true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := errOut.String()
+	if !strings.Contains(got, "Deleted agent order-triage") || !strings.Contains(got, "Remove the identity in y.") {
+		t.Errorf("stderr = %q, want the success line and the warning", got)
+	}
+}
+
 func TestDelete_Server404(t *testing.T) {
 	io, out, _ := newTestIO(true)
 	reason := "not found"

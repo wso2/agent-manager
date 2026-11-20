@@ -741,10 +741,36 @@ paths:
           schema:
             type: string
       responses:
+        "200":
+          description: >-
+            Agent deleted, with follow-up for the user. In CP-managed identity
+            mode, an AGENT_IDENTITY_OUTSIDE_PIPELINE warning names environments
+            outside the current project deployment pipeline where the agent's
+            AgentID may remain. It is removed there through the identity
+            provider, since the agent no longer exists to retry from.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentDeleteResponse"
         "204":
           description: Agent deleted successfully
         "404":
           description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            Agent deletion is blocked, for example because the project's
+            identity source changed and must be reconciled in the identity
+            provider first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Identity cleanup or agent deletion did not complete; retry deletion.
           content:
             application/json:
               schema:
@@ -17594,6 +17620,35 @@ components:
       required:
         - message
         - code
+
+    AgentDeleteResponse:
+      type: object
+      properties:
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentDeleteWarning"
+      required:
+        - warnings
+
+    AgentDeleteWarning:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Machine-readable warning code, for example AGENT_IDENTITY_OUTSIDE_PIPELINE
+        message:
+          type: string
+          description: What the user must do next
+        environments:
+          type: array
+          items:
+            type: string
+          description: Environments the warning concerns
+      required:
+        - code
+        - message
+        - environments
 
     AgentTypeSubtype:
       type: object

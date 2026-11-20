@@ -159,9 +159,11 @@ type ProjectAgentIdentityDeleteRequest struct {
 	ProjectID      string
 	ProjectName    string
 	Environment    string
-	AgentName      string
-	AgentID        string
-	ClientID       string
+	// SourceEnvironment is the current pipeline predecessor for a promoted deletion.
+	SourceEnvironment string
+	AgentName         string
+	AgentID           string
+	ClientID          string
 	// Source reports that Environment is the project's pipeline source, where the control plane holds the AgentID.
 	Source bool
 }
@@ -175,6 +177,11 @@ type ProjectAgentIdentityDeletionProvider interface {
 	// promoted environment. MUST be idempotent: an AgentID that is already gone is success. It
 	// returns only after the environment's identity service has accepted the removal.
 	DeleteAgentIdentity(ctx context.Context, request ProjectAgentIdentityDeleteRequest) error
+}
+
+// ProjectAgentIdentityPresenceProvider verifies identities outside the current pipeline before deletion.
+type ProjectAgentIdentityPresenceProvider interface {
+	AgentIdentityExists(ctx context.Context, request ProjectAgentIdentityDeleteRequest) (bool, error)
 }
 
 // errProjectAgentIdentitySecretUnavailable is returned by secret rotation and

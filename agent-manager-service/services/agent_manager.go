@@ -58,7 +58,8 @@ type AgentManagerService interface {
 	UpdateAgentBasicInfo(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error)
 	UpdateAgentBuildParameters(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBuildParametersRequest) (*models.AgentResponse, error)
 	BuildAgent(ctx context.Context, ouID string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
-	DeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) error
+	// DeleteAgent returns warnings for follow-up the user must do after a successful delete.
+	DeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) ([]AgentDeleteWarning, error)
 	DeployAgent(ctx context.Context, ouID string, projectName string, agentName string, req *spec.DeployAgentRequest) (string, error)
 	GetAgent(ctx context.Context, ouID string, projectName string, agentName string) (*models.AgentResponse, error)
 	ListAgentBuilds(ctx context.Context, ouID string, projectName string, agentName string, limit int32, offset int32) ([]*models.BuildResponse, int32, error)
@@ -3282,7 +3283,15 @@ func (s *agentManagerService) generateUniqueAgentName(ctx context.Context, ouID 
 // rows, API artifacts and monitors. The component delete is the commit point: a failure before
 // it leaves the agent intact, and cleanup after it is best-effort, so deleting the agent again
 // retries what was left. An agent that is the source of an agent kind cannot be deleted.
-func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) error {
+func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) ([]AgentDeleteWarning, error) {
+	var warnings []AgentDeleteWarning
+	if err := s.deleteAgent(ctx, ouID, projectName, agentName, &warnings); err != nil {
+		return nil, err
+	}
+	return warnings, nil
+}
+
+func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, projectName string, agentName string, warnings *[]AgentDeleteWarning) error {
 	s.logger.Info("Deleting agent", "agentName", agentName, "ouID", ouID, "projectName", projectName)
 	// Validate organization exists
 	_, err := s.ocClient.GetOrganization(ctx, ouID)
@@ -3370,8 +3379,9 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 	}
 
 	identityCleanupHandled := false
+	var outsidePipeline []string
 	if cleanup, ok := s.agentThunderProvisioning.(ProjectAgentIdentityCleanup); ok {
-		identityCleanupHandled, err = cleanup.DeleteAgentWithIdentityCleanup(ctx, ouID, projectName, agentName, func(deleteCtx context.Context) error {
+		identityCleanupHandled, outsidePipeline, err = cleanup.DeleteAgentWithIdentityCleanup(ctx, ouID, projectName, agentName, func(deleteCtx context.Context) error {
 			deleteErr := s.ocClient.DeleteComponent(deleteCtx, ouID, projectName, agentName)
 			if errors.Is(translateAgentError(deleteErr), utils.ErrAgentNotFound) {
 				return nil
@@ -3383,7 +3393,15 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		err = s.ocClient.DeleteComponent(ctx, ouID, projectName, agentName)
 	}
 	deleteAttempt.Complete(ctx, err)
+	if err == nil && len(outsidePipeline) > 0 {
+		s.logger.Warn("Agent deleted; AgentID may remain outside the project pipeline", "ouID", ouID,
+			"projectName", projectName, "agentName", agentName, "environments", outsidePipeline)
+		*warnings = append(*warnings, outsidePipelineWarning(outsidePipeline))
+	}
 	if identityCleanupHandled && err != nil {
+		if errors.Is(err, utils.ErrConflict) {
+			return err
+		}
 		s.logger.Error("CP-managed agent deletion incomplete; retry deletion", "ouID", ouID,
 			"projectName", projectName, "agentName", agentName, "error", err)
 		return fmt.Errorf("%w: AgentID cleanup or agent deletion did not complete; retry deletion", utils.ErrServiceUnavailable)

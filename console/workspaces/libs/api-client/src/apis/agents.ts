@@ -19,6 +19,7 @@
 import { cloneDeep } from "lodash";
 import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
 import type {
+  AgentDeleteResponse,
   AgentListResponse,
   AgentResponse,
   AgentSummaryListResponse,
@@ -147,7 +148,7 @@ export async function getAgent(
 export async function deleteAgent(
   params: DeleteAgentPathParams,
   getToken?: () => Promise<string>,
-): Promise<void> {
+): Promise<AgentDeleteResponse | undefined> {
   const { orgName = "default", projName = "default", agentName } = params;
 
   if (!agentName) {
@@ -161,6 +162,8 @@ export async function deleteAgent(
     `/agents/${encodeURIComponent(agentName)}`;
   const res = await httpDELETE(url, { token });
   if (!res.ok) throw await res.json();
+  // 200 carries warnings for the user; 204 has no body.
+  return res.status === 200 ? res.json() : undefined;
 }
 
 export async function updateAgent(

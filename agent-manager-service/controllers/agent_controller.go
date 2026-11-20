@@ -575,7 +575,7 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	err := c.agentService.DeleteAgent(ctx, ouID, projName, agentName)
+	warnings, err := c.agentService.DeleteAgent(ctx, ouID, projName, agentName)
 	if err != nil {
 		log.Error("DeleteAgent: failed to delete agent", "error", err)
 		handleCommonErrors(w, err, "Failed to delete agent")
@@ -583,6 +583,16 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if c.eventsCleaner != nil {
 		c.eventsCleaner.RemoveForAgent(ctx, ouID, projName, agentName)
+	}
+	if len(warnings) > 0 {
+		response := spec.AgentDeleteResponse{Warnings: make([]spec.AgentDeleteWarning, 0, len(warnings))}
+		for _, warning := range warnings {
+			response.Warnings = append(response.Warnings, spec.AgentDeleteWarning{
+				Code: warning.Code, Message: warning.Message, Environments: warning.Environments,
+			})
+		}
+		utils.WriteSuccessResponse(w, http.StatusOK, response)
+		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
 }

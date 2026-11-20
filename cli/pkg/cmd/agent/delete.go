@@ -49,6 +49,9 @@ type DeleteOptions struct {
 type DeleteResult struct {
 	Name    string `json:"name"`
 	Deleted bool   `json:"deleted"`
+	// Warnings lists follow-up the user must do after the delete, such as removing an
+	// identity left in an environment outside the project pipeline.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 func NewDeleteCmd(f *cmdutil.Factory) *cobra.Command {
@@ -111,15 +114,27 @@ func runDelete(ctx context.Context, o *DeleteOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
-	if resp.HTTPResponse == nil || resp.HTTPResponse.StatusCode != http.StatusNoContent {
+	// 200 means deleted with warnings; 204 means deleted with nothing left to do.
+	if resp.HTTPResponse == nil ||
+		(resp.HTTPResponse.StatusCode != http.StatusNoContent && resp.HTTPResponse.StatusCode != http.StatusOK) {
 		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
 	}
 
+	var warnings []string
+	if resp.JSON200 != nil {
+		for _, warning := range resp.JSON200.Warnings {
+			warnings = append(warnings, warning.Message)
+		}
+	}
+
 	if o.IO.JSON {
-		return render.JSONSuccess(o.IO, o.Scope, DeleteResult{Name: o.AgentName, Deleted: true})
+		return render.JSONSuccess(o.IO, o.Scope, DeleteResult{Name: o.AgentName, Deleted: true, Warnings: warnings})
 	}
 
 	cs := o.IO.StderrColorScheme()
 	fmt.Fprintf(o.IO.ErrOut, "%s Deleted agent %s\n", cs.SuccessIcon(), o.AgentName)
+	for _, warning := range warnings {
+		fmt.Fprintf(o.IO.ErrOut, "%s %s\n", cs.Yellow("!"), warning)
+	}
 	return nil
 }
