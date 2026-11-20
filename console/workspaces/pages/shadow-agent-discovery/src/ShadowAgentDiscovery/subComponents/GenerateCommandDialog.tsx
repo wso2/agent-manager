@@ -38,8 +38,8 @@ import { buildScanCommand } from "../scanCommand";
 import { expiryTime, ScanOptions } from "./ScanCommandPanel";
 
 /**
- * Generate command for a source code repository connection: choose AI review
- * (and the LLM judge), then copy the docker command that scans the
+ * Generate command for a source code repository connection: choose
+ * AI-enhanced detection (and the LLM judge), then copy the docker command that scans the
  * repositories on the customer's machine. The command is composed from the
  * connection's saved settings and the issued scan; it holds a scan token, so
  * it lives only in this dialog's state and is shown once.

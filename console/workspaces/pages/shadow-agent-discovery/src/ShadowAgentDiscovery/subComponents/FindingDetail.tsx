@@ -99,8 +99,8 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
 /** Who confirmed a code agent before the scan published it. */
 const REVIEWED_BY_LABELS: Record<string, string> = {
   rules: "Rules",
-  ai_review: "AI review",
-  ai_review_judge: "AI review and LLM judge",
+  ai_review: "AI",
+  ai_review_judge: "AI and LLM judge",
 };
 
 /** Attributes that are lists, shown as chips. */
@@ -262,7 +262,7 @@ function SourceCard({ f }: { f: ShadowFindingDetail }) {
           title="Source"
           hint={
             isCode
-              ? "The GitHub or Azure DevOps platforms whose scans found this agent."
+              ? "The source code platforms whose scans found this agent."
               : "The platform connections that list this agent."
           }
         />
@@ -591,7 +591,7 @@ export function FindingDetail({
         )}
         {aiReviewed && (
           <Alert severity="info">
-            AI review confirmed this agent. AI review can make mistakes, so check the evidence.
+            AI can make mistakes, so check the evidence.
           </Alert>
         )}
         <Grid container spacing={3}>

@@ -50,6 +50,22 @@ export const AGENT_PLATFORMS: ShadowProvider[] = [
   "foundry",
 ];
 
+/**
+ * Platforms shown and stored but not offered for new platforms yet: existing
+ * Azure DevOps platforms and their agents still display.
+ */
+export const NOT_YET_ADDABLE: string[] = ["azure_devops"];
+
+/** What a scan of each platform discovers, one line for the Add platform cards. */
+export const DISCOVERS: Record<string, string> = {
+  openai: "Assistants and agents in your OpenAI projects",
+  anthropic: "Managed agents in your Anthropic workspaces",
+  bedrock: "Bedrock agents and AgentCore runtimes",
+  google: "Agent Runtime engines and Agent Registry agents",
+  foundry: "Agents in your Foundry projects",
+  github: "Agents in your repositories' code",
+};
+
 export function providerLabel(p: string): string {
   return PROVIDER_LABELS[p as ShadowProvider] ?? p;
 }
@@ -120,16 +136,22 @@ export function OnboardingChip({ onboarded }: { onboarded: boolean }) {
   );
 }
 
-/** Marks a code agent that AI review confirmed; nothing for agents the rules proved. */
+/**
+ * Marks a code agent that AI-enhanced detection confirmed; nothing for agents
+ * the rules proved.
+ */
 export function AiReviewChip({ reviewedBy }: { reviewedBy?: ShadowReviewedBy }) {
   if (reviewedBy !== "ai_review" && reviewedBy !== "ai_review_judge") return null;
-  // describeChild keeps "AI review" as the chip's accessible name.
+  // describeChild keeps "AI" as the chip's accessible name.
   return (
     <Tooltip
-      title="Confirmed by AI review, not by the scan's rules. Open the agent to check its evidence."
+      title={
+        "Confirmed by AI-enhanced detection, not by the scan's rules. " +
+        "Open the agent to check its evidence."
+      }
       describeChild
     >
-      <Chip size="small" variant="outlined" label="AI review" />
+      <Chip size="small" variant="outlined" label="AI" />
     </Tooltip>
   );
 }

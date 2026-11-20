@@ -25,6 +25,7 @@ import type {
   ShadowFindingDetail,
   ShadowFindingListQuery,
   ShadowFindingSummary,
+  ShadowProvider,
   ShadowProviderSpec,
   ShadowRunnerScanResponse,
   ShadowScanResponse,
@@ -447,7 +448,7 @@ describe("FindingsTab", () => {
     expect(screen.queryByText(/agent_three/)).not.toBeInTheDocument();
   });
 
-  it("marks code agents confirmed by AI review, but not the ones the rules proved", async () => {
+  it("marks code agents confirmed by AI-enhanced detection, not the ones the rules proved", async () => {
     const code = (
       id: string,
       displayName: string,
@@ -460,13 +461,14 @@ describe("FindingsTab", () => {
     ];
     router(<FindingsTab orgName="acme" />);
     const row = (name: string) => screen.getByText(name).closest("tr") as HTMLElement;
-    expect(within(row("triage")).getByText("AI review")).toBeInTheDocument();
-    expect(within(row("planner")).getByText("AI review")).toBeInTheDocument();
-    expect(within(row("router")).queryByText("AI review")).not.toBeInTheDocument();
+    expect(within(row("triage")).getByText("AI")).toBeInTheDocument();
+    expect(within(row("planner")).getByText("AI")).toBeInTheDocument();
+    expect(within(row("router")).queryByText("AI")).not.toBeInTheDocument();
     expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
-    fireEvent.mouseOver(within(row("triage")).getByText("AI review"));
+    fireEvent.mouseOver(within(row("triage")).getByText("AI"));
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "Confirmed by AI review, not by the scan's rules. Open the agent to check its evidence.",
+      "Confirmed by AI-enhanced detection, not by the scan's rules. " +
+        "Open the agent to check its evidence.",
     );
   });
 
@@ -643,7 +645,7 @@ describe("FindingDetail", () => {
       ...over,
     });
 
-  it("explains code evidence and warns that AI review confirmed a code agent", () => {
+  it("explains code evidence and warns that AI confirmed a code agent", () => {
     hoisted.detail = codeAgent("ai_review_judge");
     renderDetail();
     expect(
@@ -654,12 +656,8 @@ describe("FindingDetail", () => {
     ).toBeNull();
     expect(screen.getByText("requirements.txt")).toBeInTheDocument();
     expect(screen.getByText("Confirmed by")).toBeInTheDocument();
-    expect(screen.getByText("AI review and LLM judge")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "AI review confirmed this agent. AI review can make mistakes, so check the evidence.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("AI and LLM judge")).toBeInTheDocument();
+    expect(screen.getByText("AI can make mistakes, so check the evidence.")).toBeInTheDocument();
     expect(screen.getByLabelText("Location in code")).toBeInTheDocument();
     expect(screen.getByText("wso2/support-bot:agent.py")).toBeInTheDocument();
     expect(screen.getAllByText("Repository").length).toBeGreaterThan(0);
@@ -668,11 +666,11 @@ describe("FindingDetail", () => {
     expect(screen.getByText(/What the scan command reported/)).toBeInTheDocument();
   });
 
-  it("warns about AI mistakes for a code agent confirmed by AI review alone", () => {
+  it("warns about AI mistakes for a code agent confirmed by AI alone", () => {
     hoisted.detail = codeAgent("ai_review");
     renderDetail();
-    expect(screen.getByText("AI review")).toBeInTheDocument();
-    expect(screen.getByText(/AI review can make mistakes/)).toBeInTheDocument();
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.getByText(/AI can make mistakes/)).toBeInTheDocument();
   });
 
   it("words a code agent that is no longer found, without platform-only fields", () => {
@@ -1423,20 +1421,42 @@ describe("GenerateCommandDialog", () => {
   });
   const spec = sourceHostSpec();
 
-  it("offers the LLM judge only with AI review, with no AI warning in the panel", () => {
+  it("shows the LLM judge only with AI-enhanced detection, with no AI warning", () => {
     render(
       <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
     );
-    const ai = screen.getByRole("switch", { name: /^AI review/ });
-    const judge = screen.getByRole("switch", { name: /^LLM judge/ });
-    expect(judge).toBeDisabled();
+    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
+    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
     fireEvent.click(ai);
+    const judge = screen.getByRole("switch", { name: /^LLM judge/ });
     expect(judge).toBeEnabled();
+    expect(
+      screen.getByText("A second model must agree before an agent is published."),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
     fireEvent.click(judge);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
       { connectionId: "c2", aiReview: true, llmJudge: true },
+      expect.anything(),
+    );
+  });
+
+  it("turns the LLM judge off when AI-enhanced detection is turned off", () => {
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
+    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
+    fireEvent.click(ai);
+    fireEvent.click(screen.getByRole("switch", { name: /^LLM judge/ }));
+    fireEvent.click(ai);
+    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
+    fireEvent.click(ai);
+    expect(screen.getByRole("switch", { name: /^LLM judge/ })).not.toBeChecked();
+    fireEvent.click(ai);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c2", aiReview: false, llmJudge: false },
       expect.anything(),
     );
   });
@@ -1552,6 +1572,86 @@ describe("ConnectionEditor (source code repositories)", () => {
   const commandText = () =>
     (screen.getByText(/--scan-id/).textContent ?? "").replace(/ \\\n\s*/g, " ");
 
+  const openPicker = (providers: ShadowProviderSpec[]) => {
+    hoisted.providers = providers;
+    router(
+      <Routes>
+        <Route path="/new" element={<ConnectionEditor orgName="acme" listPath="/list" />} />
+      </Routes>,
+      "/new",
+    );
+  };
+  const aiPlatform = (provider: ShadowProvider, displayName: string): ShadowProviderSpec =>
+    sourceHostSpec({ provider, displayName, sourceHost: false, permissions: [], docs: [] });
+
+  it("groups the platforms to add into AI platforms and Source code, with logos and tags", () => {
+    openPicker([
+      githubSpec(),
+      aiPlatform("anthropic", "Anthropic"),
+      aiPlatform("openai", "OpenAI"),
+    ]);
+    const ai = screen.getByRole("region", { name: "AI platforms" });
+    const source = screen.getByRole("region", { name: "Source code" });
+    // In display order, whatever order the server lists them in.
+    expect(within(ai).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Connect OpenAI",
+      "Connect Anthropic",
+    ]);
+    expect(within(ai).getAllByText("Read-only key")).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Connect OpenAI" }),
+    ).toHaveAccessibleDescription("Assistants and agents in your OpenAI projects");
+    expect(within(source).getByRole("button", { name: "Connect GitHub" })).toBeInTheDocument();
+    expect(within(source).getByText("Runs on your machine")).toBeInTheDocument();
+    expect(within(source).getByText("Agents in your repositories' code")).toBeInTheDocument();
+  });
+
+  it("does not offer Azure DevOps for a new platform", () => {
+    openPicker([
+      githubSpec(),
+      sourceHostSpec({ provider: "azure_devops", displayName: "Azure DevOps" }),
+    ]);
+    expect(screen.getByRole("button", { name: "Connect GitHub" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Connect Azure DevOps" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Azure DevOps")).not.toBeInTheDocument();
+  });
+
+  it("chooses a platform card from the keyboard", () => {
+    openPicker([githubSpec(), aiPlatform("openai", "OpenAI")]);
+    const card = screen.getByRole("button", { name: "Connect GitHub" });
+    expect(card).toHaveAttribute("tabindex", "0");
+    act(() => card.focus());
+    expect(card).toHaveFocus();
+    fireEvent.keyDown(card, { key: "Enter" });
+    expect(screen.getByText("Scan command")).toBeInTheDocument();
+  });
+
+  it("chooses a platform card with Space", () => {
+    openPicker([aiPlatform("openai", "OpenAI")]);
+    const card = screen.getByRole("button", { name: "Connect OpenAI" });
+    act(() => card.focus());
+    fireEvent.keyDown(card, { key: " " });
+    fireEvent.keyUp(card, { key: " " });
+    expect(screen.queryByRole("button", { name: "Connect OpenAI" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /Name/ })).toHaveValue("OpenAI connection");
+  });
+
+  it("hides the LLM judge until AI-enhanced detection is on, and resets it", () => {
+    openNew();
+    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
+    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
+    fireEvent.click(ai);
+    fireEvent.click(screen.getByRole("switch", { name: /^LLM judge/ }));
+    expect(commandText()).toContain("--ai-review");
+    expect(commandText()).toContain("--judge");
+    fireEvent.click(ai);
+    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
+    expect(commandText()).not.toContain("--judge");
+    fireEvent.click(ai);
+    expect(screen.getByRole("switch", { name: /^LLM judge/ })).not.toBeChecked();
+    expect(commandText()).not.toContain("--judge");
+  });
+
   it("shows the scan command next to the form, following the organization field", () => {
     openNew();
     expect(screen.getByText("Scan command")).toBeInTheDocument();
@@ -1574,7 +1674,7 @@ describe("ConnectionEditor (source code repositories)", () => {
       target: { value: "acme" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
-    fireEvent.click(screen.getByRole("switch", { name: /^AI review/ }));
+    fireEvent.click(screen.getByRole("switch", { name: /^AI-enhanced detection/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
     expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
     expect(hoisted.createConnection.mock.lastCall?.[0]).toMatchObject({

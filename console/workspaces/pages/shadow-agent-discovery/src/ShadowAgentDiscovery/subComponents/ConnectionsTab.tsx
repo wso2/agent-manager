@@ -68,6 +68,7 @@ import {
   unlockLabels,
 } from "../shadowUi";
 import { scopedKeyCount } from "../capabilities";
+import { ProviderLogo } from "../providerLogos";
 import { GenerateCommandDialog } from "./GenerateCommandDialog";
 
 /** The number of keys an OpenAI or Anthropic platform lists agents with. */
@@ -200,7 +201,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
           illustration: <PlugZap size={64} />,
           title: "No platforms added",
           description:
-            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, or a GitHub or Azure DevOps organization to scan its source code.",
+            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, or a GitHub organization to scan its source code.",
           action: addButton,
         }}
         searchEmptyState={{
@@ -255,6 +256,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                           flexWrap="wrap"
                           useFlexGap
                         >
+                          <ProviderLogo provider={c.provider} size={18} />
                           <Typography variant="body2">{providerLabel(c.provider)}</Typography>
                           <ScopedKeysChip provider={c.provider} secretHints={c.secretHints} />
                         </Stack>
@@ -359,7 +361,10 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                         </Typography>
                       </ListingTable.Cell>
                       <ListingTable.Cell>
-                        <Typography variant="body2">{providerLabel(c.provider)}</Typography>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <ProviderLogo provider={c.provider} size={18} />
+                          <Typography variant="body2">{providerLabel(c.provider)}</Typography>
+                        </Stack>
                       </ListingTable.Cell>
                       <ListingTable.Cell>
                         <Typography variant="body2">
