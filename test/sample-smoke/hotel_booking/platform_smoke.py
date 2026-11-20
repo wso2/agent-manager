@@ -116,7 +116,9 @@ def install_stub(namespace, hotel_image, hotel_token):
         {"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "model", "namespace": namespace}, "spec": {
             "replicas": 1, "selector": {"matchLabels": labels}, "template": {"metadata": {"labels": labels}, "spec": {
                 "automountServiceAccountToken": False,
-                "containers": [{"name": "model", "image": "python:3.11-slim", "command": ["python", "/stub/model_stub.py", "--serve", "8099", "--host", "0.0.0.0"],
+                # The imported hotel image already provides Python for this stdlib-only fixture.
+                "containers": [{"name": "model", "image": hotel_image, "imagePullPolicy": "Never",
+                    "command": ["python", "/stub/model_stub.py", "--serve", "8099", "--host", "0.0.0.0"],
                     "ports": [{"containerPort": 8099}], "volumeMounts": [{"name": "script", "mountPath": "/stub", "readOnly": True}],
                     "readinessProbe": {"httpGet": {"path": "/health", "port": 8099}},
                     "resources": {"requests": {"cpu": "25m", "memory": "32Mi"}, "limits": {"cpu": "250m", "memory": "128Mi"}},

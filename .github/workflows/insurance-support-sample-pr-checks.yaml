@@ -72,9 +72,6 @@ jobs:
           python-version: '3.11'
       - run: python -m pip install requests
       - name: Build PR source, deploy, invoke, and find its trace
-        env:
-          # Bootstrap fixture credential for this job's ephemeral dev stack, not a repository secret.
-          IDP_CLIENT_SECRET: amp-api-client-secret
         run: |
           python test/sample-smoke/insurance_support/platform_smoke.py \
             --repo "$SAMPLE_REPO" --branch "$SAMPLE_BRANCH" --sha "$SAMPLE_SHA" \

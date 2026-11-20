@@ -92,9 +92,8 @@ jobs:
       - run: pip install nox pyyaml requests jsonschema
       - name: Run heavy tier
         working-directory: test/instrumentation-matrix
-        # Service URLs + IDP creds default to the dev bring-up's values
-        # (see heavy/driver.py); only the LLM keys are real secrets, and
-        # they're forwarded into each deployed agent so it can make calls.
+        # The dev-stack action supplies the platform OAuth credential.
+        # LLM keys are forwarded into each deployed agent.
         env:
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_ANTHROPIC_API_KEY }}

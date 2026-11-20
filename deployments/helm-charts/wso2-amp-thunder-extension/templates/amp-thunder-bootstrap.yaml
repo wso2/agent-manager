@@ -37,7 +37,7 @@ data:
       - type: oauth2
         config:
           clientId: {{ .Values.thunder.bootstrap.ampApiClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.ampApiClient.clientSecret | quote }}
+          clientSecret: {{ .Values.thunder.bootstrap.ampApiClient.clientSecret | default "{{ .AMP_API_CLIENT_SECRET }}" | quote }}
           grantTypes: {{ .Values.thunder.bootstrap.ampApiClient.grantTypes | toJson }}
           tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.ampApiClient.tokenEndpointAuthMethod | quote }}
           pkceRequired: {{ .Values.thunder.bootstrap.ampApiClient.pkceRequired }}
@@ -115,7 +115,7 @@ data:
       - type: oauth2
         config:
           clientId: {{ .Values.thunder.bootstrap.workloadPublisherClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.workloadPublisherClient.clientSecret | quote }}
+          clientSecret: {{ .Values.thunder.bootstrap.workloadPublisherClient.clientSecret | default "{{ .WORKLOAD_PUBLISHER_SECRET }}" | quote }}
           grantTypes: {{ .Values.thunder.bootstrap.workloadPublisherClient.grantTypes | toJson }}
           tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.workloadPublisherClient.tokenEndpointAuthMethod | quote }}
           pkceRequired: {{ .Values.thunder.bootstrap.workloadPublisherClient.pkceRequired }}
@@ -138,7 +138,7 @@ data:
       - type: oauth2
         config:
           clientId: {{ .Values.thunder.bootstrap.observerResourceReaderClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.observerResourceReaderClient.clientSecret | quote }}
+          clientSecret: {{ .Values.thunder.bootstrap.observerResourceReaderClient.clientSecret | default "{{ .OBSERVER_RESOURCE_READER_SECRET }}" | quote }}
           grantTypes: {{ .Values.thunder.bootstrap.observerResourceReaderClient.grantTypes | toJson }}
           tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.observerResourceReaderClient.tokenEndpointAuthMethod | quote }}
           pkceRequired: {{ .Values.thunder.bootstrap.observerResourceReaderClient.pkceRequired }}
@@ -161,7 +161,7 @@ data:
       - type: oauth2
         config:
           clientId: {{ .Values.thunder.bootstrap.ampPublisherClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.ampPublisherClient.clientSecret | quote }}
+          clientSecret: {{ .Values.thunder.bootstrap.ampPublisherClient.clientSecret | default "{{ .AMP_PUBLISHER_CLIENT_SECRET }}" | quote }}
           grantTypes: {{ .Values.thunder.bootstrap.ampPublisherClient.grantTypes | toJson }}
           tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.ampPublisherClient.tokenEndpointAuthMethod | quote }}
           pkceRequired: {{ .Values.thunder.bootstrap.ampPublisherClient.pkceRequired }}
@@ -184,7 +184,7 @@ data:
       - type: oauth2
         config:
           clientId: {{ .Values.thunder.bootstrap.ampSystemClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.ampSystemClient.clientSecret | quote }}
+          clientSecret: {{ .Values.thunder.bootstrap.ampSystemClient.clientSecret | default "{{ .AMP_SYSTEM_CLIENT_SECRET }}" | quote }}
           grantTypes: {{ .Values.thunder.bootstrap.ampSystemClient.grantTypes | toJson }}
           tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.ampSystemClient.tokenEndpointAuthMethod | quote }}
           pkceRequired: {{ .Values.thunder.bootstrap.ampSystemClient.pkceRequired }}
@@ -1342,7 +1342,7 @@ data:
       - type: oauth2
         config:
           clientId: {{ .Values.thunder.bootstrap.amObserverClient.clientId | quote }}
-          clientSecret: {{ .Values.thunder.bootstrap.amObserverClient.clientSecret | quote }}
+          clientSecret: {{ .Values.thunder.bootstrap.amObserverClient.clientSecret | default "{{ .AM_OBSERVER_CLIENT_SECRET }}" | quote }}
           grantTypes: {{ .Values.thunder.bootstrap.amObserverClient.grantTypes | toJson }}
           tokenEndpointAuthMethod: {{ .Values.thunder.bootstrap.amObserverClient.tokenEndpointAuthMethod | quote }}
           pkceRequired: {{ .Values.thunder.bootstrap.amObserverClient.pkceRequired }}

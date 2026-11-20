@@ -219,6 +219,8 @@ install_agent_management_platform() {
     local release_name="amp"
     local helm_log="/tmp/helm-amp-install.log"
 
+    platform_oauth_for_manager "${AMP_NS}" || return 1
+
     # Install Helm chart
     if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${AMP_NS}" "${TIMEOUT_AMP_INSTALL}" \
         --version "${chart_version}" \
@@ -288,6 +290,8 @@ install_observability_extension() {
     local chart_ref="oci://${HELM_CHART_REGISTRY}/${OBSERVABILITY_CHART_NAME}"
     local chart_version="${VERSION}"
     local release_name="amp-observability-traces"
+
+    platform_oauth_for_observer "${OBSERVABILITY_NS}" || return 1
 
     # Install Helm chart
     if ! install_amp_helm_chart "${release_name}" "${chart_ref}" "${OBSERVABILITY_NS}" "${TIMEOUT_AMP_INSTALL}" \
@@ -597,6 +601,10 @@ install_gateway_extension() {
         log_warning "— leaving the gateway on its default ThunderKeyManager instead of guessing an address."
     fi
 
+    platform_oauth_for_gateway "${gateway_namespace}" || return 1
+    # add-environment.sh uses this namespace as its credential source.
+    platform_oauth_for_gateway "${DATA_PLANE_NS}" || return 1
+
     # Install Helm chart. apiGateway.namespace drives where the chart renders
     # the APIGateway CR, config, RestApis, kgateway backendRef and token secret
     # — it must match the release namespace.
@@ -604,6 +612,7 @@ install_gateway_extension() {
         --version "${chart_version}" \
         --set apiGateway.namespace="${gateway_namespace}" \
         --set agentManager.orgName=default \
+        --set agentManager.idp.existingSecret=gateway-idp-credentials \
         --set gateway.environment=default \
         --set gateway.vhost="${gateway_vhost}" \
         "${thunder_args[@]}" \
@@ -667,6 +676,7 @@ source "${DEPLOYMENTS_DIR}/scripts/thunder-naming.sh"
 # implementation every script uses to learn an already-provisioned env-Thunder's
 # registered handle — see install_default_env_thunder above and DEFAULT_ENV_THUNDER_HANDLE.
 source "${DEPLOYMENTS_DIR}/scripts/ams-auth.sh"
+source "${DEPLOYMENTS_DIR}/scripts/platform-oauth.sh"
 
 # Populated by install_default_env_thunder once it succeeds — the resolved handle
 # (caller-supplied or server-generated) that register_thunder_url actually stored

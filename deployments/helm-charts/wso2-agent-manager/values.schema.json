@@ -918,7 +918,7 @@
                   "type": "string"
                 },
                 "clientSecret": {
-                  "default": "amp-api-client-secret",
+                  "default": "",
                   "description": "OAuth 2.0 client secret used when existingSecret is unset.",
                   "title": "clientSecret",
                   "type": "string"
@@ -1279,7 +1279,7 @@
                   "type": "string"
                 },
                 "clientSecret": {
-                  "default": "amp-system-client-secret",
+                  "default": "",
                   "description": "OAuth2 client secret of the system app",
                   "title": "clientSecret",
                   "type": "string"

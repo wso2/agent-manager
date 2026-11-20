@@ -32,7 +32,7 @@ set -euo pipefail
 #   - AGENT_MANAGER_TOKEN (default: unset) — if unset, obtains one via
 #     client_credentials against IDP_TOKEN_URL/IDP_CLIENT_ID/IDP_CLIENT_SECRET
 #     (defaults: http://thunder.amp.localhost:8080/oauth2/token, amp-api-client,
-#     amp-api-client-secret) — same identity add-environment-thunder.sh uses.
+#     platform OAuth Secret) — same identity add-environment-thunder.sh uses.
 
 # ---------------------------------------------------------------------------
 # Pure helpers

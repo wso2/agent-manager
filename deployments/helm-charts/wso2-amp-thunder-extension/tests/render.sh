@@ -40,7 +40,22 @@ setup_job = next(
     and doc.get("kind") == "Job"
     and doc.get("metadata", {}).get("name", "").endswith("-thunder-setup")
 )
-mounts = setup_job["spec"]["template"]["spec"]["containers"][0]["volumeMounts"]
+container = setup_job["spec"]["template"]["spec"]["containers"][0]
+secret_refs = {env["name"]: env.get("valueFrom", {}).get("secretKeyRef") for env in container["env"]}
+for filename, key in {
+    "50-amp-api-client.yaml": "AMP_API_CLIENT_SECRET",
+    "54-workload-publisher-app.yaml": "WORKLOAD_PUBLISHER_SECRET",
+    "55-observer-resource-reader-app.yaml": "OBSERVER_RESOURCE_READER_SECRET",
+    "56-amp-publisher-client.yaml": "AMP_PUBLISHER_CLIENT_SECRET",
+    "57-amp-system-client.yaml": "AMP_SYSTEM_CLIENT_SECRET",
+    "72-am-observer-client.yaml": "AM_OBSERVER_CLIENT_SECRET",
+}.items():
+    config = yaml.safe_load(data[filename])["inboundAuthConfig"][0]["config"]
+    assert config["clientSecret"] == "{{ ." + key + " }}"
+    assert secret_refs[key]["name"] == "amp-platform-oauth"
+    assert secret_refs[key]["key"] == key
+
+mounts = container["volumeMounts"]
 assert any(mount.get("subPath") == "60-mcp-resource-servers.yaml" for mount in mounts)
 
 main_permissions = {

@@ -62,3 +62,7 @@ runs:
         (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --platform --background)
         make setup-gateway
         (cd deployments/setup && PORT_FORWARD_ADDRESS=0.0.0.0 ./port-forward.sh --background)
+        source deployments/scripts/platform-oauth.sh
+        idp_secret="$(platform_oauth_read AMP_API_CLIENT_SECRET)"
+        echo "::add-mask::$idp_secret"
+        printf 'IDP_CLIENT_SECRET=%s\n' "$idp_secret" >> "$GITHUB_ENV"

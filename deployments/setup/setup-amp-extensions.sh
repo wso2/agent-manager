@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/env.sh"
 source "$SCRIPT_DIR/utils.sh"
+source "$SCRIPT_DIR/../scripts/platform-oauth.sh"
 PROJECT_ROOT="$1"
 
 if ! kubectl cluster-info --context $CLUSTER_CONTEXT &> /dev/null; then
@@ -77,6 +78,7 @@ install_thunder_extension() {
     # local dev convenience — the chart's own default (unset) would generate a
     # random one instead, which is what production wants but is annoying to
     # look up every time on a machine only you can reach anyway.
+    platform_oauth_init || return 1
     helm upgrade --install amp-thunder-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension" \
         --namespace amp-thunder --create-namespace \
         --set thunder.bootstrap.agentManagerMcpBaseUrl=http://localhost:9000 \
@@ -141,6 +143,7 @@ echo "✅ All AMP extensions installed successfully"
 echo ""
 
 wait_for_namespace_ready amp-thunder 'Thunder Extension'
+platform_oauth_for_gateway openchoreo-data-plane
 
 # openchoreo-api caches Thunder's JWKS for an hour (openchoreo-api-config
 # jwks.refresh_interval). A Thunder reinstall (teardown-amp, version mismatch)
