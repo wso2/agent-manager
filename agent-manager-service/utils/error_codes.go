@@ -20,14 +20,15 @@ package utils
 // These codes are stable and should not change once defined.
 const (
 	// Client error codes (4xx)
-	ErrCodeValidation     = "VALIDATION_ERROR"
-	ErrCodeNotFound       = "NOT_FOUND"
-	ErrCodeConflict       = "CONFLICT"
-	ErrCodeBadRequest     = "BAD_REQUEST"
-	ErrCodeUnauthorized   = "UNAUTHORIZED"
-	ErrCodeForbidden      = "FORBIDDEN"
-	ErrCodeImmutableField = "IMMUTABLE_FIELD"
-	ErrCodeInvalidInput   = "INVALID_INPUT"
+	ErrCodeValidation                   = "VALIDATION_ERROR"
+	ErrCodeNotFound                     = "NOT_FOUND"
+	ErrCodeConflict                     = "CONFLICT"
+	ErrCodeAgentIdentityOutsidePipeline = "AGENT_IDENTITY_OUTSIDE_PIPELINE"
+	ErrCodeBadRequest                   = "BAD_REQUEST"
+	ErrCodeUnauthorized                 = "UNAUTHORIZED"
+	ErrCodeForbidden                    = "FORBIDDEN"
+	ErrCodeImmutableField               = "IMMUTABLE_FIELD"
+	ErrCodeInvalidInput                 = "INVALID_INPUT"
 	// ErrCodeHandleInUse: the MCP proxy handle belongs to an org-level or another project's proxy.
 	ErrCodeHandleInUse = "HANDLE_IN_USE"
 	// ErrCodeMCPProxyAlreadyExists: a create-only PUT (If-None-Match: *) named a project MCP proxy that exists.

@@ -3384,6 +3384,9 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 	}
 	deleteAttempt.Complete(ctx, err)
 	if identityCleanupHandled && err != nil {
+		if errors.Is(err, utils.ErrConflict) {
+			return err
+		}
 		s.logger.Error("CP-managed agent deletion incomplete; retry deletion", "ouID", ouID,
 			"projectName", projectName, "agentName", agentName, "error", err)
 		return fmt.Errorf("%w: AgentID cleanup or agent deletion did not complete; retry deletion", utils.ErrServiceUnavailable)

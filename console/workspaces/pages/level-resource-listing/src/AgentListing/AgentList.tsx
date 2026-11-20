@@ -54,6 +54,8 @@ import {
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
 
+import { AgentDeletionWarning } from "./AgentDeletionWarning";
+
 const projectRoutes = absoluteRouteMap.children.org.children.projects;
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
@@ -109,7 +111,7 @@ export const AgentList: React.FC<AgentListProps> = ({
     orgName: orgId,
     projName: projectId,
   });
-  const { mutate: deleteAgent } = useDeleteAgent();
+  const { mutate: deleteAgent, error: deleteError, reset: resetDeleteError } = useDeleteAgent();
   const canCreate = useFeatureAccess("agent_create");
   const canDelete = useFeatureAccess("agent_delete");
   const { data: kindsData } = useListAgentKinds({ orgName: orgId });
@@ -159,8 +161,10 @@ export const AgentList: React.FC<AgentListProps> = ({
       analytics: { entity: "agent", action: "delete" },
       title: "Delete Agent?",
       description: `Are you sure you want to delete the agent "${displayName}"? This action cannot be undone.`,
-      onConfirm: () =>
-        deleteAgent({ orgName: orgId, projName: projectId, agentName }),
+      onConfirm: () => {
+        resetDeleteError();
+        deleteAgent({ orgName: orgId, projName: projectId, agentName });
+      },
       confirmButtonColor: "error",
       confirmButtonIcon: <DeleteOutlineOutlined size={16} />,
       confirmButtonText: "Delete",
@@ -170,6 +174,7 @@ export const AgentList: React.FC<AgentListProps> = ({
 
   return (
     <Stack direction="column" spacing={2}>
+      <AgentDeletionWarning error={deleteError} />
       {error ? (
         <Alert severity="error" variant="outlined">
           {getErrorMessage(error)}

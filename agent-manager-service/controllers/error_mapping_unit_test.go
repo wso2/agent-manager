@@ -117,3 +117,16 @@ func TestHandleCommonErrors_WorkloadSecretSyncUnconfirmed(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "rollout stopped")
 	assert.NotContains(t, rr.Body.String(), "backend diagnostic")
 }
+
+func TestHandleCommonErrors_IdentityOutsidePipelinePreservesWarning(t *testing.T) {
+	rr := httptest.NewRecorder()
+	warning := &services.AgentIdentityOutsidePipelineError{Environments: []string{"old-stage", "preview"}}
+	handleCommonErrors(rr, fmt.Errorf("delete identity: %w", warning), "Failed to delete agent")
+	require.Equal(t, http.StatusConflict, rr.Code)
+	var body spec.ErrorResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	require.Equal(t, utils.ErrCodeAgentIdentityOutsidePipeline, body.Code)
+	require.NotNil(t, body.Reason)
+	require.Contains(t, *body.Reason, "old-stage, preview")
+	require.Contains(t, *body.Reason, "identity provider console")
+}

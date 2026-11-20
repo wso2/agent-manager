@@ -749,6 +749,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            Agent deletion is blocked. In CP-managed identity mode,
+            AGENT_IDENTITY_OUTSIDE_PIPELINE identifies an AgentID still present
+            in an environment outside the current project deployment pipeline.
+            The reason names the environments requiring manual cleanup in the
+            identity provider before retrying. No identity is deleted by this
+            preflight check.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Identity cleanup or agent deletion did not complete; retry deletion.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Internal server error
           content:
