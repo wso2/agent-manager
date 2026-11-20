@@ -23,6 +23,7 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -629,4 +630,24 @@ func TestModuleSecretsGoThroughTheVault(t *testing.T) {
 	f.run(t)
 	assert.False(t, f.external.Has(otherRef))
 	assert.Zero(t, f.pending(t, otherID))
+}
+
+// A value is bound to the org id as the row stores it, so another spelling of the same id must not lock it out.
+func TestSecretStoreAcceptsAnyOrgIDSpelling(t *testing.T) {
+	ctx, gdb, store := context.Background(), db.GetDB(), testSecrets(t)
+	org, id := newOrg(t), NewID()
+	t.Cleanup(func() { _ = store.Delete(ctx, gdb, id) })
+
+	require.NoError(t, store.Write(ctx, gdb, strings.ToUpper(org), "test_owner", id, id, []byte("first")))
+	value, found, err := store.Read(ctx, gdb, id)
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.Equal(t, "first", string(value))
+
+	require.NoError(t, store.Write(ctx, gdb, org, "test_owner", id, id, []byte("second")),
+		"the same organization spelled canonically can rewrite it")
+	require.NoError(t, store.Write(ctx, gdb, strings.ToUpper(org), "test_owner", id, id, []byte("third")))
+	value, _, err = store.Read(ctx, gdb, id)
+	require.NoError(t, err)
+	assert.Equal(t, "third", string(value))
 }

@@ -72,6 +72,7 @@ func (s *SecretStore) write(ctx context.Context, tx *gorm.DB, orgID, ownerKind s
 	if err != nil {
 		return err
 	}
+	orgID = canonicalOrgID(orgID)
 	db := tx.WithContext(ctx)
 	for range writeAttempts {
 		// Insert the row, or find it already there: an insert that treats a duplicate key as "exists" keeps two first writes of one secret from both
@@ -96,6 +97,16 @@ func (s *SecretStore) write(ctx context.Context, tx *gorm.DB, orgID, ownerKind s
 		return s.update(ctx, db, local, &row, orgID, value)
 	}
 	return fmt.Errorf("failed to write secret %s: it was deleted by %d concurrent writes in turn", id, writeAttempts)
+}
+
+// canonicalOrgID spells an organization id the way the database returns it. A value is bound to its row's org id,
+// and reads and updates use the id read back from the row: on PostgreSQL that is the lowercase hyphenated form,
+// whatever spelling the write was given.
+func canonicalOrgID(orgID string) string {
+	if id, err := uuid.Parse(orgID); err == nil {
+		return id.String()
+	}
+	return orgID
 }
 
 // insert creates the secret's row unless one exists, and reports whether it did.
