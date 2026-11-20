@@ -32,8 +32,8 @@ export interface CoreUIProps {
    */
   useFeatureAccess?: UseFeatureAccess;
   /**
-   * Product name shown first in every browser tab title ("<documentTitle> | <page>"). Omit to use
-   * the host page's initial `<title>`.
+   * Product name shown after the page in every browser tab title
+   * ("<page> | <documentTitle>"). Omit to use the host page's initial `<title>`.
    */
   documentTitle?: string;
 }

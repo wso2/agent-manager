@@ -42,7 +42,7 @@ RUN case "${BASE_PATH}" in \
 RUN pnpm build
 
 # Stage 2: Production stage with nginx
-FROM public.ecr.aws/docker/library/nginx:1.30.1-alpine  AS production
+FROM public.ecr.aws/docker/library/nginx:1.30.7-alpine  AS production
 
 # Install runtime dependencies
 RUN apk add --no-cache 'ca-certificates>=20261020' 'ca-certificates-bundle>=20261020' tzdata
