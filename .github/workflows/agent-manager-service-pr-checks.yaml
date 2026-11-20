@@ -122,6 +122,31 @@ jobs:
           echo "host=${POSTGRES_IP}" >> "$GITHUB_OUTPUT"
           echo "PostgreSQL IP: ${POSTGRES_IP}"
 
+      # The observability module's ClickHouse store is tested against a real
+      # server with the module's users file mounted, as the install runs it.
+      - name: Start ClickHouse
+        run: |
+          docker run -d --name clickhouse \
+            -e CLICKHOUSE_USER=admin \
+            -e CLICKHOUSE_PASSWORD=admin \
+            -e AMP_CLICKHOUSE_MIGRATOR_PASSWORD=migrator \
+            -e AMP_CLICKHOUSE_INGEST_PASSWORD=ingest \
+            -e AMP_CLICKHOUSE_READER_PASSWORD=reader \
+            -e AMP_CLICKHOUSE_CLEANER_PASSWORD=cleaner \
+            -v "$PWD/agent-manager-service/modules/observability/store/clickhouse/users.xml:/etc/clickhouse-server/users.d/amp-observability.xml:ro" \
+            clickhouse/clickhouse-server:25.8.33.6
+
+      - name: Wait for ClickHouse
+        id: clickhouse
+        run: |
+          CLICKHOUSE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' clickhouse)
+          until curl -sf "http://${CLICKHOUSE_IP}:8123/ping"; do
+            echo "Waiting for ClickHouse..."
+            sleep 1
+          done
+          echo "url=http://${CLICKHOUSE_IP}:8123" >> "$GITHUB_OUTPUT"
+        timeout-minutes: 2
+
       - name: Create test .env file
         if: matrix.db == 'postgres'
         working-directory: ./agent-manager-service
@@ -147,6 +172,13 @@ jobs:
         working-directory: ./agent-manager-service
         env:
           DB_DRIVER: ${{ matrix.db }}
+          CLICKHOUSE_TEST_URL: ${{ steps.clickhouse.outputs.url }}
+          CLICKHOUSE_TEST_ADMIN_USER: admin
+          CLICKHOUSE_TEST_ADMIN_PASSWORD: admin
+          AMP_CLICKHOUSE_MIGRATOR_PASSWORD: migrator
+          AMP_CLICKHOUSE_INGEST_PASSWORD: ingest
+          AMP_CLICKHOUSE_READER_PASSWORD: reader
+          AMP_CLICKHOUSE_CLEANER_PASSWORD: cleaner
         run: make test-integration
 
       - name: Upload integration coverage

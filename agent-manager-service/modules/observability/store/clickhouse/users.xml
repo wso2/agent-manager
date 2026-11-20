@@ -1,0 +1,56 @@
+<!--
+  ClickHouse users for the observability module's span table, otel.otel_traces.
+  The install mounts this file into /etc/clickhouse-server/users.d/ and sets
+  the four passwords in ClickHouse's environment. Users defined in a file
+  can't be changed or granted more with SQL.
+
+  amp_migrator  DDL on the otel database, for `amp migrate`, and the schema
+                history it keeps. No reads or writes of spans.
+  amp_ingest    INSERT on the span table, for the OTel collector.
+  amp_reader    SELECT on the span table and the schema history, for the
+                observability module.
+  amp_cleaner   DELETE on the span table, for the observability module to
+                remove a deleted agent's spans.
+-->
+<clickhouse>
+  <users>
+    <amp_migrator>
+      <password from_env="AMP_CLICKHOUSE_MIGRATOR_PASSWORD"/>
+      <networks><ip>::/0</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <grants>
+        <query>GRANT CREATE DATABASE, CREATE TABLE, DROP TABLE, ALTER COLUMN, ALTER INDEX, ALTER TTL, ALTER MATERIALIZE TTL, ALTER SETTINGS ON otel.*</query>
+        <query>GRANT SELECT, INSERT ON otel.amp_schema_migrations</query>
+      </grants>
+    </amp_migrator>
+    <amp_ingest>
+      <password from_env="AMP_CLICKHOUSE_INGEST_PASSWORD"/>
+      <networks><ip>::/0</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <grants>
+        <query>GRANT INSERT ON otel.otel_traces</query>
+      </grants>
+    </amp_ingest>
+    <amp_reader>
+      <password from_env="AMP_CLICKHOUSE_READER_PASSWORD"/>
+      <networks><ip>::/0</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <grants>
+        <query>GRANT SELECT ON otel.otel_traces</query>
+        <query>GRANT SELECT ON otel.amp_schema_migrations</query>
+      </grants>
+    </amp_reader>
+    <amp_cleaner>
+      <password from_env="AMP_CLICKHOUSE_CLEANER_PASSWORD"/>
+      <networks><ip>::/0</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <grants>
+        <query>GRANT ALTER DELETE, ALTER UPDATE(_row_exists) ON otel.otel_traces</query>
+      </grants>
+    </amp_cleaner>
+  </users>
+</clickhouse>
