@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Agent inventory API for WSO2 Agent Manager (Custom platform)
+  title: Agent inventory API for WSO2 Agent Manager (Bring your own inventory)
   version: "1.0.0"
   description: |
     Implement this API to let WSO2 Agent Manager's Shadow Agent Discovery list
@@ -9,8 +9,8 @@ info:
 
     How Agent Manager calls it:
 
-    - It calls only `GET` on the Agents URL you enter in the Custom platform
-      form, exactly as entered, adding only the `limit` and `cursor` query
+    - It calls only `GET` on the Agents URL you enter in the Bring your own
+      inventory form, exactly as entered, adding only the `limit` and `cursor` query
       parameters below. The `/agents` path in this document is an example.
       The Agents URL must not contain a query string or a fragment.
     - It sends the API key you enter as `Authorization: Bearer <API key>`,
@@ -40,8 +40,8 @@ info:
 servers:
   - url: https://agents.example.com/v1
     description: >-
-      An example. Agent Manager calls the Agents URL you enter in the Custom
-      platform form (here https://agents.example.com/v1/agents), not this server.
+      An example. Agent Manager calls the Agents URL you enter in the Bring your
+      own inventory form (here https://agents.example.com/v1/agents), not this server.
 paths:
   /agents:
     get:
@@ -137,7 +137,7 @@ components:
       type: http
       scheme: bearer
       description: >-
-        The API key entered in the Custom platform form, sent as
+        The API key entered in the Bring your own inventory form, sent as
         `Authorization: Bearer <API key>`. Give it read access to the agent list only.
   schemas:
     AgentPage:
@@ -166,7 +166,7 @@ components:
           description: >-
             Your stable, unique ID of the agent. Agent Manager recognises the
             agent by it from scan to scan. Agents with the same id from two
-            Custom platforms are shown as one agent, found by both.
+            of your inventories are shown as one agent, found by both.
         name:
           type: string
           minLength: 1
