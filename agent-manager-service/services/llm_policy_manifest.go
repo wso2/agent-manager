@@ -143,9 +143,13 @@ func collectInstalledPolicies(gateways []*models.Gateway) installedPolicies {
 		Sighted:   map[string]llmPolicyManifestItem{},
 		Reporting: []gatewayRef{},
 	}
+	// Read every manifest exactly once: a gateway can push a new manifest at any moment, and the intersection and the
+	// per-gateway views below must be computed from the same snapshot.
+	snapshots := snapshotGatewayManifests(gateways)
+
 	// Several versions of one name can survive the intersection (every gateway reports both); take the highest, so
 	// the result does not depend on map iteration order.
-	for _, item := range intersectLLMPolicies(gateways) {
+	for _, item := range intersectGatewaySnapshots(snapshots) {
 		if current, ok := result.ByName[item.Name]; ok && compareVersions(item.Version, current.Version) <= 0 {
 			continue
 		}
@@ -158,17 +162,14 @@ func collectInstalledPolicies(gateways []*models.Gateway) installedPolicies {
 	}
 	var reporting []reported
 	allNames := map[string]struct{}{}
-	for _, gateway := range gateways {
-		manifest, known := gatewayManifest(gateway)
-		if !known {
-			continue
-		}
+	for _, snapshot := range snapshots {
+		gateway := snapshot.gateway
 		name := gateway.DisplayName
 		if name == "" {
 			name = gateway.Name
 		}
 		entry := reported{ref: gatewayRef{ID: gateway.UUID.String(), Name: name}, names: map[string]struct{}{}}
-		for _, policy := range extractLLMPolicyManifestItems(manifest) {
+		for _, policy := range snapshot.items {
 			entry.names[policy.Name] = struct{}{}
 			allNames[policy.Name] = struct{}{}
 			if policy.ManagedBy == "organization" {
@@ -202,6 +203,31 @@ func collectInstalledPolicies(gateways []*models.Gateway) installedPolicies {
 // A gateway that has not reported a manifest yet (see gatewayManifest) is left out of the
 // intersection rather than emptying it; if none has reported, nothing is available.
 func intersectLLMPolicies(gateways []*models.Gateway) map[string]llmPolicyManifestItem {
+	return intersectGatewaySnapshots(snapshotGatewayManifests(gateways))
+}
+
+// gatewayManifestSnapshot is one gateway's policy items as read from its manifest at a single point in time.
+type gatewayManifestSnapshot struct {
+	gateway *models.Gateway
+	items   []llmPolicyManifestItem
+}
+
+// snapshotGatewayManifests reads each gateway's manifest exactly once and extracts its policy items. Gateways that
+// have not reported a manifest (see gatewayManifest) are left out.
+func snapshotGatewayManifests(gateways []*models.Gateway) []gatewayManifestSnapshot {
+	snapshots := make([]gatewayManifestSnapshot, 0, len(gateways))
+	for _, gateway := range gateways {
+		manifest, known := gatewayManifest(gateway)
+		if !known {
+			continue
+		}
+		snapshots = append(snapshots, gatewayManifestSnapshot{gateway: gateway, items: extractLLMPolicyManifestItems(manifest)})
+	}
+	return snapshots
+}
+
+// intersectGatewaySnapshots is the intersection logic of intersectLLMPolicies over already-read manifests.
+func intersectGatewaySnapshots(snapshots []gatewayManifestSnapshot) map[string]llmPolicyManifestItem {
 	var perGatewayPolicies []map[string]llmPolicyManifestItem
 	// byName collects every (gateway, version) sighting per policy name, used for the
 	// backward-compatible fallback when strict intersection yields nothing for that name.
@@ -212,15 +238,11 @@ func intersectLLMPolicies(gateways []*models.Gateway) map[string]llmPolicyManife
 	gatewayCountByName := map[string]int{}
 	gatewayCount := 0
 
-	for _, gateway := range gateways {
-		manifest, known := gatewayManifest(gateway)
-		if !known {
-			continue
-		}
+	for _, snapshot := range snapshots {
 		gatewayCount++
 		gatewayPolicies := map[string]llmPolicyManifestItem{}
 		namesOnThisGateway := map[string]struct{}{}
-		for _, policy := range extractLLMPolicyManifestItems(manifest) {
+		for _, policy := range snapshot.items {
 			if policy.Name == "" || policy.Version == "" {
 				continue
 			}

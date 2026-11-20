@@ -19,7 +19,9 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -134,10 +136,31 @@ func (c *policyHubClient) Snapshot(ctx context.Context) ([]HubPolicy, bool) {
 	defer c.mu.Unlock()
 	if err != nil {
 		c.failedAt = time.Now()
+		// Logged here, where the backoff starts, so a down hub warns once per window rather than per request.
+		slog.Warn("policy hub fetch failed; serving cached data if any and retrying after backoff",
+			"error", sanitizeHubError(err), "host", c.hostForLog(), "backoff", c.backoff)
 	} else {
 		c.policies, c.fetchedAt, c.hasData, c.failedAt = fresh, time.Now(), true, time.Time{}
 	}
 	return c.snapshotLocked()
+}
+
+// hostForLog returns only the hub URL's host: the path or query could carry credentials.
+func (c *policyHubClient) hostForLog() string {
+	u, err := url.Parse(c.baseURL)
+	if err != nil {
+		return ""
+	}
+	return u.Host
+}
+
+// sanitizeHubError drops the request URL that net/http embeds in transport errors.
+func sanitizeHubError(err error) string {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return urlErr.Err.Error()
+	}
+	return err.Error()
 }
 
 type hubPageResponse struct {

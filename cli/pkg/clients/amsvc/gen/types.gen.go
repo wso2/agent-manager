@@ -7403,6 +7403,9 @@ type ListMCPProxiesParams struct {
 type ListAvailableMCPPoliciesParams struct {
 	// ProxyId MCP proxy handle (same identifier as /mcp-proxies/{proxyId}). When set, scope the result to the gateways this MCP proxy is deployed to, instead of every active managed gateway in the organization.
 	ProxyId *string `form:"proxyId,omitempty" json:"proxyId,omitempty"`
+
+	// EnvironmentUuid Environment UUID; with proxyId, availability is checked only against the gateways of the proxy's binding in this environment.
+	EnvironmentUuid *openapi_types.UUID `form:"environmentUuid,omitempty" json:"environmentUuid,omitempty"`
 }
 
 // ListProjectsParams defines parameters for ListProjects.

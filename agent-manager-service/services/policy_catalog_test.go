@@ -128,17 +128,17 @@ func TestBuildPolicyCatalog(t *testing.T) {
 			want: []want{{"my-policy", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceCustom, "v2.0.0", nil}},
 		},
 		{
-			name: "installed wso2 policy unknown to hub → in both kinds, source hub (mcp)",
+			name: "installed wso2 policy unknown to hub → absent in mcp",
 			kind: models.PolicyCatalogKindMCP,
 			installed: installedPolicies{
 				ByName:    map[string]llmPolicyManifestItem{"mystery": manifest("mystery", "v1.0.0")},
 				Reporting: []gatewayRef{gwA},
 			},
 			hub: []HubPolicy{hubAI}, hubOK: true,
-			want: []want{{"mystery", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceHub, "v1.0.0", nil}},
+			want: []want{},
 		},
 		{
-			name: "installed wso2 policy unknown to hub → in both kinds, source hub (llm)",
+			name: "installed wso2 policy unknown to hub → in llm, source hub",
 			kind: models.PolicyCatalogKindLLM,
 			installed: installedPolicies{
 				ByName:    map[string]llmPolicyManifestItem{"mystery": manifest("mystery", "v1.0.0")},
@@ -148,14 +148,100 @@ func TestBuildPolicyCatalog(t *testing.T) {
 			want: []want{{"mystery", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceHub, "v1.0.0", nil}},
 		},
 		{
-			name: "hubOK=false → only installed policies, in both kinds",
-			kind: models.PolicyCatalogKindMCP,
+			name: "hubOK=false → installed non-custom policies only in llm (llm)",
+			kind: models.PolicyCatalogKindLLM,
 			installed: installedPolicies{
 				ByName:    map[string]llmPolicyManifestItem{"x": manifest("x", "v1.0.0")},
 				Reporting: []gatewayRef{gwA},
 			},
 			hub: []HubPolicy{hubMCP, hubAI}, hubOK: false,
 			want: []want{{"x", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceHub, "v1.0.0", nil}},
+		},
+		{
+			name: "hubOK=false → installed non-custom policies not in mcp",
+			kind: models.PolicyCatalogKindMCP,
+			installed: installedPolicies{
+				ByName:    map[string]llmPolicyManifestItem{"x": manifest("x", "v1.0.0")},
+				Reporting: []gatewayRef{gwA},
+			},
+			hub: []HubPolicy{hubMCP, hubAI}, hubOK: false,
+			want: []want{},
+		},
+		{
+			name: "hubOK=false → installed custom policy still in mcp",
+			kind: models.PolicyCatalogKindMCP,
+			installed: installedPolicies{
+				ByName:    map[string]llmPolicyManifestItem{"x": manifest("x", "v1.0.0")},
+				Custom:    map[string]bool{"x": true},
+				Reporting: []gatewayRef{gwA},
+			},
+			hub: nil, hubOK: false,
+			want: []want{{"x", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceCustom, "v1.0.0", nil}},
+		},
+		{
+			name: "custom installed, hub lists the name with llm-only categories → still in mcp",
+			kind: models.PolicyCatalogKindMCP,
+			installed: installedPolicies{
+				ByName:    map[string]llmPolicyManifestItem{"pii-mask": manifest("pii-mask", "v2.0.0")},
+				Custom:    map[string]bool{"pii-mask": true},
+				Reporting: []gatewayRef{gwA},
+			},
+			hub: []HubPolicy{hubAI}, hubOK: true,
+			want: []want{{"pii-mask", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceCustom, "v2.0.0", nil}},
+		},
+		{
+			name: "custom installed, hub lists the name with mcp-only categories → still in llm",
+			kind: models.PolicyCatalogKindLLM,
+			installed: installedPolicies{
+				ByName:    map[string]llmPolicyManifestItem{"mcp-auth": manifest("mcp-auth", "v2.0.0")},
+				Custom:    map[string]bool{"mcp-auth": true},
+				Reporting: []gatewayRef{gwA},
+			},
+			hub: []HubPolicy{hubMCP}, hubOK: true,
+			want: []want{{"mcp-auth", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceCustom, "v2.0.0", nil}},
+		},
+		{
+			name: "non-custom installed, hub lists it with llm-only categories → absent in mcp",
+			kind: models.PolicyCatalogKindMCP,
+			installed: installedPolicies{
+				ByName:    map[string]llmPolicyManifestItem{"pii-mask": manifest("pii-mask", "v2.0.0")},
+				Reporting: []gatewayRef{gwA},
+			},
+			hub: []HubPolicy{hubAI}, hubOK: true,
+			want: []want{},
+		},
+		{
+			name: "non-custom partial, unknown to hub → disabled row in llm",
+			kind: models.PolicyCatalogKindLLM,
+			installed: installedPolicies{
+				MissingOn: map[string][]gatewayRef{"mystery": {gwB}},
+				Sighted:   map[string]llmPolicyManifestItem{"mystery": {Name: "mystery", Version: "v1.4.0"}},
+				Reporting: []gatewayRef{gwA, gwB},
+			},
+			hub: []HubPolicy{{Name: "other", Version: "v1", Categories: []string{"MCP"}}}, hubOK: true,
+			want: []want{{"mystery", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.4.0", []gatewayRef{gwB}}},
+		},
+		{
+			name: "non-custom partial, hub unavailable → disabled row in llm",
+			kind: models.PolicyCatalogKindLLM,
+			installed: installedPolicies{
+				MissingOn: map[string][]gatewayRef{"mystery": {gwB}},
+				Sighted:   map[string]llmPolicyManifestItem{"mystery": {Name: "mystery", Version: "v1.4.0"}},
+				Reporting: []gatewayRef{gwA, gwB},
+			},
+			hubOK: false,
+			want:  []want{{"mystery", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.4.0", []gatewayRef{gwB}}},
+		},
+		{
+			name: "non-custom partial, unknown to hub → absent in mcp",
+			kind: models.PolicyCatalogKindMCP,
+			installed: installedPolicies{
+				MissingOn: map[string][]gatewayRef{"mystery": {gwB}},
+				Sighted:   map[string]llmPolicyManifestItem{"mystery": {Name: "mystery", Version: "v1.4.0"}},
+				Reporting: []gatewayRef{gwA, gwB},
+			},
+			hub: []HubPolicy{{Name: "other", Version: "v1", Categories: []string{"AI"}}}, hubOK: true,
+			want: []want{},
 		},
 		{
 			name: "policy on 1 of 2 gateways → not_installed, missingOn=[B]",
@@ -329,4 +415,49 @@ func TestBuildPolicyCatalog_PartialCustomPrefersGatewayOverHub(t *testing.T) {
 	assert.Equal(t, "My Guard", got[0].DisplayName)
 	assert.Equal(t, "gw desc", got[0].Description)
 	assert.Equal(t, []string{"AI"}, got[0].Categories)
+}
+
+// An installed row with no description of its own shows the hub's.
+func TestBuildPolicyCatalog_InstalledDescriptionFallsBackToHub(t *testing.T) {
+	installed := installedPolicies{
+		ByName: map[string]llmPolicyManifestItem{"pii-mask": {Name: "pii-mask", Version: "v1.0.1"}},
+	}
+	hub := []HubPolicy{{Name: "pii-mask", Version: "v1.0", Description: "hub desc", Categories: []string{"AI"}}}
+
+	got := buildPolicyCatalog(models.PolicyCatalogKindLLM, installed, hub, true)
+
+	assert.Len(t, got, 1)
+	assert.Equal(t, "hub desc", got[0].Description)
+}
+
+// A partial non-custom policy the hub does not know is a disabled row built from the gateways' own definition.
+func TestBuildPolicyCatalog_PartialUnknownNonCustomRowDetails(t *testing.T) {
+	gwB := gatewayRef{ID: "b", Name: "gw-b"}
+	installed := installedPolicies{
+		MissingOn: map[string][]gatewayRef{
+			"mystery": {gwB},
+			"bare":    {gwB},
+		},
+		Sighted: map[string]llmPolicyManifestItem{
+			"mystery": {
+				Name: "mystery", Version: "v1.4.0", DisplayName: "Mystery", Description: "gw desc",
+				Parameters: map[string]interface{}{"p": 1},
+			},
+		},
+	}
+
+	got := buildPolicyCatalog(models.PolicyCatalogKindLLM, installed, nil, true)
+
+	assert.Len(t, got, 2)
+	assert.Equal(t, "bare", got[0].Name)
+	assert.Equal(t, "bare", got[0].DisplayName, "falls back to the bare name")
+	assert.Equal(t, "mystery", got[1].Name)
+	assert.Equal(t, "Mystery", got[1].DisplayName)
+	assert.Equal(t, "gw desc", got[1].Description)
+	assert.Equal(t, "v1.4.0", got[1].Version)
+	assert.Equal(t, []string{}, got[1].Categories)
+	assert.Nil(t, got[1].Parameters)
+	assert.Equal(t, []gatewayRef{gwB}, got[1].MissingOn)
+	assert.Equal(t, models.PolicyCatalogSourceHub, got[1].Source)
+	assert.Equal(t, models.PolicyCatalogStatusNotInstalled, got[1].Status)
 }

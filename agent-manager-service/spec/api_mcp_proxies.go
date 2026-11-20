@@ -640,15 +640,22 @@ func (a *MCPProxiesAPIService) GetMCPProxyExecute(r ApiGetMCPProxyRequest) (*MCP
 }
 
 type ApiListAvailableMCPPoliciesRequest struct {
-	ctx        context.Context
-	ApiService *MCPProxiesAPIService
-	orgName    string
-	proxyId    *string
+	ctx             context.Context
+	ApiService      *MCPProxiesAPIService
+	orgName         string
+	proxyId         *string
+	environmentUuid *string
 }
 
 // MCP proxy handle (same identifier as /mcp-proxies/{proxyId}). When set, scope the result to the gateways this MCP proxy is deployed to, instead of every active managed gateway in the organization.
 func (r ApiListAvailableMCPPoliciesRequest) ProxyId(proxyId string) ApiListAvailableMCPPoliciesRequest {
 	r.proxyId = &proxyId
+	return r
+}
+
+// Environment UUID; with proxyId, availability is checked only against the gateways of the proxy&#39;s binding in this environment.
+func (r ApiListAvailableMCPPoliciesRequest) EnvironmentUuid(environmentUuid string) ApiListAvailableMCPPoliciesRequest {
+	r.environmentUuid = &environmentUuid
 	return r
 }
 
@@ -698,6 +705,9 @@ func (a *MCPProxiesAPIService) ListAvailableMCPPoliciesExecute(r ApiListAvailabl
 
 	if r.proxyId != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "proxyId", r.proxyId, "")
+	}
+	if r.environmentUuid != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "environmentUuid", r.environmentUuid, "")
 	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}

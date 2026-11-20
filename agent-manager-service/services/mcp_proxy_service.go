@@ -363,10 +363,22 @@ func (s *MCPProxyService) List(ctx context.Context, orgUUID string, projectUUID 
 // ListAvailableMCPPolicies returns the MCP policy catalog: policies installed on the gateways the proxy is checked
 // against, merged with the public policy hub. When proxyID (a handle) is set and the proxy is placed on gateways,
 // those gateways are used (deployed scope); otherwise the org's active managed gateways (org_managed scope).
-// An unknown proxy fails with utils.ErrMCPProxyNotFound.
-func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID, proxyID string) (*models.PolicyCatalogResponse, error) {
+// When environmentUUID is also set, only the proxy's binding in that environment counts; a proxy with no binding
+// there falls back to the org's gateways. environmentUUID without a proxyID is ignored.
+// An unknown proxy fails with utils.ErrMCPProxyNotFound; a malformed environmentUUID with utils.ErrInvalidInput.
+func (s *MCPProxyService) ListAvailableMCPPolicies(
+	ctx context.Context, orgUUID, proxyID, environmentUUID string,
+) (*models.PolicyCatalogResponse, error) {
 	var artifactUUIDs []uuid.UUID
 	if handle := strings.TrimSpace(proxyID); handle != "" {
+		var envFilter uuid.UUID
+		if env := strings.TrimSpace(environmentUUID); env != "" {
+			parsed, err := uuid.Parse(env)
+			if err != nil {
+				return nil, fmt.Errorf("%w: environmentUuid must be a UUID", utils.ErrInvalidInput)
+			}
+			envFilter = parsed
+		}
 		proxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -377,6 +389,9 @@ func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID,
 		// Deployments are keyed by each (endpoint, environment) artifact UUID, never by the proxy's own.
 		for _, endpoint := range proxy.Endpoints {
 			for _, binding := range endpoint.Environments {
+				if envFilter != uuid.Nil && binding.EnvironmentUUID != envFilter {
+					continue
+				}
 				if binding.ArtifactUUID != uuid.Nil {
 					artifactUUIDs = append(artifactUUIDs, binding.ArtifactUUID)
 				}

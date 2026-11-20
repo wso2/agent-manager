@@ -162,8 +162,17 @@ func TestLLMProviderService_ListAvailableLLMPolicies_IntersectsAcrossActiveGatew
 	resp, err := svc.ListAvailableLLMPolicies(context.Background(), "org-uuid", "")
 
 	require.NoError(t, err)
-	require.Len(t, resp.List, 1)
-	assert.Equal(t, "shared-guardrail", resp.List[0].Name)
+	// Only the shared policy is installed; the one on a single gateway is listed as a disabled row.
+	var installed, notInstalled []string
+	for _, item := range resp.List {
+		if item.Status == models.PolicyCatalogStatusInstalled {
+			installed = append(installed, item.Name)
+		} else {
+			notInstalled = append(notInstalled, item.Name)
+		}
+	}
+	assert.Equal(t, []string{"shared-guardrail"}, installed)
+	assert.Equal(t, []string{"only-on-first-gateway"}, notInstalled)
 }
 
 func TestLLMProviderService_ListAvailableLLMPolicies_ScopesToProviderDeployment(t *testing.T) {

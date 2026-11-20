@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -676,4 +677,35 @@ func TestCollectInstalledPolicies_SightedKeepsPartialPolicyDefinition(t *testing
 	assert.Equal(t, "v1.2.0", got.Sighted["my-guard"].Version)
 	assert.Equal(t, "My Guard", got.Sighted["my-guard"].DisplayName)
 	assert.Equal(t, "new", got.Sighted["my-guard"].Description)
+}
+
+// countingManifestCache wraps a manifest cache backend and counts Get calls per gateway.
+type countingManifestCache struct {
+	GatewayManifestCacheBackend
+	mu    sync.Mutex
+	reads map[string]int
+}
+
+func (c *countingManifestCache) Get(ctx context.Context, gatewayID string) (map[string]interface{}, bool, error) {
+	c.mu.Lock()
+	c.reads[gatewayID]++
+	c.mu.Unlock()
+	return c.GatewayManifestCacheBackend.Get(ctx, gatewayID)
+}
+
+// A push between two reads of the same gateway's manifest could make the intersection and the per-gateway views
+// disagree, so collectInstalledPolicies must read each manifest exactly once.
+func TestCollectInstalledPolicies_ReadsEachManifestOnce(t *testing.T) {
+	clearGatewayManifestCache(t)
+	counter := &countingManifestCache{GatewayManifestCacheBackend: NewInMemoryGatewayManifestCache(), reads: map[string]int{}}
+	SetGatewayManifestCacheBackend(counter)
+
+	a := catalogGateway("a", map[string]interface{}{"name": "p1", "version": "v1.0.0"})
+	b := catalogGateway("b", map[string]interface{}{"name": "p1", "version": "v1.0.0"}, map[string]interface{}{"name": "p2", "version": "v1.0.0"})
+
+	got := collectInstalledPolicies([]*models.Gateway{a, b})
+
+	assert.Contains(t, got.ByName, "p1")
+	assert.Equal(t, 1, counter.reads[a.UUID.String()])
+	assert.Equal(t, 1, counter.reads[b.UUID.String()])
 }

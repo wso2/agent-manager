@@ -441,6 +441,7 @@ func loadEnvs() {
 	validateServerPublicURL(config, r)
 	validateInstrumentationURL(config, r)
 	validateObserverURLs(config, r)
+	validatePolicyHubBaseURL(config, r)
 	validateGrowthAnalyticsConfig(config)
 	validateResourceLimitsConfig(config, r)
 	validateFileMountLimitsConfig(config, r)
@@ -798,6 +799,22 @@ func validateInstrumentationURL(cfg *Config, r *configReader) {
 	}
 	if u.Host == "" {
 		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q must have a non-empty host", cfg.InstrumentationURL))
+	}
+}
+
+// validatePolicyHubBaseURL rejects a malformed POLICY_HUB_BASE_URL at startup. Empty is valid: it disables the hub.
+func validatePolicyHubBaseURL(cfg *Config, r *configReader) {
+	raw := strings.TrimSpace(cfg.PolicyHub.BaseURL)
+	if raw == "" {
+		return
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		r.errors = append(r.errors, fmt.Errorf("POLICY_HUB_BASE_URL %q is not a valid URL: %w", raw, err))
+		return
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		r.errors = append(r.errors, fmt.Errorf("POLICY_HUB_BASE_URL %q must be an absolute http or https URL with a host", raw))
 	}
 }
 

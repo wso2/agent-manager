@@ -17,11 +17,14 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -284,4 +287,32 @@ func TestPolicyHubClient_SnapshotReturnsCopy(t *testing.T) {
 	second, _ := c.Snapshot(context.Background())
 
 	assert.Equal(t, "a", second[0].Name)
+}
+
+// A failed fetch is logged once when the backoff starts, not on every Snapshot call during it, and the log names
+// only the hub host.
+func TestPolicyHubClient_LogsFailureOncePerBackoffWindow(t *testing.T) {
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := NewPolicyHubClient(srv.URL+"/secret/path?token=abc", time.Minute, time.Second, srv.Client())
+	for range 3 {
+		_, ok := c.Snapshot(context.Background())
+		require.False(t, ok)
+	}
+
+	out := buf.String()
+	assert.Equal(t, 1, strings.Count(out, "level=WARN"), out)
+	assert.Contains(t, out, "policy hub fetch failed")
+	assert.Contains(t, out, "status 500")
+	assert.Contains(t, out, strings.TrimPrefix(srv.URL, "http://"))
+	assert.NotContains(t, out, "token=abc")
+	assert.NotContains(t, out, "/secret/path")
 }

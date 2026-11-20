@@ -704,12 +704,26 @@ func requireAvailableGuardrails(
 			return fmt.Errorf("%s: no guardrail named %q is available on the provider's gateways. "+
 				"Call list_llm_guardrails with provider_id to see valid guardrails", toolName, g.Name)
 		}
-		if !slices.Contains(available, g.Version) {
+		if !slices.ContainsFunc(available, func(v string) bool { return sameMajorVersion(v, g.Version) }) {
 			return fmt.Errorf("%s: %s version %s is not available on the provider's gateways; available: %s version %s",
 				toolName, g.Name, g.Version, g.Name, strings.Join(available, ", "))
 		}
 	}
 	return nil
+}
+
+// sameMajorVersion reports whether two policy versions share a major version: "v1", "v1.0.2" and "1.3.0" all do.
+// The catalog lists one installed version per guardrail, and a gateway serves any version of the major it has.
+func sameMajorVersion(a, b string) bool {
+	return guardrailMajor(a) == guardrailMajor(b)
+}
+
+// guardrailMajor returns the major segment of a version, without any leading "v"/"V".
+func guardrailMajor(version string) string {
+	version = strings.TrimSpace(version)
+	version = strings.TrimPrefix(strings.TrimPrefix(version, "v"), "V")
+	major, _, _ := strings.Cut(version, ".")
+	return major
 }
 
 // credentialParamNames are parameter names, lowercased with separators

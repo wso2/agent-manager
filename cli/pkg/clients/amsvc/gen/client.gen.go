@@ -12968,6 +12968,22 @@ func NewListAvailableMCPPoliciesRequest(server string, orgName string, params *L
 
 		}
 
+		if params.EnvironmentUuid != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "environmentUuid", *params.EnvironmentUuid, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
