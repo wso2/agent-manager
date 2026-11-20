@@ -738,7 +738,18 @@ func toShadowFindingSummary(row *repositories.ShadowFindingRow) spec.ShadowFindi
 		FirstSeenAt: f.FirstSeenAt, LastSeenAt: f.LastSeenAt, Present: f.Present, FoundBy: foundBy,
 		Onboarded: f.LinkedAgent != "", LinkedProject: optionalString(f.LinkedProject),
 		LinkedAgent: optionalString(f.LinkedAgent), OnboardedAt: f.OnboardedAt, Hidden: f.HiddenAt != nil,
+		ReviewedBy: shadowReviewedBy(&f),
 	}
+}
+
+// shadowReviewedBy says who confirmed a code agent, so lists can tell agents
+// confirmed by AI review apart. Other kinds have no reviewer.
+func shadowReviewedBy(f *models.ShadowFinding) *string {
+	if f.Kind != models.ShadowKindCodeAgent {
+		return nil
+	}
+	v, _ := f.Attributes["reviewedBy"].(string)
+	return optionalString(v)
 }
 
 func toShadowFindingDetail(v *services.ShadowFindingView) spec.ShadowFindingDetail {
@@ -750,8 +761,8 @@ func toShadowFindingDetail(v *services.ShadowFindingView) spec.ShadowFindingDeta
 		OwnerHint: sum.OwnerHint, ProviderCreatedAt: sum.ProviderCreatedAt,
 		FirstSeenAt: sum.FirstSeenAt, LastSeenAt: sum.LastSeenAt, Present: sum.Present, FoundBy: sum.FoundBy,
 		Onboarded: sum.Onboarded, LinkedProject: sum.LinkedProject, LinkedAgent: sum.LinkedAgent,
-		OnboardedAt: sum.OnboardedAt, OnboardedBy: optionalString(f.OnboardedBy), Hidden: sum.Hidden,
-		Attributes: sa.AllowedAttributes(f.Attributes), Related: make([]spec.ShadowFindingRelation, 0, len(v.Related)),
+		OnboardedAt: sum.OnboardedAt, OnboardedBy: optionalString(f.OnboardedBy), ReviewedBy: sum.ReviewedBy, Hidden: sum.Hidden,
+		Attributes: sa.AllowedFindingAttributes(f.Kind, f.Attributes), Related: make([]spec.ShadowFindingRelation, 0, len(v.Related)),
 		Signals: make([]spec.ShadowFindingSignal, 0, len(v.Signals)),
 	}
 	for _, rel := range v.Related {

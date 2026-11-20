@@ -841,8 +841,11 @@ func TestToShadowApply_KeepsCodeAgentEvidence(t *testing.T) {
 	out := &sa.Result{
 		Findings: []*sa.Finding{{
 			Kind: models.ShadowKindCodeAgent, ExternalID: "acme/agent:src/agent.py", DisplayName: "agent",
-			Attributes: map[string]any{"framework": "langgraph", "reviewedBy": "rules", "snippet": shadowPromptMark},
-			Signals:    []sa.Signal{{Code: "github.d1_agent_dependency", Source: "requirements.txt"}},
+			Attributes: map[string]any{
+				"framework": "langgraph", "reviewedBy": "rules", "snippet": shadowPromptMark,
+				"branch": "main", "projectPath": "/samples/support", "language": "python",
+			},
+			Signals: []sa.Signal{{Code: "github.d1_agent_dependency", Source: "requirements.txt"}},
 		}},
 	}
 	scan := &models.ShadowScan{ID: uuid.New(), OUID: shadowTestOU}
@@ -853,7 +856,9 @@ func TestToShadowApply_KeepsCodeAgentEvidence(t *testing.T) {
 	require.Len(t, in.Findings, 1)
 	f := in.Findings[0]
 	assert.Equal(t, models.ShadowKindCodeAgent, f.Finding.Kind)
-	assert.Equal(t, map[string]any{"framework": "langgraph", "reviewedBy": "rules"}, f.Finding.Attributes)
+	assert.Equal(t, map[string]any{
+		"framework": "langgraph", "reviewedBy": "rules", "branch": "main", "projectPath": "/samples/support", "language": "python",
+	}, f.Finding.Attributes)
 	require.Len(t, f.Signals, 1)
 	assert.Equal(t, "github.d1_agent_dependency", f.Signals[0].Code)
 	assert.Equal(t, "requirements.txt", f.Signals[0].Source)

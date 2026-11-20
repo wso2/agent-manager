@@ -256,14 +256,20 @@ export function useClearShadowScans(orgName: string | undefined) {
   });
 }
 
-/** Links the agent to the external agent registered for it. */
+/**
+ * Links the agent to the agent registered or created for it. `silent` leaves
+ * the success and error notices to the caller.
+ */
 export function useOnboardShadowFinding(
   orgName: string | undefined,
   findingId: string | undefined,
+  { silent = false }: { silent?: boolean } = {},
 ) {
   const { getToken } = useAuthHooks();
   const invalidate = useInvalidateShadow();
   return useApiMutation<ShadowFindingDetail, unknown, ShadowOnboardingRequest>({
+    showSuccess: !silent,
+    showError: !silent,
     successMessage: () => "Agent onboarded",
     mutationFn: (body) => onboardShadowFinding(orgName, findingId ?? "", body, getToken),
     onSuccess: () => invalidate(),

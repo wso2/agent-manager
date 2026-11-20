@@ -59,6 +59,9 @@ from amp_shadow_runner.engine.manifests import (
             {"langgraph", "ag2"},
         ),
         ("pyproject.toml", "not = [valid toml", set()),
+        # Nested too deeply for tomllib: read as nothing, not an error that fails the repository.
+        ("pyproject.toml", "a = " + "[" * 5000 + "]" * 5000 + "\n", set()),
+        ("Pipfile", "a = " + "{b = " * 5000 + "1" + "}" * 5000 + "\n", set()),
         ("Pipfile", '[packages]\ncrewai = "*"\n[dev-packages]\nPyAutoGen = "*"\n', {"crewai", "pyautogen"}),
         (
             "setup.cfg",
@@ -223,6 +226,7 @@ def test_csproj_usings() -> None:
         ('[package]\nname = "bot"\n', set()),
         ('dependency = "x"\n', set()),
         ("not = [toml", set()),
+        ("a = " + "[" * 5000 + "]" * 5000 + "\n", set()),
     ],
 )
 def test_ballerina_packages(text: str, packages: set[str]) -> None:

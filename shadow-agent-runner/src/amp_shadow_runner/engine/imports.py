@@ -45,8 +45,11 @@ Per language:
   When the same local name is imported twice, the last import wins. ``require("m").sub``, other dynamic
   ``import()`` forms, computed destructuring keys and re-exports (``export ... from``) are ignored.
 - C#: a ``using`` alias wins (the last one, if repeated); otherwise every ``using`` namespace and
-  ``using static`` type gives a candidate, and a dotted reference is also taken as fully qualified
-  (``Microsoft.SemanticKernel.Kernel`` with no ``using``). Usings apply to the whole file, whatever
+  ``using static`` type gives a candidate for a single name (``Kernel``; a using does not bring in the
+  namespaces under it, so ``Agents.X`` is not ``Microsoft.SemanticKernel.Agents.X`` through
+  ``using Microsoft.SemanticKernel;``), and a dotted reference is taken as fully qualified
+  (``Microsoft.SemanticKernel.Kernel`` with no ``using``). A member of an imported type
+  (``Kernel.CreateBuilder``) is resolved by the matcher, which resolves the type first. Usings apply to the whole file, whatever
   namespace block holds them; ``global using`` is recorded in ``Import.global_`` but not shared with other
   files here. ``using`` statements and declarations (``using (var x = ...)``) are not imports.
 
@@ -138,7 +141,11 @@ class ImportTable:
             return tuple(dict.fromkeys(self._through(imp, parts) for imp in bound))
         candidates: list[Symbol] = []
         for imp in self.imports:
-            if imp.kind in (ImportKind.WILDCARD, ImportKind.NAMESPACE, ImportKind.STATIC):
+            # A C# using brings in a namespace's types (or a type's members), not the namespaces under it:
+            # ``using A;`` makes ``C`` stand for ``A.C`` but not ``B.C`` for ``A.B.C``.
+            if imp.kind == ImportKind.WILDCARD or (
+                imp.kind in (ImportKind.NAMESPACE, ImportKind.STATIC) and len(parts) == 1
+            ):
                 candidates.append(_split(_join(_base(imp), *parts)))
         if self.language == Language.C_SHARP and len(parts) > 1:
             candidates.append(_split(reference))

@@ -54,6 +54,7 @@ import {
 import { useSetShadowFindingHidden, useShadowFinding } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type ShadowFindingDetail } from "@agent-management-platform/types";
 import { kindLabel, OnboardingChip, ownerLabel, providerLabel, shortDate } from "../shadowUi";
+import { CodeAgentOnboardActions } from "./OnboardActions";
 
 /** Facts longer than this are shown on half a row, in monospace. */
 const LONG_FACT = 40;
@@ -106,8 +107,8 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
 /** Who confirmed a code agent before the scan published it. */
 const REVIEWED_BY_LABELS: Record<string, string> = {
   rules: "Rules",
-  ai_review: "AI review",
-  ai_review_judge: "AI review and LLM judge",
+  ai_review: "AI",
+  ai_review_judge: "AI and LLM judge",
 };
 
 /** Attributes that are lists, shown as chips. */
@@ -445,7 +446,8 @@ function EvidenceCard({ f }: { f: ShadowFindingDetail }) {
 
 /**
  * One unregistered agent: an overview, what its platform reports, its
- * identifiers and the evidence, and onboarding it as an external agent.
+ * identifiers and the evidence, and onboarding it (a code agent can also be
+ * deployed as a platform-hosted agent).
  */
 export function FindingDetail({
   orgName,
@@ -524,6 +526,8 @@ export function FindingDetail({
           >
             Open registered agent
           </Button>
+        ) : canManage && isCode ? (
+          <CodeAgentOnboardActions f={f} orgName={orgName ?? ""} onboardPath={onboardPath} />
         ) : (
           canManage && (
             <Button
@@ -561,7 +565,7 @@ export function FindingDetail({
       <Stack spacing={3}>
         {f.onboarded && (
           <Alert severity="success">
-            Onboarded as an external agent:{" "}
+            Onboarded as an agent:{" "}
             {agentPath ? (
               <RouterLink to={agentPath}>
                 {f.linkedProject} / {f.linkedAgent}
@@ -594,7 +598,7 @@ export function FindingDetail({
         )}
         {aiReviewed && (
           <Alert severity="info">
-            AI review confirmed this agent. AI review can make mistakes, so check the evidence.
+            AI can make mistakes, so check the evidence.
           </Alert>
         )}
         <OverviewCard f={f} />

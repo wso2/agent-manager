@@ -217,6 +217,23 @@ def test_retries_are_exhausted(server: _Server, client: HttpClient, sleeps: list
     assert sleeps == [0.5, 1.0, 2.0]
 
 
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ({"error": {"type": "invalid_request_error", "message": " bad\n model "}}, "bad model"),
+        ({"message": "top", "error": {"message": "nested"}}, "top"),
+        ({"error": {"message": "x" * 300}}, "x" * 197 + "..."),
+        ({"error": "a string"}, None),
+        ({"error": {"message": 3}}, None),
+    ],
+)
+def test_server_message_reads_a_nested_error_message(
+    server: _Server, client: HttpClient, body: object, expected: str | None
+) -> None:
+    exc = _fails(lambda: client.post_json(server.route("/x", _json(400, body)), {}))
+    assert exc.server_message == expected
+
+
 def test_client_errors_are_not_retried(server: _Server, client: HttpClient) -> None:
     exc = _fails(lambda: client.get_json(server.route("/x", _json(404, {"message": "Not Found"}))))
     assert (exc.status, exc.retryable, len(server.seen)) == (404, False, 1)
@@ -251,6 +268,18 @@ def test_download_writes_the_file(server: _Server, client: HttpClient, tmp_path:
     response = client.download(url, dest, max_bytes=1_000_000)
     assert (response.status, response.size) == (200, 200_000)
     assert dest.read_bytes() == b"z" * 200_000
+
+
+@pytest.mark.parametrize("with_length", [True, False])
+def test_download_reports_progress(server: _Server, client: HttpClient, tmp_path: Path, with_length: bool) -> None:
+    headers = {"Content-Length": "200000"} if with_length else {}
+    url = server.route("/archive", (200, headers, b"z" * 200_000))
+    calls: list[tuple[int, int | None]] = []
+    client.download(url, tmp_path / "a", max_bytes=1_000_000, on_progress=lambda n, length: calls.append((n, length)))
+    received = [n for n, _ in calls]
+    assert received[0] == 0 and received[-1] == 200_000 and len(received) > 2
+    assert received == sorted(set(received))
+    assert {length for _, length in calls} == {200_000 if with_length else None}
 
 
 @pytest.mark.parametrize("with_length", [True, False])

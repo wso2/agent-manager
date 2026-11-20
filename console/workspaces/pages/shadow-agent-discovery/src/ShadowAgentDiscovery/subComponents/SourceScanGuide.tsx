@@ -60,13 +60,14 @@ export function SourceScanGuide({ spec }: { spec: ShadowProviderSpec }) {
                   Save the organization and repositories here. No token is entered or stored.
                 </Typography>
                 <Typography component="li" variant="body2" color="text.secondary">
-                  Turn AI review on or off next to the form and save: the command is shown
-                  there. Later, get a new one from Generate command on the Platforms tab.
+                  Turn AI-enhanced detection on or off next to the form and save: the command
+                  is shown there. Later, get a new one from Generate command on the Platforms
+                  tab.
                 </Typography>
                 <Typography component="li" variant="body2" color="text.secondary">
                   Run the command in a terminal. It asks for a read-only token when private
-                  repositories are included, and for an LLM API key when AI review is on. It
-                  scans on your machine and publishes only the agents it confirms.
+                  repositories are included, and for an LLM API key when AI-enhanced detection is
+                  on. It scans on your machine and publishes only the agents it confirms.
                 </Typography>
               </Box>
             </Box>

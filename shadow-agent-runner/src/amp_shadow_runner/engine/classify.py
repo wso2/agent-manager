@@ -55,7 +55,9 @@ becomes the project's name). That never changes the ``external_id``.
 
 ``external_id`` is ``<repository>:<path>:<qualified name>`` (see ``Match.qualified``), so it holds no line
 number and code added elsewhere never changes it. Only a real repeat of the same qualified name (two
-unnamed agents in one scope) gets ``@2``, ``@3`` and so on, numbered in source order. An ID over
+unnamed agents in one scope, such as one variable assigned twice in a block) gets ``@2``, ``@3`` and so on,
+numbered in source order; the matchers already keep only the first of one variable's agents written in
+different branches of a conditional, which is one agent. An ID over
 MAX_EXTERNAL_ID_CHARS keeps a readable prefix and ends with ``#`` and 12 hex characters of the full ID's
 SHA-256, so it stays stable and unique within Agent Manager's limit.
 """
@@ -67,7 +69,7 @@ from enum import StrEnum
 
 from amp_shadow_runner.engine.files import Tag
 from amp_shadow_runner.engine.imports import ImportTable, package_root
-from amp_shadow_runner.engine.languages import Language
+from amp_shadow_runner.engine.languages import Language, language_for
 from amp_shadow_runner.engine.manifests import Dependencies, service_folder
 from amp_shadow_runner.engine.match import Match
 from amp_shadow_runner.engine.signatures import Condition, Framework, RuleSet, Wiring
@@ -84,6 +86,16 @@ D7_TOOL_CALLING = "d7_tool_calling"
 Observed = Mapping[str, bool | int | str]
 
 _SCRIPT_LANGUAGES = frozenset({Language.JAVASCRIPT, Language.TYPESCRIPT, Language.TSX})
+
+PUBLISHED_LANGUAGES: Mapping[Language, str] = {
+    Language.PYTHON: "python",
+    Language.TYPESCRIPT: "typescript",
+    Language.TSX: "typescript",
+    Language.JAVASCRIPT: "javascript",
+    Language.C_SHARP: "csharp",
+    Language.BALLERINA: "ballerina",
+}
+"""The ``language`` attribute of a finding, by the language of its file."""
 
 _HOP_WIRING = frozenset({Wiring.TOOL_NODE, Wiring.TOOLS_CONDITION})
 """What wires a graph to tools one import hop away (see ``Wiring.BIND_TOOLS``)."""
@@ -123,11 +135,14 @@ class Finding:
     tag: Tag | None
     """``test`` or ``example`` for a finding in such code. Test findings are reported but never published."""
     attributes: Mapping[str, object]
-    """Attributes to publish: ``framework``; ``model`` and ``tools`` when the code states them; and
-    ``labels``: ``{"codeArea": "example"}`` for example code, ``{"crew": <name>}`` for an agent in a crew."""
+    """Attributes to publish: ``framework``; ``language`` (``python``, ``typescript``, ``javascript``,
+    ``csharp`` or ``ballerina``, from the file's extension); ``projectPath``, the ``service_folder`` as a path
+    from the repository root starting with ``/`` (``/`` for the root), when there is one; ``model`` and
+    ``tools`` when the code states them; and ``labels``: ``{"codeArea": "example"}`` for example code,
+    ``{"crew": <name>}`` for an agent in a crew. The pipeline adds ``branch``, the default branch scanned."""
     evidence: tuple[Evidence, ...]
     service_folder: str | None = None
-    """The folder of the nearest manifest above the file (``.`` for the root), reported, not published."""
+    """The folder of the nearest manifest above the file (``.`` for the root), published as ``projectPath``."""
     named: bool = False
     """True when ``name`` is the agent's own name literal (``Match.named``); not reported or published."""
 
@@ -181,6 +196,7 @@ def classify(
                 or (condition in (Condition.TOOL_LOOP, Condition.NAMESPACE) and not match.condition_met)
             ):
                 verdict = Verdict.NOT_SURE
+            folder = service_folder(file.path, dependencies.paths)
             findings.append(
                 Finding(
                     external_id=_unique(f"{repository}:{file.path}:{match.qualified}", counts, used),
@@ -191,9 +207,9 @@ def classify(
                     framework=framework.id,
                     verdict=verdict,
                     tag=file.tag,
-                    attributes=_attributes(match, file.tag),
+                    attributes=_attributes(match, file.path, file.tag, folder),
                     evidence=tuple(evidence),
-                    service_folder=service_folder(file.path, dependencies.paths),
+                    service_folder=folder,
                     named=match.named,
                 )
             )
@@ -230,8 +246,13 @@ def _import_count(imports: ImportTable, framework: Framework) -> int:
     return count
 
 
-def _attributes(match: Match, tag: Tag | None) -> dict[str, object]:
+def _attributes(match: Match, path: str, tag: Tag | None, folder: str | None) -> dict[str, object]:
     attributes: dict[str, object] = {"framework": match.framework}
+    language = language_for(path)
+    if language is not None:
+        attributes["language"] = PUBLISHED_LANGUAGES[language]
+    if folder is not None:
+        attributes["projectPath"] = project_path(folder)
     if match.model is not None:
         attributes["model"] = match.model
     if match.tools:
@@ -244,6 +265,11 @@ def _attributes(match: Match, tag: Tag | None) -> dict[str, object]:
     if labels:
         attributes["labels"] = labels
     return attributes
+
+
+def project_path(folder: str) -> str:
+    """A ``service_folder`` as the published ``projectPath``: ``/`` for the root (``.``), else ``/<folder>``."""
+    return "/" if folder == "." else f"/{folder.strip('/')}"
 
 
 def cap_external_id(external_id: str) -> str:

@@ -585,6 +585,75 @@ func TestAddSignalMergesSameCodeAndSource(t *testing.T) {
 	assert.Equal(t, SigBedrockRegistryAgent, f.Signals[2].Code)
 }
 
+// TestCodeAgentAttributes keeps branch, projectPath and language for a code
+// agent only, and drops (never cuts down) a value its rule refuses.
+func TestCodeAgentAttributes(t *testing.T) {
+	valid := map[string]any{
+		"framework": "langgraph", "branch": "release/2.0", "projectPath": "/samples/support-agent", "language": "csharp",
+	}
+	assert.Equal(t, valid, SanitizeFindingAttributes(models.ShadowKindCodeAgent, valid))
+	assert.Equal(t, valid, AllowedFindingAttributes(models.ShadowKindCodeAgent, valid))
+	assert.Equal(t, "/", SanitizeFindingAttributes(models.ShadowKindCodeAgent, map[string]any{"projectPath": "/"})["projectPath"])
+	long := "/" + strings.Repeat("a", 600)
+	assert.Equal(t, long, SanitizeFindingAttributes(models.ShadowKindCodeAgent, map[string]any{"projectPath": long})["projectPath"],
+		"a path over the 256-character attribute limit is kept whole")
+
+	for _, kind := range []string{models.ShadowKindPlatformAgent, models.ShadowKindRuntime} {
+		assert.Equal(t, map[string]any{"framework": "langgraph"}, SanitizeFindingAttributes(kind, valid), kind)
+		assert.Equal(t, map[string]any{"framework": "langgraph"}, AllowedFindingAttributes(kind, valid), kind)
+	}
+	assert.NotContains(t, SanitizeAttributes(valid), "branch", "the shared allow-list does not hold them")
+}
+
+func TestCodeAgentAttributes_DropsInvalidValues(t *testing.T) {
+	for _, tc := range []struct {
+		key   string
+		value any
+	}{
+		{"branch", ""},
+		{"branch", 7},
+		{"branch", "-rf"},
+		{"branch", "a..b"},
+		{"branch", "/main"},
+		{"branch", "main/"},
+		{"branch", "a//b"},
+		{"branch", "feature/.hidden"},
+		{"branch", "main."},
+		{"branch", "main.lock"},
+		{"branch", "has space"},
+		{"branch", "a;rm"},
+		{"branch", "a@{1}"},
+		{"branch", "äpfel"},
+		{"branch", strings.Repeat("b", 256)},
+		{"projectPath", ""},
+		{"projectPath", true},
+		{"projectPath", "samples/agent"},
+		{"projectPath", "/samples/agent/"},
+		{"projectPath", "//"},
+		{"projectPath", "/a//b"},
+		{"projectPath", "/a/../b"},
+		{"projectPath", "/.."},
+		{"projectPath", "/./a"},
+		{"projectPath", "/a b"},
+		{"projectPath", `/a\b`},
+		{"projectPath", "/" + strings.Repeat("p", 1024)},
+		{"language", "go"},
+		{"language", "Python"},
+		{"language", "tsx"},
+		{"language", []string{"python"}},
+	} {
+		out := SanitizeFindingAttributes(models.ShadowKindCodeAgent, map[string]any{"framework": "crewai", tc.key: tc.value})
+		assert.Equal(t, map[string]any{"framework": "crewai"}, out, "%s %#v", tc.key, tc.value)
+	}
+	for _, branch := range []string{"main", "release/2.0", "feature/JIRA-12_fix", "v1.2.3", strings.Repeat("b", 255)} {
+		out := SanitizeFindingAttributes(models.ShadowKindCodeAgent, map[string]any{"branch": branch})
+		assert.Equal(t, branch, out["branch"])
+	}
+	for _, lang := range []string{"python", "typescript", "javascript", "csharp", "ballerina"} {
+		assert.Equal(t, lang, SanitizeFindingAttributes(models.ShadowKindCodeAgent, map[string]any{"language": lang})["language"])
+	}
+}
+
 func TestEntraSignInMessageNamesTheProblem(t *testing.T) {
 	for text, want := range map[string]string{
 		"AADSTS90002: Tenant 'x' not found.":                 "(AADSTS90002): the tenant was not found",

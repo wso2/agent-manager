@@ -357,10 +357,14 @@ def test_tarball_is_downloaded_through_a_redirect_without_the_token(
     )
     other.route(signed, (200, {"Content-Length": str(len(archive))}, archive))
 
-    path = make().download_tarball(Repository("app", False, "main", commit_sha=SHA), tmp_path)
+    calls: list[tuple[int, int | None]] = []
+    path = make().download_tarball(
+        Repository("app", False, "main", commit_sha=SHA), tmp_path, on_progress=lambda n, t: calls.append((n, t))
+    )
 
     assert api.seen[0][1]["authorization"] == f"Bearer {TOKEN}"
     assert "authorization" not in other.seen[0][1]
+    assert calls[-1] == (len(archive), len(archive))
     result = extract(path, tmp_path / "tree")
     assert (result.files, result.stripped) == (1, True)
     assert (tmp_path / "tree" / "agent.py").read_bytes() == b"from openai import OpenAI\n"

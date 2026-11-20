@@ -69,6 +69,7 @@ import {
   unlockLabels,
 } from "../shadowUi";
 import { scopedKeyCount } from "../capabilities";
+import { ProviderLogo } from "../providerLogos";
 import { GenerateCommandDialog } from "./GenerateCommandDialog";
 
 /** The number of keys an OpenAI or Anthropic platform lists agents with. */
@@ -210,6 +211,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                   flexWrap="wrap"
                   useFlexGap
                 >
+                  <ProviderLogo provider={c.provider} size={18} />
                   <Typography variant="body2">{providerLabel(c.provider)}</Typography>
                   <ScopedKeysChip provider={c.provider} secretHints={c.secretHints} />
                 </Stack>
@@ -369,7 +371,10 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                         </Typography>
                       </ListingTable.Cell>
                       <ListingTable.Cell>
-                        <Typography variant="body2">{providerLabel(c.provider)}</Typography>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <ProviderLogo provider={c.provider} size={18} />
+                          <Typography variant="body2">{providerLabel(c.provider)}</Typography>
+                        </Stack>
                       </ListingTable.Cell>
                       <ListingTable.Cell>
                         <Typography variant="body2">

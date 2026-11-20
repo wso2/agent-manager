@@ -16,6 +16,7 @@
 
 """amp_shadow_runner.engine.match and signatures: Python agent signatures, names and facts."""
 
+import time
 from collections.abc import Callable
 
 import pytest
@@ -252,6 +253,31 @@ def test_absorbs_the_nearest_earlier_assignment_in_the_same_scope() -> None:
         ("langchain", 5, "executor"),
         ("langchain", 6, "agent"),
         ("langchain", 9, "agent"),
+    ]
+
+
+def test_absorbs_from_an_enclosing_function_or_the_module() -> None:
+    source = (
+        "from langchain.agents import AgentExecutor, create_react_agent\n"
+        "agent = create_react_agent(llm, tools, prompt)\n"
+        "def run():\n"
+        "    return AgentExecutor(agent=agent, tools=tools)\n"
+        "class Svc:\n"
+        "    agent = create_react_agent(llm, tools, prompt)\n"
+        "    def run(self):\n"
+        "        return AgentExecutor(agent=agent, tools=tools)\n"
+        "def other():\n"
+        "    agent = create_react_agent(llm, tools, prompt)\n"
+        "def last():\n"
+        "    return AgentExecutor(agent=agent, tools=tools)\n"
+    )
+    # A class attribute is no variable of its methods; another function's variable is not in scope.
+    assert _found(source) == [
+        ("langchain", 4, "run"),
+        ("langchain", 6, "agent"),
+        ("langchain", 8, "run"),
+        ("langchain", 10, "agent"),
+        ("langchain", 12, "last"),
     ]
 
 
@@ -643,3 +669,121 @@ def test_crew_links_its_manager_agent(manager: str) -> None:
     found = _crews(source)
     assert found[-1][2] == "team"
     assert ("crew", "team", None) not in found
+
+
+@pytest.mark.parametrize("parts", [1000, 5000])
+def test_a_long_dotted_name_is_read_without_recursion(parts: int) -> None:
+    assert _matches("import x\nfoo" + ".x" * parts + "()\n") == ()
+    assert _matches("import strands\nbot = strands" + ".x" * parts + ".Agent()\n") == ()
+
+
+def test_a_dotted_name_of_up_to_64_parts_resolves() -> None:
+    longest = "import a\nbot = a" + ".b" * 62 + ".Agent()\n"  # 64 parts with ``a`` and ``Agent``.
+    rules = RuleSet((Framework("f", ("a",), ("a",)),), (Signature("f", Symbol("a" + ".b" * 62, "Agent"), Shape.CALL),))
+    data = longest.encode()
+    tree = parse(Language.PYTHON, data)
+    assert tree is not None
+    imports = extract_imports(Language.PYTHON, tree, data)
+    assert [m.name for m in match_python_file("a.py", tree, data, imports, rules).matches] == ["bot"]
+    # One part more (65) is no reference, so it never resolves.
+    rules = RuleSet((Framework("f", ("a",), ("a",)),), (Signature("f", Symbol("a" + ".b" * 63, "Agent"), Shape.CALL),))
+    data = longest.replace(".Agent", ".b.Agent").encode()
+    tree = parse(Language.PYTHON, data)
+    assert tree is not None
+    assert match_python_file("a.py", tree, data, imports, rules).matches == ()
+
+
+def test_a_name_literal_that_is_not_utf8_is_no_name() -> None:
+    data = b'from strands import Agent\nsupport = Agent(name="B\xffot", model="gpt\xff-4o")\n'
+    tree = parse(Language.PYTHON, data)
+    assert tree is not None
+    (match,) = match_python_file("a.py", tree, data, extract_imports(Language.PYTHON, tree, data)).matches
+    assert (match.name, match.named, match.model) == ("support", False, None)
+
+
+# One agent written once in each branch of a conditional: only the first is kept. (code, its line)
+ONE_AGENT_IN_BRANCHES = [
+    ("if fast:\n    graph = Agent(model=a)\nelse:\n    graph = Agent(model=b)\n", 3),
+    ("if a:\n    graph = Agent()\nelif b:\n    graph = Agent()\nelse:\n    graph = Agent()\n", 3),
+    ("if a:\n    graph = Agent()\nelse:\n    if b:\n        graph = Agent()\n    else:\n        graph = Agent()\n", 3),
+    (
+        "try:\n    graph = Agent()\nexcept ImportError:\n    graph = Agent()\nexcept Exception:\n    graph = Agent()\n",
+        3,
+    ),
+    ("graph = Agent() if fast else Agent()\n", 2),
+    ("match mode:\n    case 'fast':\n        graph = Agent()\n    case _:\n        graph = Agent()\n", 4),
+    (
+        "class Bot:\n    def __init__(self, fast):\n        if fast:\n            self.graph = Agent()\n"
+        "        else:\n            self.graph = Agent()\n",
+        5,
+    ),
+]
+
+
+@pytest.mark.parametrize(("code", "line"), ONE_AGENT_IN_BRANCHES)
+def test_one_variable_in_exclusive_branches_is_one_agent(code: str, line: int) -> None:
+    (match,) = _matches(f"from strands import Agent\n{code}")
+    assert (match.name, match.line) == ("graph", line)
+
+
+def test_a_conditional_expression_is_named_after_its_variable() -> None:
+    (match,) = _matches("from strands import Agent\ngraph = Agent() if fast else Agent()\n")
+    assert (match.name, match.qualified, match.named) == ("graph", "graph", False)
+
+
+# Still two agents: a reassignment in one block, two scopes, ``try`` and ``else`` (both run), two
+# frameworks, ``name=`` literals, or no variable at all.
+TWO_AGENTS = [
+    "graph = Agent()\ngraph = Agent()\n",
+    "if fast:\n    graph = Agent()\n    graph = Agent()\n",
+    "def a():\n    graph = Agent()\ndef b():\n    graph = Agent()\n",
+    "if x:\n    def a():\n        graph = Agent()\nelse:\n    def a():\n        graph = Agent()\n",
+    "try:\n    graph = Agent()\nexcept E:\n    pass\nelse:\n    graph = Agent()\n",
+    "if fast:\n    graph = Agent()\nelse:\n    graph = crewai.Agent(role='r')\n",
+    "if fast:\n    Agent(name='Fast')\nelse:\n    Agent(name='Slow')\n",
+    "if fast:\n    graph = Agent(name='Bot')\nelse:\n    graph = Agent(name='Bot')\n",
+    "if fast:\n    Agent()\nelse:\n    Agent()\n",
+    # The ``else`` path builds two agents.
+    "if a:\n    graph = Agent()\nelse:\n    graph = Agent()\n    graph = Agent()\n",
+]
+
+
+@pytest.mark.parametrize("code", TWO_AGENTS)
+def test_two_agents_stay_two(code: str) -> None:
+    assert len(_matches(f"from strands import Agent\nimport crewai\n{code}")) == 2
+
+
+def test_a_reassignment_after_a_conditional_is_another_agent() -> None:
+    source = (
+        "from strands import Agent\n"
+        "if fast:\n    graph = Agent()\nelse:\n    graph = Agent()\n"
+        "graph = Agent()\n"
+        "if slow:\n    graph = Agent()\nelse:\n    graph = Agent()\n"
+    )
+    assert [m.line for m in _matches(source)] == [3, 6, 8]
+
+
+def test_the_kept_branch_agent_is_the_one_an_executor_absorbs() -> None:
+    source = (
+        "from langchain.agents import AgentExecutor, create_react_agent\n"
+        "if fast:\n    agent = create_react_agent(llm, tools, a)\n"
+        "else:\n    agent = create_react_agent(llm, tools, b)\n"
+        "executor = AgentExecutor(agent=agent, tools=tools)\n"
+    )
+    assert _found(source) == [("langchain", 6, "executor")]
+
+
+def test_many_reassignments_are_matched_quickly() -> None:
+    source = "from strands import Agent\ndef f():\n" + "    graph = Agent()\n" * 2000
+    started = time.monotonic()
+    assert len(_matches(source)) == 2000
+    assert time.monotonic() - started < 2
+
+
+def test_crews_in_branches_are_never_merged() -> None:
+    source = (
+        "from crewai import Agent, Crew\n"
+        "researcher = Agent(role='r')\nwriter = Agent(role='w')\n"
+        "if fast:\n    crew = Crew(agents=[researcher])\nelse:\n    crew = Crew(agents=[writer])\n"
+    )
+    assert _crews(source) == [("crewai", "researcher", "crew"), ("crewai", "writer", "crew")]

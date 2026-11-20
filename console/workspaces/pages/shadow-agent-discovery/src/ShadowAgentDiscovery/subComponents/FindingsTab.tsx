@@ -51,6 +51,7 @@ import {
 } from "@agent-management-platform/types";
 import {
   AGENT_PLATFORMS,
+  AiReviewChip,
   kindLabel,
   OnboardingChip,
   providerLabel,
@@ -303,9 +304,12 @@ export function FindingsTab({
               }
             >
               <ListingTable.Cell sx={{ maxWidth: 360 }}>
-                <Typography variant="body2" fontWeight={500}>
-                  {f.displayName}
-                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" fontWeight={500}>
+                    {f.displayName}
+                  </Typography>
+                  <AiReviewChip reviewedBy={f.reviewedBy} />
+                </Stack>
                 {/* Only the type: scope, IDs and the rest are on the agent's page. Two agents
                     that look alike also show their platform ID, so they do not read as one. */}
                 <Typography variant="caption" color="text.secondary" component="p" noWrap>

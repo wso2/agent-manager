@@ -389,7 +389,7 @@ func toShadowApply(
 				Scope:             sa.NormaliseScope(c.Provider, c.Config.Organization, f.Scope),
 				State:             sa.Truncate(f.State, 64),
 				OwnerHint:         sa.MinimiseOwnerHint(f.OwnerHint),
-				Attributes:        sa.SanitizeAttributes(f.Attributes),
+				Attributes:        sa.SanitizeFindingAttributes(f.Kind, f.Attributes),
 				ProviderCreatedAt: f.ProviderCreatedAt,
 			},
 		}

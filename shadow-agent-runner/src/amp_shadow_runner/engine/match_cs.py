@@ -29,23 +29,29 @@ A class or factory that resolves through the imports, or a fully qualified name,
 (``Match.condition_met`` true). When nothing resolves but the name is written bare, exactly as a signature's
 class (``ChatCompletionAgent``, ``OpenAIAssistantAgent.CreateAsync``), it is the lookalike case: a Match with
 ``condition_met`` false, which ``classify`` makes Not sure. A name qualified with another namespace is no
-match.
+match. A name that resolves is also Not sure when the file or its project declares a type of the name it is
+written with (``class ChatCompletionAgent``): that type may be the one meant.
 
 A match's name is, in order: the ``Name = "..."`` object-initializer property or the ``name: "..."``
 named argument, when a short plain string literal; the variable, field or property it is assigned to (seen
-through ``await`` and parentheses; ``this.agent = ...`` gives ``agent``); the nearest enclosing method,
-constructor, local function or property; the nearest enclosing class, struct, record or interface; else
-``<framework>-agent``. ``Match.qualified`` places it in its classes and members, without the namespace.
-No other argument, initializer or literal is read.
+through ``await``, parentheses and the values of ``c ? a : b``; ``this.agent = ...`` gives ``agent``); the
+nearest enclosing method, constructor, local function or property; the nearest enclosing class, struct,
+record or interface; else ``<framework>-agent``. ``Match.qualified`` places it in its classes and members,
+without the namespace. No other argument, initializer or literal is read.
+
+Matches of one framework named after the same variable in one scope, in different branches of an ``if``,
+``try``/``catch``, ``switch`` or ``?:``, are one agent: only the first is kept (see ``branches``). The same
+variable assigned twice in one block is two agents.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
 import tree_sitter
 
-from amp_shadow_runner.engine.imports import ImportKind, ImportTable
-from amp_shadow_runner.engine.match import MAX_LITERAL_CHARS, Match
+from amp_shadow_runner.engine.branches import branch_table, repeats
+from amp_shadow_runner.engine.imports import ImportKind, ImportTable, Symbol
+from amp_shadow_runner.engine.match import MAX_REFERENCE_PARTS, Match, plain_literal
 from amp_shadow_runner.engine.signatures import Condition, RuleSet, Shape, Signature
 from amp_shadow_runner.engine.signatures.csharp import CSHARP
 
@@ -64,12 +70,31 @@ _MEMBERS = frozenset(
 _SCOPES = _TYPES | _MEMBERS
 _TRANSPARENT = frozenset({"await_expression", "parenthesized_expression"})
 _CREATIONS = frozenset({"object_creation_expression", "implicit_object_creation_expression"})
+_DECLARED = _TYPES | {"enum_declaration", "delegate_declaration"}
+_BRANCHES = branch_table(
+    {
+        "if_statement": frozenset({"consequence", "alternative"}),
+        "try_statement": frozenset({"body", "catch_clause"}),
+        "conditional_expression": frozenset({"consequence", "alternative"}),
+        "switch_body": frozenset({"switch_section"}),
+    }
+)
 
 
-def mentions(source: bytes, rules: RuleSet = CSHARP) -> bool:
-    """Whether ``source`` holds the name of any class or method in ``rules``: a file that does not can
-    hold no match, so it need not be matched."""
-    return any(name.encode() in source for name in _names(rules))
+def mentions(source: bytes, rules: RuleSet = CSHARP, aliases: Iterable[str] = ()) -> bool:
+    """Whether ``source`` holds the name of any class or method in ``rules``, or one of ``aliases`` (the
+    project-wide alias names, from ``global using`` and ``<Using Alias>``): a file that does not can hold no
+    match, so it need not be matched."""
+    return any(name.encode() in source for name in (*_names(rules), *aliases))
+
+
+def declared_types(tree: tree_sitter.Tree, source: bytes) -> frozenset[str]:
+    """The names of the classes, structs, records, interfaces, enums and delegates the file declares."""
+    names: set[str] = set()
+    for node in _walk(tree.root_node):
+        if node.type in _DECLARED and (name := node.child_by_field_name("name")) is not None:
+            names.add(source[name.start_byte : name.end_byte].decode("utf-8", errors="replace"))
+    return frozenset(names)
 
 
 def _names(rules: RuleSet) -> set[str]:
@@ -80,17 +105,30 @@ def _names(rules: RuleSet) -> set[str]:
 
 
 def match_csharp_file(
-    path: str, tree: tree_sitter.Tree, source: bytes, imports: ImportTable, rules: RuleSet = CSHARP
+    path: str,
+    tree: tree_sitter.Tree,
+    source: bytes,
+    imports: ImportTable,
+    rules: RuleSet = CSHARP,
+    *,
+    local_types: frozenset[str] = frozenset(),
 ) -> tuple[Match, ...]:
-    """Every use of a signature in ``rules`` in the parsed C# file at ``path``, in source order."""
-    reader = _Reader(source, imports, rules, _bare(rules), _extensions(rules, imports))
-    found: list[Match] = []
+    """Every use of a signature in ``rules`` in the parsed C# file at ``path``, in source order.
+
+    ``local_types`` are the type names the file or its project declares (``declared_types``): a class that
+    resolves but is written with such a name first (``new ChatCompletionAgent()`` with a project class
+    ``ChatCompletionAgent``) may be the project's own, so it is Not sure (``condition_met`` false)."""
+    reader = _Reader(source, imports, rules, _bare(rules), _extensions(rules, imports), local_types)
+    found: list[tuple[tree_sitter.Node, Match, tuple[str, int, str] | None]] = []
     for node in _walk(tree.root_node):
         if node.type in _CREATIONS or node.type == "invocation_expression":
             match = reader.match(node, path)
             if match is not None:
-                found.append(match)
-    return tuple(found)
+                assigned = not match.named and reader.assigned_to(node) is not None
+                key = (match.framework, _scope_id(node), match.qualified) if assigned else None
+                found.append((node, match, key))
+    repeated = repeats([(node, key) for node, _, key in found], _BRANCHES)
+    return tuple(match for node, match, _ in found if node.id not in repeated)
 
 
 def _bare(rules: RuleSet) -> dict[str, Signature]:
@@ -139,10 +177,22 @@ def _scopes(node: tree_sitter.Node) -> list[tree_sitter.Node]:
     return scopes[::-1]
 
 
+def _scope_id(node: tree_sitter.Node) -> int:
+    """The id of the nearest type or member enclosing ``node``, else of the file."""
+    parent = node.parent
+    while parent is not None:
+        if parent.type in _SCOPES or parent.parent is None:
+            return parent.id
+        parent = parent.parent
+    return node.id
+
+
 def _outer(node: tree_sitter.Node) -> tree_sitter.Node:
-    """``node`` with the ``await`` and parentheses around it."""
-    while node.parent is not None and node.parent.type in _TRANSPARENT:
-        node = node.parent
+    """``node`` with the ``await``, parentheses and ``c ? a : b`` (as one of its values) around it."""
+    while (parent := node.parent) is not None and (
+        parent.type in _TRANSPARENT or (parent.type == "conditional_expression" and _BRANCHES(parent, node))
+    ):
+        node = parent
     return node
 
 
@@ -153,37 +203,53 @@ class _Reader:
     rules: RuleSet
     bare: dict[str, Signature]
     extensions: dict[str, Signature]
+    local_types: frozenset[str] = frozenset()
 
     def text(self, node: tree_sitter.Node) -> str:
         return self.source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
     def reference(self, node: tree_sitter.Node | None) -> str | None:
-        """A type or member name as a dotted path without generic arguments or ``global::``; else None."""
-        if node is None:
-            return None
-        if node.type == "identifier":
-            return self.text(node)
-        if node.type == "generic_name":
-            name = next((c for c in node.named_children if c.type == "identifier"), None)
-            return None if name is None else self.text(name)
-        if node.type == "nullable_type":
-            return self.reference(node.child_by_field_name("type"))
-        if node.type == "alias_qualified_name":
-            alias = node.child_by_field_name("alias")
-            if alias is None or self.text(alias) != "global":
-                return None  # An extern alias: not a namespace path.
-            return self.reference(node.child_by_field_name("name"))
-        if node.type in ("qualified_name", "member_access_expression"):
-            left = node.child_by_field_name("qualifier" if node.type == "qualified_name" else "expression")
-            head, tail = self.reference(left), self.reference(node.child_by_field_name("name"))
-            return None if head is None or tail is None else f"{head}.{tail}"
+        """A type or member name as a dotted path without generic arguments or ``global::``; else None, also
+        for a path of more than ``MAX_REFERENCE_PARTS`` parts."""
+        parts: list[str] = []
+        while node is not None:
+            if node.type in ("qualified_name", "member_access_expression"):
+                tail = self.simple(node.child_by_field_name("name"))
+                if tail is None or len(parts) >= MAX_REFERENCE_PARTS - 1:
+                    return None
+                parts.append(tail)
+                node = node.child_by_field_name("qualifier" if node.type == "qualified_name" else "expression")
+            elif node.type == "nullable_type":
+                node = node.child_by_field_name("type")
+            elif node.type == "alias_qualified_name":
+                alias = node.child_by_field_name("alias")
+                if alias is None or self.text(alias) != "global":
+                    return None  # An extern alias: not a namespace path.
+                node = node.child_by_field_name("name")
+            else:
+                head = self.simple(node)
+                if head is None:
+                    return None
+                parts.append(head)
+                return ".".join(reversed(parts))
         return None
+
+    def simple(self, node: tree_sitter.Node | None) -> str | None:
+        """A simple name (``X``, or ``X`` of ``X<T>``), or None."""
+        if node is not None and node.type == "generic_name":
+            node = next((c for c in node.named_children if c.type == "identifier"), None)
+        return self.text(node) if node is not None and node.type == "identifier" else None
 
     def find(self, reference: str | None, shapes: tuple[Shape, ...]) -> tuple[Signature, bool] | None:
         """The signature ``reference`` names, and whether it resolved (True) or only matched bare (False)."""
         if reference is None:
             return None
-        for symbol in self.imports.resolve(reference):
+        symbols = list(self.imports.resolve(reference))
+        owner, _, member = reference.rpartition(".")
+        if Shape.FACTORY in shapes and owner:
+            # ``Type.CreateAsync``: a using brings in ``Type``, so resolve it, then take its member.
+            symbols.extend(Symbol(f"{s.module}.{s.name}", member) for s in self.imports.resolve(owner) if s.name)
+        for symbol in symbols:
             sig = self.rules.find(symbol, shapes)
             if sig is not None:
                 return sig, True
@@ -192,15 +258,20 @@ class _Reader:
 
     def match(self, node: tree_sitter.Node, path: str) -> Match | None:
         if node.type == "object_creation_expression":
-            found = self.find(self.reference(node.child_by_field_name("type")), (Shape.CALL,))
+            reference = self.reference(node.child_by_field_name("type"))
+            found = self.find(reference, (Shape.CALL,))
         elif node.type == "implicit_object_creation_expression":
-            found = self.find(self.reference(self.declared_type(node)), (Shape.CALL,))
+            reference = self.reference(self.declared_type(node))
+            found = self.find(reference, (Shape.CALL,))
         else:
+            reference = self.reference(node.child_by_field_name("function"))
             found = self.invocation(node)
         if found is None:
             return None
         sig, resolved = found
         met = resolved if sig.condition == Condition.NAMESPACE else None
+        if met and reference is not None and reference.split(".", 1)[0] in self.local_types:
+            met = False  # The project declares a type of that name, which may be the one meant.
         scopes = _scopes(node)
         if scopes and scopes[-1].type == "property_declaration" and _outer(node).parent == scopes[-1]:
             scopes.pop()  # A property's initializer: the property is the name, not a scope.
@@ -286,6 +357,4 @@ class _Reader:
         if any(c.type != "string_literal_content" for c in node.named_children):
             return None
         value = "".join(self.text(c) for c in node.named_children).strip()
-        if not value or len(value) > MAX_LITERAL_CHARS or "\\" in value or not value.isprintable():
-            return None
-        return value
+        return value if plain_literal(value) else None

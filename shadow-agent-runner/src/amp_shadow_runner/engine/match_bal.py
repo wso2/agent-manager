@@ -42,13 +42,28 @@ _IMPORT = re.compile(r"^[ \t]*import\s+([A-Za-z_]\w*)/([A-Za-z_][\w.]*)(?:\s+as\
 _IDENTIFIER = r"[A-Za-z_]\w*"
 
 
+class _Lines:
+    """1-based line numbers of offsets given in increasing order, counting each newline once."""
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.offset = 0
+        self.line = 1
+
+    def at(self, offset: int) -> int:
+        self.line += self.text.count("\n", self.offset, offset)
+        self.offset = offset
+        return self.line
+
+
 def ballerina_imports(text: str) -> ImportTable:
     """The ``import org/name [as prefix];`` statements of a Ballerina file, each binding its prefix."""
     found: list[Import] = []
+    lines = _Lines(text)
     for match in _IMPORT.finditer(text):
         org, name, alias = match.groups()
         prefix = alias or name.rsplit(".", 1)[-1]
-        line = text.count("\n", 0, match.start()) + 1
+        line = lines.at(match.start())
         found.append(Import(f"{org}/{name}", None, prefix, ImportKind.MODULE, line))
     return ImportTable(Language.BALLERINA, tuple(found))
 
@@ -69,9 +84,10 @@ def match_ballerina_file(path: str, text: str, rules: RuleSet = BALLERINA) -> tu
             rf"\b{prefix}:(?P<declared>{classes})\s+(?P<variable>{_IDENTIFIER})\s*=\s*(?:check\s+)?new\b"
             rf"|(?:\b(?P<target>{_IDENTIFIER})\s*=\s*(?:check\s+)?)?\bnew\s+{prefix}:(?P<created>{classes})\b"
         )
+        lines = _Lines(code)
         for match in pattern.finditer(code):
             cls = match.group("declared") or match.group("created")
             name = match.group("variable") or match.group("target") or DEFAULT_NAME
-            line = code.count("\n", 0, match.start()) + 1
+            line = lines.at(match.start())
             found.setdefault(match.start(), Match(signatures[cls], path, line, name, name))
     return tuple(found[k] for k in sorted(found)), imports

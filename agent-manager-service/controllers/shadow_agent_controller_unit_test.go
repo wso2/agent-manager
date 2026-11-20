@@ -32,6 +32,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -264,6 +265,47 @@ func TestShadowScanRepositoriesOnlyInTheDetail(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.NotContains(t, w.Body.String(), "scannedRepositories")
 	assert.NotContains(t, w.Body.String(), "failedRepositories")
+}
+
+// findingListService answers ListFindings only.
+type findingListService struct {
+	services.ShadowAgentService
+	rows []repositories.ShadowFindingRow
+}
+
+func (s *findingListService) ListFindings(
+	context.Context, string, repositories.ShadowFindingFilter,
+) ([]repositories.ShadowFindingRow, int, error) {
+	return s.rows, len(s.rows), nil
+}
+
+// The list says who confirmed a code agent, so the console can mark agents
+// confirmed by AI review; other kinds never carry it.
+func TestShadowListFindings_ReviewedBy(t *testing.T) {
+	row := func(kind string, attrs map[string]any) repositories.ShadowFindingRow {
+		return repositories.ShadowFindingRow{ShadowFinding: models.ShadowFinding{
+			ID: uuid.New(), ConnectionID: uuid.New(), Kind: kind, ExternalID: uuid.NewString(), Attributes: attrs,
+		}}
+	}
+	svc := &findingListService{rows: []repositories.ShadowFindingRow{
+		row(models.ShadowKindCodeAgent, map[string]any{"reviewedBy": "ai_review"}),
+		row(models.ShadowKindCodeAgent, map[string]any{"reviewedBy": "rules"}),
+		row(models.ShadowKindCodeAgent, map[string]any{"reviewedBy": ""}),
+		row(models.ShadowKindCodeAgent, map[string]any{"reviewedBy": true}),
+		row(models.ShadowKindPlatformAgent, map[string]any{"reviewedBy": "ai_review"}),
+	}}
+	w := httptest.NewRecorder()
+	NewShadowAgentController(svc).ListFindings(w,
+		httptest.NewRequest(http.MethodGet, "/orgs/acme/shadow-agents/findings", nil))
+	require.Equal(t, http.StatusOK, w.Code)
+	list := decodeJSON[spec.ShadowFindingListResponse](t, w.Body.Bytes())
+	require.Len(t, list.Findings, 5)
+	got := make([]*string, 0, len(list.Findings))
+	for _, f := range list.Findings {
+		got = append(got, f.ReviewedBy)
+	}
+	aiReview, rules := "ai_review", "rules"
+	assert.Equal(t, []*string{&aiReview, &rules, nil, nil, nil}, got)
 }
 
 func decodeJSON[T any](t *testing.T, b []byte) T {

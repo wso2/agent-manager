@@ -25399,6 +25399,11 @@ components:
         onboardedAt:
           type: string
           format: date-time
+        reviewedBy:
+          type: string
+          description: >-
+            For code agents, who confirmed the agent: rules (the scan's rules), ai_review (the customer's LLM)
+            or ai_review_judge (the LLM judge). Absent for other kinds.
         hidden:
           type: boolean
           description: >-
