@@ -371,13 +371,15 @@ func (s *MCPProxyService) ListAvailableMCPPolicies(
 ) (*models.PolicyCatalogResponse, error) {
 	var artifactUUIDs []uuid.UUID
 	if handle := strings.TrimSpace(proxyID); handle != "" {
+		// filterByEnv is tracked separately: the all-zero UUID is a valid value, not "no filter".
 		var envFilter uuid.UUID
+		filterByEnv := false
 		if env := strings.TrimSpace(environmentUUID); env != "" {
 			parsed, err := uuid.Parse(env)
 			if err != nil {
 				return nil, fmt.Errorf("%w: environmentUuid must be a UUID", utils.ErrInvalidInput)
 			}
-			envFilter = parsed
+			envFilter, filterByEnv = parsed, true
 		}
 		proxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
 		if err != nil {
@@ -389,7 +391,7 @@ func (s *MCPProxyService) ListAvailableMCPPolicies(
 		// Deployments are keyed by each (endpoint, environment) artifact UUID, never by the proxy's own.
 		for _, endpoint := range proxy.Endpoints {
 			for _, binding := range endpoint.Environments {
-				if envFilter != uuid.Nil && binding.EnvironmentUUID != envFilter {
+				if filterByEnv && binding.EnvironmentUUID != envFilter {
 					continue
 				}
 				if binding.ArtifactUUID != uuid.Nil {

@@ -156,6 +156,18 @@ describe("filterGuardrailPolicies", () => {
     expect(out.map((p) => p.name)).toEqual(["my-custom"]);
   });
 
+  it("shows a gateway-derived partial row the hub does not know", () => {
+    const out = filterGuardrailPolicies([
+      def({
+        name: "gw-only",
+        status: "not_installed",
+        categories: [],
+        missingOn: [{ id: "g2", name: "gw-b" }],
+      }),
+    ]);
+    expect(out.map((p) => p.name)).toEqual(["gw-only"]);
+  });
+
   it("still hides an excluded not-installed custom item", () => {
     const out = filterGuardrailPolicies([
       def({ name: "jwt-auth", source: "custom", status: "not_installed", categories: [] }),
