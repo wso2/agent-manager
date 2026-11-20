@@ -23,10 +23,11 @@
 3. The repositories are listed or looked up, printed, and confirmed. Without a terminal the scan goes on
    only with ``--yes`` or ``AMP_SCAN_YES=1``, and otherwise exits CONFIG_ERROR before any listing. Declining
    publishes nothing: the pending scan expires on its own after 1 hour.
-4. Each repository is downloaded and extracted into the always-deleted workspace, scanned, and deleted
-   before the next one. A failure in one repository marks it failed with a short reason and the scan goes
-   on. A failure that stops the Git host for every repository (a refused token, a used-up rate limit) marks
-   it and every repository after it failed, so the agents found so far are still published.
+4. Each repository is downloaded and extracted into the always-deleted workspace at its default branch's
+   commit, scanned, and deleted before the next one. Its findings get the attribute ``branch``, that
+   branch. A failure in one repository marks it failed with a short reason and the scan goes on. A failure
+   that stops the Git host for every repository (a refused token, a used-up rate limit) marks it and every
+   repository after it failed, so the agents found so far are still published.
 5. The report is written before publishing, so ``upload`` can publish it again if publishing fails. If it
    cannot be written, the results are still published and the command exits with the report's error code.
 6. The results are published once.
@@ -56,7 +57,7 @@ from pathlib import Path
 from typing import Protocol, TextIO
 
 from amp_shadow_runner.config import ConfigError, ScanConfig
-from amp_shadow_runner.engine.classify import Verdict
+from amp_shadow_runner.engine.classify import Finding, Verdict
 from amp_shadow_runner.engine.scan import ScanResult, scan_tree
 from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.fetch import ArchiveError, extract, remove_tree, workspace
@@ -350,7 +351,18 @@ def _scan_one(
             result = replace(result, findings=findings)
     finally:
         remove_tree(tree)  # The code is deleted before the next repository is downloaded.
-    return replace(result, files_skipped=result.files_skipped + extracted.skipped)
+    return replace(
+        result,
+        findings=_with_branch(result.findings, resolved.default_branch),
+        files_skipped=result.files_skipped + extracted.skipped,
+    )
+
+
+def _with_branch(findings: tuple[Finding, ...], branch: str | None) -> tuple[Finding, ...]:
+    """``findings`` with the attribute ``branch``: the default branch the repository was scanned at."""
+    if not branch:
+        return findings
+    return tuple(replace(f, attributes={**f.attributes, "branch": branch}) for f in findings)
 
 
 def _print_listing(say: Callable[[str], None], config: ScanConfig, listing: RepositoryList, *, anonymous: bool) -> None:

@@ -57,8 +57,9 @@ MAX_REASON_CHARS = 300
 REVIEWED_BY_RULES = "rules"
 REVIEWED_BY_AI = frozenset({"ai_review", "ai_review_judge"})
 """The ``reviewedBy`` values AI review sets on a Not-sure finding it confirmed."""
-PUBLISHED_ATTRIBUTES = frozenset({"framework", "model", "tools", "labels"})
-"""Finding attributes that are published; ``reviewedBy`` is added here."""
+PUBLISHED_ATTRIBUTES = frozenset({"framework", "model", "tools", "labels", "branch", "projectPath", "language"})
+"""Finding attributes that are published, each only when the finding has it; ``reviewedBy`` is added here.
+``branch``, ``projectPath`` and ``language`` let Agent Manager prefill deploying the agent."""
 
 _KEEP_REPORT = "The report is saved"
 _NEW_COMMAND = "Generate a new command in Agent Manager and run the scan again."

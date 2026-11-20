@@ -729,7 +729,7 @@ func toShadowFindingDetail(v *services.ShadowFindingView) spec.ShadowFindingDeta
 		FirstSeenAt: sum.FirstSeenAt, LastSeenAt: sum.LastSeenAt, Present: sum.Present, FoundBy: sum.FoundBy,
 		Onboarded: sum.Onboarded, LinkedProject: sum.LinkedProject, LinkedAgent: sum.LinkedAgent,
 		OnboardedAt: sum.OnboardedAt, OnboardedBy: optionalString(f.OnboardedBy), ReviewedBy: sum.ReviewedBy,
-		Attributes: sa.AllowedAttributes(f.Attributes), Related: make([]spec.ShadowFindingRelation, 0, len(v.Related)),
+		Attributes: sa.AllowedFindingAttributes(f.Kind, f.Attributes), Related: make([]spec.ShadowFindingRelation, 0, len(v.Related)),
 		Signals: make([]spec.ShadowFindingSignal, 0, len(v.Signals)),
 	}
 	for _, rel := range v.Related {

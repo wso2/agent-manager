@@ -322,7 +322,7 @@ def test_scan_tree_classifies_csharp(tmp_path: Path) -> None:
     host = findings["r:src/App/Host.cs:Host.Run.agent"]
     assert (host.verdict, host.attributes, host.service_folder) == (
         "proven",
-        {"framework": "semantic-kernel"},
+        {"framework": "semantic-kernel", "language": "csharp", "projectPath": "/src/App"},
         "src/App",
     )
     assert [(e.code, e.source, dict(e.observed)) for e in host.evidence] == [

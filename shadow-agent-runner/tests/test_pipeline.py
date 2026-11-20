@@ -674,3 +674,30 @@ def test_ctrl_c_on_aterminal_leaves_a_clean_line(tmp_path: Path, monkeypatch: py
     with pytest.raises(PublishInterrupted):
         run()
     assert terminal.getvalue().endswith("Publishing to Agent Manager…\x1b[K\r\x1b[K")
+
+
+def test_published_agents_carry_branch_project_path_and_language(tmp_path: Path) -> None:
+    files = {
+        "a": {"agent.py": AGENT},
+        "b": {"services/support/pyproject.toml": '[project]\nname = "support"\n', "services/support/bot.py": AGENT},
+    }
+    listing = RepositoryList((_repo("a"), _repo("b", branch="release/2.0")))
+    run = Run(tmp_path, FakeSource(listing, files))
+    assert run(_config()) == ExitCode.OK
+    attributes = {a["repository"]: a["attributes"] for a in run.body["agents"]}
+    assert attributes == {
+        "a": {"framework": "crewai", "language": "python", "branch": "main", "reviewedBy": "rules"},
+        "b": {
+            "framework": "crewai",
+            "language": "python",
+            "projectPath": "/services/support",
+            "branch": "release/2.0",
+            "reviewedBy": "rules",
+        },
+    }
+    saved = json.loads(run.report_path.read_text())
+    assert [f["attributes"].get("branch") for r in saved["repositories"] for f in r["findings"]] == [
+        "main",
+        "release/2.0",
+    ]
+    assert build_body(read_report(run.report_path)) == run.body  # ``upload`` publishes the same attributes.

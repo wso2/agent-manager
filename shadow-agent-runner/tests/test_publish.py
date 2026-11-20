@@ -349,3 +349,11 @@ def test_upload_help_names_the_default_report(capsys: pytest.CaptureFixture[str]
     out = capsys.readouterr().out
     assert "--scan-id" in out
     assert "/out/report.json" in out
+
+
+def test_deploy_attributes_are_published_only_when_known() -> None:
+    deployable: dict[str, object] = {"branch": "main", "projectPath": "/samples/support", "language": "typescript"}
+    report = _report(_finding("Known", attributes=deployable), _finding("Unknown"))
+    known, unknown = build_body(report)["agents"]
+    assert known["attributes"] == {"framework": "crewai", **deployable, "reviewedBy": "rules"}
+    assert unknown["attributes"] == {"framework": "crewai", "reviewedBy": "rules"}

@@ -28,6 +28,7 @@ from amp_shadow_runner.engine.classify import (
     Verdict,
     cap_external_id,
     classify,
+    project_path,
 )
 from amp_shadow_runner.engine.files import Tag, walk
 from amp_shadow_runner.engine.imports import extract_imports
@@ -68,6 +69,7 @@ def test_finding_fields() -> None:
     assert (finding.framework, finding.verdict, finding.tag) == ("google-adk", Verdict.PROVEN, None)
     assert finding.attributes == {
         "framework": "google-adk",
+        "language": "python",
         "model": "gemini-2.0-flash",
         "tools": [{"type": "function", "name": "google_search"}],
     }
@@ -188,7 +190,7 @@ def test_same_variable_in_different_functions() -> None:
 def test_example_code_is_labelled() -> None:
     (finding,) = _classify(_file("examples/demo.py", "from crewai import Agent\nx = Agent()\n", tag="example"))
     assert finding.tag == "example"
-    assert finding.attributes == {"framework": "crewai", "labels": {"codeArea": "example"}}
+    assert finding.attributes == {"framework": "crewai", "language": "python", "labels": {"codeArea": "example"}}
 
 
 def test_tag_is_kept() -> None:
@@ -455,7 +457,7 @@ CREW_BASE = (
 def test_crew_labels_its_agents() -> None:
     (finding,) = _classify(_file("src/crew.py", CREW_BASE))
     assert (finding.name, finding.verdict) == ("researcher", Verdict.PROVEN)
-    assert finding.attributes == {"framework": "crewai", "labels": {"crew": "ResearchCrew"}}
+    assert finding.attributes == {"framework": "crewai", "language": "python", "labels": {"crew": "ResearchCrew"}}
 
 
 def test_crew_label_merges_with_the_example_label() -> None:
@@ -481,3 +483,39 @@ def test_other_findings_keep_the_lenient_dependency_evidence() -> None:
     )
     assert [e.code for e in crew.evidence] == ["d1_agent_dependency", "d2_agent_import"]
     assert (openai.verdict, [e.code for e in openai.evidence]) == (Verdict.NOT_SURE, ["d2_agent_import"])
+
+
+def test_language_and_project_path_attributes(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        {
+            "pyproject.toml": '[project]\nname = "support"\ndependencies = ["crewai"]\n',
+            "app.py": "from crewai import Agent\nroot = Agent()\n",
+            "samples/web/package.json": '{"dependencies": {"@mastra/core": "1"}}',
+            "samples/web/src/chat.tsx": 'import { Agent } from "@mastra/core";\nconst chat = new Agent({});\n',
+            "samples/web/src/lib.mjs": 'import { Agent } from "@mastra/core";\nconst lib = new Agent({});\n',
+            "samples/bal/Ballerina.toml": '[package]\nname = "leave"\n',
+            "samples/bal/main.bal": "import ballerina/ai;\nfinal ai:Agent leave = check new (model);\n",
+        },
+    )
+    found = {f.path: f.attributes for f in scan_tree(tmp_path, repository="r").findings}
+    assert {path: (a["language"], a["projectPath"]) for path, a in found.items()} == {
+        "app.py": ("python", "/"),
+        "samples/bal/main.bal": ("ballerina", "/samples/bal"),
+        "samples/web/src/chat.tsx": ("typescript", "/samples/web"),
+        "samples/web/src/lib.mjs": ("javascript", "/samples/web"),
+    }
+
+
+def test_no_project_path_without_a_manifest_above() -> None:
+    (finding,) = _classify(_file("src/agent.py", "from crewai import Agent\nx = Agent()\n"))
+    assert finding.service_folder is None
+    assert "projectPath" not in finding.attributes
+    assert finding.attributes["language"] == "python"
+
+
+@pytest.mark.parametrize(
+    ("folder", "path"), [(".", "/"), ("svc", "/svc"), ("samples/customer-agent", "/samples/customer-agent")]
+)
+def test_project_path(folder: str, path: str) -> None:
+    assert project_path(folder) == path

@@ -334,7 +334,10 @@ def test_renaming_changes_only_the_name(tmp_path: Path) -> None:
     (after,) = scan_tree(tmp_path, repository="r").findings
     assert (before.name, after.name) == ("svc", "svc-bot")
     assert before.external_id == after.external_id == "r:svc/a.py:agent"
-    assert dataclasses.replace(after, name="svc", service_folder=None) == before
+    assert after.attributes["projectPath"] == "/svc"
+    assert "projectPath" not in before.attributes
+    unnamed = {k: v for k, v in after.attributes.items() if k != "projectPath"}
+    assert dataclasses.replace(after, name="svc", service_folder=None, attributes=unnamed) == before
 
 
 @pytest.mark.parametrize(

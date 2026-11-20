@@ -420,6 +420,8 @@ def test_scan_tree_classifies_typescript(tmp_path: Path) -> None:
     assert triage.verdict == "proven"
     assert triage.attributes == {
         "framework": "openai-agents",
+        "language": "typescript",
+        "projectPath": "/",
         "model": "gpt-4.1",
         "tools": [{"type": "function", "name": "lookup"}],
     }
@@ -436,6 +438,7 @@ def test_scan_tree_classifies_typescript(tmp_path: Path) -> None:
     assert [(e.code, dict(e.observed)) for e in wired.evidence][-1] == ("d7_tool_calling", {"toolNode": True})
     assert findings["web:src/agent.test.ts:fake"].tag == "test"
     assert findings["web:examples/demo.js:demo"].attributes["labels"] == {"codeArea": "example"}
+    assert findings["web:examples/demo.js:demo"].attributes["language"] == "javascript"
 
 
 def test_python_and_typescript_keep_their_own_manifests(tmp_path: Path) -> None:
