@@ -74,6 +74,8 @@ var allowedAttributes = map[string]bool{
 	"displayName":       true,
 	"runtimeReference":  true, // Google registry -> engine reference
 	"reviewedBy":        true, // rules | ai_review | ai_review_judge (who confirmed a code agent)
+	"source":            true, // Custom platform: where the agent runs or was found
+	"agentUrl":          true, // Custom platform: the agent's endpoint or page (scheme, host and path only)
 }
 
 // Attributes only a code agent (kind code_agent) may store: where in its

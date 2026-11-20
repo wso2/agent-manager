@@ -365,7 +365,7 @@ def test_tarball_is_downloaded_through_a_redirect_without_the_token(
     assert api.seen[0][1]["authorization"] == f"Bearer {TOKEN}"
     assert "authorization" not in other.seen[0][1]
     assert calls[-1] == (len(archive), len(archive))
-    result = extract(path, tmp_path / "tree", kind="tar.gz")
+    result = extract(path, tmp_path / "tree")
     assert (result.files, result.stripped) == (1, True)
     assert (tmp_path / "tree" / "agent.py").read_bytes() == b"from openai import OpenAI\n"
 

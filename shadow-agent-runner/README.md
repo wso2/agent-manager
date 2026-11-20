@@ -1,6 +1,6 @@
 # Shadow Agent Runner
 
-`amp-shadow-runner` is the source code scan of Shadow Agent Discovery in WSO2 Agent Manager. It finds AI agents in GitHub and Azure DevOps repositories and publishes the confirmed agents to Agent Manager.
+`amp-shadow-runner` is the source code scan of Shadow Agent Discovery in WSO2 Agent Manager. It finds AI agents in GitHub repositories (including GitHub Enterprise Server) and publishes the confirmed agents to Agent Manager.
 
 It runs on the customer's machine, as the `docker run` command that the Agent Manager console builds for a source code platform. When complete, the command will ask for the Git token only for private repositories, and for the LLM key only with AI-enhanced detection. It will then fetch the repositories, scan them, delete the code and publish only the confirmed agents. Agent Manager never stores the Git token and never pulls the code.
 
@@ -9,7 +9,7 @@ The package has two parts:
 - `amp_shadow_runner`: the command line.
 - `amp_shadow_runner.engine`: the scan engine, a pure library that parses a local source tree with tree-sitter. It never opens a network connection or starts a process (`tests/engine/test_purity.py` enforces this).
 
-> `scan` works for GitHub with the rules for Python, TypeScript, JavaScript, C# and Ballerina agents (Ballerina matches are always Not sure). Azure DevOps comes in a later version. With `--ai-review` (AI-enhanced detection) an LLM checks the Not sure agents; `--judge` is not available yet, so the AI-enhanced detection results are published without it.
+> `scan` works for GitHub with the rules for Python, TypeScript, JavaScript, C# and Ballerina agents (Ballerina matches are always Not sure). With `--ai-review` (AI-enhanced detection) an LLM checks the Not sure agents; `--judge` is not available yet, so the AI-enhanced detection results are published without it.
 
 ## Command line
 
@@ -25,21 +25,18 @@ Agent Manager builds the `scan` command, so its options match what the console s
 | Option | Meaning |
 |---|---|
 | `--scan-id <id>` | The scan that Agent Manager issued. Required. |
-| `--github-org <org>` | Scan a GitHub organization or user account. Give this or `--azure-devops-org`. |
+| `--github-org <org>` | Scan a GitHub organization or user account. Required. |
 | `--all-repos` or `--repos a,b` | GitHub: every repository, or the named ones. |
 | `--include-private` | GitHub: also scan private repositories. |
 | `--github-api-url <url>` | GitHub: the API address of GitHub Enterprise. The default is `https://api.github.com`. |
-| `--azure-devops-org <org>` | Scan an Azure DevOps organization. |
-| `--all-projects` or `--projects a,b` | Azure DevOps: every project, or the named ones. |
-| `--azure-devops-url <url>` | Azure DevOps: the address of Azure DevOps Server. The default is `https://dev.azure.com`. |
 | `--read-ci` | Also read CI pipeline definitions. |
 | `--ai-review` | Use AI-enhanced detection: an LLM checks the agents the rules are not sure of. The command asks for the LLM settings (see below). |
 | `--judge` | Have a second LLM check the AI-enhanced detection, with the same provider, address and key. Needs `--ai-review`. |
 | `--yes` | Scan without asking to confirm the repository list (also `AMP_SCAN_YES=1`). Needed without a terminal. |
 
-`--repos` takes at most 5000 names, given as `name` or `<org>/name`. `AMP_URL`, `--github-api-url` and `--azure-devops-url` accept `http://` or `https://` addresses.
+`--repos` takes at most 5000 names, given as `name` or `<org>/name`. `AMP_URL` and `--github-api-url` accept `http://` or `https://` addresses.
 
-The command asks in the terminal for the secrets Agent Manager never receives. In a terminal it shows one dot for each character typed or pasted (at most 24, then the count), never the characters, and then only how many it received; without key-by-key input it reads them like a password prompt. It asks for a GitHub token only with `--include-private` (a fine-grained token with read-only Contents access), and always for an Azure DevOps personal access token (Code read, and Project and team read). `docker run -it` gives the command the terminal it needs. To skip the question, or to run without a terminal, export `GITHUB_TOKEN` or `AZURE_DEVOPS_TOKEN` in your shell and pass it to the container with `-e NAME`, which copies an exported variable into the container. A GitHub scan of public repositories also uses `GITHUB_TOKEN` when it is passed, for a higher API rate limit, but never asks for it. When the GitHub or Azure DevOps address is plain `http://`, the command warns that the token will be sent to it unencrypted.
+The command asks in the terminal for the secrets Agent Manager never receives. In a terminal it shows one dot for each character typed or pasted (at most 24, then the count), never the characters, and then only how many it received; without key-by-key input it reads them like a password prompt. It asks for a GitHub token only with `--include-private` (a fine-grained token with read-only Contents access). `docker run -it` gives the command the terminal it needs. To skip the question, or to run without a terminal, export `GITHUB_TOKEN` in your shell and pass it to the container with `-e GITHUB_TOKEN`, which copies an exported variable into the container. A GitHub scan of public repositories also uses `GITHUB_TOKEN` when it is passed, for a higher API rate limit, but never asks for it. When the GitHub address is plain `http://`, the command warns that the token will be sent to it unencrypted.
 
 With `--ai-review`, the command then asks for the LLM it reviews with. In a terminal the provider is chosen from a menu (arrow keys, or `j`/`k`, and Enter); the other settings are typed, and Enter takes the default shown. Agent Manager never receives these settings or the key, and nothing is saved.
 

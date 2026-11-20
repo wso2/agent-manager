@@ -3,7 +3,7 @@
 Shadow Agent Discovery finds the agents your organization runs outside Agent Manager: the **unregistered agents**. It finds them in two places.
 
 - **AI platforms** (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry). Agent Manager connects to each platform with a read-only credential and calls only the platform's agent listing APIs. Every agent it shows is an agent object the platform itself lists, with the evidence of which listing returned it; usage, logs and model calls are not read, so nothing is inferred or scored.
-- **Source code repositories** (GitHub, Azure DevOps). Agents that exist only in code are found by a scan command the customer runs on their own machine (see [Source code scans](#source-code-scans)). Agent Manager never stores a Git token and never pulls code: the command publishes only the agents it confirms.
+- **Source code repositories** (GitHub). Agents that exist only in code are found by a scan command the customer runs on their own machine (see [Source code scans](#source-code-scans)). Agent Manager never stores a Git token and never pulls code: the command publishes only the agents it confirms.
 
 ## Access
 
@@ -13,11 +13,11 @@ Shadow Agent Discovery finds the agents your organization runs outside Agent Man
 | Add platforms, test, run and clear scans, create scan commands, onboard and delete agents | — | `amp:shadow-agent:manage` |
 | Publish the results of a source code scan | — | `amp:shadow-agent:publish` |
 
-All three are granted to the Agent Manager Admin role only: connections hold platform credentials. `amp:shadow-agent:publish` is held by the scan token and used by the scan command only: the publish endpoint refuses a user token, even an Admin's. Every change is in the audit trail (`shadow-connection:*` and `shadow-scan-token:issue` are credential operations; `shadow-scan:create`, `shadow-scan:publish`, `shadow-scan:clear`, `shadow-finding:onboard`, `shadow-finding:delete`, `shadow-finding:clear`). `shadow-scan-token:issue` and `shadow-scan:publish` are fail-closed: nothing is issued or saved unrecorded.
+All three are granted to the Agent Manager Admin role only: connections hold platform credentials. `amp:shadow-agent:publish` is held by the scan token and used by the scan command only: the publish endpoint refuses a user token, even an Admin's. Every change is in the audit trail (`shadow-connection:*` and `shadow-scan-token:issue` are credential operations; `shadow-scan:create`, `shadow-scan:publish`, `shadow-scan:clear`, `shadow-finding:onboard`, `shadow-finding:hide`, `shadow-finding:delete`, `shadow-finding:clear`). `shadow-scan-token:issue` and `shadow-scan:publish` are fail-closed: nothing is issued or saved unrecorded.
 
 ## Platforms
 
-The API calls a platform a *provider* (`provider` fields, the `providers` route). The **Platforms** tab shows them in two sections: **AI platforms** and **Source code repositories**.
+The API calls a platform a *provider* (`provider` fields, the `providers` route). The **Platforms** tab and **Add a platform** show them in three sections: **AI platforms**, **Source code repositories** and **Custom platforms** (your own agent inventory API). Azure DevOps is no longer a platform: migration 067 deletes any Azure DevOps platform with its agents and evidence.
 
 | Platform | Credential | What a scan lists |
 |---|---|---|
@@ -26,8 +26,8 @@ The API calls a platform a *provider* (`provider` fields, the `providers` route)
 | Amazon Bedrock | Access key, optionally assuming a cross-account read-only role | Per region: AgentCore runtimes (`ListAgentRuntimes`, `GetAgentRuntime`), AWS Agent Registry agent records (`ListRegistries`, `ListRegistryRecords`) and classic Bedrock agents (`ListAgents`, `GetAgent`, `ListAgentActionGroups`) |
 | Google Agent Platform | Service account key | Agent Runtime engines (`reasoningEngines.list`) and Agent Registry agents (`agents.list`) in each project and location |
 | Microsoft Foundry | Entra app with the custom role shown in the console | The Foundry projects of each AI Services account and their agents (`GET {projectEndpoint}/agents`), and optionally classic agents (`GET {projectEndpoint}/assistants`) |
+| Custom platform | An API key for the customer's own agent inventory API, sent as `Authorization: Bearer <API key>` | `GET {Agents URL}?limit=100`, following `nextCursor`: the agents the customer's service returns (see **Custom platform** below) |
 | GitHub (source code repositories) | None stored. For private repositories, the scan command asks for a fine-grained personal access token on the customer's machine: Contents read-only (GitHub adds Metadata read-only). A classic token is not suitable: its `repo` scope also grants write access | Stored: the organization or user account, every repository or a list of them, whether to include private repositories, whether to read CI pipeline definitions (GitHub Actions workflows), and optionally a self-hosted server's API URL (GitHub Enterprise Server or GitHub Enterprise Cloud with data residency, GHE.com) |
-| Azure DevOps (source code repositories) | None stored. The scan command asks for a personal access token on the customer's machine, created for this organization only: Code (read) and Project and team (read). Azure DevOps Server needs one with the same scopes | Stored: the organization (the collection, for Azure DevOps Server), every project or a list of them, whether to read CI pipeline definitions (Azure Pipelines YAML), and optionally an Azure DevOps Server URL |
 
 What is left out, because it is not an agent: an AgentCore runtime whose `serverProtocol` is `MCP` (an MCP server), AWS Agent Registry records of type MCP or gateway (and a record about an MCP runtime), and Google's built-in registry agents.
 
@@ -39,13 +39,15 @@ The console shows, for each AI platform, what Agent Manager does with each crede
 
 **Coverage options** (checkboxes, on by default): every Azure subscription the app can read; the Google `global` Agent Registry location and `us`/`eu` multi-regions; Foundry classic agents.
 
+**Custom platform.** For agents that only the customer's own systems know about. The customer implements one call, `GET` on an **Agents URL** they choose, to the OpenAPI contract the form offers for download (`Download contract`; served as `apiContract` with the provider, and kept in `services/shadowagents/custom_platform_openapi.yaml`). Agent Manager sends the API key as a bearer token, adds only `limit` (100 in a scan, 1 in **Test connection**) and `cursor` (the previous page's `nextCursor`), and reads at most 100 pages. Each agent needs an `id` (at most 256 characters) and a `name`; `description`, `source`, `url`, `framework`, `model`, `version`, `status`, `scope`, `owner` (`name`, `email`), `createdAt` and `labels` are optional. Any other field is ignored and never stored; an agent without an `id` or `name`, or that does not match the contract, is left out and counted in the scan result, and a repeated `id` is listed once. `url` is kept without its query string, fragment and user info. The Agents URL must be http(s), without a query string, fragment or user info; the server must be reachable from Agent Manager. The API key is stored encrypted (as `customApiKey`, apart from the `apiKey` an earlier version used for OpenAI Admin keys). **See what it lists** gives the setup steps.
+
 **Amazon Bedrock form.** Session token, Role to assume and External ID are behind **Advanced configuration** (it opens by itself when one of them is set); the AWS STS endpoint is shown under Role to assume. Under **Services to scan**, each service's endpoint is shown right under its checkbox while it is ticked.
 
 **Services to scan (Amazon Bedrock, Google Agent Platform).** Each listing a connector can skip is a checkbox, on by default, stored as `config.disabledServices` (an absent key means the service is scanned). Bedrock: AgentCore runtimes, AWS Agent Registry, classic Bedrock agents. Google: Agent Registry (the Agent Runtime engines are always listed). An unticked service is never called: its endpoint field is hidden, its calls are listed as *skipped (not selected in this connection)*, **Test connection** does not probe it, and the capabilities that need it are dropped. A Bedrock connection needs at least one service. The AWS STS endpoint is shown only when a role to assume is entered, because STS is called only to assume it. Grant the least privilege of the selected services only.
 
 ## Scans
 
-**Run scan** scans every AI platform, or the platforms you choose in its dialog; **Scan** on a platform's row in **Platforms** scans that platform only (`POST .../scans`, with `connectionIds` for a choice). A scan lists each connection's agents in the background. One scan per organization can be queued or running at a time; scans are leased in the database, so any service replica can run them and a scan whose worker stopped is picked up again. Each connection runs on its own: a platform that fails, refuses a permission or rate limits fails only its own calls, and the scan result lists the outcome of every call. Retries honour `Retry-After`. GitHub and Azure DevOps connections are never part of these scans: naming one in `connectionIds` is refused, and they are scanned by their scan command instead.
+**Run scan** scans every AI platform, or the platforms you choose in its dialog; **Scan** on a platform's row in **Platforms** scans that platform only (`POST .../scans`, with `connectionIds` for a choice). A scan lists each connection's agents in the background. One scan per organization can be queued or running at a time; scans are leased in the database, so any service replica can run them and a scan whose worker stopped is picked up again. Each connection runs on its own: a platform that fails, refuses a permission or rate limits fails only its own calls, and the scan result lists the outcome of every call. Retries honour `Retry-After`. GitHub connections are never part of these scans: naming one in `connectionIds` is refused, and they are scanned by their scan command instead.
 
 Each scan records the agents it found, so **Scans** > **View agents** lists one scan's agents (`GET .../findings?scanId=`).
 
@@ -53,7 +55,7 @@ Each scan records the agents it found, so **Scans** > **View agents** lists one 
 
 ## Source code scans
 
-**1. The platform form.** On the add or edit page of a GitHub or Azure DevOps platform, enter the organization and the repositories or projects, one per line, or tick **Scan every repository** / **Scan every project** (unticked at first). GitHub also has **Include private repositories**. **Also read CI pipeline definitions** reads pipeline definitions only. A GitHub repository can be given as `owner/name` of the connection's owner; it is stored as the name. **How it works**, next to the platform name, opens the whole flow and the token guidance in a dialog.
+**1. The platform form.** On the add or edit page of a GitHub platform, enter the organization and the repositories, one per line, or tick **Scan every repository** (unticked at first). There is also **Include private repositories**. **Also read CI pipeline definitions** reads pipeline definitions only. A GitHub repository can be given as `owner/name` of the connection's owner; it is stored as the name. **How it works**, next to the platform name, opens the whole flow and the token guidance in a dialog.
 
 **2. The Scan command panel.** Next to the form, the panel builds the command as you type, with two switches above it:
 
@@ -85,8 +87,7 @@ docker run --rm -it \
 | Platform | Options |
 |---|---|
 | GitHub | `--github-org <organization>`; `--all-repos` or `--repos=a,b`; `--include-private`; `--read-ci`; `--github-api-url <url>` only when it is not the default |
-| Azure DevOps | `--azure-devops-org <organization>`; `--all-projects` or `--projects=a,b`; `--read-ci`; `--azure-devops-url <url>` only when it is not the default |
-| Both | `--ai-review` with AI review; `--judge` with the LLM judge |
+| Any | `--ai-review` with AI review; `--judge` with the LLM judge |
 
 The scan command's image (`AMP_SHADOW_RUNNER_IMAGE`) is not released yet, so the command cannot be run until it is.
 
@@ -99,7 +100,7 @@ The scan command's image (`AMP_SHADOW_RUNNER_IMAGE`) is not released yet, so the
 - A publish is refused (409) when the scan was already published, has expired, or a newer scan of the same platform has already published.
 - The scan becomes **succeeded**, **partial** when some repositories failed or agents could not be marked as no longer present (see below), or **failed** when every repository failed.
 - An agent the command did not publish is marked as no longer present only in repositories the scan finished. The repositories it could not scan keep their agents and evidence. For a GitHub list of repositories, a configured repository the command did not report as scanned is kept too.
-- Nothing is marked as no longer present when the command could not list every repository, when an Azure DevOps project of the list has no repository reported, or when a whole Azure DevOps project failed. New agents are still saved.
+- Nothing is marked as no longer present when the command could not list every repository. New agents are still saved.
 - Repository names are normalised like an agent's scope: cut to 256 characters, and for GitHub the `organization/` prefix is dropped and the name is lowercased.
 
 The scan's API response (`GET .../scans/{scanId}`) lists the scanned and failed repositories, with each failure's reason.
@@ -110,7 +111,9 @@ Each agent is keyed by its platform, its kind and the platform's own ID of it (a
 
 **No duplicates.** The **Unregistered Agents** tab (`GET .../findings`) shows each agent once, however many connections found it (two connections to the same OpenAI organization, say): the row is the agent as the connection that saw it last reports it, and **Source** lists every connection. The list shows the most recently seen agents first. The summary counts each agent once too. Filter by platform or onboarding at the top right, or search by name, platform ID or scope.
 
-**Onboarding as an external agent.** **Onboard as external agent** on an agent's page shows what onboarding does and the steps that follow, then registers the agent as an externally-hosted agent in a project (the same request as the console's Register an agent page) and links the unregistered agent to it (`POST .../findings/{findingId}/onboarding` with `projectName` and `agentName`; the registered agent must exist). The link is the agent's: it holds for every connection that found it, a connection that finds it later inherits it, and an agent is onboarded once. The **Onboarding** column shows Onboarded or Not onboarded, filter with `onboarded=true|false`, and the agent's page links to the registered agent. The workload keeps running where it is; set it up with `amp-instrument` and route its model calls through an organization LLM provider from the registered agent's pages.
+**Onboarding as an external agent.** **Onboard as external agent** on an agent's page shows what onboarding does and the steps that follow, then registers the agent as an externally-hosted agent in a project (the same request as the console's Register an agent page) and links the unregistered agent to it (`POST .../findings/{findingId}/onboarding` with `projectName` and `agentName`; the registered agent must exist). The link is the agent's: it holds for every connection that found it, a connection that finds it later inherits it, and an agent is onboarded once. The **Onboarding status** column shows Onboarded or Not onboarded, filter with `onboarded=true|false` (the tab shows Not onboarded by default), and the agent's page links to the registered agent. The workload keeps running where it is; set it up with `amp-instrument` and route its model calls through an organization LLM provider from the registered agent's pages.
+
+**Removing an onboarded agent from the list.** Once an agent is onboarded, the console asks whether to remove it from the Unregistered Agents list or keep it there marked as Onboarded; the agent's page can change the choice later (**Remove from list** / **Show in list**). `PUT .../findings/{findingId}/hidden` with `{"hidden": true|false}` sets it on every connection's finding of the agent; only an onboarded agent can be removed (400 otherwise). A removed agent stays out of the list after later scans, and a connection that finds it later inherits the choice; it can still be opened by its ID, and the summary still counts it as onboarded. Deleting is different: a later scan lists a deleted agent again, not onboarded.
 
 **Deleting agents.** Each row has a delete button (`DELETE .../findings/{findingId}`): it deletes the agent and its evidence for every connection that found it. **Delete all**, at the top right (`DELETE .../findings`), deletes every agent of the organization, whatever the filters show, including the agents their platforms no longer list; it returns how many agents it deleted. Platforms and scan history are kept, and nothing changes on the platforms: a later scan lists an agent again if a platform still has it.
 
@@ -118,7 +121,7 @@ Each agent is keyed by its platform, its kind and the platform's own ID of it (a
 
 **Evidence.** Each agent shows the listing that returned it, the exact condition in the platform's field names, and what was observed (such as a runtime's status). A Foundry *external* agent is also flagged as a *possible duplicate* of an agent from another platform with the same name (Foundry stores no endpoint for external agents, so they are never merged). Code agents are not matched by name against Foundry external agents.
 
-Each piece of a code agent's evidence has one of twelve codes, `github.d1_agent_dependency` to `github.d12_developer_tooling` and `azure_devops.d1_agent_dependency` to `azure_devops.d12_developer_tooling`, with the file it was found in:
+Each piece of a code agent's evidence has one of twelve codes, `github.d1_agent_dependency` to `github.d12_developer_tooling`, with the file it was found in:
 
 | Code | Evidence |
 |---|---|
@@ -155,9 +158,9 @@ Error messages and failure reasons are scrubbed of anything that looks like a cr
 
 ## API
 
-All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`, tag *Shadow Agent Discovery*): `providers`, `summary`, `connections` (+ `/{id}`, `/{id}/test`, `/{id}/runner-scans`), `scans` (+ `/{id}`; `DELETE` clears the finished scans), `findings` (+ `/{id}`).
+All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`, tag *Shadow Agent Discovery*): `providers`, `summary`, `connections` (+ `/{id}`, `/{id}/test`, `/{id}/runner-scans`), `scans` (+ `/{id}`; `DELETE` clears the finished scans), `findings` (+ `/{id}`, `/{id}/onboarding`, `/{id}/hidden`).
 
-**`POST .../connections/{connectionId}/runner-scans`** (`amp:shadow-agent:manage`) creates a pending scan of a GitHub or Azure DevOps connection and its scan token. Request: `{"aiReview": true, "llmJudge": false}` (the LLM judge needs AI review). Response (201, `Cache-Control: no-store`): `{scanId, token, expiresAt, ampUrl, image}`, the parts the console builds the command from. 400 for any other platform or the LLM judge without AI review; 404 for an unknown connection; 503 when source code scans are turned off or not set up (the message says what to set), when the identity provider is unavailable, or when the audit trail is unavailable.
+**`POST .../connections/{connectionId}/runner-scans`** (`amp:shadow-agent:manage`) creates a pending scan of a GitHub connection and its scan token. Request: `{"aiReview": true, "llmJudge": false}` (the LLM judge needs AI review). Response (201, `Cache-Control: no-store`): `{scanId, token, expiresAt, ampUrl, image}`, the parts the console builds the command from. 400 for any other platform or the LLM judge without AI review; 404 for an unknown connection; 503 when source code scans are turned off or not set up (the message says what to set), when the identity provider is unavailable, or when the audit trail is unavailable.
 
 **`POST /api/v1/shadow-agent-publisher/scans/{scanId}/results`** is the scan command's publish endpoint. Like the build publisher, it is not in the OpenAPI spec. It admits only a scan token: one this service obtained with its own client (`IDP_CLIENT_ID`) for one organization, holding `amp:shadow-agent:publish` and no other scope. A user token is refused (403), whatever its role. The organization comes from the token, never from the request.
 
@@ -177,7 +180,7 @@ All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`
 ```
 
 - `complete`: the command could list every repository the connection's settings name.
-- Repository names are a GitHub repository name, or an Azure DevOps `project/repository` (a name without `/` is a whole project).
+- Repository names are GitHub repository names.
 - Limits: a body of at most 8 MiB (413 above it); at most 1000 agents, 50 pieces of evidence per agent and 5000 names in each repository list (400 above them).
 - The whole publish is rejected (400) when one agent is invalid: no `externalId`, an `externalId` repeated, no `repository`, no evidence, an evidence code that is not one of the connection's platform's codes, or `attributes.reviewedBy` missing or not allowed (`ai_review` needs a scan created with AI review, `ai_review_judge` one created with the LLM judge). Attributes outside the allow-list are dropped, and so is an attribute of the wrong shape: `tools` is a list of `{type, name}`, `mcpServers` a list of `{label, origin}`, `skills` and `protocolType` lists of strings, `labels` an object of strings, and every other attribute a single value. `branch`, `projectPath` and `language` are kept only when valid: `branch` at most 255 characters of `A-Z a-z 0-9 . _ / -`, with no `..`, no leading `-`, and no empty or dot-led part; `projectPath` `/` or a path of at most 1024 such characters that starts with `/`, with no `.`, `..` or empty segment and no trailing `/`; `language` one of `python`, `typescript`, `javascript`, `csharp` and `ballerina`. Unknown request fields are ignored.
 

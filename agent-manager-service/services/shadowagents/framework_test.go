@@ -45,13 +45,14 @@ func TestEvidenceCatalog(t *testing.T) {
 		SigBedrockAgentCoreRuntime, SigBedrockRegistryAgent, SigBedrockClassicAgent,
 		SigGoogleAgentEngine, SigGoogleRegistryAgent,
 		SigFoundryAgentObject, SigFoundryClassicAgent, SigFoundryPossibleDupOf,
+		SigCustomAgent,
 	}
 	sourceSlugs := []string{
 		"d1_agent_dependency", "d2_agent_import", "d3_mcp_client_config", "d4_mcp_client_code",
 		"d5_a2a_artifact", "d6_agent_platform_iac", "d7_tool_calling", "d8_mcp_server_code",
 		"d9_agent_definition", "d10_model_sdk", "d11_llm_env_var", "d12_developer_tooling",
 	}
-	for _, host := range []string{"github", "azure_devops"} {
+	for _, host := range []string{"github"} {
 		for _, slug := range sourceSlugs {
 			want = append(want, host+"."+slug)
 		}
@@ -98,7 +99,10 @@ func TestCatalogIsConsistent(t *testing.T) {
 	}
 	for _, p := range Providers() {
 		assert.True(t, providers[p.Provider], p.Provider)
-		assert.NotEmpty(t, p.Endpoints, p.Provider)
+		// A Custom platform has no official endpoint: its Agents URL is a field.
+		if p.Provider != models.ShadowProviderCustom {
+			assert.NotEmpty(t, p.Endpoints, p.Provider)
+		}
 		assert.NotEmpty(t, p.Permissions, p.Provider)
 		fields := map[string]FieldSpec{}
 		for _, f := range p.Fields {
@@ -647,5 +651,21 @@ func TestCodeAgentAttributes_DropsInvalidValues(t *testing.T) {
 	}
 	for _, lang := range []string{"python", "typescript", "javascript", "csharp", "ballerina"} {
 		assert.Equal(t, lang, SanitizeFindingAttributes(models.ShadowKindCodeAgent, map[string]any{"language": lang})["language"])
+	}
+}
+
+func TestEntraSignInMessageNamesTheProblem(t *testing.T) {
+	for text, want := range map[string]string{
+		"AADSTS90002: Tenant 'x' not found.":                 "(AADSTS90002): the tenant was not found",
+		"AADSTS700016: Application with identifier 'y' ...":  "(AADSTS700016): no app with this client ID in the tenant",
+		"AADSTS7000215: Invalid client secret provided.":     "(AADSTS7000215): the client secret is not valid for this app",
+		"AADSTS7000222: The provided client secret keys ...": "(AADSTS7000222): the client secret has expired",
+		"AADSTS50000: something else":                        "(AADSTS50000); check the tenant ID, client ID and client secret",
+		"no code at all":                                     "Microsoft Entra sign-in failed; check the tenant ID, client ID and client secret",
+	} {
+		got := entraSignInMessage(text)
+		assert.Contains(t, got, want, text)
+		assert.NotContains(t, got, "'x'", "the response text is not kept")
+		assert.NotContains(t, got, "'y'")
 	}
 }

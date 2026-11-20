@@ -33,17 +33,15 @@ import os
 import re
 import secrets
 import shutil
-import stat
 import tarfile
 import tempfile
-import zipfile
 import zlib
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import IO, ClassVar, Literal
+from typing import IO, ClassVar
 
 from amp_shadow_runner.exitcodes import ExitCode
 
@@ -65,11 +63,9 @@ _CHUNK = 1024 * 1024
 _FILE_MODE = 0o600
 _DIR_MODE = 0o700
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
-_ZIP_ENCRYPTED = 0x1
-# Raised by tarfile, zipfile, gzip and zlib on a corrupt, truncated or unsupported archive.
+# Raised by tarfile, gzip and zlib on a corrupt, truncated or unsupported archive.
 _UNREADABLE = (
     tarfile.TarError,
-    zipfile.BadZipFile,
     gzip.BadGzipFile,
     EOFError,
     zlib.error,
@@ -134,18 +130,16 @@ def extract(
     archive: Path,
     dest: Path,
     *,
-    kind: Literal["tar.gz", "zip"],
     max_total_bytes: int = DEFAULT_MAX_TOTAL_BYTES,
     max_files: int = DEFAULT_MAX_FILES,
 ) -> ExtractResult:
-    """Extract the regular files and directories of ``archive`` into ``dest``.
+    """Extract the regular files and directories of the ``tar.gz`` ``archive`` (a GitHub tarball) into ``dest``.
 
     ``dest`` must not exist; it is created with mode 0700. On any failure,
     ``dest`` is deleted again, so the caller has nothing to clean. ``archive``
     is deleted in every case (if that fails, the workspace deletes it later).
 
-    A ``tar.gz`` (a GitHub tarball) has its single top-level folder, such as
-    ``owner-repo-<sha>/``, dropped. A ``zip`` (Azure DevOps) keeps its paths.
+    The tarball's single top-level folder, such as ``owner-repo-<sha>/``, is dropped.
 
     Raises ArchiveError when the archive is refused or unreadable, or a file
     cannot be written. An error creating ``dest`` is raised as the OSError itself.
@@ -153,7 +147,7 @@ def extract(
     try:
         os.mkdir(dest, _DIR_MODE)
         try:
-            return _extract(archive, _Writer(dest, max_total_bytes, max_files), kind)
+            return _extract(archive, _Writer(dest, max_total_bytes, max_files))
         except BaseException:
             remove_tree(dest)
             raise
@@ -162,14 +156,11 @@ def extract(
             archive.unlink()
 
 
-def _extract(archive: Path, writer: "_Writer", kind: Literal["tar.gz", "zip"]) -> ExtractResult:
+def _extract(archive: Path, writer: "_Writer") -> ExtractResult:
     message: str
     try:
-        if kind == "tar.gz":
-            _read_tar(archive, writer)
-        else:
-            _read_zip(archive, writer)
-        return writer.finish(strip_top=kind == "tar.gz")
+        _read_tar(archive, writer)
+        return writer.finish()
     except _UNREADABLE:
         message = "the archive is corrupt or unreadable"
     except OSError as exc:
@@ -193,23 +184,6 @@ def _tar_reader(tar: tarfile.TarFile, info: tarfile.TarInfo) -> IO[bytes]:
     if reader is None:
         raise ArchiveError("the archive is corrupt or unreadable")
     return reader
-
-
-def _read_zip(archive: Path, writer: "_Writer") -> None:
-    with zipfile.ZipFile(archive) as zf:
-        infos = zf.infolist()
-        writer.check_count(len(infos))
-        for info in infos:
-            if info.flag_bits & _ZIP_ENCRYPTED:
-                raise ArchiveError("the archive is encrypted")
-            # Unix archivers keep the file type in the high 16 bits; zero means "use the name".
-            mode = info.external_attr >> 16
-            if stat.S_ISDIR(mode) or (stat.S_IFMT(mode) == 0 and info.is_dir()):
-                writer.add(info.orig_filename, _Kind.DIR)
-            elif stat.S_ISREG(mode) or stat.S_IFMT(mode) == 0:
-                writer.add(info.orig_filename, _Kind.FILE, info.file_size, functools.partial(zf.open, info))
-            else:
-                writer.add(info.orig_filename, _Kind.SKIP)
 
 
 class _Kind(Enum):
@@ -270,9 +244,9 @@ class _Writer:
         self._check_total()
         self._copy(open_member, self._target(parts))
 
-    def finish(self, strip_top: bool) -> ExtractResult:
+    def finish(self) -> ExtractResult:
         stripped = False
-        if strip_top and len(self._tops) == 1 and not self._top_level_non_dir:
+        if len(self._tops) == 1 and not self._top_level_non_dir:
             top = next(iter(self._tops))
             if self._created.get((top,)) is _Kind.DIR:
                 _strip(Path(self._dest), top)

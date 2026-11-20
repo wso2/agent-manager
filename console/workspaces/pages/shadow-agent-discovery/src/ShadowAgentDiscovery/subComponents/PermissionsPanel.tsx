@@ -22,8 +22,6 @@ import {
   AccordionDetails,
   AccordionSummary,
   Box,
-  Card,
-  CardContent,
   IconButton,
   Link,
   Stack,
@@ -235,56 +233,3 @@ export function DocLinks({ spec }: { spec: ShadowProviderSpec }) {
     </Stack>
   );
 }
-
-/**
- * What to give Agent Manager for the platform and what it does with it,
- * shown next to the form: a read-only note, one collapsible section per
- * credential or source, and the official documentation.
- */
-export function PermissionsPanel({ spec }: { spec: ShadowProviderSpec }) {
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Typography variant="subtitle1">How {spec.displayName} is used</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          What to give Agent Manager, and what it does with it.
-        </Typography>
-        <Stack spacing={1.5}>
-          <Stack
-            direction="row"
-            spacing={1.5}
-            alignItems="flex-start"
-            sx={{ bgcolor: "action.hover", borderRadius: 1, p: 1.5 }}
-          >
-            <Box sx={{ color: "success.main", display: "flex", mt: "2px" }} aria-hidden>
-              <ShieldCheck size={18} />
-            </Box>
-            <Box>
-              <Typography variant="body2" fontWeight={600}>
-                Read-only, and nothing sensitive is stored
-              </Typography>
-              <Typography variant="caption" color="text.secondary" component="p">
-                Every call is read-only. Prompts, completions, tool inputs and outputs and agent
-                instructions are never stored or logged; the credential is stored encrypted and is
-                never shown again.
-              </Typography>
-            </Box>
-          </Stack>
-          {spec.permissions.map((p, i) => (
-            <Section key={p.title} p={p} defaultExpanded={i === 0} />
-          ))}
-          {spec.docs.length > 0 && (
-            <Box sx={{ pt: 0.5 }}>
-              <Typography variant="caption" color="text.secondary" component="p">
-                Official documentation
-              </Typography>
-              <DocLinks spec={spec} />
-            </Box>
-          )}
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
-
-export default PermissionsPanel;

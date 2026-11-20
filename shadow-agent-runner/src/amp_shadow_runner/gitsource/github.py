@@ -190,7 +190,7 @@ class GitHubSource:
     ) -> Path:
         """Download ``repo`` at its resolved commit into ``dest_dir`` and return the archive's path.
 
-        The archive is for ``fetch.extract(kind="tar.gz")``. ``on_progress`` is passed to ``HttpClient.download``
+        The archive is for ``fetch.extract``. ``on_progress`` is passed to ``HttpClient.download``
         (GitHub usually sends archives without a length). Raises RepositoryError when this repository cannot be
         downloaded (including when it is over MAX_TARBALL_BYTES), or GitSourceError for a refused token or a
         rate limit. An error writing the file is raised as the OSError itself.

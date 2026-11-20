@@ -27,10 +27,16 @@ type ShadowProviderSpec struct {
 	Permissions      []ShadowPermissionSpec  `json:"permissions"`
 	Docs             []string                `json:"docs"`
 	CredentialChoice *ShadowCredentialChoice `json:"credentialChoice,omitempty"`
-	// A source repository host (GitHub, Azure DevOps). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
+	// A source repository host (GitHub). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
 	SourceHost *bool `json:"sourceHost,omitempty"`
 	// What a scan lists, and the fields or options each capability needs.
 	Capabilities []ShadowCapabilitySpec `json:"capabilities"`
+	// What a scan of the platform never reads or lists.
+	NotListed []string `json:"notListed,omitempty"`
+	// The steps to make the platform listable (Custom platform), shown with what it lists.
+	SetupSteps []string `json:"setupSteps,omitempty"`
+	// The OpenAPI document (YAML) of the agent inventory API the customer implements for a Custom platform; the console offers it for download.
+	ApiContract *string `json:"apiContract,omitempty"`
 }
 
 // NewShadowProviderSpec instantiates a new ShadowProviderSpec object
@@ -314,6 +320,102 @@ func (o *ShadowProviderSpec) SetCapabilities(v []ShadowCapabilitySpec) {
 	o.Capabilities = v
 }
 
+// GetNotListed returns the NotListed field value if set, zero value otherwise.
+func (o *ShadowProviderSpec) GetNotListed() []string {
+	if o == nil || IsNil(o.NotListed) {
+		var ret []string
+		return ret
+	}
+	return o.NotListed
+}
+
+// GetNotListedOk returns a tuple with the NotListed field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowProviderSpec) GetNotListedOk() ([]string, bool) {
+	if o == nil || IsNil(o.NotListed) {
+		return nil, false
+	}
+	return o.NotListed, true
+}
+
+// HasNotListed returns a boolean if a field has been set.
+func (o *ShadowProviderSpec) HasNotListed() bool {
+	if o != nil && !IsNil(o.NotListed) {
+		return true
+	}
+
+	return false
+}
+
+// SetNotListed gets a reference to the given []string and assigns it to the NotListed field.
+func (o *ShadowProviderSpec) SetNotListed(v []string) {
+	o.NotListed = v
+}
+
+// GetSetupSteps returns the SetupSteps field value if set, zero value otherwise.
+func (o *ShadowProviderSpec) GetSetupSteps() []string {
+	if o == nil || IsNil(o.SetupSteps) {
+		var ret []string
+		return ret
+	}
+	return o.SetupSteps
+}
+
+// GetSetupStepsOk returns a tuple with the SetupSteps field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowProviderSpec) GetSetupStepsOk() ([]string, bool) {
+	if o == nil || IsNil(o.SetupSteps) {
+		return nil, false
+	}
+	return o.SetupSteps, true
+}
+
+// HasSetupSteps returns a boolean if a field has been set.
+func (o *ShadowProviderSpec) HasSetupSteps() bool {
+	if o != nil && !IsNil(o.SetupSteps) {
+		return true
+	}
+
+	return false
+}
+
+// SetSetupSteps gets a reference to the given []string and assigns it to the SetupSteps field.
+func (o *ShadowProviderSpec) SetSetupSteps(v []string) {
+	o.SetupSteps = v
+}
+
+// GetApiContract returns the ApiContract field value if set, zero value otherwise.
+func (o *ShadowProviderSpec) GetApiContract() string {
+	if o == nil || IsNil(o.ApiContract) {
+		var ret string
+		return ret
+	}
+	return *o.ApiContract
+}
+
+// GetApiContractOk returns a tuple with the ApiContract field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowProviderSpec) GetApiContractOk() (*string, bool) {
+	if o == nil || IsNil(o.ApiContract) {
+		return nil, false
+	}
+	return o.ApiContract, true
+}
+
+// HasApiContract returns a boolean if a field has been set.
+func (o *ShadowProviderSpec) HasApiContract() bool {
+	if o != nil && !IsNil(o.ApiContract) {
+		return true
+	}
+
+	return false
+}
+
+// SetApiContract gets a reference to the given string and assigns it to the ApiContract field.
+func (o *ShadowProviderSpec) SetApiContract(v string) {
+	o.ApiContract = &v
+}
+
 func (o ShadowProviderSpec) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -338,6 +440,15 @@ func (o ShadowProviderSpec) ToMap() (map[string]interface{}, error) {
 		toSerialize["sourceHost"] = o.SourceHost
 	}
 	toSerialize["capabilities"] = o.Capabilities
+	if !IsNil(o.NotListed) {
+		toSerialize["notListed"] = o.NotListed
+	}
+	if !IsNil(o.SetupSteps) {
+		toSerialize["setupSteps"] = o.SetupSteps
+	}
+	if !IsNil(o.ApiContract) {
+		toSerialize["apiContract"] = o.ApiContract
+	}
 	return toSerialize, nil
 }
 

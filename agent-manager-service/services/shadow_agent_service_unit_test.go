@@ -160,7 +160,7 @@ func TestShadowCreateConnection_Validation(t *testing.T) {
 			"projectIds": []any{}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
 		}},
 		"service account key is not JSON": {Name: "x", Provider: models.ShadowProviderGoogle, Settings: map[string]any{
-			"projectIds": []any{"p"}, "locations": []any{"us-central1"}, "serviceAccountJson": "not json",
+			"projectIds": []any{"my-agents-project"}, "locations": []any{"us-central1"}, "serviceAccountJson": "not json",
 		}},
 	}
 	for name, in := range tests {
@@ -455,7 +455,7 @@ func TestShadowServiceOptions(t *testing.T) {
 	// Google: the engines are always listed, so the registry can be unticked.
 	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
 		Name: "g", Provider: models.ShadowProviderGoogle, Settings: map[string]any{
-			"projectIds": []any{"p"}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
+			"projectIds": []any{"my-agents-project"}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
 			sa.OptGoogleRegistry: false,
 		},
 	})
@@ -464,7 +464,7 @@ func TestShadowServiceOptions(t *testing.T) {
 	for _, k := range []string{"readMonitoring", "readAuditLogs"} {
 		_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
 			Name: "g-" + k, Provider: models.ShadowProviderGoogle, Settings: map[string]any{
-				"projectIds": []any{"p"}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
+				"projectIds": []any{"my-agents-project"}, "locations": []any{"us-central1"}, "serviceAccountJson": `{"type":"service_account"}`,
 				k: false,
 			},
 		})
@@ -532,16 +532,14 @@ func TestShadowCreateScan(t *testing.T) {
 }
 
 // TestShadowCreateScan_SkipsSourceHosts: a cloud scan never includes a
-// GitHub or Azure DevOps connection; their scan command runs on the
-// customer's machine.
+// GitHub connection; its scan command runs on the customer's machine.
 func TestShadowCreateScan_SkipsSourceHosts(t *testing.T) {
 	cloud := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderFoundry}
 	gh := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderGitHub}
-	ado := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderAzureDevOps}
 	var created *models.ShadowScan
 	repo := &repomocks.ShadowAgentRepositoryMock{
 		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
-			return []models.ShadowConnection{gh, cloud, ado}, nil
+			return []models.ShadowConnection{gh, cloud}, nil
 		},
 		CreateScanFunc: func(_ context.Context, s *models.ShadowScan) error {
 			created = s
@@ -557,13 +555,13 @@ func TestShadowCreateScan_SkipsSourceHosts(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrInvalidInput)
 
 	repo.ListConnectionsFunc = func(context.Context, string) ([]models.ShadowConnection, error) {
-		return []models.ShadowConnection{gh, ado}, nil
+		return []models.ShadowConnection{gh}, nil
 	}
 	_, err = svc.CreateScan(auditableCtx(t), shadowTestOU, nil)
 	assert.ErrorIs(t, err, utils.ErrShadowNoConnections)
 }
 
-// ---- source hosts (GitHub, Azure DevOps) ----
+// ---- source hosts (GitHub) ----
 
 func TestShadowSourceHostConnection_StoresNoSecret(t *testing.T) {
 	var stored *models.ShadowConnection
@@ -604,20 +602,31 @@ func TestShadowSourceHostConnection_StoresNoSecret(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, stored.Config.PrivateRepositories)
 
-	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
-		Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
-		Settings: map[string]any{"organization": "contoso", sa.OptAllProjects: true},
-	})
-	require.NoError(t, err)
-	assert.Nil(t, stored.SecretEncrypted)
-
 	for _, key := range []string{"personalAccessToken", "useEntra", "clientSecret"} {
 		_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
-			Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
-			Settings: map[string]any{"organization": "contoso", sa.OptAllProjects: true, key: "x"},
+			Name: "GitHub " + key, Provider: models.ShadowProviderGitHub,
+			Settings: map[string]any{"organization": "acme", sa.OptAllRepositories: true, key: "x"},
 		})
 		assert.ErrorIs(t, err, utils.ErrInvalidInput, "%s is not a setting any more", key)
 	}
+}
+
+// Azure DevOps is not a platform any more: a connection for it is refused.
+func TestShadowAzureDevOpsIsNotAPlatform(t *testing.T) {
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{}, nil
+		},
+	}
+	svc := newShadowSvc(repo)
+	_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "Azure DevOps", Provider: "azure_devops",
+		Settings: map[string]any{"organization": "contoso", "allProjects": true},
+	})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.Empty(t, repo.CreateConnectionCalls())
+	_, ok := sa.Provider("azure_devops")
+	assert.False(t, ok)
 }
 
 func TestShadowSourceHostConnection_UpdateWithoutStoredSecret(t *testing.T) {
@@ -878,7 +887,7 @@ func TestToShadowApply_DropsFindingsAndEvidenceOfAnotherPlatform(t *testing.T) {
 			{
 				Kind: models.ShadowKindCodeAgent, ExternalID: "acme/agent:src/agent.py", DisplayName: "agent",
 				Signals: []sa.Signal{
-					{Code: "azure_devops.d1_agent_dependency", Source: "requirements.txt"},
+					{Code: "bedrock.classic_agent", Source: "requirements.txt"},
 					{Code: "foundry.agent_object", Source: "scan"},
 					{Code: "github.d2_agent_import", Source: "src/agent.py"},
 				},
@@ -1180,4 +1189,122 @@ func TestShadowOnboardAgent(t *testing.T) {
 	assert.Equal(t, "support-agent", v.Row.LinkedAgent)
 	_, err = svc.Onboard(ctx, shadowTestOU, id, "default", "support-agent")
 	assert.ErrorIs(t, err, utils.ErrShadowAlreadyOnboarded)
+}
+
+// Google project IDs are checked on save: a project name with capitals or a
+// 21-digit service account ID is refused with what to enter instead.
+func TestShadowGoogleProjectIDs(t *testing.T) {
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{}, nil
+		},
+		CreateConnectionFunc: func(context.Context, *models.ShadowConnection) error { return nil },
+	}
+	svc := newShadowSvc(repo)
+	create := func(project string) error {
+		_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+			Name: "g-" + project, Provider: models.ShadowProviderGoogle, Settings: map[string]any{
+				"projectIds": []any{project}, "locations": []any{"us-central1"},
+				"serviceAccountJson": `{"type":"service_account"}`,
+			},
+		})
+		return err
+	}
+	for _, ok := range []string{"shadow-agent-discovery-sasindu", "my-agents-1", "example.com:my-project", "812584083435"} {
+		assert.NoError(t, create(ok), ok)
+	}
+	for _, bad := range []string{"Shadow-agent-Discovery-sasindu", "106904982347791141658", "ab", "1project", "ends-with-"} {
+		err := create(bad)
+		require.ErrorIs(t, err, utils.ErrInvalidInput, bad)
+		assert.Contains(t, err.Error(), "is not a Google Cloud project ID", bad)
+	}
+}
+
+// An onboarded agent can be removed from the Unregistered Agents list and put
+// back; an agent that is not onboarded cannot be removed.
+func TestShadowSetFindingHidden(t *testing.T) {
+	id := uuid.New()
+	row := &repositories.ShadowFindingRow{ShadowFinding: models.ShadowFinding{
+		ID: id, OUID: shadowTestOU, Provider: models.ShadowProviderCustom, Kind: models.ShadowKindPlatformAgent, ExternalID: "inv-1",
+	}}
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		GetFindingFunc: func(_ context.Context, ou string, got uuid.UUID) (*repositories.ShadowFindingRow, error) {
+			if ou != shadowTestOU || got != id {
+				return nil, gorm.ErrRecordNotFound
+			}
+			r := *row
+			return &r, nil
+		},
+		ListSignalsFunc: func(context.Context, string, uuid.UUID) ([]models.ShadowFindingSignal, error) { return nil, nil },
+		SetFindingHiddenFunc: func(_ context.Context, ou string, got uuid.UUID, hidden bool, _ string, at time.Time) error {
+			if ou != shadowTestOU || got != id {
+				return gorm.ErrRecordNotFound
+			}
+			if hidden && row.LinkedAgent == "" {
+				return utils.ErrShadowNotOnboarded
+			}
+			row.HiddenAt = nil
+			if hidden {
+				row.HiddenAt = &at
+			}
+			return nil
+		},
+	}
+	svc := newShadowSvc(repo)
+	ctx := auditableCtx(t)
+
+	_, err := svc.SetFindingHidden(ctx, shadowTestOU, id, true)
+	assert.ErrorIs(t, err, utils.ErrShadowNotOnboarded, "only an onboarded agent can be removed from the list")
+	_, err = svc.SetFindingHidden(ctx, shadowTestOU, uuid.New(), true)
+	assert.ErrorIs(t, err, utils.ErrShadowFindingNotFound)
+
+	row.LinkedProject, row.LinkedAgent = "default", "support-agent"
+	v, err := svc.SetFindingHidden(ctx, shadowTestOU, id, true)
+	require.NoError(t, err)
+	assert.NotNil(t, v.Row.HiddenAt, "removed from the list")
+	v, err = svc.SetFindingHidden(ctx, shadowTestOU, id, false)
+	require.NoError(t, err)
+	assert.Nil(t, v.Row.HiddenAt, "back in the list")
+}
+
+// A Custom platform is saved with an http(s) Agents URL without a query
+// string, and an API key that is stored as a secret, never in the config.
+func TestShadowCustomPlatformSettings(t *testing.T) {
+	var saved *models.ShadowConnection
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{}, nil
+		},
+		CreateConnectionFunc: func(_ context.Context, c *models.ShadowConnection) error {
+			saved = c
+			return nil
+		},
+	}
+	svc := newShadowSvc(repo)
+	create := func(name, agentsURL, key string) error {
+		settings := map[string]any{"agentsUrl": agentsURL}
+		if key != "" {
+			settings["apiKey"] = key
+		}
+		_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+			Name: name, Provider: models.ShadowProviderCustom, Settings: settings,
+		})
+		return err
+	}
+	for _, bad := range []string{
+		"ftp://agents.example.com/agents", "https://agents.example.com/agents?team=a",
+		"https://agents.example.com/agents#x", "https://user:pw@agents.example.com/agents", "agents.example.com/agents",
+	} {
+		assert.ErrorIs(t, create("bad", bad, "k-123"), utils.ErrInvalidInput, bad)
+	}
+	assert.ErrorIs(t, create("no key", "https://agents.example.com/agents", ""), utils.ErrInvalidInput,
+		"the API key is required")
+
+	require.NoError(t, create("inventory", " https://agents.example.com/v1/agents ", "k-1234567890"))
+	require.NotNil(t, saved)
+	assert.Equal(t, "https://agents.example.com/v1/agents", saved.Config.AgentsURL)
+	cfg, _ := json.Marshal(saved.Config)
+	assert.NotContains(t, string(cfg), "k-1234567890", "the key is not in the config")
+	assert.NotEmpty(t, saved.SecretEncrypted, "the key is stored encrypted")
+	assert.Contains(t, saved.SecretHints, "apiKey")
 }

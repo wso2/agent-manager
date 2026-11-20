@@ -34,7 +34,7 @@ conditional signature (see ``Condition``) gives ``proven`` only when its conditi
   (``Match.condition_met``).
 - ``TEXT``: never; a Ballerina text match is always ``not_sure``.
 
-Evidence codes here carry no provider prefix: the publish step adds ``github.`` or ``azure_devops.``.
+Evidence codes here carry no provider prefix: the publish step adds the provider's (``github.``).
 
 - ``d2_agent_import``: the file that uses the signature, with ``observed.imports`` the number of the
   framework's imports in it (for TS/JS, the imports whose package is one of the framework's; for C#, the

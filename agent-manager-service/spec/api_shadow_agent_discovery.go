@@ -305,7 +305,7 @@ func (r ApiCreateShadowRunnerScanRequest) Execute() (*ShadowRunnerScanResponse, 
 /*
 CreateShadowRunnerScan Create a source code scan command
 
-Creates a pending scan of a GitHub or Azure DevOps connection and a
+Creates a pending scan of a GitHub connection and a
 scan token, valid for about one hour, that lets the scan command
 publish its results for this organization only. Returns the parts the
 console composes the scan command from. The token is returned once and
@@ -2134,6 +2134,159 @@ func (a *ShadowAgentDiscoveryAPIService) OnboardShadowFindingExecute(r ApiOnboar
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 409 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
+type ApiSetShadowFindingHiddenRequest struct {
+	ctx                        context.Context
+	ApiService                 *ShadowAgentDiscoveryAPIService
+	orgName                    string
+	findingId                  string
+	shadowFindingHiddenRequest *ShadowFindingHiddenRequest
+}
+
+func (r ApiSetShadowFindingHiddenRequest) ShadowFindingHiddenRequest(shadowFindingHiddenRequest ShadowFindingHiddenRequest) ApiSetShadowFindingHiddenRequest {
+	r.shadowFindingHiddenRequest = &shadowFindingHiddenRequest
+	return r
+}
+
+func (r ApiSetShadowFindingHiddenRequest) Execute() (*ShadowFindingDetail, *http.Response, error) {
+	return r.ApiService.SetShadowFindingHiddenExecute(r)
+}
+
+/*
+SetShadowFindingHidden Remove an onboarded agent from the Unregistered Agents list, or put it back
+
+hidden true removes an onboarded agent from the Unregistered Agents
+list, on every connection that found it; later scans keep it out.
+hidden false puts it back. Only an onboarded agent can be removed.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param findingId Agent (finding) ID
+	@return ApiSetShadowFindingHiddenRequest
+*/
+func (a *ShadowAgentDiscoveryAPIService) SetShadowFindingHidden(ctx context.Context, orgName string, findingId string) ApiSetShadowFindingHiddenRequest {
+	return ApiSetShadowFindingHiddenRequest{
+		ApiService: a,
+		ctx:        ctx,
+		orgName:    orgName,
+		findingId:  findingId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return ShadowFindingDetail
+func (a *ShadowAgentDiscoveryAPIService) SetShadowFindingHiddenExecute(r ApiSetShadowFindingHiddenRequest) (*ShadowFindingDetail, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPut
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *ShadowFindingDetail
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "ShadowAgentDiscoveryAPIService.SetShadowFindingHidden")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/shadow-agents/findings/{findingId}/hidden"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"findingId"+"}", url.PathEscape(parameterValueToString(r.findingId, "findingId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.shadowFindingHiddenRequest == nil {
+		return localVarReturnValue, nil, reportError("shadowFindingHiddenRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.shadowFindingHiddenRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

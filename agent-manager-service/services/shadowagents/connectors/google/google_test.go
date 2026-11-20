@@ -201,6 +201,8 @@ func TestScanPagination(t *testing.T) {
 	// Items add up over pages and scopes.
 	assert.Equal(t, 3, callResult(t, res, callEngines).Items)
 	assert.Equal(t, 5, callResult(t, res, callAgents).Items)
+	assert.Equal(t, "1 Google built-in agent left out: Gemini Enterprise assistant", callResult(t, res, callAgents).Message,
+		"the scan result says which registry entries were left out")
 }
 
 // TestScanPageLimitIsRecorded: a listing cut at its page bound is
@@ -413,7 +415,7 @@ func TestScanEmptyProjectRaisesNothing(t *testing.T) {
 // Google's built-in agents are left out.
 func TestRegistryAgentResolution(t *testing.T) {
 	newScanner := func() *scanner {
-		s := &scanner{c: &Connector{}, findings: sa.NewFindings(), aliases: map[string]map[string]bool{}}
+		s := &scanner{c: &Connector{}, findings: sa.NewFindings(), aliases: map[string]map[string]bool{}, builtins: map[string]string{}}
 		s.addEngine(testProject, "us-central1", &reasoningEngine{Name: engineA})
 		return s
 	}
@@ -644,4 +646,98 @@ func TestConnectionTestUnselectedServices(t *testing.T) {
 	assert.Equal(t, models.ShadowCallSkipped, info.Checks[1].Outcome)
 	assert.Equal(t, sa.ReasonServiceOff, info.Checks[1].Message)
 	assert.Empty(t, f.requests("agents"))
+}
+
+// TestScanFindsEveryLocation: with "Find every location automatically" the
+// scan lists each project's locations and reads every one; a location that
+// is not available to the project is noted, not failed.
+func TestScanFindsEveryLocation(t *testing.T) {
+	setup := func(t *testing.T, engines http.HandlerFunc) (*sa.Result, *fakeGoogle) {
+		f := newFakeGoogle(t)
+		f.setOverride("locations", func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.URL.Path, "/regional/") {
+				writeJSONBody(w, `{"locations":[{"locationId":"us-central1"},{"locationId":"europe-west4"},{"locationId":"us-east7"},`+
+					`{"locationId":"us"},{"locationId":"global"},{"locationId":"au"}]}`)
+				return
+			}
+			writeJSONBody(w, `{"locations":[{"locationId":"global"},{"locationId":"europe-west4"}]}`)
+		})
+		f.setOverride("engines", engines)
+		f.setOverride("agents", func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.URL.Path, "/locations/global/") {
+				writeJSONBody(w, `{"agents":[{"name":"projects/1/locations/global/agents/ws","agentId":"urn:agent:googleapis.com:locations:global:workspaceagent:x","displayName":"Workspace Agent"}]}`)
+				return
+			}
+			writeJSONBody(w, `{"agents":[]}`)
+		})
+		conn := f.conn(t)
+		conn.Config.AllLocations, conn.Config.Locations, conn.Config.IncludeGlobalAndMultiRegion = true, nil, false
+		return newTestConnector(f).Scan(t.Context(), conn), f
+	}
+
+	res, f := setup(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/locations/europe-west4/"):
+			writeJSONBody(w, `{"reasoningEngines":[{"name":"projects/`+testProject+`/locations/europe-west4/reasoningEngines/77","displayName":"eu-agent"}]}`)
+		case strings.Contains(r.URL.Path, "/locations/us-east7/"):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"code":403,"message":"Location us-east7 is not available for this project.","status":"PERMISSION_DENIED"}}`))
+		default:
+			writeJSONBody(w, `{"reasoningEngines":[]}`)
+		}
+	})
+	var called []string
+	for _, r := range f.requests("engines") {
+		called = append(called, locationInPath.FindStringSubmatch(r.Path)[1])
+	}
+	assert.ElementsMatch(t, []string{"us-central1", "europe-west4", "us-east7", "us"}, called,
+		"every Agent Runtime location, without global and other codes it does not serve")
+	assert.Equal(t, []string{"projects/" + testProject + "/locations/europe-west4/reasoningEngines/77"}, externalIDs(res),
+		"the agent in a region nobody typed is found")
+	engines := callResult(t, res, callEngines)
+	assert.Equal(t, models.ShadowCallOK, engines.Outcome, "an unavailable location does not fail the scan")
+	assert.Equal(t, "1 location not available to this project, left out: us-east7", engines.Message)
+	assert.Equal(t, models.ShadowCallOK, callResult(t, res, callRuntimeLocations).Outcome)
+	assert.Equal(t, models.ShadowCallOK, callResult(t, res, callRegistryLocations).Outcome)
+	assert.Len(t, f.requests("agents"), 2, "the registry is read in each of its own locations")
+	assert.Equal(t, "1 Google built-in agent left out: Workspace Agent", callResult(t, res, callAgents).Message)
+
+	t.Run("no location available: the error is reported", func(t *testing.T) {
+		res, _ := setup(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"code":403,"message":"Permission 'aiplatform.reasoningEngines.list' denied.","status":"PERMISSION_DENIED"}}`))
+		})
+		assert.Equal(t, models.ShadowCallPermissionDenied, callResult(t, res, callEngines).Outcome)
+	})
+}
+
+func writeJSONBody(w http.ResponseWriter, body string) {
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(body))
+}
+
+func externalIDs(res *sa.Result) []string {
+	out := make([]string, 0, len(res.Findings))
+	for _, f := range res.Findings {
+		out = append(out, f.ExternalID)
+	}
+	return out
+}
+
+// With every location found automatically, the connection test reads
+// Agent Runtime in us-central1 and the global Agent Registry.
+func TestConnectionTestFindsEveryLocation(t *testing.T) {
+	f := newFakeGoogle(t)
+	f.setOverride("engines", func(w http.ResponseWriter, _ *http.Request) { writeJSONBody(w, `{"reasoningEngines":[]}`) })
+	f.setOverride("agents", func(w http.ResponseWriter, _ *http.Request) { writeJSONBody(w, `{"agents":[]}`) })
+	conn := f.conn(t)
+	conn.Config.AllLocations, conn.Config.Locations = true, nil
+	info := newTestConnector(f).Test(t.Context(), conn)
+	require.True(t, info.OK, "%+v", info)
+	require.Len(t, f.requests("engines"), 1)
+	assert.Contains(t, f.requests("engines")[0].Path, "/locations/us-central1/")
+	require.Len(t, f.requests("agents"), 1)
+	assert.Contains(t, f.requests("agents")[0].Path, "/locations/global/")
 }

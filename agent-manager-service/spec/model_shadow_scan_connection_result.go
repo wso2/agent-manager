@@ -26,7 +26,7 @@ type ShadowScanConnectionResult struct {
 	Message        *string                `json:"message,omitempty"`
 	FindingsCount  int32                  `json:"findingsCount"`
 	Calls          []ShadowScanCallResult `json:"calls"`
-	// The repositories a source code scan command scanned (a GitHub repository name, or an Azure DevOps project/repository). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+	// The repositories a source code scan command scanned (GitHub repository names). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
 	ScannedRepositories []string `json:"scannedRepositories,omitempty"`
 	// The repositories a source code scan command could not scan. Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
 	FailedRepositories []ShadowScanFailedRepository `json:"failedRepositories,omitempty"`

@@ -92,7 +92,7 @@ type ShadowAgentService interface {
 	UpdateConnection(ctx context.Context, ouID string, id uuid.UUID, in ShadowConnectionInput) (*ShadowConnectionView, error)
 	DeleteConnection(ctx context.Context, ouID string, id uuid.UUID) error
 	TestConnection(ctx context.Context, ouID string, id uuid.UUID) (*models.ShadowConnectionTestInfo, error)
-	// CreateRunnerScan creates a pending scan of a GitHub or Azure DevOps
+	// CreateRunnerScan creates a pending scan of a GitHub
 	// connection and the scan token its scan command publishes with.
 	CreateRunnerScan(ctx context.Context, ouID string, id uuid.UUID, opts models.ShadowScanOptions) (*ShadowRunnerScan, error)
 	// PublishRunnerScan saves the code agents a source code scan command
@@ -116,6 +116,9 @@ type ShadowAgentService interface {
 	// Onboard links the agent to the externally-hosted agent registered for
 	// it (projectName/agentName, which must exist in the org).
 	Onboard(ctx context.Context, ouID string, id uuid.UUID, projectName, agentName string) (*ShadowFindingView, error)
+	// SetFindingHidden removes an onboarded agent from the Unregistered
+	// Agents list (hidden true), or puts it back. Later scans keep the choice.
+	SetFindingHidden(ctx context.Context, ouID string, id uuid.UUID, hidden bool) (*ShadowFindingView, error)
 	// DeleteFinding deletes an agent, on every connection that found it. A
 	// later scan lists it again if a platform still has it.
 	DeleteFinding(ctx context.Context, ouID string, id uuid.UUID) error
@@ -398,7 +401,7 @@ func (s *shadowAgentService) encryptSecret(secret models.ShadowConnectionSecret)
 }
 
 // sealSecret encrypts a connection's secret for storage. A source host
-// (GitHub, Azure DevOps) stores none: its form has no secret field, and the
+// (GitHub) stores none: its form has no secret field, and the
 // source code scan asks for the Git token on the customer's machine.
 func (s *shadowAgentService) sealSecret(spec sa.ProviderSpec, secret models.ShadowConnectionSecret) ([]byte, error) {
 	if spec.SourceHost {
@@ -615,6 +618,7 @@ func secretHints(secret models.ShadowConnectionSecret) map[string]string {
 		}
 	}
 	add("clientSecret", secret.ClientSecret)
+	add(sa.FieldAPIKey, secret.APIKey)
 	add("secretAccessKey", secret.SecretAccessKey)
 	add("sessionToken", secret.SessionToken)
 	if strings.TrimSpace(secret.ServiceAccountJSON) != "" {
@@ -688,6 +692,11 @@ func checkCredentialChoice(spec sa.ProviderSpec, secret models.ShadowConnectionS
 	return fmt.Errorf("%w: %s", utils.ErrInvalidInput, choice.Message)
 }
 
+// googleProjectRE is a Google Cloud project ID (also domain-scoped, such as
+// example.com:my-project) or a project number. A 21-digit service account
+// ID or a project name with capitals is refused.
+var googleProjectRE = regexp.MustCompile(`^(([a-z0-9.-]+\.[a-z]+:)?[a-z][a-z0-9-]{4,28}[a-z0-9]|[1-9][0-9]{5,15})$`)
+
 // shadowSecretFields are the secret's members, by form field key.
 var shadowSecretFields = []string{
 	sa.FieldScopedKeys, "clientSecret", "secretAccessKey", "sessionToken", "serviceAccountJson",
@@ -722,6 +731,8 @@ func shadowSecretHas(secret models.ShadowConnectionSecret, key string) bool {
 		return false
 	case "clientSecret":
 		return strings.TrimSpace(secret.ClientSecret) != ""
+	case sa.FieldAPIKey:
+		return strings.TrimSpace(secret.APIKey) != ""
 	case "secretAccessKey":
 		return strings.TrimSpace(secret.SecretAccessKey) != ""
 	case "sessionToken":
@@ -802,6 +813,15 @@ func applyShadowSettings(
 			if active && f.Required && len(v) == 0 {
 				return fmt.Errorf("%w: %s needs at least one value", utils.ErrInvalidInput, f.Label)
 			}
+			if spec.Provider == models.ShadowProviderGoogle && f.Key == "projectIds" {
+				for _, p := range v {
+					if !googleProjectRE.MatchString(p) {
+						return fmt.Errorf("%w: %q is not a Google Cloud project ID: use the project ID (lowercase letters, digits "+
+							"and hyphens, 6 to 30 characters, starting with a letter) or the project number, as the Google Cloud "+
+							"console's project picker shows them", utils.ErrInvalidInput, sa.Truncate(p, 64))
+					}
+				}
+			}
 			setShadowList(cfg, f.Key, v)
 		case sa.FieldSecret, sa.FieldTextarea:
 			v, err := settingString(f, raw, given)
@@ -879,7 +899,7 @@ var (
 )
 
 // validateSourceHostSettings checks the names a connection puts in API
-// paths and hosts: Bedrock region codes, and GitHub and Azure DevOps names.
+// paths and hosts: Bedrock region codes and GitHub names.
 // A GitHub repository may be given as owner/name for the connection's
 // owner; it is stored as the name.
 func validateSourceHostSettings(spec sa.ProviderSpec, cfg *models.ShadowConnectionConfig) error {
@@ -889,6 +909,10 @@ func validateSourceHostSettings(spec sa.ProviderSpec, cfg *models.ShadowConnecti
 			if !sa.ValidRegion(r) {
 				return fmt.Errorf("%w: %q is not an AWS region code, such as us-east-1", utils.ErrInvalidInput, r)
 			}
+		}
+	case models.ShadowProviderCustom:
+		if err := sa.ValidateAgentsURL(cfg.AgentsURL); err != nil {
+			return fmt.Errorf("%w: %s", utils.ErrInvalidInput, err.Error())
 		}
 	case models.ShadowProviderGitHub:
 		if !githubOwnerPattern.MatchString(cfg.Organization) {
@@ -906,15 +930,6 @@ func validateSourceHostSettings(spec sa.ProviderSpec, cfg *models.ShadowConnecti
 				return fmt.Errorf("%w: %q is not a GitHub repository name", utils.ErrInvalidInput, r)
 			}
 			cfg.Repositories[i] = name
-		}
-	case models.ShadowProviderAzureDevOps:
-		if strings.ContainsAny(cfg.Organization, "/\\?#% \t") {
-			return fmt.Errorf("%w: Organization must be the name in https://dev.azure.com/{organization}, not a URL", utils.ErrInvalidInput)
-		}
-		for _, p := range cfg.Projects {
-			if strings.ContainsAny(p, "/\\?#%") {
-				return fmt.Errorf("%w: %q is not an Azure DevOps project name", utils.ErrInvalidInput, p)
-			}
 		}
 	}
 	return nil
@@ -963,10 +978,10 @@ func setShadowBool(cfg *models.ShadowConnectionConfig, key string, v bool) {
 		cfg.IncludeClassicAgents = v
 	case sa.OptGlobalMulti:
 		cfg.IncludeGlobalAndMultiRegion = v
+	case sa.OptGoogleAllLocations:
+		cfg.AllLocations = v
 	case sa.OptAllRepositories:
 		cfg.AllRepositories = v
-	case sa.OptAllProjects:
-		cfg.AllProjects = v
 	case sa.OptPrivateRepos:
 		cfg.PrivateRepositories = v
 	case sa.OptReadCI:
@@ -1002,6 +1017,8 @@ func setShadowText(cfg *models.ShadowConnectionConfig, key, v string) {
 		cfg.AccessKeyID = v
 	case "organization":
 		cfg.Organization = v
+	case sa.FieldAgentsURL:
+		cfg.AgentsURL = v
 	}
 }
 
@@ -1017,8 +1034,6 @@ func setShadowList(cfg *models.ShadowConnectionConfig, key string, v []string) {
 		cfg.Locations = v
 	case "repositories":
 		cfg.Repositories = v
-	case "projects":
-		cfg.Projects = v
 	}
 }
 
@@ -1026,6 +1041,8 @@ func setShadowSecret(secret *models.ShadowConnectionSecret, key, v string) {
 	switch key {
 	case "clientSecret":
 		secret.ClientSecret = v
+	case sa.FieldAPIKey:
+		secret.APIKey = v
 	case "secretAccessKey":
 		secret.SecretAccessKey = v
 	case "sessionToken":
@@ -1045,18 +1062,19 @@ func shadowSettingsOf(provider string, cfg models.ShadowConnectionConfig) map[st
 	}
 	text := map[string]string{
 		"tenantId": cfg.TenantID, "clientId": cfg.ClientID, "roleArn": cfg.RoleARN, "externalId": cfg.ExternalID,
-		"accessKeyId": cfg.AccessKeyID, "organization": cfg.Organization,
+		"accessKeyId": cfg.AccessKeyID, "organization": cfg.Organization, sa.FieldAgentsURL: cfg.AgentsURL,
 	}
 	lists := map[string][]string{
 		"subscriptionIds": cfg.SubscriptionIDs, "regions": cfg.Regions, "projectIds": cfg.ProjectIDs,
 		"locations":    cfg.Locations,
-		"repositories": cfg.Repositories, "projects": cfg.Projects,
+		"repositories": cfg.Repositories,
 	}
 	bools := map[string]bool{
 		sa.OptAllSubscriptions: cfg.AllSubscriptions,
 		sa.OptClassicAgents:    cfg.IncludeClassicAgents, sa.OptGlobalMulti: cfg.IncludeGlobalAndMultiRegion,
-		sa.OptAllRepositories: cfg.AllRepositories, sa.OptPrivateRepos: cfg.PrivateRepositories,
-		sa.OptAllProjects: cfg.AllProjects, sa.OptReadCI: cfg.ReadCIFiles,
+		sa.OptGoogleAllLocations: cfg.AllLocations,
+		sa.OptAllRepositories:    cfg.AllRepositories, sa.OptPrivateRepos: cfg.PrivateRepositories,
+		sa.OptReadCI: cfg.ReadCIFiles,
 	}
 	for _, f := range spec.Fields {
 		switch f.Kind {
@@ -1103,7 +1121,7 @@ func (s *shadowAgentService) CreateScan(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list connections: %w", err)
 	}
-	// A source host (GitHub, Azure DevOps) is never part of a cloud scan:
+	// A source host (GitHub) is never part of a cloud scan:
 	// its repositories are scanned by the scan command on the customer's
 	// machine.
 	scannable := map[uuid.UUID]bool{}
@@ -1273,6 +1291,25 @@ func (s *shadowAgentService) DeleteFinding(ctx context.Context, ouID string, id 
 		return utils.ErrShadowFindingNotFound
 	}
 	return nil
+}
+
+// SetFindingHidden removes an onboarded agent from the Unregistered Agents
+// list, or puts it back, on every connection that found it.
+func (s *shadowAgentService) SetFindingHidden(
+	ctx context.Context, ouID string, id uuid.UUID, hidden bool,
+) (*ShadowFindingView, error) {
+	by := audit.BuildEvent(ctx, audit.ActionShadowFindingHide).ActorID
+	if err := s.repo.SetFindingHidden(ctx, ouID, id, hidden, by, s.now().UTC()); err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			return nil, utils.ErrShadowFindingNotFound
+		case errors.Is(err, utils.ErrShadowNotOnboarded):
+			return nil, err
+		default:
+			return nil, fmt.Errorf("failed to change the agent's listing: %w", err)
+		}
+	}
+	return s.GetFinding(ctx, ouID, id)
 }
 
 func (s *shadowAgentService) DeleteFindings(ctx context.Context, ouID string) (int, error) {

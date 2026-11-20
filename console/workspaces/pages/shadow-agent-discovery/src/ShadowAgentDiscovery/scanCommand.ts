@@ -61,7 +61,7 @@ function customURL(spec: Pick<ShadowProviderSpec, "endpoints">, input: ScanComma
 }
 
 /**
- * The docker command that scans a GitHub or Azure DevOps connection on the
+ * The docker command that scans a GitHub connection on the
  * customer's machine. Until a scan is issued, the token, scan ID, Agent
  * Manager address and image are placeholders.
  */
@@ -83,18 +83,11 @@ export function buildScanCommand(
     return `${listFlag}=${names.length > 0 ? shellQuote(names.join(",")) : none}`;
   };
   const url = customURL(spec, input);
-  if (spec.provider === "azure_devops") {
-    lines.push(`--azure-devops-org ${org ? shellQuote(org) : "<organization>"}`);
-    lines.push(scope(s.allProjects, "--all-projects", s.projects, "--projects", "<projects>"));
-    if (s.readCiFiles === true) lines.push("--read-ci");
-    if (url) lines.push(`--azure-devops-url ${shellQuote(url)}`);
-  } else {
-    lines.push(`--github-org ${org ? shellQuote(org) : "<organization>"}`);
-    lines.push(scope(s.allRepositories, "--all-repos", s.repositories, "--repos", "<repositories>"));
-    if (s.privateRepositories === true) lines.push("--include-private");
-    if (s.readCiFiles === true) lines.push("--read-ci");
-    if (url) lines.push(`--github-api-url ${shellQuote(url)}`);
-  }
+  lines.push(`--github-org ${org ? shellQuote(org) : "<organization>"}`);
+  lines.push(scope(s.allRepositories, "--all-repos", s.repositories, "--repos", "<repositories>"));
+  if (s.privateRepositories === true) lines.push("--include-private");
+  if (s.readCiFiles === true) lines.push("--read-ci");
+  if (url) lines.push(`--github-api-url ${shellQuote(url)}`);
   if (options.aiReview) {
     lines.push("--ai-review");
     if (options.llmJudge) lines.push("--judge");

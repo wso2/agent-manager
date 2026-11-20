@@ -50,6 +50,8 @@ type ShadowFindingDetail struct {
 	OnboardedAt *time.Time `json:"onboardedAt,omitempty"`
 	// For code agents, who confirmed the agent: rules (the scan's rules), ai_review (the customer's LLM) or ai_review_judge (the LLM judge). Absent for other kinds.
 	ReviewedBy *string `json:"reviewedBy,omitempty"`
+	// The onboarded agent was removed from the Unregistered Agents list. The list leaves it out; it can still be opened by its ID.
+	Hidden bool `json:"hidden"`
 	// What the platform's agent listing reports about the agent (allow-listed fields only).
 	Attributes map[string]interface{} `json:"attributes"`
 	// Agents on other platforms that may be the same agent.
@@ -64,7 +66,7 @@ type ShadowFindingDetail struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewShadowFindingDetail(id string, connectionId string, connectionName string, provider string, kind string, externalId string, displayName string, scope string, state string, ownerHint ShadowOwnerHint, firstSeenAt time.Time, lastSeenAt time.Time, present bool, foundBy []ShadowFindingSource, onboarded bool, attributes map[string]interface{}, related []ShadowFindingRelation, signals []ShadowFindingSignal) *ShadowFindingDetail {
+func NewShadowFindingDetail(id string, connectionId string, connectionName string, provider string, kind string, externalId string, displayName string, scope string, state string, ownerHint ShadowOwnerHint, firstSeenAt time.Time, lastSeenAt time.Time, present bool, foundBy []ShadowFindingSource, onboarded bool, hidden bool, attributes map[string]interface{}, related []ShadowFindingRelation, signals []ShadowFindingSignal) *ShadowFindingDetail {
 	this := ShadowFindingDetail{}
 	this.Id = id
 	this.ConnectionId = connectionId
@@ -81,6 +83,7 @@ func NewShadowFindingDetail(id string, connectionId string, connectionName strin
 	this.Present = present
 	this.FoundBy = foundBy
 	this.Onboarded = onboarded
+	this.Hidden = hidden
 	this.Attributes = attributes
 	this.Related = related
 	this.Signals = signals
@@ -615,6 +618,30 @@ func (o *ShadowFindingDetail) SetReviewedBy(v string) {
 	o.ReviewedBy = &v
 }
 
+// GetHidden returns the Hidden field value
+func (o *ShadowFindingDetail) GetHidden() bool {
+	if o == nil {
+		var ret bool
+		return ret
+	}
+
+	return o.Hidden
+}
+
+// GetHiddenOk returns a tuple with the Hidden field value
+// and a boolean to check if the value has been set.
+func (o *ShadowFindingDetail) GetHiddenOk() (*bool, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Hidden, true
+}
+
+// SetHidden sets field value
+func (o *ShadowFindingDetail) SetHidden(v bool) {
+	o.Hidden = v
+}
+
 // GetAttributes returns the Attributes field value
 func (o *ShadowFindingDetail) GetAttributes() map[string]interface{} {
 	if o == nil {
@@ -759,6 +786,7 @@ func (o ShadowFindingDetail) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.ReviewedBy) {
 		toSerialize["reviewedBy"] = o.ReviewedBy
 	}
+	toSerialize["hidden"] = o.Hidden
 	toSerialize["attributes"] = o.Attributes
 	toSerialize["related"] = o.Related
 	toSerialize["signals"] = o.Signals

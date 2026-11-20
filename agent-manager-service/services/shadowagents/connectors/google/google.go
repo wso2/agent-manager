@@ -40,7 +40,14 @@ const (
 	callConfig  = "connection settings"
 	callEngines = "GET /v1/projects/{project}/locations/{location}/reasoningEngines"
 	callAgents  = "GET /v1/projects/{project}/locations/{location}/agents"
+	// The locations lists, when the locations are found automatically.
+	callRuntimeLocations  = "GET /v1/projects/{project}/locations (Agent Runtime)"
+	callRegistryLocations = "GET /v1/projects/{project}/locations (Agent Registry)"
 )
+
+// discoveryHost is the regional Agent Runtime host the locations list is
+// read from (any regional host lists every location).
+const discoveryHost = "us-central1"
 
 // Bounds and documented limits (see the evidence log, evidence/google.md).
 const (
@@ -120,6 +127,9 @@ func (c *Connector) newAPI(ctx context.Context, conn sa.Connection) (*sa.API, er
 
 // settings are a connection's validated projects and locations.
 type settings struct {
+	// discover lists each project's locations instead of using the
+	// configured ones (runtimeLocations and registryLocations stay empty).
+	discover          bool
 	projects          []string
 	runtimeLocations  []string
 	registryLocations []string
@@ -136,6 +146,13 @@ func readSettings(conn sa.Connection) (settings, []string) {
 			continue
 		}
 		st.projects = append(st.projects, p)
+	}
+	if conn.Config.AllLocations {
+		st.discover = true
+		if len(st.projects) == 0 {
+			problems = append(problems, "no valid Google Cloud project ID is configured")
+		}
+		return st, problems
 	}
 	var locs []string
 	for _, l := range dedupe(conn.Config.Locations) {

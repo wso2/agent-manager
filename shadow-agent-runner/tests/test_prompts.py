@@ -242,7 +242,6 @@ CONFIG = ScanConfig(
     ai_review=False,
     judge=False,
 )
-ADO = replace(CONFIG, provider="azure_devops", api_url="https://dev.azure.com")
 
 
 def test_github_public_uses_a_set_token_but_never_asks() -> None:
@@ -274,13 +273,6 @@ def test_github_private_asks_for_the_github_token() -> None:
         git_token(config, _ui(), env={}, is_tty=False)
 
 
-def test_azure_devops_always_asks() -> None:
-    reader = Reader(SECRET)
-    assert git_token(ADO, _ui(), env={}, is_tty=True, read=reader) == SECRET
-    assert reader.prompts == ["  ? Azure DevOps personal access token (Code read, Project and team read) "]
-    assert git_token(ADO, _ui(), env={"AZURE_DEVOPS_TOKEN": SECRET}, is_tty=False) == SECRET
-
-
 def test_plain_http_warns_before_the_prompt() -> None:
     out = Log()
 
@@ -288,11 +280,11 @@ def test_plain_http_warns_before_the_prompt() -> None:
         out.write("<prompt>")
         return SECRET
 
-    config = replace(ADO, api_url="http://ado.internal:8080/tfs")
+    config = replace(CONFIG, include_private=True, api_url="http://ghe.internal:8080/api/v3")
     assert git_token(config, _ui(out), env={}, is_tty=True, read=read) == SECRET
     assert out.getvalue() == (
-        "\n◆ Azure DevOps\n"
-        "  ! ado.internal:8080 uses plain http, so the Azure DevOps token will be sent to it unencrypted.\n"
+        "\n◆ GitHub\n"
+        "  ! ghe.internal:8080 uses plain http, so the GitHub token will be sent to it unencrypted.\n"
         "<prompt>" + RECEIVED
     )
     assert SECRET not in out.getvalue()

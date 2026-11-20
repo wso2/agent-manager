@@ -179,9 +179,6 @@ def run_scan(
     progress = Progress(stream)
     ui = progress.ui
 
-    if config.provider != "github":
-        ui.say("amp-shadow-runner: Azure DevOps scans are not available in this version of the runner yet.")
-        return ExitCode.RUNTIME_ERROR
     check_writable(report_path)
     ui.header(TITLE, f"{config.organization} on {_host(config.api_url)}")
     try:
@@ -342,7 +339,7 @@ def _scan_one(
         resolved, tree.parent, on_progress=lambda done, length: progress.received(index, total, repo.name, done, length)
     )
     progress.extracting(index, total, repo.name)
-    extracted = extract(archive, tree, kind="tar.gz")  # It deletes the archive, and the tree on a failure.
+    extracted = extract(archive, tree)  # It deletes the archive, and the tree on a failure.
     try:
         progress.scanning(index, total, repo.name)
         result = scan_tree(

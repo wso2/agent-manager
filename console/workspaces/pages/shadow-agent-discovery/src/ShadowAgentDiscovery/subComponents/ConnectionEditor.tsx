@@ -31,7 +31,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ChevronDown, ChevronRight, Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
+import { ChevronDown, ChevronRight, Download, Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { PageLayout, TextInput, useReturnTo } from "@agent-management-platform/views";
 import {
@@ -62,7 +62,6 @@ import {
   optionActive,
 } from "../capabilities";
 import { AnalyzeSection } from "./AnalyzeSection";
-import { PermissionsPanel } from "./PermissionsPanel";
 import { SourceScanGuide } from "./SourceScanGuide";
 import { ScanCommandPanel } from "./ScanCommandPanel";
 import type { ScanCommandInput } from "../scanCommand";
@@ -221,7 +220,7 @@ export function endpointVisible(
 
 /**
  * Whether a field is shown: a field tied to a checkbox shows while it is
- * ticked, or with "!key" while it is not (Azure DevOps: a PAT or Entra).
+ * ticked, or with "!key" while it is not.
  */
 export function fieldVisible(f: ShadowFieldSpec, draft: ConnectionDraft): boolean {
   return optionActive(f.option, draft.values);
@@ -701,6 +700,21 @@ function EndpointInput({
 }
 
 /** Create (connections/new) or edit (connections/:connectionId/edit) a provider connection. */
+/** The file name of the Custom platform's OpenAPI contract download. */
+export const CUSTOM_CONTRACT_FILE = "agent-manager-custom-platform-openapi.yaml";
+
+/** Saves the Custom platform's OpenAPI contract as a file. */
+export function downloadContract(contract: string) {
+  const url = URL.createObjectURL(new Blob([contract], { type: "application/yaml" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = CUSTOM_CONTRACT_FILE;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function ConnectionEditor({
   orgName,
   listPath,
@@ -723,7 +737,7 @@ export function ConnectionEditor({
   const [serverError, setServerError] = useState<string | null>(null);
   // null until the user toggles Advanced configuration.
   const [advancedOpen, setAdvancedOpen] = useState<boolean | null>(null);
-  // GitHub and Azure DevOps: the scan command options, the saved platform
+  // GitHub: the scan command options, the saved platform
   // (the form is then locked) and the command issued for it. The command
   // holds a scan token, so it lives only in this state.
   const [aiReview, setAiReview] = useState(false);
@@ -854,16 +868,48 @@ export function ConnectionEditor({
         <PlatformPicker providers={providers.data?.providers ?? []} onChoose={choose} />
       ) : (
         <Grid container spacing={3}>
-          <Grid size={{ xs: 12, lg: 7 }}>
+          {/* One field per row. An agent platform's form spans the page; a source host keeps
+              its scan command panel beside the form. */}
+          <Grid size={{ xs: 12, lg: spec.sourceHost ? 7 : 12 }}>
             <Stack spacing={2.5}>
               <Stack direction="row" spacing={1.5} alignItems="center">
                 <ProviderLogoTile provider={spec.provider} size={36} />
                 <Typography variant="subtitle1">{spec.displayName}</Typography>
                 {spec.sourceHost && <SourceScanGuide spec={spec} />}
               </Stack>
+              {spec.apiContract && (
+                <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.5}
+                    alignItems={{ sm: "center" }}
+                    justifyContent="space-between"
+                  >
+                    <Box>
+                      <Typography variant="subtitle2">Build your agent inventory API</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Implement the OpenAPI contract in a service you run, then enter its Agents
+                        URL and API key below.
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Download size={16} />}
+                      onClick={() => downloadContract(spec.apiContract ?? "")}
+                      sx={{ flexShrink: 0 }}
+                    >
+                      Download contract
+                    </Button>
+                  </Stack>
+                </Box>
+              )}
               <AnalyzeSection
                 providerName={spec.displayName}
                 statuses={statuses}
+                notListed={spec.notListed}
+                setupSteps={spec.setupSteps}
+                apiContract={spec.apiContract}
                 sourceHost={!!spec.sourceHost}
               />
               {/* Locked while saving, and once a source host is saved. */}
@@ -1071,8 +1117,8 @@ export function ConnectionEditor({
               </Stack>
             </Stack>
           </Grid>
-          <Grid size={{ xs: 12, lg: 5 }}>
-            {spec.sourceHost ? (
+          {spec.sourceHost && (
+            <Grid size={{ xs: 12, lg: 5 }}>
               <ScanCommandPanel
                 spec={spec}
                 draft={
@@ -1092,10 +1138,8 @@ export function ConnectionEditor({
                 error={scanError}
                 onRetry={savedId ? () => issueCommand(savedId) : undefined}
               />
-            ) : (
-              <PermissionsPanel spec={spec} />
-            )}
-          </Grid>
+            </Grid>
+          )}
         </Grid>
       )}
     </PageLayout>

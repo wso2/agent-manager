@@ -1035,16 +1035,16 @@ func (e HealthStatusResponseStatus) Valid() bool {
 
 // Defines values for IdentityProviderType.
 const (
-	Custom IdentityProviderType = "custom"
-	System IdentityProviderType = "system"
+	IdentityProviderTypeCustom IdentityProviderType = "custom"
+	IdentityProviderTypeSystem IdentityProviderType = "system"
 )
 
 // Valid indicates whether the value is a known member of the IdentityProviderType enum.
 func (e IdentityProviderType) Valid() bool {
 	switch e {
-	case Custom:
+	case IdentityProviderTypeCustom:
 		return true
-	case System:
+	case IdentityProviderTypeSystem:
 		return true
 	default:
 		return false
@@ -1518,13 +1518,13 @@ func (e SelfHostedGatewayRequestFunctionalityType) Valid() bool {
 
 // Defines values for ShadowConnectionRequestProvider.
 const (
-	ShadowConnectionRequestProviderAnthropic   ShadowConnectionRequestProvider = "anthropic"
-	ShadowConnectionRequestProviderAzureDevops ShadowConnectionRequestProvider = "azure_devops"
-	ShadowConnectionRequestProviderBedrock     ShadowConnectionRequestProvider = "bedrock"
-	ShadowConnectionRequestProviderFoundry     ShadowConnectionRequestProvider = "foundry"
-	ShadowConnectionRequestProviderGithub      ShadowConnectionRequestProvider = "github"
-	ShadowConnectionRequestProviderGoogle      ShadowConnectionRequestProvider = "google"
-	ShadowConnectionRequestProviderOpenai      ShadowConnectionRequestProvider = "openai"
+	ShadowConnectionRequestProviderAnthropic ShadowConnectionRequestProvider = "anthropic"
+	ShadowConnectionRequestProviderBedrock   ShadowConnectionRequestProvider = "bedrock"
+	ShadowConnectionRequestProviderCustom    ShadowConnectionRequestProvider = "custom"
+	ShadowConnectionRequestProviderFoundry   ShadowConnectionRequestProvider = "foundry"
+	ShadowConnectionRequestProviderGithub    ShadowConnectionRequestProvider = "github"
+	ShadowConnectionRequestProviderGoogle    ShadowConnectionRequestProvider = "google"
+	ShadowConnectionRequestProviderOpenai    ShadowConnectionRequestProvider = "openai"
 )
 
 // Valid indicates whether the value is a known member of the ShadowConnectionRequestProvider enum.
@@ -1532,9 +1532,9 @@ func (e ShadowConnectionRequestProvider) Valid() bool {
 	switch e {
 	case ShadowConnectionRequestProviderAnthropic:
 		return true
-	case ShadowConnectionRequestProviderAzureDevops:
-		return true
 	case ShadowConnectionRequestProviderBedrock:
+		return true
+	case ShadowConnectionRequestProviderCustom:
 		return true
 	case ShadowConnectionRequestProviderFoundry:
 		return true
@@ -1623,31 +1623,31 @@ func (e ShadowFindingSummaryKind) Valid() bool {
 
 // Defines values for ShadowProviderSpecProvider.
 const (
-	ShadowProviderSpecProviderAnthropic   ShadowProviderSpecProvider = "anthropic"
-	ShadowProviderSpecProviderAzureDevops ShadowProviderSpecProvider = "azure_devops"
-	ShadowProviderSpecProviderBedrock     ShadowProviderSpecProvider = "bedrock"
-	ShadowProviderSpecProviderFoundry     ShadowProviderSpecProvider = "foundry"
-	ShadowProviderSpecProviderGithub      ShadowProviderSpecProvider = "github"
-	ShadowProviderSpecProviderGoogle      ShadowProviderSpecProvider = "google"
-	ShadowProviderSpecProviderOpenai      ShadowProviderSpecProvider = "openai"
+	Anthropic ShadowProviderSpecProvider = "anthropic"
+	Bedrock   ShadowProviderSpecProvider = "bedrock"
+	Custom    ShadowProviderSpecProvider = "custom"
+	Foundry   ShadowProviderSpecProvider = "foundry"
+	Github    ShadowProviderSpecProvider = "github"
+	Google    ShadowProviderSpecProvider = "google"
+	Openai    ShadowProviderSpecProvider = "openai"
 )
 
 // Valid indicates whether the value is a known member of the ShadowProviderSpecProvider enum.
 func (e ShadowProviderSpecProvider) Valid() bool {
 	switch e {
-	case ShadowProviderSpecProviderAnthropic:
+	case Anthropic:
 		return true
-	case ShadowProviderSpecProviderAzureDevops:
+	case Bedrock:
 		return true
-	case ShadowProviderSpecProviderBedrock:
+	case Custom:
 		return true
-	case ShadowProviderSpecProviderFoundry:
+	case Foundry:
 		return true
-	case ShadowProviderSpecProviderGithub:
+	case Github:
 		return true
-	case ShadowProviderSpecProviderGoogle:
+	case Google:
 		return true
-	case ShadowProviderSpecProviderOpenai:
+	case Openai:
 		return true
 	default:
 		return false
@@ -6774,7 +6774,10 @@ type ShadowFindingDetail struct {
 
 	// FoundBy Every connection that found this agent.
 	FoundBy []ShadowFindingSource `json:"foundBy"`
-	Id      openapi_types.UUID    `json:"id"`
+
+	// Hidden The onboarded agent was removed from the Unregistered Agents list. The list leaves it out; it can still be opened by its ID.
+	Hidden bool               `json:"hidden"`
+	Id     openapi_types.UUID `json:"id"`
 
 	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 	Kind       ShadowFindingDetailKind `json:"kind"`
@@ -6819,6 +6822,12 @@ type ShadowFindingDetail struct {
 
 // ShadowFindingDetailKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 type ShadowFindingDetailKind string
+
+// ShadowFindingHiddenRequest defines model for ShadowFindingHiddenRequest.
+type ShadowFindingHiddenRequest struct {
+	// Hidden true removes the onboarded agent from the Unregistered Agents list; false puts it back.
+	Hidden bool `json:"hidden"`
+}
 
 // ShadowFindingListResponse defines model for ShadowFindingListResponse.
 type ShadowFindingListResponse struct {
@@ -6867,7 +6876,10 @@ type ShadowFindingSummary struct {
 
 	// FoundBy Every connection that found this agent.
 	FoundBy []ShadowFindingSource `json:"foundBy"`
-	Id      openapi_types.UUID    `json:"id"`
+
+	// Hidden The onboarded agent was removed from the Unregistered Agents list. The list leaves it out; it can still be opened by its ID.
+	Hidden bool               `json:"hidden"`
+	Id     openapi_types.UUID `json:"id"`
 
 	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 	Kind       ShadowFindingSummaryKind `json:"kind"`
@@ -6950,20 +6962,29 @@ type ShadowProviderListResponse struct {
 
 // ShadowProviderSpec defines model for ShadowProviderSpec.
 type ShadowProviderSpec struct {
+	// ApiContract The OpenAPI document (YAML) of the agent inventory API the customer implements for a Custom platform; the console offers it for download.
+	ApiContract *string `json:"apiContract,omitempty"`
+
 	// Capabilities What a scan lists, and the fields or options each capability needs.
 	Capabilities []ShadowCapabilitySpec `json:"capabilities"`
 
 	// CredentialChoice At least one of these fields must hold a credential (a value, or a stored secret).
-	CredentialChoice *ShadowCredentialChoice    `json:"credentialChoice,omitempty"`
-	Description      string                     `json:"description"`
-	DisplayName      string                     `json:"displayName"`
-	Docs             []string                   `json:"docs"`
-	Endpoints        []ShadowEndpointSpec       `json:"endpoints"`
-	Fields           []ShadowFieldSpec          `json:"fields"`
-	Permissions      []ShadowPermissionSpec     `json:"permissions"`
-	Provider         ShadowProviderSpecProvider `json:"provider"`
+	CredentialChoice *ShadowCredentialChoice `json:"credentialChoice,omitempty"`
+	Description      string                  `json:"description"`
+	DisplayName      string                  `json:"displayName"`
+	Docs             []string                `json:"docs"`
+	Endpoints        []ShadowEndpointSpec    `json:"endpoints"`
+	Fields           []ShadowFieldSpec       `json:"fields"`
 
-	// SourceHost A source repository host (GitHub, Azure DevOps). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
+	// NotListed What a scan of the platform never reads or lists.
+	NotListed   *[]string                  `json:"notListed,omitempty"`
+	Permissions []ShadowPermissionSpec     `json:"permissions"`
+	Provider    ShadowProviderSpecProvider `json:"provider"`
+
+	// SetupSteps The steps to make the platform listable (Custom platform), shown with what it lists.
+	SetupSteps *[]string `json:"setupSteps,omitempty"`
+
+	// SourceHost A source repository host (GitHub). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
 	SourceHost *bool `json:"sourceHost,omitempty"`
 }
 
@@ -7026,7 +7047,7 @@ type ShadowScanConnectionResult struct {
 	Outcome            string                        `json:"outcome"`
 	Provider           string                        `json:"provider"`
 
-	// ScannedRepositories The repositories a source code scan command scanned (a GitHub repository name, or an Azure DevOps project/repository). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+	// ScannedRepositories The repositories a source code scan command scanned (GitHub repository names). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
 	ScannedRepositories *[]string `json:"scannedRepositories,omitempty"`
 }
 
@@ -8731,6 +8752,9 @@ type UpdateShadowConnectionJSONRequestBody = ShadowConnectionRequest
 
 // CreateShadowRunnerScanJSONRequestBody defines body for CreateShadowRunnerScan for application/json ContentType.
 type CreateShadowRunnerScanJSONRequestBody = ShadowRunnerScanRequest
+
+// SetShadowFindingHiddenJSONRequestBody defines body for SetShadowFindingHidden for application/json ContentType.
+type SetShadowFindingHiddenJSONRequestBody = ShadowFindingHiddenRequest
 
 // OnboardShadowFindingJSONRequestBody defines body for OnboardShadowFinding for application/json ContentType.
 type OnboardShadowFindingJSONRequestBody = ShadowOnboardingRequest

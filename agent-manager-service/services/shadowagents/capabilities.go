@@ -53,17 +53,16 @@ var providerCapabilities = map[string][]CapabilitySpec{
 	models.ShadowProviderOpenAI: {
 		{
 			Key: "openai.agents", Title: "Agents",
-			Description: "The agents in each project you add a project key for (GET /v1/agents), with their model, " +
-				"tools and MCP servers. Only a project key can list a project's agents.",
-			Signals: []string{SigOpenAIAgentObject},
-			Needs:   []string{FieldScopedKeys},
+			Description: "Lists the agents in each project you add a project key for, via the OpenAI Agents API (GET /v1/agents).",
+			Signals:     []string{SigOpenAIAgentObject},
+			Needs:       []string{FieldScopedKeys},
 		},
 	},
 	models.ShadowProviderAnthropic: {
 		{
 			Key: "anthropic.agents", Title: "Managed Agents",
-			Description: "The Managed Agents in each workspace you add a workspace key for (GET /v1/agents), archived " +
-				"ones included, with their model, tools, MCP servers and skills.",
+			Description: "Lists the Managed Agents in each workspace you add a workspace key for, archived ones included, " +
+				"via the Claude Managed Agents API (GET /v1/agents).",
 			Signals: []string{SigAnthropicManagedAgent},
 			Needs:   []string{FieldScopedKeys},
 		},
@@ -71,64 +70,68 @@ var providerCapabilities = map[string][]CapabilitySpec{
 	models.ShadowProviderBedrock: {
 		{
 			Key: "bedrock.agentcore", Title: "AgentCore runtimes",
-			Description: "Agent runtimes in each region, with status, version, protocol, execution role and artifact. " +
-				"A runtime that hosts an MCP server is not an agent and is left out.",
+			Description: "Lists the agent runtimes in each region via the AgentCore control plane API (ListAgentRuntimes, " +
+				"GetAgentRuntime). A runtime that hosts an MCP server is not an agent and is left out.",
 			Signals: []string{SigBedrockAgentCoreRuntime},
 			Needs:   []string{OptBedrockAgentCore},
 		},
 		{
 			Key: "bedrock.registry", Title: "AWS Agent Registry agent records",
-			Description: "Agent records in each registry; a record for a runtime this scan found is merged into that runtime.",
-			Signals:     []string{SigBedrockRegistryAgent},
-			Needs:       []string{OptBedrockRegistry},
+			Description: "Lists the agent records in each registry via the AWS Agent Registry API (ListRegistries, " +
+				"ListRegistryRecords). A record for a runtime this scan found is merged into that runtime.",
+			Signals: []string{SigBedrockRegistryAgent},
+			Needs:   []string{OptBedrockRegistry},
 		},
 		{
 			Key: "bedrock.classic", Title: "Classic Bedrock agents",
-			Description: "Bedrock agents with their model, orchestration, service role and action groups.",
-			Signals:     []string{SigBedrockClassicAgent},
-			Needs:       []string{OptBedrockClassicAgents},
+			Description: "Lists the classic Bedrock agents in each region via the Bedrock Agents API (ListAgents, GetAgent, " +
+				"ListAgentActionGroups).",
+			Signals: []string{SigBedrockClassicAgent},
+			Needs:   []string{OptBedrockClassicAgents},
 		},
 	},
 	models.ShadowProviderGoogle: {
 		{
 			Key: "google.engines", Title: "Agent Runtime engines",
-			Description: "Reasoning engines in each project and location, with their framework, identity and source.",
-			Signals:     []string{SigGoogleAgentEngine},
+			Description: "Lists the reasoning engines in each project and location via the Vertex AI API " +
+				"(GET /v1/projects/{project}/locations/{location}/reasoningEngines).",
+			Signals: []string{SigGoogleAgentEngine},
 		},
 		{
 			Key: "google.registry", Title: "Agent Registry agents",
-			Description: "Registered agents; an agent that runs on an engine this scan found is merged into that engine.",
-			Signals:     []string{SigGoogleRegistryAgent},
-			Needs:       []string{OptGoogleRegistry},
-		},
-		{
-			Key: "google.globalMulti", Title: "Global registry and us/eu multi-regions",
-			Description: "Also lists the global Agent Registry location and the us and eu multi-region Agent Runtime endpoints.",
-			Needs:       []string{OptGlobalMulti},
+			Description: "Lists the agents in each project's Agent Registry via the Agent Registry API " +
+				"(GET /v1/projects/{project}/locations/{location}/agents). An agent that runs on an engine this scan " +
+				"found is merged into that engine; Google's built-in agents are left out.",
+			Signals: []string{SigGoogleRegistryAgent},
+			Needs:   []string{OptGoogleRegistry},
 		},
 	},
 	models.ShadowProviderFoundry: {
 		{
 			Key: "foundry.agents", Title: "Foundry agents",
-			Description: "Prompt, hosted, workflow and external agents in every Foundry project, with their model, tools and MCP servers.",
-			Signals:     []string{SigFoundryAgentObject},
+			Description: "Lists the prompt, hosted, workflow and external agents in every Foundry project via the Foundry " +
+				"Agent Service API (GET {project endpoint}/agents). The projects are found via Azure Resource Manager.",
+			// The possible-duplicate flag is evidence about these agents, worked
+			// out from findings already stored; it is not a listing of its own.
+			Signals: []string{SigFoundryAgentObject, SigFoundryPossibleDupOf},
 		},
 		{
 			Key: "foundry.classic", Title: "Classic agents",
-			Description: "Agents created with the classic Assistants-based API (retires 31 March 2027).",
-			Signals:     []string{SigFoundryClassicAgent},
-			Needs:       []string{OptClassicAgents},
+			Description: "Lists the agents created with the classic Assistants-based API via the Foundry Agent Service API " +
+				"(GET {project endpoint}/assistants). It retires 31 March 2027.",
+			Signals: []string{SigFoundryClassicAgent},
+			Needs:   []string{OptClassicAgents},
 		},
-		{
-			Key: "foundry.duplicates", Title: "Possible duplicates of external agents",
-			Description: "An external agent with the same name as an agent from another platform is flagged as a possible duplicate.",
-			Signals:     []string{SigFoundryPossibleDupOf},
-		},
-		{
-			Key: "foundry.allSubscriptions", Title: "Every subscription the app can read",
-			Description: "Without this, only the subscription IDs you list are scanned.",
-			Needs:       []string{OptAllSubscriptions},
-		},
+	},
+}
+
+// customCapabilities is what a Custom platform's scan lists.
+var customCapabilities = []CapabilitySpec{
+	{
+		Key: "custom.agents", Title: "Agents in your inventory",
+		Description: "Lists the agents your service returns via GET {Agents URL} (Authorization: Bearer <API key>), " +
+			"100 per page, following nextCursor.",
+		Signals: []string{SigCustomAgent},
 	},
 }
 
@@ -142,7 +145,7 @@ var providerCredentialChoices = map[string]CredentialChoice{
 }
 
 // sourceCapabilities is what the source code scan of a repository host
-// (GitHub, Azure DevOps) analyzes: the design's detectors D1 to D12. Signals
+// (GitHub) analyzes: the design's detectors D1 to D12. Signals
 // are the evidence codes the scan command publishes.
 func sourceCapabilities(provider, prefix string) []CapabilitySpec {
 	codes := func(slugs ...string) []string {
@@ -194,8 +197,8 @@ func sourceCapabilities(provider, prefix string) []CapabilitySpec {
 }
 
 func init() {
+	providerCapabilities[models.ShadowProviderCustom] = customCapabilities
 	providerCapabilities[models.ShadowProviderGitHub] = sourceCapabilities(models.ShadowProviderGitHub, "github")
-	providerCapabilities[models.ShadowProviderAzureDevOps] = sourceCapabilities(models.ShadowProviderAzureDevOps, "azureDevOps")
 }
 
 // Capabilities returns what a platform's scan lists.

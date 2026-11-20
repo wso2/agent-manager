@@ -104,15 +104,9 @@ const PATHS: Record<string, { d: string; color?: string }> = {
       ".366l6.562 19.445a.54.54 0 0 1-.338.684",
     color: "#0078D4",
   },
-  azure_devops: {
-    d:
-      "M0 8.877L2.247 5.91l8.405-3.416V.022l7.37 5.393L2.966 8.338v8.225L0 15.707zm24-4.45v14.651" +
-      "l-5.753 4.9-9.303-3.057v3.056l-5.978-7.416 15.057 1.798V5.415z",
-    color: "#0078D4",
-  },
 };
 
-/** A platform's mark, sized in pixels; a plug for an unknown platform. Decorative. */
+/** A platform's mark, sized in pixels; a plug for a Custom or unknown platform. Decorative. */
 export function ProviderLogo({ provider, size = 20 }: { provider: string; size?: number }) {
   if (provider === "github") return <GitHub size={size} aria-hidden focusable="false" />;
   if (provider === "google") {

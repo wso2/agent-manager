@@ -49,7 +49,6 @@ Parse = Callable[[str], str]
 """Returns the value to keep, or raises ConfigError with a message to show."""
 
 GITHUB_TOKEN_ENV = "GITHUB_TOKEN"
-AZURE_DEVOPS_TOKEN_ENV = "AZURE_DEVOPS_TOKEN"
 LLM_PROVIDER_ENV = "AMP_LLM_PROVIDER"
 LLM_URL_ENV = "AMP_LLM_URL"
 LLM_MODEL_ENV = "AMP_LLM_MODEL"
@@ -366,32 +365,22 @@ def git_token(
 ) -> str | None:
     """Return the Git token for the scan, or None for a public GitHub scan without ``GITHUB_TOKEN``.
 
-    Prints the GitHub (or Azure DevOps) section, unless there is no token to
-    show. GitHub asks for a token only with ``--include-private``. Without it, a
-    set ``GITHUB_TOKEN`` is still used (it raises the API rate limit) but never
-    asked for. Azure DevOps always needs a token. Before a token is used over
-    plain http, warn that it will be sent unencrypted.
+    Prints the GitHub section, unless there is no token to show. GitHub asks
+    for a token only with ``--include-private``. Without it, a set
+    ``GITHUB_TOKEN`` is still used (it raises the API rate limit) but never
+    asked for. Before a token is used over plain http, warn that it will be
+    sent unencrypted.
     """
     ui = Ui() if ui is None else ui
     env = os.environ if env is None else env
     optional = False
-    if config.provider == "github":
-        title, label, env_var, noun = (
-            "GitHub",
-            "GitHub token (fine-grained, Contents read-only)",
-            GITHUB_TOKEN_ENV,
-            "GitHub token",
-        )
-        need = "A GitHub token is needed for private repositories."
-        if not config.include_private:
-            if not env.get(env_var, "").strip():
-                return None
-            optional, is_tty = True, False  # Used when set, never asked for.
-    else:
-        title, label = "Azure DevOps", "Azure DevOps personal access token (Code read, Project and team read)"
-        env_var, noun = AZURE_DEVOPS_TOKEN_ENV, "Azure DevOps token"
-        need = "An Azure DevOps personal access token is needed."
-    ui.section(title)
+    label, env_var, noun = "GitHub token (fine-grained, Contents read-only)", GITHUB_TOKEN_ENV, "GitHub token"
+    need = "A GitHub token is needed for private repositories."
+    if not config.include_private:
+        if not env.get(env_var, "").strip():
+            return None
+        optional, is_tty = True, False  # Used when set, never asked for.
+    ui.section("GitHub")
     _warn_if_plain_http(config.api_url, noun, ui)
     return ask_secret(
         label,

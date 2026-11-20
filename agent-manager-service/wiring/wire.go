@@ -50,6 +50,7 @@ import (
 	shadowanthropic "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/anthropic"
 	shadowazure "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/azure"
 	shadowbedrock "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/bedrock"
+	shadowcustom "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/custom"
 	shadowgoogle "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/google"
 	shadowopenai "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/openai"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -744,8 +745,9 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 }
 
 // ProvideShadowConnectors registers the Shadow Agent Discovery connector of
-// each supported cloud platform (source hosts have none: they are scanned by
-// the scan command on the customer's machine). They share one HTTP client that follows a
+// each supported cloud platform and of the Custom platform (source hosts have
+// none: they are scanned by the scan command on the customer's machine). They
+// share one HTTP client that follows a
 // redirect only to the same origin, so a stored credential never leaves the
 // endpoint the org configured.
 func ProvideShadowConnectors(logger *slog.Logger) services.ShadowConnectors {
@@ -756,6 +758,7 @@ func ProvideShadowConnectors(logger *slog.Logger) services.ShadowConnectors {
 		shadowbedrock.New(httpClient, logger),
 		shadowgoogle.New(httpClient, logger),
 		shadowazure.NewFoundry(httpClient, logger),
+		shadowcustom.New(httpClient, logger),
 	}
 	out := make(services.ShadowConnectors, len(all))
 	for _, c := range all {

@@ -246,16 +246,12 @@ describe("labels", () => {
     expect(
       sourceScopeLabel("github", { organization: "acme", repositories: ["payments"] }),
     ).toBe("acme · 1 repository · Public only");
-    expect(sourceScopeLabel("azure_devops", { organization: "contoso", allProjects: true })).toBe(
-      "contoso · All projects",
-    );
-    expect(sourceScopeLabel("azure_devops", { organization: "contoso", projects: ["a", "b"] })).toBe(
-      "contoso · 2 projects",
-    );
+    expect(SOURCE_HOSTS).toEqual(["github"]);
+    expect(Object.keys(PROVIDER_LABELS)).not.toContain("azure_devops");
   });
 
   it("has only the review statuses, and the five agent platforms", () => {
-    expect(AGENT_PLATFORMS).toEqual(["openai", "anthropic", "bedrock", "google", "foundry"]);
+    expect(AGENT_PLATFORMS).toEqual(["openai", "anthropic", "bedrock", "google", "foundry", "custom"]);
     for (const host of SOURCE_HOSTS) expect(AGENT_PLATFORMS).not.toContain(host);
     expect(Object.keys(PROVIDER_LABELS).sort()).toEqual(
       [...AGENT_PLATFORMS, ...SOURCE_HOSTS].sort(),

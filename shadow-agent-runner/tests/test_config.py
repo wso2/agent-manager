@@ -17,11 +17,13 @@
 """amp_shadow_runner.config: the scan flags the console emits, and the environment."""
 
 import base64
+import dataclasses
 import json
 import shlex
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -127,28 +129,13 @@ def test_github_repository_list_with_options() -> None:
     assert config.api_url == "https://ghe.acme.test/api/v3"
 
 
-def test_azure_devops_all_projects() -> None:
-    config = _config(_console_argv(_command("--azure-devops-org contoso", "--all-projects", "--read-ci")))
-    assert config.provider == "azure_devops"
-    assert config.organization == "contoso"
-    assert config.all_repositories
-    assert config.repositories == ()
-    assert config.read_ci
-    assert not config.include_private
-    assert config.api_url == "https://dev.azure.com"
-
-
-def test_azure_devops_projects_with_spaces_and_server_url() -> None:
-    command = _command(
-        "--azure-devops-org contoso",
-        "--projects 'My Project,Payments,My Project'",
-        "--azure-devops-url https://ado.contoso.test/tfs",
-        "--ai-review",
-    )
-    config = _config(_console_argv(command))
-    assert config.repositories == ("My Project", "Payments")
-    assert config.api_url == "https://ado.contoso.test/tfs"
-    assert (config.ai_review, config.judge) == (True, False)
+def test_azure_devops_is_an_unsupported_provider() -> None:
+    config = _config(_scan("--github-org", "o", "--all-repos"))
+    with pytest.raises(ConfigError) as info:
+        dataclasses.replace(config, provider=cast(Any, "azure_devops"))  # A provider the type no longer allows.
+    assert str(info.value) == "'azure_devops' is not a supported provider. This runner scans GitHub only."
+    assert info.value.exit_code is ExitCode.CONFIG_ERROR
+    assert TOKEN not in str(info.value)
 
 
 def test_values_are_normalised() -> None:
@@ -174,16 +161,6 @@ def test_token_is_not_in_repr() -> None:
     [
         (["--github-org", "o", "--all-repos", "--judge"], "--judge needs --ai-review."),
         (["--github-org", "o"], "Choose what to scan: --all-repos, or --repos"),
-        (["--azure-devops-org", "o"], "Choose what to scan: --all-projects, or --projects"),
-        (["--github-org", "o", "--all-projects"], "--all-projects can only be used with --azure-devops-org."),
-        (
-            ["--github-org", "o", "--all-repos", "--projects", "p", "--azure-devops-url", "https://x.test"],
-            "--projects, --azure-devops-url can only be used with --azure-devops-org.",
-        ),
-        (["--azure-devops-org", "o", "--repos", "r"], "--repos can only be used with --github-org."),
-        (["--azure-devops-org", "o", "--all-projects", "--include-private"], "--include-private can only be used"),
-        (["--azure-devops-org", "o", "--all-repos"], "--all-repos can only be used with --github-org."),
-        (["--azure-devops-org", "o", "--all-projects", "--github-api-url", "https://x.test"], "--github-api-url can"),
         (["--github-org", "bad-", "--all-repos"], "'bad-' is not a GitHub organization or user name"),
         (["--github-org", "a" * 40, "--all-repos"], "is not a GitHub organization or user name"),
         (["--github-org", "<organization>", "--all-repos"], "is not a GitHub organization or user name"),
@@ -191,11 +168,7 @@ def test_token_is_not_in_repr() -> None:
         (["--github-org", "o", "--repos", "o/a/b"], "'o/a/b' is not a GitHub repository name."),
         (["--github-org", "o", "--repos", "a" * 101], "is not a GitHub repository name."),
         (["--github-org", "o", "--repos", "a,.."], "'..' is not a GitHub repository name."),
-        (["--azure-devops-org", "my org", "--all-projects"], "'my org' is not an Azure DevOps organization name."),
-        (["--azure-devops-org", "https://dev.azure.com/o", "--all-projects"], "not an Azure DevOps organization"),
-        (["--azure-devops-org", "o", "--projects", "a%2Fb"], "'a%2Fb' is not an Azure DevOps project name."),
         (["--github-org", "o", "--repos", " , ,"], "--repos lists no repository names."),
-        (["--azure-devops-org", "o", "--projects", ","], "--projects lists no project names."),
     ],
 )
 def test_bad_flags_are_refused(flags: list[str], message: str) -> None:
@@ -241,8 +214,6 @@ def test_plain_http_is_accepted() -> None:
     # Agent Manager accepts http for a self-hosted server; the runner warns before sending a token (R4).
     for url in ["http://ghe.acme.test/api/v3", "http://[::1]:8443/api/v3"]:
         assert _config(_scan("--github-org", "o", "--all-repos", "--github-api-url", url)).api_url == url
-    config = _config(_scan("--azure-devops-org", "o", "--all-projects", "--azure-devops-url", "http://ado.test/tfs"))
-    assert config.api_url == "http://ado.test/tfs"
 
 
 def test_url_scheme_is_lowercased() -> None:
@@ -260,7 +231,6 @@ def test_owner_slash_name_is_kept_as_the_name() -> None:
 
 def test_equals_form_takes_names_starting_with_a_dash() -> None:
     assert _config(_scan("--github-org", "o", "--repos=-foo,bar")).repositories == ("-foo", "bar")
-    assert _config(_scan("--azure-devops-org", "o", "--projects=-Legacy")).repositories == ("-Legacy",)
 
 
 @pytest.mark.parametrize(
@@ -290,9 +260,10 @@ def test_default_environment_is_os_environ(monkeypatch: pytest.MonkeyPatch) -> N
     "flags",
     [
         [],
-        ["--github-org", "o", "--azure-devops-org", "o", "--all-repos"],
+        ["--github-org", "o", "--azure-devops-org", "o", "--all-repos"],  # Not an option any more.
+        ["--azure-devops-org", "o", "--all-projects"],  # --github-org is required.
+        ["--github-org", "o", "--all-repos", "--azure-devops-url", "https://dev.azure.com"],
         ["--github-org", "o", "--all-repos", "--repos", "a"],
-        ["--azure-devops-org", "o", "--all-projects", "--projects", "a"],
         ["--github-org", "o", "--all-repos", "--ai"],  # No abbreviations: --ai is not --ai-review.
     ],
 )

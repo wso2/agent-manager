@@ -26,9 +26,10 @@ export type ShadowProvider =
   | "bedrock"
   | "google"
   | "foundry"
-  /** Source repository hosts: scanned by the scan command on the customer's machine. */
-  | "github"
-  | "azure_devops";
+  /** The customer's own agent inventory: a REST API built to the published contract. */
+  | "custom"
+  /** Source repository host: scanned by the scan command on the customer's machine. */
+  | "github";
 
 /**
  * runtime: an AgentCore runtime or a Google Agent Runtime engine;
@@ -131,11 +132,17 @@ export interface ShadowProviderSpec {
   docs: string[];
   credentialChoice?: ShadowCredentialChoice;
   /**
-   * A source repository host (GitHub, Azure DevOps): no credential is stored, and
+   * A source repository host (GitHub): no credential is stored, and
    * its repositories are scanned by the scan command on the customer's machine.
    */
   sourceHost?: boolean;
   capabilities: ShadowCapabilitySpec[];
+  /** What a scan of the platform never reads or lists. */
+  notListed?: string[];
+  /** The steps to make the platform listable (Custom platform). */
+  setupSteps?: string[];
+  /** The OpenAPI document (YAML) the customer implements (Custom platform). */
+  apiContract?: string;
 }
 
 /** One kind of evidence that a platform lists an agent. */
@@ -221,7 +228,7 @@ export interface ShadowScanFailedRepository {
   message: string;
 }
 
-/** Generate command for a GitHub or Azure DevOps connection. */
+/** Generate command for a GitHub connection. */
 export interface ShadowRunnerScanRequest {
   /** Send matches the rules cannot prove to the customer's LLM for review. */
   aiReview: boolean;
@@ -336,6 +343,8 @@ export interface ShadowFindingSummary {
   onboardedAt?: string;
   /** For code agents, who confirmed the agent; absent for other kinds. */
   reviewedBy?: ShadowReviewedBy;
+  /** The onboarded agent was removed from the Unregistered Agents list. */
+  hidden: boolean;
 }
 
 /** Who confirmed a code agent: the scan's rules, AI review, or AI review and the LLM judge. */
@@ -387,6 +396,11 @@ export interface ShadowFindingDetail extends ShadowFindingSummary {
   signals: ShadowFindingSignal[];
   /** Who onboarded the agent. */
   onboardedBy?: string;
+}
+
+/** PUT .../findings/{findingId}/hidden: remove an onboarded agent from the list, or put it back. */
+export interface ShadowFindingHiddenRequest {
+  hidden: boolean;
 }
 
 /** POST .../findings/{findingId}/onboarding: the registered external agent. */

@@ -150,7 +150,7 @@ export function OverviewPanel({
     {
       title: "Add a platform",
       description:
-        "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, or a GitHub organization, which you scan with a command on your machine.",
+        "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, your own agent inventory API as a Custom platform, or a GitHub organization, which you scan with a command on your machine.",
       done: connected,
       action: canManage ? (
         <Button size="small" variant="outlined" onClick={onConnect}>

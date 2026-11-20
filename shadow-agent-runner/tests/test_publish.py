@@ -173,12 +173,10 @@ def test_body_has_only_publishable_agents_and_the_repository_lists() -> None:
     assert demo["attributes"]["labels"] == {"codeArea": "example"}
 
 
-def test_azure_devops_codes_are_prefixed_and_unknown_attributes_dropped() -> None:
-    report = dataclasses.replace(
-        _report(_finding("A", attributes={"prompt": "You are...", "serviceFolder": "."})), provider="azure_devops"
-    )
+def test_codes_are_prefixed_with_the_provider_and_unknown_attributes_dropped() -> None:
+    report = _report(_finding("A", attributes={"prompt": "You are...", "serviceFolder": "."}))
     agent = build_body(report)["agents"][0]
-    assert {e["code"] for e in agent["evidence"]} == {"azure_devops.d2_agent_import"}
+    assert {e["code"] for e in agent["evidence"]} == {"github.d2_agent_import"}
     assert agent["attributes"] == {"framework": "crewai", "reviewedBy": "rules"}
 
 

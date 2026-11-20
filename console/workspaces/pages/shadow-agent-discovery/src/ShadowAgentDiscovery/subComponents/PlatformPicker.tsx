@@ -30,7 +30,7 @@ import {
 import { KeyRound, Laptop } from "@wso2/oxygen-ui-icons-react";
 import type { ShadowProviderSpec } from "@agent-management-platform/types";
 import { ProviderLogoTile } from "../providerLogos";
-import { AGENT_PLATFORMS, DISCOVERS, NOT_YET_ADDABLE, selectCardSx } from "../shadowUi";
+import { AGENT_PLATFORMS, CUSTOM_PLATFORM, DISCOVERS, selectCardSx } from "../shadowUi";
 
 /** The AI platforms in display order, then any other platform the server offers. */
 function byDisplayOrder(a: ShadowProviderSpec, b: ShadowProviderSpec): number {
@@ -106,8 +106,8 @@ function PlatformCard({
 }
 
 /**
- * The first step of Add a platform: AI platforms and source code hosts as
- * selectable cards. Platforms in NOT_YET_ADDABLE are not offered.
+ * The first step of Add a platform: AI platforms, source code hosts and the
+ * Custom platform as selectable cards, each kind in its own group.
  */
 export function PlatformPicker({
   providers,
@@ -116,20 +116,24 @@ export function PlatformPicker({
   providers: ShadowProviderSpec[];
   onChoose: (spec: ShadowProviderSpec) => void;
 }) {
-  const offered = providers
-    .filter((p) => !NOT_YET_ADDABLE.includes(p.provider))
-    .sort(byDisplayOrder);
+  const offered = [...providers].sort(byDisplayOrder);
   const groups = [
     {
       title: "AI platforms",
       description: "Lists the agents on the platform through its API, with a read-only key.",
-      list: offered.filter((p) => !p.sourceHost),
+      list: offered.filter((p) => !p.sourceHost && p.provider !== CUSTOM_PLATFORM),
     },
     {
-      title: "Source code",
+      title: "Source code repositories",
       description:
         "Finds agents in your code with a command you run. No token is stored in Agent Manager.",
       list: offered.filter((p) => p.sourceHost),
+    },
+    {
+      title: "Custom platforms",
+      description:
+        "Lists the agents your own inventory API returns, built to the Agent Manager contract.",
+      list: offered.filter((p) => p.provider === CUSTOM_PLATFORM),
     },
   ].filter((g) => g.list.length > 0);
 

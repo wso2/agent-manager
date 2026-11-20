@@ -107,10 +107,6 @@ def test_scan_help_lists_the_console_flags(capsys: pytest.CaptureFixture[str]) -
         "--repos",
         "--include-private",
         "--github-api-url",
-        "--azure-devops-org",
-        "--all-projects",
-        "--projects",
-        "--azure-devops-url",
         "--read-ci",
         "--ai-review",
         "--judge",
@@ -148,19 +144,25 @@ def test_scan_of_private_repos_without_a_terminal_or_token_exits_2(
     )
 
 
-def test_scan_of_azure_devops_is_not_available_yet(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("flags", "message"),
+    [
+        (["--azure-devops-org", "o", "--all-projects"], "the following arguments are required: --github-org"),
+        (["--github-org", "o", "--all-repos", "--azure-devops-org", "o"], "unrecognized arguments: --azure-devops-org"),
+        (["--github-org", "o", "--all-repos", "--projects", "p"], "unrecognized arguments: --projects"),
+    ],
+)
+def test_scan_of_another_provider_is_a_usage_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flags: list[str], message: str
 ) -> None:
-    token = "ado-pat-value"
+    def never(*args: object, **kwargs: object) -> int:
+        raise AssertionError("an unsupported provider must not start a scan")
+
+    monkeypatch.setattr("amp_shadow_runner.cli.run_scan", never)
     monkeypatch.setenv("AMP_URL", "https://agent-manager.example.com")
     monkeypatch.setenv("AMP_SCAN_TOKEN", _token(time.time() + 3600))
-    monkeypatch.setenv("AZURE_DEVOPS_TOKEN", token)
-    monkeypatch.setattr(sys, "stdin", io.StringIO())
-    argv = ["scan", "--scan-id", "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f", "--azure-devops-org", "o", "--all-projects"]
-    assert main(argv) == ExitCode.RUNTIME_ERROR
-    out, err = capsys.readouterr()
-    assert err == "amp-shadow-runner: Azure DevOps scans are not available in this version of the runner yet.\n"
-    assert token not in out + err
+    assert main(["scan", "--scan-id", "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f", *flags]) == ExitCode.CONFIG_ERROR
+    assert message in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

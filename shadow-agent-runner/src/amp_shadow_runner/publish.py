@@ -19,7 +19,7 @@
 Only certain agents are published: a finding the rules prove (``reviewedBy: "rules"``), or a Not-sure finding
 that AI review confirmed, which the review marks with the attribute ``reviewedBy`` ``ai_review`` or
 ``ai_review_judge``. Findings in test code are never published. Each agent carries only allow-listed
-attributes and its evidence, with codes prefixed by the provider (``github.`` or ``azure_devops.``). No
+attributes and its evidence, with codes prefixed by the provider (``github.``). No
 source code, prompt or secret is ever sent.
 
 The server's limits are checked first. Evidence past the 50th of an agent is left out (the first 50 are

@@ -45,6 +45,8 @@ const (
 	SigFoundryAgentObject   = "foundry.agent_object"
 	SigFoundryClassicAgent  = "foundry.classic_agent"
 	SigFoundryPossibleDupOf = "foundry.external_possible_duplicate"
+
+	SigCustomAgent = "custom.agent"
 )
 
 // defs is the evidence catalog, in display order: the platform listings,
@@ -90,10 +92,14 @@ var defs = append([]SignalDef{
 		Code: SigFoundryPossibleDupOf, Provider: models.ShadowProviderFoundry, Name: "Possibly registered elsewhere",
 		Condition: `definition.kind == "external": Foundry stores no endpoint for external agents, so an agent from another connection with the same name is flagged as a possible duplicate`,
 	},
+	{
+		Code: SigCustomAgent, Provider: models.ShadowProviderCustom, Name: "Agent in your inventory",
+		Condition: `GET {Agents URL}?limit=100 (Authorization: Bearer <API key>): an item in agents with an id and a name`,
+	},
 }, sourceDefs()...)
 
 // sourceEvidence is what the source code scan finds in a repository: the
-// design's detectors D1 to D12. GitHub and Azure DevOps share it, so their
+// design's detectors D1 to D12, at each repository host, so their
 // codes cannot drift.
 var sourceEvidence = []struct{ slug, name, condition string }{
 	{
@@ -126,7 +132,7 @@ var sourceEvidence = []struct{ slug, name, condition string }{
 
 // sourceProviders are the repository hosts the source code scan reads, in
 // display order.
-var sourceProviders = []string{models.ShadowProviderGitHub, models.ShadowProviderAzureDevOps}
+var sourceProviders = []string{models.ShadowProviderGitHub}
 
 // sourceSignalCode is the evidence code of a source detector at a
 // repository host, e.g. github.d1_agent_dependency.

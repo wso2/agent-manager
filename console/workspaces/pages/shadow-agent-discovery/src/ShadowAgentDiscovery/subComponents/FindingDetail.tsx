@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { useState } from "react";
 import {
   Alert,
   Box,
@@ -25,18 +26,20 @@ import {
   Chip,
   Divider,
   Grid,
+  IconButton,
   Skeleton,
   Stack,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
-  CalendarPlus,
+  Check,
   CircleCheck,
-  Clock,
+  Copy,
+  Eye,
+  EyeOff,
   ExternalLink,
   Fingerprint,
-  History,
-  MapPin,
   SearchX,
   TriangleAlert,
   UserPlus,
@@ -48,10 +51,13 @@ import {
   StateNotice,
   useReturnTo,
 } from "@agent-management-platform/views";
-import { useShadowFinding } from "@agent-management-platform/api-client";
+import { useSetShadowFindingHidden, useShadowFinding } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type ShadowFindingDetail } from "@agent-management-platform/types";
 import { kindLabel, OnboardingChip, ownerLabel, providerLabel, shortDate } from "../shadowUi";
 import { CodeAgentOnboardActions } from "./OnboardActions";
+
+/** Facts longer than this are shown on half a row, in monospace. */
+const LONG_FACT = 40;
 
 /** A related agent's relation, as a short label. */
 export function relationLabel(relation: string): string {
@@ -94,6 +100,8 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
   displayName: "Display name",
   runtimeReference: "Runtime reference",
   reviewedBy: "Confirmed by",
+  source: "Runs on",
+  agentUrl: "Agent URL",
 };
 
 /** Who confirmed a code agent before the scan published it. */
@@ -105,7 +113,7 @@ const REVIEWED_BY_LABELS: Record<string, string> = {
 
 /** Attributes that are lists, shown as chips. */
 const CHIP_ATTRIBUTES = ["tools", "mcpServers", "skills", "protocolType", "labels"];
-/** Long identifiers, shown on their own line in monospace. */
+/** Long identifiers and URLs, shown in the Identifiers card in monospace. */
 const ID_ATTRIBUTES = [
   "resourceId",
   "roleArn",
@@ -113,6 +121,7 @@ const ID_ATTRIBUTES = [
   "endpoint",
   "image",
   "repositoryUrl",
+  "agentUrl",
   "serviceAccount",
   "otelAgentId",
 ];
@@ -136,7 +145,12 @@ export function chipLabels(v: unknown): string[] {
     return v
       .map((x) => {
         if (typeof x !== "object" || x === null) return String(x);
-        const o = x as { type?: string; name?: string; label?: string; origin?: string };
+        const o = x as {
+          type?: string;
+          name?: string;
+          label?: string;
+          origin?: string;
+        };
         if (o.label !== undefined) return o.origin ? `${o.label} · ${o.origin}` : o.label;
         return [o.type, o.name].filter(Boolean).join(" · ");
       })
@@ -148,33 +162,146 @@ export function chipLabels(v: unknown): string[] {
   return v === undefined || v === null || v === "" ? [] : [String(v)];
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** One fact: a small label above its value. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <Box sx={{ minWidth: 0 }}>
       <Typography variant="caption" color="text.secondary" component="p">
         {label}
       </Typography>
-      <Typography variant="body2" component="div" sx={{ wordBreak: "break-word" }}>
+      <Typography variant="body2" component="div" sx={{ wordBreak: "break-word", mt: 0.25 }}>
         {children}
       </Typography>
     </Box>
   );
 }
 
-function SectionTitle({ title, hint }: { title: string; hint?: string }) {
+function SectionCard({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <Box sx={{ mb: 2 }}>
-      <Typography variant="subtitle1">{title}</Typography>
-      {hint && (
-        <Typography variant="caption" color="text.secondary">
-          {hint}
-        </Typography>
-      )}
-    </Box>
+    <Card variant="outlined" sx={{ height: "100%" }}>
+      <CardContent>
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle1">{title}</Typography>
+          {hint && (
+            <Typography variant="caption" color="text.secondary" component="p">
+              {hint}
+            </Typography>
+          )}
+        </Box>
+        {children}
+      </CardContent>
+    </Card>
   );
 }
 
-/** What the platform's agent listing reports, grouped: facts, lists and identifiers. */
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Tooltip title={copied ? "Copied" : "Copy"}>
+      <IconButton
+        size="small"
+        aria-label={`Copy ${label}`}
+        onClick={() => {
+          void navigator.clipboard
+            ?.writeText(text)
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false));
+        }}
+      >
+        {copied ? <Check size={14} /> : <Copy size={14} />}
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+/**
+ * The agent at a glance: what and where it is, its state, who created it,
+ * when it was seen, and the connections that list it.
+ */
+function OverviewCard({ f }: { f: ShadowFindingDetail }) {
+  const isCode = f.kind === "code_agent";
+  const owner = ownerLabel(f.ownerHint);
+  const sources = f.foundBy ?? [];
+  const facts: [string, string][] = [
+    ["Platform", providerLabel(f.provider)],
+    ["Type", kindLabel(f.kind, f.provider)],
+  ];
+  if (f.scope) facts.push([isCode ? "Repository" : "Scope", f.scope]);
+  if (f.state && !isCode) facts.push(["State", f.state]);
+  if (owner) {
+    facts.push([f.ownerHint?.source ? `Created by (${f.ownerHint.source})` : "Created by", owner]);
+  }
+  if (f.providerCreatedAt && !isCode) {
+    facts.push(["Created at the platform", shortDate(f.providerCreatedAt)]);
+  }
+  facts.push(["First seen by a scan", shortDate(f.firstSeenAt)]);
+  facts.push(["Last seen by a scan", shortDate(f.lastSeenAt)]);
+  // A long value (an Azure resource path, a repository URL) gets half a row in
+  // monospace, after the short facts, so the short ones line up.
+  const isLong = (v: string) => v.length > LONG_FACT;
+  const ordered = [...facts.filter(([, v]) => !isLong(v)), ...facts.filter(([, v]) => isLong(v))];
+  return (
+    <SectionCard title="Overview">
+      <Grid container spacing={2.5}>
+        {ordered.map(([label, value]) => (
+          <Grid key={label} size={isLong(value) ? { xs: 12, md: 6 } : { xs: 12, sm: 6, md: 3 }}>
+            <Fact label={label}>
+              {isLong(value) ? (
+                <Box
+                  component="span"
+                  sx={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}
+                >
+                  {value}
+                </Box>
+              ) : (
+                value
+              )}
+            </Fact>
+          </Grid>
+        ))}
+      </Grid>
+      <Divider sx={{ my: 2.5 }} />
+      <Typography variant="caption" color="text.secondary" component="p" sx={{ mb: 1 }}>
+        Source
+      </Typography>
+      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+        {sources.map((src) => (
+          <Chip
+            key={src.findingId}
+            size="small"
+            variant="outlined"
+            color={src.present ? "success" : "warning"}
+            icon={src.present ? <CircleCheck size={14} /> : <TriangleAlert size={14} />}
+            label={`${src.connectionName} · ${
+              src.present
+                ? isCode
+                  ? "Found"
+                  : "Listed"
+                : isCode
+                  ? "No longer found"
+                  : "No longer listed"
+            }`}
+          />
+        ))}
+      </Stack>
+      {sources.length > 1 && (
+        <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
+          The same agent was found through {sources.length} connections. It is shown once.
+        </Typography>
+      )}
+    </SectionCard>
+  );
+}
+
+/** What the platform reports about the agent: a description, facts and lists. */
 function DetailsCard({ f }: { f: ShadowFindingDetail }) {
   const isCode = f.kind === "code_agent";
   const attrs = f.attributes ?? {};
@@ -182,188 +309,68 @@ function DetailsCard({ f }: { f: ShadowFindingDetail }) {
     ([, v]) => v !== null && v !== undefined && v !== "",
   );
   const lists = entries.filter(([k]) => CHIP_ATTRIBUTES.includes(k) && chipLabels(attrs[k]).length);
-  const ids = entries.filter(([k]) => ID_ATTRIBUTES.includes(k));
   const description = typeof attrs.description === "string" ? attrs.description : "";
   const facts = entries.filter(
     ([k]) => !CHIP_ATTRIBUTES.includes(k) && !ID_ATTRIBUTES.includes(k) && k !== "description",
   );
   return (
-    <Card variant="outlined" sx={{ height: "100%" }}>
-      <CardContent>
-        <SectionTitle
-          title="Details"
-          hint={
-            isCode
-              ? "What the scan command reported from the repository's code. Source code, prompts and secrets are never stored."
-              : `What ${providerLabel(f.provider)} reports about this agent. Instructions, prompts, tool definitions and secrets are never stored.`
-          }
-        />
-        <Stack spacing={2.5}>
-          {description && <Typography variant="body2">{description}</Typography>}
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Field label="Type">{kindLabel(f.kind, f.provider)}</Field>
-            </Grid>
-            {f.scope && (
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Field label={isCode ? "Repository" : "Scope"}>{f.scope}</Field>
-              </Grid>
-            )}
+    <SectionCard
+      title="Details"
+      hint={
+        isCode
+          ? "What the scan command reported from the repository's code. Source code, prompts and secrets are never stored."
+          : `What ${providerLabel(f.provider)} reports about this agent. Instructions, prompts, tool definitions and secrets are never stored.`
+      }
+    >
+      <Stack spacing={2.5}>
+        {description && <Typography variant="body2">{description}</Typography>}
+        {facts.length > 0 && (
+          <Grid container spacing={2.5}>
             {facts.map(([k, v]) => (
-              <Grid key={k} size={{ xs: 12, sm: 6 }}>
-                <Field label={ATTRIBUTE_LABELS[k] ?? k}>{attributeValue(k, v)}</Field>
+              <Grid key={k} size={{ xs: 12, sm: 6, lg: 4 }}>
+                <Fact label={ATTRIBUTE_LABELS[k] ?? k}>{attributeValue(k, v)}</Fact>
               </Grid>
             ))}
           </Grid>
-          {lists.length > 0 && (
-            <>
-              <Divider />
-              <Stack spacing={2}>
-                {lists.map(([k, v]) => (
-                  <Field key={k} label={ATTRIBUTE_LABELS[k] ?? k}>
-                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.5 }}>
-                      {chipLabels(v).map((label) => (
-                        <Chip key={label} size="small" variant="outlined" label={label} />
-                      ))}
-                    </Stack>
-                  </Field>
-                ))}
-              </Stack>
-            </>
-          )}
-          {ids.length > 0 && (
-            <>
-              <Divider />
-              <Stack spacing={1.5}>
-                {ids.map(([k, v]) => (
-                  <Field key={k} label={ATTRIBUTE_LABELS[k] ?? k}>
-                    <Box component="span" sx={{ fontFamily: "monospace", fontSize: 13 }}>
-                      {scalarText(v)}
-                    </Box>
-                  </Field>
-                ))}
-              </Stack>
-            </>
-          )}
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** The platform connections that list the agent. */
-function SourceCard({ f }: { f: ShadowFindingDetail }) {
-  const isCode = f.kind === "code_agent";
-  const sources = f.foundBy ?? [];
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <SectionTitle
-          title="Source"
-          hint={
-            isCode
-              ? "The source code platforms whose scans found this agent."
-              : "The platform connections that list this agent."
-          }
-        />
-        <Stack divider={<Divider flexItem />} spacing={1.25}>
-          {sources.map((src) => (
-            <Stack
-              key={src.findingId}
-              direction="row"
-              spacing={1}
-              alignItems="center"
-              justifyContent="space-between"
-            >
-              <Typography variant="body2" fontWeight={500} sx={{ wordBreak: "break-word" }}>
-                {src.connectionName}
-              </Typography>
-              {src.present ? (
-                <Chip
-                  size="small"
-                  color="success"
-                  variant="outlined"
-                  icon={<CircleCheck size={14} />}
-                  label={isCode ? "Found" : "Listed"}
-                />
-              ) : (
-                <Chip
-                  size="small"
-                  color="warning"
-                  variant="outlined"
-                  icon={<TriangleAlert size={14} />}
-                  label={isCode ? "No longer found" : "No longer listed"}
-                />
-              )}
+        )}
+        {lists.map(([k, v]) => (
+          <Fact key={k} label={ATTRIBUTE_LABELS[k] ?? k}>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.5 }}>
+              {chipLabels(v).map((label) => (
+                <Chip key={label} size="small" variant="outlined" label={label} />
+              ))}
             </Stack>
-          ))}
-        </Stack>
-        {sources.length > 1 && (
-          <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1.5 }}>
-            The same agent was found through {sources.length} connections. It is shown once.
+          </Fact>
+        ))}
+        {!description && facts.length === 0 && lists.length === 0 && (
+          <Typography variant="body2" color="text.secondary">
+            The listing reports nothing more about this agent.
           </Typography>
         )}
-      </CardContent>
-    </Card>
+      </Stack>
+    </SectionCard>
   );
 }
 
-function TimelineRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+/** Long identifiers and URLs, each with a copy button. */
+function IdentifiersCard({ ids }: { ids: [string, unknown][] }) {
   return (
-    <Stack direction="row" spacing={1.5} alignItems="center">
-      <Box sx={{ color: "text.secondary", display: "flex" }}>{icon}</Box>
-      <Box sx={{ flex: 1 }}>
-        <Typography variant="caption" color="text.secondary" component="p">
-          {label}
-        </Typography>
-        <Typography variant="body2">{value}</Typography>
-      </Box>
-    </Stack>
-  );
-}
-
-function ActivityCard({ f }: { f: ShadowFindingDetail }) {
-  const owner = ownerLabel(f.ownerHint);
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <SectionTitle title="Activity" />
-        <Stack spacing={1.5}>
-          {f.providerCreatedAt && (
-            <TimelineRow
-              icon={<CalendarPlus size={16} />}
-              label="Created at the platform"
-              value={shortDate(f.providerCreatedAt)}
-            />
-          )}
-          <TimelineRow
-            icon={<History size={16} />}
-            label="First seen by a scan"
-            value={shortDate(f.firstSeenAt)}
-          />
-          <TimelineRow
-            icon={<Clock size={16} />}
-            label="Last seen by a scan"
-            value={shortDate(f.lastSeenAt)}
-          />
-          {owner && (
-            <TimelineRow
-              icon={<UserPlus size={16} />}
-              label={f.ownerHint?.source ? `Created by (${f.ownerHint.source})` : "Created by"}
-              value={owner}
-            />
-          )}
-        </Stack>
-      </CardContent>
-    </Card>
+    <SectionCard title="Identifiers">
+      <Stack spacing={1.75} divider={<Divider flexItem />}>
+        {ids.map(([k, v]) => (
+          <Stack key={k} direction="row" spacing={1} alignItems="flex-start">
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Fact label={ATTRIBUTE_LABELS[k] ?? k}>
+                <Box component="span" sx={{ fontFamily: "monospace", fontSize: 12 }}>
+                  {scalarText(v)}
+                </Box>
+              </Fact>
+            </Box>
+            <CopyButton text={scalarText(v)} label={ATTRIBUTE_LABELS[k] ?? k} />
+          </Stack>
+        ))}
+      </Stack>
+    </SectionCard>
   );
 }
 
@@ -371,88 +378,76 @@ function ActivityCard({ f }: { f: ShadowFindingDetail }) {
 function EvidenceCard({ f }: { f: ShadowFindingDetail }) {
   const isCode = f.kind === "code_agent";
   return (
-    <Card variant="outlined">
-      <CardContent>
-        <SectionTitle
-          title="Evidence"
-          hint={
-            isCode
-              ? "Why this is an agent: the code in the repository that matched each rule."
-              : "Why this is an agent: the platform listing that returned it."
-          }
-        />
-        {f.signals.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            No evidence recorded.
-          </Typography>
-        ) : (
-          <Stack spacing={1.5}>
-            {f.signals.map((s) => {
-              const observed = Object.entries(s.observed ?? {});
-              return (
-                <Box
-                  key={`${s.code}|${s.source}`}
-                  sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}
+    <SectionCard
+      title="Evidence"
+      hint={
+        isCode
+          ? "Why this is an agent: the code in the repository that matched each rule."
+          : "Why this is an agent: the platform listing that returned it."
+      }
+    >
+      {f.signals.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">
+          No evidence recorded.
+        </Typography>
+      ) : (
+        <Stack spacing={2} divider={<Divider flexItem />}>
+          {f.signals.map((s) => {
+            const observed = Object.entries(s.observed ?? {});
+            return (
+              <Box key={`${s.code}|${s.source}`}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  alignItems={{ sm: "center" }}
+                  justifyContent="space-between"
                 >
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={1}
-                    alignItems={{ sm: "center" }}
-                    justifyContent="space-between"
-                  >
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      alignItems="center"
-                      flexWrap="wrap"
-                      useFlexGap
-                    >
-                      <Typography variant="subtitle2">{s.name || s.code}</Typography>
-                      <Chip
-                        size="small"
-                        variant="outlined"
-                        label={s.source}
-                        sx={{ fontFamily: "monospace" }}
-                      />
-                    </Stack>
-                    <Typography variant="caption" color="text.secondary">
-                      Seen {shortDate(s.detectedAt)}
-                    </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Typography variant="subtitle2">{s.name || s.code}</Typography>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={s.source}
+                      sx={{ fontFamily: "monospace" }}
+                    />
                   </Stack>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    {s.condition}
+                  <Typography variant="caption" color="text.secondary">
+                    Seen {shortDate(s.detectedAt)}
                   </Typography>
-                  {observed.length > 0 && (
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      useFlexGap
-                      flexWrap="wrap"
-                      alignItems="center"
-                      sx={{ mt: 1.5 }}
-                    >
-                      <Typography variant="caption" color="text.secondary">
-                        Observed
-                      </Typography>
-                      {observed.map(([k, v]) => (
-                        <Chip key={k} size="small" label={`${k}: ${scalarText(v)}`} />
-                      ))}
-                    </Stack>
-                  )}
-                </Box>
-              );
-            })}
-          </Stack>
-        )}
-      </CardContent>
-    </Card>
+                </Stack>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                  {s.condition}
+                </Typography>
+                {observed.length > 0 && (
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    useFlexGap
+                    flexWrap="wrap"
+                    alignItems="center"
+                    sx={{ mt: 1 }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      Observed
+                    </Typography>
+                    {observed.map(([k, v]) => (
+                      <Chip key={k} size="small" label={`${k}: ${scalarText(v)}`} />
+                    ))}
+                  </Stack>
+                )}
+              </Box>
+            );
+          })}
+        </Stack>
+      )}
+    </SectionCard>
   );
 }
 
 /**
- * One unregistered agent: what its platform reports, where it comes from, the
- * evidence, and onboarding it (a code agent can also be deployed as a
- * platform-hosted agent).
+ * One unregistered agent: an overview, what its platform reports, its
+ * identifiers and the evidence, and onboarding it (a code agent can also be
+ * deployed as a platform-hosted agent).
  */
 export function FindingDetail({
   orgName,
@@ -466,6 +461,7 @@ export function FindingDetail({
   const { findingId } = useParams<{ findingId: string }>();
   const returnTo = useReturnTo(`${listPath}?tab=agents`);
   const { data: f, isLoading, error } = useShadowFinding(orgName, findingId);
+  const setHidden = useSetShadowFindingHidden(orgName, findingId);
   const back = { backHref: returnTo, backLabel: "Back" };
 
   if (isLoading) {
@@ -491,6 +487,9 @@ export function FindingDetail({
   const isCode = f.kind === "code_agent";
   const reviewedBy = f.attributes?.reviewedBy;
   const aiReviewed = reviewedBy === "ai_review" || reviewedBy === "ai_review_judge";
+  const ids = Object.entries(f.attributes ?? {}).filter(
+    ([k, v]) => ID_ATTRIBUTES.includes(k) && v !== null && v !== undefined && v !== "",
+  );
   const agentPath =
     f.onboarded && f.linkedProject && f.linkedAgent
       ? generatePath(absoluteRouteMap.children.org.children.projects.children.agents.path, {
@@ -505,54 +504,59 @@ export function FindingDetail({
     { orgId: orgName ?? "", findingId: f.id },
   );
 
-  const actions = agentPath ? (
-    <Button
-      component={RouterLink}
-      to={agentPath}
-      variant="outlined"
-      endIcon={<ExternalLink size={16} />}
-    >
-      Open registered agent
-    </Button>
-  ) : canManage && isCode ? (
-    <CodeAgentOnboardActions f={f} orgName={orgName ?? ""} onboardPath={onboardPath} />
-  ) : canManage ? (
-    <Button
-      component={RouterLink}
-      to={onboardPath}
-      variant="contained"
-      startIcon={<UserPlus size={16} />}
-    >
-      Onboard as external agent
-    </Button>
-  ) : undefined;
+  const actions =
+    agentPath || canManage ? (
+      <Stack direction="row" spacing={1.5}>
+        {f.onboarded && canManage && (
+          <Button
+            variant="outlined"
+            startIcon={f.hidden ? <Eye size={16} /> : <EyeOff size={16} />}
+            disabled={setHidden.isPending}
+            onClick={() => setHidden.mutate(!f.hidden)}
+          >
+            {f.hidden ? "Show in list" : "Remove from list"}
+          </Button>
+        )}
+        {agentPath ? (
+          <Button
+            component={RouterLink}
+            to={agentPath}
+            variant="contained"
+            endIcon={<ExternalLink size={16} />}
+          >
+            Open registered agent
+          </Button>
+        ) : canManage && isCode ? (
+          <CodeAgentOnboardActions f={f} orgName={orgName ?? ""} onboardPath={onboardPath} />
+        ) : (
+          canManage && (
+            <Button
+              component={RouterLink}
+              to={onboardPath}
+              variant="contained"
+              startIcon={<UserPlus size={16} />}
+            >
+              Onboard as external agent
+            </Button>
+          )
+        )}
+      </Stack>
+    ) : undefined;
 
   return (
     <PageLayout
       title={f.displayName}
       description={`${kindLabel(f.kind, f.provider)} on ${providerLabel(f.provider)}`}
-      titleTail={
-        <Stack direction="row" spacing={1} alignItems="center">
-          <OnboardingChip onboarded={f.onboarded} />
-          {f.state && <Chip size="small" variant="outlined" label={f.state} />}
-        </Stack>
-      }
+      titleTail={<OnboardingChip onboarded={f.onboarded} />}
       meta={
-        <>
-          <PageMetaItem
-            icon={<Fingerprint size={12} />}
-            label={isCode ? "Location in code" : "Platform ID"}
-          >
-            <Box component="span" sx={{ fontFamily: "monospace", fontSize: 12 }}>
-              {f.externalId}
-            </Box>
-          </PageMetaItem>
-          {f.scope && (
-            <PageMetaItem icon={<MapPin size={12} />} label={isCode ? "Repository" : "Scope"}>
-              {f.scope}
-            </PageMetaItem>
-          )}
-        </>
+        <PageMetaItem
+          icon={<Fingerprint size={12} />}
+          label={isCode ? "Location in code" : "Platform ID"}
+        >
+          <Box component="span" sx={{ fontFamily: "monospace", fontSize: 12 }}>
+            {f.externalId}
+          </Box>
+        </PageMetaItem>
       }
       actions={actions}
       disableIcon
@@ -570,6 +574,9 @@ export function FindingDetail({
               `${f.linkedProject} / ${f.linkedAgent}`
             )}
             {f.onboardedAt ? `, on ${shortDate(f.onboardedAt)}` : ""}.
+            {f.hidden
+              ? " It is removed from the Unregistered Agents list; later scans keep it out."
+              : ""}
           </Alert>
         )}
         {!f.present && (
@@ -594,59 +601,56 @@ export function FindingDetail({
             AI can make mistakes, so check the evidence.
           </Alert>
         )}
+        <OverviewCard f={f} />
         <Grid container spacing={3}>
-          <Grid size={{ xs: 12, md: 8 }}>
+          <Grid size={{ xs: 12, md: ids.length > 0 ? 7 : 12 }}>
             <DetailsCard f={f} />
           </Grid>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Stack spacing={3}>
-              <SourceCard f={f} />
-              <ActivityCard f={f} />
-            </Stack>
-          </Grid>
+          {ids.length > 0 && (
+            <Grid size={{ xs: 12, md: 5 }}>
+              <IdentifiersCard ids={ids} />
+            </Grid>
+          )}
         </Grid>
         <EvidenceCard f={f} />
         {f.related.length > 0 && (
-          <Card variant="outlined">
-            <CardContent>
-              <SectionTitle
-                title="Possible duplicates"
-                hint="Agents on other platforms that may be the same agent."
-              />
-              <Stack spacing={1}>
-                {f.related.map((r) => (
-                  <Stack
-                    key={`${r.findingId}|${r.relation}`}
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                  >
-                    <Chip
-                      size="small"
-                      variant="outlined"
-                      color="warning"
-                      label={relationLabel(r.relation)}
-                    />
-                    <RouterLink
-                      to={generatePath(
-                        absoluteRouteMap.children.org.children.shadowAgentDiscovery.children.finding
-                          .path,
-                        { orgId: orgName ?? "", findingId: r.findingId },
-                      )}
-                    >
-                      {r.displayName || r.findingId}
-                    </RouterLink>
-                    {r.provider && (
-                      <Typography variant="caption" color="text.secondary">
-                        {providerLabel(r.provider)}
-                        {r.reason ? ` · ${r.reason}` : ""}
-                      </Typography>
+          <SectionCard
+            title="Possible duplicates"
+            hint="Agents on other platforms that may be the same agent."
+          >
+            <Stack spacing={1}>
+              {f.related.map((r) => (
+                <Stack
+                  key={`${r.findingId}|${r.relation}`}
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                >
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    color="warning"
+                    label={relationLabel(r.relation)}
+                  />
+                  <RouterLink
+                    to={generatePath(
+                      absoluteRouteMap.children.org.children.shadowAgentDiscovery.children.finding
+                        .path,
+                      { orgId: orgName ?? "", findingId: r.findingId },
                     )}
-                  </Stack>
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
+                  >
+                    {r.displayName || r.findingId}
+                  </RouterLink>
+                  {r.provider && (
+                    <Typography variant="caption" color="text.secondary">
+                      {providerLabel(r.provider)}
+                      {r.reason ? ` · ${r.reason}` : ""}
+                    </Typography>
+                  )}
+                </Stack>
+              ))}
+            </Stack>
+          </SectionCard>
         )}
       </Stack>
     </PageLayout>

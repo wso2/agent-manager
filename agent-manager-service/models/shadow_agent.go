@@ -30,18 +30,21 @@ const (
 	ShadowProviderBedrock   = "bedrock"
 	ShadowProviderGoogle    = "google"
 	ShadowProviderFoundry   = "foundry"
+	// ShadowProviderCustom is the customer's own agent inventory: a REST API
+	// the customer implements to the published contract, called with an API
+	// key.
+	ShadowProviderCustom = "custom"
 	// Source repository hosts (Method 2). Their connections hold no
 	// credential: the source code scan runs on the customer's machine and asks
 	// for the Git token there.
-	ShadowProviderGitHub      = "github"
-	ShadowProviderAzureDevOps = "azure_devops"
+	ShadowProviderGitHub = "github"
 )
 
 // ShadowProviders lists every supported platform, in display order.
 var ShadowProviders = []string{
 	ShadowProviderOpenAI, ShadowProviderAnthropic,
-	ShadowProviderBedrock, ShadowProviderGoogle, ShadowProviderFoundry,
-	ShadowProviderGitHub, ShadowProviderAzureDevOps,
+	ShadowProviderBedrock, ShadowProviderGoogle, ShadowProviderFoundry, ShadowProviderCustom,
+	ShadowProviderGitHub,
 }
 
 // Finding kinds: what an agent is at its platform.
@@ -96,7 +99,7 @@ type ShadowConnection struct {
 	Provider string                 `gorm:"column:provider;not null"`
 	Config   ShadowConnectionConfig `gorm:"column:config;type:jsonb;serializer:json;not null"`
 	// SecretEncrypted is the AES-GCM encrypted JSON of ShadowConnectionSecret.
-	// It is NULL for a source host (GitHub, Azure DevOps), which stores no
+	// It is NULL for a source host (GitHub), which stores no
 	// secret.
 	SecretEncrypted []byte `gorm:"column:secret_encrypted"`
 	// SecretHints are redacted hints of the stored secrets ("sk-a...wxyz"),
@@ -137,6 +140,9 @@ type ShadowConnectionConfig struct {
 	// Google: projects and locations to scan.
 	ProjectIDs []string `json:"projectIds,omitempty"`
 	Locations  []string `json:"locations,omitempty"`
+	// AllLocations lists each project's Agent Runtime and Agent Registry
+	// locations instead of using Locations.
+	AllLocations bool `json:"allLocations,omitempty"`
 	// IncludeGlobalAndMultiRegion adds the "global" Agent Registry location
 	// and the us/eu multi-region Agent Runtime locations.
 	IncludeGlobalAndMultiRegion bool `json:"includeGlobalAndMultiRegion,omitempty"`
@@ -145,7 +151,7 @@ type ShadowConnectionConfig struct {
 	// the secret (the keys themselves are in the secret).
 	ScopedKeyIDs []string `json:"scopedKeyIds,omitempty"`
 
-	// GitHub, Azure DevOps: the organization (or GitHub user account) whose
+	// GitHub: the organization or user account whose
 	// repositories are scanned.
 	Organization string `json:"organization,omitempty"`
 	// GitHub: every repository of the organization, or only Repositories.
@@ -154,12 +160,11 @@ type ShadowConnectionConfig struct {
 	// GitHub: the repositories are private, so the scan command asks for a
 	// token when it runs.
 	PrivateRepositories bool `json:"privateRepositories,omitempty"`
-	// Azure DevOps: every project of the organization, or only Projects.
-	AllProjects bool     `json:"allProjects,omitempty"`
-	Projects    []string `json:"projects,omitempty"`
-	// GitHub, Azure DevOps: also read CI pipeline definitions.
+	// GitHub: also read CI pipeline definitions.
 	ReadCIFiles bool `json:"readCiFiles,omitempty"`
 
+	// Custom platform: the URL of the customer's agent list (GET).
+	AgentsURL string `json:"agentsUrl,omitempty"`
 	// DisabledServices are the optional services (Bedrock, Google) the user
 	// unticked: the scan does not call them. Listing the disabled ones keeps
 	// every service on for connections saved before the option existed.
@@ -175,6 +180,10 @@ type ShadowConnectionSecret struct {
 	// (An Admin API key stored by an earlier version is not decoded, so it is
 	// dropped when the platform is next saved.)
 	ScopedKeys map[string]string `json:"scopedKeys,omitempty"`
+	// APIKey is the Custom platform's API key, sent as a bearer token. It is
+	// stored as customApiKey: "apiKey" held an OpenAI Admin API key in an
+	// earlier version, which must stay undecoded so it is dropped.
+	APIKey string `json:"customApiKey,omitempty"`
 	// ClientSecret is the Entra app's client secret (Foundry).
 	ClientSecret string `json:"clientSecret,omitempty"`
 	// SecretAccessKey and SessionToken complete the AWS access key.
@@ -318,8 +327,13 @@ type ShadowFinding struct {
 	LinkedAgent   string     `gorm:"column:linked_agent;not null"`
 	OnboardedAt   *time.Time `gorm:"column:onboarded_at"`
 	OnboardedBy   string     `gorm:"column:onboarded_by;not null"`
-	CreatedAt     time.Time  `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt     time.Time  `gorm:"column:updated_at;not null;default:NOW()"`
+	// HiddenAt is when the onboarded agent was removed from the Unregistered
+	// Agents list (nil while it is listed), and HiddenBy who removed it.
+	// Every connection's finding of the agent carries it, and scans keep it.
+	HiddenAt  *time.Time `gorm:"column:hidden_at"`
+	HiddenBy  string     `gorm:"column:hidden_by;not null"`
+	CreatedAt time.Time  `gorm:"column:created_at;not null;default:NOW()"`
+	UpdatedAt time.Time  `gorm:"column:updated_at;not null;default:NOW()"`
 }
 
 func (ShadowFinding) TableName() string { return "shadow_findings" }
