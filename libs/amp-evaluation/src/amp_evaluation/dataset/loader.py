@@ -416,6 +416,10 @@ def task_to_dict(task: Task) -> Dict[str, Any]:
             }.items()
             if v is not None
         }
+    result["task_type"] = task.task_type
+    result["difficulty"] = task.difficulty
+    result["domain"] = task.domain
+    result["tags"] = task.tags
     if task.custom:
         result["custom"] = task.custom
     if task.metadata:
