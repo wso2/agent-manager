@@ -54,7 +54,7 @@ func newProviderFixture(t *testing.T) *providerFixture {
 	templates := NewLLMTemplateStore()
 	templates.Load([]*models.LLMProviderTemplate{{Handle: "openai"}})
 	f.providers = NewLLMProviderService(gormDB, providerRepo, repositories.NewLLMProviderTemplateRepo(gormDB),
-		templates, nil, nil, make([]byte, 32), gateways, f.sync.repo, nil, nil, nil)
+		templates, nil, nil, make([]byte, 32), gateways, f.sync.repo, nil, nil, nil, nil)
 	return f
 }
 

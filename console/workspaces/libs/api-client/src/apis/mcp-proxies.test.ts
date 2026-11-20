@@ -18,7 +18,12 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { httpGET } from "../utils";
-import { getProjectMCPProxy, listAllMCPProxies, listMCPProxies } from "./mcp-proxies";
+import {
+  getProjectMCPProxy,
+  listAllMCPProxies,
+  listAvailableMCPPolicies,
+  listMCPProxies,
+} from "./mcp-proxies";
 
 vi.mock("../utils", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../utils")>()),
@@ -97,5 +102,33 @@ describe("getProjectMCPProxy", () => {
       getProjectMCPProxy({ orgName: "org", projName: undefined, proxyId: "orders" }),
     ).rejects.toThrow();
     expect(mockGET).not.toHaveBeenCalled();
+  });
+});
+
+describe("listAvailableMCPPolicies", () => {
+  it("scopes the catalog to the proxy when given one", async () => {
+    await listAvailableMCPPolicies({ orgName: "org" }, { proxyId: "orders" });
+    expect(mockGET.mock.calls[0][1]?.searchParams).toEqual({ proxyId: "orders" });
+  });
+
+  it("treats an empty proxyId as no proxy", async () => {
+    await listAvailableMCPPolicies({ orgName: "org" }, { proxyId: "" });
+    expect(mockGET.mock.calls[0][1]?.searchParams).toBeUndefined();
+  });
+
+  it("sends environmentUuid together with proxyId", async () => {
+    await listAvailableMCPPolicies(
+      { orgName: "org" },
+      { proxyId: "orders", environmentUuid: "env-1" },
+    );
+    expect(mockGET.mock.calls[0][1]?.searchParams).toEqual({
+      proxyId: "orders",
+      environmentUuid: "env-1",
+    });
+  });
+
+  it("treats an empty environmentUuid as unset", async () => {
+    await listAvailableMCPPolicies({ orgName: "org" }, { environmentUuid: "" });
+    expect(mockGET.mock.calls[0][1]?.searchParams).toBeUndefined();
   });
 });

@@ -17,8 +17,8 @@
 
 import { useCallback, useMemo } from "react";
 import {
+  normalizePolicyVersionToMajor,
   useMCPPoliciesCatalog,
-  type MCPPolicyDefinition,
 } from "@agent-management-platform/api-client";
 import type {
   MCPEndpointConfig,
@@ -26,10 +26,12 @@ import type {
 } from "@agent-management-platform/types";
 import {
   PolicyListSection,
+  type PolicyListSectionProps,
   type PolicySelection,
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MANAGED_MCP_POLICY_NAMES } from "../constants";
+import { applyPolicySelection } from "./mcpPolicySelection";
 
 function isManagedMCPPolicy(name: string): boolean {
   return MANAGED_MCP_POLICY_NAMES.includes(name);
@@ -57,10 +59,24 @@ function selectionsToMCPPolicies(
   }));
 }
 
+// MCP proxies save the major version (e.g. "v1") while the catalog lists the
+// exact gateway version, so saved policies are matched by name and major.
+const matchApplied: NonNullable<PolicyListSectionProps["matchApplied"]> = (
+  applied,
+  item,
+) =>
+  applied.name === item.name &&
+  normalizePolicyVersionToMajor(applied.version) ===
+    normalizePolicyVersionToMajor(item.version);
+
 export type MCPProxyPoliciesTabProps = {
   config: MCPEndpointConfig | undefined;
   selectedEndpointId: string;
   orgName?: string;
+  /** MCP proxy handle; scopes policy availability to the proxy's gateways. */
+  proxyId?: string;
+  /** Environment UUID; narrows policy availability to that environment's gateways. */
+  environmentUuid?: string;
   onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
 };
@@ -68,14 +84,16 @@ export type MCPProxyPoliciesTabProps = {
 export function MCPProxyPoliciesTab({
   config,
   orgName,
+  proxyId,
+  environmentUuid,
   onUpdate,
 }: MCPProxyPoliciesTabProps) {
   const { canWrite } = useResourceAccess("mcp_server");
   const {
-    data: catalogData,
+    data: mcpCatalog,
     isLoading: isLoadingCatalog,
     error: catalogError,
-  } = useMCPPoliciesCatalog(orgName);
+  } = useMCPPoliciesCatalog(orgName, proxyId, environmentUuid);
 
   // The selected environment's policies (all of them, including managed ones the
   // other tabs own). Edits are persisted immediately to that environment's block.
@@ -98,20 +116,7 @@ export function MCPProxyPoliciesTab({
 
   const replacePolicy = useCallback(
     (nextSelection: PolicySelection) => {
-      const nextPolicies = [...policies];
-      const existingPolicyIndex = nextPolicies.findIndex(
-        (policy) =>
-          policy.name === nextSelection.name &&
-          policy.version === nextSelection.version,
-      );
-      const mcpPolicy = selectionsToMCPPolicies([nextSelection])[0];
-
-      if (existingPolicyIndex >= 0) {
-        nextPolicies[existingPolicyIndex] = mcpPolicy;
-        onPoliciesChange(nextPolicies);
-      } else {
-        onPoliciesChange([...policies, mcpPolicy]);
-      }
+      onPoliciesChange(applyPolicySelection(policies, nextSelection));
     },
     [onPoliciesChange, policies],
   );
@@ -151,14 +156,12 @@ export function MCPProxyPoliciesTab({
       onRemove={removePolicy}
       onReorder={reorderPolicies}
       readOnly={!canWrite}
-      catalogData={catalogData}
+      catalogData={mcpCatalog}
+      matchApplied={matchApplied}
       isLoadingCatalog={isLoadingCatalog}
       catalogError={catalogError}
       filterPolicies={(items) =>
         items.filter((policy) => !isManagedMCPPolicy(policy.name))
-      }
-      getPolicyDefinitionVersion={(policy) =>
-        (policy as MCPPolicyDefinition).policyHubVersion ?? policy.version
       }
       title="Policies"
       description="Add policies to this server and drag to change their execution order."
@@ -173,7 +176,7 @@ export function MCPProxyPoliciesTab({
       catalogErrorLabel="Failed to load policies."
       emptySearchTitle="No policies match your search"
       emptyCatalogTitle="No policies available"
-      emptyCatalogDescription="No MCP policies reported by the active gateway are available in the policy hub."
+      emptyCatalogDescription="No policies are available for this proxy's gateways."
     />
   );
 }

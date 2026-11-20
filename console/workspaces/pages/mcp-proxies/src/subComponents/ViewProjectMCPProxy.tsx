@@ -596,6 +596,8 @@ export function ViewProjectMCPProxy() {
                     config={selectedConfig}
                     selectedEndpointId={selected.environmentName}
                     orgName={orgId}
+                    proxyId={proxyId}
+                    environmentUuid={selected.environmentUuid}
                     onUpdate={updateSelectedConfig}
                     isUpdating={isUpdating}
                   />
@@ -630,6 +632,8 @@ export function ViewProjectMCPProxy() {
                     config={selectedConfig}
                     selectedEndpointId={selected.environmentName}
                     orgName={orgId}
+                    proxyId={proxyId}
+                    environmentUuid={selected.environmentUuid}
                     onUpdate={updateSelectedConfig}
                     isUpdating={isUpdating}
                   />
@@ -639,6 +643,8 @@ export function ViewProjectMCPProxy() {
                     config={selectedConfig}
                     selectedEndpointId={selected.environmentName}
                     orgName={orgId}
+                    proxyId={proxyId}
+                    environmentUuid={selected.environmentUuid}
                     onUpdate={updateSelectedConfig}
                     isUpdating={isUpdating}
                   />

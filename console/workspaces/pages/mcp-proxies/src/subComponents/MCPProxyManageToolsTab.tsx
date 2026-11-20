@@ -123,6 +123,10 @@ export type MCPProxyManageToolsTabProps = {
   config: MCPEndpointConfig | undefined;
   selectedEndpointId: string;
   orgName: string | undefined;
+  /** MCP proxy handle; scopes policy availability to the proxy's gateways. */
+  proxyId?: string;
+  /** Environment UUID; narrows policy availability to that environment's gateways. */
+  environmentUuid?: string;
   isLoading?: boolean;
   onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
@@ -132,6 +136,8 @@ export function MCPProxyManageToolsTab({
   config,
   selectedEndpointId,
   orgName,
+  proxyId,
+  environmentUuid,
   isLoading = false,
   onUpdate,
   isUpdating,
@@ -148,9 +154,14 @@ export function MCPProxyManageToolsTab({
 
   const { data: catalog, isLoading: isCatalogLoading } = useMCPPoliciesCatalog(
     orgName,
+    proxyId,
+    environmentUuid,
   );
   const availableAclPolicy = useMemo(
-    () => catalog?.data?.find((p) => p.name === ACL_POLICY_NAME),
+    () =>
+      catalog?.data?.find(
+        (p) => p.name === ACL_POLICY_NAME && p.status === "installed",
+      ),
     [catalog],
   );
 
@@ -243,7 +254,7 @@ export function MCPProxyManageToolsTab({
     );
     const newPolicy: MCPProxyPolicy = {
       name: ACL_POLICY_NAME,
-      version: availableAclPolicy.version,
+      version: availableAclPolicy.savedVersion,
       displayName: availableAclPolicy.displayName,
       params,
     };

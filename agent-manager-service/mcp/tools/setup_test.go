@@ -41,6 +41,8 @@ const (
 	testGatewayID     = "00000000-0000-0000-0000-0000000000a1"
 	testProxyID       = "test-proxy"
 	testGuardrailName = "pii-masking"
+	// testNotInstalledGuardrail is in the catalog but installed on no gateway.
+	testNotInstalledGuardrail = "sql-injection-guard"
 	// testSecret stands in for an upstream credential; no tool output may contain it.
 	testSecret = "Bearer sk-must-never-be-returned"
 )

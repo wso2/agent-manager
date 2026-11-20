@@ -132,12 +132,13 @@ func TestGatewayManifestPushDoesNotLeakAcrossOrgs(t *testing.T) {
 		},
 	}
 
-	llm, err := intersectActiveGatewayLLMPolicies(repo, "org-b")
+	llm, err := activeGatewayPolicies(repo, "org-b")
 	require.NoError(t, err)
 	require.Len(t, llm, 1)
 	require.Contains(t, llm, "word-count-guardrail\x00v1")
 
-	mcp, err := (&MCPProxyService{gatewayRepo: repo}).ListAvailableMCPPolicies(ctx, "org-b")
+	hub := fakePolicyHubClient{ok: true, policies: []HubPolicy{{Name: "word-count-guardrail", Version: "v1", Categories: []string{"MCP"}}}}
+	mcp, err := (&MCPProxyService{gatewayRepo: repo, policyHub: hub}).ListAvailableMCPPolicies(ctx, "org-b", "", "")
 	require.NoError(t, err)
 	require.Len(t, mcp.List, 1)
 	require.Equal(t, "word-count-guardrail", mcp.List[0].Name)

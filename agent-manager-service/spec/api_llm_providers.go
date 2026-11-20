@@ -509,14 +509,14 @@ func (r ApiListAvailableLLMPoliciesRequest) ProviderId(providerId string) ApiLis
 	return r
 }
 
-func (r ApiListAvailableLLMPoliciesRequest) Execute() (*LLMPolicyAvailabilityResponse, *http.Response, error) {
+func (r ApiListAvailableLLMPoliciesRequest) Execute() (*PolicyCatalogResponse, *http.Response, error) {
 	return r.ApiService.ListAvailableLLMPoliciesExecute(r)
 }
 
 /*
 ListAvailableLLMPolicies List available LLM guardrail policies
 
-Returns full guardrail policy definitions (including parameter schemas) reported by active gateways in the organization. When providerId is given, the result is scoped to the gateways that provider is currently deployed to; otherwise it covers every active gateway in the organization.
+Returns the merged LLM guardrail policy catalog (policy hub plus gateway-reported policies, including parameter schemas) with per-gateway installation status. When providerId is given, availability is checked against the gateways that provider is currently deployed to; otherwise against the organization's active managed gateways.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -532,13 +532,13 @@ func (a *LLMProvidersAPIService) ListAvailableLLMPolicies(ctx context.Context, o
 
 // Execute executes the request
 //
-//	@return LLMPolicyAvailabilityResponse
-func (a *LLMProvidersAPIService) ListAvailableLLMPoliciesExecute(r ApiListAvailableLLMPoliciesRequest) (*LLMPolicyAvailabilityResponse, *http.Response, error) {
+//	@return PolicyCatalogResponse
+func (a *LLMProvidersAPIService) ListAvailableLLMPoliciesExecute(r ApiListAvailableLLMPoliciesRequest) (*PolicyCatalogResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *LLMPolicyAvailabilityResponse
+		localVarReturnValue *PolicyCatalogResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMProvidersAPIService.ListAvailableLLMPolicies")

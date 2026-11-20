@@ -49,27 +49,27 @@ import {
 } from "@agent-management-platform/views";
 import {
   useLLMPoliciesCatalog,
-  useGuardrailPolicyDefinition,
   filterGuardrailPolicies,
   type GuardrailDefinition,
   type GuardrailsCatalogResponse,
 } from "@agent-management-platform/api-client";
-import { globalConfig } from "@agent-management-platform/types";
+import { CodeBlock } from "../CodeBlock";
 import PolicyParameterEditor from "../PolicyParameterEditor/PolicyParameterEditor";
 import type { ParameterValues } from "../../utils/policyParameterEditor";
 import {
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "../../utils/useUnsavedChangesGuard";
-import {
-  hasInlinePolicyDefinition,
-  resolvePolicyDetail,
-} from "./resolvePolicyDetail";
+import { resolvePolicyDetail } from "./resolvePolicyDetail";
+
+const unavailableMessage = (policyNoun: string) =>
+  `This ${policyNoun} is not available on this gateway, so its configuration is read-only. Remove it from the list if it is no longer needed.`;
 
 const PolicyDetailView: React.FC<{
   policy: GuardrailDefinition;
+  /** The catalog no longer has this policy installed; the form stays but cannot be submitted. */
+  unavailable?: boolean;
   existingSettings?: Record<string, unknown>;
-  getPolicyDefinitionVersion?: (policy: GuardrailDefinition) => string;
   policyNoun?: string;
   onBack: () => void;
   /** Explicit discard from the editor; defaults to `onBack`. */
@@ -78,64 +78,15 @@ const PolicyDetailView: React.FC<{
   onSubmit: (policy: GuardrailDefinition, settings: ParameterValues) => void;
 }> = ({
   policy,
+  unavailable = false,
   existingSettings,
-  getPolicyDefinitionVersion,
   policyNoun = "policy",
   onBack,
   onCancel = onBack,
   onDirtyChange,
   onSubmit,
 }) => {
-  const hasInlineDefinition = hasInlinePolicyDefinition(policy);
-
-  const {
-    data: yamlText,
-    isLoading,
-    error,
-  } = useGuardrailPolicyDefinition(
-    hasInlineDefinition ? undefined : policy.name,
-    hasInlineDefinition
-      ? undefined
-      : (getPolicyDefinitionVersion?.(policy) ?? policy.version),
-  );
-
-  const { policyDefinition, parseError } = useMemo(
-    () => resolvePolicyDetail(policy, yamlText),
-    [policy, yamlText],
-  );
-
-  if (!hasInlineDefinition && isLoading) {
-    return (
-      <Stack spacing={2} sx={{ mt: 1 }}>
-        <Typography variant="body2" color="text.secondary">
-          Loading definition...
-        </Typography>
-        <Skeleton variant="text" width="60%" height={28} />
-        <Skeleton variant="text" width="90%" height={16} />
-        <Skeleton variant="rounded" width="100%" height={48} />
-        <Skeleton variant="rounded" width="100%" height={48} />
-      </Stack>
-    );
-  }
-
-  if (error || parseError) {
-    return (
-      <Stack spacing={2} sx={{ py: 2 }}>
-        <Alert severity="error">
-          {parseError ||
-            (error as Error)?.message ||
-            `Failed to load ${policyNoun} definition.`}
-        </Alert>
-        <Button
-          variant="text"
-          startIcon={<ArrowLeft size={16} />}
-          onClick={onBack}
-        >
-          Back
-        </Button>
-      </Stack>
-    );
-  }
+  const policyDefinition = useMemo(() => resolvePolicyDetail(policy), [policy]);
 
   if (!policyDefinition) {
     return (
@@ -170,7 +121,11 @@ const PolicyDetailView: React.FC<{
           Back
         </Button>
       </Box>
+      {unavailable && (
+        <Alert severity="warning">{unavailableMessage(policyNoun)}</Alert>
+      )}
       <PolicyParameterEditor
+        submitDisabled={unavailable}
         policyDefinition={policyDefinition}
         policyDisplayName={policy.displayName || policy.name}
         existingValues={existingSettings}
@@ -182,6 +137,29 @@ const PolicyDetailView: React.FC<{
     </Stack>
   );
 };
+
+/** Current parameters of an applied policy the gateway no longer offers. */
+const UnavailablePolicyView: React.FC<{
+  settings?: Record<string, unknown>;
+  policyNoun: string;
+  onClose: () => void;
+}> = ({ settings, policyNoun, onClose }) => (
+  <Stack spacing={2}>
+    <Alert severity="warning">
+      {unavailableMessage(policyNoun)}
+    </Alert>
+    <CodeBlock
+      code={JSON.stringify(settings ?? {}, null, 2)}
+      language="json"
+      showCopyButton={false}
+    />
+    <Box>
+      <Button variant="outlined" onClick={onClose}>
+        Close
+      </Button>
+    </Box>
+  </Stack>
+);
 
 export type PolicySelectorDrawerProps = {
   open: boolean;
@@ -196,15 +174,26 @@ export type PolicySelectorDrawerProps = {
    */
   providerId?: string;
   filterPolicies?: (policies: GuardrailDefinition[]) => GuardrailDefinition[];
-  getPolicyDefinitionVersion?: (policy: GuardrailDefinition) => string;
-  /** Policy names that are already added - disable in list (e.g. create flow) */
-  disabledPolicyNames?: string[];
-  /** Policy keys (name@version) that are already added - more precise than names */
-  disabledPolicyKeys?: string[];
+  /** Marks catalog rows that are already added; they are shown selected and disabled. */
+  isAdded?: (policy: GuardrailDefinition) => boolean;
+  /** False when the policy hub is unreachable; defaults to the catalog's own flag. */
+  hubAvailable?: boolean;
+  /** Defaults to the catalog's own scope. */
+  availabilityScope?: "deployed" | "org_managed";
   /** Existing settings when editing (e.g. for pre-filling form) */
   existingSettings?: Record<string, unknown>;
   /** When set, skip the catalog list and go directly to editing this policy (name@version) */
   editPolicyKey?: string;
+  /**
+   * Finds the catalog item for the policy being edited; defaults to comparing
+   * `name@version` with `editPolicyKey`. Only installed items are matched.
+   */
+  matchEdit?: (policy: GuardrailDefinition) => boolean;
+  /**
+   * An applied policy with no installed catalog item: its `existingSettings`
+   * are shown read-only instead of an editor.
+   */
+  unavailablePolicy?: { name: string; displayName?: string };
   title?: string;
   subtitle?: string;
   policyNoun?: string;
@@ -228,11 +217,13 @@ export function PolicySelectorDrawer({
   catalogError: controlledCatalogError,
   providerId,
   filterPolicies,
-  getPolicyDefinitionVersion,
-  disabledPolicyNames = [],
-  disabledPolicyKeys = [],
+  isAdded,
+  hubAvailable: hubAvailableProp,
+  availabilityScope: availabilityScopeProp,
   existingSettings,
   editPolicyKey,
+  matchEdit,
+  unavailablePolicy,
   title = "Policies",
   subtitle = "Choose a policy to configure advanced options.",
   policyNoun = "policy",
@@ -279,27 +270,32 @@ export function PolicySelectorDrawer({
     const policies = activeCatalogData?.data ?? [];
     return filterPolicies
       ? filterPolicies(policies)
-      : filterGuardrailPolicies(policies, globalConfig?.guardrailCapabilities);
+      : filterGuardrailPolicies(policies);
   }, [activeCatalogData, filterPolicies]);
 
-  const isDisabled = useCallback(
-    (name: string, version: string) =>
-      disabledPolicyKeys.length > 0
-        ? disabledPolicyKeys.includes(`${name}@${version}`)
-        : disabledPolicyNames.includes(name),
-    [disabledPolicyKeys, disabledPolicyNames],
+  const hubAvailable = hubAvailableProp ?? activeCatalogData?.hubAvailable ?? true;
+  const availabilityScope =
+    availabilityScopeProp ?? activeCatalogData?.availabilityScope ?? "deployed";
+
+  // Installed rows first; the sort is stable, so catalog order holds within each.
+  const orderedPolicies = useMemo(
+    () => [
+      ...availablePolicies.filter((p) => p.status !== "not_installed"),
+      ...availablePolicies.filter((p) => p.status === "not_installed"),
+    ],
+    [availablePolicies],
   );
 
   const filteredPolicies = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return availablePolicies;
-    return availablePolicies.filter(
+    if (!q) return orderedPolicies;
+    return orderedPolicies.filter(
       (p) =>
         (p.displayName || p.name).toLowerCase().includes(q) ||
         p.name.toLowerCase().includes(q) ||
         p.description?.toLowerCase().includes(q),
     );
-  }, [availablePolicies, searchQuery]);
+  }, [orderedPolicies, searchQuery]);
 
   const handleClose = useCallback(() => {
     setSelectedPolicy(null);
@@ -318,12 +314,30 @@ export function PolicySelectorDrawer({
     [confirmIfUnsaved, isFormDirty],
   );
 
+  // Revalidated on every catalog change: a selected policy with no installed
+  // catalog entry keeps its form but cannot be submitted. Edit mode matches the
+  // way the policy was opened; add mode matches the exact picked item.
+  const selectedUnavailable = useMemo(() => {
+    if (!selectedPolicy || !activeCatalogData) return false;
+    return !activeCatalogData.data.some(
+      (p) =>
+        p.status !== "not_installed" &&
+        (editPolicyKey
+          ? matchEdit
+            ? matchEdit(p)
+            : `${p.name}@${p.version}` === editPolicyKey
+          : p.name === selectedPolicy.name &&
+            p.version === selectedPolicy.version),
+    );
+  }, [selectedPolicy, activeCatalogData, editPolicyKey, matchEdit]);
+
   const handleSubmit = useCallback(
     (policy: GuardrailDefinition, settings: ParameterValues) => {
+      if (selectedUnavailable) return;
       onSubmit(policy, settings);
       setSelectedPolicy(null);
     },
-    [onSubmit],
+    [onSubmit, selectedUnavailable],
   );
 
   useEffect(() => {
@@ -333,21 +347,37 @@ export function PolicySelectorDrawer({
     }
   }, [open]);
 
-  // Auto-select policy when opening in edit mode
+  // Auto-select policy when opening in edit mode. Looks at the whole catalog,
+  // not just the picker's filtered list, so a policy the picker hides still
+  // opens for editing.
   useEffect(() => {
-    if (open && editPolicyKey && availablePolicies.length > 0) {
-      const match = availablePolicies.find(
-        (p) => `${p.name}@${p.version}` === editPolicyKey,
+    if (!open || !editPolicyKey) return;
+    const match = (activeCatalogData?.data ?? []).find(
+      (p) =>
+        p.status !== "not_installed" &&
+        (matchEdit
+          ? matchEdit(p)
+          : `${p.name}@${p.version}` === editPolicyKey),
+    );
+    if (match) {
+      // A catalog refresh that leaves the schema unchanged keeps the current
+      // object, so the editor does not reset the user's unsaved edits.
+      setSelectedPolicy((prev) =>
+        prev &&
+        prev.name === match.name &&
+        JSON.stringify([prev.parameters, prev.systemParameters]) ===
+          JSON.stringify([match.parameters, match.systemParameters])
+          ? prev
+          : match,
       );
-      if (match) {
-        setSelectedPolicy(match);
-      }
     }
-  }, [open, editPolicyKey, availablePolicies]);
+  }, [open, editPolicyKey, matchEdit, activeCatalogData]);
 
   const drawerTitle = selectedPolicy
     ? selectedPolicy.displayName || selectedPolicy.name
-    : title;
+    : unavailablePolicy
+      ? unavailablePolicy.displayName || unavailablePolicy.name
+      : title;
 
   return (
     <DrawerWrapper
@@ -362,7 +392,7 @@ export function PolicySelectorDrawer({
         onClose={handleGuardedClose}
       />
       <DrawerContent>
-        {!selectedPolicy && (
+        {!selectedPolicy && !unavailablePolicy && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {subtitle}
           </Typography>
@@ -389,8 +419,24 @@ export function PolicySelectorDrawer({
           <Alert severity="error" sx={{ mt: 1 }}>
             {catalogErrorLabel} {(catalogError as Error)?.message}
           </Alert>
+        ) : unavailablePolicy && !selectedPolicy ? (
+          <UnavailablePolicyView
+            settings={existingSettings}
+            policyNoun={policyNoun}
+            onClose={handleClose}
+          />
         ) : !selectedPolicy ? (
           <Stack spacing={2}>
+            {availabilityScope === "org_managed" && (
+              <Alert severity="info">
+                {"Availability checked against managed gateways; will be rechecked on deploy."}
+              </Alert>
+            )}
+            {!hubAvailable && (
+              <Alert severity="info">
+                Policy hub unreachable — showing installed policies only.
+              </Alert>
+            )}
             <SearchBar
               placeholder={searchPlaceholder}
               value={searchQuery}
@@ -400,14 +446,22 @@ export function PolicySelectorDrawer({
             />
             <Stack spacing={1.25}>
               {filteredPolicies.map((policy) => {
-                const added = isDisabled(policy.name, policy.version);
+                const notInstalled = policy.status === "not_installed";
+                const added = !notInstalled && Boolean(isAdded?.(policy));
+                const unselectable = added || notInstalled;
                 return (
                   <Form.CardButton
                     key={`${policy.name}@${policy.version}`}
                     selected={added}
-                    disabled={added}
-                    onClick={() => !added && setSelectedPolicy(policy)}
-                    sx={{ width: "100%", justifyContent: "flex-start" }}
+                    disabled={unselectable}
+                    aria-disabled={unselectable}
+                    onClick={() => !unselectable && setSelectedPolicy(policy)}
+                    sx={{
+                      width: "100%",
+                      justifyContent: "flex-start",
+                      opacity: notInstalled ? 0.6 : 1,
+                      cursor: unselectable ? "not-allowed" : undefined,
+                    }}
                   >
                     <CardContent>
                       <Stack spacing={1}>
@@ -436,7 +490,19 @@ export function PolicySelectorDrawer({
                             size="small"
                             variant="outlined"
                           />
+                          {policy.source === "custom" && (
+                            <Chip label="Custom" size="small" color="info" />
+                          )}
                         </Stack>
+                        {notInstalled && (
+                          <Typography variant="caption" color="text.secondary">
+                            {policy.missingOn?.length
+                              ? `Missing on ${policy.missingOn
+                                  .map((g) => g.name)
+                                  .join(", ")}`
+                              : "Not installed on this gateway"}
+                          </Typography>
+                        )}
                         {policy.description && (
                           <Tooltip title={policy.description}>
                             <Typography
@@ -476,8 +542,8 @@ export function PolicySelectorDrawer({
         ) : (
           <PolicyDetailView
             policy={selectedPolicy}
+            unavailable={selectedUnavailable}
             existingSettings={existingSettings}
-            getPolicyDefinitionVersion={getPolicyDefinitionVersion}
             policyNoun={policyNoun}
             onBack={editPolicyKey ? handleGuardedClose : handleGuardedBack}
             onDirtyChange={setIsEditorDirty}

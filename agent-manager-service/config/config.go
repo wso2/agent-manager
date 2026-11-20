@@ -220,6 +220,9 @@ type Config struct {
 	// inconsistent across replicas — set Backend to "redis" in HA deployments.
 	GatewayManifestCache GatewayManifestCacheConfig
 
+	// PolicyHub configures the public WSO2 policy hub the policy catalog reads.
+	PolicyHub PolicyHubConfig
+
 	// GatewayPublicVhostFallback hands a platform-hosted agent the gateway's
 	// public vhost for its LLM proxy URL when the gateway registered no
 	// in-cluster runtimeUrl. Off by default: on-premises gateways always
@@ -257,6 +260,12 @@ type ReconcileConfig struct {
 	RenderLeaseSeconds int
 	// RenderAttemptBudget is how many failed renders give up a deploy. Waiting for an input never counts.
 	RenderAttemptBudget int
+}
+
+// PolicyHubConfig configures the public policy hub client.
+type PolicyHubConfig struct {
+	// BaseURL is the hub's policies endpoint. Empty disables the hub.
+	BaseURL string
 }
 
 // GatewayManifestCacheConfig selects and configures the backend for the

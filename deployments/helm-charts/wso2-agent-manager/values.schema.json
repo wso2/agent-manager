@@ -1194,6 +1194,20 @@
               "title": "gatewayManifestCache",
               "type": "object"
             },
+            "policyHub": {
+              "additionalProperties": false,
+              "description": "Public WSO2 policy hub the policy catalog reads.",
+              "properties": {
+                "baseUrl": {
+                  "description": "Hub policies endpoint. Empty disables the hub.",
+                  "title": "baseUrl",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "policyHub",
+              "type": "object"
+            },
             "perAgentResourceLimits": {
               "additionalProperties": false,
               "description": "Agent resource limits \u2014 operator-configured upper bounds enforced on PUT /resource-configs",
@@ -1903,35 +1917,30 @@
             },
             "guardrailCapabilities": {
               "additionalProperties": false,
-              "description": "Guardrail capability flags \u2014 enable policies that require external system configuration. OOTB policies are always shown regardless of these flags.",
+              "description": "Deprecated and ignored; every installed guardrail is shown in the console.",
               "properties": {
                 "awsBedrock": {
-                  "default": false,
-                  "description": "Offer AWS Bedrock guardrails. Allowed values: Unlocks: aws-bedrock-guardrail.",
+                  "description": "Deprecated and ignored.",
                   "title": "awsBedrock",
                   "type": "boolean"
                 },
                 "azureContentSafety": {
-                  "default": false,
-                  "description": "Offer Azure AI Content Safety guardrails. Allowed values: Unlocks: azure-content-safety-content-moderation.",
+                  "description": "Deprecated and ignored.",
                   "title": "azureContentSafety",
                   "type": "boolean"
                 },
                 "graniteGuardian": {
-                  "default": false,
-                  "description": "Offer Granite Guardian guardrails. Allowed values: Unlocks: granite-guardian-prompt-injection.",
+                  "description": "Deprecated and ignored.",
                   "title": "graniteGuardian",
                   "type": "boolean"
                 },
                 "nemoGuard": {
-                  "default": false,
-                  "description": "Offer NVIDIA NeMo Guardrails. Allowed values: Unlocks: nvidia-nemoguard-content-safety.",
+                  "description": "Deprecated and ignored.",
                   "title": "nemoGuard",
                   "type": "boolean"
                 },
                 "semanticGuardrails": {
-                  "default": false,
-                  "description": "Offer semantic guardrails. Allowed values: Unlocks: semantic-prompt-guard, semantic-cache.",
+                  "description": "Deprecated and ignored.",
                   "title": "semanticGuardrails",
                   "type": "boolean"
                 }
@@ -1941,14 +1950,12 @@
               "type": "object"
             },
             "guardrailsCatalogUrl": {
-              "default": "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=AI,Guardrails&limit=50",
-              "description": "Guardrails catalog URL for fetching available guardrail policies",
+              "description": "Deprecated and ignored; the policy catalog is served by agent-manager-service.",
               "title": "guardrailsCatalogUrl",
               "type": "string"
             },
             "guardrailsDefinitionBaseUrl": {
-              "default": "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies",
-              "description": "Guardrails definition base URL for fetching policy definitions",
+              "description": "Deprecated and ignored; the policy catalog is served by agent-manager-service.",
               "title": "guardrailsDefinitionBaseUrl",
               "type": "string"
             },

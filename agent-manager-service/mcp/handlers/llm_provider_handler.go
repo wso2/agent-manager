@@ -72,7 +72,7 @@ func (h *LLMProviderHandler) ListLLMProviders(_ context.Context, ouID string, li
 	return h.providerSvc.List(ouID, limit, offset)
 }
 
-func (h *LLMProviderHandler) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
+func (h *LLMProviderHandler) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.PolicyCatalogResponse, error) {
 	return h.providerSvc.ListAvailableLLMPolicies(ctx, ouID, providerID)
 }
 

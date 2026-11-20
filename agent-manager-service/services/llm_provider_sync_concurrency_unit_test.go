@@ -160,10 +160,10 @@ func providerSyncLockHeld(svc *LLMProviderService, providerUUID string) bool {
 
 func TestNewLLMProviderService_UsesRepoSyncLocker(t *testing.T) {
 	repo := &lockingProviderRepo{LLMProviderRepositoryMock: &repomocks.LLMProviderRepositoryMock{}}
-	svc := NewLLMProviderService(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	svc := NewLLMProviderService(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	require.NotNil(t, svc.proxySyncDBLocker, "a repository that can lock syncs must back lockProviderSync across replicas")
 
-	plain := NewLLMProviderService(nil, &repomocks.LLMProviderRepositoryMock{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	plain := NewLLMProviderService(nil, &repomocks.LLMProviderRepositoryMock{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	require.Nil(t, plain.proxySyncDBLocker, "a repository that cannot lock syncs leaves only the in-process lock")
 }
 
