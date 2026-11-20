@@ -224,7 +224,8 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	// A not-found error here means the gateway was deleted (or soft-deleted)
 	// after VerifyToken succeeded but before this point - the connection must
 	// not be allowed to proceed as if it belongs to a live gateway.
-	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, true); err != nil {
+	activatedAt, err := c.gatewayService.MarkGatewayConnected(gatewayID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("Gateway no longer exists, closing connection",
 				"gatewayID", gatewayID, "gatewayName", gatewayName,
@@ -252,11 +253,24 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		"ouID", ouID, "connectionID", connection.ConnectionID)
 	c.manager.Unregister(gatewayID, connection.ConnectionID)
 
-	// Update gateway active status to false when connection is disconnected
-	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, false); err != nil {
+	// Mark the gateway inactive, unless it has already reconnected: after a network blip the new
+	// connection (often on another replica) can be marked active before this close is handled.
+	since := activatedAt
+	if since.IsZero() {
+		// Connect could not record the activation (logged above): close unconditionally, as
+		// before, rather than leave a closed gateway marked active.
+		since = time.Now()
+	}
+	marked, err := c.gatewayService.MarkGatewayDisconnected(gatewayID, since)
+	switch {
+	case err != nil:
 		log.Error("Failed to update gateway active status to false",
 			"gatewayID", gatewayID, "gatewayName", gatewayName,
 			"ouID", ouID, "error", err)
+	case !marked:
+		log.Info("Gateway not marked inactive: it reconnected after this connection opened, or it no longer exists",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"ouID", ouID, "connectionID", connection.ConnectionID)
 	}
 }
 

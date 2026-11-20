@@ -102,7 +102,14 @@ type GatewayRepository interface {
 	CountWithFilters(filters GatewayFilterOptions) (int64, error)
 	Delete(gatewayID, ouID string) error
 	UpdateGateway(gateway *models.Gateway) error
-	UpdateActiveStatus(gatewayId string, isActive bool) error
+	// MarkConnected marks the gateway active and returns the activation time it stored in
+	// updated_at. The connection keeps it and hands it to MarkDisconnected when it closes.
+	// Returns gorm.ErrRecordNotFound when the gateway does not exist or is soft-deleted.
+	MarkConnected(gatewayID string) (time.Time, error)
+	// MarkDisconnected marks the gateway inactive, but only if nothing has changed the row since
+	// activatedAt. It reports whether it did: false means the gateway has reconnected since (on
+	// this replica or another), so it stays active, or the gateway no longer exists.
+	MarkDisconnected(gatewayID string, activatedAt time.Time) (bool, error)
 
 	// Cross-organization fleet health. Both deliberately carry no ou_id
 	// predicate — they back the platform-admin failure summary, which reports
@@ -369,21 +376,46 @@ func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 	return nil
 }
 
-// UpdateActiveStatus updates the is_active status of a gateway
-func (r *GatewayRepo) UpdateActiveStatus(gatewayId string, isActive bool) error {
+// MarkConnected marks the gateway active and returns the activation time it wrote to updated_at.
+// The time is truncated to the microsecond Postgres stores, so MarkDisconnected can compare it
+// against the stored value exactly.
+func (r *GatewayRepo) MarkConnected(gatewayID string) (time.Time, error) {
+	activatedAt := time.Now().Truncate(time.Microsecond)
 	res := r.db.Model(&models.Gateway{}).
-		Where("uuid = ?", gatewayId).
+		Where("uuid = ?", gatewayID).
 		Updates(map[string]interface{}{
-			"is_active":  isActive,
+			"is_active":  true,
+			"updated_at": activatedAt,
+		})
+	if res.Error != nil {
+		return time.Time{}, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return time.Time{}, gorm.ErrRecordNotFound
+	}
+	return activatedAt, nil
+}
+
+// MarkDisconnected marks the gateway inactive only while updated_at is still no later than the
+// closing connection's activatedAt. Without the guard, an old connection that finishes closing
+// after the gateway reconnected (to another replica, or to this one) overwrites the reconnect and
+// leaves a connected gateway INACTIVE until its next reconnect, and deployments skip inactive
+// gateways. A reconnect always writes a later updated_at, so the stale close changes nothing.
+//
+// Known trade-off: an edit to the gateway (UpdateGateway) also moves updated_at, so if the gateway
+// is edited while connected, its next real disconnect leaves it marked active until it reconnects.
+// Events for it queue in the event hub meanwhile, as for any disconnected gateway.
+func (r *GatewayRepo) MarkDisconnected(gatewayID string, activatedAt time.Time) (bool, error) {
+	res := r.db.Model(&models.Gateway{}).
+		Where("uuid = ? AND updated_at <= ?", gatewayID, activatedAt).
+		Updates(map[string]interface{}{
+			"is_active":  false,
 			"updated_at": time.Now(),
 		})
 	if res.Error != nil {
-		return res.Error
+		return false, res.Error
 	}
-	if res.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return res.RowsAffected > 0, nil
 }
 
 // CreateToken inserts a new token
@@ -703,7 +735,7 @@ func (r *GatewayRepo) CountIngressCapableInEnvironment(tx *gorm.DB, environmentI
 // long enough to matter, and not so long that it is no longer news.
 //
 // is_active is WebSocket liveness and updated_at is when that liveness last
-// changed (UpdateActiveStatus writes both together), so the pair reads as "has
+// changed (MarkConnected and MarkDisconnected write both together), so the pair reads as "has
 // been down for a while" rather than "is down right now".
 //
 // Two consequences are inherent to the definition and not bugs here: a gateway

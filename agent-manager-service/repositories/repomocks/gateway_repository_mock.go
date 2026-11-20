@@ -6,6 +6,7 @@ package repomocks
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -117,14 +118,17 @@ import (
 //			ListWithFiltersCtxFunc: func(ctx context.Context, filters repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
 //				panic("mock out the ListWithFiltersCtx method")
 //			},
+//			MarkConnectedFunc: func(gatewayID string) (time.Time, error) {
+//				panic("mock out the MarkConnected method")
+//			},
+//			MarkDisconnectedFunc: func(gatewayID string, activatedAt time.Time) (bool, error) {
+//				panic("mock out the MarkDisconnected method")
+//			},
 //			RevokeTokenFunc: func(tokenId string) error {
 //				panic("mock out the RevokeToken method")
 //			},
 //			TransactionFunc: func(fn func(tx *gorm.DB) error) error {
 //				panic("mock out the Transaction method")
-//			},
-//			UpdateActiveStatusFunc: func(gatewayId string, isActive bool) error {
-//				panic("mock out the UpdateActiveStatus method")
 //			},
 //			UpdateGatewayFunc: func(gateway *models.Gateway) error {
 //				panic("mock out the UpdateGateway method")
@@ -241,14 +245,17 @@ type GatewayRepositoryMock struct {
 	// ListWithFiltersCtxFunc mocks the ListWithFiltersCtx method.
 	ListWithFiltersCtxFunc func(ctx context.Context, filters repositories.GatewayFilterOptions) ([]*models.Gateway, error)
 
+	// MarkConnectedFunc mocks the MarkConnected method.
+	MarkConnectedFunc func(gatewayID string) (time.Time, error)
+
+	// MarkDisconnectedFunc mocks the MarkDisconnected method.
+	MarkDisconnectedFunc func(gatewayID string, activatedAt time.Time) (bool, error)
+
 	// RevokeTokenFunc mocks the RevokeToken method.
 	RevokeTokenFunc func(tokenId string) error
 
 	// TransactionFunc mocks the Transaction method.
 	TransactionFunc func(fn func(tx *gorm.DB) error) error
-
-	// UpdateActiveStatusFunc mocks the UpdateActiveStatus method.
-	UpdateActiveStatusFunc func(gatewayId string, isActive bool) error
 
 	// UpdateGatewayFunc mocks the UpdateGateway method.
 	UpdateGatewayFunc func(gateway *models.Gateway) error
@@ -458,6 +465,18 @@ type GatewayRepositoryMock struct {
 			// Filters is the filters argument value.
 			Filters repositories.GatewayFilterOptions
 		}
+		// MarkConnected holds details about calls to the MarkConnected method.
+		MarkConnected []struct {
+			// GatewayID is the gatewayID argument value.
+			GatewayID string
+		}
+		// MarkDisconnected holds details about calls to the MarkDisconnected method.
+		MarkDisconnected []struct {
+			// GatewayID is the gatewayID argument value.
+			GatewayID string
+			// ActivatedAt is the activatedAt argument value.
+			ActivatedAt time.Time
+		}
 		// RevokeToken holds details about calls to the RevokeToken method.
 		RevokeToken []struct {
 			// TokenId is the tokenId argument value.
@@ -467,13 +486,6 @@ type GatewayRepositoryMock struct {
 		Transaction []struct {
 			// Fn is the fn argument value.
 			Fn func(tx *gorm.DB) error
-		}
-		// UpdateActiveStatus holds details about calls to the UpdateActiveStatus method.
-		UpdateActiveStatus []struct {
-			// GatewayId is the gatewayId argument value.
-			GatewayId string
-			// IsActive is the isActive argument value.
-			IsActive bool
 		}
 		// UpdateGateway holds details about calls to the UpdateGateway method.
 		UpdateGateway []struct {
@@ -524,9 +536,10 @@ type GatewayRepositoryMock struct {
 	lockListIdentityProvidersByOrg               sync.RWMutex
 	lockListWithFilters                          sync.RWMutex
 	lockListWithFiltersCtx                       sync.RWMutex
+	lockMarkConnected                            sync.RWMutex
+	lockMarkDisconnected                         sync.RWMutex
 	lockRevokeToken                              sync.RWMutex
 	lockTransaction                              sync.RWMutex
-	lockUpdateActiveStatus                       sync.RWMutex
 	lockUpdateGateway                            sync.RWMutex
 	lockUpsertIdentityProvider                   sync.RWMutex
 	lockWithTx                                   sync.RWMutex
@@ -1651,6 +1664,74 @@ func (mock *GatewayRepositoryMock) ListWithFiltersCtxCalls() []struct {
 	return calls
 }
 
+// MarkConnected calls MarkConnectedFunc.
+func (mock *GatewayRepositoryMock) MarkConnected(gatewayID string) (time.Time, error) {
+	if mock.MarkConnectedFunc == nil {
+		panic("GatewayRepositoryMock.MarkConnectedFunc: method is nil but GatewayRepository.MarkConnected was just called")
+	}
+	callInfo := struct {
+		GatewayID string
+	}{
+		GatewayID: gatewayID,
+	}
+	mock.lockMarkConnected.Lock()
+	mock.calls.MarkConnected = append(mock.calls.MarkConnected, callInfo)
+	mock.lockMarkConnected.Unlock()
+	return mock.MarkConnectedFunc(gatewayID)
+}
+
+// MarkConnectedCalls gets all the calls that were made to MarkConnected.
+// Check the length with:
+//
+//	len(mockedGatewayRepository.MarkConnectedCalls())
+func (mock *GatewayRepositoryMock) MarkConnectedCalls() []struct {
+	GatewayID string
+} {
+	var calls []struct {
+		GatewayID string
+	}
+	mock.lockMarkConnected.RLock()
+	calls = mock.calls.MarkConnected
+	mock.lockMarkConnected.RUnlock()
+	return calls
+}
+
+// MarkDisconnected calls MarkDisconnectedFunc.
+func (mock *GatewayRepositoryMock) MarkDisconnected(gatewayID string, activatedAt time.Time) (bool, error) {
+	if mock.MarkDisconnectedFunc == nil {
+		panic("GatewayRepositoryMock.MarkDisconnectedFunc: method is nil but GatewayRepository.MarkDisconnected was just called")
+	}
+	callInfo := struct {
+		GatewayID   string
+		ActivatedAt time.Time
+	}{
+		GatewayID:   gatewayID,
+		ActivatedAt: activatedAt,
+	}
+	mock.lockMarkDisconnected.Lock()
+	mock.calls.MarkDisconnected = append(mock.calls.MarkDisconnected, callInfo)
+	mock.lockMarkDisconnected.Unlock()
+	return mock.MarkDisconnectedFunc(gatewayID, activatedAt)
+}
+
+// MarkDisconnectedCalls gets all the calls that were made to MarkDisconnected.
+// Check the length with:
+//
+//	len(mockedGatewayRepository.MarkDisconnectedCalls())
+func (mock *GatewayRepositoryMock) MarkDisconnectedCalls() []struct {
+	GatewayID   string
+	ActivatedAt time.Time
+} {
+	var calls []struct {
+		GatewayID   string
+		ActivatedAt time.Time
+	}
+	mock.lockMarkDisconnected.RLock()
+	calls = mock.calls.MarkDisconnected
+	mock.lockMarkDisconnected.RUnlock()
+	return calls
+}
+
 // RevokeToken calls RevokeTokenFunc.
 func (mock *GatewayRepositoryMock) RevokeToken(tokenId string) error {
 	if mock.RevokeTokenFunc == nil {
@@ -1712,42 +1793,6 @@ func (mock *GatewayRepositoryMock) TransactionCalls() []struct {
 	mock.lockTransaction.RLock()
 	calls = mock.calls.Transaction
 	mock.lockTransaction.RUnlock()
-	return calls
-}
-
-// UpdateActiveStatus calls UpdateActiveStatusFunc.
-func (mock *GatewayRepositoryMock) UpdateActiveStatus(gatewayId string, isActive bool) error {
-	if mock.UpdateActiveStatusFunc == nil {
-		panic("GatewayRepositoryMock.UpdateActiveStatusFunc: method is nil but GatewayRepository.UpdateActiveStatus was just called")
-	}
-	callInfo := struct {
-		GatewayId string
-		IsActive  bool
-	}{
-		GatewayId: gatewayId,
-		IsActive:  isActive,
-	}
-	mock.lockUpdateActiveStatus.Lock()
-	mock.calls.UpdateActiveStatus = append(mock.calls.UpdateActiveStatus, callInfo)
-	mock.lockUpdateActiveStatus.Unlock()
-	return mock.UpdateActiveStatusFunc(gatewayId, isActive)
-}
-
-// UpdateActiveStatusCalls gets all the calls that were made to UpdateActiveStatus.
-// Check the length with:
-//
-//	len(mockedGatewayRepository.UpdateActiveStatusCalls())
-func (mock *GatewayRepositoryMock) UpdateActiveStatusCalls() []struct {
-	GatewayId string
-	IsActive  bool
-} {
-	var calls []struct {
-		GatewayId string
-		IsActive  bool
-	}
-	mock.lockUpdateActiveStatus.RLock()
-	calls = mock.calls.UpdateActiveStatus
-	mock.lockUpdateActiveStatus.RUnlock()
 	return calls
 }
 
