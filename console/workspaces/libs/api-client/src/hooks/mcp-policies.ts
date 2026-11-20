@@ -73,18 +73,15 @@ export function useMCPPoliciesCatalog(orgName?: string) {
         { orgName },
         async () => token,
       );
-      const availableVersions = new Set(
-        (available.list ?? []).map(
-          (policy) => `${policy.name}:${normalizePolicyVersionToMinor(policy.version)}`,
-        ),
-      );
-      const gatewayVersionByPolicyMinor = new Map(
-        (available.list ?? []).map((policy) => [
-          `${policy.name}:${normalizePolicyVersionToMinor(policy.version)}`,
-          policy.version,
-        ]),
-      );
-      if (availableVersions.size === 0) {
+      const gatewayVersionByPolicyMajor = new Map<string, string>();
+      for (const policy of available.list ?? []) {
+        const key = `${policy.name}:${normalizePolicyVersionToMajor(policy.version)}`;
+        const existing = gatewayVersionByPolicyMajor.get(key);
+        if (!existing || compareMinorVersions(policy.version, existing) > 0) {
+          gatewayVersionByPolicyMajor.set(key, policy.version);
+        }
+      }
+      if (gatewayVersionByPolicyMajor.size === 0) {
         return { count: 0, data: [] };
       }
 
@@ -100,25 +97,19 @@ export function useMCPPoliciesCatalog(orgName?: string) {
         );
       }
       const catalog = (await res.json()) as MCPPoliciesCatalogResponse;
-      const data = (catalog.data ?? [])
-        .filter((policy) =>
-          availableVersions.has(
-            `${policy.name}:${normalizePolicyVersionToMinor(policy.version)}`,
-          ),
-        )
-        .map((policy) => {
-          const policyHubVersion = policy.version;
-          const gatewayVersion = gatewayVersionByPolicyMinor.get(
-            `${policy.name}:${normalizePolicyVersionToMinor(policy.version)}`,
-          );
-          return {
+      const data = (catalog.data ?? []).flatMap((policy) => {
+        const gatewayVersion = gatewayVersionByPolicyMajor.get(
+          `${policy.name}:${normalizePolicyVersionToMajor(policy.version)}`,
+        );
+        if (!gatewayVersion) return [];
+        return [
+          {
             ...policy,
-            version: normalizePolicyVersionToMajor(
-              gatewayVersion ?? policy.version,
-            ),
-            policyHubVersion,
-          };
-        });
+            version: normalizePolicyVersionToMajor(gatewayVersion),
+            policyHubVersion: normalizePolicyVersionToMinor(gatewayVersion),
+          },
+        ];
+      });
       return {
         ...catalog,
         count: data.length,
@@ -191,6 +182,13 @@ function normalizePolicyVersionToMinor(version: string): string {
     return trimmedVersion;
   }
   return `${major}.${minor}`;
+}
+
+function compareMinorVersions(a: string, b: string): number {
+  const minorOf = (version: string) =>
+    Number(normalizePolicyVersionToMinor(version).split(".")[1] ?? -1);
+  const diff = minorOf(a) - minorOf(b);
+  return Number.isNaN(diff) ? 0 : diff;
 }
 
 function normalizePolicyVersionToMajor(version: string): string {
