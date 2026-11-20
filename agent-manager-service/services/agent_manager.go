@@ -3369,8 +3369,25 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		return auditErr
 	}
 
-	err = s.ocClient.DeleteComponent(ctx, ouID, projectName, agentName)
+	identityCleanupHandled := false
+	if cleanup, ok := s.agentThunderProvisioning.(ProjectAgentIdentityCleanup); ok {
+		identityCleanupHandled, err = cleanup.DeleteAgentWithIdentityCleanup(ctx, ouID, projectName, agentName, func(deleteCtx context.Context) error {
+			deleteErr := s.ocClient.DeleteComponent(deleteCtx, ouID, projectName, agentName)
+			if errors.Is(translateAgentError(deleteErr), utils.ErrAgentNotFound) {
+				return nil
+			}
+			return deleteErr
+		})
+	}
+	if !identityCleanupHandled && err == nil {
+		err = s.ocClient.DeleteComponent(ctx, ouID, projectName, agentName)
+	}
 	deleteAttempt.Complete(ctx, err)
+	if identityCleanupHandled && err != nil {
+		s.logger.Error("CP-managed agent deletion incomplete; retry deletion", "ouID", ouID,
+			"projectName", projectName, "agentName", agentName, "error", err)
+		return fmt.Errorf("%w: AgentID cleanup or agent deletion did not complete; retry deletion", utils.ErrServiceUnavailable)
+	}
 	if err != nil {
 		translatedErr := translateAgentError(err)
 		if errors.Is(translatedErr, utils.ErrAgentNotFound) {
@@ -3391,7 +3408,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 				s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
 			}
 			artifactErr := s.deleteAgentAPIArtifact(ctx, ouID, projectName, agentName, isA2AAgent)
-			if s.agentThunderProvisioning != nil {
+			if s.agentThunderProvisioning != nil && !identityCleanupHandled {
 				go s.agentThunderProvisioning.DeleteAllBindings(context.WithoutCancel(ctx), ouID, projectName, agentName)
 			}
 			s.cleanupAgentMonitors(ctx, ouID, projectName, agentName)
@@ -3409,7 +3426,7 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		defer cancel()
 		s.deleteAgentLLMConfigurations(cleanupCtx, ouID, projectName, agentName, isExternalAgent)
 	}()
-	if s.agentThunderProvisioning != nil {
+	if s.agentThunderProvisioning != nil && !identityCleanupHandled {
 		go s.agentThunderProvisioning.DeleteAllBindings(context.WithoutCancel(ctx), ouID, projectName, agentName)
 	}
 	s.cleanupGitHubAppSource(ctx, ouID, projectName, agentName)

@@ -530,6 +530,11 @@ func NewAgentThunderProvisioningService(
 	return svc
 }
 
+// lockAgentIdentity reserves the empty environment key for CP lifecycle operations across replicas.
+func (s *agentThunderProvisioningService) lockAgentIdentity(ctx context.Context, ouID, projectName, agentName string) (func(), error) {
+	return s.lockBinding(ctx, ouID, projectName, agentName, "")
+}
+
 // lockBinding serializes AttemptProvision, RegenerateSecret, RevokeSecret and
 // DeleteAllBindings per binding across every replica, so two of them can't
 // interleave their Thunder calls and secret store writes and leave the stored
@@ -675,6 +680,14 @@ func (s *agentThunderProvisioningService) writeAheadBindings(
 	ctx context.Context, ouID, projectName, agentName string, ownership models.AgentProvisioningType,
 	envNames []string, requestedBy string,
 ) []models.AgentThunderClient {
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		release, err := s.lockAgentIdentity(ctx, ouID, projectName, agentName)
+		if err != nil {
+			s.logger.Error("Failed to lock project identity before writing bindings", "ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
+			return nil
+		}
+		defer release()
+	}
 	bindings := make([]models.AgentThunderClient, 0, len(envNames))
 	for _, env := range envNames {
 		b := models.AgentThunderClient{
@@ -847,6 +860,14 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	// creating request's context while every retry runs from the reconciler's, which has no
 	// organization. Name the binding's organization here, once, for every caller and every call below.
 	ctx = agentThunderBindingOrgContext(ctx, binding)
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		releaseAgent, err := s.lockAgentIdentity(ctx, binding.OUID, binding.ProjectName, binding.AgentName)
+		if err != nil {
+			s.logger.Warn("Agent identity attempt cancelled while waiting for project identity lock", "bindingID", binding.ID, "error", err)
+			return
+		}
+		defer releaseAgent()
+	}
 
 	// Held for the entire attempt so this can't interleave its Thunder
 	// RegenerateAgentSecret/OpenBao Store calls with a concurrent
@@ -1210,7 +1231,7 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 				OUID: binding.OUID, ProjectName: binding.ProjectName, AgentName: binding.AgentName,
 				ProvisioningType: binding.ProvisioningType,
 			}
-			if targets, topologyErr := s.ensureProjectPromotionBindings(ctx, ref, binding.RequestedBy); topologyErr != nil {
+			if targets, topologyErr := s.ensureProjectPromotionBindingsLocked(ctx, ref, binding.RequestedBy); topologyErr != nil {
 				s.logger.Warn("Failed to create downstream project AgentID promotion bindings",
 					"ouID", binding.OUID, "projectName", binding.ProjectName, "agentName", binding.AgentName, "error", topologyErr)
 			} else if len(targets) > 0 {
@@ -1643,6 +1664,13 @@ func (s *agentThunderProvisioningService) GetBindingState(ctx context.Context, o
 }
 
 func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context, ouID, projectName, agentName string) {
+	if s.identityManagementMode == thundersvc.IdentityManagementCPManaged {
+		if err := s.deleteCPIdentityBindings(ctx, ouID, projectName, agentName, nil); err != nil {
+			s.logger.Error("Failed to delete CP-managed AgentIDs; identity bindings retained for retry",
+				"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
+		}
+		return
+	}
 	snapshot, err := s.repo.FindByAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent thunder bindings for deletion", "ouID", ouID, "agentName", agentName, "error", err)
@@ -1739,21 +1767,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	// otherwise a binding with a fast cleanup would still sit blocked behind
 	// however long its siblings' Thunder/OpenBao calls take, even though
 	// nothing about it depends on them.
-	// CP_MANAGED removes the source environment's AgentID first (it leaves the
-	// control plane configuration) and only then the promoted ones. A source
-	// deletion failure skips the promoted deletions: removing them while the
-	// control plane still holds the AgentID is not valid. Secret cleanup below
-	// still runs for every binding either way.
-	cpManaged := s.identityManagementMode == thundersvc.IdentityManagementCPManaged
-	order := deletionOrder(bindings, cpManaged)
-	sourceDeleteFailed := false
-	warnedNoDeletionProvider := false
-	// leftovers collects the AgentIDs that stay in the identity control plane
-	// because the source deletion failed: the source itself and every promoted
-	// one that was skipped as a result.
-	var leftovers []string
-	for _, i := range order {
-		b := bindings[i]
+	for i, b := range bindings {
 		func() {
 			defer releases[i]()
 
@@ -1779,46 +1793,6 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 			if b.ThunderAgentID == "" {
 				return // never made it to Thunder — nothing to delete there
 			}
-			if cpManaged {
-				// Never the legacy per-environment client: the control plane owns this AgentID.
-				isSource := b.PromotionSource == ""
-				if !isSource && sourceDeleteFailed {
-					s.logger.Warn("Skipping promoted AgentID deletion: the source environment's AgentID was not deleted",
-						"ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName)
-					leftovers = append(leftovers, b.EnvironmentName+"="+b.ThunderAgentID)
-					return
-				}
-				if s.projectIdentityDeletionProvider == nil {
-					// SetProjectAgentIdentityProvider requires a deletion provider in
-					// CP_MANAGED mode, so this is only a guard against a half wired service.
-					if !warnedNoDeletionProvider {
-						warnedNoDeletionProvider = true
-						s.logger.Error("AgentIDs left in the identity control plane: no project AgentID deletion provider is configured",
-							"ouID", ouID, "projectName", projectName, "agentName", agentName)
-					}
-					return
-				}
-				// Best effort: deleting a project's agents often follows the project's own removal from
-				// OpenChoreo, and a deletion must not wait for an ID that can no longer be read.
-				deleteProjectID, idErr := s.projectIdentityID(ctx, ouID, projectName)
-				if idErr != nil {
-					deleteProjectID = projectName
-				}
-				if err := s.projectIdentityDeletionProvider.DeleteAgentIdentity(ctx, ProjectAgentIdentityDeleteRequest{
-					OrganizationID: ouID, ProjectID: deleteProjectID, ProjectName: projectName,
-					Environment: b.EnvironmentName, AgentName: agentName,
-					AgentID: b.ThunderAgentID, ClientID: b.ThunderClientID, Source: isSource,
-				}); err != nil {
-					if isSource {
-						sourceDeleteFailed = true
-					}
-					leftovers = append(leftovers, b.EnvironmentName+"="+b.ThunderAgentID)
-					s.logger.Warn("Failed to delete project AgentID from the identity control plane",
-						"ouID", ouID, "projectName", projectName, "agentName", agentName, "env", b.EnvironmentName,
-						"source", isSource, "error", err)
-				}
-				return
-			}
 			thunderClient, err := ResolveEnvThunderClient(ctx, s.envResolver, ouID, b.EnvironmentName)
 			if err != nil {
 				s.logger.Warn("Env-thunder resolver error during agent binding cleanup", "ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", err)
@@ -1829,37 +1803,6 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 			}
 		}()
 	}
-	if len(leftovers) > 0 {
-		// The binding rows are already deleted, so nothing else records these.
-		// Environment=AgentID pairs only; never a secret.
-		s.logger.Error("AgentIDs remain in the identity control plane and need manual cleanup: one or more AgentIDs could not be deleted",
-			"ouID", ouID, "projectName", projectName, "agentName", agentName, "leftoverAgentIDs", leftovers)
-	}
-}
-
-// deletionOrder returns the order in which DeleteAllBindings cleans up
-// bindings: as given, except in CP_MANAGED mode where the source binding (empty
-// PromotionSource) comes first so its AgentID leaves the control plane before
-// any promoted environment's AgentID is removed.
-func deletionOrder(bindings []models.AgentThunderClient, sourceFirst bool) []int {
-	order := make([]int, 0, len(bindings))
-	if sourceFirst {
-		for i, b := range bindings {
-			if b.PromotionSource == "" {
-				order = append(order, i)
-			}
-		}
-		for i, b := range bindings {
-			if b.PromotionSource != "" {
-				order = append(order, i)
-			}
-		}
-		return order
-	}
-	for i := range bindings {
-		order = append(order, i)
-	}
-	return order
 }
 
 // systemActorAgentThunderReconciler identifies the AgentID provisioning
