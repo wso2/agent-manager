@@ -133,12 +133,6 @@ type Config struct {
 	// TLS Configurations
 	TLSConfig TLSConfig
 
-	// PerAgentResourceLimits defines the operator-configured maximum values for agent resource configs
-	PerAgentResourceLimits ResourceLimitsConfig
-
-	// FileMountLimits bounds the inline content of agent file mounts
-	FileMountLimits FileMountLimitsConfig
-
 	// Audit configures the audit trail.
 	Audit AuditConfig
 
@@ -471,29 +465,6 @@ func (c ThunderConfig) ResolvedSystemResourceIdentifier() string {
 		return ""
 	}
 	return strings.TrimRight(c.BaseURL, "/") + "/mcp"
-}
-
-// FileMountLimitsConfig holds the operator-configured size caps for agent file mounts.
-// Sizes are in bytes of inline file content; secret-reference mounts carry no
-// inline content and do not count.
-type FileMountLimitsConfig struct {
-	// MaxFileBytes is the largest inline content a single file mount may carry.
-	MaxFileBytes int
-	// MaxTotalBytes caps the combined inline content of all file mounts in one
-	// request. The mounts render into a single ConfigMap/Secret, which Kubernetes
-	// limits to 1 MiB including metadata, so this cannot usefully exceed that.
-	MaxTotalBytes int
-}
-
-// ResourceLimitsConfig holds the operator-configured upper bounds for agent resource configs.
-// All user-submitted values are validated against these limits and rejected with 400 if exceeded.
-type ResourceLimitsConfig struct {
-	// MaxReplicas is the maximum replica count (static and autoscaling maxReplicas)
-	MaxReplicas int
-	// MaxCPU is the maximum CPU value (Kubernetes quantity string) applied to both requests and limits
-	MaxCPU string
-	// MaxMemory is the maximum memory value (Kubernetes quantity string) applied to both requests and limits
-	MaxMemory string
 }
 
 // DefaultOrgConfig names the organization created at startup, with its default environment. An empty

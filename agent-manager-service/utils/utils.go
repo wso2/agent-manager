@@ -22,7 +22,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
@@ -152,117 +151,6 @@ func ValidateResourceName(name string, resourceType string) error {
 	if !regexp.MustCompile(`[a-z0-9]$`).MatchString(name) {
 		return fmt.Errorf("%s name must end with an alphanumeric character", rt)
 	}
-	return nil
-}
-
-// fileMountKeyRe matches Kubernetes' allowed character set for ConfigMap/Secret data keys.
-var fileMountKeyRe = regexp.MustCompile(`^[-._a-zA-Z0-9]+$`)
-
-// fileMountPathRe restricts mountPath to a conservative POSIX subset.
-var fileMountPathRe = regexp.MustCompile(`^/[A-Za-z0-9._\-/]*$`)
-
-// ValidateFileMounts validates a file-mounts payload. Returns nil for an empty
-// slice — callers decide whether files are optional.
-//
-// Checks per entry: non-empty + well-formed key, absolute mountPath with no
-// traversal segments, non-empty value (when not a secret reference), per-file
-// size cap. Also enforces uniqueness on keys/paths and a total payload cap so
-// the rendered ConfigMap/Secret stays within Kubernetes' 1 MiB object limit.
-func ValidateFileMounts(files []spec.FileMount) error {
-	if len(files) == 0 {
-		return nil
-	}
-	limits := config.GetConfig().FileMountLimits
-	seenKeys := make(map[string]bool, len(files))
-	seenPaths := make(map[string]bool, len(files))
-	total := 0
-	for i, f := range files {
-		// Key
-		if f.Key == "" {
-			return fmt.Errorf("file mount at index %d has an empty key", i)
-		}
-		if len(f.Key) > MaxFileMountKeyLength {
-			return fmt.Errorf("file mount key %q is longer than %d characters", f.Key, MaxFileMountKeyLength)
-		}
-		if !fileMountKeyRe.MatchString(f.Key) {
-			return fmt.Errorf("file mount key %q has invalid characters; allowed: letters, digits, '.', '_', '-'", f.Key)
-		}
-		if seenKeys[f.Key] {
-			return fmt.Errorf("duplicate file mount key %q", f.Key)
-		}
-		seenKeys[f.Key] = true
-
-		// Mount path
-		if f.MountPath == "" {
-			return fmt.Errorf("file mount %q has an empty mountPath", f.Key)
-		}
-		if len(f.MountPath) > MaxMountPathLength {
-			return fmt.Errorf("file mount %q mountPath is longer than %d characters", f.Key, MaxMountPathLength)
-		}
-		if !strings.HasPrefix(f.MountPath, "/") {
-			return fmt.Errorf("file mount %q mountPath %q must be an absolute path", f.Key, f.MountPath)
-		}
-		if strings.Contains(f.MountPath, "..") {
-			return fmt.Errorf("file mount %q mountPath %q must not contain path traversal (..)", f.Key, f.MountPath)
-		}
-		if !fileMountPathRe.MatchString(f.MountPath) {
-			return fmt.Errorf("file mount %q mountPath %q contains invalid characters", f.Key, f.MountPath)
-		}
-		if seenPaths[f.MountPath] {
-			return fmt.Errorf("duplicate file mount mountPath %q", f.MountPath)
-		}
-		seenPaths[f.MountPath] = true
-
-		// Size — only count direct values. Secret-ref mounts carry no inline
-		// content here, so they don't consume the budget.
-		valueLen := 0
-		if f.Value != nil {
-			valueLen = len(*f.Value)
-		}
-		if valueLen > limits.MaxFileBytes {
-			return fmt.Errorf("file mount %q value is %d bytes; max %d", f.Key, valueLen, limits.MaxFileBytes)
-		}
-		total += valueLen
-	}
-	if total > limits.MaxTotalBytes {
-		return fmt.Errorf("file mounts total size %d bytes exceeds limit %d", total, limits.MaxTotalBytes)
-	}
-	return nil
-}
-
-// validateEnvironmentVariables validates environment variables if present in the payload
-// Environment variables are optional, but if provided, they must follow naming conventions
-func validateEnvironmentVariables(envVars []spec.EnvironmentVariable) error {
-	if len(envVars) == 0 {
-		// Environment variables are optional
-		return nil
-	}
-
-	// Pattern is K8s Secret key compliant (subset of allowed chars) and POSIX env var compliant.
-	// Must start with letter or underscore, followed by letters, digits, or underscores.
-	validKeyPattern := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
-	seenKeys := make(map[string]bool)
-
-	for i, envVar := range envVars {
-		// Validate key is not empty
-		if envVar.Key == "" {
-			return fmt.Errorf("environment variable at index %d has an empty key", i)
-		}
-
-		// Validate key follows naming conventions
-		if !validKeyPattern.MatchString(envVar.Key) {
-			return fmt.Errorf("environment variable key '%s' is invalid. Must start with a letter or underscore and contain only letters, digits, or underscores", envVar.Key)
-		}
-
-		// Check for duplicate keys
-		if seenKeys[envVar.Key] {
-			return fmt.Errorf("duplicate environment variable key '%s'", envVar.Key)
-		}
-		seenKeys[envVar.Key] = true
-
-		// Value can be any string, including empty string, so no validation needed for value
-	}
-
 	return nil
 }
 
