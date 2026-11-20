@@ -114,7 +114,6 @@ func writeSubscriptionSuspended(w http.ResponseWriter) {
 // handleCommonErrors writes the HTTP error response for the sentinel errors the agent services
 // return, and a 500 with fallbackMsg for anything else.
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
-	var outside *services.AgentIdentityOutsidePipelineError
 	switch {
 	case errors.Is(err, utils.ErrWorkloadSecretSyncUnconfirmed):
 		utils.WriteErrorResponseWithReason(w, http.StatusServiceUnavailable,
@@ -217,9 +216,6 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrResourceBeingDeleted):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"A resource with this name is still being deleted", err.Error(), utils.ErrCodeConflict)
-	case errors.As(err, &outside):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Agent identity cleanup required", err.Error(), utils.ErrCodeAgentIdentityOutsidePipeline)
 	// Generic conflict catch-all: any unclassified conflict (e.g. a raw "already exists"
 	// from OpenChoreo) is a 409, never a 500. Keep this after the specific conflict cases
 	// above so they win; err.Error() carries the detail in the response reason.
@@ -579,7 +575,7 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	err := c.agentService.DeleteAgent(ctx, ouID, projName, agentName)
+	warnings, err := c.agentService.DeleteAgent(ctx, ouID, projName, agentName)
 	if err != nil {
 		log.Error("DeleteAgent: failed to delete agent", "error", err)
 		handleCommonErrors(w, err, "Failed to delete agent")
@@ -587,6 +583,16 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if c.eventsCleaner != nil {
 		c.eventsCleaner.RemoveForAgent(ctx, ouID, projName, agentName)
+	}
+	if len(warnings) > 0 {
+		response := spec.AgentDeleteResponse{Warnings: make([]spec.AgentDeleteWarning, 0, len(warnings))}
+		for _, warning := range warnings {
+			response.Warnings = append(response.Warnings, spec.AgentDeleteWarning{
+				Code: warning.Code, Message: warning.Message, Environments: warning.Environments,
+			})
+		}
+		utils.WriteSuccessResponse(w, http.StatusOK, response)
+		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
 }

@@ -32,6 +32,7 @@ import type {
   AgentSummaryListResponse,
   CreateAgentPathParams,
   CreateAgentRequest,
+  AgentDeleteResponse,
   DeleteAgentPathParams,
   GetAgentPathParams,
   ListAgentsPathParams,
@@ -192,7 +193,7 @@ export function useUpdateAgentBuildParameters() {
 export function useDeleteAgent() {
     const { getToken } = useAuthHooks();
     const queryClient = useQueryClient();
-    return useApiMutation<void, unknown, DeleteAgentPathParams>({
+    return useApiMutation<AgentDeleteResponse | undefined, unknown, DeleteAgentPathParams>({
       action: { verb: 'delete', target: 'agent' },
         mutationFn: (params) => deleteAgent(params, getToken),
         onSuccess: () => {

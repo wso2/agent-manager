@@ -16,25 +16,33 @@
  * under the License.
  */
 
-import { Alert } from "@wso2/oxygen-ui";
+import { Alert, Stack } from "@wso2/oxygen-ui";
+import type { AgentDeleteWarning } from "@agent-management-platform/types";
 
-export function AgentDeletionWarning({ error }: { error: unknown }) {
-  if (!error || typeof error !== "object" || !("body" in error)) return null;
-  const body = error.body;
-  if (
-    !body ||
-    typeof body !== "object" ||
-    !("code" in body) ||
-    body.code !== "AGENT_IDENTITY_OUTSIDE_PIPELINE"
-  )
-    return null;
-  const reason =
-    "reason" in body && typeof body.reason === "string"
-      ? body.reason
-      : "Remove this agent's identity from environments outside the deployment pipeline in your identity provider console, then retry.";
+/**
+ * Follow-up the user must do after an agent was deleted, for example removing an identity left in
+ * an environment outside the project pipeline. Each message is shown in full.
+ */
+export function AgentDeletionWarning({
+  warnings,
+  onClose,
+}: {
+  warnings?: AgentDeleteWarning[];
+  onClose?: () => void;
+}) {
+  if (!warnings || warnings.length === 0) return null;
   return (
-    <Alert severity="warning" variant="outlined">
-      {reason}
-    </Alert>
+    <Stack spacing={1}>
+      {warnings.map((warning) => (
+        <Alert
+          key={`${warning.code}:${warning.environments.join(",")}`}
+          severity="warning"
+          variant="outlined"
+          onClose={onClose}
+        >
+          {warning.message}
+        </Alert>
+      ))}
+    </Stack>
   );
 }

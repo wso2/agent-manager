@@ -2027,6 +2027,23 @@ type AgentCreatedBy struct {
 	Id string `json:"id"`
 }
 
+// AgentDeleteResponse defines model for AgentDeleteResponse.
+type AgentDeleteResponse struct {
+	Warnings []AgentDeleteWarning `json:"warnings"`
+}
+
+// AgentDeleteWarning defines model for AgentDeleteWarning.
+type AgentDeleteWarning struct {
+	// Code Machine-readable warning code, for example AGENT_IDENTITY_OUTSIDE_PIPELINE
+	Code string `json:"code"`
+
+	// Environments Environments the warning concerns
+	Environments []string `json:"environments"`
+
+	// Message What the user must do next
+	Message string `json:"message"`
+}
+
 // AgentIdentityActionRequest Request body for regenerating an AgentID secret
 type AgentIdentityActionRequest struct {
 	// Environment Environment name to regenerate the AgentID secret in

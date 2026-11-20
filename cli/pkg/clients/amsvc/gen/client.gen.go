@@ -27505,6 +27505,7 @@ func (r CreateAgentResp) StatusCode() int {
 type DeleteAgentResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *AgentDeleteResponse
 	JSON404      *ErrorResponse
 	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
@@ -41217,6 +41218,13 @@ func ParseDeleteAgentResp(rsp *http.Response) (*DeleteAgentResp, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentDeleteResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

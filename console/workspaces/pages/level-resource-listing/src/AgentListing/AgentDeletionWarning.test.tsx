@@ -16,33 +16,43 @@
  * under the License.
  */
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { AgentDeletionWarning } from "./AgentDeletionWarning";
 
+const outsidePipeline = {
+  code: "AGENT_IDENTITY_OUTSIDE_PIPELINE",
+  message:
+    "The agent was deleted, but its identity may still exist in environments outside the current deployment pipeline: staging-old, preview. Remove it in those environments through your identity provider console.",
+  environments: ["preview", "staging-old"],
+};
+
 describe("AgentDeletionWarning", () => {
-  it("shows all environments and manual cleanup instructions without truncating", () => {
-    const reason =
-      "This agent still has an identity in environments outside the current deployment pipeline: staging-old, preview. Remove the identity through your identity provider console, then retry deleting the agent.";
-    render(
-      <AgentDeletionWarning
-        error={{ body: { code: "AGENT_IDENTITY_OUTSIDE_PIPELINE", reason } }}
-      />,
-    );
-    expect(screen.getByRole("alert")).toHaveTextContent(reason);
+  it("shows the whole cleanup message without truncating", () => {
+    render(<AgentDeletionWarning warnings={[outsidePipeline]} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(outsidePipeline.message);
   });
-  it("does not change warnings for ordinary or legacy deletion errors", () => {
+
+  it("shows one alert for each warning", () => {
     render(
       <AgentDeletionWarning
-        error={{
-          body: { code: "SERVICE_UNAVAILABLE", reason: "Retry deletion" },
-        }}
+        warnings={[outsidePipeline, { ...outsidePipeline, code: "OTHER", message: "Another step." }]}
       />,
     );
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+  });
+
+  it("can be dismissed", () => {
+    const onClose = vi.fn();
+    render(<AgentDeletionWarning warnings={[outsidePipeline]} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: /close/i }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders nothing when the delete had no warnings", () => {
+    const { rerender } = render(<AgentDeletionWarning warnings={[]} />);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-  it("renders nothing before deletion fails", () => {
-    render(<AgentDeletionWarning error={null} />);
+    rerender(<AgentDeletionWarning />);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
