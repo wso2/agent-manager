@@ -26,6 +26,7 @@ export * from './agent-card';
 export * from './a2a-proxy';
 export * from './catalog';
 export * from './agents';
+export * from './agent-registry';
 export * from './builds';
 export * from './deployments';
 export * from './evaluators';

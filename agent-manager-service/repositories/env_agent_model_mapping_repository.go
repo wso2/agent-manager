@@ -18,6 +18,7 @@ package repositories
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -31,6 +32,16 @@ type AgentConsumer struct {
 	ProxyName   string
 	ProjectName string
 	AgentID     string
+}
+
+// AgentEnvironmentResource is one LLM provider or MCP proxy an agent is configured with in
+// one environment. Handle and Name are the resource's artifact handle and name.
+type AgentEnvironmentResource struct {
+	ProjectName     string
+	AgentID         string
+	EnvironmentUUID uuid.UUID
+	Handle          string
+	Name            string
 }
 
 // EnvAgentModelMappingRepository defines data access for environment mappings
@@ -48,6 +59,10 @@ type EnvAgentModelMappingRepository interface {
 
 	// ListAgentConsumersByProxyUUIDs returns distinct agent consumers for the given proxy UUIDs.
 	ListAgentConsumersByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]AgentConsumer, error)
+
+	// ListAgentLLMProvidersByOu returns every LLM provider each agent in the organization is
+	// configured with, per environment. The provider is the one behind the agent's LLM proxy.
+	ListAgentLLMProvidersByOu(ctx context.Context, ouID string) ([]AgentEnvironmentResource, error)
 
 	// Update updates an existing mapping (use within transaction)
 	Update(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error
@@ -108,6 +123,23 @@ func (r *envAgentModelMappingRepository) DeleteByConfig(ctx context.Context, tx 
 	return tx.WithContext(ctx).
 		Where("config_uuid = ?", configUUID).
 		Delete(&models.EnvAgentModelMapping{}).Error
+}
+
+func (r *envAgentModelMappingRepository) ListAgentLLMProvidersByOu(ctx context.Context, ouID string) ([]AgentEnvironmentResource, error) {
+	var results []AgentEnvironmentResource
+	err := r.db.WithContext(ctx).
+		Table("env_agent_model_mapping eam").
+		Select("DISTINCT ac.project_name, ac.agent_id, eam.environment_uuid, a.handle, a.name").
+		Joins("JOIN agent_configurations ac ON ac.uuid = eam.config_uuid").
+		Joins("JOIN llm_proxies lp ON lp.uuid = eam.llm_proxy_uuid").
+		Joins("JOIN artifacts a ON a.uuid = lp.provider_uuid").
+		Where("ac.ou_id = ?", ouID).
+		Order("ac.project_name, ac.agent_id, a.name").
+		Scan(&results).Error
+	if err != nil {
+		return nil, fmt.Errorf("list agent LLM providers: %w", err)
+	}
+	return results, nil
 }
 
 func (r *envAgentModelMappingRepository) ListAgentConsumersByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]AgentConsumer, error) {

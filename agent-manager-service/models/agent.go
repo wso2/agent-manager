@@ -49,6 +49,8 @@ type AgentResponse struct {
 	// Nil when unknown — pre-existing agents, deployments without AgentID
 	// provisioning wired up, or when the id couldn't be resolved to a user.
 	CreatedBy *AgentCreatedBy `json:"createdBy,omitempty"`
+	// Registry is set only for the registry view (GET agent with view=registry).
+	Registry *AgentRegistryRecord `json:"registry,omitempty"`
 }
 
 // AgentSummary is the lightweight, org-wide agent listing shape: just enough
@@ -58,6 +60,103 @@ type AgentSummary struct {
 	DisplayName        string `json:"displayName"`
 	ProjectName        string `json:"projectName"`
 	ProjectDisplayName string `json:"projectDisplayName"`
+	// Registry is set only for the registry view (GET /orgs/{org}/agents?view=registry).
+	Registry *AgentRegistryRecord `json:"registry,omitempty"`
+}
+
+// Agent hosting in the registry: built and deployed by the platform, or registered from outside.
+const (
+	AgentRegistryHostingPlatform = "platform"
+	AgentRegistryHostingExternal = "external"
+)
+
+// AgentRegistryRecord is an agent's org-level registry record, read from existing data:
+// its component, its AgentID record and its configurations.
+type AgentRegistryRecord struct {
+	Description string
+	Hosting     string
+	// Interface is the agent sub-type (chat-api, custom-api, a2a-agent); empty when not recorded.
+	Interface   string
+	KindName    string
+	KindVersion string
+	// CreatedBy is nil when the creator could not be resolved.
+	CreatedBy    *AgentCreatedBy
+	Labels       map[string]string
+	CreatedAt    time.Time
+	Environments []AgentRegistryEnvironment
+}
+
+// AgentRegistryEnvironment is the agent in one environment of its project pipeline.
+type AgentRegistryEnvironment struct {
+	Name             string
+	DisplayName      string
+	IsProduction     bool
+	DeploymentStatus string
+	// LastDeployedAt is nil when the agent was never deployed here.
+	LastDeployedAt *time.Time
+	LLMProviders   []AgentRegistryResourceRef
+	MCPServers     []AgentRegistryResourceRef
+	// Governance is set only on the single-agent view.
+	Governance *AgentRegistryGovernance
+}
+
+// AgentRegistryGovernance is the agent's governance in one environment, read from existing config.
+type AgentRegistryGovernance struct {
+	// AgentIDStatus is empty when no AgentID was requested here.
+	AgentIDStatus   string
+	Guardrails      []string
+	Monitors        []AgentRegistryMonitor
+	InboundSecurity AgentRegistryInboundSecurity
+	// A2ASkills is nil when no A2A card is stored here.
+	A2ASkills []AgentRegistryA2ASkill
+}
+
+// AgentRegistryMonitor is an evaluation monitor on the agent in one environment.
+type AgentRegistryMonitor struct {
+	Name        string
+	DisplayName string
+	Status      string
+}
+
+// AgentRegistryInboundSecurity is the security on the agent's endpoint in one environment.
+type AgentRegistryInboundSecurity struct {
+	APIKey bool
+	OAuth  bool
+}
+
+// AgentRegistryA2ASkill is one skill on the agent's A2A card.
+type AgentRegistryA2ASkill struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
+// AgentEnvironmentResources is what an agent is configured with in one environment: its LLM
+// providers and their guardrails, and its MCP servers and their tools.
+type AgentEnvironmentResources struct {
+	LLMProviders []AgentRegistryResourceRef
+	Guardrails   []string
+	MCPServers   []AgentRegistryResourceRef
+}
+
+// AgentDeploymentState is one agent's deployment in one environment, read from its
+// release binding: the status and when it was last deployed.
+type AgentDeploymentState struct {
+	ProjectName     string
+	AgentName       string
+	EnvironmentName string
+	Status          string
+	// LastDeployedAt is nil when the binding records no deploy and no creation time.
+	LastDeployedAt *time.Time
+}
+
+// AgentRegistryResourceRef is an LLM provider or MCP server the agent can reach.
+type AgentRegistryResourceRef struct {
+	ID          string
+	DisplayName string
+	// Tools is set for MCP servers on the single-agent view only: every tool discovered on the server.
+	Tools []string
 }
 
 // AgentCreatedBy identifies the user who created an agent, resolved

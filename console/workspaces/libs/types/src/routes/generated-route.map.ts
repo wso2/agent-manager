@@ -277,6 +277,17 @@ export const generatedRouteMap =  {
             }
           }
         },
+        "agentRegistry": {
+          "path": "/organizations/:orgId/agent-registry",
+          "wildPath": "/organizations/:orgId/agent-registry/*",
+          "children": {
+            "agent": {
+              "path": "/organizations/:orgId/agent-registry/projects/:registryProjectId/agents/:registryAgentId",
+              "wildPath": "/organizations/:orgId/agent-registry/projects/:registryProjectId/agents/:registryAgentId/*",
+              "children": {}
+            }
+          }
+        },
         "newProject": {
           "path": "/organizations/:orgId/newProject",
           "wildPath": "/organizations/:orgId/newProject/*",

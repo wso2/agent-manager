@@ -162,6 +162,11 @@ type AgentThunderClientRepository interface {
 	// binding created directly in an environment (promotion_source is empty),
 	// ordered by (org, project, agent). after is nil for the first page.
 	ListHomeAgents(ctx context.Context, after *AgentRef, limit int) ([]AgentRef, error)
+
+	// ListCreatorsByOu returns one row per agent in the organization that has a binding
+	// with a requester: its project, name and RequestedBy. The requester is copied to
+	// every environment's binding, so any one binding of the agent gives it.
+	ListCreatorsByOu(ctx context.Context, ouID string) ([]AgentRef, error)
 }
 
 // AgentRef identifies one agent. It doubles as the keyset cursor of ListHomeAgents.
@@ -482,6 +487,23 @@ func (r *AgentThunderClientRepo) SetLastError(ctx context.Context, id uuid.UUID,
 		return fmt.Errorf("set agent thunder client note: %w", err)
 	}
 	return nil
+}
+
+func (r *AgentThunderClientRepo) ListCreatorsByOu(ctx context.Context, ouID string) ([]AgentRef, error) {
+	var rows []models.AgentThunderClient
+	err := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
+		Select("DISTINCT ON (project_name, agent_name) project_name, agent_name, requested_by").
+		Where("ou_id = ? AND requested_by <> ''", ouID).
+		Order("project_name, agent_name").
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("list agent creators: %w", err)
+	}
+	refs := make([]AgentRef, 0, len(rows))
+	for _, row := range rows {
+		refs = append(refs, AgentRef{OUID: ouID, ProjectName: row.ProjectName, AgentName: row.AgentName, RequestedBy: row.RequestedBy})
+	}
+	return refs, nil
 }
 
 func (r *AgentThunderClientRepo) ListHomeAgents(ctx context.Context, after *AgentRef, limit int) ([]AgentRef, error) {

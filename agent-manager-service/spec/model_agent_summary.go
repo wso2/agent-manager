@@ -19,10 +19,11 @@ var _ MappedNullable = &AgentSummary{}
 
 // AgentSummary struct for AgentSummary
 type AgentSummary struct {
-	Name               string `json:"name"`
-	DisplayName        string `json:"displayName"`
-	ProjectName        string `json:"projectName"`
-	ProjectDisplayName string `json:"projectDisplayName"`
+	Name               string               `json:"name"`
+	DisplayName        string               `json:"displayName"`
+	ProjectName        string               `json:"projectName"`
+	ProjectDisplayName string               `json:"projectDisplayName"`
+	Registry           *AgentRegistryRecord `json:"registry,omitempty"`
 }
 
 // NewAgentSummary instantiates a new AgentSummary object
@@ -142,6 +143,38 @@ func (o *AgentSummary) SetProjectDisplayName(v string) {
 	o.ProjectDisplayName = v
 }
 
+// GetRegistry returns the Registry field value if set, zero value otherwise.
+func (o *AgentSummary) GetRegistry() AgentRegistryRecord {
+	if o == nil || IsNil(o.Registry) {
+		var ret AgentRegistryRecord
+		return ret
+	}
+	return *o.Registry
+}
+
+// GetRegistryOk returns a tuple with the Registry field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentSummary) GetRegistryOk() (*AgentRegistryRecord, bool) {
+	if o == nil || IsNil(o.Registry) {
+		return nil, false
+	}
+	return o.Registry, true
+}
+
+// HasRegistry returns a boolean if a field has been set.
+func (o *AgentSummary) HasRegistry() bool {
+	if o != nil && !IsNil(o.Registry) {
+		return true
+	}
+
+	return false
+}
+
+// SetRegistry gets a reference to the given AgentRegistryRecord and assigns it to the Registry field.
+func (o *AgentSummary) SetRegistry(v AgentRegistryRecord) {
+	o.Registry = &v
+}
+
 func (o AgentSummary) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -156,6 +189,9 @@ func (o AgentSummary) ToMap() (map[string]interface{}, error) {
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["projectName"] = o.ProjectName
 	toSerialize["projectDisplayName"] = o.ProjectDisplayName
+	if !IsNil(o.Registry) {
+		toSerialize["registry"] = o.Registry
+	}
 	return toSerialize, nil
 }
 

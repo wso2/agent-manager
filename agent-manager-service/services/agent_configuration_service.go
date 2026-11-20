@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -58,6 +59,15 @@ type AgentConfigurationService interface {
 	Create(ctx context.Context, ouID, projectName, agentID string,
 		req models.CreateAgentModelConfigRequest, createdBy string) (*models.AgentModelConfigResponse, error)
 	ValidateProvidersInCatalog(ctx context.Context, ouID string, providerHandles []string) error
+	// ListOrgAgentLLMProviders returns the LLM providers every agent in the organization is
+	// configured with, per environment.
+	ListOrgAgentLLMProviders(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error)
+	// ListOrgAgentMCPServers returns the MCP proxies every agent in the organization is
+	// configured with, per environment.
+	ListOrgAgentMCPServers(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error)
+	// ListAgentEnvironmentResources returns, keyed by environment name, the LLM providers (with
+	// their guardrails) and MCP servers (with their tools) one agent is configured with.
+	ListAgentEnvironmentResources(ctx context.Context, ouID, projectName, agentName string) (map[string]*models.AgentEnvironmentResources, error)
 	// ProviderEnvironments returns, in org order, the environments where the agent can use the LLM
 	// provider: those where the provider is placed on a gateway this kind of agent may use. It is the
 	// check Create makes per environment, so a create mapped to these environments passes it.
@@ -996,6 +1006,158 @@ func (s *agentConfigurationService) compensatingDeleteConfig(ctx context.Context
 // ValidateProvidersInCatalog verifies each handle resolves to an existing provider
 // that is in catalog. Returns ErrLLMProviderNotFound (missing) or ErrInvalidInput
 // (empty handle / not in catalog). Handles are deduped.
+func (s *agentConfigurationService) ListOrgAgentLLMProviders(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error) {
+	return s.envMappingRepo.ListAgentLLMProvidersByOu(ctx, ouID)
+}
+
+func (s *agentConfigurationService) ListOrgAgentMCPServers(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error) {
+	return s.envMCPMappingRepo.ListAgentMCPServersByOu(ctx, ouID)
+}
+
+// maxAgentConfigsPerType bounds how many configurations of one type are read for one agent.
+const maxAgentConfigsPerType = 100
+
+func (s *agentConfigurationService) ListAgentEnvironmentResources(
+	ctx context.Context, ouID, projectName, agentName string,
+) (map[string]*models.AgentEnvironmentResources, error) {
+	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list environments: %w", err)
+	}
+	envNameByUUID := make(map[string]string, len(envs))
+	for _, env := range envs {
+		envNameByUUID[env.UUID] = env.Name
+	}
+	byEnv := make(map[string]*models.AgentEnvironmentResources)
+	// resourcesIn returns the environment's entry, or nil for an environment that no longer exists.
+	resourcesIn := func(envUUID uuid.UUID) *models.AgentEnvironmentResources {
+		name, ok := envNameByUUID[envUUID.String()]
+		if !ok {
+			return nil
+		}
+		if byEnv[name] == nil {
+			byEnv[name] = &models.AgentEnvironmentResources{}
+		}
+		return byEnv[name]
+	}
+
+	// Step 1: LLM providers, and the guardrails on the agent's provider config and on the provider.
+	llmConfigs, err := s.agentConfigRepo.ListByAgentAndType(ctx, ouID, projectName, agentName, models.AgentConfigTypeIDLLM, maxAgentConfigsPerType, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list LLM configurations: %w", err)
+	}
+	providers := make(map[uuid.UUID]*models.LLMProvider)
+	for _, listed := range llmConfigs {
+		config, err := s.agentConfigRepo.GetByUUID(ctx, listed.UUID, ouID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get LLM configuration: %w", err)
+		}
+		for _, mapping := range config.EnvMappings {
+			resources := resourcesIn(mapping.EnvironmentUUID)
+			if resources == nil || mapping.LLMProxy == nil {
+				continue
+			}
+			providerUUID := mapping.LLMProxy.ProviderUUID
+			provider, seen := providers[providerUUID]
+			if !seen {
+				provider, err = s.llmProviderRepo.GetByUUID(providerUUID.String(), ouID)
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, fmt.Errorf("failed to get LLM provider: %w", err)
+				}
+				providers[providerUUID] = provider
+			}
+			if provider == nil || provider.Artifact == nil {
+				continue // the provider was deleted
+			}
+			resources.LLMProviders = appendResourceRef(resources.LLMProviders,
+				models.AgentRegistryResourceRef{ID: provider.Artifact.Handle, DisplayName: provider.Artifact.Name})
+			for _, policy := range mapping.PolicyConfiguration {
+				resources.Guardrails = appendUnique(resources.Guardrails, policy.Name)
+			}
+			for _, policy := range provider.Configuration.Policies {
+				resources.Guardrails = appendUnique(resources.Guardrails, policy.Name)
+			}
+		}
+	}
+
+	// Step 2: MCP servers, and the tools discovered on each.
+	mcpConfigs, err := s.agentConfigRepo.ListMCPConfigsByAgent(ctx, ouID, projectName, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list MCP configurations: %w", err)
+	}
+	for _, config := range mcpConfigs {
+		for _, mapping := range config.EnvMCPMappings {
+			resources := resourcesIn(mapping.EnvironmentUUID)
+			if resources == nil || mapping.MCPProxy == nil || mapping.MCPProxy.Artifact == nil {
+				continue
+			}
+			resources.MCPServers = appendResourceRef(resources.MCPServers, models.AgentRegistryResourceRef{
+				ID:          mapping.MCPProxy.Artifact.Handle,
+				DisplayName: mapping.MCPProxy.Artifact.Name,
+				Tools:       mcpToolNames(mapping),
+			})
+		}
+	}
+	return byEnv, nil
+}
+
+// mcpToolNames returns the names of the tools discovered on the MCP server an agent's mapping
+// uses in its environment. The tools are on the server's endpoints: the endpoint deployed as the
+// mapping's artifact, else every endpoint deployed in the mapping's environment (an agent's
+// mapping can have its own artifact). With neither, the server's own tools.
+func mcpToolNames(mapping models.EnvAgentMCPMapping) []string {
+	var byArtifact, byEnvironment []*models.MCPProxyCapabilities
+	for _, endpoint := range mapping.MCPProxy.Endpoints {
+		if endpoint.Configuration.Capabilities == nil {
+			continue
+		}
+		for _, env := range endpoint.Environments {
+			if env.ArtifactUUID == mapping.ArtifactUUID {
+				byArtifact = append(byArtifact, endpoint.Configuration.Capabilities)
+			} else if env.EnvironmentUUID == mapping.EnvironmentUUID {
+				byEnvironment = append(byEnvironment, endpoint.Configuration.Capabilities)
+			}
+		}
+	}
+	sources := byArtifact
+	if len(sources) == 0 {
+		sources = byEnvironment
+	}
+	if len(sources) == 0 && mapping.MCPProxy.Configuration.Capabilities != nil {
+		sources = []*models.MCPProxyCapabilities{mapping.MCPProxy.Configuration.Capabilities}
+	}
+	names := []string{}
+	for _, capabilities := range sources {
+		if capabilities.Tools == nil {
+			continue
+		}
+		for _, tool := range *capabilities.Tools {
+			if name, ok := tool["name"].(string); ok {
+				names = appendUnique(names, name)
+			}
+		}
+	}
+	return names
+}
+
+// appendResourceRef adds ref unless one with the same ID is already there.
+func appendResourceRef(refs []models.AgentRegistryResourceRef, ref models.AgentRegistryResourceRef) []models.AgentRegistryResourceRef {
+	for _, existing := range refs {
+		if existing.ID == ref.ID {
+			return refs
+		}
+	}
+	return append(refs, ref)
+}
+
+// appendUnique adds value unless it is empty or already there.
+func appendUnique(values []string, value string) []string {
+	if value == "" || slices.Contains(values, value) {
+		return values
+	}
+	return append(values, value)
+}
+
 func (s *agentConfigurationService) ValidateProvidersInCatalog(
 	_ context.Context, ouID string, providerHandles []string,
 ) error {

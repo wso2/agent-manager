@@ -77,8 +77,92 @@ func ConvertToAgentSummaryListResponse(summaries []*models.AgentSummary) []spec.
 			ProjectName:        summary.ProjectName,
 			ProjectDisplayName: summary.ProjectDisplayName,
 		}
+		if summary.Registry != nil {
+			registry := convertToAgentRegistryRecord(summary.Registry)
+			responses[i].Registry = &registry
+		}
 	}
 	return responses
+}
+
+// convertToAgentRegistryRecord maps an agent's registry record to its API shape;
+// empty optional strings are left out.
+func convertToAgentRegistryRecord(record *models.AgentRegistryRecord) spec.AgentRegistryRecord {
+	out := spec.AgentRegistryRecord{
+		Hosting:      record.Hosting,
+		Labels:       record.Labels,
+		CreatedAt:    record.CreatedAt,
+		Environments: make([]spec.AgentRegistryEnvironment, len(record.Environments)),
+	}
+	if record.Description != "" {
+		out.Description = &record.Description
+	}
+	if record.Interface != "" {
+		out.Interface = &record.Interface
+	}
+	if record.KindName != "" {
+		out.KindName = &record.KindName
+	}
+	if record.KindVersion != "" {
+		out.KindVersion = &record.KindVersion
+	}
+	if record.CreatedBy != nil {
+		out.CreatedBy = &spec.AgentRegistryCreatedBy{
+			Id:          record.CreatedBy.ID,
+			DisplayName: record.CreatedBy.Display,
+		}
+	}
+	for i, env := range record.Environments {
+		out.Environments[i] = spec.AgentRegistryEnvironment{
+			Name:             env.Name,
+			DisplayName:      env.DisplayName,
+			IsProduction:     env.IsProduction,
+			DeploymentStatus: env.DeploymentStatus,
+			LastDeployedAt:   env.LastDeployedAt,
+			LlmProviders:     convertToAgentRegistryResourceRefs(env.LLMProviders),
+			McpServers:       convertToAgentRegistryResourceRefs(env.MCPServers),
+			Governance:       convertToAgentRegistryGovernance(env.Governance),
+		}
+	}
+	return out
+}
+
+func convertToAgentRegistryResourceRefs(refs []models.AgentRegistryResourceRef) []spec.AgentRegistryResourceRef {
+	out := make([]spec.AgentRegistryResourceRef, len(refs))
+	for i, ref := range refs {
+		out[i] = spec.AgentRegistryResourceRef{Id: ref.ID, DisplayName: ref.DisplayName, Tools: ref.Tools}
+	}
+	return out
+}
+
+func convertToAgentRegistryGovernance(governance *models.AgentRegistryGovernance) *spec.AgentRegistryGovernance {
+	if governance == nil {
+		return nil
+	}
+	out := &spec.AgentRegistryGovernance{
+		Guardrails: governance.Guardrails,
+		Monitors:   make([]spec.AgentRegistryMonitor, len(governance.Monitors)),
+		InboundSecurity: spec.AgentRegistryInboundSecurity{
+			ApiKey: governance.InboundSecurity.APIKey,
+			Oauth:  governance.InboundSecurity.OAuth,
+		},
+	}
+	if governance.AgentIDStatus != "" {
+		out.AgentIdStatus = &governance.AgentIDStatus
+	}
+	for i, monitor := range governance.Monitors {
+		out.Monitors[i] = spec.AgentRegistryMonitor{Name: monitor.Name, DisplayName: monitor.DisplayName, Status: monitor.Status}
+	}
+	if governance.A2ASkills != nil {
+		out.A2aSkills = make([]spec.AgentRegistryA2ASkill, len(governance.A2ASkills))
+		for i, skill := range governance.A2ASkills {
+			out.A2aSkills[i] = spec.AgentRegistryA2ASkill{Id: skill.ID, Name: skill.Name, Tags: skill.Tags}
+			if skill.Description != "" {
+				out.A2aSkills[i].Description = &governance.A2ASkills[i].Description
+			}
+		}
+	}
+	return out
 }
 
 func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse {
@@ -86,10 +170,18 @@ func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse 
 		return spec.AgentResponse{}
 	}
 
+	var response spec.AgentResponse
 	if component.Provisioning.Type == string(InternalAgent) {
-		return convertToInternalAgentResponse(component)
+		response = convertToInternalAgentResponse(component)
+	} else {
+		response = convertToExternalAgentResponse(component)
 	}
-	return convertToExternalAgentResponse(component)
+	// Set only for the registry view (GET agent with view=registry).
+	if component.Registry != nil {
+		registry := convertToAgentRegistryRecord(component.Registry)
+		response.Registry = &registry
+	}
+	return response
 }
 
 func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {

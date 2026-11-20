@@ -55,6 +55,9 @@ import (
 //			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentThunderClient, error) {
 //				panic("mock out the Get method")
 //			},
+//			ListCreatorsByOuFunc: func(ctx context.Context, ouID string) ([]repositories.AgentRef, error) {
+//				panic("mock out the ListCreatorsByOu method")
+//			},
 //			ListHomeAgentsFunc: func(ctx context.Context, after *repositories.AgentRef, limit int) ([]repositories.AgentRef, error) {
 //				panic("mock out the ListHomeAgents method")
 //			},
@@ -121,6 +124,9 @@ type AgentThunderClientRepositoryMock struct {
 
 	// GetFunc mocks the Get method.
 	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentThunderClient, error)
+
+	// ListCreatorsByOuFunc mocks the ListCreatorsByOu method.
+	ListCreatorsByOuFunc func(ctx context.Context, ouID string) ([]repositories.AgentRef, error)
 
 	// ListHomeAgentsFunc mocks the ListHomeAgents method.
 	ListHomeAgentsFunc func(ctx context.Context, after *repositories.AgentRef, limit int) ([]repositories.AgentRef, error)
@@ -268,6 +274,13 @@ type AgentThunderClientRepositoryMock struct {
 			// EnvironmentName is the environmentName argument value.
 			EnvironmentName string
 		}
+		// ListCreatorsByOu holds details about calls to the ListCreatorsByOu method.
+		ListCreatorsByOu []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+		}
 		// ListHomeAgents holds details about calls to the ListHomeAgents method.
 		ListHomeAgents []struct {
 			// Ctx is the ctx argument value.
@@ -351,6 +364,7 @@ type AgentThunderClientRepositoryMock struct {
 	lockFindSyncDue                   sync.RWMutex
 	lockFinishSync                    sync.RWMutex
 	lockGet                           sync.RWMutex
+	lockListCreatorsByOu              sync.RWMutex
 	lockListHomeAgents                sync.RWMutex
 	lockMarkSyncAfter                 sync.RWMutex
 	lockReleaseClaim                  sync.RWMutex
@@ -862,6 +876,42 @@ func (mock *AgentThunderClientRepositoryMock) GetCalls() []struct {
 	mock.lockGet.RLock()
 	calls = mock.calls.Get
 	mock.lockGet.RUnlock()
+	return calls
+}
+
+// ListCreatorsByOu calls ListCreatorsByOuFunc.
+func (mock *AgentThunderClientRepositoryMock) ListCreatorsByOu(ctx context.Context, ouID string) ([]repositories.AgentRef, error) {
+	if mock.ListCreatorsByOuFunc == nil {
+		panic("AgentThunderClientRepositoryMock.ListCreatorsByOuFunc: method is nil but AgentThunderClientRepository.ListCreatorsByOu was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+	}
+	mock.lockListCreatorsByOu.Lock()
+	mock.calls.ListCreatorsByOu = append(mock.calls.ListCreatorsByOu, callInfo)
+	mock.lockListCreatorsByOu.Unlock()
+	return mock.ListCreatorsByOuFunc(ctx, ouID)
+}
+
+// ListCreatorsByOuCalls gets all the calls that were made to ListCreatorsByOu.
+// Check the length with:
+//
+//	len(mockedAgentThunderClientRepository.ListCreatorsByOuCalls())
+func (mock *AgentThunderClientRepositoryMock) ListCreatorsByOuCalls() []struct {
+	Ctx  context.Context
+	OuID string
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+	}
+	mock.lockListCreatorsByOu.RLock()
+	calls = mock.calls.ListCreatorsByOu
+	mock.lockListCreatorsByOu.RUnlock()
 	return calls
 }
 

@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -25,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -51,6 +53,12 @@ import (
 type AgentManagerService interface {
 	ListAgents(ctx context.Context, ouID string, projName string, labelFilter map[string]string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
 	ListOrgAgents(ctx context.Context, ouID string) ([]*models.AgentSummary, error)
+	// ListOrgAgentRegistry is ListOrgAgents with each agent's registry record attached
+	// (GET /orgs/{org}/agents?view=registry).
+	ListOrgAgentRegistry(ctx context.Context, ouID string) ([]*models.AgentSummary, error)
+	// GetAgentWithRegistry returns the agent with its registry record, including its governance
+	// in each environment, for the org-level agent overview.
+	GetAgentWithRegistry(ctx context.Context, ouID string, projectName string, agentName string) (*models.AgentResponse, error)
 	CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error
 	// SetEntitlementChecker installs an optional subscription check for agent
 	// creates. It is called once during startup, before the HTTP server begins serving.
@@ -1577,26 +1585,473 @@ func (s *agentManagerService) ListAgents(ctx context.Context, ouID string, projN
 func (s *agentManagerService) ListOrgAgents(ctx context.Context, ouID string) ([]*models.AgentSummary, error) {
 	s.logger.Info("Listing all agents in organization", "ouID", ouID)
 
+	projects, agents, err := s.listOrgProjectsAndAgents(ctx, ouID)
+	if err != nil {
+		return nil, err
+	}
+	summaries := agentSummaries(projects, agents)
+
+	s.logger.Info("Listed org agents successfully", "ouID", ouID, "totalAgents", len(summaries))
+	return summaries, nil
+}
+
+// ListOrgAgentRegistry returns every agent across all projects in the organization, like
+// ListOrgAgents, with each agent's registry record attached.
+func (s *agentManagerService) ListOrgAgentRegistry(ctx context.Context, ouID string) ([]*models.AgentSummary, error) {
+	s.logger.Info("Listing the agent registry of organization", "ouID", ouID)
+
+	projects, agents, err := s.listOrgProjectsAndAgents(ctx, ouID)
+	if err != nil {
+		return nil, err
+	}
+	summaries := agentSummaries(projects, agents)
+
+	// Step 1: what each agent is, from its component (already fetched above).
+	for i, a := range agents {
+		summaries[i].Registry = registryRecordFromComponent(a)
+	}
+
+	// Step 2: each agent's deployment in every environment of its project's pipeline.
+	if err := s.attachRegistryEnvironments(ctx, ouID, projects, summaries); err != nil {
+		s.logger.Error("Failed to read agent deployments", "ouID", ouID, "error", err)
+		return nil, err
+	}
+
+	// Step 3: who created each agent. Best-effort, like GetAgent's createdBy.
+	s.attachRegistryCreators(ctx, ouID, summaries)
+
+	s.logger.Info("Listed org agent registry successfully", "ouID", ouID, "totalAgents", len(summaries))
+	return summaries, nil
+}
+
+func (s *agentManagerService) GetAgentWithRegistry(ctx context.Context, ouID, projectName, agentName string) (*models.AgentResponse, error) {
+	// Step 1: the agent, as GET agent returns it, and what it is.
+	agent, err := s.GetAgent(ctx, ouID, projectName, agentName)
+	if err != nil {
+		return nil, err
+	}
+	record := registryRecordFromComponent(agent)
+	record.CreatedBy = agent.CreatedBy
+
+	// Step 2: read the agent's deployments and governance in every environment at once.
+	project, err := s.ocClient.GetProject(ctx, ouID, projectName)
+	if err != nil {
+		return nil, translateProjectError(err)
+	}
+	var (
+		environments []*models.EnvironmentResponse
+		deployments  []*models.DeploymentResponse
+		identities   []models.AgentIdentityEnvironmentView
+		resources    map[string]*models.AgentEnvironmentResources
+		monitors     *models.MonitorListResponse
+		cards        []models.A2AAgentCard
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		environments, err = s.ocClient.ListEnvironments(gctx, ouID)
+		if err != nil {
+			return fmt.Errorf("failed to list environments: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		// The full deployment status: unlike the registry list, it reads each binding's runtime state.
+		deployments, err = s.ocClient.GetDeployments(gctx, ouID, project.DeploymentPipeline, projectName, agentName)
+		if err != nil {
+			return fmt.Errorf("failed to get deployments: %w", err)
+		}
+		return nil
+	})
+	if s.agentThunderProvisioning != nil {
+		g.Go(func() error {
+			var err error
+			identities, err = s.agentThunderProvisioning.GetIdentityViews(gctx, ouID, projectName, agentName)
+			if err != nil {
+				return fmt.Errorf("failed to get agent identities: %w", err)
+			}
+			return nil
+		})
+	}
+	if s.agentConfigurationService != nil {
+		g.Go(func() error {
+			var err error
+			resources, err = s.agentConfigurationService.ListAgentEnvironmentResources(gctx, ouID, projectName, agentName)
+			if err != nil {
+				return fmt.Errorf("failed to list LLM providers and MCP servers: %w", err)
+			}
+			return nil
+		})
+	}
+	if s.monitorManagerService != nil {
+		g.Go(func() error {
+			var err error
+			monitors, err = s.monitorManagerService.ListMonitors(gctx, ouID, projectName, agentName, "")
+			if err != nil {
+				return fmt.Errorf("failed to list monitors: %w", err)
+			}
+			return nil
+		})
+	}
+	if s.a2aCardRepo != nil {
+		g.Go(func() error {
+			var err error
+			cards, err = s.a2aCardRepo.ListForAgent(gctx, ouID, projectName, agentName)
+			if err != nil {
+				return fmt.Errorf("failed to list A2A cards: %w", err)
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		s.logger.Error("Failed to read the agent's registry record", "agentName", agentName, "projectName", projectName, "error", err)
+		return nil, err
+	}
+
+	environmentByName := make(map[string]*models.EnvironmentResponse, len(environments))
+	for _, env := range environments {
+		environmentByName[env.Name] = env
+	}
+	identityStatusByEnv := make(map[string]string, len(identities))
+	for _, identity := range identities {
+		identityStatusByEnv[identity.EnvironmentName] = string(identity.Status)
+	}
+	monitorsByEnv := make(map[string][]models.AgentRegistryMonitor)
+	if monitors != nil {
+		for _, m := range monitors.Monitors {
+			monitorsByEnv[m.EnvironmentName] = append(monitorsByEnv[m.EnvironmentName],
+				models.AgentRegistryMonitor{Name: m.Name, DisplayName: m.DisplayName, Status: string(m.Status)})
+		}
+	}
+	skillsByEnv := make(map[string][]models.AgentRegistryA2ASkill, len(cards))
+	for _, card := range cards {
+		if skills, ok := a2aCardSkills(card.Card); ok {
+			skillsByEnv[card.EnvironmentName] = skills
+		}
+	}
+
+	// Step 3: one entry per environment of the pipeline, in pipeline order.
+	record.Environments = make([]models.AgentRegistryEnvironment, 0, len(deployments))
+	for _, d := range deployments {
+		if d == nil {
+			continue
+		}
+		entry := models.AgentRegistryEnvironment{
+			Name:             d.Environment,
+			DisplayName:      d.EnvironmentDisplayName,
+			DeploymentStatus: d.Status,
+			LastDeployedAt:   d.LastDeployedAt,
+			LLMProviders:     []models.AgentRegistryResourceRef{},
+			MCPServers:       []models.AgentRegistryResourceRef{},
+		}
+		if entry.DisplayName == "" {
+			entry.DisplayName = d.Environment
+		}
+		if env, ok := environmentByName[d.Environment]; ok {
+			entry.IsProduction = env.IsProduction
+		}
+		guardrails := []string{}
+		if r, ok := resources[d.Environment]; ok {
+			if r.LLMProviders != nil {
+				entry.LLMProviders = r.LLMProviders
+			}
+			if r.MCPServers != nil {
+				entry.MCPServers = r.MCPServers
+			}
+			if r.Guardrails != nil {
+				guardrails = r.Guardrails
+			}
+		}
+		inbound, err := s.agentInboundSecurity(ctx, ouID, projectName, agentName, d.Environment)
+		if err != nil {
+			return nil, err
+		}
+		envMonitors := monitorsByEnv[d.Environment]
+		if envMonitors == nil {
+			envMonitors = []models.AgentRegistryMonitor{}
+		}
+		entry.Governance = &models.AgentRegistryGovernance{
+			AgentIDStatus:   identityStatusByEnv[d.Environment],
+			Guardrails:      guardrails,
+			Monitors:        envMonitors,
+			InboundSecurity: inbound,
+			A2ASkills:       skillsByEnv[d.Environment],
+		}
+		record.Environments = append(record.Environments, entry)
+	}
+
+	agent.Registry = record
+	return agent, nil
+}
+
+// agentInboundSecurity returns the security on the agent's endpoint in one environment. With no
+// stored config, the defaults GetAgent shows apply: an API key, no OAuth.
+func (s *agentManagerService) agentInboundSecurity(
+	ctx context.Context, ouID, projectName, agentName, environmentName string,
+) (models.AgentRegistryInboundSecurity, error) {
+	if s.agentConfigRepo == nil {
+		return models.AgentRegistryInboundSecurity{APIKey: true}, nil
+	}
+	cfg, err := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, environmentName)
+	if errors.Is(err, repositories.ErrAgentConfigNotFound) {
+		return models.AgentRegistryInboundSecurity{APIKey: true}, nil
+	}
+	if err != nil {
+		return models.AgentRegistryInboundSecurity{}, fmt.Errorf("failed to read agent config for environment %q: %w", environmentName, err)
+	}
+	return models.AgentRegistryInboundSecurity{APIKey: cfg.EnableApiKeySecurity, OAuth: cfg.EnableOAuthSecurity}, nil
+}
+
+// a2aCardSkills returns the skills on a stored A2A card; false when no card is stored or it
+// has no skills array.
+func a2aCardSkills(card json.RawMessage) ([]models.AgentRegistryA2ASkill, bool) {
+	if len(card) == 0 {
+		return nil, false
+	}
+	var parsed struct {
+		Skills []models.AgentRegistryA2ASkill `json:"skills"`
+	}
+	if err := json.Unmarshal(card, &parsed); err != nil || parsed.Skills == nil {
+		return nil, false
+	}
+	return parsed.Skills, true
+}
+
+// attachRegistryEnvironments fills each agent's environments, in its project pipeline's
+// order, with the status and last deploy time of its release binding there and the LLM
+// providers and MCP servers it is configured with there. It costs five org-wide reads
+// (environments, pipelines, release bindings, LLM providers, MCP servers), however many
+// agents there are.
+func (s *agentManagerService) attachRegistryEnvironments(
+	ctx context.Context, ouID string, projects []*models.ProjectResponse, summaries []*models.AgentSummary,
+) error {
+	var (
+		environments []*models.EnvironmentResponse
+		pipelines    []*models.DeploymentPipelineResponse
+		deployments  []models.AgentDeploymentState
+		llmProviders []repositories.AgentEnvironmentResource
+		mcpServers   []repositories.AgentEnvironmentResource
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		environments, err = s.ocClient.ListEnvironments(gctx, ouID)
+		if err != nil {
+			return fmt.Errorf("failed to list environments: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		pipelines, err = s.ocClient.ListDeploymentPipelines(gctx, ouID)
+		if err != nil {
+			return fmt.Errorf("failed to list deployment pipelines: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		deployments, err = s.ocClient.ListAgentDeploymentStates(gctx, ouID)
+		if err != nil {
+			return fmt.Errorf("failed to list agent deployments: %w", err)
+		}
+		return nil
+	})
+	if s.agentConfigurationService != nil {
+		g.Go(func() error {
+			var err error
+			llmProviders, err = s.agentConfigurationService.ListOrgAgentLLMProviders(gctx, ouID)
+			if err != nil {
+				return fmt.Errorf("failed to list agent LLM providers: %w", err)
+			}
+			return nil
+		})
+		g.Go(func() error {
+			var err error
+			mcpServers, err = s.agentConfigurationService.ListOrgAgentMCPServers(gctx, ouID)
+			if err != nil {
+				return fmt.Errorf("failed to list agent MCP servers: %w", err)
+			}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	environmentByName := make(map[string]*models.EnvironmentResponse, len(environments))
+	environmentNameByUUID := make(map[string]string, len(environments))
+	for _, env := range environments {
+		environmentByName[env.Name] = env
+		environmentNameByUUID[env.UUID] = env.Name
+	}
+	pipelineOrder := make(map[string][]string, len(pipelines))
+	for _, p := range pipelines {
+		pipelineOrder[p.Name] = client.PipelineEnvironments(p.PromotionPaths)
+	}
+	projectPipeline := make(map[string]string, len(projects))
+	for _, p := range projects {
+		projectPipeline[p.Name] = p.DeploymentPipeline
+	}
+	deploymentByKey := make(map[string]models.AgentDeploymentState, len(deployments))
+	for _, d := range deployments {
+		deploymentByKey[agentEnvironmentKey(d.ProjectName, d.AgentName, d.EnvironmentName)] = d
+	}
+	llmProvidersByKey := registryResourcesByKey(llmProviders, environmentNameByUUID)
+	mcpServersByKey := registryResourcesByKey(mcpServers, environmentNameByUUID)
+
+	for _, summary := range summaries {
+		order := pipelineOrder[projectPipeline[summary.ProjectName]]
+		envs := make([]models.AgentRegistryEnvironment, 0, len(order))
+		for _, envName := range order {
+			entry := models.AgentRegistryEnvironment{
+				Name:             envName,
+				DisplayName:      envName,
+				DeploymentStatus: client.DeploymentStatusNotDeployed,
+				LLMProviders:     []models.AgentRegistryResourceRef{},
+				MCPServers:       []models.AgentRegistryResourceRef{},
+			}
+			if env, ok := environmentByName[envName]; ok {
+				if env.DisplayName != "" {
+					entry.DisplayName = env.DisplayName
+				}
+				entry.IsProduction = env.IsProduction
+			}
+			// No binding in an environment means the agent was never deployed there.
+			key := agentEnvironmentKey(summary.ProjectName, summary.Name, envName)
+			if d, ok := deploymentByKey[key]; ok {
+				entry.DeploymentStatus = d.Status
+				entry.LastDeployedAt = d.LastDeployedAt
+			}
+			if refs, ok := llmProvidersByKey[key]; ok {
+				entry.LLMProviders = refs
+			}
+			if refs, ok := mcpServersByKey[key]; ok {
+				entry.MCPServers = refs
+			}
+			envs = append(envs, entry)
+		}
+		summary.Registry.Environments = envs
+	}
+	return nil
+}
+
+// registryResourcesByKey groups LLM providers or MCP servers by agent and environment name.
+// A row whose environment is not in the organization any more is dropped.
+func registryResourcesByKey(
+	rows []repositories.AgentEnvironmentResource, environmentNameByUUID map[string]string,
+) map[string][]models.AgentRegistryResourceRef {
+	byKey := make(map[string][]models.AgentRegistryResourceRef)
+	for _, row := range rows {
+		envName, ok := environmentNameByUUID[row.EnvironmentUUID.String()]
+		if !ok {
+			continue
+		}
+		key := agentEnvironmentKey(row.ProjectName, row.AgentID, envName)
+		byKey[key] = append(byKey[key], models.AgentRegistryResourceRef{ID: row.Handle, DisplayName: row.Name})
+	}
+	return byKey
+}
+
+// attachRegistryCreators sets each agent's creator from its AgentID record, with the user's
+// name looked up once per distinct user. Best-effort: an agent whose creator was not
+// recorded has no CreatedBy, and a user who cannot be looked up keeps only the id.
+func (s *agentManagerService) attachRegistryCreators(ctx context.Context, ouID string, summaries []*models.AgentSummary) {
+	if s.agentThunderProvisioning == nil {
+		return
+	}
+	creators, err := s.agentThunderProvisioning.ListAgentCreators(ctx, ouID)
+	if err != nil {
+		s.logger.Warn("Failed to list agent creators", "ouID", ouID, "error", err)
+		return
+	}
+	creatorByAgent := make(map[string]string, len(creators))
+	for _, c := range creators {
+		creatorByAgent[c.ProjectName+"/"+c.AgentName] = c.RequestedBy
+	}
+
+	// Look up each distinct user once.
+	displayByUser := make(map[string]string)
+	for _, userID := range creatorByAgent {
+		displayByUser[userID] = ""
+	}
+	if s.identityClient != nil {
+		var mu sync.Mutex
+		g, gctx := errgroup.WithContext(ctx)
+		g.SetLimit(8)
+		for userID := range displayByUser {
+			g.Go(func() error {
+				display := s.resolveUserDisplay(gctx, userID)
+				mu.Lock()
+				displayByUser[userID] = display
+				mu.Unlock()
+				return nil
+			})
+		}
+		_ = g.Wait() // the lookups never return an error
+	}
+
+	for _, summary := range summaries {
+		userID, ok := creatorByAgent[summary.ProjectName+"/"+summary.Name]
+		if !ok {
+			continue
+		}
+		summary.Registry.CreatedBy = &models.AgentCreatedBy{ID: userID, Display: displayByUser[userID]}
+	}
+}
+
+// resolveUserDisplay returns the user's username, else their display name, else "" when the
+// user cannot be looked up (for example, deleted).
+func (s *agentManagerService) resolveUserDisplay(ctx context.Context, userID string) string {
+	user, err := s.identityClient.GetUser(ctx, userID)
+	if err != nil || user == nil {
+		if err != nil && !thundersvc.IsNotFound(err) {
+			s.logger.Warn("Failed to resolve agent creator", "requestedBy", userID, "error", err)
+		}
+		return ""
+	}
+	if username, ok := user.Attributes["username"].(string); ok && username != "" {
+		return username
+	}
+	return user.Display
+}
+
+// agentEnvironmentKey identifies one agent in one environment; agent names are unique only
+// within a project.
+func agentEnvironmentKey(projectName, agentName, environmentName string) string {
+	return projectName + "/" + agentName + "/" + environmentName
+}
+
+// listOrgProjectsAndAgents checks the organization exists, then fetches its projects and
+// every agent in them. Shared by the org-wide listings ListOrgAgents and ListOrgAgentRegistry.
+func (s *agentManagerService) listOrgProjectsAndAgents(
+	ctx context.Context, ouID string,
+) ([]*models.ProjectResponse, []*models.AgentResponse, error) {
 	// Validate organization exists
 	if _, err := s.ocClient.GetOrganization(ctx, ouID); err != nil {
 		s.logger.Error("Failed to find organization", "ouID", ouID, "error", err)
-		return nil, translateOrgError(err)
+		return nil, nil, translateOrgError(err)
 	}
 
 	projects, err := listOrgProjects(ctx, s.ocClient, ouID)
 	if err != nil {
 		s.logger.Error("Failed to list projects", "ouID", ouID, "error", err)
-		return nil, err
+		return nil, nil, err
 	}
 
 	agents, err := fetchAcrossOrgProjects(ctx, projects, ouID, s.ocClient.ListComponents)
 	if err != nil {
 		s.logger.Error("Failed to list agents across projects", "ouID", ouID, "error", err)
-		return nil, err
+		return nil, nil, err
 	}
+	return projects, agents, nil
+}
 
-	// The project list is already in hand from the fan-out above, so attaching each
-	// agent's project display name costs an in-memory lookup, not another round trip.
+// agentSummaries builds one summary per agent, in the same order as agents.
+func agentSummaries(projects []*models.ProjectResponse, agents []*models.AgentResponse) []*models.AgentSummary {
+	// The project list is already in hand from the fan-out, so attaching each agent's
+	// project display name costs an in-memory lookup, not another round trip.
 	projectDisplayNames := make(map[string]string, len(projects))
 	for _, p := range projects {
 		projectDisplayNames[p.Name] = p.DisplayName
@@ -1610,9 +2065,31 @@ func (s *agentManagerService) ListOrgAgents(ctx context.Context, ouID string) ([
 			ProjectDisplayName: projectDisplayNames[a.ProjectName],
 		}
 	}
+	return summaries
+}
 
-	s.logger.Info("Listed org agents successfully", "ouID", ouID, "totalAgents", len(summaries))
-	return summaries, nil
+// registryRecordFromComponent fills the registry fields the agent's component carries:
+// description, hosting, interface, kind, labels and creation time. Environments start
+// empty; the steps that read deployments and configurations fill them.
+func registryRecordFromComponent(agent *models.AgentResponse) *models.AgentRegistryRecord {
+	hosting := models.AgentRegistryHostingPlatform
+	if agent.Provisioning.Type == string(utils.ExternalAgent) {
+		hosting = models.AgentRegistryHostingExternal
+	}
+	labels := agent.Labels
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	return &models.AgentRegistryRecord{
+		Description:  agent.Description,
+		Hosting:      hosting,
+		Interface:    agent.Type.SubType,
+		KindName:     agent.KindName,
+		KindVersion:  agent.KindVersion,
+		Labels:       labels,
+		CreatedAt:    agent.CreatedAt,
+		Environments: []models.AgentRegistryEnvironment{},
+	}
 }
 
 // listOrgProjects fetches every project in the org, wrapping the error consistently for

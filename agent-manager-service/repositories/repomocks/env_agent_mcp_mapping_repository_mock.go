@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +27,9 @@ import (
 //			},
 //			DeleteByConfigFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 //				panic("mock out the DeleteByConfig method")
+//			},
+//			ListAgentMCPServersByOuFunc: func(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error) {
+//				panic("mock out the ListAgentMCPServersByOu method")
 //			},
 //			ListByConfigFunc: func(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
 //				panic("mock out the ListByConfig method")
@@ -54,6 +58,9 @@ type EnvAgentMCPMappingRepositoryMock struct {
 
 	// DeleteByConfigFunc mocks the DeleteByConfig method.
 	DeleteByConfigFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
+
+	// ListAgentMCPServersByOuFunc mocks the ListAgentMCPServersByOu method.
+	ListAgentMCPServersByOuFunc func(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error)
 
 	// ListByConfigFunc mocks the ListByConfig method.
 	ListByConfigFunc func(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error)
@@ -106,6 +113,13 @@ type EnvAgentMCPMappingRepositoryMock struct {
 			// ConfigUUID is the configUUID argument value.
 			ConfigUUID uuid.UUID
 		}
+		// ListAgentMCPServersByOu holds details about calls to the ListAgentMCPServersByOu method.
+		ListAgentMCPServersByOu []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+		}
 		// ListByConfig holds details about calls to the ListByConfig method.
 		ListByConfig []struct {
 			// Ctx is the ctx argument value.
@@ -137,13 +151,14 @@ type EnvAgentMCPMappingRepositoryMock struct {
 			Mapping *models.EnvAgentMCPMapping
 		}
 	}
-	lockCreate            sync.RWMutex
-	lockDelete            sync.RWMutex
-	lockDeleteByConfig    sync.RWMutex
-	lockListByConfig      sync.RWMutex
-	lockListByEnvironment sync.RWMutex
-	lockListByMCPProxy    sync.RWMutex
-	lockUpdate            sync.RWMutex
+	lockCreate                  sync.RWMutex
+	lockDelete                  sync.RWMutex
+	lockDeleteByConfig          sync.RWMutex
+	lockListAgentMCPServersByOu sync.RWMutex
+	lockListByConfig            sync.RWMutex
+	lockListByEnvironment       sync.RWMutex
+	lockListByMCPProxy          sync.RWMutex
+	lockUpdate                  sync.RWMutex
 }
 
 // Create calls CreateFunc.
@@ -283,6 +298,42 @@ func (mock *EnvAgentMCPMappingRepositoryMock) DeleteByConfigCalls() []struct {
 	mock.lockDeleteByConfig.RLock()
 	calls = mock.calls.DeleteByConfig
 	mock.lockDeleteByConfig.RUnlock()
+	return calls
+}
+
+// ListAgentMCPServersByOu calls ListAgentMCPServersByOuFunc.
+func (mock *EnvAgentMCPMappingRepositoryMock) ListAgentMCPServersByOu(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error) {
+	if mock.ListAgentMCPServersByOuFunc == nil {
+		panic("EnvAgentMCPMappingRepositoryMock.ListAgentMCPServersByOuFunc: method is nil but EnvAgentMCPMappingRepository.ListAgentMCPServersByOu was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+	}
+	mock.lockListAgentMCPServersByOu.Lock()
+	mock.calls.ListAgentMCPServersByOu = append(mock.calls.ListAgentMCPServersByOu, callInfo)
+	mock.lockListAgentMCPServersByOu.Unlock()
+	return mock.ListAgentMCPServersByOuFunc(ctx, ouID)
+}
+
+// ListAgentMCPServersByOuCalls gets all the calls that were made to ListAgentMCPServersByOu.
+// Check the length with:
+//
+//	len(mockedEnvAgentMCPMappingRepository.ListAgentMCPServersByOuCalls())
+func (mock *EnvAgentMCPMappingRepositoryMock) ListAgentMCPServersByOuCalls() []struct {
+	Ctx  context.Context
+	OuID string
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+	}
+	mock.lockListAgentMCPServersByOu.RLock()
+	calls = mock.calls.ListAgentMCPServersByOu
+	mock.lockListAgentMCPServersByOu.RUnlock()
 	return calls
 }
 

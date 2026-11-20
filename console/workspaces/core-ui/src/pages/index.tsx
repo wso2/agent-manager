@@ -265,6 +265,12 @@ export const LazyCatalogOrg = lazy(() =>
     default: m.metaData.levels!.organization as ComponentType,
   }))
 );
+// Agent registry
+export const LazyAgentRegistryOrg = lazy(() =>
+  import("@agent-management-platform/agent-registry").then((m) => ({
+    default: m.metaData.levels!.organization as ComponentType,
+  }))
+);
 export const LazyPublishComponent = lazy(() =>
   import("@agent-management-platform/agent-kind").then((m) => ({
     default: m.metaData.levels!.component as ComponentType,

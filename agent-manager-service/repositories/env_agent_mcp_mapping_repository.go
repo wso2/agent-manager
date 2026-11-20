@@ -41,6 +41,9 @@ type EnvAgentMCPMappingRepository interface {
 	// across all agent configs. Used by the environment-deletion cascade to tear down
 	// all agent-scoped MCP artifacts for a disappearing environment.
 	ListByEnvironment(ctx context.Context, envUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error)
+	// ListAgentMCPServersByOu returns every MCP proxy each agent in the organization is
+	// configured with, per environment.
+	ListAgentMCPServersByOu(ctx context.Context, ouID string) ([]AgentEnvironmentResource, error)
 	Update(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping) error
 	Delete(ctx context.Context, tx *gorm.DB, mappingID uint) error
 	DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
@@ -129,6 +132,22 @@ func (r *envAgentMCPMappingRepository) ListByMCPProxy(ctx context.Context, mcpPr
 		Where("mcp_proxy_uuid = ?", mcpProxyUUID).
 		Find(&mappings).Error
 	return mappings, err
+}
+
+func (r *envAgentMCPMappingRepository) ListAgentMCPServersByOu(ctx context.Context, ouID string) ([]AgentEnvironmentResource, error) {
+	var results []AgentEnvironmentResource
+	err := r.db.WithContext(ctx).
+		Table("env_agent_mcp_mapping m").
+		Select("DISTINCT ac.project_name, ac.agent_id, m.environment_uuid, a.handle, a.name").
+		Joins("JOIN agent_configurations ac ON ac.uuid = m.config_uuid").
+		Joins("JOIN artifacts a ON a.uuid = m.mcp_proxy_uuid").
+		Where("ac.ou_id = ?", ouID).
+		Order("ac.project_name, ac.agent_id, a.name").
+		Scan(&results).Error
+	if err != nil {
+		return nil, fmt.Errorf("list agent MCP servers: %w", err)
+	}
+	return results, nil
 }
 
 func (r *envAgentMCPMappingRepository) ListByEnvironment(ctx context.Context, envUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
