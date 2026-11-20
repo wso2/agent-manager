@@ -162,9 +162,6 @@ def run_scan(
     def say(line: str = "") -> None:
         print(line, file=stream, flush=True)
 
-    if config.provider != "github":
-        say("amp-shadow-runner: Azure DevOps scans are not available in this version of the runner yet.")
-        return ExitCode.RUNTIME_ERROR
     check_writable(report_path)
     token = ask_token(config)
     tty = is_tty() if is_tty is not None else sys.stdin is not None and sys.stdin.isatty()
@@ -285,7 +282,7 @@ def _scan_one(
     if resolved.empty:
         return _EMPTY  # No commits: scanned, with no agents.
     archive = source.download_tarball(resolved, tree.parent)
-    extracted = extract(archive, tree, kind="tar.gz")  # It deletes the archive, and the tree on a failure.
+    extracted = extract(archive, tree)  # It deletes the archive, and the tree on a failure.
     try:
         progress.scanning(index, total, repo.name)
         result = scan_tree(tree, repository=repo.name, read_ci=config.read_ci)

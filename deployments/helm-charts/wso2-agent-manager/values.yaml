@@ -285,7 +285,7 @@ agentManagerService:
     oauthAuthorizationServers: ""
 
     # Shadow Agent Discovery source code scans: the scan command a customer
-    # runs for a GitHub or Azure DevOps platform publishes its results to
+    # runs for a GitHub platform publishes its results to
     # serverPublicURL with an organization-scoped token obtained with
     # oidc.clientId.
     shadowRunner:

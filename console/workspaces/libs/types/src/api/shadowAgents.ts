@@ -28,9 +28,8 @@ export type ShadowProvider =
   | "foundry"
   /** The customer's own agent inventory: a REST API built to the published contract. */
   | "custom"
-  /** Source repository hosts: scanned by the scan command on the customer's machine. */
-  | "github"
-  | "azure_devops";
+  /** Source repository host: scanned by the scan command on the customer's machine. */
+  | "github";
 
 /**
  * runtime: an AgentCore runtime or a Google Agent Runtime engine;
@@ -133,7 +132,7 @@ export interface ShadowProviderSpec {
   docs: string[];
   credentialChoice?: ShadowCredentialChoice;
   /**
-   * A source repository host (GitHub, Azure DevOps): no credential is stored, and
+   * A source repository host (GitHub): no credential is stored, and
    * its repositories are scanned by the scan command on the customer's machine.
    */
   sourceHost?: boolean;
@@ -229,7 +228,7 @@ export interface ShadowScanFailedRepository {
   message: string;
 }
 
-/** Generate command for a GitHub or Azure DevOps connection. */
+/** Generate command for a GitHub connection. */
 export interface ShadowRunnerScanRequest {
   /** Send matches the rules cannot prove to the customer's LLM for review. */
   aiReview: boolean;

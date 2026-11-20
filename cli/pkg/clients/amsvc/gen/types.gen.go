@@ -1518,22 +1518,19 @@ func (e SelfHostedGatewayRequestFunctionalityType) Valid() bool {
 
 // Defines values for ShadowConnectionRequestProvider.
 const (
-	ShadowConnectionRequestProviderAnthropic   ShadowConnectionRequestProvider = "anthropic"
-	ShadowConnectionRequestProviderAzureDevops ShadowConnectionRequestProvider = "azure_devops"
-	ShadowConnectionRequestProviderBedrock     ShadowConnectionRequestProvider = "bedrock"
-	ShadowConnectionRequestProviderCustom      ShadowConnectionRequestProvider = "custom"
-	ShadowConnectionRequestProviderFoundry     ShadowConnectionRequestProvider = "foundry"
-	ShadowConnectionRequestProviderGithub      ShadowConnectionRequestProvider = "github"
-	ShadowConnectionRequestProviderGoogle      ShadowConnectionRequestProvider = "google"
-	ShadowConnectionRequestProviderOpenai      ShadowConnectionRequestProvider = "openai"
+	ShadowConnectionRequestProviderAnthropic ShadowConnectionRequestProvider = "anthropic"
+	ShadowConnectionRequestProviderBedrock   ShadowConnectionRequestProvider = "bedrock"
+	ShadowConnectionRequestProviderCustom    ShadowConnectionRequestProvider = "custom"
+	ShadowConnectionRequestProviderFoundry   ShadowConnectionRequestProvider = "foundry"
+	ShadowConnectionRequestProviderGithub    ShadowConnectionRequestProvider = "github"
+	ShadowConnectionRequestProviderGoogle    ShadowConnectionRequestProvider = "google"
+	ShadowConnectionRequestProviderOpenai    ShadowConnectionRequestProvider = "openai"
 )
 
 // Valid indicates whether the value is a known member of the ShadowConnectionRequestProvider enum.
 func (e ShadowConnectionRequestProvider) Valid() bool {
 	switch e {
 	case ShadowConnectionRequestProviderAnthropic:
-		return true
-	case ShadowConnectionRequestProviderAzureDevops:
 		return true
 	case ShadowConnectionRequestProviderBedrock:
 		return true
@@ -1626,22 +1623,19 @@ func (e ShadowFindingSummaryKind) Valid() bool {
 
 // Defines values for ShadowProviderSpecProvider.
 const (
-	Anthropic   ShadowProviderSpecProvider = "anthropic"
-	AzureDevops ShadowProviderSpecProvider = "azure_devops"
-	Bedrock     ShadowProviderSpecProvider = "bedrock"
-	Custom      ShadowProviderSpecProvider = "custom"
-	Foundry     ShadowProviderSpecProvider = "foundry"
-	Github      ShadowProviderSpecProvider = "github"
-	Google      ShadowProviderSpecProvider = "google"
-	Openai      ShadowProviderSpecProvider = "openai"
+	Anthropic ShadowProviderSpecProvider = "anthropic"
+	Bedrock   ShadowProviderSpecProvider = "bedrock"
+	Custom    ShadowProviderSpecProvider = "custom"
+	Foundry   ShadowProviderSpecProvider = "foundry"
+	Github    ShadowProviderSpecProvider = "github"
+	Google    ShadowProviderSpecProvider = "google"
+	Openai    ShadowProviderSpecProvider = "openai"
 )
 
 // Valid indicates whether the value is a known member of the ShadowProviderSpecProvider enum.
 func (e ShadowProviderSpecProvider) Valid() bool {
 	switch e {
 	case Anthropic:
-		return true
-	case AzureDevops:
 		return true
 	case Bedrock:
 		return true
@@ -6984,7 +6978,7 @@ type ShadowProviderSpec struct {
 	// SetupSteps The steps to make the platform listable (Custom platform), shown with what it lists.
 	SetupSteps *[]string `json:"setupSteps,omitempty"`
 
-	// SourceHost A source repository host (GitHub, Azure DevOps). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
+	// SourceHost A source repository host (GitHub). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
 	SourceHost *bool `json:"sourceHost,omitempty"`
 }
 
@@ -7047,7 +7041,7 @@ type ShadowScanConnectionResult struct {
 	Outcome            string                        `json:"outcome"`
 	Provider           string                        `json:"provider"`
 
-	// ScannedRepositories The repositories a source code scan command scanned (a GitHub repository name, or an Azure DevOps project/repository). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+	// ScannedRepositories The repositories a source code scan command scanned (GitHub repository names). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
 	ScannedRepositories *[]string `json:"scannedRepositories,omitempty"`
 }
 

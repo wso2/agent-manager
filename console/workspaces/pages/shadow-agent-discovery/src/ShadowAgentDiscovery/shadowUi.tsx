@@ -35,11 +35,13 @@ export const PROVIDER_LABELS: Record<ShadowProvider, string> = {
   foundry: "Microsoft Foundry",
   custom: "Custom platform",
   github: "GitHub",
-  azure_devops: "Azure DevOps",
 };
 
 /** Source repository hosts: scanned by the scan command on the customer's machine. */
-export const SOURCE_HOSTS: string[] = ["github", "azure_devops"];
+export const SOURCE_HOSTS: string[] = ["github"];
+
+/** The customer's own agent inventory API: neither an AI platform nor a source host. */
+export const CUSTOM_PLATFORM = "custom";
 
 /** The platforms whose agent listings a scan reads, in display order. */
 export const AGENT_PLATFORMS: ShadowProvider[] = [
@@ -59,7 +61,7 @@ function countOf(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** What a GitHub or Azure DevOps connection scans: "acme · All repositories · Public only". */
+/** What a GitHub connection scans: "acme · All repositories · Public only". */
 export function sourceScopeLabel(
   provider: string,
   settings: Record<string, unknown> | undefined,
@@ -67,11 +69,7 @@ export function sourceScopeLabel(
   const s = settings ?? {};
   const listed = (v: unknown) => (Array.isArray(v) ? v.length : 0);
   const parts = [typeof s.organization === "string" ? s.organization : ""];
-  if (provider === "azure_devops") {
-    parts.push(
-      s.allProjects === true ? "All projects" : countOf(listed(s.projects), "project", "projects"),
-    );
-  } else {
+  if (provider === "github") {
     parts.push(
       s.allRepositories === true
         ? "All repositories"

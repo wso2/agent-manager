@@ -14,7 +14,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Git hosts the runner lists and downloads repositories from (GitHub now, Azure DevOps later).
+"""Git hosts the runner lists and downloads repositories from (GitHub).
 
 Every message here is safe to show: it never holds a token or request headers.
 """

@@ -377,11 +377,10 @@ func normaliseShadowFailedRepos(
 }
 
 // shadowPublishCoverage decides which agents a publish may mark as gone.
-// The listing is complete when the command listed every repository and,
-// for Azure DevOps, reported every configured project and named no failed
-// project without its repository. The unfinished scopes
-// are the failed repositories and, for GitHub, the configured repositories
-// the command did not report as scanned: their agents keep their presence.
+// The listing is complete when the command listed every repository. The
+// unfinished scopes are the failed repositories and, for GitHub, the
+// configured repositories the command did not report as scanned: their
+// agents keep their presence.
 func shadowPublishCoverage(
 	c *models.ShadowConnection, listed bool, scanned []string, failed []models.ShadowScanFailedRepository,
 ) (bool, []string) {
@@ -400,56 +399,14 @@ func shadowPublishCoverage(
 	for _, f := range failed {
 		add(f.Name)
 	}
-	complete := listed
-	switch c.Provider {
-	case models.ShadowProviderGitHub:
-		if !c.Config.AllRepositories {
-			for _, r := range c.Config.Repositories {
-				if n := sa.NormaliseScope(c.Provider, c.Config.Organization, r); n != "" && !scannedSet[n] {
-					add(n)
-				}
-			}
-		}
-	case models.ShadowProviderAzureDevOps:
-		for _, f := range failed {
-			if !strings.Contains(f.Name, "/") {
-				// A whole project failed: its repositories are unknown, so
-				// its agents' scopes (project/repository) cannot be kept
-				// apart. Nothing is marked gone.
-				complete = false
-			}
-		}
-		if !c.Config.AllProjects {
-			for _, p := range c.Config.Projects {
-				if !shadowProjectReported(strings.TrimSpace(p), scanned, failed) {
-					// The command skipped a whole project: nothing is marked
-					// gone, new agents are still saved.
-					complete = false
-				}
+	if c.Provider == models.ShadowProviderGitHub && !c.Config.AllRepositories {
+		for _, r := range c.Config.Repositories {
+			if n := sa.NormaliseScope(c.Provider, c.Config.Organization, r); n != "" && !scannedSet[n] {
+				add(n)
 			}
 		}
 	}
-	return complete, unfinished
-}
-
-// shadowProjectReported reports whether a scanned or failed Azure DevOps
-// repository (project/repository) is in project.
-func shadowProjectReported(project string, scanned []string, failed []models.ShadowScanFailedRepository) bool {
-	in := func(repo string) bool {
-		p, _, ok := strings.Cut(repo, "/")
-		return ok && strings.EqualFold(p, project)
-	}
-	for _, n := range scanned {
-		if in(n) {
-			return true
-		}
-	}
-	for _, f := range failed {
-		if in(f.Name) {
-			return true
-		}
-	}
-	return false
+	return listed, unfinished
 }
 
 // shadowPublishOutcome is the connection's result and the scan's status:

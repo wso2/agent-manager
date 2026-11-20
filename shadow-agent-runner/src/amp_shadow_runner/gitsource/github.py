@@ -188,7 +188,7 @@ class GitHubSource:
     def download_tarball(self, repo: Repository, dest_dir: Path) -> Path:
         """Download ``repo`` at its resolved commit into ``dest_dir`` and return the archive's path.
 
-        The archive is for ``fetch.extract(kind="tar.gz")``. Raises RepositoryError when this repository
+        The archive is for ``fetch.extract``. Raises RepositoryError when this repository
         cannot be downloaded (including when it is over MAX_TARBALL_BYTES), or GitSourceError for a refused
         token or a rate limit. An error writing the file is raised as the OSError itself.
         """

@@ -99,7 +99,7 @@ var defs = append([]SignalDef{
 }, sourceDefs()...)
 
 // sourceEvidence is what the source code scan finds in a repository: the
-// design's detectors D1 to D12. GitHub and Azure DevOps share it, so their
+// design's detectors D1 to D12, at each repository host, so their
 // codes cannot drift.
 var sourceEvidence = []struct{ slug, name, condition string }{
 	{
@@ -132,7 +132,7 @@ var sourceEvidence = []struct{ slug, name, condition string }{
 
 // sourceProviders are the repository hosts the source code scan reads, in
 // display order.
-var sourceProviders = []string{models.ShadowProviderGitHub, models.ShadowProviderAzureDevOps}
+var sourceProviders = []string{models.ShadowProviderGitHub}
 
 // sourceSignalCode is the evidence code of a source detector at a
 // repository host, e.g. github.d1_agent_dependency.
