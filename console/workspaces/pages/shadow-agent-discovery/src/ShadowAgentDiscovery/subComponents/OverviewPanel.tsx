@@ -19,19 +19,21 @@
 import {
   Box,
   Button,
+  ButtonBase,
   Card,
   CardContent,
-  Chip,
-  Grid,
+  Divider,
+  LinearProgress,
   Skeleton,
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ChevronRight, CircleCheck, PlugZap } from "@wso2/oxygen-ui-icons-react";
+import { CircleCheck, PlugZap } from "@wso2/oxygen-ui-icons-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { returnToState, StateNotice } from "@agent-management-platform/views";
 import { useShadowSummary } from "@agent-management-platform/api-client";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
+import { ProviderLogo } from "../providerLogos";
 import { formatCount, providerLabel, ScanStatusChip } from "../shadowUi";
 import { RunScanButton } from "./RunScanButton";
 import { scanFindingsPath } from "./ScansTab";
@@ -53,78 +55,124 @@ interface Step {
   action?: React.ReactNode;
 }
 
-/** The order to work in: add a platform, test it, scan, review the agents. */
+/** The order to work in, one line per step, shown until the first scan. */
 function GettingStarted({ steps }: { steps: Step[] }) {
   return (
     <Box>
-      <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-        How to find unregistered agents
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Get started
       </Typography>
-      <Stack
-        direction={{ xs: "column", lg: "row" }}
-        spacing={1}
-        alignItems={{ lg: "stretch" }}
-        component="ol"
-        sx={{ listStyle: "none", m: 0, p: 0 }}
-      >
-        {steps.map((s, i) => (
-          <Stack
-            key={s.title}
-            component="li"
-            direction={{ xs: "column", lg: "row" }}
-            spacing={1}
-            alignItems={{ lg: "center" }}
-            sx={{ flex: 1, minWidth: 0 }}
-          >
-            <Card variant="outlined" sx={{ flex: 1, height: "100%" }}>
-              <CardContent>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                  {s.done ? (
-                    <Box sx={{ color: "success.main", display: "flex" }} aria-label="Done">
-                      <CircleCheck size={18} />
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" fontWeight={500}>
-                      {i + 1}.
+      <Card variant="outlined">
+        <Box component="ol" sx={{ listStyle: "none", m: 0, p: 0 }}>
+          {steps.map((s, i) => (
+            <Box component="li" key={s.title}>
+              {i > 0 && <Divider />}
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={{ xs: 1, sm: 2 }}
+                alignItems={{ sm: "center" }}
+                sx={{ px: 2, py: 1.5 }}
+              >
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
+                  <Box
+                    sx={{ width: 20, display: "flex", justifyContent: "center", flexShrink: 0 }}
+                  >
+                    {s.done ? (
+                      <Box sx={{ color: "success.main", display: "flex" }} aria-label="Done">
+                        <CircleCheck size={18} />
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                        {i + 1}
+                      </Typography>
+                    )}
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" fontWeight={500}>
+                      {s.title}
                     </Typography>
-                  )}
-                  <Typography variant="body2" fontWeight={500}>
-                    {s.title}
-                  </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {s.description}
+                    </Typography>
+                  </Box>
                 </Stack>
-                <Typography variant="caption" color="text.secondary" component="p">
-                  {s.description}
-                </Typography>
-                {s.action && <Box sx={{ mt: 1.5 }}>{s.action}</Box>}
-              </CardContent>
-            </Card>
-            {i < steps.length - 1 && (
-              <Box sx={{ display: { xs: "none", lg: "flex" }, color: "text.disabled" }} aria-hidden>
-                <ChevronRight size={18} />
-              </Box>
-            )}
-          </Stack>
-        ))}
-      </Stack>
+                {s.action && <Box sx={{ pl: { xs: 4, sm: 0 } }}>{s.action}</Box>}
+              </Stack>
+            </Box>
+          ))}
+        </Box>
+      </Card>
     </Box>
   );
 }
 
-function StatTile({ label, value, hint }: { label: string; value: string; hint: string }) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <Card variant="outlined" sx={{ height: "100%" }}>
-      <CardContent>
-        <Typography variant="body2" color="text.secondary">
-          {label}
-        </Typography>
-        <Typography variant="h4" sx={{ my: 0.5 }}>
-          {value}
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {hint}
-        </Typography>
-      </CardContent>
-    </Card>
+    <Box sx={{ flex: 1, px: { xs: 0, sm: 3 }, py: { xs: 1, sm: 0 }, "&:first-of-type": { pl: 0 } }}>
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="h4" sx={{ mt: 0.5 }}>
+        {value}
+      </Typography>
+    </Box>
+  );
+}
+
+/** One row per platform: logo, name, a bar relative to the largest, and the count. */
+function PlatformBreakdown({
+  rows,
+  onOpen,
+}: {
+  rows: [string, number][];
+  onOpen: (provider: string) => void;
+}) {
+  const max = Math.max(...rows.map(([, n]) => n));
+  return (
+    <Box>
+      <Typography variant="subtitle1" sx={{ mb: 1 }}>
+        Agents by platform
+      </Typography>
+      <Stack spacing={0.5}>
+        {rows.map(([p, n]) => (
+          <ButtonBase
+            key={p}
+            onClick={() => onOpen(p)}
+            aria-label={`${providerLabel(p)}, ${formatCount(n)} ${n === 1 ? "agent" : "agents"}`}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
+              width: "100%",
+              px: 1,
+              py: 1,
+              borderRadius: 1,
+              textAlign: "left",
+              "&:hover": { bgcolor: "action.hover" },
+            }}
+          >
+            <Box sx={{ display: "flex", flexShrink: 0 }}>
+              <ProviderLogo provider={p} size={20} />
+            </Box>
+            <Typography variant="body2" noWrap sx={{ width: { xs: 120, sm: 180 }, flexShrink: 0 }}>
+              {providerLabel(p)}
+            </Typography>
+            <LinearProgress
+              variant="determinate"
+              value={Math.max(2, (n / max) * 100)}
+              aria-hidden
+              sx={{ flex: 1, height: 6, borderRadius: 3 }}
+            />
+            <Typography
+              variant="body2"
+              sx={{ minWidth: 48, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+            >
+              {formatCount(n)}
+            </Typography>
+          </ButtonBase>
+        ))}
+      </Stack>
+    </Box>
   );
 }
 
@@ -142,17 +190,19 @@ export function OverviewPanel({
   const summary = useShadowSummary(orgName);
   const s = summary.data;
   const connected = (s?.connections ?? 0) > 0;
-  const scanned = !!s?.latestScan;
+  const latest = s?.latestScan;
+  // The steps stay until a scan finishes with results; a failed scan keeps them.
+  const scanned = latest?.status === "succeeded" || latest?.status === "partial";
   const total = s?.totalFindings ?? 0;
   const onboarded = s?.onboarded ?? 0;
   const unregistered = Math.max(0, total - onboarded);
   const steps: Step[] = [
     {
       title: "Add a platform",
-      description:
-        "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, your own agent inventory with Bring your own inventory, or a GitHub organization, which you scan with a command on your machine.",
+      description: "Connect an AI platform or a source code repository host.",
       done: connected,
-      action: canManage ? (
+      // With no platform, the empty state above already has Add platform.
+      action: canManage && connected ? (
         <Button size="small" variant="outlined" onClick={onConnect}>
           Add platform
         </Button>
@@ -160,43 +210,33 @@ export function OverviewPanel({
     },
     {
       title: "Test the connection",
-      description: "Test connection lists one agent per listing and shows what works.",
+      description: "Check that Agent Manager can read the agent listings.",
       done: false,
       action: connected ? (
-        <Button size="small" variant="outlined" onClick={onOpenPlatforms}>
+        <Button size="small" variant="text" onClick={onOpenPlatforms}>
           Open platforms
         </Button>
       ) : undefined,
     },
     {
       title: "Run a scan",
-      description:
-        "Run scan at the top of the page scans all platforms or the ones you choose; Scan on a row in Platforms scans one.",
+      description: "Scan all platforms or the ones you choose.",
       done: scanned,
       action: canManage && connected ? <RunScanButton orgName={orgName} /> : undefined,
     },
     {
       title: "Onboard the unregistered agents",
-      description:
-        "Unregistered Agents lists every agent the platforms list, once, with the evidence. Onboard each one as an external agent.",
+      description: "Review each agent found and onboard it as an external agent.",
       done: total > 0 && unregistered === 0,
-      action: scanned ? (
-        <Button size="small" variant="outlined" onClick={() => onOpenAgents()}>
-          View agents
-        </Button>
-      ) : undefined,
     },
   ];
 
   if (summary.isLoading) {
     return (
-      <Grid container spacing={2}>
-        {[0, 1, 2].map((i) => (
-          <Grid key={i} size={{ xs: 12, sm: 6, lg: 4 }}>
-            <Skeleton variant="rounded" height={112} />
-          </Grid>
-        ))}
-      </Grid>
+      <Stack spacing={3}>
+        <Skeleton variant="rounded" height={160} />
+        <Skeleton variant="rounded" height={96} />
+      </Stack>
     );
   }
   if (summary.error) {
@@ -212,7 +252,7 @@ export function OverviewPanel({
         <StateNotice
           icon={PlugZap}
           title="Add a platform to start"
-          description="Shadow Agent Discovery reads the agent listings of your AI platforms with a read-only credential and shows the agents that run outside Agent Manager."
+          description="Shadow Agent Discovery finds agents that run outside Agent Manager."
           actions={
             canManage ? (
               <Button variant="contained" onClick={onConnect}>
@@ -226,59 +266,49 @@ export function OverviewPanel({
     );
   }
 
-  const byPlatform = Object.entries(s?.byProvider ?? {}).filter(([, n]) => n > 0);
+  const byPlatform = Object.entries(s?.byProvider ?? {})
+    .filter(([, n]) => n > 0)
+    .sort(([, a], [, b]) => b - a);
+  const platformCount = latest?.connectionIds.length ?? 0;
   return (
     <Stack spacing={3}>
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <StatTile
-            label="Unregistered agents"
-            value={formatCount(unregistered)}
-            hint="Listed by the platforms and not onboarded yet, each counted once"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <StatTile
-            label="Onboarded"
-            value={formatCount(onboarded)}
-            hint="Agents onboarded as external agents"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <StatTile
-            label="Platforms connected"
-            value={formatCount(s?.connections)}
-            hint="Connections to AI platforms and source repository hosts"
-          />
-        </Grid>
-      </Grid>
-
       <Card variant="outlined">
         <CardContent>
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1">Latest scan</Typography>
-              {s?.latestScan ? (
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                  <ScanStatusChip status={s.latestScan.status} />
-                  <Typography variant="body2" color="text.secondary">
-                    {formatRelativeTime(s.latestScan.startedAt ?? s.latestScan.createdAt)} ·{" "}
-                    {s.latestScan.connectionIds.length}{" "}
-                    {s.latestScan.connectionIds.length === 1 ? "platform" : "platforms"} scanned
-                  </Typography>
-                </Stack>
-              ) : (
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            divider={
+              <Divider
+                orientation="vertical"
+                flexItem
+                sx={{ display: { xs: "none", sm: "block" } }}
+              />
+            }
+          >
+            <Stat label="Unregistered agents" value={formatCount(unregistered)} />
+            <Stat label="Onboarded" value={formatCount(onboarded)} />
+            <Stat label="Platforms connected" value={formatCount(s?.connections)} />
+          </Stack>
+        </CardContent>
+        <Divider />
+        <CardContent>
+          {latest ? (
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={2}
+              alignItems={{ sm: "center" }}
+            >
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ flex: 1 }}>
+                <ScanStatusChip status={latest.status} />
                 <Typography variant="body2" color="text.secondary">
-                  No scan yet. Use Run scan at the top of the page.
+                  Latest scan {formatRelativeTime(latest.startedAt ?? latest.createdAt)} ·{" "}
+                  {platformCount} {platformCount === 1 ? "platform" : "platforms"}
                 </Typography>
-              )}
-            </Box>
-            {s?.latestScan && (
+              </Stack>
               <Stack direction="row" spacing={1}>
                 <Button
                   variant="outlined"
                   onClick={() =>
-                    navigate(scanFindingsPath(orgName ?? "", s.latestScan?.id ?? ""), {
+                    navigate(scanFindingsPath(orgName ?? "", latest.id), {
                       state: returnToState(location),
                     })
                   }
@@ -289,32 +319,20 @@ export function OverviewPanel({
                   All scans
                 </Button>
               </Stack>
-            )}
-          </Stack>
+            </Stack>
+          ) : (
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+                No scan yet.
+              </Typography>
+            </Stack>
+          )}
         </CardContent>
       </Card>
 
-      {byPlatform.length > 0 && (
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="subtitle1" sx={{ mb: 1 }}>
-              Unregistered agents by platform
-            </Typography>
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-              {byPlatform.map(([p, n]) => (
-                <Chip
-                  key={p}
-                  variant="outlined"
-                  label={`${providerLabel(p)} · ${formatCount(n)}`}
-                  onClick={() => onOpenAgents(p)}
-                />
-              ))}
-            </Stack>
-          </CardContent>
-        </Card>
-      )}
+      {byPlatform.length > 0 && <PlatformBreakdown rows={byPlatform} onOpen={onOpenAgents} />}
 
-      <GettingStarted steps={steps} />
+      {!scanned && <GettingStarted steps={steps} />}
     </Stack>
   );
 }

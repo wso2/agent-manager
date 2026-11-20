@@ -373,8 +373,16 @@ describe("OverviewPanel", () => {
     ]) {
       expect(screen.getAllByText(step).length).toBeGreaterThan(0);
     }
-    fireEvent.click(screen.getAllByRole("button", { name: "Add platform" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Add platform" }));
     expect(props.onConnect).toHaveBeenCalled();
+  });
+
+  it("shows the steps until the first scan, with no platform rows", () => {
+    hoisted.summary = { totalFindings: 0, byProvider: {}, onboarded: 0, connections: 1 };
+    router(<OverviewPanel {...props} />);
+    expect(screen.getByText("No scan yet.")).toBeInTheDocument();
+    expect(screen.getByText("Get started")).toBeInTheDocument();
+    expect(screen.queryByText("Agents by platform")).not.toBeInTheDocument();
   });
 
   it("shows the agents found, by platform, and the latest scan, without scores", () => {
@@ -391,10 +399,16 @@ describe("OverviewPanel", () => {
     expect(screen.getByText("Platforms connected")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
-    expect(screen.getByText(/2 platforms scanned/)).toBeInTheDocument();
+    expect(screen.getByText(/Latest scan .* 2 platforms/)).toBeInTheDocument();
     expect(screen.queryByText(/score/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/verdict/i)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("Amazon Bedrock · 2"));
+    expect(screen.queryByText("Get started")).not.toBeInTheDocument();
+    const rows = screen.getAllByRole("button", { name: /\d+ agents?$/ });
+    expect(rows.map((r) => r.getAttribute("aria-label"))).toEqual([
+      "OpenAI, 3 agents",
+      "Amazon Bedrock, 2 agents",
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Amazon Bedrock, 2 agents" }));
     expect(props.onOpenAgents).toHaveBeenCalledWith("bedrock");
     fireEvent.click(screen.getByRole("button", { name: "All scans" }));
     expect(props.onOpenScans).toHaveBeenCalled();

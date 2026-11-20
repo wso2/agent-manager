@@ -18,7 +18,15 @@
 
 import { useState } from "react";
 import { Box, Chip, IconButton, Tooltip } from "@wso2/oxygen-ui";
-import { Check, CircleCheck, CircleDashed, Copy } from "@wso2/oxygen-ui-icons-react";
+import {
+  Check,
+  CircleCheck,
+  CircleDashed,
+  CircleX,
+  Clock,
+  Copy,
+  TriangleAlert,
+} from "@wso2/oxygen-ui-icons-react";
 import type {
   ShadowCallOutcome,
   ShadowFindingKind,
@@ -237,7 +245,26 @@ export function ScanStatusChip({ status }: { status: ShadowScanStatus }) {
           : status === "pending"
             ? "default"
             : "info";
-  return <Chip size="small" color={color} label={SCAN_STATUS_LABELS[status] ?? status} />;
+  const Icon =
+    status === "succeeded"
+      ? CircleCheck
+      : status === "failed"
+        ? CircleX
+        : status === "partial"
+          ? TriangleAlert
+          : status === "pending"
+            ? Clock
+            : CircleDashed;
+  // Outlined, like the onboarding chip, so status chips read alike across the pages.
+  return (
+    <Chip
+      size="small"
+      variant="outlined"
+      color={color}
+      icon={<Icon size={14} />}
+      label={SCAN_STATUS_LABELS[status] ?? status}
+    />
+  );
 }
 
 const OUTCOME_LABELS: Record<ShadowCallOutcome, string> = {

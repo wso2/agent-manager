@@ -304,11 +304,15 @@ export function FindingsTab({
               }
             >
               <ListingTable.Cell sx={{ maxWidth: 360 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="body2" fontWeight={500}>
+                {/* A long name (a code agent named with its file path) is cut to one line,
+                    with the full name on hover, so it never runs into the next column. */}
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                  <Typography variant="body2" fontWeight={500} noWrap title={f.displayName}>
                     {f.displayName}
                   </Typography>
-                  <AiReviewChip reviewedBy={f.reviewedBy} />
+                  <Box sx={{ flexShrink: 0, display: "flex" }}>
+                    <AiReviewChip reviewedBy={f.reviewedBy} />
+                  </Box>
                 </Stack>
                 {/* Only the type: scope, IDs and the rest are on the agent's page. Two agents
                     that look alike also show their platform ID, so they do not read as one. */}
