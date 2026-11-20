@@ -25,7 +25,14 @@ import { PageMetaList } from '../PageMeta';
 // Hoisted so this header — which every page renders, and which re-renders with
 // whatever page state sits above it — doesn't hand emotion new style objects to
 // serialize on each pass.
-const TITLE_SX = { display: 'inline-flex', alignItems: 'center', width: '100%' } as const;
+// `contain: inline-size` stops a long title from widening the header (and pushing
+// the page actions off screen); the title fills the space it is given and ellipsizes.
+const TITLE_SX = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: '100%',
+  contain: 'inline-size',
+} as const;
 const TITLE_TEXT_SX = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
