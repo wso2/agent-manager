@@ -102,7 +102,15 @@ type GatewayRepository interface {
 	CountWithFilters(filters GatewayFilterOptions) (int64, error)
 	Delete(gatewayID, ouID string) error
 	UpdateGateway(gateway *models.Gateway) error
-	UpdateActiveStatus(gatewayId string, isActive bool) error
+	// MarkConnected marks the gateway active for a connection whose activation time is
+	// activatedAt (when the connection was accepted, truncated to the microsecond). The connection
+	// keeps activatedAt and hands it to MarkDisconnected when it closes.
+	// Returns gorm.ErrRecordNotFound when the gateway does not exist or is soft-deleted.
+	MarkConnected(ctx context.Context, gatewayID string, activatedAt time.Time) error
+	// MarkDisconnected marks the gateway inactive, but only if nothing has changed the row since
+	// activatedAt. It reports whether it did: false means the gateway has reconnected since (on
+	// this replica or another), so it stays active, or the gateway no longer exists.
+	MarkDisconnected(ctx context.Context, gatewayID string, activatedAt time.Time) (bool, error)
 
 	// Cross-organization fleet health. Both deliberately carry no ou_id
 	// predicate — they back the platform-admin failure summary, which reports
@@ -369,13 +377,22 @@ func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 	return nil
 }
 
-// UpdateActiveStatus updates the is_active status of a gateway
-func (r *GatewayRepo) UpdateActiveStatus(gatewayId string, isActive bool) error {
-	res := r.db.Model(&models.Gateway{}).
-		Where("uuid = ?", gatewayId).
+// MarkConnected marks the gateway active for the connection activated at activatedAt.
+//
+// While the row is active, updated_at never moves backwards: a connection whose write lands after
+// a newer connection's (it was accepted earlier but stalled) leaves the newer time in the row, so
+// its own close, which compares against its older activatedAt, cannot deactivate the newer one.
+// While the row is inactive no live connection owns it, so the write simply takes activatedAt;
+// otherwise a disconnect's later timestamp would be kept and this connection's own close could
+// never match.
+func (r *GatewayRepo) MarkConnected(ctx context.Context, gatewayID string, activatedAt time.Time) error {
+	res := r.db.WithContext(ctx).Model(&models.Gateway{}).
+		Where("uuid = ?", gatewayID).
 		Updates(map[string]interface{}{
-			"is_active":  isActive,
-			"updated_at": time.Now(),
+			"is_active": true,
+			"updated_at": gorm.Expr(
+				"CASE WHEN is_active THEN GREATEST(COALESCE(updated_at, ?), ?) ELSE ? END",
+				activatedAt, activatedAt, activatedAt),
 		})
 	if res.Error != nil {
 		return res.Error
@@ -384,6 +401,28 @@ func (r *GatewayRepo) UpdateActiveStatus(gatewayId string, isActive bool) error 
 		return gorm.ErrRecordNotFound
 	}
 	return nil
+}
+
+// MarkDisconnected marks the gateway inactive only while updated_at is still no later than the
+// closing connection's activatedAt. Without the guard, an old connection that finishes closing
+// after the gateway reconnected (to another replica, or to this one) overwrites the reconnect and
+// leaves a connected gateway INACTIVE until its next reconnect, and deployments skip inactive
+// gateways. A reconnect always writes a later updated_at, so the stale close changes nothing.
+//
+// Known trade-off: an edit to the gateway (UpdateGateway) also moves updated_at, so if the gateway
+// is edited while connected, its next real disconnect leaves it marked active until it reconnects.
+// Events for it queue in the event hub meanwhile, as for any disconnected gateway.
+func (r *GatewayRepo) MarkDisconnected(ctx context.Context, gatewayID string, activatedAt time.Time) (bool, error) {
+	res := r.db.WithContext(ctx).Model(&models.Gateway{}).
+		Where("uuid = ? AND updated_at <= ?", gatewayID, activatedAt).
+		Updates(map[string]interface{}{
+			"is_active":  false,
+			"updated_at": time.Now(),
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
 }
 
 // CreateToken inserts a new token
@@ -703,7 +742,7 @@ func (r *GatewayRepo) CountIngressCapableInEnvironment(tx *gorm.DB, environmentI
 // long enough to matter, and not so long that it is no longer news.
 //
 // is_active is WebSocket liveness and updated_at is when that liveness last
-// changed (UpdateActiveStatus writes both together), so the pair reads as "has
+// changed (MarkConnected and MarkDisconnected write both together), so the pair reads as "has
 // been down for a while" rather than "is down right now".
 //
 // Two consequences are inherent to the definition and not bugs here: a gateway

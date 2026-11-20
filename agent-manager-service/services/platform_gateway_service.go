@@ -899,9 +899,15 @@ func (s *PlatformGatewayService) GetGatewayStatus(ctx context.Context, ouID stri
 	return listResponse, nil
 }
 
-// UpdateGatewayActiveStatus updates the active status of a gateway
-func (s *PlatformGatewayService) UpdateGatewayActiveStatus(gatewayID string, isActive bool) error {
-	return s.gatewayRepo.UpdateActiveStatus(gatewayID, isActive)
+// MarkGatewayConnected marks the gateway active for the connection activated at activatedAt.
+func (s *PlatformGatewayService) MarkGatewayConnected(ctx context.Context, gatewayID string, activatedAt time.Time) error {
+	return s.gatewayRepo.MarkConnected(ctx, gatewayID, activatedAt)
+}
+
+// MarkGatewayDisconnected marks the gateway inactive when a connection closes, unless the gateway
+// has reconnected since that connection marked it active. It reports whether it marked it inactive.
+func (s *PlatformGatewayService) MarkGatewayDisconnected(ctx context.Context, gatewayID string, activatedAt time.Time) (bool, error) {
+	return s.gatewayRepo.MarkDisconnected(ctx, gatewayID, activatedAt)
 }
 
 // resolveGatewayUUID resolves a gateway identifier (UUID or name) to its UUID,

@@ -224,7 +224,11 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	// A not-found error here means the gateway was deleted (or soft-deleted)
 	// after VerifyToken succeeded but before this point - the connection must
 	// not be allowed to proceed as if it belongs to a live gateway.
-	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, true); err != nil {
+	// The activation time is when the connection was accepted, not when this write runs: a
+	// handler that stalls here can be overtaken by the gateway's next connection, and sampling the
+	// clock now would give this older connection the newer time.
+	activatedAt := connection.ConnectedAt.Truncate(time.Microsecond)
+	if err := c.gatewayService.MarkGatewayConnected(ctx, gatewayID, activatedAt); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("Gateway no longer exists, closing connection",
 				"gatewayID", gatewayID, "gatewayName", gatewayName,
@@ -240,6 +244,7 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		log.Error("Failed to update gateway active status to true",
 			"gatewayID", gatewayID, "gatewayName", gatewayName,
 			"ouID", ouID, "error", err)
+		activatedAt = time.Time{}
 	}
 
 	// Start reading messages (blocks until connection closes)
@@ -252,13 +257,33 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		"ouID", ouID, "connectionID", connection.ConnectionID)
 	c.manager.Unregister(gatewayID, connection.ConnectionID)
 
-	// Update gateway active status to false when connection is disconnected
-	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, false); err != nil {
+	// Mark the gateway inactive, unless it has already reconnected: after a network blip the new
+	// connection (often on another replica) can be marked active before this close is handled.
+	since := activatedAt
+	if since.IsZero() {
+		// Connect could not record the activation (logged above): close unconditionally, as
+		// before, rather than leave a closed gateway marked active.
+		since = time.Now()
+	}
+	// The request context ends with the connection, so the cleanup write runs on a detached,
+	// bounded one.
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayDisconnectWriteTimeout)
+	defer cancel()
+	marked, err := c.gatewayService.MarkGatewayDisconnected(closeCtx, gatewayID, since)
+	switch {
+	case err != nil:
 		log.Error("Failed to update gateway active status to false",
 			"gatewayID", gatewayID, "gatewayName", gatewayName,
 			"ouID", ouID, "error", err)
+	case !marked:
+		log.Info("Gateway not marked inactive: it reconnected after this connection opened, or it no longer exists",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"ouID", ouID, "connectionID", connection.ConnectionID)
 	}
 }
+
+// gatewayDisconnectWriteTimeout bounds the status write made after a gateway's connection closes.
+const gatewayDisconnectWriteTimeout = 10 * time.Second
 
 // readLoop reads messages from the WebSocket connection.
 // This is primarily for handling control frames (ping/pong) and detecting disconnections.
