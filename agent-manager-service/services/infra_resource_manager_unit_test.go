@@ -57,7 +57,7 @@ func okOrg() func(context.Context, string) (*models.OrganizationResponse, error)
 }
 
 // -----------------------------------------------------------------------------
-// ListOrganizations — OpenChoreo-backed list with in-memory pagination.
+// ListOrganizations — list with in-memory pagination.
 // -----------------------------------------------------------------------------
 
 func TestInfraResourceManager_ListOrganizations(t *testing.T) {
@@ -380,10 +380,6 @@ func TestInfraResourceManager_GetProject(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// ListOrgDeploymentPipelines — pagination over the client result.
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
 // ListOrgEnvironments — org gate then env propagation.
 // -----------------------------------------------------------------------------
 
@@ -415,25 +411,3 @@ func TestInfraResourceManager_ListOrgEnvironments(t *testing.T) {
 		assert.Equal(t, "dev", got[0].Name)
 	})
 }
-
-// -----------------------------------------------------------------------------
-// GetProjectDeploymentPipeline — org gate then pipeline propagation.
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-// CreateOrgDeploymentPipeline — slugified name, create error, optional project
-// linkage fan-out (GetProject + PatchProject) and its error branch.
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-// UpdateOrgDeploymentPipeline — pure error propagation / pass-through.
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-// DeleteOrgDeploymentPipeline — the referencing-projects guard (the core logic),
-// the list-error wrap, and the happy path.
-// -----------------------------------------------------------------------------
-
-// -----------------------------------------------------------------------------
-// GetDataplanes — org gate then dataplane propagation.
-// -----------------------------------------------------------------------------
