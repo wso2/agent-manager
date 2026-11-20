@@ -54,6 +54,7 @@ import {
   type ShadowSettingValue,
 } from "@agent-management-platform/types";
 import { ProviderLogoTile } from "../providerLogos";
+import { CUSTOM_PLATFORM } from "../shadowUi";
 import { PlatformPicker } from "./PlatformPicker";
 import {
   credentialChoiceError,
@@ -700,10 +701,10 @@ function EndpointInput({
 }
 
 /** Create (connections/new) or edit (connections/:connectionId/edit) a provider connection. */
-/** The file name of the Custom platform's OpenAPI contract download. */
-export const CUSTOM_CONTRACT_FILE = "agent-manager-custom-platform-openapi.yaml";
+/** The file name of the Bring your own inventory OpenAPI contract download. */
+export const CUSTOM_CONTRACT_FILE = "agent-manager-inventory-openapi.yaml";
 
-/** Saves the Custom platform's OpenAPI contract as a file. */
+/** Saves the Bring your own inventory OpenAPI contract as a file. */
 export function downloadContract(contract: string) {
   const url = URL.createObjectURL(new Blob([contract], { type: "application/yaml" }));
   const a = document.createElement("a");
@@ -790,7 +791,9 @@ export function ConnectionEditor({
 
   const choose = (p: ShadowProviderSpec) => {
     const d = initialDraft(p, undefined);
-    d.name = draft?.name || `${p.displayName} connection`;
+    d.name =
+      draft?.name ||
+      (p.provider === CUSTOM_PLATFORM ? "My agent inventory" : `${p.displayName} connection`);
     setDraft(d);
     setErrors({});
   };
@@ -886,7 +889,7 @@ export function ConnectionEditor({
                     justifyContent="space-between"
                   >
                     <Box>
-                      <Typography variant="subtitle2">Build your agent inventory API</Typography>
+                      <Typography variant="subtitle2">Build your inventory API</Typography>
                       <Typography variant="body2" color="text.secondary">
                         Implement the OpenAPI contract in a service you run, then enter its Agents
                         URL and API key below.
@@ -905,7 +908,9 @@ export function ConnectionEditor({
                 </Box>
               )}
               <AnalyzeSection
-                providerName={spec.displayName}
+                providerName={
+                  spec.provider === CUSTOM_PLATFORM ? "your inventory API" : spec.displayName
+                }
                 statuses={statuses}
                 notListed={spec.notListed}
                 setupSteps={spec.setupSteps}
@@ -928,7 +933,11 @@ export function ConnectionEditor({
                   <TextInput
                     label="Name"
                     placeholder={
-                      spec.sourceHost ? `e.g. ${spec.displayName} my-org` : "e.g. OpenAI production"
+                      spec.sourceHost
+                        ? `e.g. ${spec.displayName} my-org`
+                        : spec.provider === CUSTOM_PLATFORM
+                          ? "e.g. HR agent inventory"
+                          : "e.g. OpenAI production"
                     }
                     value={draft.name}
                     maxLength={INPUT_LIMITS.NAME}

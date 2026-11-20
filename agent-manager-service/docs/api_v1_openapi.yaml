@@ -24851,14 +24851,14 @@ components:
             type: string
         setupSteps:
           type: array
-          description: The steps to make the platform listable (Custom platform), shown with what it lists.
+          description: The steps to make the platform listable (Bring your own inventory), shown with what it lists.
           items:
             type: string
         apiContract:
           type: string
           description: >-
-            The OpenAPI document (YAML) of the agent inventory API the customer implements for a Custom
-            platform; the console offers it for download.
+            The OpenAPI document (YAML) of the agent inventory API the customer implements for Bring your
+            own inventory; the console offers it for download.
 
     ShadowCredentialChoice:
       type: object
