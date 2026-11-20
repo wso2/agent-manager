@@ -20,8 +20,8 @@
 // subscription-validation (v2) and subscription rate-limit policies.
 //
 // It is an optional module: the amp distribution links it, and an operator installs it with
-// `amp module install aihub`. It holds the plans: their API (plan_controller.go) at /m/aihub, and a webhook
-// (plan_webhook_controller.go) at /m/aihub/webhooks/events on the internal server, through which plans made in
+// `amp module install ai-hub`. It holds the plans: their API (plan_controller.go) at /m/ai-hub, and a webhook
+// (plan_webhook_controller.go) at /m/ai-hub/webhooks/events on the internal server, through which plans made in
 // a developer portal are copied in. Gateways get every plan through the AI Gateway (subplanv1).
 package aihub
 
@@ -38,16 +38,16 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
 )
 
-// Name is the module's name: its routes are under /m/aihub (the plans API at /m/aihub/subscription-plans),
-// its tables are mod_aihub_*, and its permissions are aihub:plan-<verb>.
-const Name = "aihub"
+// Name is the module's name: its routes are under /m/ai-hub (the plans API at /m/ai-hub/subscription-plans),
+// its tables are mod_ai_hub_*, and its permissions are ai-hub:plan-<verb>.
+const Name = "ai-hub"
 
 // EventPlanChanged is published, in the same transaction, when a plan is created, updated or deleted, with a
 // subplanv1.PlanChange. The AI Gateway finds it through the capability (Source.ChangeEvent), subscribes to it
 // and pushes the change to the organization's gateways.
 const EventPlanChanged = Name + ".plan_changed"
 
-// Permissions, by their short names: the host names them aihub:<name>, and each action
+// Permissions, by their short names: the host names them ai-hub:<name>, and each action
 // has its own, so the audit trail names it.
 const (
 	PermPlanRead   = "plan-read"
@@ -96,15 +96,15 @@ func (module) Manifest() modkit.Manifest {
 			// organization's configuration, made on the internal server.
 			{Name: ActionPlanSync, Description: "Copy in a subscription plan from a developer portal"},
 		},
-		// The console's Organization > Manage > Subscription Plans page (UI module "aihub").
-		UI: &modkit.UI{Pages: []modkit.Page{{ID: "aihub/subscription-plans", Permission: PermPlanRead}}},
+		// The console's Organization > Manage > Subscription Plans page (UI module "ai-hub").
+		UI: &modkit.UI{Pages: []modkit.Page{{ID: "ai-hub/subscription-plans", Permission: PermPlanRead}}},
 	}
 }
 
 //go:embed migrations
 var migrations embed.FS
 
-// Migrations creates the module's tables (mod_aihub_*), rendered from schema/ by make schema.
+// Migrations creates the module's tables (mod_ai_hub_*), rendered from schema/ by make schema.
 func (module) Migrations() fs.FS {
 	sub, err := fs.Sub(migrations, "migrations")
 	if err != nil {
@@ -118,7 +118,7 @@ func (module) UI() fs.FS { return nil }
 //go:embed api/openapi.yaml
 var openAPI []byte
 
-// OpenAPI is the module's API document, at /m/aihub.
+// OpenAPI is the module's API document, at /m/ai-hub.
 func (module) OpenAPI() []byte { return openAPI }
 
 // Activate registers the routes. It runs on every replica whenever the set of active modules changes, so it only
@@ -135,7 +135,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		now:   time.Now,
 	}
 	a := &planController{plans: plans, core: rt.Core, log: log}
-	// The webhook a developer portal delivers plans to, on the internal server at /m/aihub/webhooks/events. It
+	// The webhook a developer portal delivers plans to, on the internal server at /m/ai-hub/webhooks/events. It
 	// has no user sign-in: the receiver authenticates each delivery by its signature.
 	rt.HandleWebhook(http.MethodPost, webhookPath, (&webhookReceiver{
 		cfg: webhookConfigFrom(rt.Config, log), plans: plans, core: rt.Core(),
@@ -143,7 +143,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	}).ServeHTTP, modkit.Audit(ActionPlanSync))
 	// Gateways pull the plans when they connect; the AI Gateway pushes each change on EventPlanChanged.
 	rt.Provide(subplanv1.ID, planSource{plans: plans})
-	// The subscription plans API, under /m/aihub.
+	// The subscription plans API, under /m/ai-hub.
 	rt.Handle(http.MethodPost, "/subscription-plans", PermPlanCreate, a.createPlan)
 	rt.Handle(http.MethodGet, "/subscription-plans", PermPlanRead, a.listPlans)
 	rt.Handle(http.MethodGet, "/subscription-plans/{subscriptionPlanId}", PermPlanRead, a.getPlan)

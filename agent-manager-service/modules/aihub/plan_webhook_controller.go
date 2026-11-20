@@ -39,7 +39,7 @@ import (
 // The webhook receiver for subscription plans made, changed or deleted elsewhere (including an MCP
 // hub), so those plans are copied into Agent Manager:
 //
-//   - POST /m/aihub/webhooks/events on the internal server (no user sign-in: the request is
+//   - POST /m/ai-hub/webhooks/events on the internal server (no user sign-in: the request is
 //     authenticated by its signature);
 //   - a signature header "t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">", with the
 //     timestamp within the tolerance (replay guard);
@@ -50,7 +50,7 @@ import (
 //
 // A delivery the sender got wrong (signature, envelope, organization, event) is answered alike (401), so a
 // caller learns nothing from the response; a failure on this side (the database, publishing the change, a
-// panic) answers 503, which senders retry. The reason is logged. The secret is the module setting webhook_secret (MODULE_AIHUB_WEBHOOK_SECRET).
+// panic) answers 503, which senders retry. The reason is logged. The secret is the module setting webhook_secret (MODULE_AI_HUB_WEBHOOK_SECRET).
 
 // webhookPath is the receiver's route below the module's webhooks (Runtime.HandleWebhook).
 const webhookPath = "/events"
@@ -106,7 +106,7 @@ type webhookConfig struct {
 	LegacySharedSecret bool
 }
 
-// webhookConfigFrom reads the module settings (amp.yaml modules[].config, or MODULE_AIHUB_<KEY>).
+// webhookConfigFrom reads the module settings (amp.yaml modules[].config, or MODULE_AI_HUB_<KEY>).
 func webhookConfigFrom(get func(key string) string, log *slog.Logger) webhookConfig {
 	cfg := webhookConfig{
 		Secret:             strings.TrimSpace(get("webhook_secret")),

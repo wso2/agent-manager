@@ -16,8 +16,8 @@
  * under the License.
  */
 
-// Subscription plans, served by the backend `aihub` module at
-// /m/aihub/subscription-plans (GET/POST /subscription-plans, GET/PUT/DELETE
+// Subscription plans, served by the backend `ai-hub` module at
+// /m/ai-hub/subscription-plans (GET/POST /subscription-plans, GET/PUT/DELETE
 // /subscription-plans/{subscriptionPlanId}).
 
 export type SubscriptionPlanStatus = "ACTIVE" | "INACTIVE";

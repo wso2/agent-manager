@@ -93,7 +93,7 @@ func NewConfiguration() *Configuration {
 		Debug:         false,
 		Servers: ServerConfigurations{
 			{
-				URL:         "/m/aihub",
+				URL:         "/m/ai-hub",
 				Description: "No description provided",
 			},
 		},

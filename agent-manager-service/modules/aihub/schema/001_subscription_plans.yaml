@@ -1,9 +1,9 @@
-module: aihub
+module: ai-hub
 tables:
   # Subscription plans, one row per plan of an organization. The handle is the plan's id in the API,
   # unique in its organization. org_id is the core organization's id; modules hold no foreign keys into
   # the core, so a plan outlives nothing it points at.
-  - name: mod_aihub_subscription_plans
+  - name: mod_ai_hub_subscription_plans
     columns:
       - {name: id, type: id}
       - {name: org_id, type: id}
@@ -27,7 +27,7 @@ tables:
 
   # The conditions of a plan, in order. A built-in condition (request-count, tool-call-count, token-count) has a
   # fixed id; a custom condition has its own.
-  - name: mod_aihub_subscription_plan_conditions
+  - name: mod_ai_hub_subscription_plan_conditions
     columns:
       - {name: org_id, type: id}
       - {name: plan_id, type: id}
@@ -37,12 +37,12 @@ tables:
       - {name: sort_order, type: int}
     primary_key: [plan_id, condition_id]
     foreign_keys:
-      - {columns: [org_id, plan_id], references: mod_aihub_subscription_plans, ref_columns: [org_id, id], on_delete: cascade}
+      - {columns: [org_id, plan_id], references: mod_ai_hub_subscription_plans, ref_columns: [org_id, id], on_delete: cascade}
 
   # Plans deleted at the developer portal they were copied from, kept for a while after the deletion, so a
   # create or update delivered after it (a retry of an older event) doesn't bring the plan back.
   # deleted_at is the portal's clock; recorded_at is ours, for pruning.
-  - name: mod_aihub_deleted_plans
+  - name: mod_ai_hub_deleted_plans
     columns:
       - {name: org_id, type: id}
       - {name: handle, type: text, size: 40}

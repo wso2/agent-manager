@@ -442,9 +442,9 @@ Organizations are not deleted in Lite.
 
 ### AI Hub module tables
 
-The `aihub` module (`modules/aihub`) creates its three tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
+The `ai-hub` module (`modules/aihub`) creates its three tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
 
-**mod_aihub_subscription_plans**: one row per plan of an organization.
+**mod_ai_hub_subscription_plans**: one row per plan of an organization.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -462,11 +462,11 @@ The `aihub` module (`modules/aihub`) creates its three tables with its own migra
 
 Unique (org_id, handle) and (org_id, id).
 
-**mod_aihub_subscription_plan_conditions**: the plan's conditions, in order.
+**mod_ai_hub_subscription_plan_conditions**: the plan's conditions, in order.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| org_id, plan_id | ID | no | FK (org_id, plan_id) → mod_aihub_subscription_plans(org_id, id) ON DELETE CASCADE |
+| org_id, plan_id | ID | no | FK (org_id, plan_id) → mod_ai_hub_subscription_plans(org_id, id) ON DELETE CASCADE |
 | condition_id | short text (63) | no | `requests`, `tool-calls`, `tokens`, or a custom id |
 | condition_type | short text (32) | no | `request-count`, `tool-call-count`, `token-count` or `custom` |
 | params | JSON | no | Limit windows and `onExceed` for built-in types; the values of a custom condition |
@@ -474,7 +474,7 @@ Unique (org_id, handle) and (org_id, id).
 
 PK (plan_id, condition_id).
 
-**mod_aihub_deleted_plans**: plans deleted at the developer portal they were copied from, kept for 30 days, so a create or update made before the deletion and delivered after it doesn't bring the plan back.
+**mod_ai_hub_deleted_plans**: plans deleted at the developer portal they were copied from, kept for 30 days, so a create or update made before the deletion and delivered after it doesn't bring the plan back.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|

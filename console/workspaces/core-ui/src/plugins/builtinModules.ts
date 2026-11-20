@@ -22,7 +22,7 @@ import { agentRuntimeModule } from "@agent-management-platform/ui-module-agent-r
 import { aiGatewayModule } from "@agent-management-platform/ui-module-ai-gateway";
 import { agentIdentityModule } from "@agent-management-platform/ui-module-agent-identity";
 import { agentPortalModule } from "@agent-management-platform/ui-module-agent-portal";
-import { aihubModule } from "@agent-management-platform/ui-module-aihub";
+import { aihubModule } from "@agent-management-platform/ui-module-ai-hub";
 
 /**
  * UI modules that ship with the console, in the order the Module manager lists

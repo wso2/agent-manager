@@ -59,7 +59,7 @@ export function subscriptionPlanErrorCode(error: unknown): string | undefined {
  * manifest, or not installed) every query below stays idle, wherever it is called from.
  */
 function useAIHubPresent(): boolean {
-  return useUIModulePresent("aihub");
+  return useUIModulePresent("ai-hub");
 }
 
 export function useListSubscriptionPlans(

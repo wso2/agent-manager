@@ -1,5 +1,5 @@
 {
-  "name": "@agent-management-platform/ui-module-aihub",
+  "name": "@agent-management-platform/ui-module-ai-hub",
   "version": "1.0.0",
   "description": "AI Hub UI module: subscription plans that MCP proxies offer and agents subscribe to.",
   "type": "module",

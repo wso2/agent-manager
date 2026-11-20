@@ -30,7 +30,7 @@ import (
 // Plans made, changed or deleted elsewhere reach Agent Manager as webhook events
 // (plan_webhook_controller.go) and are copied here.
 
-// deletedPlanRetention is how long a plan deleted at its source is remembered (mod_aihub_deleted_plans): long
+// deletedPlanRetention is how long a plan deleted at its source is remembered (mod_ai_hub_deleted_plans): long
 // enough to outlast a sender's retries of the events before the deletion.
 const deletedPlanRetention = 30 * 24 * time.Hour
 
@@ -110,7 +110,7 @@ func (s *planService) applyFromWebhook(ctx context.Context, orgID, handle, name,
 
 // recordSourceChange moves the plan's source date forward to at; it publishes nothing, since the plan is unchanged.
 func (s *planService) recordSourceChange(ctx context.Context, orgID, handle string, at time.Time) error {
-	err := s.db().WithContext(ctx).Exec(`UPDATE mod_aihub_subscription_plans SET source_changed_at = ? `+
+	err := s.db().WithContext(ctx).Exec(`UPDATE mod_ai_hub_subscription_plans SET source_changed_at = ? `+
 		`WHERE org_id = ? AND handle = ? AND (source_changed_at IS NULL OR source_changed_at < ?)`,
 		at, orgID, handle, at).Error
 	if err != nil {
@@ -171,24 +171,24 @@ func (s *planService) deleteFromWebhook(ctx context.Context, orgID, handle strin
 // deletions older than deletedPlanRetention.
 func (s *planService) recordDeletion(tx *gorm.DB, orgID, handle string, at time.Time) error {
 	now := s.now().UTC()
-	if err := tx.Exec(`DELETE FROM mod_aihub_deleted_plans WHERE recorded_at < ?`,
+	if err := tx.Exec(`DELETE FROM mod_ai_hub_deleted_plans WHERE recorded_at < ?`,
 		now.Add(-deletedPlanRetention)).Error; err != nil {
 		return fmt.Errorf("prune deleted plans: %w", err)
 	}
 	var rows []struct{ DeletedAt time.Time }
-	if err := tx.Raw(`SELECT deleted_at FROM mod_aihub_deleted_plans WHERE org_id = ? AND handle = ?`,
+	if err := tx.Raw(`SELECT deleted_at FROM mod_ai_hub_deleted_plans WHERE org_id = ? AND handle = ?`,
 		orgID, handle).Scan(&rows).Error; err != nil {
 		return fmt.Errorf("read the deletion of plan %s: %w", handle, err)
 	}
 	switch {
 	case len(rows) == 0:
-		err := tx.Exec(`INSERT INTO mod_aihub_deleted_plans (org_id, handle, deleted_at, recorded_at) VALUES (?, ?, ?, ?)`,
+		err := tx.Exec(`INSERT INTO mod_ai_hub_deleted_plans (org_id, handle, deleted_at, recorded_at) VALUES (?, ?, ?, ?)`,
 			orgID, handle, at, now).Error
 		if err != nil {
 			return fmt.Errorf("record the deletion of plan %s: %w", handle, err)
 		}
 	case rows[0].DeletedAt.Before(at):
-		err := tx.Exec(`UPDATE mod_aihub_deleted_plans SET deleted_at = ?, recorded_at = ? WHERE org_id = ? AND handle = ?`,
+		err := tx.Exec(`UPDATE mod_ai_hub_deleted_plans SET deleted_at = ?, recorded_at = ? WHERE org_id = ? AND handle = ?`,
 			at, now, orgID, handle).Error
 		if err != nil {
 			return fmt.Errorf("record the deletion of plan %s: %w", handle, err)
@@ -201,7 +201,7 @@ func (s *planService) recordDeletion(tx *gorm.DB, orgID, handle string, at time.
 // deletion there.
 func checkNotDeletedSince(tx *gorm.DB, orgID, handle string, at time.Time) error {
 	var rows []struct{ DeletedAt time.Time }
-	if err := tx.Raw(`SELECT deleted_at FROM mod_aihub_deleted_plans WHERE org_id = ? AND handle = ?`,
+	if err := tx.Raw(`SELECT deleted_at FROM mod_ai_hub_deleted_plans WHERE org_id = ? AND handle = ?`,
 		orgID, handle).Scan(&rows).Error; err != nil {
 		return fmt.Errorf("read the deletion of plan %s: %w", handle, err)
 	}

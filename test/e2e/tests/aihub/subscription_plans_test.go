@@ -31,11 +31,11 @@ import (
 	aihubop "github.com/wso2/agent-manager/test/e2e/operations/aihub"
 )
 
-var _ = Describe("Subscription Plans", Label("aihub", "subscription-plans"), Ordered, func() {
+var _ = Describe("Subscription Plans", Label("ai-hub", "subscription-plans"), Ordered, func() {
 	var planID string
 
 	BeforeAll(func() {
-		// The AI Hub is an optional module: an operator installs it with `amp module install aihub`. On a stack
+		// The AI Hub is an optional module: an operator installs it with `amp module install ai-hub`. On a stack
 		// without it these specs have nothing to test.
 		resp, err := Client.Get("/api/v1/ui-manifest")
 		Expect(err).NotTo(HaveOccurred())
@@ -48,12 +48,12 @@ var _ = Describe("Subscription Plans", Label("aihub", "subscription-plans"), Ord
 		}](Default, resp, http.StatusOK)
 		installed := false
 		for _, m := range manifest.Modules {
-			installed = installed || m.Name == "aihub"
+			installed = installed || m.Name == "ai-hub"
 		}
 		if !installed {
-			Skip("the AI Hub module is not installed (amp module install aihub)")
+			Skip("the AI Hub module is not installed (amp module install ai-hub)")
 		}
-		Expect(manifest.Pages).To(ContainElement("aihub/subscription-plans"))
+		Expect(manifest.Pages).To(ContainElement("ai-hub/subscription-plans"))
 		planID = "e2e-test-plan-" + uuid.New().String()[:8]
 	})
 

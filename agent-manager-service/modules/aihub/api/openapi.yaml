@@ -5,9 +5,9 @@ info:
   description: >-
     Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom
     limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token.
-  x-amp-module: aihub
+  x-amp-module: ai-hub
 servers:
-  - url: /m/aihub
+  - url: /m/ai-hub
 security:
   - BearerAuth: []
 paths:

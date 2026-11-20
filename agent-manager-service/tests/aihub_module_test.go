@@ -51,7 +51,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
-const plansPath = "/m/aihub/subscription-plans"
+const plansPath = "/m/ai-hub/subscription-plans"
 
 type plansWorld struct {
 	moduleWorld
@@ -144,10 +144,10 @@ func newPlansWorld(t *testing.T) plansWorld {
 	}
 	org, handle := newOrg()
 	otherOrg, otherHandle := newOrg()
-	full := params(moduleAuth(org, handle, "amp:aihub:plan-read", "amp:aihub:plan-create", "amp:aihub:plan-update", "amp:aihub:plan-delete"))
-	reader := params(moduleAuth(org, handle, "amp:aihub:plan-read"))
+	full := params(moduleAuth(org, handle, "amp:ai-hub:plan-read", "amp:ai-hub:plan-create", "amp:ai-hub:plan-update", "amp:ai-hub:plan-delete"))
+	reader := params(moduleAuth(org, handle, "amp:ai-hub:plan-read"))
 	limited := params(moduleAuth(org, handle))
-	other := params(moduleAuth(otherOrg, otherHandle, "amp:aihub:plan-read", "amp:aihub:plan-create", "amp:aihub:plan-update", "amp:aihub:plan-delete"))
+	other := params(moduleAuth(otherOrg, otherHandle, "amp:ai-hub:plan-read", "amp:ai-hub:plan-create", "amp:ai-hub:plan-update", "amp:ai-hub:plan-delete"))
 
 	stop, err := app.StartModules(ctx, host, database, full)
 	require.NoError(t, err)
@@ -412,8 +412,8 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/legacy", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		var left int64
-		require.NoError(t, db.DB(ctx).Raw(`SELECT COUNT(*) FROM mod_aihub_subscription_plan_conditions c `+
-			`WHERE NOT EXISTS (SELECT 1 FROM mod_aihub_subscription_plans p WHERE p.id = c.plan_id)`).Scan(&left).Error)
+		require.NoError(t, db.DB(ctx).Raw(`SELECT COUNT(*) FROM mod_ai_hub_subscription_plan_conditions c `+
+			`WHERE NOT EXISTS (SELECT 1 FROM mod_ai_hub_subscription_plans p WHERE p.id = c.plan_id)`).Scan(&left).Error)
 		assert.Zero(t, left)
 	})
 }
@@ -445,7 +445,7 @@ func send(t *testing.T, h http.Handler, req *http.Request) (int, string) {
 // TestSubscriptionPlanWebhook sends signed plan deliveries to the internal server and checks the plans
 // they leave, through the plans API.
 func TestSubscriptionPlanWebhook(t *testing.T) {
-	t.Setenv("MODULE_AIHUB_WEBHOOK_SECRET", webhookSecret)
+	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", webhookSecret)
 	w := newPlansWorld(t)
 	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
 		map[string]any{"name": "hooks", "displayName": "Hooks"})
@@ -593,7 +593,7 @@ func deactivatePlans(ctx context.Context, t *testing.T, w plansWorld) {
 	})
 }
 
-// installPlans installs the aihub module, as the distribution's modules list does at boot, and waits
+// installPlans installs the ai-hub module, as the distribution's modules list does at boot, and waits
 // for its routes.
 func installPlans(ctx context.Context, t *testing.T, w plansWorld) {
 	t.Helper()
@@ -606,7 +606,7 @@ func installPlans(ctx context.Context, t *testing.T, w plansWorld) {
 }
 
 func TestSubscriptionPlanGatewaySync(t *testing.T) {
-	t.Setenv("MODULE_AIHUB_WEBHOOK_SECRET", webhookSecret)
+	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", webhookSecret)
 	w := newPlansWorld(t)
 	ctx := context.Background()
 	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",

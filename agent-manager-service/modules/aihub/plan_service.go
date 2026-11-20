@@ -212,11 +212,11 @@ func (s *planService) list(ctx context.Context, orgID string, opts listOptions) 
 	var total int64
 	err := s.read(ctx, func(tx *gorm.DB) error {
 		where, args := listFilter(orgID, opts)
-		if err := tx.Raw(`SELECT COUNT(*) FROM mod_aihub_subscription_plans`+where, args...).Scan(&total).Error; err != nil {
+		if err := tx.Raw(`SELECT COUNT(*) FROM mod_ai_hub_subscription_plans`+where, args...).Scan(&total).Error; err != nil {
 			return fmt.Errorf("count plans: %w", err)
 		}
 		var rows []planRow
-		if err := tx.Raw(`SELECT `+planColumns+` FROM mod_aihub_subscription_plans`+where+
+		if err := tx.Raw(`SELECT `+planColumns+` FROM mod_ai_hub_subscription_plans`+where+
 			` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, append(args, opts.Limit, opts.Offset)...).
 			Scan(&rows).Error; err != nil {
 			return fmt.Errorf("list plans: %w", err)
@@ -245,7 +245,7 @@ func (s *planService) read(ctx context.Context, fn func(tx *gorm.DB) error) erro
 // other and the second reads what the first wrote. A plan that doesn't exist locks nothing; the read that
 // follows reports it.
 func lockPlan(tx *gorm.DB, orgID, handle string) error {
-	err := dbx.LockRow(tx, "mod_aihub_subscription_plans", "id", "org_id = ? AND handle = ?", orgID, handle)
+	err := dbx.LockRow(tx, "mod_ai_hub_subscription_plans", "id", "org_id = ? AND handle = ?", orgID, handle)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("lock plan %s: %w", handle, err)
 	}
@@ -264,7 +264,7 @@ func (s *planService) get(ctx context.Context, orgID, handle string) (*plan, err
 
 func (s *planService) getTx(tx *gorm.DB, orgID, handle string) (*plan, error) {
 	var rows []planRow
-	if err := tx.Raw(`SELECT `+planColumns+` FROM mod_aihub_subscription_plans WHERE org_id = ? AND handle = ?`,
+	if err := tx.Raw(`SELECT `+planColumns+` FROM mod_ai_hub_subscription_plans WHERE org_id = ? AND handle = ?`,
 		orgID, handle).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("get plan %s: %w", handle, err)
 	}
@@ -291,7 +291,7 @@ func (s *planService) withConditions(tx *gorm.DB, orgID string, rows []planRow) 
 		ids = append(ids, r.ID)
 	}
 	var conds []conditionRow
-	if err := tx.Raw(`SELECT plan_id, condition_id, condition_type, params FROM mod_aihub_subscription_plan_conditions `+
+	if err := tx.Raw(`SELECT plan_id, condition_id, condition_type, params FROM mod_ai_hub_subscription_plan_conditions `+
 		`WHERE org_id = ? AND plan_id IN ? ORDER BY plan_id, sort_order`, orgID, ids).Scan(&conds).Error; err != nil {
 		return nil, fmt.Errorf("get conditions of plans: %w", err)
 	}
@@ -379,7 +379,7 @@ func (s *planService) create(ctx context.Context, orgID, actor string, p *plan) 
 		// Only a taken handle is a conflict; any other error is returned as it is. The insert runs in a
 		// savepoint, since a failed statement aborts the transaction on PostgreSQL.
 		err := tx.Transaction(func(sp *gorm.DB) error {
-			return sp.Exec(`INSERT INTO mod_aihub_subscription_plans (`+planColumns+`, display_name_folded) `+
+			return sp.Exec(`INSERT INTO mod_ai_hub_subscription_plans (`+planColumns+`, display_name_folded) `+
 				`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id.String(), orgID, p.Handle, p.Name, nullable(p.Description), p.Status, p.ExpiryTime,
 				nullable(actor), nullable(actor), createdAt, now, p.SourceChangedAt, foldName(p.Name)).Error
@@ -468,7 +468,7 @@ func (s *planService) update(ctx context.Context, orgID, handle, actor string, u
 			}
 		}
 		now := s.now().UTC()
-		if err := tx.Exec(`UPDATE mod_aihub_subscription_plans SET display_name = ?, display_name_folded = ?, `+
+		if err := tx.Exec(`UPDATE mod_ai_hub_subscription_plans SET display_name = ?, display_name_folded = ?, `+
 			`description = ?, status = ?, expiry_time = ?, updated_by = ?, updated_at = ?, source_changed_at = ? `+
 			`WHERE org_id = ? AND id = ?`,
 			existing.Name, foldName(existing.Name), nullable(existing.Description), existing.Status, existing.ExpiryTime,
@@ -476,7 +476,7 @@ func (s *planService) update(ctx context.Context, orgID, handle, actor string, u
 			return fmt.Errorf("update plan %s: %w", handle, err)
 		}
 		if !sameConditions(existing.Conditions, conditions) {
-			if err := tx.Exec(`DELETE FROM mod_aihub_subscription_plan_conditions WHERE org_id = ? AND plan_id = ?`,
+			if err := tx.Exec(`DELETE FROM mod_ai_hub_subscription_plan_conditions WHERE org_id = ? AND plan_id = ?`,
 				orgID, existing.UUID).Error; err != nil {
 				return fmt.Errorf("replace conditions of plan %s: %w", handle, err)
 			}
@@ -532,7 +532,7 @@ func (s *planService) delete(ctx context.Context, orgID, handle, actor string) e
 // deletePlanRow deletes the plan, with its conditions (ON DELETE CASCADE). A plan another transaction deleted
 // first is not found, so only one deletion is published.
 func deletePlanRow(tx *gorm.DB, orgID string, p *plan) error {
-	res := tx.Exec(`DELETE FROM mod_aihub_subscription_plans WHERE org_id = ? AND id = ?`, orgID, p.UUID)
+	res := tx.Exec(`DELETE FROM mod_ai_hub_subscription_plans WHERE org_id = ? AND id = ?`, orgID, p.UUID)
 	if res.Error != nil {
 		return fmt.Errorf("delete plan %s: %w", p.Handle, res.Error)
 	}
@@ -611,7 +611,7 @@ func checkDescription(description string) error {
 
 func insertConditions(tx *gorm.DB, orgID, planID string, conditions []Condition) error {
 	for i, c := range conditions {
-		if err := tx.Exec(`INSERT INTO mod_aihub_subscription_plan_conditions (org_id, plan_id, condition_id, condition_type, `+
+		if err := tx.Exec(`INSERT INTO mod_ai_hub_subscription_plan_conditions (org_id, plan_id, condition_id, condition_type, `+
 			`params, sort_order) VALUES (?, ?, ?, ?, ?, ?)`, orgID, planID, c.ID, c.Type, string(c.Params), i).Error; err != nil {
 			return fmt.Errorf("insert condition %s: %w", c.ID, err)
 		}

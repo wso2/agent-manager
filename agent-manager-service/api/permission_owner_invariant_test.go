@@ -30,7 +30,7 @@ import (
 // permissions by short name, with no permission package for this walk:
 // TestAIHubPermissionsGateRoutes holds the AI Hub's to the same rules on its
 // mounted routes.
-var manifestOnlyModules = map[string]bool{"aihub": true}
+var manifestOnlyModules = map[string]bool{"ai-hub": true}
 
 // manifestRegistry is the permission registry of the core plus the linked
 // modules, which together declare every permission of the full distribution.

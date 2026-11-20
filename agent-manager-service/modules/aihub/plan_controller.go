@@ -33,7 +33,7 @@ import (
 )
 
 // The subscription plans API (GET/POST /subscription-plans, GET/PUT/DELETE
-// /subscription-plans/{subscriptionPlanId}), served by the module at /api/v1/m/aihub/subscription-plans.
+// /subscription-plans/{subscriptionPlanId}), served by the module at /api/v1/m/ai-hub/subscription-plans.
 // Bodies, rules, status codes and error codes are the same, so the same console code works against both.
 // Differences: pricing (paid plans) is not supported, and usage counts MCP proxies and subscriptions only.
 

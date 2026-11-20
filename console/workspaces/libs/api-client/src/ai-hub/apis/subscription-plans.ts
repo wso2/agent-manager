@@ -27,9 +27,9 @@ import type {
   UpdateSubscriptionPlanRequest,
 } from "@agent-management-platform/types";
 
-// The backend `aihub` module's routes. The organization comes from the caller's token, so
+// The backend `ai-hub` module's routes. The organization comes from the caller's token, so
 // the path has none.
-const PLANS_BASE = `${moduleBase("aihub")}/subscription-plans`;
+const PLANS_BASE = `${moduleBase("ai-hub")}/subscription-plans`;
 
 async function throwHttpError(res: Response): Promise<never> {
   const body = await res.json().catch(() => undefined);

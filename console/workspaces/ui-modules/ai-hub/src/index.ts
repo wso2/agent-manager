@@ -16,9 +16,9 @@
  * under the License.
  */
 
-// AI Hub UI module, for the backend `aihub` module. Lists the module's page plugins;
+// AI Hub UI module, for the backend `ai-hub` module. Lists the module's page plugins;
 // the console registers modules, and the server turns a whole module or a single page on or off
-// (GET /api/v1/ui-manifest lists "aihub/subscription-plans" while the backend module is
+// (GET /api/v1/ui-manifest lists "ai-hub/subscription-plans" while the backend module is
 // active and the caller may read plans).
 //
 // Import only each page package's `/plugin` entry: the package root pulls in its page components
@@ -27,7 +27,7 @@ import { PLUGIN_API_VERSION, type UIModuleManifest } from "@agent-management-pla
 import { subscriptionPlansPlugin } from "@agent-management-platform/subscription-plans/plugin";
 
 export const aihubModule: UIModuleManifest = {
-  id: "aihub",
+  id: "ai-hub",
   name: "AI Hub",
   description: "The catalog where MCP servers and agents are offered, and the subscription plans they offer.",
   apiVersion: PLUGIN_API_VERSION,

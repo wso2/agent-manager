@@ -1081,7 +1081,7 @@ type PromoteAgentResponse struct {
 	TargetEnvironment string `json:"targetEnvironment"`
 }
 
-// --- Subscription plans (AI Hub module, /m/aihub/subscription-plans) ---
+// --- Subscription plans (AI Hub module, /m/ai-hub/subscription-plans) ---
 
 // PlanLimit is one window of a built-in condition: count per timeAmount timeUnit.
 type PlanLimit struct {

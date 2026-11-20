@@ -143,20 +143,20 @@ func TestGatewayRoutesAreAudited(t *testing.T) {
 	}
 }
 
-// TestAIHubRoutesAreAudited holds the AI Hub's routes to the same invariant: its plans API under /m/aihub,
-// and the developer portal's plan webhook on the internal server, recorded as aihub:plan-sync.
+// TestAIHubRoutesAreAudited holds the AI Hub's routes to the same invariant: its plans API under /m/ai-hub,
+// and the developer portal's plan webhook on the internal server, recorded as ai-hub:plan-sync.
 func TestAIHubRoutesAreAudited(t *testing.T) {
 	m := aihub.Module()
 	_, public, internal := mountedModule(t, m)
 	checkModuleAudited(t, m.Manifest(), public, internal)
 	for _, meta := range public {
-		assert.True(t, strings.HasPrefix(meta.Path, "/m/aihub/"), "%s is outside /m/aihub", meta.Pattern)
+		assert.True(t, strings.HasPrefix(meta.Path, "/m/ai-hub/"), "%s is outside /m/ai-hub", meta.Pattern)
 	}
 	require.Len(t, internal, 1)
 	// The webhook is the module's own (HandleWebhook), not one at a fixed core path.
 	assert.Equal(t, "POST "+aihub.WebhookRoutePath, internal[0].Pattern)
-	assert.Equal(t, "POST /m/aihub/webhooks/events", internal[0].Pattern)
-	assert.Equal(t, audit.Action("aihub:plan-sync"), internal[0].Action)
+	assert.Equal(t, "POST /m/ai-hub/webhooks/events", internal[0].Pattern)
+	assert.Equal(t, audit.Action("ai-hub:plan-sync"), internal[0].Action)
 }
 
 // TestAIHubPermissionsGateRoutes checks that every plans route names one of the module's permissions and that

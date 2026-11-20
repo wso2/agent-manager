@@ -28,7 +28,7 @@ import (
 )
 
 // PlansPath is the plans API; the organization comes from the caller's token.
-const PlansPath = "/m/aihub/subscription-plans"
+const PlansPath = "/m/ai-hub/subscription-plans"
 
 // CreatePlan creates a subscription plan and expects 201.
 func CreatePlan(g Gomega, client *framework.AMPClient, req framework.SubscriptionPlanRequest) framework.SubscriptionPlanResponse {

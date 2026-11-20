@@ -30,7 +30,7 @@ import (
 var Client *framework.AMPClient
 
 // aihubScopes are the AI Hub module's subscription plan scopes.
-var aihubScopes = []string{"amp:aihub:plan-read", "amp:aihub:plan-create", "amp:aihub:plan-update", "amp:aihub:plan-delete"}
+var aihubScopes = []string{"amp:ai-hub:plan-read", "amp:ai-hub:plan-create", "amp:ai-hub:plan-update", "amp:ai-hub:plan-delete"}
 
 // Cfg is the shared test configuration.
 var Cfg *framework.Config
