@@ -25,7 +25,8 @@
       "follow-redirects": "^1.16.2",
       "minimatch@9": "^11.0.8",
       "minimatch@10": "^11.0.4",
-      "uri-js": "npm:uri-js-replace@^1.0.2"
+      "uri-js": "npm:uri-js-replace@^1.0.2",
+      "parse5": "^8.1.1"
     }
   }
 }
