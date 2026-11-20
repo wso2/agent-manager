@@ -2,8 +2,8 @@
 
 ## Overview
 
-An agent that speaks the [A2A protocol](https://a2a-protocol.org/) and sends its
-traces to AMP as an external agent. Give it meeting notes and it does one of two
+An agent that speaks the [A2A protocol](https://a2a-protocol.org/) and registers
+with AMP as an external agent. Give it meeting notes and it does one of two
 things, both backed by OpenAI:
 
 | Skill | What it does | Result |
@@ -58,16 +58,19 @@ What that means in code:
 
 ## Register it in Agent Manager
 
-You run the agent yourself; Agent Manager registers it and issues the token its
-traces are sent with.
+You run the agent yourself; Agent Manager registers it and issues its API key.
 
-1. Sign in to the console at <http://localhost:9000> as `admin` (the password is
-   `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
-2. Open the **Default** project, click **Add Agent**, and register an agent
-   named `A2A Notes Agent`.
-3. In the **Set up agent** panel that opens, choose **Python**, pick a token
-   duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and
-   `AMP_AGENT_API_KEY` values it shows.
+1. Sign in to the console at <http://localhost:9000> (the port is
+   `AMP_API_PORT` in `deployments/standalone/.env`) as `admin`; the password
+   is `AMP_ADMIN_PASSWORD` in the same file.
+2. A new install has no projects, so create one first: click **Add project**
+   (**Create project** on the organization overview), enter a **Name** and
+   click **Create**.
+3. Open the project, click **New agent**, enter the name
+   `A2A Notes Agent` and click **Register**.
+4. The **Setup Agent** panel opens with an API key already generated. Copy it
+   as `AMP_AGENT_API_KEY`; it is shown only once. To change how long it is
+   valid, pick another **Token Duration** and click **Regenerate**.
 
 ## Run it
 
@@ -76,7 +79,7 @@ cd samples/a2a-agent
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt amp-instrumentation
 
-export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_OTEL_ENDPOINT="http://localhost:4318"   # your own OpenTelemetry collector
 export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY="<your-openai-key>"
 
@@ -86,6 +89,10 @@ amp-instrument python main.py    # serves on http://localhost:9099
 Set the `AMP_*` values as shell variables, not in `.env`, so `amp-instrument`
 can read them. To run it without tracing, leave out `amp-instrument` and the two
 `AMP_*` variables.
+
+AMP Lite does not store traces, so `AMP_OTEL_ENDPOINT` is the OTLP/HTTP base
+URL (without `/v1/traces`) of an OpenTelemetry collector you run; see the
+[user guide](../../docs/user-guide.md).
 
 Tracing works with this agent only because `requirements.txt` pins `a2a-sdk`
 1.1.5 or newer. `amp-instrumentation` installs into the same environment and
@@ -212,9 +219,9 @@ asyncio.run(main())
   pretending to store a webhook. The agent publishes **no extended card**
   either: `extendedAgentCard` is false.
 - **Observability comes from `amp-instrument`.** Run under it, the OpenAI
-  calls emit traces to AMP. An agent pinned to `a2a-sdk` below 1.1.5 has to give
-  that up; point `amp-instrumentation` at the exporter yourself in that case —
-  see the `manual-instrumentation-agent` sample for that path.
+  calls emit traces to `AMP_OTEL_ENDPOINT`. An agent pinned to `a2a-sdk` below
+  1.1.5 has to run without it, because `amp-instrumentation` needs `protobuf`
+  7.x either way; upgrade the SDK to 1.1.5 or newer to keep tracing.
 - **Set `AGENT_PUBLIC_BASE_URL` when clients reach the agent elsewhere.** The
   card advertises `http://localhost:9099` by default, and A2A clients dial the
   URLs in the card.

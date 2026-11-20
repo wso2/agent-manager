@@ -30,9 +30,9 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
-	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/sqlitedialect"
 )
 
 func TestSplitStatements(t *testing.T) {
@@ -78,7 +78,7 @@ func TestSQLiteBaselineAppliesOnce(t *testing.T) {
 
 	var locks []string
 	require.NoError(t, gormDB.Raw("SELECT name FROM locks ORDER BY name").Scan(&locks).Error)
-	assert.Equal(t, []string{"agent_identity.reconciler", "gateway.drift_scan"}, locks)
+	assert.Equal(t, []string{"agent_identity.reconciler"}, locks)
 }
 
 // A database the baseline alone ran on, as an earlier release left it, gets the later migrations on its next run.
@@ -131,12 +131,12 @@ func assertBaselineKeys(t *testing.T, gormDB *gorm.DB) {
 	require.NoError(t, gormDB.Raw("SELECT count(*) FROM agent_labels").Scan(&labels).Error)
 	assert.Zero(t, labels, "labels cascade from the agent")
 
-	insertGateway := func(properties string) error {
-		return exec(`INSERT INTO gateways (id, org_id, name, display_name, functionality_type, hosting, vhost, is_critical, is_active, properties, created_at, updated_at)
-			VALUES (?, ?, ?, 'G', 'both', 'managed', 'h', ?, ?, ?, ?, ?)`, id(), orgA, id(), false, true, properties, now, now)
+	insertUsage := func(dimensions string) error {
+		return exec(`INSERT INTO usage_events (id, org_id, occurred_at, source, feature_code, product_version, dimensions)
+			VALUES (?, ?, ?, 'api', 'f', 'v', ?)`, id(), orgA, now, dimensions)
 	}
-	require.NoError(t, insertGateway(`{"replicas": 1}`))
-	assert.Error(t, insertGateway("not json"), "JSON is validated")
+	require.NoError(t, insertUsage(`{"replicas": 1}`))
+	assert.Error(t, insertUsage("not json"), "JSON is validated")
 }
 
 func TestWaitForBaseline(t *testing.T) {

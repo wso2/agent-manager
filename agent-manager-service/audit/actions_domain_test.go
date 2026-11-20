@@ -42,38 +42,7 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		perms   []rbac.Permission
 		action  Action
 	}{
-		{"POST /orgs/{orgName}/git-secrets", []rbac.Permission{rbac.GitSecretCreate}, ActionGitSecretCreate},
-		{"DELETE /orgs/{orgName}/git-secrets/{secretName}", []rbac.Permission{rbac.GitSecretDelete}, ActionGitSecretDelete},
-		{
-			"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source",
-			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
-			ActionAgentSetCardSource,
-		},
-		{
-			"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source",
-			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
-			ActionAgentRemoveCardSource,
-		},
-		{
-			"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy",
-			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
-			ActionAgentSetA2AProxy,
-		},
-		{
-			"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy",
-			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
-			ActionAgentRemoveA2AProxy,
-		},
-		{"POST /orgs/{orgName}/llm-providers/{id}/api-keys", nil, ActionAPIKeyCreate},
-		{"PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRotate},
-		{"DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRevoke},
-		{"POST /orgs/{orgName}/gateways/{gatewayID}/tokens", nil, ActionGatewayTokenRotate},
-		{"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}", nil, ActionGatewayTokenRevoke},
 		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token", nil, ActionAgentTokenMint},
-		{
-			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/tracing-token/regenerate",
-			nil, ActionAgentTokenRegenerateTracing,
-		},
 		{"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", nil, ActionAgentIdentityProvision},
 		{
 			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities",
@@ -87,7 +56,6 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities/retry",
 			nil, ActionAgentIdentityRetryProvisioning,
 		},
-		{"PUT /orgs/{orgName}/environments/{envID}/thunder-system-client", nil, ActionServiceAccountConfigure},
 		{"POST /orgs/{orgName}/events/destinations", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationCreate},
 		{"PUT /orgs/{orgName}/events/destinations/{destinationId}", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationUpdate},
 		{"DELETE /orgs/{orgName}/events/destinations/{destinationId}", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationDelete},
@@ -96,7 +64,6 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		{"POST /orgs/{orgName}/events/subscriptions", []rbac.Permission{rbac.EventsManage}, ActionEventSubscriptionCreate},
 		{"PUT /orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}", []rbac.Permission{rbac.ProjectUpdate}, ActionEventSubscriptionUpdate},
 		{"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}", []rbac.Permission{rbac.AgentUpdate}, ActionEventSubscriptionDelete},
-		{"DELETE /orgs/{orgName}/environments/{envID}/thunder-system-client", nil, ActionServiceAccountRemove},
 		{"POST /orgs/{orgName}/identities/roles/{roleID}/permissions/add", nil, ActionRoleGrantPermission},
 		{"POST /orgs/{orgName}/identities/roles/{roleID}/permissions/remove", nil, ActionRoleRevokePermission},
 		{"POST /orgs/{orgName}/identities/roles/{roleID}/assignees/add", nil, ActionRoleAssign},
@@ -106,28 +73,8 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		{"POST /orgs/{orgName}/identities/users", nil, ActionUserCreate},
 		{"POST /orgs/{orgName}/identities/users/invite", nil, ActionUserInvite},
 		{"DELETE /orgs/{orgName}/identities/users/{userID}", nil, ActionUserDelete},
-		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments", nil, ActionAgentDeploy},
-		// The promote route declares only the tier floor, so the action can no
-		// longer be derived from its permission — actionOverrides supplies it.
-		// The audit vocabulary is unchanged: the trail still says agent:promote.
-		{
-			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote",
-			[]rbac.Permission{rbac.AgentEnvNonProduction},
-			ActionAgentPromote,
-		},
-		{
-			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state",
-			nil, ActionAgentChangeDeploymentState,
-		},
 		{"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}", []rbac.Permission{rbac.AgentDelete}, ActionAgentDelete},
 		{"DELETE /orgs/{orgName}/projects/{projName}", []rbac.Permission{rbac.ProjectDelete}, ActionProjectDelete},
-		{"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}", nil, ActionGatewayAssignEnvironment},
-		{"DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}", nil, ActionGatewayUnassignEnvironment},
-		{"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}", nil, ActionGatewaySetIdentityProvider},
-		{
-			"DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}",
-			nil, ActionGatewayRemoveIdentityProvider,
-		},
 	}
 
 	for _, pair := range pairs {
@@ -147,22 +94,15 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 // change to routine.
 func TestCredentialAndIdentityActionsAreCritical(t *testing.T) {
 	critical := []Action{
-		ActionAPIKeyCreate, ActionAPIKeyRotate, ActionAPIKeyRevoke,
-		ActionGitSecretCreate, ActionGitSecretDelete,
-		ActionGatewayTokenRotate, ActionGatewayTokenRevoke,
-		ActionAgentTokenMint, ActionAgentTokenRegenerateTracing,
+		ActionAgentTokenMint,
 		ActionAgentIdentityProvision, ActionAgentIdentityRegenerateSecret, ActionAgentIdentityRevokeSecret,
 		ActionAgentIdentityRetryProvisioning,
-		ActionServiceAccountConfigure, ActionServiceAccountRemove,
 		ActionEventDestinationCreate, ActionEventDestinationUpdate, ActionEventDestinationDelete,
 		ActionEventDestinationRotateSecret,
 		ActionRoleGrantPermission, ActionRoleRevokePermission,
 		ActionRoleAssign, ActionRoleUnassign,
 		ActionGroupAddMember, ActionGroupRemoveMember,
 		ActionUserInvite, ActionUserCreate, ActionUserUpdate, ActionUserDelete,
-		// Changing a gateway's trusted issuers decides whose tokens it accepts.
-		ActionGatewaySetIdentityProvider, ActionGatewayRemoveIdentityProvider,
-		ActionAgentSetA2AProxy, ActionAgentRemoveA2AProxy,
 	}
 
 	for _, action := range critical {
@@ -258,21 +198,19 @@ func TestUserCreateRecordsAttributeKeysNotValues(t *testing.T) {
 	}
 }
 
-// TestDeployRecordsTargetEnvironment covers the mismatch this event exists to
-// resolve: the route is gated by agent:deploy-non-production regardless of
-// where the agent lands, so only the record establishes the real target.
-func TestDeployRecordsTargetEnvironment(t *testing.T) {
+// TestRecordCarriesEnvironment checks that a record names the environment
+// an operation acted on.
+func TestRecordCarriesEnvironment(t *testing.T) {
 	sink := NewMemorySink()
 	rec := NewRecorder(sink, quietLogger(), Config{BatchSize: 1})
 	ctx := WithRecorder(context.Background(), rec)
 
 	Record(
-		ctx, ActionAgentDeploy,
+		ctx, ActionAgentIdentityProvision,
 		ResourceNamed(ResourceAgent, "agent-1", "checkout-agent"),
 		Environment("production"),
 		Detail("agentName", "checkout-agent"),
 		Detail("environment", "production"),
-		Detail("isProduction", true),
 	)
 	if err := rec.Close(ctx); err != nil {
 		t.Fatalf("Close: %v", err)
@@ -283,10 +221,7 @@ func TestDeployRecordsTargetEnvironment(t *testing.T) {
 		t.Fatalf("recorded %d events, want 1", len(events))
 	}
 	if events[0].Environment != "production" {
-		t.Errorf("Environment = %q, want the real deploy target", events[0].Environment)
-	}
-	if isProd, _ := events[0].Details["isProduction"].(bool); !isProd {
-		t.Error("isProduction should record that this reached production")
+		t.Errorf("Environment = %q, want production", events[0].Environment)
 	}
 }
 

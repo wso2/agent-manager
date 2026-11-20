@@ -28,17 +28,24 @@ const resource = (name: string) => ({
   write: { anyOf: crud(name) },
 });
 
+/** A resource of the AI Gateway module, whose scopes are amp:ai-gateway:<resource>.<action>. */
+const gatewayScope = (name: string, action: string) => `amp:ai-gateway:${name}.${action}`;
+const gatewayResource = (name: string) => ({
+  read: { anyOf: [gatewayScope(name, 'read')] },
+  write: { anyOf: ['create', 'update', 'delete'].map((action) => gatewayScope(name, action)) },
+});
+
 const project = resource('project');
 const agent = resource('agent');
 const agentKind = resource('agent-kind');
-const agentIdentity = resource('agent-identity');
+const agentIdentity = gatewayResource('agent-identities');
 const environment = resource('environment');
-const gateway = resource('gateway');
+const gateway = gatewayResource('gateways');
 const pipeline = resource('deployment-pipeline');
-const llmProvider = resource('llm-provider');
-const llmProviderTemplate = resource('llm-provider-template');
-const llmProxy = resource('llm-proxy');
-const mcpServer = resource('mcp-server');
+const llmProvider = gatewayResource('llm-providers');
+const llmProviderTemplate = gatewayResource('llm-provider-templates');
+const llmProxy = gatewayResource('llm-proxies');
+const mcpServer = gatewayResource('mcp-servers');
 const evaluator = resource('evaluator');
 const monitor = resource('monitor');
 const members = ['amp:org:invite-member', 'amp:org:remove-member'];
@@ -61,14 +68,12 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   env_write: environment.write,
   gateway_read: gateway.read,
   gateway_write: gateway.write,
-  gateway_token_write: { anyOf: ['amp:gateway:token-manage'] },
+  gateway_token_write: { anyOf: [gatewayScope('gateways', 'token-manage')] },
   pipeline_read: pipeline.read,
   pipeline_write: pipeline.write,
-  git_secret_read: { anyOf: ['amp:git-secret:read'] },
-  git_secret_write: { anyOf: ['amp:git-secret:create', 'amp:git-secret:delete'] },
   llm_provider_read: llmProvider.read,
   llm_provider_write: llmProvider.write,
-  llm_provider_api_key_manage: { anyOf: ['amp:llm-provider:api-key-manage'] },
+  llm_provider_api_key_manage: { anyOf: [gatewayScope('llm-providers', 'api-key-manage')] },
   llm_provider_template_read: llmProviderTemplate.read,
   llm_provider_template_write: llmProviderTemplate.write,
   llm_proxy_read: llmProxy.read,
@@ -89,11 +94,11 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   role_write: { anyOf: crud('role') },
   group_read: { anyOf: groupScopes },
   group_write: { anyOf: crud('group') },
-  agent_deploy: { anyOf: ['amp:agent:env-non-production'] },
-  agent_deploy_production: { anyOf: ['amp:agent:env-production'] },
+  agent_deploy: { anyOf: [gatewayScope('deploy', 'non-production')] },
+  agent_deploy_production: { anyOf: [gatewayScope('deploy', 'production')] },
   agent_suspend: { anyOf: ['amp:agent:suspend'] },
   agent_build: { anyOf: ['amp:agent:build'] },
-  agent_api_key_manage: { anyOf: ['amp:agent:api-key-manage'] },
+  agent_api_key_manage: { anyOf: [gatewayScope('agent-api-keys', 'manage')] },
   agent_token_manage: { anyOf: ['amp:agent:token-manage'] },
 };
 

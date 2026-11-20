@@ -10,7 +10,7 @@ import (
 
 // CreateLLMProviderAPIKey creates an API key for an LLM provider.
 func CreateLLMProviderAPIKey(g Gomega, client *framework.AMPClient, orgName, providerID string, req framework.CreateLLMAPIKeyRequest) framework.CreateLLMAPIKeyResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/llm-providers/%s/api-keys", orgName, providerID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-providers/%s/api-keys", orgName, providerID)
 
 	resp, err := client.Post(path, req)
 	g.Expect(err).NotTo(HaveOccurred(), "create LLM provider API key request failed")

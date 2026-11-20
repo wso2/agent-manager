@@ -30,23 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
-
-// A project's LLM proxies, like its agents, must be deleted first; the project stays.
-func TestDeleteProjectRefusesWhileItHasLLMProxies(t *testing.T) {
-	ou := newOrg(t)
-	seedLLMProxy(t, ou)
-	require.NoError(t, db.GetDB().Where("org_id = ? AND name = ?", ou, "proxy-owner").Delete(&models.Agent{}).Error)
-
-	err := NewPlatformRepo(db.GetDB()).DeleteProject(context.Background(), ou, "checkout")
-
-	require.ErrorIs(t, err, utils.ErrConflict)
-	assert.Contains(t, err.Error(), "1 LLM proxy(ies)")
-	var left int64
-	require.NoError(t, db.GetDB().Model(&models.Project{}).Where("org_id = ? AND name = ?", ou, "checkout").Count(&left).Error)
-	assert.EqualValues(t, 1, left)
-}
 
 // Event subscriptions scoped to the project, and its place in a destination's projects, go with it.
 func TestDeleteProjectRemovesItsEventSettings(t *testing.T) {

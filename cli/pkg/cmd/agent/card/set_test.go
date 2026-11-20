@@ -23,13 +23,13 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
 const cardURL = "https://a.example/.well-known/agent-card.json"
 
-func setOpts(client func(context.Context) (*amsvc.ClientWithResponses, error), jsonMode bool) (*SetOptions, func() (string, string)) {
+func setOpts(client func(context.Context) (*aigateway.ClientWithResponses, error), jsonMode bool) (*SetOptions, func() (string, string)) {
 	ios, out, errOut := newTestIO(jsonMode)
 	return &SetOptions{
 			IO: ios, Client: client, Scope: baseScope(),

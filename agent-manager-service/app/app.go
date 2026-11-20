@@ -32,7 +32,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
@@ -42,6 +41,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/server"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -62,6 +62,9 @@ const (
 // Options holds the configuration options for running the application.
 // These are typically parsed from command-line flags in main.
 type Options struct {
+	// DefaultModules are installed at boot when no modules list is declared,
+	// unless they were installed before (cmd/amp: ai-gateway).
+	DefaultModules []string
 	// APIMiddleware wraps the authenticated API mux before dispatch.
 	APIMiddleware func(*http.ServeMux) http.Handler
 	// StartBackground starts deployment-specific workers before the scheduler.
@@ -82,21 +85,6 @@ type Options struct {
 	// management and OAuth endpoints. nil preserves on-premises behavior. Run
 	// automatically applies it to endpoint-aware provisioning implementations.
 	EnvThunderEndpointResolver thundersvc.EnvThunderEndpointResolver
-	// ProjectAgentIdentityProvider enables project-scoped AgentID creation in
-	// CP_MANAGED mode. nil is the safe default for LEGACY_DIRECT deployments.
-	ProjectAgentIdentityProvider services.ProjectAgentIdentityProvider
-	// IdentityRoleProvider keeps agent identity roles, and the MCP scopes assigned to them, on an
-	// identity control plane. It is used only when IDENTITY_MANAGEMENT_MODE is CP_MANAGED; in
-	// LEGACY_DIRECT mode (the default) roles are in each environment's own Thunder and this is
-	// ignored. CP_MANAGED without it reports role listing and scope assignment as unavailable and
-	// never uses the per-environment Thunder.
-	IdentityRoleProvider services.IdentityRoleProvider
-	// IdentityGroupProvider manages the groups of an environment, their members and the roles
-	// they hold through an identity control plane. It is used only when IDENTITY_MANAGEMENT_MODE
-	// is CP_MANAGED; in LEGACY_DIRECT mode (the default) groups are in each environment's own
-	// Thunder and this is ignored. CP_MANAGED without it reports group management as unavailable
-	// and never uses the per-environment Thunder.
-	IdentityGroupProvider services.IdentityGroupProvider
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
@@ -109,7 +97,7 @@ type Options struct {
 	// credentials). encryptionKey is the platform ENCRYPTION_KEY, used to decrypt
 	// the env-Thunder system-client credential from AMS's own Postgres — that one
 	// is not read back from a key vault.
-	AgentThunderProvisioning func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, platform repositories.PlatformRepository, encryptionKey []byte) services.AgentThunderProvisioningService
+	AgentThunderProvisioning func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, encryptionKey []byte) services.AgentThunderProvisioningService
 	// OrgOverrideResolver lets a deployment's control plane act on a tenant's
 	// behalf on the few routes it drives (gateway listing, environment Thunder
 	// registration, gateway identity providers), typically by trusting an
@@ -180,14 +168,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		return
 	}
 
-	if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) && opts.AgentThunderProvisioning == nil {
-		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
-		os.Exit(1)
-	}
-
-	services.SetIdentityRoleProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityRoleProvider)
-	services.SetIdentityGroupProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityGroupProvider)
-
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
 
@@ -214,18 +194,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 			slog.Error("failed to create secret management client for AgentID provisioning", "error", err)
 			os.Exit(1)
 		}
-		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, repositories.NewPlatformRepo(database), encryptionKey)
-		if setter, ok := agentThunderProvisioning.(services.ProjectAgentIdentityProviderSetter); ok {
-			if err := setter.SetProjectAgentIdentityProvider(
-				thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.ProjectAgentIdentityProvider,
-			); err != nil {
-				slog.Error("failed to configure project AgentID provisioning", "error", err)
-				os.Exit(1)
-			}
-		} else if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) {
-			slog.Error("AgentID provisioning implementation does not support CP_MANAGED mode")
-			os.Exit(1)
-		}
+		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, encryptionKey)
 		if setter, ok := agentThunderProvisioning.(services.EnvThunderEndpointResolverSetter); ok {
 			setter.SetEnvThunderEndpointResolver(opts.EnvThunderEndpointResolver)
 		}
@@ -237,39 +206,23 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		os.Exit(1)
 	}
 
-	// Build the features linked into this binary on the core's services (the
-	// AI Gateway in the full distribution), before the module host boots, so
-	// their modules can provide what was built.
-	bundles, err := builtin.Build(context.Background(), dependencies)
-	if err != nil {
-		slog.Error("failed to build the built-in features", "error", err)
-		os.Exit(1)
-	}
-
 	// Load the active modules and follow lifecycle changes made elsewhere. The
 	// host gets the core services modules use first, so the snapshot it
-	// builds carries their routes.
+	// builds carries their routes. The default organization is created first,
+	// so it exists when modules activate.
 	modulesCtx, modulesCancel := context.WithCancel(context.Background())
 	defer modulesCancel()
+	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
+		slog.Error("failed to create the default organization", "error", err)
+		os.Exit(1)
+	}
 	stopModules, err := StartModules(modulesCtx, moduleHost(), database, dependencies)
 	if err != nil {
 		slog.Error("failed to start the module host", "error", err)
 		os.Exit(1)
 	}
-	if err := ReconcileModules(modulesCtx, moduleHost()); err != nil {
+	if err := ReconcileModules(modulesCtx, moduleHost(), opts.DefaultModules); err != nil {
 		slog.Error("failed to apply the configured modules list", "error", err)
-		os.Exit(1)
-	}
-	warnGatewayStateWithoutProvider(modulesCtx, database, slog.Default())
-	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
-		slog.Error("failed to create the default organization", "error", err)
-		os.Exit(1)
-	}
-
-	// For the AI Gateway, registers the gateway named in configuration before
-	// any gateway can connect.
-	if err := bundles.Init(context.Background()); err != nil {
-		slog.Error("failed to initialize the built-in features", "error", err)
 		os.Exit(1)
 	}
 
@@ -310,14 +263,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		os.Exit(1)
 	}
 
-	// The built-in features' workers: for the AI Gateway, the A2A card
-	// reconciler, the deployment timeout sweeper, the reconcile worker and the
-	// built-in LLM provider templates.
-	if err := bundles.Start(backgroundCtx); err != nil {
-		slog.Error("failed to start the built-in features", "error", err)
-		os.Exit(1)
-	}
-
 	// Start publishing events. The bus is set up in the background, so a NATS
 	// server that is still starting does not hold up the API; events raised
 	// meanwhile wait in the durable outbox.
@@ -327,7 +272,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	recordStartupPosture(dependencies.AuditRecorder)
 
 	// Create main API server handler
-	handler := api.MakeHTTPHandlerWithModules(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, moduleHost(), bundles)
+	handler := api.MakeHTTPHandlerWithModules(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, moduleHost())
 	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,
@@ -339,7 +284,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 
 	// Create internal HTTPS server for module workloads and built-in features
 	// (the gateway WebSocket and internal APIs)
-	internalHandler := api.MakeInternalHTTPHandlerWithModules(dependencies, moduleHost(), bundles)
+	internalHandler := api.MakeInternalHTTPHandlerWithModules(dependencies, moduleHost())
 	internalServer := server.NewInternalServer(&cfg.InternalServer, internalHandler)
 
 	stopCh := signals.SetupSignalHandler()
@@ -375,8 +320,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 			}
 		}
 
-		bundles.Stop(shutdownCtx)
-
 		secretJobWorkerCancel()
 		if err := dependencies.SecretJobWorker.Stop(); err != nil {
 			slog.Error("error stopping secret vault job worker", "error", err)
@@ -407,10 +350,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 		slog.Info("Internal server is running",
 			"address", fmt.Sprintf("%s://localhost:%d", scheme, cfg.InternalServer.Port),
-			"tlsEnabled", cfg.InternalServer.TLSEnabled,
-			"maxWebSocketConnections", cfg.WebSocket.MaxConnections,
-			"heartbeatTimeout", fmt.Sprintf("%ds", cfg.WebSocket.ConnectionTimeout),
-			"rateLimitPerMin", cfg.WebSocket.RateLimitPerMin)
+			"tlsEnabled", cfg.InternalServer.TLSEnabled)
 		if err := internalServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("Failed to start internal server", "error", err)
 			os.Exit(1)
@@ -431,11 +371,16 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 
 // StartModules attaches the core services to the module host, boots it, and
 // makes the core's resource code run module hooks. The host drains module
-// events itself. The returned function detaches the host from the core.
+// events and runs module workers itself. The returned function stops the
+// workers and detaches the host from the core.
 func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, deps *wiring.AppParams) (func(), error) {
 	attach := modhost.Deps{
-		Mount: api.ModuleMounter(deps),
-		Core:  repositories.NewCoreReadAPI(database),
+		Mount:         api.ModuleMounter(deps),
+		MountInternal: api.ModuleInternalMounter(deps),
+		Core:          repositories.NewCoreReadAPI(database),
+		Secrets:       repositories.NewModuleSecretStore(database, deps.SecretStore),
+		InternalURL:   config.GetConfig().InternalServerPublicURL,
+		Capabilities:  map[string]any{identityv1.ID: services.NewIdentityDirectory(deps.EnvThunderResolver, deps.AgentThunderClientRepository)},
 	}
 	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
 		attach.Tokens = signer
@@ -445,16 +390,28 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 		return func() {}, err
 	}
 	coreext.Set(host)
-	return func() { coreext.Set(nil) }, nil
+	return func() {
+		host.StopWorkers()
+		coreext.Set(nil)
+	}, nil
 }
 
 // ReconcileModules applies the declarative modules list (amp.yaml `modules:`
 // or AMP_MODULES), if one is configured: listed modules are installed and
-// enabled or disabled as listed; others are disabled. Every replica runs it at
-// boot; it changes nothing once the database matches.
-func ReconcileModules(ctx context.Context, host *modhost.Host) error {
+// enabled or disabled as listed; others are disabled. With no list, it
+// installs the distribution's default modules that were never installed and
+// changes nothing else. Every replica runs it at boot; it changes nothing once
+// the database matches.
+func ReconcileModules(ctx context.Context, host *modhost.Host, defaults []string) error {
 	mods, err := config.GetModules()
-	if err != nil || !mods.Declared {
+	if err != nil {
+		return err
+	}
+	if !mods.Declared {
+		steps, err := host.InstallDefaults(ctx, defaults)
+		for _, s := range steps {
+			slog.Info("default module installed", "module", s.Module, "action", s.Action)
+		}
 		return err
 	}
 	want := make([]modhost.Desired, 0, len(mods.List))

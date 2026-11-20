@@ -39,9 +39,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // AgentTokenManagerService defines the interface for agent token operations
@@ -260,7 +260,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	)
 
 	if req.OrgId == "" {
-		return nil, fmt.Errorf("org id is required: %w", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("org id is required: %w", httpx.ErrInvalidInput)
 	}
 
 	// Fetch the agent. Agent names are unique organization-wide,
@@ -277,7 +277,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	// grants access to every project and every agent in it — it's input validation:
 	// a path that names an agent under a project it doesn't belong to is malformed.
 	if !strings.EqualFold(component.ProjectName, req.ProjectName) {
-		return nil, fmt.Errorf("agent %q does not belong to project %q: %w", req.AgentName, req.ProjectName, utils.ErrInvalidInput)
+		return nil, fmt.Errorf("agent %q does not belong to project %q: %w", req.AgentName, req.ProjectName, httpx.ErrInvalidInput)
 	}
 
 	// There is only the default environment; the requested name is ignored.
@@ -308,7 +308,7 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 	// Determine expiry duration
 	expiryDuration, err := s.parseExpiryDuration(req.ExpiresIn)
 	if err != nil {
-		return nil, errors.Join(utils.ErrInvalidInput, err)
+		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	now := time.Now()

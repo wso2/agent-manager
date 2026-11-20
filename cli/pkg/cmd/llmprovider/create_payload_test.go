@@ -28,7 +28,7 @@ import (
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
 // accessControlMode digs out accessControl.mode from a captured create body.
@@ -165,7 +165,7 @@ func TestParseGateways_DropsDuplicatesKeepingFirstOccurrence(t *testing.T) {
 // fails the test, which is how the "no extra round trip" case is asserted.
 func newRoutingTestClient(
 	t *testing.T, routes map[string]any,
-) (func(context.Context) (*amsvc.ClientWithResponses, error), *capturedRequest, func()) {
+) (func(context.Context) (*aigateway.ClientWithResponses, error), *capturedRequest, func()) {
 	t.Helper()
 	captured := &capturedRequest{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -193,20 +193,20 @@ func newRoutingTestClient(
 			t.Errorf("encode response: %v", err)
 		}
 	}))
-	client, err := amsvc.NewClientWithResponses(server.URL)
+	client, err := aigateway.NewClientWithResponses(server.URL)
 	if err != nil {
 		server.Close()
 		t.Fatalf("new client: %v", err)
 	}
-	return func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }, captured, server.Close
+	return func(context.Context) (*aigateway.ClientWithResponses, error) { return client, nil }, captured, server.Close
 }
 
 func TestCreate_ResolvesGatewayNameToUUID(t *testing.T) {
 	ios, _, _ := newTestIO(true)
 	const edgeUUID = "22222222-2222-2222-2222-222222222222"
 	clientFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
-		"/orgs/acme/gateways": amsvc.GatewayListResponse{
-			Gateways: []amsvc.GatewayResponse{{Name: "edge", Uuid: edgeUUID}},
+		"/orgs/acme/gateways": aigateway.GatewayListResponse{
+			Gateways: []aigateway.GatewayResponse{{Name: "edge", Uuid: edgeUUID}},
 			Total:    1,
 		},
 		"/orgs/acme/llm-providers": sampleProviderResponse(),
@@ -229,7 +229,7 @@ func TestCreate_ResolvesGatewayNameToUUID(t *testing.T) {
 func TestCreate_UnknownGatewayNameFailsBeforeCreating(t *testing.T) {
 	ios, _, _ := newTestIO(true)
 	clientFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
-		"/orgs/acme/gateways": amsvc.GatewayListResponse{Gateways: []amsvc.GatewayResponse{}},
+		"/orgs/acme/gateways": aigateway.GatewayListResponse{Gateways: []aigateway.GatewayResponse{}},
 	})
 	defer closeFn()
 

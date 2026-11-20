@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
+
 	"github.com/spf13/cobra"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
@@ -33,8 +35,10 @@ import (
 )
 
 type CreateOptions struct {
-	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	IO     *iostreams.IOStreams
+	Client func(context.Context) (*amsvc.ClientWithResponses, error)
+	// AIGateway registers the card URL of an A2A agent.
+	AIGateway    func(context.Context) (*aigateway.ClientWithResponses, error)
 	Observer     func(context.Context) (*observersvc.Client, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(string, string) render.Scope
@@ -70,11 +74,6 @@ type CreateOptions struct {
 	BasePath    string
 	OpenAPISpec string
 
-	DisableAutoInstrumentation bool
-	Env                        []string
-	EnvSecret                  []string
-	EnvFromSecret              []string
-
 	LLMProvider  string
 	LLMURLEnv    string
 	LLMAPIKeyEnv string
@@ -87,6 +86,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &CreateOptions{
 		IO:           f.IOStreams,
 		Client:       f.AgentManager,
+		AIGateway:    f.AIGateway,
 		Observer:     f.Observer,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.Scope,
@@ -167,10 +167,6 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&opts.Port, "port", 8000, "Service port (1..65535) (custom-api and a2a-agent only; chat-api uses a fixed port)")
 	cmd.Flags().StringVar(&opts.BasePath, "base-path", "", "Base path for the service")
 	cmd.Flags().StringVar(&opts.OpenAPISpec, "openapi-spec", "", "Path to OpenAPI schema within the repo")
-	cmd.Flags().BoolVar(&opts.DisableAutoInstrumentation, "no-auto-instrumentation", false, "Disable automatic instrumentation")
-	cmd.Flags().StringSliceVar(&opts.Env, "env", nil, "Environment variable as KEY=VALUE (repeatable)")
-	cmd.Flags().StringSliceVar(&opts.EnvSecret, "env-secret", nil, "Sensitive env variable as KEY=VALUE (repeatable)")
-	cmd.Flags().StringSliceVar(&opts.EnvFromSecret, "env-from-secret", nil, "Env variable from secret as KEY=SECRETNAME (repeatable)")
 	cmd.Flags().StringVar(&opts.LLMProvider, "llm-provider", "", "Handle of a configured LLM provider to attach (internal only)")
 	cmd.Flags().StringVar(&opts.LLMURLEnv, "llm-url-env", "", "Env var name for the provider URL (default: auto-generated)")
 	cmd.Flags().StringVar(&opts.LLMAPIKeyEnv, "llm-api-key-env", "", "Env var name for the provider API key (default: auto-generated)")
@@ -210,7 +206,7 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 
 	// Branch on the request body, not the --provisioning flag — in file mode
 	// the manifest is the only source of truth.
-	if req.Provisioning.Type != amsvc.ProvisioningTypeExternal {
+	if req.Provisioning.Type != amsvc.External {
 		if opts.IO.JSON {
 			return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
 		}
@@ -219,7 +215,7 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 
 	var card *cardOutcome
 	if opts.CardURL != "" {
-		card = applyCardURL(ctx, opts, client, resp.JSON202.Name)
+		card = applyCardURL(ctx, opts, resp.JSON202.Name)
 	}
 
 	// The agent is already created server-side, so a post-create failure (token
@@ -245,9 +241,13 @@ func renderAgentWithCard(opts *CreateOptions, agent *amsvc.AgentResponse, card *
 }
 
 // applyCardURL registers the card URL; failure is a warning because the agent already exists.
-func applyCardURL(ctx context.Context, opts *CreateOptions, client *amsvc.ClientWithResponses, name string) *cardOutcome {
+func applyCardURL(ctx context.Context, opts *CreateOptions, name string) *cardOutcome {
 	target := a2acard.Target{Org: opts.Org, Proj: opts.Proj, Agent: name}
-	res, err := a2acard.ApplySource(ctx, client, target, opts.CardURL, opts.CardProxy)
+	var res a2acard.SourceResult
+	client, err := opts.AIGateway(ctx)
+	if err == nil {
+		res, err = a2acard.ApplySource(ctx, client, target, opts.CardURL, opts.CardProxy)
+	}
 	card := &cardOutcome{SourceResult: res}
 	card.URL = opts.CardURL
 	if err == nil {

@@ -78,9 +78,9 @@ Run these in `agent-manager-service`:
 |---|---|
 | Any Go code | `make fmt` (gofumpt; CI rejects unformatted code) and `make lint` |
 | The OpenAPI spec | `make spec` |
-| Wiring in `wiring/wire.go` or `modules/gateway/gwwire/wire.go` | `make wire` (regenerates both) |
+| Wiring in `wiring/wire.go` or `modules/aigateway/gwwire/wire.go` | `make wire` (regenerates both) |
 | A repository or client interface | `make mocks` (needs moq v0.5.3 from `make tools`) |
-| The database schema in `db_migrations/schema/lite.yaml`, or a module's in `modules/<name>/schema/` | `make schema`, which regenerates the SQLite and PostgreSQL migrations |
+| The database schema in `db_migrations/schema/lite.yaml`, or a module's in `modules/<dir>/schema/` (the module name without dashes) | `make schema`, which regenerates the SQLite and PostgreSQL migrations |
 | Anything you want to run outside Compose | `make build` (`bin/amp`, `bin/amp-core`; run `make console-embed` first to include the console) |
 
 CI fails if generated code is out of date (`make codegenfmt-check`). Commit the generated files with your change.
@@ -91,7 +91,7 @@ Settings come from the environment, with an optional `amp.yaml` for the rest; [`
 
 ### Modules
 
-The core (organizations, projects, agents, identities, tokens, events, RBAC and audit) imports no module; everything else, including the AI Gateway, is a module under `agent-manager-service/modules/`. [Writing a module](amp-lite/modules.md) covers the split, the contract, testing and operation. Run `make up-core` and `make smoke-core` as well as `make up` when a change touches the line between the core and a module.
+The core (organizations, projects, agents, identities, tokens, events, RBAC and audit) imports no module; everything else, including the AI Gateway, is a module under `agent-manager-service/modules/`. [Writing a module](amp-lite/modules.md) covers the split, the contract, testing and operation; to add one, follow [Add a module, step by step](amp-lite/modules.md#add-a-module-step-by-step). A module imports only `modkit`, the domain-free libraries under `agent-manager-service/pkg/` and its own packages; [Module boundaries](amp-lite/modules.md#module-boundaries) gives the rules, and core code that both sides need goes to `pkg/` only when it has no core imports, no global state and no domain. Run `make up-core` and `make smoke-core` as well as `make up` when a change touches the line between the core and a module.
 
 ### Console
 

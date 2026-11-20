@@ -24,8 +24,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
 // eventOutboxRow stores the complete CloudEvent until publication succeeds. A row is claimed by writing a lease

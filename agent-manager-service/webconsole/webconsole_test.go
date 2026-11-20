@@ -58,6 +58,7 @@ func TestHandlerServesFilesAndFallsBackToIndex(t *testing.T) {
 		{"/api/unknown", "", "", 404},
 		{"/auth/whatever", "", "", 404},
 		{"/mcp", "", "", 404},
+		{"/m/nosuch/things", "", "", 404},
 	}
 	for _, c := range cases {
 		rec := get(t, h, c.path)
@@ -116,23 +117,5 @@ func TestPlaceholderWithoutConsole(t *testing.T) {
 func TestJSEscape(t *testing.T) {
 	if got := jsEscape(`a'b\c</script>` + "\n"); got != `a\'b\\c\x3c/script>\n` {
 		t.Fatalf("got %s", got)
-	}
-}
-
-func TestOriginFollowsForwardedHeaders(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/config.js", nil)
-	req.Host = "amp-api:8080"
-	if got := requestOrigin(req); got != "http://amp-api:8080" {
-		t.Fatalf("plain: %s", got)
-	}
-	req.Header.Set("X-Forwarded-Proto", "https, http")
-	req.Header.Set("X-Forwarded-Host", "amp.example.com")
-	if got := requestOrigin(req); got != "https://amp.example.com" {
-		t.Fatalf("forwarded: %s", got)
-	}
-	req.Header.Set("X-Forwarded-Proto", "javascript")
-	req.Header.Set("X-Forwarded-Host", "evil.example/'x")
-	if got := requestOrigin(req); got != "http://amp-api:8080" {
-		t.Fatalf("bad forwarded values must be ignored: %s", got)
 	}
 }

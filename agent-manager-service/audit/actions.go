@@ -16,7 +16,10 @@
 
 package audit
 
-import "strings"
+import (
+	"strings"
+	"sync/atomic"
+)
 
 // Action names the operation that was performed, in "<resource>:<verb>" form
 // ("agent:create", "role:grant-permission"). It is the human- and SIEM-facing
@@ -116,11 +119,39 @@ func RegisteredActions() []Action {
 	return out
 }
 
+// ModuleAction classifies an audit action an active module declares.
+type ModuleAction struct {
+	Class    ActionClass
+	Severity Severity
+	// Details are the detail keys the action's records may carry.
+	Details map[string]FieldKind
+}
+
+// moduleActions are the actions the active modules declare. The module host
+// replaces them whenever the set of active modules changes.
+var moduleActions atomic.Pointer[map[Action]ModuleAction]
+
+// SetModuleActions replaces the actions the active modules declare.
+func SetModuleActions(m map[Action]ModuleAction) {
+	moduleActions.Store(&m)
+}
+
+func moduleAction(a Action) (ModuleAction, bool) {
+	if m := moduleActions.Load(); m != nil {
+		meta, ok := (*m)[a]
+		return meta, ok
+	}
+	return ModuleAction{}, false
+}
+
 // Class returns the action's class, falling back to a heuristic for actions
 // derived from route permissions.
 func (a Action) Class() ActionClass {
 	if meta, ok := registry[a]; ok {
 		return meta.class
+	}
+	if meta, ok := moduleAction(a); ok {
+		return meta.Class
 	}
 	class, _ := classify(a)
 	return class
@@ -130,6 +161,9 @@ func (a Action) Class() ActionClass {
 func (a Action) Severity() Severity {
 	if meta, ok := registry[a]; ok {
 		return meta.severity
+	}
+	if meta, ok := moduleAction(a); ok {
+		return meta.Severity
 	}
 	_, severity := classify(a)
 	return severity
@@ -143,10 +177,15 @@ func (a Action) Resource() string {
 	return string(a)
 }
 
-// Verb returns the trailing "<verb>" segment of the action.
+// Verb returns the trailing "<verb>" segment of the action. A module's
+// action reads "<module>:<resource>.<verb>"; its verb is the last segment.
 func (a Action) Verb() string {
 	if idx := strings.Index(string(a), ":"); idx != -1 {
-		return string(a)[idx+1:]
+		verb := string(a)[idx+1:]
+		if dot := strings.LastIndex(verb, "."); dot != -1 {
+			return verb[dot+1:]
+		}
+		return verb
 	}
 	return ""
 }
@@ -154,13 +193,11 @@ func (a Action) Verb() string {
 // credentialResources are resources whose mutation hands out or withdraws
 // access. They are classified as credential events regardless of verb.
 var credentialResources = map[string]bool{
-	"api-key":         true,
-	"git-secret":      true,
-	"agent-identity":  true,
-	"gateway-token":   true,
-	"agent-token":     true,
-	"token":           true,
-	"service-account": true,
+	"api-key":        true,
+	"agent-identity": true,
+	"gateway-token":  true,
+	"agent-token":    true,
+	"token":          true,
 }
 
 // identityResources are the privilege-management surface.
@@ -180,8 +217,7 @@ var identityResources = map[string]bool{
 // panics instead. There is no reachable "agent:env-production" to classify.
 var deploymentVerbs = map[string]bool{
 	"deploy": true, "undeploy": true, "promote": true, "build": true,
-	"suspend": true, "resume": true, "restore": true,
-	"change-deployment-state": true, "rollback": true,
+	"suspend": true, "resume": true, "restore": true, "rollback": true,
 }
 
 // credentialVerbs mark credential handling wherever it appears — an
@@ -191,7 +227,7 @@ var credentialVerbs = map[string]bool{
 	"api-key-manage": true, "token-manage": true, "rotate": true,
 	"revoke": true, "regenerate": true, "regenerate-secret": true,
 	"revoke-secret": true, "provision": true, "manage-service-account": true,
-	"mint": true, "regenerate-tracing": true, "issue-test": true,
+	"mint": true, "issue-test": true,
 }
 
 // readVerbs name actions that disclose rather than change. They are checked
@@ -199,8 +235,7 @@ var credentialVerbs = map[string]bool{
 // ranked as loudly as rotating one — both are recorded, but only one is a change.
 var readVerbs = map[string]bool{
 	"read": true, "view": true, "list": true,
-	"list-assignments": true, "list-branches": true, "list-commits": true,
-	"list-identity-providers": true, "fetch-server-info": true,
+	"list-assignments": true, "list-identity-providers": true, "fetch-server-info": true,
 }
 
 // classify derives a class and severity for an action that was not explicitly

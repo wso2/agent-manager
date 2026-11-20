@@ -32,8 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // sampleURLs holds a valid URL of each offered service; the tokens in them
@@ -93,7 +93,7 @@ func TestNormalizeConfig(t *testing.T) {
 		"self-hosted on loopback": `{"service":"gotify","url":"gotify://localhost/Aaa.bbb"}`,
 	} {
 		_, err := d.NormalizeConfig(ctx, json.RawMessage(raw))
-		assert.ErrorIs(t, err, utils.ErrInvalidInput, name)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput, name)
 	}
 
 	_, err = New(true).NormalizeConfig(ctx, json.RawMessage(`{"service":"gotify","url":"gotify://localhost/Aaa.bbb"}`))
@@ -118,7 +118,7 @@ func TestSplitCredentialRedactAndOrigin(t *testing.T) {
 
 func message(t *testing.T) eventdestinations.Message {
 	t.Helper()
-	evt := events.New("evt_1", "agent.deployed", events.ScopeAgent, "org-1", "default", "hr-agent",
+	evt := events.New("evt_1", "agent.updated", events.ScopeAgent, "org-1", "default", "hr-agent",
 		time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC))
 	evt.Environment = "prod"
 	body, err := json.Marshal(evt)
@@ -146,7 +146,7 @@ func TestDeliver(t *testing.T) {
 	url := ntfyServer(t, http.StatusOK, &got)
 	res := New(true).Deliver(ctx, eventdestinations.Destination{Config: cfg, Secret: url}, message(t))
 	require.NoError(t, res.Err)
-	assert.Contains(t, got, "Agent deployed")
+	assert.Contains(t, got, "Agent updated")
 	assert.Contains(t, got, "Project: default · Agent: hr-agent · Environment: prod")
 
 	url = ntfyServer(t, http.StatusInternalServerError, &got)

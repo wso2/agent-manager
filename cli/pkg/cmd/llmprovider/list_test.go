@@ -22,18 +22,18 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
-func sampleListResponse() amsvc.LLMProviderListResponse {
-	return amsvc.LLMProviderListResponse{
-		Providers: []amsvc.LLMProviderListItem{
+func sampleListResponse() aigateway.LLMProviderListResponse {
+	return aigateway.LLMProviderListResponse{
+		Providers: []aigateway.LLMProviderListItem{
 			{
 				Uuid:     "11111111-1111-1111-1111-111111111111",
 				Id:       "openai",
 				Name:     "OpenAI",
 				Template: "openai",
-				Status:   amsvc.LLMProviderListItemStatus("deployed"),
+				Status:   aigateway.LLMProviderListItemStatus("deployed"),
 			},
 		},
 		Total:  1,
@@ -109,7 +109,7 @@ func TestList_Table(t *testing.T) {
 
 func TestList_ServerError(t *testing.T) {
 	io, out, _ := newTestIO(true)
-	clientFn, _, closeFn := newTestClient(t, http.StatusInternalServerError, amsvc.ErrorResponse{
+	clientFn, _, closeFn := newTestClient(t, http.StatusInternalServerError, aigateway.ErrorResponse{
 		Code:    "INTERNAL",
 		Message: "boom",
 	})

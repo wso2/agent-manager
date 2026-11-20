@@ -156,7 +156,6 @@ var loggerProviderSet = wire.NewSet(
 )
 
 var repositoryProviderSet = wire.NewSet(
-	ProvideAgentConfigRepository,
 	ProvideAgentThunderClientRepository,
 	repositories.NewEventRepository,
 )
@@ -168,10 +167,6 @@ func ProvideTestPlatformRepository(testClients TestClients) repositories.Platfor
 
 func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {
 	return testClients.SecretMgmtClient
-}
-
-func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {
-	return repositories.NewAgentConfigRepo(db)
 }
 
 func ProvideAgentThunderClientRepository(db *gorm.DB) repositories.AgentThunderClientRepository {

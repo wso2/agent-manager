@@ -33,9 +33,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/vault"
 )
 
@@ -98,7 +98,7 @@ const emptySegment = "."
 // finds the same row. SecretRefName is not used: it leaves out the project and agent and is cut to 63 characters.
 func secretName(location secretmanagersvc.SecretLocation) (string, error) {
 	if strings.TrimSpace(location.OrgName) == "" || strings.TrimSpace(location.EntityName) == "" {
-		return "", fmt.Errorf("%w: a secret needs an organization and an entity", utils.ErrInvalidInput)
+		return "", fmt.Errorf("%w: a secret needs an organization and an entity", httpx.ErrInvalidInput)
 	}
 	fields := []string{
 		location.OrgName, location.ProjectName, location.EnvironmentName,
@@ -112,12 +112,12 @@ func secretName(location secretmanagersvc.SecretLocation) (string, error) {
 		}
 		segment, err := secretmanagersvc.SanitizeSegment(field)
 		if err != nil {
-			return "", fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+			return "", fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 		}
 		parts[i] = segment
 	}
 	if parts[0] == emptySegment || parts[5] == emptySegment {
-		return "", fmt.Errorf("%w: a secret needs an organization and an entity", utils.ErrInvalidInput)
+		return "", fmt.Errorf("%w: a secret needs an organization and an entity", httpx.ErrInvalidInput)
 	}
 	return strings.Join(parts, "/"), nil
 }
@@ -126,24 +126,24 @@ func secretName(location secretmanagersvc.SecretLocation) (string, error) {
 // the name makes the name unique per organization through the primary key.
 func rowID(org, name string) (uuid.UUID, error) {
 	if strings.TrimSpace(org) == "" || strings.TrimSpace(name) == "" {
-		return uuid.Nil, fmt.Errorf("%w: a secret needs an organization and a name", utils.ErrInvalidInput)
+		return uuid.Nil, fmt.Errorf("%w: a secret needs an organization and a name", httpx.ErrInvalidInput)
 	}
 	return uuid.NewSHA1(idNamespace, []byte(org+"/"+name)), nil
 }
 
 func encode(data map[string]string) ([]byte, error) {
 	if len(data) == 0 {
-		return nil, fmt.Errorf("%w: secret data cannot be empty", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: secret data cannot be empty", httpx.ErrInvalidInput)
 	}
 	if len(data) > MaxSecretKeys {
-		return nil, fmt.Errorf("%w: a secret holds at most %d keys, got %d", utils.ErrInvalidInput, MaxSecretKeys, len(data))
+		return nil, fmt.Errorf("%w: a secret holds at most %d keys, got %d", httpx.ErrInvalidInput, MaxSecretKeys, len(data))
 	}
 	size := 0
 	for k, v := range data {
 		size += len(k) + len(v)
 	}
 	if size > MaxSecretBytes {
-		return nil, fmt.Errorf("%w: a secret holds at most %d bytes of keys and values, got %d", utils.ErrInvalidInput, MaxSecretBytes, size)
+		return nil, fmt.Errorf("%w: a secret holds at most %d bytes of keys and values, got %d", httpx.ErrInvalidInput, MaxSecretBytes, size)
 	}
 	return json.Marshal(data)
 }

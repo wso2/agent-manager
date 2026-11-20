@@ -90,10 +90,10 @@ box("cluster", 260, 230, 1800, 630, "#1D63ED", fill="none", arc=1, sw=2, dashed=
 image("cl_logo", 840, 242, 24, 24, STACK_ICON)
 text("cl_lbl", 872, 244, 420, 20, "Docker Compose stack (docker compose up)", size=14, color="#1D63ED", valign="middle")
 
-pill("lb_cp", 350, 221, 440, "PORTS · console + API + MCP :9000 · ThunderID :8080")
+pill("lb_cp", 350, 221, 540, "PORTS · console + API + MCP :9000 · internal :9243 · ThunderID :8080")
 pill("egress", 1260, 221, 100, "EGRESS", fill="#7f1d1d")
 pill("lb_dp", 1400, 221, 610, "PORT :19080 · AI Gateway runtime · agent endpoints")
-for pid, x, y, w in (("lb_cp", 350, 221, 440), ("egress", 1260, 221, 100), ("lb_dp", 1400, 221, 610)):
+for pid, x, y, w in (("lb_cp", 350, 221, 540), ("egress", 1260, 221, 100), ("lb_dp", 1400, 221, 610)):
     reg(pid, x, y, w, 18)
 
 # ---------------------------------------------------------------- control plane
@@ -102,28 +102,26 @@ text("cp_lbl", 300, 298, 820, 20, "CONTROL PLANE", size=13, color=GREEN, bold=Tr
 
 comp("amapi", 300, 330, 820, 240, GREEN, "Agent Manager",
      "", logos=[IMG["amapi_logo0"]],
-     prod="one image, two distributions · amp = core + built-in modules · amp-core = core only, no AI Gateway",
+     prod="one image, two distributions · amp = core + modules (ai-gateway installed by default) · amp-core = core only, no AI Gateway",
      prod_color=GREEN)
 sub("console", 318, 404, 190, 150,
     "<b>Embedded console</b><br/>served on :9000 with the API<br/>config.js from CONSOLE_* settings<br/>"
     "pages from GET /api/v1/ui-manifest",
     GREEN, "#F2FBF7")
 reg("console", 318, 404, 190, 150)
-reg("core", 520, 404, 270, 150)
-sub("core", 520, 404, 270, 150,
-    "<b>Core</b><br/>REST API and MCP server<br/>orgs, projects, external agents and their agent tokens<br/>"
-    "RBAC and audit log<br/>at startup: migrates the database and creates the default org",
+reg("core", 520, 404, 226, 150)
+sub("core", 520, 404, 226, 150,
+    "<b>Core</b><br/>REST API and MCP server<br/>orgs, projects, external agents and their tokens<br/>"
+    "RBAC, audit log, events, secrets<br/>at startup: migrates the database and creates the default org",
     GREEN, "#F2FBF7")
-sub("modhost", 802, 404, 300, 150,
-    "<b>Module host</b><br/>install · enable · disable (amp module, amp.yaml)<br/>routes · hooks · events · capabilities<br/>"
-    "core calls llm.proxy, mcp.proxy, agent.gateway",
+reg("modhost", 830, 404, 272, 150)
+sub("modhost", 830, 404, 272, 150,
+    "<b>Module host</b> · install · enable · disable<br/>"
+    "modules reach the core only through modkit:<br/>rt.Core · rt.Secrets · hooks · events · capabilities",
     GREEN, "#F2FBF7")
-sub("mod_gw", 814, 476, 172, 70,
-    "<b>gateway</b> · built in<br/>gateways, LLM and MCP proxies; WebSocket :9243",
+sub("mod_gw", 840, 478, 252, 68,
+    "<b>ai-gateway</b> · on by default<br/>gateways, LLM and MCP proxies; provides llm.proxy, mcp.proxy",
     INDIGO, "#F5F5FF")
-sub("mod_legacy", 994, 476, 96, 70,
-    "<b>legacy</b><br/>501 routes",
-    SLATE, "#F1F5F9")
 comp("thunder", 300, 600, 820, 135, RED, "ThunderID",
      "<b>For people and services:</b> single sign-on (console, CLI, MCP); users, roles and groups<br/>"
      "<b>For agents:</b> an agent ID and OAuth client per external agent, created by Agent Manager<br/>"
@@ -136,18 +134,19 @@ sub("init", 300, 745, 820, 62,
     SLATE, "#F1F5F9")
 
 # ---------------------------------------------------------------- data plane
-box("dp", 1180, 290, 860, 280, INDIGO, fill="#F5F5FF", arc=2)
+box("dp", 1180, 290, 860, 200, INDIGO, fill="#F5F5FF", arc=2)
 text("dp_lbl", 1200, 298, 820, 20, "DATA PLANE", size=13, color=INDIGO, bold=True, valign="middle")
-comp("gw", 1200, 330, 820, 220, INDIGO, "AI Gateway",
-     "• inbound: the public entry point for agent endpoints; API keys and OAuth tokens checked here<br/>"
-     "• outbound: LLM and MCP proxy, guardrails, token and cost limits; provider keys stay in the gateway<br/>"
-     "• gateway-controller pulls its config from Agent Manager; gateway-runtime (Envoy) serves the traffic",
-     logos=[IMG["gw_logo0"]], prod="amp only · the gateway module registers the default gateway at startup · more per org", prod_color=INDIGO)
+comp("gw", 1200, 330, 820, 140, INDIGO, "AI Gateway",
+     "• inbound: entry point for agent endpoints; checks API keys and OAuth tokens<br/>"
+     "• outbound: LLM and MCP proxy, guardrails, token and cost limits<br/>"
+     "• gateway-controller syncs its config over the controller API (/api/internal/v1 :9243, api-key header; a workload after #2493)<br/>"
+     "• gateway-runtime (Envoy) serves the traffic",
+     logos=[IMG["gw_logo0"]], prod="amp installs the ai-gateway module by default · its worker registers the default gateway · more per org", prod_color=INDIGO)
 
 # ---------------------------------------------------------------- not in Lite
-box("later", 1180, 610, 860, 210, GREY, fill="#F8FAFC", arc=2, dashed=True)
-text("later_lbl", 1200, 618, 820, 20, "NOT IN AMP LITE", size=13, color="#64748b", bold=True, valign="middle")
-text("later_body", 1200, 650, 820, 150,
+box("later", 1180, 530, 860, 190, GREY, fill="#F8FAFC", arc=2, dashed=True)
+text("later_lbl", 1200, 538, 820, 20, "NOT IN AMP LITE", size=13, color="#64748b", bold=True, valign="middle")
+text("later_body", 1200, 570, 820, 150,
      "No trace store, trace query service or evaluation runs in this stack. Agents may still be instrumented, "
      "but nothing here receives or keeps their spans.<br/><br/>"
      "Observability (trace ingest, storage and queries) and evaluation (evaluators, monitors, scores and alerts) "
@@ -162,8 +161,9 @@ def backing(id, x, y, w, h, sub_text=""):
         text(f"{id}_sub", x + 14, y + 26, w - 28, 30, sub_text, size=10.5, italic=True)
 
 backing("bk_left", 40, 290, 200, 530)
-comp("sqldb", 54, 340, 172, 270, BLUE, "SQL database",
-     "core and module tables, audit log, and secrets encrypted with ENCRYPTION_KEY (AES-256-GCM)<br/><i>SQLite by default, PostgreSQL 18 with the postgres profile; SQL Server 2025 and Oracle 19c planned</i>",
+comp("sqldb", 54, 340, 172, 200, BLUE, "SQL database",
+     "core tables, module tables (mod_&lt;name&gt;_*), audit log, secrets (incl. module secrets via rt.Secrets) encrypted with ENCRYPTION_KEY<br/>"
+     "<i>SQLite default, PostgreSQL 18 profile</i>",
      logos=[DB_ICON], logo_size=22, title_size=13)
 comp("thdb", 54, 640, 172, 160, BLUE, "ThunderID data",
      "users, agent identities and OAuth clients<br/>Thunder's own database, separate from Agent Manager's",
@@ -192,14 +192,17 @@ edge("f_eg_ag", [(1350, 221), (1350, 204), (1700, 204), (1700, 190)], INDIGO, "e
 label("l_llm", 1318, 270, 150, "LLM · MCP · to agents", INDIGO)
 
 # control plane
-edge("f_api_gwcfg", [(1120, 440), (1200, 440)], GREEN, "amapi", "gw")
-label("l_gwcfg", 1128, 406, 64, "config<br/>:9243", GREEN, align="center", fill="#FFFFFF", h=30)
+edge("f_core_mod", [(746, 490), (830, 490)], GREEN, "core", "modhost")
+edge("f_mod_core", [(830, 512), (746, 512)], GREEN, "modhost", "core")
+label("l_modkit", 750, 466, 76, "modkit · rt.*", GREEN, align="center", fill="#F2FBF7", h=16)
+edge("f_api_gwcfg", [(1200, 440), (1120, 440)], GREEN, "gw", "amapi")
+label("l_gwcfg", 1124, 400, 72, "controller API<br/>:9243", GREEN, align="center", fill="#FFFFFF", h=30)
 edge("f_sso", [(420, 554), (420, 600)], RED, "console", "thunder", dashed=True)
 label("l_sso", 428, 580, 100, "single sign-on", RED)
 edge("f_api_th", [(620, 570), (620, 600)], RED, "amapi", "thunder", dashed=True)
 label("l_ids", 628, 580, 160, "creates agent identities", RED)
-edge("f_api_db", [(300, 545), (226, 545)], BLUE, "amapi", "sqldb")
-label("l_data", 230, 527, 70, "read / write", BLUE)
+edge("f_api_db", [(300, 500), (226, 500)], BLUE, "amapi", "sqldb")
+label("l_data", 226, 466, 34, "read<br/>write", BLUE, align="center", fill="#FFFFFF", h=28)
 edge("f_th_db", [(300, 700), (226, 700)], BLUE, "thunder", "thdb")
 
 # ---------------------------------------------------------------- legend

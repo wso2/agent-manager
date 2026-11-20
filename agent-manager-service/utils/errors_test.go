@@ -19,6 +19,8 @@ package utils
 import (
 	"errors"
 	"testing"
+
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // A ValidationError carrying a short UI message is only usable in place of a
@@ -26,14 +28,14 @@ import (
 // sentinel still recognise it — otherwise swapping one for the other silently
 // reroutes a 400 into the controller's generic 500 fallback.
 func TestNewInvalidInputError_MatchesItsSentinelAndKeepsBothHalves(t *testing.T) {
-	err := NewInvalidInputError("Promotion blocked: identity is not ready", "retry once provisioning completes")
+	err := httpx.NewInvalidInputError("Promotion blocked: identity is not ready", "retry once provisioning completes")
 
-	if !errors.Is(err, ErrInvalidInput) {
-		t.Errorf("errors.Is(err, ErrInvalidInput) = false, want true")
+	if !errors.Is(err, httpx.ErrInvalidInput) {
+		t.Errorf("errors.Is(err, httpx.ErrInvalidInput) = false, want true")
 	}
-	ve := IsValidationError(err)
+	ve := httpx.IsValidationError(err)
 	if ve == nil {
-		t.Fatalf("IsValidationError(err) = nil, want the ValidationError")
+		t.Fatalf("IsValidationError(err) = nil, want the httpx.ValidationError")
 	}
 	if ve.Message != "Promotion blocked: identity is not ready" {
 		t.Errorf("Message = %q", ve.Message)
@@ -49,9 +51,9 @@ func TestNewInvalidInputError_MatchesItsSentinelAndKeepsBothHalves(t *testing.T)
 // A plain NewValidationError has no sentinel to match, and asking whether it
 // matches one must not panic on the nil wrapped error.
 func TestNewValidationError_MatchesNoSentinel(t *testing.T) {
-	err := NewValidationError("Agent type is required", "agentType is required")
+	err := httpx.NewValidationError("Agent type is required", "agentType is required")
 
-	if errors.Is(err, ErrInvalidInput) {
-		t.Errorf("errors.Is(err, ErrInvalidInput) = true, want false for a sentinel-less validation error")
+	if errors.Is(err, httpx.ErrInvalidInput) {
+		t.Errorf("errors.Is(err, httpx.ErrInvalidInput) = true, want false for a sentinel-less validation error")
 	}
 }

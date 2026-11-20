@@ -23,7 +23,7 @@ import (
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
@@ -51,19 +51,19 @@ const configType = "llm"
 // toEnvModelConfigRequest translates a GET-response env mapping into the shape
 // the PUT/POST request body expects. Server-managed fields (URL, status, auth
 // info, proxy UUID) are dropped; only the provider handle and policies survive.
-func toEnvModelConfigRequest(m amsvc.EnvProviderConfigMappings) amsvc.EnvModelConfigRequest {
-	req := amsvc.EnvModelConfigRequest{}
+func toEnvModelConfigRequest(m aigateway.EnvProviderConfigMappings) aigateway.EnvModelConfigRequest {
+	req := aigateway.EnvModelConfigRequest{}
 	if m.Configuration != nil {
 		req.ProviderName = modelconfig.StringPtr(m.Configuration.ProviderName)
-		req.Configuration = amsvc.EnvProviderConfiguration{Policies: m.Configuration.Policies}
+		req.Configuration = aigateway.EnvProviderConfiguration{Policies: m.Configuration.Policies}
 	}
 	return req
 }
 
 // findLLMConfigByName resolves a config name to its UUID via List, considering
 // only llm-typed configs. found is false when no llm config matches the name.
-func findLLMConfigByName(ctx context.Context, client *amsvc.ClientWithResponses, org, proj, agent, name string) (openapi_types.UUID, bool, error) {
-	resp, err := client.ListAgentModelConfigsWithResponse(ctx, org, proj, agent, &amsvc.ListAgentModelConfigsParams{})
+func findLLMConfigByName(ctx context.Context, client *aigateway.ClientWithResponses, org, proj, agent, name string) (openapi_types.UUID, bool, error) {
+	resp, err := client.ListAgentModelConfigsWithResponse(ctx, org, proj, agent, &aigateway.ListAgentModelConfigsParams{})
 	if err != nil {
 		return openapi_types.UUID{}, false, clierr.Newf(clierr.Transport, "%v", err)
 	}

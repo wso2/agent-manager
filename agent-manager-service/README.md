@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Agent Manager Service is the Agent Manager API, its MCP server and the console it serves. The core (organizations, projects, agents, identities, tokens, events, RBAC and audit) runs a module host, and modules add the rest: the AI Gateway is the built-in `gateway` module. The same code builds two binaries, `amp` (core and every module) and `amp-core` (core only).
+The Agent Manager Service is the Agent Manager API, its MCP server and the console it serves. The core (organizations, projects, agents, identities, tokens, events, RBAC and audit) runs a module host, and modules add the rest: the AI Gateway is the `ai-gateway` module, which `amp` installs at first boot. The same code builds two binaries, `amp` (core and every module) and `amp-core` (core only).
 
 ## Folder Structure
 
@@ -10,7 +10,6 @@ The Agent Manager Service is the Agent Manager API, its MCP server and the conso
 agent-manager-service/
 ├── ampinit/                    # `amp init`: ThunderID and file sign-in configuration
 ├── api/                        # HTTP API layer with HTTP handlers and routing
-├── builtin/                   # How built-in modules plug their routes and workers into the server
 ├── clients/                   # External service clients
 ├── cmd/                       # Binaries: amp (core and every module) and amp-core (core only)
 ├── config/                    # Configuration management
@@ -18,7 +17,6 @@ agent-manager-service/
 ├── coreext/                   # Seam the core calls for module hooks, events and capabilities
 ├── db/                       # Database connection and utilities
 ├── db_migrations/            # Database schema migration files
-├── db_types/                 # Custom database types
 ├── docs/                     # OpenAPI documentation
 ├── internal/                 # Command line (cli) and module host (modhost)
 ├── middleware/               # HTTP middleware (auth, logging, recovery)
@@ -158,9 +156,11 @@ The `amp` binary's subcommands:
 |---|---|
 | `amp serve [--migrate] [--wait-for-migrations]` | Run the API server |
 | `amp migrate` | Apply the core's migrations, then every compiled-in module's |
-| `amp init thunder <dir> [gateway <dir>] [fileauth <dir>]` | Write component configuration and exit |
+| `amp init thunder <dir> [ai-gateway <dir>] [fileauth <dir>]` | Write component configuration and exit |
 | `amp module list` | List compiled-in modules and their state |
-| `amp module install <name> [--with-deps]`, `enable`, `disable`, `uninstall` | Change a module's state; running servers pick it up without a restart |
+| `amp module install <name> [--with-deps]`, `enable`, `disable`, `uninstall [--purge]` | Change a module's state; running servers pick it up without a restart. `--purge` also empties the module's tables, deletes its secrets and revokes its workload credentials |
+| `amp module credential <name> <workload> [--subject S] [--out FILE]` | Mint a workload credential, shown once; the workload trades it for short-lived tokens at `POST /api/internal/v1/workloads/heartbeat` |
+| `amp module health [<name>]` | Module state and, for each workload, whether it is connected |
 
 The flags of earlier releases (`-migrate`, `-server=false`, `-init-thunder=<dir>`, ...) still work.
 

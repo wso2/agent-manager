@@ -34,8 +34,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
 
@@ -237,17 +237,17 @@ func TestSecretLimits(t *testing.T) {
 	loc := secretmanagersvc.SecretLocation{OrgName: dbtest.Org(t, db.GetDB()), EntityName: "limits"}
 
 	_, err := client.CreateSecret(ctx, loc, nil)
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 
 	_, err = client.CreateSecret(ctx, loc, map[string]string{"big": strings.Repeat("x", inhouse.MaxSecretBytes+1)})
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 
 	many := map[string]string{}
 	for i := 0; i <= inhouse.MaxSecretKeys; i++ {
 		many[strings.Repeat("k", i+1)] = "v"
 	}
 	_, err = client.CreateSecret(ctx, loc, many)
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 }
 
 func TestPatchingAPromotedSecretKeepsEveryKey(t *testing.T) {

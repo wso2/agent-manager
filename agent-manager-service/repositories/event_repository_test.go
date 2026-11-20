@@ -30,7 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 func TestEventDestinationMetadataAndEditsSurviveUnreadableCredential(t *testing.T) {
@@ -132,7 +132,7 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 			require.NoError(t, repo.UpdateDestination(ctx, current, nil))
 			checked := false
 			err = repo.UpdateDestination(ctx, stale, func([]models.EventSubscription) error { checked = true; return nil })
-			require.ErrorIs(t, err, utils.ErrConflict)
+			require.ErrorIs(t, err, httpx.ErrConflict)
 			assert.False(t, checked, "stale input is rejected before availability checks")
 			saved, err := repo.GetDestination(ctx, d.OUID, d.ID)
 			require.NoError(t, err)
@@ -169,7 +169,7 @@ func TestEventDeliveryClaimAndFinishedOutcomes(t *testing.T) {
 	t.Cleanup(func() { _, err := repo.DeleteDestination(ctx, d.OUID, d.ID); assert.NoError(t, err) })
 	queued := &models.EventDelivery{
 		OUID: d.OUID, DestinationID: d.ID, SubscriptionIDs: []string{}, EventID: "evt-" + uuid.NewString(),
-		EventType: "agent.deployed", Status: models.EventDeliveryPending,
+		EventType: "agent.updated", Status: models.EventDeliveryPending,
 	}
 	require.NoError(t, repo.RecordQueuedDelivery(ctx, queued))
 	delivery, err := repo.GetDelivery(ctx, d.ID, queued.EventID)
@@ -222,7 +222,7 @@ func TestEventDeliveryFailStaleDeliveries(t *testing.T) {
 	queue := func(status string, at time.Time, claimedUntil *time.Time) string {
 		row := &models.EventDelivery{
 			OUID: d.OUID, DestinationID: d.ID, SubscriptionIDs: []string{}, EventID: "evt-" + uuid.NewString(),
-			EventType: "agent.deployed", Status: status, CreatedAt: at,
+			EventType: "agent.updated", Status: status, CreatedAt: at,
 		}
 		require.NoError(t, repo.RecordQueuedDelivery(ctx, row))
 		require.NoError(t, gdb.Model(&models.EventDelivery{}).Where("event_id = ?", row.EventID).

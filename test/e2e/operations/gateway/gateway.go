@@ -45,7 +45,7 @@ func WaitForActiveGatewayForEnvWithEnvUUID(client *framework.AMPClient, orgName,
 		timeout = 3 * time.Minute
 	}
 
-	path := fmt.Sprintf("/api/v1/orgs/%s/gateways", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/gateways", orgName)
 	scope := fmt.Sprintf("org=%s env=%s", orgName, envName)
 
 	var lastDiag string
@@ -107,7 +107,7 @@ func WaitForActiveGatewaysForEnv(client *framework.AMPClient, orgName, envName s
 		timeout = 3 * time.Minute
 	}
 
-	path := fmt.Sprintf("/api/v1/orgs/%s/gateways", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/gateways", orgName)
 	scope := fmt.Sprintf("org=%s env=%s", orgName, envName)
 
 	var lastDiag string

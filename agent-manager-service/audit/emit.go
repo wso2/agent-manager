@@ -25,8 +25,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // ErrRecorderUnavailable indicates the audit trail could not accept a record
@@ -116,6 +116,9 @@ func Begin(ctx context.Context, action Action, opts ...Option) (*Attempt, error)
 	return &Attempt{eventID: e.EventID, action: action, base: opts}, nil
 }
 
+// EventID is the id of the attempt's intent record.
+func (a *Attempt) EventID() string { return a.eventID.String() }
+
 // Complete records the outcome of an attempt started with Begin.
 //
 // It is asynchronous: the external mutation has already happened, so failing
@@ -142,7 +145,7 @@ func newEvent(ctx context.Context, action Action) Event {
 		Outcome:       OutcomeSuccess,
 		ActorType:     ActorAnonymous,
 		Surface:       SurfaceSystem,
-		CorrelationID: utils.GetCorrelationId(ctx),
+		CorrelationID: logger.GetCorrelationId(ctx),
 		Details:       map[string]any{},
 	}
 

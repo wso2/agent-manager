@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
 func Test_BuildEnvVars(t *testing.T) {
@@ -28,13 +28,13 @@ func Test_BuildEnvVars(t *testing.T) {
 		name      string
 		urlEnv    string
 		apiKeyEnv string
-		want      *[]amsvc.EnvironmentVariableConfig
+		want      *[]aigateway.EnvironmentVariableConfig
 	}{
 		{
 			name:      "both",
 			urlEnv:    "LLM_URL",
 			apiKeyEnv: "LLM_KEY",
-			want: &[]amsvc.EnvironmentVariableConfig{
+			want: &[]aigateway.EnvironmentVariableConfig{
 				{Key: "url", Name: "LLM_URL"},
 				{Key: "apikey", Name: "LLM_KEY"},
 			},
@@ -42,12 +42,12 @@ func Test_BuildEnvVars(t *testing.T) {
 		{
 			name:   "url only",
 			urlEnv: "LLM_URL",
-			want:   &[]amsvc.EnvironmentVariableConfig{{Key: "url", Name: "LLM_URL"}},
+			want:   &[]aigateway.EnvironmentVariableConfig{{Key: "url", Name: "LLM_URL"}},
 		},
 		{
 			name:      "apikey only",
 			apiKeyEnv: "LLM_KEY",
-			want:      &[]amsvc.EnvironmentVariableConfig{{Key: "apikey", Name: "LLM_KEY"}},
+			want:      &[]aigateway.EnvironmentVariableConfig{{Key: "apikey", Name: "LLM_KEY"}},
 		},
 		{
 			name: "none",
@@ -84,15 +84,15 @@ func Test_OptionalString(t *testing.T) {
 }
 
 func Test_MergeExistingEnvMappings(t *testing.T) {
-	resp := &amsvc.AgentModelConfigResponse{
-		EnvMappings: map[string]amsvc.EnvProviderConfigMappings{
-			"dev":  {EnvironmentName: "dev", Configuration: &amsvc.ProviderConfig{ProviderName: "openai"}},
+	resp := &aigateway.AgentModelConfigResponse{
+		EnvMappings: map[string]aigateway.EnvProviderConfigMappings{
+			"dev":  {EnvironmentName: "dev", Configuration: &aigateway.ProviderConfig{ProviderName: "openai"}},
 			"prod": {EnvironmentName: "prod"},
 		},
 	}
 	// Stub transform echoes the environment name so routing per env is observable.
-	stub := func(m amsvc.EnvProviderConfigMappings) amsvc.EnvModelConfigRequest {
-		return amsvc.EnvModelConfigRequest{ProviderName: StringPtr(m.EnvironmentName)}
+	stub := func(m aigateway.EnvProviderConfigMappings) aigateway.EnvModelConfigRequest {
+		return aigateway.EnvModelConfigRequest{ProviderName: StringPtr(m.EnvironmentName)}
 	}
 
 	got := MergeExistingEnvMappings(resp, stub)
@@ -108,9 +108,9 @@ func Test_MergeExistingEnvMappings(t *testing.T) {
 }
 
 func Test_MergeExistingEnvMappings_empty(t *testing.T) {
-	got := MergeExistingEnvMappings(&amsvc.AgentModelConfigResponse{}, func(amsvc.EnvProviderConfigMappings) amsvc.EnvModelConfigRequest {
+	got := MergeExistingEnvMappings(&aigateway.AgentModelConfigResponse{}, func(aigateway.EnvProviderConfigMappings) aigateway.EnvModelConfigRequest {
 		t.Fatal("transform called for empty response")
-		return amsvc.EnvModelConfigRequest{}
+		return aigateway.EnvModelConfigRequest{}
 	})
 	if got == nil || len(got) != 0 {
 		t.Errorf("got %#v, want empty non-nil map", got)

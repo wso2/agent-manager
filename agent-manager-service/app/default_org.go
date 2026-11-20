@@ -30,8 +30,8 @@ import (
 // ensureDefaultOrg creates the configured organization and its default
 // environment if they do not exist. Organizations are otherwise created on
 // first use, so without this a fresh install lists none until something is
-// written to one. Runs after the module host starts, so environment hooks
-// see the default environment.
+// written to one. Runs before modules activate, so a module can rely on it
+// existing; no module hook or module event sees its creation.
 func ensureDefaultOrg(ctx context.Context, db *gorm.DB, cfg config.DefaultOrgConfig) error {
 	if cfg.OUID == "" {
 		return nil

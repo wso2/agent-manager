@@ -19,7 +19,7 @@ package cmdutil
 import (
 	"context"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
@@ -37,11 +37,11 @@ const gatewayPageLimit = int32(200)
 // gathered before it. Callers that need the complete set must treat a non-nil error
 // as fatal; a best-effort caller such as shell completion can still use the partial
 // result, which beats offering nothing when a later page times out.
-func ListAllGateways(ctx context.Context, client *amsvc.ClientWithResponses, org string) ([]amsvc.GatewayResponse, error) {
-	var all []amsvc.GatewayResponse
+func ListAllGateways(ctx context.Context, client *aigateway.ClientWithResponses, org string) ([]aigateway.GatewayResponse, error) {
+	var all []aigateway.GatewayResponse
 	for {
 		limit, offset := gatewayPageLimit, int32(len(all))
-		resp, err := client.ListGatewaysWithResponse(ctx, org, &amsvc.ListGatewaysParams{
+		resp, err := client.ListGatewaysWithResponse(ctx, org, &aigateway.ListGatewaysParams{
 			Limit:  &limit,
 			Offset: &offset,
 		})

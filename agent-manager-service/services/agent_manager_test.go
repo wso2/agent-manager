@@ -30,7 +30,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -300,12 +299,7 @@ func TestGetAgent_LabelsPassThroughUnmodified(t *testing.T) {
 			return &models.AgentResponse{Name: "agent-1", Labels: wantLabels}, nil
 		},
 	}
-	configs := &repomocks.AgentConfigRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
-			return nil, repositories.ErrAgentConfigNotFound
-		},
-	}
-	s := &agentManagerService{platform: platform, agentConfigRepo: configs, logger: discardLogger()}
+	s := &agentManagerService{platform: platform, logger: discardLogger()}
 
 	agent, err := s.GetAgent(context.Background(), "acme", "proj1", "agent-1")
 
@@ -612,24 +606,4 @@ func TestListOrgAgents_ProjectListFailurePropagates(t *testing.T) {
 
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, utils.ErrOrganizationNotFound, "an unrelated openchoreo failure must not be masked as not-found")
-}
-
-// Without a module that binds agents to LLM providers, a create that asks for
-// one is refused before anything is written, with a message naming the field.
-func TestCreateAgent_ModelConfigWithoutLLMCapabilityIsRefused(t *testing.T) {
-	platform := &repomocks.PlatformRepositoryMock{
-		GetEnvironmentFunc: func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
-			return &models.EnvironmentResponse{Name: envName}, nil
-		},
-	}
-	s := &agentManagerService{platform: platform, logger: discardLogger()}
-	err := s.CreateAgent(context.Background(), "ou", "proj", &spec.CreateAgentRequest{
-		Name: "a", DisplayName: "A", Provisioning: spec.Provisioning{Type: string(utils.ExternalAgent)},
-		ModelConfig: []spec.ModelConfigRequest{{ProviderName: "openai"}},
-	})
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
-	verr := utils.IsValidationError(err)
-	require.NotNil(t, verr)
-	require.Contains(t, verr.Message, "modelConfig")
-	require.Empty(t, platform.CreateAgentCalls(), "nothing is written")
 }

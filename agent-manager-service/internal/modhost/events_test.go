@@ -26,10 +26,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
 // subscriber is a module that handles agent.created with fn.
@@ -154,26 +154,22 @@ func eventRetentionAndUninstallPurge(t *testing.T, d database) {
 	assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM module_event_deliveries WHERE module = 't-keep'`), "the expired delivery is gone")
 	assert.EqualValues(t, 2, count(t, g, `SELECT count(*) FROM module_events`), "and so is its event")
 
-	require.NoError(t, h.Uninstall(ctx, "t-gone"))
+	require.NoError(t, h.Uninstall(ctx, "t-gone", false))
 	assert.Zero(t, count(t, g, `SELECT count(*) FROM module_event_deliveries WHERE module = 't-gone'`), "an uninstalled module's deliveries are dropped")
 	assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM module_events`))
 }
 
 func TestModulesCannotTakeCoreResourceNames(t *testing.T) {
-	for _, name := range []string{"agent", "org", "amp", "llm-provider"} {
+	for _, name := range []string{"agent", "org", "amp", "events"} {
 		assert.Panics(t, func() {
 			modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest(name, nil, nil)}})
 		}, name)
 	}
-	// gateway:* belongs to the gateway module, so a module may take its name.
+	// The AI Gateway's permissions are its own, so no core resource is
+	// named after it.
 	assert.NotPanics(t, func() {
-		modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest("gateway", nil, nil)}})
+		modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest("ai-gateway", nil, nil)}})
 	})
-	builtin := manifest("agent", nil, nil)
-	builtin.Builtin = true
-	assert.NotPanics(t, func() {
-		modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: builtin}})
-	}, "a built-in module is part of the core")
 }
 
 // bootWith migrates and boots a host for mods on g, after configure.

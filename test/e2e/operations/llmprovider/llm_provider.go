@@ -25,7 +25,7 @@ func CreateLLMProvider(g Gomega, client *framework.AMPClient, orgName string, re
 		req.AccessControl = &framework.LLMAccessControl{Mode: "allow_all", Exceptions: []string{}}
 	}
 
-	path := fmt.Sprintf("/api/v1/orgs/%s/llm-providers", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-providers", orgName)
 
 	resp, err := client.Post(path, req)
 	g.Expect(err).NotTo(HaveOccurred(), "create LLM provider request failed")
@@ -37,7 +37,7 @@ func CreateLLMProvider(g Gomega, client *framework.AMPClient, orgName string, re
 
 // GetLLMProvider retrieves an LLM provider by ID.
 func GetLLMProvider(g Gomega, client *framework.AMPClient, orgName, providerID string) framework.LLMProviderResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/llm-providers/%s", orgName, providerID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-providers/%s", orgName, providerID)
 
 	resp, err := client.Get(path)
 	g.Expect(err).NotTo(HaveOccurred(), "get LLM provider request failed")
@@ -49,7 +49,7 @@ func GetLLMProvider(g Gomega, client *framework.AMPClient, orgName, providerID s
 
 // DeleteLLMProvider deletes an LLM provider by ID.
 func DeleteLLMProvider(g Gomega, client *framework.AMPClient, orgName, providerID string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/llm-providers/%s", orgName, providerID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-providers/%s", orgName, providerID)
 
 	resp, err := client.Delete(path)
 	g.Expect(err).NotTo(HaveOccurred(), "delete LLM provider request failed")

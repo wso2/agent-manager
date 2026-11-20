@@ -96,20 +96,25 @@ func roleProbes() []roleProbe {
 			return "/api/v1/orgs/" + cfg.DefaultOrg + suffix
 		}
 	}
+	// The AI Gateway module's API.
+	gwOrgPath := func(suffix string) func(*framework.Config) string {
+		return func(cfg *framework.Config) string {
+			return "/m/ai-gateway/orgs/" + cfg.DefaultOrg + suffix
+		}
+	}
 	return []roleProbe{
 		// Developer: owns project and agent development, not platform or IAM.
 		{"developer", "amp:project:create", true, http.MethodPost, orgPath("/projects")},
-		{"developer", "amp:environment:update", false, http.MethodPut, orgPath("/environments/" + absentResourceName)},
+		{"developer", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwOrgPath("/gateways")},
 		{"developer", "amp:role:update", false, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
 
 		// AI Lead: owns AI providers, not project/platform administration.
-		{"ai-lead", "amp:llm-provider:create", true, http.MethodPost, orgPath("/llm-providers")},
+		{"ai-lead", "amp:ai-gateway:llm-providers.create", true, http.MethodPost, gwOrgPath("/llm-providers")},
 		{"ai-lead", "amp:project:create", false, http.MethodPost, orgPath("/projects")},
-		{"ai-lead", "amp:environment:update", false, http.MethodPut, orgPath("/environments/" + absentResourceName)},
+		{"ai-lead", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwOrgPath("/gateways")},
 
 		// Platform Engineer: owns infrastructure and production delivery, not agent authoring or IAM.
-		{"platform-engineer", "amp:environment:update", true, http.MethodPut, orgPath("/environments/" + absentResourceName)},
-		{"platform-engineer", "amp:gateway:create", true, http.MethodPost, orgPath("/gateways")},
+		{"platform-engineer", "amp:ai-gateway:gateways.create", true, http.MethodPost, gwOrgPath("/gateways")},
 		{"platform-engineer", "amp:agent:create", false, http.MethodPost, orgPath("/projects/" + absentResourceName + "/agents")},
 		{"platform-engineer", "amp:role:update", false, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
 

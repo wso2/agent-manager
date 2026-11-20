@@ -18,42 +18,62 @@ package apitestutils
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
+	"github.com/wso2/agent-manager/agent-manager-service/app"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway"
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy" // the legacy routes
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
 // MakeAppClientWithDeps creates an HTTP handler with the provided dependencies for testing
 func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware) http.Handler {
-	// Use wire to initialize the app parameters with test clients
-	db := db.DB(context.Background())
+	h, _ := MakeAppClientWithHost(t, testClients, authMiddleware)
+	return h
+}
+
+// MakeAppClientWithHost is MakeAppClientWithDeps that also returns the module
+// host, for tests that change modules.
+func MakeAppClientWithHost(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware) (http.Handler, *modhost.Host) {
+	// Use wire to initialize the app parameters with test clients. The plain
+	// handle, as the server uses: db.DB(ctx) carries an operation timeout
+	// that starts now, which would expire under the module host's workers.
+	db := db.GetDB()
 	appParams, err := wiring.InitializeTestAppParamsWithClientMocks(config.GetConfig(), db, authMiddleware, testClients)
 	if err != nil {
 		t.Fatalf("failed to initialize test app params: %v", err)
 	}
-	// The full distribution's features, built on the core as the server
-	// builds them; their workers are not started.
-	bundles, err := builtin.Build(context.Background(), appParams)
-	if err != nil {
-		t.Fatalf("failed to build the built-in features: %v", err)
+	// The AI Gateway, which the full distribution installs by default, runs
+	// on a module host, as in the server: its routes, capabilities and hooks
+	// (its finalize hooks remove its rows of a deleted agent).
+	var mods []modkit.Module
+	for _, m := range modkit.Registered() {
+		if m.Manifest().Name == aigateway.Name {
+			mods = append(mods, m)
+		}
 	}
-	// No module host runs here, so the core reaches the gateway's
-	// capabilities directly.
-	coreext.Set(coreext.Static(gateway.Capabilities(gateway.Current())))
-	t.Cleanup(func() { coreext.Set(nil) })
+	host := modhost.NewWith(db, config.GetConfig().Database.Driver, slog.Default(), mods)
+	// The host follows module changes until the test ends.
+	ctx, cancel := context.WithCancel(context.Background())
+	stop, err := app.StartModules(ctx, host, db, appParams)
+	if err != nil {
+		cancel()
+		t.Fatalf("failed to start the modules: %v", err)
+	}
+	t.Cleanup(func() { stop(); cancel() })
+	if _, err := host.InstallDefaults(ctx, []string{aigateway.Name}); err != nil {
+		t.Fatalf("failed to install the default modules: %v", err)
+	}
 
 	// Create HTTP handler
-	handler := api.MakeHTTPHandlerWithModules(appParams, nil, nil, nil, bundles)
+	handler := api.MakeHTTPHandlerWithModules(appParams, nil, nil, host)
 
-	// Return the handler instance
-	return handler
+	return handler, host
 }

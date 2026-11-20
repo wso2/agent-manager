@@ -32,8 +32,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
 // migration is one module migration file for the current database.
@@ -173,8 +173,8 @@ type MigrationResult struct {
 // enabling, disabling and uninstalling afterwards are data changes only.
 //
 // Each module migrates in its own transaction, so a failing module leaves
-// nothing of itself half-applied. It also records built-in modules as active
-// and moves installed modules' recorded version to the compiled one.
+// nothing of itself half-applied. It also moves installed modules' recorded
+// version to the compiled one.
 func (h *Host) Migrate(ctx context.Context) ([]MigrationResult, error) {
 	if err := h.checkCoreTables(); err != nil {
 		return nil, err
@@ -224,25 +224,16 @@ func (h *Host) migrateModule(ctx context.Context, name string) (MigrationResult,
 	return res, err
 }
 
-// recordVersion records a built-in module as active, and moves an installed
-// module's version to the compiled one. Either bumps the generation.
+// recordVersion moves an installed module's version to the compiled one, and
+// bumps the generation when it changed.
 func (h *Host) recordVersion(tx *gorm.DB, name string) error {
 	mf := h.manifests[name]
-	var changed bool
-	if mf.Builtin {
-		var err error
-		if changed, err = setState(tx, name, mf.Version, StateActive); err != nil {
-			return err
-		}
-	} else {
-		r := tx.Exec(`UPDATE modules SET version = ?, updated_at = ? WHERE name = ? AND version <> ? AND state <> 'uninstalled'`,
-			mf.Version, dbx.Now(), name, mf.Version)
-		if r.Error != nil {
-			return r.Error
-		}
-		changed = r.RowsAffected > 0
+	r := tx.Exec(`UPDATE modules SET version = ?, updated_at = ? WHERE name = ? AND version <> ? AND state <> 'uninstalled'`,
+		mf.Version, dbx.Now(), name, mf.Version)
+	if r.Error != nil {
+		return r.Error
 	}
-	if !changed {
+	if r.RowsAffected == 0 {
 		return nil
 	}
 	h.log.Info("modhost:module version recorded", "module", name, "version", mf.Version)

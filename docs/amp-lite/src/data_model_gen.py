@@ -220,7 +220,7 @@ card("identity", "agents", 360, 0, 240, "Agent identity", "agent_identities",
 card("gwset", "agents", 360, 0, 240, "Agent gateway settings", "agent_gateway_settings",
      "How the gateway protects calls to this agent.",
      [("api_key_security", ""), ("oauth_*", "issuers, audiences"), ("cors_*", "origins, methods"),
-      ("timeout_seconds", "")], chips=["env"])
+      ("timeout_seconds", "")], chips=["env", "gwmod"])
 card("aiapp", "agents", 640, AY, 250, "AI application", "ai_applications",
      "The agent's application record on the gateway.",
      [("handle", ""), ("name", "")], chips=["env", "gwmod"])
@@ -232,10 +232,12 @@ card("acard", "agents", 640, 0, 250, "Agent card", "agent_cards",
      [("source_url", ""), ("card", "JSON"), ("card_hash", ""), ("status", "")], chips=["env", "queue", "gwmod"])
 card("a2a", "agents", 640, 0, 250, "A2A proxy", "a2a_proxies",
      "Gateway route to an A2A agent's upstream.",
-     [("upstream_auth_header", ""), ("upstream_auth_secret_id", "")], chips=["env", "secret", "gwmod"])
+     [("upstream_auth_header", "")], chips=["env", "secret", "gwmod"])
 card("mconf", "agents", 60, 0, 250, "Agent model config", "agent_model_configs",
      "A named LLM or MCP connection the agent uses.",
-     [("name", "unique per agent"), ("type", "llm | mcp")], chips=["gwmod"])
+     [("name", "unique per agent"), ("type", "llm | mcp | agent")],
+     rel="agent_bindings tracks each binding's provisioning; agent_teardowns holds a deleted agent until cleanup.",
+     chips=["gwmod"])
 card("mlinks", "agents", 60, 0, 250, "Config bindings",
      "agent_model_config_llm, _mcp, _mcp_envs, _vars",
      "Which proxy each config points at, and the env-var names given to the agent.",
@@ -276,7 +278,7 @@ card("apikeys", "gateway", 975, RY, 245, "API key", "api_keys",
      [("name", "unique per artifact"), ("key_hash", ""), ("masked_key", ""), ("status", ""), ("expires_at", "")])
 card("artifact", "gateway", 1280, RY, 250, "Artifact", "artifacts",
      "Base row for anything deployable to a gateway.",
-     [("kind", "LlmProvider | LlmProxy |"), ("", "McpProxy | McpProxyMapping |"), ("", "Agent | RestApi | WebSubAPI |"), ("", "OtelIngest"),
+     [("kind", "LlmProvider | LlmProxy |"), ("", "McpProxy | McpProxyMapping |"), ("", "Agent | RestApi | WebSubAPI"),
       ("handle", "unique per org"), ("name, version", "unique per org")])
 card("deploy", "gateway", 1590, RY, 270, "Gateway deployment", "artifact_deployments",
      "Each rendered version of an artifact sent to a gateway.",
@@ -291,12 +293,12 @@ TY = cards["status"].y + cards["status"].h + 80
 TW = 210
 card("prov", "gateway", 975, TY, TW, "LLM provider", "llm_providers",
      "An org-wide connection to an LLM service.",
-     [("template_handle", ""), ("model_list", ""), ("configuration", "JSON"), ("upstream_secret_id", "")],
+     [("template_handle", ""), ("model_list", ""), ("configuration", "JSON")],
      chips=["secret"])
 card("lproxy", "gateway", 1235, TY, TW, "LLM proxy", "llm_proxies",
      "A project's governed route to a provider. What agents call.",
-     [("project_id", "owning project"), ("provider_id", "LLM provider"), ("configuration", "policies"),
-      ("upstream_secret_id", "")], chips=["secret"])
+     [("project_id", "owning project"), ("provider_id", "LLM provider"), ("configuration", "policies")],
+     chips=["secret"])
 card("mproxy", "gateway", 1495, TY, TW, "MCP proxy", "mcp_proxies",
      "Gateway front for an MCP server.",
      [("project_id", "empty = org-level"), ("configuration", "JSON"), ("status", "")])
@@ -312,14 +314,14 @@ card("scopes", "gateway", 1495, BY, TW, "MCP scope", "mcp_proxy_scopes, mcp_prox
      [("action", "unique per proxy"), ("tool_name", "one row per tool")])
 card("endpoint", "gateway", 1755, BY, 232, "MCP endpoint", "mcp_proxy_endpoints, mcp_proxy_endpoint_environments",
      "The upstream MCP server. One per proxy in Lite, placed in the default environment.",
-     [("configuration", "upstream, policies"), ("upstream_secret_id", ""), ("artifact_id", "per env")],
+     [("configuration", "upstream, policies"), ("artifact_id", "per env")],
      chips=["env", "secret"])
 
 # ---------------------------------------------------------------- Right column
 RX = 2050
 card("secret", "secrets", RX, TOP, 300, "Secret", "secrets",
      "Every credential, encrypted in this database or held in an external vault.",
-     [("owner_kind, owner_id", "who uses it"), ("provider", "db | vault name"),
+     [("owner_kind, owner_id", "who uses it; mod:<module> for modules"), ("provider", "db | vault name"),
       ("ciphertext", "AES-256-GCM"), ("key_id", "for key rotation"), ("external_ref", "vault path")])
 
 EY = cards["secret"].y + cards["secret"].h + 36 + 22 + 58 + 40
@@ -359,13 +361,14 @@ card("usage", "audit", RX + 390, 0, 380, "Usage event", "usage_events",
       ("dimensions", "JSON")])
 card("locks", "internal", RX, 0, 360, "Lock", "locks",
      "A lease that lets only one instance run a singleton worker.",
-     [("name", "e.g. gateway.drift_scan"), ("owner", "empty = free"), ("expires_at", "")])
+     [("name", "e.g. agent_identity.reconciler"), ("owner", "empty = free"), ("expires_at", "")],
+     rel="The gateway's drift-scan lease is in its own mod_ai_gateway_locks.")
 card("queues", "internal", RX + 390, 0, 380, "Queue columns", "claimed_by, claimed_until",
      "Rows a worker claims carry a lease instead of a lock: agent identities, agent cards, deployment status, event outbox, event deliveries, module event deliveries.",
      [], chips=["queue"])
 
 card("modules", "modules", RX, 0, 240, "Module", "modules, module_generation",
-     "Install and enable state of each compiled-in module. Every change bumps the generation; replicas poll it.",
+     "Install and enable state of each compiled-in module; no row = available (purge deletes it). Every change bumps the generation; replicas poll it.",
      [("name", ""), ("version", ""), ("state", "active | disabled | uninstalled")])
 card("modmig", "modules", RX + 265, 0, 240, "Module migration", "module_migrations",
      "Each module's applied migrations. Module tables are named mod_<module>_<table>.",
@@ -373,9 +376,9 @@ card("modmig", "modules", RX + 265, 0, 240, "Module migration", "module_migratio
 card("modev", "modules", RX + 530, 0, 240, "Module event", "module_events, module_event_deliveries",
      "Events for modules, one delivery per subscribing module, retried with backoff.",
      [("type", "e.g. agent.created"), ("source", "core or a module"), ("attempts", "")], chips=["queue"])
-card("wlcred", "modules", RX, 0, 240, "Workload credential", "workload_credentials",
-     "A module workload's credential, exchanged for short-lived tokens. Only a hash is kept.",
-     [("module", ""), ("subject", ""), ("scopes", ""), ("revoked_at", "")])
+card("wlcred", "modules", RX, 0, 240, "Workload credential", "workload_credentials, workload_instances",
+     "A module workload's credential, presented in heartbeats for short-lived tokens, and the instances that heartbeat. Only a hash is kept.",
+     [("module, workload", ""), ("subject", ""), ("revoked_at", ""), ("last_seen", "per instance")])
 
 # ---------------------------------------------------------------- Deferred strip
 DW = 360
@@ -490,7 +493,7 @@ arrow([(px, c["project"].y + c["project"].h), (px, c["agent"].y)], "has many age
       (px - 8, c["project"].y + c["project"].h + 30, "end"), "ref")
 # agent -> model config -> bindings
 arrow([c["agent"].bottom(), c["mconf"].top()], "has many",
-      (c["agent"].x + c["agent"].w / 2 + 8, c["agent"].y + c["agent"].h + 32, "start"), "own")
+      (c["agent"].x + c["agent"].w / 2 + 8, c["agent"].y + c["agent"].h + 32, "start"), "ref")
 arrow([c["mconf"].bottom(), c["mlinks"].top()], "binds",
       (c["mconf"].x + c["mconf"].w / 2 + 8, c["mconf"].y + c["mconf"].h + 32, "start"), "own")
 # agent bus
@@ -500,13 +503,13 @@ bus_end1 = c["gwset"].y + c["gwset"].h / 2
 bus_end2 = c["a2a"].y + c["a2a"].h / 2
 arrow([(c["agent"].x + c["agent"].w, c["agent"].y + 40), (T1, c["agent"].y + 40)], head=False)
 arrow([(T1, BUS_TOP), (T1, bus_end1)], head=False)
-arrow([(T1, BUS_TOP), (T2, BUS_TOP), (T2, bus_end2)], head=False)
+arrow([(T1, BUS_TOP), (T2, BUS_TOP), (T2, bus_end2)], style="ref", head=False)
 for k in ("labels", "identity", "gwset"):
     yy = c[k].y + c[k].h / 2
-    arrow([(T1, yy), (c[k].x, yy)])
+    arrow([(T1, yy), (c[k].x, yy)], style="ref" if k == "gwset" else "own")
 for k in ("aiapp", "exposure", "acard", "a2a"):
     yy = c[k].y + c[k].h / 2
-    arrow([(T2, yy), (c[k].x, yy)])
+    arrow([(T2, yy), (c[k].x, yy)], style="ref")
 # gateway -> kids
 kids_y = c["gateway"].y + 50
 arrow([(c["gateway"].x + c["gateway"].w, kids_y), (c["gwkids"].x, kids_y)], "has",
@@ -635,7 +638,7 @@ def render_svg(viewbox=None, width=None):
     for i, (key, desc) in enumerate([("env", "one row per environment; in Lite always the hidden default"),
                                      ("secret", "credential lives in Secrets, not in this row"),
                                      ("queue", "workers claim rows with a lease"),
-                                     ("gwmod", "used only by the gateway module; keeps its name for now")]):
+                                     ("gwmod", "belongs to the gateway module (mod_ai_gateway_ table)")]):
         label, bg, fg = CHIPS[key]
         yy = ly0 + 10 + i * 22
         cw = len(label) * 6.1 + 16
@@ -661,24 +664,26 @@ def render_svg(viewbox=None, width=None):
     for i, ln in enumerate(tnotes):
         out.append(f'<text x="{tb[0] + 290}" y="{tb[3] - 84 + i * 18 + (8 if i >= 2 else 0)}" class="anote">{esc(ln)}</text>')
     gb = area_boxes["gateway"]
-    for i, ln in enumerate(["The gateway module is built in to amp and absent from amp-core.",
-                            "Its tables keep their names for now (no mod_gateway_ prefix)."]):
+    for i, ln in enumerate(["amp installs the gateway module by default; amp-core lacks it.",
+                            "Its tables are named mod_ai_gateway_<table>."]):
         out.append(f'<text x="{gb[0] + 30}" y="{cards["apikeys"].y - 110 + i * 18}" class="anote">{esc(ln)}</text>')
     mb = area_boxes["modules"]
     out.append(f'<text x="{mb[0] + 180}" y="{mb[1] + 30}" class="anote">Core tables; module-owned tables are mod_&lt;module&gt;_&lt;table&gt;.</text>')
     ab = area_boxes["audit"]
     out.append(f'<text x="{ab[0] + 380}" y="{ab[1] + 30}" class="anote">No foreign keys: rows outlive what they describe.</text>')
     sc = cards["secret"]
-    notes = ["Referenced by secret_id from LLM providers,",
-             "LLM proxies, MCP endpoints, A2A proxies and",
-             "event destinations. The service deletes a",
-             "secret after its owner.",
+    notes = ["Referenced by secret_id from event",
+             "destinations. Modules keep theirs by path",
+             "(the AI Gateway's LLM providers, LLM proxies,",
+             "MCP endpoints and A2A proxies, owner kind",
+             "mod:ai-gateway), deleted with the owning row",
+             "or when the module is purged.",
              "",
              "Production can keep values in an external",
              "vault instead (provider + external_ref)."]
     for i, ln in enumerate(notes):
         out.append(f'<text x="{sc.x + sc.w + 30}" y="{sc.y + 24 + i * 19}" class="anote2">{esc(ln)}</text>')
-    out.append(f'<text x="{T1 + 12}" y="{BUS_TOP - 8}" class="alabel">each agent owns these; they are deleted with it</text>')
+    out.append(f'<text x="{T1 + 12}" y="{BUS_TOP - 8}" class="alabel">labels and identity go with the agent; dashed gateway rows go when the gateway tears the agent down</text>')
     for pts, label, lpos, style, head in arrows:
         s = STYLE[style]
         dash = f' stroke-dasharray="{s["dash"]}"' if s["dash"] else ""

@@ -101,57 +101,26 @@ function baseFormData(over: Partial<CreateAgentFormValues> = {}): CreateAgentFor
 describe("buildCatalogAgentPayload", () => {
   const params: OrgProjPathParams = { orgName: "org1", projName: "proj1" };
 
-  // An untouched secret field must be OMITTED from the request, not sent as an
-  // empty string, so the backend can tell "left as default" apart from
-  // "explicitly cleared" and apply the kind's real default itself.
-  it("drops an empty-valued env row instead of sending it as an empty value", () => {
-    const data = baseFormData({
-      env: [
-        { key: "OPENAI_API_KEY", value: "", isSensitive: true },
-        { key: "MODEL_NAME", value: "gpt-4", isSensitive: false },
-      ],
-    });
+  it("sends no extension block when no provider or proxy is selected", () => {
+    const { body } = buildCatalogAgentPayload(baseFormData(), params, "my-kind", "v1");
 
-    const { body } = buildCatalogAgentPayload(data, params, "my-kind", "v1");
-
-    expect(body.configurations?.env?.map((e) => e.key)).toEqual(["MODEL_NAME"]);
+    expect(body.extensions).toBeUndefined();
+    expect(body).not.toHaveProperty("configurations");
   });
 
-  it("keeps an explicit secret override value and marks it sensitive", () => {
-    const data = baseFormData({
-      env: [{ key: "OPENAI_API_KEY", value: "my-own-key", isSensitive: true }],
-    });
+  it("puts the LLM bindings in the ai-gateway extension block", () => {
+    const { body } = buildCatalogAgentPayload(
+      baseFormData(),
+      params,
+      "my-kind",
+      "v1",
+      [entry()],
+      "Development",
+    );
 
-    const { body } = buildCatalogAgentPayload(data, params, "my-kind", "v1");
-
-    expect(body.configurations?.env).toEqual([
-      { key: "OPENAI_API_KEY", value: "my-own-key", isSensitive: true },
-    ]);
-  });
-
-  it("drops a whitespace-only value the same way as an empty one", () => {
-    const data = baseFormData({
-      env: [
-        { key: "OPENAI_API_KEY", value: "   ", isSensitive: true },
-        { key: "MODEL_NAME", value: "gpt-4", isSensitive: false },
-      ],
-    });
-
-    const { body } = buildCatalogAgentPayload(data, params, "my-kind", "v1");
-
-    expect(body.configurations?.env?.map((e) => e.key)).toEqual(["MODEL_NAME"]);
-  });
-
-  it("trims leading/trailing whitespace off a value that is otherwise kept", () => {
-    const data = baseFormData({
-      env: [{ key: "OPENAI_API_KEY", value: "  sk-my-key\n", isSensitive: true }],
-    });
-
-    const { body } = buildCatalogAgentPayload(data, params, "my-kind", "v1");
-
-    expect(body.configurations?.env).toEqual([
-      { key: "OPENAI_API_KEY", value: "sk-my-key", isSensitive: true },
-    ]);
+    expect(body).not.toHaveProperty("modelConfig");
+    expect(body.extensions?.["ai-gateway"]?.modelConfig?.map((m) => m.providerName))
+      .toEqual(["openai"]);
   });
 });
 

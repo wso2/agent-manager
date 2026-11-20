@@ -25,7 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/fileauth"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // maxLoginBodyBytes caps the request body. The handler reads credentials, so
@@ -79,14 +79,14 @@ func registerFileAuthRoutes(
 func loginHandler(svc fileauth.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !svc.Enabled() {
-			utils.WriteErrorResponse(w, http.StatusNotFound,
+			httpx.WriteErrorResponse(w, http.StatusNotFound,
 				"file-based login is not enabled on this deployment")
 			return
 		}
 
 		var req loginRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxLoginBodyBytes)).Decode(&req); err != nil {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "request body must be JSON with username and password")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "request body must be JSON with username and password")
 			return
 		}
 
@@ -94,7 +94,7 @@ func loginHandler(svc fileauth.Service) http.HandlerFunc {
 		if username == "" || req.Password == "" {
 			// Refused before reaching the service so that an empty submission
 			// is a 400 about the request rather than a 401 about the user.
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "username and password are required")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "username and password are required")
 			return
 		}
 
@@ -102,10 +102,10 @@ func loginHandler(svc fileauth.Service) http.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, fileauth.ErrInvalidCredentials) {
 				// One message for both an unknown user and a wrong password.
-				utils.WriteErrorResponse(w, http.StatusUnauthorized, "invalid username or password")
+				httpx.WriteErrorResponse(w, http.StatusUnauthorized, "invalid username or password")
 				return
 			}
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "failed to issue token")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "failed to issue token")
 			return
 		}
 

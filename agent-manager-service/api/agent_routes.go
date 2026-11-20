@@ -34,7 +34,6 @@ func registerAgentRoutes(rr *middleware.RouteRegistrar, ctrl controllers.AgentCo
 		growthanalytics.Track("amp.agent-development.update-agent", updateTargetDims("basic-info"), ctrl.UpdateAgentBasicInfo))
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}", rbac.AgentDelete,
 		growthanalytics.Track("amp.agent-development.delete-agent", actionDims("deleted-agent"), ctrl.DeleteAgent))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations", rbac.AgentRead, ctrl.GetAgentConfigurations)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", rbac.AgentUpdate, ctrl.GetAgentIdentity)
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", rbac.AgentUpdate,
 		growthanalytics.Track("amp.security-access.agent-identity", actionDims("provisioned-agent-identity"), ctrl.ProvisionAgentIdentity))

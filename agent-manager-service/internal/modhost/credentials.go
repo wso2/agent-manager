@@ -20,27 +20,26 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
-// Workload credentials are long-lived secrets a module hands its workloads,
-// which exchange them for short-lived workload tokens. The secret is random,
-// so a plain SHA-256 is enough to keep it out of the database.
+// Workload credentials are long-lived secrets a module's service workloads
+// present in their heartbeats, which return short-lived workload tokens. The
+// secret is random, so a plain SHA-256 is enough to keep it out of the
+// database. A workload sees one opaque string, "<id>.<secret>": the id finds
+// the row and the secret is compared with its hash.
 
 const credentialSecretBytes = 32
 
@@ -49,14 +48,60 @@ func hashSecret(secret string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// splitCredential splits what a workload presents into the credential id and
+// its secret.
+func splitCredential(s string) (id, secret string, ok bool) {
+	id, secret, ok = strings.Cut(s, ".")
+	if !ok || secret == "" {
+		return "", "", false
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		return "", "", false
+	}
+	return id, secret, true
+}
+
+// serviceWorkload returns a service workload a module declares.
+func (h *Host) serviceWorkload(module, name string) (modkit.WorkloadSpec, error) {
+	for _, wl := range h.manifests[module].Workloads {
+		if wl.Name != name {
+			continue
+		}
+		if wl.Kind != modkit.WorkloadService {
+			return wl, fmt.Errorf("modkit: %s/%s is a %s workload; only service workloads get credentials", module, name, wl.Kind)
+		}
+		return wl, nil
+	}
+	return modkit.WorkloadSpec{}, fmt.Errorf("modkit: module %s declares no workload %q", module, name)
+}
+
+// IssueCredential mints a credential for a service workload of an active
+// module on behalf of an operator (`amp module credential`). The secret is
+// returned only here.
+func (h *Host) IssueCredential(ctx context.Context, module, workload, subject string) (modkit.Credential, error) {
+	if _, ok := h.mods[module]; !ok {
+		return modkit.Credential{}, &ResolveError{Msg: module + " is not compiled into this binary"}
+	}
+	if _, err := h.serviceWorkload(module, workload); err != nil {
+		return modkit.Credential{}, &ResolveError{Msg: strings.TrimPrefix(err.Error(), "modkit: ")}
+	}
+	h.mu.RLock()
+	st := stateOf(module, h.states)
+	h.mu.RUnlock()
+	if st != StateActive {
+		return modkit.Credential{}, &ResolveError{Msg: fmt.Sprintf("%s is %s, not active", module, st), Hint: "install or enable it first"}
+	}
+	return h.issueCredential(ctx, module, modkit.CredentialRequest{Workload: workload, Subject: subject})
+}
+
 func (h *Host) issueCredential(ctx context.Context, module string, req modkit.CredentialRequest) (modkit.Credential, error) {
-	if req.Subject == "" {
-		return modkit.Credential{}, errors.New("modkit: a workload credential needs a subject")
+	if req.Subject == "" || len(req.Subject) > 255 || strings.ContainsAny(req.Subject, " \t\r\n") {
+		return modkit.Credential{}, errors.New("modkit: a workload credential needs a subject of at most 255 characters, without spaces")
 	}
 	if tx, inHook := hookTx(ctx); inHook && tx == nil {
 		return modkit.Credential{}, errReadOnlyHook
 	}
-	if err := checkScopes(req.Scopes); err != nil {
+	if _, err := h.serviceWorkload(module, req.Workload); err != nil {
 		return modkit.Credential{}, err
 	}
 	org := req.OrgID
@@ -75,12 +120,13 @@ func (h *Host) issueCredential(ctx context.Context, module string, req modkit.Cr
 	if _, err := rand.Read(buf); err != nil {
 		return modkit.Credential{}, err
 	}
-	cred := modkit.Credential{ID: uuid.Must(uuid.NewV7()).String(), Secret: base64.RawURLEncoding.EncodeToString(buf)}
+	id := uuid.Must(uuid.NewV7()).String()
+	secret := base64.RawURLEncoding.EncodeToString(buf)
 	// A credential nobody can account for must not exist: the intent is
 	// recorded before the row is written, or nothing is written.
 	opts := []audit.Option{
-		audit.ResourceNamed("workload-credential", cred.ID, req.Subject),
-		audit.Detail("module", module), audit.Detail("subject", req.Subject), audit.Detail("scopes", req.Scopes),
+		audit.ResourceNamed("workload-credential", id, req.Subject),
+		audit.Detail("module", module), audit.Detail("workload", req.Workload), audit.Detail("subject", req.Subject),
 	}
 	if org != "" {
 		opts = append(opts, audit.Org(org))
@@ -94,115 +140,94 @@ func (h *Host) issueCredential(ctx context.Context, module string, req modkit.Cr
 		db = h.db
 	}
 	err = db.WithContext(ctx).Exec(`INSERT INTO workload_credentials
-		(id, module, org_id, subject, scopes, token_ttl_seconds, secret_hash, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		cred.ID, module, orgID, req.Subject, strings.Join(req.Scopes, " "),
-		int(tokenTTL(req.TokenTTL)/time.Second), hashSecret(cred.Secret), dbx.Now()).Error
+		(id, module, workload, org_id, subject, secret_hash, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		id, module, req.Workload, orgID, req.Subject, hashSecret(secret), dbx.Now()).Error
 	attempt.Complete(ctx, err)
 	if err != nil {
 		return modkit.Credential{}, fmt.Errorf("storing workload credential: %w", err)
 	}
-	return cred, nil
+	return modkit.Credential{ID: id, Secret: id + "." + secret}, nil
 }
 
+// revokeCredential revokes one of a module's credentials and forgets its
+// instances, so module health stops counting them at once. Tokens already
+// issued on it stay valid until they expire; the next heartbeat is refused.
 func (h *Host) revokeCredential(ctx context.Context, module, id string) error {
-	r := h.db.WithContext(ctx).Exec(`UPDATE workload_credentials SET revoked_at = ?
-		WHERE id = ? AND module = ? AND revoked_at IS NULL`, dbx.Now(), id, module)
-	audit.Record(ctx, audit.ActionWorkloadCredentialRevoke,
-		audit.ResourceNamed("workload-credential", id, id), audit.Detail("module", module), audit.Result(r.Error))
-	if r.Error != nil {
-		return r.Error
+	if _, err := uuid.Parse(id); err != nil {
+		return modkit.ErrNotFound
 	}
-	if r.RowsAffected == 0 {
+	var affected int64
+	err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		r := tx.Exec(`UPDATE workload_credentials SET revoked_at = ?
+			WHERE id = ? AND module = ? AND revoked_at IS NULL`, dbx.Now(), id, module)
+		if r.Error != nil {
+			return r.Error
+		}
+		affected = r.RowsAffected
+		return tx.Exec(`DELETE FROM workload_instances WHERE credential_id = ?`, id).Error
+	})
+	audit.Record(ctx, audit.ActionWorkloadCredentialRevoke,
+		audit.ResourceNamed("workload-credential", id, id), audit.Detail("module", module), audit.Result(err))
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
 		return modkit.ErrNotFound
 	}
 	return nil
 }
 
-type credentialRow struct {
-	ID              string
-	Module          string
-	OrgID           *string
-	Subject         string
-	Scopes          string
-	TokenTTLSeconds int
-	SecretHash      string
-}
-
-// TokenExchangeRequest is the body of POST /workload-tokens.
-type TokenExchangeRequest struct {
-	CredentialID string `json:"credentialId"`
-	Secret       string `json:"secret"`
-}
-
-// TokenExchangeResponse is its reply.
-type TokenExchangeResponse struct {
-	Token     string `json:"token"`
-	TokenType string `json:"tokenType"`
-	ExpiresAt int64  `json:"expiresAt"`
-}
-
-// ServeTokenExchange exchanges a workload credential for a workload token. It
-// is mounted at POST /workload-tokens on the internal API. A credential of a
-// module that is not active is refused like an unknown one.
-func (h *Host) ServeTokenExchange() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var req TokenExchangeRequest
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil ||
-			req.CredentialID == "" || req.Secret == "" {
-			writeUnauthorized(w, http.StatusBadRequest, "credentialId and secret are required")
-			return
-		}
-		tokens := h.deps().Tokens
-		if tokens == nil {
-			writeUnauthorized(w, http.StatusServiceUnavailable, "workload tokens are not available")
-			return
-		}
-		var rows []credentialRow
-		if _, err := uuid.Parse(req.CredentialID); err == nil {
-			if err := h.db.WithContext(r.Context()).Raw(`SELECT id, module, org_id, subject, scopes, token_ttl_seconds, secret_hash
-				FROM workload_credentials WHERE id = ? AND revoked_at IS NULL`, req.CredentialID).Scan(&rows).Error; err != nil {
-				h.log.Error("modhost:reading workload credential failed", "error", err)
-				writeUnauthorized(w, http.StatusInternalServerError, "internal error")
-				return
-			}
-		}
-		if len(rows) != 1 || subtle.ConstantTimeCompare([]byte(rows[0].SecretHash), []byte(hashSecret(req.Secret))) != 1 ||
-			!slices.Contains(h.current().active, rows[0].Module) {
-			audit.Record(r.Context(), audit.ActionWorkloadTokenExchange,
-				audit.OutcomeOpt(audit.OutcomeDeny), audit.Status(http.StatusUnauthorized),
-				audit.Detail("credentialId", req.CredentialID))
-			writeUnauthorized(w, http.StatusUnauthorized, "invalid workload credential")
-			return
-		}
-		c := rows[0]
-		wl := modkit.Workload{Module: c.Module, Subject: c.Subject, Scopes: strings.Fields(c.Scopes)}
-		if c.OrgID != nil {
-			wl.OrgID = *c.OrgID
-		}
-		tok, exp, err := tokens.IssueWorkload(wl, tokenTTL(time.Duration(c.TokenTTLSeconds)*time.Second))
-		if err != nil {
-			h.log.Error("modhost:signing workload token failed", "error", err)
-			writeUnauthorized(w, http.StatusInternalServerError, "internal error")
-			return
-		}
-		// Recorded before the token is handed back: a token that cannot be
-		// accounted for is never issued.
-		opts := []audit.Option{
-			audit.Actor(audit.ActorService, "workload:"+c.Module+":"+c.Subject, ""),
-			audit.Detail("module", c.Module), audit.Detail("credentialId", c.ID),
-			audit.Detail("expiresIn", int64(time.Until(exp).Seconds())),
-		}
-		if wl.OrgID != "" {
-			opts = append(opts, audit.Org(wl.OrgID))
-		}
-		if err := audit.RecordSync(r.Context(), audit.ActionWorkloadTokenExchange, opts...); err != nil {
-			h.log.Error("modhost:refusing to issue workload token: audit record could not be written", "error", err)
-			writeUnauthorized(w, http.StatusServiceUnavailable, "the token could not be recorded")
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
-		_ = json.NewEncoder(w).Encode(TokenExchangeResponse{Token: tok, TokenType: "Bearer", ExpiresAt: exp.Unix()})
+// RevokeAllCredentials revokes every credential of a module and forgets its
+// workload instances. Purging a module's data calls it, so a reinstalled
+// module starts with no workload that can still sign in.
+func (h *Host) RevokeAllCredentials(ctx context.Context, module string) (int, error) {
+	var ids []string
+	err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		ids, err = revokeAllTx(tx, module)
+		return err
 	})
+	recordRevoked(ctx, module, ids, err)
+	if err != nil {
+		return 0, err
+	}
+	return len(ids), nil
+}
+
+// revokeAllTx revokes a module's credentials and forgets its workload
+// instances inside tx, returning the revoked credential ids.
+func revokeAllTx(tx *gorm.DB, module string) ([]string, error) {
+	var ids []string
+	if err := tx.Raw(`SELECT id FROM workload_credentials WHERE module = ? AND revoked_at IS NULL ORDER BY id`, module).
+		Scan(&ids).Error; err != nil {
+		return nil, err
+	}
+	if err := tx.Exec(`UPDATE workload_credentials SET revoked_at = ? WHERE module = ? AND revoked_at IS NULL`,
+		dbx.Now(), module).Error; err != nil {
+		return nil, err
+	}
+	if err := tx.Exec(`DELETE FROM workload_instances WHERE module = ?`, module).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// recordRevoked audits each credential revoked with a module's.
+func recordRevoked(ctx context.Context, module string, ids []string, err error) {
+	for _, id := range ids {
+		audit.Record(ctx, audit.ActionWorkloadCredentialRevoke,
+			audit.ResourceNamed("workload-credential", id, id), audit.Detail("module", module), audit.Result(err))
+	}
+}
+
+// activeModule reports whether module is active in this replica's snapshot.
+func (h *Host) activeModule(module string) bool {
+	return slices.Contains(h.current().active, module)
+}
+
+// RevokeCredential revokes one of a module's credentials on behalf of an
+// operator.
+func (h *Host) RevokeCredential(ctx context.Context, module, id string) error {
+	return h.revokeCredential(ctx, module, id)
 }

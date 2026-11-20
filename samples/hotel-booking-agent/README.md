@@ -59,11 +59,12 @@ The agent reaches it at `http://localhost:9091` when both run on the same machin
 
 ## Step 2: Register the agent
 
-You run the agent yourself; Agent Manager registers it and issues the token its traces are sent with.
+You run the agent yourself; Agent Manager registers it and issues its API key.
 
-1. Sign in to the console at <http://localhost:9000> as `admin` (the password is `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
-2. Open the **Default** project, click **Add Agent**, and register an agent named `Hotel Booking Agent`.
-3. In the **Set up agent** panel that opens, choose **Python**, pick a token duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it shows.
+1. Sign in to the console at <http://localhost:9000> (the port is `AMP_API_PORT` in `deployments/standalone/.env`) as `admin`; the password is `AMP_ADMIN_PASSWORD` in the same file.
+2. A new install has no projects, so create one first: click **Add project** (**Create project** on the organization overview), enter a **Name** and click **Create**.
+3. Open the project, click **New agent**, enter the name `Hotel Booking Agent` and click **Register**.
+4. The **Setup Agent** panel opens with an API key already generated. Copy it as `AMP_AGENT_API_KEY`; it is shown only once. To change how long it is valid, pick another **Token Duration** and click **Regenerate**.
 
 ## Step 3: Run the agent
 
@@ -74,7 +75,7 @@ cd samples/hotel-booking-agent/agent
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt amp-instrumentation==0.4.1
 
-export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_OTEL_ENDPOINT="http://localhost:4318"   # your own OpenTelemetry collector
 export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY="<your-openai-api-key>"
 export HOTEL_API_BASE_URL="http://localhost:9091"
@@ -82,7 +83,7 @@ export HOTEL_API_BASE_URL="http://localhost:9091"
 amp-instrument uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-Set these as shell variables, not in a `.env` file, so `amp-instrument` can read them.
+Set these as shell variables, not in a `.env` file, so `amp-instrument` can read them. AMP Lite does not store traces, so `AMP_OTEL_ENDPOINT` is the OTLP/HTTP base URL (without `/v1/traces`) of an OpenTelemetry collector you run; see the [user guide](../../docs/user-guide.md).
 
 ## Step 4: Try it
 
@@ -103,7 +104,7 @@ Book 1 room at Brooklyn Heights Loft Hotel from Feb 7 to Feb 8, 2027 for 1 guest
 
 ## Step 5: Observe the traces
 
-Open the agent in the console and go to **Observability → Traces**. Each chat turn shows the LangGraph run, the OpenAI calls, and the tool calls to the Hotel API.
+AMP Lite does not store traces, so the console has no traces page. Open them in the backend behind your collector: each chat turn shows the LangGraph run, the OpenAI calls, and the tool calls to the Hotel API.
 
 ## Configuration reference
 

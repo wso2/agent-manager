@@ -40,11 +40,11 @@ var Client *framework.AMPClient
 var Cfg *framework.Config
 
 // rbacProbeScope guards the endpoint used to prove RBAC is enforced. Any
-// single-permission, always-present, side-effect-free GET works; agent-kinds
+// single-permission, always-present, side-effect-free GET works; environments
 // is used because it needs no fixtures.
 const (
-	rbacProbeScope = "amp:agent-kind:read"
-	rbacProbePath  = "/api/v1/orgs/%s/agent-kinds"
+	rbacProbeScope = "amp:environment:read"
+	rbacProbePath  = "/api/v1/orgs/%s/environments"
 )
 
 func TestSecurityAuthz(t *testing.T) {

@@ -2,7 +2,7 @@
 
 ## Factory
 
-`cmdutil.Factory` (`cmdutil/factory.go`) is the single source of truth for shared deps: `IOStreams`, `Config`, `Prompter`, `HTTPClient`, `AgentManager`.
+`cmdutil.Factory` (`cmdutil/factory.go`) is the single source of truth for shared deps: `IOStreams`, `Config`, `Prompter`, `HTTPClient`, `AgentManager`, `AIGateway` (the AI Gateway module's client, at `/m/ai-gateway`), `Observer` and `Token`. `make amctl-gen-client` regenerates both API clients.
 
 - Commands take deps off `*cmdutil.Factory` in `NewXxxCmd(f)` and inject into `XxxOptions`
 - Do NOT call `iostreams.System()`, `prompter.New(...)`, `config.Load(...)`, or build clients directly — bypasses test seams and token refresh

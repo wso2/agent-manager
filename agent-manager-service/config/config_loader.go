@@ -19,7 +19,6 @@ package config
 import (
 	"fmt"
 	"log/slog"
-	"math"
 	"net"
 	"net/url"
 	"os"
@@ -32,10 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-var (
-	config              *Config
-	agentWorkloadConfig *AgentWorkload
-)
+var config *Config
 
 // pendingErrors are the errors of the settings loaded at package init, from
 // the environment alone. The command line loads the configuration file
@@ -50,10 +46,6 @@ func GetConfig() *Config {
 	return config
 }
 
-func GetAgentWorkloadConfig() *AgentWorkload {
-	return agentWorkloadConfig
-}
-
 func init() {
 	// The configuration file is not known yet (--config is parsed later), so
 	// errors here wait for the first reader; see pendingErrors.
@@ -65,7 +57,6 @@ func loadEnvs() { loadSettings(true) }
 
 func loadSettings(strict bool) {
 	config = &Config{}
-	agentWorkloadConfig = &AgentWorkload{}
 
 	envFilePath := os.Getenv("ENV_FILE_PATH")
 	if envFilePath != "" {
@@ -81,13 +72,6 @@ func loadSettings(strict bool) {
 	config.AutoMaxProcsEnabled = r.readOptionalBool("AUTO_MAX_PROCS_ENABLED", true)
 	config.CORSAllowedOrigin = r.readOptionalString("CORS_ALLOWED_ORIGIN", "http://localhost:3000")
 	config.ConsoleEnabled = r.readOptionalBool("CONSOLE_ENABLED", true)
-
-	agentWorkloadConfig.CORS = CORSConfig{
-		AllowOrigin:      r.readOptionalString("AGENT_WORKLOAD_CORS_ALLOWED_ORIGIN", "*"),
-		AllowMethods:     r.readOptionalString("AGENT_WORKLOAD_CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,PATCH,OPTIONS"),
-		AllowHeaders:     r.readOptionalString("AGENT_WORKLOAD_CORS_ALLOWED_HEADERS", "authorization,Content-Type,Origin,X-API-Key"),
-		AllowCredentials: r.readOptionalBool("AGENT_WORKLOAD_CORS_ALLOW_CREDENTIALS", false),
-	}
 
 	// Logging configuration
 	config.LogLevel = r.readOptionalString("LOG_LEVEL", "INFO")
@@ -151,34 +135,9 @@ func loadSettings(strict bool) {
 
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 
-	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
 	config.DefaultOrg = DefaultOrgConfig{
 		OUID:   strings.TrimSpace(r.readOptionalString("DEFAULT_ORG_OU_ID", "01900000-0000-7000-8000-000000000001")),
 		Handle: r.readOptionalString("DEFAULT_ORG_HANDLE", "default"),
-	}
-	config.DefaultGateway = DefaultGatewayConfig{
-		Name:              strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_NAME", "")),
-		DisplayName:       r.readOptionalString("DEFAULT_GATEWAY_DISPLAY_NAME", "Default AI Gateway"),
-		Vhost:             r.readOptionalString("DEFAULT_GATEWAY_VHOST", ""),
-		FunctionalityType: r.readOptionalString("DEFAULT_GATEWAY_TYPE", "BOTH"),
-		OrgOUID:           r.readOptionalString("DEFAULT_GATEWAY_ORG_OU_ID", config.DefaultOrg.OUID),
-		OrgHandle:         r.readOptionalString("DEFAULT_GATEWAY_ORG_HANDLE", config.DefaultOrg.Handle),
-		Token:             strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_TOKEN", "")),
-		TokenFile:         r.readOptionalString("DEFAULT_GATEWAY_TOKEN_FILE", ""),
-	}
-	if g := config.DefaultGateway; g.Name != "" && (g.Vhost == "" || (g.Token == "" && g.TokenFile == "")) {
-		r.errors = append(r.errors, fmt.Errorf(
-			"DEFAULT_GATEWAY_NAME needs DEFAULT_GATEWAY_VHOST and DEFAULT_GATEWAY_TOKEN or DEFAULT_GATEWAY_TOKEN_FILE",
-		))
-	}
-	config.OtelIngest = OtelIngestConfig{UpstreamURL: r.readOptionalString("OTEL_INGEST_UPSTREAM_URL", "")}
-	config.A2ACardFetchDialAddr = r.readOptionalString("A2A_CARD_FETCH_DIAL_ADDR", "")
-	if addr := config.A2ACardFetchDialAddr; addr != "" {
-		if host, port, err := net.SplitHostPort(addr); err != nil {
-			r.errors = append(r.errors, fmt.Errorf("A2A_CARD_FETCH_DIAL_ADDR must be host:port: %w", err))
-		} else if host == "" || port == "" {
-			r.errors = append(r.errors, fmt.Errorf("A2A_CARD_FETCH_DIAL_ADDR must contain a non-empty host and port"))
-		}
 	}
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
 		// Comma-separated list of allowed issuers and audiences
@@ -188,6 +147,7 @@ func loadSettings(strict bool) {
 	}
 	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
 	config.ServerPublicURL = r.readOptionalString("SERVER_PUBLIC_URL", "")
+	config.InternalServerPublicURL = r.readOptionalString("INTERNAL_SERVER_PUBLIC_URL", "")
 	config.GrowthAnalytics = GrowthAnalyticsConfig{
 		Enabled:                   r.readOptionalBool("MOESIF_ENABLED", false),
 		ConsoleEnabled:            r.readOptionalBool("CONSOLE_ANALYTICS_ENABLED", false),
@@ -293,21 +253,6 @@ func loadSettings(strict bool) {
 		Token: r.readOptionalString("GITHUB_TOKEN", ""),
 	}
 
-	config.EvalJobsUsePublicGatewayURL = r.readOptionalBool("EVAL_JOBS_USE_PUBLIC_GATEWAY_URL", false)
-
-	// Gateway manifest cache backend. "memory" (default) is process-local and only
-	// safe for a single replica; HA deployments must set this to "redis" so every
-	// replica reads and writes the same per-gateway cached manifests.
-	config.GatewayManifestCache = GatewayManifestCacheConfig{
-		Backend: r.readOptionalString("GATEWAY_MANIFEST_CACHE_BACKEND", "memory"),
-		Redis: GatewayManifestCacheRedisConfig{
-			Host:       r.readOptionalString("GATEWAY_MANIFEST_CACHE_REDIS_HOST", ""),
-			Port:       int(r.readOptionalInt64("GATEWAY_MANIFEST_CACHE_REDIS_PORT", 6379)),
-			Password:   r.readOptionalString("GATEWAY_MANIFEST_CACHE_REDIS_PASSWORD", ""),
-			DB:         int(r.readOptionalInt64("GATEWAY_MANIFEST_CACHE_REDIS_DB", 0)),
-			TLSEnabled: r.readOptionalBool("GATEWAY_MANIFEST_CACHE_REDIS_TLS_ENABLED", false),
-		},
-	}
 	config.OrgNamespace = r.readOptionalString("AMP_ORG_NAMESPACE", "default")
 
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
@@ -320,13 +265,6 @@ func loadSettings(strict bool) {
 		WriteTimeoutSeconds: int(r.readOptionalInt64("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS", 90)),
 		IdleTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_IDLE_TIMEOUT_SECONDS", 60)),
 		MaxHeaderBytes:      int(r.readOptionalInt64("INTERNAL_SERVER_MAX_HEADER_BYTES", 65536)),
-	}
-
-	// WebSocket configuration
-	config.WebSocket = WebSocketConfig{
-		MaxConnections:    int(r.readOptionalInt64("WEBSOCKET_MAX_CONNECTIONS", 1000)),
-		ConnectionTimeout: int(r.readOptionalInt64("WEBSOCKET_CONNECTION_TIMEOUT", 30)),
-		RateLimitPerMin:   int(r.readOptionalInt64("WEBSOCKET_RATE_LIMIT_PER_MIN", 10)),
 	}
 
 	config.SecretManager = SecretManagerConfig{
@@ -344,8 +282,6 @@ func loadSettings(strict bool) {
 		UseDefaultResourceServer: r.readOptionalBool("AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER", false),
 		SystemResourceIdentifier: r.readOptionalString("AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER", ""),
 	}
-	config.IdentityManagementMode = r.readOptionalString("IDENTITY_MANAGEMENT_MODE", "LEGACY_DIRECT")
-	validateIdentityManagementMode(config, r)
 	if config.Thunder.BaseURL != "" && (config.Thunder.ClientID == "" || config.Thunder.ClientSecret == "") {
 		r.errors = append(r.errors, fmt.Errorf("THUNDER_BASE_URL is set but THUNDER_CLIENT_ID and/or THUNDER_CLIENT_SECRET are missing"))
 	}
@@ -376,57 +312,6 @@ func loadSettings(strict bool) {
 	if config.PlatformAdminOUID == "" {
 		slog.Warn("PLATFORM_ADMIN_OU_ID is not set; cross-organization platform routes will deny every request")
 	}
-	config.DeploymentTimeout = DeploymentTimeoutConfig{
-		SweepIntervalSeconds: int(r.readOptionalInt64("DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS", 60)),
-		TimeoutSeconds:       int(r.readOptionalInt64("DEPLOYMENT_TIMEOUT_SECONDS", 300)),
-	}
-	validateDeploymentTimeoutConfig(config, r)
-	config.Reconcile = ReconcileConfig{
-		RenderIntervalSeconds: int(r.readOptionalInt64("RECONCILE_RENDER_INTERVAL_SECONDS", 5)),
-		PlaceIntervalSeconds:  int(r.readOptionalInt64("RECONCILE_PLACE_INTERVAL_SECONDS", 600)),
-		DriftIntervalSeconds:  int(r.readOptionalInt64("RECONCILE_DRIFT_INTERVAL_SECONDS", 300)),
-		RenderLeaseSeconds:    int(r.readOptionalInt64("RECONCILE_RENDER_LEASE_SECONDS", 120)),
-		RenderAttemptBudget:   int(r.readOptionalInt64("RECONCILE_RENDER_ATTEMPT_BUDGET", 30)),
-	}
-	validateReconcileConfig(config, r)
-	config.GatewayFailureThresholdSeconds = int(r.readOptionalInt64("GATEWAY_FAILURE_THRESHOLD_SECONDS", 300))
-	if config.GatewayFailureThresholdSeconds <= 0 {
-		r.errors = append(r.errors, fmt.Errorf(
-			"GATEWAY_FAILURE_THRESHOLD_SECONDS must be greater than 0, got %d", config.GatewayFailureThresholdSeconds,
-		))
-	}
-	// 604800 = 7 days. Checked against the staleness threshold rather than only
-	// on its own: co-dependent values are validated together, and an upper bound
-	// at or below the lower one leaves an empty window that reports every fleet
-	// healthy — a failure mode with no symptom.
-	config.GatewayFailureMaxAgeSeconds = int(r.readOptionalInt64("GATEWAY_FAILURE_MAX_AGE_SECONDS", 604800))
-	if config.GatewayFailureMaxAgeSeconds <= config.GatewayFailureThresholdSeconds {
-		r.errors = append(r.errors, fmt.Errorf(
-			"GATEWAY_FAILURE_MAX_AGE_SECONDS (%d) must be greater than GATEWAY_FAILURE_THRESHOLD_SECONDS (%d), "+
-				"or no gateway can ever be reported as failed",
-			config.GatewayFailureMaxAgeSeconds, config.GatewayFailureThresholdSeconds,
-		))
-	}
-	// Both ends are rejected rather than clamped, because either would make the
-	// health verdict a constant: at 0 an empty fleet already reports unhealthy,
-	// and above 100 no fleet ever can.
-	//
-	// NaN is checked explicitly because it slips through a range test: every
-	// comparison against NaN is false, so `<= 0` and `> 100` both say "in
-	// range". ParseFloat accepts the literal "NaN", and the verdict downstream
-	// is `percentage < threshold`, also false — so an operator typo would boot
-	// a service that reports the fleet unhealthy on every single request.
-	// +Inf/-Inf need no special case; the range test already catches them.
-	config.GatewayFailurePercentageThreshold = r.readOptionalFloat64("GATEWAY_FAILURE_PERCENTAGE_THRESHOLD", 10)
-	if math.IsNaN(config.GatewayFailurePercentageThreshold) ||
-		config.GatewayFailurePercentageThreshold <= 0 ||
-		config.GatewayFailurePercentageThreshold > 100 {
-		r.errors = append(r.errors, fmt.Errorf(
-			"GATEWAY_FAILURE_PERCENTAGE_THRESHOLD must be greater than 0 and at most 100, got %v",
-			config.GatewayFailurePercentageThreshold,
-		))
-	}
-
 	// Audit defaults to on. A deployment that wants no audit trail has to say
 	// so explicitly, rather than acquiring one by omission.
 	config.Audit = AuditConfig{
@@ -484,14 +369,13 @@ func loadSettings(strict bool) {
 
 	validateOAuthAuthorizationServers(config, r)
 	validateServerPublicURL(config, r)
+	validatePublicURL("INTERNAL_SERVER_PUBLIC_URL", config.InternalServerPublicURL, r)
 	validateGrowthAnalyticsConfig(config)
 	validateResourceLimitsConfig(config, r)
 	validateFileMountLimitsConfig(config, r)
 	validateDatabaseConfig(config, r)
 	validatePostgresTLSConfig(config, r)
 	validateSecretManagerConfig(config, r)
-	validateAgentWorkloadCORSConfig(agentWorkloadConfig, r)
-	validateGatewayManifestCacheConfig(config, r)
 
 	pendingErrors = nil
 	if !strict {
@@ -503,14 +387,6 @@ func loadSettings(strict bool) {
 	r.logAndExitIfErrorsFound()
 
 	slog.Info("configReader: configs loaded")
-}
-
-func validateIdentityManagementMode(cfg *Config, r *configReader) {
-	switch cfg.IdentityManagementMode {
-	case "LEGACY_DIRECT", "CP_MANAGED":
-	default:
-		r.errors = append(r.errors, fmt.Errorf("IDENTITY_MANAGEMENT_MODE must be LEGACY_DIRECT or CP_MANAGED"))
-	}
 }
 
 // validPostgresSSLModes is the set of libpq sslmode values pgx accepts. Kept as
@@ -542,54 +418,6 @@ func requirePositive(r *configReader, fields ...positiveField) {
 		if field.value <= 0 {
 			r.errors = append(r.errors, fmt.Errorf("%s must be greater than 0, got %d", field.name, field.value))
 		}
-	}
-}
-
-func validateDeploymentTimeoutConfig(cfg *Config, r *configReader) {
-	requirePositive(
-		r,
-		positiveField{"DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS", cfg.DeploymentTimeout.SweepIntervalSeconds},
-		positiveField{"DEPLOYMENT_TIMEOUT_SECONDS", cfg.DeploymentTimeout.TimeoutSeconds},
-	)
-}
-
-func validateReconcileConfig(cfg *Config, r *configReader) {
-	requirePositive(
-		r,
-		positiveField{"RECONCILE_RENDER_INTERVAL_SECONDS", cfg.Reconcile.RenderIntervalSeconds},
-		positiveField{"RECONCILE_PLACE_INTERVAL_SECONDS", cfg.Reconcile.PlaceIntervalSeconds},
-		positiveField{"RECONCILE_DRIFT_INTERVAL_SECONDS", cfg.Reconcile.DriftIntervalSeconds},
-		positiveField{"RECONCILE_RENDER_LEASE_SECONDS", cfg.Reconcile.RenderLeaseSeconds},
-		positiveField{"RECONCILE_RENDER_ATTEMPT_BUDGET", cfg.Reconcile.RenderAttemptBudget},
-	)
-}
-
-// validGatewayManifestCacheBackends is the set of backends services.ProvideGatewayManifestCacheBackend
-// (wiring) knows how to construct. Kept as an explicit allowlist so a typo fails config
-// load with a clear message instead of silently falling back to "memory" in an HA
-// deployment that meant to opt into "redis".
-var validGatewayManifestCacheBackends = map[string]bool{
-	"memory": true,
-	"redis":  true,
-}
-
-func validateGatewayManifestCacheConfig(cfg *Config, r *configReader) {
-	backend := strings.TrimSpace(cfg.GatewayManifestCache.Backend)
-	if !validGatewayManifestCacheBackends[backend] {
-		r.errors = append(r.errors, fmt.Errorf(
-			"GATEWAY_MANIFEST_CACHE_BACKEND %q is not valid (must be \"memory\" or \"redis\")", cfg.GatewayManifestCache.Backend,
-		))
-		return
-	}
-	if backend != "redis" {
-		return
-	}
-	// Only the host is mandatory: port/DB/TLS all have workable zero-value defaults,
-	// and an empty password is a legitimate (if unusual) Redis deployment.
-	if strings.TrimSpace(cfg.GatewayManifestCache.Redis.Host) == "" {
-		r.errors = append(r.errors, fmt.Errorf(
-			"GATEWAY_MANIFEST_CACHE_REDIS_HOST is required when GATEWAY_MANIFEST_CACHE_BACKEND=redis",
-		))
 	}
 }
 
@@ -735,19 +563,24 @@ func OrganizationTokenURL(tokenURL, ouID string) (string, error) {
 }
 
 func validateServerPublicURL(cfg *Config, r *configReader) {
-	if cfg.ServerPublicURL == "" {
+	validatePublicURL("SERVER_PUBLIC_URL", cfg.ServerPublicURL, r)
+}
+
+// validatePublicURL checks an optional http(s) origin setting.
+func validatePublicURL(key, value string, r *configReader) {
+	if value == "" {
 		return
 	}
-	u, err := url.Parse(cfg.ServerPublicURL)
+	u, err := url.Parse(value)
 	if err != nil {
-		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q is not a valid URL: %w", cfg.ServerPublicURL, err))
+		r.errors = append(r.errors, fmt.Errorf("%s %q is not a valid URL: %w", key, value, err))
 		return
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must use http or https scheme", cfg.ServerPublicURL))
+		r.errors = append(r.errors, fmt.Errorf("%s %q must use http or https scheme", key, value))
 	}
 	if u.Host == "" {
-		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must have a non-empty host", cfg.ServerPublicURL))
+		r.errors = append(r.errors, fmt.Errorf("%s %q must have a non-empty host", key, value))
 	}
 }
 
@@ -879,12 +712,6 @@ func validateInternalServerConfigs(cfg *Config, r *configReader) {
 	}
 	if cfg.InternalServer.CertDir == "" {
 		r.errors = append(r.errors, fmt.Errorf("INTERNAL_SERVER_CERT_DIR must be non-empty"))
-	}
-}
-
-func validateAgentWorkloadCORSConfig(cfg *AgentWorkload, r *configReader) {
-	if cfg.CORS.AllowOrigin == "*" && cfg.CORS.AllowCredentials {
-		r.errors = append(r.errors, fmt.Errorf("AGENT_WORKLOAD_CORS_ALLOW_CREDENTIALS cannot be true when AGENT_WORKLOAD_CORS_ALLOWED_ORIGIN is \"*\""))
 	}
 }
 

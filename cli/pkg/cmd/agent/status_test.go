@@ -26,11 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
-
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
-	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
@@ -42,7 +39,7 @@ type statusRoute struct {
 	transportErr error
 }
 
-func newStatusClient(t *testing.T, routes map[string]statusRoute) (func(context.Context) (*amsvc.ClientWithResponses, error), func()) {
+func newStatusClient(t *testing.T, routes map[string]statusRoute) (func(context.Context) (*aigateway.ClientWithResponses, error), func()) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Method + " " + r.URL.Path
@@ -70,12 +67,12 @@ func newStatusClient(t *testing.T, routes map[string]statusRoute) (func(context.
 			_ = json.NewEncoder(w).Encode(route.body)
 		}
 	}))
-	client, err := amsvc.NewClientWithResponses(srv.URL)
+	client, err := aigateway.NewClientWithResponses(srv.URL)
 	if err != nil {
 		srv.Close()
 		t.Fatalf("new client: %v", err)
 	}
-	return func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }, srv.Close
+	return func(context.Context) (*aigateway.ClientWithResponses, error) { return client, nil }, srv.Close
 }
 
 func okJSON(body any) statusRoute { return statusRoute{status: http.StatusOK, body: body} }
@@ -93,35 +90,10 @@ func endpoint(name, url, vis string) map[string]any {
 	return map[string]any{"name": name, "url": url, "visibility": vis}
 }
 
-func newStatusOpts(io *iostreams.IOStreams, client func(context.Context) (*amsvc.ClientWithResponses, error)) *StatusOptions {
+func newStatusOpts(io *iostreams.IOStreams, client func(context.Context) (*aigateway.ClientWithResponses, error)) *StatusOptions {
 	return &StatusOptions{
 		IO: io, Client: client, Scope: baseScope(),
 		Org: "acme", Proj: "triage", AgentName: "order-bot",
-	}
-}
-
-func TestNewAgentCmd_RegistersStatusAfterDeploy(t *testing.T) {
-	wasSorting := cobra.EnableCommandSorting
-	cobra.EnableCommandSorting = false
-	defer func() { cobra.EnableCommandSorting = wasSorting }()
-
-	ios, _, _, _ := iostreams.Test()
-	cmd := NewAgentCmd(&cmdutil.Factory{IOStreams: ios})
-
-	idxDeploy, idxStatus := -1, -1
-	for i, c := range cmd.Commands() {
-		switch c.Name() {
-		case "deploy":
-			idxDeploy = i
-		case "status":
-			idxStatus = i
-		}
-	}
-	if idxDeploy == -1 {
-		t.Fatal("deploy command not registered")
-	}
-	if idxStatus != idxDeploy+1 {
-		t.Fatalf("status index = %d, want %d", idxStatus, idxDeploy+1)
 	}
 }
 

@@ -53,7 +53,7 @@ func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*
 				Name:         name,
 				DisplayName:  "Stub Agent",
 				ProjectName:  "triage",
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
 			})
 			return
 		}

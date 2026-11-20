@@ -20,6 +20,8 @@ import (
 	"context"
 	"regexp"
 	"strings"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
 // annotations let a handler add what the route middleware cannot see: the
@@ -32,9 +34,11 @@ type annotations struct {
 type annotationsKey struct{}
 
 // WithAnnotations returns a context a handler can annotate with SetEnvironment
-// and AddData, and the holder the middleware reads back.
+// and AddData, or a module with modkit.EventEnvironment and modkit.EventData,
+// and the holder the middleware reads back.
 func WithAnnotations(ctx context.Context) (context.Context, *annotations) {
 	a := &annotations{}
+	ctx = modkit.WithEventScope(ctx, a)
 	return context.WithValue(ctx, annotationsKey{}, a), a
 }
 
@@ -47,7 +51,7 @@ func annotationsFrom(ctx context.Context) *annotations {
 // outside an event-emitting route.
 func SetEnvironment(ctx context.Context, env string) {
 	if a := annotationsFrom(ctx); a != nil {
-		a.environment = env
+		a.EventEnvironment(env)
 	}
 }
 
@@ -55,11 +59,21 @@ func SetEnvironment(ctx context.Context, env string) {
 // event-emitting route.
 func AddData(ctx context.Context, key string, value any) {
 	if a := annotationsFrom(ctx); a != nil {
-		if a.data == nil {
-			a.data = map[string]any{}
-		}
-		a.data[key] = value
+		a.EventData(key, value)
 	}
+}
+
+// EventEnvironment implements modkit.EventScope.
+func (a *annotations) EventEnvironment(name string) {
+	a.environment = name
+}
+
+// EventData implements modkit.EventScope.
+func (a *annotations) EventData(key string, value any) {
+	if a.data == nil {
+		a.data = map[string]any{}
+	}
+	a.data[key] = value
 }
 
 // Environment returns the annotated environment.

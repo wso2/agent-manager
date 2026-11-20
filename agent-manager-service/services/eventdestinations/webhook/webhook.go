@@ -39,9 +39,9 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 const (
@@ -93,7 +93,7 @@ func (d *Driver) Kind() string { return models.DestinationKindWebhook }
 func (d *Driver) NormalizeConfig(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 	cfg, err := parseConfig(raw)
 	if err != nil {
-		return nil, fmt.Errorf("%w: webhook config must be an object with a url", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: webhook config must be an object with a url", httpx.ErrInvalidInput)
 	}
 	cfg.URL = strings.TrimSpace(cfg.URL)
 	if err := d.validateURL(ctx, cfg.URL); err != nil {
@@ -208,16 +208,16 @@ func Sign(secret, messageID string, at time.Time, body []byte) (string, error) {
 func (d *Driver) validateURL(ctx context.Context, rawURL string) error {
 	if !d.allowPrivate {
 		if parsed, err := url.Parse(rawURL); err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-			return fmt.Errorf("%w: url must be an https URL", utils.ErrInvalidInput)
+			return fmt.Errorf("%w: url must be an https URL", httpx.ErrInvalidInput)
 		}
 		if err := ssrf.ValidateURL(ctx, rawURL); err != nil {
-			return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+			return fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 		}
 		return nil
 	}
 	parsed, err := url.ParseRequestURI(rawURL)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return fmt.Errorf("%w: url must be an absolute http or https URL", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: url must be an absolute http or https URL", httpx.ErrInvalidInput)
 	}
 	return nil
 }
@@ -245,10 +245,10 @@ func retryableStatus(code int) bool {
 func httpsSameHostRedirect(next func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
 	return func(req *http.Request, via []*http.Request) error {
 		if req.URL.Scheme != "https" {
-			return fmt.Errorf("%w: webhook endpoint redirected to a non-https URL", utils.ErrInvalidURL)
+			return fmt.Errorf("%w: webhook endpoint redirected to a non-https URL", ssrf.ErrInvalidURL)
 		}
 		if len(via) > 0 && !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
-			return fmt.Errorf("%w: webhook endpoint redirected to another host", utils.ErrInvalidURL)
+			return fmt.Errorf("%w: webhook endpoint redirected to another host", ssrf.ErrInvalidURL)
 		}
 		if next != nil {
 			return next(req, via)

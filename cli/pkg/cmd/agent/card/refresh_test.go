@@ -23,11 +23,11 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
-func refreshOpts(client func(context.Context) (*amsvc.ClientWithResponses, error), jsonMode bool) (*RefreshOptions, func() (string, string)) {
+func refreshOpts(client func(context.Context) (*aigateway.ClientWithResponses, error), jsonMode bool) (*RefreshOptions, func() (string, string)) {
 	ios, out, errOut := newTestIO(jsonMode)
 	return &RefreshOptions{
 			IO: ios, Client: client, Scope: baseScope(),

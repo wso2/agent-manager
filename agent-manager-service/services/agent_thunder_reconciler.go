@@ -25,8 +25,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
@@ -112,7 +112,7 @@ func (s *agentThunderReconcilerService) runLoop(ctx context.Context) {
 // below run unlocked.
 func (s *agentThunderReconcilerService) runCycle(ctx context.Context) {
 	conn := db.GetDB()
-	locked, err := dbx.TryLock(ctx, conn, reconcilerLock, reconcilerOwner, dbx.Now(), reconcilerTickInterval)
+	locked, err := dbx.TryLock(ctx, conn, "locks", reconcilerLock, reconcilerOwner, dbx.Now(), reconcilerTickInterval)
 	if err != nil {
 		s.logger.Error("Failed to take the agent thunder reconciler lease", "error", err)
 		return
@@ -122,7 +122,7 @@ func (s *agentThunderReconcilerService) runCycle(ctx context.Context) {
 		return
 	}
 	due, err := s.repo.FindDue(ctx, time.Now(), reconcilerBatchSize)
-	if unlockErr := dbx.Unlock(ctx, conn, reconcilerLock, reconcilerOwner); unlockErr != nil {
+	if unlockErr := dbx.Unlock(ctx, conn, "locks", reconcilerLock, reconcilerOwner); unlockErr != nil {
 		s.logger.Error("Failed to release the agent thunder reconciler lease", "error", unlockErr)
 	}
 	if err != nil {

@@ -62,7 +62,7 @@ type Driver interface {
 	// Kind is the destination kind this driver handles, e.g. "webhook".
 	Kind() string
 	// NormalizeConfig validates the kind's settings and returns them in
-	// canonical form. Invalid settings wrap utils.ErrInvalidInput.
+	// canonical form. Invalid settings wrap httpx.ErrInvalidInput.
 	NormalizeConfig(ctx context.Context, raw json.RawMessage) (json.RawMessage, error)
 	// RedactConfig masks any part of the settings that may carry a
 	// credential, for callers who may see a destination but not change it.

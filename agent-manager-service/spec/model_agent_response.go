@@ -30,7 +30,6 @@ type AgentResponse struct {
 	Status         *string         `json:"status,omitempty"`
 	Provisioning   Provisioning    `json:"provisioning"`
 	AgentType      AgentType       `json:"agentType"`
-	Configurations *Configurations `json:"configurations,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 	HealthChecks   *HealthChecks   `json:"healthChecks,omitempty"`
 	Build          *Build          `json:"build,omitempty"`
@@ -292,38 +291,6 @@ func (o *AgentResponse) SetAgentType(v AgentType) {
 	o.AgentType = v
 }
 
-// GetConfigurations returns the Configurations field value if set, zero value otherwise.
-func (o *AgentResponse) GetConfigurations() Configurations {
-	if o == nil || IsNil(o.Configurations) {
-		var ret Configurations
-		return ret
-	}
-	return *o.Configurations
-}
-
-// GetConfigurationsOk returns a tuple with the Configurations field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *AgentResponse) GetConfigurationsOk() (*Configurations, bool) {
-	if o == nil || IsNil(o.Configurations) {
-		return nil, false
-	}
-	return o.Configurations, true
-}
-
-// HasConfigurations returns a boolean if a field has been set.
-func (o *AgentResponse) HasConfigurations() bool {
-	if o != nil && !IsNil(o.Configurations) {
-		return true
-	}
-
-	return false
-}
-
-// SetConfigurations gets a reference to the given Configurations and assigns it to the Configurations field.
-func (o *AgentResponse) SetConfigurations(v Configurations) {
-	o.Configurations = &v
-}
-
 // GetInputInterface returns the InputInterface field value if set, zero value otherwise.
 func (o *AgentResponse) GetInputInterface() InputInterface {
 	if o == nil || IsNil(o.InputInterface) {
@@ -569,9 +536,6 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["provisioning"] = o.Provisioning
 	toSerialize["agentType"] = o.AgentType
-	if !IsNil(o.Configurations) {
-		toSerialize["configurations"] = o.Configurations
-	}
 	if !IsNil(o.InputInterface) {
 		toSerialize["inputInterface"] = o.InputInterface
 	}

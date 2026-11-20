@@ -53,6 +53,13 @@ type RouteMeta struct {
 	// Zero means record every call. Non-zero only for routes a machine polls on
 	// a timer, where one record per request would bury everything else.
 	Coalesce time.Duration
+	// FailClosed writes an intent record before the handler runs and refuses
+	// the request when it cannot be written (modkit.AuditFailClosed).
+	FailClosed bool
+	// ScopeFromPath names the record's project and environment from the
+	// request's path and query, for module routes, whose handlers name only
+	// what they acted on.
+	ScopeFromPath bool
 }
 
 var pathParamPattern = regexp.MustCompile(`\{([^}]+)\}`)
@@ -90,6 +97,50 @@ func NewRouteMetaForSurface(pattern string, params []string, perms []rbac.Permis
 	if meta.Action == "" {
 		panic(fmt.Sprintf("audit: cannot derive an action for audited route %q; "+
 			"add an entry to actionOverrides in audit/policy.go", pattern))
+	}
+	return meta
+}
+
+// RoutePolicy is what a module route declares about its audit record, in
+// place of the core's tables of overrides, sensitive reads and coalesce
+// windows, which are keyed by core route patterns.
+type RoutePolicy struct {
+	// Action, when set, names the route's action instead of its permission.
+	Action Action
+	// Read records the route even though it is a read.
+	Read bool
+	// Coalesce records the route at most once per caller per window.
+	Coalesce time.Duration
+	// FailClosed refuses the request when its intent record cannot be written.
+	FailClosed bool
+}
+
+// NewRouteMetaWithPolicy resolves the audit policy for a module route. As for
+// a core route, every route that changes state is audited, and one that
+// yields no action panics.
+func NewRouteMetaWithPolicy(pattern string, params []string, perms []rbac.Permission, surface Surface, p RoutePolicy) RouteMeta {
+	method, path := splitPattern(pattern)
+	meta := RouteMeta{
+		Pattern:       pattern,
+		Method:        method,
+		Path:          path,
+		Params:        params,
+		Perms:         perms,
+		Audited:       shouldAudit(method, path) || p.Read || p.FailClosed,
+		Surface:       surface,
+		Coalesce:      p.Coalesce,
+		FailClosed:    p.FailClosed,
+		ScopeFromPath: true,
+	}
+	if !meta.Audited {
+		return meta
+	}
+	meta.Action = p.Action
+	if meta.Action == "" {
+		meta.Action = deriveAction(method, path, perms)
+	}
+	if meta.Action == "" {
+		panic(fmt.Sprintf("audit: cannot derive an action for audited route %q; name it with modkit.Audit", pattern))
 	}
 	return meta
 }
@@ -133,9 +184,9 @@ func shouldAudit(method, path string) bool {
 // nonMutatingWritePaths are POST routes that change no state. They are excluded
 // to keep the trail signal-dense.
 //
-// Deliberately narrow: POST /repositories/* and mcp-proxies/fetch-server-info
-// are also technically reads, but both make outbound calls with caller-supplied
-// credentials, so they stay audited.
+// Deliberately narrow: mcp-proxies/fetch-server-info is also technically a
+// read, but it makes outbound calls with caller-supplied credentials, so it
+// stays audited.
 var nonMutatingWritePaths = map[string]bool{
 	// Suggests an available agent name. Pure function, no persistence.
 	"/orgs/{orgName}/utils/generate-name": true,
@@ -158,58 +209,16 @@ var nonMutatingWritePaths = map[string]bool{
 // would produce millions of near-identical records and bury everything else.
 // One record per gateway per window still answers the question that matters —
 // which gateway pulled key material, and when it started.
-var coalesceWindows = map[string]time.Duration{
-	"/llm-providers/api-keys": 5 * time.Minute,
-	"/llm-proxies/api-keys":   5 * time.Minute,
-	"/apis/api-keys":          5 * time.Minute,
-
-	// The gateway failure summary answers 503 when the fleet is over its
-	// failure threshold, so it is built to be a monitor's target and will be
-	// polled on a timer. Coalesced for the same reason as the bulk-sync routes
-	// above: the record worth keeping is that the platform-admin org read every
-	// tenant's fleet and when it started, not each poll in a degraded hour.
-	"/platform/gateways/failure-summary": 5 * time.Minute,
-}
+// The AI Gateway's polled routes declare theirs with modkit.AuditCoalesce.
+var coalesceWindows = map[string]time.Duration{}
 
 var sensitiveReadPaths = map[string]bool{
 	// Credential material.
-	"/orgs/{orgName}/git-secrets":                                                                                     true,
-	"/orgs/{orgName}/llm-providers/{id}/api-keys":                                                                     true,
-	"/orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys":                                                   true,
-	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys":                            true,
-	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys":   true,
-	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys": true,
-	"/orgs/{orgName}/gateways/{gatewayID}/tokens":                                                                     true,
-	"/orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                                         true,
-	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":                                               true,
-
-	// Internal surface: the gateway bulk-sync endpoints hand real key material
-	// to a data-plane gateway. The public equivalents above are audited, and a
-	// compromised gateway credential harvesting keys is exactly what these
-	// records would show. Coalesced — see coalesceWindows.
-	"/llm-providers/api-keys": true,
-	"/llm-proxies/api-keys":   true,
-	"/apis/api-keys":          true,
+	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities": true,
 
 	// Security configuration — who holds which privilege.
-	"/orgs/{orgName}/identities/permissions":                          true,
-	"/orgs/{orgName}/identities/roles/{roleID}/assignments":           true,
-	"/orgs/{orgName}/gateways/{gatewayID}/identity-providers":         true,
-	"/orgs/{orgName}/environments/{environmentId}/identity-providers": true,
-
-	// Cross-tenant infrastructure state. This route discloses every
-	// organization's gateway fleet health to the platform-admin OU, so who read
-	// it and when is worth keeping even though nothing changed. It is also the
-	// only route here that is not org-scoped, which is the reason to record it
-	// rather than a reason to skip it.
-	//
-	// Read its records with one caveat: the route answers 503 to report a
-	// degraded fleet, and outcomeForStatus maps every status at or above 400 to
-	// OutcomeFailure. So a successful read of an unhealthy fleet is recorded as
-	// a failed gateway:read. The 503 is about the gateways, not about this
-	// request — statusCode tells them apart, outcome does not. Coalesced; see
-	// coalesceWindows.
-	"/platform/gateways/failure-summary": true,
+	"/orgs/{orgName}/identities/permissions":                true,
+	"/orgs/{orgName}/identities/roles/{roleID}/assignments": true,
 }
 
 // actionOverrides maps a route path to the action it actually performs, for
@@ -221,10 +230,8 @@ var sensitiveReadPaths = map[string]bool{
 //  1. One permission gates several distinct operations. Every API-key route is
 //     gated by "*:api-key-manage", so create, rotate and revoke would otherwise
 //     be indistinguishable — precisely the distinction an auditor needs.
-//  2. The permission names a different resource than the operation acts on
-//     (publish-kind is gated by agent-kind:create but acts on an agent).
-//  3. The permission is narrower or broader than the effect
-//     (deployments/state is gated by agent:suspend but also resumes).
+//  2. The permission names a different resource than the operation acts on.
+//  3. The permission is narrower or broader than the effect.
 //
 // Keys are matched against the path with the method prefix stripped, so the
 // same path under different methods maps through methodActionOverrides first.
@@ -247,25 +254,6 @@ var actionOverrides = map[string]Action{
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}":    "event-subscription:update",
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}": "event-subscription:delete",
 
-	// Gating permission names a different resource than the effect.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",
-
-	// One permission, several operations — deployment lifecycle.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments": "agent:deploy",
-	// Gated on the environment tier, not on a promote-specific scope, so the
-	// route declares no permission that names the operation. Without this
-	// override there is nothing to derive from and registration panics.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote":                    "agent:promote",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state":          "agent:change-deployment-state",
-	"POST /orgs/{orgName}/llm-providers/{providerId}/deployments":                            "llm-provider:deploy",
-	"POST /orgs/{orgName}/llm-providers/{providerId}/deployments/undeploy":                   "llm-provider:undeploy",
-	"POST /orgs/{orgName}/llm-providers/{providerId}/deployments/restore":                    "llm-provider:restore",
-	"DELETE /orgs/{orgName}/llm-providers/{providerId}/deployments/{deploymentId}":           "llm-provider:delete-deployment",
-	"POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments":                  "llm-proxy:deploy",
-	"POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/undeploy":         "llm-proxy:undeploy",
-	"POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/restore":          "llm-proxy:restore",
-	"DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/{deploymentId}": "llm-proxy:delete-deployment",
-
 	// One permission, several operations — agent OAuth identity.
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":        "agent-identity:provision",
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":       "agent-identity:regenerate-secret",
@@ -273,40 +261,7 @@ var actionOverrides = map[string]Action{
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities/retry": "agent-identity:retry-provisioning",
 
 	// One permission, several operations — agent tokens.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token":                    "agent-token:mint",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/tracing-token/regenerate": "agent-token:regenerate-tracing",
-
-	// One permission, several operations — agent API keys.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys":             "api-key:create",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test":        "api-key:issue-test",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}":    "api-key:rotate",
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}": "api-key:revoke",
-
-	// One permission, several operations — LLM provider / proxy API keys.
-	"POST /orgs/{orgName}/llm-providers/{id}/api-keys":                               "api-key:create",
-	"PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}":                      "api-key:rotate",
-	"DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}":                   "api-key:revoke",
-	"POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys":             "api-key:create",
-	"PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}":    "api-key:rotate",
-	"DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}": "api-key:revoke",
-
-	// One permission, several operations — model/MCP config API keys.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys":             "api-key:create",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}":    "api-key:rotate",
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}": "api-key:revoke",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys":               "api-key:create",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}":      "api-key:rotate",
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}":   "api-key:revoke",
-
-	// One permission, several operations — gateway tokens and configuration.
-	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                         "gateway-token:rotate",
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":             "gateway-token:revoke",
-	"POST /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":             "gateway-token:rotate",
-	"DELETE /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens/{tokenID}": "gateway-token:revoke",
-	"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":           "gateway:assign-environment",
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":         "gateway:unassign-environment",
-	"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":       "gateway:set-identity-provider",
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":    "gateway:remove-identity-provider",
+	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token": "agent-token:mint",
 
 	// The privilege-escalation path. All four are gated by role:update, and
 	// telling them apart is the whole point of an audit trail.
@@ -324,67 +279,10 @@ var actionOverrides = map[string]Action{
 	"PUT /orgs/{orgName}/identities/users/{userID}":    "user:update",
 	"DELETE /orgs/{orgName}/identities/users/{userID}": "user:delete",
 
-	// Per-environment agent identities, all gated by agent-identity:update.
-	"POST /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}/members/add":      "agent-identity:add-group-member",
-	"POST /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}/members/remove":   "agent-identity:remove-group-member",
-	"POST /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}/assignments/add":    "agent-identity:assign-role",
-	"POST /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}/assignments/remove": "agent-identity:unassign-role",
-
-	// The env-Thunder system-client credential, gated by org:manage-service-account.
-	"PUT /orgs/{orgName}/environments/{envID}/thunder-system-client":    "service-account:configure",
-	"DELETE /orgs/{orgName}/environments/{envID}/thunder-system-client": "service-account:remove",
-
-	// Agent sub-resource updates, all gated by agent:update.
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters":                          "agent:update-build-parameters",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations":                            "agent:update-configurations",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings":                           "agent:update-deploy-settings",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs":                          "agent:update-resource-configs",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/refresh":  "agent:refresh-card",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source":    "agent:set-card-source",
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source": "agent:remove-card-source",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy":            "agent:set-a2a-proxy",
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy":         "agent:remove-a2a-proxy",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy/refresh":   "agent:refresh-a2a-proxy",
-
-	// Agent-kind versions, gated by the coarse kind update/delete permissions.
-	"POST /orgs/{orgName}/agent-kinds/{kindName}/versions":                "agent-kind:add-version",
-	"DELETE /orgs/{orgName}/agent-kinds/{kindName}/versions/{versionTag}": "agent-kind:delete-version",
-
-	// Catalog is a distinct sub-resource of an LLM provider.
-	"PUT /orgs/{orgName}/llm-providers/{providerId}/catalog": "llm-provider:update-catalog",
-
-	// Internal gateway server. These carry no rbac.Permission — the gateway
-	// authenticates with an api-key header checked inside each handler — so
-	// each needs an explicit action.
-	"POST /gateways/{gatewayId}/manifest": "gateway:push-manifest",
-	"GET /llm-providers/api-keys":         "api-key:sync",
-	"GET /llm-proxies/api-keys":           "api-key:sync",
-	"GET /apis/api-keys":                  "api-key:sync",
-	// The gateway's startup sync. Reads expressed as POST because the ids go in
-	// the body; the batch carries the same resolved secrets as the per-artifact
-	// pulls.
-	"POST /deployments/fetch-batch": "deployment:sync",
-	"POST /artifacts/exists":        "artifact:check-exists",
-
-	// Reads expressed as POST because they carry a request body.
-	"POST /orgs/{orgName}/repositories/branches":         "repository:list-branches",
-	"POST /orgs/{orgName}/repositories/commits":          "repository:list-commits",
-	"POST /orgs/{orgName}/mcp-proxies/fetch-server-info": "mcp-server:fetch-server-info",
-
 	// Sensitive reads.
-	"GET /orgs/{orgName}/git-secrets":                                                                                     "git-secret:list",
-	"GET /orgs/{orgName}/llm-providers/{id}/api-keys":                                                                     "api-key:list",
-	"GET /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys":                                                   "api-key:list",
-	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys":                            "api-key:list",
-	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys":   "api-key:list",
-	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys": "api-key:list",
-	"GET /orgs/{orgName}/gateways/{gatewayID}/tokens":                                                                     "gateway-token:list",
-	"GET /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens":                                                         "gateway-token:list",
-	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":                                               "agent-identity:read",
-	"GET /orgs/{orgName}/identities/permissions":                                                                          "permission:list",
-	"GET /orgs/{orgName}/identities/roles/{roleID}/assignments":                                                           "role:list-assignments",
-	"GET /orgs/{orgName}/gateways/{gatewayID}/identity-providers":                                                         "gateway:list-identity-providers",
-	"GET /orgs/{orgName}/environments/{environmentId}/identity-providers":                                                 "environment:list-identity-providers",
+	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities": "agent-identity:read",
+	"GET /orgs/{orgName}/identities/permissions":                            "permission:list",
+	"GET /orgs/{orgName}/identities/roles/{roleID}/assignments":             "role:list-assignments",
 }
 
 // methodVerbs map an HTTP method to a verb, used as the last fallback for
@@ -417,41 +315,17 @@ func deriveAction(method, path string, perms []rbac.Permission) Action {
 	if override, ok := actionOverrides[method+" "+path]; ok {
 		return override
 	}
-	named := namingPermissions(perms)
-	if len(named) == 1 {
-		return Action(named[0])
+	if len(perms) == 1 {
+		return Action(perms[0])
 	}
-	if len(named) > 1 {
+	if len(perms) > 1 {
 		verb := methodVerbs[method]
 		if verb == "" {
 			verb = strings.ToLower(method)
 		}
-		return Action(Action(named[0]).Resource() + ":" + verb)
+		return Action(Action(perms[0]).Resource() + ":" + verb)
 	}
 	return ""
-}
-
-// axisPermissions gate an operation on where it lands rather than on what it is.
-// They are an authorization axis of their own, held in addition to the
-// capability the route demands, so they never describe the operation.
-var axisPermissions = map[rbac.Permission]bool{
-	rbac.AgentEnvNonProduction: true,
-	rbac.AgentEnvProduction:    true,
-}
-
-// namingPermissions returns the permissions that can name an action — every one
-// the route declares, less the axes. Filtering here rather than special-casing
-// each tier-gated route is what makes the fail-closed guard cover the next one:
-// a route gated only on an axis derives nothing and panics at startup, instead
-// of quietly registering "agent:env-non-production" as an action.
-func namingPermissions(perms []rbac.Permission) []rbac.Permission {
-	named := make([]rbac.Permission, 0, len(perms))
-	for _, perm := range perms {
-		if !axisPermissions[perm] {
-			named = append(named, perm)
-		}
-	}
-	return named
 }
 
 // OverrideKeys returns every actionOverrides key. Used by the coverage test to

@@ -80,7 +80,7 @@ func TestPostgresBaselineAppliesAndEnforcesKeys(t *testing.T) {
 
 	var locks []string
 	require.NoError(t, scratch.Raw("SELECT name FROM locks ORDER BY name").Scan(&locks).Error)
-	require.Equal(t, []string{"agent_identity.reconciler", "gateway.drift_scan"}, locks)
+	require.Equal(t, []string{"agent_identity.reconciler"}, locks)
 
 	assertBaselineKeys(t, scratch)
 }

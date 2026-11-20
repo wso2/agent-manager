@@ -43,7 +43,7 @@ func TestRender(t *testing.T) {
 }
 
 func TestRender_NotACloudEvent(t *testing.T) {
-	text := Render(Message{ID: "evt_2", Type: events.TypePrefix + "agent.build_failed", Body: []byte("x")})
-	assert.Equal(t, "Agent Manager · Agent build failed", text.Title)
-	assert.Contains(t, text.Body, "Event: agent.build_failed (evt_2)")
+	text := Render(Message{ID: "evt_2", Type: events.TypePrefix + "project.deleted", Body: []byte("x")})
+	assert.Equal(t, "Agent Manager · Project deleted", text.Title)
+	assert.Contains(t, text.Body, "Event: project.deleted (evt_2)")
 }

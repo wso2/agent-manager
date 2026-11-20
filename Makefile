@@ -237,6 +237,8 @@ console-logs:
 amctl-gen-client:
 	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@oapi-codegen -config cli/pkg/clients/aigateway/gen/oapi-codegen.yaml agent-manager-service/modules/aigateway/api/openapi.yaml
+	@oapi-codegen -config cli/pkg/clients/aigateway/gen/oapi-codegen-client.yaml agent-manager-service/modules/aigateway/api/openapi.yaml
 	@echo "amctl client generated successfully"
 
 # amctl CLI build targets
@@ -259,7 +261,7 @@ check-contract-drift:
 
 # E2E tests
 # Run all (parallel):    make e2e-test
-# Run one suite:         make e2e-test SUITE=monitors
+# Run one suite:         make e2e-test SUITE=agent
 # Run a suite group:     make e2e-test SUITE=cli            (recursive: all suites under tests/cli/)
 # Run with focus filter to run a specific test case: make e2e-test FOCUS="Project Deletion Conflict"
 # A focused run (FOCUS) runs serially (--procs=1); everything else uses -p.

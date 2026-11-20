@@ -3,23 +3,29 @@
 A small .NET agent that sends OpenTelemetry GenAI traces to WSO2 Agent Manager
 (AMP) as an external agent. It's the .NET version of the Python
 [`manual-instrumentation-agent`](../manual-instrumentation-agent) and uses the
-same trace contract, so it shows up in the AMP Console the same way.
+same trace contract, so its traces have the same shape.
+
+> [!NOTE]
+> AMP Lite does not store traces and has no traces page. To see the traces
+> this sample emits, run your own OpenTelemetry backend and point
+> `AMP_OTEL_ENDPOINT` at its OTLP/HTTP endpoint. See the
+> [user guide](../../docs/user-guide.md).
 
 ## What this shows
 
 Python agents get zero-code tracing from `amp-instrument`, and Ballerina agents
 from `ballerinax/amp`. There's no equivalent for .NET yet, so a .NET agent
 configures its own OTLP exporter. You run the agent yourself, and it pushes
-traces to AMP's OTLP endpoint. AMP registers the agent and gives you an API key
-to authenticate the traces you send.
+traces to the OTLP endpoint in `AMP_OTEL_ENDPOINT`. AMP registers the agent and
+gives you its API key, which the exporter sends with each batch of spans.
 
 The agent itself is a small weather assistant built with
 [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/overview/)
 (Microsoft's newer agent SDK, built on Microsoft.Extensions.AI). Agent Framework
 emits the OpenTelemetry
 [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
-out of the box, so its spans render in the Console and feed evaluators just like
-an auto-instrumented Python agent does.
+out of the box, so its spans follow the same contract as an auto-instrumented
+Python agent's.
 
 ## How it works
 
@@ -87,20 +93,27 @@ see a `10.x` version).
 
 Register the agent first:
 
-1. Sign in to the console at <http://localhost:9000> as `admin` (the password is
-   `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
-2. Open the **Default** project, click **Add Agent**, and register an agent
-   named `Weather Agent`.
-3. In the **Set up agent** panel that opens, pick a token duration and click
-   **Generate**. Copy the API key it shows. `AMP_OTEL_ENDPOINT` is the AI
-   Gateway's `/otel` path, without `/v1/traces`.
+1. Sign in to the console at <http://localhost:9000> (the port is
+   `AMP_API_PORT` in `deployments/standalone/.env`) as `admin`; the password
+   is `AMP_ADMIN_PASSWORD` in the same file.
+2. A new install has no projects, so create one first: click **Add project**
+   (**Create project** on the organization overview), enter a **Name** and
+   click **Create**.
+3. Open the project, click **New agent**, enter the name `Weather Agent` and
+   click **Register**.
+4. The **Setup Agent** panel opens with an API key already generated. Copy it
+   as `AMP_AGENT_API_KEY`; it is shown only once. To change how long it is
+   valid, pick another **Token Duration** and click **Regenerate**.
+
+`AMP_OTEL_ENDPOINT` is the OTLP/HTTP base URL of your own OpenTelemetry
+collector, without `/v1/traces`.
 
 Then set the environment variables and run it:
 
 ```bash
 cd samples/dotnet-agent
 
-export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_OTEL_ENDPOINT="http://localhost:4318"   # your own OpenTelemetry collector
 export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY="<your-openai-key>"
 
@@ -119,17 +132,17 @@ curl -X POST http://localhost:8000/chat \
   -d '{"session_id": "demo-1", "message": "What is the weather in Tokyo?"}'
 ```
 
-You get back the agent's answer, and one full trace goes to AMP behind it.
+You get back the agent's answer, and one full trace goes to your collector
+behind it.
 
 If you want to watch the spans locally while you test, set `AMP_OTEL_CONSOLE=true`
 before running. They print to the console as well as getting exported.
 
 ## See the traces
 
-Open the agent in the AMP Console and go to **OBSERVABILITY → Traces**. Each
-`/chat` call shows up as one trace, with the per-kind icons, the model and token
-chips, and the input and output. The spans follow the contract, so evaluators
-run against them too.
+Open them in the backend behind your collector; AMP Lite does not store them.
+Each `/chat` call shows up as one trace, with the model, the token counts, and
+the input and output.
 
 ## Notes
 
@@ -151,7 +164,7 @@ run against them too.
 
 | File | Role |
 |---|---|
-| `AmpTelemetry.cs` | Configures the OpenTelemetry OTLP exporter to AMP. The `init_otel()` equivalent. |
+| `AmpTelemetry.cs` | Configures the OpenTelemetry OTLP exporter to `AMP_OTEL_ENDPOINT`. The `init_otel()` equivalent. |
 | `Agent.cs` | The Microsoft Agent Framework agent and its `UseOpenTelemetry` wiring. |
 | `Program.cs` | ASP.NET Core minimal API (`POST /chat`, `GET /healthz`). Calls `AmpTelemetry.Configure()`. |
 | `dotnet-agent.csproj` | Pinned package references. |

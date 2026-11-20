@@ -180,17 +180,9 @@ export function EditDeployConfigDrawer({
       return;
     }
     if (seededRef.current || !configurations) return;
-    const cfg = configurations.configurations;
-    setEnv(sortSystemLast(cfg?.env?.map(
-      (e) => ({
-        key: e.key,
-        value: e.value ?? "",
-        isSensitive: e.isSensitive,
-        secretRef: e.secretRef,
-        isSystem: e.isSystem,
-      }),
-    ) ?? []));
-    setFiles(seedFileMountRows(cfg?.files));
+    // The gateway's configuration read carries no env vars or file mounts.
+    setEnv([]);
+    setFiles(seedFileMountRows(undefined));
     setTracingEnabled(configurations.enableAutoInstrumentation ?? false);
     setInstrumentationVersion("");
     setVersionDirty(false);

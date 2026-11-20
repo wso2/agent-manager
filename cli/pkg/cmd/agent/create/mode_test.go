@@ -137,7 +137,7 @@ func TestCreate_FileMode_External_TokenFlow(t *testing.T) {
 				Name:         "testing",
 				DisplayName:  "Testing",
 				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.External},
 				ProjectName:  "triage",
 				Uuid:         "u",
 				CreatedAt:    time.Date(2026, 6, 11, 12, 0, 0, 0, time.UTC),
@@ -186,12 +186,12 @@ func TestCreate_FileMode_RejectsContentFlags(t *testing.T) {
 	cmd := testCreateCmd(t, ios, nil, "")
 	cmd.SetArgs([]string{
 		"agent", "create", "-f", "agent.yaml", "--project", "triage",
-		"--display-name", "X", "--env", "A=1", "--port", "9000",
+		"--display-name", "X", "--llm-provider", "openai", "--port", "9000",
 	})
 	err := cmd.Execute()
 	details := mustFlagDetails(t, err)
 	assertContains(t, details, "--display-name is not allowed with --file")
-	assertContains(t, details, "--env is not allowed with --file")
+	assertContains(t, details, "--llm-provider is not allowed with --file")
 	assertContains(t, details, "--port is not allowed with --file")
 }
 

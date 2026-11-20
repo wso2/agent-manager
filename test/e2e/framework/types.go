@@ -87,11 +87,6 @@ type EnvironmentVariable struct {
 	SecretRef   string `json:"secretRef,omitempty"`
 }
 
-type Configurations struct {
-	Env                       []EnvironmentVariable `json:"env,omitempty"`
-	EnableAutoInstrumentation *bool                 `json:"enableAutoInstrumentation,omitempty"`
-}
-
 type InputInterfaceSchema struct {
 	Path string `json:"path"`
 }
@@ -160,23 +155,18 @@ type EnvironmentVariableConfig struct {
 	Name string `json:"name"`
 }
 
-type ModelConfigRequest struct {
-	ProviderName         string                      `json:"providerName"`
-	Configuration        map[string]interface{}      `json:"configuration,omitempty"`
-	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
-}
-
 type CreateAgentRequest struct {
-	Name           string               `json:"name"`
-	DisplayName    string               `json:"displayName"`
-	Description    string               `json:"description,omitempty"`
-	Provisioning   Provisioning         `json:"provisioning"`
-	AgentType      AgentType            `json:"agentType"`
-	Build          *BuildConfig         `json:"build,omitempty"`
-	Configurations *Configurations      `json:"configurations,omitempty"`
-	RuntimeConfigs *RuntimeConfigs      `json:"runtimeConfigs,omitempty"`
-	InputInterface *InputInterface      `json:"inputInterface,omitempty"`
-	ModelConfig    []ModelConfigRequest `json:"modelConfig,omitempty"`
+	Name           string          `json:"name"`
+	DisplayName    string          `json:"displayName"`
+	Description    string          `json:"description,omitempty"`
+	Provisioning   Provisioning    `json:"provisioning"`
+	AgentType      AgentType       `json:"agentType"`
+	Build          *BuildConfig    `json:"build,omitempty"`
+	RuntimeConfigs *RuntimeConfigs `json:"runtimeConfigs,omitempty"`
+	InputInterface *InputInterface `json:"inputInterface,omitempty"`
+	// Extensions holds module blocks keyed by module name, such as
+	// "ai-gateway": {"modelConfig": [...], "mcpConfig": [...]}.
+	Extensions map[string]map[string]any `json:"extensions,omitempty"`
 }
 
 type UpdateAgentRequest struct {
@@ -318,20 +308,6 @@ type ProjectListResponse struct {
 // Environment
 // ---------------------------------------------------------------------------
 
-type CreateEnvironmentRequest struct {
-	Name         string `json:"name"`
-	DisplayName  string `json:"displayName"`
-	Description  string `json:"description,omitempty"`
-	DataplaneRef string `json:"dataplaneRef"`
-	DnsPrefix    string `json:"dnsPrefix"`
-	IsProduction *bool  `json:"isProduction,omitempty"`
-}
-
-type UpdateEnvironmentRequest struct {
-	DisplayName *string `json:"displayName,omitempty"`
-	Description *string `json:"description,omitempty"`
-}
-
 type EnvironmentResponse struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`
@@ -428,22 +404,6 @@ type DeploymentPipelineListResponse struct {
 	Total               int                          `json:"total"`
 	Limit               int                          `json:"limit"`
 	Offset              int                          `json:"offset"`
-}
-
-// ---------------------------------------------------------------------------
-// Catalog / Agent Kinds
-// ---------------------------------------------------------------------------
-
-// AgentKindListItem is one entry in the /agent-kinds list response. The /agent-kinds
-// endpoint is the source of truth for published kinds, so kind-existence checks query this.
-type AgentKindListItem struct {
-	Name          string `json:"name"`
-	LatestVersion string `json:"latestVersion"`
-}
-
-type AgentKindListResponse struct {
-	Kinds []AgentKindListItem `json:"kinds"`
-	Total int                 `json:"total"`
 }
 
 // ---------------------------------------------------------------------------
@@ -840,33 +800,24 @@ type CreateAgentAPIKeyResponse struct {
 // Agent Configuration (env vars, resource configs)
 // ---------------------------------------------------------------------------
 
-type ConfigurationItem struct {
-	Key         string `json:"key"`
-	Value       string `json:"value,omitempty"`
-	IsSensitive bool   `json:"isSensitive"`
-	IsSystem    bool   `json:"isSystem"`
-	SecretRef   string `json:"secretRef,omitempty"`
+// AgentBinding is one LLM or MCP binding the AI Gateway provisions for an
+// agent, with its provisioning state.
+type AgentBinding struct {
+	Kind      string `json:"kind"`
+	Position  int    `json:"position"`
+	Target    string `json:"target"`
+	State     string `json:"state"`
+	LastError string `json:"lastError,omitempty"`
+	ConfigID  string `json:"configId,omitempty"`
 }
 
-type ConfigurationFile struct {
-	Key         string `json:"key,omitempty"`
-	MountPath   string `json:"mountPath,omitempty"`
-	IsSensitive bool   `json:"isSensitive,omitempty"`
-	SecretRef   string `json:"secretRef,omitempty"`
-}
-
-// AgentConfigurations mirrors the API's "configurations" object, which groups
-// environment variables and file mounts separately (not a flat list).
-type AgentConfigurations struct {
-	Env   []ConfigurationItem `json:"env"`
-	Files []ConfigurationFile `json:"files"`
-}
-
-type ConfigurationResponse struct {
-	ProjectName    string              `json:"projectName"`
-	AgentName      string              `json:"agentName"`
-	Environment    string              `json:"environment"`
-	Configurations AgentConfigurations `json:"configurations"`
+// AgentGatewayConfiguration mirrors the AI Gateway's agent configuration read.
+type AgentGatewayConfiguration struct {
+	ProjectName          string         `json:"projectName"`
+	AgentName            string         `json:"agentName"`
+	Environment          string         `json:"environment"`
+	EnableApiKeySecurity bool           `json:"enableApiKeySecurity"`
+	Bindings             []AgentBinding `json:"bindings"`
 }
 
 type ResourceRequests struct {

@@ -24,7 +24,7 @@ import (
 	"path"
 	"strings"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
@@ -70,10 +70,10 @@ func CheckCardURL(flag, raw string, proxied bool) error {
 }
 
 // ApplySource saves the card URL and, when proxy is set, routes the card through the gateway.
-func ApplySource(ctx context.Context, client *amsvc.ClientWithResponses, t Target, cardURL string, proxy bool) (SourceResult, error) {
+func ApplySource(ctx context.Context, client *aigateway.ClientWithResponses, t Target, cardURL string, proxy bool) (SourceResult, error) {
 	res := SourceResult{URL: cardURL}
 
-	src, err := client.SetAgentCardSourceWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment, amsvc.SetAgentCardSourceRequest{Url: cardURL})
+	src, err := client.SetAgentCardSourceWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment, aigateway.SetAgentCardSourceRequest{Url: cardURL})
 	if err != nil {
 		return res, clierr.Newf(clierr.Transport, "%v", err)
 	}
@@ -98,7 +98,7 @@ func ApplySource(ctx context.Context, client *amsvc.ClientWithResponses, t Targe
 		return res, nil
 	}
 
-	put, err := client.SetA2AProxyWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment, amsvc.SetA2AProxyRequest{})
+	put, err := client.SetA2AProxyWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment, aigateway.SetA2AProxyRequest{})
 	if err != nil {
 		return res, partialFailure(res, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -110,7 +110,7 @@ func ApplySource(ctx context.Context, client *amsvc.ClientWithResponses, t Targe
 	return res, nil
 }
 
-func sourceError(src *amsvc.SetAgentCardSourceResp) clierr.CLIError {
+func sourceError(src *aigateway.SetAgentCardSourceResp) clierr.CLIError {
 	e := cmdutil.ErrorFromServer(src.HTTPResponse,
 		cmdutil.FirstNonNil(src.JSON400, src.JSON403, src.JSON404, src.JSON409, src.JSON500))
 	if strings.Contains(e.Message, "publicly reachable") {

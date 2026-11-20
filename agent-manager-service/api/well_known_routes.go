@@ -19,10 +19,11 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -33,12 +34,27 @@ type protectedResourceMetadata struct {
 	ScopesSupported        []string `json:"scopes_supported,omitempty"`
 }
 
-func registerWellKnownRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /.well-known/oauth-protected-resource", protectedResourceMetadataHandler(false))
-	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", protectedResourceMetadataHandler(true))
+func registerWellKnownRoutes(mux *http.ServeMux, modules Modules) {
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource", protectedResourceMetadataHandler(false, nil))
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", protectedResourceMetadataHandler(true, modules))
 }
 
-func protectedResourceMetadataHandler(mcpResource bool) http.HandlerFunc {
+// mcpScopes are the scopes the MCP endpoint's tools need: the core's, then
+// those of the active modules' tools.
+func mcpScopes(modules Modules) []string {
+	scopes := rbac.MainMCPScopes()
+	if modules == nil {
+		return scopes
+	}
+	for _, t := range modules.MCPTools() {
+		if s := t.Permission.Scope(); !slices.Contains(scopes, s) {
+			scopes = append(scopes, s)
+		}
+	}
+	return scopes
+}
+
+func protectedResourceMetadataHandler(mcpResource bool, modules Modules) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := config.GetConfig()
 
@@ -57,7 +73,7 @@ func protectedResourceMetadataHandler(mcpResource bool) http.HandlerFunc {
 		scopes := cfg.OAuthScopesSupported
 		if mcpResource {
 			resource += "/mcp"
-			scopes = rbac.MainMCPScopes()
+			scopes = mcpScopes(modules)
 		}
 
 		body := protectedResourceMetadata{

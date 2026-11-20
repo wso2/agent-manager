@@ -63,11 +63,11 @@ func (s *describeFailingSubscriptions) Describe(
 func TestEventsController_SavedSubscriptionSurvivesDescribeFailure(t *testing.T) {
 	saved := &models.EventSubscription{
 		ID: uuid.New(), Scope: models.EventScopeOrg, Name: "Alerts", DestinationID: uuid.New(),
-		EventTypes: []string{"agent.deployed"}, Environments: []string{}, Enabled: true,
+		EventTypes: []string{"agent.updated"}, Environments: []string{}, Enabled: true,
 	}
 	h := NewEventsController(nil, &describeFailingSubscriptions{saved: saved}).ForScope(models.EventScopeOrg)
 
-	body := `{"name":"Alerts","destinationId":"` + saved.DestinationID.String() + `","eventTypes":["agent.deployed"]}`
+	body := `{"name":"Alerts","destinationId":"` + saved.DestinationID.String() + `","eventTypes":["agent.updated"]}`
 	w := httptest.NewRecorder()
 	h.CreateSubscription(w, httptest.NewRequest(http.MethodPost, "/orgs/acme/events/subscriptions", strings.NewReader(body)))
 	require.Equal(t, http.StatusCreated, w.Code, "the subscription is saved; a 500 would make a retry create it twice")

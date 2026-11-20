@@ -35,8 +35,7 @@ var CorePermissions = []Permission{
 	ProjectCreate, ProjectRead, ProjectUpdate, ProjectDelete,
 	EnvironmentCreate, EnvironmentRead, EnvironmentUpdate, EnvironmentDelete,
 	AgentCreate, AgentRead, AgentUpdate, AgentDelete, AgentBuild,
-	AgentEnvNonProduction, AgentEnvProduction, AgentRollback, AgentSuspend,
-	AgentTokenManage, AgentAPIKeyManage,
+	AgentSuspend, AgentTokenManage,
 	EventsRead, EventsManage,
 	RoleCreate, RoleRead, RoleUpdate, RoleDelete,
 	GroupCreate, GroupRead, GroupUpdate, GroupDelete,
@@ -157,17 +156,9 @@ func RoleGrants(role string) []Permission {
 	return out
 }
 
-// moduleOwnedResources are permission resources that a module, not the core,
-// owns. A module may take one of these as its name: the gateway module
-// declares gateway:* in its manifest, under the scope names they always had.
-var moduleOwnedResources = []string{"gateway"}
-
-// ModuleOwnedResources returns the permission resources modules own.
-func ModuleOwnedResources() []string { return slices.Clone(moduleOwnedResources) }
-
 // ReservedResources are the names a module cannot take: the resource part of
-// every permission the core and the built-in legacy module declare (org,
-// agent, gateway, ...), and the resource server's own handle. A module named
+// every permission the core declares (org, agent, events, ...), and the
+// resource server's own handle. A module named
 // after one would add a second resource of that name to the identity
 // provider's resource server and share its permission namespace.
 func ReservedResources() []string {
@@ -175,9 +166,6 @@ func ReservedResources() []string {
 	for _, p := range PredefinedRolePermissions[RoleAdmin] {
 		resource, _, _ := strings.Cut(string(p), ":")
 		set[resource] = struct{}{}
-	}
-	for _, r := range moduleOwnedResources {
-		delete(set, r)
 	}
 	out := make([]string, 0, len(set))
 	for r := range set {

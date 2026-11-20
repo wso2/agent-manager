@@ -26,7 +26,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -40,7 +40,7 @@ type capturedRequest struct {
 	rawQuery string
 }
 
-func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*amsvc.ClientWithResponses, error), *capturedRequest, func()) {
+func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*aigateway.ClientWithResponses, error), *capturedRequest, func()) {
 	t.Helper()
 	captured := &capturedRequest{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -56,12 +56,12 @@ func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*
 			}
 		}
 	}))
-	client, err := amsvc.NewClientWithResponses(server.URL)
+	client, err := aigateway.NewClientWithResponses(server.URL)
 	if err != nil {
 		server.Close()
 		t.Fatalf("new client: %v", err)
 	}
-	return func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }, captured, server.Close
+	return func(context.Context) (*aigateway.ClientWithResponses, error) { return client, nil }, captured, server.Close
 }
 
 // newTestIO returns streams in JSON mode, where assertions read the envelope.
@@ -95,11 +95,11 @@ func baseScope() render.Scope {
 
 // testGatewayCmd builds a root → gateway cobra tree for tests that exercise flag
 // parsing and validation through the RunE path.
-func testGatewayCmd(t *testing.T, ios *iostreams.IOStreams, clientFn func(context.Context) (*amsvc.ClientWithResponses, error)) *cobra.Command {
+func testGatewayCmd(t *testing.T, ios *iostreams.IOStreams, clientFn func(context.Context) (*aigateway.ClientWithResponses, error)) *cobra.Command {
 	t.Helper()
 	f := &cmdutil.Factory{
-		IOStreams:    ios,
-		AgentManager: clientFn,
+		IOStreams: ios,
+		AIGateway: clientFn,
 		Config: func() (*config.Config, error) {
 			return &config.Config{
 				CurrentInstance: "default",

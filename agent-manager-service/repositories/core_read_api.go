@@ -25,11 +25,12 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
 // coreReadAPI is the read API modules get through Runtime.Core. Every query is
 // scoped to the organization the caller names, which must be the one of the
-// request, hook or event the call is made for; it never creates one.
+// request, hook or event the call is made for; only EnsureOrg creates one.
 type coreReadAPI struct{ db *gorm.DB }
 
 // NewCoreReadAPI returns the core read API for modules.
@@ -202,11 +203,107 @@ func (c *coreReadAPI) ListEnvironments(ctx context.Context, orgID string) ([]mod
 		return nil, err
 	}
 	out := make([]modkit.Environment, 0, len(rows))
-	for _, e := range rows {
-		out = append(out, modkit.Environment{
-			ID: e.ID.String(), OrgID: e.OrgID.String(), Name: e.Name, DisplayName: e.DisplayName,
-			IsProduction: e.IsProduction, CreatedAt: e.CreatedAt,
-		})
+	for i := range rows {
+		out = append(out, toEnvironment(&rows[i]))
 	}
 	return out, nil
+}
+
+func (c *coreReadAPI) GetProjectByName(ctx context.Context, orgID, name string) (modkit.Project, error) {
+	if foreign(ctx, orgID) {
+		return modkit.Project{}, modkit.ErrNotFound
+	}
+	ids, err := parseIDs(orgID)
+	if err != nil {
+		return modkit.Project{}, err
+	}
+	var p models.Project
+	if err := c.db.WithContext(ctx).Where("org_id = ? AND name = ?", ids[0], name).First(&p).Error; err != nil {
+		return modkit.Project{}, notFound(err)
+	}
+	return toProject(&p), nil
+}
+
+func (c *coreReadAPI) GetAgentByName(ctx context.Context, orgID, projectName, name string) (modkit.Agent, error) {
+	if foreign(ctx, orgID) {
+		return modkit.Agent{}, modkit.ErrNotFound
+	}
+	ids, err := parseIDs(orgID)
+	if err != nil {
+		return modkit.Agent{}, err
+	}
+	var rows []agentWithProject
+	if err := c.agents(ctx).Where("agents.org_id = ? AND projects.name = ? AND agents.name = ?", ids[0], projectName, name).
+		Scan(&rows).Error; err != nil {
+		return modkit.Agent{}, err
+	}
+	if len(rows) == 0 {
+		return modkit.Agent{}, modkit.ErrNotFound
+	}
+	return toAgent(&rows[0]), nil
+}
+
+func toEnvironment(e *models.Environment) modkit.Environment {
+	return modkit.Environment{
+		ID: e.ID.String(), OrgID: e.OrgID.String(), Name: e.Name, DisplayName: e.DisplayName,
+		IsProduction: e.IsProduction, CreatedAt: e.CreatedAt,
+	}
+}
+
+func (c *coreReadAPI) GetEnvironmentByName(ctx context.Context, orgID, name string) (modkit.Environment, error) {
+	if foreign(ctx, orgID) {
+		return modkit.Environment{}, modkit.ErrNotFound
+	}
+	ids, err := parseIDs(orgID)
+	if err != nil {
+		return modkit.Environment{}, err
+	}
+	var e models.Environment
+	if err := c.db.WithContext(ctx).Where("org_id = ? AND name = ?", ids[0], name).First(&e).Error; err != nil {
+		return modkit.Environment{}, notFound(err)
+	}
+	return toEnvironment(&e), nil
+}
+
+// LockAgent locks the agent's row through tx, the caller's transaction, so it
+// is held until that transaction ends.
+func (c *coreReadAPI) LockAgent(ctx context.Context, tx *gorm.DB, orgID, agentID string) (modkit.Agent, error) {
+	if tx == nil {
+		return modkit.Agent{}, errors.New("modkit: LockAgent needs a transaction")
+	}
+	if foreign(ctx, orgID) {
+		return modkit.Agent{}, modkit.ErrNotFound
+	}
+	ids, err := parseIDs(orgID, agentID)
+	if err != nil {
+		return modkit.Agent{}, err
+	}
+	if err := dbx.LockRow(tx.WithContext(ctx), "agents", "id", "org_id = ? AND id = ?", ids[0], ids[1]); err != nil {
+		return modkit.Agent{}, notFound(err)
+	}
+	var rows []agentWithProject
+	if err := tx.WithContext(ctx).Table("agents").Select("agents.*, projects.name AS project_name").
+		Joins("JOIN projects ON projects.org_id = agents.org_id AND projects.id = agents.project_id").
+		Where("agents.id = ?", ids[1]).Scan(&rows).Error; err != nil {
+		return modkit.Agent{}, err
+	}
+	if len(rows) == 0 {
+		return modkit.Agent{}, modkit.ErrNotFound
+	}
+	return toAgent(&rows[0]), nil
+}
+
+// EnsureOrg creates the organization as the core does on its first request.
+func (c *coreReadAPI) EnsureOrg(ctx context.Context, orgID string) (modkit.Org, error) {
+	if foreign(ctx, orgID) {
+		return modkit.Org{}, modkit.ErrNotFound
+	}
+	if _, err := parseIDs(orgID); err != nil {
+		return modkit.Org{}, err
+	}
+	o, err := EnsureOrg(ctx, c.db, orgID)
+	if err != nil {
+		return modkit.Org{}, err
+	}
+	return modkit.Org{ID: o.ID.String(), Handle: o.Handle, DisplayName: o.DisplayName, CreatedAt: o.CreatedAt}, nil
 }

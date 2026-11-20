@@ -27,6 +27,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 )
 
@@ -126,26 +127,16 @@ func CompleteProjects(cmd *cobra.Command, f *Factory) []string {
 	return out
 }
 
+// IsRuntimeManaged returns true if the platform runs the agent, that is, the
+// agent is internally provisioned.
+func IsRuntimeManaged(agent amsvc.AgentResponse) bool {
+	return agent.Provisioning.Type == amsvc.Internal
+}
+
 // CompleteAgents returns sorted agent names in the resolved (org, project).
 // Both org and project must be resolvable; otherwise returns nil.
 func CompleteAgents(cmd *cobra.Command, f *Factory) []string {
-	return completeAgentsFiltered(cmd, f, nil)
-}
-
-// IsBuildable returns true if the agent supports build operations.
-// Only internally-provisioned agents can be built.
-func IsBuildable(agent amsvc.AgentResponse) bool {
-	return agent.Provisioning.Type == amsvc.ProvisioningTypeInternal
-}
-
-// CompleteBuildableAgents returns sorted names of agents that support builds
-// (provisioning type "internal"). Used by build subcommands for tab-complete.
-func CompleteBuildableAgents(cmd *cobra.Command, f *Factory) []string {
-	return completeAgentsFiltered(cmd, f, IsBuildable)
-}
-
-func completeAgentsFiltered(cmd *cobra.Command, f *Factory, filter func(amsvc.AgentResponse) bool) []string {
-	const op = "completeAgentsFiltered"
+	const op = "CompleteAgents"
 	org, proj, err := f.ResolveOrgProject(cmd, true, true)
 	if err != nil {
 		logCompletionErr(op, nil, err)
@@ -171,74 +162,10 @@ func completeAgentsFiltered(cmd *cobra.Command, f *Factory, filter func(amsvc.Ag
 	}
 	out := make([]string, 0, len(resp.JSON200.Agents))
 	for _, a := range resp.JSON200.Agents {
-		if filter == nil || filter(a) {
-			out = append(out, a.Name)
-		}
+		out = append(out, a.Name)
 	}
 	sort.Strings(out)
 	return out
-}
-
-// CompleteBuilds returns build names for the given agent in the resolved
-// (org, project). The API addresses builds by BuildName (the optional
-// BuildId UUID is not a routable handle), so completion returns BuildName.
-// Returns nil on any error or if scope can't be resolved. Capped at 50
-// results to keep tab completion snappy.
-func CompleteBuilds(cmd *cobra.Command, f *Factory, agentName string) []string {
-	if agentName == "" {
-		return nil
-	}
-	org, proj, err := f.ResolveOrgProject(cmd, true, true)
-	if err != nil {
-		logCompletionErr("CompleteBuilds", map[string]string{"agent": agentName}, err)
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
-	defer cancel()
-
-	client, err := f.AgentManager(ctx)
-	if err != nil {
-		logCompletionErr("CompleteBuilds", map[string]string{"org": org, "project": proj, "agent": agentName}, err)
-		return nil
-	}
-	limit := 50
-	resp, err := client.GetAgentBuildsWithResponse(ctx, org, proj, agentName, &amsvc.GetAgentBuildsParams{Limit: &limit})
-	if err != nil {
-		logCompletionErr("CompleteBuilds", map[string]string{"org": org, "project": proj, "agent": agentName}, err)
-		return nil
-	}
-	if resp.JSON200 == nil {
-		logCompletionErr("CompleteBuilds", map[string]string{"org": org, "project": proj, "agent": agentName}, fmt.Errorf("status %d", resp.StatusCode()))
-		return nil
-	}
-	out := make([]string, 0, len(resp.JSON200.Builds))
-	for _, b := range resp.JSON200.Builds {
-		out = append(out, b.BuildName)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// CompleteBuildWithAgentContext provides tab-completions for commands that take
-// an optional [agent] followed by a <build-name>. When a linked-context agent
-// exists, positional args shift: arg0 becomes the build name instead of the
-// agent.
-func CompleteBuildWithAgentContext(cmd *cobra.Command, f *Factory, args []string) ([]string, cobra.ShellCompDirective) {
-	switch len(args) {
-	case 0:
-		agent, _, err := f.ResolveAgent(nil)
-		if err == nil {
-			return CompleteBuilds(cmd, f, agent), cobra.ShellCompDirectiveNoFileComp
-		}
-		return CompleteBuildableAgents(cmd, f), cobra.ShellCompDirectiveNoFileComp
-	case 1:
-		if _, _, err := f.ResolveAgent(nil); err == nil {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		return CompleteBuilds(cmd, f, args[0]), cobra.ShellCompDirectiveNoFileComp
-	}
-	return nil, cobra.ShellCompDirectiveNoFileComp
 }
 
 // CompleteLLMProviders returns sorted LLM provider handles in the resolved org.
@@ -255,12 +182,12 @@ func CompleteLLMProviders(cmd *cobra.Command, f *Factory) []string {
 	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
 	defer cancel()
 
-	client, err := f.AgentManager(ctx)
+	client, err := f.AIGateway(ctx)
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
 	}
-	resp, err := client.ListLLMProvidersWithResponse(ctx, org, &amsvc.ListLLMProvidersParams{})
+	resp, err := client.ListLLMProvidersWithResponse(ctx, org, &aigateway.ListLLMProvidersParams{})
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
@@ -291,12 +218,12 @@ func CompleteLLMProviderTemplates(cmd *cobra.Command, f *Factory) []string {
 	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
 	defer cancel()
 
-	client, err := f.AgentManager(ctx)
+	client, err := f.AIGateway(ctx)
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
 	}
-	resp, err := client.ListLLMProviderTemplatesWithResponse(ctx, org, &amsvc.ListLLMProviderTemplatesParams{})
+	resp, err := client.ListLLMProviderTemplatesWithResponse(ctx, org, &aigateway.ListLLMProviderTemplatesParams{})
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
@@ -332,7 +259,7 @@ func CompleteGateways(cmd *cobra.Command, f *Factory) []string {
 	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
 	defer cancel()
 
-	client, err := f.AgentManager(ctx)
+	client, err := f.AIGateway(ctx)
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil

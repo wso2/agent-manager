@@ -33,9 +33,9 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/vault"
 	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
@@ -125,7 +125,7 @@ func TestSecretStoreReadsRowsWrittenBeforeTheVault(t *testing.T) {
 	org, id, now := newOrg(t), NewID(), dbx.Now()
 	t.Cleanup(func() { _ = store.Delete(ctx, gdb, id) })
 
-	legacy, err := utils.EncryptBytes([]byte("old-value"), vaulttest.Key)
+	legacy, err := aesgcm.Encrypt([]byte("old-value"), vaulttest.Key)
 	require.NoError(t, err)
 	require.NoError(t, gdb.Create(&models.Secret{
 		ID: id, OrgID: org, OwnerKind: "test_owner", OwnerID: id, Provider: vault.ProviderLocal,
@@ -563,4 +563,64 @@ func TestSecretStoreMovesBetweenVaults(t *testing.T) {
 	value, _, err := localOnly.Read(context.Background(), db.GetDB(), id)
 	require.NoError(t, err)
 	assert.Equal(t, "v3", string(value))
+}
+
+// Module secrets, which rt.Secrets() reaches by path, take the same path through the vault as core ones.
+func TestModuleSecretsGoThroughTheVault(t *testing.T) {
+	f := newExternalFixture(t)
+	ctx := context.Background()
+	modules := NewModuleSecretStore(db.GetDB(), f.store)
+	kind, owner, other := "mod:t-vault", uuid.New(), uuid.New()
+	idOf := func(o uuid.UUID) uuid.UUID {
+		var ids []uuid.UUID
+		require.NoError(t, db.GetDB().Model(&models.Secret{}).
+			Where("org_id = ? AND owner_kind = ? AND owner_id = ?", f.org, kind, o).Pluck("id", &ids).Error)
+		require.Len(t, ids, 1)
+		return ids[0]
+	}
+
+	require.NoError(t, modules.Put(ctx, nil, f.org, kind, owner, "v1"))
+	require.NoError(t, modules.Put(ctx, nil, f.org, kind, other, "other"))
+	id, otherID := idOf(owner), idOf(other)
+	f.cleanup(t, id, otherID)
+	assert.Zero(t, f.external.Len(), "nothing reaches the external vault before the write commits")
+
+	f.run(t)
+	row := secretRow(t, id)
+	assert.Equal(t, vaulttest.ExternalProvider, row.Provider)
+	require.NotNil(t, row.ExternalRef)
+	first := *row.ExternalRef
+	value, ok, err := modules.Get(ctx, nil, f.org, kind, owner)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, "v1", value)
+
+	require.NoError(t, modules.Put(ctx, nil, f.org, kind, owner, "v2"))
+	assert.Equal(t, id, idOf(owner), "a rewrite keeps the owner's one row")
+	f.run(t)
+	f.run(t)
+	assert.False(t, f.external.Has(first), "the replaced version is removed")
+	value, _, err = modules.Get(ctx, nil, f.org, kind, owner)
+	require.NoError(t, err)
+	assert.Equal(t, "v2", value)
+	second := *secretRow(t, id).ExternalRef
+
+	// A delete that rolls back leaves the value readable.
+	f.rolledBack(t, func(tx *gorm.DB) error { return modules.Delete(ctx, tx, f.org, kind, owner) })
+	f.run(t)
+	assert.True(t, f.external.Has(second))
+
+	require.NoError(t, modules.Delete(ctx, nil, f.org, kind, owner))
+	_, ok, err = modules.Get(ctx, nil, f.org, kind, owner)
+	require.NoError(t, err)
+	assert.False(t, ok)
+	f.run(t)
+	assert.False(t, f.external.Has(second), "a delete destroys the external value after it commits")
+
+	// A purge clears every secret of the module, the external values included.
+	otherRef := *secretRow(t, otherID).ExternalRef
+	require.NoError(t, modules.DeleteKind(ctx, nil, kind))
+	f.run(t)
+	assert.False(t, f.external.Has(otherRef))
+	assert.Zero(t, f.pending(t, otherID))
 }

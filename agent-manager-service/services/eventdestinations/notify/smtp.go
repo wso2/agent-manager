@@ -41,7 +41,7 @@ import (
 	shoutrrrsmtp "github.com/nicholas-fedor/shoutrrr/pkg/services/email/smtp"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 )
 
 // smtpDialer validates all resolved addresses, then dials an IP. The original

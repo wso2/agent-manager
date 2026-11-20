@@ -1,0 +1,709 @@
+//go:build integration
+
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwrepo
+
+import (
+	"context"
+	"encoding/json"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+)
+
+func newTestCard(t *testing.T, agentName string, source gwmodels.A2AAgentCardSource) *gwmodels.A2AAgentCard {
+	t.Helper()
+	return newTestCardIn(t, testOrg(t), agentName, source)
+}
+
+// newTestCardIn is newTestCard in the organization ou.
+func newTestCardIn(t *testing.T, ou, agentName string, source gwmodels.A2AAgentCardSource) *gwmodels.A2AAgentCard {
+	t.Helper()
+	ensureAgent(t, ou, "checkout", agentName)
+	return &gwmodels.A2AAgentCard{
+		OUID:            ou,
+		ProjectName:     "checkout",
+		AgentName:       agentName,
+		EnvironmentName: "Development",
+		EnvironmentUUID: envOf(t, ou, "Development"),
+		Source:          source,
+	}
+}
+
+func inEnv(t *testing.T, card *gwmodels.A2AAgentCard, name string) *gwmodels.A2AAgentCard {
+	t.Helper()
+	card.EnvironmentName, card.EnvironmentUUID = name, envOf(t, card.OUID, name)
+	return card
+}
+
+func cleanupCard(t *testing.T, repo A2AAgentCardRepository, card *gwmodels.A2AAgentCard) {
+	t.Helper()
+	t.Cleanup(func() {
+		_ = repo.DeleteForAgent(context.Background(), card.OUID, card.ProjectName, card.AgentName)
+	})
+}
+
+// dueCardFor claims the due row for agentName, as the reconciler would.
+func dueCardFor(t *testing.T, repo A2AAgentCardRepository, agentName string) gwmodels.A2AAgentCard {
+	t.Helper()
+	due, err := repo.ClaimDue(context.Background(), time.Now(), 100)
+	require.NoError(t, err)
+	for _, row := range due {
+		if row.AgentName == agentName {
+			return row
+		}
+	}
+	require.FailNow(t, "no due card row", "agent %s", agentName)
+	return gwmodels.A2AAgentCard{}
+}
+
+func cardRowOf(t *testing.T, card *gwmodels.A2AAgentCard) gwmodels.A2AAgentCard {
+	t.Helper()
+	var row gwmodels.A2AAgentCard
+	require.NoError(t, db.GetDB().Where("id = ?", card.ID).First(&row).Error)
+	return row
+}
+
+func claimedNames(rows []gwmodels.A2AAgentCard) []string {
+	names := make([]string, 0, len(rows))
+	for _, r := range rows {
+		names = append(names, r.AgentName)
+	}
+	return names
+}
+
+const sampleCard = `{"name":"Trip Planner","supportedInterfaces":[{"url":"https://a.example/rpc"}],"skills":[]}`
+
+// A redeploy settles over minutes; readers must keep the last good card meanwhile.
+func TestA2AAgentCardEnqueuePreservesTheLastGoodCard(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "keep-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, card)
+
+	require.NoError(t, repo.Enqueue(ctx, card))
+	read := dueCardFor(t, repo, card.AgentName)
+	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "hash-1", "https://gw.example/a/.well-known/agent-card.json", ""))
+	fetched := cardRowOf(t, card)
+	require.NotNil(t, fetched.FetchedAt)
+
+	again := newTestCard(t, card.AgentName, gwmodels.A2AAgentCardSourcePlatform)
+	again.OUID = card.OUID
+	require.NoError(t, repo.Enqueue(ctx, again))
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, gwmodels.A2AAgentCardStatusPending, row.Status)
+	assert.Equal(t, 0, row.AttemptCount, "the attempt budget is fresh")
+	assert.Empty(t, row.LastError)
+	assert.JSONEq(t, sampleCard, string(row.Card), "the last good card survives the re-enqueue")
+	assert.Equal(t, "hash-1", row.CardHash)
+	require.NotNil(t, row.FetchedAt)
+	assert.WithinDuration(t, *fetched.FetchedAt, *row.FetchedAt, time.Millisecond)
+	assert.Equal(t, "https://gw.example/a/.well-known/agent-card.json", row.SourceURL,
+		"a platform re-enqueue keeps the diagnostic URL")
+}
+
+// A refresh or platform trigger must not erase a registered external URL.
+func TestA2AAgentCardEnqueueKeepsSourceURLUnlessGiven(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "src-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+
+	refresh := newTestCard(t, card.AgentName, gwmodels.A2AAgentCardSourceExternal)
+	refresh.OUID = card.OUID
+	require.NoError(t, repo.Enqueue(ctx, refresh))
+	assert.Equal(t, card.SourceURL, cardRowOf(t, card).SourceURL)
+
+	moved := newTestCard(t, card.AgentName, gwmodels.A2AAgentCardSourceExternal)
+	moved.OUID = card.OUID
+	moved.SourceURL = "https://other.example/.well-known/agent-card.json"
+	require.NoError(t, repo.Enqueue(ctx, moved))
+	assert.Equal(t, moved.SourceURL, cardRowOf(t, card).SourceURL)
+}
+
+// fetchedExternalCard enqueues an external card at sourceURL and records it as fetched.
+func fetchedExternalCard(t *testing.T, repo A2AAgentCardRepository, sourceURL string) *gwmodels.A2AAgentCard {
+	t.Helper()
+	ctx := context.Background()
+	card := newTestCard(t, "url-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	card.SourceURL = sourceURL
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	read := dueCardFor(t, repo, card.AgentName)
+	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "hash-a", sourceURL, ""))
+	return card
+}
+
+func reenqueueExternal(t *testing.T, repo A2AAgentCardRepository, card *gwmodels.A2AAgentCard, sourceURL string) {
+	t.Helper()
+	again := newTestCard(t, card.AgentName, gwmodels.A2AAgentCardSourceExternal)
+	again.OUID = card.OUID
+	again.SourceURL = sourceURL
+	require.NoError(t, repo.Enqueue(context.Background(), again))
+}
+
+// A new URL's row must never show the previous URL's card.
+func TestA2AAgentCardEnqueueDropsTheCardWhenTheURLChanges(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	card := fetchedExternalCard(t, repo, "https://a.example/.well-known/agent-card.json")
+
+	reenqueueExternal(t, repo, card, "https://b.example/.well-known/agent-card.json")
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, "https://b.example/.well-known/agent-card.json", row.SourceURL)
+	assert.Equal(t, gwmodels.A2AAgentCardStatusPending, row.Status)
+	assert.Empty(t, row.Card)
+	assert.Empty(t, row.CardHash)
+	assert.Nil(t, row.FetchedAt)
+	assert.Empty(t, row.LastError)
+	assert.Equal(t, 0, row.AttemptCount)
+}
+
+func TestA2AAgentCardEnqueueKeepsTheCardForTheSameURL(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	card := fetchedExternalCard(t, repo, "https://a.example/.well-known/agent-card.json")
+
+	reenqueueExternal(t, repo, card, "https://a.example/.well-known/agent-card.json")
+
+	row := cardRowOf(t, card)
+	assert.JSONEq(t, sampleCard, string(row.Card))
+	assert.Equal(t, "hash-a", row.CardHash)
+	assert.NotNil(t, row.FetchedAt)
+}
+
+// A platform enqueue onto an external row must stop fetching the third-party URL.
+func TestA2AAgentCardEnqueueSwitchesExternalToPlatform(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	card := fetchedExternalCard(t, repo, "https://a.example/.well-known/agent-card.json")
+
+	platform := newTestCard(t, card.AgentName, gwmodels.A2AAgentCardSourcePlatform)
+	platform.OUID = card.OUID
+	require.NoError(t, repo.Enqueue(context.Background(), platform))
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, gwmodels.A2AAgentCardSourcePlatform, row.Source)
+	assert.Empty(t, row.SourceURL)
+	assert.Empty(t, row.Card)
+	assert.Empty(t, row.CardHash)
+	assert.Nil(t, row.FetchedAt)
+}
+
+// A URL registered on an inherited platform row must be fetched as external.
+func TestA2AAgentCardEnqueueSwitchesPlatformToExternal(t *testing.T) {
+	ctx := context.Background()
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	card := newTestCard(t, "plat-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	read := dueCardFor(t, repo, card.AgentName)
+	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "hash-a", "http://gw.internal/.well-known/agent-card.json", "plat-r1"))
+
+	reenqueueExternal(t, repo, card, "https://b.example/.well-known/agent-card.json")
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, gwmodels.A2AAgentCardSourceExternal, row.Source)
+	assert.Equal(t, "https://b.example/.well-known/agent-card.json", row.SourceURL)
+	assert.Empty(t, row.Card)
+	assert.Nil(t, row.FetchedAt)
+	assert.Empty(t, row.ReleaseName)
+}
+
+func newTestCardLike(t *testing.T, card *gwmodels.A2AAgentCard) *gwmodels.A2AAgentCard {
+	t.Helper()
+	again := newTestCard(t, card.AgentName, card.Source)
+	again.OUID = card.OUID
+	return again
+}
+
+// A row whose retry is scheduled for later is not handed out until then.
+func TestA2AAgentCardClaimDueRespectsBackoff(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "backoff-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	require.NoError(t, repo.MarkAttemptFailed(ctx, *card, "HTTP 503", "", time.Now().Add(time.Hour)))
+
+	due, err := repo.ClaimDue(ctx, time.Now(), 100)
+	require.NoError(t, err)
+	assert.NotContains(t, claimedNames(due), card.AgentName)
+
+	later, err := repo.ClaimDue(ctx, time.Now().Add(2*time.Hour), 100)
+	require.NoError(t, err)
+	assert.Contains(t, claimedNames(later), card.AgentName)
+	assert.Equal(t, 1, cardRowOf(t, card).AttemptCount)
+}
+
+// The proxy spec parks rows with a NULL next_attempt_at; they must never be claimed.
+func TestA2AAgentCardClaimDueSkipsAParkedRow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "parked-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	require.NoError(t, db.GetDB().Model(&gwmodels.A2AAgentCard{}).
+		Where("id = ?", card.ID).Update("next_attempt_at", nil).Error)
+
+	due, err := repo.ClaimDue(ctx, time.Now().Add(24*time.Hour), 100)
+	require.NoError(t, err)
+	assert.NotContains(t, claimedNames(due), card.AgentName)
+}
+
+// Replicas tick independently; concurrent claimers together claim every row exactly once.
+func TestA2AAgentCardConcurrentClaimersNeverShareARow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	prefix := "race-" + uuid.New().String()[:6] + "-"
+	const seeded = 30
+	ours := map[string]bool{}
+	for i := 0; i < seeded; i++ {
+		card := newTestCard(t, prefix+uuid.New().String()[:6], gwmodels.A2AAgentCardSourcePlatform)
+		cleanupCard(t, repo, card)
+		require.NoError(t, repo.Enqueue(ctx, card))
+		ours[card.AgentName] = true
+	}
+
+	var mu sync.Mutex
+	seen := map[string]int{}
+	var wg sync.WaitGroup
+	for w := 0; w < 3; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				rows, err := repo.ClaimDue(ctx, time.Now(), 4)
+				if !assert.NoError(t, err) || len(rows) == 0 {
+					return
+				}
+				mu.Lock()
+				for _, r := range rows {
+					if ours[r.AgentName] {
+						seen[r.AgentName]++
+					}
+				}
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+
+	assert.Len(t, seen, seeded, "every seeded row was claimed")
+	for name, n := range seen {
+		assert.Equal(t, 1, n, "row %s claimed %d times", name, n)
+	}
+}
+
+// A claimed row is leased: not handed out again until the lease runs out.
+func TestA2AAgentCardClaimDueLeasesTheRow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "lease-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	claimed := dueCardFor(t, repo, card.AgentName)
+
+	again, err := repo.ClaimDue(ctx, time.Now(), 100)
+	require.NoError(t, err)
+	assert.NotContains(t, claimedNames(again), card.AgentName)
+
+	afterLease, err := repo.ClaimDue(ctx, time.Now().Add(A2AAgentCardClaimLease+time.Minute), 100)
+	require.NoError(t, err)
+	assert.Contains(t, claimedNames(afterLease), card.AgentName)
+	require.NoError(t, repo.MarkFetched(ctx, claimed, json.RawMessage(sampleCard), "h", "u", ""),
+		"claiming is not mistaken for a re-enqueue")
+}
+
+// An unchanged hash flips the status but does not rewrite the stored card.
+func TestA2AAgentCardMarkFetchedSkipsTheWriteForAnUnchangedHash(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "hash-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "same", "u", ""))
+
+	again := newTestCard(t, card.AgentName, gwmodels.A2AAgentCardSourcePlatform)
+	again.OUID = card.OUID
+	require.NoError(t, repo.Enqueue(ctx, again))
+	read := dueCardFor(t, repo, card.AgentName)
+	require.NoError(t, repo.MarkFetched(ctx, read, json.RawMessage(`{"name":"other"}`), "same", "u", ""))
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, gwmodels.A2AAgentCardStatusFetched, row.Status)
+	assert.JSONEq(t, sampleCard, string(row.Card), "same hash, so the body was not rewritten")
+}
+
+// A fetch of the old URL must not overwrite a newer enqueue (e.g. a changed source URL).
+func TestA2AAgentCardMarkFetchedDoesNotSwallowANewerEnqueue(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "race-fetch-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	card.SourceURL = "https://old.example/.well-known/agent-card.json"
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	read := dueCardFor(t, repo, card.AgentName)
+
+	moved := *card
+	moved.SourceURL = "https://new.example/.well-known/agent-card.json"
+	require.NoError(t, repo.Enqueue(ctx, &moved))
+
+	require.ErrorIs(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "h", read.SourceURL, ""), ErrA2AAgentCardSuperseded)
+	require.ErrorIs(t, repo.MarkAttemptFailed(ctx, read, "x", "", time.Now().Add(time.Hour)), ErrA2AAgentCardSuperseded)
+	require.ErrorIs(t, repo.MarkFailed(ctx, read, "x", ""), ErrA2AAgentCardSuperseded)
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, gwmodels.A2AAgentCardStatusPending, row.Status)
+	assert.Equal(t, moved.SourceURL, row.SourceURL)
+	assert.Nil(t, row.Card)
+}
+
+func TestA2AAgentCardMarkFailedEndsTheCycle(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "failed-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	require.NoError(t, repo.MarkFailed(ctx, dueCardFor(t, repo, card.AgentName), "HTTP 404", ""))
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, gwmodels.A2AAgentCardStatusFailed, row.Status)
+	assert.Equal(t, "HTTP 404", row.LastError)
+	assert.Nil(t, row.NextAttemptAt)
+}
+
+func TestA2AAgentCardListForAgentOrdersByEnvironment(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	dev := newTestCard(t, "list-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	prod := inEnv(t, newTestCard(t, dev.AgentName, gwmodels.A2AAgentCardSourcePlatform), "Production")
+	prod.OUID = dev.OUID
+	other := newTestCard(t, "other-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	other.OUID = dev.OUID
+	cleanupCard(t, repo, dev)
+	cleanupCard(t, repo, other)
+	require.NoError(t, repo.Enqueue(ctx, prod))
+	require.NoError(t, repo.Enqueue(ctx, dev))
+	require.NoError(t, repo.Enqueue(ctx, other))
+
+	rows, err := repo.ListForAgent(ctx, dev.OUID, dev.ProjectName, dev.AgentName)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	assert.Equal(t, "Development", rows[0].EnvironmentName)
+	assert.Equal(t, "Production", rows[1].EnvironmentName)
+
+	none, err := repo.ListForAgent(ctx, uuid.NewString(), dev.ProjectName, dev.AgentName)
+	require.NoError(t, err)
+	assert.Empty(t, none, "rows are org-scoped")
+}
+
+func TestA2AAgentCardListForEnvironmentNamesEveryAgentInIt(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	first := newTestCard(t, "env-a-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	second := newTestCard(t, "env-b-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	second.OUID, second.EnvironmentUUID = first.OUID, first.EnvironmentUUID
+	elsewhere := inEnv(t, newTestCard(t, first.AgentName, gwmodels.A2AAgentCardSourcePlatform), "Production")
+	elsewhere.OUID = first.OUID
+	cleanupCard(t, repo, first)
+	cleanupCard(t, repo, second)
+	require.NoError(t, repo.Enqueue(ctx, second))
+	require.NoError(t, repo.Enqueue(ctx, first))
+	require.NoError(t, repo.Enqueue(ctx, elsewhere))
+
+	rows, err := repo.ListForEnvironment(ctx, first.OUID, first.EnvironmentUUID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	assert.Equal(t, first.AgentName, rows[0].AgentName)
+	assert.Equal(t, second.AgentName, rows[1].AgentName)
+
+	none, err := repo.ListForEnvironment(ctx, uuid.NewString(), first.EnvironmentUUID)
+	require.NoError(t, err)
+	assert.Empty(t, none, "rows are org-scoped")
+}
+
+func TestA2AAgentCardGetAndDelete(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	dev := newTestCard(t, "get-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	prod := inEnv(t, newTestCard(t, dev.AgentName, gwmodels.A2AAgentCardSourcePlatform), "Production")
+	prod.OUID = dev.OUID
+	cleanupCard(t, repo, dev)
+	require.NoError(t, repo.Enqueue(ctx, dev))
+	require.NoError(t, repo.Enqueue(ctx, prod))
+
+	got, err := repo.Get(ctx, dev.OUID, dev.ProjectName, dev.AgentName, "Development")
+	require.NoError(t, err)
+	assert.Equal(t, dev.ID, got.ID)
+
+	_, err = repo.Get(ctx, uuid.NewString(), dev.ProjectName, dev.AgentName, "Development")
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound, "rows are org-scoped")
+
+	require.NoError(t, repo.DeleteForAgentEnv(ctx, dev.OUID, dev.ProjectName, dev.AgentName, "Development"))
+	_, err = repo.Get(ctx, dev.OUID, dev.ProjectName, dev.AgentName, "Development")
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
+	_, err = repo.Get(ctx, dev.OUID, dev.ProjectName, dev.AgentName, "Production")
+	require.NoError(t, err, "only that environment's row is gone")
+
+	require.NoError(t, repo.DeleteForAgent(ctx, dev.OUID, dev.ProjectName, dev.AgentName))
+	_, err = repo.Get(ctx, dev.OUID, dev.ProjectName, dev.AgentName, "Production")
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
+}
+
+// A refresh racing a remove must not resurrect the row as an empty-URL external source.
+func TestA2AAgentCardRequeueNeverCreatesARow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "requeue-gone-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	cleanupCard(t, repo, card)
+
+	err := repo.Requeue(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName)
+
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
+	_, err = repo.Get(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName)
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
+}
+
+func TestA2AAgentCardRequeueResetsAFailedRow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "requeue-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	card.SourceURL = "https://a.example/card.json"
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	require.NoError(t, repo.MarkFailed(ctx, dueCardFor(t, repo, card.AgentName), "HTTP 404", ""))
+
+	require.NoError(t, repo.Requeue(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName))
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, gwmodels.A2AAgentCardStatusPending, row.Status)
+	assert.Zero(t, row.AttemptCount)
+	assert.Empty(t, row.LastError)
+	assert.NotNil(t, row.NextAttemptAt)
+	assert.Equal(t, "https://a.example/card.json", row.SourceURL)
+	assert.Equal(t, gwmodels.A2AAgentCardSourceExternal, row.Source)
+}
+
+// The reconciler compares hashes only, so a claim need not ship the card body.
+func TestA2AAgentCardClaimDueLeavesTheCardBodyBehind(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "claim-body-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h1", "u", ""))
+	again := newTestCardLike(t, card)
+	require.NoError(t, repo.Enqueue(ctx, again))
+
+	claimed := dueCardFor(t, repo, card.AgentName)
+
+	assert.Empty(t, claimed.Card)
+	assert.Equal(t, "h1", claimed.CardHash)
+	assert.Equal(t, card.ID, claimed.ID)
+	assert.False(t, claimed.UpdatedAt.IsZero())
+}
+
+func TestA2AAgentCardClaimDueCarriesTheEnvironmentUUID(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	card := newTestCard(t, "claim-env-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(context.Background(), card))
+
+	row := dueCardFor(t, repo, card.AgentName)
+
+	assert.Equal(t, envOf(t, testOrg(t), "Development"), row.EnvironmentUUID)
+}
+
+func TestA2AAgentCardDeleteForEnvironmentLeavesOtherEnvironments(t *testing.T) {
+	ctx := context.Background()
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	dev := newTestCard(t, "env-del-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	otherAgent := newTestCard(t, "env-del-other-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	otherAgent.OUID = dev.OUID
+	prod := inEnv(t, newTestCardLike(t, dev), "Production")
+	elsewhere := newTestCardIn(t, newOrg(t), dev.AgentName, dev.Source)
+	for _, c := range []*gwmodels.A2AAgentCard{dev, otherAgent, prod, elsewhere} {
+		cleanupCard(t, repo, c)
+		require.NoError(t, repo.Enqueue(ctx, c))
+	}
+
+	require.NoError(t, repo.DeleteForEnvironment(ctx, dev.OUID, dev.EnvironmentUUID))
+
+	_, err := repo.Get(ctx, dev.OUID, dev.ProjectName, dev.AgentName, "Development")
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
+	_, err = repo.Get(ctx, otherAgent.OUID, otherAgent.ProjectName, otherAgent.AgentName, "Development")
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound, "every agent's row in that environment goes")
+	_, err = repo.Get(ctx, prod.OUID, prod.ProjectName, prod.AgentName, "Production")
+	require.NoError(t, err, "other environments keep their rows")
+	_, err = repo.Get(ctx, elsewhere.OUID, elsewhere.ProjectName, elsewhere.AgentName, "Development")
+	require.NoError(t, err, "rows are org-scoped")
+}
+
+// An undeploy drops the platform card but keeps a URL the user registered.
+func TestA2AAgentCardDeletePlatformForAgentEnvKeepsExternalRows(t *testing.T) {
+	ctx := context.Background()
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	platform := newTestCard(t, "undeploy-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+	cleanupCard(t, repo, platform)
+	require.NoError(t, repo.Enqueue(ctx, platform))
+	external := inEnv(t, newTestCardLike(t, platform), "Production")
+	external.Source, external.SourceURL = gwmodels.A2AAgentCardSourceExternal, "https://a.example/.well-known/agent-card.json"
+	require.NoError(t, repo.Enqueue(ctx, external))
+
+	require.NoError(t, repo.DeletePlatformForAgentEnv(ctx, platform.OUID, platform.ProjectName, platform.AgentName, "Development"))
+	require.NoError(t, repo.DeletePlatformForAgentEnv(ctx, platform.OUID, platform.ProjectName, platform.AgentName, "Production"))
+
+	_, err := repo.Get(ctx, platform.OUID, platform.ProjectName, platform.AgentName, "Development")
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
+	row, err := repo.Get(ctx, platform.OUID, platform.ProjectName, platform.AgentName, "Production")
+	require.NoError(t, err)
+	assert.Equal(t, "https://a.example/.well-known/agent-card.json", row.SourceURL)
+}
+
+func TestA2AAgentCardDeleteIfUnchanged(t *testing.T) {
+	ctx := context.Background()
+	repo := NewA2AAgentCardRepository(db.GetDB())
+
+	t.Run("removes the row as claimed", func(t *testing.T) {
+		card := newTestCard(t, "drop-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+		cleanupCard(t, repo, card)
+		require.NoError(t, repo.Enqueue(ctx, card))
+
+		require.NoError(t, repo.DeleteIfUnchanged(ctx, dueCardFor(t, repo, card.AgentName)))
+
+		_, err := repo.Get(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName)
+		assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
+	})
+	t.Run("keeps a row re-enqueued since the claim", func(t *testing.T) {
+		card := newTestCard(t, "drop-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourcePlatform)
+		cleanupCard(t, repo, card)
+		require.NoError(t, repo.Enqueue(ctx, card))
+		due := dueCardFor(t, repo, card.AgentName)
+		require.NoError(t, repo.Enqueue(ctx, newTestCardLike(t, card)))
+
+		assert.ErrorIs(t, repo.DeleteIfUnchanged(ctx, due), ErrA2AAgentCardSuperseded)
+
+		_, err := repo.Get(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName)
+		assert.NoError(t, err)
+	})
+}
+
+// Switching modes parks the row: no card, and not due until the publish requeues it.
+func TestA2AAgentCardClearCardParksTheRow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "park-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", card.SourceURL, ""))
+
+	require.NoError(t, repo.ClearCard(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentUUID))
+
+	row := cardRowOf(t, card)
+	assert.Equal(t, gwmodels.A2AAgentCardStatusPending, row.Status)
+	assert.Nil(t, row.Card)
+	assert.Empty(t, row.CardHash)
+	assert.Nil(t, row.FetchedAt)
+	assert.Nil(t, row.NextAttemptAt)
+	assert.Equal(t, 0, row.AttemptCount)
+	assert.Empty(t, row.LastError)
+	assert.Equal(t, card.SourceURL, row.SourceURL, "the registered URL stays")
+
+	due, err := repo.ClaimDue(ctx, time.Now().Add(24*time.Hour), 100)
+	require.NoError(t, err)
+	assert.NotContains(t, claimedNames(due), card.AgentName, "a parked row waits for the publish")
+
+	require.NoError(t, repo.Requeue(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentName))
+	assert.Equal(t, card.AgentName, dueCardFor(t, repo, card.AgentName).AgentName)
+}
+
+// A fetch that read the row before the switch must not write the old mode's card back.
+func TestA2AAgentCardClearCardSupersedesAnInFlightFetch(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "park-race-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+	read := dueCardFor(t, repo, card.AgentName)
+
+	require.NoError(t, repo.ClearCard(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentUUID))
+
+	require.ErrorIs(t, repo.MarkFetched(ctx, read, json.RawMessage(sampleCard), "h", card.SourceURL, ""), ErrA2AAgentCardSuperseded)
+	assert.Nil(t, cardRowOf(t, card).Card)
+}
+
+func TestA2AAgentCardClearCardNeedsARow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	err := repo.ClearCard(context.Background(), uuid.NewString(), "checkout", "ghost", uuid.New())
+	assert.ErrorIs(t, err, ErrA2AAgentCardNotFound)
+}
+
+// A proxied card is fetched through the gateway; the registered origin URL must survive that.
+func TestA2AAgentCardMarkFetchedKeepsAnExternalSourceURL(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	card := newTestCard(t, "keep-url-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	card.SourceURL = "https://agent.example/.well-known/agent-card.json"
+	cleanupCard(t, repo, card)
+	require.NoError(t, repo.Enqueue(ctx, card))
+
+	gatewayURL := "https://gw.example/agent/.well-known/agent-card.json"
+	require.NoError(t, repo.MarkFetched(ctx, dueCardFor(t, repo, card.AgentName), json.RawMessage(sampleCard), "h", gatewayURL, ""))
+	assert.Equal(t, card.SourceURL, cardRowOf(t, card).SourceURL)
+
+	again := newTestCardLike(t, card)
+	again.SourceURL = card.SourceURL
+	require.NoError(t, repo.Enqueue(ctx, again))
+	assert.JSONEq(t, sampleCard, string(cardRowOf(t, card).Card), "the same URL is not a change, so the card survives")
+}
+
+// Only a row ClearCard parked is failed; a due or fetched row keeps showing what it showed.
+func TestA2AAgentCardFailParkedTouchesOnlyAParkedRow(t *testing.T) {
+	repo := NewA2AAgentCardRepository(db.GetDB())
+	ctx := context.Background()
+	parked := newTestCard(t, "fail-parked-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	due := newTestCard(t, "fail-due-"+uuid.New().String()[:8], gwmodels.A2AAgentCardSourceExternal)
+	for _, card := range []*gwmodels.A2AAgentCard{parked, due} {
+		cleanupCard(t, repo, card)
+		require.NoError(t, repo.Enqueue(ctx, card))
+	}
+	require.NoError(t, repo.ClearCard(ctx, parked.OUID, parked.ProjectName, parked.AgentName, parked.EnvironmentUUID))
+
+	for _, card := range []*gwmodels.A2AAgentCard{parked, due} {
+		require.NoError(t, repo.FailParked(ctx, card.OUID, card.ProjectName, card.AgentName, card.EnvironmentUUID, "gateway said no"))
+	}
+
+	failed := cardRowOf(t, parked)
+	assert.Equal(t, gwmodels.A2AAgentCardStatusFailed, failed.Status)
+	assert.Equal(t, "gateway said no", failed.LastError)
+	untouched := cardRowOf(t, due)
+	assert.Equal(t, gwmodels.A2AAgentCardStatusPending, untouched.Status)
+	assert.Empty(t, untouched.LastError)
+	assert.NotNil(t, untouched.NextAttemptAt)
+}

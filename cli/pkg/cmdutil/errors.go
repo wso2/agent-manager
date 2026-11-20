@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strings"
 
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
@@ -74,10 +75,21 @@ func FlagErrorsHeader(header string, violations []string) error {
 	return &FlagError{inner: inner}
 }
 
+// ServerError is the error body of the core's API or of a module's: the
+// same schema, generated into each client.
+type ServerError interface {
+	amsvc.ErrorResponse | aigateway.ErrorResponse
+}
+
 // ErrorFromServer converts an oapi-codegen response and decoded ErrorResponse
 // into a clierr.CLIError. body may be nil when the server returned a non-JSON
 // error body.
-func ErrorFromServer(httpResp *http.Response, body *amsvc.ErrorResponse) clierr.CLIError {
+func ErrorFromServer[E ServerError](httpResp *http.Response, errBody *E) clierr.CLIError {
+	var body *amsvc.ErrorResponse
+	if errBody != nil {
+		b := amsvc.ErrorResponse(*errBody)
+		body = &b
+	}
 	status := 0
 	if httpResp != nil {
 		status = httpResp.StatusCode
@@ -113,7 +125,7 @@ func ErrorFromServer(httpResp *http.Response, body *amsvc.ErrorResponse) clierr.
 
 // FirstNonNil returns the first non-nil ErrorResponse, used to pick whichever
 // of the typed error variants oapi-codegen populated for a given response.
-func FirstNonNil(errs ...*amsvc.ErrorResponse) *amsvc.ErrorResponse {
+func FirstNonNil[E ServerError](errs ...*E) *E {
 	for _, e := range errs {
 		if e != nil {
 			return e

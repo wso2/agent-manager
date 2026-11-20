@@ -17,14 +17,7 @@
  */
 
 import { cloneDeep } from "lodash";
-import {
-  encodeRequired,
-  httpDELETE,
-  httpGET,
-  httpPOST,
-  httpPUT,
-  SERVICE_BASE,
-} from "../../shared/utils";
+import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 import { normalizeAgentModelConfigResponse } from "./agent-model-configs";
 import type {
   AgentMCPConfigListResponse,
@@ -59,7 +52,7 @@ function buildBaseUrl(params: {
   const org = encodeRequired(params.orgName, "orgName");
   const proj = encodeRequired(params.projName, "projName");
   const agent = encodeRequired(params.agentName, "agentName");
-  return `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/mcp-configs`;
+  return `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/mcp-configs`;
 }
 
 function getMCPProxyName(mapping: EnvMCPProxyConfigRequest): string | undefined {

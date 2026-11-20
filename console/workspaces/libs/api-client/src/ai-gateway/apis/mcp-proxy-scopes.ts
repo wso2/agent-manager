@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../../shared/utils";
+import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 import type {
   MCPProxyScopeListResponse,
   MCPProxyScopeRequest,
@@ -27,7 +27,7 @@ import type {
 } from "@agent-management-platform/types";
 
 const scopesBase = (orgName: string, proxyId: string) =>
-  `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/mcp-proxies/${encodeURIComponent(proxyId)}/scopes`;
+  `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/mcp-proxies/${encodeURIComponent(proxyId)}/scopes`;
 
 /**
  * List an MCP proxy's scopes

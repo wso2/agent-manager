@@ -20,17 +20,17 @@ import (
 	"context"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 )
 
 func Test_toEnvModelConfigRequest_mergesEveryEnv(t *testing.T) {
-	policies := []amsvc.LLMPolicy{{Name: "rate-limit", Version: "v1"}}
-	resp := &amsvc.AgentModelConfigResponse{
-		EnvMappings: map[string]amsvc.EnvProviderConfigMappings{
+	policies := []aigateway.LLMPolicy{{Name: "rate-limit", Version: "v1"}}
+	resp := &aigateway.AgentModelConfigResponse{
+		EnvMappings: map[string]aigateway.EnvProviderConfigMappings{
 			"dev": {
 				EnvironmentName: "dev",
-				Configuration: &amsvc.ProviderConfig{
+				Configuration: &aigateway.ProviderConfig{
 					ProviderName: "github",
 					ProxyName:    modelconfig.StringPtr("github"),
 					Url:          "https://server-managed.example.com",
@@ -39,7 +39,7 @@ func Test_toEnvModelConfigRequest_mergesEveryEnv(t *testing.T) {
 			},
 			"prod": {
 				EnvironmentName: "prod",
-				Configuration:   &amsvc.ProviderConfig{ProviderName: "gitlab", ProxyName: modelconfig.StringPtr("gitlab")},
+				Configuration:   &aigateway.ProviderConfig{ProviderName: "gitlab", ProxyName: modelconfig.StringPtr("gitlab")},
 			},
 		},
 	}
@@ -63,7 +63,7 @@ func Test_toEnvModelConfigRequest_mergesEveryEnv(t *testing.T) {
 }
 
 func Test_toEnvModelConfigRequest_nilConfiguration(t *testing.T) {
-	got := toEnvModelConfigRequest(amsvc.EnvProviderConfigMappings{EnvironmentName: "dev"})
+	got := toEnvModelConfigRequest(aigateway.EnvProviderConfigMappings{EnvironmentName: "dev"})
 	if got.ProxyName != nil {
 		t.Errorf("ProxyName = %q, want nil", *got.ProxyName)
 	}
@@ -76,13 +76,13 @@ func Test_toEnvModelConfigRequest_nilConfiguration(t *testing.T) {
 // providerName (which the server mirrors the proxy handle into).
 func Test_proxyNameFromConfig(t *testing.T) {
 	t.Run("prefers proxyName", func(t *testing.T) {
-		c := &amsvc.ProviderConfig{ProviderName: "github", ProxyName: modelconfig.StringPtr("github-proxy")}
+		c := &aigateway.ProviderConfig{ProviderName: "github", ProxyName: modelconfig.StringPtr("github-proxy")}
 		if got := proxyNameFromConfig(c); got != "github-proxy" {
 			t.Errorf("got %q, want github-proxy", got)
 		}
 	})
 	t.Run("falls back to providerName", func(t *testing.T) {
-		c := &amsvc.ProviderConfig{ProviderName: "github"}
+		c := &aigateway.ProviderConfig{ProviderName: "github"}
 		if got := proxyNameFromConfig(c); got != "github" {
 			t.Errorf("got %q, want github", got)
 		}
@@ -94,12 +94,12 @@ func Test_proxyNameFromConfig(t *testing.T) {
 	})
 }
 
-func listResponse(items ...amsvc.AgentModelConfigListItem) amsvc.AgentModelConfigListResponse {
-	return amsvc.AgentModelConfigListResponse{Configs: items}
+func listResponse(items ...aigateway.AgentModelConfigListItem) aigateway.AgentModelConfigListResponse {
+	return aigateway.AgentModelConfigListResponse{Configs: items}
 }
 
-func mcpItem(name, uuid string) amsvc.AgentModelConfigListItem {
-	return amsvc.AgentModelConfigListItem{Name: name, Type: "mcp", Uuid: mustUUID(uuid)}
+func mcpItem(name, uuid string) aigateway.AgentModelConfigListItem {
+	return aigateway.AgentModelConfigListItem{Name: name, Type: "mcp", Uuid: mustUUID(uuid)}
 }
 
 func Test_findMCPConfigByName(t *testing.T) {
@@ -107,7 +107,7 @@ func Test_findMCPConfigByName(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		client, cleanup := newClient(t, map[string]route{
 			listPath: okJSON(listResponse(
-				amsvc.AgentModelConfigListItem{Name: "shared", Type: "llm", Uuid: mustUUID("22222222-2222-2222-2222-222222222222")},
+				aigateway.AgentModelConfigListItem{Name: "shared", Type: "llm", Uuid: mustUUID("22222222-2222-2222-2222-222222222222")},
 				mcpItem("primary", uuidA),
 			)),
 		})
@@ -128,7 +128,7 @@ func Test_findMCPConfigByName(t *testing.T) {
 	t.Run("ignores same name with non-mcp type", func(t *testing.T) {
 		client, cleanup := newClient(t, map[string]route{
 			listPath: okJSON(listResponse(
-				amsvc.AgentModelConfigListItem{Name: "primary", Type: "llm", Uuid: mustUUID(uuidA)},
+				aigateway.AgentModelConfigListItem{Name: "primary", Type: "llm", Uuid: mustUUID(uuidA)},
 			)),
 		})
 		defer cleanup()

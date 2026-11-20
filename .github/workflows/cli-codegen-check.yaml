@@ -5,7 +5,9 @@ on:
     branches: ["main", "amp-2.x"]
     paths:
       - "agent-manager-service/docs/api_v1_openapi.yaml"
+      - "agent-manager-service/modules/*/api/openapi.yaml"
       - "cli/pkg/clients/amsvc/**"
+      - "cli/pkg/clients/aigateway/**"
       - "Makefile"
       - ".github/workflows/cli-codegen-check.yaml"
 
@@ -32,14 +34,14 @@ jobs:
       - name: Install pinned codegen tools (tools.mk)
         run: make tools-codegen
 
-      - name: Regenerate amctl AM client
+      - name: Regenerate amctl clients
         run: make amctl-gen-client
 
-      - name: Verify no drift in generated client
+      - name: Verify no drift in generated clients
         run: |
-          if ! git diff --exit-code -- cli/pkg/clients/amsvc/gen; then
+          if ! git diff --exit-code -- cli/pkg/clients/amsvc/gen cli/pkg/clients/aigateway/gen; then
             echo ""
-            echo "::error::Generated amctl AM client is out of sync with agent-manager-service/docs/api_v1_openapi.yaml."
+            echo "::error::Generated amctl clients are out of sync with agent-manager-service/docs/api_v1_openapi.yaml or modules/aigateway/api/openapi.yaml."
             echo "::error::Run 'make amctl-gen-client' locally and commit the result."
             exit 1
           fi

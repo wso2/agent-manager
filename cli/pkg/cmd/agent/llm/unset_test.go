@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
@@ -103,7 +103,7 @@ func Test_runUnset_deleteYesSkipsPrompt(t *testing.T) {
 func Test_runUnset_deleteNonTTYWithoutYes(t *testing.T) {
 	io, out, _ := newTestIO(true)
 	called := false
-	client := func(context.Context) (*amsvc.ClientWithResponses, error) {
+	client := func(context.Context) (*aigateway.ClientWithResponses, error) {
 		called = true
 		return nil, errors.New("client should not be constructed")
 	}

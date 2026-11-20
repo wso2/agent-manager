@@ -154,7 +154,21 @@ export interface ConfigurationResponse {
    * client before cutting it off, for this agent's endpoint in this environment.
    */
   resilienceTimeoutSeconds?: number;
-  configurations: ConfigurationData;
+  /** The agent's LLM and MCP bindings and whether the gateway has provisioned them. */
+  bindings: AgentBinding[];
+}
+
+export type AgentBindingState = 'pending' | 'ready' | 'failed' | 'removing';
+
+export interface AgentBinding {
+  kind: 'llm' | 'mcp';
+  /** Index in the create request's modelConfig or mcpConfig list. */
+  position: number;
+  /** The LLM provider or MCP proxy handle. */
+  target: string;
+  state: AgentBindingState;
+  lastError?: string;
+  configId?: string;
 }
 
 export interface Environment {

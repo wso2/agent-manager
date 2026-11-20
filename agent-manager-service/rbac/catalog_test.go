@@ -66,17 +66,6 @@ func declaredPermissions(t *testing.T) map[string]Permission {
 	return out
 }
 
-// TestEnvironmentTierScopesExist pins the two scopes the environment-tier axis
-// is built on, and the shape of the strings Thunder composes them from.
-func TestEnvironmentTierScopesExist(t *testing.T) {
-	if got, want := AgentEnvNonProduction.Scope(), "amp:agent:env-non-production"; got != want {
-		t.Errorf("AgentEnvNonProduction.Scope() = %q, want %q", got, want)
-	}
-	if got, want := AgentEnvProduction.Scope(), "amp:agent:env-production"; got != want {
-		t.Errorf("AgentEnvProduction.Scope() = %q, want %q", got, want)
-	}
-}
-
 // TestCatalogScopeStringsAreUnique catches the copy-paste that gives two
 // constants the same scope. Thunder would accept it and one of the two would
 // silently grant the other's permission.
@@ -151,10 +140,10 @@ func TestPredefinedRolesHoldOnlyCatalogScopes(t *testing.T) {
 // Keep it for the friction; do not mistake it for coverage.
 func TestPredefinedRoleSizes(t *testing.T) {
 	want := map[string]int{
-		RoleAdmin:            85,
-		RoleDeveloper:        44,
-		RoleAILead:           39,
-		RolePlatformEngineer: 53,
+		RoleAdmin:            34,
+		RoleDeveloper:        15,
+		RoleAILead:           8,
+		RolePlatformEngineer: 14,
 	}
 	if len(PredefinedRolePermissions) != len(want) {
 		t.Fatalf("PredefinedRolePermissions has %d roles, want %d", len(PredefinedRolePermissions), len(want))
@@ -167,28 +156,6 @@ func TestPredefinedRoleSizes(t *testing.T) {
 		}
 		if len(got) != size {
 			t.Errorf("role %q holds %d scopes, want %d", role, len(got), size)
-		}
-	}
-}
-
-// TestEveryTierGrantSitsAboveTheFloor pins the shape of the axis: the production
-// grant sits on top of the floor rather than replacing it, so a role holding it
-// without the floor could act on nothing at all — every surface denies a token
-// missing the floor before the tier is evaluated, and requireEnvTier requires
-// both for a production environment. No predefined role should be in that state.
-func TestEveryTierGrantSitsAboveTheFloor(t *testing.T) {
-	for role, perms := range PredefinedRolePermissions {
-		var floor, production bool
-		for _, perm := range perms {
-			switch perm {
-			case AgentEnvNonProduction:
-				floor = true
-			case AgentEnvProduction:
-				production = true
-			}
-		}
-		if production && !floor {
-			t.Errorf("role %q holds %s without %s", role, AgentEnvProduction, AgentEnvNonProduction)
 		}
 	}
 }

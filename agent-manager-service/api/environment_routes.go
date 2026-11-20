@@ -22,30 +22,12 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
-// registerEnvironmentRoutes registers the environment routes. Reading
-// environments takes environment:read or any of readers, the permissions of
-// built-in features whose pages list environments.
-func registerEnvironmentRoutes(rr *middleware.RouteRegistrar, ctrl controllers.EnvironmentController, readers []rbac.Permission) {
-	envReaders := append([]rbac.Permission{rbac.EnvironmentRead}, readers...)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/environments", rbac.EnvironmentCreate,
-		notImplemented)
-	rr.HandleFuncWithValidationAndAnyAuthz("GET /orgs/{orgName}/environments", ctrl.ListEnvironments, envReaders...)
-	rr.HandleFuncWithValidationAndAnyAuthz("GET /orgs/{orgName}/environments/{envID}", ctrl.GetEnvironment, envReaders...)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/environments/{envID}", rbac.EnvironmentUpdate,
-		notImplemented)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/environments/{envID}", rbac.EnvironmentDelete,
-		notImplemented)
+// registerEnvironmentRoutes registers the environment routes. Each
+// organization has one default environment, so they are read-only.
+func registerEnvironmentRoutes(rr *middleware.RouteRegistrar, ctrl controllers.EnvironmentController) {
+	// A role that may use a feature listing environments, such as the AI
+	// Gateway's pages, holds environment:read for it.
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/environments", rbac.EnvironmentRead, ctrl.ListEnvironments)
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/environments/{envID}", rbac.EnvironmentRead, ctrl.GetEnvironment)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/thunder-instances", rbac.EnvironmentRead, ctrl.ListThunderInstances)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/environments/{envID}/thunder-system-client",
-		rbac.OrgManageServiceAccount, notImplemented)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/environments/{envID}/thunder-system-client",
-		rbac.OrgManageServiceAccount, notImplemented)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/environments/{envID}/thunder-url",
-		rbac.OrgManageServiceAccount, notImplemented)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/environments/{envID}/thunder-url",
-		rbac.OrgManageServiceAccount, notImplemented)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/environments/{envID}/thunder-url",
-		rbac.OrgManageServiceAccount, notImplemented)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/thunder-url-availability",
-		rbac.EnvironmentCreate, notImplemented)
 }

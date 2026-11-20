@@ -30,7 +30,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	reqlogger "github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	reqlogger "github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -130,13 +131,7 @@ func wrapToolError(toolName string, err error) error {
 		return fmt.Errorf("%s: invalid agent name. Call list_agents or list_project_agent_pairs to see valid agents", toolName)
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		return fmt.Errorf("%s: invalid environment name. Call list_environments to see valid environments", toolName)
-	case errors.Is(err, utils.ErrLLMProviderNotFound):
-		return fmt.Errorf("%s: LLM provider not found. Call list_llm_providers to see valid providers", toolName)
-	case errors.Is(err, utils.ErrMCPProxyNotFound):
-		return fmt.Errorf("%s: MCP proxy not found. Call list_mcp_proxies to see valid proxies", toolName)
-	case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
-		return fmt.Errorf("%s: the agent already has a configuration with this name. Pass a different config_name", toolName)
-	case errors.Is(err, utils.ErrNotFound):
+	case errors.Is(err, httpx.ErrNotFound):
 		msg := strings.ToLower(err.Error())
 		switch {
 		case strings.Contains(msg, "namespace not found") || strings.Contains(msg, "organization not found"):

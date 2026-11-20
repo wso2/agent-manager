@@ -55,8 +55,8 @@ func newOverrideRegistrar(t *testing.T) (*http.ServeMux, *registrarCall) {
 		w.WriteHeader(http.StatusOK)
 	}
 	lookup := func(_ context.Context, ouID string) (string, error) { return "handle-of-" + ouID, nil }
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride(overridePattern, rbac.MCPServerUpdate, ApplyOrgOverride(lookup), handler)
-	rr.HandleFuncWithValidationAndAuthz(plainPattern, rbac.MCPServerUpdate, handler)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride(overridePattern, rbac.ProjectUpdate, ApplyOrgOverride(lookup), handler)
+	rr.HandleFuncWithValidationAndAuthz(plainPattern, rbac.ProjectUpdate, handler)
 	return mux, call
 }
 
@@ -77,7 +77,7 @@ func serveRegistrar(t *testing.T, mux *http.ServeMux, call *registrarCall, path 
 func TestRegistrarOrgOverride_AppliedOnlyWhereComposed(t *testing.T) {
 	installOrgOverrideResolver(t, trustingResolver)
 	mux, call := newOverrideRegistrar(t)
-	scope := rbac.MCPServerUpdate.Scope()
+	scope := rbac.ProjectUpdate.Scope()
 
 	serveRegistrar(t, mux, call, "/orgs/handle-of-"+overrideTargetOUID+"/projects/p1/mcp-proxies/h1", scope)
 	require.Equal(t, http.StatusOK, call.status, call.body)
@@ -115,9 +115,9 @@ func TestRegistrarOrgOverride_RejectsMisuse(t *testing.T) {
 	override := ApplyOrgOverride(func(context.Context, string) (string, error) { return "h", nil })
 
 	assert.Panics(t, func() {
-		rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT /platform/x", rbac.MCPServerUpdate, override, noop)
+		rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT /platform/x", rbac.ProjectUpdate, override, noop)
 	}, "an override needs the org resolved first, so the route must be org-scoped")
 	assert.Panics(t, func() {
-		rr.HandleFuncWithValidationAndAuthzAndOrgOverride(overridePattern, rbac.MCPServerUpdate, nil, noop)
+		rr.HandleFuncWithValidationAndAuthzAndOrgOverride(overridePattern, rbac.ProjectUpdate, nil, noop)
 	})
 }

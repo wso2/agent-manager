@@ -38,9 +38,9 @@ func TestSubscribableWidensWithTheScope(t *testing.T) {
 }
 
 func TestCanSubscribe(t *testing.T) {
-	assert.True(t, CanSubscribe(ScopeOrg, "agent.deployed"))
-	assert.True(t, CanSubscribe(ScopeProject, "agent.deployed"))
-	assert.True(t, CanSubscribe(ScopeAgent, "agent.deployed"))
+	assert.True(t, CanSubscribe(ScopeOrg, "agent.updated"))
+	assert.True(t, CanSubscribe(ScopeProject, "agent.updated"))
+	assert.True(t, CanSubscribe(ScopeAgent, "agent.updated"))
 	assert.True(t, CanSubscribe(ScopeProject, "agent.created"))
 	assert.False(t, CanSubscribe(ScopeAgent, "agent.created"), "a project event")
 	assert.False(t, CanSubscribe(ScopeProject, "project.deleted"), "an org event")
@@ -55,7 +55,7 @@ func TestReaches(t *testing.T) {
 	}
 	orgEvent := at("project.deleted", ScopeOrg, "payments", "")
 	projectEvent := at("agent.created", ScopeProject, "payments", "refund-agent")
-	agentEvent := at("agent.deployed", ScopeAgent, "payments", "refund-agent")
+	agentEvent := at("agent.updated", ScopeAgent, "payments", "refund-agent")
 
 	org := Target{Scope: ScopeOrg}
 	project := Target{Scope: ScopeProject, Project: "payments"}
@@ -80,7 +80,7 @@ func TestReaches(t *testing.T) {
 		{"agent gets its events", agent, agentEvent, true},
 		{"another agent gets nothing", otherAgent, agentEvent, false},
 		{"an unknown scope gets nothing", Target{Scope: "galaxy"}, agentEvent, false},
-		{"an event without a scope reaches nobody", org, Event{Type: TypePrefix + "agent.deployed"}, false},
+		{"an event without a scope reaches nobody", org, Event{Type: TypePrefix + "agent.updated"}, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -90,13 +90,17 @@ func TestReaches(t *testing.T) {
 }
 
 func TestWants(t *testing.T) {
-	assert.True(t, Wants(ScopeAgent, []string{"agent.deployed"}, "agent.deployed"))
-	assert.False(t, Wants(ScopeAgent, []string{"agent.updated"}, "agent.deployed"))
-	assert.True(t, Wants(ScopeAgent, []string{AllEvents}, "agent.deployed"))
-	assert.True(t, Wants(ScopeAgent, []string{AllEvents}, "agent.api_key_revoked"))
+	const configured = "testmod.agent.configured"
+	SetModuleTypes([]Type{{configured, ScopeAgent, "Test", "A module's agent event."}})
+	t.Cleanup(func() { SetModuleTypes(nil) })
+
+	assert.True(t, Wants(ScopeAgent, []string{configured}, configured))
+	assert.False(t, Wants(ScopeAgent, []string{"agent.updated"}, configured))
+	assert.True(t, Wants(ScopeAgent, []string{AllEvents}, configured))
+	assert.True(t, Wants(ScopeAgent, []string{AllEvents}, "agent.updated"))
 	assert.False(t, Wants(ScopeAgent, []string{AllEvents}, "agent.created"), "outside the agent's catalog")
 	assert.False(t, Wants(ScopeOrg, []string{AllEvents}, TypeDestinationTest))
-	assert.False(t, Wants(ScopeOrg, []string{AllEvents, "agent.deployed"}, "project.created"),
+	assert.False(t, Wants(ScopeOrg, []string{AllEvents, configured}, "project.created"),
 		"AllEvents only counts as the only entry")
 	assert.False(t, Wants(ScopeProject, []string{"project.deleted"}, "project.deleted"),
 		"a type that moved to a wider scope is ignored")

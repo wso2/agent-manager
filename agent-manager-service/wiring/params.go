@@ -79,7 +79,7 @@ type AppParams struct {
 	// PlatformRepository stores organizations, projects, environments and agents.
 	PlatformRepository repositories.PlatformRepository
 
-	// What features built on the core (see package builtin) take from it.
+	// Settings and clients the core services use.
 	Config                       *config.Config
 	EncryptionKey                []byte
 	SecretRefKeys                utils.SecretRefKeys
@@ -87,7 +87,6 @@ type AppParams struct {
 	SecretStore                  *repositories.SecretStore
 	IdentityClient               thundersvc.IdentityClient
 	EnvThunderResolver           thundersvc.EnvThunderResolver
-	AgentConfigRepository        repositories.AgentConfigRepository
 	AgentThunderClientRepository repositories.AgentThunderClientRepository
 	AgentThunderProvisioning     services.AgentThunderProvisioningService
 
@@ -142,7 +141,7 @@ func decodeEncryptionKey(name, value string) ([]byte, error) {
 	return key, nil
 }
 
-// ProvideSecretRefKeys decodes the key ring used for legacy secret references and the local vault.
+// ProvideSecretRefKeys decodes the key ring the local vault opens values with.
 func ProvideSecretRefKeys(cfg config.Config, encryptionKey []byte) (utils.SecretRefKeys, error) {
 	keys := utils.SecretRefKeys{encryptionKey}
 	for _, value := range strings.Split(cfg.PreviousEncryptionKeys, ",") {

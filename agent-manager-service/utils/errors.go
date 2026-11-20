@@ -16,93 +16,16 @@
 
 package utils
 
-import (
-	"errors"
-	"fmt"
-)
-
-// ValidationError represents a validation error with both user-friendly message and technical details.
-// Use this when you need to communicate errors to both end-users (via Message) and developers (via Reason).
-type ValidationError struct {
-	// Message is a user-friendly error message suitable for display in UI.
-	// Should be clear, non-technical, and actionable.
-	// Example: "Please provide a valid schema path starting with /"
-	Message string
-
-	// Reason contains technical details for debugging.
-	// Can include field names, specific validation rules, etc.
-	// Example: "inputInterface.schema.path is required and must start with /"
-	Reason string
-
-	// sentinel, when set, is the classification error this failure also matches
-	// under errors.Is — so a check like errors.Is(err, ErrInvalidInput) still
-	// recognises a ValidationError raised in place of a wrapped sentinel.
-	// Unexported so a constructor is the only way to set it.
-	sentinel error
-}
-
-// Error implements the error interface, returning the technical reason for logging.
-func (e *ValidationError) Error() string {
-	return e.Reason
-}
-
-// Unwrap exposes the classification sentinel to errors.Is/errors.As.
-func (e *ValidationError) Unwrap() error {
-	return e.sentinel
-}
-
-// NewValidationError creates a new ValidationError with user-friendly message and technical reason.
-func NewValidationError(message, reason string) *ValidationError {
-	return &ValidationError{Message: message, Reason: reason, sentinel: nil}
-}
-
-// NewInvalidInputError is NewValidationError for a failure that must also keep
-// matching ErrInvalidInput under errors.Is, so callers that route on the
-// sentinel keep working while the UI gets the short Message instead of the
-// whole technical string.
-//
-// The sentinel is fixed rather than a parameter because every ValidationError
-// is rendered as 400 by WriteValidationErrorResponse — pairing one with a
-// not-found or conflict sentinel would still answer 400.
-func NewInvalidInputError(message, reason string) *ValidationError {
-	return &ValidationError{Message: message, Reason: reason, sentinel: ErrInvalidInput}
-}
-
-// NewValidationErrorf creates a new ValidationError with formatted reason string.
-// The message should be user-friendly, while reasonFmt is for technical details.
-func NewValidationErrorf(message, reasonFmt string, args ...interface{}) *ValidationError {
-	return NewValidationError(message, fmt.Sprintf(reasonFmt, args...))
-}
-
-// IsValidationError checks if an error is a ValidationError and returns it.
-// Returns nil if the error is not a ValidationError.
-func IsValidationError(err error) *ValidationError {
-	var ve *ValidationError
-	if errors.As(err, &ve) {
-		return ve
-	}
-	return nil
-}
+import "errors"
 
 var (
 	// Resource not found errors
-	ErrProjectNotFound               = errors.New("project not found")
-	ErrAgentAlreadyExists            = errors.New("agent already exists")
-	ErrAgentNotFound                 = errors.New("agent not found")
-	ErrAgentCardNotFound             = errors.New("agent card not found")
-	ErrAgentNotDeployedInEnvironment = errors.New("agent is not deployed in this environment")
-	ErrAgentNotA2A                   = errors.New("agent is not an A2A agent")
-	ErrAgentCardSourceNotExternal    = errors.New("a card source can be set only for external agents")
-	ErrEnvironmentNotProxied         = errors.New("the environment does not route this agent through its gateway")
-	ErrA2AProxyAgentNotExternal      = errors.New("only external agents can be routed through the gateway")
-	ErrA2AProxyNeedsCardSource       = errors.New("register the agent's card URL for this environment before routing it through the gateway")
-	ErrA2ACardURLNotProxyable        = errors.New("the card URL cannot be routed through the gateway")
-	ErrInvalidUpstreamAuth           = errors.New("invalid upstream auth")
-	// ErrA2AProxyUpstreamAuthNeedsHTTPS keeps a stored upstream credential off an origin that would receive it in cleartext. Maps to 400.
-	ErrA2AProxyUpstreamAuthNeedsHTTPS = errors.New("the card URL must use https before an upstream credential can be stored, as the gateway would otherwise send it in cleartext")
-	ErrOrganizationNotFound           = errors.New("organization not found")
-	ErrEnvironmentNotFound            = errors.New("environment not found")
-	ErrAgentIdentityNotProvisioned    = errors.New("agent identity not yet provisioned for this environment")
+	ErrProjectNotFound             = errors.New("project not found")
+	ErrAgentAlreadyExists          = errors.New("agent already exists")
+	ErrAgentNotFound               = errors.New("agent not found")
+	ErrOrganizationNotFound        = errors.New("organization not found")
+	ErrEnvironmentNotFound         = errors.New("environment not found")
+	ErrAgentIdentityNotProvisioned = errors.New("agent identity not yet provisioned for this environment")
 	// ErrAgentIdentityRetryNotAllowed is returned when a retry is requested for
 	// a binding whose current status is not failed. Maps to 409.
 	ErrAgentIdentityRetryNotAllowed = errors.New("agent identity binding is not in a failed state and cannot be retried")
@@ -113,147 +36,54 @@ var (
 	ErrEventDestinationInUse        = errors.New("event destination is used by one or more subscriptions")
 	ErrEventDestinationNameTaken    = errors.New("an event destination with this name already exists")
 	ErrEventSubscriptionNotFound    = errors.New("event subscription not found")
-	ErrInvalidInput                 = errors.New("invalid input")
 	ErrImmutableFieldChange         = errors.New("cannot change immutable field")
-	ErrScopeNotFound                = errors.New("scope not found")
-	// ErrA2AProxyOriginChangeNeedsAuthReset keeps a stored upstream secret from following the card URL to another origin. Maps to 409.
-	ErrA2AProxyOriginChangeNeedsAuthReset = errors.New(
-		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again",
-	)
 
-	// HTTP errors
-	ErrBadRequest   = errors.New("bad request")
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden    = errors.New("forbidden")
-	ErrNotFound     = errors.New("not found")
-	ErrConflict     = errors.New("conflict")
 	// ErrResourceBeingDeleted is returned when a create collides with a same-named
 	// resource that has been deleted but is still waiting on its cleanup finalizer.
 	// It deliberately does not wrap ErrConflict: callers that recover from a conflict
 	// by updating the existing object must not do so against one that is going away.
 	ErrResourceBeingDeleted = errors.New("a resource with this name is still being deleted")
 
-	// Server errors
-	ErrInternalServerError = errors.New("internal server error")
-	ErrServiceUnavailable  = errors.New("service unavailable")
-
-	// Gateway-related errors
-	ErrGatewayNotFound          = errors.New("gateway not found")
-	ErrGatewayTokenLimitReached = errors.New("maximum 2 active tokens allowed. Revoke old tokens before rotating") // 409: rotating would exceed two active tokens
-	ErrGatewayTokenNotFound     = errors.New("gateway token not found")                                            // 404: an unknown token, or a token of another gateway
-	ErrGatewayAlreadyExists     = errors.New("gateway already exists")
-	ErrInvalidAdapterType       = errors.New("invalid adapter type")
-	ErrGatewayUnreachable       = errors.New("gateway unreachable")
-	ErrInvalidGatewayConfig     = errors.New("invalid gateway configuration")
-
-	// ErrGatewayIngressCapExceeded is returned when assigning an ingress-capable gateway to
-	// an environment that already has one. Maps to 409.
-	ErrGatewayIngressCapExceeded = errors.New("environment already has an ingress gateway")
-
-	// ErrGatewayEnvironmentFixed is returned when registering or assigning a gateway would map it
-	// to a second environment. Maps to 409.
-	ErrGatewayEnvironmentFixed = errors.New("gateway already serves another environment")
+	ErrInvalidAdapterType   = errors.New("invalid adapter type")
+	ErrGatewayUnreachable   = errors.New("gateway unreachable")
+	ErrInvalidGatewayConfig = errors.New("invalid gateway configuration")
 
 	// ErrEnvironmentHasNoGateway is returned when an API agent would be created, built, deployed or
 	// promoted into an environment with no ingress gateway. Maps to 409.
 	ErrEnvironmentHasNoGateway = errors.New("environment has no ingress gateway")
 
-	// ErrGatewayServesEnvironment is returned when unmapping a gateway from an environment whose
-	// agents, MCP proxies or LLM proxies are still placed on it. Maps to 409.
-	ErrGatewayServesEnvironment = errors.New("gateway still serves the environment's artifacts")
-
 	// LLM Provider-related errors
-	ErrProviderNotFound        = errors.New("provider not found")
-	ErrProviderAlreadyExists   = errors.New("provider already exists")
-	ErrProviderHasDeployments  = errors.New("provider has active deployments")
-	ErrDeploymentNotFound      = errors.New("deployment not found")
-	ErrDeploymentFailed        = errors.New("deployment failed")
-	ErrPolicyNotSupported      = errors.New("policy not supported by gateway")
-	ErrInvalidProviderConfig   = errors.New("invalid provider configuration")
-	ErrSystemTemplateImmutable = errors.New("system templates cannot be modified or deleted")
-	ErrSystemTemplateOverride  = errors.New("cannot create user template with same handle as system template")
+	ErrProviderNotFound       = errors.New("provider not found")
+	ErrProviderAlreadyExists  = errors.New("provider already exists")
+	ErrProviderHasDeployments = errors.New("provider has active deployments")
+	ErrDeploymentFailed       = errors.New("deployment failed")
+	ErrPolicyNotSupported     = errors.New("policy not supported by gateway")
+	ErrInvalidProviderConfig  = errors.New("invalid provider configuration")
 
 	// API Platform integration errors
-	ErrHandleExists                = errors.New("handle already exists")
-	ErrGatewayHasAssociatedAPIs    = errors.New("gateway has associated APIs")
-	ErrGatewayHasDeployments       = errors.New("cannot delete gateway: it has active API deployments. Please undeploy all APIs before deleting the gateway")
-	ErrAPINotFound                 = errors.New("API not found")
-	ErrDeploymentNotActive         = errors.New("deployment not active")
-	ErrLLMProviderTemplateNotFound = errors.New("LLM provider template not found")
-	ErrLLMProviderTemplateExists   = errors.New("LLM provider template already exists")
-	ErrLLMProviderNotFound         = errors.New("LLM provider not found")
-	ErrLLMProviderExists           = errors.New("LLM provider already exists")
-	ErrLLMProviderHasProxies       = errors.New("cannot delete LLM provider: it has associated LLM proxies. Please delete all proxies before deleting the provider")
-	ErrLLMProviderUndeployFailed   = errors.New("cannot delete LLM provider: undeploying it from its gateways failed. Retry, or undeploy manually before deleting")
-	ErrLLMProviderDeleteInProgress = errors.New("cannot delete LLM provider: a delete is already in progress for it")
-	ErrLLMProviderBeingDeleted     = errors.New("cannot create LLM proxy: the LLM provider is being deleted")
-	ErrLLMProxyNotFound            = errors.New("LLM proxy not found")
-	ErrLLMProxyExists              = errors.New("LLM proxy already exists")
-	ErrLLMProxyManagedByAMS        = errors.New("this LLM proxy is managed by an agent or monitor; change the agent's or monitor's LLM configuration instead")
-	ErrMCPProxyNotFound            = errors.New("MCP proxy not found")
-	// ErrAgentArtifactNotFound means no active Agent deployment exists for this
-	// artifact on this gateway.
-	ErrAgentArtifactNotFound     = errors.New("agent artifact not found")
-	ErrMCPProxyExists            = errors.New("MCP proxy already exists")
-	ErrMCPProxyHasMappings       = errors.New("cannot delete MCP proxy: it has associated MCP proxy mappings. Please delete all mappings before deleting the proxy")
-	ErrMCPEnvAlreadyBound        = errors.New("environment is already assigned to another endpoint in this MCP proxy")
-	ErrInvalidURL                = errors.New("invalid URL")
-	ErrURLUnreachable            = errors.New("URL unreachable")
-	ErrMCPServerUnauthorized     = errors.New("MCP server unauthorized")
-	ErrMCPResponseTooLarge       = errors.New("MCP response body too large")
-	ErrTooManyRequests           = errors.New("too many requests")
-	ErrDeploymentIsDeployed      = errors.New("deployment is currently deployed")
-	ErrDeploymentAlreadyDeployed = errors.New("deployment already deployed")
-	ErrGatewayIDMismatch         = errors.New("gateway ID mismatch")
-	ErrDeploymentBaseNotCurrent  = errors.New(`base must be omitted or "current"; ` +
-		"redeploy an earlier deployment with POST .../deployments/restore?deploymentId=<id>&gatewayId=<gatewayId>")
-	ErrDeploymentGatewayIDRequired = errors.New("deployment gateway ID required")
-	ErrInvalidDeploymentStatus     = errors.New("invalid deployment status")
-	ErrArtifactNotFound            = errors.New("artifact not found")
-	ErrArtifactExists              = errors.New("artifact already exists")
-	ErrDevPortalNotFound           = errors.New("devportal not found")
-	ErrAPIAlreadyPublished         = errors.New("api is already published to devportal")
-	ErrAPIPublicationNotFound      = errors.New("api publication not found")
+	ErrHandleExists             = errors.New("handle already exists")
+	ErrGatewayHasAssociatedAPIs = errors.New("gateway has associated APIs")
+	ErrDevPortalNotFound        = errors.New("devportal not found")
+	ErrAPIAlreadyPublished      = errors.New("api is already published to devportal")
+	ErrAPIPublicationNotFound   = errors.New("api publication not found")
 
-	// Implementation status errors
-	ErrNotImplemented = errors.New("not implemented")
-
-	// Agent Configuration errors
-	ErrAgentConfigNotFound      = errors.New("agent configuration not found")
-	ErrAgentConfigAlreadyExists = errors.New("agent configuration already exists for this agent")
 	// ErrOrphanedAgentConfigsExist is returned when an agent is created with the name of a
 	// previously deleted agent whose configuration rows survived, because revoking their LLM
 	// proxy credentials failed. Configurations are keyed by agent name, so letting the create
 	// through would silently hand the new agent the old agent's un-rotated credential. Maps to 409.
 	ErrOrphanedAgentConfigsExist = errors.New("configurations from a previously deleted agent with this name have not been fully revoked")
-	// ErrAgentConfigNotExternal is returned when a user-managed API key action
-	// (create/rotate/revoke) is attempted against a configuration whose agent is
-	// managed/internal. Only external agents own their proxy API keys; managed
-	// agents have the platform inject them, so user-managed actions are rejected.
-	ErrAgentConfigNotExternal = errors.New("API key management is only available for external agents")
 
 	ErrSecretPathConflict = errors.New("secret path is owned by another system")
 )
 
 // Project-scoped MCP proxy errors.
 var (
-	// ErrMCPProxyHandleInUse means the handle belongs to an org-level proxy, another
-	// project's proxy, or another artifact (409 HANDLE_IN_USE on the project routes).
-	ErrMCPProxyHandleInUse = errors.New("MCP proxy handle already in use")
 	// ErrMCPProxyCreateNotPermitted means the caller may update project proxies but not
 	// create one, and the upsert would have created it (403 on the project routes).
 	ErrMCPProxyCreateNotPermitted = errors.New("not permitted to create MCP proxies")
-	// ErrMCPProxyProjectOwned means an org-level mutation targeted a project-scoped proxy
-	// (409 PROJECT_OWNED on the org routes). Project proxies change only via the project routes.
-	ErrMCPProxyProjectOwned = errors.New("MCP proxy belongs to a project and can only be changed through the project routes")
 	// ErrMCPUpstreamNotReady means the proxy's source component has no reachable endpoint in the
 	// environment yet (409 UPSTREAM_NOT_READY); nothing was stored.
 	ErrMCPUpstreamNotReady = errors.New("the source component is not deployed in this environment yet")
-	// ErrContextInUse means an artifact's gateway context, of any kind, equals, contains or sits under another
-	// artifact's context on the same vhost of the gateway (409 CONTEXT_IN_USE).
-	ErrContextInUse = errors.New("the context is already in use on the gateway")
-	// ErrMCPContextInUse is ErrContextInUse, under the name the MCP proxy routes have used for it.
-	ErrMCPContextInUse = ErrContextInUse
 	// ErrMCPProxyEnvironmentNotBound means the proxy has no binding in the environment (404).
 	ErrMCPProxyEnvironmentNotBound = errors.New("MCP proxy is not bound to this environment")
 	// ErrMCPJWTSecurityNotAvailable is the phase-1 refusal of jwt security (400).

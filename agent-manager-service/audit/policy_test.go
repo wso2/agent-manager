@@ -38,7 +38,7 @@ func TestShouldAuditByMethod(t *testing.T) {
 		{"ordinary get is not audited", http.MethodGet, "/orgs/{orgName}/projects", false},
 		{"head is not audited", http.MethodHead, "/orgs/{orgName}/projects", false},
 		{"options is not audited", http.MethodOptions, "/orgs/{orgName}/projects", false},
-		{"sensitive get is audited", http.MethodGet, "/orgs/{orgName}/git-secrets", true},
+		{"sensitive get is audited", http.MethodGet, "/orgs/{orgName}/identities/permissions", true},
 		{"exempt write is not audited", http.MethodPost, "/orgs/{orgName}/utils/generate-name", false},
 	}
 
@@ -84,7 +84,7 @@ func TestDeriveAction(t *testing.T) {
 			name:   "multiple permissions fall back to resource plus method verb",
 			method: http.MethodPut,
 			path:   "/orgs/{orgName}/unmapped",
-			perms:  []rbac.Permission{rbac.EnvironmentRead, rbac.LLMProviderRead},
+			perms:  []rbac.Permission{rbac.EnvironmentRead, rbac.AgentRead},
 			want:   "environment:update",
 		},
 		{
@@ -95,26 +95,6 @@ func TestDeriveAction(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/orgs/{orgName}/widgets",
 			perms:  nil,
-			want:   "",
-		},
-		{
-			// The tier says where the operation lands, not what it is, so it is
-			// not allowed to name the action. The capability beside it is.
-			name:   "the environment tier does not name the action",
-			method: http.MethodPost,
-			path:   "/orgs/{orgName}/unmapped-tiered",
-			perms:  []rbac.Permission{rbac.AgentSuspend, rbac.AgentEnvNonProduction},
-			want:   "agent:suspend",
-		},
-		{
-			// A route gated only on the axis is the case this filter exists for:
-			// it derives nothing and panics at registration, rather than
-			// registering "agent:env-non-production" as an action with no class,
-			// no severity and no detail schema.
-			name:   "a tier-only route yields no action",
-			method: http.MethodPost,
-			path:   "/orgs/{orgName}/unmapped-tier-only",
-			perms:  []rbac.Permission{rbac.AgentEnvNonProduction},
 			want:   "",
 		},
 	}
@@ -177,12 +157,10 @@ func TestNewRouteMetaSplitsPatternAndParams(t *testing.T) {
 func TestCredentialActionsAreCritical(t *testing.T) {
 	critical := []Action{
 		"api-key:create", "api-key:rotate", "api-key:revoke",
-		"git-secret:create", "git-secret:delete",
 		"gateway-token:rotate", "agent-token:mint",
 		"agent-identity:provision", "agent-identity:revoke-secret",
 		"role:grant-permission", "role:assign",
 		"user:create", "user:delete", "group:add-member",
-		"service-account:configure",
 	}
 
 	for _, action := range critical {
@@ -200,7 +178,7 @@ func TestCredentialActionsAreCritical(t *testing.T) {
 }
 
 func TestDeploymentActionsAreClassified(t *testing.T) {
-	for _, action := range []Action{"agent:deploy", "agent:promote", "agent:build", "llm-provider:undeploy"} {
+	for _, action := range []Action{"agent:build", "agent:suspend", "llm-provider:undeploy"} {
 		t.Run(string(action), func(t *testing.T) {
 			if got := action.Class(); got != ClassDeployment {
 				t.Errorf("Class() = %q, want %q", got, ClassDeployment)

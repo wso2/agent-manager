@@ -61,6 +61,10 @@ var baseFields = map[string]FieldKind{
 	// Set when events were coalesced or suppressed.
 	"repeatCount":     KindCount,
 	"suppressedCount": KindCount,
+	// Set on a request a module refused because the caller lacks a scope
+	// only the module can check (the AI Gateway's environment tier).
+	"reason":       KindEnum,
+	"missingScope": KindName,
 	// Set by redactDetails when a key was not declared.
 	"_droppedKeys": KindNameList,
 }
@@ -80,10 +84,6 @@ var detailSchema = map[Action]map[string]FieldKind{
 		"reason":        KindEnum,
 		"missingScope":  KindName,
 		"grantedScopes": KindCount,
-		// A deploy refused because the agent does not own the image. The image is
-		// the whole point of that denial; without it the event cannot say what
-		// was attempted.
-		"imageId": KindIdentifier,
 		// A request whose body named an org other than the caller's token org.
 		"requestedOrgId": KindIdentifier,
 	},
@@ -110,6 +110,9 @@ var detailSchema = map[Action]map[string]FieldKind{
 // including the base fields.
 func DetailSchema(action Action) map[string]FieldKind {
 	declared := detailSchema[action]
+	if m, ok := moduleAction(action); ok {
+		declared = m.Details
+	}
 	out := make(map[string]FieldKind, len(declared)+len(baseFields))
 	for k, v := range baseFields {
 		out[k] = v

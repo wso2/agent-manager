@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	customRoleProbeScope    = "amp:agent-kind:read"
+	customRoleProbeScope    = "amp:environment:read"
 	customRoleRetainedScope = "amp:project:read"
 )
 
@@ -48,7 +48,7 @@ var _ = Describe("SEC-ROLE-002: custom role mutation and revocation", Label("sec
 	It("applies grants and revocations to newly issued tokens", func(ctx SpecContext) {
 		admin := framework.NewAMPClientWithToken(cfg, personas["admin"].Token)
 		identityBase := "/api/v1/orgs/" + cfg.DefaultOrg + "/identities"
-		probePath := "/api/v1/orgs/" + cfg.DefaultOrg + "/agent-kinds"
+		probePath := "/api/v1/orgs/" + cfg.DefaultOrg + "/environments"
 		retainedPath := "/api/v1/orgs/" + cfg.DefaultOrg + "/projects"
 
 		By("Resolving the deployed AMP resource server")

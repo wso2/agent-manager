@@ -25,7 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // OUHandleLookup maps an organization unit ID to its handle. It returns an
@@ -82,7 +82,7 @@ func ApplyOrgOverride(lookup OUHandleLookup) func(http.HandlerFunc) http.Handler
 				slog.ErrorContext(ctx, "org override refused: resolved org missing — RequireOrgMatch not applied",
 					"path", sanitizeForLog(r.URL.Path))
 				RecordAuthzDeny(r, "org-override-not-permitted")
-				utils.WriteErrorResponse(w, http.StatusForbidden, "org impersonation not permitted")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "org impersonation not permitted")
 				return
 			}
 
@@ -93,7 +93,7 @@ func ApplyOrgOverride(lookup OUHandleLookup) func(http.HandlerFunc) http.Handler
 				slog.WarnContext(ctx, "org override refused",
 					"clientId", clientID, "tokenOuID", tokenOrg.OUID, "path", sanitizeForLog(r.URL.Path))
 				RecordAuthzDeny(r, "org-override-not-permitted")
-				utils.WriteErrorResponse(w, http.StatusForbidden, "org impersonation not permitted")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "org impersonation not permitted")
 				return
 			}
 			if targetOUID == tokenOrg.OUID {
@@ -110,12 +110,12 @@ func ApplyOrgOverride(lookup OUHandleLookup) func(http.HandlerFunc) http.Handler
 				slog.WarnContext(ctx, "org override refused: target org not found",
 					"clientId", clientID, "tokenOuID", tokenOrg.OUID, "targetOuID", targetOUID)
 				RecordAuthzDeny(r, "org-override-target-not-found")
-				utils.WriteErrorResponse(w, http.StatusForbidden, "org impersonation not permitted")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "org impersonation not permitted")
 				return
 			case err != nil || strings.TrimSpace(handle) == "":
 				slog.ErrorContext(ctx, "org override failed: could not resolve target org handle",
 					"clientId", clientID, "tokenOuID", tokenOrg.OUID, "targetOuID", targetOUID, "error", err)
-				utils.WriteErrorResponse(w, http.StatusBadGateway, "failed to resolve the impersonated organization")
+				httpx.WriteErrorResponse(w, http.StatusBadGateway, "failed to resolve the impersonated organization")
 				return
 			}
 
@@ -147,7 +147,7 @@ func pathNamesOrg(w http.ResponseWriter, r *http.Request, handle string) bool {
 	slog.WarnContext(r.Context(), "org override refused: path org is not the impersonated org",
 		"clientId", tokenClientID(r.Context()), "pathOrg", sanitizeForLog(pathOrg), "targetHandle", handle)
 	RecordAuthzDeny(r, "org-override-path-mismatch")
-	utils.WriteErrorResponse(w, http.StatusForbidden, "the organization in the path is not the impersonated organization")
+	httpx.WriteErrorResponse(w, http.StatusForbidden, "the organization in the path is not the impersonated organization")
 	return false
 }
 

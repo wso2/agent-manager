@@ -12,9 +12,9 @@ Runs AMP Lite with no Kubernetes, Helm or ingress controller. Every service publ
 
 Startup, in order:
 
-1. `amp-init` (the `amp-api` image, `amp init thunder … gateway … fileauth …`) writes ThunderID's configuration and bootstrap resources and the AI Gateway's `config.toml` from the settings in `docker-compose.yml` and `.env`: public URLs, ports, client IDs and secrets, default users. Scope lists and role grants come from Agent Manager's own permission catalog. On the first run it also creates the gateway's encryption key, listener certificate and registration token (unless `DEFAULT_GATEWAY_TOKEN` is set), and keeps them afterwards.
+1. `amp-init` (the `amp-api` image, `amp init thunder … ai-gateway … fileauth …`) writes ThunderID's configuration and bootstrap resources and the AI Gateway's `config.toml` from the settings in `docker-compose.yml` and `.env`: public URLs, ports, client IDs and secrets, default users. Scope lists and role grants come from Agent Manager's own permission catalog. On the first run it also creates the gateway's encryption key, listener certificate and registration token (unless `DEFAULT_GATEWAY_TOKEN` is set), and keeps them afterwards.
 2. `thunder-setup` runs ThunderID's setup when the generated bootstrap differs from the one last applied. A rerun is additive: it updates AMP's clients, roles and settings and keeps everything else in ThunderID's database. It also sets the admin password to `AMP_ADMIN_PASSWORD` again.
-3. `amp-api` (`amp serve --migrate`) migrates the core's and every module's tables, starts the module host, and creates the `default` organization and environment if needed (`DEFAULT_ORG_*`). The built-in gateway module then registers the default gateway (`DEFAULT_GATEWAY_*`) with the token from step 1.
+3. `amp-api` (`amp serve --migrate`) migrates the core's and every module's tables, starts the module host, and creates the `default` organization and environment if needed (`DEFAULT_ORG_*`). The `ai-gateway` module, which `amp` installs at first boot, then registers the default gateway (`MODULE_AI_GATEWAY_DEFAULT_GATEWAY_*`) with the token from step 1.
 4. `gateway-controller` connects to `amp-api` with that token and receives its APIs.
 
 The stack runs no trace store: there is no OpenSearch, OpenTelemetry collector or trace query service, and the gateway serves no `/otel` trace-ingest API. Traces will return as an optional module.
@@ -42,7 +42,7 @@ Sign in to the console (http://localhost:9000, served by `amp-api`) as `admin` w
 `amp-api` takes its settings from the environment Compose passes it. Anything else can go in an `amp.yaml` the container reads (`--config` or `AMP_CONFIG`), including the `modules:` list it reconciles at boot; environment variables win over the file. See [`amp.example.yaml`](../../agent-manager-service/amp.example.yaml).
 
 `AUTH_MODE` decides how sign-in works and ships as `file`: the API checks the
-password against `/etc/amp/users.yaml` and issues its own tokens, with no
+password against `/amp/fileauth/users.yaml` (`FILE_AUTH_USERS_PATH`) and issues its own tokens, with no
 identity provider involved. `amp-init` regenerates that file on every start from
 `AMP_ADMIN_PASSWORD` and `AMP_DEFAULT_USERS`, so edit `.env` and restart rather
 than the file itself. Sessions last `FILE_AUTH_TOKEN_TTL` (8 hours) and are not
