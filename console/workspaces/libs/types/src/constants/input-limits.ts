@@ -26,15 +26,6 @@ import { globalConfig } from '../config';
 export const DEFAULT_MAX_REQUEST_BODY_BYTES = 0;
 
 /**
- * Share of the request-body limit reserved for everything in a save other
- * than one file's content: the rest of the form and JSON escaping.
- */
-export const REQUEST_BODY_HEADROOM_BYTES = 8 * 1024;
-
-/** File-mount cap used when FILE_MOUNT_MAX_FILE_BYTES is unset: 1 MB, the backend default. */
-export const DEFAULT_FILE_MOUNT_MAX_FILE_BYTES = 1_000_000;
-
-/**
  * Parses a byte limit from runtime config. The template substitutes an unset
  * variable with an empty string, which means "use the default". Anything else
  * that is not a non-negative integer also falls back, with a warning: for the
@@ -67,29 +58,6 @@ export const getMaxRequestBodyBytes = (): number =>
     globalConfig?.maxRequestBodyBytes,
     DEFAULT_MAX_REQUEST_BODY_BYTES,
   );
-
-/**
- * Largest file-mount content, in bytes. Configured per deployment with
- * FILE_MOUNT_MAX_FILE_BYTES; a value of 0 is not a usable cap and falls back.
- */
-export const getFileMountMaxFileBytes = (): number => {
-  const configured = readByteLimit(
-    'FILE_MOUNT_MAX_FILE_BYTES',
-    globalConfig?.fileMountMaxFileBytes,
-    DEFAULT_FILE_MOUNT_MAX_FILE_BYTES,
-  );
-  const fileLimit = configured > 0 ? configured : DEFAULT_FILE_MOUNT_MAX_FILE_BYTES;
-  // A file larger than the request-body limit passes this check and is then
-  // refused at save, so cap it at what a save can carry, less room for the rest
-  // of the form and JSON escaping. Content heavy in quotes or newlines can
-  // still exceed it; the save-time check reports that with a readable error.
-  const bodyLimit = getMaxRequestBodyBytes();
-  if (bodyLimit === 0) return fileLimit;
-  const room = bodyLimit > REQUEST_BODY_HEADROOM_BYTES
-    ? bodyLimit - REQUEST_BODY_HEADROOM_BYTES
-    : bodyLimit;
-  return Math.min(fileLimit, room);
-};
 
 /** UTF-8 size of a string, which is what the backend and a WAF measure. */
 export const utf8ByteLength = (value: string): number => new TextEncoder().encode(value).length;
@@ -139,13 +107,6 @@ export const INPUT_LIMITS = {
   PROMPT: 16_000,
   /** Source code authored in the console (evaluator bodies, config editors). */
   SOURCE: 32_000,
-  /**
-   * Name of a mounted file. 253 is the Kubernetes ConfigMap/Secret key limit,
-   * which is what the agent form's schema validates against; the shared
-   * FileMountEditor caps at the same value so it cannot refuse a name the
-   * schema would accept.
-   */
-  FILE_NAME: 253,
   /** URLs and endpoints. */
   URL: 2_048,
   /** Environment variable / header / parameter keys. */

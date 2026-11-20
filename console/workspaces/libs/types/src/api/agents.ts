@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { type AgentPathParams, type Build, type Configurations, type ListQuery, type OrgPathParams, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
+import { type AgentPathParams, type Build, type ListQuery, type OrgPathParams, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
 import type { EnvProviderConfiguration, EnvironmentVariableConfig } from './agent-model-configs';
 import type { ThunderGroup, ThunderRole } from './identities';
 
@@ -75,22 +75,9 @@ interface UpdateAgentBasicInfoRequest {
   labels?: Record<string, string>;
 }
 
-interface UpdateAgentBuildParametersRequest {
-  provisioning: Provisioning;
-  agentType?: AgentType;
-  build?: Build;
-  configurations?: Configurations;
-  inputInterface?: InputInterface;
-  /**
-   * Replaces the saved health checks; {} goes back to the defaults. Omit to keep the
-   * saved ones. Applied by the next build.
-   */
-  healthChecks?: HealthChecks;
-}
-
 export type CreateAgentRequest = AgentRequestBase;
 export type UpdateAgentRequest = UpdateAgentBasicInfoRequest;
-export type { UpdateAgentBasicInfoRequest, UpdateAgentBuildParametersRequest };
+export type { UpdateAgentBasicInfoRequest };
 
 export type InputInterfaceType = 'DEFAULT' | 'CUSTOM' | 'A2A';
 
@@ -207,7 +194,6 @@ export type GetAgentPathParams = AgentPathParams;
 export type DeleteAgentPathParams = AgentPathParams;
 export type UpdateAgentPathParams = AgentPathParams;
 export type UpdateAgentBasicInfoPathParams = AgentPathParams;
-export type UpdateAgentBuildParametersPathParams = AgentPathParams;
 /** `label` entries are `key:value` selectors; repeat for AND semantics. */
 export type ListAgentsQuery = ListQuery & { label?: string[] };
 

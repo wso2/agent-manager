@@ -24,29 +24,15 @@ export const ENV_SEARCH_PARAM = "env";
 /**
  * Tracks the selected environment (by name) in the `env` search param instead
  * of local state, so the tab a user is on survives reloads/back-navigation.
- * Falls back to a default environment when the param is missing or points at
- * an environment outside the current list — the rightmost (most-promoted)
- * environment that `isDeployed` reports as deployed, so users land on
- * whatever's furthest along the pipeline instead of always Dev. Falls back
- * further to the first environment when none are deployed yet. When no
- * `isDeployed` predicate is given (e.g. external agents, which have no
- * platform-managed deployment concept to check), there's nothing to filter
- * on, so it defaults straight to the rightmost (most-promoted) environment.
+ * Falls back to the last environment in the list when the param is missing or
+ * points at an environment outside the current list.
  */
-export function useSelectedEnvironmentParam(
-  environments: Environment[],
-  isDeployed?: (env: Environment) => boolean,
-) {
+export function useSelectedEnvironmentParam(environments: Environment[]) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedName = searchParams.get(ENV_SEARCH_PARAM);
-  // `??` short-circuits, so the reverse-scan for a default only actually runs
-  // when the requested (or no) param fails to resolve directly — the common
-  // case, once a selection is in the URL, skips it entirely.
   const selectedEnvironment =
     environments.find((env) => env.name === requestedName) ??
-    (isDeployed
-      ? [...environments].reverse().find(isDeployed) ?? environments[0]
-      : environments[environments.length - 1]);
+    environments[environments.length - 1];
 
   const selectEnvironment = (name: string) => {
     setSearchParams(

@@ -87,14 +87,6 @@ interface AgentConfigTableSectionProps {
    * under a tab whose label already names it. Defaults to true.
    */
   showTitle?: boolean;
-  /**
-   * Blocks the Add button for a reason of the caller's own (e.g. the agent's
-   * first build has not produced an image yet). Independent of the internal
-   * route-param check, which disables the button regardless.
-   */
-  addDisabled?: boolean;
-  /** Tooltip explaining `addDisabled`. Required for the block to be discoverable. */
-  addDisabledReason?: string;
 }
 
 /**
@@ -113,8 +105,6 @@ export function AgentConfigTableSection({
   onRemove,
   isRemoving = false,
   showTitle = true,
-  addDisabled = false,
-  addDisabledReason,
 }: AgentConfigTableSectionProps) {
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
@@ -129,7 +119,7 @@ export function AgentConfigTableSection({
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const canAdd = Boolean(orgId && projectId && agentId) && !addDisabled;
+  const canAdd = Boolean(orgId && projectId && agentId);
 
   const filteredConfigs = useMemo(() => {
     if (!searchValue.trim()) return configs;
@@ -201,14 +191,7 @@ export function AgentConfigTableSection({
         {labels.addButtonLabel}
       </Button>
     );
-    if (!addDisabled || !addDisabledReason) return button;
-    // A disabled MUI Button drops pointer events, so the tooltip has to listen
-    // on a wrapper — otherwise the one explanation the user needs never shows.
-    return (
-      <Tooltip title={addDisabledReason}>
-        <span>{button}</span>
-      </Tooltip>
-    );
+    return button;
   };
 
   const toolbar = (

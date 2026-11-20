@@ -33,7 +33,7 @@ import {
   monospaceInputSx,
   resolveAuthenticationType,
   useAgentIdentityCredentials,
-  usePipelineEnvironmentsState,
+  useOrgEnvironmentsState,
   useConfirmIfUnsaved,
   useMCPProxyEndpoints,
   useThunderInstanceForEnv,
@@ -94,10 +94,6 @@ import { MCPServerDisplay } from "./Configure/subComponents/MCPServerDisplay";
 import { MCPProxyAPIKeysSection } from "./Configure/subComponents/MCPProxyAPIKeysSection";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CONFIGURE_TAB_PARAM } from "./configureTabs";
-import {
-  BUILD_IN_PROGRESS_REASON,
-  useHasBuildInProgress,
-} from "./utils/buildInProgress";
 
 type AuthInfoEntry = {
   type: string;
@@ -382,20 +378,13 @@ export const ViewMCPServerComponent = () => {
     agentName: agentId,
   });
   const isExternal = agent?.provisioning?.type === "external";
-  const hasBuildInProgress = useHasBuildInProgress(
-    { orgName: orgId, projName: projectId, agentName: agentId },
-    { enabled: !!agent && !isExternal && !agent.kindName },
-  );
 
   const { data: environments = [], isError: isEnvironmentsError } = useListEnvironments({
     orgName: orgId,
   });
   const getEnvDisplayName = (name: string) =>
     environments.find((env) => env.name === name)?.displayName ?? name;
-  const { environments: pipelineEnvs } = usePipelineEnvironmentsState(
-    orgId,
-    projectId,
-  );
+  const { environments: orgEnvs } = useOrgEnvironmentsState(orgId);
   const { data: proxiesData } = useListMCPProxies(
     { orgName: orgId },
     { limit: 50, offset: 0, project: projectId },
@@ -412,15 +401,15 @@ export const ViewMCPServerComponent = () => {
         )}?${CONFIGURE_TAB_PARAM}=tools`
       : "#";
 
-  // Show every environment the agent deploys to (pipeline order), plus any mapped
-  // envs no longer in the pipeline, so each carries a deployment status.
+  // Show every environment of the organization, plus any mapped envs that no
+  // longer exist, so each carries a deployment status.
   const envNames = useMemo(() => {
     const configured = Object.keys(config?.envMappings ?? {});
-    const ordered = pipelineEnvs.map((env) => env.name);
+    const ordered = orgEnvs.map((env) => env.name);
     const extras = configured.filter((name) => !ordered.includes(name));
     const union = [...ordered, ...extras];
     return union.length > 0 ? union : configured;
-  }, [config, pipelineEnvs]);
+  }, [config, orgEnvs]);
 
   // The tool config references a single, environment-agnostic MCP proxy. Derive it
   // from any environment that has a mapping.
@@ -924,9 +913,6 @@ export const ViewMCPServerComponent = () => {
         onSave={canWrite ? handleSave : undefined}
         isDirty={isDirty}
         isSaving={updateConfig.isPending}
-        saveBlockedReason={
-          hasBuildInProgress ? BUILD_IN_PROGRESS_REASON : undefined
-        }
         hasInvalidNames={hasEmptyEnvVarName || isMCPSecurityUnresolved}
         error={updateConfig.isError ? updateConfig.error : undefined}
         description={

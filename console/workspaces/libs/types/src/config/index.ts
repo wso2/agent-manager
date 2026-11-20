@@ -128,11 +128,6 @@ export interface AppConfig {
    * read it via getMaxRequestBodyBytes().
    */
   maxRequestBodyBytes?: string | number;
-  /**
-   * Per-file cap, in bytes, on file-mount content. Should match the backend's
-   * FILE_MOUNT_MAX_FILE_BYTES. Read it via getFileMountMaxFileBytes().
-   */
-  fileMountMaxFileBytes?: string | number;
   /** URL for the product documentation. Shown as a "Docs" link in the footer. */
   docsUrl?: string;
   /** URLs rendered in the footer. */
@@ -159,7 +154,7 @@ export interface AppConfig {
      */
     marketplace?: boolean;
     /**
-     * UI modules ("agent-runtime") or pages ("agent-portal/agent-kind") the
+     * UI modules ("ai-observability") or pages ("ai-observability/traces") the
      * deployment turns on besides what the server's UI manifest lists, from
      * CONSOLE_UI_MODULES_ENABLE (comma- or space-separated).
      */

@@ -27,7 +27,7 @@ import {
   CodeBlock,
   PolicyListSection,
   ResilienceTimeoutFields,
-  usePipelineEnvironmentsState,
+  useOrgEnvironmentsState,
   useUnsavedChangesGuard,
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
@@ -68,10 +68,6 @@ import { EnvironmentVariablesGuideDrawer } from "./Configure/subComponents/Envir
 import { LLMProxyAPIKeysSection } from "./Configure/subComponents/LLMProxyAPIKeysSection";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CONFIGURE_TAB_PARAM } from "./configureTabs";
-import {
-  BUILD_IN_PROGRESS_REASON,
-  useHasBuildInProgress,
-} from "./utils/buildInProgress";
 
 const DURATION_PATTERN = /^\d+(ms|s|m|h)$/;
 
@@ -321,7 +317,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
     environments,
     isLoading: isLoadingEnvironments,
     isError: isEnvironmentsError,
-  } = usePipelineEnvironmentsState(orgId, projectId);
+  } = useOrgEnvironmentsState(orgId);
 
   const isLoading = isLoadingConfig || isLoadingEnvironments;
 
@@ -332,10 +328,6 @@ export const ViewLLMProviderComponent: React.FC = () => {
   });
 
   const isExternal = agent?.provisioning?.type === "external";
-  const hasBuildInProgress = useHasBuildInProgress(
-    { orgName: orgId, projName: projectId, agentName: agentId },
-    { enabled: !!agent && !isExternal && !agent.kindName },
-  );
 
   const { data: catalogData } = useListCatalogLLMProviders(
     { orgName: orgId },
@@ -832,7 +824,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
         backLabel="Back to configure"
       >
         <Alert severity="error" icon={<AlertTriangle size={18} />}>
-          Failed to load the project&apos;s deployment pipeline environments. Please try again.
+          Failed to load the organization&apos;s environments. Please try again.
         </Alert>
       </PageLayout>
     );
@@ -1136,9 +1128,6 @@ export const ViewLLMProviderComponent: React.FC = () => {
         onSave={canWrite ? handleSave : undefined}
         isDirty={isDirty}
         isSaving={updateConfig.isPending}
-        saveBlockedReason={
-          hasBuildInProgress ? BUILD_IN_PROGRESS_REASON : undefined
-        }
         hasInvalidNames={hasEmptyEnvVarName}
         error={updateConfig.isError ? updateConfig.error : undefined}
         description={
@@ -1381,9 +1370,6 @@ export const ViewLLMProviderComponent: React.FC = () => {
           </Stack>
           )}
 
-          {canWrite && isDirty && hasBuildInProgress && (
-            <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
-          )}
           {canWrite && isDirty && (
             <Stack direction="row" spacing={1}>
               <Button
@@ -1400,11 +1386,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
                 variant="contained"
                 size="small"
                 onClick={handleSave}
-                disabled={
-                  updateConfig.isPending ||
-                  hasEmptyEnvVarName ||
-                  hasBuildInProgress
-                }
+                disabled={updateConfig.isPending || hasEmptyEnvVarName}
               >
                 {updateConfig.isPending ? "Saving…" : "Save"}
               </Button>

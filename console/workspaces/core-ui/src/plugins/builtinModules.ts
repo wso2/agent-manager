@@ -18,10 +18,8 @@
 
 import type { UIModuleManifest } from "@agent-management-platform/types";
 import { acpCoreModule } from "@agent-management-platform/ui-module-acp-core";
-import { agentRuntimeModule } from "@agent-management-platform/ui-module-agent-runtime";
 import { aiGatewayModule } from "@agent-management-platform/ui-module-ai-gateway";
 import { agentIdentityModule } from "@agent-management-platform/ui-module-agent-identity";
-import { agentPortalModule } from "@agent-management-platform/ui-module-agent-portal";
 
 /**
  * UI modules that ship with the console, in the order the Module manager lists
@@ -32,8 +30,6 @@ import { agentPortalModule } from "@agent-management-platform/ui-module-agent-po
  */
 export const builtinModules: UIModuleManifest[] = [
   acpCoreModule,
-  agentRuntimeModule,
   aiGatewayModule,
   agentIdentityModule,
-  agentPortalModule,
 ];
