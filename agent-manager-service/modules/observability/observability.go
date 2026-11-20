@@ -16,11 +16,12 @@
 
 // Package observability is an installable module that serves an
 // organization's traces: the observer's trace routes under
-// /api/v1/m/observability, and the traces.query/v1 capability.
+// /m/observability, and the traces.query/v1 capability.
 package observability
 
 import (
 	"context"
+	_ "embed"
 	"io/fs"
 	"net/http"
 
@@ -41,6 +42,9 @@ func init() {
 	modkit.Register(New(memory.New()))
 }
 
+//go:embed api/openapi.yaml
+var openAPI []byte
+
 // New returns the module serving traces from traces.
 func New(traces store.TraceStore) modkit.Module {
 	return module{traces: traces}
@@ -53,12 +57,13 @@ type module struct {
 func (module) Manifest() modkit.Manifest {
 	return modkit.Manifest{
 		Name:        Name,
+		DisplayName: "Observability",
 		Version:     "1.0.0",
 		Description: "Traces of the organization's agents",
 		CoreAPI:     modkit.CoreAPIVersion,
 		Provides:    []string{tracesv1.ID},
 		Permissions: []modkit.Permission{
-			{Name: PermTracesRead, Description: "Read the organization's traces"},
+			{Name: PermTracesRead, DisplayName: "Read Traces", Description: "Read the organization's traces"},
 		},
 		RoleGrants: map[string][]string{
 			"Agent Manager Admin": {PermTracesRead},
@@ -72,6 +77,9 @@ func (module) Manifest() modkit.Manifest {
 
 func (module) Migrations() fs.FS { return nil }
 func (module) UI() fs.FS         { return nil }
+
+// OpenAPI describes the routes the module mounts.
+func (module) OpenAPI() []byte { return openAPI }
 
 func (m module) Activate(_ context.Context, rt modkit.Runtime) error {
 	q := guarded(m)

@@ -3,7 +3,7 @@ info:
   title: Observability module API
   description: |
     The observability module's trace routes. They mirror the Agent Manager Observer's
-    trace endpoints under `/api/v1/m/observability` and return the same bodies, so the
+    trace endpoints under `/m/observability` and return the same bodies, so the
     console reads either by changing only its observer base URL.
 
     The organization is always the caller's. An `organization` query parameter, which the
@@ -13,12 +13,13 @@ info:
     The routes exist only while the module is active: they answer 404 before it is
     installed and after it is disabled.
   version: 1.0.0
+  x-amp-module: observability
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
 
 servers:
-  - url: /api/v1/m/observability
+  - url: /m/observability
 
 security:
   - bearerAuth: []

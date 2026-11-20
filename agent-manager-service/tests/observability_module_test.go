@@ -76,8 +76,8 @@ func TestObservabilityModule(t *testing.T) {
 	newOrg := func() org {
 		id := uuid.Must(uuid.NewV7()).String()
 		o := org{id: id, handle: "obs-" + id[len(id)-8:]}
-		o.full = api.MakeHTTPHandlerWithModules(params(moduleAuth(o.id, o.handle, tracesReadScope)), nil, nil, host, nil)
-		o.limited = api.MakeHTTPHandlerWithModules(params(moduleAuth(o.id, o.handle)), nil, nil, host, nil)
+		o.full = api.MakeHTTPHandlerWithModules(params(moduleAuth(o.id, o.handle, tracesReadScope)), nil, nil, host)
+		o.limited = api.MakeHTTPHandlerWithModules(params(moduleAuth(o.id, o.handle)), nil, nil, host)
 		return o
 	}
 	a, b := newOrg(), newOrg()
@@ -89,7 +89,7 @@ func TestObservabilityModule(t *testing.T) {
 		cancel()
 		coreext.Set(nil)
 		rbac.SetCurrent(rbac.NewRegistry())
-		_ = host.Uninstall(context.Background(), observability.Name)
+		_ = host.Uninstall(context.Background(), observability.Name, false)
 	})
 
 	call := func(h http.Handler, path string) (int, []byte) {
@@ -144,10 +144,10 @@ func TestObservabilityModule(t *testing.T) {
 		for k, v := range extra {
 			q[k] = v
 		}
-		return "/api/v1/m/observability/api/v1/traces?" + q.Encode()
+		return "/m/observability/api/v1/traces?" + q.Encode()
 	}
-	spansPath := "/api/v1/m/observability/api/v1/traces/trace-a/spans?" + window.Encode() + "&project=" + project + "&agent=" + agent
-	spanPath := "/api/v1/m/observability/api/v1/traces/trace-a/spans/llm"
+	spansPath := "/m/observability/api/v1/traces/trace-a/spans?" + window.Encode() + "&project=" + project + "&agent=" + agent
+	spanPath := "/m/observability/api/v1/traces/trace-a/spans/llm"
 
 	t.Run("routes are not found before install", func(t *testing.T) {
 		for _, p := range []string{listPath(nil), spansPath, spanPath} {

@@ -42,16 +42,16 @@ func (fakeCore) GetOrg(_ context.Context, orgID string) (modkit.Org, error) {
 	return modkit.Org{ID: orgID, Handle: "acme"}, nil
 }
 
-func (fakeCore) ListProjects(_ context.Context, orgID string) ([]modkit.Project, error) {
-	return []modkit.Project{{ID: "p1", OrgID: orgID, Name: "shop"}}, nil
+func (fakeCore) ListProjects(context.Context, string) ([]modkit.Project, error) {
+	return nil, nil
 }
 
 func (fakeCore) GetProject(context.Context, string, string) (modkit.Project, error) {
 	return modkit.Project{}, modkit.ErrNotFound
 }
 
-func (fakeCore) ListAgents(_ context.Context, orgID, _ string) ([]modkit.Agent, error) {
-	return []modkit.Agent{{ID: "a1", OrgID: orgID, ProjectID: "p1", Name: "bot"}}, nil
+func (fakeCore) ListAgents(context.Context, string, string) ([]modkit.Agent, error) {
+	return nil, nil
 }
 
 func (fakeCore) GetAgent(context.Context, string, string) (modkit.Agent, error) {
@@ -62,12 +62,18 @@ func (fakeCore) ListEnvironments(context.Context, string) ([]modkit.Environment,
 	return nil, nil
 }
 
-func (fakeCore) GetProjectByName(context.Context, string, string) (modkit.Project, error) {
-	return modkit.Project{}, modkit.ErrNotFound
+func (fakeCore) GetProjectByName(_ context.Context, orgID, name string) (modkit.Project, error) {
+	if name != "shop" {
+		return modkit.Project{}, modkit.ErrNotFound
+	}
+	return modkit.Project{ID: "p1", OrgID: orgID, Name: name}, nil
 }
 
-func (fakeCore) GetAgentByName(context.Context, string, string, string) (modkit.Agent, error) {
-	return modkit.Agent{}, modkit.ErrNotFound
+func (fakeCore) GetAgentByName(_ context.Context, orgID, projectName, name string) (modkit.Agent, error) {
+	if projectName != "shop" || name != "bot" {
+		return modkit.Agent{}, modkit.ErrNotFound
+	}
+	return modkit.Agent{ID: "a1", OrgID: orgID, ProjectID: "p1", Name: name}, nil
 }
 
 func (fakeCore) GetEnvironmentByName(context.Context, string, string) (modkit.Environment, error) {

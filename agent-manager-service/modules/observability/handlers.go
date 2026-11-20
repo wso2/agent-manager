@@ -89,33 +89,25 @@ func (h handlers) scope(r *http.Request, project, agent string) (tracesv1.Scope,
 		}
 		return s, nil
 	}
-	projects, err := h.core.ListProjects(ctx, orgID)
+	p, err := h.core.GetProjectByName(ctx, orgID, project)
 	if err != nil {
-		return tracesv1.Scope{}, fmt.Errorf("list projects: %w", err)
-	}
-	for _, p := range projects {
-		if p.Name == project {
-			s.ProjectID, s.Names.Project = p.ID, p.Name
+		if errors.Is(err, modkit.ErrNotFound) {
+			return tracesv1.Scope{}, notFound("project")
 		}
+		return tracesv1.Scope{}, fmt.Errorf("get project: %w", err)
 	}
-	if s.ProjectID == "" {
-		return tracesv1.Scope{}, notFound("project")
-	}
+	s.ProjectID, s.Names.Project = p.ID, p.Name
 	if agent == "" {
 		return s, nil
 	}
-	agents, err := h.core.ListAgents(ctx, orgID, s.ProjectID)
+	a, err := h.core.GetAgentByName(ctx, orgID, project, agent)
 	if err != nil {
-		return tracesv1.Scope{}, fmt.Errorf("list agents: %w", err)
-	}
-	for _, a := range agents {
-		if a.Name == agent {
-			s.AgentID, s.Names.Agent = a.ID, a.Name
+		if errors.Is(err, modkit.ErrNotFound) {
+			return tracesv1.Scope{}, notFound("agent")
 		}
+		return tracesv1.Scope{}, fmt.Errorf("get agent: %w", err)
 	}
-	if s.AgentID == "" {
-		return tracesv1.Scope{}, notFound("agent")
-	}
+	s.AgentID, s.Names.Agent = a.ID, a.Name
 	return s, nil
 }
 
