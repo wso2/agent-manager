@@ -39,7 +39,7 @@ const orgProxiesResult = {
   data: { list: [{ id: "proj-proxy", name: "Org Proxy Display" }] },
   isLoading: false,
 };
-const pipelineResult = { environments: [], isLoading: false };
+const environmentsResult = { environments: [], isLoading: false };
 const mutationResult = { mutate: vi.fn(), isPending: false };
 
 vi.mock("@agent-management-platform/api-client", () => ({
@@ -54,7 +54,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
 }));
 vi.mock("@agent-management-platform/shared-component", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
-  usePipelineEnvironmentsState: () => pipelineResult,
+  useOrgEnvironmentsState: () => environmentsResult,
   useAgentIdentityCredentials: () => idle,
   useConfirmIfUnsaved: () => (fn: () => void) => fn(),
   useThunderInstanceForEnv: () => idle,
@@ -63,10 +63,6 @@ vi.mock("@agent-management-platform/shared-component", async (orig) => ({
   getCapabilityId: () => undefined,
   isToolBlockedByAcl: () => false,
   MCPLogo: () => null,
-}));
-vi.mock("./utils/buildInProgress", () => ({
-  BUILD_IN_PROGRESS_REASON: "",
-  useHasBuildInProgress: () => false,
 }));
 
 import {

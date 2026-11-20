@@ -28,7 +28,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, matchPath, useLocation, useParams } from "react-router-dom";
 import { useRouteAgent } from "@agent-management-platform/api-client";
-import { usePipelineEnvironmentsState } from "@agent-management-platform/shared-component";
+import { useOrgEnvironmentsState } from "@agent-management-platform/shared-component";
 import { useExternalNavItems } from "@agent-management-platform/views";
 import type { PluginLevel } from "@agent-management-platform/types";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
@@ -83,7 +83,7 @@ export function useNavigationItems(): Array<
   const { orgId, projectId, agentId, envId } = useParams();
   const { data: agent, isLoading: isLoadingAgent } = useRouteAgent();
   const { environments, isLoading: isLoadingEnvironments } =
-    usePipelineEnvironmentsState(orgId, projectId);
+    useOrgEnvironmentsState(orgId);
   const { pathname } = useLocation();
   const externalNavItems = useExternalNavItems();
   const pluginItems: Record<PluginLevel, ActivePluginNavItem[]> = {

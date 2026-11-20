@@ -29,11 +29,7 @@ import { generatePath, Navigate, useNavigate, useParams } from 'react-router-dom
 import { useResourceAccess } from '@agent-management-platform/feature-management';
 import { absoluteRouteMap } from '@agent-management-platform/types';
 import { addProjectSchema, type AddProjectFormValues } from './form/schema';
-import {
-  useCreateProject,
-  useIsSingleEnvironment,
-  useListDeploymentPipelines,
-} from '@agent-management-platform/api-client';
+import { useCreateProject } from '@agent-management-platform/api-client';
 import { CreateButtons } from './components/CreateButtons';
 import { ProjectForm } from './components/ProjectForm';
 
@@ -64,20 +60,6 @@ export const AddNewProject: React.FC = () => {
   }), [orgId]);
 
   const { mutate: createProject, isPending, error } = useCreateProject(params);
-  // Deployment pipelines belong to the agent runtime. Without it a project has
-  // nothing to deploy, so it is created without one (the pipeline hook stays
-  // idle then); undefined while the runtime's install state is being detected.
-  const singleEnv = useIsSingleEnvironment();
-  const runtimeInstalled = singleEnv === undefined ? undefined : !singleEnv;
-  const { data: pipelinesData, isLoading: isPipelinesLoading, error: pipelinesError } =
-    useListDeploymentPipelines({ orgName: orgId });
-
-  // Projects start on the "default" pipeline (else the first one); it can be changed later.
-  const defaultPipeline = useMemo(() => {
-    const pipelines = pipelinesData?.deploymentPipelines ?? [];
-    return (pipelines.find((p) => p.name === 'default') ?? pipelines[0])?.name;
-  }, [pipelinesData]);
-
   const returnTo = useReturnTo(generatePath(
     absoluteRouteMap.children.org.children.projectListing.path,
     { orgId: orgId ?? '' }
@@ -99,21 +81,10 @@ export const AddNewProject: React.FC = () => {
       setLastSubmittedValidationErrors({});
     }
 
-    if (runtimeInstalled === undefined) return;
-    if (runtimeInstalled && !defaultPipeline) {
-      setLastSubmittedValidationErrors({
-        deploymentPipeline: pipelinesError
-          ? 'Could not load deployment pipelines. Try again.'
-          : 'No deployment pipeline is available. Create one in the organization first.',
-      });
-      return;
-    }
-
     createProject({
       name: formData.name,
       displayName: formData.displayName,
       description: formData.description?.trim() || undefined,
-      ...(runtimeInstalled && defaultPipeline ? { deploymentPipeline: defaultPipeline } : {}),
     }, {
       onSuccess: () => {
         resetDirty();
@@ -132,8 +103,7 @@ export const AddNewProject: React.FC = () => {
       }
     });
   }, [formData, validateForm, createProject,
-    navigate, allowNavigation, params.orgName, runtimeInstalled, defaultPipeline,
-    pipelinesError,
+    navigate, allowNavigation, params.orgName,
     resetDirty, clearErrors, errors]);
 
   if (!canWrite) {
@@ -170,7 +140,7 @@ export const AddNewProject: React.FC = () => {
         )}
         <CreateButtons
           lastSubmittedValidationErrors={lastSubmittedValidationErrors}
-          isPending={isPending || runtimeInstalled === undefined || isPipelinesLoading}
+          isPending={isPending}
           onCancel={handleCancel}
           onSubmit={handleCreateProject}
           isNameEmpty={!formData.name.trim()}

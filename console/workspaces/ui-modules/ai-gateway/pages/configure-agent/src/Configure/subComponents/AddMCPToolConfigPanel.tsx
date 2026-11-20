@@ -52,7 +52,7 @@ import {
 import {
   AGENTID_ENV_VAR_ROWS,
   EnvironmentVariablesReference,
-  usePipelineEnvironmentsState,
+  useOrgEnvironmentsState,
   useMCPProxySecurity,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -63,10 +63,6 @@ import {
   generateUniqueConfigName,
   type EnvVarKey,
 } from "../../utils/envConfig";
-import {
-  BUILD_IN_PROGRESS_REASON,
-  useHasBuildInProgress,
-} from "../../utils/buildInProgress";
 
 const ENV_VAR_DESCRIPTIONS: Record<EnvVarKey, string> = {
   url: "Base URL of the MCP server endpoint",
@@ -87,7 +83,7 @@ export interface AddMCPToolConfigPanelProps {
  * The "Add Tool Configuration" flow rendered as a single right-side drawer. It is a
  * two-step flow within that one panel: first pick an MCP proxy from the list, then the
  * same drawer shows the selected server plus the configuration name and env var names.
- * Selection is environment-agnostic — on save every deployment-pipeline environment is
+ * Selection is environment-agnostic — on save every environment is
  * mapped to the one selected proxy; the backend deploys where the proxy is configured
  * and injects empty env vars everywhere else.
  */
@@ -106,13 +102,9 @@ export function AddMCPToolConfigPanel({
     agentName: agentId,
   });
   const isExternal = agent?.provisioning?.type === "external";
-  const hasBuildInProgress = useHasBuildInProgress(
-    { orgName: orgId, projName: projectId, agentName: agentId },
-    { enabled: !!agent && !isExternal && !agent.kindName },
-  );
 
   const { environments, isLoading: isLoadingEnvironments } =
-    usePipelineEnvironmentsState(orgId, projectId);
+    useOrgEnvironmentsState(orgId);
   const { data: proxiesData, isLoading: isLoadingProxies } = useListMCPProxies(
     { orgName: orgId },
     { limit: 50, offset: 0, project: projectId },
@@ -207,7 +199,7 @@ export function AddMCPToolConfigPanel({
   const handleSave = useCallback(() => {
     if (!orgId || !projectId || !agentId || !selectedProxyId) return;
 
-    // Environment-agnostic: map EVERY pipeline environment to the SAME proxy.
+    // Environment-agnostic: map EVERY environment to the SAME proxy.
     const envMappings: Record<
       string,
       { proxyId?: string; configuration: Record<string, never> }
@@ -295,7 +287,6 @@ export function AddMCPToolConfigPanel({
 
   const canSave =
     Boolean(selectedProxyId) &&
-    !hasBuildInProgress &&
     !createConfig.isPending &&
     !isLoadingEnvironments &&
     environments.length > 0 &&
@@ -547,9 +538,6 @@ export function AddMCPToolConfigPanel({
             </Stack>
           )}
 
-{hasBuildInProgress && (
-            <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
-          )}
           <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
             <Button variant="outlined" onClick={onClose}>
               Cancel

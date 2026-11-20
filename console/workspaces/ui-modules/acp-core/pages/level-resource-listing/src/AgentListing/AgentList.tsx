@@ -44,7 +44,6 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import {
   useDeleteAgent,
-  useListAgentKinds,
   useListAgents,
 } from "@agent-management-platform/api-client";
 import {
@@ -104,13 +103,7 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
   const { mutate: deleteAgent } = useDeleteAgent();
   const canCreate = useFeatureAccess("agent_create");
   const canDelete = useFeatureAccess("agent_delete");
-  const { data: kindsData } = useListAgentKinds({ orgName: orgId });
   const { addConfirmation } = useConfirmationDialog();
-
-  const kindDisplayNameMap = useMemo(
-    () => Object.fromEntries((kindsData?.kinds ?? []).map((k) => [k.name, k.displayName])),
-    [kindsData?.kinds],
-  );
 
   const handleAddAgent = useCallback(() => {
     navigate(generatePath(projectRoutes.children.newAgent.path, { orgId, projectId }), {
@@ -268,11 +261,6 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
                         .filter(Boolean)
                         .join(" · ")}
                     </Typography>
-                    {agent.kindName && (
-                      <Typography variant="caption" color="text.secondary" noWrap>
-                        Kind: {kindDisplayNameMap[agent.kindName] ?? agent.kindName}
-                      </Typography>
-                    )}
                   </ListingTable.Cell>
                   <ListingTable.Cell align="right">
                     <Stack
