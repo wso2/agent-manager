@@ -224,7 +224,7 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	// A not-found error here means the gateway was deleted (or soft-deleted)
 	// after VerifyToken succeeded but before this point - the connection must
 	// not be allowed to proceed as if it belongs to a live gateway.
-	activatedAt, err := c.gatewayService.MarkGatewayConnected(gatewayID)
+	activatedAt, err := c.gatewayService.MarkGatewayConnected(ctx, gatewayID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("Gateway no longer exists, closing connection",
@@ -261,7 +261,11 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		// before, rather than leave a closed gateway marked active.
 		since = time.Now()
 	}
-	marked, err := c.gatewayService.MarkGatewayDisconnected(gatewayID, since)
+	// The request context ends with the connection, so the cleanup write runs on a detached,
+	// bounded one.
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayDisconnectWriteTimeout)
+	defer cancel()
+	marked, err := c.gatewayService.MarkGatewayDisconnected(closeCtx, gatewayID, since)
 	switch {
 	case err != nil:
 		log.Error("Failed to update gateway active status to false",
@@ -273,6 +277,9 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 			"ouID", ouID, "connectionID", connection.ConnectionID)
 	}
 }
+
+// gatewayDisconnectWriteTimeout bounds the status write made after a gateway's connection closes.
+const gatewayDisconnectWriteTimeout = 10 * time.Second
 
 // readLoop reads messages from the WebSocket connection.
 // This is primarily for handling control frames (ping/pong) and detecting disconnections.

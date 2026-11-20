@@ -118,10 +118,10 @@ import (
 //			ListWithFiltersCtxFunc: func(ctx context.Context, filters repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
 //				panic("mock out the ListWithFiltersCtx method")
 //			},
-//			MarkConnectedFunc: func(gatewayID string) (time.Time, error) {
+//			MarkConnectedFunc: func(ctx context.Context, gatewayID string) (time.Time, error) {
 //				panic("mock out the MarkConnected method")
 //			},
-//			MarkDisconnectedFunc: func(gatewayID string, activatedAt time.Time) (bool, error) {
+//			MarkDisconnectedFunc: func(ctx context.Context, gatewayID string, activatedAt time.Time) (bool, error) {
 //				panic("mock out the MarkDisconnected method")
 //			},
 //			RevokeTokenFunc: func(tokenId string) error {
@@ -246,10 +246,10 @@ type GatewayRepositoryMock struct {
 	ListWithFiltersCtxFunc func(ctx context.Context, filters repositories.GatewayFilterOptions) ([]*models.Gateway, error)
 
 	// MarkConnectedFunc mocks the MarkConnected method.
-	MarkConnectedFunc func(gatewayID string) (time.Time, error)
+	MarkConnectedFunc func(ctx context.Context, gatewayID string) (time.Time, error)
 
 	// MarkDisconnectedFunc mocks the MarkDisconnected method.
-	MarkDisconnectedFunc func(gatewayID string, activatedAt time.Time) (bool, error)
+	MarkDisconnectedFunc func(ctx context.Context, gatewayID string, activatedAt time.Time) (bool, error)
 
 	// RevokeTokenFunc mocks the RevokeToken method.
 	RevokeTokenFunc func(tokenId string) error
@@ -467,11 +467,15 @@ type GatewayRepositoryMock struct {
 		}
 		// MarkConnected holds details about calls to the MarkConnected method.
 		MarkConnected []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// GatewayID is the gatewayID argument value.
 			GatewayID string
 		}
 		// MarkDisconnected holds details about calls to the MarkDisconnected method.
 		MarkDisconnected []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// GatewayID is the gatewayID argument value.
 			GatewayID string
 			// ActivatedAt is the activatedAt argument value.
@@ -1665,19 +1669,21 @@ func (mock *GatewayRepositoryMock) ListWithFiltersCtxCalls() []struct {
 }
 
 // MarkConnected calls MarkConnectedFunc.
-func (mock *GatewayRepositoryMock) MarkConnected(gatewayID string) (time.Time, error) {
+func (mock *GatewayRepositoryMock) MarkConnected(ctx context.Context, gatewayID string) (time.Time, error) {
 	if mock.MarkConnectedFunc == nil {
 		panic("GatewayRepositoryMock.MarkConnectedFunc: method is nil but GatewayRepository.MarkConnected was just called")
 	}
 	callInfo := struct {
+		Ctx       context.Context
 		GatewayID string
 	}{
+		Ctx:       ctx,
 		GatewayID: gatewayID,
 	}
 	mock.lockMarkConnected.Lock()
 	mock.calls.MarkConnected = append(mock.calls.MarkConnected, callInfo)
 	mock.lockMarkConnected.Unlock()
-	return mock.MarkConnectedFunc(gatewayID)
+	return mock.MarkConnectedFunc(ctx, gatewayID)
 }
 
 // MarkConnectedCalls gets all the calls that were made to MarkConnected.
@@ -1685,9 +1691,11 @@ func (mock *GatewayRepositoryMock) MarkConnected(gatewayID string) (time.Time, e
 //
 //	len(mockedGatewayRepository.MarkConnectedCalls())
 func (mock *GatewayRepositoryMock) MarkConnectedCalls() []struct {
+	Ctx       context.Context
 	GatewayID string
 } {
 	var calls []struct {
+		Ctx       context.Context
 		GatewayID string
 	}
 	mock.lockMarkConnected.RLock()
@@ -1697,21 +1705,23 @@ func (mock *GatewayRepositoryMock) MarkConnectedCalls() []struct {
 }
 
 // MarkDisconnected calls MarkDisconnectedFunc.
-func (mock *GatewayRepositoryMock) MarkDisconnected(gatewayID string, activatedAt time.Time) (bool, error) {
+func (mock *GatewayRepositoryMock) MarkDisconnected(ctx context.Context, gatewayID string, activatedAt time.Time) (bool, error) {
 	if mock.MarkDisconnectedFunc == nil {
 		panic("GatewayRepositoryMock.MarkDisconnectedFunc: method is nil but GatewayRepository.MarkDisconnected was just called")
 	}
 	callInfo := struct {
+		Ctx         context.Context
 		GatewayID   string
 		ActivatedAt time.Time
 	}{
+		Ctx:         ctx,
 		GatewayID:   gatewayID,
 		ActivatedAt: activatedAt,
 	}
 	mock.lockMarkDisconnected.Lock()
 	mock.calls.MarkDisconnected = append(mock.calls.MarkDisconnected, callInfo)
 	mock.lockMarkDisconnected.Unlock()
-	return mock.MarkDisconnectedFunc(gatewayID, activatedAt)
+	return mock.MarkDisconnectedFunc(ctx, gatewayID, activatedAt)
 }
 
 // MarkDisconnectedCalls gets all the calls that were made to MarkDisconnected.
@@ -1719,10 +1729,12 @@ func (mock *GatewayRepositoryMock) MarkDisconnected(gatewayID string, activatedA
 //
 //	len(mockedGatewayRepository.MarkDisconnectedCalls())
 func (mock *GatewayRepositoryMock) MarkDisconnectedCalls() []struct {
+	Ctx         context.Context
 	GatewayID   string
 	ActivatedAt time.Time
 } {
 	var calls []struct {
+		Ctx         context.Context
 		GatewayID   string
 		ActivatedAt time.Time
 	}
