@@ -118,7 +118,7 @@ import (
 //			ListWithFiltersCtxFunc: func(ctx context.Context, filters repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
 //				panic("mock out the ListWithFiltersCtx method")
 //			},
-//			MarkConnectedFunc: func(ctx context.Context, gatewayID string) (time.Time, error) {
+//			MarkConnectedFunc: func(ctx context.Context, gatewayID string, activatedAt time.Time) error {
 //				panic("mock out the MarkConnected method")
 //			},
 //			MarkDisconnectedFunc: func(ctx context.Context, gatewayID string, activatedAt time.Time) (bool, error) {
@@ -246,7 +246,7 @@ type GatewayRepositoryMock struct {
 	ListWithFiltersCtxFunc func(ctx context.Context, filters repositories.GatewayFilterOptions) ([]*models.Gateway, error)
 
 	// MarkConnectedFunc mocks the MarkConnected method.
-	MarkConnectedFunc func(ctx context.Context, gatewayID string) (time.Time, error)
+	MarkConnectedFunc func(ctx context.Context, gatewayID string, activatedAt time.Time) error
 
 	// MarkDisconnectedFunc mocks the MarkDisconnected method.
 	MarkDisconnectedFunc func(ctx context.Context, gatewayID string, activatedAt time.Time) (bool, error)
@@ -471,6 +471,8 @@ type GatewayRepositoryMock struct {
 			Ctx context.Context
 			// GatewayID is the gatewayID argument value.
 			GatewayID string
+			// ActivatedAt is the activatedAt argument value.
+			ActivatedAt time.Time
 		}
 		// MarkDisconnected holds details about calls to the MarkDisconnected method.
 		MarkDisconnected []struct {
@@ -1669,21 +1671,23 @@ func (mock *GatewayRepositoryMock) ListWithFiltersCtxCalls() []struct {
 }
 
 // MarkConnected calls MarkConnectedFunc.
-func (mock *GatewayRepositoryMock) MarkConnected(ctx context.Context, gatewayID string) (time.Time, error) {
+func (mock *GatewayRepositoryMock) MarkConnected(ctx context.Context, gatewayID string, activatedAt time.Time) error {
 	if mock.MarkConnectedFunc == nil {
 		panic("GatewayRepositoryMock.MarkConnectedFunc: method is nil but GatewayRepository.MarkConnected was just called")
 	}
 	callInfo := struct {
-		Ctx       context.Context
-		GatewayID string
+		Ctx         context.Context
+		GatewayID   string
+		ActivatedAt time.Time
 	}{
-		Ctx:       ctx,
-		GatewayID: gatewayID,
+		Ctx:         ctx,
+		GatewayID:   gatewayID,
+		ActivatedAt: activatedAt,
 	}
 	mock.lockMarkConnected.Lock()
 	mock.calls.MarkConnected = append(mock.calls.MarkConnected, callInfo)
 	mock.lockMarkConnected.Unlock()
-	return mock.MarkConnectedFunc(ctx, gatewayID)
+	return mock.MarkConnectedFunc(ctx, gatewayID, activatedAt)
 }
 
 // MarkConnectedCalls gets all the calls that were made to MarkConnected.
@@ -1691,12 +1695,14 @@ func (mock *GatewayRepositoryMock) MarkConnected(ctx context.Context, gatewayID 
 //
 //	len(mockedGatewayRepository.MarkConnectedCalls())
 func (mock *GatewayRepositoryMock) MarkConnectedCalls() []struct {
-	Ctx       context.Context
-	GatewayID string
+	Ctx         context.Context
+	GatewayID   string
+	ActivatedAt time.Time
 } {
 	var calls []struct {
-		Ctx       context.Context
-		GatewayID string
+		Ctx         context.Context
+		GatewayID   string
+		ActivatedAt time.Time
 	}
 	mock.lockMarkConnected.RLock()
 	calls = mock.calls.MarkConnected

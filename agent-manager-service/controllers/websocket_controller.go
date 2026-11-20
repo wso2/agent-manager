@@ -224,8 +224,11 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 	// A not-found error here means the gateway was deleted (or soft-deleted)
 	// after VerifyToken succeeded but before this point - the connection must
 	// not be allowed to proceed as if it belongs to a live gateway.
-	activatedAt, err := c.gatewayService.MarkGatewayConnected(ctx, gatewayID)
-	if err != nil {
+	// The activation time is when the connection was accepted, not when this write runs: a
+	// handler that stalls here can be overtaken by the gateway's next connection, and sampling the
+	// clock now would give this older connection the newer time.
+	activatedAt := connection.ConnectedAt.Truncate(time.Microsecond)
+	if err := c.gatewayService.MarkGatewayConnected(ctx, gatewayID, activatedAt); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Warn("Gateway no longer exists, closing connection",
 				"gatewayID", gatewayID, "gatewayName", gatewayName,
@@ -241,6 +244,7 @@ func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
 		log.Error("Failed to update gateway active status to true",
 			"gatewayID", gatewayID, "gatewayName", gatewayName,
 			"ouID", ouID, "error", err)
+		activatedAt = time.Time{}
 	}
 
 	// Start reading messages (blocks until connection closes)

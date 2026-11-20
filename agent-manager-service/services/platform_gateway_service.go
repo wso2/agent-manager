@@ -899,10 +899,9 @@ func (s *PlatformGatewayService) GetGatewayStatus(ctx context.Context, ouID stri
 	return listResponse, nil
 }
 
-// MarkGatewayConnected marks the gateway active and returns the activation time, which the
-// connection passes to MarkGatewayDisconnected when it closes.
-func (s *PlatformGatewayService) MarkGatewayConnected(ctx context.Context, gatewayID string) (time.Time, error) {
-	return s.gatewayRepo.MarkConnected(ctx, gatewayID)
+// MarkGatewayConnected marks the gateway active for the connection activated at activatedAt.
+func (s *PlatformGatewayService) MarkGatewayConnected(ctx context.Context, gatewayID string, activatedAt time.Time) error {
+	return s.gatewayRepo.MarkConnected(ctx, gatewayID, activatedAt)
 }
 
 // MarkGatewayDisconnected marks the gateway inactive when a connection closes, unless the gateway

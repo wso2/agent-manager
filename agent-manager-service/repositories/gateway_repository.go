@@ -102,10 +102,11 @@ type GatewayRepository interface {
 	CountWithFilters(filters GatewayFilterOptions) (int64, error)
 	Delete(gatewayID, ouID string) error
 	UpdateGateway(gateway *models.Gateway) error
-	// MarkConnected marks the gateway active and returns the activation time it stored in
-	// updated_at. The connection keeps it and hands it to MarkDisconnected when it closes.
+	// MarkConnected marks the gateway active for a connection whose activation time is
+	// activatedAt (when the connection was accepted, truncated to the microsecond). The connection
+	// keeps activatedAt and hands it to MarkDisconnected when it closes.
 	// Returns gorm.ErrRecordNotFound when the gateway does not exist or is soft-deleted.
-	MarkConnected(ctx context.Context, gatewayID string) (time.Time, error)
+	MarkConnected(ctx context.Context, gatewayID string, activatedAt time.Time) error
 	// MarkDisconnected marks the gateway inactive, but only if nothing has changed the row since
 	// activatedAt. It reports whether it did: false means the gateway has reconnected since (on
 	// this replica or another), so it stays active, or the gateway no longer exists.
@@ -376,33 +377,30 @@ func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 	return nil
 }
 
-// MarkConnected marks the gateway active and returns this connection's activation time, which it
-// writes to updated_at. The time is truncated to the microsecond Postgres stores, so
-// MarkDisconnected can compare it against the stored value exactly.
+// MarkConnected marks the gateway active for the connection activated at activatedAt.
 //
-// updated_at never moves backwards: a connection whose write is delayed until after a newer
-// connection's write keeps the newer timestamp in the row, so its own later close (which compares
-// against the older activatedAt it was given) cannot deactivate the newer connection.
-func (r *GatewayRepo) MarkConnected(ctx context.Context, gatewayID string) (time.Time, error) {
-	return r.markConnectedAt(ctx, gatewayID, time.Now().Truncate(time.Microsecond))
-}
-
-// markConnectedAt is MarkConnected with the activation time supplied, so tests can replay a
-// delayed write.
-func (r *GatewayRepo) markConnectedAt(ctx context.Context, gatewayID string, activatedAt time.Time) (time.Time, error) {
+// While the row is active, updated_at never moves backwards: a connection whose write lands after
+// a newer connection's (it was accepted earlier but stalled) leaves the newer time in the row, so
+// its own close, which compares against its older activatedAt, cannot deactivate the newer one.
+// While the row is inactive no live connection owns it, so the write simply takes activatedAt;
+// otherwise a disconnect's later timestamp would be kept and this connection's own close could
+// never match.
+func (r *GatewayRepo) MarkConnected(ctx context.Context, gatewayID string, activatedAt time.Time) error {
 	res := r.db.WithContext(ctx).Model(&models.Gateway{}).
 		Where("uuid = ?", gatewayID).
 		Updates(map[string]interface{}{
-			"is_active":  true,
-			"updated_at": gorm.Expr("GREATEST(COALESCE(updated_at, ?), ?)", activatedAt, activatedAt),
+			"is_active": true,
+			"updated_at": gorm.Expr(
+				"CASE WHEN is_active THEN GREATEST(COALESCE(updated_at, ?), ?) ELSE ? END",
+				activatedAt, activatedAt, activatedAt),
 		})
 	if res.Error != nil {
-		return time.Time{}, res.Error
+		return res.Error
 	}
 	if res.RowsAffected == 0 {
-		return time.Time{}, gorm.ErrRecordNotFound
+		return gorm.ErrRecordNotFound
 	}
-	return activatedAt, nil
+	return nil
 }
 
 // MarkDisconnected marks the gateway inactive only while updated_at is still no later than the

@@ -53,101 +53,112 @@ func gatewayIsActive(t *testing.T, gdb *gorm.DB, gatewayID string) bool {
 	return active
 }
 
+// at returns base plus offset, truncated like a real activation time.
+func at(base time.Time, offset time.Duration) time.Time {
+	return base.Add(offset).Truncate(time.Microsecond)
+}
+
+func markDisconnected(t *testing.T, repo GatewayRepository, gatewayID string, activatedAt time.Time) bool {
+	t.Helper()
+	marked, err := repo.MarkDisconnected(context.Background(), gatewayID, activatedAt)
+	require.NoError(t, err)
+	return marked
+}
+
 // The 2026-11-20 cloud dev failure: after a network blip a gateway's old connection on one
 // replica finished closing after the gateway had already reconnected to the other replica. The
 // close's unconditional is_active=false landed last and left a connected gateway INACTIVE.
 func TestGatewayActiveStatus_StaleCloseAfterReconnectKeepsGatewayActive(t *testing.T) {
-	ctx := context.Background()
-	gdb := db.GetDB()
+	ctx, gdb := context.Background(), db.GetDB()
 	repo := NewGatewayRepo(gdb)
 	gatewayID := insertInactiveGateway(t, gdb)
+	base := time.Now().Add(-time.Minute)
+	tA, tB := at(base, 0), at(base, time.Second)
 
-	oldActivatedAt, err := repo.MarkConnected(ctx, gatewayID)
-	require.NoError(t, err)
-	time.Sleep(2 * time.Millisecond)
-	newActivatedAt, err := repo.MarkConnected(ctx, gatewayID) // the reconnect wins the race
-	require.NoError(t, err)
+	require.NoError(t, repo.MarkConnected(ctx, gatewayID, tA))
+	require.NoError(t, repo.MarkConnected(ctx, gatewayID, tB)) // B reconnects before A's close is handled
 
-	marked, err := repo.MarkDisconnected(ctx, gatewayID, oldActivatedAt) // the old connection's late close
-	require.NoError(t, err)
-	assert.False(t, marked, "a stale close must not mark a reconnected gateway inactive")
+	assert.False(t, markDisconnected(t, repo, gatewayID, tA), "a stale close must not mark a reconnected gateway inactive")
 	assert.True(t, gatewayIsActive(t, gdb, gatewayID))
 
-	marked, err = repo.MarkDisconnected(ctx, gatewayID, newActivatedAt)
-	require.NoError(t, err)
-	assert.True(t, marked, "the close of the current connection marks the gateway inactive")
+	assert.True(t, markDisconnected(t, repo, gatewayID, tB), "the close of the current connection marks the gateway inactive")
 	assert.False(t, gatewayIsActive(t, gdb, gatewayID))
 }
 
-// A connect write that is delayed until after a newer connection's write must not move
-// updated_at backwards; otherwise the delayed connection's later close would match and
-// deactivate the newer, live connection.
-func TestGatewayActiveStatus_DelayedOlderConnectWriteCannotStealTheRow(t *testing.T) {
-	ctx := context.Background()
-	gdb := db.GetDB()
-	repo, ok := NewGatewayRepo(gdb).(*GatewayRepo)
-	require.True(t, ok)
+// A was accepted before B but its connect write (or its whole handler, before the write) stalled
+// until after B's write. The activation time is the accept time, so A's write cannot take the row
+// from B, and A's close must not deactivate B.
+func TestGatewayActiveStatus_StalledOlderConnectCannotStealTheRow(t *testing.T) {
+	ctx, gdb := context.Background(), db.GetDB()
+	repo := NewGatewayRepo(gdb)
 	gatewayID := insertInactiveGateway(t, gdb)
+	base := time.Now().Add(-time.Minute)
+	tA, tB := at(base, 0), at(base, time.Second)
 
-	olderActivatedAt := time.Now().Add(-time.Second).Truncate(time.Microsecond) // A sampled first...
-	newActivatedAt, err := repo.MarkConnected(ctx, gatewayID)                   // ...B wrote first
-	require.NoError(t, err)
-	got, err := repo.markConnectedAt(ctx, gatewayID, olderActivatedAt) // A's delayed write lands
-	require.NoError(t, err)
-	assert.Equal(t, olderActivatedAt, got, "A keeps its own activation time")
+	require.NoError(t, repo.MarkConnected(ctx, gatewayID, tB)) // B writes first
+	require.NoError(t, repo.MarkConnected(ctx, gatewayID, tA)) // A's stalled write lands
 
-	marked, err := repo.MarkDisconnected(ctx, gatewayID, olderActivatedAt) // A closes
-	require.NoError(t, err)
-	assert.False(t, marked, "A's close must not deactivate B's newer connection")
+	assert.False(t, markDisconnected(t, repo, gatewayID, tA), "A's close must not deactivate B")
 	assert.True(t, gatewayIsActive(t, gdb, gatewayID))
 
-	marked, err = repo.MarkDisconnected(ctx, gatewayID, newActivatedAt) // B closes
-	require.NoError(t, err)
-	assert.True(t, marked)
+	assert.True(t, markDisconnected(t, repo, gatewayID, tB))
+	assert.False(t, gatewayIsActive(t, gdb, gatewayID))
+}
+
+// B is accepted, then A's close is handled (writing a later updated_at), then B's connect write
+// lands. A disconnect's timestamp must not be kept as B's activation, or B's own close could never
+// match and the gateway would stay ACTIVE with no connection.
+func TestGatewayActiveStatus_DisconnectBetweenAcceptAndWriteDoesNotStickActive(t *testing.T) {
+	ctx, gdb := context.Background(), db.GetDB()
+	repo := NewGatewayRepo(gdb)
+	gatewayID := insertInactiveGateway(t, gdb)
+	base := time.Now().Add(-time.Minute)
+	tA, tB := at(base, 0), at(base, time.Second)
+
+	require.NoError(t, repo.MarkConnected(ctx, gatewayID, tA))
+	// B is accepted at tB; A closes now, after tB, and owns the row, so it marks it inactive.
+	assert.True(t, markDisconnected(t, repo, gatewayID, tA))
+	require.NoError(t, repo.MarkConnected(ctx, gatewayID, tB)) // B's write lands
+	assert.True(t, gatewayIsActive(t, gdb, gatewayID))
+
+	assert.True(t, markDisconnected(t, repo, gatewayID, tB), "B's close must match its own activation")
 	assert.False(t, gatewayIsActive(t, gdb, gatewayID))
 }
 
 // The other order: the old connection's close is handled before the reconnect.
 func TestGatewayActiveStatus_CloseBeforeReconnectEndsActive(t *testing.T) {
-	ctx := context.Background()
-	gdb := db.GetDB()
+	ctx, gdb := context.Background(), db.GetDB()
 	repo := NewGatewayRepo(gdb)
 	gatewayID := insertInactiveGateway(t, gdb)
+	base := time.Now().Add(-time.Minute)
+	tA, tB := at(base, 0), at(base, time.Second)
 
-	activatedAt, err := repo.MarkConnected(ctx, gatewayID)
-	require.NoError(t, err)
-	marked, err := repo.MarkDisconnected(ctx, gatewayID, activatedAt)
-	require.NoError(t, err)
-	assert.True(t, marked)
+	require.NoError(t, repo.MarkConnected(ctx, gatewayID, tA))
+	assert.True(t, markDisconnected(t, repo, gatewayID, tA))
 	assert.False(t, gatewayIsActive(t, gdb, gatewayID))
 
-	_, err = repo.MarkConnected(ctx, gatewayID)
-	require.NoError(t, err)
+	require.NoError(t, repo.MarkConnected(ctx, gatewayID, tB))
 	assert.True(t, gatewayIsActive(t, gdb, gatewayID))
 }
 
 // The documented trade-off: an edit moves updated_at, so the next real close of that connection
 // leaves the gateway marked active until it reconnects.
 func TestGatewayActiveStatus_EditWhileConnectedKeepsGatewayActiveOnClose(t *testing.T) {
-	ctx := context.Background()
-	gdb := db.GetDB()
+	ctx, gdb := context.Background(), db.GetDB()
 	repo := NewGatewayRepo(gdb)
 	gatewayID := insertInactiveGateway(t, gdb)
+	tA := at(time.Now().Add(-time.Minute), 0)
 
-	activatedAt, err := repo.MarkConnected(ctx, gatewayID)
-	require.NoError(t, err)
-	time.Sleep(2 * time.Millisecond)
-	// UpdateGateway stamps updated_at with the app clock, like MarkConnected; so does this edit.
+	require.NoError(t, repo.MarkConnected(ctx, gatewayID, tA))
+	// UpdateGateway stamps updated_at with the app clock; so does this edit.
 	require.NoError(t, gdb.Exec(`UPDATE gateways SET description = 'edited', updated_at = ? WHERE uuid = ?`, time.Now(), gatewayID).Error)
 
-	marked, err := repo.MarkDisconnected(ctx, gatewayID, activatedAt)
-	require.NoError(t, err)
-	assert.False(t, marked)
+	assert.False(t, markDisconnected(t, repo, gatewayID, tA))
 	assert.True(t, gatewayIsActive(t, gdb, gatewayID))
 }
 
 func TestGatewayActiveStatus_MarkConnectedOnMissingGatewayIsNotFound(t *testing.T) {
 	repo := NewGatewayRepo(db.GetDB())
-	_, err := repo.MarkConnected(context.Background(), uuid.New().String())
+	err := repo.MarkConnected(context.Background(), uuid.New().String(), time.Now())
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
