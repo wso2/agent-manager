@@ -1,0 +1,406 @@
+openapi: 3.0.3
+info:
+  title: Observability module API
+  description: |
+    The observability module's trace routes, under `/m/observability`. They take the
+    Agent Manager Observer's trace paths and response shapes, but serve a subset: the
+    observer's trace filters and `cursor` are refused with 400 (see each operation).
+
+    The organization is always the caller's. An `organization` query parameter, which the
+    console sends, is ignored. `project` and `agent` are names in that organization; an
+    unknown one is a 404. `environment` is accepted and ignored, as on the observer.
+
+    The routes exist only while the module is active: they answer 404 before it is
+    installed and after it is disabled.
+  version: 1.0.0
+  x-amp-module: observability
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: /m/observability
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/traces:
+    get:
+      tags: [traces]
+      summary: List traces
+      description: |
+        Lists the agent's traces whose root span starts in the window, by start time.
+        The observer's filter parameters (`status`, `minDurationMs`, `minTokens`,
+        `minSpanCount`, `model`, `conversationId`, `tool`, `toolError`, `mcpServer`,
+        `missing`) and `cursor` are refused with 400. `include` is ignored.
+      operationId: listTraces
+      parameters:
+        - $ref: "#/components/parameters/project"
+        - $ref: "#/components/parameters/agent"
+        - $ref: "#/components/parameters/environment"
+        - $ref: "#/components/parameters/startTime"
+        - $ref: "#/components/parameters/endTime"
+        - $ref: "#/components/parameters/limit"
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Trace overview list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TraceOverviewListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/traces/{traceId}/spans:
+    get:
+      tags: [traces]
+      summary: List spans for a trace
+      description: |
+        Lists a trace's span summaries, without attributes. A trace outside the caller's
+        organization, project or agent has no spans.
+      operationId: listTraceSpans
+      parameters:
+        - $ref: "#/components/parameters/traceId"
+        - $ref: "#/components/parameters/projectOptional"
+        - $ref: "#/components/parameters/agentOptional"
+        - $ref: "#/components/parameters/environment"
+        - $ref: "#/components/parameters/startTime"
+        - $ref: "#/components/parameters/endTime"
+        - $ref: "#/components/parameters/limit"
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        "200":
+          description: Span summary list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpanSummaryListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/v1/traces/{traceId}/spans/{spanId}:
+    get:
+      tags: [traces]
+      summary: Get a span
+      description: Returns one span of the caller's organization with its attributes.
+      operationId: getSpanDetail
+      parameters:
+        - $ref: "#/components/parameters/traceId"
+        - name: spanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The span
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnrichedSpan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: The Agent Manager sign-in token, with the scope `amp:observability:traces-read`.
+
+  parameters:
+    traceId:
+      name: traceId
+      in: path
+      required: true
+      schema:
+        type: string
+    project:
+      name: project
+      in: query
+      required: true
+      description: Project name
+      schema:
+        type: string
+    agent:
+      name: agent
+      in: query
+      required: true
+      description: Agent name
+      schema:
+        type: string
+    projectOptional:
+      name: project
+      in: query
+      description: Project name filter
+      schema:
+        type: string
+    agentOptional:
+      name: agent
+      in: query
+      description: Agent name filter; needs `project`
+      schema:
+        type: string
+    environment:
+      name: environment
+      in: query
+      description: Ignored.
+      schema:
+        type: string
+    startTime:
+      name: startTime
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date-time
+    endTime:
+      name: endTime
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date-time
+    limit:
+      name: limit
+      in: query
+      description: Page size (default 10, at most 1000)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 10
+
+  responses:
+    BadRequest:
+      description: A missing, invalid or unsupported query parameter
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Not signed in, or the sign-in names no organization
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: The caller lacks `observability:traces-read`
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: |
+        The module is not active, the project or agent is not in the caller's
+        organization, or the span is not
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: The trace store failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    TraceOverviewListResponse:
+      type: object
+      required: [traces, totalCount, lookedBackTo, truncated]
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: "#/components/schemas/TraceOverview"
+        totalCount:
+          type: integer
+          description: Traces in the window
+        lookedBackTo:
+          type: string
+          format: date-time
+          description: |
+            The start time of the page's last trace when the window holds more, else the
+            window edge (`startTime` for `desc`, `endTime` for `asc`)
+        truncated:
+          type: boolean
+          description: Always false
+        nextCursor:
+          type: string
+          description: Never set
+
+    TraceOverview:
+      type: object
+      required: [traceId, rootSpanId, rootSpanName, rootSpanKind, startTime, endTime, durationInNanos, spanCount]
+      properties:
+        traceId:
+          type: string
+        rootSpanId:
+          type: string
+        rootSpanName:
+          type: string
+        rootSpanKind:
+          type: string
+          description: Semantic span type, from the root span's name
+          enum: [llm, tool, embedding, retriever, rerank, agent, chain, unknown]
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        durationInNanos:
+          type: integer
+          format: int64
+        spanCount:
+          type: integer
+
+    SpanSummaryListResponse:
+      type: object
+      required: [spans, totalCount]
+      properties:
+        spans:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpanSummary"
+        totalCount:
+          type: integer
+
+    SpanSummary:
+      type: object
+      required: [spanId, spanName, startTime, endTime, durationNs]
+      properties:
+        spanId:
+          type: string
+        spanName:
+          type: string
+        spanKind:
+          type: string
+          description: Semantic span type, from the span name
+          enum: [llm, tool, embedding, retriever, rerank, agent, chain, unknown]
+        parentSpanId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        durationNs:
+          type: integer
+          format: int64
+        error:
+          type: boolean
+          description: True when the span's OTel status code is error
+        statusMessage:
+          type: string
+
+    Span:
+      type: object
+      required: [traceId, spanId, name, service, startTime, endTime, durationInNanos]
+      properties:
+        traceId:
+          type: string
+        spanId:
+          type: string
+        parentSpanId:
+          type: string
+        name:
+          type: string
+        service:
+          type: string
+          description: The `agent-manager/agent` resource attribute
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        durationInNanos:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        status:
+          type: string
+          description: OTel status code ("ok", "error" or "unset")
+        statusMessage:
+          type: string
+        attributes:
+          type: object
+          additionalProperties: true
+        resource:
+          type: object
+          additionalProperties: true
+
+    EnrichedSpan:
+      allOf:
+        - $ref: "#/components/schemas/Span"
+        - type: object
+          properties:
+            ampAttributes:
+              $ref: "#/components/schemas/AmpAttributes"
+
+    AmpAttributes:
+      type: object
+      required: [kind]
+      description: Only `kind` and `status` are filled
+      properties:
+        kind:
+          type: string
+          enum: [llm, tool, embedding, retriever, rerank, agent, chain, unknown]
+        status:
+          $ref: "#/components/schemas/SpanStatus"
+
+    SpanStatus:
+      type: object
+      properties:
+        error:
+          type: boolean
+        message:
+          type: string

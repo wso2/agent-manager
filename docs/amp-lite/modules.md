@@ -14,14 +14,14 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
+- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, and `observability` (traces, from an in-process store) another. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
 - **Distribution defaults.** A distribution's `main` passes its default modules to `cli.Main` (`cmd/amp`: `cli.Main("amp", "ai-gateway")`; `cmd/amp-core` none). With no modules list declared, the server installs each default at boot, with its providers, only if it was never installed (or was purged), and changes nothing else, so a default an operator disabled or uninstalled stays that way across restarts. A declared list replaces the defaults.
 
 A distribution is a `main` package that chooses its modules with blank imports:
 
 | Distribution | `main` | Modules |
 |---|---|---|
-| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway` (installed by default) |
+| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway` (installed by default), `observability` |
 | `amp-core` | `cmd/amp-core/main.go` imports nothing | none |
 
 Both call `cli.Main`, so they share every command. The Dockerfile builds one or the other with `--build-arg DISTRIBUTION=amp|amp-core`.
@@ -33,8 +33,8 @@ Both call `cli.Main`, so they share every command. The Dockerfile builds one or 
 | Core | Modules |
 |---|---|
 | Organizations (including the default org created at startup), projects, environments, the agent registry | The AI Gateway (`ai-gateway`): gateways, LLM and MCP proxies, A2A, agent API keys, agent identity pages |
-| Users, roles and RBAC, the permission registry | |
-| Audit log, settings, secrets, agent tokens and JWKS | Later: observability, evaluation, agent identity, A2A and other product areas as they are split out |
+| Users, roles and RBAC, the permission registry | `observability`: traces, and the `traces.query/v1` capability |
+| Audit log, settings, secrets, agent tokens and JWKS | Later: evaluation, agent identity, A2A and other product areas as they are split out |
 | HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | |
 
 Before putting something in the core, ask:

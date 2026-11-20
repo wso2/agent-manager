@@ -19,5 +19,6 @@
 package all
 
 import (
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // the AI Gateway
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"     // the AI Gateway
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/observability" // traces
 )
