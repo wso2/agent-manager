@@ -87,8 +87,9 @@ func ModuleMounter(params *wiring.AppParams) func(*http.ServeMux, modhost.Route)
 	}
 }
 
-// ModuleInternalMounter registers a module's route at a fixed internal path
-// (HandleInternalAt) behind the internal server's audit middleware.
+// ModuleInternalMounter registers a module's route on the internal server
+// that authenticates its own callers (HandleInternalAt, HandleWebhook) behind
+// the internal server's audit middleware.
 func ModuleInternalMounter(params *wiring.AppParams) func(*http.ServeMux, modhost.Route) {
 	return func(mux *http.ServeMux, r modhost.Route) {
 		rr := middleware.NewInternalRouteRegistrar(mux, params.AuditRecorder)
@@ -260,7 +261,8 @@ func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Module
 	}
 	mux.Handle("/api/internal/v1/", http.StripPrefix("/api/internal/v1", internalChain(params, internalMux)))
 	if modules != nil {
-		// Module workload routes, at /m/<module>/internal/...
+		// Module workload routes and webhooks, at /m/<module>/internal/... and
+		// /m/<module>/webhooks/...
 		moduleMux := http.NewServeMux()
 		moduleMux.Handle("/m/", modules.ServeInternal())
 		mux.Handle("/m/", internalChain(params, moduleMux))

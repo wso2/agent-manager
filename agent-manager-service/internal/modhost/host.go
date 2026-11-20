@@ -484,9 +484,9 @@ func (h *Host) commit(rt *runtime, v *view) error {
 			return err
 		}
 	}
-	if len(rt.internal) > 0 {
+	if len(rt.internal) > 0 || len(rt.webhooks) > 0 {
 		var err error
-		if internal, err = h.mountInternal(name, rt.internal); err != nil {
+		if internal, err = h.mountInternal(name, rt.internal, rt.webhooks, d.MountInternal); err != nil {
 			return err
 		}
 	}

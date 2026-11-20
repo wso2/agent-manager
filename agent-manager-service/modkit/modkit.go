@@ -424,6 +424,11 @@ type Environment struct {
 // it answers only for that ctx's organization (OrgID).
 type CoreAPI interface {
 	GetOrg(ctx context.Context, orgID string) (Org, error)
+	// GetOrgByHandle looks an organization up by its handle, for a caller that
+	// knows only that, such as a signed webhook delivery from another product.
+	// Called with the ctx of a request, hook or event, it finds only that ctx's
+	// organization.
+	GetOrgByHandle(ctx context.Context, handle string) (Org, error)
 	ListProjects(ctx context.Context, orgID string) ([]Project, error)
 	GetProject(ctx context.Context, orgID, projectID string) (Project, error)
 	// ListAgents lists the agents of an organization; projectID, when not
@@ -523,6 +528,15 @@ type Runtime interface {
 	// (wso2/agent-manager#2493), and goes away then; new modules use
 	// HandleInternal.
 	HandleInternalAt(method, absPath string, h http.HandlerFunc, opts ...RouteOption)
+	// HandleWebhook mounts a route at /m/<module>/webhooks<path> on the
+	// internal server for a sender outside the installation that signs each
+	// delivery (a developer portal's webhook) rather than presenting a
+	// workload token. The core does not authenticate its callers: the handler
+	// verifies the signature and names the sender with AuditInternalCaller. A
+	// route that changes state names its audit action with Audit. While the
+	// module is inactive it answers 401 module_inactive, as HandleInternal
+	// does.
+	HandleWebhook(method, path string, h http.HandlerFunc, opts ...RouteOption)
 	// MCPTool adds a tool to the core's MCP server at /mcp while the module
 	// is active. perm is the permission a caller needs, as for Handle; the
 	// call is audited under its name unless an Audit option names the action.

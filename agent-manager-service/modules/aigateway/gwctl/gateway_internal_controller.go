@@ -29,6 +29,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -60,6 +61,7 @@ type gatewayInternalController struct {
 	gatewayInternalService *gwsvc.GatewayInternalAPIService
 	apiKeyRepo             gwrepo.APIKeyRepository
 	aiApplicationRepo      gwrepo.AIApplicationRepository
+	plans                  *gwsvc.SubscriptionPlans
 }
 
 // NewGatewayInternalController creates a new gateway internal controller
@@ -68,12 +70,14 @@ func NewGatewayInternalController(
 	gatewayInternalService *gwsvc.GatewayInternalAPIService,
 	apiKeyRepo gwrepo.APIKeyRepository,
 	aiApplicationRepo gwrepo.AIApplicationRepository,
+	plans *gwsvc.SubscriptionPlans,
 ) GatewayInternalController {
 	return &gatewayInternalController{
 		gatewayService:         gatewayService,
 		gatewayInternalService: gatewayInternalService,
 		apiKeyRepo:             apiKeyRepo,
 		aiApplicationRepo:      aiApplicationRepo,
+		plans:                  plans,
 	}
 }
 
@@ -438,15 +442,52 @@ func writeAPIKeys(w http.ResponseWriter, keys []gwmodels.StoredAPIKey) {
 	httpx.WriteSuccessResponse(w, http.StatusOK, result)
 }
 
-// GetSubscriptionPlans handles GET /api/internal/v1/subscription-plans
-// Returns subscription plans for the authenticated gateway's organization.
-// Currently returns an empty list as subscription-based rate limiting is not used.
+// gatewaySubscriptionPlan is a subscription plan as a gateway pulls it: the shape of the
+// subscriptionPlan.* events, with its dates. The conditions are the plan; the single throttle limit is
+// for gateways that read only that.
+type gatewaySubscriptionPlan struct {
+	ID                 string                `json:"id"`
+	Handle             string                `json:"handle"`
+	PlanName           string                `json:"planName"`
+	BillingPlan        string                `json:"billingPlan,omitempty"`
+	StopOnQuotaReach   bool                  `json:"stopOnQuotaReach"`
+	ThrottleLimitCount *int                  `json:"throttleLimitCount,omitempty"`
+	ThrottleLimitUnit  string                `json:"throttleLimitUnit,omitempty"`
+	ExpiryTime         *time.Time            `json:"expiryTime,omitempty"`
+	Status             string                `json:"status"`
+	Conditions         []subplanv1.Condition `json:"conditions,omitempty"`
+	CreatedAt          time.Time             `json:"createdAt"`
+	UpdatedAt          time.Time             `json:"updatedAt"`
+}
+
+// GetSubscriptionPlans handles GET /api/internal/v1/subscription-plans: every subscription plan of the
+// authenticated gateway's organization, which the gateway syncs when it connects (it removes the plans it
+// has that are not listed). Plans come from the module that owns them ("subscription.plans/v1"); without
+// it the list is empty.
 func (c *gatewayInternalController) GetSubscriptionPlans(w http.ResponseWriter, r *http.Request) {
-	if _, ok := c.authenticateGateway(w, r, "internal-read"); !ok {
+	identity, ok := c.authenticateGateway(w, r, "internal-read")
+	if !ok {
 		return
 	}
-
-	httpx.WriteSuccessResponse(w, http.StatusOK, []struct{}{})
+	out := []gatewaySubscriptionPlan{}
+	if source, ok := c.plans.Source(); ok {
+		plans, err := source.ListPlans(r.Context(), identity.OUID)
+		if err != nil {
+			logger.GetLogger(r.Context()).Error("Failed to list subscription plans for a gateway",
+				"orgId", identity.OUID, "error", err)
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get subscription plans")
+			return
+		}
+		for _, p := range plans {
+			out = append(out, gatewaySubscriptionPlan{
+				ID: p.ID, Handle: p.Handle, PlanName: p.Name, BillingPlan: "free",
+				StopOnQuotaReach: p.StopOnQuotaReach, ThrottleLimitCount: p.ThrottleLimitCount,
+				ThrottleLimitUnit: p.ThrottleLimitUnit, ExpiryTime: p.ExpiryTime, Status: p.Status,
+				Conditions: p.Conditions, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
+			})
+		}
+	}
+	httpx.WriteSuccessResponse(w, http.StatusOK, out)
 }
 
 // gatewayApplicationResponse is the bulk-sync response format for AI applications.

@@ -82,6 +82,14 @@ export interface FeatureAccessConfig {
   llm_proxy_write: boolean;
   mcp_server_read: boolean;
   mcp_server_write: boolean;
+  /** View subscription plans (the AI Hub module). */
+  subscription_plan_read: boolean;
+  /** Create subscription plans. */
+  subscription_plan_create: boolean;
+  /** Edit subscription plans, including their status. */
+  subscription_plan_update: boolean;
+  /** Delete subscription plans. */
+  subscription_plan_delete: boolean;
   evaluator_read: boolean;
   evaluator_write: boolean;
   monitor_read: boolean;

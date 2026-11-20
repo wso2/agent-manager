@@ -49,3 +49,4 @@ export * from './mcp-proxy-scopes';
 export * from './agent-identity';
 export * from './events';
 export * from './monitor-alerts';
+export * from './subscription-plans';

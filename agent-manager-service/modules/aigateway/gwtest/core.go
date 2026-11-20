@@ -83,6 +83,10 @@ func (c *Core) EnsureOrg(ctx context.Context, orgID string) (modkit.Org, error) 
 
 func (c *Core) GetOrg(context.Context, string) (modkit.Org, error) { panic("gwtest.Core: GetOrg") }
 
+func (c *Core) GetOrgByHandle(context.Context, string) (modkit.Org, error) {
+	panic("gwtest.Core: GetOrgByHandle")
+}
+
 func (c *Core) ListProjects(context.Context, string) ([]modkit.Project, error) {
 	panic("gwtest.Core: ListProjects")
 }

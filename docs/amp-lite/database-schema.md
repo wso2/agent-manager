@@ -11,7 +11,7 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 ## Decisions that shape the schema
 
 - Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) are deferred, and evaluation (evaluators, monitors, runs, scores, alerts) is removed from Lite; if they come back, they come as modules with their own tables.
-- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 33 tables are listed under [Gateway module tables](#gateway-module-tables); `amp-core` (no modules) doesn't have them.
+- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 33 tables are listed under [Gateway module tables](#gateway-module-tables) and the AI Hub's three under [AI Hub module tables](#ai-hub-module-tables); `amp-core` (no modules) doesn't have them.
 - Multi-tenant. `organizations` is the root.
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
 - Console login is file-based to start with: a default username and password belong to a default org; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
@@ -439,6 +439,51 @@ Two of its tables track agent bindings:
 
 Organizations are not deleted in Lite.
 
+
+### AI Hub module tables
+
+The `ai-hub` module (`modules/aihub`) creates its three tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
+
+**mod_ai_hub_subscription_plans**: one row per plan of an organization.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK. Gateways key plans by it. |
+| org_id | ID | no | The organization's id (no foreign key) |
+| handle | short text (40) | no | The API's `id`. Unique per organization. |
+| display_name | short text (255) | no | |
+| display_name_folded | short text (765) | no | The name case-folded (Unicode), which the list’s search matches: SQLite’s `LOWER` folds ASCII only. Folding can lengthen a name up to three times. |
+| description | short text (1023) | yes | |
+| status | short text (16) | no | `ACTIVE` or `INACTIVE` |
+| expiry_time | time | yes | |
+| created_by, updated_by | short text (255) | yes | Empty for plans copied in by the webhook |
+| created_at, updated_at | time | no | A plan copied in by the webhook is dated when it was made at its source. |
+| source_changed_at | time | yes | When the plan last changed at the developer portal it was copied from, by the portal's clock; a webhook delivery of an earlier change changes nothing. Null for a plan made here. |
+
+Unique (org_id, handle) and (org_id, id).
+
+**mod_ai_hub_subscription_plan_conditions**: the plan's conditions, in order.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| org_id, plan_id | ID | no | FK (org_id, plan_id) → mod_ai_hub_subscription_plans(org_id, id) ON DELETE CASCADE |
+| condition_id | short text (63) | no | `requests`, `tool-calls`, `tokens`, or a custom id |
+| condition_type | short text (32) | no | `request-count`, `tool-call-count`, `token-count` or `custom` |
+| params | JSON | no | Limit windows and `onExceed` for built-in types; the values of a custom condition |
+| sort_order | whole number | no | |
+
+PK (plan_id, condition_id).
+
+**mod_ai_hub_deleted_plans**: plans deleted at the developer portal they were copied from, kept for 30 days, so a create or update made before the deletion and delivered after it doesn't bring the plan back.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| org_id | ID | no | The organization's id (no foreign key) |
+| handle | short text (40) | no | The deleted plan's handle |
+| deleted_at | time | no | When the plan was deleted at the portal, by its clock; the latest deletion is kept |
+| recorded_at | time | no | When the deletion was recorded here; rows older than 30 days are pruned |
+
+PK (org_id, handle).
 
 ## Known differences from the code
 
