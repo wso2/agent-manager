@@ -127,7 +127,6 @@ func TestAuthzMiddlewareStopsGatewayPushWhenPolicyFails(t *testing.T) {
 	ctx := audit.WithRecorder(suspendedGuardCtx(policyErr, &checked), recorder)
 
 	result, err := reg.authzMiddleware()(next)(ctx, "tools/call", req)
-
 	if err != nil {
 		t.Fatalf("middleware returned a protocol error %v, want a tool error result", err)
 	}
@@ -149,6 +148,7 @@ func TestAuthzMiddlewareStopsGatewayPushWhenPolicyFails(t *testing.T) {
 type capturingRecorder struct{ events []audit.Event }
 
 func (r *capturingRecorder) Record(_ context.Context, e audit.Event) { r.events = append(r.events, e) }
+
 func (r *capturingRecorder) RecordSync(_ context.Context, e audit.Event) error {
 	r.events = append(r.events, e)
 	return nil
