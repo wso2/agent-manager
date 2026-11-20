@@ -550,7 +550,7 @@ describe("FindingsTab", () => {
       "Amazon Bedrock",
       "Google Agent Platform",
       "Microsoft Foundry",
-      "Custom platform",
+      "Your inventory",
       "GitHub",
     ]);
     fireEvent.click(screen.getByRole("option", { name: "Microsoft Foundry" }));
@@ -1056,7 +1056,7 @@ describe("ConnectionsTab (Platforms)", () => {
     expect(screen.getByRole("button", { name: "Edit Repos" })).toBeInTheDocument();
   });
 
-  it("lists Custom platforms in their own section, after AI platforms and source code", () => {
+  it("lists Bring your own inventory platforms in their own section, after AI platforms and source code", () => {
     hoisted.connections = [
       connection(),
       connection({ id: "c3", name: "Inventory", provider: "custom" }),
@@ -1064,14 +1064,14 @@ describe("ConnectionsTab (Platforms)", () => {
     ];
     renderTab();
     const headings = screen
-      .getAllByText(/^(AI platforms|Custom platforms|Source code repositories)$/)
+      .getAllByText(/^(AI platforms|Bring your own inventory|Source code repositories)$/)
       .map((h) => h.textContent);
-    expect(headings).toEqual(["AI platforms", "Source code repositories", "Custom platforms"]);
+    expect(headings).toEqual(["AI platforms", "Source code repositories", "Bring your own inventory"]);
     const [ai, , custom] = screen.getAllByRole("table");
     expect(within(ai).queryByText("Inventory")).not.toBeInTheDocument();
     expect(within(custom).getByText("Inventory")).toBeInTheDocument();
-    expect(within(custom).getByText("Custom platform")).toBeInTheDocument();
-    // A Custom platform is scanned and tested like an AI platform.
+    expect(within(custom).getByText("Your inventory")).toBeInTheDocument();
+    // Your inventory is scanned and tested like an AI platform.
     fireEvent.click(within(custom).getByRole("button", { name: "Scan Inventory" }));
     expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c3"] });
     expect(within(custom).getByRole("button", { name: "Test Inventory" })).toBeInTheDocument();
@@ -1860,7 +1860,7 @@ describe("FindingDetail (listing and identifiers)", () => {
     expect(hoisted.setHidden).toHaveBeenCalledWith(false);
   });
 
-  it("shows long identifiers with a copy button, and a Custom platform's labels", () => {
+  it("shows long identifiers with a copy button, and Your inventory's labels", () => {
     hoisted.detail = detail({
       provider: "custom",
       attributes: {
@@ -1876,15 +1876,15 @@ describe("FindingDetail (listing and identifiers)", () => {
     expect(screen.getByRole("button", { name: "Copy Agent URL" })).toBeInTheDocument();
     expect(screen.getByText("Runs on")).toBeInTheDocument();
     expect(screen.getByText("LangGraph Platform")).toBeInTheDocument();
-    expect(screen.getByText("Agent in your inventory on Custom platform")).toBeInTheDocument();
+    expect(screen.getByText("Agent on Your inventory")).toBeInTheDocument();
     expect(screen.queryByText("agentUrl")).not.toBeInTheDocument();
   });
 });
 
-describe("ConnectionEditor (Custom platform)", () => {
+describe("ConnectionEditor (Bring your own inventory)", () => {
   const customSpec = (): ShadowProviderSpec => ({
     provider: "custom",
-    displayName: "Custom platform",
+    displayName: "Bring your own inventory",
     description: "Your own REST API that lists your agents.",
     endpoints: [],
     fields: [
@@ -1914,10 +1914,10 @@ describe("ConnectionEditor (Custom platform)", () => {
       </Routes>,
       "/new",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Connect Custom platform" }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect Bring your own inventory" }));
   };
 
-  it("shows Custom platforms as their own group when adding a platform", () => {
+  it("shows Bring your own inventory as its own group when adding a platform", () => {
     hoisted.providers = [
       { ...customSpec(), provider: "openai", displayName: "OpenAI" },
       customSpec(),
@@ -1930,13 +1930,15 @@ describe("ConnectionEditor (Custom platform)", () => {
       "/new",
     );
     const groups = screen
-      .getAllByRole("heading", { name: /^(AI platforms|Custom platforms|Source code repositories)$/ })
+      .getAllByRole("heading", { name: /^(AI platforms|Bring your own inventory|Source code repositories)$/ })
       .map((h) => h.textContent);
-    expect(groups).toEqual(["AI platforms", "Source code repositories", "Custom platforms"]);
-    const custom = screen.getByRole("region", { name: "Custom platforms" });
+    expect(groups).toEqual(["AI platforms", "Source code repositories", "Bring your own inventory"]);
+    const custom = screen.getByRole("region", { name: "Bring your own inventory" });
     expect(
-      within(custom).getByRole("button", { name: "Connect Custom platform" }),
-    ).toHaveAccessibleDescription("The agents your own inventory API lists");
+      within(custom).getByRole("button", { name: "Connect Bring your own inventory" }),
+    ).toHaveAccessibleDescription(
+      "Your own API that lists your agents. Implement the Agent Manager contract, then add its URL and an API key.",
+    );
     expect(screen.queryByText("Azure DevOps")).not.toBeInTheDocument();
   });
 
@@ -1946,7 +1948,7 @@ describe("ConnectionEditor (Custom platform)", () => {
     Object.assign(URL, { createObjectURL, revokeObjectURL });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     openNew();
-    expect(screen.getByText("Build your agent inventory API")).toBeInTheDocument();
+    expect(screen.getByText("Build your inventory API")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Download contract" }));
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(click).toHaveBeenCalledTimes(1);

@@ -6962,7 +6962,7 @@ type ShadowProviderListResponse struct {
 
 // ShadowProviderSpec defines model for ShadowProviderSpec.
 type ShadowProviderSpec struct {
-	// ApiContract The OpenAPI document (YAML) of the agent inventory API the customer implements for a Custom platform; the console offers it for download.
+	// ApiContract The OpenAPI document (YAML) of the agent inventory API the customer implements for Bring your own inventory; the console offers it for download.
 	ApiContract *string `json:"apiContract,omitempty"`
 
 	// Capabilities What a scan lists, and the fields or options each capability needs.
@@ -6981,7 +6981,7 @@ type ShadowProviderSpec struct {
 	Permissions []ShadowPermissionSpec     `json:"permissions"`
 	Provider    ShadowProviderSpecProvider `json:"provider"`
 
-	// SetupSteps The steps to make the platform listable (Custom platform), shown with what it lists.
+	// SetupSteps The steps to make the platform listable (Bring your own inventory), shown with what it lists.
 	SetupSteps *[]string `json:"setupSteps,omitempty"`
 
 	// SourceHost A source repository host (GitHub). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.

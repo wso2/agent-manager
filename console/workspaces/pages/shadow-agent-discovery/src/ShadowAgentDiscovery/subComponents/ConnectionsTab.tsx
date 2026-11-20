@@ -169,7 +169,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
   const handleTest = (c: ShadowConnectionResponse) =>
     test.mutate(c.id, { onSuccess: (result) => setTestResult({ name: c.name, result }) });
 
-  // The table of platforms a scan calls (AI platforms and Custom platforms):
+  // The table of platforms a scan calls (AI platforms and Bring your own inventory):
   // Scan, Test connection, Edit and Delete on each row.
   const cloudTable = (list: ShadowConnectionResponse[]) => (
       <ListingTable>
@@ -327,7 +327,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
           illustration: <PlugZap size={64} />,
           title: "No platforms added",
           description:
-            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, your own agent inventory API as a Custom platform, or a GitHub organization to scan its source code.",
+            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, your own agent inventory with Bring your own inventory, or a GitHub organization to scan its source code.",
           action: addButton,
         }}
         searchEmptyState={{
@@ -428,7 +428,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
           {customPlatforms.length > 0 && (
             <Stack spacing={1.5}>
               <SectionHeading
-                title="Custom platforms"
+                title="Bring your own inventory"
                 description="Your own agent inventory APIs. Agent Manager calls each one's Agents URL with its API key when you run a scan."
               />
               {cloudTable(customPlatforms)}

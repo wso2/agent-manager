@@ -33,9 +33,9 @@ type ShadowProviderSpec struct {
 	Capabilities []ShadowCapabilitySpec `json:"capabilities"`
 	// What a scan of the platform never reads or lists.
 	NotListed []string `json:"notListed,omitempty"`
-	// The steps to make the platform listable (Custom platform), shown with what it lists.
+	// The steps to make the platform listable (Bring your own inventory), shown with what it lists.
 	SetupSteps []string `json:"setupSteps,omitempty"`
-	// The OpenAPI document (YAML) of the agent inventory API the customer implements for a Custom platform; the console offers it for download.
+	// The OpenAPI document (YAML) of the agent inventory API the customer implements for Bring your own inventory; the console offers it for download.
 	ApiContract *string `json:"apiContract,omitempty"`
 }
 

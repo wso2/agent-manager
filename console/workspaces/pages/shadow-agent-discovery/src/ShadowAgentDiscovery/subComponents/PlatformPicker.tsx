@@ -107,7 +107,7 @@ function PlatformCard({
 
 /**
  * The first step of Add a platform: AI platforms, source code hosts and the
- * Custom platform as selectable cards, each kind in its own group.
+ * Bring your own inventory as selectable cards, each kind in its own group.
  */
 export function PlatformPicker({
   providers,
@@ -130,7 +130,7 @@ export function PlatformPicker({
       list: offered.filter((p) => p.sourceHost),
     },
     {
-      title: "Custom platforms",
+      title: "Bring your own inventory",
       description:
         "Lists the agents your own inventory API returns, built to the Agent Manager contract.",
       list: offered.filter((p) => p.provider === CUSTOM_PLATFORM),
