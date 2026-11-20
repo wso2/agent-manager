@@ -34,7 +34,7 @@ export const PROVIDER_LABELS: Record<ShadowProvider, string> = {
   bedrock: "Amazon Bedrock",
   google: "Google Agent Platform",
   foundry: "Microsoft Foundry",
-  custom: "Custom platform",
+  custom: "Your inventory",
   github: "GitHub",
 };
 
@@ -61,12 +61,21 @@ export const DISCOVERS: Record<string, string> = {
   bedrock: "Bedrock agents and AgentCore runtimes",
   google: "Agent Runtime engines and Agent Registry agents",
   foundry: "Agents in your Foundry projects",
-  custom: "The agents your own inventory API lists",
+  custom:
+    "Your own API that lists your agents. Implement the Agent Manager contract, then add its URL and an API key.",
   github: "Agents in your repositories' code",
 };
 
 export function providerLabel(p: string): string {
   return PROVIDER_LABELS[p as ShadowProvider] ?? p;
+}
+
+/**
+ * The platform's name inside a sentence: "your inventory" for Bring your own
+ * inventory (lowercase, so it reads naturally), the platform's label otherwise.
+ */
+export function providerInSentence(p: string): string {
+  return p === CUSTOM_PLATFORM ? "your inventory" : providerLabel(p);
 }
 
 function countOf(n: number, one: string, many: string): string {
@@ -105,7 +114,7 @@ const PLATFORM_KIND_LABELS: Record<string, Partial<Record<ShadowFindingKind, str
   bedrock: { runtime: "AgentCore runtime", platform_agent: "Bedrock agent" },
   google: { runtime: "Agent Runtime engine", platform_agent: "Agent Registry agent" },
   foundry: { platform_agent: "Foundry agent" },
-  custom: { platform_agent: "Agent in your inventory" },
+  custom: { platform_agent: "Agent" },
 };
 
 /** The kind's label for the agent's platform. */

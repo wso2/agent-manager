@@ -112,10 +112,10 @@ type ProviderSpec struct {
 	// NotListed is what a scan of the platform never reads or lists.
 	NotListed []string
 	// SetupSteps are the steps to make the platform listable, shown with
-	// what it lists (Custom platform).
+	// what it lists (Bring your own inventory).
 	SetupSteps []string
 	// APIContract is the OpenAPI document of the API the customer
-	// implements (Custom platform); the console offers it for download.
+	// implements (Bring your own inventory); the console offers it for download.
 	APIContract string
 	// SourceHost marks a source repository host (GitHub). Its
 	// connection holds no credential and no cloud scan reads it: the source
@@ -514,8 +514,8 @@ var allProviderSpecs = append(append(append([]ProviderSpec{}, providerSpecs...),
 // a field.
 var customPlatformSpec = ProviderSpec{
 	Provider:    models.ShadowProviderCustom,
-	DisplayName: "Custom platform",
-	Description: "Your own REST API that lists your agents, built to the Agent Manager contract: an Agents URL and an API key.",
+	DisplayName: "Bring your own inventory",
+	Description: "Your own API that lists your agents. Implement the Agent Manager contract, then add its URL and an API key.",
 	Fields: []FieldSpec{
 		{
 			Key: FieldAgentsURL, Label: "Agents URL", Kind: FieldText, Required: true,

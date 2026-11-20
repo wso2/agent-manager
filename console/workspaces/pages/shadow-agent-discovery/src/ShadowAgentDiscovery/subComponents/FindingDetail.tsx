@@ -53,7 +53,14 @@ import {
 } from "@agent-management-platform/views";
 import { useSetShadowFindingHidden, useShadowFinding } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type ShadowFindingDetail } from "@agent-management-platform/types";
-import { kindLabel, OnboardingChip, ownerLabel, providerLabel, shortDate } from "../shadowUi";
+import {
+  kindLabel,
+  OnboardingChip,
+  ownerLabel,
+  providerInSentence,
+  providerLabel,
+  shortDate,
+} from "../shadowUi";
 import { CodeAgentOnboardActions } from "./OnboardActions";
 
 /** Facts longer than this are shown on half a row, in monospace. */
@@ -319,7 +326,7 @@ function DetailsCard({ f }: { f: ShadowFindingDetail }) {
       hint={
         isCode
           ? "What the scan command reported from the repository's code. Source code, prompts and secrets are never stored."
-          : `What ${providerLabel(f.provider)} reports about this agent. Instructions, prompts, tool definitions and secrets are never stored.`
+          : `What ${providerInSentence(f.provider)} reports about this agent. Instructions, prompts, tool definitions and secrets are never stored.`
       }
     >
       <Stack spacing={2.5}>

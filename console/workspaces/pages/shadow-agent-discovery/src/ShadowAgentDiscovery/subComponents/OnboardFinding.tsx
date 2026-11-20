@@ -50,6 +50,7 @@ import {
   AGENT_NAME_PATTERN,
   CodeHint,
   kindLabel,
+  providerInSentence,
   providerLabel,
   suggestAgentName,
 } from "../shadowUi";
@@ -70,7 +71,7 @@ export const LLM_GATEWAY_SHELL = [
 
 /** The description a registered agent starts with: where it was found. */
 export function discoveredDescription(f: ShadowFindingDetail): string {
-  return `Discovered by Shadow Agent Discovery: ${providerLabel(f.provider)} ${kindLabel(
+  return `Discovered by Shadow Agent Discovery: ${providerInSentence(f.provider)} ${kindLabel(
     f.kind,
     f.provider,
   ).toLowerCase()} ${f.externalId}`.slice(0, INPUT_LIMITS.DESCRIPTION);
@@ -323,7 +324,7 @@ export function OnboardFinding({
               <Typography component="li" variant="body2">
                 {f.kind === "code_agent"
                   ? `Its code stays in the repository. Nothing changes on ${providerLabel(f.provider)}.`
-                  : `The agent keeps running where it is, on ${providerLabel(f.provider)}. ` +
+                  : `The agent keeps running where it is, on ${providerInSentence(f.provider)}. ` +
                     "Nothing changes on the platform."}
               </Typography>
               <Typography component="li" variant="body2">

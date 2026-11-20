@@ -93,7 +93,7 @@ var defs = append([]SignalDef{
 		Condition: `definition.kind == "external": Foundry stores no endpoint for external agents, so an agent from another connection with the same name is flagged as a possible duplicate`,
 	},
 	{
-		Code: SigCustomAgent, Provider: models.ShadowProviderCustom, Name: "Agent in your inventory",
+		Code: SigCustomAgent, Provider: models.ShadowProviderCustom, Name: "Listed by your inventory",
 		Condition: `GET {Agents URL}?limit=100 (Authorization: Bearer <API key>): an item in agents with an id and a name`,
 	},
 }, sourceDefs()...)
