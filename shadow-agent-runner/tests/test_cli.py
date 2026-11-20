@@ -142,6 +142,7 @@ def test_scan_of_private_repos_without_a_terminal_or_token_exits_2(
     argv = ["scan", "--scan-id", "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f", "--github-org", "o", "--all-repos"]
     assert main([*argv, "--include-private"]) == ExitCode.CONFIG_ERROR
     assert capsys.readouterr().err == (
+        "AMP shadow agent scan · o on github.com\n\n◆ GitHub\n\n"
         "amp-shadow-runner: A GitHub token is needed for private repositories. "
         "Run it with docker run -it, or set GITHUB_TOKEN and pass it with -e GITHUB_TOKEN.\n"
     )

@@ -311,7 +311,7 @@ def test_a_refused_key_or_unknown_model_stops_review_for_the_scan(tmp_path: Path
     assert _outcomes(first + second) == [ReviewOutcome.FAILED, ReviewOutcome.NOT_REVIEWED, ReviewOutcome.NOT_REVIEWED]
     assert len(llm.calls) == 1
     assert notes == [
-        f"amp-shadow-runner: AI review stopped: The LLM at api.example.com answered HTTP {status}. "
+        f"AI review stopped: The LLM at api.example.com answered HTTP {status}. "
         "The other not-sure agents are not reviewed."
     ]
 

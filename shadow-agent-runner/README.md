@@ -39,9 +39,9 @@ Agent Manager builds the `scan` command, so its options match what the console s
 
 `--repos` takes at most 5000 names, given as `name` or `<org>/name`. `AMP_URL`, `--github-api-url` and `--azure-devops-url` accept `http://` or `https://` addresses.
 
-The command asks in the terminal, with hidden input, for the secrets Agent Manager never receives. It asks for a GitHub token only with `--include-private` (a fine-grained token with read-only Contents access), and always for an Azure DevOps personal access token (Code read, and Project and team read). `docker run -it` gives the command the terminal it needs. To skip the question, or to run without a terminal, export `GITHUB_TOKEN` or `AZURE_DEVOPS_TOKEN` in your shell and pass it to the container with `-e NAME`, which copies an exported variable into the container. A GitHub scan of public repositories also uses `GITHUB_TOKEN` when it is passed, for a higher API rate limit, but never asks for it. When the GitHub or Azure DevOps address is plain `http://`, the command warns that the token will be sent to it unencrypted.
+The command asks in the terminal for the secrets Agent Manager never receives. In a terminal it shows one dot for each character typed or pasted (at most 24, then the count), never the characters, and then only how many it received; without key-by-key input it reads them like a password prompt. It asks for a GitHub token only with `--include-private` (a fine-grained token with read-only Contents access), and always for an Azure DevOps personal access token (Code read, and Project and team read). `docker run -it` gives the command the terminal it needs. To skip the question, or to run without a terminal, export `GITHUB_TOKEN` or `AZURE_DEVOPS_TOKEN` in your shell and pass it to the container with `-e NAME`, which copies an exported variable into the container. A GitHub scan of public repositories also uses `GITHUB_TOKEN` when it is passed, for a higher API rate limit, but never asks for it. When the GitHub or Azure DevOps address is plain `http://`, the command warns that the token will be sent to it unencrypted.
 
-With `--ai-review`, the command then asks for the LLM it reviews with. Agent Manager never receives these settings or the key, and nothing is saved.
+With `--ai-review`, the command then asks for the LLM it reviews with. In a terminal the provider is chosen from a menu (arrow keys, or `j`/`k`, and Enter); the other settings are typed, and Enter takes the default shown. Agent Manager never receives these settings or the key, and nothing is saved.
 
 | Question | Variable | Default |
 |---|---|---|
@@ -49,13 +49,45 @@ With `--ai-review`, the command then asks for the LLM it reviews with. Agent Man
 | LLM address | `AMP_LLM_URL` | At the prompt, `https://api.openai.com/v1` or `https://api.anthropic.com` |
 | LLM model | `AMP_LLM_MODEL` | None |
 | Judge model, only with `--judge` | `AMP_LLM_JUDGE_MODEL` | The LLM model |
-| LLM API key, with hidden input | `AMP_LLM_API_KEY` | None |
+| LLM API key, shown as dots | `AMP_LLM_API_KEY` | None |
 
-A set variable skips its question. Without a terminal, each one needs its variable, except the judge model: `AMP_LLM_URL` has no default there, so a gateway's key is never sent to the public API by mistake. Before the key is used, the command prints the provider, the address's host and the models, never the key. The address is the API base: requests go to `<address>/chat/completions` for `openai`, and to `<address>/v1/messages` for `anthropic` (or `<address>/messages` when the address already ends in `/v1`). It accepts `http://` or `https://`, with no user name, query or fragment, and the command warns before sending the key over plain `http://`. The key must be ASCII. Requests use temperature 0 and send the answer limit as `max_tokens`, which OpenAI-compatible servers (vLLM, Ollama, LiteLLM and others) accept. OpenAI's reasoning models (the gpt-5 family and the o-series) refuse both, so for them the command sends `max_completion_tokens` and no temperature instead. Azure OpenAI works only through its `/openai/v1` address with a key it accepts as a Bearer token; classic deployments (an `api-key` header and an `api-version` query) do not. A busy or rate-limited LLM (HTTP 429, 5xx, or Anthropic's 529) is tried up to 3 times; a timed-out request is not sent again.
+A set variable skips its question. Without a terminal, each one needs its variable, except the judge model: `AMP_LLM_URL` has no default there, so a gateway's key is never sent to the public API by mistake. Before the key is asked for, the command shows the provider, the address and the models; for the key it shows only where it came from (`✓ from AMP_LLM_API_KEY`) or how many characters it received. The address is the API base: requests go to `<address>/chat/completions` for `openai`, and to `<address>/v1/messages` for `anthropic` (or `<address>/messages` when the address already ends in `/v1`). It accepts `http://` or `https://`, with no user name, query or fragment, and the command warns before sending the key over plain `http://`. The key must be ASCII. Requests use temperature 0 and send the answer limit as `max_tokens`, which OpenAI-compatible servers (vLLM, Ollama, LiteLLM and others) accept. OpenAI's reasoning models (the gpt-5 family and the o-series) refuse both, so for them the command sends `max_completion_tokens` and no temperature instead. Azure OpenAI works only through its `/openai/v1` address with a key it accepts as a Bearer token; classic deployments (an `api-key` header and an `api-version` query) do not. A busy or rate-limited LLM (HTTP 429, 5xx, or Anthropic's 529) is tried up to 3 times; a timed-out request is not sent again.
 
 AI review sends the LLM each Not sure agent outside test code, one request each, while the repository is still on disk: the file's import lines and the function or class around the match, about 200 lines at most, marked as untrusted data. The code is never saved or sent to Agent Manager. The LLM answers whether it is an agent, with a short reason. Confirmed agents are published, shown as "Confirmed by: AI review"; the others are not. The report records each outcome (`confirmed`, `rejected`, `failed` or `not_reviewed`) and reason. A scan makes at most 200 reviews. Review stops for the rest of the scan when the LLM refuses the key (HTTP 401 or 403), does not know the model or address (404), or fails or answers in the wrong format 5 times in a row; no review starts with less than 11 minutes left on the scan token. Any other LLM error fails only that review. The scan and the publish go on either way.
 
-The command lists the repositories it will scan, with those not found (counted as scanned, with no agents) and those it cannot scan shown apart, and asks to confirm. Declining publishes nothing and exits 0; the pending scan in Agent Manager expires on its own after 1 hour. Ctrl-C cancels with exit 1. Each repository is downloaded as an archive into a private temporary folder, scanned, and deleted before the next. Files a repository's `.gitattributes` marks `export-ignore` are not in the archive, so they are not scanned. A repository that fails is reported as failed and the scan goes on. In a terminal, each repository has one status line, redrawn in place, that shows the download (size and speed), the files scanned and the AI reviews done, and is then replaced by its result and how long it took; colour is off when `NO_COLOR` is set. Without a terminal (`docker run` without `-t`, or CI), each step prints one plain line instead. The report is written to `/out/report.json` (the folder the command runs in) before the results are published, once.
+The command lists the repositories it will scan, with those not found (counted as scanned, with no agents) and those it cannot scan shown apart, and asks to confirm. Declining publishes nothing and exits 0; the pending scan in Agent Manager expires on its own after 1 hour. Ctrl-C cancels with exit 1. Each repository is downloaded as an archive into a private temporary folder, scanned, and deleted before the next. Files a repository's `.gitattributes` marks `export-ignore` are not in the archive, so they are not scanned. A repository that fails is reported as failed and the scan goes on. In a terminal, each repository has one status line, redrawn in place, that shows the download (size and speed), the files scanned and the AI reviews done, and is then replaced by its result and how long it took. The report is written to `/out/report.json` (the folder the command runs in) before the results are published, once.
+
+A scan in a terminal looks like this:
+
+```text
+AMP shadow agent scan · wso2 on github.com
+
+◆ AI review
+  Provider   openai · https://api.openai.com/v1
+  Model      gpt-4o-mini
+  API key    ✓ received (164 characters)
+
+◆ Repositories (1)
+  agent-manager
+  ! No GitHub token: about 25 repositories an hour.
+    Pass -e GITHUB_TOKEN for more.
+
+? Scan 1 repository and publish the results? (y/N) y
+
+◆ Scanning
+  ✓ agent-manager   6 agents · 4 in test code · 1,194 files · 11s
+
+◆ Results
+  Agents     6: 5 proven, 1 confirmed by AI review
+  Test code  4 more, not published
+  Files      1,194 scanned
+  Report     report.json in this folder
+
+✓ Published to Agent Manager: 6 agents saved.
+  Files marked export-ignore in .gitattributes were not scanned.
+```
+
+Colour is used only in a terminal, and not when `NO_COLOR` is set; the symbols become ASCII (`*`, `v`, `!`, `x`, `?`) when the terminal is not UTF-8. Without a terminal (`docker run` without `-t`, or CI), the output has the same sections in plain lines, with no colour, cursor movement or times, and each step of a repository (downloading, scanning, AI review) on a line of its own.
 
 The whole scan must finish within the scan token's hour. No repository is started with less than 3 minutes left: the scan stops there, reports that repository and the rest as not scanned, and publishes what it finished. Scan the rest with a new command, for example with `--repos`.
 

@@ -325,7 +325,7 @@ class Reviewer:
 
     def _stop(self, message: str) -> None:
         self.stopped = message
-        self._notify(f"amp-shadow-runner: AI review stopped: {message} The other not-sure agents are not reviewed.")
+        self._notify(f"AI review stopped: {message} The other not-sure agents are not reviewed.")
 
 
 def _with(finding: Finding, outcome: ReviewOutcome, reason: str) -> Finding:

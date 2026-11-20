@@ -19,6 +19,7 @@
 import dataclasses
 import io
 import json
+import re
 import tarfile
 import time
 from collections.abc import Callable, Iterable
@@ -33,8 +34,10 @@ from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.gitsource import FailedRepository, GitSourceError, Repository, RepositoryError, RepositoryList
 from amp_shadow_runner.llm import LlmError, LlmSettings
 from amp_shadow_runner.pipeline import (
+    ANONYMOUS_HINT,
     ANONYMOUS_WARNING,
     EXPIRES_NOTE,
+    EXPORT_IGNORE_HINT,
     JUDGE_NOT_AVAILABLE,
     TOKEN_RAN_OUT,
     PublishInterrupted,
@@ -44,6 +47,7 @@ from amp_shadow_runner.pipeline import (
 from amp_shadow_runner.publish import PublishError, PublishResult, build_body
 from amp_shadow_runner.report import EXPORT_IGNORE_NOTE, Report, ReportError, read_report
 from amp_shadow_runner.scantoken import ScanTokenError
+from amp_shadow_runner.terminal import Ui
 from tests.test_config import _token
 
 SCAN_ID = "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f"
@@ -140,6 +144,7 @@ class FakePublisher:
         self.error = error
         self.reports: list[Report] = []
         self.report_on_disk: list[bool] = []
+        self.status = "partial"
 
     def publish(self, report: Report, *, report_location: str | None = None) -> PublishResult:
         self.reports.append(report)
@@ -147,7 +152,7 @@ class FakePublisher:
         if self.error is not None:
             raise self.error
         agents = len(build_body(report)["agents"])
-        return PublishResult("partial", agents)
+        return PublishResult(self.status, agents)
 
 
 class FakeLlm:
@@ -166,6 +171,12 @@ class FakeLlm:
         return answer
 
 
+class Log(io.StringIO):
+    """stderr off a terminal, in UTF-8 (as in CI)."""
+
+    encoding = "utf-8"
+
+
 class Run:
     def __init__(
         self, tmp_path: Path, source: FakeSource, *, error: BaseException | None = None, llm: FakeLlm | None = None
@@ -174,7 +185,7 @@ class Run:
         self.source = source
         self.llm = FakeLlm() if llm is None else llm
         self.publisher = FakePublisher(self.report_path, error=error)
-        self.out = io.StringIO()
+        self.out: io.StringIO = Log()
         self.asked: list[tuple[str, list[str]]] = []
         """Each prompt asked, with the Git host calls made before it."""
 
@@ -194,11 +205,11 @@ class Run:
                 raise answer_error
             return answer
 
-        def ask_token(_config: ScanConfig) -> str | None:
+        def ask_token(_config: ScanConfig, _ui: Ui) -> str | None:
             self.asked.append(("ask_token", list(self.source.calls)))
             return token
 
-        def ask_llm(_config: ScanConfig) -> LlmSettings:
+        def ask_llm(_config: ScanConfig, _ui: Ui) -> LlmSettings:
             self.asked.append(("ask_llm", list(self.source.calls)))
             return LLM
 
@@ -240,10 +251,10 @@ def test_one_failed_repository_gives_a_partial_failure(tmp_path: Path) -> None:
     assert body["scannedRepositories"] == ["support-bot"]
     assert body["failedRepositories"] == [{"name": "legacy-app", "reason": "GitHub answered HTTP 502"}]
     assert [(a["name"], a["attributes"]["reviewedBy"]) for a in body["agents"]] == [("support", "rules")]
-    assert "[2/2] legacy-app: failed: GitHub answered HTTP 502" in run.text
-    assert "Published to Agent Manager: scan partial, 1 agent saved." in run.text
-    assert EXPORT_IGNORE_NOTE in run.text
-    assert f"Report: {run.report_path}" in run.text
+    assert "  ✗ legacy-app    GitHub answered HTTP 502\n" in run.text
+    assert run.text.endswith(f"\n! Published to Agent Manager: 1 agent saved (scan partial).\n  {EXPORT_IGNORE_HINT}\n")
+    assert EXPORT_IGNORE_NOTE in run.report_path.read_text()  # The report keeps the long form.
+    assert f"  Report     {run.report_path}\n" in run.text
 
 
 def test_everything_scanned_is_ok_and_the_code_is_deleted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -264,7 +275,7 @@ def test_gone_repositories_count_as_scanned(tmp_path: Path) -> None:
     assert run.source.calls[0] == "list_named:a,old-repo"
     assert run.body["scannedRepositories"] == ["a", "old-repo"]
     assert run.body["failedRepositories"] == []
-    assert "Not found, counted as scanned with no agents (1):\n  old-repo\n" in run.text
+    assert "  ! old-repo   not found, counted as scanned with no agents\n" in run.text
 
 
 def test_listing_failures_and_an_incomplete_list_are_partial(tmp_path: Path) -> None:
@@ -273,7 +284,7 @@ def test_listing_failures_and_an_incomplete_list_are_partial(tmp_path: Path) -> 
     assert run() == ExitCode.PARTIAL_FAILURE
     assert run.body["complete"] is False
     assert run.body["failedRepositories"] == [{"name": "hidden", "reason": "not found"}]
-    assert "Cannot be scanned (1):\n  hidden: not found\n" in run.text
+    assert "  ✗ hidden   cannot be scanned: not found\n" in run.text
     assert "The list may be incomplete" in run.text
 
 
@@ -318,7 +329,7 @@ def test_skipped_count_includes_the_archive_entries_left_out(tmp_path: Path) -> 
     assert run() == ExitCode.OK
     [repo] = read_report(run.report_path).repositories
     assert repo.files_skipped == 1
-    assert "Files: 1 scanned, 1 skipped." in run.text
+    assert "  Files      1 scanned, 1 skipped\n" in run.text
 
 
 def test_declining_publishes_nothing(tmp_path: Path) -> None:
@@ -326,7 +337,7 @@ def test_declining_publishes_nothing(tmp_path: Path) -> None:
     assert run(yes=False, tty=True, answer="n\n") == ExitCode.OK
     assert run.publisher.reports == []
     assert run.source.calls == ["list_all"]
-    assert "Scan 1 repository and publish the results? [y/N]" in run.text
+    assert "\n? Scan 1 repository and publish the results? (y/N) \n" in run.text  # Ended for the log.
     assert EXPIRES_NOTE in run.text
     assert not run.report_path.exists()
 
@@ -360,7 +371,7 @@ def test_an_unwritable_report_folder_stops_before_listing(tmp_path: Path) -> Non
 def test_anonymous_github_warning(tmp_path: Path, token: str | None, warned: bool) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))))
     run(_config(include_private=False), token=token)
-    assert (ANONYMOUS_WARNING in run.text) is warned
+    assert (f"  ! {ANONYMOUS_WARNING}\n    {ANONYMOUS_HINT}\n" in run.text) is warned
 
 
 def test_a_publish_error_keeps_the_report(tmp_path: Path) -> None:
@@ -368,7 +379,7 @@ def test_a_publish_error_keeps_the_report(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}), error=error)
     assert run() == ExitCode.AUTH_ERROR
     assert read_report(run.report_path).scan_id == SCAN_ID
-    assert "amp-shadow-runner: Agent Manager refused the scan token (HTTP 401)." in run.text
+    assert run.text.endswith("\n✗ Not published: Agent Manager refused the scan token (HTTP 401).\n")
 
 
 def test_a_listing_error_exits_with_its_code(tmp_path: Path) -> None:
@@ -379,13 +390,13 @@ def test_a_listing_error_exits_with_its_code(tmp_path: Path) -> None:
     run = Run(tmp_path, Refusing(RepositoryList(())))
     assert run() == ExitCode.CONFIG_ERROR
     assert run.publisher.reports == []
-    assert "amp-shadow-runner: GitHub refused the token." in run.text
+    assert run.text.endswith("\n\n✗ GitHub refused the token.\n")
 
 
 def test_not_sure_agents_are_not_published_without_ai_review(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"main.bal": BAL_AGENT.format(name="x")}}))
     assert run(_config()) == ExitCode.OK
-    assert "1 not-sure agent is not published: without --ai-review, only agents the rules prove" in run.text
+    assert "  Agents     1 not sure (published only with --ai-review)\n" in run.text
     assert run.body["agents"] == []
     assert run.llm.users == []
     assert "aiReview" not in run.report_path.read_text()
@@ -406,9 +417,9 @@ def test_ai_review_publishes_only_the_confirmed_agents(tmp_path: Path) -> None:
     assert reviewed == {"helper": "ai_review", "support": "rules"}  # Not "chat" (rejected) or "double" (test code).
     assert len(run.llm.users) == 2
     assert all("tests/test_x.bal" not in u for u in run.llm.users)
-    assert "[1/2] a: scanning\n[1/2] a: AI review of 2 not-sure agents\n[1/2] a: done" in run.text
-    assert "AI review: 2 reviewed, 1 confirmed as an agent, 1 not an agent, 0 failed; 0 not reviewed." in run.text
-    assert 'The confirmed agents are published, shown as "Confirmed by: AI review".' in run.text
+    assert "  [1/2] a  scanning\n  [1/2] a  AI review of 2 not-sure agents\n  ✓ a   2 agents · 2 files\n" in run.text
+    assert "  Agents     3: 1 proven, 1 confirmed by AI review, 1 not confirmed\n" in run.text
+    assert "  AI review  1 rejected (not published; the report says why)\n" in run.text
     assert all("aiReview" not in a["attributes"] for a in run.body["agents"])
 
 
@@ -437,7 +448,8 @@ def test_a_refused_llm_key_stops_review_and_still_publishes(tmp_path: Path) -> N
     assert run(_config(ai_review=True)) == ExitCode.OK
     assert len(run.llm.users) == 1
     assert run.text.count("AI review stopped") == 1
-    assert "AI review: 1 reviewed, 0 confirmed as agents, 0 not agents, 1 failed; 1 not reviewed." in run.text
+    assert "  Agents     3: 1 proven, 2 not confirmed\n" in run.text
+    assert "  AI review  1 failed, 1 not reviewed (not published; the report says why)\n" in run.text
     assert [a["attributes"]["reviewedBy"] for a in run.body["agents"]] == ["rules"]
 
 
@@ -447,7 +459,7 @@ def test_reviews_stop_before_the_token_runs_too_low(tmp_path: Path) -> None:
     run = _two_repos(tmp_path, FakeLlm())
     assert run(config, clock=lambda: T0 + 400) == ExitCode.OK
     assert run.llm.users == []
-    assert "AI review: 0 reviewed, 0 confirmed as agents, 0 not agents, 0 failed; 2 not reviewed." in run.text
+    assert "  AI review  2 not reviewed (not published; the report says why)\n" in run.text
     data = json.loads(run.report_path.read_text())
     [finding, *_] = data["repositories"][0]["findings"]
     assert finding["attributes"]["aiReview"] == {
@@ -459,7 +471,7 @@ def test_reviews_stop_before_the_token_runs_too_low(tmp_path: Path) -> None:
 def test_ai_review_with_nothing_to_review(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}))
     assert run(_config(ai_review=True)) == ExitCode.OK
-    assert "AI review: no not-sure agents to review." in run.text
+    assert "  Agents     1 proven\n  AI review  nothing to review\n" in run.text
 
 
 def test_the_judge_is_not_available_yet(tmp_path: Path) -> None:
@@ -488,7 +500,7 @@ def test_not_sure_agents_in_test_code_are_not_counted_as_unpublished(
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}))
     assert run(_config()) == ExitCode.OK
     assert "not-sure agent" not in run.text.lower()
-    assert "1 more in test code, not published" in run.text
+    assert "  Agents     none found\n  Test code  1 more, not published\n" in run.text
 
 
 def test_secrets_are_never_printed_or_saved(tmp_path: Path) -> None:
@@ -565,7 +577,7 @@ def test_an_unsaved_report_is_still_published(tmp_path: Path, monkeypatch: pytes
     assert run() == ExitCode.CONFIG_ERROR
     assert len(run.publisher.reports) == 1
     assert "No space left on device). The results are published anyway." in run.text
-    assert "Report: not saved" in run.text
+    assert "  Report     not saved\n" in run.text
 
 
 T0 = 1_800_000_000.0
@@ -594,7 +606,7 @@ def test_a_scan_that_outlasts_the_token_publishes_what_it_finished(tmp_path: Pat
     assert len(run.body["agents"]) == 1
     assert run.publisher.report_on_disk == [True]
     assert "download:c" not in run.source.calls
-    assert f"[3/4] c: failed: {TOKEN_RAN_OUT}" in run.text
+    assert f"  ✗ c   {TOKEN_RAN_OUT}\n" in run.text
 
 
 def test_too_little_token_time_after_confirming_stops_before_scanning(tmp_path: Path) -> None:
@@ -659,9 +671,10 @@ def test_on_aterminal_every_message_clears_the_live_line_first(tmp_path: Path, m
     run.out = terminal = _Terminal()
     assert run(_config(ai_review=True)) == ExitCode.OK
     text = terminal.getvalue()
-    assert "\r[1/2] a  scanning" in text and "AI review" in text and "Publishing to Agent Manager…" in text
-    assert "\r\x1b[Kamp-shadow-runner: AI review stopped: " in text  # Printed over the live line, not into it.
-    assert "[1/2] a: done in " in text and "Scanned 2 repositories in " in text
+    assert "\r  [1/2] a  scanning" in text and "AI review" in text and "Publishing to Agent Manager…" in text
+    assert "\r\x1b[K  ! AI review stopped: " in text  # Printed over the live line, not into it.
+    assert re.search(r"\n  ✓ a   2 agents · 2 files · [0-9.]+s\n", text)
+    assert "  Scanned    2 repositories in " in text
     assert "AI review of" not in text
     assert _clean_lines(text)
     assert text.endswith("\n")
@@ -701,3 +714,75 @@ def test_published_agents_carry_branch_project_path_and_language(tmp_path: Path)
         "release/2.0",
     ]
     assert build_body(read_report(run.report_path)) == run.body  # ``upload`` publishes the same attributes.
+
+
+def test_the_whole_output_off_a_terminal(tmp_path: Path) -> None:
+    files = {"agent-manager": {"agent.py": AGENT, "tests/test_a.py": AGENT}, "docs": {"x.py": MAYBE}}
+    listing = RepositoryList((_repo("agent-manager"), dataclasses.replace(_repo("docs"), private=True)))
+    run = Run(tmp_path, FakeSource(listing, files))
+    run.publisher.status = "succeeded"
+    assert run(_config(include_private=False), token=None, yes=False, tty=True, answer="y\n") == ExitCode.OK
+    assert run.text == (
+        "AMP shadow agent scan · acme on github.com\n"
+        "\n"
+        "◆ Repositories (2)\n"
+        "  agent-manager\n"
+        "  docs            private\n"
+        f"  ! {ANONYMOUS_WARNING}\n"
+        f"    {ANONYMOUS_HINT}\n"
+        "\n"
+        "? Scan 2 repositories and publish the results? (y/N) \n"
+        "\n"
+        "◆ Scanning\n"
+        "  [1/2] agent-manager  downloading\n"
+        "  [1/2] agent-manager  scanning\n"
+        "  ✓ agent-manager   1 agent · 1 in test code · 2 files\n"
+        "  [2/2] docs  downloading\n"
+        "  [2/2] docs  scanning\n"
+        "  ✓ docs            no agents · 1 file\n"
+        "\n"
+        "◆ Results\n"
+        "  Scanned    2 repositories\n"
+        "  Agents     1 proven\n"
+        "  Test code  1 more, not published\n"
+        "  Files      3 scanned\n"
+        f"  Report     {run.report_path}\n"
+        "\n"
+        "✓ Published to Agent Manager: 1 agent saved.\n"
+        f"  {EXPORT_IGNORE_HINT}\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("api_url", "host"),
+    [
+        ("https://api.github.com", "github.com"),
+        ("https://api.acme.ghe.com", "acme.ghe.com"),
+        ("http://ghe.internal:8080/api/v3", "ghe.internal:8080"),
+    ],
+)
+def test_the_header_names_the_organization_and_the_host(tmp_path: Path, api_url: str, host: str) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList(())))
+    run(_config(api_url=api_url, organization="wso2"))
+    assert run.text.startswith(f"AMP shadow agent scan · wso2 on {host}\n")
+
+
+def test_a_long_list_shows_the_first_twenty(tmp_path: Path) -> None:
+    listing = RepositoryList(tuple(_repo(f"r{i:02d}") for i in range(25)), gone=tuple(f"g{i:02d}" for i in range(22)))
+    run = Run(tmp_path, FakeSource(listing))
+    run()
+    text = run.text.split("◆ Scanning")[0]
+    assert "◆ Repositories (25)\n" in text
+    assert "  r19\n" in text and "  r20\n" not in text and "  … and 5 more\n" in text
+    assert "  ! g19 " in text and "  ! g20 " not in text and "    … and 2 more\n" in text
+
+
+def test_the_default_report_path_is_named_as_this_folder() -> None:
+    from amp_shadow_runner.pipeline import _print_results
+    from amp_shadow_runner.report import DEFAULT_REPORT_PATH
+
+    out = Log()
+    report = Report(SCAN_ID, "github", "acme", datetime.now(UTC), datetime.now(UTC), ())
+    _print_results(Ui(out), _config(), report, DEFAULT_REPORT_PATH, None, None)
+    assert out.getvalue().endswith("  Report     report.json in this folder\n")
+    assert "Scanned" not in out.getvalue()  # Only with more than one repository, or one not scanned.
