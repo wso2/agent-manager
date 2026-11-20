@@ -88,6 +88,10 @@ type EventRepository interface {
 	// GetDestination returns the org's destination with id, or
 	// gorm.ErrRecordNotFound.
 	GetDestination(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error)
+	// LoadDestinationSecret opens the credential only when preparing delivery. It returns
+	// ErrEventDestinationChanged when the destination was updated after d was read, so the
+	// caller never pairs d's settings with a secret written for newer ones.
+	LoadDestinationSecret(ctx context.Context, d *models.EventDestination) error
 	// DestinationsByID returns those of ids that are the org's destinations.
 	DestinationsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error)
 	// CreateDestination saves a new destination. A name the org already uses,
@@ -165,12 +169,13 @@ type EventRepository interface {
 }
 
 type eventRepository struct {
-	db *gorm.DB
+	db      *gorm.DB
+	secrets *SecretStore
 }
 
 // NewEventRepository creates an EventRepository.
-func NewEventRepository(db *gorm.DB) EventRepository {
-	return &eventRepository{db: db}
+func NewEventRepository(db *gorm.DB, secrets *SecretStore) EventRepository {
+	return &eventRepository{db: db, secrets: secrets}
 }
 
 // Child rows: a destination's projects, a subscription's event types and environments, a delivery's subscriptions.
@@ -258,8 +263,8 @@ func optionalID(ids map[string]uuid.UUID, name string) *uuid.UUID {
 	return nil
 }
 
-// loadDestinations fills the destinations' projects and secrets.
-func loadDestinations(db *gorm.DB, ds []models.EventDestination) error {
+// loadDestinations fills the destinations' projects without opening credentials.
+func (r *eventRepository) loadDestinations(db *gorm.DB, ds []models.EventDestination) error {
 	if len(ds) == 0 {
 		return nil
 	}
@@ -294,13 +299,6 @@ func loadDestinations(db *gorm.DB, ds []models.EventDestination) error {
 			projects = []string{}
 		}
 		ds[i].Projects = projects
-		secret, err := GetSecret(db, ds[i].SecretID)
-		if err != nil {
-			return err
-		}
-		if secret != "" {
-			ds[i].SecretEncrypted = []byte(secret)
-		}
 	}
 	return nil
 }
@@ -333,7 +331,7 @@ func (r *eventRepository) ListDestinations(ctx context.Context, ouID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	return out, loadDestinations(db, out)
+	return out, r.loadDestinations(db, out)
 }
 
 func (r *eventRepository) GetDestination(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error) {
@@ -343,10 +341,41 @@ func (r *eventRepository) GetDestination(ctx context.Context, ouID string, id uu
 		return nil, err
 	}
 	ds := []models.EventDestination{d}
-	if err := loadDestinations(db, ds); err != nil {
+	if err := r.loadDestinations(db, ds); err != nil {
 		return nil, err
 	}
 	return &ds[0], nil
+}
+
+// ErrEventDestinationChanged is a destination updated between reading its settings and its secret.
+var ErrEventDestinationChanged = errors.New("event destination changed while its credential was read")
+
+func (r *eventRepository) LoadDestinationSecret(ctx context.Context, d *models.EventDestination) error {
+	db := r.db.WithContext(ctx)
+	value, err := r.secrets.Get(db, d.SecretID)
+	if err != nil {
+		return err
+	}
+	// An update rewrites the settings and the secret row together and always moves updated_at forward. Check the
+	// revision after the secret is read: an update that committed since d was read means value may belong to the
+	// newer settings. The vault read stays outside any transaction.
+	var current []models.EventDestination
+	if err := db.Select("id", "secret_id", "updated_at").Where("org_id = ? AND id = ?", d.OUID, d.ID).
+		Find(&current).Error; err != nil {
+		return err
+	}
+	if len(current) == 0 || !current[0].UpdatedAt.Equal(d.UpdatedAt) || !sameSecretID(current[0].SecretID, d.SecretID) {
+		return ErrEventDestinationChanged
+	}
+	d.Secret = value
+	return nil
+}
+
+func sameSecretID(a, b *uuid.UUID) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 func (r *eventRepository) DestinationsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error) {
@@ -359,7 +388,7 @@ func (r *eventRepository) DestinationsByID(ctx context.Context, ouID string, ids
 		}
 		out = append(out, part...)
 	}
-	return out, loadDestinations(db, out)
+	return out, r.loadDestinations(db, out)
 }
 
 // nameTaken reports whether another of the org's destinations has name, in any case.
@@ -386,7 +415,7 @@ func (r *eventRepository) CreateDestination(ctx context.Context, d *models.Event
 			}
 			return err
 		}
-		secretID, err := PutSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, string(d.SecretEncrypted))
+		secretID, err := r.secrets.Put(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, d.Secret)
 		if err != nil {
 			return err
 		}
@@ -438,20 +467,18 @@ func (r *eventRepository) UpdateDestination(
 		if !d.UpdatedAt.After(locked.UpdatedAt) {
 			d.UpdatedAt = locked.UpdatedAt.Add(time.Microsecond)
 		}
-		secretID, err := PutSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, string(d.SecretEncrypted))
-		if err != nil {
-			return err
+		d.SecretID = locked.SecretID
+		if d.Secret != "" {
+			secretID, err := r.secrets.Put(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, d.Secret)
+			if err != nil {
+				return err
+			}
+			d.SecretID = secretID
 		}
-		d.SecretID = secretID
 		if err := tx.Model(&models.EventDestination{}).Where("id = ?", d.ID).
 			Select("name", "description", "config", "secret_id", "availability", "updated_at").
 			UpdateColumns(d).Error; err != nil {
 			return err
-		}
-		if secretID == nil {
-			if err := DeleteSecret(tx, locked.SecretID); err != nil {
-				return err
-			}
 		}
 		return saveDestinationProjects(tx, d)
 	})
@@ -484,7 +511,7 @@ func (r *eventRepository) DeleteDestination(ctx context.Context, ouID string, id
 			return res.Error
 		}
 		deleted = res.RowsAffected > 0
-		return DeleteSecret(tx, destination.SecretID)
+		return ReleaseSecret(tx, destination.SecretID)
 	})
 	if dberr.IsForeignKeyViolation(err) {
 		return false, utils.ErrEventDestinationInUse
@@ -796,7 +823,7 @@ func (r *eventRepository) withDestination(
 			return err
 		}
 		ds := []models.EventDestination{d}
-		if err := loadDestinations(tx, ds); err != nil {
+		if err := r.loadDestinations(tx, ds); err != nil {
 			return err
 		}
 		if check != nil {

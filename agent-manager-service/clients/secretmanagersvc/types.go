@@ -16,7 +16,13 @@
 
 package secretmanagersvc
 
-import "errors"
+import (
+	"context"
+	"errors"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
 
 // ErrSecretNotFound is returned when a secret does not exist.
 var ErrSecretNotFound = errors.New("secret not found")
@@ -66,6 +72,23 @@ type SecretInfo struct {
 
 // StoreConfig holds configuration for secret store backends.
 type StoreConfig struct {
-	// Provider is the name of the provider to use (e.g., "unsupported").
+	// Provider is the name of the provider to use (e.g., "inhouse").
 	Provider string `json:"provider"`
+
+	// DB and Secrets back a provider that keeps secrets in the agent manager
+	// database (the in-house provider). Other providers ignore them.
+	DB      *gorm.DB   `json:"-"`
+	Secrets SecretRows `json:"-"`
+}
+
+// SecretRows is the database secret store: rows of the secrets table, whose
+// values go through the deployment's vault. repositories.SecretStore
+// implements it.
+type SecretRows interface {
+	// Write stores value as the secret id, creating the row when absent.
+	Write(ctx context.Context, tx *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) error
+	// Read returns the secret's value; found is false when there is no such row.
+	Read(ctx context.Context, tx *gorm.DB, id uuid.UUID) (value []byte, found bool, err error)
+	// Delete removes the secret. A missing row is a no-op.
+	Delete(ctx context.Context, tx *gorm.DB, id uuid.UUID) error
 }

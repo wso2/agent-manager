@@ -27,8 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
-
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -151,18 +149,17 @@ type EventDestinationService interface {
 }
 
 type eventDestinationService struct {
-	repo          repositories.EventRepository
-	drivers       *eventdestinations.Registry
-	encryptionKey []byte
-	logger        *slog.Logger
-	now           func() time.Time
+	repo    repositories.EventRepository
+	drivers *eventdestinations.Registry
+	logger  *slog.Logger
+	now     func() time.Time
 }
 
 // NewEventDestinationService creates an EventDestinationService.
 func NewEventDestinationService(
-	repo repositories.EventRepository, drivers *eventdestinations.Registry, encryptionKey []byte, logger *slog.Logger,
+	repo repositories.EventRepository, drivers *eventdestinations.Registry, logger *slog.Logger,
 ) EventDestinationService {
-	return &eventDestinationService{repo: repo, drivers: drivers, encryptionKey: encryptionKey, logger: logger, now: time.Now}
+	return &eventDestinationService{repo: repo, drivers: drivers, logger: logger, now: time.Now}
 }
 
 func (s *eventDestinationService) Kinds() []DestinationKind {
@@ -262,26 +259,25 @@ func (s *eventDestinationService) Create(
 		return nil, "", fmt.Errorf("%w: an organization can have at most %d event destinations",
 			httpx.ErrInvalidInput, maxEventDestinationsPerOrg)
 	}
-	secret, encrypted, err := s.newSecret(driver)
+	secret, err := newDestinationSecret(driver)
 	if err != nil {
 		return nil, "", err
 	}
+	stored := secret
 	if credential != "" {
-		if encrypted, err = s.encrypt(credential); err != nil {
-			return nil, "", err
-		}
+		stored = credential
 	}
 	d := &models.EventDestination{
-		ID:              uuid.New(),
-		OUID:            ouID,
-		Name:            in.Name,
-		Description:     in.Description,
-		Kind:            in.Kind,
-		Config:          in.Config,
-		SecretEncrypted: encrypted,
-		Availability:    in.Availability,
-		Projects:        in.Projects,
-		CreatedBy:       audit.BuildEvent(ctx, audit.ActionEventDestinationCreate).ActorID,
+		ID:           uuid.New(),
+		OUID:         ouID,
+		Name:         in.Name,
+		Description:  in.Description,
+		Kind:         in.Kind,
+		Config:       in.Config,
+		Secret:       stored,
+		Availability: in.Availability,
+		Projects:     in.Projects,
+		CreatedBy:    audit.BuildEvent(ctx, audit.ActionEventDestinationCreate).ActorID,
 	}
 	attempt, err := audit.Begin(ctx, audit.ActionEventDestinationCreate, s.auditOpts(ouID, d, driver)...)
 	if err != nil {
@@ -313,9 +309,7 @@ func (s *eventDestinationService) Update(
 		return nil, err
 	}
 	if credential != "" {
-		if d.SecretEncrypted, err = s.encrypt(credential); err != nil {
-			return nil, err
-		}
+		d.Secret = credential
 	} else if _, ok := driver.(eventdestinations.CredentialDriver); ok && !equalJSONValue(in.Config, d.Config) {
 		// The stored credential belongs to the old settings (another
 		// service's URL), so it cannot be kept.
@@ -394,7 +388,7 @@ func (s *eventDestinationService) RotateSecret(ctx context.Context, ouID string,
 	if !ok {
 		return "", fmt.Errorf("%w: event destination kind %q is not supported", httpx.ErrInvalidInput, d.Kind)
 	}
-	secret, encrypted, err := s.newSecret(driver)
+	secret, err := newDestinationSecret(driver)
 	if err != nil {
 		return "", err
 	}
@@ -405,7 +399,7 @@ func (s *eventDestinationService) RotateSecret(ctx context.Context, ouID string,
 	if err != nil {
 		return "", err
 	}
-	d.SecretEncrypted = encrypted
+	d.Secret = secret
 	if err := s.repo.UpdateDestination(ctx, d, nil); err != nil {
 		err = fmt.Errorf("failed to rotate event destination secret: %w", err)
 		attempt.Complete(ctx, err)
@@ -419,6 +413,11 @@ func (s *eventDestinationService) Test(ctx context.Context, ouID string, id uuid
 	d, err := s.Get(ctx, ouID, id)
 	if err != nil {
 		return nil, err
+	}
+	if d.SecretID != nil {
+		if err := s.repo.LoadDestinationSecret(ctx, d); err != nil {
+			return nil, fmt.Errorf("failed to load event destination credential: %w", err)
+		}
 	}
 	driver, dest, err := s.Resolve(d)
 	if err != nil {
@@ -459,7 +458,7 @@ func (s *eventDestinationService) Service(d *models.EventDestination) string {
 }
 
 // Resolve returns a destination's driver and the destination to deliver to,
-// with the secret decrypted.
+// with its secret.
 func (s *eventDestinationService) Resolve(
 	d *models.EventDestination,
 ) (eventdestinations.Driver, eventdestinations.Destination, error) {
@@ -468,15 +467,7 @@ func (s *eventDestinationService) Resolve(
 		return nil, eventdestinations.Destination{},
 			fmt.Errorf("%w: event destination kind %q is not supported", httpx.ErrInvalidInput, d.Kind)
 	}
-	dest := eventdestinations.Destination{Config: d.Config}
-	if len(d.SecretEncrypted) > 0 {
-		secret, err := aesgcm.Decrypt(d.SecretEncrypted, s.encryptionKey)
-		if err != nil {
-			return nil, eventdestinations.Destination{}, fmt.Errorf("failed to decrypt event destination secret: %w", err)
-		}
-		dest.Secret = string(secret)
-	}
-	return driver, dest, nil
+	return driver, eventdestinations.Destination{Config: d.Config, Secret: d.Secret}, nil
 }
 
 // validate checks and normalises an input and returns the driver of its
@@ -520,26 +511,15 @@ func (s *eventDestinationService) validate(
 	return driver, credential, nil
 }
 
-// newSecret generates and encrypts a secret for a destination of driver's
-// kind. It returns empty values for kinds without a secret.
-func (s *eventDestinationService) newSecret(driver eventdestinations.Driver) (string, []byte, error) {
+// newDestinationSecret generates a secret for a destination of driver's kind.
+// It is empty for kinds without a secret. The repository stores it through
+// the secret store, which encrypts it.
+func newDestinationSecret(driver eventdestinations.Driver) (string, error) {
 	secret, ok, err := driver.NewSecret()
 	if err != nil || !ok {
-		return "", nil, err
+		return "", err
 	}
-	encrypted, err := s.encrypt(secret)
-	if err != nil {
-		return "", nil, err
-	}
-	return secret, encrypted, nil
-}
-
-func (s *eventDestinationService) encrypt(secret string) ([]byte, error) {
-	encrypted, err := aesgcm.Encrypt([]byte(secret), s.encryptionKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt event destination secret: %w", err)
-	}
-	return encrypted, nil
+	return secret, nil
 }
 
 func (s *eventDestinationService) auditOpts(

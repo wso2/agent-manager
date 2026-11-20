@@ -37,6 +37,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/vault"
 )
 
 // AppParams contains all wired application dependencies
@@ -57,6 +59,7 @@ type AppParams struct {
 	IdentityController      controllers.IdentityController
 	EventsController        controllers.EventsController
 	AgentThunderReconciler  services.AgentThunderReconcilerService
+	SecretJobWorker         services.SecretJobWorker
 
 	// Services
 	InfraResourceManager     services.InfraResourceManager
@@ -79,7 +82,9 @@ type AppParams struct {
 	// Settings and clients the core services use.
 	Config                       *config.Config
 	EncryptionKey                []byte
+	SecretRefKeys                utils.SecretRefKeys
 	SecretManagementClient       secretmanagersvc.SecretManagementClient
+	SecretStore                  *repositories.SecretStore
 	IdentityClient               thundersvc.IdentityClient
 	EnvThunderResolver           thundersvc.EnvThunderResolver
 	AgentThunderClientRepository repositories.AgentThunderClientRepository
@@ -122,12 +127,38 @@ func ProvideJWTSigningConfig(config config.Config) config.JWTSigningConfig {
 
 // ProvideEncryptionKey decodes the hex-encoded encryption key from config.
 func ProvideEncryptionKey(cfg config.Config) ([]byte, error) {
-	key, err := hex.DecodeString(cfg.EncryptionKey)
+	return decodeEncryptionKey("ENCRYPTION_KEY", cfg.EncryptionKey)
+}
+
+func decodeEncryptionKey(name, value string) ([]byte, error) {
+	key, err := hex.DecodeString(strings.TrimSpace(value))
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode ENCRYPTION_KEY: %w", err)
+		return nil, fmt.Errorf("failed to decode %s: %w", name, err)
 	}
-	if len(key) != 32 {
-		return nil, fmt.Errorf("ENCRYPTION_KEY must decode to exactly 32 bytes (got %d)", len(key))
+	if len(key) != vault.KeySize {
+		return nil, fmt.Errorf("%s must decode to exactly %d bytes (got %d)", name, vault.KeySize, len(key))
 	}
 	return key, nil
+}
+
+// ProvideSecretRefKeys decodes the key ring the local vault opens values with.
+func ProvideSecretRefKeys(cfg config.Config, encryptionKey []byte) (utils.SecretRefKeys, error) {
+	keys := utils.SecretRefKeys{encryptionKey}
+	for _, value := range strings.Split(cfg.PreviousEncryptionKeys, ",") {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		key, err := decodeEncryptionKey("ENCRYPTION_KEY_PREVIOUS", value)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	return keys, nil
+}
+
+// ProvideSecretVaults builds the active writer and keeps configured readers available for stored values and jobs.
+func ProvideSecretVaults(cfg config.Config, keys utils.SecretRefKeys) (*vault.Vaults, error) {
+	vaultCfg := vault.Config{EncryptionKey: keys[0], PreviousKeys: keys[1:]}
+	return vault.Open(cfg.SecretManager.VaultProvider, vaultCfg, strings.Split(cfg.SecretManager.VaultReaders, ",")...)
 }

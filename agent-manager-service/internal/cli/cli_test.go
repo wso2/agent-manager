@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
@@ -112,4 +113,21 @@ func TestConfigFlag(t *testing.T) {
 	}
 	_, _, err := configFlag([]string{"--config"})
 	assert.ErrorIs(t, err, errUsage)
+}
+
+func TestSecretProviderFollowsConfiguration(t *testing.T) {
+	for _, name := range []string{"inhouse", "unsupported", " inhouse "} {
+		p, err := secretProviderFor(name)
+		if err != nil || p == nil {
+			t.Fatalf("secretProviderFor(%q) = %v, %v; want a provider", name, p, err)
+		}
+	}
+	if got, _ := secretProviderFor("unsupported"); got.Capabilities() != secretmanagersvc.StoreCapabilityReadOnly {
+		t.Fatalf("unsupported must keep refusing secret writes, got capabilities %v", got.Capabilities())
+	}
+	for _, name := range []string{"", "vault", "Inhouse"} {
+		if _, err := secretProviderFor(name); err == nil {
+			t.Fatalf("secretProviderFor(%q) accepted an unknown provider", name)
+		}
+	}
 }

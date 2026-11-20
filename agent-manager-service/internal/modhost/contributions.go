@@ -195,6 +195,8 @@ type SecretStore interface {
 	Put(ctx context.Context, tx *gorm.DB, orgID, kind string, owner uuid.UUID, value string) error
 	Get(ctx context.Context, tx *gorm.DB, orgID, kind string, owner uuid.UUID) (string, bool, error)
 	Delete(ctx context.Context, tx *gorm.DB, orgID, kind string, owner uuid.UUID) error
+	// DeleteKind removes every secret of an owner kind, so a purge also clears what an external vault holds.
+	DeleteKind(ctx context.Context, tx *gorm.DB, kind string) error
 }
 
 // secretNamespace derives a secret's owner id from its module path, so the

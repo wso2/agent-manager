@@ -332,6 +332,23 @@ func (d *eventDispatcher) handleDelivery(ctx context.Context, msg events.Message
 		_ = msg.Drop()
 		return
 	}
+	if dest.SecretID != nil {
+		if err := d.repo.LoadDestinationSecret(ctx, dest); err != nil {
+			if errors.Is(err, repositories.ErrSecretUnreadable) {
+				// The configured keys cannot open it, so a retry cannot either.
+				if err := d.record(ctx, delivery, models.EventDeliveryFailed, delivery.Attempts, nil, "destination settings unreadable", nil); err != nil {
+					_ = msg.Retry(eventFanoutRetryDelay)
+					return
+				}
+				log.Error("Cannot deliver to event destination", "error", err)
+				_ = msg.Drop()
+				return
+			}
+			log.Error("Failed to load event destination credential; will retry", "error", err)
+			_ = msg.Retry(eventFanoutRetryDelay)
+			return
+		}
+	}
 	driver, target, err := d.resolver.Resolve(dest)
 	if err != nil {
 		if err := d.record(ctx, delivery, models.EventDeliveryFailed, delivery.Attempts, nil, "destination settings unreadable", nil); err != nil {

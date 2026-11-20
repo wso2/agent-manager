@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-gormigrate/gormigrate/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,6 +79,22 @@ func TestSQLiteBaselineAppliesOnce(t *testing.T) {
 	var locks []string
 	require.NoError(t, gormDB.Raw("SELECT name FROM locks ORDER BY name").Scan(&locks).Error)
 	assert.Equal(t, []string{"agent_identity.reconciler"}, locks)
+}
+
+// A database the baseline alone ran on, as an earlier release left it, gets the later migrations on its next run.
+func TestSQLiteLaterMigrationsApplyOnAnExistingDatabase(t *testing.T) {
+	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_txlock=immediate"
+	gormDB, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	list, err := sqlMigrationsFor(config.DBDriverSQLite)
+	require.NoError(t, err)
+	require.Greater(t, len(list), 1, "there is a migration after the baseline")
+	require.NoError(t, gormigrate.New(gormDB, migrateOptions, list[:1]).Migrate())
+	assert.False(t, gormDB.Migrator().HasTable("secret_jobs"))
+
+	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite))
+	assert.True(t, gormDB.Migrator().HasTable("secret_jobs"))
+	assert.Equal(t, list[len(list)-1].ID, latestApplied(gormDB))
 }
 
 func TestSQLiteBaselineEnforcesKeys(t *testing.T) {
