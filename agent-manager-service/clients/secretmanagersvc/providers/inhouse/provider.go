@@ -28,6 +28,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -234,6 +235,18 @@ func (c *client) PatchSecret(ctx context.Context, location secretmanagersvc.Secr
 			if err != nil {
 				return fmt.Errorf("failed to lock secret %s: %w", id, err)
 			}
+			if external != nil {
+				// The version restarts at 1 when a secret is deleted and recreated under the same id, so also check that
+				// the locked row is the one the external value was read from.
+				current, err := c.stateIn(tx, id)
+				if err != nil {
+					return err
+				}
+				if !current.CreatedAt.Equal(state.CreatedAt) {
+					changed = true
+					return nil
+				}
+			}
 			merged := external
 			if merged == nil {
 				// Re-check under the lock: a promotion may have made the value external since state was read.
@@ -269,6 +282,8 @@ const patchAttempts = 5
 type secretState struct {
 	Version  int
 	Provider string
+	// CreatedAt tells a recreated row from the one it replaced, since both start at version 1.
+	CreatedAt time.Time
 }
 
 // state returns the secret's current version and vault, or ErrSecretNotFound.
@@ -278,7 +293,7 @@ func (c *client) state(ctx context.Context, id uuid.UUID) (secretState, error) {
 
 func (c *client) stateIn(db *gorm.DB, id uuid.UUID) (secretState, error) {
 	var states []secretState
-	if err := db.Model(&models.Secret{}).Select("version", "provider").Where("id = ?", id).Find(&states).Error; err != nil {
+	if err := db.Model(&models.Secret{}).Select("version", "provider", "created_at").Where("id = ?", id).Find(&states).Error; err != nil {
 		return secretState{}, fmt.Errorf("failed to read the state of secret %s: %w", id, err)
 	}
 	if len(states) == 0 {
@@ -298,7 +313,15 @@ func (c *client) DeleteSecret(ctx context.Context, location secretmanagersvc.Sec
 
 // DeleteSecretByName removes the secret whose reference is secretRefName, as
 // PushSecret returned it. Idempotent.
-func (c *client) DeleteSecretByName(ctx context.Context, orgName, secretRefName string, _ *secretmanagersvc.SecretMetadata) error {
+//
+// Every secret this provider stores is managed by secretmanagersvc.DefaultManagedBy, as GetSecret reports. A caller
+// that names another manager gets secretmanagersvc.ErrNotManaged and nothing is deleted. Nil metadata or an empty
+// ManagedBy makes no ownership claim and deletes as the default manager.
+func (c *client) DeleteSecretByName(ctx context.Context, orgName, secretRefName string, metadata *secretmanagersvc.SecretMetadata) error {
+	if metadata != nil && metadata.ManagedBy != "" && metadata.ManagedBy != secretmanagersvc.DefaultManagedBy {
+		return fmt.Errorf("%w: %s is managed by %q, not %q",
+			secretmanagersvc.ErrNotManaged, secretRefName, secretmanagersvc.DefaultManagedBy, metadata.ManagedBy)
+	}
 	id, err := rowID(orgName, secretRefName)
 	if err != nil {
 		return err

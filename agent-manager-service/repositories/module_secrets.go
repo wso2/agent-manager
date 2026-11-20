@@ -118,7 +118,13 @@ func (s *ModuleSecretStore) Delete(ctx context.Context, tx *gorm.DB, orgID, kind
 // DeleteKind removes every secret of an owner kind, in every organization: a module purge. External values are
 // destroyed after tx commits.
 func (s *ModuleSecretStore) DeleteKind(ctx context.Context, tx *gorm.DB, kind string) error {
-	return s.conn(ctx, tx).Transaction(func(db *gorm.DB) error {
+	return ReleaseSecretsOfKind(s.conn(ctx, tx), kind)
+}
+
+// ReleaseSecretsOfKind releases every secret of an owner kind, in every organization, in tx. Like ReleaseSecret it
+// needs no vault, so a purge from a process without one still queues the removal of external values.
+func ReleaseSecretsOfKind(tx *gorm.DB, kind string) error {
+	return tx.Transaction(func(db *gorm.DB) error {
 		var ids []uuid.UUID
 		if err := db.Model(&models.Secret{}).Where("owner_kind = ?", kind).Pluck("id", &ids).Error; err != nil {
 			return fmt.Errorf("failed to list %s secrets: %w", kind, err)

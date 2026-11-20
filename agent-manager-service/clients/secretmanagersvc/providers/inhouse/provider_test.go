@@ -280,3 +280,29 @@ func TestPatchingAPromotedSecretKeepsEveryKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"a", "b"}, info.Keys)
 }
+
+// Every in-house secret is managed by the default manager, so a caller naming another one cannot delete it.
+func TestDeleteRefusesAnotherManager(t *testing.T) {
+	ctx := context.Background()
+	low, err := inhouse.NewProvider().NewClient(&secretmanagersvc.StoreConfig{
+		Provider: inhouse.ProviderName,
+		DB:       db.GetDB(),
+		Secrets:  repositories.NewSecretStore(vaulttest.Local(t)),
+	})
+	require.NoError(t, err)
+	org := dbtest.Org(t, db.GetDB())
+	location := secretmanagersvc.SecretLocation{OrgName: org, EntityName: "managed"}
+	name, err := low.PushSecret(ctx, location, map[string]string{"k": "v"}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = low.DeleteSecretByName(ctx, org, name, nil) })
+
+	err = low.DeleteSecretByName(ctx, org, name, &secretmanagersvc.SecretMetadata{ManagedBy: "another-client"})
+	require.ErrorIs(t, err, secretmanagersvc.ErrNotManaged)
+	_, err = low.GetSecret(ctx, location)
+	require.NoError(t, err, "a refused delete leaves the secret")
+
+	require.NoError(t, low.DeleteSecretByName(ctx, org, name,
+		&secretmanagersvc.SecretMetadata{ManagedBy: secretmanagersvc.DefaultManagedBy}))
+	_, err = low.GetSecret(ctx, location)
+	require.ErrorIs(t, err, secretmanagersvc.ErrSecretNotFound)
+}

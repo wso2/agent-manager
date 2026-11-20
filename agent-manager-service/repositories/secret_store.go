@@ -17,6 +17,7 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -194,6 +195,41 @@ func (s *SecretStore) Read(ctx context.Context, tx *gorm.DB, id uuid.UUID) (valu
 // read is Read. With asStored, a row written before the vault existed is returned as it is rather than opened: its
 // owner stored the form it uses.
 func (s *SecretStore) read(ctx context.Context, tx *gorm.DB, id uuid.UUID, asStored bool) ([]byte, bool, error) {
+	row, found, err := loadSecretRow(ctx, tx, id)
+	if err != nil || !found {
+		return nil, false, err
+	}
+	if asStored && row.KeyID == nil && row.ExternalRef == nil {
+		return row.Ciphertext, true, nil
+	}
+	for attempt := 1; ; attempt++ {
+		value, openErr := s.open(ctx, row)
+		if openErr == nil {
+			return value, true, nil
+		}
+		if row.ExternalRef == nil || attempt >= readAttempts {
+			return nil, false, openErr
+		}
+		// A rotation may have published a new external value and destroyed the one this read captured. Reload, and
+		// open again only when the stored value changed; otherwise the vault's error stands.
+		current, found, err := loadSecretRow(ctx, tx, id)
+		if err != nil {
+			return nil, false, err
+		}
+		if !found {
+			return nil, false, nil
+		}
+		if !storedValueChanged(row, current) {
+			return nil, false, openErr
+		}
+		row = current
+	}
+}
+
+// readAttempts bounds how often read reopens a secret whose external value was replaced while it was being read.
+const readAttempts = 3
+
+func loadSecretRow(ctx context.Context, tx *gorm.DB, id uuid.UUID) (*models.Secret, bool, error) {
 	var rows []models.Secret
 	if err := tx.WithContext(ctx).Where("id = ?", id).Find(&rows).Error; err != nil {
 		return nil, false, fmt.Errorf("failed to read secret %s: %w", id, err)
@@ -201,12 +237,20 @@ func (s *SecretStore) read(ctx context.Context, tx *gorm.DB, id uuid.UUID, asSto
 	if len(rows) == 0 {
 		return nil, false, nil
 	}
-	row := &rows[0]
-	if asStored && row.KeyID == nil && row.ExternalRef == nil {
-		return row.Ciphertext, true, nil
+	return &rows[0], true, nil
+}
+
+// storedValueChanged reports whether b holds a different stored value than a.
+func storedValueChanged(a, b *models.Secret) bool {
+	return a.Version != b.Version || a.Provider != b.Provider ||
+		!equalStringPtr(a.ExternalRef, b.ExternalRef) || !bytes.Equal(a.Ciphertext, b.Ciphertext)
+}
+
+func equalStringPtr(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
 	}
-	value, err := s.open(ctx, row)
-	return value, err == nil, err
+	return *a == *b
 }
 
 func (s *SecretStore) open(ctx context.Context, row *models.Secret) ([]byte, error) {
@@ -216,10 +260,17 @@ func (s *SecretStore) open(ctx context.Context, row *models.Secret) ([]byte, err
 	}
 	value, err := v.Open(ctx, secretRef(row), sealedOf(row))
 	if err != nil {
+		if row.Provider == vault.ProviderLocal {
+			// The local vault does no I/O: a value it cannot open now will never open with this key ring.
+			return nil, fmt.Errorf("failed to open secret %s: %w: %w", row.ID, ErrSecretUnreadable, err)
+		}
 		return nil, fmt.Errorf("failed to open secret %s: %w", row.ID, err)
 	}
 	return value, nil
 }
+
+// ErrSecretUnreadable is a stored value the configured keys cannot open. Retrying does not help.
+var ErrSecretUnreadable = errors.New("secret cannot be opened with the configured keys")
 
 // UpstreamCredential snapshots a deployment credential without accessing its vault.
 type UpstreamCredential struct {
@@ -349,8 +400,14 @@ func ReleaseSecret(tx *gorm.DB, id *uuid.UUID) error {
 	if id == nil {
 		return nil
 	}
-	if _, err := dbx.LockRows(tx, models.Secret{}.TableName(), "version", "id = ?", *id); err != nil {
+	locked, err := dbx.LockRows(tx, models.Secret{}.TableName(), "version", "id = ?", *id)
+	if err != nil {
 		return fmt.Errorf("failed to lock secret %s for release: %w", *id, err)
+	}
+	if locked == 0 {
+		// Nothing to release. Reading again could see a row another transaction created after the lock matched
+		// nothing, and delete it without holding its lock.
+		return nil
 	}
 	var rows []models.Secret
 	if err := tx.Where("id = ?", *id).Find(&rows).Error; err != nil {

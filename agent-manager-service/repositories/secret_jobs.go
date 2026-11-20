@@ -109,6 +109,14 @@ func (r *SecretJobRunner) RunOnce(ctx context.Context, now time.Time) (ran, fail
 			return ran, failed, fmt.Errorf("failed to read claimed secret job: %w", err)
 		}
 		attempt := &secretJobAttempt{SecretJob: &job, now: clock}
+		if job.AvailableAt.After(now) {
+			// Another runner ran and rescheduled the job between this pass selecting and claiming it. Hand the
+			// claim back so the job waits out its backoff.
+			if err := r.release(ctx, attempt); err != nil && !errors.Is(err, errSecretJobClaimLost) {
+				return ran, failed, err
+			}
+			continue
+		}
 		if err := r.renew(ctx, attempt); err != nil {
 			if errors.Is(err, errSecretJobClaimLost) {
 				continue
@@ -122,6 +130,12 @@ func (r *SecretJobRunner) RunOnce(ctx context.Context, now time.Time) (ran, fail
 		}
 	}
 	return ran, failed, nil
+}
+
+// release gives up the claim without counting an attempt.
+func (r *SecretJobRunner) release(ctx context.Context, job *secretJobAttempt) error {
+	return requireSecretJobChange(job.claimed(r.db.WithContext(ctx).Model(&models.SecretJob{})).
+		Updates(map[string]any{"claimed_by": nil, "claimed_until": nil}))
 }
 
 func (r *SecretJobRunner) renew(ctx context.Context, job *secretJobAttempt) error {

@@ -99,10 +99,16 @@ func TestConcurrentFirstWritesOfASecretAllSucceed(t *testing.T) {
 		}()
 	}
 	close(start)
+	// Drain every writer before asserting, so cleanup never runs while one is still writing.
+	succeeded := true
 	for range writers {
-		require.NoError(t, <-results, "a write that loses the insert replaces the value instead of failing")
+		if !assert.NoError(t, <-results, "a write that loses the insert replaces the value instead of failing") {
+			succeeded = false
+		}
 	}
-	assert.Equal(t, writers, secretRow(t, id).Version, "every write landed, one after another")
+	if succeeded {
+		assert.Equal(t, writers, secretRow(t, id).Version, "every write landed, one after another")
+	}
 }
 
 func TestSecretStoreBindsACiphertextToItsRow(t *testing.T) {

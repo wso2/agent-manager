@@ -40,6 +40,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // DefaultPollInterval is how often a replica checks the module generation for
@@ -759,7 +760,8 @@ func (h *Host) purge(tx *gorm.DB, name string) ([]string, error) {
 		if err := st.DeleteKind(tx.Statement.Context, tx, "mod:"+name); err != nil {
 			return nil, fmt.Errorf("deleting %s's secrets: %w", name, err)
 		}
-	} else if err := tx.Exec(`DELETE FROM secrets WHERE owner_kind = ?`, "mod:"+name).Error; err != nil {
+	} else if err := repositories.ReleaseSecretsOfKind(tx, "mod:"+name); err != nil {
+		// A host with no secret store attached (the CLI) still queues the removal of external values.
 		return nil, fmt.Errorf("deleting %s's secrets: %w", name, err)
 	}
 	return revokeAllTx(tx, name)
