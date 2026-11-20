@@ -1856,6 +1856,26 @@ func (s *agentManagerService) checkAgentEntitlement(ctx context.Context, ouID st
 	}
 }
 
+// checkBuildEntitlement asks the installed checker, when it also checks builds,
+// whether the organization may start another build.
+func (s *agentManagerService) checkBuildEntitlement(ctx context.Context, ouID, agentName string) error {
+	checker, ok := s.entitlementChecker.(BuildEntitlementChecker)
+	if !ok {
+		return nil
+	}
+	err := checker.CheckBuild(ctx, ouID)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, utils.ErrEntitlementDenied):
+		s.logger.Info("Build refused by entitlement check", "agentName", agentName, "ouID", ouID, "error", err)
+		return err
+	default:
+		s.logger.Error("Build entitlement check failed", "agentName", agentName, "ouID", ouID, "error", err)
+		return fmt.Errorf("build entitlement check: %w", err)
+	}
+}
+
 // createComponentAgent is the shared agent creation flow for all internal agents.
 // For source-based (imageID == ""): CreateComponent (with Workflow) → AttachTraits → TriggerBuild
 // For kind-based (imageID != ""): CreateComponent (no Workflow) → AttachTraits → CreateInternalAgentFromKindWorkload
@@ -1939,6 +1959,14 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 	// before creating anything that would need rolling back.
 	if err := s.checkAgentEntitlement(ctx, ouID, req); err != nil {
 		return err
+	}
+	// An agent built from source starts its first build in the background once
+	// it exists, so whether it may build is asked now, while a refusal leaves
+	// nothing to roll back.
+	if imageID == "" && req.Provisioning.Type == string(utils.InternalAgent) {
+		if err := s.checkBuildEntitlement(ctx, ouID, req.Name); err != nil {
+			return err
+		}
 	}
 
 	secretLocation := agentConfigSecretLocation(ouID, projectName, req.Name, firstEnv)
@@ -3776,6 +3804,9 @@ func (s *agentManagerService) BuildAgent(ctx context.Context, ouID string, proje
 		if err := s.requireIngressGatewayInLowestEnvironment(ctx, ouID, projectName); err != nil {
 			return nil, err
 		}
+	}
+	if err := s.checkBuildEntitlement(ctx, ouID, agentName); err != nil {
+		return nil, err
 	}
 	workflowRunName, err := s.prepareBuild(ctx, ouID, projectName, agentName)
 	if err != nil {

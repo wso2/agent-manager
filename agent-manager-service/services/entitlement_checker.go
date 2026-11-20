@@ -36,3 +36,17 @@ type EntitlementChecker interface {
 	// create will use, such as "proxy/agent-api".
 	CheckCreate(ctx context.Context, ouID, resourceType string, quantity int) error
 }
+
+// BuildEntitlementChecker is an optional extension of EntitlementChecker. When
+// the installed checker also implements it, Agent Manager asks it before every
+// build it starts: a build of an existing agent, and the first build of a new
+// agent built from source (asked before the agent is created, since that build
+// starts in the background). Both API and MCP requests reach these checks.
+//
+// CheckBuild follows CheckCreate's contract: nil lets the build go ahead, an
+// error wrapping utils.ErrEntitlementDenied refuses it, and any other error
+// stops it as a failure.
+type BuildEntitlementChecker interface {
+	// CheckBuild checks starting one more build in the organization ouID.
+	CheckBuild(ctx context.Context, ouID string) error
+}

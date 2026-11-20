@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -121,4 +122,109 @@ func TestCreateWithoutEntitlementCheckerProceeds(t *testing.T) {
 
 	require.ErrorIs(t, err, errStopAfterTier)
 	assert.Contains(t, rec.calls, "CreateComponent")
+}
+
+// stubBuildEntitlementChecker also checks builds, as a deployment that limits
+// build minutes installs.
+type stubBuildEntitlementChecker struct {
+	stubEntitlementChecker
+	buildErr    error
+	buildChecks []string
+}
+
+func (c *stubBuildEntitlementChecker) CheckBuild(_ context.Context, ouID string) error {
+	c.buildChecks = append(c.buildChecks, ouID)
+	return c.buildErr
+}
+
+var buildMinutesUsedUp = &utils.EntitlementDeniedError{Message: "Your subscription's 750 build minutes for this month are used up."}
+
+func buildFixture(checker EntitlementChecker) (*agentManagerService, *writeRecorder) {
+	svc, rec := entitlementFixture(checker)
+	svc.ocClient.(*clientmocks.OpenChoreoClientMock).GetProjectFunc = func(_ context.Context, _, name string) (*models.ProjectResponse, error) {
+		return &models.ProjectResponse{Name: name}, nil
+	}
+	return svc, rec
+}
+
+func TestBuildRefusedWhenBuildEntitlementDenied(t *testing.T) {
+	checker := &stubBuildEntitlementChecker{buildErr: buildMinutesUsedUp}
+	svc, rec := buildFixture(checker)
+
+	_, err := svc.BuildAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", "")
+
+	require.ErrorIs(t, err, utils.ErrEntitlementDenied)
+	assert.EqualError(t, err, buildMinutesUsedUp.Message)
+	assert.Equal(t, []string{"acme"}, checker.buildChecks)
+	assert.NotContains(t, rec.calls, "TriggerBuild")
+}
+
+func TestBuildFailsWithContextWhenBuildEntitlementCheckFails(t *testing.T) {
+	checker := &stubBuildEntitlementChecker{buildErr: fmt.Errorf("%w: billing is unreachable", utils.ErrServiceUnavailable)}
+	svc, rec := buildFixture(checker)
+
+	_, err := svc.BuildAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", "")
+
+	require.ErrorIs(t, err, utils.ErrServiceUnavailable)
+	require.NotErrorIs(t, err, utils.ErrEntitlementDenied)
+	assert.Contains(t, err.Error(), "build entitlement check")
+	assert.NotContains(t, rec.calls, "TriggerBuild")
+}
+
+func TestBuildProceedsWhenBuildEntitlementAllows(t *testing.T) {
+	checker := &stubBuildEntitlementChecker{}
+	svc, rec := buildFixture(checker)
+
+	_, err := svc.BuildAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", "")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"acme"}, checker.buildChecks)
+	assert.Contains(t, rec.calls, "TriggerBuild")
+}
+
+// A checker that only checks creates (the long-standing interface) is never
+// asked about builds, and builds go ahead.
+func TestBuildNotCheckedByCreateOnlyChecker(t *testing.T) {
+	svc, rec := buildFixture(&stubEntitlementChecker{err: buildMinutesUsedUp})
+
+	_, err := svc.BuildAgent(tierGrantedCtx(t), "acme", "proj1", "my-agent", "")
+
+	require.NoError(t, err)
+	assert.Contains(t, rec.calls, "TriggerBuild")
+}
+
+func TestCreateOfSourceBuiltAgentRefusedWhenBuildEntitlementDenied(t *testing.T) {
+	checker := &stubBuildEntitlementChecker{buildErr: buildMinutesUsedUp}
+	svc, rec := entitlementFixture(checker)
+
+	err := svc.createComponentAgent(tierGrantedCtx(t), "acme", "proj1", createAgentRequest(utils.InternalAgent), "")
+
+	require.ErrorIs(t, err, utils.ErrEntitlementDenied)
+	assert.EqualError(t, err, buildMinutesUsedUp.Message)
+	assert.Len(t, checker.calls, 1, "the agent count is still checked first")
+	rec.assertNoWrites(t)
+}
+
+// Only a create that builds asks about builds: an agent from a published image
+// (a Kind) and an external agent build nothing.
+func TestCreateThatBuildsNothingSkipsBuildEntitlement(t *testing.T) {
+	cases := map[string]struct {
+		provisioning utils.AgentProvisioningType
+		imageID      string
+	}{
+		"internal agent from an image": {provisioning: utils.InternalAgent, imageID: "img:1"},
+		"external agent":               {provisioning: utils.ExternalAgent},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			checker := &stubBuildEntitlementChecker{buildErr: buildMinutesUsedUp}
+			svc, rec := entitlementFixture(checker)
+
+			err := svc.createComponentAgent(tierGrantedCtx(t), "acme", "proj1", createAgentRequest(tc.provisioning), tc.imageID)
+
+			require.NotErrorIs(t, err, utils.ErrEntitlementDenied)
+			assert.Empty(t, checker.buildChecks)
+			assert.Contains(t, rec.calls, "CreateComponent")
+		})
+	}
 }

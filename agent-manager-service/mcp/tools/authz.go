@@ -18,6 +18,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -25,7 +26,9 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	reqlogger "github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
 
 // methodCallTool is the MCP method name for tool invocations. The SDK's own
@@ -130,6 +133,26 @@ func (reg *toolRegistry) authzMiddleware() gomcp.Middleware {
 					audit.RequiredPermissions(missing),
 					audit.Detail("missingScope", missing.Scope()))
 				return denyResult(fmt.Sprintf("insufficient permissions: this tool requires the %s scope", missing.Scope())), nil
+			}
+			if err := checkSuspension(ctx, call.Params.Name, resolveOUID(ctx)); err != nil {
+				if errors.Is(err, workloadpolicy.ErrSuspended) {
+					recordToolDeny(ctx, call.Params.Name, "subscription-suspended")
+					return denyResult(subscriptionSuspendedMessage), nil
+				}
+				// The policy could not decide. That is a failure of the call,
+				// not an authorization refusal, so it is recorded as the tool's
+				// own action failing (the record a handler error leaves), and
+				// the client gets a retryable tool error rather than a protocol
+				// error carrying the policy's internal error.
+				reqlogger.GetLogger(ctx).Error("mcp workload policy check failed",
+					"tool", call.Params.Name, "error", err)
+				audit.Record(ctx, reg.actions[call.Params.Name],
+					audit.SurfaceOpt(audit.SurfaceMCP),
+					audit.Detail("tool", call.Params.Name),
+					audit.Detail("reason", "workload-policy-check-failed"),
+					audit.Result(err),
+				)
+				return denyResult(subscriptionCheckFailedMessage), nil
 			}
 			return next(ctx, method, req)
 		}
