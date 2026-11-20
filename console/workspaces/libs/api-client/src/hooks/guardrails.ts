@@ -93,7 +93,8 @@ const NON_GUARDRAIL_POLICY_EXCLUDELIST = new Set([
  * Filters the raw policy catalog for display in the guardrail selector.
  *
  * Always hidden: infra/auth/MCP policies (NON_GUARDRAIL_POLICY_EXCLUDELIST).
- * Not-installed policies must also be categorised "Guardrails" to be shown.
+ * Not-installed hub policies must also be categorised "Guardrails" to be shown;
+ * custom policies are exempt (they have no hub categories).
  * Everything else is shown, including guardrails that need external system
  * configuration on the gateway (AWS Bedrock, Azure Content Safety, …).
  */
@@ -103,7 +104,13 @@ export function filterGuardrailPolicies(
   return policies.filter((p) => {
     // The hub tags about twenty non-guardrail policies "AI"; a policy no gateway
     // has installed is only worth offering when the hub files it under Guardrails.
-    if (p.status === "not_installed" && !p.categories.includes("Guardrails"))
+    // Custom policies carry no hub categories, and one installed on only some
+    // gateways arrives as not_installed, so the rule applies to hub items only.
+    if (
+      p.source !== "custom" &&
+      p.status === "not_installed" &&
+      !p.categories.includes("Guardrails")
+    )
       return false;
     return !NON_GUARDRAIL_POLICY_EXCLUDELIST.has(p.name);
   });

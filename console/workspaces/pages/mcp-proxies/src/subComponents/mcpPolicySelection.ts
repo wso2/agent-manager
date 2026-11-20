@@ -22,7 +22,8 @@ import type { PolicySelection } from "@agent-management-platform/shared-componen
 /**
  * Applies an add or edit from the picker. The picker returns the exact catalog
  * version; the proxy stores its major (e.g. "v1"). A policy already saved under
- * that name and major is replaced in place, otherwise the policy is appended.
+ * that name and major (stored entries may hold a full version such as
+ * "v1.0.2") is replaced in place, otherwise the policy is appended.
  */
 export function applyPolicySelection(
   policies: MCPProxyPolicy[],
@@ -35,7 +36,9 @@ export function applyPolicySelection(
     params: selection.settings,
   };
   const index = policies.findIndex(
-    (policy) => policy.name === next.name && policy.version === next.version,
+    (policy) =>
+      policy.name === next.name &&
+      normalizePolicyVersionToMajor(policy.version) === next.version,
   );
   if (index < 0) return [...policies, next];
   const result = [...policies];

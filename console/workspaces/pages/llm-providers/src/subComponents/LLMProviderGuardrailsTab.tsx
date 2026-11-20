@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  normalizePolicyVersionToMajor,
   useLLMPoliciesCatalog,
   type GuardrailDefinition,
 } from "@agent-management-platform/api-client";
@@ -78,6 +79,16 @@ const PolicySchema = z.object({
 const PoliciesPayloadSchema = z.object({
   policies: z.array(PolicySchema),
 });
+
+// A saved guardrail uses a catalog item of the same name and major version, so
+// the saved version stays consistent with the parameter schema it is edited in.
+function matchesSaved(g: GuardrailDefinition, p: LLMPolicy): boolean {
+  return (
+    g.name === p.name &&
+    normalizePolicyVersionToMajor(g.version) ===
+      normalizePolicyVersionToMajor(p.version)
+  );
+}
 
 function isGlobalPath(p: LLMPolicyPath): boolean {
   return p.path === "/*" && (p.methods?.includes("*") ?? false);
@@ -158,8 +169,7 @@ export function LLMProviderGuardrailsTab({
     (p: LLMPolicy) =>
       catalogReady &&
       !availableGuardrails.some(
-        // Name only: any installed version keeps an applied guardrail usable.
-        (g) => g.status === "installed" && g.name === p.name,
+        (g) => g.status === "installed" && matchesSaved(g, p),
       ),
     [catalogReady, availableGuardrails],
   );
@@ -392,7 +402,7 @@ export function LLMProviderGuardrailsTab({
   const handleOpenEditDrawer = useCallback(
     (entry: PolicyEntry) => {
       const guardrailDef = availableGuardrails.find(
-        (g) => g.status === "installed" && g.name === entry.policy.name,
+        (g) => g.status === "installed" && matchesSaved(g, entry.policy),
       );
       if (!guardrailDef && !catalogReady) return;
 
@@ -434,17 +444,22 @@ export function LLMProviderGuardrailsTab({
     [drawerContext, editingContext, handleAddGuardrail, handleEditGuardrail, handleCloseDrawer],
   );
 
-  // Any installed version of the saved guardrail opens for editing.
+  // An installed item of the saved guardrail's name and major opens for editing.
   const matchEdit = useCallback(
     (g: GuardrailDefinition) =>
-      g.status === "installed" && g.name === editingContext?.guardrailName,
+      g.status === "installed" &&
+      editingContext !== null &&
+      matchesSaved(g, {
+        name: editingContext.guardrailName,
+        version: editingContext.guardrailVersion,
+      } as LLMPolicy),
     [editingContext],
   );
 
   const getDisplayName = useCallback(
     (p: LLMPolicy): string => {
       const def = availableGuardrails.find(
-        (g: GuardrailDefinition) => g.name === p.name,
+        (g: GuardrailDefinition) => matchesSaved(g, p),
       );
       return def?.displayName ?? p.name;
     },

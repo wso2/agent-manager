@@ -312,6 +312,11 @@ export type ListAvailableMCPPoliciesPathParams = OrgPathParams;
 export interface ListAvailableMCPPoliciesQuery {
   /** MCP proxy handle; scopes availability to the gateways the proxy is deployed on. */
   proxyId?: string;
+  /**
+   * Environment UUID; used with proxyId to scope availability to the gateways
+   * the proxy is deployed on in that environment.
+   */
+  environmentUuid?: string;
 }
 export type ListMCPProxiesQuery = ListQuery & {
   /**

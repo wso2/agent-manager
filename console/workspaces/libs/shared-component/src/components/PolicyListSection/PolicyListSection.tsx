@@ -32,6 +32,7 @@ import {
 import { Plus, ShieldCheck, Trash } from "@wso2/oxygen-ui-icons-react";
 import { NoDataFound } from "@agent-management-platform/views";
 import {
+  normalizePolicyVersionToMajor,
   useLLMPoliciesCatalog,
   type GuardrailDefinition,
   type GuardrailsCatalogResponse,
@@ -68,10 +69,8 @@ export interface PolicyListSectionProps {
   availabilityScope?: "deployed" | "org_managed";
   /**
    * Whether a saved policy is the given catalog item. Defaults to name and
-   * version equality; MCP passes name and major version, since it saves "v1"
-   * while the catalog lists the exact gateway version. The "not available"
-   * check uses this too when given; by default it matches by name only, since
-   * any installed version of a guardrail keeps the saved one usable.
+   * major version, so a saved "v1.0.0" matches an installed "v1.2.0" but not
+   * "v2.0.0". The "not available" and edit lookups use this too.
    */
   matchApplied?: (applied: PolicySelection, item: GuardrailDefinition) => boolean;
   title?: string;
@@ -93,15 +92,15 @@ export interface PolicyListSectionProps {
   readOnly?: boolean;
 }
 
-const matchByNameAndVersion = (
+// Name and major version: a saved "v1.0.0" keeps using an installed "v1.2.0"
+// (same parameter schema), but not an installed "v2.0.0".
+const matchByNameAndMajor = (
   applied: PolicySelection,
   item: GuardrailDefinition,
-): boolean => applied.name === item.name && applied.version === item.version;
-
-const matchByName = (
-  applied: PolicySelection,
-  item: GuardrailDefinition,
-): boolean => applied.name === item.name;
+): boolean =>
+  applied.name === item.name &&
+  normalizePolicyVersionToMajor(applied.version) ===
+    normalizePolicyVersionToMajor(item.version);
 
 export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   policies,
@@ -162,8 +161,8 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   const activeIsLoading = isLoadingCatalog ?? defaultIsLoadingCatalog;
   const activeError = catalogError ?? defaultCatalogError;
 
-  const matchApplied = matchAppliedProp ?? matchByNameAndVersion;
-  const matchAvailable = matchAppliedProp ?? matchByName;
+  const matchApplied = matchAppliedProp ?? matchByNameAndMajor;
+  const matchAvailable = matchApplied;
 
   // Judged against the whole catalog, not the picker's filtered view: a policy
   // the picker hides is still available on the gateway.

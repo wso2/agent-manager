@@ -115,4 +115,20 @@ describe("listAvailableMCPPolicies", () => {
     await listAvailableMCPPolicies({ orgName: "org" }, { proxyId: "" });
     expect(mockGET.mock.calls[0][1]?.searchParams).toBeUndefined();
   });
+
+  it("sends environmentUuid together with proxyId", async () => {
+    await listAvailableMCPPolicies(
+      { orgName: "org" },
+      { proxyId: "orders", environmentUuid: "env-1" },
+    );
+    expect(mockGET.mock.calls[0][1]?.searchParams).toEqual({
+      proxyId: "orders",
+      environmentUuid: "env-1",
+    });
+  });
+
+  it("treats an empty environmentUuid as unset", async () => {
+    await listAvailableMCPPolicies({ orgName: "org" }, { environmentUuid: "" });
+    expect(mockGET.mock.calls[0][1]?.searchParams).toBeUndefined();
+  });
 });

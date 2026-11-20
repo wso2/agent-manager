@@ -75,6 +75,8 @@ export type MCPProxyPoliciesTabProps = {
   orgName?: string;
   /** MCP proxy handle; scopes policy availability to the proxy's gateways. */
   proxyId?: string;
+  /** Environment UUID; narrows policy availability to that environment's gateways. */
+  environmentUuid?: string;
   onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
 };
@@ -83,6 +85,7 @@ export function MCPProxyPoliciesTab({
   config,
   orgName,
   proxyId,
+  environmentUuid,
   onUpdate,
 }: MCPProxyPoliciesTabProps) {
   const { canWrite } = useResourceAccess("mcp_server");
@@ -90,7 +93,7 @@ export function MCPProxyPoliciesTab({
     data: mcpCatalog,
     isLoading: isLoadingCatalog,
     error: catalogError,
-  } = useMCPPoliciesCatalog(orgName, proxyId);
+  } = useMCPPoliciesCatalog(orgName, proxyId, environmentUuid);
 
   // The selected environment's policies (all of them, including managed ones the
   // other tabs own). Edits are persisted immediately to that environment's block.

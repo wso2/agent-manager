@@ -126,6 +126,9 @@ export async function listAvailableMCPPolicies(
   if (query?.proxyId) {
     searchParams.proxyId = query.proxyId;
   }
+  if (query?.environmentUuid) {
+    searchParams.environmentUuid = query.environmentUuid;
+  }
 
   const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/mcp-proxies/policies`, {
     token,

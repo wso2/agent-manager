@@ -62,8 +62,13 @@ import {
 } from "../../utils/useUnsavedChangesGuard";
 import { resolvePolicyDetail } from "./resolvePolicyDetail";
 
+const unavailableMessage = (policyNoun: string) =>
+  `This ${policyNoun} is not available on this gateway, so its configuration is read-only. Remove it from the list if it is no longer needed.`;
+
 const PolicyDetailView: React.FC<{
   policy: GuardrailDefinition;
+  /** The catalog no longer has this policy installed; the form stays but cannot be submitted. */
+  unavailable?: boolean;
   existingSettings?: Record<string, unknown>;
   policyNoun?: string;
   onBack: () => void;
@@ -73,6 +78,7 @@ const PolicyDetailView: React.FC<{
   onSubmit: (policy: GuardrailDefinition, settings: ParameterValues) => void;
 }> = ({
   policy,
+  unavailable = false,
   existingSettings,
   policyNoun = "policy",
   onBack,
@@ -115,7 +121,11 @@ const PolicyDetailView: React.FC<{
           Back
         </Button>
       </Box>
+      {unavailable && (
+        <Alert severity="warning">{unavailableMessage(policyNoun)}</Alert>
+      )}
       <PolicyParameterEditor
+        submitDisabled={unavailable}
         policyDefinition={policyDefinition}
         policyDisplayName={policy.displayName || policy.name}
         existingValues={existingSettings}
@@ -136,7 +146,7 @@ const UnavailablePolicyView: React.FC<{
 }> = ({ settings, policyNoun, onClose }) => (
   <Stack spacing={2}>
     <Alert severity="warning">
-      {`This ${policyNoun} is not available on this gateway, so its configuration is read-only. Remove it from the list if it is no longer needed.`}
+      {unavailableMessage(policyNoun)}
     </Alert>
     <CodeBlock
       code={JSON.stringify(settings ?? {}, null, 2)}
@@ -304,12 +314,30 @@ export function PolicySelectorDrawer({
     [confirmIfUnsaved, isFormDirty],
   );
 
+  // Revalidated on every catalog change: a selected policy with no installed
+  // catalog entry keeps its form but cannot be submitted. Edit mode matches the
+  // way the policy was opened; add mode matches the exact picked item.
+  const selectedUnavailable = useMemo(() => {
+    if (!selectedPolicy || !activeCatalogData) return false;
+    return !activeCatalogData.data.some(
+      (p) =>
+        p.status !== "not_installed" &&
+        (editPolicyKey
+          ? matchEdit
+            ? matchEdit(p)
+            : `${p.name}@${p.version}` === editPolicyKey
+          : p.name === selectedPolicy.name &&
+            p.version === selectedPolicy.version),
+    );
+  }, [selectedPolicy, activeCatalogData, editPolicyKey, matchEdit]);
+
   const handleSubmit = useCallback(
     (policy: GuardrailDefinition, settings: ParameterValues) => {
+      if (selectedUnavailable) return;
       onSubmit(policy, settings);
       setSelectedPolicy(null);
     },
-    [onSubmit],
+    [onSubmit, selectedUnavailable],
   );
 
   useEffect(() => {
@@ -332,7 +360,16 @@ export function PolicySelectorDrawer({
           : `${p.name}@${p.version}` === editPolicyKey),
     );
     if (match) {
-      setSelectedPolicy(match);
+      // A catalog refresh that leaves the schema unchanged keeps the current
+      // object, so the editor does not reset the user's unsaved edits.
+      setSelectedPolicy((prev) =>
+        prev &&
+        prev.name === match.name &&
+        JSON.stringify([prev.parameters, prev.systemParameters]) ===
+          JSON.stringify([match.parameters, match.systemParameters])
+          ? prev
+          : match,
+      );
     }
   }, [open, editPolicyKey, matchEdit, activeCatalogData]);
 
@@ -505,6 +542,7 @@ export function PolicySelectorDrawer({
         ) : (
           <PolicyDetailView
             policy={selectedPolicy}
+            unavailable={selectedUnavailable}
             existingSettings={existingSettings}
             policyNoun={policyNoun}
             onBack={editPolicyKey ? handleGuardedClose : handleGuardedBack}

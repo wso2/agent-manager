@@ -247,6 +247,8 @@ interface PolicyParameterEditorProps {
   onSubmit: (values: ParameterValues) => void;
   isEditMode?: boolean;
   disabled?: boolean;
+  /** Disables only the submit button; the form stays editable. */
+  submitDisabled?: boolean;
   /** Reports whether the values differ from their initial/existing ones. */
   onDirtyChange?: (dirty: boolean) => void;
 }
@@ -259,6 +261,7 @@ const PolicyParameterEditor: React.FC<PolicyParameterEditorProps> = ({
   onSubmit,
   isEditMode = false,
   disabled = false,
+  submitDisabled = false,
   onDirtyChange,
 }) => {
   const { name, description, parameters } = policyDefinition;
@@ -369,7 +372,7 @@ const PolicyParameterEditor: React.FC<PolicyParameterEditorProps> = ({
           variant="contained"
           color="primary"
           onClick={handleSubmit}
-          disabled={disabled || !levelOneValid}
+          disabled={disabled || submitDisabled || !levelOneValid}
           startIcon={isEditMode ? undefined : <Plus size={16} />}
         >
           {isEditMode ? "Save" : "Add"}

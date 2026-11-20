@@ -25,7 +25,10 @@ const catalog = vi.hoisted(() => ({
   state: { data: undefined as unknown, error: null as unknown },
 }));
 
-vi.mock("@agent-management-platform/api-client", () => ({
+vi.mock("@agent-management-platform/api-client", async () => ({
+  normalizePolicyVersionToMajor: (
+    await import("../../../../libs/api-client/src/utils/policyVersion")
+  ).normalizePolicyVersionToMajor,
   useLLMPoliciesCatalog: () => ({
     data: catalog.state.data,
     error: catalog.state.error,
@@ -92,10 +95,23 @@ describe("LLMProviderGuardrailsTab unavailable guardrails", () => {
     expect(screen.queryByRole("button", { name: /^save$/i })).not.toBeInTheDocument();
   });
 
-  it("does not flag an applied guardrail when another version is installed", () => {
+  it("flags an applied guardrail when only a different major is installed", () => {
     catalog.state = {
       data: loadedCatalog([
         { name: "legacy-guard", version: "v2.0.0", status: "installed", parameters: {} },
+      ]),
+      error: null,
+    };
+    renderTab();
+    expect(screen.getByText("Not available on this gateway")).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/legacy-guard/));
+    expect(screen.queryByRole("button", { name: /^save$/i })).not.toBeInTheDocument();
+  });
+
+  it("does not flag an applied guardrail when a same-major version is installed", () => {
+    catalog.state = {
+      data: loadedCatalog([
+        { name: "legacy-guard", version: "v1.2.0", status: "installed", parameters: {} },
       ]),
       error: null,
     };
@@ -144,12 +160,12 @@ describe("LLMProviderGuardrailsTab unavailable guardrails", () => {
 });
 
 describe("LLMProviderGuardrailsTab editing an older saved version", () => {
-  it("opens the installed v2 form and saves the params under the saved v1.0.0", async () => {
+  it("opens the installed v1.2.0 form and saves the params under the saved v1.0.0", async () => {
     catalog.state = {
       data: loadedCatalog([
         {
           name: "legacy-guard",
-          version: "v2.0.0",
+          version: "v1.2.0",
           displayName: "Legacy Guard",
           status: "installed",
           source: "hub",

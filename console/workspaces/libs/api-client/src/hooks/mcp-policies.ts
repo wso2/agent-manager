@@ -56,14 +56,17 @@ export function toMCPCatalog(
   };
 }
 
-export function useMCPPoliciesCatalog(orgName?: string, proxyId?: string) {
+export function useMCPPoliciesCatalog(orgName?: string, proxyId?: string,
+  environmentUuid?: string,
+) {
   const { getToken } = useAuthHooks();
   // Route params fall back to "" when missing; that means no proxy, not a proxy
   // named "".
   const scopedProxyId = proxyId || undefined;
+  const scopedEnvironmentUuid = environmentUuid || undefined;
 
   return useApiQuery<MCPPoliciesCatalogResponse>({
-    queryKey: ["MCP policies catalog", orgName, scopedProxyId],
+    queryKey: ["MCP policies catalog", orgName, scopedProxyId, scopedEnvironmentUuid],
     enabled: Boolean(orgName),
     queryFn: async () => {
       if (!orgName) {
@@ -72,7 +75,7 @@ export function useMCPPoliciesCatalog(orgName?: string, proxyId?: string) {
       const token = await getToken();
       const resp = await listAvailableMCPPolicies(
         { orgName },
-        { proxyId: scopedProxyId },
+        { proxyId: scopedProxyId, environmentUuid: scopedEnvironmentUuid },
         async () => token,
       );
       return toMCPCatalog(resp);

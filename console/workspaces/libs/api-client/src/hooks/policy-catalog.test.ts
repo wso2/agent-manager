@@ -148,4 +148,18 @@ describe("filterGuardrailPolicies", () => {
     ]);
     expect(out.map((p) => p.name)).toEqual(["ai-only"]);
   });
+
+  it("shows a not-installed custom item with no categories", () => {
+    const out = filterGuardrailPolicies([
+      def({ name: "my-custom", source: "custom", status: "not_installed", categories: [] }),
+    ]);
+    expect(out.map((p) => p.name)).toEqual(["my-custom"]);
+  });
+
+  it("still hides an excluded not-installed custom item", () => {
+    const out = filterGuardrailPolicies([
+      def({ name: "jwt-auth", source: "custom", status: "not_installed", categories: [] }),
+    ]);
+    expect(out).toEqual([]);
+  });
 });

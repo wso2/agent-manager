@@ -221,9 +221,19 @@ describe("PolicyListSection applied policies", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not flag an applied policy when another version is installed (default match is by name)", () => {
+  it("flags an applied policy when only a different major is installed (default match is name + major)", () => {
     renderList(
       { catalogData: catalog([policy({ name: "legacy-guard", version: "v2.0.0" })]) },
+      applied,
+    );
+    expect(screen.getByText("Not available on this gateway")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Legacy Guard"));
+    expect(screen.queryByRole("button", { name: /save/i })).not.toBeInTheDocument();
+  });
+
+  it("does not flag an applied policy when a same-major version is installed", () => {
+    renderList(
+      { catalogData: catalog([policy({ name: "legacy-guard", version: "v1.2.0" })]) },
       applied,
     );
     expect(
@@ -260,13 +270,13 @@ describe("PolicyListSection applied policies", () => {
     fetchSpy.mockRestore();
   });
 
-  it("edits an applied v1 policy against the installed v2 schema and keeps v1 (default matcher)", () => {
+  it("edits an applied v1.0.0 policy against the installed v1.2.0 schema and keeps v1.0.0 (default matcher)", () => {
     const { onEdit } = renderList(
       {
         catalogData: catalog([
           policy({
             name: "legacy-guard",
-            version: "v2.0.0",
+            version: "v1.2.0",
             parameters: {
               type: "object",
               properties: { mode: { type: "string" } },

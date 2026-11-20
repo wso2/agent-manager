@@ -17,7 +17,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { policy, renderWithProviders } from "./__test__/helpers";
 
 vi.mock("@agent-management-platform/api-client", async (importOriginal) => ({
@@ -61,5 +61,107 @@ describe("PolicySelectorDrawer", () => {
     expect(screen.getByDisplayValue("secret")).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  describe("catalog changes while a policy is selected", () => {
+    const catalogOf = (...data: ReturnType<typeof policy>[]) => ({
+      count: data.length,
+      hubAvailable: true,
+      availabilityScope: "deployed" as const,
+      data,
+    });
+    const editProps = {
+      open: true,
+      onClose: vi.fn(),
+      filterPolicies: (items: ReturnType<typeof policy>[]) => items,
+      editPolicyKey: "pii-masking@v1",
+      matchEdit: (item: ReturnType<typeof policy>) =>
+        item.name === "pii-masking" && major(item.version) === "1",
+      existingSettings: { blockedWord: "secret" },
+    };
+    const WARNING = /not available on this gateway/i;
+
+    it("edit mode: keeps edits, warns and disables Save when the policy turns not_installed, then recovers", () => {
+      const onSubmit = vi.fn();
+      const { rerender } = renderWithProviders(
+        <PolicySelectorDrawer
+          {...editProps}
+          onSubmit={onSubmit}
+          catalogData={catalogOf(policy({ version: "v1.0.2" }))}
+        />,
+      );
+      fireEvent.change(screen.getByDisplayValue("secret"), {
+        target: { value: "edited" },
+      });
+      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+      expect(screen.queryByText(WARNING)).not.toBeInTheDocument();
+
+      rerender(
+        <PolicySelectorDrawer
+          {...editProps}
+          onSubmit={onSubmit}
+          catalogData={catalogOf(
+            policy({ version: "v1.0.2", status: "not_installed", parameters: undefined }),
+          )}
+        />,
+      );
+      expect(screen.getByDisplayValue("edited")).toBeInTheDocument();
+      expect(screen.getByText(WARNING)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+
+      rerender(
+        <PolicySelectorDrawer
+          {...editProps}
+          onSubmit={onSubmit}
+          catalogData={catalogOf(policy({ version: "v1.0.3" }))}
+        />,
+      );
+      expect(screen.getByDisplayValue("edited")).toBeInTheDocument();
+      expect(screen.queryByText(WARNING)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    });
+
+    it("edit mode: disables Save when the policy is removed from the catalog", () => {
+      const { rerender } = renderWithProviders(
+        <PolicySelectorDrawer
+          {...editProps}
+          onSubmit={vi.fn()}
+          catalogData={catalogOf(policy({ version: "v1.0.2" }))}
+        />,
+      );
+      rerender(
+        <PolicySelectorDrawer {...editProps} onSubmit={vi.fn()} catalogData={catalogOf()} />,
+      );
+      expect(screen.getByDisplayValue("secret")).toBeInTheDocument();
+      expect(screen.getByText(WARNING)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    });
+
+    it("add mode: disables Add when the selected policy turns not_installed", () => {
+      const props = {
+        open: true,
+        onClose: vi.fn(),
+        onSubmit: vi.fn(),
+        filterPolicies: (items: ReturnType<typeof policy>[]) => items,
+      };
+      const { rerender } = renderWithProviders(
+        <PolicySelectorDrawer {...props} catalogData={catalogOf(policy())} />,
+      );
+      fireEvent.click(screen.getByText("PII Masking"));
+      expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
+
+      rerender(
+        <PolicySelectorDrawer
+          {...props}
+          catalogData={catalogOf(policy({ status: "not_installed", parameters: undefined }))}
+        />,
+      );
+      expect(screen.getByText(WARNING)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+
+      rerender(<PolicySelectorDrawer {...props} catalogData={catalogOf(policy())} />);
+      expect(screen.queryByText(WARNING)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
+    });
   });
 });

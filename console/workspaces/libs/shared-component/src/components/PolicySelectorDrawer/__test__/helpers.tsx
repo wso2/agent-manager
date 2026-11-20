@@ -40,7 +40,12 @@ export const policy = (
   ...overrides,
 });
 
-export const renderWithProviders = (ui: ReactElement) =>
-  render(
-    <MemoryRouter>{ui}</MemoryRouter>,
-  );
+export const renderWithProviders = (ui: ReactElement) => {
+  const result = render(<MemoryRouter>{ui}</MemoryRouter>);
+  return {
+    ...result,
+    // Keep the router around the tree when a test re-renders with new props.
+    rerender: (next: ReactElement) =>
+      result.rerender(<MemoryRouter>{next}</MemoryRouter>),
+  };
+};

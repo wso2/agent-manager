@@ -59,4 +59,27 @@ describe("applyPolicySelection", () => {
     expect(result).toHaveLength(3);
     expect(result[2]).toMatchObject({ name: "new-policy", version: "v2" });
   });
+
+  it("replaces a stored full-version entry in place, writing back the major", () => {
+    const stored = [
+      { name: "x", version: "v1.0.2", params: { a: 1 } },
+      { name: "other", version: "v1" },
+    ];
+    const result = applyPolicySelection(stored, {
+      name: "x",
+      version: "v1.0.5",
+      settings: { a: 2 },
+    });
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ name: "x", version: "v1", params: { a: 2 } });
+    expect(result[1]).toBe(stored[1]);
+  });
+
+  it("appends when the stored major differs", () => {
+    const result = applyPolicySelection([{ name: "x", version: "v1.0.2" }], {
+      name: "x",
+      version: "v2.0.0",
+    });
+    expect(result).toHaveLength(2);
+  });
 });
