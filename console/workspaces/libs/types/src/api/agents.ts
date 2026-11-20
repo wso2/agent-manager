@@ -208,7 +208,7 @@ export interface AgentDeleteWarning {
   environments: string[];
 }
 
-/** Returned with status 200 when an agent was deleted but needs follow-up; a plain delete is 204. */
+/** Returned with status 200 when a deleted agent needs follow-up; a plain delete is 204. */
 export interface AgentDeleteResponse {
   warnings: AgentDeleteWarning[];
 }
