@@ -167,6 +167,16 @@ services:
       CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: "true"
       CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT: "true"
       CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
+      # The observability module's trace store, set by the observability
+      # profile (or for your own ClickHouse). Unset, the module keeps traces
+      # in memory. See docs/amp-lite/observability.md.
+      MODULE_OBSERVABILITY_CLICKHOUSE_URL: ${AMP_OBSERVABILITY_CLICKHOUSE_URL:-}
+      MODULE_OBSERVABILITY_CLICKHOUSE_USER: amp_reader
+      MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD: ${AMP_CLICKHOUSE_READER_PASSWORD:-}
+      MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER: amp_cleaner
+      MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD: ${AMP_CLICKHOUSE_CLEANER_PASSWORD:-}
+      # Where the module forwards agents' spans (OTLP/HTTP).
+      MODULE_OBSERVABILITY_COLLECTOR_URL: ${AMP_OBSERVABILITY_COLLECTOR_URL:-}
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-data:/var/lib/agent-manager
@@ -179,11 +189,99 @@ services:
       postgres:
         condition: service_healthy
         required: false
+      observability-migrate:
+        condition: service_completed_successfully
+        required: false
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz >/dev/null"]
       interval: 3s
       retries: 60
-    networks: [amp]
+    # observability reaches ClickHouse and the collector; it has no other
+    # members without the profile.
+    networks: [amp, observability]
+    restart: unless-stopped
+
+  # --- Observability (optional) -----------------------------------------------------
+  # With COMPOSE_PROFILES=observability (`make up-observability`): ClickHouse
+  # and the OpenTelemetry collector on the internal observability network,
+  # with no published ports, and a step that applies the trace schema with
+  # `amp migrate` before amp-api starts. ClickHouse creates no tables itself.
+  clickhouse:
+    image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:25.8.33.6}
+    profiles: [observability]
+    # Refuses to start with an empty password, which would make a login with none.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        for v in AMP_CLICKHOUSE_MIGRATOR_PASSWORD AMP_CLICKHOUSE_INGEST_PASSWORD AMP_CLICKHOUSE_READER_PASSWORD AMP_CLICKHOUSE_CLEANER_PASSWORD; do
+          [ -n "$$(printenv "$$v")" ] || { echo "$$v is empty; set it in .env" >&2; exit 1; }
+        done
+        exec /entrypoint.sh
+    environment:
+      AMP_CLICKHOUSE_MIGRATOR_PASSWORD: ${AMP_CLICKHOUSE_MIGRATOR_PASSWORD:-}
+      AMP_CLICKHOUSE_INGEST_PASSWORD: ${AMP_CLICKHOUSE_INGEST_PASSWORD:-}
+      AMP_CLICKHOUSE_READER_PASSWORD: ${AMP_CLICKHOUSE_READER_PASSWORD:-}
+      AMP_CLICKHOUSE_CLEANER_PASSWORD: ${AMP_CLICKHOUSE_CLEANER_PASSWORD:-}
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      # The module's four logins (agent-manager-service/modules/observability/store/clickhouse/users.xml).
+      - ./observability/clickhouse-users.xml:/etc/clickhouse-server/users.d/amp.xml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8123/ping >/dev/null"]
+      interval: 3s
+      retries: 60
+    networks: [observability]
+    restart: unless-stopped
+
+  # Applies the trace schema as the migrator login, which amp-api never holds.
+  # Rerun it (`docker compose run --rm observability-migrate`) after an upgrade.
+  observability-migrate:
+    image: ${AMP_API_IMAGE:-amp-api:lite}
+    profiles: [observability]
+    entrypoint: ["/go/bin/amp"]
+    command: ["migrate"]
+    # amp-api's settings, database and secrets, plus the migrator login.
+    environment:
+      AMP_CONFIG: /etc/amp/amp.yaml
+      AMP_DATA_DIR: /var/lib/agent-manager
+      DB_SSL_MODE: disable
+      MODULE_OBSERVABILITY_CLICKHOUSE_URL: http://clickhouse:8123
+      MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER: amp_migrator
+      MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD: ${AMP_CLICKHOUSE_MIGRATOR_PASSWORD:-}
+      MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS: ${AMP_OBSERVABILITY_TTL_DAYS:-}
+    volumes:
+      - ./amp.yaml:/etc/amp/amp.yaml:ro
+      - amp-data:/var/lib/agent-manager
+      - amp-secrets:/var/lib/agent-manager/secrets
+    depends_on:
+      amp-init:
+        condition: service_completed_successfully
+      clickhouse:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+        required: false
+    # amp for PostgreSQL, observability for ClickHouse.
+    networks: [amp, observability]
+
+  # Receives OTLP/HTTP only from the observability network, replaces the
+  # spans' agent-manager/* resource attributes with the identity headers the
+  # observability module sets, and writes to ClickHouse as the insert-only login.
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.163.2}
+    profiles: [observability]
+    command: ["--config=/etc/otelcol-contrib/amp.yaml"]
+    environment:
+      AMP_CLICKHOUSE_INGEST_PASSWORD: ${AMP_CLICKHOUSE_INGEST_PASSWORD:-}
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol-contrib/amp.yaml:ro
+    depends_on:
+      observability-migrate:
+        condition: service_completed_successfully
+    networks: [observability]
     restart: unless-stopped
 
   # --- AI Gateway -----------------------------------------------------------------
@@ -243,6 +341,10 @@ volumes:
   gateway-config:
   gateway-data:
   fileauth-config:
+  clickhouse-data:
 
 networks:
   amp:
+  # amp-api, ClickHouse and the collector only. Internal: no route out.
+  observability:
+    internal: true
