@@ -13,3 +13,6 @@ services:
   amp-init:
     # Built by amp-api above; never pulled.
     pull_policy: never
+  observability-migrate:
+    # Built by amp-api above; never pulled.
+    pull_policy: never

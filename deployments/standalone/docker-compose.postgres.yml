@@ -10,3 +10,5 @@ services:
       DB_NAME: agent_manager
   amp-api:
     environment: *postgres
+  observability-migrate:
+    environment: *postgres
