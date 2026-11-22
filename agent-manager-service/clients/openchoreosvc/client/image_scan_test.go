@@ -49,6 +49,12 @@ func savedImageScanParameters(t *testing.T, req UpdateComponentBuildParametersRe
 	t.Helper()
 	var putWorkflowParameters map[string]any
 	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The agent's ClusterWorkflow (its kind is unset) declares imageScan.
+		if strings.Contains(r.URL.Path, "/clusterworkflows/") {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"metadata":{"name":"amp-ballerina-buildpack"},"spec":{"parameters":{"openAPIV3Schema":` + schemaWithImageScan + `}}}`))
+			return
+		}
 		if r.Method != http.MethodGet {
 			var sent struct {
 				Spec struct {
@@ -139,33 +145,48 @@ func TestConvertComponentFromTyped_MissingOrUnreadableImageScanIsLeftOut(t *test
 	}
 }
 
-// namespacedAgentJSON is an agent built with the namespaced Workflow named workflow.
-func namespacedAgentJSON(workflow string) string {
+// agentJSON is an agent built with the workflow named workflow, of the given kind ("" leaves the
+// kind unset, which is a ClusterWorkflow).
+func agentJSON(kind, workflow string) string {
+	kindField := ""
+	if kind != "" {
+		kindField = `"kind": "` + kind + `", `
+	}
 	return `{
   "metadata": {"name": "support-bot"},
   "spec": {
     "componentType": {"name": "proxy/agent-api"},
     "owner": {"projectName": "proj"},
-    "workflow": {"kind": "Workflow", "name": "` + workflow + `", "parameters": {"endpoints": []}}
+    "workflow": {` + kindField + `"name": "` + workflow + `", "parameters": {"endpoints": []}}
   }
 }`
 }
 
-// updateWithWorkflow runs UpdateComponentBuildParameters for an agent built with the namespaced
-// Workflow named workflow, whose schema declares the given properties (a nil workflowSchema
-// answers the Workflow read with a 500). It returns the update's error and the build
-// parameters written back, nil when nothing was written.
+// updateWithWorkflow is updateWithWorkflowOfKind for a namespaced Workflow; an empty
+// workflowSchema answers its read with a 500.
 func updateWithWorkflow(t *testing.T, workflow, workflowSchema string, imageScan *ImageScanConfig) (map[string]any, error) {
+	t.Helper()
+	status := http.StatusOK
+	if workflowSchema == "" {
+		status = http.StatusInternalServerError
+	}
+	return updateWithWorkflowOfKind(t, "Workflow", workflow, status, workflowSchema, imageScan)
+}
+
+// updateWithWorkflowOfKind runs UpdateComponentBuildParameters for an agent built with the
+// workflow named workflow, of the given kind. The workflow read answers status, and with 200
+// the given schema. It returns the update's error and the build parameters written back, nil
+// when nothing was written.
+func updateWithWorkflowOfKind(t *testing.T, kind, workflow string, status int, workflowSchema string, imageScan *ImageScanConfig) (map[string]any, error) {
 	t.Helper()
 	var written map[string]any
 	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/workflows/") {
-			if workflowSchema == "" {
-				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = w.Write([]byte(`{"error":"boom","code":"INTERNAL"}`))
+		if strings.Contains(r.URL.Path, "/workflows/") || strings.Contains(r.URL.Path, "/clusterworkflows/") {
+			w.WriteHeader(status)
+			if status != http.StatusOK {
+				_, _ = w.Write([]byte(`{"error":"refused","code":"ERROR"}`))
 				return
 			}
-			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"metadata":{"name":"` + workflow + `"},"spec":{"parameters":{"openAPIV3Schema":` + workflowSchema + `}}}`))
 			return
 		}
@@ -181,7 +202,7 @@ func updateWithWorkflow(t *testing.T, workflow, workflowSchema string, imageScan
 			written = sent.Spec.Workflow.Parameters
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(namespacedAgentJSON(workflow)))
+		_, _ = w.Write([]byte(agentJSON(kind, workflow)))
 	}))
 	err := client.UpdateComponentBuildParameters(context.Background(), "acme", "proj", "support-bot", UpdateComponentBuildParametersRequest{
 		ImageScan: imageScan,
@@ -230,4 +251,38 @@ func TestUpdateComponentBuildParameters_FailsWhenTheWorkflowCannotBeRead(t *test
 	require.Error(t, err)
 	assert.Nil(t, utils.IsValidationError(err), "a failed read is not the caller's mistake")
 	assert.Nil(t, written)
+}
+
+// A ClusterWorkflow is read too, where the API in front of OpenChoreo routes the call: the
+// setting is saved when it declares imageScan and refused when it doesn't. A 403 or 404 means
+// it can't be checked here, so the setting is saved unchecked; any other failure fails the
+// update.
+func TestUpdateComponentBuildParameters_ChecksAClusterWorkflowWhereItCanBeRead(t *testing.T) {
+	failBuild := false
+	tests := []struct {
+		name      string
+		status    int
+		schema    string
+		wantSaved bool
+		wantValid bool // a validation error, the caller's mistake
+	}{
+		{"declares imageScan", http.StatusOK, schemaWithImageScan, true, false},
+		{"doesn't declare imageScan", http.StatusOK, schemaWithoutImageScan, false, true},
+		{"read not routed: forbidden", http.StatusForbidden, "", true, false},
+		{"read not routed: not found", http.StatusNotFound, "", true, false},
+		{"read fails", http.StatusInternalServerError, "", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			written, err := updateWithWorkflowOfKind(t, "", "amp-docker-buildpack", tt.status, tt.schema, &ImageScanConfig{FailBuild: &failBuild})
+			if tt.wantSaved {
+				require.NoError(t, err)
+				assert.Equal(t, map[string]any{"failBuild": false}, written["imageScan"])
+				return
+			}
+			require.Error(t, err)
+			assert.Equal(t, tt.wantValid, utils.IsValidationError(err) != nil, "validation error: %v", err)
+			assert.Nil(t, written, "nothing is written when the setting is refused")
+		})
+	}
 }
