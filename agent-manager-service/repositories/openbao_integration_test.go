@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,19 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/vault"
 	"github.com/wso2/agent-manager/agent-manager-service/vault/openbao"
 )
+
+// openBaoAdminClient bounds every policy, token and mount request the test
+// sends, response body included: Client.Timeout covers reading the body.
+var openBaoAdminClient = &http.Client{Timeout: 15 * time.Second}
+
+// openBaoOptions mirrors the server's OPENBAO_ALLOW_INSECURE_HTTP opt-in for
+// the vaults the test builds directly, as CI reaches OpenBao by a bridge IP.
+func openBaoOptions() []openbao.Option {
+	if allow, _ := strconv.ParseBool(os.Getenv("OPENBAO_ALLOW_INSECURE_HTTP")); allow {
+		return []openbao.Option{openbao.AllowInsecureHTTP()}
+	}
+	return nil
+}
 
 func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	if os.Getenv("OPENBAO_ADDR") == "" {
@@ -133,11 +147,11 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	// The health check passes on the configured mount and fails on one that does not exist, even for a token that
 	// may read anywhere: OpenBao answers 404 for both a missing key and a missing mount.
 	require.NoError(t, writer.(vault.Checker).Check(ctx))
-	wrongMount, err := openbao.New(os.Getenv("OPENBAO_ADDR"), adminToken, "amp-no-such-mount")
+	wrongMount, err := openbao.New(os.Getenv("OPENBAO_ADDR"), adminToken, "amp-no-such-mount", openBaoOptions()...)
 	require.NoError(t, err)
 	require.ErrorContains(t, wrongMount.Check(ctx), "mount does not exist")
 
-	bad, err := openbao.New(os.Getenv("OPENBAO_ADDR"), "invalid-test-token", os.Getenv("OPENBAO_KV_MOUNT"))
+	bad, err := openbao.New(os.Getenv("OPENBAO_ADDR"), "invalid-test-token", os.Getenv("OPENBAO_KV_MOUNT"), openBaoOptions()...)
 	require.NoError(t, err)
 	badStore := NewSecretStore(vault.Of(bad))
 	require.Error(t, badStore.Write(ctx, gdb, org, "test_owner", id, id, []byte("unavailable")))
@@ -163,12 +177,17 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	// A KV v1 mount answers a missing key exactly as KV v2 does, and the documented policy lets the token create and
 	// read there too, but it lacks the CAS and versioned cleanup this vault relies on.
 	kv1 := "amp-kv1-" + strings.ReplaceAll(NewID().String(), "-", "")[:8]
-	adminCall(t, adminToken, http.MethodPost, "sys/mounts/"+kv1, map[string]any{"type": "kv", "options": map[string]string{"version": "1"}})
-	t.Cleanup(func() { adminCall(t, adminToken, http.MethodDelete, "sys/mounts/"+kv1, nil) })
+	adminCall(t, t.Context(), adminToken, http.MethodPost, "sys/mounts/"+kv1, map[string]any{"type": "kv", "options": map[string]string{"version": "1"}})
+	// Cleanup runs after the test context is canceled, so it has its own bound.
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), openBaoAdminClient.Timeout)
+		defer cancel()
+		adminCall(t, cleanupCtx, adminToken, http.MethodDelete, "sys/mounts/"+kv1, nil)
+	})
 	// Last: the policy installed here replaces the one the token above runs under.
 	t.Setenv("OPENBAO_KV_MOUNT", kv1)
 	t.Setenv("OPENBAO_TOKEN", adminToken)
-	kv1Vault, err := openbao.New(os.Getenv("OPENBAO_ADDR"), tokenWithDocumentedPolicy(t), kv1)
+	kv1Vault, err := openbao.New(os.Getenv("OPENBAO_ADDR"), tokenWithDocumentedPolicy(t), kv1, openBaoOptions()...)
 	require.NoError(t, err)
 	require.ErrorContains(t, kv1Vault.Check(ctx), "not KV v2")
 	require.ErrorContains(t, kv1Vault.Check(ctx), "not KV v2", "the probe an earlier check left changes nothing")
@@ -195,7 +214,7 @@ func tokenWithDocumentedPolicy(t *testing.T) string {
 		req, err := http.NewRequestWithContext(t.Context(), method, strings.TrimRight(os.Getenv("OPENBAO_ADDR"), "/")+"/v1/"+path, bytes.NewReader(encoded))
 		require.NoError(t, err)
 		req.Header.Set("X-Vault-Token", os.Getenv("OPENBAO_TOKEN"))
-		res, err := http.DefaultClient.Do(req)
+		res, err := openBaoAdminClient.Do(req)
 		require.NoError(t, err)
 		defer func() { _ = res.Body.Close() }()
 		require.Less(t, res.StatusCode, 300, "%s %s", method, path)
@@ -215,7 +234,8 @@ func tokenWithDocumentedPolicy(t *testing.T) string {
 }
 
 // adminCall sends an OpenBao API request with token and requires it to succeed.
-func adminCall(t *testing.T, token, method, path string, body any) {
+// It reports only the method, path and status, never the token or the body.
+func adminCall(t *testing.T, ctx context.Context, token, method, path string, body any) {
 	t.Helper()
 	var source io.Reader
 	if body != nil {
@@ -223,11 +243,12 @@ func adminCall(t *testing.T, token, method, path string, body any) {
 		require.NoError(t, err)
 		source = bytes.NewReader(encoded)
 	}
-	req, err := http.NewRequestWithContext(context.Background(), method, strings.TrimRight(os.Getenv("OPENBAO_ADDR"), "/")+"/v1/"+path, source)
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(os.Getenv("OPENBAO_ADDR"), "/")+"/v1/"+path, source)
 	require.NoError(t, err)
 	req.Header.Set("X-Vault-Token", token)
-	res, err := http.DefaultClient.Do(req)
+	res, err := openBaoAdminClient.Do(req)
 	require.NoError(t, err)
 	defer func() { _ = res.Body.Close() }()
+	_, _ = io.Copy(io.Discard, res.Body)
 	require.Less(t, res.StatusCode, 300, "%s %s", method, path)
 }

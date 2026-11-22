@@ -369,16 +369,11 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 func (s *LLMProviderService) insertProvider(ctx context.Context, ouID string, provider *gwmodels.LLMProvider, then func(tx *gorm.DB) error) (*gwmodels.LLMProvider, error) {
 	handle := provider.Configuration.Handle
 	slog.Info("LLMProviderService.Create: creating provider in database", "ouID", ouID, "handle", handle)
-	if preparer, ok := s.providerRepo.(interface {
-		PrepareCreate(context.Context, *gwmodels.LLMProvider, string) (context.Context, error)
-	}); ok {
-		prepared, err := preparer.PrepareCreate(ctx, provider, ouID)
-		if err != nil {
-			return nil, err
-		}
-		ctx = prepared
+	ctx, err := s.providerRepo.PrepareCreate(ctx, provider, ouID)
+	if err != nil {
+		return nil, err
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Create provider - uniqueness enforced by DB constraint
 		if err := s.providerRepo.Create(tx, provider, handle, provider.Configuration.Name, provider.Configuration.Version, ouID); err != nil {
 			return err

@@ -38,6 +38,9 @@ import (
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/llm_provider_repository_mock.go . LLMProviderRepository:LLMProviderRepositoryMock
 type LLMProviderRepository interface {
+	// PrepareCreate assigns p its id if it has none and stages its upstream credential; call it before
+	// opening the transaction that runs Create.
+	PrepareCreate(ctx context.Context, p *gwmodels.LLMProvider, orgUUID string) (context.Context, error)
 	Create(tx *gorm.DB, p *gwmodels.LLMProvider, handle, name, version string, orgUUID string) error
 	GetByUUID(providerID, orgUUID string) (*gwmodels.LLMProvider, error)
 	GetByHandle(handle, orgUUID string) (*gwmodels.LLMProvider, error)

@@ -165,6 +165,8 @@ jobs:
         env:
           DB_DRIVER: ${{ matrix.db }}
           OPENBAO_TOKEN: ci-root
+          # The disposable dev-mode server above is plain HTTP on a bridge IP.
+          OPENBAO_ALLOW_INSECURE_HTTP: "true"
         run: make test-integration
 
       - name: Upload integration coverage

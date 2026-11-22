@@ -18,6 +18,7 @@ package openbao
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -168,4 +169,45 @@ func TestSealRefusesValuesItCouldNotReadBack(t *testing.T) {
 	_, err = v.Seal(t.Context(), testRef(), append(value, 0), nil)
 	require.ErrorContains(t, err, "more than")
 	assert.Empty(t, stored, "an oversized value never reaches OpenBao")
+}
+
+func TestNewTransportRules(t *testing.T) {
+	for _, tt := range []struct {
+		addr  string
+		opts  []Option
+		allow bool
+	}{
+		{addr: "https://openbao.example.com:8200", allow: true},
+		{addr: "http://127.0.0.1:8200", allow: true},
+		{addr: "http://localhost:8200", allow: true},
+		{addr: "http://[::1]:8200", allow: true},
+		{addr: "http://openbao.example.com:8200"},
+		{addr: "http://172.17.0.2:8200"},
+		{addr: "http://172.17.0.2:8200", opts: []Option{AllowInsecureHTTP()}, allow: true},
+		{addr: "http://host.docker.internal:8200", opts: []Option{AllowInsecureHTTP()}, allow: true},
+	} {
+		_, err := New(tt.addr, "token", "", tt.opts...)
+		if tt.allow {
+			assert.NoError(t, err, tt.addr)
+		} else {
+			assert.ErrorContains(t, err, "must use HTTPS", tt.addr)
+		}
+	}
+}
+
+// An HTTPS server is reached with certificate verification on: an untrusted
+// certificate fails, and redirects are not followed.
+func TestHTTPSKeepsVerificationAndRefusesRedirects(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://elsewhere.example/", http.StatusTemporaryRedirect)
+	}))
+	t.Cleanup(server.Close)
+	v, err := New(server.URL, "token", "")
+	require.NoError(t, err)
+	err = v.Check(context.Background())
+	require.Error(t, err, "the test server's certificate is not trusted")
+
+	v.client.Transport = server.Client().Transport
+	err = v.Check(context.Background())
+	require.Error(t, err, "a redirect is an error, not followed")
 }

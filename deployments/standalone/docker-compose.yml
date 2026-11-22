@@ -196,6 +196,9 @@ services:
       OPENBAO_ADDR: ${OPENBAO_ADDR:-}
       OPENBAO_TOKEN: ${OPENBAO_TOKEN:-}
       OPENBAO_KV_MOUNT: ${OPENBAO_KV_MOUNT:-secret}
+      # Development only: lets OPENBAO_ADDR be plain http:// on a non-loopback
+      # host, such as http://host.docker.internal:8200 from this container.
+      OPENBAO_ALLOW_INSECURE_HTTP: ${OPENBAO_ALLOW_INSECURE_HTTP:-false}
       SECRET_VAULT_BIND_LOCAL_ROWS: ${SECRET_VAULT_BIND_LOCAL_ROWS:-false}
       INTERNAL_SERVER_CERT_DIR: /var/lib/agent-manager/certs
       EVENTS_MODE: embedded

@@ -18,6 +18,7 @@ package gwtest
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"gorm.io/gorm"
@@ -74,3 +75,37 @@ func (s *Secrets) Len() int {
 	defer s.mu.Unlock()
 	return len(s.m)
 }
+
+// StagingSecrets behaves like an external vault: Prepare refuses empty values
+// and Put refuses any value that was not staged first.
+type StagingSecrets struct {
+	*Secrets
+	staged map[string]string
+}
+
+// NewStagingSecrets returns an empty staging store.
+func NewStagingSecrets() *StagingSecrets {
+	return &StagingSecrets{Secrets: NewSecrets(), staged: map[string]string{}}
+}
+
+func (s *StagingSecrets) Prepare(ctx context.Context, orgID, path, value string) (context.Context, error) {
+	if value == "" {
+		return ctx, errors.New("secret value cannot be empty")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.staged[orgID+"|"+path] = value
+	return ctx, nil
+}
+
+func (s *StagingSecrets) Put(ctx context.Context, orgID, path, value string) error {
+	s.mu.Lock()
+	staged, ok := s.staged[orgID+"|"+path]
+	s.mu.Unlock()
+	if !ok || staged != value {
+		return errors.New("secret value was not staged")
+	}
+	return s.Secrets.Put(ctx, orgID, path, value)
+}
+
+func (s *StagingSecrets) In(*gorm.DB) modkit.Secrets { return s }

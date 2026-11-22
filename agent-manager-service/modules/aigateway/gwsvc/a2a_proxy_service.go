@@ -193,13 +193,9 @@ func (s *a2aProxyService) setA2AProxy(
 	var err error
 	var preparedID uuid.UUID
 	if auth != nil && auth.Value != nil {
-		if preparer, ok := s.proxyRepo.(interface {
-			PrepareUpstream(context.Context, string, string, string, uuid.UUID, string) (context.Context, uuid.UUID, error)
-		}); ok {
-			ctx, preparedID, err = preparer.PrepareUpstream(ctx, ouID, projectName, agentName, t.key.EnvironmentUUID, *auth.Value)
-			if err != nil {
-				return err
-			}
+		ctx, preparedID, err = s.proxyRepo.PrepareUpstream(ctx, ouID, projectName, agentName, t.key.EnvironmentUUID, *auth.Value)
+		if err != nil {
+			return err
 		}
 	}
 	err = s.tx(ctx, func(tx *gorm.DB) error {

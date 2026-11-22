@@ -24,9 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,10 +50,41 @@ const (
 var mountName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 func init() {
-	config.RegisterKeys("OPENBAO_ADDR", "OPENBAO_TOKEN", "OPENBAO_KV_MOUNT")
+	config.RegisterKeys("OPENBAO_ADDR", "OPENBAO_TOKEN", "OPENBAO_KV_MOUNT", "OPENBAO_ALLOW_INSECURE_HTTP")
 	vault.Register(Provider, func(vault.Config) (vault.Vault, error) {
-		return New(config.Value("OPENBAO_ADDR"), config.Value("OPENBAO_TOKEN"), config.Value("OPENBAO_KV_MOUNT"))
+		var opts []Option
+		if raw := strings.TrimSpace(config.Value("OPENBAO_ALLOW_INSECURE_HTTP")); raw != "" {
+			allow, err := strconv.ParseBool(raw)
+			if err != nil {
+				return nil, errors.New("OPENBAO_ALLOW_INSECURE_HTTP must be true or false")
+			}
+			if allow {
+				opts = append(opts, AllowInsecureHTTP())
+			}
+		}
+		return New(config.Value("OPENBAO_ADDR"), config.Value("OPENBAO_TOKEN"), config.Value("OPENBAO_KV_MOUNT"), opts...)
 	})
+}
+
+// Option adjusts how New validates its configuration.
+type Option func(*options)
+
+type options struct {
+	allowInsecureHTTP bool
+}
+
+// AllowInsecureHTTP lets New accept a plain http:// origin on a non-loopback
+// host, which sends the token unencrypted. It is for disposable development
+// and test servers only, such as OpenBao on a Docker bridge address.
+func AllowInsecureHTTP() Option { return func(o *options) { o.allowInsecureHTTP = true } }
+
+// isLoopback reports whether host is localhost or a loopback IP address.
+func isLoopback(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // Vault uses a separate KV path for each write, so a failed SQL transaction
@@ -64,10 +97,19 @@ type Vault struct {
 
 var _ vault.ReferenceVault = (*Vault)(nil)
 
-func New(address, token, mount string) (*Vault, error) {
+// New returns a vault for the OpenBao server at address. It accepts https://
+// origins, and http:// only on a loopback host unless AllowInsecureHTTP is given.
+func New(address, token, mount string, opts ...Option) (*Vault, error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
 	u, err := url.Parse(strings.TrimSpace(address))
 	if err != nil || u == nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 		return nil, errors.New("OPENBAO_ADDR must be an HTTP or HTTPS origin")
+	}
+	if u.Scheme == "http" && !isLoopback(u.Hostname()) && !o.allowInsecureHTTP {
+		return nil, errors.New("OPENBAO_ADDR must use HTTPS unless it is a loopback address; set OPENBAO_ALLOW_INSECURE_HTTP=true only for a disposable development or test server")
 	}
 	if strings.TrimSpace(token) == "" || strings.ContainsAny(token, "\r\n") {
 		return nil, errors.New("OPENBAO_TOKEN must be a valid nonempty token")

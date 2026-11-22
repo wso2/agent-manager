@@ -207,7 +207,7 @@ During an upgrade or rollback involving a pre-vault binary, keep the local vault
 
 ### Standalone OpenBao
 
-Run OpenBao independently of AMP and enable a KV v2 secrets engine. Configure AMP with `SECRET_VAULT_PROVIDER=openbao`, `OPENBAO_ADDR` (the server origin), `OPENBAO_TOKEN` (a scoped token), and optionally `OPENBAO_KV_MOUNT` (defaults to `secret`). Standalone Compose forwards these settings to `amp-api`. For a server on the host, `OPENBAO_ADDR` must be reachable from inside the API container. Use HTTPS and a trusted CA outside local development. The health check creates one nonsecret probe value at `amp/healthz` in the mount and reads it back, and reports unhealthy unless the mount answers as KV v2. Provide the token through the API process environment and use a separate mount per AMP deployment.
+Run OpenBao independently of AMP and enable a KV v2 secrets engine. Configure AMP with `SECRET_VAULT_PROVIDER=openbao`, `OPENBAO_ADDR` (the server origin), `OPENBAO_TOKEN` (a scoped token), and optionally `OPENBAO_KV_MOUNT` (defaults to `secret`). Standalone Compose forwards these settings to `amp-api`. For a server on the host, `OPENBAO_ADDR` must be reachable from inside the API container. The API accepts an `https://` origin, or plain `http://` only on a loopback host (`localhost`, `127.0.0.1`, `[::1]`); certificates are verified and redirects are refused. A dev server on the host reached from the container (for example `http://host.docker.internal:8200`) or on a Docker bridge IP is not loopback: set `OPENBAO_ALLOW_INSECURE_HTTP=true` only for such a disposable development or test server, since it sends the token unencrypted. Use HTTPS and a trusted CA outside local development. The health check creates one nonsecret probe value at `amp/healthz` in the mount and reads it back, and reports unhealthy unless the mount answers as KV v2. Provide the token through the API process environment and use a separate mount per AMP deployment.
 
 For a mount named `secret`, the API token needs this OpenBao policy (kept in `agent-manager-service/vault/openbao/policy.hcl`; CI runs the OpenBao test with a token limited to it):
 
@@ -232,7 +232,12 @@ Module code writes through `rt.Secrets()`. Under OpenBao, a `Put` inside a trans
 To test against a disposable standalone server, start `bao server -dev -dev-listen-address=127.0.0.1:8200` in a separate process. Export `OPENBAO_ADDR=http://127.0.0.1:8200` and the dev token as `OPENBAO_TOKEN`, then run `make test-integration` from `agent-manager-service`. The suite runs `TestStandaloneOpenBaoReferenceOnly` when the address is set.
 
 
-An external vault is never written inside a request's transaction. A write seals the value into the row with `local`, so it is readable at once, and queues a `promote` job; a delete, or a write that replaces an external value, queues a `destroy` job for it. Both commit or roll back with the change. After the commit a worker writes the value to the external vault as a new entry or version, points the row at it, and removes the value it replaced. A rolled-back change has therefore written nothing to the external vault, and the value a committed row points to stays readable until a later commit replaces it.
+An external vault is never written inside a request's transaction. External vaults use one of two workflows:
+
+- **Reference-only staging (OpenBao).** Before the owning SQL transaction opens, the API queues an `abandon` job for a reserved reference and writes the value to that reference in the external vault. The transaction then commits only the reference in the row, with `ciphertext` and `key_id` null, and deletes the `abandon` job in the same commit. If the write fails, SQL rolls back, or the API exits before commit, the `abandon` job outlives the staging window and the worker destroys the staged value. The value a committed row points to stays readable until a later commit replaces it.
+- **SQL-first promotion (legacy external vaults).** A write seals the value into the row with `local`, so it is readable at once, and queues a `promote` job in the same transaction. After the commit a worker writes the value to the external vault as a new entry or version, points the row at it, and removes the value it replaced. A rolled-back change has written nothing to the external vault.
+
+In both workflows a delete, or a write that replaces an external value, queues a `destroy` job for the old value, which commits or rolls back with the change.
 
 ### secret_jobs
 
@@ -242,8 +247,8 @@ Created by migration `002_secret_jobs`, not the baseline, so a database the base
 |---|---|---|---|
 | id | ID | no | PK |
 | org_id, secret_id, owner_kind | ID, ID, short text (32) | no | The secret the job is for, kept so the job outlives it. No foreign keys. |
-| action | short text (16) | no | `promote` or `destroy` |
-| provider, external_ref | short text (16), short text (512) | yes | `destroy`: the value to remove. `promote`: the external value the promoted version replaces, removed once the row points at the new one. Cleared on a promotion a later write or delete took over. |
+| action | short text (16) | no | `promote`, `destroy` or `abandon` |
+| provider, external_ref | short text (16), short text (512) | yes | `destroy`: the value to remove. `abandon`: the reference staged before the owning transaction, destroyed if that transaction never commits it. `promote`: the external value the promoted version replaces, removed once the row points at the new one. Cleared on a promotion a later write or delete took over. |
 | staged_provider, staged_ref | short text (16), short text (512) | yes | `promote`: reserved provider and reference persisted before the external write. Retries reuse the reference. A superseded promotion queues it for cleanup. |
 | version | whole number | yes | `promote`: the secrets.version it promotes. NULL once superseded. |
 | attempts, last_error | whole number, long text | no, yes | Failures so far; the job is retried with backoff (15 s doubling to an hour) until it succeeds. |
@@ -251,7 +256,7 @@ Created by migration `002_secret_jobs`, not the baseline, so a database the base
 | claimed_by, claimed_until | short text (255), time | yes | Renewed during vault calls. Publication and cleanup handoff verify the current claim in the same transaction. |
 | created_at | time | no | |
 
-Indexes (available_at, id), (secret_id), (provider, external_ref). A `destroy` job removes nothing a committed row, or a pending promotion, still refers to; it is dropped instead. Every step is safe to repeat.
+Indexes (available_at, id), (secret_id), (provider, external_ref). A `destroy` job removes nothing a committed row, or a pending promotion, still refers to; it is dropped instead. An `abandon` job is deleted by the commit that adopts its reference, so one that runs destroys a value no row refers to. Every step is safe to repeat.
 
 ## Gateways, LLM, MCP and A2A
 

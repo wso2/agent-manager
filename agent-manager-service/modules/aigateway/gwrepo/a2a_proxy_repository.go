@@ -36,6 +36,10 @@ var ErrA2AProxyNotFound = errors.New("a2a proxy not found")
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/a2a_proxy_repository_mock.go . A2AProxyRepository:A2AProxyRepositoryMock
 type A2AProxyRepository interface {
+	// PrepareUpstream stages the environment's upstream credential before the caller opens its transaction,
+	// and returns the proxy id the stage belongs to.
+	PrepareUpstream(ctx context.Context, org, project, agent string, env uuid.UUID, value string) (context.Context, uuid.UUID, error)
+
 	// WithTx returns the repository bound to tx, so its writes commit or roll back with the caller's.
 	WithTx(tx *gorm.DB) A2AProxyRepository
 
