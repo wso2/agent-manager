@@ -48,10 +48,8 @@
     "swagger-ui-react": "5.34.0",
     "@monaco-editor/react": "4.7.0",
     "@agent-management-platform/ui-module-acp-core": "workspace:*",
-    "@agent-management-platform/ui-module-agent-runtime": "workspace:*",
     "@agent-management-platform/ui-module-ai-gateway": "workspace:*",
-    "@agent-management-platform/ui-module-agent-identity": "workspace:*",
-    "@agent-management-platform/ui-module-agent-portal": "workspace:*"
+    "@agent-management-platform/ui-module-agent-identity": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=19.0.0",

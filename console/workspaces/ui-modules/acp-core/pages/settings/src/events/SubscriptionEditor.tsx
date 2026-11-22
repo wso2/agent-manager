@@ -44,10 +44,7 @@ import {
   TextInput,
   useReturnTo,
 } from "@agent-management-platform/views";
-import {
-  usePipelineEnvironments,
-  useUnsavedChangesGuard,
-} from "@agent-management-platform/shared-component";
+import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
   useAvailableEventDestinations,
   useCreateEventSubscription,
@@ -143,18 +140,14 @@ export function SubscriptionEditor({
   }, [isOrg, orgDestinations.data, availableDestinations.data]);
   const loadingDestinations = isOrg ? orgDestinations.isLoading : availableDestinations.isLoading;
 
-  const pipelineEnvs = usePipelineEnvironments(
-    isOrg ? undefined : target.orgName,
-    isOrg ? undefined : target.projName,
-  );
-  const { data: orgEnvs } = useListEnvironments({ orgName: isOrg ? target.orgName : undefined });
+  const { data: orgEnvs } = useListEnvironments({ orgName: target.orgName });
   const environments = useMemo(
     () =>
-      (isOrg ? (orgEnvs ?? []) : pipelineEnvs).map((e) => ({
+      (orgEnvs ?? []).map((e) => ({
         name: e.name,
         label: e.displayName ?? e.name,
       })),
-    [isOrg, orgEnvs, pipelineEnvs],
+    [orgEnvs],
   );
 
   const { mutate: create, isPending: creating } = useCreateEventSubscription(target);

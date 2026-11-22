@@ -28,7 +28,6 @@ vi.mock("@agent-management-platform/api-client", () => ({
     data: { enableApiKeySecurity: true },
     isLoading: false,
   })),
-  useListAgentDeployments: vi.fn(() => ({ data: undefined, isLoading: false })),
   useListAgentAPIKeys: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
   useRevokeAgentAPIKey: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
@@ -45,7 +44,6 @@ import {
   useGetA2AProxy,
   useGetAgent,
   useGetAgentConfigurations,
-  useListAgentDeployments,
   useListAgentAPIKeys,
 } from "@agent-management-platform/api-client";
 import { SecurityComponent } from "./Security.Component";
@@ -77,9 +75,6 @@ describe("SecurityComponent", () => {
     } as unknown as ReturnType<typeof useGetA2AProxy>);
     renderPage();
     expect(screen.getByText("api keys manager")).toBeInTheDocument();
-    expect(vi.mocked(useListAgentDeployments)).toHaveBeenCalledWith(
-      expect.objectContaining({ orgName: undefined }),
-    );
   });
 
   it("explains why a direct external A2A agent has no API keys", () => {
@@ -103,7 +98,7 @@ describe("SecurityComponent", () => {
     expect(screen.queryByText(/not routed through the gateway/i)).not.toBeInTheDocument();
   });
 
-  it("reports a failed agent lookup instead of saying the agent is not deployed", () => {
+  it("reports a failed agent lookup instead of saying the agent is not routed", () => {
     vi.mocked(useGetAgent).mockReturnValue({
       data: undefined, isLoading: false, isError: true, error: new Error("boom"),
     } as unknown as ReturnType<typeof useGetAgent>);
@@ -112,7 +107,7 @@ describe("SecurityComponent", () => {
     } as unknown as ReturnType<typeof useGetA2AProxy>);
     renderPage();
     expect(screen.getByText(/could not load the agent/i)).toBeInTheDocument();
-    expect(screen.queryByText(/not deployed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not routed through the gateway/i)).not.toBeInTheDocument();
     expect(vi.mocked(useListAgentAPIKeys)).toHaveBeenCalledWith(
       expect.objectContaining({ orgName: undefined }),
     );
@@ -133,22 +128,5 @@ describe("SecurityComponent", () => {
     expect(screen.getByText(/gateway security settings under Configure → A2A/)).toBeInTheDocument();
     expect(screen.queryByText(/redeploy/i)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to A2A settings" })).toHaveAttribute("href", A2A_SETTINGS_HREF);
-  });
-
-  it("points a deployed agent with security off to its deployment settings", () => {
-    vi.mocked(useGetAgent).mockReturnValue({
-      data: { provisioning: { type: "internal" }, agentType: { type: "agent-api", subType: "chat-api" } },
-      isLoading: false,
-    } as unknown as ReturnType<typeof useGetAgent>);
-    vi.mocked(useGetA2AProxy).mockReturnValue({
-      data: undefined, isLoading: false, isError: false, error: null,
-    } as unknown as ReturnType<typeof useGetA2AProxy>);
-    vi.mocked(useListAgentDeployments).mockReturnValue({
-      data: { dev: { status: "active" } }, isLoading: false,
-    } as unknown as ReturnType<typeof useListAgentDeployments>);
-    securityDisabled();
-    renderPage();
-    expect(screen.getByText(/deployment settings and redeploy/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to Deployment Settings" })).toBeInTheDocument();
   });
 });

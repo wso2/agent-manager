@@ -216,7 +216,7 @@ func (c *agentIdentityController) ListGroups(w http.ResponseWriter, r *http.Requ
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list groups")
 		return
 	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups, "total": total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": toGroupResponses(groups), "total": total, "offset": offset, "limit": limit})
 }
 
 func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Request) {
@@ -257,7 +257,7 @@ func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Req
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create group")
 		return
 	}
-	httpx.WriteSuccessResponse(w, http.StatusCreated, group)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, toGroupResponse(group))
 }
 
 func (c *agentIdentityController) GetGroup(w http.ResponseWriter, r *http.Request) {
@@ -271,7 +271,7 @@ func (c *agentIdentityController) GetGroup(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, group)
+	httpx.WriteSuccessResponse(w, http.StatusOK, toGroupResponse(*group))
 }
 
 func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Request) {
@@ -312,7 +312,7 @@ func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Req
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update group")
 		return
 	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, group)
+	httpx.WriteSuccessResponse(w, http.StatusOK, toGroupResponse(group))
 }
 
 func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Request) {
@@ -360,7 +360,7 @@ func (c *agentIdentityController) GetGroupMembers(w http.ResponseWriter, r *http
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group members")
 		return
 	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"members": members, "total": total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"members": toMemberResponses(members), "total": total, "offset": offset, "limit": limit})
 }
 
 func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http.Request) {
@@ -445,7 +445,7 @@ func (c *agentIdentityController) GetGroupRoles(w http.ResponseWriter, r *http.R
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group roles")
 		return
 	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": toRoleResponses(roles)})
 }
 
 // --- Roles ---
@@ -472,7 +472,7 @@ func (c *agentIdentityController) ListRoles(w http.ResponseWriter, r *http.Reque
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list roles")
 		return
 	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles, "total": total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": toRoleResponses(roles), "total": total, "offset": offset, "limit": limit})
 }
 
 // CreateRole validates the requested "<proxy-handle>:<action>" scopes against
@@ -562,7 +562,7 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 	} else {
 		role = reconciled
 	}
-	httpx.WriteSuccessResponse(w, http.StatusCreated, role)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, toRoleResponse(role))
 }
 
 // managedRole fetches the role and treats Thunder's native Administrator role and
@@ -606,7 +606,7 @@ func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, role)
+	httpx.WriteSuccessResponse(w, http.StatusOK, toRoleResponse(*role))
 }
 
 // UpdateRole updates the role metadata and reconciles its scope permissions to
@@ -662,7 +662,7 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 	// permissions untouched and skip every resource-server write. An explicit
 	// (possibly empty) slice falls through to reconcile the permissions to it.
 	if body.Scopes == nil {
-		httpx.WriteSuccessResponse(w, http.StatusOK, updated)
+		httpx.WriteSuccessResponse(w, http.StatusOK, toRoleResponse(updated))
 		return
 	}
 	scopes := body.Scopes
@@ -733,7 +733,7 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 	} else {
 		updated = reconciled
 	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, updated)
+	httpx.WriteSuccessResponse(w, http.StatusOK, toRoleResponse(updated))
 }
 
 func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Request) {
@@ -779,7 +779,7 @@ func (c *agentIdentityController) GetRoleAssignments(w http.ResponseWriter, r *h
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role assignments")
 		return
 	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, assignments)
+	httpx.WriteSuccessResponse(w, http.StatusOK, toRoleAssignmentsResponse(assignments))
 }
 
 func (c *agentIdentityController) AddRoleAssignees(w http.ResponseWriter, r *http.Request) {

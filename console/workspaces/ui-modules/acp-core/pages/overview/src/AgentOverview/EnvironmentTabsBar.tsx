@@ -29,7 +29,7 @@ interface EnvironmentTabsBarProps {
 }
 
 /**
- * Tab strip that switches between an agent's pipeline environments. Rendered
+ * Tab strip that switches between an agent's environments. Rendered
  * as an EnvironmentCard's `tabsHeader`, so it sits inside the card, in the
  * same row as that environment's status/sandbox tier.
  */

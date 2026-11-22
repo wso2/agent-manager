@@ -628,7 +628,7 @@ func TestModuleSecretsGoThroughTheVault(t *testing.T) {
 
 	// A purge clears every secret of the module, the external values included.
 	otherRef := *secretRow(t, otherID).ExternalRef
-	require.NoError(t, modules.DeleteKind(ctx, nil, kind))
+	require.NoError(t, ReleaseSecretsOfKind(db.GetDB().WithContext(ctx), kind))
 	f.run(t)
 	assert.False(t, f.external.Has(otherRef))
 	assert.Zero(t, f.pending(t, otherID))

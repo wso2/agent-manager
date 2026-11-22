@@ -16,12 +16,10 @@
  * under the License.
  */
 
-import type { DeploymentStatus } from "../components/EnvironmentCard/EnvironmentCard";
-
 /**
- * Props for panels at PLUGIN_MOUNT_POINTS.agentOverviewInfo and
- * agentOverviewEnvironment. Modules contribute overview sections for the data
- * they own; acp-core's agent overview renders them with these props.
+ * Props for panels at PLUGIN_MOUNT_POINTS.agentOverviewEnvironment. Modules
+ * contribute overview sections for the data they own; acp-core's agent
+ * overview renders them with these props.
  */
 export interface AgentOverviewPanelProps {
   orgId: string;
@@ -31,8 +29,6 @@ export interface AgentOverviewPanelProps {
   envId: string;
   /** The agent runs outside the platform (externally hosted). */
   external?: boolean;
-  /** The agent's deployment status in `envId` (platform-hosted agents). */
-  deploymentStatus?: DeploymentStatus;
 }
 
 /** Props for panels at PLUGIN_MOUNT_POINTS.projectOverviewSide. */

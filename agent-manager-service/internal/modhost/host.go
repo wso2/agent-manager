@@ -756,12 +756,9 @@ func (h *Host) purge(tx *gorm.DB, name string) ([]string, error) {
 			}
 		}
 	}
-	if st := h.deps().Secrets; st != nil {
-		if err := st.DeleteKind(tx.Statement.Context, tx, "mod:"+name); err != nil {
-			return nil, fmt.Errorf("deleting %s's secrets: %w", name, err)
-		}
-	} else if err := repositories.ReleaseSecretsOfKind(tx, "mod:"+name); err != nil {
-		// A host with no secret store attached (the CLI) still queues the removal of external values.
+	// Releasing needs no vault: external values are destroyed by the secret job runner after tx commits, so the
+	// CLI and the server purge the same way.
+	if err := repositories.ReleaseSecretsOfKind(tx, "mod:"+name); err != nil {
 		return nil, fmt.Errorf("deleting %s's secrets: %w", name, err)
 	}
 	return revokeAllTx(tx, name)

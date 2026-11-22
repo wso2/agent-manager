@@ -17,15 +17,14 @@
  */
 
 import React from "react";
-import { Link, generatePath, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Alert, Button, Skeleton } from "@wso2/oxygen-ui";
-import { KeyRound, Lock, Network, Rocket, ServerCrash, ShieldOff } from "@wso2/oxygen-ui-icons-react";
+import { KeyRound, Lock, Network, ServerCrash, ShieldOff } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateAgentAPIKey,
   useGetA2AProxy,
   useGetAgent,
   useGetAgentConfigurations,
-  useListAgentDeployments,
   useListAgentAPIKeys,
   useRevokeAgentAPIKey,
 } from "@agent-management-platform/api-client";
@@ -40,10 +39,7 @@ import {
   PageLayout,
   StateNotice,
 } from "@agent-management-platform/views";
-import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useFeatureAccess } from "@agent-management-platform/feature-management";
-
-const agentRoutes = absoluteRouteMap.children.org.children.projects.children.agents;
 
 export const SecurityComponent: React.FC = () => {
   const { orgId, projectId, agentId, envId } = useParams();
@@ -79,26 +75,16 @@ export const SecurityComponent: React.FC = () => {
     { orgName: orgId, projName: projectId, agentName: agentId, envId },
     { enabled: isExternal },
   );
-  const { data: deployments, isLoading: isLoadingDeployments } =
-    useListAgentDeployments({
-      orgName: agent && !isExternal ? orgId : undefined,
-      projName: projectId,
-      agentName: agentId,
-    });
 
   const securityEnabled = envConfig?.enableApiKeySecurity ?? true;
   const oauthEnabled = envConfig?.enableOAuthSecurity ?? false;
-  const currentDeployment = envId ? deployments?.[envId] : undefined;
   // A proxied external agent is served by the gateway, so its keys work without a deployment.
-  const servedByGateway = isExternal
-    ? !!proxy
-    : currentDeployment?.status === "active";
+  const servedByGateway = isExternal && !!proxy;
   // Listing keys needs the same permission as managing them.
   const canManageKeys = useFeatureAccess("agent_api_key_manage");
   const shouldLoadKeys =
     canManageKeys &&
     !isLoadingConfig &&
-    !isLoadingDeployments &&
     servedByGateway &&
     securityEnabled &&
     !!envId;
@@ -116,7 +102,6 @@ export const SecurityComponent: React.FC = () => {
     isLoadingAgent ||
     isLoadingProxy ||
     isLoadingConfig ||
-    isLoadingDeployments ||
     (shouldLoadKeys && isLoadingKeys);
 
   const { mutateAsync: createKey, isPending: isCreating } =
@@ -156,14 +141,6 @@ export const SecurityComponent: React.FC = () => {
     </Button>
   ) : undefined;
 
-  const deployHref = orgId && projectId && agentId
-    ? generatePath(agentRoutes.children.deployment.path, { orgId, projectId, agentId })
-    : undefined;
-  const deploySettingsAction = deployHref ? (
-    <Button variant="contained" component={Link} to={deployHref}>
-      Go to Deployment Settings
-    </Button>
-  ) : undefined;
   const reloadAction = (
     <Button variant="outlined" onClick={() => window.location.reload()}>
       Reload page
@@ -188,31 +165,14 @@ export const SecurityComponent: React.FC = () => {
         actions: reloadAction,
       }
     : !servedByGateway
-    ? isExternal
-      ? {
-          icon: Network,
-          tone: "warning",
-          title: "This agent is not routed through the gateway",
-          description:
-            "API keys are checked by the gateway. Turn on Route through gateway for this environment under Configure → A2A.",
-          actions: a2aSettingsAction,
-        }
-      : {
-          icon: Rocket,
-          title: "Deploy your agent to manage its keys",
-          description:
-            "API keys are issued for a running agent, and this one isn't deployed in this environment yet.",
-          steps: [
-            { label: "Build", state: "done" },
-            { label: "Deploy", state: "current" },
-            { label: "Create keys", state: "todo" },
-          ],
-          actions: deployHref && (
-            <Button variant="contained" component={Link} to={deployHref}>
-              Go to Deploy
-            </Button>
-          ),
-        }
+    ? {
+        icon: Network,
+        tone: "warning",
+        title: "This agent is not routed through the gateway",
+        description:
+          "API keys are checked by the gateway. Turn on Route through gateway for this environment under Configure → A2A.",
+        actions: a2aSettingsAction,
+      }
     : !securityEnabled && oauthEnabled
     ? {
         icon: KeyRound,
@@ -225,10 +185,9 @@ export const SecurityComponent: React.FC = () => {
         icon: ShieldOff,
         tone: "warning",
         title: "API key security is off",
-        description: isExternal
-          ? "Enable API Key Security in the gateway security settings under Configure → A2A to manage API keys."
-          : "Enable API Key Security in the deployment settings and redeploy to manage API keys.",
-        actions: isExternal ? a2aSettingsAction : deploySettingsAction,
+        description:
+          "Enable API Key Security in the gateway security settings under Configure → A2A to manage API keys.",
+        actions: a2aSettingsAction,
       }
     : !canManageKeys
     ? {

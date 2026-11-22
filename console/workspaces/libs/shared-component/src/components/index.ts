@@ -17,23 +17,16 @@
  */
 
 export * from "./AgentTypeChips";
-export * from "./BuildLogs";
-export * from "./BuildPanel";
-export * from "./BuildSteps";
 export * from "./CodeBlock";
 export * from "./CollapsibleSection";
 export * from "./EnvironmentVariable";
 export * from "./ConfigSection";
 export * from "./SecurityConfigSections";
-export * from "./HealthCheckFields";
 export * from "./LabelsEditor";
 export * from "./MarkdownEditor";
 export * from "./LabelChips";
-export * from "./FileMountSection";
-export * from "./ResourceMetricChip";
 export * from "./GatewayTypeChip";
 export * from "./GatewayHostingChip";
-export * from "./InfoCard";
 export * from "./EnvironmentCard";
 export * from "./OverviewSectionCard";
 export * from "./IsolationTierIndicator";
@@ -46,10 +39,6 @@ export * from "./EntityHeader";
 export * from "./EditFormSkeleton";
 export * from "./ListingSkeletonRows";
 export * from "./ResilienceTimeoutFields";
-export {
-  RestrictedAction,
-  type RestrictedActionProps,
-} from "./RestrictedAction/RestrictedAction";
 export {
   PolicyListSection,
   type PolicyListSectionProps,
@@ -115,5 +104,4 @@ export {
 // utils/mcpEnvVarSpec, which the package index already re-exports.
 export { EnvironmentVariablesReference } from "./EnvironmentVariablesReference/EnvironmentVariablesReference";
 export * from './LLMProviderForm';
-export * from './CatalogKindListing';
 export * from './MCPLogo';

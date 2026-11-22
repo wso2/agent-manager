@@ -94,27 +94,23 @@ window.__RUNTIME_CONFIG__ = {
     semanticGuardrails: '$GUARDRAIL_CAP_SEMANTIC_GUARDRAILS' === 'true',
   },
   featureFlags: {
-    enablePrivateRepoSupport: '$FEATURE_FLAG_ENABLE_PRIVATE_REPO_SUPPORT' === 'true',
     enableIdentityProviderManagedMode: '$FEATURE_FLAG_ENABLE_IDENTITY_PROVIDER_MANAGED_MODE' === 'true',
     enableProfileManagement: '$FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT' === 'true',
     enableUserManagement: '$FEATURE_FLAG_ENABLE_USER_MANAGEMENT' === 'true',
     enableAgentIdentity: true,
     enableSelfHostedGateways: '$FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS' === 'true',
     // Resources managed outside the console; their pages are hidden.
-    externallyManagedEnv: '$FEATURE_FLAG_EXTERNALLY_MANAGED_ENV' === 'true',
     externallyManagedGateway: '$FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY' === 'true',
-    externallyManagedPipeline: '$FEATURE_FLAG_EXTERNALLY_MANAGED_PIPELINE' === 'true',
   },
   // Which UI modules are on comes from the server (GET /api/v1/ui-manifest).
   uiModules: {
     // Shows the AI module manager page (a front-end preview for now). Off by default.
     marketplace: '$ENABLE_UI_MARKETPLACE' === 'true',
     // UI modules or "<module>/<page>" to turn on besides what the server's
-    // UI manifest lists (e.g. "agent-runtime agent-portal").
+    // UI manifest lists (e.g. "ai-observability").
     enable: '$UI_MODULES_ENABLE'.split(/[\s,]+/).filter(Boolean),
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
-  fileMountMaxFileBytes: '$FILE_MOUNT_MAX_FILE_BYTES',
   docsUrl: '$DOCS_URL',
   footerLinks: {
     privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
