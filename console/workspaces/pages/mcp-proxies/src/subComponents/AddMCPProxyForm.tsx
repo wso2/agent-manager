@@ -403,7 +403,14 @@ export function AddMCPProxyForm({
  * Registers an org MCP server: one request with every endpoint, each bound to its
  * environments. The org-level proxy is a grouping and deploys nothing itself.
  */
-export function OrgAddMCPProxyForm({ onCancel }: { onCancel: () => void }) {
+export function OrgAddMCPProxyForm({
+  onCancel,
+  returnTo,
+}: {
+  onCancel: () => void;
+  /** Where a successful save goes; the org MCP server list when omitted. */
+  returnTo?: string;
+}) {
   const { orgId = "" } = useParams<{ orgId: string }>();
   const createMCPProxy = useCreateMCPProxy();
 
@@ -419,12 +426,14 @@ export function OrgAddMCPProxyForm({ onCancel }: { onCancel: () => void }) {
       // A failure is shown by the mutation's own error message.
       await createMCPProxy.mutateAsync({ params: { orgName: orgId }, body });
       return {
-        to: generatePath(absoluteRouteMap.children.org.children.mcpProxies.path, {
-          orgId,
-        }),
+        to:
+          returnTo ??
+          generatePath(absoluteRouteMap.children.org.children.mcpProxies.path, {
+            orgId,
+          }),
       };
     },
-    [createMCPProxy, orgId],
+    [createMCPProxy, orgId, returnTo],
   );
 
   return (

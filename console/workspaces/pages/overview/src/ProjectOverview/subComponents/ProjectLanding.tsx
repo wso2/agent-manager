@@ -138,7 +138,9 @@ function shortcut(card: {
   /** Router state for the add link, so the create page can return here. */
   addState: unknown;
 }): ResourceCardData {
-  const { canWrite, failed, noun, addLabel, listPath, addPath, addState, ...shown } = card;
+  const { canWrite, failed, noun, addLabel, listPath, addPath, addState, ...rest } = card;
+  // A failed load says so in place of the description, naming the resource.
+  const shown = failed ? { ...rest, description: `Couldn't load ${noun}. Open the list to retry.` } : rest;
   return card.count || card.loading || failed || !canWrite
     ? { ...shown, actionLabel: `${canWrite ? "Manage" : "View"} ${noun}`, to: listPath }
     : { ...shown, actionLabel: addLabel, to: addPath, state: addState };
