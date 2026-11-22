@@ -147,7 +147,7 @@ type HealthChecks struct {
 
 // ImageScan is how an agent's build scan treats what it finds. It is saved in the agent's
 // build settings under the same field names. A field that is nil uses the build workflow's
-// default: failing the build on CRITICAL.
+// default.
 type ImageScan struct {
 	FailBuild *bool   `json:"failBuild,omitempty"`
 	Severity  *string `json:"severity,omitempty"`

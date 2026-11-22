@@ -17,11 +17,11 @@ import (
 // checks if the ImageScan type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &ImageScan{}
 
-// ImageScan How the build's vulnerability scan treats what it finds. Only a build workflow that scans the image and declares the imageScan parameter applies it; any other workflow ignores it. A field that is not set uses its default.
+// ImageScan How the build's vulnerability scan treats what it finds, saved for the build workflow to read. Only a workflow that scans the image and declares the imageScan parameter applies it; the workflows this service installs don't scan, so they ignore it. A field that is not set uses that workflow's default.
 type ImageScan struct {
-	// Whether a vulnerability that a newer version fixes fails the build. When false, the scan still runs and reports it, and the image is published. Defaults to true.
+	// Whether what the scan finds fails the build. When false, the scan still reports it and the image is published.
 	FailBuild *bool `json:"failBuild,omitempty"`
-	// The lowest severity the scan reports and fails on. Defaults to CRITICAL.
+	// The lowest severity the scan reports and fails on.
 	Severity *string `json:"severity,omitempty"`
 }
 
