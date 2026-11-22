@@ -38,7 +38,7 @@ import { Alert, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { PageLayout } from "@agent-management-platform/views";
 import {
   getErrorMessage,
-  usePipelineEnvironments,
+  useOrgEnvironments,
 } from "@agent-management-platform/shared-component";
 import { type CreateMonitorFormValues } from "./form/schema";
 import {
@@ -81,7 +81,7 @@ export const CreateMonitorComponent: React.FC = () => {
     agentName: agentId ?? "",
   });
 
-  const environments = usePipelineEnvironments(orgId, projectId);
+  const environments = useOrgEnvironments(orgId);
   const { mutate: applyAlert, isPending: isSavingAlert } = useApplyMonitorAlert({
     orgName: orgId,
     projName: projectId,

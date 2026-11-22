@@ -17,7 +17,6 @@
  */
 
 // Security settings for an agent's endpoint (authentication, CORS, agent-card
-// CORS, request timeout),
-// shared by the deploy drawer (agent-runtime) and the A2A proxy drawer
-// (ai-gateway's Configure page).
+// CORS, request timeout), used by the A2A proxy drawer (ai-gateway's
+// Configure page).
 export { SecurityConfigSections, type SecurityConfigHandle } from "./SecurityConfigSections";

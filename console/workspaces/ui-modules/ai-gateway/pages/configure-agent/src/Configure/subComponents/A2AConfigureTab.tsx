@@ -18,7 +18,7 @@
 
 import { useSearchParams } from "react-router-dom";
 import { Alert, CircularProgress, Tab, Tabs, Typography } from "@wso2/oxygen-ui";
-import { usePipelineEnvironmentsState } from "@agent-management-platform/shared-component";
+import { useOrgEnvironmentsState } from "@agent-management-platform/shared-component";
 import { CONFIGURE_ENV_PARAM } from "../../configureTabs";
 import { A2AAgentCardPanel } from "./A2AAgentCardPanel";
 
@@ -32,7 +32,7 @@ interface A2AConfigureTabProps {
 /** Per-environment A2A agent card settings. */
 export function A2AConfigureTab({ orgId, projectId, agentId, external }: A2AConfigureTabProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { environments, isLoading, isError } = usePipelineEnvironmentsState(orgId, projectId);
+  const { environments, isLoading, isError } = useOrgEnvironmentsState(orgId);
 
   if (isLoading) {
     return <CircularProgress size={20} />;

@@ -17,10 +17,7 @@
  */
 
 import { useListAgents } from "@agent-management-platform/api-client";
-import {
-  Link,
-  Rocket as RocketLaunchOutlined,
-} from "@wso2/oxygen-ui-icons-react";
+import { Link } from "@wso2/oxygen-ui-icons-react";
 import { Box, Card, CardContent, Divider, Typography } from "@wso2/oxygen-ui";
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
@@ -55,14 +52,12 @@ export function AgentTypeSummary() {
     projectId: string;
   }>();
   const { data } = useListAgents({ orgName: orgId, projName: projectId });
-  const [externalCount, internalCount] = useMemo(() => {
-    return [
+  const externalCount = useMemo(
+    () =>
       data?.agents?.filter((agent) => agent.provisioning.type === "external")
         ?.length ?? 0,
-      data?.agents?.filter((agent) => agent.provisioning.type === "internal")
-        ?.length ?? 0,
-    ];
-  }, [data]);
+    [data],
+  );
 
   return (
     <Card
@@ -74,17 +69,11 @@ export function AgentTypeSummary() {
     >
       <CardContent>
         <Box display="flex" flexDirection="column" gap={1.5}>
-          <Typography variant="h6">Agent Deployments</Typography>
+          <Typography variant="h6">Agents</Typography>
           <TypeLine
             label="External"
             value={externalCount}
             icon={<Link size={16} />}
-          />
-          <Divider />
-          <TypeLine
-            label="Platform"
-            value={internalCount}
-            icon={<RocketLaunchOutlined size={16} />}
           />
           <Divider />
           <TypeLine label="Total" bold value={data?.agents?.length ?? 0} />

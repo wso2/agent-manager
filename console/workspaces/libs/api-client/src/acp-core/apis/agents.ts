@@ -31,8 +31,6 @@ import type {
   CreateAgentRequest,
   UpdateAgentPathParams,
   UpdateAgentRequest,
-  UpdateAgentBuildParametersPathParams,
-  UpdateAgentBuildParametersRequest,
   GenerateAgentTokenPathParams,
   GenerateAgentTokenQuery,
   TokenRequest,
@@ -184,27 +182,6 @@ export async function updateAgent(
   return res.json();
 }
 
-export async function updateAgentBuildParameters(
-  params: UpdateAgentBuildParametersPathParams,
-  body: UpdateAgentBuildParametersRequest,
-  getToken?: () => Promise<string>,
-): Promise<AgentResponse> {
-  const { orgName = "default", projName = "default", agentName } = params;
-
-  if (!agentName) {
-    throw new Error("agentName is required");
-  }
-
-  const token = getToken ? await getToken() : undefined;
-  const url =
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +
-    `/projects/${encodeURIComponent(projName)}` +
-    `/agents/${encodeURIComponent(agentName)}/build-parameters`;
-  const res = await httpPUT(url, cloneDeep(body), { token });
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
 export async function generateAgentToken(
   params: GenerateAgentTokenPathParams,
   body?: TokenRequest,
@@ -278,8 +255,8 @@ const identityBase = (orgName: string, projName: string, agentName: string) =>
   `/projects/${encodeURIComponent(projName)}` +
   `/agents/${encodeURIComponent(agentName)}/identities`;
 
-// Lists the agent's AgentID binding for every environment in the project's
-// deployment pipeline (or one, if `environment` is passed). Safe read: never
+// Lists the agent's AgentID binding for every environment in the organization
+// (or one, if `environment` is passed). Safe read: never
 // returns or removes a secret.
 export async function getAgentIdentity(
   params: GetAgentIdentityPathParams,
@@ -315,7 +292,7 @@ export async function provisionAgentIdentity(
 }
 
 // Rotates the AgentID secret for one environment and returns the new value
-// straight away, for both platform-hosted and externally hosted agents.
+// straight away.
 export async function regenerateAgentIdentitySecret(
   params: RegenerateAgentIdentitySecretPathParams,
   body: AgentIdentityActionRequest,

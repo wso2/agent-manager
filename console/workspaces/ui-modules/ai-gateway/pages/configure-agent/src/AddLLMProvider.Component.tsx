@@ -71,13 +71,9 @@ import {
   getErrorMessage,
   PolicyListSection,
   type PolicySelection as GuardrailSelection,
-  usePipelineEnvironmentsState,
+  useOrgEnvironmentsState,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
-import {
-  BUILD_IN_PROGRESS_REASON,
-  useHasBuildInProgress,
-} from "./utils/buildInProgress";
 import { ProviderSelectDrawer } from "./ProviderSelectDrawer";
 import { ConfigNameSection } from "./Configure/subComponents/ConfigNameSection";
 import {
@@ -429,13 +425,9 @@ export const AddLLMProviderComponent: React.FC = () => {
     agentName: agentId,
   });
   const isExternal = agent?.provisioning?.type === "external";
-  const hasBuildInProgress = useHasBuildInProgress(
-    { orgName: orgId, projName: projectId, agentName: agentId },
-    { enabled: !!agent && !isExternal && !agent.kindName },
-  );
 
   const { environments, isLoading: isLoadingEnvironments } =
-    usePipelineEnvironmentsState(orgId, projectId);
+    useOrgEnvironmentsState(orgId);
   const { data: existingConfigsList } = useListAgentModelConfigs({
     orgName: orgId,
     projName: projectId,
@@ -797,9 +789,8 @@ export const AddLLMProviderComponent: React.FC = () => {
     return <Navigate to={backHref} replace />;
   }
 
-  // Hold off rendering until the pipeline environments resolve (and, in edit
-  // mode, the existing config). Otherwise the env tabs briefly show all org
-  // environments before collapsing to the pipeline subset.
+  // Hold off rendering until the environments resolve (and, in edit mode, the
+  // existing config), so the env tabs don't render empty first.
   if (isLoadingEnvironments || (isEditMode && isLoadingConfig)) {
     return (
       <PageLayout
@@ -1129,10 +1120,6 @@ export const AddLLMProviderComponent: React.FC = () => {
           </Alert>
         )}
 
-        {hasBuildInProgress && (
-          <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
-        )}
-
         {/* Actions */}
         <Box sx={{ display: "flex", gap: 1 }}>
           <Button variant="outlined" onClick={() => allowNavigation(() => navigate(backHref))}>
@@ -1140,9 +1127,7 @@ export const AddLLMProviderComponent: React.FC = () => {
           </Button>
           <Tooltip
             title={
-              hasBuildInProgress
-                ? BUILD_IN_PROGRESS_REASON
-                : !isFormValid && !isPending
+              !isFormValid && !isPending
                 ? "Select a service provider for at least one environment to enable save"
                 : ""
             }
@@ -1152,7 +1137,7 @@ export const AddLLMProviderComponent: React.FC = () => {
               <Button
                 variant="contained"
                 onClick={handleSave}
-                disabled={!isFormValid || isPending || hasBuildInProgress}
+                disabled={!isFormValid || isPending}
               >
                 {isPending ? "Saving…" : "Save"}
               </Button>

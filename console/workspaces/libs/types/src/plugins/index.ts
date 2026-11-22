@@ -228,13 +228,8 @@ export interface PluginAgentTypeContribution extends PluginContributionBase {
  * slots. Pages read panels with useExternalComponentModulesByMountPoint.
  */
 export const PLUGIN_MOUNT_POINTS = {
-  /** Below the agent-type cards on the "Add a New Agent" page (e.g. samples). No props. */
+  /** Below the agent-type cards on the "Add a New Agent" page. No props. */
   addNewAgentOptions: "add-new-agent-options",
-  /**
-   * Top of an agent's overview: what the agent is built from (its source
-   * repository, or its catalog kind). Props: AgentOverviewPanelProps.
-   */
-  agentOverviewInfo: "agent-overview-info",
   /**
    * An agent's overview, per environment: one section per panel, in `order`;
    * `width: "half"` panels pair up. Props: AgentOverviewPanelProps.

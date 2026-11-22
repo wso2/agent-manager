@@ -37,11 +37,8 @@ const gatewayResource = (name: string) => ({
 
 const project = resource('project');
 const agent = resource('agent');
-const agentKind = resource('agent-kind');
 const agentIdentity = gatewayResource('agent-identities');
-const environment = resource('environment');
 const gateway = gatewayResource('gateways');
-const pipeline = resource('deployment-pipeline');
 const llmProvider = gatewayResource('llm-providers');
 const llmProviderTemplate = gatewayResource('llm-provider-templates');
 const llmProxy = gatewayResource('llm-proxies');
@@ -60,17 +57,11 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   agent_write: agent.write,
   agent_create: { anyOf: ['amp:agent:create'] },
   agent_delete: { anyOf: ['amp:agent:delete'] },
-  agent_kind_read: agentKind.read,
-  agent_kind_write: agentKind.write,
   agent_identity_read: agentIdentity.read,
   agent_identity_write: agentIdentity.write,
-  env_read: environment.read,
-  env_write: environment.write,
   gateway_read: gateway.read,
   gateway_write: gateway.write,
   gateway_token_write: { anyOf: [gatewayScope('gateways', 'token-manage')] },
-  pipeline_read: pipeline.read,
-  pipeline_write: pipeline.write,
   llm_provider_read: llmProvider.read,
   llm_provider_write: llmProvider.write,
   llm_provider_api_key_manage: { anyOf: [gatewayScope('llm-providers', 'api-key-manage')] },
@@ -94,10 +85,6 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   role_write: { anyOf: crud('role') },
   group_read: { anyOf: groupScopes },
   group_write: { anyOf: crud('group') },
-  agent_deploy: { anyOf: [gatewayScope('deploy', 'non-production')] },
-  agent_deploy_production: { anyOf: [gatewayScope('deploy', 'production')] },
-  agent_suspend: { anyOf: ['amp:agent:suspend'] },
-  agent_build: { anyOf: ['amp:agent:build'] },
   agent_api_key_manage: { anyOf: [gatewayScope('agent-api-keys', 'manage')] },
   agent_token_manage: { anyOf: ['amp:agent:token-manage'] },
 };

@@ -27,7 +27,6 @@ import {
   listOrgAgents,
   generateAgentToken,
   updateAgent,
-  updateAgentBuildParameters,
   getAgentRoles,
   getAgentGroups,
   getAgentIdentity,
@@ -51,8 +50,6 @@ import type {
   ListOrgAgentsPathParams,
   UpdateAgentPathParams,
   UpdateAgentRequest,
-  UpdateAgentBuildParametersPathParams,
-  UpdateAgentBuildParametersRequest,
   GenerateAgentTokenPathParams,
   GenerateAgentTokenQuery,
   TokenRequest,
@@ -192,23 +189,6 @@ export function useUpdateAgent() {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['agent'] });
       queryClient.invalidateQueries({ queryKey: ['org-agents'] });
-    },
-  });
-}
-
-export function useUpdateAgentBuildParameters() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    AgentResponse,
-    unknown,
-    { params: UpdateAgentBuildParametersPathParams; body: UpdateAgentBuildParametersRequest }
-  >({
-    action: { verb: 'update', target: 'agent build parameters' },
-    mutationFn: ({ params, body }) => updateAgentBuildParameters(params, body, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agents'] });
-      queryClient.invalidateQueries({ queryKey: ['agent'] });
     },
   });
 }

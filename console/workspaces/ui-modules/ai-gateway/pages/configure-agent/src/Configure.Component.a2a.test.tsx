@@ -28,15 +28,13 @@ vi.mock("@agent-management-platform/api-client", () => ({
   ConsoleAction: { TabSwitch: "tab_switch" },
   useTrack: () => ({ track: vi.fn() }),
   useGetAgent: vi.fn(),
-  useGetAllAgentBuilds: () => ({ data: { builds: [] }, isLoading: false }),
-  useGetAgentBuilds: () => ({ data: undefined, isLoading: false }),
   useListAgentModelConfigs: () => emptyList,
   useListAgentMCPConfigs: () => emptyList,
   useDeleteAgentModelConfig: () => mutation,
   useDeleteAgentMCPConfig: () => mutation,
 }));
 vi.mock("@agent-management-platform/shared-component", () => ({
-  usePipelineEnvironmentsState: () => ({
+  useOrgEnvironmentsState: () => ({
     environments: [{ name: "dev", displayName: "Development" }, { name: "prod", displayName: "Production" }],
     isLoading: false,
     isError: false,
