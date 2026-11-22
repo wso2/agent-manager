@@ -354,6 +354,10 @@ func (c *openChoreoClient) UpdateComponentBuildParameters(ctx context.Context, o
 
 	component := resp.JSON200
 
+	if err := c.refuseUndeclaredImageScan(ctx, namespaceName, component.Spec.Workflow, req.ImageScan); err != nil {
+		return err
+	}
+
 	// Ensure workflow exists
 	if component.Spec.Workflow == nil {
 		component.Spec.Workflow = &gen.ComponentWorkflowConfig{}

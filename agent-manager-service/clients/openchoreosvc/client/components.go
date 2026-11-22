@@ -590,6 +590,30 @@ func setImageScanWorkflowParameter(params map[string]any, imageScan *ImageScanCo
 	params[workflowParamImageScan] = imageScanParam
 }
 
+// refuseUndeclaredImageScan refuses an image scan setting for an agent whose namespaced build
+// Workflow doesn't declare the imageScan parameter, since its builds would never read it. A
+// ClusterWorkflow is not read (see attachBuildClient), so the setting is saved for one unchecked.
+// Clearing the saved setting is always allowed.
+func (c *openChoreoClient) refuseUndeclaredImageScan(ctx context.Context, namespaceName string, workflow *gen.ComponentWorkflowConfig, imageScan *ImageScanConfig) error {
+	if imageScan == nil || (imageScan.FailBuild == nil && imageScan.Severity == nil) {
+		return nil
+	}
+	if workflow == nil || workflow.Kind == nil || *workflow.Kind != gen.ComponentWorkflowConfigKindWorkflow {
+		return nil
+	}
+	properties, err := c.workflowParameterProperties(ctx, namespaceName, workflow.Name)
+	if err != nil {
+		return fmt.Errorf("failed to read build workflow %q: %w", workflow.Name, err)
+	}
+	if _, declared := properties[workflowParamImageScan]; declared {
+		return nil
+	}
+	return utils.NewValidationErrorf(
+		"This agent's build does not take an image scan setting",
+		"imageScan is not declared by the agent's build workflow %q", workflow.Name,
+	)
+}
+
 // imageScanFromWorkflowParameters reads the saved image scan setting from the build
 // parameters. Returns nil when none is saved.
 func imageScanFromWorkflowParameters(params map[string]any) (*models.ImageScan, error) {

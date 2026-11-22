@@ -20,12 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // An agent whose build settings already keep the scan from failing the build, at HIGH.
@@ -135,4 +137,97 @@ func TestConvertComponentFromTyped_MissingOrUnreadableImageScanIsLeftOut(t *test
 			assert.Nil(t, agent.ImageScan)
 		})
 	}
+}
+
+// namespacedAgentJSON is an agent built with the namespaced Workflow named workflow.
+func namespacedAgentJSON(workflow string) string {
+	return `{
+  "metadata": {"name": "support-bot"},
+  "spec": {
+    "componentType": {"name": "proxy/agent-api"},
+    "owner": {"projectName": "proj"},
+    "workflow": {"kind": "Workflow", "name": "` + workflow + `", "parameters": {"endpoints": []}}
+  }
+}`
+}
+
+// updateWithWorkflow runs UpdateComponentBuildParameters for an agent built with the namespaced
+// Workflow named workflow, whose schema declares the given properties (a nil workflowSchema
+// answers the Workflow read with a 500). It returns the update's error and the build
+// parameters written back, nil when nothing was written.
+func updateWithWorkflow(t *testing.T, workflow, workflowSchema string, imageScan *ImageScanConfig) (map[string]any, error) {
+	t.Helper()
+	var written map[string]any
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/workflows/") {
+			if workflowSchema == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte(`{"error":"boom","code":"INTERNAL"}`))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"metadata":{"name":"` + workflow + `"},"spec":{"parameters":{"openAPIV3Schema":` + workflowSchema + `}}}`))
+			return
+		}
+		if r.Method != http.MethodGet {
+			var sent struct {
+				Spec struct {
+					Workflow struct {
+						Parameters map[string]any `json:"parameters"`
+					} `json:"workflow"`
+				} `json:"spec"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&sent))
+			written = sent.Spec.Workflow.Parameters
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(namespacedAgentJSON(workflow)))
+	}))
+	err := client.UpdateComponentBuildParameters(context.Background(), "acme", "proj", "support-bot", UpdateComponentBuildParametersRequest{
+		ImageScan: imageScan,
+		AgentType: AgentTypeConfig{Type: "agent-api", SubType: "chat-api"},
+	})
+	return written, err
+}
+
+const (
+	schemaWithImageScan    = `{"type":"object","properties":{"repository":{"type":"object"},"imageScan":{"type":"object"}}}`
+	schemaWithoutImageScan = `{"type":"object","properties":{"repository":{"type":"object"},"docker":{"type":"object"}}}`
+)
+
+// A namespaced Workflow is read, and the setting is saved only when it declares imageScan: a
+// build that would never read it (a Docker build, or an org's copy from before the setting) is
+// refused with a validation error, and nothing is written.
+func TestUpdateComponentBuildParameters_RefusesImageScanAWorkflowDoesNotDeclare(t *testing.T) {
+	failBuild := false
+
+	written, err := updateWithWorkflow(t, "amp-ballerina-buildpack", schemaWithImageScan, &ImageScanConfig{FailBuild: &failBuild})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"failBuild": false}, written["imageScan"])
+
+	written, err = updateWithWorkflow(t, "amp-docker-buildpack", schemaWithoutImageScan, &ImageScanConfig{FailBuild: &failBuild})
+	require.Error(t, err)
+	assert.NotNil(t, utils.IsValidationError(err), "want a validation error, got %v", err)
+	assert.Nil(t, written, "nothing is written when the setting is refused")
+}
+
+// Clearing the setting, or leaving it out, needs no Workflow that declares it.
+func TestUpdateComponentBuildParameters_ClearsOrKeepsImageScanForAnyWorkflow(t *testing.T) {
+	for name, imageScan := range map[string]*ImageScanConfig{"cleared": {}, "left out": nil} {
+		t.Run(name, func(t *testing.T) {
+			written, err := updateWithWorkflow(t, "amp-docker-buildpack", schemaWithoutImageScan, imageScan)
+			require.NoError(t, err)
+			assert.NotContains(t, written, "imageScan")
+		})
+	}
+}
+
+// A Workflow that can't be read leaves it unknown whether the build reads the setting, so the
+// update fails rather than saving it.
+func TestUpdateComponentBuildParameters_FailsWhenTheWorkflowCannotBeRead(t *testing.T) {
+	failBuild := false
+	written, err := updateWithWorkflow(t, "amp-ballerina-buildpack", "", &ImageScanConfig{FailBuild: &failBuild})
+	require.Error(t, err)
+	assert.Nil(t, utils.IsValidationError(err), "a failed read is not the caller's mistake")
+	assert.Nil(t, written)
 }
