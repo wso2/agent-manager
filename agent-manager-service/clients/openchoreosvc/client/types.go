@@ -151,6 +151,13 @@ type HealthCheckConfig struct {
 	FailureThreshold    *int32
 }
 
+// ImageScanConfig is how the build's vulnerability scan treats what it finds, saved in the
+// build parameters. A nil field uses the build workflow's default.
+type ImageScanConfig struct {
+	FailBuild *bool
+	Severity  *string // "CRITICAL", "HIGH" or "MEDIUM"
+}
+
 // UpdateComponentRequest contains data for updating a component (patch operation)
 type UpdateComponentBasicInfoRequest struct {
 	DisplayName string
@@ -168,6 +175,7 @@ type UpdateComponentBuildParametersRequest struct {
 	Build          *BuildConfig          // nil if no change
 	InputInterface *InputInterfaceConfig // nil if no change
 	HealthChecks   *HealthChecksConfig   // nil if no change; otherwise replaces the saved ones
+	ImageScan      *ImageScanConfig      // nil if no change; otherwise replaces the saved one
 	AgentType      AgentTypeConfig       // Required for determining endpoint defaults
 }
 

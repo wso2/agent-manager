@@ -24,6 +24,7 @@ type UpdateAgentBuildParametersRequest struct {
 	Build          Build           `json:"build"`
 	InputInterface InputInterface  `json:"inputInterface"`
 	HealthChecks   *HealthChecks   `json:"healthChecks,omitempty"`
+	ImageScan      *ImageScan      `json:"imageScan,omitempty"`
 	Configurations *Configurations `json:"configurations,omitempty"`
 }
 
@@ -176,6 +177,38 @@ func (o *UpdateAgentBuildParametersRequest) SetHealthChecks(v HealthChecks) {
 	o.HealthChecks = &v
 }
 
+// GetImageScan returns the ImageScan field value if set, zero value otherwise.
+func (o *UpdateAgentBuildParametersRequest) GetImageScan() ImageScan {
+	if o == nil || IsNil(o.ImageScan) {
+		var ret ImageScan
+		return ret
+	}
+	return *o.ImageScan
+}
+
+// GetImageScanOk returns a tuple with the ImageScan field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *UpdateAgentBuildParametersRequest) GetImageScanOk() (*ImageScan, bool) {
+	if o == nil || IsNil(o.ImageScan) {
+		return nil, false
+	}
+	return o.ImageScan, true
+}
+
+// HasImageScan returns a boolean if a field has been set.
+func (o *UpdateAgentBuildParametersRequest) HasImageScan() bool {
+	if o != nil && !IsNil(o.ImageScan) {
+		return true
+	}
+
+	return false
+}
+
+// SetImageScan gets a reference to the given ImageScan and assigns it to the ImageScan field.
+func (o *UpdateAgentBuildParametersRequest) SetImageScan(v ImageScan) {
+	o.ImageScan = &v
+}
+
 // GetConfigurations returns the Configurations field value if set, zero value otherwise.
 func (o *UpdateAgentBuildParametersRequest) GetConfigurations() Configurations {
 	if o == nil || IsNil(o.Configurations) {
@@ -224,6 +257,9 @@ func (o UpdateAgentBuildParametersRequest) ToMap() (map[string]interface{}, erro
 	toSerialize["inputInterface"] = o.InputInterface
 	if !IsNil(o.HealthChecks) {
 		toSerialize["healthChecks"] = o.HealthChecks
+	}
+	if !IsNil(o.ImageScan) {
+		toSerialize["imageScan"] = o.ImageScan
 	}
 	if !IsNil(o.Configurations) {
 		toSerialize["configurations"] = o.Configurations

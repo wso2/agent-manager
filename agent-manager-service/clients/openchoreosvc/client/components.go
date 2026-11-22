@@ -564,6 +564,50 @@ func healthChecksFromMap(values map[string]any) (*models.HealthChecks, error) {
 	return &healthChecks, nil
 }
 
+// workflowParamImageScan is the build parameter holding how the build's vulnerability scan
+// treats what it finds. Only a build workflow that scans the image declares it; any other
+// ignores it.
+const workflowParamImageScan = "imageScan"
+
+// setImageScanWorkflowParameter saves the image scan setting in the build parameters,
+// replacing any saved one. An empty setting removes the saved one, so the next build uses the
+// workflow's defaults. Nil leaves the build parameters unchanged.
+func setImageScanWorkflowParameter(params map[string]any, imageScan *ImageScanConfig) {
+	if imageScan == nil {
+		return
+	}
+	imageScanParam := map[string]any{}
+	if imageScan.FailBuild != nil {
+		imageScanParam["failBuild"] = *imageScan.FailBuild
+	}
+	if imageScan.Severity != nil {
+		imageScanParam["severity"] = *imageScan.Severity
+	}
+	if len(imageScanParam) == 0 {
+		delete(params, workflowParamImageScan)
+		return
+	}
+	params[workflowParamImageScan] = imageScanParam
+}
+
+// imageScanFromWorkflowParameters reads the saved image scan setting from the build
+// parameters. Returns nil when none is saved.
+func imageScanFromWorkflowParameters(params map[string]any) (*models.ImageScan, error) {
+	value, ok := params[workflowParamImageScan]
+	if !ok || value == nil {
+		return nil, nil //nolint:nilnil // documented contract: nil means "none saved", not an error
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read saved image scan setting: %w", err)
+	}
+	var imageScan models.ImageScan
+	if err := json.Unmarshal(encoded, &imageScan); err != nil {
+		return nil, fmt.Errorf("failed to read saved image scan setting: %w", err)
+	}
+	return &imageScan, nil
+}
+
 func isGoogleBuildpack(language string) bool {
 	for _, bp := range utils.Buildpacks {
 		if bp.Language == language && bp.Provider == string(utils.BuildPackProviderGoogle) {
@@ -3367,6 +3411,11 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 				slog.Warn("failed to read saved health checks", "component", comp.Metadata.Name, "error", err)
 			}
 			agent.HealthChecks = healthChecks
+			imageScan, err := imageScanFromWorkflowParameters(params)
+			if err != nil {
+				slog.Warn("failed to read saved image scan setting", "component", comp.Metadata.Name, "error", err)
+			}
+			agent.ImageScan = imageScan
 		}
 	}
 

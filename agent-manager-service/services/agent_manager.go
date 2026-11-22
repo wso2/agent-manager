@@ -427,6 +427,18 @@ func mapHealthChecks(specHealthChecks *spec.HealthChecks) *client.HealthChecksCo
 	}
 }
 
+// mapImageScan converts the request's image scan setting for the client, which saves it in
+// the build parameters. Nil stays nil, keeping the saved setting.
+func mapImageScan(specImageScan *spec.ImageScan) *client.ImageScanConfig {
+	if specImageScan == nil {
+		return nil
+	}
+	return &client.ImageScanConfig{
+		FailBuild: specImageScan.FailBuild,
+		Severity:  specImageScan.Severity,
+	}
+}
+
 func mapHealthCheck(specHealthCheck *spec.HealthCheck) *client.HealthCheckConfig {
 	if specHealthCheck == nil {
 		return nil
@@ -3090,6 +3102,7 @@ func buildUpdateBuildParametersRequest(req *spec.UpdateAgentBuildParametersReque
 		Build:          mapBuildConfig(&req.Build),
 		InputInterface: mapInputInterface(&req.InputInterface),
 		HealthChecks:   mapHealthChecks(req.HealthChecks),
+		ImageScan:      mapImageScan(req.ImageScan),
 		AgentType: client.AgentTypeConfig{
 			Type:    req.AgentType.Type,
 			SubType: subType,

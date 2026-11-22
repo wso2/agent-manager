@@ -788,7 +788,8 @@ paths:
       description: >-
         Saves the agent's build parameters. They take effect with the next build.
         healthChecks replaces the saved health checks when sent (an empty object
-        goes back to the defaults) and keeps them when omitted.
+        goes back to the defaults) and keeps them when omitted. imageScan works
+        the same way.
       operationId: updateAgentBuildParameters
       parameters:
         - name: agentName
@@ -15451,6 +15452,8 @@ components:
           $ref: "#/components/schemas/InputInterface"
         healthChecks:
           $ref: "#/components/schemas/HealthChecks"
+        imageScan:
+          $ref: "#/components/schemas/ImageScan"
         configurations:
           $ref: "#/components/schemas/Configurations"
 
@@ -15775,6 +15778,8 @@ components:
           $ref: "#/components/schemas/InputInterface"
         healthChecks:
           $ref: "#/components/schemas/HealthChecks"
+        imageScan:
+          $ref: "#/components/schemas/ImageScan"
         build:
           $ref: "#/components/schemas/Build"
         kindName:
@@ -16436,6 +16441,29 @@ components:
           type: integer
           minimum: 1
           description: Failed checks in a row before the check is treated as failed.
+    ImageScan:
+      type: object
+      description: >-
+        How the build's vulnerability scan treats what it finds. Only a build
+        workflow that scans the image and declares the imageScan parameter
+        applies it; any other workflow ignores it. A field that is not set
+        uses its default.
+      properties:
+        failBuild:
+          type: boolean
+          description: >-
+            Whether a vulnerability that a newer version fixes fails the build.
+            When false, the scan still runs and reports it, and the image is
+            published. Defaults to true.
+        severity:
+          type: string
+          enum:
+            - CRITICAL
+            - HIGH
+            - MEDIUM
+          description: >-
+            The lowest severity the scan reports and fails on. Defaults to
+            CRITICAL.
     InputInterfaceSchema:
       type: object
       properties:

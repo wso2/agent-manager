@@ -507,6 +507,8 @@ func buildUpdatedWorkflowParameters(componentName string, existingParams map[str
 
 	// Replace the saved health checks if sent; keep them if not
 	setHealthChecksWorkflowParameter(existingParams, req.HealthChecks)
+	// Replace the saved image scan setting if sent; keep it if not
+	setImageScanWorkflowParameter(existingParams, req.ImageScan)
 
 	return existingParams, nil
 }

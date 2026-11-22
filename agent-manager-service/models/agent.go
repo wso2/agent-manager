@@ -38,7 +38,9 @@ type AgentResponse struct {
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 	// HealthChecks are the health checks saved in the build settings, which the
 	// next build records. Nil when none are saved.
-	HealthChecks   *HealthChecks   `json:"healthChecks,omitempty"`
+	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+	// ImageScan is the image scan setting saved in the build settings. Nil when none is saved.
+	ImageScan      *ImageScan      `json:"imageScan,omitempty"`
 	Configurations *Configurations `json:"configurations,omitempty"`
 	KindName       string          `json:"kindName,omitempty"`
 	// KindVersion is empty for agents created before the version was recorded.
