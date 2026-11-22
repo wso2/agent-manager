@@ -163,7 +163,7 @@ function EditGatewayForm({ gateway, orgId, viewHref }: EditGatewayFormProps) {
         )}
 
         <Collapse in={hasValidationErrors} timeout="auto" unmountOnExit>
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error">
             {validationErrorsList.map((error, index) => (
               <Box key={index}>{error}</Box>
             ))}
