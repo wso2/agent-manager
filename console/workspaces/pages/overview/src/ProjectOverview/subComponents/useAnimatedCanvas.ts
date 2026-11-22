@@ -18,7 +18,6 @@
 
 import { useEffect, useRef } from "react";
 import { alpha, useTheme } from "@wso2/oxygen-ui";
-import { prefersReducedMotion } from "../../OrganizationOverview/motion";
 
 /** The line and dot blue shared by the landing illustrations; the accent comes from the theme. */
 export const LINE_RGB = "84, 104, 240";
@@ -131,7 +130,10 @@ export function useAnimatedCanvas(
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return undefined;
 
-    const reduced = prefersReducedMotion();
+    // Followed live: turning reduced motion on mid-animation stops the loop on a still frame.
+    const motionQuery =
+      typeof window !== "undefined" ? window.matchMedia?.("(prefers-reduced-motion: reduce)") : undefined;
+    let reduced = motionQuery?.matches ?? false;
     const start = performance.now();
     let cssSize = 0;
     let raf = 0;
@@ -170,6 +172,17 @@ export function useAnimatedCanvas(
     });
     visibility.observe(canvas);
 
+    const onMotionChange = (event: MediaQueryListEvent) => {
+      reduced = event.matches;
+      if (reduced) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+      render(performance.now());
+      kick();
+    };
+    motionQuery?.addEventListener?.("change", onMotionChange);
+
     control.current = {
       setActive: (on) => {
         clearTimeout(stopTimer);
@@ -192,6 +205,7 @@ export function useAnimatedCanvas(
       cancelAnimationFrame(raf);
       resizeObserver.disconnect();
       visibility.disconnect();
+      motionQuery?.removeEventListener?.("change", onMotionChange);
     };
   }, [stillTime]);
 

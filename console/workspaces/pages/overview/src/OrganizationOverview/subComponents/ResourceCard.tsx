@@ -43,6 +43,8 @@ export interface ResourceCardData {
   description: string;
   actionLabel: string;
   to: string;
+  /** Router state for the action link, such as returnToState() on a create link. */
+  state?: unknown;
   /** For resources with no single org-wide total (agent identity is per environment). */
   countless?: boolean;
   /** The count is still loading. */
@@ -142,6 +144,7 @@ export function ResourceCard({ card, index, leaving = false, onPause }: Resource
       <Stack
         component={RouterLink}
         to={card.to}
+        state={card.state}
         direction="row"
         justifyContent="space-between"
         alignItems="center"

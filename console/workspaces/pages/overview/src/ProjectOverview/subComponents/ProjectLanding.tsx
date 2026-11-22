@@ -118,7 +118,8 @@ const EXPLORE = [
 
 /**
  * An org-level shortcut: manage what exists (or view it, without write access), or add
- * the first one.
+ * the first one. Only a successful, empty response offers "add the first one"; a failed
+ * load links to the list page, which reports the error.
  */
 function shortcut(card: {
   icon: React.ReactNode;
@@ -126,17 +127,21 @@ function shortcut(card: {
   description: string;
   count?: number;
   loading: boolean;
+  /** The count could not be loaded. */
+  failed: boolean;
   canWrite: boolean;
   /** Plural noun for the "Manage …" / "View …" labels, such as "LLM providers". */
   noun: string;
   addLabel: string;
   listPath: string;
   addPath: string;
+  /** Router state for the add link, so the create page can return here. */
+  addState: unknown;
 }): ResourceCardData {
-  const { canWrite, noun, addLabel, listPath, addPath, ...shown } = card;
-  return card.count || !canWrite
+  const { canWrite, failed, noun, addLabel, listPath, addPath, addState, ...shown } = card;
+  return card.count || failed || !canWrite
     ? { ...shown, actionLabel: `${canWrite ? "Manage" : "View"} ${noun}`, to: listPath }
-    : { ...shown, actionLabel: addLabel, to: addPath };
+    : { ...shown, actionLabel: addLabel, to: addPath, state: addState };
 }
 
 interface ProjectLandingProps {
@@ -174,8 +179,17 @@ export function ProjectLanding({
   const params = { orgName: orgId };
   const { canWrite: canWriteLLM } = useResourceAccess("llm_provider");
   const { canWrite: canWriteMCP } = useResourceAccess("mcp_server");
-  const { data: llmProviders, isLoading: isLoadingLLM } = useListLLMProviders(params);
-  const { data: mcpProxies, isLoading: isLoadingMCP } = useListMCPProxies(params);
+  const {
+    data: llmProviders,
+    isLoading: isLoadingLLM,
+    isError: isLLMError,
+  } = useListLLMProviders(params);
+  const {
+    data: mcpProxies,
+    isLoading: isLoadingMCP,
+    isError: isMCPError,
+  } = useListMCPProxies(params);
+  const addState = returnToState(location);
 
   const shortcuts = [
     shortcut({
@@ -184,11 +198,13 @@ export function ProjectLanding({
       description: "Model providers your agents call, set up once for the organization.",
       count: llmProviders?.total,
       loading: isLoadingLLM,
+      failed: isLLMError && !llmProviders,
       canWrite: canWriteLLM,
       noun: "LLM providers",
       addLabel: "Add an LLM provider",
       listPath: generatePath(orgRoutes.children.llmProviders.path, { orgId }),
       addPath: generatePath(orgRoutes.children.llmProviders.children.add.path, { orgId }),
+      addState,
     }),
     shortcut({
       icon: <Server size={26} />,
@@ -196,11 +212,13 @@ export function ProjectLanding({
       description: "Tool servers your agents can use, registered once and shared.",
       count: mcpServerTotal(mcpProxies),
       loading: isLoadingMCP,
+      failed: isMCPError && !mcpProxies,
       canWrite: canWriteMCP,
       noun: "MCP servers",
       addLabel: "Register an MCP server",
       listPath: generatePath(orgRoutes.children.mcpProxies.path, { orgId }),
       addPath: generatePath(orgRoutes.children.mcpProxies.children.add.path, { orgId }),
+      addState,
     }),
   ];
 

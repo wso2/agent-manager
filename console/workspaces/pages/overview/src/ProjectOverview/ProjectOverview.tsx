@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { type ComponentType } from "react";
+import React, { useEffect, useState, type ComponentType } from "react";
 import { Box, Button, PageContent, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { Settings, Box as ProjectIcon } from "@wso2/oxygen-ui-icons-react";
 import {
@@ -65,10 +65,21 @@ export const ProjectOverview: React.FC = () => {
     data: agents,
     isLoading: isAgentsLoading,
     isSuccess: isAgentsLoaded,
+    dataUpdatedAt: agentsUpdatedAt,
+    refetch: refetchAgents,
   } = useListAgents({
     orgName: orgId,
     projName: projectId,
   });
+  // A cached empty list may be out of date (an agent created elsewhere), and within
+  // the stale time nothing refetches it. So an empty list counts only once a request
+  // made since this page opened confirms it; until then the page shows the skeleton.
+  const [openedAt] = useState(() => Date.now());
+  const hasNoAgents = isAgentsLoaded && !agents?.agents?.length;
+  const emptyUnconfirmed = hasNoAgents && agentsUpdatedAt < openedAt;
+  useEffect(() => {
+    if (emptyUnconfirmed) void refetchAgents();
+  }, [emptyUnconfirmed, refetchAgents]);
   const SettingsAction = useExternalComponentModulesByMountPoint(
     PROJECT_SETTINGS_ACTION_MOUNT_POINT,
   )[0]?.component as unknown as ComponentType<ProjectSettingsActionProps> | undefined;
@@ -98,14 +109,14 @@ export const ProjectOverview: React.FC = () => {
 
   // Until the agent list is known the page could be either the overview or the
   // landing, so it shows neither.
-  if (isAgentsLoading) {
+  if (isAgentsLoading || emptyUnconfirmed) {
     return <ProjectOverviewSkeleton title={project?.displayName} />;
   }
 
   // A project with no agents has nothing to overview, so it shows where to start.
   // Only a successful, empty response counts; a failed load shows the overview,
   // whose agent list reports the error.
-  if (isAgentsLoaded && !agents?.agents?.length) {
+  if (hasNoAgents) {
     return (
       <ProjectLanding
         orgId={orgId}
@@ -145,8 +156,8 @@ function ProjectOverviewSkeleton({ title }: { title?: string }) {
     <PageContent fullWidth>
       <Stack spacing={{ xs: 3, md: 4 }}>
         <Stack spacing={1}>
-          <Skeleton variant="text" width={280} height={48} />
-          <Skeleton variant="text" width={420} />
+          <Skeleton variant="text" width={280} height={48} sx={{ maxWidth: "100%" }} />
+          <Skeleton variant="text" width={420} sx={{ maxWidth: "100%" }} />
         </Stack>
         <Skeleton variant="rounded" height={360} />
       </Stack>
