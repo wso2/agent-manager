@@ -82,21 +82,19 @@ export const ProjectOverview: React.FC = () => {
     navigate(generatePath(projectRoutes.children.edit.path, { orgId, projectId }));
   };
 
-  const settingsAction =
-    canWriteProject &&
-    (SettingsAction ? (
-      <SettingsAction orgId={orgId} projectId={projectId} disabled={!project} />
-    ) : (
-      <Button
-        variant="outlined"
-        size="small"
-        startIcon={<Settings size={16} />}
-        onClick={manageProject}
-        disabled={!project}
-      >
-        Settings
-      </Button>
-    ));
+  const settingsAction = !canWriteProject ? undefined : SettingsAction ? (
+    <SettingsAction orgId={orgId} projectId={projectId} disabled={!project} />
+  ) : (
+    <Button
+      variant="outlined"
+      size="small"
+      startIcon={<Settings size={16} />}
+      onClick={manageProject}
+      disabled={!project}
+    >
+      Settings
+    </Button>
+  );
 
   // Until the agent list is known the page could be either the overview or the
   // landing, so it shows neither.
@@ -114,7 +112,7 @@ export const ProjectOverview: React.FC = () => {
         projectId={projectId}
         projectName={project?.displayName}
         canCreateAgent={canCreateAgent}
-        settingsAction={settingsAction || undefined}
+        settingsAction={settingsAction}
       />
     );
   }

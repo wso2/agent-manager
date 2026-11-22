@@ -40,18 +40,20 @@ import {
   Rocket,
   Server,
 } from "@wso2/oxygen-ui-icons-react";
-import { useAuthHooks } from "@agent-management-platform/auth";
 import { useListLLMProviders, useListMCPProxies } from "@agent-management-platform/api-client";
 import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
 import { absoluteRouteMap, globalConfig } from "@agent-management-platform/types";
 import { returnToState, useDocumentTitle } from "@agent-management-platform/views";
 import { ResourceCard, type ResourceCardData } from "../../OrganizationOverview/subComponents/ResourceCard";
+import { OverviewGreeting } from "../../OrganizationOverview/subComponents/OverviewGreeting";
+import { mcpServerTotal } from "../../OrganizationOverview/resourceCounts";
+import { CARD_GRID_SX } from "../../OrganizationOverview/cardGrid";
+import { REDUCED } from "../../OrganizationOverview/motion";
 import { AgentSphere } from "./AgentSphere";
 import { AgentFlowScene, type AgentHosting } from "./AgentFlowScene";
 
 const orgRoutes = absoluteRouteMap.children.org;
 const projectRoutes = orgRoutes.children.projects;
-const noop = () => undefined;
 
 const AGENT_TYPES: { id: AgentHosting; icon: React.ReactNode; label: string }[] = [
   {
@@ -80,7 +82,7 @@ const layerSx = (shown: boolean) =>
       ? "opacity 360ms ease-out, transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1), filter 360ms ease-out"
       : "opacity 260ms ease-in, transform 260ms ease-in, filter 260ms ease-in",
     pointerEvents: "none",
-    "@media (prefers-reduced-motion: reduce)": { transition: "none", transform: "none", filter: "none" },
+    [REDUCED]: { transition: "none", transform: "none", filter: "none" },
   }) as const;
 
 // Paths on the docs site (globalConfig.docsUrl), grouped as the user's next steps.
@@ -114,7 +116,30 @@ const EXPLORE = [
   },
 ];
 
-export interface ProjectLandingProps {
+/**
+ * An org-level shortcut: manage what exists (or view it, without write access), or add
+ * the first one.
+ */
+function shortcut(card: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  count?: number;
+  loading: boolean;
+  canWrite: boolean;
+  /** Plural noun for the "Manage …" / "View …" labels, such as "LLM providers". */
+  noun: string;
+  addLabel: string;
+  listPath: string;
+  addPath: string;
+}): ResourceCardData {
+  const { canWrite, noun, addLabel, listPath, addPath, ...shown } = card;
+  return card.count || !canWrite
+    ? { ...shown, actionLabel: `${canWrite ? "Manage" : "View"} ${noun}`, to: listPath }
+    : { ...shown, actionLabel: addLabel, to: addPath };
+}
+
+interface ProjectLandingProps {
   orgId: string;
   projectId: string;
   projectName?: string;
@@ -132,7 +157,6 @@ export function ProjectLanding({
   canCreateAgent,
   settingsAction,
 }: ProjectLandingProps) {
-  const { userInfo } = useAuthHooks();
   const location = useLocation();
   const [preview, setPreviewNow] = useState<AgentHosting | null>(null);
   // Showing a type is immediate; going back to the globe waits a moment, so brushing
@@ -153,44 +177,31 @@ export function ProjectLanding({
   const { data: llmProviders, isLoading: isLoadingLLM } = useListLLMProviders(params);
   const { data: mcpProxies, isLoading: isLoadingMCP } = useListMCPProxies(params);
 
-  const llmCount = llmProviders?.total;
-  // Backend sets pagination.count to the org-wide total (see OrganizationOverview).
-  const mcpCount = mcpProxies?.pagination?.count ?? mcpProxies?.count;
-
-  // Org-level shortcuts: manage what exists, or add the first one.
-  const shortcuts: ResourceCardData[] = [
-    {
+  const shortcuts = [
+    shortcut({
       icon: <Brain size={26} />,
       title: "LLM Service Providers",
-      count: llmCount,
-      loading: isLoadingLLM,
       description: "Model providers your agents call, set up once for the organization.",
-      ...(llmCount || !canWriteLLM
-        ? {
-            actionLabel: canWriteLLM ? "Manage LLM providers" : "View LLM providers",
-            to: generatePath(orgRoutes.children.llmProviders.path, { orgId }),
-          }
-        : {
-            actionLabel: "Add an LLM provider",
-            to: generatePath(orgRoutes.children.llmProviders.children.add.path, { orgId }),
-          }),
-    },
-    {
+      count: llmProviders?.total,
+      loading: isLoadingLLM,
+      canWrite: canWriteLLM,
+      noun: "LLM providers",
+      addLabel: "Add an LLM provider",
+      listPath: generatePath(orgRoutes.children.llmProviders.path, { orgId }),
+      addPath: generatePath(orgRoutes.children.llmProviders.children.add.path, { orgId }),
+    }),
+    shortcut({
       icon: <Server size={26} />,
       title: "MCP Servers",
-      count: mcpCount,
-      loading: isLoadingMCP,
       description: "Tool servers your agents can use, registered once and shared.",
-      ...(mcpCount || !canWriteMCP
-        ? {
-            actionLabel: canWriteMCP ? "Manage MCP servers" : "View MCP servers",
-            to: generatePath(orgRoutes.children.mcpProxies.path, { orgId }),
-          }
-        : {
-            actionLabel: "Register an MCP server",
-            to: generatePath(orgRoutes.children.mcpProxies.children.add.path, { orgId }),
-          }),
-    },
+      count: mcpServerTotal(mcpProxies),
+      loading: isLoadingMCP,
+      canWrite: canWriteMCP,
+      noun: "MCP servers",
+      addLabel: "Register an MCP server",
+      listPath: generatePath(orgRoutes.children.mcpProxies.path, { orgId }),
+      addPath: generatePath(orgRoutes.children.mcpProxies.children.add.path, { orgId }),
+    }),
   ];
 
   const docsUrl = globalConfig.docsUrl?.replace(/\/+$/, "");
@@ -198,25 +209,9 @@ export function ProjectLanding({
   return (
     <PageContent fullWidth>
       <Stack spacing={{ xs: 3, md: 4 }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "flex-start", sm: "flex-start" }}
-          gap={2}
-        >
-          <Stack spacing={1}>
-            <Typography variant="h1" component="h1" sx={{ fontWeight: 600 }}>
-              Hello
-              {userInfo?.givenName && (
-                <>
-                  {", "}
-                  <Box component="span" sx={{ color: "primary.main" }}>
-                    {userInfo.givenName}
-                  </Box>
-                </>
-              )}
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
+        <OverviewGreeting
+          subtitle={
+            <>
               {projectName ? (
                 <>
                   You&apos;re in the{" "}
@@ -229,10 +224,10 @@ export function ProjectLanding({
                 "You're in a new project."
               )}{" "}
               It&apos;s empty for now, so start by adding an agent.
-            </Typography>
-          </Stack>
-          {settingsAction}
-        </Stack>
+            </>
+          }
+          actions={settingsAction}
+        />
 
         <Box
           sx={{
@@ -367,13 +362,7 @@ export function ProjectLanding({
 
           <Stack spacing={2}>
             {shortcuts.map((card, index) => (
-              <ResourceCard
-                key={card.title}
-                card={card}
-                index={index}
-                leaving={false}
-                onPause={noop}
-              />
+              <ResourceCard key={card.title} card={card} index={index} />
             ))}
           </Stack>
         </Box>
@@ -385,12 +374,7 @@ export function ProjectLanding({
             </Typography>
             <Card
               variant="outlined"
-              sx={{
-                display: "grid",
-                gap: 3,
-                gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
-                p: { xs: 2, md: 3 },
-              }}
+              sx={{ ...CARD_GRID_SX, gap: 3, p: { xs: 2, md: 3 } }}
             >
               {EXPLORE.map((group) => (
                 <Stack key={group.title} spacing={1.5}>

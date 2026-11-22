@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { useTheme } from "@wso2/oxygen-ui";
+import { alpha, useTheme } from "@wso2/oxygen-ui";
 import { prefersReducedMotion } from "../../OrganizationOverview/motion";
 
 /** The line and dot blue shared by the landing illustrations; the accent comes from the theme. */
@@ -27,10 +27,10 @@ export const LINE_COLOR = `rgb(${LINE_RGB})`;
 /** Theme colours a canvas scene draws with. */
 export interface ScenePalette {
   accent: string;
-  text: string;
-  surface: string;
-  fontFamily: string;
 }
+
+/** How long a canvas keeps animating after it turns inactive, so its fade-out stays alive. */
+const LINGER_MS = 400;
 
 /**
  * Draws one frame on a square canvas of `size` CSS pixels. `time` is seconds since
@@ -45,10 +45,57 @@ export type DrawFrame = (
   sinceShown: number,
 ) => void;
 
+export const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
 /** 0 before `start`, easing out to 1 over `duration` seconds. */
 export function entrance(sinceShown: number, start: number, duration: number) {
-  const t = Math.max(0, Math.min(1, (sinceShown - start) / duration));
-  return 1 - (1 - t) ** 3;
+  return 1 - (1 - clamp01((sinceShown - start) / duration)) ** 3;
+}
+
+// Gradients only change with the canvas size or the theme, so each is built once per
+// key and reused every frame.
+const gradients = new WeakMap<CanvasRenderingContext2D, Map<string, CanvasGradient>>();
+function radial(ctx: CanvasRenderingContext2D, key: string, make: () => CanvasGradient) {
+  let byKey = gradients.get(ctx);
+  if (!byKey) gradients.set(ctx, (byKey = new Map()));
+  let gradient = byKey.get(key);
+  if (!gradient) {
+    if (byKey.size > 16) byKey.clear(); // old sizes and themes
+    byKey.set(key, (gradient = make()));
+  }
+  return gradient;
+}
+
+/** A gradient from `inner` at the centre to `outer` at radius `r`, cached. */
+export function radialGradient(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+  inner: string,
+  outer: string,
+) {
+  return radial(ctx, `${cx},${cy},${r},${inner},${outer}`, () => {
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    gradient.addColorStop(0, inner);
+    gradient.addColorStop(1, outer);
+    return gradient;
+  });
+}
+
+/** The warm accent glow both illustrations have at their centre. */
+export function drawGlow(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+  accent: string,
+  strength: number,
+) {
+  ctx.globalAlpha = 0.3 * strength;
+  ctx.fillStyle = radialGradient(ctx, cx, cy, r, accent, alpha(accent, 0));
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  ctx.globalAlpha = 1;
 }
 
 interface Options {
@@ -56,8 +103,6 @@ interface Options {
   active?: boolean;
   /** The single frame drawn for users who prefer reduced motion. */
   stillTime?: number;
-  /** Keeps animating this long after `active` turns false, so a fade-out stays alive. */
-  lingerMs?: number;
 }
 
 /**
@@ -67,16 +112,11 @@ interface Options {
  */
 export function useAnimatedCanvas(
   draw: DrawFrame,
-  { active = true, stillTime = 0, lingerMs = 400 }: Options = {},
+  { active = true, stillTime = 0 }: Options = {},
 ) {
   const theme = useTheme();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const palette: ScenePalette = {
-    accent: theme.palette.primary.main,
-    text: theme.palette.text.secondary,
-    surface: theme.palette.background.paper,
-    fontFamily: String(theme.typography.fontFamily ?? "sans-serif"),
-  };
+  const palette: ScenePalette = { accent: theme.palette.primary.main };
   // Read by the running loop, so a theme or draw change needs no restart.
   const latest = useRef({ draw, palette });
   useEffect(() => {
@@ -141,7 +181,7 @@ export function useAnimatedCanvas(
         } else {
           stopTimer = setTimeout(() => {
             running = false;
-          }, lingerMs);
+          }, LINGER_MS);
         }
       },
     };
@@ -153,7 +193,7 @@ export function useAnimatedCanvas(
       resizeObserver.disconnect();
       visibility.disconnect();
     };
-  }, [stillTime, lingerMs]);
+  }, [stillTime]);
 
   useEffect(() => {
     control.current?.setActive(active);

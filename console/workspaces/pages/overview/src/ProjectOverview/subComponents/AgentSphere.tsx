@@ -16,13 +16,16 @@
  * under the License.
  */
 
-import { alpha, Box } from "@wso2/oxygen-ui";
+import { Box } from "@wso2/oxygen-ui";
 import {
+  clamp01,
+  drawGlow,
   entrance,
+  LINE_COLOR,
   LINE_RGB,
+  radialGradient,
   useAnimatedCanvas,
   type DrawFrame,
-  type ScenePalette,
 } from "./useAnimatedCanvas";
 
 type Vec = [number, number, number];
@@ -32,12 +35,18 @@ const CIRCLES = 24;
 const SEGMENTS = 72;
 const DOTS = 36;
 const TILT = 0.38; // radians the globe leans toward the viewer
+const COS_TILT = Math.cos(TILT);
+const SIN_TILT = Math.sin(TILT);
 const TURN_MS = 60_000; // one full revolution of the globe
 const COMET_LENGTH = 1.1; // radians of the highlighted trail
 const COMET_SPEED = 0.35; // radians per second along its circle
 const COMET_STEPS = 24;
 const COMET_START = 3.8; // phase that starts the comet on the near side, in view
 const COMET_FAR_ALPHA = 0.18; // behind the globe it dims like the far halves of the circles
+const FRONT_STROKE = `rgba(${LINE_RGB}, 0.5)`;
+const BACK_STROKE = `rgba(${LINE_RGB}, 0.16)`;
+const BODY_INNER = `rgba(${LINE_RGB}, 0.02)`;
+const BODY_OUTER = `rgba(${LINE_RGB}, 0.08)`;
 
 /** Deterministic, so the globe looks the same on every render. */
 function seeded(seed: number) {
@@ -81,79 +90,92 @@ const DOT_ORBITS = Array.from({ length: DOTS }, (_, i) => ({
 }));
 const COMET_CIRCLE = CIRCLE_BASES[0];
 
-const pointOn = ([u, v]: Basis, t: number): Vec => {
-  const c = Math.cos(t);
-  const s = Math.sin(t);
-  return [u[0] * c + v[0] * s, u[1] * c + v[1] * s, u[2] * c + v[2] * s];
-};
+const POINTS = SEGMENTS + 1;
+/** Every circle's points in 3D, which never change: x, y, z per point. */
+const CIRCLE_POINTS = new Float32Array(CIRCLES * POINTS * 3);
+CIRCLE_BASES.forEach(([u, v], c) => {
+  for (let i = 0; i < POINTS; i++) {
+    const t = (i / SEGMENTS) * Math.PI * 2;
+    const cos = Math.cos(t);
+    const sin = Math.sin(t);
+    const o = (c * POINTS + i) * 3;
+    CIRCLE_POINTS[o] = u[0] * cos + v[0] * sin;
+    CIRCLE_POINTS[o + 1] = u[1] * cos + v[1] * sin;
+    CIRCLE_POINTS[o + 2] = u[2] * cos + v[2] * sin;
+  }
+});
+/** The same points on screen, rewritten each frame instead of allocated. */
+const SCREEN = new Float32Array(CIRCLE_POINTS.length);
 
-/** Spin about the vertical axis, then lean toward the viewer. Returns x, y and depth (-1..1). */
-function project([x, y, z]: Vec, angle: number): Vec {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const x1 = x * cos + z * sin;
-  const z1 = -x * sin + z * cos;
-  return [
-    x1,
-    y * Math.cos(TILT) - z1 * Math.sin(TILT),
-    y * Math.sin(TILT) + z1 * Math.cos(TILT),
-  ];
-}
-
-/** Draws one frame. `time` is in seconds; the canvas is in CSS pixels after scaling. */
-function draw(ctx: CanvasRenderingContext2D, size: number, time: number, palette: ScenePalette) {
-  const radius = size * 0.44;
+/** Draws one frame. `time` is in seconds; the canvas is in CSS pixels. */
+const draw: DrawFrame = (ctx, size, time, palette, sinceShown) => {
+  ctx.clearRect(0, 0, size, size);
+  // Each time the globe comes back, it grows into place from slightly smaller.
+  const radius = size * 0.44 * (0.92 + 0.08 * entrance(sinceShown, 0, 0.6));
   const cx = size / 2;
   const cy = size / 2;
   const angle = ((time * 1000) / TURN_MS) * Math.PI * 2;
-  const toScreen = (p: Vec): Vec => {
-    const [x, y, z] = project(p, angle);
-    return [cx + x * radius, cy + y * radius, z];
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+  // Spin about the vertical axis, lean toward the viewer, then scale to the screen.
+  // Writes x, y and depth (-1..1) into `out` at `o`.
+  const project = (x: number, y: number, z: number, out: Float32Array | number[], o: number) => {
+    const z1 = -x * sinA + z * cosA;
+    out[o] = cx + (x * cosA + z * sinA) * radius;
+    out[o + 1] = cy + (y * COS_TILT - z1 * SIN_TILT) * radius;
+    out[o + 2] = y * SIN_TILT + z1 * COS_TILT;
+  };
+  const scratch = [0, 0, 0];
+  const onCircle = ([u, v]: Basis, t: number) => {
+    const cos = Math.cos(t);
+    const sin = Math.sin(t);
+    project(
+      u[0] * cos + v[0] * sin,
+      u[1] * cos + v[1] * sin,
+      u[2] * cos + v[2] * sin,
+      scratch,
+      0,
+    );
+    return scratch;
   };
 
-  ctx.clearRect(0, 0, size, size);
-
   // Faint body, and the warm glow at the core.
-  const body = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  body.addColorStop(0, `rgba(${LINE_RGB}, 0.02)`);
-  body.addColorStop(1, `rgba(${LINE_RGB}, 0.08)`);
-  ctx.fillStyle = body;
+  ctx.fillStyle = radialGradient(ctx, cx, cy, radius, BODY_INNER, BODY_OUTER);
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.fill();
+  drawGlow(ctx, cx, cy, radius * 0.34, palette.accent, 1);
 
-  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 0.34);
-  glow.addColorStop(0, palette.accent);
-  glow.addColorStop(1, alpha(palette.accent, 0));
-  ctx.globalAlpha = 0.3;
-  ctx.fillStyle = glow;
-  ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
-  ctx.globalAlpha = 1;
-
-  // Circles: the far half faint, the near half brighter, each batched into one path.
+  // Circles: every point projected once, then the far half faint and the near half
+  // brighter, each batched into one path.
+  for (let o = 0; o < CIRCLE_POINTS.length; o += 3) {
+    project(CIRCLE_POINTS[o], CIRCLE_POINTS[o + 1], CIRCLE_POINTS[o + 2], SCREEN, o);
+  }
   ctx.lineCap = "round";
   for (const front of [false, true]) {
     ctx.beginPath();
-    for (const basis of CIRCLE_BASES) {
-      let prev: Vec | null = null;
-      for (let i = 0; i <= SEGMENTS; i++) {
-        const p = toScreen(pointOn(basis, (i / SEGMENTS) * Math.PI * 2));
-        if (prev && (prev[2] >= 0) === front && (p[2] >= 0) === front) {
-          ctx.moveTo(prev[0], prev[1]);
-          ctx.lineTo(p[0], p[1]);
+    for (let c = 0; c < CIRCLES; c++) {
+      let drawing = false;
+      for (let i = 1; i < POINTS; i++) {
+        const o = (c * POINTS + i) * 3;
+        if ((SCREEN[o - 1] >= 0) === front && (SCREEN[o + 2] >= 0) === front) {
+          if (!drawing) ctx.moveTo(SCREEN[o - 3], SCREEN[o - 2]);
+          ctx.lineTo(SCREEN[o], SCREEN[o + 1]);
+          drawing = true;
+        } else {
+          drawing = false;
         }
-        prev = p;
       }
     }
-    ctx.strokeStyle = `rgba(${LINE_RGB}, ${front ? 0.5 : 0.16})`;
+    ctx.strokeStyle = front ? FRONT_STROKE : BACK_STROKE;
     ctx.lineWidth = front ? 1 : 0.8;
     ctx.stroke();
   }
 
   // Dots on their orbits; size and brightness follow depth, so they fade around the rim.
-  ctx.fillStyle = `rgb(${LINE_RGB})`;
+  ctx.fillStyle = LINE_COLOR;
   for (const dot of DOT_ORBITS) {
-    const [x, y, z] = toScreen(pointOn(dot.circle, dot.phase + dot.speed * time));
+    const [x, y, z] = onCircle(dot.circle, dot.phase + dot.speed * time);
     const near = (z + 1) / 2;
     ctx.globalAlpha = 0.15 + 0.85 * near * near;
     ctx.beginPath();
@@ -163,41 +185,29 @@ function draw(ctx: CanvasRenderingContext2D, size: number, time: number, palette
   ctx.globalAlpha = 1;
 
   // The comet: a short accent trail moving along one circle, fading toward its tail.
+  // Behind the globe it dims rather than vanishing, blended across the rim.
+  const depthAlpha = (z: number) =>
+    COMET_FAR_ALPHA + (1 - COMET_FAR_ALPHA) * clamp01((z + 0.2) / 0.4);
   ctx.strokeStyle = palette.accent;
   ctx.lineWidth = 1.6;
-  const head = COMET_START + time * COMET_SPEED;
-  // 0 behind the globe, 1 in front, blended across the rim.
-  const nearness = (z: number) => Math.max(0, Math.min(1, (z + 0.2) / 0.4));
-  const depthAlpha = (z: number) => COMET_FAR_ALPHA + (1 - COMET_FAR_ALPHA) * nearness(z);
-  let prev = toScreen(pointOn(COMET_CIRCLE, head - COMET_LENGTH));
+  const tail = COMET_START + time * COMET_SPEED - COMET_LENGTH;
+  let [px, py] = onCircle(COMET_CIRCLE, tail);
+  let pz = 0;
   for (let i = 1; i <= COMET_STEPS; i++) {
-    const t = head - COMET_LENGTH + (COMET_LENGTH * i) / COMET_STEPS;
-    const p = toScreen(pointOn(COMET_CIRCLE, t));
-    ctx.globalAlpha = 0.75 * (i / COMET_STEPS) * depthAlpha(p[2]);
+    const [x, y, z] = onCircle(COMET_CIRCLE, tail + (COMET_LENGTH * i) / COMET_STEPS);
+    ctx.globalAlpha = 0.75 * (i / COMET_STEPS) * depthAlpha(z);
     ctx.beginPath();
-    ctx.moveTo(prev[0], prev[1]);
-    ctx.lineTo(p[0], p[1]);
+    ctx.moveTo(px, py);
+    ctx.lineTo(x, y);
     ctx.stroke();
-    prev = p;
+    [px, py, pz] = [x, y, z];
   }
-  ctx.globalAlpha = depthAlpha(prev[2]);
+  ctx.globalAlpha = depthAlpha(pz);
   ctx.fillStyle = palette.accent;
   ctx.beginPath();
-  ctx.arc(prev[0], prev[1], 2.4, 0, Math.PI * 2);
+  ctx.arc(px, py, 2.4, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-}
-
-/** Each time the globe comes back, it grows into place from slightly smaller. */
-const drawWithEntrance: DrawFrame = (ctx, size, time, palette, sinceShown) => {
-  const scale = 0.92 + 0.08 * entrance(sinceShown, 0, 0.6);
-  ctx.clearRect(0, 0, size, size);
-  ctx.save();
-  ctx.translate(size / 2, size / 2);
-  ctx.scale(scale, scale);
-  ctx.translate(-size / 2, -size / 2);
-  draw(ctx, size, time, palette);
-  ctx.restore();
 };
 
 /**
@@ -207,7 +217,7 @@ const drawWithEntrance: DrawFrame = (ctx, size, time, palette, sinceShown) => {
  * reduced motion.
  */
 export function AgentSphere({ size = 320, active = true }: { size?: number; active?: boolean }) {
-  const canvasRef = useAnimatedCanvas(drawWithEntrance, { active });
+  const canvasRef = useAnimatedCanvas(draw, { active });
   return (
     <Box
       component="canvas"
