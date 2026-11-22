@@ -70,6 +70,9 @@ import (
 //			ListSubscriptionsFunc: func(ctx context.Context, target repositories.EventTarget) ([]models.EventSubscription, error) {
 //				panic("mock out the ListSubscriptions method")
 //			},
+//			LoadDestinationSecretFunc: func(ctx context.Context, d *models.EventDestination) error {
+//				panic("mock out the LoadDestinationSecret method")
+//			},
 //			PruneDeliveriesFunc: func(ctx context.Context, cutoff time.Time) (int64, error) {
 //				panic("mock out the PruneDeliveries method")
 //			},
@@ -154,6 +157,9 @@ type EventRepositoryMock struct {
 
 	// ListSubscriptionsFunc mocks the ListSubscriptions method.
 	ListSubscriptionsFunc func(ctx context.Context, target repositories.EventTarget) ([]models.EventSubscription, error)
+
+	// LoadDestinationSecretFunc mocks the LoadDestinationSecret method.
+	LoadDestinationSecretFunc func(ctx context.Context, d *models.EventDestination) error
 
 	// PruneDeliveriesFunc mocks the PruneDeliveries method.
 	PruneDeliveriesFunc func(ctx context.Context, cutoff time.Time) (int64, error)
@@ -331,6 +337,13 @@ type EventRepositoryMock struct {
 			// Target is the target argument value.
 			Target repositories.EventTarget
 		}
+		// LoadDestinationSecret holds details about calls to the LoadDestinationSecret method.
+		LoadDestinationSecret []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// D is the d argument value.
+			D *models.EventDestination
+		}
 		// PruneDeliveries holds details about calls to the PruneDeliveries method.
 		PruneDeliveries []struct {
 			// Ctx is the ctx argument value.
@@ -428,6 +441,7 @@ type EventRepositoryMock struct {
 	lockListDeliveries                sync.RWMutex
 	lockListDestinations              sync.RWMutex
 	lockListSubscriptions             sync.RWMutex
+	lockLoadDestinationSecret         sync.RWMutex
 	lockPruneDeliveries               sync.RWMutex
 	lockRecordDelivery                sync.RWMutex
 	lockRecordQueuedDelivery          sync.RWMutex
@@ -1104,6 +1118,42 @@ func (mock *EventRepositoryMock) ListSubscriptionsCalls() []struct {
 	mock.lockListSubscriptions.RLock()
 	calls = mock.calls.ListSubscriptions
 	mock.lockListSubscriptions.RUnlock()
+	return calls
+}
+
+// LoadDestinationSecret calls LoadDestinationSecretFunc.
+func (mock *EventRepositoryMock) LoadDestinationSecret(ctx context.Context, d *models.EventDestination) error {
+	if mock.LoadDestinationSecretFunc == nil {
+		panic("EventRepositoryMock.LoadDestinationSecretFunc: method is nil but EventRepository.LoadDestinationSecret was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		D   *models.EventDestination
+	}{
+		Ctx: ctx,
+		D:   d,
+	}
+	mock.lockLoadDestinationSecret.Lock()
+	mock.calls.LoadDestinationSecret = append(mock.calls.LoadDestinationSecret, callInfo)
+	mock.lockLoadDestinationSecret.Unlock()
+	return mock.LoadDestinationSecretFunc(ctx, d)
+}
+
+// LoadDestinationSecretCalls gets all the calls that were made to LoadDestinationSecret.
+// Check the length with:
+//
+//	len(mockedEventRepository.LoadDestinationSecretCalls())
+func (mock *EventRepositoryMock) LoadDestinationSecretCalls() []struct {
+	Ctx context.Context
+	D   *models.EventDestination
+} {
+	var calls []struct {
+		Ctx context.Context
+		D   *models.EventDestination
+	}
+	mock.lockLoadDestinationSecret.RLock()
+	calls = mock.calls.LoadDestinationSecret
+	mock.lockLoadDestinationSecret.RUnlock()
 	return calls
 }
 

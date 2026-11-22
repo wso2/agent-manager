@@ -185,6 +185,14 @@ Releases that stored traces also ran OpenSearch. Its data volume, `<COMPOSE_PROJ
 
 When the generated ThunderID settings change, ThunderID's setup runs again. It keeps your users and data, but it resets the admin password to `AMP_ADMIN_PASSWORD`.
 
+### Rotate the encryption key
+
+1. Generate a new key with `openssl rand -hex 32`.
+2. In `.env`, move the current `AMP_ENCRYPTION_KEY` value into `AMP_ENCRYPTION_KEY_PREVIOUS` (comma-separate it from any older keys already there), and set `AMP_ENCRYPTION_KEY` to the new key.
+3. Restart the stack with `docker compose up -d`.
+
+New secrets are sealed with the new key, and each existing one is resealed the next time it is updated. Keep the old keys in `AMP_ENCRYPTION_KEY_PREVIOUS`: a secret sealed with a key that is no longer listed can't be read.
+
 ### Back up
 
 The data lives in Docker volumes named after `COMPOSE_PROJECT_NAME` (default `amp-lite`): the AMP database (SQLite or PostgreSQL), ThunderID's database, the gateway's state. Stop the stack before copying them. Also keep your `.env`, especially `AMP_ENCRYPTION_KEY`.

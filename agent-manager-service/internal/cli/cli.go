@@ -34,6 +34,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/app"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/unsupported"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
@@ -186,12 +188,29 @@ var defaults []string
 
 func runApp(opts app.Options) {
 	opts.DefaultModules = defaults
-	// No secret store is bundled yet; secret writes report ErrNotSupported.
-	secretProvider := unsupported.NewProvider()
+	secretProvider, err := secretProviderFor(config.GetConfig().SecretManager.Provider)
+	if err != nil {
+		slog.Error("invalid secret store configuration", "error", err)
+		os.Exit(1)
+	}
 	// DB-backed AgentID provisioning: the environment Thunder credential is
 	// read from the database, not a key vault.
 	opts.AgentThunderProvisioning = services.DBBackedAgentThunderProvisioning()
 	app.Run(secretProvider, opts)
+}
+
+// secretProviderFor is the secret store SECRET_MANAGER_PROVIDER names: "inhouse" keeps secrets in the agent manager
+// database behind the secret vault, and "unsupported" refuses every secret write. Any other name is refused, so a
+// typo never silently changes where secrets go.
+func secretProviderFor(name string) (secretmanagersvc.Provider, error) {
+	switch strings.TrimSpace(name) {
+	case inhouse.ProviderName:
+		return inhouse.NewProvider(), nil
+	case unsupported.ProviderName:
+		return unsupported.NewProvider(), nil
+	default:
+		return nil, fmt.Errorf("SECRET_MANAGER_PROVIDER %q is not one of %q and %q", name, inhouse.ProviderName, unsupported.ProviderName)
+	}
 }
 
 func initCmd(args []string) error {

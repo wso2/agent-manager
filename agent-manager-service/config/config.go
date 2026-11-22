@@ -103,6 +103,10 @@ type Config struct {
 	// of secrets at rest (e.g., LLM provider API keys in monitor configs).
 	EncryptionKey string `json:"-"`
 
+	// PreviousEncryptionKeys is a comma-separated list of hex-encoded keys the
+	// secret vault still opens values with after EncryptionKey was rotated.
+	PreviousEncryptionKeys string `json:"-"`
+
 	// Secret Manager configuration
 	SecretManager SecretManagerConfig
 
@@ -210,8 +214,17 @@ type TLSConfig struct {
 
 // SecretManagerConfig holds secret manager client configuration
 type SecretManagerConfig struct {
-	// Provider is the secret store provider name (e.g., "unsupported")
+	// Provider is the secret store provider name (e.g., "inhouse")
 	Provider string
+
+	// VaultProvider names the vault that protects values kept in the secrets
+	// table: "local" encrypts them into the database; a deployment that
+	// registers an external vault names it here.
+	VaultProvider string
+	// VaultReaders lists external backends retained for reads and cleanup.
+	VaultReaders string
+	// VaultBindLocalRows enables row binding after the mixed-version and rollback window.
+	VaultBindLocalRows bool
 }
 
 // GitHubConfig holds GitHub API configuration

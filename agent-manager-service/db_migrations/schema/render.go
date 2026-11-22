@@ -113,11 +113,19 @@ var dialects = map[string]dialect{
 	},
 }
 
-// Render returns the baseline DDL for one dialect.
+// Render returns the baseline DDL for one dialect: every table no later migration creates.
 func (s *Schema) Render(dialectName string) (string, error) {
+	return s.RenderMigration(dialectName, BaselineID)
+}
+
+// RenderMigration returns the DDL of one migration for one dialect: the tables it creates.
+func (s *Schema) RenderMigration(dialectName, id string) (string, error) {
 	d, ok := dialects[dialectName]
 	if !ok {
 		return "", fmt.Errorf("unknown dialect %q", dialectName)
+	}
+	if s.migrationIndex(id) < 0 {
+		return "", fmt.Errorf("unknown migration %q", id)
 	}
 	tables, err := s.ordered()
 	if err != nil {
@@ -126,6 +134,9 @@ func (s *Schema) Render(dialectName string) (string, error) {
 	var b strings.Builder
 	b.WriteString(header(s.source))
 	for _, t := range tables {
+		if s.migrationIndex(t.Migration) != s.migrationIndex(id) {
+			continue
+		}
 		b.WriteString("\n")
 		renderTable(&b, d, t)
 		for _, ix := range t.Indexes {
@@ -214,5 +225,15 @@ func Statements(body string) []string {
 
 // BaselinePath is where the rendered baseline for a dialect lives, relative to the module root.
 func BaselinePath(dialect string) string {
-	return "db_migrations/sql/" + dialect + "/001_baseline.sql"
+	return MigrationPath(dialect, Migration{ID: BaselineID, Name: "baseline"})
+}
+
+// MigrationPath is where a rendered migration for a dialect lives, relative to the module root.
+func MigrationPath(dialect string, m Migration) string {
+	return "db_migrations/sql/" + dialect + "/" + m.ID + "_" + m.Name + ".sql"
+}
+
+// Files lists every migration the schema renders, the baseline first.
+func (s *Schema) Files() []Migration {
+	return append([]Migration{{ID: BaselineID, Name: "baseline"}}, s.Migrations...)
 }

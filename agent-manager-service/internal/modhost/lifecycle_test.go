@@ -174,6 +174,11 @@ func databases(t *testing.T) []database {
 	out := []database{{driver: "sqlite", open: func(t *testing.T) *gorm.DB {
 		g, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
 		require.NoError(t, err)
+		// Close before the parent's TempDir cleanup: an open connection keeps
+		// the WAL and shared-memory files, so removing the directory fails.
+		sqlDB, err := g.DB()
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = sqlDB.Close() })
 		return g
 	}}}
 	if postgresDatabase != nil {

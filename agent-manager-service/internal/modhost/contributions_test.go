@@ -41,6 +41,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
 
 // configured is replica with the host's settings changed before it boots.
@@ -266,8 +267,7 @@ func secretsStayInTheModule(t *testing.T, d database) {
 	defer cancel()
 	a, b := newSecretsModule("t-sa"), newSecretsModule("t-sb")
 	h, g := booted(t, ctx, d, []modkit.Module{a, b})
-	key := make([]byte, 32)
-	h.Attach(modhost.Deps{Secrets: repositories.NewModuleSecretStore(g, key)})
+	h.Attach(modhost.Deps{Secrets: repositories.NewModuleSecretStore(g, repositories.NewSecretStore(vaulttest.Local(t)))})
 	installAll(t, h, "t-sa", "t-sb")
 
 	org := uuid.NewString()

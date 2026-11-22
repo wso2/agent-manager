@@ -186,8 +186,12 @@ services:
       THUNDER_RESOLVE_TO_HOST: thunder:${THUNDER_PORT}
       THUNDER_CLIENT_ID: amp-system-client
       THUNDER_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
-      SECRET_MANAGER_PROVIDER: unsupported
       ENCRYPTION_KEY: ${AMP_ENCRYPTION_KEY}
+      ENCRYPTION_KEY_PREVIOUS: ${AMP_ENCRYPTION_KEY_PREVIOUS:-}
+      # Lite answers 501 for internal agents, the only writers of agent
+      # credentials, so no secret manager provider is wired here.
+      SECRET_MANAGER_PROVIDER: unsupported
+      SECRET_VAULT_BIND_LOCAL_ROWS: ${SECRET_VAULT_BIND_LOCAL_ROWS:-false}
       INTERNAL_SERVER_CERT_DIR: /var/lib/agent-manager/certs
       EVENTS_MODE: embedded
       MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR: gateway-runtime:19080

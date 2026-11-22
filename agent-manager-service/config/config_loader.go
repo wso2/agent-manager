@@ -267,7 +267,10 @@ func loadSettings(strict bool) {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		Provider: r.readOptionalString("SECRET_MANAGER_PROVIDER", "unsupported"),
+		Provider:           r.readOptionalString("SECRET_MANAGER_PROVIDER", "inhouse"),
+		VaultProvider:      r.readOptionalString("SECRET_VAULT_PROVIDER", "local"),
+		VaultReaders:       r.readOptionalString("SECRET_VAULT_READERS", ""),
+		VaultBindLocalRows: r.readOptionalBool("SECRET_VAULT_BIND_LOCAL_ROWS", false),
 	}
 
 	// Thunder admin API configuration for provisioning per-org OAuth apps
@@ -336,11 +339,12 @@ func loadSettings(strict bool) {
 	}
 	r.errors = append(r.errors, validateEventsConfig(config.Events)...)
 
-	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key)
 	// Encryption key for secrets at rest (hex-encoded 32-byte AES-256 key).
 	// Validated at runtime in wiring.ProvideEncryptionKey() so that
 	// non-server commands (e.g. --migrate) can run without the key.
 	config.EncryptionKey = r.readOptionalString("ENCRYPTION_KEY", "")
+	// Keys ENCRYPTION_KEY replaced; the secret vault still reads with them.
+	config.PreviousEncryptionKeys = r.readOptionalString("ENCRYPTION_KEY_PREVIOUS", "")
 
 	// Validate HTTP server configurations
 	validateHTTPServerConfigs(config, r)

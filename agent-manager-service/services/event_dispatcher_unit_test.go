@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -32,8 +33,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +41,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
@@ -194,7 +194,7 @@ func newDispatcherFixture(t *testing.T) *dispatcherFixture {
 			return 0, nil
 		},
 	}
-	resolver := NewEventDestinationService(f.repo, eventdestinations.NewRegistry(f.driver), testEventKey, discardSlog())
+	resolver := NewEventDestinationService(f.repo, eventdestinations.NewRegistry(f.driver), discardSlog())
 	f.dispatcher = NewEventDispatcherService(f.bus, f.repo, resolver,
 		config.Config{Events: config.EventsConfig{DeliveryMaxAttempts: 3}}, discardSlog()).(*eventDispatcher)
 	return f
@@ -402,14 +402,17 @@ func TestEventDispatcher_RetriesWhenOutcomeCannotBeStored(t *testing.T) {
 		attempt    int
 		disable    bool
 		unreadable bool
-		status     string
-		outcome    string
+		// lockedOut is a credential the configured keys cannot open.
+		lockedOut bool
+		status    string
+		outcome   string
 	}{
 		{name: "permanent failure", result: eventdestinations.Result{Err: errors.New("invalid target")}, attempt: 1, status: models.EventDeliveryFailed, outcome: "drop"},
 		{name: "attempts exhausted", result: eventdestinations.Result{Err: errors.New("unavailable"), Retryable: true}, attempt: 3, status: models.EventDeliveryFailed, outcome: "drop"},
 		{name: "pending", result: eventdestinations.Result{Err: errors.New("unavailable"), Retryable: true}, attempt: 1, status: models.EventDeliveryPending, outcome: "retry"},
 		{name: "skipped", attempt: 1, disable: true, status: models.EventDeliverySkipped, outcome: "drop"},
 		{name: "unreadable destination", attempt: 1, unreadable: true, status: models.EventDeliveryFailed, outcome: "drop"},
+		{name: "unreadable credential", attempt: 1, lockedOut: true, status: models.EventDeliveryFailed, outcome: "drop"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newDispatcherFixture(t)
@@ -433,6 +436,14 @@ func TestEventDispatcher_RetriesWhenOutcomeCannotBeStored(t *testing.T) {
 				dest.Kind = "unknown"
 				f.destinations[dest.ID] = dest
 			}
+			if tc.lockedOut {
+				secretID := uuid.New()
+				dest.SecretID = &secretID
+				f.destinations[dest.ID] = dest
+				f.repo.LoadDestinationSecretFunc = func(context.Context, *models.EventDestination) error {
+					return fmt.Errorf("failed to open secret %s: %w", secretID, repositories.ErrSecretUnreadable)
+				}
+			}
 			persist := f.repo.RecordDeliveryFunc
 			f.repo.RecordDeliveryFunc = func(_ context.Context, delivery *models.EventDelivery) error {
 				assert.Equal(t, tc.status, delivery.Status)
@@ -451,7 +462,7 @@ func TestEventDispatcher_RetriesWhenOutcomeCannotBeStored(t *testing.T) {
 			assert.Equal(t, tc.outcome, msg.outcome)
 			require.Len(t, f.recorded, 1)
 			assert.Equal(t, tc.status, f.recorded[0].Status)
-			if tc.disable || tc.unreadable {
+			if tc.disable || tc.unreadable || tc.lockedOut {
 				assert.Zero(t, f.driver.sends())
 			}
 		})
@@ -576,15 +587,13 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 	defer receiver.Close()
 
 	secret := webhook.SecretPrefix + base64.StdEncoding.EncodeToString([]byte("test-signing-key-for-unit-tests!"))
-	encrypted, err := aesgcm.Encrypt([]byte(secret), testEventKey)
-	require.NoError(t, err)
 	ou := "ou-" + uuid.NewString()[:8]
 	cfgJSON, _ := json.Marshal(webhook.Config{URL: receiver.URL})
 
 	f := newDispatcherFixture(t)
 	dest := models.EventDestination{
 		ID: uuid.New(), OUID: ou, Name: "CI", Kind: models.DestinationKindWebhook, Config: cfgJSON,
-		SecretEncrypted: encrypted, Availability: models.DestinationAvailableAll,
+		Secret: secret, Availability: models.DestinationAvailableAll,
 	}
 	f.destinations[dest.ID] = dest
 	match := matcherSubscription("agent", "p1", "a1", []string{moduleAgentEvent}, "dev")
@@ -597,7 +606,10 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 		f.subscriptions[s.ID] = s
 	}
 
-	var bus *events.NATSBus
+	var (
+		bus *events.NATSBus
+		err error
+	)
 	if natsURL := os.Getenv("NATS_TEST_URL"); natsURL != "" {
 		bus, err = events.Connect(natsURL, "", "dispatcher-test", discardSlog())
 	} else {
@@ -610,7 +622,7 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 	require.NoError(t, bus.Setup(ctx))
 
 	cfg := config.Config{Events: config.EventsConfig{DeliveryMaxAttempts: 3, AllowPrivateDestinations: true}}
-	resolver := NewEventDestinationService(f.repo, eventdestinations.NewRegistry(webhook.New(true)), testEventKey, discardSlog())
+	resolver := NewEventDestinationService(f.repo, eventdestinations.NewRegistry(webhook.New(true)), discardSlog())
 	d := NewEventDispatcherService(bus, f.repo, resolver, cfg, discardSlog())
 	require.NoError(t, d.Start(ctx))
 	defer func() { _ = d.Stop() }()

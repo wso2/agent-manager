@@ -38,7 +38,7 @@ func TestDeleteProjectRemovesItsEventSettings(t *testing.T) {
 	gdb := db.GetDB()
 	ou := newOrg(t)
 	projectID := dbtest.Project(t, gdb, ou, "events")
-	events := NewEventRepository(gdb)
+	events := NewEventRepository(gdb, testSecrets(t))
 	destination := &models.EventDestination{
 		OUID: ou, Name: "hook", Kind: models.DestinationKindWebhook,
 		Config:       json.RawMessage(`{"url":"https://hooks.example.com"}`),
