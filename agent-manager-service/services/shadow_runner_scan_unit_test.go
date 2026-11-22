@@ -89,14 +89,14 @@ func TestShadowCreateRunnerScan_CreatesPendingScanAndReturnsParts(t *testing.T) 
 	ctx := audit.WithRecorder(context.Background(), rec)
 
 	got, err := newRunnerShadowSvc(repo, shadowRunner(issuer)).CreateRunnerScan(ctx, shadowTestOU, conn.ID,
-		models.ShadowScanOptions{AIReview: true, LLMJudge: true})
+		models.ShadowScanOptions{AIReview: true, LLMJudge: true, DirectUpload: true})
 	require.NoError(t, err)
 
 	require.NotNil(t, created)
 	assert.Equal(t, models.ShadowScanPending, created.Status)
 	assert.Equal(t, shadowTestOU, created.OUID)
 	assert.Equal(t, []string{conn.ID.String()}, created.ConnectionIDs)
-	assert.Equal(t, models.ShadowScanOptions{AIReview: true, LLMJudge: true}, created.Options)
+	assert.Equal(t, models.ShadowScanOptions{AIReview: true, LLMJudge: true, DirectUpload: true}, created.Options)
 	assert.Equal(t, created.ID, got.ScanID)
 	assert.Equal(t, shadowScanTestToken, got.Token)
 	assert.Equal(t, exp, got.ExpiresAt)
@@ -116,8 +116,41 @@ func TestShadowCreateRunnerScan_RefusesWithoutAuditTrail(t *testing.T) {
 	conn := models.ShadowConnection{ID: uuid.New(), OUID: shadowTestOU, Provider: models.ShadowProviderGitHub}
 	// CreateScanFunc and the issuer are nil: reaching either panics.
 	svc := newRunnerShadowSvc(shadowRepoWith(conn), shadowRunner(&stubScanTokenIssuer{}))
-	_, err := svc.CreateRunnerScan(context.Background(), shadowTestOU, conn.ID, models.ShadowScanOptions{})
+	_, err := svc.CreateRunnerScan(context.Background(), shadowTestOU, conn.ID, models.ShadowScanOptions{DirectUpload: true})
 	require.ErrorIs(t, err, audit.ErrRecorderUnavailable)
+}
+
+// Without direct upload no token is issued (the issuer's func is nil, so a
+// call panics) and the scan is audited as created, not as a token issue, but
+// the pending scan is created and the command's parts are returned.
+func TestShadowCreateRunnerScan_WithoutDirectUploadIssuesNoToken(t *testing.T) {
+	conn := models.ShadowConnection{ID: uuid.New(), OUID: shadowTestOU, Name: "GitHub", Provider: models.ShadowProviderGitHub}
+	repo := shadowRepoWith(conn)
+	var created *models.ShadowScan
+	repo.CreateScanFunc = func(_ context.Context, s *models.ShadowScan) error {
+		created = s
+		return nil
+	}
+	rec := &recordingAuditor{}
+	ctx := audit.WithRecorder(context.Background(), rec)
+
+	got, err := newRunnerShadowSvc(repo, shadowRunner(&stubScanTokenIssuer{})).CreateRunnerScan(ctx, shadowTestOU, conn.ID,
+		models.ShadowScanOptions{AIReview: true})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, models.ShadowScanPending, created.Status)
+	assert.Equal(t, models.ShadowScanOptions{AIReview: true}, created.Options, "directUpload is stored as false")
+	assert.Equal(t, created.ID, got.ScanID)
+	assert.Empty(t, got.Token)
+	assert.True(t, got.ExpiresAt.IsZero())
+	assert.Equal(t, "https://amp.example.com", got.AMPURL)
+	assert.Equal(t, "ghcr.io/wso2/amp-shadow-runner:latest", got.Image)
+	require.Len(t, rec.events, 1, "one semantic record replaces the route's token-issue envelope")
+	assert.Equal(t, audit.ActionShadowScanCreate, rec.events[0].Action)
+	assert.Equal(t, shadowTestOU, rec.events[0].OUID)
+	for _, e := range rec.events {
+		assert.NotEqual(t, audit.ActionShadowScanTokenIssue, e.Action, "no token, so no token audit")
+	}
 }
 
 func TestShadowCreateRunnerScan_MintFailureLeavesNoScan(t *testing.T) {
@@ -132,7 +165,7 @@ func TestShadowCreateRunnerScan_MintFailureLeavesNoScan(t *testing.T) {
 	ctx := audit.WithRecorder(context.Background(), rec)
 
 	got, err := newRunnerShadowSvc(repo, shadowRunner(issuer)).CreateRunnerScan(ctx, shadowTestOU, conn.ID,
-		models.ShadowScanOptions{})
+		models.ShadowScanOptions{DirectUpload: true})
 	require.Error(t, err)
 	assert.Nil(t, got)
 	assert.ErrorIs(t, err, utils.ErrServiceUnavailable)
@@ -152,7 +185,7 @@ func TestShadowCreateRunnerScan_CreateScanFailureDropsTheToken(t *testing.T) {
 	ctx := audit.WithRecorder(context.Background(), rec)
 
 	got, err := newRunnerShadowSvc(repo, shadowRunner(issuer)).CreateRunnerScan(ctx, shadowTestOU, conn.ID,
-		models.ShadowScanOptions{})
+		models.ShadowScanOptions{DirectUpload: true})
 	require.Error(t, err)
 	assert.Nil(t, got, "no token without a scan")
 	assert.NotContains(t, err.Error(), shadowScanTestToken)

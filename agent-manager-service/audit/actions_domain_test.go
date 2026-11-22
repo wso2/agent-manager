@@ -99,6 +99,11 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 			[]rbac.Permission{rbac.ShadowAgentPublish},
 			ActionShadowScanPublish,
 		},
+		{
+			"POST /orgs/{orgName}/shadow-agents/scans/{scanId}/results",
+			[]rbac.Permission{rbac.ShadowAgentManage},
+			ActionShadowScanPublish,
+		},
 		{"POST /orgs/{orgName}/events/destinations", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationCreate},
 		{"PUT /orgs/{orgName}/events/destinations/{destinationId}", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationUpdate},
 		{"DELETE /orgs/{orgName}/events/destinations/{destinationId}", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationDelete},

@@ -58,6 +58,10 @@ type ShadowAgentController interface {
 	// PublishScanResults is the scan publisher endpoint a source code scan
 	// command calls with its scan token.
 	PublishScanResults(w http.ResponseWriter, r *http.Request)
+	// UploadScanResults is the same publish, uploaded from the console by a
+	// signed-in user.
+	UploadScanResults(w http.ResponseWriter, r *http.Request)
+	CancelScan(w http.ResponseWriter, r *http.Request)
 	ListScans(w http.ResponseWriter, r *http.Request)
 	CreateScan(w http.ResponseWriter, r *http.Request)
 	GetScan(w http.ResponseWriter, r *http.Request)
@@ -304,8 +308,8 @@ func (c *shadowAgentController) TestConnection(w http.ResponseWriter, r *http.Re
 	utils.WriteSuccessResponse(w, http.StatusOK, toShadowConnectionTest(*res))
 }
 
-// CreateRunnerScan creates a pending source code scan and its scan token. The
-// response carries the token, so it must never be cached.
+// CreateRunnerScan creates a pending source code scan and, with direct upload,
+// its scan token. The response can carry the token, so it is never cached.
 func (c *shadowAgentController) CreateRunnerScan(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	id, ok := shadowConnectionID(w, r)
@@ -317,19 +321,21 @@ func (c *shadowAgentController) CreateRunnerScan(w http.ResponseWriter, r *http.
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	opts := models.ShadowScanOptions{AIReview: req.AiReview, LLMJudge: req.LlmJudge}
+	opts := models.ShadowScanOptions{AIReview: req.AiReview, LLMJudge: req.LlmJudge, DirectUpload: req.GetDirectUpload()}
 	res, err := c.svc.CreateRunnerScan(r.Context(), middleware.OUIDFromRequest(r), id, opts)
 	if err != nil {
 		writeShadowError(w, r, err, "Failed to create the scan command")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusCreated, spec.ShadowRunnerScanResponse{
-		ScanId:    res.ScanID.String(),
-		Token:     res.Token,
-		ExpiresAt: res.ExpiresAt,
-		AmpUrl:    res.AMPURL,
-		Image:     res.Image,
-	})
+	resp := spec.ShadowRunnerScanResponse{
+		ScanId: res.ScanID.String(),
+		AmpUrl: res.AMPURL,
+		Image:  res.Image,
+	}
+	if res.Token != "" {
+		resp.Token, resp.ExpiresAt = &res.Token, &res.ExpiresAt
+	}
+	utils.WriteSuccessResponse(w, http.StatusCreated, resp)
 }
 
 // maxShadowPublishBodyBytes bounds a source code scan publish: up to 1000
@@ -338,10 +344,44 @@ const maxShadowPublishBodyBytes = 8 << 20
 
 // PublishScanResults handles POST /shadow-agent-publisher/scans/{scanId}/results.
 func (c *shadowAgentController) PublishScanResults(w http.ResponseWriter, r *http.Request) {
+	id, req, ok := decodeShadowScanResults(w, r)
+	if !ok {
+		return
+	}
+	// The organization comes only from the scan token, never from the
+	// request: jwtassertion.ShadowPublisherAuthMiddleware admitted the caller
+	// because its token is a scan token, issued for that organization.
+	res, err := c.svc.PublishRunnerScan(r.Context(), jwtassertion.ShadowPublisherOrg(r.Context()), id, req)
+	if err != nil {
+		writeShadowError(w, r, err, "Failed to save the scan results")
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, res)
+}
+
+// UploadScanResults handles POST /orgs/{orgName}/shadow-agents/scans/{scanId}/results:
+// the results object of a scan command's results file, uploaded from the
+// console. The body and its checks are those of PublishScanResults.
+func (c *shadowAgentController) UploadScanResults(w http.ResponseWriter, r *http.Request) {
+	id, req, ok := decodeShadowScanResults(w, r)
+	if !ok {
+		return
+	}
+	res, err := c.svc.UploadRunnerScanResults(r.Context(), middleware.OUIDFromRequest(r), id, req)
+	if err != nil {
+		writeShadowError(w, r, err, "Failed to save the scan results")
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, res)
+}
+
+// decodeShadowScanResults reads the scan ID and the scan results, and writes
+// the error response when either is invalid.
+func decodeShadowScanResults(w http.ResponseWriter, r *http.Request) (uuid.UUID, *models.PublishShadowScanRequest, bool) {
 	id, err := uuid.Parse(r.PathValue(PathParamShadowScanID))
 	if err != nil {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Scan not found")
-		return
+		return uuid.Nil, nil, false
 	}
 	// Unknown fields are ignored, so a newer scan command that sends one more
 	// field does not lose a long scan.
@@ -355,21 +395,13 @@ func (c *shadowAgentController) PublishScanResults(w http.ResponseWriter, r *htt
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
 			utils.WriteErrorResponse(w, http.StatusRequestEntityTooLarge, "Request body is too large")
-			return
+			return uuid.Nil, nil, false
 		}
 		logger.GetLogger(r.Context()).Warn("Failed to parse scan results", "scanId", id, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
+		return uuid.Nil, nil, false
 	}
-	// The organization comes only from the scan token, never from the
-	// request: jwtassertion.ShadowPublisherAuthMiddleware admitted the caller
-	// because its token is a scan token, issued for that organization.
-	res, err := c.svc.PublishRunnerScan(r.Context(), jwtassertion.ShadowPublisherOrg(r.Context()), id, &req)
-	if err != nil {
-		writeShadowError(w, r, err, "Failed to save the scan results")
-		return
-	}
-	utils.WriteSuccessResponse(w, http.StatusOK, res)
+	return id, &req, true
 }
 
 // ---- scans ----
@@ -433,6 +465,21 @@ func (c *shadowAgentController) GetScan(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, toShadowScanResponse(scan, true))
+}
+
+// CancelScan fails a pending source code scan that will get no results.
+func (c *shadowAgentController) CancelScan(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue(PathParamShadowScanID))
+	if err != nil {
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Scan not found")
+		return
+	}
+	scan, err := c.svc.CancelRunnerScan(r.Context(), middleware.OUIDFromRequest(r), id)
+	if err != nil {
+		writeShadowError(w, r, err, "Failed to cancel the scan")
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, toShadowScanResponse(scan, false))
 }
 
 // ClearScans deletes the org's finished scans. A queued or running scan is
@@ -614,7 +661,8 @@ func writeShadowError(w http.ResponseWriter, r *http.Request, err error, fallbac
 		utils.WriteErrorResponse(w, http.StatusConflict, "A connection with this name already exists")
 	case errors.Is(err, utils.ErrShadowScanInProgress):
 		utils.WriteErrorResponse(w, http.StatusConflict, "A scan is already queued or running")
-	case errors.Is(err, utils.ErrShadowScanNotPending), errors.Is(err, utils.ErrShadowScanSuperseded):
+	case errors.Is(err, utils.ErrShadowScanNotPending), errors.Is(err, utils.ErrShadowScanSuperseded),
+		errors.Is(err, utils.ErrShadowScanTokenExpired):
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrShadowNoConnections):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Add a platform before running a scan")
@@ -684,7 +732,9 @@ func toShadowScanResponse(s *models.ShadowScan, withRepositories bool) spec.Shad
 		ConnectionIds: s.ConnectionIDs, Results: make([]spec.ShadowScanConnectionResult, 0, len(s.Results)),
 		FindingsCount: int32(s.FindingsCount), //nolint:gosec // bounded by row counts
 		RequestedBy:   s.RequestedBy, StartedAt: s.StartedAt, FinishedAt: s.FinishedAt, CreatedAt: s.CreatedAt,
-		Options: &spec.ShadowScanOptions{AiReview: &s.Options.AIReview, LlmJudge: &s.Options.LLMJudge},
+		Options: &spec.ShadowScanOptions{
+			AiReview: &s.Options.AIReview, LlmJudge: &s.Options.LLMJudge, DirectUpload: &s.Options.DirectUpload,
+		},
 	}
 	if resp.ConnectionIds == nil {
 		resp.ConnectionIds = []string{}

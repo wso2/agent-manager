@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -55,9 +56,37 @@ var ErrShadowScanPublishDisabled = fmt.Errorf("%w: source code scan publishing i
 // PublishRunnerScan saves what a source code scan command found for its
 // pending scan and finishes the scan. The organization comes from the scan
 // token. Every agent must be valid, or nothing is saved. It is refused with
-// ErrShadowScanPublishDisabled while source code scans are turned off.
+// ErrShadowScanPublishDisabled while source code scans are turned off, and
+// with utils.ErrShadowScanTokenExpired for a scan older than a scan token
+// lives.
 func (s *shadowAgentService) PublishRunnerScan(
 	ctx context.Context, ouID string, scanID uuid.UUID, req *models.PublishShadowScanRequest,
+) (*models.PublishShadowScanResponse, error) {
+	// The publish comes from a machine client with an organization's scan
+	// token and changes the organization's agents: no RBAC user is behind it.
+	return s.publishRunnerScan(ctx, ouID, scanID, req, s.now().UTC().Add(-shadowScanTokenLife),
+		audit.SurfaceOpt(audit.SurfacePublisher),
+		audit.Actor(audit.ActorService, buildTokenClientID(ctx), ""),
+		audit.AuthMethod("shadow-scan-token"),
+	)
+}
+
+// UploadRunnerScanResults saves the results file of a source code scan,
+// uploaded by a signed-in user of the organization, exactly as
+// PublishRunnerScan saves a scan command's publish, at any time while the
+// scan is pending.
+func (s *shadowAgentService) UploadRunnerScanResults(
+	ctx context.Context, ouID string, scanID uuid.UUID, req *models.PublishShadowScanRequest,
+) (*models.PublishShadowScanResponse, error) {
+	return s.publishRunnerScan(ctx, ouID, scanID, req, time.Time{})
+}
+
+// publishRunnerScan saves the results for the scan. A scan created at or
+// before tokenExpiredCreatedBy is refused (the zero time refuses none).
+// actor names who sent them in the audit record.
+func (s *shadowAgentService) publishRunnerScan(
+	ctx context.Context, ouID string, scanID uuid.UUID, req *models.PublishShadowScanRequest,
+	tokenExpiredCreatedBy time.Time, actor ...audit.Option,
 ) (*models.PublishShadowScanResponse, error) {
 	if !s.runner.Enabled {
 		return nil, ErrShadowScanPublishDisabled
@@ -104,35 +133,33 @@ func (s *shadowAgentService) PublishRunnerScan(
 	apply.UnfinishedScopes = unfinished
 	result, status := shadowPublishOutcome(c, scanned, failed, complete)
 
-	// The publish comes from a machine client with an organization's scan
-	// token and changes the organization's agents, so it is recorded
+	// The results change the organization's agents, so they are recorded
 	// fail-closed: nothing is saved unrecorded.
-	attempt, err := audit.Begin(ctx, audit.ActionShadowScanPublish,
+	opts := append([]audit.Option{
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceShadowConnection, c.ID.String(), c.Name),
-		audit.SurfaceOpt(audit.SurfacePublisher),
-		audit.Actor(audit.ActorService, buildTokenClientID(ctx), ""),
-		audit.AuthMethod("shadow-scan-token"),
 		audit.Detail("provider", c.Provider),
 		audit.Detail("scanId", scan.ID.String()),
 		audit.Detail("agents", len(apply.Findings)),
 		audit.Detail("scannedRepositories", len(scanned)),
 		audit.Detail("failedRepositories", len(failed)),
 		audit.Detail("complete", complete),
-	)
+	}, actor...)
+	attempt, err := audit.Begin(ctx, audit.ActionShadowScanPublish, opts...)
 	if err != nil {
 		return nil, err
 	}
 	n, err := s.repo.PublishScanResults(ctx, repositories.ShadowScanPublish{
 		Apply: apply, Status: status, Result: result, FinishedAt: now,
-		ExpireCreatedBy: now.Add(-shadowPendingScanLife),
+		TokenExpiredCreatedBy: tokenExpiredCreatedBy,
 	})
 	attempt.Complete(ctx, err)
 	if err != nil {
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			return nil, utils.ErrShadowScanNotFound
-		case errors.Is(err, utils.ErrShadowScanNotPending), errors.Is(err, utils.ErrShadowScanSuperseded):
+		case errors.Is(err, utils.ErrShadowScanNotPending), errors.Is(err, utils.ErrShadowScanSuperseded),
+			errors.Is(err, utils.ErrShadowScanTokenExpired):
 			return nil, err
 		default:
 			return nil, fmt.Errorf("failed to save the scan results: %w", err)

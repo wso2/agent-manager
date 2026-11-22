@@ -73,9 +73,14 @@ const (
 	ShadowScanFailed    = "failed"
 )
 
-// ShadowScanExpiredMessage is the result of a pending scan whose scan command
-// did not publish results within an hour (the life of its scan token).
+// ShadowScanExpiredMessage is the result of a pending scan that an earlier
+// version failed because its scan command did not publish results within an
+// hour. Pending scans no longer expire; scans failed so keep the message.
 const ShadowScanExpiredMessage = "expired: no results within 1 hour"
+
+// ShadowScanCancelledMessage is the result of a pending scan the user
+// cancelled before any results were published or uploaded.
+const ShadowScanCancelledMessage = "cancelled: no results uploaded"
 
 // Outcomes of one provider call (or one connection) within a scan.
 const (
@@ -237,6 +242,9 @@ type ShadowScanOptions struct {
 	AIReview bool `json:"aiReview,omitempty"`
 	// LLMJudge makes a second model confirm the reviewer; needs AIReview.
 	LLMJudge bool `json:"llmJudge,omitempty"`
+	// DirectUpload gave the scan command a scan token to publish its results
+	// with. Without it the results file is uploaded from the console.
+	DirectUpload bool `json:"directUpload,omitempty"`
 }
 
 // ShadowScanConnectionResult is how one connection fared in a scan.

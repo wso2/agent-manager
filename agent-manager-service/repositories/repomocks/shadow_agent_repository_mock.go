@@ -25,6 +25,9 @@ import (
 //			ApplyCorrelationFunc: func(ctx context.Context, ouID string, relations map[uuid.UUID][]models.ShadowFindingRelation, signals map[uuid.UUID][]models.ShadowFindingSignal) error {
 //				panic("mock out the ApplyCorrelation method")
 //			},
+//			CancelPendingScanFunc: func(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error) {
+//				panic("mock out the CancelPendingScan method")
+//			},
 //			ClaimDueScansFunc: func(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]models.ShadowScan, error) {
 //				panic("mock out the ClaimDueScans method")
 //			},
@@ -45,9 +48,6 @@ import (
 //			},
 //			DeleteFinishedScansFunc: func(ctx context.Context, ouID string) (int64, error) {
 //				panic("mock out the DeleteFinishedScans method")
-//			},
-//			ExpirePendingScansFunc: func(ctx context.Context, olderThan time.Time, now time.Time) (int64, error) {
-//				panic("mock out the ExpirePendingScans method")
 //			},
 //			FinishScanFunc: func(ctx context.Context, s *models.ShadowScan) error {
 //				panic("mock out the FinishScan method")
@@ -113,6 +113,9 @@ type ShadowAgentRepositoryMock struct {
 	// ApplyCorrelationFunc mocks the ApplyCorrelation method.
 	ApplyCorrelationFunc func(ctx context.Context, ouID string, relations map[uuid.UUID][]models.ShadowFindingRelation, signals map[uuid.UUID][]models.ShadowFindingSignal) error
 
+	// CancelPendingScanFunc mocks the CancelPendingScan method.
+	CancelPendingScanFunc func(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error)
+
 	// ClaimDueScansFunc mocks the ClaimDueScans method.
 	ClaimDueScansFunc func(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]models.ShadowScan, error)
 
@@ -133,9 +136,6 @@ type ShadowAgentRepositoryMock struct {
 
 	// DeleteFinishedScansFunc mocks the DeleteFinishedScans method.
 	DeleteFinishedScansFunc func(ctx context.Context, ouID string) (int64, error)
-
-	// ExpirePendingScansFunc mocks the ExpirePendingScans method.
-	ExpirePendingScansFunc func(ctx context.Context, olderThan time.Time, now time.Time) (int64, error)
 
 	// FinishScanFunc mocks the FinishScan method.
 	FinishScanFunc func(ctx context.Context, s *models.ShadowScan) error
@@ -208,6 +208,17 @@ type ShadowAgentRepositoryMock struct {
 			// Signals is the signals argument value.
 			Signals map[uuid.UUID][]models.ShadowFindingSignal
 		}
+		// CancelPendingScan holds details about calls to the CancelPendingScan method.
+		CancelPendingScan []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ID is the id argument value.
+			ID uuid.UUID
+			// Now is the now argument value.
+			Now time.Time
+		}
 		// ClaimDueScans holds details about calls to the ClaimDueScans method.
 		ClaimDueScans []struct {
 			// Ctx is the ctx argument value.
@@ -264,15 +275,6 @@ type ShadowAgentRepositoryMock struct {
 			Ctx context.Context
 			// OuID is the ouID argument value.
 			OuID string
-		}
-		// ExpirePendingScans holds details about calls to the ExpirePendingScans method.
-		ExpirePendingScans []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OlderThan is the olderThan argument value.
-			OlderThan time.Time
-			// Now is the now argument value.
-			Now time.Time
 		}
 		// FinishScan holds details about calls to the FinishScan method.
 		FinishScan []struct {
@@ -434,6 +436,7 @@ type ShadowAgentRepositoryMock struct {
 	}
 	lockApplyConnectionResult sync.RWMutex
 	lockApplyCorrelation      sync.RWMutex
+	lockCancelPendingScan     sync.RWMutex
 	lockClaimDueScans         sync.RWMutex
 	lockCreateConnection      sync.RWMutex
 	lockCreateScan            sync.RWMutex
@@ -441,7 +444,6 @@ type ShadowAgentRepositoryMock struct {
 	lockDeleteFinding         sync.RWMutex
 	lockDeleteFindings        sync.RWMutex
 	lockDeleteFinishedScans   sync.RWMutex
-	lockExpirePendingScans    sync.RWMutex
 	lockFinishScan            sync.RWMutex
 	lockGetConnection         sync.RWMutex
 	lockGetFinding            sync.RWMutex
@@ -538,6 +540,50 @@ func (mock *ShadowAgentRepositoryMock) ApplyCorrelationCalls() []struct {
 	mock.lockApplyCorrelation.RLock()
 	calls = mock.calls.ApplyCorrelation
 	mock.lockApplyCorrelation.RUnlock()
+	return calls
+}
+
+// CancelPendingScan calls CancelPendingScanFunc.
+func (mock *ShadowAgentRepositoryMock) CancelPendingScan(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error) {
+	if mock.CancelPendingScanFunc == nil {
+		panic("ShadowAgentRepositoryMock.CancelPendingScanFunc: method is nil but ShadowAgentRepository.CancelPendingScan was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+		ID   uuid.UUID
+		Now  time.Time
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+		ID:   id,
+		Now:  now,
+	}
+	mock.lockCancelPendingScan.Lock()
+	mock.calls.CancelPendingScan = append(mock.calls.CancelPendingScan, callInfo)
+	mock.lockCancelPendingScan.Unlock()
+	return mock.CancelPendingScanFunc(ctx, ouID, id, now)
+}
+
+// CancelPendingScanCalls gets all the calls that were made to CancelPendingScan.
+// Check the length with:
+//
+//	len(mockedShadowAgentRepository.CancelPendingScanCalls())
+func (mock *ShadowAgentRepositoryMock) CancelPendingScanCalls() []struct {
+	Ctx  context.Context
+	OuID string
+	ID   uuid.UUID
+	Now  time.Time
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+		ID   uuid.UUID
+		Now  time.Time
+	}
+	mock.lockCancelPendingScan.RLock()
+	calls = mock.calls.CancelPendingScan
+	mock.lockCancelPendingScan.RUnlock()
 	return calls
 }
 
@@ -806,46 +852,6 @@ func (mock *ShadowAgentRepositoryMock) DeleteFinishedScansCalls() []struct {
 	mock.lockDeleteFinishedScans.RLock()
 	calls = mock.calls.DeleteFinishedScans
 	mock.lockDeleteFinishedScans.RUnlock()
-	return calls
-}
-
-// ExpirePendingScans calls ExpirePendingScansFunc.
-func (mock *ShadowAgentRepositoryMock) ExpirePendingScans(ctx context.Context, olderThan time.Time, now time.Time) (int64, error) {
-	if mock.ExpirePendingScansFunc == nil {
-		panic("ShadowAgentRepositoryMock.ExpirePendingScansFunc: method is nil but ShadowAgentRepository.ExpirePendingScans was just called")
-	}
-	callInfo := struct {
-		Ctx       context.Context
-		OlderThan time.Time
-		Now       time.Time
-	}{
-		Ctx:       ctx,
-		OlderThan: olderThan,
-		Now:       now,
-	}
-	mock.lockExpirePendingScans.Lock()
-	mock.calls.ExpirePendingScans = append(mock.calls.ExpirePendingScans, callInfo)
-	mock.lockExpirePendingScans.Unlock()
-	return mock.ExpirePendingScansFunc(ctx, olderThan, now)
-}
-
-// ExpirePendingScansCalls gets all the calls that were made to ExpirePendingScans.
-// Check the length with:
-//
-//	len(mockedShadowAgentRepository.ExpirePendingScansCalls())
-func (mock *ShadowAgentRepositoryMock) ExpirePendingScansCalls() []struct {
-	Ctx       context.Context
-	OlderThan time.Time
-	Now       time.Time
-} {
-	var calls []struct {
-		Ctx       context.Context
-		OlderThan time.Time
-		Now       time.Time
-	}
-	mock.lockExpirePendingScans.RLock()
-	calls = mock.calls.ExpirePendingScans
-	mock.lockExpirePendingScans.RUnlock()
 	return calls
 }
 

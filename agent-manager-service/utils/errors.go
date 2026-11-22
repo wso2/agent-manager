@@ -180,9 +180,15 @@ var (
 	ErrInvalidInput                   = errors.New("invalid input")
 	ErrImmutableFieldChange           = errors.New("cannot change immutable field")
 	ErrScopeNotFound                  = errors.New("scope not found")
-	// ErrShadowScanNotPending is a publish to a source code scan that is no
-	// longer waiting for results: it was published already, or it expired.
+	// ErrShadowScanNotPending is a publish to, or a cancel of, a source code
+	// scan that is no longer waiting for results: it was published already,
+	// cancelled, or it expired (before pending scans stopped expiring).
 	ErrShadowScanNotPending = errors.New("the scan is not waiting for results")
+	// ErrShadowScanTokenExpired is a publish with a scan token to a scan
+	// created longer ago than a scan token lives: its own token has expired,
+	// so its results file must be uploaded from the console.
+	ErrShadowScanTokenExpired = errors.New(
+		"the scan token of this scan has expired; upload the results file from the console")
 	// ErrShadowScanSuperseded is a publish to a source code scan after a
 	// newer scan of the same connection published its results.
 	ErrShadowScanSuperseded = errors.New("a newer scan of this platform has already published results")

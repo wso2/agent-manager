@@ -86,6 +86,10 @@ func (f *publishFixture) publish(ctx context.Context, req *models.PublishShadowS
 	return newPublishSvc(f.repo).PublishRunnerScan(ctx, shadowTestOU, f.scan.ID, req)
 }
 
+func (f *publishFixture) upload(ctx context.Context, req *models.PublishShadowScanRequest) (*models.PublishShadowScanResponse, error) {
+	return newPublishSvc(f.repo).UploadRunnerScanResults(ctx, shadowTestOU, f.scan.ID, req)
+}
+
 // newPublishSvc is a service with source code scans turned on. Publishing
 // needs no token issuer.
 func newPublishSvc(repo *repomocks.ShadowAgentRepositoryMock) ShadowAgentService {
@@ -137,7 +141,7 @@ func TestShadowPublishRunnerScan_GitHubSavesAgentsAndUnfinishedRepos(t *testing.
 	assert.NotContains(t, fi.Signals[0].Observed, "prompt")
 	assert.True(t, fi.Signals[0].DetectedAt.Equal(shadowPublishCreatedAt),
 		"evidence is dated when the scan was created, so a later scan can remove it")
-	assert.WithinDuration(t, time.Now().Add(-shadowPendingScanLife), f.published.ExpireCreatedBy, time.Minute,
+	assert.WithinDuration(t, time.Now().Add(-shadowScanTokenLife), f.published.TokenExpiredCreatedBy, time.Minute,
 		"a scan older than the life of its token is refused")
 
 	assert.Equal(t, models.ShadowScanPartial, f.published.Status)
@@ -364,6 +368,7 @@ func TestShadowPublishRunnerScan_Conflicts(t *testing.T) {
 
 	for _, repoErr := range []error{
 		utils.ErrShadowScanSuperseded,
+		utils.ErrShadowScanTokenExpired,
 		fmt.Errorf("%w: already published", utils.ErrShadowScanNotPending),
 	} {
 		f = newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
@@ -373,6 +378,124 @@ func TestShadowPublishRunnerScan_Conflicts(t *testing.T) {
 		_, err = f.publish(auditableCtx(t), req)
 		require.ErrorIs(t, err, repoErr)
 	}
+}
+
+// The console upload saves exactly what the scan publisher saves, with no
+// scan token time limit, and is recorded as the signed-in user's.
+func TestShadowUploadRunnerScanResults_SavesLikeAPublish(t *testing.T) {
+	cfg := models.ShadowConnectionConfig{Organization: "acme", Repositories: []string{"a", "b"}}
+	req := &models.PublishShadowScanRequest{
+		Complete:            true,
+		ScannedRepositories: []string{"a"},
+		FailedRepositories:  []models.PublishShadowScanFailedRepository{{Name: "B", Reason: "x"}},
+		Agents:              []models.PublishShadowScanAgent{codeAgent("acme/a:agent.py", "a", "github.d1_agent_dependency")},
+	}
+	published := newPublishFixture(models.ShadowProviderGitHub, cfg, models.ShadowScanOptions{})
+	want, err := published.publish(auditableCtx(t), req)
+	require.NoError(t, err)
+
+	f := newPublishFixture(models.ShadowProviderGitHub, cfg, models.ShadowScanOptions{})
+	f.scan.ID = published.scan.ID
+	f.scan.CreatedAt = time.Now().Add(-30 * 24 * time.Hour) // pending scans wait for their results
+	rec := &recordingAuditor{}
+	got, err := f.upload(audit.WithRecorder(context.Background(), rec), req)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+	assert.True(t, f.published.TokenExpiredCreatedBy.IsZero(), "an upload is not limited by a scan token's life")
+	assert.Equal(t, published.published.Apply.UnfinishedScopes, f.published.Apply.UnfinishedScopes)
+	wantResult := published.published.Result
+	wantResult.ConnectionID = f.conn.ID.String()
+	assert.Equal(t, wantResult, f.published.Result)
+	assert.Equal(t, published.published.Status, f.published.Status)
+	assert.Len(t, f.published.Apply.Findings, 1)
+
+	require.Len(t, rec.events, 2, "intent and outcome, fail-closed")
+	assert.Equal(t, audit.ActionShadowScanPublish, rec.events[0].Action)
+	assert.NotEqual(t, audit.ActorService, rec.events[0].ActorType, "the signed-in user, not a scan token")
+	assert.NotEqual(t, audit.SurfacePublisher, rec.events[0].Surface)
+	assert.Equal(t, audit.OutcomeSuccess, rec.events[1].Outcome)
+}
+
+func TestShadowUploadRunnerScanResults_Refusals(t *testing.T) {
+	req := &models.PublishShadowScanRequest{Complete: true}
+
+	f := newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+	f.repo.PublishScanResultsFunc = nil // reaching the repository panics
+	_, err := newPublishSvc(f.repo).UploadRunnerScanResults(auditableCtx(t), "ou-other", f.scan.ID, req)
+	require.ErrorIs(t, err, utils.ErrShadowScanNotFound, "another org's scan is not found")
+
+	f = newPublishFixture(models.ShadowProviderOpenAI, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+	f.repo.PublishScanResultsFunc = nil
+	_, err = f.upload(auditableCtx(t), req)
+	require.ErrorIs(t, err, utils.ErrShadowScanNotFound, "a cloud platform has no source code scan")
+
+	for _, msg := range []string{models.ShadowScanCancelledMessage, models.ShadowScanExpiredMessage} {
+		f = newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+		f.scan.Status = models.ShadowScanFailed
+		f.scan.Results = []models.ShadowScanConnectionResult{{Outcome: "failed", Message: msg}}
+		f.repo.PublishScanResultsFunc = nil
+		_, err = f.upload(auditableCtx(t), req)
+		require.ErrorIs(t, err, utils.ErrShadowScanNotPending)
+		assert.Contains(t, err.Error(), msg)
+	}
+
+	f = newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+	f.repo.PublishScanResultsFunc = func(context.Context, repositories.ShadowScanPublish) (int, error) {
+		return 0, utils.ErrShadowScanSuperseded
+	}
+	_, err = f.upload(auditableCtx(t), req)
+	require.ErrorIs(t, err, utils.ErrShadowScanSuperseded, "an older scan uploading after a newer one published")
+
+	f = newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+	f.repo.PublishScanResultsFunc = nil
+	_, err = f.upload(auditableCtx(t), &models.PublishShadowScanRequest{
+		Agents: make([]models.PublishShadowScanAgent, maxShadowPublishAgents+1),
+	})
+	require.ErrorIs(t, err, utils.ErrInvalidInput, "the publish limits apply")
+
+	f = newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+	f.repo.GetScanFunc = nil
+	_, err = newShadowSvc(f.repo).UploadRunnerScanResults(auditableCtx(t), shadowTestOU, f.scan.ID, req)
+	require.ErrorIs(t, err, ErrShadowScanPublishDisabled)
+
+	f = newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+	f.repo.PublishScanResultsFunc = nil
+	_, err = f.upload(context.Background(), req)
+	require.ErrorIs(t, err, audit.ErrRecorderUnavailable)
+}
+
+func TestShadowCancelRunnerScan(t *testing.T) {
+	f := newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+	f.repo.CancelPendingScanFunc = func(_ context.Context, ouID string, id uuid.UUID, _ time.Time) (bool, error) {
+		assert.Equal(t, shadowTestOU, ouID)
+		assert.Equal(t, f.scan.ID, id)
+		f.scan.Status = models.ShadowScanFailed
+		f.scan.Results = []models.ShadowScanConnectionResult{{Outcome: "failed", Message: models.ShadowScanCancelledMessage}}
+		return true, nil
+	}
+	got, err := newPublishSvc(f.repo).CancelRunnerScan(context.Background(), shadowTestOU, f.scan.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanFailed, got.Status)
+	require.Len(t, f.repo.CancelPendingScanCalls(), 1)
+
+	// Cancelled already, or published: refused before any change.
+	f.repo.CancelPendingScanFunc = nil
+	_, err = newPublishSvc(f.repo).CancelRunnerScan(context.Background(), shadowTestOU, f.scan.ID)
+	require.ErrorIs(t, err, utils.ErrShadowScanNotPending)
+	assert.Contains(t, err.Error(), models.ShadowScanCancelledMessage)
+
+	_, err = newPublishSvc(f.repo).CancelRunnerScan(context.Background(), "ou-other", f.scan.ID)
+	require.ErrorIs(t, err, utils.ErrShadowScanNotFound, "another org's scan is not found")
+
+	// Its results arrived between the read and the cancel.
+	f = newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+	f.repo.CancelPendingScanFunc = func(context.Context, string, uuid.UUID, time.Time) (bool, error) {
+		f.scan.Status = models.ShadowScanSucceeded
+		return false, nil
+	}
+	_, err = newPublishSvc(f.repo).CancelRunnerScan(context.Background(), shadowTestOU, f.scan.ID)
+	require.ErrorIs(t, err, utils.ErrShadowScanNotPending)
+	assert.Contains(t, err.Error(), "already published")
 }
 
 // While source code scans are turned off, publishing is refused before the

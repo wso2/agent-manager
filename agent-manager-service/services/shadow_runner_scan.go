@@ -44,10 +44,16 @@ const (
 	// left when it is issued. The identity provider issues one-hour tokens, so
 	// asking for the full hour would refuse every token.
 	shadowScanTokenMinValidity = 50 * time.Minute
+	// shadowScanTokenLife is how long a scan token lives. A scan created
+	// longer ago cannot be published with a scan token any more: its own
+	// token has expired, and its results file is uploaded from the console.
+	shadowScanTokenLife = time.Hour
 )
 
 // ShadowRunnerScan is a pending source code scan and the parts of the scan
-// command that runs it. The token is handed out once and never stored.
+// command that runs it. The token is handed out once and never stored; it is
+// empty, with a zero ExpiresAt, when the scan was created without direct
+// upload.
 type ShadowRunnerScan struct {
 	ScanID    uuid.UUID
 	Token     string
@@ -172,9 +178,22 @@ func (s *shadowAgentService) CreateRunnerScan(
 		return nil, err
 	}
 
+	scanID := uuid.New()
+	if !opts.DirectUpload {
+		// No token: the results file is uploaded from the console by a
+		// signed-in user, so there is no credential to account for. Record
+		// the scan it created, so the trail does not say a token was issued.
+		out, err := s.createPendingRunnerScan(ctx, ouID, c.ID, scanID, opts, "", time.Time{})
+		if err != nil {
+			return nil, err
+		}
+		audit.Record(ctx, audit.ActionShadowScanCreate,
+			audit.Org(ouID),
+			audit.ResourceNamed(audit.ResourceShadowConnection, c.ID.String(), c.Name))
+		return out, nil
+	}
 	// Handing out a live token for the organization: record the intent first
 	// and refuse to proceed if the trail is unavailable.
-	scanID := uuid.New()
 	attempt, err := audit.Begin(ctx, audit.ActionShadowScanTokenIssue,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceShadowConnection, c.ID.String(), c.Name),
@@ -203,6 +222,15 @@ func (s *shadowAgentService) startRunnerScan(
 	if err != nil {
 		return nil, fmt.Errorf("failed to issue the scan token: %w", err)
 	}
+	return s.createPendingRunnerScan(ctx, ouID, connectionID, scanID, opts, token, expiresAt)
+}
+
+// createPendingRunnerScan creates the pending scan and returns the parts of
+// its scan command, with token when the scan has one.
+func (s *shadowAgentService) createPendingRunnerScan(
+	ctx context.Context, ouID string, connectionID, scanID uuid.UUID, opts models.ShadowScanOptions,
+	token string, expiresAt time.Time,
+) (*ShadowRunnerScan, error) {
 	scan := &models.ShadowScan{
 		ID:            scanID,
 		OUID:          ouID,
@@ -222,4 +250,34 @@ func (s *shadowAgentService) startRunnerScan(
 		AMPURL:    s.runner.AMPURL,
 		Image:     s.runner.Image,
 	}, nil
+}
+
+// CancelRunnerScan fails a pending source code scan of the org with no
+// results: its results file will not be uploaded. Results published or
+// uploaded for it later are refused. A scan that is not pending is refused
+// with utils.ErrShadowScanNotPending.
+func (s *shadowAgentService) CancelRunnerScan(ctx context.Context, ouID string, scanID uuid.UUID) (*models.ShadowScan, error) {
+	scan, err := s.GetScan(ctx, ouID, scanID)
+	if err != nil {
+		return nil, err
+	}
+	if err := repositories.ShadowScanNotPendingError(scan); err != nil {
+		return nil, err
+	}
+	cancelled, err := s.repo.CancelPendingScan(ctx, ouID, scanID, s.now().UTC())
+	if err != nil {
+		return nil, fmt.Errorf("failed to cancel the scan: %w", err)
+	}
+	scan, err = s.GetScan(ctx, ouID, scanID)
+	if err != nil {
+		return nil, err
+	}
+	if !cancelled {
+		// Its results arrived in the meantime.
+		if err := repositories.ShadowScanNotPendingError(scan); err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to cancel the scan %s: it is still pending", scanID)
+	}
+	return scan, nil
 }

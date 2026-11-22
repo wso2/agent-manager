@@ -14950,12 +14950,15 @@ paths:
         - Shadow Agent Discovery
       summary: Create a source code scan command
       description: |
-        Creates a pending scan of a GitHub connection and a
-        scan token, valid for about one hour, that lets the scan command
-        publish its results for this organization only. Returns the parts the
-        console composes the scan command from. The token is returned once and
-        is not stored; the response is not cached. A pending scan with no
-        results within one hour fails as expired.
+        Creates a pending scan of a GitHub connection and returns the parts
+        the console composes the scan command from. With directUpload, it also
+        issues a scan token, valid for about one hour, that lets the scan
+        command publish its results for this organization only; the token is
+        returned once and is not stored. Without directUpload no token is
+        issued, and the results file the command saves is uploaded from the
+        console. The response is never cached. A pending scan waits for its
+        results until they are published or uploaded, or the scan is
+        cancelled.
       operationId: createShadowRunnerScan
       requestBody:
         required: true
@@ -15131,6 +15134,132 @@ paths:
                 $ref: "#/components/schemas/ShadowScanResponse"
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/scans/{scanId}/results:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: scanId
+        in: path
+        required: true
+        description: Scan ID
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - Shadow Agent Discovery
+      summary: Upload the results of a source code scan
+      description: |
+        Saves the results a source code scan command wrote to its results file
+        (the file's results object) for the scan's pending scan, as the
+        signed-in user, and finishes the scan. The checks and limits are those
+        of the scan publisher endpoint: every agent must be valid or nothing is
+        saved, and the body is at most 8 MiB.
+      operationId: uploadShadowScanResults
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShadowScanResultsRequest"
+      responses:
+        "200":
+          description: Results saved and the scan finished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowScanResultsResponse"
+        "400":
+          description: Invalid results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such source code scan in the organization, or source code scans are turned off
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The scan is not waiting for results, or a newer scan of the platform has published results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: The request body is larger than 8 MiB
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The audit trail is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/scans/{scanId}/cancel:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: scanId
+        in: path
+        required: true
+        description: Scan ID
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - Shadow Agent Discovery
+      summary: Cancel a source code scan
+      description: |
+        Fails a pending source code scan that is waiting for its results, with
+        the message "cancelled: no results uploaded". Results published or
+        uploaded for it later are refused.
+      operationId: cancelShadowScan
+      responses:
+        "200":
+          description: Scan cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowScanResponse"
+        "404":
+          description: No such source code scan in the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The scan is not waiting for results
           content:
             application/json:
               schema:
@@ -25158,8 +25287,8 @@ components:
         status:
           type: string
           description: >-
-            pending: a source code scan waiting for its scan command to publish results (it
-            fails after 1 hour without them); queued and running: a cloud scan in progress.
+            pending: a source code scan waiting for its results, until they are published or
+            uploaded or the scan is cancelled; queued and running: a cloud scan in progress.
           enum: [pending, queued, running, succeeded, partial, failed]
         connectionIds:
           type: array
@@ -25196,6 +25325,9 @@ components:
         llmJudge:
           type: boolean
           description: A second model must confirm the reviewer. Only with aiReview.
+        directUpload:
+          type: boolean
+          description: The scan command was given a scan token to publish its results with.
 
     ShadowRunnerScanRequest:
       type: object
@@ -25208,30 +25340,125 @@ components:
         llmJudge:
           type: boolean
           description: A second model must confirm the reviewer. Only with aiReview.
+        directUpload:
+          type: boolean
+          default: false
+          description: >-
+            Issue a scan token so the scan command can publish its results itself. Without it
+            no token is issued, and the results file is uploaded from the console.
 
     ShadowRunnerScanResponse:
       type: object
       description: |
         The pending scan and the parts of the scan command that runs it. The
         token is shown once.
-      required: [scanId, token, expiresAt, ampUrl, image]
+      required: [scanId, ampUrl, image]
       properties:
         scanId:
           type: string
           format: uuid
         token:
           type: string
-          description: The scan token the command publishes its results with.
+          description: The scan token the command publishes its results with. Only with directUpload.
         expiresAt:
           type: string
           format: date-time
-          description: When the scan token expires.
+          description: When the scan token expires. Only with directUpload.
         ampUrl:
           type: string
           description: The Agent Manager address the scan command publishes to.
         image:
           type: string
           description: The scan command's container image.
+
+    ShadowScanResultsRequest:
+      type: object
+      description: |
+        The results of a source code scan: the results object of the results
+        file the scan command saves, exactly as the command publishes it.
+      required: [complete, scannedRepositories, failedRepositories, agents]
+      properties:
+        complete:
+          type: boolean
+          description: The command listed every repository the platform's settings name.
+        scannedRepositories:
+          type: array
+          maxItems: 5000
+          description: The repositories scanned to the end.
+          items:
+            type: string
+        failedRepositories:
+          type: array
+          maxItems: 5000
+          description: The repositories the command could not scan.
+          items:
+            $ref: "#/components/schemas/ShadowScanResultsFailedRepository"
+        agents:
+          type: array
+          maxItems: 1000
+          description: The confirmed code agents.
+          items:
+            $ref: "#/components/schemas/ShadowScanResultsAgent"
+
+    ShadowScanResultsFailedRepository:
+      type: object
+      required: [name, reason]
+      properties:
+        name:
+          type: string
+        reason:
+          type: string
+
+    ShadowScanResultsAgent:
+      type: object
+      required: [externalId, name, repository, attributes, evidence]
+      properties:
+        externalId:
+          type: string
+          description: The command's stable ID of the agent.
+        name:
+          type: string
+        repository:
+          type: string
+          description: The repository the agent is in.
+        attributes:
+          type: object
+          additionalProperties: true
+          description: Allow-listed attributes; reviewedBy (rules, ai_review or ai_review_judge) is required.
+        evidence:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/ShadowScanResultsEvidence"
+
+    ShadowScanResultsEvidence:
+      type: object
+      required: [code, source, observed]
+      properties:
+        code:
+          type: string
+          description: An evidence code of the platform's provider, such as github.d1_agent_dependency.
+        source:
+          type: string
+          description: The file the evidence was found in.
+        observed:
+          type: object
+          additionalProperties: true
+
+    ShadowScanResultsResponse:
+      type: object
+      required: [scanId, status, findingsCount]
+      properties:
+        scanId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [succeeded, partial, failed]
+        findingsCount:
+          type: integer
+          description: Agents saved.
 
     ShadowScanListResponse:
       type: object

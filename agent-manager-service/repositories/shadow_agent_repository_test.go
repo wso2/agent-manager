@@ -531,15 +531,19 @@ func TestShadowPendingScans(t *testing.T) {
 	require.NoError(t, err, "Clear scans keeps a pending scan")
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	_, err = repo.ExpirePendingScans(ctx, got.CreatedAt.Add(-time.Minute), now)
+	cancelled, err := repo.CancelPendingScan(ctx, "ou-"+uuid.NewString(), pending.ID, now)
 	require.NoError(t, err)
+	assert.False(t, cancelled, "another org cannot cancel the scan")
 	got, err = repo.GetScan(ctx, ou, pending.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.ShadowScanPending, got.Status, "a scan younger than the cut-off waits")
+	assert.Equal(t, models.ShadowScanPending, got.Status)
 
-	n, err = repo.ExpirePendingScans(ctx, now.Add(time.Minute), now)
+	cancelled, err = repo.CancelPendingScan(ctx, ou, pending.ID, now)
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, n, int64(1))
+	assert.True(t, cancelled)
+	cancelled, err = repo.CancelPendingScan(ctx, ou, pending.ID, now)
+	require.NoError(t, err)
+	assert.False(t, cancelled, "a scan that is no longer pending is not cancelled again")
 	got, err = repo.GetScan(ctx, ou, pending.ID)
 	require.NoError(t, err)
 	assert.Equal(t, models.ShadowScanFailed, got.Status)
@@ -548,8 +552,11 @@ func TestShadowPendingScans(t *testing.T) {
 	assert.Equal(t, c.ID.String(), got.Results[0].ConnectionID)
 	assert.Equal(t, "GitHub repos", got.Results[0].ConnectionName)
 	assert.Equal(t, models.ShadowScanFailed, got.Results[0].Outcome)
-	assert.Equal(t, models.ShadowScanExpiredMessage, got.Results[0].Message)
+	assert.Equal(t, models.ShadowScanCancelledMessage, got.Results[0].Message)
 	assert.Empty(t, got.Results[0].Calls)
+	stillQueued, err := repo.CancelPendingScan(ctx, ou, queued.ID, now)
+	require.NoError(t, err)
+	assert.False(t, stillQueued, "only a pending scan is cancelled")
 }
 
 // Clearing deletes only finished scans with their per-scan agent lists;
@@ -859,33 +866,43 @@ func TestShadowPublishScanResultsFinishesThePendingScan(t *testing.T) {
 	assert.True(t, IsShadowNotFound(err), "another org's scan")
 }
 
-// An expired scan takes no publish, and does not stop an older pending scan
-// of the same connection from publishing.
-func TestShadowPublishScanResultsRefusesAnExpiredScan(t *testing.T) {
-	ctx := context.Background()
-	repo := NewShadowAgentRepository(db.GetDB())
-	ou := "ou-" + uuid.NewString()
-	c := newSourceConnection(t, repo, ou, "repos")
-	expired := newPendingScan(t, repo, ou, c.ID)
-	now := time.Now().UTC().Truncate(time.Microsecond)
-	_, err := repo.ExpirePendingScans(ctx, now.Add(time.Minute), now)
-	require.NoError(t, err)
+// A cancelled scan, or one an earlier version expired, takes no publish, and
+// does not stop an older pending scan of the same connection from publishing.
+func TestShadowPublishScanResultsRefusesACancelledOrExpiredScan(t *testing.T) {
+	for _, msg := range []string{models.ShadowScanCancelledMessage, models.ShadowScanExpiredMessage} {
+		t.Run(msg, func(t *testing.T) {
+			ctx := context.Background()
+			repo := NewShadowAgentRepository(db.GetDB())
+			ou := "ou-" + uuid.NewString()
+			c := newSourceConnection(t, repo, ou, "repos")
+			ended := newPendingScan(t, repo, ou, c.ID)
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			cancelled, err := repo.CancelPendingScan(ctx, ou, ended.ID, now)
+			require.NoError(t, err)
+			require.True(t, cancelled)
+			if msg == models.ShadowScanExpiredMessage {
+				// As the scan worker of an earlier version left it.
+				require.NoError(t, db.GetDB().Exec(`UPDATE shadow_scans SET results = jsonb_set(results, '{0,message}', to_jsonb(?::text))
+					WHERE id = ?`, msg, ended.ID).Error)
+			}
 
-	_, err = repo.PublishScanResults(ctx, scanPublish(expired, c, nil, []string{"a"}, nil))
-	require.ErrorIs(t, err, utils.ErrShadowScanNotPending)
-	assert.Contains(t, err.Error(), models.ShadowScanExpiredMessage)
-	got, err := repo.GetScan(ctx, ou, expired.ID)
-	require.NoError(t, err)
-	assert.Equal(t, models.ShadowScanFailed, got.Status, "the expired result is kept")
+			_, err = repo.PublishScanResults(ctx, scanPublish(ended, c, nil, []string{"a"}, nil))
+			require.ErrorIs(t, err, utils.ErrShadowScanNotPending)
+			assert.Contains(t, err.Error(), msg)
+			got, err := repo.GetScan(ctx, ou, ended.ID)
+			require.NoError(t, err)
+			assert.Equal(t, models.ShadowScanFailed, got.Status, "the result is kept")
 
-	older := newPendingScan(t, repo, ou, c.ID)
-	require.NoError(t, db.GetDB().Exec("UPDATE shadow_scans SET created_at = ? WHERE id = ?",
-		got.CreatedAt.Add(-time.Minute), older.ID).Error)
-	older.CreatedAt = got.CreatedAt.Add(-time.Minute)
-	n, err := repo.PublishScanResults(ctx, scanPublish(older, c, []ShadowFindingInput{codeAgentInput("a:1", "a", now)},
-		[]string{"a"}, nil))
-	require.NoError(t, err, "an expired newer scan published nothing")
-	assert.Equal(t, 1, n)
+			older := newPendingScan(t, repo, ou, c.ID)
+			require.NoError(t, db.GetDB().Exec("UPDATE shadow_scans SET created_at = ? WHERE id = ?",
+				got.CreatedAt.Add(-time.Minute), older.ID).Error)
+			older.CreatedAt = got.CreatedAt.Add(-time.Minute)
+			n, err := repo.PublishScanResults(ctx, scanPublish(older, c, []ShadowFindingInput{codeAgentInput("a:1", "a", now)},
+				[]string{"a"}, nil))
+			require.NoError(t, err, "a newer scan that ended without results published nothing")
+			assert.Equal(t, 1, n)
+		})
+	}
 }
 
 // An older scan cannot publish after a newer scan of the same connection
@@ -920,9 +937,9 @@ func TestShadowPublishScanResultsRefusesAfterANewerScan(t *testing.T) {
 	require.NoError(t, err, "a newer scan of another connection does not count")
 }
 
-// A pending scan older than the life of its token takes no publish, even
-// before the worker marks it expired.
-func TestShadowPublishScanResultsRefusesAScanPastItsLife(t *testing.T) {
+// A pending scan older than the life of its token takes no publish with a
+// scan token, and stays pending for a console upload.
+func TestShadowPublishScanResultsRefusesAScanPastItsTokenLife(t *testing.T) {
 	ctx := context.Background()
 	repo := NewShadowAgentRepository(db.GetDB())
 	ou := "ou-" + uuid.NewString()
@@ -932,17 +949,16 @@ func TestShadowPublishScanResultsRefusesAScanPastItsLife(t *testing.T) {
 	require.NoError(t, err)
 
 	in := scanPublish(got, c, nil, []string{"a"}, nil)
-	in.ExpireCreatedBy = got.CreatedAt
+	in.TokenExpiredCreatedBy = got.CreatedAt
 	_, err = repo.PublishScanResults(ctx, in)
-	require.ErrorIs(t, err, utils.ErrShadowScanNotPending)
-	assert.Contains(t, err.Error(), models.ShadowScanExpiredMessage)
+	require.ErrorIs(t, err, utils.ErrShadowScanTokenExpired)
 	got, err = repo.GetScan(ctx, ou, pending.ID)
 	require.NoError(t, err)
-	assert.Equal(t, models.ShadowScanPending, got.Status, "the worker marks it; the publish only refuses")
+	assert.Equal(t, models.ShadowScanPending, got.Status, "the scan keeps waiting for an upload")
 
-	in.ExpireCreatedBy = got.CreatedAt.Add(-time.Microsecond)
+	in.TokenExpiredCreatedBy = got.CreatedAt.Add(-time.Microsecond)
 	_, err = repo.PublishScanResults(ctx, in)
-	require.NoError(t, err, "a scan created after the cut-off is still waiting")
+	require.NoError(t, err, "a scan created after the cut-off can still be published")
 }
 
 // Evidence a publish saves is dated when its scan was created, so a newer

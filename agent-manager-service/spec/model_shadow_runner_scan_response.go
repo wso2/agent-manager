@@ -21,10 +21,10 @@ var _ MappedNullable = &ShadowRunnerScanResponse{}
 // ShadowRunnerScanResponse The pending scan and the parts of the scan command that runs it. The token is shown once.
 type ShadowRunnerScanResponse struct {
 	ScanId string `json:"scanId"`
-	// The scan token the command publishes its results with.
-	Token string `json:"token"`
-	// When the scan token expires.
-	ExpiresAt time.Time `json:"expiresAt"`
+	// The scan token the command publishes its results with. Only with directUpload.
+	Token *string `json:"token,omitempty"`
+	// When the scan token expires. Only with directUpload.
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 	// The Agent Manager address the scan command publishes to.
 	AmpUrl string `json:"ampUrl"`
 	// The scan command's container image.
@@ -35,11 +35,9 @@ type ShadowRunnerScanResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewShadowRunnerScanResponse(scanId string, token string, expiresAt time.Time, ampUrl string, image string) *ShadowRunnerScanResponse {
+func NewShadowRunnerScanResponse(scanId string, ampUrl string, image string) *ShadowRunnerScanResponse {
 	this := ShadowRunnerScanResponse{}
 	this.ScanId = scanId
-	this.Token = token
-	this.ExpiresAt = expiresAt
 	this.AmpUrl = ampUrl
 	this.Image = image
 	return &this
@@ -77,52 +75,68 @@ func (o *ShadowRunnerScanResponse) SetScanId(v string) {
 	o.ScanId = v
 }
 
-// GetToken returns the Token field value
+// GetToken returns the Token field value if set, zero value otherwise.
 func (o *ShadowRunnerScanResponse) GetToken() string {
-	if o == nil {
+	if o == nil || IsNil(o.Token) {
 		var ret string
 		return ret
 	}
-
-	return o.Token
+	return *o.Token
 }
 
-// GetTokenOk returns a tuple with the Token field value
+// GetTokenOk returns a tuple with the Token field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *ShadowRunnerScanResponse) GetTokenOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Token) {
 		return nil, false
 	}
-	return &o.Token, true
+	return o.Token, true
 }
 
-// SetToken sets field value
+// HasToken returns a boolean if a field has been set.
+func (o *ShadowRunnerScanResponse) HasToken() bool {
+	if o != nil && !IsNil(o.Token) {
+		return true
+	}
+
+	return false
+}
+
+// SetToken gets a reference to the given string and assigns it to the Token field.
 func (o *ShadowRunnerScanResponse) SetToken(v string) {
-	o.Token = v
+	o.Token = &v
 }
 
-// GetExpiresAt returns the ExpiresAt field value
+// GetExpiresAt returns the ExpiresAt field value if set, zero value otherwise.
 func (o *ShadowRunnerScanResponse) GetExpiresAt() time.Time {
-	if o == nil {
+	if o == nil || IsNil(o.ExpiresAt) {
 		var ret time.Time
 		return ret
 	}
-
-	return o.ExpiresAt
+	return *o.ExpiresAt
 }
 
-// GetExpiresAtOk returns a tuple with the ExpiresAt field value
+// GetExpiresAtOk returns a tuple with the ExpiresAt field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *ShadowRunnerScanResponse) GetExpiresAtOk() (*time.Time, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.ExpiresAt) {
 		return nil, false
 	}
-	return &o.ExpiresAt, true
+	return o.ExpiresAt, true
 }
 
-// SetExpiresAt sets field value
+// HasExpiresAt returns a boolean if a field has been set.
+func (o *ShadowRunnerScanResponse) HasExpiresAt() bool {
+	if o != nil && !IsNil(o.ExpiresAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetExpiresAt gets a reference to the given time.Time and assigns it to the ExpiresAt field.
 func (o *ShadowRunnerScanResponse) SetExpiresAt(v time.Time) {
-	o.ExpiresAt = v
+	o.ExpiresAt = &v
 }
 
 // GetAmpUrl returns the AmpUrl field value
@@ -184,8 +198,12 @@ func (o ShadowRunnerScanResponse) MarshalJSON() ([]byte, error) {
 func (o ShadowRunnerScanResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["scanId"] = o.ScanId
-	toSerialize["token"] = o.Token
-	toSerialize["expiresAt"] = o.ExpiresAt
+	if !IsNil(o.Token) {
+		toSerialize["token"] = o.Token
+	}
+	if !IsNil(o.ExpiresAt) {
+		toSerialize["expiresAt"] = o.ExpiresAt
+	}
 	toSerialize["ampUrl"] = o.AmpUrl
 	toSerialize["image"] = o.Image
 	return toSerialize, nil

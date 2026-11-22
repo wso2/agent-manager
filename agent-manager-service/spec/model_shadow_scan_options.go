@@ -23,6 +23,8 @@ type ShadowScanOptions struct {
 	AiReview *bool `json:"aiReview,omitempty"`
 	// A second model must confirm the reviewer. Only with aiReview.
 	LlmJudge *bool `json:"llmJudge,omitempty"`
+	// The scan command was given a scan token to publish its results with.
+	DirectUpload *bool `json:"directUpload,omitempty"`
 }
 
 // NewShadowScanOptions instantiates a new ShadowScanOptions object
@@ -106,6 +108,38 @@ func (o *ShadowScanOptions) SetLlmJudge(v bool) {
 	o.LlmJudge = &v
 }
 
+// GetDirectUpload returns the DirectUpload field value if set, zero value otherwise.
+func (o *ShadowScanOptions) GetDirectUpload() bool {
+	if o == nil || IsNil(o.DirectUpload) {
+		var ret bool
+		return ret
+	}
+	return *o.DirectUpload
+}
+
+// GetDirectUploadOk returns a tuple with the DirectUpload field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowScanOptions) GetDirectUploadOk() (*bool, bool) {
+	if o == nil || IsNil(o.DirectUpload) {
+		return nil, false
+	}
+	return o.DirectUpload, true
+}
+
+// HasDirectUpload returns a boolean if a field has been set.
+func (o *ShadowScanOptions) HasDirectUpload() bool {
+	if o != nil && !IsNil(o.DirectUpload) {
+		return true
+	}
+
+	return false
+}
+
+// SetDirectUpload gets a reference to the given bool and assigns it to the DirectUpload field.
+func (o *ShadowScanOptions) SetDirectUpload(v bool) {
+	o.DirectUpload = &v
+}
+
 func (o ShadowScanOptions) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -121,6 +155,9 @@ func (o ShadowScanOptions) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.LlmJudge) {
 		toSerialize["llmJudge"] = o.LlmJudge
+	}
+	if !IsNil(o.DirectUpload) {
+		toSerialize["directUpload"] = o.DirectUpload
 	}
 	return toSerialize, nil
 }
