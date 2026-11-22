@@ -14,48 +14,51 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Run a whole scan: list the repositories, confirm, fetch and scan each one, write the report, publish once.
+"""Run a whole scan: list the repositories, confirm, fetch and scan each one, save the results, upload them.
 
-1. ``build_scan_config`` has already checked the flags, ``AMP_URL`` and the token's lifetime. The report
-   folder is checked next, before anything long.
+1. ``build_scan_config`` has already checked the flags and, when the command has them, ``AMP_URL`` and the
+   scan token. The report folder is checked next, before anything long.
 2. The Git token is asked for only when needed (``prompts.git_token``), then, with ``--ai-review``, the LLM
    settings (``prompts.llm_settings``).
 3. The repositories are listed or looked up, printed, and confirmed. Without a terminal the scan goes on
-   only with ``--yes`` or ``AMP_SCAN_YES=1``, and otherwise exits CONFIG_ERROR before any listing. Declining
-   publishes nothing: the pending scan expires on its own after 1 hour.
+   only with ``--yes`` or ``AMP_SHADOW_YES=1``, and otherwise exits CONFIG_ERROR before any listing.
+   Declining scans nothing: the scan in Agent Manager waits for results until it is cancelled there.
 4. Each repository is downloaded and extracted into the always-deleted workspace at its default branch's
    commit, scanned, and deleted before the next one. Its findings get the attribute ``branch``, that
    branch. A failure in one repository marks it failed with a short reason and the scan goes on. A failure
    that stops the Git host for every repository (a refused token, a used-up rate limit) marks it and every
-   repository after it failed, so the agents found so far are still published.
-5. The report is written before publishing, so ``upload`` can publish it again if publishing fails. If it
-   cannot be written, the results are still published and the command exits with the report's error code.
-6. The results are published once.
+   repository after it failed, so the agents found so far are still saved.
+5. The report (``report.json``) and then the results file (``results-<scanId>.json``, see ``results``) are
+   written, whatever the scan found. The results file holds exactly the body a direct upload sends.
+6. Without a scan token the command ends there, naming both files and the next step: upload the results
+   file in Agent Manager. With one it asks to upload the results now (default yes; ``--yes`` uploads
+   without asking, and with no terminal and no ``--yes`` nothing is uploaded). A declined, expired or
+   failed upload keeps the files and points to the console.
 
-The whole scan must finish within the token's hour. A repository is not started with less than
-TOKEN_MARGIN_SECONDS of token lifetime left: it and the rest are failed (TOKEN_RAN_OUT), and what was
-finished is published. Too little time left right after confirming stops the scan before it starts.
+The scan token never limits the scan: results can always be uploaded in the console, so a scan that
+outlives the token's hour finishes every repository and the upload step says the token expired.
 
-Exit codes: OK when every repository was scanned, the list was complete and the publish succeeded;
-PARTIAL_FAILURE when it published but some repositories failed or the list was incomplete, including when
-every repository failed (Agent Manager then marks the scan failed); a publish error's own code otherwise.
+Exit codes: OK when every repository was scanned, the list was complete and the results were saved (and
+uploaded, when the upload ran); PARTIAL_FAILURE when some repositories failed or the list was incomplete,
+including when every repository failed (Agent Manager then marks the scan failed); a write error's or
+an upload error's own code otherwise. Not uploading by choice (declined, or no terminal), or because the
+scan outlived its token, is not an error: the scan's own code stands.
 
 Not-sure findings are published only after AI review confirms them (``--ai-review``, see ``review``). Each
 repository's findings are reviewed right after its scan, while its files are still on disk; without
-``--ai-review`` they stay in the report and are not published. The LLM judge (``--judge``) is not built yet:
-the command says so once and publishes the AI-enhanced detection results without it. No review is started
-with less than ``review.REVIEW_ALLOWANCE_SECONDS`` left before the repository deadline, so the publish still
-fits in the hour.
+``--ai-review`` they stay in the report and are not in the results. The LLM judge (``--judge``) is not built
+yet: the command says so once and saves the AI-enhanced detection results without it.
 """
 
+import math
 import os
 import sys
 import time
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol, TextIO
+from typing import Any, Protocol, TextIO
 from urllib.parse import urlsplit
 
 from amp_shadow_runner.config import ConfigError, ScanConfig
@@ -70,7 +73,7 @@ from amp_shadow_runner.keyboard import read_fresh_line
 from amp_shadow_runner.llm import LlmClient, LlmSettings
 from amp_shadow_runner.progress import Progress
 from amp_shadow_runner.prompts import git_token, llm_settings
-from amp_shadow_runner.publish import Publisher, PublishError, PublishResult, report_exit_code
+from amp_shadow_runner.publish import Publisher, PublishError, PublishResult, build_body, encode_body, report_exit_code
 from amp_shadow_runner.report import (
     DEFAULT_REPORT_PATH,
     Report,
@@ -80,11 +83,13 @@ from amp_shadow_runner.report import (
     check_writable,
     write_report,
 )
-from amp_shadow_runner.review import REVIEW_ALLOWANCE_SECONDS, Completer, Reviewer, ReviewOutcome, review_counts
-from amp_shadow_runner.scantoken import ScanTokenError
-from amp_shadow_runner.terminal import Mark, Ui, clean, duration, number, pad, plural, width
+from amp_shadow_runner.results import CONSOLE_PLACE, results_path, write_results
+from amp_shadow_runner.review import Completer, Reviewer, ReviewOutcome, review_counts
+from amp_shadow_runner.terminal import INDENT, LABEL_WIDTH, Mark, Ui, clean, duration, number, pad, plural, width
 
-YES_ENV = "AMP_SCAN_YES"
+YES_ENV = "AMP_SHADOW_YES"
+YES_ENV_ALIASES = ("AMP_SCAN_YES",)
+"""Older names of ``YES_ENV``, still read."""
 TITLE = "AMP shadow agent scan"
 ANONYMOUS_WARNING = "No GitHub token: about 25 repositories an hour."
 ANONYMOUS_HINT = "Pass -e GITHUB_TOKEN for more."
@@ -92,21 +97,36 @@ EXPORT_IGNORE_HINT = "Files marked export-ignore in .gitattributes were not scan
 """The terminal's short form of ``report.EXPORT_IGNORE_NOTE``, which the report keeps."""
 LIST_LIMIT = 20
 """The most repositories listed in each group before the confirm question; the rest are counted."""
-EXPIRES_NOTE = "Nothing was scanned or published. The pending scan in Agent Manager expires on its own after 1 hour."
-TOKEN_MARGIN_SECONDS = 180
-"""No repository is started with less than this much token lifetime left, so the results can still be published."""
-TOKEN_RAN_OUT = (
-    "not scanned: the scan token's hour ran out; scan the rest with a new command (for example with --repos)"
+DECLINED_NOTE = (
+    "Nothing was scanned. The scan waits for results in Agent Manager until you cancel it "
+    "(Shadow Agent Discovery, Scans, Cancel scan)."
 )
+UPLOAD_QUESTION = "Upload the results to Agent Manager now?"
+TOKEN_EXPIRED_AT_START = "The scan token has expired, so the results will be saved but not uploaded."
 JUDGE_NOT_AVAILABLE = (
     "The LLM judge is not available in this version of the runner, "
-    "so AI-enhanced detection results are published without it."
+    "so AI-enhanced detection results are saved without it."
 )
 _EMPTY = ScanResult((), 0, 0, 0)
 
 
 class PublishInterrupted(KeyboardInterrupt):
-    """Ctrl-C after publishing started: the results may already be in Agent Manager."""
+    """Ctrl-C after uploading started: the results may already be in Agent Manager.
+
+    ``results_file`` is the saved results file's name as the user sees it, or None when it was not saved.
+    """
+
+    def __init__(self, results_file: str | None = None) -> None:
+        super().__init__()
+        self.results_file = results_file
+
+
+class UploadCancelled(KeyboardInterrupt):
+    """Ctrl-C after the files were saved, before uploading started: nothing was uploaded."""
+
+    def __init__(self, results_file: str | None = None) -> None:
+        super().__init__()
+        self.results_file = results_file
 
 
 class GitSource(Protocol):
@@ -126,7 +146,7 @@ class GitSource(Protocol):
 class ResultPublisher(Protocol):
     """What the pipeline needs from ``publish.Publisher``."""
 
-    def publish(self, report: Report, *, report_location: str | None = None) -> PublishResult: ...
+    def publish_body(self, scan_id: str, body: Mapping[str, Any]) -> PublishResult: ...
 
 
 TokenPrompt = Callable[[ScanConfig, Ui], str | None]
@@ -140,13 +160,25 @@ def _github_source(config: ScanConfig, token: str | None) -> GitSource:
 
 
 def _publisher(config: ScanConfig) -> ResultPublisher:
+    if config.amp_url is None or config.token is None:
+        raise ConfigError("There is no scan token to upload with.")
     return Publisher(config.amp_url, config.token, expires_at=config.token_expires_at)
 
 
 def assume_yes(flag: bool, env: Mapping[str, str] | None = None) -> bool:
-    """True when ``--yes`` was given or ``AMP_SCAN_YES`` is ``1``, ``true`` or ``yes``."""
-    value = (os.environ if env is None else env).get(YES_ENV, "")
-    return flag or value.strip().lower() in ("1", "true", "yes")
+    """True when ``--yes`` was given or ``AMP_SHADOW_YES`` (or the older ``AMP_SCAN_YES``) is ``1``, ``true``
+    or ``yes``."""
+    env = os.environ if env is None else env
+    return flag or any(
+        env.get(name, "").strip().lower() in ("1", "true", "yes") for name in (YES_ENV, *YES_ENV_ALIASES)
+    )
+
+
+def shown_path(path: Path) -> str:
+    """``path`` as the user sees it: a file in ``/out`` is in the folder the command ran in."""
+    if path.parent == DEFAULT_REPORT_PATH.parent:
+        return path.name
+    return clean(str(path))
 
 
 def run_scan(
@@ -167,17 +199,18 @@ def run_scan(
     """Run the scan ``config`` describes and return the exit code. Messages go to ``out`` (default stderr),
     in sections (see ``terminal.Ui``), with a live status line when ``out`` is a terminal.
 
-    The report is written to ``report_path`` (default ``/out/report.json``).
+    The report is written to ``report_path`` (default ``/out/report.json``) and the results file next to it.
 
-    Raises ConfigError (no terminal to confirm in, or from the token or LLM prompts), ReportError (the report
-    folder is not writable) and ScanTokenError (too little token lifetime left after confirming) for the
-    caller to print; every later failure is printed here. Ctrl-C raises KeyboardInterrupt, or
-    PublishInterrupted once publishing has started.
+    Raises ConfigError (no terminal to confirm in, or from the token or LLM prompts) and ReportError (the
+    report folder is not writable) for the caller to print; every later failure is printed here. Ctrl-C
+    raises KeyboardInterrupt; UploadCancelled once the files are saved; PublishInterrupted once uploading
+    has started.
     """
     stream = sys.stderr if out is None else out
     report_path = DEFAULT_REPORT_PATH if report_path is None else report_path
     progress = Progress(stream)
     ui = progress.ui
+    tty_now = _stdin_is_tty if is_tty is None else is_tty
 
     check_writable(report_path)
     ui.header(TITLE, f"{config.organization} on {_host(config.api_url)}")
@@ -186,8 +219,7 @@ def run_scan(
         settings = ask_llm(config, ui) if config.ai_review else None
         if settings is not None and config.judge:
             ui.warn(JUDGE_NOT_AVAILABLE)
-        tty = is_tty() if is_tty is not None else sys.stdin is not None and sys.stdin.isatty()
-        if not yes and not tty:
+        if not yes and not tty_now():
             raise ConfigError(
                 "The scan asks you to confirm the repositories, and there is no terminal to ask in. "
                 f"Run it with docker run -it, or add --yes (or -e {YES_ENV}=1) to scan without asking."
@@ -207,36 +239,21 @@ def run_scan(
     finally:
         ui.clear()
     _print_listing(ui, listing, anonymous=token is None)
+    if _expired(config, clock):
+        ui.warn(TOKEN_EXPIRED_AT_START, hint=f"Upload them in Agent Manager afterwards ({CONSOLE_PLACE}).")
     if not yes:
         reader = _fresh_line if read_answer is None else read_answer
-        if not _confirm(
-            ui,
-            f"Scan {plural(len(listing.repositories), 'repository', 'repositories')} and publish the results?",
-            reader,
-        ):
-            ui.note(EXPIRES_NOTE)
+        if not _confirm(ui, f"Scan {plural(len(listing.repositories), 'repository', 'repositories')}?", reader):
+            ui.note(DECLINED_NOTE)
             return ExitCode.OK
 
-    deadline = config.token_expires_at.timestamp() - TOKEN_MARGIN_SECONDS
-    if listing.repositories and clock() >= deadline:
-        ui.say()
-        raise ScanTokenError(
-            "The scan token has too little time left to scan and publish. "
-            "Generate a new command in Agent Manager and run it again."
-        )
     ui.section("Scanning")
     progress.begin(repo.name for repo in listing.repositories)
     try:
         reviewer = None
         if settings is not None:
-            reviewer = Reviewer(
-                make_llm(settings),
-                settings.model,
-                deadline=deadline - REVIEW_ALLOWANCE_SECONDS,
-                clock=clock,
-                notify=ui.warn,
-            )
-        repositories = _scan_all(config, source, listing.repositories, progress, deadline, clock, reviewer)
+            reviewer = Reviewer(make_llm(settings), settings.model, deadline=math.inf, clock=clock, notify=ui.warn)
+        repositories = _scan_all(config, source, listing.repositories, progress, reviewer)
         if not listing.repositories:
             ui.note("Nothing to scan.")
         repositories += [RepositoryReport(name, RepositoryStatus.GONE) for name in listing.gone]
@@ -252,31 +269,121 @@ def run_scan(
         )
 
         report_error: ReportError | None = None
+        results_file = results_path(report_path, config.scan_id)
+        saved: _Saved | None = None
         try:
-            write_report(report, report_path)
-        except ReportError as exc:
-            report_error = exc
-        _print_results(ui, config, report, report_path, report_error, progress.elapsed())
-
-        try:
-            ui.say()
-            progress.publishing()
-            result = make_publisher(config).publish(
-                report, report_location=str(report_path) if report_error is None else None
-            )
-        except PublishError as exc:
-            _finish(ui, Mark.FAIL, f"Not published: {exc}", blank=False)
-            return exc.exit_code
-        except KeyboardInterrupt:
-            raise PublishInterrupted from None
-        _finish(ui, *_published(result), blank=False)
-        ui.note(EXPORT_IGNORE_HINT)
-        if report_error is not None:
-            return report_error.exit_code
-        return report_exit_code(report)
+            try:
+                write_report(report, report_path)
+            except ReportError as exc:
+                report_error = exc
+            saved = _save_results(report, results_file, report.finished_at)
+            _print_results(ui, config, report, progress.elapsed())
+            _print_saved(ui, report_path, report_error, saved, direct=config.token is not None)
+            code = report_exit_code(report)
+            for error in (report_error, saved.error):
+                if error is not None:
+                    code = error.exit_code
+            upload_code = None
+            if saved.body is not None and config.token is not None:
+                upload_code = _upload(
+                    ui,
+                    progress,
+                    make_publisher(config),
+                    config,
+                    saved,
+                    yes=yes,
+                    is_tty=tty_now,
+                    reader=read_answer,
+                    clock=clock,
+                )
+            ui.note(EXPORT_IGNORE_HINT)
+        except PublishInterrupted:
+            raise
+        except KeyboardInterrupt:  # Once the results file is saved, nothing was uploaded.
+            if saved is not None:
+                shown = saved.shown
+            elif results_file.is_file():  # Saved, and Ctrl-C came before _save_results returned.
+                shown = shown_path(results_file)
+            else:
+                raise
+            raise UploadCancelled(shown) from None
+        return code if upload_code is None else upload_code
 
     finally:
         progress.close()  # Also on Ctrl-C, so the cursor is left on a clean line.
+
+
+@dataclass(frozen=True)
+class _Saved:
+    """The results file as saved: the body (None when it is over Agent Manager's limits), where the file
+    is (None when it was not written), and the error that stopped either."""
+
+    body: dict[str, Any] | None
+    path: Path | None
+    error: PublishError | ReportError | None
+
+    @property
+    def shown(self) -> str | None:
+        return None if self.path is None else shown_path(self.path)
+
+
+def _save_results(report: Report, path: Path, created_at: datetime) -> _Saved:
+    """Build the upload body and write the results file to ``path``."""
+    try:
+        body = build_body(report)
+        encode_body(body)
+    except PublishError as exc:
+        return _Saved(None, None, exc)
+    try:
+        write_results(report, body, path, created_at=created_at)
+    except ReportError as exc:
+        return _Saved(body, None, exc)
+    return _Saved(body, path, None)
+
+
+def _expired(config: ScanConfig, clock: Callable[[], float]) -> bool:
+    return config.token_expires_at is not None and clock() >= config.token_expires_at.timestamp()
+
+
+def _upload(
+    ui: Ui,
+    progress: Progress,
+    publisher: ResultPublisher,
+    config: ScanConfig,
+    saved: _Saved,
+    *,
+    yes: bool,
+    is_tty: Callable[[], bool],
+    reader: Callable[[], str] | None,
+    clock: Callable[[], float],
+) -> int | None:
+    """Ask to upload, and upload. Returns the error's exit code, or None when the results were uploaded, the
+    user chose not to, or the scan outlived its token (the console can still take the results file)."""
+    assert saved.body is not None
+    if _expired(config, clock):
+        _not_uploaded(ui, Mark.WARN, "Not uploaded: the scan token has expired.", saved, console=True)
+        return None
+    if not yes:
+        if not is_tty():
+            reason = (
+                f"Not uploaded: there is no terminal to ask in (add --yes or -e {YES_ENV}=1 to upload without asking)."
+            )
+            _not_uploaded(ui, Mark.WARN, reason, saved, console=True)
+            return None
+        if not _confirm(ui, UPLOAD_QUESTION, _fresh_line if reader is None else reader, default=True):
+            _not_uploaded(ui, Mark.WARN, "Not uploaded.", saved, console=True)
+            return None
+    ui.say()
+    progress.publishing()
+    try:
+        result = publisher.publish_body(config.scan_id, saved.body)
+    except PublishError as exc:
+        _not_uploaded(ui, Mark.FAIL, f"Not uploaded: {exc}", saved, console=exc.console_can_upload, blank=False)
+        return exc.exit_code
+    except KeyboardInterrupt:
+        raise PublishInterrupted(saved.shown) from None
+    _finish(ui, *_published(result), blank=False)
+    return None
 
 
 def _scan_all(
@@ -284,19 +391,14 @@ def _scan_all(
     source: GitSource,
     repos: tuple[Repository, ...],
     progress: Progress,
-    deadline: float,
-    clock: Callable[[], float],
     reviewer: Reviewer | None = None,
 ) -> list[RepositoryReport]:
-    """Scan each repository in turn. None is started after ``deadline``: it and the rest are failed."""
+    """Scan each repository in turn. After a failure that stops the Git host, the rest are failed with it."""
     reports: list[RepositoryReport] = []
     total = len(repos)
     stopped: str | None = None
     with workspace() as root:
         for index, repo in enumerate(repos, 1):
-            if stopped is None and clock() >= deadline:
-                stopped = TOKEN_RAN_OUT
-                progress.failed(index, total, repo.name, stopped)
             if stopped is not None:
                 reports.append(RepositoryReport(repo.name, RepositoryStatus.FAILED, reason=stopped))
                 continue
@@ -381,17 +483,21 @@ def _host(api_url: str) -> str:
 
 
 def _finish(ui: Ui, kind: Mark, text: str, *, blank: bool = True) -> None:
-    """A closing status line, out of any section: ``✓ Published to Agent Manager: 6 agents saved.``"""
+    """A closing status line, out of any section: ``✓ Uploaded to Agent Manager: 6 agents saved.``"""
     if blank:
         ui.say()
     ui.status(kind, text, indent="")
 
 
 def _published(result: PublishResult) -> tuple[Mark, str]:
-    text = f"Published to Agent Manager: {plural(result.findings_count, 'agent')} saved"
+    text = f"Uploaded to Agent Manager: {plural(result.findings_count, 'agent')} saved"
     if result.status == "succeeded":
         return Mark.OK, text + "."
     return Mark.WARN, f"{text} (scan {clean(result.status)})."
+
+
+def _stdin_is_tty() -> bool:
+    return sys.stdin is not None and sys.stdin.isatty()
 
 
 def _fresh_line() -> str:
@@ -403,18 +509,22 @@ def _fresh_line() -> str:
     return read_fresh_line(fd)
 
 
-def _confirm(ui: Ui, question: str, reader: Callable[[], str]) -> bool:
-    """Ask ``? question (y/N)`` on a line of its own; True for y or yes. Ctrl-D declines; Ctrl-C reaches the
-    caller's cancel path."""
+def _confirm(ui: Ui, question: str, reader: Callable[[], str], *, default: bool = False) -> bool:
+    """Ask ``? question (y/N)`` (``(Y/n)`` with ``default``) on a line of its own; True for y or yes, or for
+    Enter alone with ``default``. Ctrl-D (the end of input) always declines; Ctrl-C reaches the caller's
+    cancel path. ``reader`` should read only what is typed after the question (``_fresh_line``)."""
     ui.say()
-    ui.write(ui.question(question, default="y/N", indent=""))
+    ui.write(ui.question(question, default="Y/n" if default else "y/N", indent=""))
     try:
         answer = reader()
     except EOFError:
         answer = ""
     if not answer.endswith("\n") or not ui.tty:  # Nothing echoed a newline after the answer.
         ui.write("\n")
-    return answer.strip().lower() in ("y", "yes")
+    choice = answer.strip().lower()
+    if default and not choice and answer.endswith("\n"):
+        return True
+    return choice in ("y", "yes")
 
 
 def _limited(ui: Ui, names: tuple[str, ...]) -> tuple[tuple[str, ...], str]:
@@ -457,15 +567,8 @@ def _print_listing(ui: Ui, listing: RepositoryList, *, anonymous: bool) -> None:
         ui.warn(ANONYMOUS_WARNING, hint=ANONYMOUS_HINT)
 
 
-def _print_results(
-    ui: Ui,
-    config: ScanConfig,
-    report: Report,
-    path: Path,
-    error: ReportError | None,
-    elapsed: float | None,
-) -> None:
-    """The Results section: repositories (when more than one), agents, AI, test code, files, report."""
+def _print_results(ui: Ui, config: ScanConfig, report: Report, elapsed: float | None) -> None:
+    """The Results section: repositories (when more than one), agents, AI, test code, files."""
     summary = report.summary
     ui.section("Results")
     repos = summary.repositories
@@ -507,13 +610,48 @@ def _print_results(
     if summary.files_skipped:
         files += f", {number(summary.files_skipped)} skipped"
     ui.row("Files", files)
-    if error is not None:
-        ui.row("Report", ui.dim("not saved"))
-        ui.warn(f"{error} The results are published anyway.")
-    elif path == DEFAULT_REPORT_PATH:
-        ui.row("Report", f"{path.name} in this folder")  # The command mounts its folder at /out.
+
+
+def _saved_row(ui: Ui, label: str, path: Path | None) -> None:
+    if path is None:
+        ui.row(label, ui.dim("not saved"))
+    elif path.parent == DEFAULT_REPORT_PATH.parent:
+        ui.row(label, f"{path.name} in this folder")  # The command mounts its folder at /out.
     else:
-        ui.row("Report", clean(str(path)))
+        ui.row(label, clean(str(path)))
+
+
+def _print_saved(ui: Ui, report_path: Path, report_error: ReportError | None, saved: _Saved, *, direct: bool) -> None:
+    """The Done section: the two files and, without a scan token, the next step."""
+    ui.section("Done")
+    _saved_row(ui, "Report", None if report_error is not None else report_path)
+    _saved_row(ui, "Results", saved.path)
+    if report_error is not None:
+        ui.warn(str(report_error))
+    if saved.error is not None:
+        ui.warn(str(saved.error))
+    if saved.path is not None and not direct:
+        _next_step(ui, saved.path, row=True)
+
+
+def _next_step(ui: Ui, path: Path, *, row: bool = False) -> None:
+    """``Upload results-<id>.json`` / ``in Agent Manager: Shadow Agent Discovery, Scans, Upload results.``,
+    as a ``Next`` row or as two lines under a closing status line."""
+    lead = INDENT + " " * LABEL_WIDTH if row else INDENT
+    first = f"Upload {shown_path(path)}"
+    if row:
+        ui.row("Next", first)
+    else:
+        ui.say(lead + first)
+    ui.say(f"{lead}in Agent Manager: {CONSOLE_PLACE}.")
+
+
+def _not_uploaded(ui: Ui, kind: Mark, text: str, saved: _Saved, *, console: bool, blank: bool = True) -> None:
+    """The closing lines when the results were not uploaded: why, and, when the console can still take the
+    results file, how to upload it there."""
+    _finish(ui, kind, text, blank=blank)
+    if console and saved.path is not None:
+        _next_step(ui, saved.path)
 
 
 def _agents(proven: int, not_sure: int, report: Report, *, ai_review: bool) -> str:

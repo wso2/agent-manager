@@ -16,9 +16,10 @@
 
 """Read the expiry of the scan token (``AMP_SCAN_TOKEN``).
 
-The token is a JWT that Agent Manager verifies when the runner publishes. The
-runner cannot check its signature and does not try: it only reads ``exp`` so it
-can refuse to start a scan that would outlive the token.
+The token is a JWT that Agent Manager verifies when the runner uploads the results
+directly. It is optional: a scan without one saves the results file for upload in
+the console. The runner cannot check its signature and does not try: it only reads
+``exp``, so it knows before uploading whether the token has expired.
 
 The token, or any part of it, never appears in an error message.
 """
@@ -34,11 +35,11 @@ from typing import Any, ClassVar
 
 from amp_shadow_runner.exitcodes import ExitCode
 
-DEFAULT_MIN_SECONDS = 600
-"""A scan needs at least this many seconds of token lifetime left (10 minutes)."""
+DEFAULT_MIN_SECONDS = 60
+"""``upload`` needs at least this many seconds of token lifetime left."""
 
 _JWT = re.compile(r"[A-Za-z0-9_-]+\.([A-Za-z0-9_-]+)\.[A-Za-z0-9_-]+")
-_REGENERATE = "Generate a new command in Agent Manager and run it again."
+_CONSOLE = "Upload the results file in Agent Manager instead (Shadow Agent Discovery, Scans, Upload results)."
 _INVALID = "AMP_SCAN_TOKEN is not a valid scan token. Copy the whole command from Agent Manager again."
 
 
@@ -66,6 +67,26 @@ def _minutes(minutes: int) -> str:
     return "1 minute" if minutes == 1 else f"{minutes} minutes"
 
 
+def token_expiry(token: str) -> datetime:
+    """Return the token's expiry (UTC), which may be in the past. Raises ScanTokenError when the token is
+    not a JWT with a usable ``exp``. Surrounding whitespace is refused, as in ``require_lifetime``."""
+    # Errors are raised outside except blocks so no decoding exception, which
+    # can hold part of the token, is chained onto them.
+    payload = _payload(token)
+    if not isinstance(payload, dict):
+        raise ScanTokenError(_INVALID)
+    exp = payload.get("exp")
+    if isinstance(exp, bool) or not isinstance(exp, int | float):
+        raise ScanTokenError(_INVALID)
+    try:
+        expires_at: datetime | None = datetime.fromtimestamp(exp, tz=UTC)
+    except (OverflowError, OSError, ValueError):  # Out of datetime's range, or NaN or Infinity.
+        expires_at = None
+    if expires_at is None:
+        raise ScanTokenError(_INVALID)
+    return expires_at
+
+
 def require_lifetime(
     token: str, min_seconds: int = DEFAULT_MIN_SECONDS, *, now: Callable[[], float] = time.time
 ) -> datetime:
@@ -83,28 +104,15 @@ def require_lifetime(
     its payload is not a JSON object, ``exp`` is missing or not a number, or
     too little time remains.
     """
-    # Errors are raised outside except blocks so no decoding exception, which
-    # can hold part of the token, is chained onto them.
-    payload = _payload(token)
-    if not isinstance(payload, dict):
-        raise ScanTokenError(_INVALID)
-    exp = payload.get("exp")
-    if isinstance(exp, bool) or not isinstance(exp, int | float):
-        raise ScanTokenError(_INVALID)
-    try:
-        expires_at: datetime | None = datetime.fromtimestamp(exp, tz=UTC)
-    except (OverflowError, OSError, ValueError):  # Out of datetime's range, or NaN or Infinity.
-        expires_at = None
-    if expires_at is None:
-        raise ScanTokenError(_INVALID)
-    remaining = exp - now()
+    expires_at = token_expiry(token)
+    remaining = expires_at.timestamp() - now()
     if remaining <= 0:
         raise ScanTokenError(
-            f"The scan token has expired. {_REGENERATE} If you generated it just now, check this machine's clock."
+            f"The scan token has expired. {_CONSOLE} If you generated it just now, check this machine's clock."
         )
     if remaining < min_seconds:
         # Time left rounds down and the minimum rounds up, so the message never contradicts itself.
         left = _minutes(int(remaining // 60))
         needed = _minutes(max(1, math.ceil(min_seconds / 60)))
-        raise ScanTokenError(f"The scan token expires in {left}, and a scan needs at least {needed}. {_REGENERATE}")
+        raise ScanTokenError(f"The scan token expires in {left}, and an upload needs at least {needed}. {_CONSOLE}")
     return expires_at

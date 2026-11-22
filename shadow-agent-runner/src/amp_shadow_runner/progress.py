@@ -26,7 +26,7 @@ ends, the live line is replaced by its permanent row, with the time it took::
       ✓ support-bot   2 agents · 1 in test code · 120 files · 5.7s
       ✗ legacy-app    download failed (HTTP 502)
 
-Names are padded to one column. Publishing shows a spinner too.
+Names are padded to one column. Uploading shows a spinner too.
 
 Anywhere else (CI, ``docker run`` without ``-t``, tests), each step prints one plain line
 (``  [1/2] repo  downloading``) and the same permanent rows, with no carriage returns, escape codes, byte
@@ -199,8 +199,8 @@ class Progress:
         self.ui.say(f"{INDENT}{self.ui.mark(Mark.FAIL)} {self._name(name)}{clean(reason)}")
 
     def publishing(self) -> None:
-        """Publishing to Agent Manager starts; the next line printed replaces the spinner."""
-        self.ui.show(Status("", f"Publishing to Agent Manager{self.ui.glyphs.ellipsis}", spin=True), force=True)
+        """Uploading to Agent Manager starts; the next line printed replaces the spinner."""
+        self.ui.show(Status("", f"Uploading to Agent Manager{self.ui.glyphs.ellipsis}", spin=True), force=True)
 
     def _name(self, name: str) -> str:
         return pad(clean(name), self._name_width) + "   "

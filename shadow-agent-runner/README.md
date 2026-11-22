@@ -1,15 +1,15 @@
 # Shadow Agent Runner
 
-`amp-shadow-runner` is the source code scan of Shadow Agent Discovery in WSO2 Agent Manager. It finds AI agents in GitHub repositories (including GitHub Enterprise Server) and publishes the confirmed agents to Agent Manager.
+`amp-shadow-runner` is the source code scan of Shadow Agent Discovery in WSO2 Agent Manager. It finds AI agents in GitHub repositories (including GitHub Enterprise Server) and saves the confirmed agents in a results file for Agent Manager.
 
-It runs on the customer's machine, as the `docker run` command that the Agent Manager console builds for a source code platform. When complete, the command will ask for the Git token only for private repositories, and for the LLM key only with AI-enhanced detection. It will then fetch the repositories, scan them, delete the code and publish only the confirmed agents. Agent Manager never stores the Git token and never pulls the code.
+It runs on the customer's machine, as the `docker run` command that the Agent Manager console builds for a source code platform. The command asks for the Git token only for private repositories, and for the LLM key only with AI-enhanced detection. It then fetches the repositories, scans them, deletes the code and saves the results. You upload the results file in Agent Manager, or, when the console's **Upload results directly** switch was on, the command offers to upload it for you. Agent Manager never stores the Git token and never pulls the code.
 
 The package has two parts:
 
 - `amp_shadow_runner`: the command line.
 - `amp_shadow_runner.engine`: the scan engine, a pure library that parses a local source tree with tree-sitter. It never opens a network connection or starts a process (`tests/engine/test_purity.py` enforces this).
 
-> `scan` works for GitHub with the rules for Python, TypeScript, JavaScript, C# and Ballerina agents (Ballerina matches are always Not sure). With `--ai-review` (AI-enhanced detection) an LLM checks the Not sure agents; `--judge` is not available yet, so the AI-enhanced detection results are published without it.
+> `scan` works for GitHub with the rules for Python, TypeScript, JavaScript, C# and Ballerina agents (Ballerina matches are always Not sure). With `--ai-review` (AI-enhanced detection) an LLM checks the Not sure agents; `--judge` is not available yet, so the AI-enhanced detection results are saved without it.
 
 ## Command line
 
@@ -17,10 +17,10 @@ The package has two parts:
 amp-shadow-runner --version
 amp-shadow-runner version --json
 amp-shadow-runner scan --scan-id <id> --github-org <org> --all-repos
-amp-shadow-runner upload --scan-id <id> [/out/report.json]
+amp-shadow-runner upload --scan-id <id> [/out/results-<id>.json | /out/report.json]
 ```
 
-Agent Manager builds the `scan` command, so its options match what the console shows. `AMP_URL` (the Agent Manager address) and `AMP_SCAN_TOKEN` (the scan token, valid for 1 hour) come from the environment. A scan needs at least 10 minutes left on the token.
+Agent Manager builds the `scan` command, so its options match what the console shows. With **Upload results directly** on, the command also sets `AMP_URL` (the Agent Manager address) and `AMP_SCAN_TOKEN` (the scan token, valid for 1 hour). Without them the scan only saves the results; with them the token must be the one Agent Manager issued, but it may expire during the scan (see [Results](#results)).
 
 | Option | Meaning |
 |---|---|
@@ -32,7 +32,7 @@ Agent Manager builds the `scan` command, so its options match what the console s
 | `--read-ci` | Also read CI pipeline definitions. |
 | `--ai-review` | Use AI-enhanced detection: an LLM checks the agents the rules are not sure of. The command asks for the LLM settings (see below). |
 | `--judge` | Have a second LLM check the AI-enhanced detection, with the same provider, address and key. Needs `--ai-review`. |
-| `--yes` | Scan without asking to confirm the repository list (also `AMP_SCAN_YES=1`). Needed without a terminal. |
+| `--yes` | Scan without asking to confirm the repository list, and with a scan token upload without asking (also `AMP_SHADOW_YES=1`; the older `AMP_SCAN_YES=1` still works). Needed without a terminal. |
 
 `--repos` takes at most 5000 names, given as `name` or `<org>/name`. `AMP_URL` and `--github-api-url` accept `http://` or `https://` addresses.
 
@@ -50,11 +50,24 @@ With `--ai-review`, the command then asks for the LLM it reviews with. In a term
 
 A set variable skips its question. Without a terminal, each one needs its variable, except the judge model: `AMP_LLM_URL` has no default there, so a gateway's key is never sent to the public API by mistake. Before the key is asked for, the command shows the provider, the address and the models; for the key it shows only where it came from (`✓ from AMP_LLM_API_KEY`) or how many characters it received. The address is the API base: requests go to `<address>/chat/completions` for `openai`, and to `<address>/v1/messages` for `anthropic` (or `<address>/messages` when the address already ends in `/v1`). It accepts `http://` or `https://`, with no user name, query or fragment, and the command warns before sending the key over plain `http://`. The key must be ASCII. Requests use temperature 0 and send the answer limit as `max_tokens`, which OpenAI-compatible servers (vLLM, Ollama, LiteLLM and others) accept. OpenAI's reasoning models (the gpt-5 family and the o-series) refuse both, so for them the command sends `max_completion_tokens` and no temperature instead. Azure OpenAI works only through its `/openai/v1` address with a key it accepts as a Bearer token; classic deployments (an `api-key` header and an `api-version` query) do not. A busy or rate-limited LLM (HTTP 429, 5xx, or Anthropic's 529) is tried up to 3 times; a timed-out request is not sent again.
 
-AI-enhanced detection sends the LLM each Not sure agent outside test code, one request each, while the repository is still on disk: the file's import lines and the function or class around the match, about 200 lines at most, marked as untrusted data. The code is never saved or sent to Agent Manager. The LLM answers whether it is an agent, with a short reason. Confirmed agents are published, shown as "Confirmed by: AI"; the others are not. The report records each outcome (`confirmed`, `rejected`, `failed` or `not_reviewed`) and reason. A scan makes at most 200 AI checks. AI-enhanced detection stops for the rest of the scan when the LLM refuses the key (HTTP 401 or 403), does not know the model or address (404), or fails or answers in the wrong format 5 times in a row; no AI check starts with less than 11 minutes left on the scan token. Any other LLM error fails only that check. The scan and the publish go on either way.
+AI-enhanced detection sends the LLM each Not sure agent outside test code, one request each, while the repository is still on disk: the file's import lines and the function or class around the match, about 200 lines at most, marked as untrusted data. The code is never saved or sent to Agent Manager. The LLM answers whether it is an agent, with a short reason. Confirmed agents go into the results, shown as "Confirmed by: AI"; the others do not. The report records each outcome (`confirmed`, `rejected`, `failed` or `not_reviewed`) and reason. A scan makes at most 200 AI checks. AI-enhanced detection stops for the rest of the scan when the LLM refuses the key (HTTP 401 or 403), does not know the model or address (404), or fails or answers in the wrong format 5 times in a row. Any other LLM error fails only that check. The scan goes on either way.
 
-The command lists the repositories it will scan, with those not found (counted as scanned, with no agents) and those it cannot scan shown apart, and asks to confirm. Declining publishes nothing and exits 0; the pending scan in Agent Manager expires on its own after 1 hour. Ctrl-C cancels with exit 1. Each repository is downloaded as an archive into a private temporary folder, scanned, and deleted before the next. Files a repository's `.gitattributes` marks `export-ignore` are not in the archive, so they are not scanned. A repository that fails is reported as failed and the scan goes on. In a terminal, each repository has one status line, redrawn in place, that shows the download (size and speed), the files scanned and the AI checks done, and is then replaced by its result and how long it took. The report is written to `/out/report.json` (the folder the command runs in) before the results are published, once.
+The command lists the repositories it will scan, with those not found (counted as scanned, with no agents) and those it cannot scan shown apart, and asks to confirm. Declining scans nothing and exits 0; the scan in Agent Manager waits for results until you cancel it there (Shadow Agent Discovery, Scans, Cancel scan). Ctrl-C cancels with exit 1. Each repository is downloaded as an archive into a private temporary folder, scanned, and deleted before the next. Files a repository's `.gitattributes` marks `export-ignore` are not in the archive, so they are not scanned. A repository that fails is reported as failed and the scan goes on. In a terminal, each repository has one status line, redrawn in place, that shows the download (size and speed), the files scanned and the AI checks done, and is then replaced by its result and how long it took.
 
-A scan in a terminal looks like this:
+### Results
+
+Every scan saves two files in the folder the command runs in (`/out` in the container), also when it found no agent:
+
+- `report.json`: what the scan did, repository by repository, with every finding, proven or not sure, and the AI-enhanced detection outcomes. It stays on your machine.
+- `results-<scan id>.json`: what Agent Manager receives, and nothing else: the confirmed agents with their evidence, and the lists of scanned and failed repositories. It holds no Not sure findings, review reasons, code or secrets. Its `results` object is exactly the body a direct upload sends; its `summary` (organization and counts) is for display only.
+
+Both are written atomically, so a failed write never leaves half a file. Results over Agent Manager's limits (1000 agents, 5000 names in each repository list, 8 MiB) are not cut down, since a cut list would tell Agent Manager that agents were gone: the command says so, saves only `report.json`, and exits 1. Evidence past the 50th of an agent is left out.
+
+Without a scan token, the command ends by naming both files and the next step: in Agent Manager, open Shadow Agent Discovery, then Scans, choose **Upload results** on the scan and pick `results-<scan id>.json`. You upload it signed in as yourself, at any time: the scan waits for results until they arrive or you cancel it.
+
+With a scan token, the command then asks `Upload the results to Agent Manager now? (Y/n)`; Enter uploads. Only what you type after the question answers it, so a key pressed during the scan cannot. `--yes` (or `AMP_SHADOW_YES=1`) uploads without asking. Without a terminal and without `--yes` nothing is uploaded and the command exits 0. If you decline, the token has expired (the scan does not stop for it), or the upload fails, the files stay and the command says to upload the results file in Agent Manager instead, unless the console could not help either (the scan already has results, for example).
+
+A scan in a terminal, with a scan token, looks like this:
 
 ```text
 AMP shadow agent scan · wso2 on github.com
@@ -69,7 +82,7 @@ AMP shadow agent scan · wso2 on github.com
   ! No GitHub token: about 25 repositories an hour.
     Pass -e GITHUB_TOKEN for more.
 
-? Scan 1 repository and publish the results? (y/N) y
+? Scan 1 repository? (y/N) y
 
 ◆ Scanning
   ✓ agent-manager   6 agents · 4 in test code · 1,194 files · 11s
@@ -78,32 +91,46 @@ AMP shadow agent scan · wso2 on github.com
   Agents     6: 5 proven, 1 confirmed by AI
   Test code  4 more, not published
   Files      1,194 scanned
-  Report     report.json in this folder
 
-✓ Published to Agent Manager: 6 agents saved.
+◆ Done
+  Report     report.json in this folder
+  Results    results-3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f.json in this folder
+
+? Upload the results to Agent Manager now? (Y/n) y
+
+✓ Uploaded to Agent Manager: 6 agents saved.
+  Files marked export-ignore in .gitattributes were not scanned.
+```
+
+Without a scan token, the Done section ends with the next step instead:
+
+```text
+◆ Done
+  Report     report.json in this folder
+  Results    results-3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f.json in this folder
+  Next       Upload results-3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f.json
+             in Agent Manager: Shadow Agent Discovery, Scans, Upload results.
   Files marked export-ignore in .gitattributes were not scanned.
 ```
 
 Colour is used only in a terminal, and not when `NO_COLOR` is set; the symbols become ASCII (`*`, `v`, `!`, `x`, `?`) when the terminal is not UTF-8. Without a terminal (`docker run` without `-t`, or CI), the output has the same sections in plain lines, with no colour, cursor movement or times, and each step of a repository (downloading, scanning, AI check) on a line of its own.
 
-The whole scan must finish within the scan token's hour. No repository is started with less than 3 minutes left: the scan stops there, reports that repository and the rest as not scanned, and publishes what it finished. Scan the rest with a new command, for example with `--repos`.
-
-`upload` publishes a saved scan report again, such as after a network failure, with the same `AMP_URL` and `AMP_SCAN_TOKEN`. The report must be for the scan ID given. Each scan accepts one publish within the hour of its token, so a token that has expired, or a scan that is no longer waiting for results, needs a new command from Agent Manager. In the folder that holds `report.json`:
+`upload` uploads a saved `results-<scan id>.json` (or a `report.json`, from which it builds the same body) with a scan token, such as after a network failure. It needs `AMP_URL` and `AMP_SCAN_TOKEN`, with at least a minute left on the token, and the file must be for the scan ID given. Without a usable token, upload the results file in Agent Manager instead. In the folder that holds the file:
 
 ```bash
-docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD:/out" -e AMP_URL=… -e AMP_SCAN_TOKEN=… <image> upload --scan-id <id>
+docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD:/out" -e AMP_URL=… -e AMP_SCAN_TOKEN=… <image> upload --scan-id <id> /out/results-<id>.json
 ```
 
-Only certain agents are published: those the rules prove, and, with AI-enhanced detection, those it confirms. Agents in test code are never published. A publish over Agent Manager's limits (1000 agents, 5000 names in each repository list, 8 MiB) is refused rather than cut down; evidence past the 50th of an agent is left out.
+Only certain agents are in the results: those the rules prove, and, with AI-enhanced detection, those it confirms. Agents in test code never are. Each scan accepts results once.
 
 | Exit code | Meaning |
 |---|---|
-| 0 | Success |
-| 1 | Runtime error, including a publish refused as over the limits or because the scan is no longer waiting for results (HTTP 409) |
+| 0 | Success: the results were saved (and uploaded, when the command uploaded them), or you chose not to upload them, or the scan outlived its token (upload the results file in Agent Manager) |
+| 1 | Runtime error, including results over Agent Manager's limits, and an upload refused because the scan is no longer waiting for results (HTTP 409) |
 | 2 | Configuration or usage error, including a scan Agent Manager does not know for the token's organization (HTTP 404) |
-| 3 | Authentication error: Agent Manager refused the scan token |
+| 3 | Authentication error: the scan token expired before `upload` ran, or Agent Manager refused it |
 | 4 | Agent Manager requires a newer runner |
-| 5 | Partial failure: the results were published, but some repositories failed, the repository list was incomplete, or the scan stopped early (the Git host refused the token or its rate limit was used up, or the scan token's hour ran out) |
+| 5 | Partial failure: the results were saved, but some repositories failed, the repository list was incomplete, or the scan stopped early (the Git host refused the token or its rate limit was used up) |
 
 ## Development
 

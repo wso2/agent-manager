@@ -28,7 +28,8 @@ counts the outcomes (see ``review``). A confirmed finding keeps ``reviewedBy: "a
 publishes it again. Reports without them (no ``--ai-review``, or an older runner) read the same.
 
 Inside the container ``/out`` is the folder the command mounts with ``-v "$PWD:/out"``. The file is written
-to a temporary file in the same folder and then renamed, so a failed write never leaves half a report.
+to a temporary file in the same folder and then renamed, so a failed write never leaves half a report. The
+results file (``results``) is written the same way, next to it.
 """
 
 import contextlib
@@ -225,21 +226,27 @@ def write_report(report: Report, path: Path = DEFAULT_REPORT_PATH) -> Path:
     """
     # ASCII only: a name holding a lone surrogate (from undecodable bytes) cannot be written as UTF-8.
     text = json.dumps(report.to_json(), indent=2, ensure_ascii=True) + "\n"
+    return write_text_atomically(text, path, what="the scan report")
+
+
+def write_text_atomically(text: str, path: Path, *, what: str) -> Path:
+    """Write ``text`` (UTF-8) to ``path`` through a temporary file in the same folder, then rename it, so a
+    failed write never leaves half a file. ``what`` names the file in the ReportError raised on failure."""
     try:
-        fd, temporary = tempfile.mkstemp(prefix=".report-", suffix=".tmp", dir=path.parent)
+        fd, temporary = tempfile.mkstemp(prefix=f".{path.stem}-", suffix=".tmp", dir=path.parent)
     except OSError as exc:
-        raise ReportError(_unwritable(path, exc)) from None
+        raise ReportError(_unwritable(path, exc, what)) from None
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as out:
             out.write(text)
             out.flush()
             os.fsync(out.fileno())
-        os.chmod(temporary, 0o644)  # mkstemp makes it 0600; the report holds nothing secret.
+        os.chmod(temporary, 0o644)  # mkstemp makes it 0600; the file holds nothing secret.
         os.replace(temporary, path)
     except OSError as exc:
         with contextlib.suppress(OSError):
             os.unlink(temporary)
-        raise ReportError(_unwritable(path, exc)) from None
+        raise ReportError(_unwritable(path, exc, what)) from None
     except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(temporary)
@@ -253,23 +260,27 @@ def check_writable(path: Path = DEFAULT_REPORT_PATH) -> None:
         with tempfile.NamedTemporaryFile(prefix=".report-check-", dir=path.parent):
             pass
     except OSError as exc:
-        raise ReportError(_unwritable(path, exc)) from None
+        raise ReportError(_unwritable(path, exc, "the scan report")) from None
+
+
+def read_json(path: Path) -> object:
+    """Read a JSON file. Raises ReportError when it cannot be read or is not JSON."""
+    try:
+        return cast(object, json.loads(path.read_text(encoding="utf-8")))
+    except OSError as exc:
+        raise ReportError(f"Cannot read {path}: {exc.strerror or 'unknown error'}.") from None
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        raise ReportError(f"{path} is not a JSON file.") from None
 
 
 def read_report(path: Path) -> Report:
     """Read a report file. Raises ReportError when it cannot be read or is not a report."""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise ReportError(f"Cannot read {path}: {exc.strerror or 'unknown error'}.") from None
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        raise ReportError(f"{path} is not a JSON file.") from None
-    return Report.from_json(data)
+    return Report.from_json(read_json(path))
 
 
-def _unwritable(path: Path, exc: OSError) -> str:
+def _unwritable(path: Path, exc: OSError, what: str) -> str:
     folder = path.parent
-    message = f"Cannot write the scan report to {folder} ({exc.strerror or 'unknown error'})."
+    message = f"Cannot write {what} to {folder} ({exc.strerror or 'unknown error'})."
     if folder == DEFAULT_REPORT_PATH.parent:
         message += (
             ' Run the command exactly as Agent Manager shows it: -v "$PWD:/out" mounts the current folder at /out,'

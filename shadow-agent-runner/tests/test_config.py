@@ -73,7 +73,7 @@ def _command(*lines: str) -> str:
 
 
 def _config(argv: list[str], env: dict[str, str] | None = None) -> ScanConfig:
-    return build_scan_config(build_parser().parse_args(argv), ENV if env is None else env, now=lambda: NOW)
+    return build_scan_config(build_parser().parse_args(argv), ENV if env is None else env)
 
 
 def _refuse(argv: list[str], env: dict[str, str] | None = None) -> str:
@@ -240,14 +240,26 @@ def test_equals_form_takes_names_starting_with_a_dash() -> None:
         ({"AMP_URL": " ", "AMP_SCAN_TOKEN": TOKEN}, "AMP_URL is not set."),
         ({"AMP_URL": "agent-manager.example.com", "AMP_SCAN_TOKEN": TOKEN}, "AMP_URL must start with http://"),
         ({"AMP_URL": f"{AMP_URL}?a=1", "AMP_SCAN_TOKEN": TOKEN}, "AMP_URL must not contain a query or fragment."),
-        ({"AMP_URL": AMP_URL}, "AMP_SCAN_TOKEN is not set. Copy the whole command from Agent Manager again."),
-        ({"AMP_URL": AMP_URL, "AMP_SCAN_TOKEN": " \n"}, "AMP_SCAN_TOKEN is not set."),
-        ({"AMP_URL": AMP_URL, "AMP_SCAN_TOKEN": _token(NOW - 1)}, "The scan token has expired."),
-        ({"AMP_URL": AMP_URL, "AMP_SCAN_TOKEN": _token(NOW + 60)}, "The scan token expires in 1 minute"),
+        ({"AMP_URL": AMP_URL, "AMP_SCAN_TOKEN": "not-a-jwt"}, "AMP_SCAN_TOKEN is not a valid scan token."),
     ],
 )
 def test_bad_environment_is_refused(env: dict[str, str], message: str) -> None:
     assert _refuse(_scan("--github-org", "o", "--all-repos"), env).startswith(message)
+
+
+@pytest.mark.parametrize(
+    "env",
+    [{}, {"AMP_URL": AMP_URL}, {"AMP_URL": AMP_URL, "AMP_SCAN_TOKEN": " \n"}, {"AMP_URL": "not a url"}],
+)
+def test_without_a_scan_token_the_scan_only_saves(env: dict[str, str]) -> None:
+    config = _config(_scan("--github-org", "o", "--all-repos"), env)
+    assert (config.amp_url, config.token, config.token_expires_at) == (None, None, None)
+
+
+@pytest.mark.parametrize("exp", [NOW - 1, NOW + 60])
+def test_an_expired_or_short_lived_token_is_kept_for_the_upload_step(exp: int) -> None:
+    config = _config(_scan("--github-org", "o", "--all-repos"), {"AMP_URL": AMP_URL, "AMP_SCAN_TOKEN": _token(exp)})
+    assert config.token_expires_at == datetime.fromtimestamp(exp, UTC)
 
 
 def test_default_environment_is_os_environ(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -280,14 +292,10 @@ def test_cli_prints_only_the_message(monkeypatch: pytest.MonkeyPatch, capsys: py
     out, err = capsys.readouterr()
     assert (out, err) == ("", "amp-shadow-runner: --judge needs --ai-review.\n")
 
-    monkeypatch.setenv("AMP_SCAN_TOKEN", _token(time.time() - 1))
-    assert main(_scan("--github-org", "o", "--all-repos")) == ExitCode.CONFIG_ERROR
-    assert capsys.readouterr().err.startswith("amp-shadow-runner: The scan token has expired.")
-
-    monkeypatch.delenv("AMP_SCAN_TOKEN")
+    monkeypatch.setenv("AMP_SCAN_TOKEN", "x.y")
     assert main(_scan("--github-org", "o", "--all-repos")) == ExitCode.CONFIG_ERROR
     assert capsys.readouterr().err == (
-        "amp-shadow-runner: AMP_SCAN_TOKEN is not set. Copy the whole command from Agent Manager again.\n"
+        "amp-shadow-runner: AMP_SCAN_TOKEN is not a valid scan token. Copy the whole command from Agent Manager again.\n"
     )
 
     monkeypatch.setenv("AMP_SCAN_TOKEN", token)  # A valid command reaches the scan, which needs /out first.

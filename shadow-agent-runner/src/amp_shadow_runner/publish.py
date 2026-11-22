@@ -22,15 +22,16 @@ that AI review confirmed, which the review marks with the attribute ``reviewedBy
 attributes and its evidence, with codes prefixed by the provider (``github.``). No
 source code, prompt or secret is ever sent.
 
-The server's limits are checked first. Evidence past the 50th of an agent is left out (the first 50 are
-kept, in the finding's order); a body over the agent, list or size limits is refused rather than cut
-down, since a cut list would tell Agent Manager that agents were gone. The saved report is kept either way,
-so ``upload`` can publish it once the cause is fixed.
+The body (``build_body``) is also what the results file holds (see ``results``), so the file and a direct
+upload always send the same thing. The server's limits are checked first. Evidence past the 50th of an
+agent is left out (the first 50 are kept, in the finding's order); a body over the agent, list or size
+limits is refused rather than cut down, since a cut list would tell Agent Manager that agents were gone.
 
-Exit codes: a refused token is AUTH_ERROR; a scan that is not a source code scan of the token's organization,
-or source code scans turned off (404), is CONFIG_ERROR; a scan no longer waiting for results (409), a body
-over the limits, an invalid body (400, 413), a server error or a network failure is RUNTIME_ERROR. The token
-never appears in a message.
+Exit codes: an expired or refused token is AUTH_ERROR; a scan that is not a source code scan of the token's
+organization, or source code scans turned off (404), is CONFIG_ERROR; a scan no longer waiting for results
+(409), a body over the limits, an invalid body (400, 413), a server error or a network failure is
+RUNTIME_ERROR. The token never appears in a message. Messages say what went wrong, not what to do next:
+the caller adds that (``PublishError.console_can_upload``).
 """
 
 import json
@@ -61,18 +62,25 @@ PUBLISHED_ATTRIBUTES = frozenset({"framework", "model", "tools", "labels", "bran
 """Finding attributes that are published, each only when the finding has it; ``reviewedBy`` is added here.
 ``branch``, ``projectPath`` and ``language`` let Agent Manager prefill deploying the agent."""
 
-_KEEP_REPORT = "The report is saved"
-_NEW_COMMAND = "Generate a new command in Agent Manager and run the scan again."
+_FEWER = "Scan fewer repositories in each platform."
 
 
 class PublishError(Exception):
-    """Publishing failed or was refused. The message is safe to show."""
+    """Publishing failed or was refused. The message is safe to show.
+
+    ``console_can_upload`` is True when uploading the results file in the Agent Manager console, signed in
+    as yourself, may still work: the token expired or was refused, or Agent Manager could not be reached.
+    """
 
     exit_code: ExitCode
+    console_can_upload: bool
 
-    def __init__(self, message: str, exit_code: ExitCode = ExitCode.RUNTIME_ERROR) -> None:
+    def __init__(
+        self, message: str, exit_code: ExitCode = ExitCode.RUNTIME_ERROR, *, console_can_upload: bool = False
+    ) -> None:
         super().__init__(message)
         self.exit_code = exit_code
+        self.console_can_upload = console_can_upload
 
 
 @dataclass(frozen=True)
@@ -119,12 +127,12 @@ def build_body(report: Report) -> dict[str, Any]:
         if len(names) > MAX_REPOSITORY_NAMES:
             raise PublishError(
                 f"The scan has {len(names)} {noun} repositories, and Agent Manager takes at most "
-                f"{MAX_REPOSITORY_NAMES}. Nothing was published. {_KEEP_REPORT}."
+                f"{MAX_REPOSITORY_NAMES}, so the results cannot be uploaded. {_FEWER}"
             )
     if len(agents) > MAX_AGENTS:
         raise PublishError(
             f"The scan found {len(agents)} agents to publish, and Agent Manager takes at most {MAX_AGENTS} "
-            f"in one scan. Nothing was published. {_KEEP_REPORT}; scan fewer repositories in each platform."
+            f"in one scan, so the results cannot be uploaded. {_FEWER}"
         )
     return {"complete": report.complete, "scannedRepositories": scanned, "failedRepositories": failed, "agents": agents}
 
@@ -134,11 +142,11 @@ def encode_body(body: Mapping[str, Any]) -> bytes:
     try:
         data = json.dumps(body, ensure_ascii=False, allow_nan=False).encode("utf-8")
     except (TypeError, ValueError):  # UnicodeEncodeError (a lone surrogate) is a ValueError.
-        raise PublishError(f"The results cannot be sent as JSON. Nothing was published. {_KEEP_REPORT}.") from None
+        raise PublishError("The results cannot be written as JSON, so they cannot be uploaded.") from None
     if len(data) > MAX_BODY_BYTES:
         raise PublishError(
-            f"The results are {len(data)} bytes, and Agent Manager takes at most {MAX_BODY_BYTES}. "
-            f"Nothing was published. {_KEEP_REPORT}; scan fewer repositories in each platform."
+            f"The results are {len(data)} bytes, and Agent Manager takes at most {MAX_BODY_BYTES}, "
+            f"so they cannot be uploaded. {_FEWER}"
         )
     return data
 
@@ -164,47 +172,50 @@ class Publisher:
     def __repr__(self) -> str:
         return f"Publisher({self._amp_url!r})"  # Never the token.
 
-    def publish(self, report: Report, *, report_location: str | None = None) -> PublishResult:
-        """Send ``report``'s confirmed agents and repository lists. Raises PublishError.
+    def publish(self, report: Report) -> PublishResult:
+        """Send ``report``'s confirmed agents and repository lists. Raises PublishError."""
+        return self.publish_body(report.scan_id, build_body(report))
 
-        ``report_location`` is named in error messages so the reader knows what ``upload`` needs.
-        """
-        body = build_body(report)
+    def publish_body(self, scan_id: str, body: Mapping[str, Any]) -> PublishResult:
+        """Send ``body`` (from ``build_body``, or a results file's ``results``) to scan ``scan_id``.
+        Raises PublishError."""
         encode_body(body)  # The size check; the client encodes it again the same way.
-        saved = f"{_KEEP_REPORT} at {report_location}" if report_location else _KEEP_REPORT
         if self._expires_at is not None and self._now() >= self._expires_at.timestamp():
-            raise PublishError(
-                f"The scan token expired before the results could be published. {saved}, "
-                f"but a scan accepts results only within its hour. {_NEW_COMMAND}",
-                ExitCode.AUTH_ERROR,
-            )
-        url = self._amp_url + PUBLISH_PATH.format(scan_id=quote(report.scan_id, safe=""))
+            raise PublishError("The scan token has expired.", ExitCode.AUTH_ERROR, console_can_upload=True)
+        url = self._amp_url + PUBLISH_PATH.format(scan_id=quote(scan_id, safe=""))
         try:
             # Retried on 5xx and network errors: a repeat after a lost answer is refused (409), never saved twice.
             response = self._http.post_json(url, body, headers={"Authorization": f"Bearer {self._token}"}, retry=True)
         except HttpError as exc:
-            raise _error(exc, saved, report.scan_id) from None
+            raise _error(exc) from None
         data = response.data
         status = data.get("status") if isinstance(data, dict) else None
         count = data.get("findingsCount") if isinstance(data, dict) else None
         if not isinstance(status, str) or not isinstance(count, int) or isinstance(count, bool):
-            raise PublishError(f"Agent Manager sent an unexpected answer to the publish. {saved}.")
+            raise PublishError("Agent Manager sent an unexpected answer to the upload.")
         return PublishResult("".join(c for c in status if c.isprintable())[:40], count)
 
 
 def published_line(result: PublishResult) -> str:
-    """The line printed after a successful publish."""
+    """The line printed after a successful upload."""
     agents = "1 agent" if result.findings_count == 1 else f"{result.findings_count} agents"
-    return f"Published to Agent Manager: scan {result.status}, {agents} saved."
+    return f"Uploaded to Agent Manager: scan {result.status}, {agents} saved."
 
 
 def report_exit_code(report: Report) -> ExitCode:
     """OK when every repository was scanned and the list was complete, else PARTIAL_FAILURE.
 
-    Also PARTIAL_FAILURE when every repository failed: the results were still published (Agent Manager marks
-    the scan failed), so the command finished, but not its work.
+    Also PARTIAL_FAILURE when every repository failed: the results were still saved (and Agent Manager marks
+    the scan failed once they arrive), so the command finished, but not its work.
     """
     if not report.complete or any(r.status == RepositoryStatus.FAILED for r in report.repositories):
+        return ExitCode.PARTIAL_FAILURE
+    return ExitCode.OK
+
+
+def body_exit_code(body: Mapping[str, Any]) -> ExitCode:
+    """``report_exit_code`` for a publish body: PARTIAL_FAILURE when it is incomplete or names a failed repository."""
+    if body.get("complete") is not True or body.get("failedRepositories"):
         return ExitCode.PARTIAL_FAILURE
     return ExitCode.OK
 
@@ -230,31 +241,35 @@ def _reason(reason: str | None) -> str:
     return text if len(text) <= MAX_REASON_CHARS else text[: MAX_REASON_CHARS - 3] + "..."
 
 
-def _error(exc: HttpError, saved: str, scan_id: str) -> PublishError:
+TOKEN_EXPIRED_409 = "the scan token of this scan has expired"
+"""Part of Agent Manager's 409 message for a scan older than a scan token lives: the console can still upload."""
+
+
+def _error(exc: HttpError) -> PublishError:
     said = f" Agent Manager said: {exc.server_message}" if exc.server_message else ""
     status = exc.status
     if status in (401, 403):
         return PublishError(
-            f"Agent Manager refused the scan token (HTTP {status}): it has expired, or it is not this scan's "
-            f"token. {saved}, but a scan accepts results only within its hour. {_NEW_COMMAND}",
+            f"Agent Manager refused the scan token (HTTP {status}): it has expired, or it is not this scan's token.",
             ExitCode.AUTH_ERROR,
+            console_can_upload=True,
         )
     if status == 404:
         return PublishError(
             "Agent Manager has no source code scan with this ID for the token's organization, or source code "
-            f"scans are turned off on this Agent Manager (HTTP 404). Check AMP_URL and the scan ID. {saved}.",
+            "scans are turned off on this Agent Manager (HTTP 404). Check AMP_URL and the scan ID.",
             ExitCode.CONFIG_ERROR,
+        )
+    if status == 409 and TOKEN_EXPIRED_409 in (exc.server_message or ""):
+        return PublishError(
+            "Agent Manager says this scan's scan token has expired (HTTP 409).", console_can_upload=True
         )
     if status == 409:
         return PublishError(
-            "The scan is no longer waiting for results (HTTP 409): it was already published, it expired after "
-            "1 hour, or a newer scan of this platform published first. If an earlier attempt reached Agent "
-            f"Manager, the results are already saved.{said} {saved}."
+            "The scan is no longer waiting for results (HTTP 409): it already has results, it was cancelled, "
+            "or a newer scan of this platform uploaded first. If an earlier attempt reached Agent Manager, "
+            f"the results are already saved there.{said}"
         )
     if status in (400, 413):
-        return PublishError(f"Agent Manager refused the results (HTTP {status}).{said} {saved}.")
-    return PublishError(
-        f"Could not publish the results ({exc}). {saved}; publish it within the scan's hour with:\n"
-        f'  docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD:/out" -e AMP_URL=... -e AMP_SCAN_TOKEN=... '
-        f"<image> upload --scan-id {scan_id}"
-    )
+        return PublishError(f"Agent Manager refused the results (HTTP {status}).{said}")
+    return PublishError(f"Could not upload the results ({exc}).", console_can_upload=True)
