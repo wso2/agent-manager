@@ -74,7 +74,11 @@ export const ProjectOverview: React.FC = () => {
   // A cached empty list may be out of date (an agent created elsewhere), and within
   // the stale time nothing refetches it. So an empty list counts only once a request
   // made since this page opened confirms it; until then the page shows the skeleton.
-  const [openedAt] = useState(() => Date.now());
+  // Switching project restarts the clock, as the router may keep this component mounted.
+  const [opened, setOpened] = useState(() => ({ projectId, at: Date.now() }));
+  if (opened.projectId !== projectId) setOpened({ projectId, at: Date.now() });
+  // For the one render before the reset applies, nothing counts as confirmed.
+  const openedAt = opened.projectId === projectId ? opened.at : Infinity;
   const hasNoAgents = isAgentsLoaded && !agents?.agents?.length;
   const emptyUnconfirmed = hasNoAgents && agentsUpdatedAt < openedAt;
   useEffect(() => {

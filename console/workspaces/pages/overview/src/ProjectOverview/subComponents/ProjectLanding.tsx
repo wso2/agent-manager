@@ -118,8 +118,8 @@ const EXPLORE = [
 
 /**
  * An org-level shortcut: manage what exists (or view it, without write access), or add
- * the first one. Only a successful, empty response offers "add the first one"; a failed
- * load links to the list page, which reports the error.
+ * the first one. Only a successful, empty response offers "add the first one"; while the
+ * count loads, or if it failed, the card links to the list page (which reports any error).
  */
 function shortcut(card: {
   icon: React.ReactNode;
@@ -139,7 +139,7 @@ function shortcut(card: {
   addState: unknown;
 }): ResourceCardData {
   const { canWrite, failed, noun, addLabel, listPath, addPath, addState, ...shown } = card;
-  return card.count || failed || !canWrite
+  return card.count || card.loading || failed || !canWrite
     ? { ...shown, actionLabel: `${canWrite ? "Manage" : "View"} ${noun}`, to: listPath }
     : { ...shown, actionLabel: addLabel, to: addPath, state: addState };
 }

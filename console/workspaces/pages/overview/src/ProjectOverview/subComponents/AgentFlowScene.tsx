@@ -25,6 +25,7 @@ import {
   Cloud,
   Globe,
   IdCard,
+  Network,
   ShieldCheck,
   Users,
   Wrench,
@@ -42,7 +43,7 @@ import {
 
 export type AgentHosting = "internal" | "external";
 
-type NodeId = "users" | "agent" | "identity" | "gateway" | "traces" | "llm" | "mcp";
+type NodeId = "users" | "ingress" | "agent" | "identity" | "gateway" | "traces" | "llm" | "mcp";
 /** A position as fractions of the square canvas. */
 interface Point {
   x: number;
@@ -63,9 +64,10 @@ const BADGE_ICON = 14;
 const NODE_R = 0.068;
 const HERO_R = 0.085;
 
-// Both scenes share the same nodes, icons and traffic; only the layout differs.
+// Both scenes share the same icons and traffic; the layout and routes differ.
 const NODE_ICONS: Record<NodeId, React.ReactNode> = {
   users: <Users size={ICON} />,
+  ingress: <Network size={ICON} />,
   agent: <Bot size={ICON} />,
   identity: <IdCard size={ICON} />,
   gateway: <ShieldCheck size={ICON} />,
@@ -73,26 +75,41 @@ const NODE_ICONS: Record<NodeId, React.ReactNode> = {
   llm: <Brain size={ICON} />,
   mcp: <Wrench size={ICON} />,
 };
-/** Request journeys; each passes the guardrails ("gateway"). */
-const ROUTES: NodeId[][] = [
-  ["users", "agent", "gateway", "llm"],
-  ["users", "agent", "gateway", "mcp"],
-];
+/**
+ * Request journeys; each passes the guardrails ("gateway") on its way out. A platform-hosted
+ * agent is reached through the environment's ingress gateway, which checks CORS and auth
+ * first; an external agent is reached in the user's own infrastructure.
+ */
+const ROUTES: Record<AgentHosting, NodeId[][]> = {
+  internal: [
+    ["users", "ingress", "agent", "gateway", "llm"],
+    ["users", "ingress", "agent", "gateway", "mcp"],
+  ],
+  external: [
+    ["users", "agent", "gateway", "llm"],
+    ["users", "agent", "gateway", "mcp"],
+  ],
+};
 /** The agent sends traces; with AgentID, the platform issues the agent its identity. */
 const TELEMETRY: [NodeId, NodeId] = ["agent", "traces"];
 const IDENTITY: [NodeId, NodeId] = ["identity", "agent"];
 
-const LAYOUTS: Record<AgentHosting, { boundaries: Boundary[]; at: Record<NodeId, Point> }> = {
+const LAYOUTS: Record<
+  AgentHosting,
+  { boundaries: Boundary[]; at: Partial<Record<NodeId, Point>> }
+> = {
   internal: {
-    boundaries: [{ x0: 0.06, y0: 0.24, x1: 0.94, y1: 0.75, icon: <Cloud size={BADGE_ICON} /> }],
+    // Users reach in from the left; the ingress gateway is the platform's front door.
+    boundaries: [{ x0: 0.24, y0: 0.06, x1: 0.94, y1: 0.77, icon: <Cloud size={BADGE_ICON} /> }],
     at: {
-      users: { x: 0.4, y: 0.12 },
-      agent: { x: 0.4, y: 0.4 },
-      traces: { x: 0.76, y: 0.4 },
-      gateway: { x: 0.4, y: 0.63 },
-      identity: { x: 0.18, y: 0.63 },
-      llm: { x: 0.22, y: 0.875 },
-      mcp: { x: 0.58, y: 0.875 },
+      users: { x: 0.11, y: 0.17 },
+      ingress: { x: 0.4, y: 0.17 },
+      agent: { x: 0.4, y: 0.42 },
+      traces: { x: 0.76, y: 0.42 },
+      gateway: { x: 0.4, y: 0.66 },
+      identity: { x: 0.76, y: 0.66 },
+      llm: { x: 0.22, y: 0.89 },
+      mcp: { x: 0.58, y: 0.89 },
     },
   },
   external: {
@@ -112,18 +129,29 @@ const LAYOUTS: Record<AgentHosting, { boundaries: Boundary[]; at: Record<NodeId,
   },
 };
 
-const SPEED = 0.26; // canvas fractions per second
-const SPAWN_EVERY = 0.85; // seconds between requests
-const BLOCK_RATE = 0.25; // share of requests the guardrail stops
+// About the pace of the globe's dots and comet, so the two read as one illustration.
+const SPEED = 0.11; // canvas fractions per second
+const SPAWN_EVERY = 1.6; // seconds between requests, spaced out to match the slower pace
+const BLOCK_RATE = 0.3; // share of requests the guardrail stops
+const REJECT_RATE = 0.2; // share of requests the ingress gateway turns away (failed auth)
 const BURST_S = 0.8; // how long a stopped request takes to fade
 const FLASH_S = 0.45; // how long the guardrail reacts to a request
-const TELEMETRY_EVERY = 0.6;
+const TELEMETRY_EVERY = 1;
 const IDENTITY_EVERY = 2.2; // seconds between identity tokens
 const GLOW_R = 0.26; // radius of the warm glow, as a fraction of the canvas
 
 // Entrance, in seconds after the scene is shown: frame, then links drawn along the
 // flow, then nodes popping in the order traffic reaches them, then the traffic itself.
-const ENTRY_ORDER: NodeId[] = ["users", "agent", "identity", "gateway", "traces", "llm", "mcp"];
+const ENTRY_ORDER: NodeId[] = [
+  "users",
+  "ingress",
+  "agent",
+  "identity",
+  "gateway",
+  "traces",
+  "llm",
+  "mcp",
+];
 const nodeEntry = (id: NodeId) => 0.12 + 0.06 * ENTRY_ORDER.indexOf(id);
 const FLOW_ENTRY = 0.55;
 
@@ -219,24 +247,34 @@ function roundRect(
 
 function buildScene(hosting: AgentHosting, showIdentity: boolean) {
   const layout = LAYOUTS[hosting];
+  const routes = ROUTES[hosting];
   const ids = (Object.keys(layout.at) as NodeId[]).filter((id) => showIdentity || id !== "identity");
   const nodes = Object.fromEntries(
     ids.map((id) => {
       const hero = id === "agent";
       const r = hero ? HERO_R : NODE_R;
-      return [id, { ...layout.at[id], id, hero, r, clearance: hero ? r + 0.02 : r }];
+      return [id, { ...(layout.at[id] as Point), id, hero, r, clearance: hero ? r + 0.02 : r }];
     }),
   ) as Record<NodeId, SceneNode>;
   const nodeList = ids.map((id) => nodes[id]);
 
-  const lines = ROUTES.map((route) => polyline(route.map((id) => nodes[id])));
-  const gateDistance = lines[0].at[ROUTES[0].indexOf("gateway")];
+  const lines = routes.map((route) => polyline(route.map((id) => nodes[id])));
   // Requests carry the identity from the agent onward, so only past this point.
-  const agentDistance = lines[0].at[ROUTES[0].indexOf("agent")];
+  const agentDistance = lines[0].at[routes[0].indexOf("agent")];
+  // Where requests can be stopped, in the order they reach them: the ingress gateway
+  // (when the route has one) turns some away, then the guardrails stop some. Every
+  // route shares its start up to the guardrails, so the first route's distances hold.
+  const gates = (["ingress", "gateway"] as const)
+    .filter((id) => routes[0].includes(id))
+    .map((id) => ({
+      node: nodes[id],
+      stopAt: lines[0].at[routes[0].indexOf(id)] - NODE_R,
+      rate: id === "ingress" ? REJECT_RATE : BLOCK_RATE,
+    }));
   // Every distinct hop, trimmed to the discs' edges, in the order traffic takes them.
   const hops = [
     ...new Map(
-      ROUTES.flatMap((route) =>
+      routes.flatMap((route) =>
         route
           .slice(1)
           .map((id, i) => [`${route[i]}>${id}`, trimmed(nodes[route[i]], nodes[id])] as const),
@@ -331,10 +369,9 @@ function buildScene(hosting: AgentHosting, showIdentity: boolean) {
     ctx.globalAlpha = 1;
 
     // Requests. Each is decided by its index, so the scene needs no state. Stopped
-    // ones burst at the guardrail; the guardrail flashes for each it handles.
-    let blockFlash = 0;
-    let passFlash = 0;
-    const stopAt = gateDistance - NODE_R;
+    // ones burst at the gate that stopped them; each gate flashes for those it handles.
+    const blockFlash = gates.map(() => 0);
+    const passFlash = gates.map(() => 0);
     const maxLife = lines[0].length / SPEED + BURST_S;
     ctx.fillStyle = LINE_COLOR;
     ctx.strokeStyle = LINE_COLOR;
@@ -344,16 +381,29 @@ function buildScene(hosting: AgentHosting, showIdentity: boolean) {
       const age = time - i * SPAWN_EVERY;
       if (age < 0) continue;
       const line = lines[Math.floor(hash(i + 0.5) * lines.length)];
-      const blocked = hash(i) < BLOCK_RATE;
-      const travelled = age * SPEED;
-      const sinceGate = (travelled - stopAt) / SPEED;
-      if (sinceGate >= 0 && sinceGate < FLASH_S) {
-        const strength = 1 - sinceGate / FLASH_S;
-        if (blocked) blockFlash = Math.max(blockFlash, strength);
-        else passFlash = Math.max(passFlash, strength);
+      // Which gate stops it, if any: the rates are stacked over one roll.
+      const roll = hash(i);
+      let stoppedBy = -1;
+      for (let g = 0, below = 0; g < gates.length; g++) {
+        below += gates[g].rate;
+        if (roll < below) {
+          stoppedBy = g;
+          break;
+        }
       }
-      if (blocked && travelled >= stopAt) {
-        const f = sinceGate / BURST_S;
+      const travelled = age * SPEED;
+      const lastGate = stoppedBy < 0 ? gates.length - 1 : stoppedBy;
+      for (let g = 0; g <= lastGate; g++) {
+        const sinceGate = (travelled - gates[g].stopAt) / SPEED;
+        if (sinceGate >= 0 && sinceGate < FLASH_S) {
+          const strength = 1 - sinceGate / FLASH_S;
+          if (g === stoppedBy) blockFlash[g] = Math.max(blockFlash[g], strength);
+          else passFlash[g] = Math.max(passFlash[g], strength);
+        }
+      }
+      if (stoppedBy >= 0 && travelled >= gates[stoppedBy].stopAt) {
+        const stopAt = gates[stoppedBy].stopAt;
+        const f = (travelled - stopAt) / SPEED / BURST_S;
         if (f <= 1) {
           pointAt(line, stopAt, spot);
           bursts.push(spot.x, spot.y, f);
@@ -398,28 +448,30 @@ function buildScene(hosting: AgentHosting, showIdentity: boolean) {
       }
     }
 
-    // The guardrail reacts: a blue pulse for a request it lets through, an accent ring
-    // for one it stops.
-    const gx = px(nodes.gateway.x);
-    const gy = px(nodes.gateway.y);
+    // Each gate reacts: a blue pulse for a request it lets through, an accent ring for
+    // one it stops.
     const gr = px(NODE_R);
-    if (passFlash > 0) {
-      ctx.globalAlpha = 0.18 * passFlash * flow;
-      ctx.fillStyle = LINE_COLOR;
-      ctx.beginPath();
-      ctx.arc(gx, gy, gr, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    if (blockFlash > 0) {
-      ctx.globalAlpha = blockFlash * flow;
-      ctx.strokeStyle = palette.accent;
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.arc(gx, gy, gr + 3 * (1 - blockFlash), 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    gates.forEach((gate, g) => {
+      const gx = px(gate.node.x);
+      const gy = px(gate.node.y);
+      if (passFlash[g] > 0) {
+        ctx.globalAlpha = 0.18 * passFlash[g] * flow;
+        ctx.fillStyle = LINE_COLOR;
+        ctx.beginPath();
+        ctx.arc(gx, gy, gr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (blockFlash[g] > 0) {
+        ctx.globalAlpha = blockFlash[g] * flow;
+        ctx.strokeStyle = palette.accent;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(gx, gy, gr + 3 * (1 - blockFlash[g]), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    });
 
-    // Stopped requests: an accent burst where they met the guardrail, fading out.
+    // Stopped requests: an accent burst where they met the gate, fading out.
     ctx.fillStyle = palette.accent;
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = 1;
@@ -441,6 +493,13 @@ function buildScene(hosting: AgentHosting, showIdentity: boolean) {
 
   return { boundaries: layout.boundaries, nodeList, draw };
 }
+
+/**
+ * The single frame shown for reduced motion, per scene: requests in flight and one being
+ * stopped (internal: at the ingress gateway, with another fading at the guardrails).
+ * Found by stepping through the timeline; recheck if the timing or layout changes.
+ */
+const STILL_TIME: Record<AgentHosting, number> = { internal: 13.4, external: 9.25 };
 
 const SCENES = {
   internal: { plain: buildScene("internal", false), identity: buildScene("internal", true) },
@@ -471,8 +530,9 @@ const fadeSx = (shown: boolean, opacity: number, delayMs: number, grow: boolean)
 /**
  * How an agent runs and how its traffic flows, drawn with icons only: requests reach
  * the agent, its LLM and tool calls pass the guardrails (some are stopped), and traces
- * stream to the platform. `internal` runs on the platform; `external` runs in the user's
- * own infrastructure. With `identity`, the platform issues the agent its AgentID and the
+ * stream to the platform. `internal` runs on the platform, behind the environment's
+ * ingress gateway (which turns away requests that fail auth); `external` runs in the
+ * user's own infrastructure. With `identity`, the platform issues the agent its AgentID and the
  * agent's calls carry it. Decorative.
  */
 export function AgentFlowScene({
@@ -488,8 +548,7 @@ export function AgentFlowScene({
   active?: boolean;
 }) {
   const scene = SCENES[hosting][identity ? "identity" : "plain"];
-  // The still frame shows a request in flight and one being stopped.
-  const canvasRef = useAnimatedCanvas(scene.draw, { active, stillTime: 3.1 });
+  const canvasRef = useAnimatedCanvas(scene.draw, { active, stillTime: STILL_TIME[hosting] });
   return (
     <Box
       aria-hidden
