@@ -172,6 +172,25 @@ func (s *a2aProxyService) SetA2AProxy(
 	if err != nil {
 		return err
 	}
+	// A concurrent first-time setup can create the proxy row between staging
+	// and locking, under another ID. Stage again for the row that won; the
+	// cleanup job removes the stale staging.
+	for range a2aStageAttempts {
+		err = s.setA2AProxy(ctx, ouID, projectName, agentName, t, auth)
+		if !errors.Is(err, gwrepo.ErrA2AStagedForOtherID) {
+			return err
+		}
+	}
+	return err
+}
+
+// a2aStageAttempts bounds how often SetA2AProxy stages again after losing a first-time setup race.
+const a2aStageAttempts = 3
+
+func (s *a2aProxyService) setA2AProxy(
+	ctx context.Context, ouID, projectName, agentName string, t a2aProxyTarget, auth *gwmodels.A2AProxyAuthUpdate,
+) error {
+	var err error
 	var preparedID uuid.UUID
 	if auth != nil && auth.Value != nil {
 		if preparer, ok := s.proxyRepo.(interface {
@@ -187,6 +206,9 @@ func (s *a2aProxyService) SetA2AProxy(
 		existing, err := s.lockedProxy(ctx, tx, t)
 		if err != nil {
 			return err
+		}
+		if existing != nil && preparedID != uuid.Nil && existing.ID != preparedID {
+			return gwrepo.ErrA2AStagedForOtherID
 		}
 		cardURL, err := s.requireCardSource(ctx, tx, t)
 		if err != nil {

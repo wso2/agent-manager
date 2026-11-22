@@ -18,15 +18,17 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/vault"
 )
 
-func registerHealthCheck(mux *http.ServeMux) {
+func registerHealthCheck(mux *http.ServeMux, vaults *vault.Vaults) {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Duration(config.GetConfig().HealthCheckTimeoutSeconds)*time.Second)
 		defer cancel()
@@ -35,6 +37,13 @@ func registerHealthCheck(mux *http.ServeMux) {
 		if result := db.DB(ctx).Raw("SELECT 1").Scan(&dbRes); result.Error != nil {
 			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "database connection error")
 			return
+		}
+		if vaults != nil {
+			if err := vaults.Check(ctx); err != nil {
+				slog.WarnContext(ctx, "health check: secret vault unavailable", "error", err)
+				httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "secret vault unavailable")
+				return
+			}
 		}
 		response := map[string]interface{}{
 			"message":   "agent-manager-service is healthy",

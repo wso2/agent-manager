@@ -142,14 +142,39 @@ func (r *a2aProxyRepository) PrepareUpstream(ctx context.Context, org, project, 
 	return prepared, id, err
 }
 
+// ErrA2AStagedForOtherID reports that a credential was staged for a proxy ID that lost a concurrent first-time
+// setup: the row now exists under another ID. Staging again picks up that ID.
+var ErrA2AStagedForOtherID = errors.New("A2A credential was staged for a proxy row another request replaced")
+
+// a2aStageAttempts bounds how often Upsert stages again after losing a first-time setup race.
+const a2aStageAttempts = 3
+
 func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *gwmodels.A2AProxy) error {
-	if _, active := r.db.Statement.ConnPool.(gorm.TxCommitter); !active && proxy.UpstreamAuthValue != nil {
-		var err error
-		ctx, proxy.ID, err = r.PrepareUpstream(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, proxy.EnvironmentUUID, *proxy.UpstreamAuthValue)
+	if _, active := r.db.Statement.ConnPool.(gorm.TxCommitter); active || proxy.UpstreamAuthValue == nil {
+		return r.upsert(ctx, proxy, uuid.Nil)
+	}
+	var err error
+	for range a2aStageAttempts {
+		attempt := *proxy
+		var staged context.Context
+		staged, attempt.ID, err = r.PrepareUpstream(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, proxy.EnvironmentUUID, *proxy.UpstreamAuthValue)
 		if err != nil {
 			return err
 		}
+		err = r.upsert(staged, &attempt, attempt.ID)
+		if !errors.Is(err, ErrA2AStagedForOtherID) {
+			if err == nil {
+				*proxy = attempt
+			}
+			return err
+		}
 	}
+	return err
+}
+
+// upsert writes proxy. stagedID, when set, is the ID its credential was staged for; finding the row under another
+// ID returns ErrA2AStagedForOtherID.
+func (r *a2aProxyRepository) upsert(ctx context.Context, proxy *gwmodels.A2AProxy, stagedID uuid.UUID) error {
 	now := dbx.Now()
 	proxy.UpdatedAt = now
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -176,6 +201,9 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *gwmodels.A2AProx
 			return tx.Create(proxy).Error
 		}
 		current := existing[0]
+		if stagedID != uuid.Nil && current.ID != stagedID {
+			return ErrA2AStagedForOtherID
+		}
 		proxy.ID, proxy.CreatedAt = current.ID, current.CreatedAt
 		if err := r.storeSecret(ctx, tx, proxy); err != nil {
 			return err

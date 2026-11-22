@@ -127,21 +127,22 @@ func (t txStore) Delete(ctx context.Context, orgID, path string) error {
 
 func (t txStore) In(tx *gorm.DB) modkit.Secrets { return txStore{st: t.st, tx: tx} }
 
-// Prepare stages the plaintext, if any, before the owning transaction.
+// Prepare stages outside the transaction, whatever tx this store writes through.
+func (t txStore) Prepare(ctx context.Context, orgID, path, value string) (context.Context, error) {
+	return t.st.Prepare(ctx, orgID, path, value)
+}
+
+// Prepare stages the plaintext, if any, before the owning transaction. An empty value is no credential, as the
+// services treat it before sealing, so it stages nothing.
 func Prepare(ctx context.Context, store modkit.Secrets, orgID, path string, auth *gwmodels.UpstreamAuth) (context.Context, error) {
-	if auth == nil || auth.Value == nil {
+	if auth == nil || auth.Value == nil || *auth.Value == "" {
 		return ctx, nil
 	}
 	return PrepareValue(ctx, store, orgID, path, *auth.Value)
 }
 
 func PrepareValue(ctx context.Context, store modkit.Secrets, orgID, path, value string) (context.Context, error) {
-	if preparer, ok := store.(interface {
-		Prepare(context.Context, string, string, string) (context.Context, error)
-	}); ok {
-		return preparer.Prepare(ctx, orgID, path, value)
-	}
-	return ctx, nil
+	return store.Prepare(ctx, orgID, path, value)
 }
 
 func (st *Store) Prepare(ctx context.Context, orgID, path, value string) (context.Context, error) {
@@ -149,7 +150,7 @@ func (st *Store) Prepare(ctx context.Context, orgID, path, value string) (contex
 	if err != nil {
 		return ctx, err
 	}
-	return PrepareValue(ctx, store, orgID, path, value)
+	return store.Prepare(ctx, orgID, path, value)
 }
 
 // Seal stores auth's plaintext value at path and leaves path in its place as

@@ -172,6 +172,7 @@ func newExternalFixture(t *testing.T) *externalFixture {
 		store: NewSecretStore(vaults), runner: NewSecretJobRunner(db.GetDB(), vaults, slog.New(slog.DiscardHandler)),
 		external: external, org: newOrg(t),
 	}
+	f.runner.orgID = canonicalOrgID(f.org)
 	return f
 }
 
@@ -397,6 +398,7 @@ func TestSecretPromotionUsesTheQueuedVaultDuringRollout(t *testing.T) {
 
 	ctx := context.Background()
 	oldWorker := NewSecretJobRunner(db.GetDB(), vaulttest.Local(t), slog.New(slog.DiscardHandler))
+	oldWorker.orgID = f.runner.orgID
 	ran, failed, err := oldWorker.RunOnce(ctx, f.now())
 	require.NoError(t, err)
 	require.Equal(t, 1, ran)

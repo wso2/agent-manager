@@ -213,6 +213,9 @@ func (c *client) PatchSecret(ctx context.Context, location secretmanagersvc.Secr
 			delete(merged, k)
 		}
 	}
+	if !c.stagesWrites() {
+		return name, c.patchLocked(ctx, location.OrgName, id, patch)
+	}
 	for range patchAttempts {
 		state, err := c.state(ctx, id)
 		if err != nil {
@@ -255,6 +258,37 @@ func (c *client) PatchSecret(ctx context.Context, location secretmanagersvc.Secr
 		}
 	}
 	return "", fmt.Errorf("secret %s kept changing during %d attempts to patch it", name, patchAttempts)
+}
+
+// stagesWrites reports whether writes reach an external vault before their transaction, which rules out holding the
+// row lock across the read, merge and write.
+func (c *client) stagesWrites() bool {
+	stager, ok := c.rows.(interface{ StagesWrites() bool })
+	return ok && stager.StagesWrites()
+}
+
+// patchLocked reads, merges and writes under the row lock, so concurrent patches to the same secret queue instead of
+// retrying. It serves vaults that write inside the transaction.
+func (c *client) patchLocked(ctx context.Context, org string, id uuid.UUID, patch func(map[string]string)) error {
+	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := dbx.LockRow(tx, models.Secret{}.TableName(), "version", "id = ?", id)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return secretmanagersvc.ErrSecretNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("lock secret %s: %w", id, err)
+		}
+		merged, err := c.load(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		patch(merged)
+		payload, err := encode(merged)
+		if err != nil {
+			return err
+		}
+		return c.rows.Write(ctx, tx, org, ownerKind, id, id, payload)
+	})
 }
 
 // patchAttempts bounds how often PatchSecret starts over because another write changed an external secret.

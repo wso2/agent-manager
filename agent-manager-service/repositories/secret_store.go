@@ -126,6 +126,13 @@ type stagedSecret struct {
 // PrepareWrite stages reference-only credentials before the owning SQL
 // transaction starts. The independent cleanup job survives a rollback or a
 // process crash. Its cancellation and publication use the same transaction.
+// StagesWrites reports whether new values go to an external vault, which must be written before the owning
+// transaction (see PrepareWrite).
+func (s *SecretStore) StagesWrites() bool {
+	_, external := s.vaults.Writer().(vault.ReferenceVault)
+	return external
+}
+
 func (s *SecretStore) PrepareWrite(ctx context.Context, db *gorm.DB, orgID, kind string, id uuid.UUID, value []byte) (context.Context, error) {
 	writer, external := s.vaults.Writer().(vault.ReferenceVault)
 	if !external {

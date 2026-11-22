@@ -142,16 +142,34 @@ func (v *Vault) Abandon(ctx context.Context, ref vault.Ref, path string) error {
 		return err
 	}
 	// If this path was never written, win the CAS with a nonsecret placeholder.
-	// If the writer won first, destroy its version instead.
+	// If the writer won first, destroy its version instead. Writing to an
+	// existing path needs the update capability, which the API's policy does
+	// not grant, so OpenBao answers 403 rather than a CAS 400 there. Either
+	// way the destroy below decides: it fails too if the token is unusable.
 	marker := writeRequest{Options: casOptions{Version: 0}, Data: secretData{Value: nil}}
 	err := v.request(ctx, http.MethodPost, "/data/"+path, marker, nil)
 	var status requestError
-	if err != nil && (!errors.As(err, &status) || status.code != http.StatusBadRequest) {
+	if err != nil && (!errors.As(err, &status) || (status.code != http.StatusBadRequest && status.code != http.StatusForbidden)) {
 		return err
 	}
 	return v.request(ctx, http.MethodPut, "/destroy/"+path, struct {
 		Versions []int `json:"versions"`
 	}{Versions: []int{1}}, nil)
+}
+
+// healthPath is never written. Reading it exercises the server, the mount and
+// the token's read access under the API's policy: a usable vault answers 404.
+const healthPath = "/data/amp/healthz"
+
+var _ vault.Checker = (*Vault)(nil)
+
+func (v *Vault) Check(ctx context.Context) error {
+	err := v.request(ctx, http.MethodGet, healthPath, nil, nil)
+	var status requestError
+	if err == nil || (errors.As(err, &status) && status.code == http.StatusNotFound) {
+		return nil
+	}
+	return err
 }
 
 func (v *Vault) Seal(ctx context.Context, ref vault.Ref, value []byte, _ *vault.Sealed) (vault.Sealed, error) {

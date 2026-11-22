@@ -209,7 +209,7 @@ During an upgrade or rollback involving a pre-vault binary, keep the local vault
 
 Run OpenBao independently of AMP and enable a KV v2 secrets engine. Configure AMP with `SECRET_VAULT_PROVIDER=openbao`, `OPENBAO_ADDR` (the server origin), `OPENBAO_TOKEN` (a scoped token), and optionally `OPENBAO_KV_MOUNT` (defaults to `secret`). Standalone Compose forwards these settings to `amp-api`. For a server on the host, `OPENBAO_ADDR` must be reachable from inside the API container. Use HTTPS and a trusted CA outside local development. Provide the token through the API process environment and use a separate mount per AMP deployment.
 
-For a mount named `secret`, the API token needs this OpenBao policy:
+For a mount named `secret`, the API token needs this OpenBao policy (kept in `agent-manager-service/vault/openbao/policy.hcl`; CI runs the OpenBao test with a token limited to it):
 
 ```hcl
 path "secret/data/amp/*" {
@@ -225,7 +225,9 @@ path "secret/metadata/amp/*" {
 
 The API writes each credential to its own immutable OpenBao path and commits only its reference in SQL. The `ciphertext` and `key_id` columns are null for OpenBao rows, and no promotion job stages the value in SQL. Old locally encrypted credentials stay readable and move to OpenBao when rewritten. Keep `OPENBAO_ADDR` and `OPENBAO_KV_MOUNT` pointed at the original mount while it holds referenced values. If you switch back to local writes, set `SECRET_VAULT_READERS=openbao` to keep existing references readable and allow cleanup.
 
-The API reserves a cleanup job before staging a credential in OpenBao, outside the owning SQL transaction. Committing the reference cancels the cleanup job atomically. If the write fails, SQL rolls back, or the API exits before commit, the previous committed credential remains readable and the worker permanently destroys the abandoned value after the staging window. OpenBao retains a metadata tombstone to prevent delayed writes from recreating the value. Replaced and deleted committed credentials are reclaimed by the normal job worker.
+The API reserves a cleanup job before staging a credential in OpenBao, outside the owning SQL transaction. Committing the reference cancels the cleanup job atomically. If the write fails, SQL rolls back, or the API exits before commit, the previous committed credential remains readable and the worker permanently destroys the abandoned value after the staging window. OpenBao retains a metadata tombstone to prevent delayed writes from recreating the value. Replaced and deleted committed credentials are reclaimed by the normal job worker. `/healthz` reports 503 when OpenBao is unreachable, sealed or refuses the token.
+
+Module code writes through `rt.Secrets()`. Under OpenBao, a `Put` inside a transaction (`In(tx)`) needs the context returned by `Prepare` for the same path and value, called before the transaction opens. Hooks run inside the core's transaction, so they can read and delete module secrets but cannot write them under OpenBao.
 
 To test against a disposable standalone server, start `bao server -dev -dev-listen-address=127.0.0.1:8200` in a separate process. Export `OPENBAO_ADDR=http://127.0.0.1:8200` and the dev token as `OPENBAO_TOKEN`, then run `make test-integration` from `agent-manager-service`. The suite runs `TestStandaloneOpenBaoReferenceOnly` when the address is set.
 

@@ -28,6 +28,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
 	"gorm.io/gorm"
+
+	_ "github.com/wso2/agent-manager/agent-manager-service/vault/openbao"
 )
 
 // Injectors from wire.go:
@@ -36,6 +38,18 @@ import (
 // optional separation of environment-Thunder management and OAuth endpoints.
 func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB, secretProvider secretmanagersvc.Provider, agentThunderProvisioning services.AgentThunderProvisioningService, endpointResolver thundersvc.EnvThunderEndpointResolver) (*AppParams, error) {
 	configConfig := ProvideConfigFromPtr(cfg)
+	v, err := ProvideEncryptionKey(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	secretRefKeys, err := ProvideSecretRefKeys(configConfig, v)
+	if err != nil {
+		return nil, err
+	}
+	vaults, err := ProvideSecretVaults(configConfig, secretRefKeys)
+	if err != nil {
+		return nil, err
+	}
 	middleware := ProvideAuthMiddleware(configConfig)
 	logger := ProvideLogger()
 	thunderConfig := ProvideThunderConfig(configConfig)
@@ -50,18 +64,6 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		return nil, err
 	}
 	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentThunderProvisioning, identityClient, logger)
-	v, err := ProvideEncryptionKey(configConfig)
-	if err != nil {
-		return nil, err
-	}
-	secretRefKeys, err := ProvideSecretRefKeys(configConfig, v)
-	if err != nil {
-		return nil, err
-	}
-	vaults, err := ProvideSecretVaults(configConfig, secretRefKeys)
-	if err != nil {
-		return nil, err
-	}
 	secretStore := repositories.NewSecretStore(vaults)
 	eventRepository := repositories.NewEventRepository(db, secretStore)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, platformRepository, logger)
@@ -99,6 +101,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	readThunderURLFunc := services.NewPlatformThunderURLReader()
 	envThunderResolver := ProvideEnvThunderResolverWithEndpoints(readSystemClientFunc, readThunderURLFunc, endpointResolver)
 	appParams := &AppParams{
+		SecretVaults:                 vaults,
 		AuthMiddleware:               middleware,
 		Logger:                       logger,
 		OrgResolver:                  orgResolver,
@@ -138,8 +141,20 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 // InitializeTestAppParamsWithClientMocks builds the core's services with
 // mocked clients.
 func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, authMiddleware jwtassertion.Middleware, testClients TestClients) (*AppParams, error) {
-	logger := ProvideLogger()
 	configConfig := ProvideConfigFromPtr(cfg)
+	v, err := ProvideEncryptionKey(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	secretRefKeys, err := ProvideSecretRefKeys(configConfig, v)
+	if err != nil {
+		return nil, err
+	}
+	vaults, err := ProvideSecretVaults(configConfig, secretRefKeys)
+	if err != nil {
+		return nil, err
+	}
+	logger := ProvideLogger()
 	thunderConfig := ProvideThunderConfig(configConfig)
 	identityClient := ProvideIdentityClient(thunderConfig)
 	orgResolver := ProvideOrgResolver(identityClient)
@@ -158,18 +173,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	secretManagementClient := ProvideTestSecretManagementClient(testClients)
 	agentThunderProvisioningService := services.NewAgentThunderProvisioningService(agentThunderClientRepository, envThunderResolver, secretManagementClient, logger)
 	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentThunderProvisioningService, identityClient, logger)
-	v, err := ProvideEncryptionKey(configConfig)
-	if err != nil {
-		return nil, err
-	}
-	secretRefKeys, err := ProvideSecretRefKeys(configConfig, v)
-	if err != nil {
-		return nil, err
-	}
-	vaults, err := ProvideSecretVaults(configConfig, secretRefKeys)
-	if err != nil {
-		return nil, err
-	}
 	secretStore := repositories.NewSecretStore(vaults)
 	eventRepository := repositories.NewEventRepository(db, secretStore)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, platformRepository, logger)
@@ -199,6 +202,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	outbox := repositories.NewEventOutboxRepository(db)
 	publisher := ProvideEventPublisher(bus, outbox, logger)
 	appParams := &AppParams{
+		SecretVaults:                 vaults,
 		AuthMiddleware:               authMiddleware,
 		Logger:                       logger,
 		OrgResolver:                  orgResolver,

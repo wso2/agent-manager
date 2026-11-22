@@ -195,7 +195,7 @@ func TestConcurrentPatchesKeepEveryKey(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.DeleteSecret(ctx, loc, "") })
 
-	const patchCount = 8
+	const patchCount = 16
 	start := make(chan struct{})
 	results := make(chan error, patchCount)
 	for i := range patchCount {

@@ -45,6 +45,8 @@ import (
 
 // AppParams contains all wired application dependencies
 type AppParams struct {
+	// SecretVaults are checked by the health probe.
+	SecretVaults *vault.Vaults
 	// Middleware
 	AuthMiddleware jwtassertion.Middleware
 	Logger         *slog.Logger

@@ -19,9 +19,13 @@
 package repositories
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,6 +42,7 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	if os.Getenv("OPENBAO_ADDR") == "" {
 		t.Skip("set OPENBAO_ADDR and OPENBAO_TOKEN to test a standalone OpenBao KV v2 server")
 	}
+	t.Setenv("OPENBAO_TOKEN", tokenWithDocumentedPolicy(t))
 	ctx := t.Context()
 	gdb := db.GetDB()
 	org := newOrg(t)
@@ -46,6 +51,7 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	require.NoError(t, err)
 	store := NewSecretStore(vaults)
 	runner := NewSecretJobRunner(gdb, vaults, slog.New(slog.DiscardHandler))
+	runner.orgID = canonicalOrgID(org)
 	writer := vaults.Writer()
 
 	write := func(tx *gorm.DB, value string) error {
@@ -133,4 +139,44 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	_, err = writer.Open(ctx, secretRef(&current), sealedOf(&current))
 	require.ErrorContains(t, err, "HTTP 404")
 	require.NoError(t, writer.Destroy(ctx, secretRef(&current), sealedOf(&current)), "destroy can be retried")
+}
+
+// tokenWithDocumentedPolicy installs the policy the deployment docs give the API
+// and returns a token limited to it, so the test runs with the access a real
+// deployment has rather than the admin token it was handed.
+func tokenWithDocumentedPolicy(t *testing.T) string {
+	t.Helper()
+	policy, err := os.ReadFile("../vault/openbao/policy.hcl")
+	require.NoError(t, err)
+	docs, err := os.ReadFile("../../docs/amp-lite/database-schema.md")
+	require.NoError(t, err)
+	require.Contains(t, string(docs), "```hcl\n"+string(policy)+"```", "the documented OpenBao policy must match vault/openbao/policy.hcl")
+	if mount := os.Getenv("OPENBAO_KV_MOUNT"); mount != "" && mount != "secret" {
+		policy = []byte(strings.ReplaceAll(string(policy), `"secret/`, `"`+mount+`/`))
+	}
+
+	call := func(method, path string, body any, out any) {
+		t.Helper()
+		encoded, err := json.Marshal(body)
+		require.NoError(t, err)
+		req, err := http.NewRequestWithContext(t.Context(), method, strings.TrimRight(os.Getenv("OPENBAO_ADDR"), "/")+"/v1/"+path, bytes.NewReader(encoded))
+		require.NoError(t, err)
+		req.Header.Set("X-Vault-Token", os.Getenv("OPENBAO_TOKEN"))
+		res, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = res.Body.Close() }()
+		require.Less(t, res.StatusCode, 300, "%s %s", method, path)
+		if out != nil {
+			require.NoError(t, json.NewDecoder(res.Body).Decode(out))
+		}
+	}
+	call(http.MethodPut, "sys/policies/acl/amp-api-test", map[string]string{"policy": string(policy)}, nil)
+	var created struct {
+		Auth struct {
+			ClientToken string `json:"client_token"`
+		} `json:"auth"`
+	}
+	call(http.MethodPost, "auth/token/create", map[string]any{"policies": []string{"amp-api-test"}, "no_default_policy": true, "ttl": "15m"}, &created)
+	require.NotEmpty(t, created.Auth.ClientToken)
+	return created.Auth.ClientToken
 }

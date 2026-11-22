@@ -143,10 +143,25 @@ jobs:
           cp .env .env.test
           echo "DB_NAME=agentmanager_test" >> .env.test
 
+      # The OpenBao test mints a token limited to the documented policy
+      # (vault/openbao/policy.hcl) from this admin token and runs with it.
+      - name: Start OpenBao
+        run: |
+          docker run -d --name openbao -p 8200:8200 \
+            quay.io/openbao/openbao:2.7.3 \
+            server -dev -dev-root-token-id=ci-root -dev-listen-address=0.0.0.0:8200
+          until curl -sf http://127.0.0.1:8200/v1/sys/health >/dev/null; do
+            echo "Waiting for OpenBao..."
+            sleep 1
+          done
+        timeout-minutes: 2
+
       - name: Run integration tests
         working-directory: ./agent-manager-service
         env:
           DB_DRIVER: ${{ matrix.db }}
+          OPENBAO_ADDR: http://127.0.0.1:8200
+          OPENBAO_TOKEN: ci-root
         run: make test-integration
 
       - name: Upload integration coverage

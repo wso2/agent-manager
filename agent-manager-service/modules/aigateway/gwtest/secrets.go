@@ -63,6 +63,11 @@ func (s *Secrets) Delete(_ context.Context, orgID, path string) error {
 
 func (s *Secrets) In(*gorm.DB) modkit.Secrets { return s }
 
+// Prepare has nothing to stage: the fake keeps values in memory.
+func (s *Secrets) Prepare(ctx context.Context, _, _, _ string) (context.Context, error) {
+	return ctx, nil
+}
+
 // Len is how many values the store holds.
 func (s *Secrets) Len() int {
 	s.mu.Lock()

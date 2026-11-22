@@ -25,6 +25,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -225,6 +227,25 @@ func Of(writer Vault, readers ...Vault) *Vaults {
 
 // Writer is the vault new values are sealed with.
 func (s *Vaults) Writer() Vault { return s.writer }
+
+// Checker is a vault that can tell whether it is usable right now, such as an
+// external service that may be down, sealed or refuse the configured token.
+type Checker interface {
+	Check(ctx context.Context) error
+}
+
+// Check returns the first error of a loaded vault that can check itself.
+func (s *Vaults) Check(ctx context.Context) error {
+	names := slices.Sorted(maps.Keys(s.byName))
+	for _, name := range names {
+		if c, ok := s.byName[name].(Checker); ok {
+			if err := c.Check(ctx); err != nil {
+				return fmt.Errorf("secret vault %q: %w", name, err)
+			}
+		}
+	}
+	return nil
+}
 
 // For returns the vault that sealed a row whose provider column is provider.
 func (s *Vaults) For(provider string) (Vault, error) {
