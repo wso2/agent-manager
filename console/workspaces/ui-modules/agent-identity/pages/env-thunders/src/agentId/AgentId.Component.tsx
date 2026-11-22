@@ -68,7 +68,7 @@ import {
   monospaceInputSx,
   useAgentIdentityCredentials,
   useAgentRolesAndGroups,
-  usePipelineEnvironmentsState,
+  useOrgEnvironmentsState,
   useThunderInstanceForEnv,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -730,11 +730,11 @@ export const AgentIdComponent: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const {
-    environments: pipelineEnvs,
+    environments: orgEnvs,
     isLoading: isEnvironmentsLoading,
     isError: isEnvironmentsError,
-  } = usePipelineEnvironmentsState(orgId, projectId);
-  const envNames = useMemo(() => pipelineEnvs.map((env) => env.name), [pipelineEnvs]);
+  } = useOrgEnvironmentsState(orgId);
+  const envNames = useMemo(() => orgEnvs.map((env) => env.name), [orgEnvs]);
   const { data: environmentsList = [] } = useListEnvironments({ orgName: orgId });
   const getEnvDisplayName = (name: string) =>
     environmentsList.find((env) => env.name === name)?.displayName ?? name;

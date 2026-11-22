@@ -20,30 +20,28 @@ import { FormControl, MenuItem, Select, Typography } from "@wso2/oxygen-ui";
 import { useMemo } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
-import { usePipelineEnvironments } from "../../utils/usePipelineEnvironments";
+import { useOrgEnvironments } from "../../utils/useOrgEnvironments";
 
 /**
  * Self-contained environment selector for env-scoped pages.
  * Reads envId from the URL, lists only the environments that belong to the
- * current project's deployment pipeline promotion chain, and navigates to the
+ * organization's environments, and navigates to the
  * same page with the new envId when the selection changes.
  * Renders nothing when there is only one qualifying environment or no envId.
  */
 export function EnvironmentSelector() {
-    const { orgId, projectId, envId } = useParams<{
-        orgId: string; projectId: string; envId: string;
-    }>();
+    const { orgId, envId } = useParams<{ orgId: string; envId: string }>();
     const { pathname } = useLocation();
     const navigate = useNavigate();
 
-    const pipelineEnvironments = usePipelineEnvironments(orgId, projectId);
+    const orgEnvironments = useOrgEnvironments(orgId);
 
     const selectedEnvironment = useMemo(
-        () => pipelineEnvironments.find((env) => env.name === envId),
-        [pipelineEnvironments, envId],
+        () => orgEnvironments.find((env) => env.name === envId),
+        [orgEnvironments, envId],
     );
 
-    if (!envId || pipelineEnvironments.length <= 1) {
+    if (!envId || orgEnvironments.length <= 1) {
         return null;
     }
 
@@ -65,7 +63,7 @@ export function EnvironmentSelector() {
                     </Typography>
                 )}
             >
-                {pipelineEnvironments.map((env) => (
+                {orgEnvironments.map((env) => (
                     <MenuItem key={env.name} value={env.name}>
                         {env.displayName ?? env.name}
                     </MenuItem>

@@ -92,7 +92,7 @@ export const ProjectOverview: React.FC = () => {
         </Box>
         <Stack gap={2} sx={{ width: { xs: "100%", lg: 380 }, flexShrink: 0 }}>
           <AgentTypeSummary />
-          {/* Module sections (e.g. the deployment pipeline, from agent-runtime). */}
+          {/* Sections other modules contribute. */}
           <OverviewPanels<ProjectOverviewPanelProps>
             mountPoint={PLUGIN_MOUNT_POINTS.projectOverviewSide}
             props={{ orgId, projectId }}
