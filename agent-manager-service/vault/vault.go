@@ -110,6 +110,8 @@ type Config struct {
 	EncryptionKey []byte
 	// PreviousKeys still open values sealed before a rotation.
 	PreviousKeys [][]byte
+	// LegacyLocalWrites leaves local ciphertext readable by binaries predating the vault.
+	LegacyLocalWrites bool
 }
 
 // Factory builds a provider's Vault.

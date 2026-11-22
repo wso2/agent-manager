@@ -38,14 +38,20 @@ const KeySize = 32
 
 func init() {
 	Register(ProviderLocal, func(cfg Config) (Vault, error) {
-		return NewLocal(cfg.EncryptionKey, cfg.PreviousKeys...)
+		local, err := NewLocal(cfg.EncryptionKey, cfg.PreviousKeys...)
+		if err != nil {
+			return nil, err
+		}
+		local.legacyWrites = cfg.LegacyLocalWrites
+		return local, nil
 	})
 }
 
 // Local is the in-house vault.
 type Local struct {
-	current string
-	keys    map[string]cipher.AEAD
+	legacyWrites bool
+	current      string
+	keys         map[string]cipher.AEAD
 	// order lists key ids newest first, for values stored before key ids were recorded.
 	order []string
 }
@@ -95,7 +101,7 @@ func binding(ref Ref) []byte {
 	return []byte(ref.OrgID + "/" + ref.SecretID.String())
 }
 
-// Seal returns nonce || ciphertext, authenticated against ref.
+// Seal returns nonce || ciphertext, authenticated against ref unless legacy writes are enabled.
 func (v *Local) Seal(_ context.Context, ref Ref, plaintext []byte, _ *Sealed) (Sealed, error) {
 	if len(plaintext) == 0 {
 		return Sealed{}, ErrEmptyValue
@@ -105,7 +111,10 @@ func (v *Local) Seal(_ context.Context, ref Ref, plaintext []byte, _ *Sealed) (S
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return Sealed{}, err
 	}
-	return Sealed{Ciphertext: aead.Seal(nonce, nonce, plaintext, binding(ref)), KeyID: v.current}, nil
+	if v.legacyWrites {
+		return Sealed{Ciphertext: aead.Seal(nonce, nonce, plaintext, nil), KeyID: "", ExternalRef: ""}, nil
+	}
+	return Sealed{Ciphertext: aead.Seal(nonce, nonce, plaintext, binding(ref)), KeyID: v.current, ExternalRef: ""}, nil
 }
 
 // Open reverses Seal.

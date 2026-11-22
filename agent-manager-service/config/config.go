@@ -229,6 +229,8 @@ type SecretManagerConfig struct {
 	VaultProvider string
 	// VaultReaders lists external backends retained for reads and cleanup.
 	VaultReaders string
+	// VaultBindLocalRows enables row binding after the mixed-version and rollback window.
+	VaultBindLocalRows bool
 }
 
 // GitHubConfig holds GitHub API configuration

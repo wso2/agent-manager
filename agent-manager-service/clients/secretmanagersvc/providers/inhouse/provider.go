@@ -133,9 +133,6 @@ func rowID(org, name string) (uuid.UUID, error) {
 }
 
 func encode(data map[string]string) ([]byte, error) {
-	if len(data) == 0 {
-		return nil, fmt.Errorf("%w: secret data cannot be empty", httpx.ErrInvalidInput)
-	}
 	if len(data) > MaxSecretKeys {
 		return nil, fmt.Errorf("%w: a secret holds at most %d keys, got %d", httpx.ErrInvalidInput, MaxSecretKeys, len(data))
 	}
@@ -181,6 +178,9 @@ func (c *client) PushSecret(ctx context.Context, location secretmanagersvc.Secre
 	id, err := rowID(location.OrgName, name)
 	if err != nil {
 		return "", err
+	}
+	if len(data) == 0 {
+		return "", fmt.Errorf("%w: secret data cannot be empty", httpx.ErrInvalidInput)
 	}
 	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return c.store(ctx, tx, location.OrgName, id, data)

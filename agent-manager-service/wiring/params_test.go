@@ -17,12 +17,18 @@
 package wiring
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/vault"
 )
 
 func TestProvideAuthMiddlewareAdvertisesResourceSpecificMetadata(t *testing.T) {
@@ -55,4 +61,39 @@ func TestProvideAuthMiddlewareAdvertisesResourceSpecificMetadata(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSecretVaultRolloutCompatibility(t *testing.T) {
+	ctx := t.Context()
+	key := bytes.Repeat([]byte{1}, aesgcm.KeySize)
+	ref := vault.Ref{OrgID: uuid.NewString(), SecretID: uuid.New()}
+	cfg := config.Config{}
+	compatible, err := ProvideSecretVaults(cfg, utils.SecretRefKeys{key})
+	require.NoError(t, err)
+	rotated := []byte("rotated webhook secret")
+	sealed, err := compatible.Writer().Seal(ctx, ref, rotated, nil)
+	require.NoError(t, err)
+	require.Empty(t, sealed.KeyID)
+	got, err := aesgcm.Decrypt(sealed.Ciphertext, key)
+	require.NoError(t, err, "a rollback must read a credential rotated by the new binary")
+	require.Equal(t, rotated, got)
+
+	oldWrite := []byte("written by old binary")
+	sealed.Ciphertext, err = aesgcm.Encrypt(oldWrite, key)
+	require.NoError(t, err)
+	got, err = compatible.Writer().Open(ctx, ref, sealed)
+	require.NoError(t, err, "the new binary must read a credential overwritten by an old replica")
+	require.Equal(t, oldWrite, got)
+
+	cfg.SecretManager.VaultBindLocalRows = true
+	bound, err := ProvideSecretVaults(cfg, utils.SecretRefKeys{bytes.Repeat([]byte{2}, aesgcm.KeySize), key})
+	require.NoError(t, err)
+	got, err = bound.Writer().Open(ctx, ref, sealed)
+	require.NoError(t, err, "old writes remain readable after opting in and rotating the key")
+	require.Equal(t, oldWrite, got)
+	sealed, err = bound.Writer().Seal(ctx, ref, rotated, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, sealed.KeyID)
+	_, err = bound.Writer().Open(ctx, vault.Ref{OrgID: ref.OrgID, SecretID: uuid.New()}, sealed)
+	require.Error(t, err, "row binding must reject ciphertext opened for a different secret")
 }

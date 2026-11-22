@@ -171,6 +171,12 @@ func TestSecretLifecycle(t *testing.T) {
 	require.NoError(t, db.GetDB().Where("org_id = ? AND owner_kind = ?", org, "named_secret").Find(&rows).Error)
 	assert.Len(t, rows, 1, "one row per secret name")
 
+	_, err = client.PatchSecret(ctx, loc, nil, []string{"only"})
+	require.NoError(t, err)
+	info, err = client.GetSecret(ctx, path)
+	require.NoError(t, err)
+	assert.Empty(t, info.Keys, "patching away the final key preserves the named secret")
+
 	require.NoError(t, client.DeleteSecretByName(ctx, org, name))
 	_, err = client.GetSecret(ctx, path)
 	require.ErrorIs(t, err, secretmanagersvc.ErrSecretNotFound)

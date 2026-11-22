@@ -159,6 +159,6 @@ func ProvideSecretRefKeys(cfg config.Config, encryptionKey []byte) (utils.Secret
 
 // ProvideSecretVaults builds the active writer and keeps configured readers available for stored values and jobs.
 func ProvideSecretVaults(cfg config.Config, keys utils.SecretRefKeys) (*vault.Vaults, error) {
-	vaultCfg := vault.Config{EncryptionKey: keys[0], PreviousKeys: keys[1:]}
+	vaultCfg := vault.Config{EncryptionKey: keys[0], PreviousKeys: keys[1:], LegacyLocalWrites: !cfg.SecretManager.VaultBindLocalRows}
 	return vault.Open(cfg.SecretManager.VaultProvider, vaultCfg, strings.Split(cfg.SecretManager.VaultReaders, ",")...)
 }

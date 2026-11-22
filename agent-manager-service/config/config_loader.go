@@ -268,9 +268,10 @@ func loadSettings(strict bool) {
 	}
 
 	config.SecretManager = SecretManagerConfig{
-		Provider:      r.readOptionalString("SECRET_MANAGER_PROVIDER", "inhouse"),
-		VaultProvider: r.readOptionalString("SECRET_VAULT_PROVIDER", "local"),
-		VaultReaders:  r.readOptionalString("SECRET_VAULT_READERS", ""),
+		Provider:           r.readOptionalString("SECRET_MANAGER_PROVIDER", "inhouse"),
+		VaultProvider:      r.readOptionalString("SECRET_VAULT_PROVIDER", "local"),
+		VaultReaders:       r.readOptionalString("SECRET_VAULT_READERS", ""),
+		VaultBindLocalRows: r.readOptionalBool("SECRET_VAULT_BIND_LOCAL_ROWS", false),
 	}
 
 	// Thunder admin API configuration for provisioning per-org OAuth apps
