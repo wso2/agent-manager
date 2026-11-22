@@ -35,14 +35,15 @@ import type {
   ShadowRunnerScanResponse,
 } from "@agent-management-platform/types";
 import { buildScanCommand } from "../scanCommand";
-import { expiryTime, ScanOptions } from "./ScanCommandPanel";
+import { IssuedNotice, ScanOptions } from "./ScanCommandPanel";
 
 /**
  * Generate command for a source code repository connection: choose
- * AI-enhanced detection (and the LLM judge), then copy the docker command that scans the
- * repositories on the customer's machine. The command is composed from the
- * connection's saved settings and the issued scan; it holds a scan token, so
- * it lives only in this dialog's state and is shown once.
+ * AI-enhanced detection (and the LLM judge) and direct upload, then copy the
+ * docker command that scans the repositories on the customer's machine. The
+ * command is composed from the connection's saved settings and the issued
+ * scan; with direct upload it holds a scan token, so it lives only in this
+ * dialog's state and is shown once.
  */
 export function GenerateCommandDialog({
   orgName,
@@ -60,6 +61,7 @@ export function GenerateCommandDialog({
   const { mutate, reset, isPending } = useCreateShadowRunnerScan(orgName);
   const [aiReview, setAiReview] = useState(false);
   const [llmJudge, setLlmJudge] = useState(false);
+  const [directUpload, setDirectUpload] = useState(false);
   const [result, setResult] = useState<ShadowRunnerScanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +73,7 @@ export function GenerateCommandDialog({
     reset();
     setAiReview(false);
     setLlmJudge(false);
+    setDirectUpload(false);
     setResult(null);
     setError(null);
   }, [targetId, reset]);
@@ -79,7 +82,7 @@ export function GenerateCommandDialog({
     if (!target) return;
     setError(null);
     mutate(
-      { connectionId: target.id, aiReview, llmJudge: aiReview && llmJudge },
+      { connectionId: target.id, aiReview, llmJudge: aiReview && llmJudge, directUpload },
       {
         onSuccess: (r) => {
           setResult(r);
@@ -94,8 +97,6 @@ export function GenerateCommandDialog({
       },
     );
   };
-
-  const expires = expiryTime(result?.expiresAt);
 
   return (
     <Dialog
@@ -114,23 +115,24 @@ export function GenerateCommandDialog({
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
               Run this in a terminal. It asks for the tokens it needs, scans on your machine and
-              publishes only the agents it confirms. The scan shows as Pending until then.
+              saves the agents it confirms in a results file.
             </Typography>
             <CodeBlock
               code={buildScanCommand(
                 spec ?? { provider: target.provider, endpoints: [] },
                 target,
-                { aiReview, llmJudge: aiReview && llmJudge },
+                { aiReview, llmJudge: aiReview && llmJudge, directUpload },
                 result,
               )}
               language="bash"
               fieldId="shadow-scan-command"
               analyticsId="shadow-scan-command"
             />
-            <Alert severity="info">
-              Shown once: copy it now. It is valid for 1 hour{expires ? `, until ${expires}` : ""};
-              after that, generate a new one.
-            </Alert>
+            <IssuedNotice
+              issued={result}
+              directUpload={directUpload}
+              later="generate a new one"
+            />
           </Stack>
         ) : (
           <Stack spacing={1.5}>
@@ -141,9 +143,11 @@ export function GenerateCommandDialog({
             <ScanOptions
               aiReview={aiReview}
               llmJudge={llmJudge}
+              directUpload={directUpload}
               onChange={(next) => {
                 setAiReview(next.aiReview);
                 setLlmJudge(next.llmJudge);
+                setDirectUpload(next.directUpload);
               }}
             />
             {error && <Alert severity="error">{error}</Alert>}

@@ -25,9 +25,10 @@ import {
   IconButton,
   ListingTable,
   Stack,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { History, Trash2, X } from "@wso2/oxygen-ui-icons-react";
+import { Ban, History, Trash2, Upload, X } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useLocation, useNavigate } from "react-router-dom";
 import { returnToState } from "@agent-management-platform/views";
 import {
@@ -55,6 +56,7 @@ import {
   ScanStatusChip,
   SOURCE_HOSTS,
 } from "../shadowUi";
+import { UploadResultsDialog, useConfirmCancelScan } from "./UploadResultsDialog";
 
 /** The path of a scan's agents page. */
 export function scanFindingsPath(orgName: string, scanId: string): string {
@@ -191,16 +193,24 @@ function ScanRepositories({
   );
 }
 
-/** The outcome of every platform call of a scan, per connection. */
+/**
+ * The outcome of every platform call of a scan, per connection. A scan
+ * waiting for results offers Upload results and Cancel scan when the caller
+ * handles them.
+ */
 export function ScanDetailsDrawer({
   scan,
   onClose,
   repositoriesLoad,
+  onUpload,
+  onCancel,
 }: {
   scan: ShadowScanResponse | null;
   onClose: () => void;
   /** Set when the scan shown may be a list item, which has no repositories. */
   repositoriesLoad?: RepositoriesLoad;
+  onUpload?: (scan: ShadowScanResponse) => void;
+  onCancel?: (scan: ShadowScanResponse) => void;
 }) {
   return (
     <Drawer anchor="right" open={!!scan} onClose={onClose}>
@@ -220,9 +230,29 @@ export function ScanDetailsDrawer({
                 {scan.connectionIds.length === 1 ? "platform" : "platforms"} scanned
               </Typography>
             </Stack>
+            {scan.status === "pending" && (onUpload || onCancel) && (
+              <Stack direction="row" spacing={1}>
+                {onUpload && (
+                  <Button
+                    variant="contained"
+                    startIcon={<Upload size={16} />}
+                    onClick={() => onUpload(scan)}
+                  >
+                    Upload results
+                  </Button>
+                )}
+                {onCancel && (
+                  <Button variant="outlined" color="error" onClick={() => onCancel(scan)}>
+                    Cancel scan
+                  </Button>
+                )}
+              </Stack>
+            )}
             {scan.results.length === 0 && (
               <Typography variant="body2" color="text.secondary">
-                The scan has not finished any connection yet.
+                {scan.status === "pending"
+                  ? "The scan is waiting for the results of its scan command."
+                  : "The scan has not finished any connection yet."}
               </Typography>
             )}
             {scan.results.map((r) => (
@@ -316,19 +346,21 @@ export function ScansTab({
       ? detail.data
       : (scans.find((s) => s.id === open.id) ?? open)
     : null;
-  // Clear scans keeps a scan that is queued, running or pending (waiting for
-  // its scan command to publish results).
+  // Clear scans keeps a scan that is queued, running or waiting for results.
   const finished = scans.filter(
     (s) => !isShadowScanActive(s.status) && s.status !== "pending",
   ).length;
   const active = scans.length - finished;
+  // Upload results: for one scan (a row), or for the scan the file names.
+  const [upload, setUpload] = useState<{ scan: ShadowScanResponse | null } | null>(null);
+  const confirmCancel = useConfirmCancelScan(orgName);
 
   const handleClear = () =>
     addConfirmation({
       title: "Clear all scans?",
       description:
         `Every finished scan is deleted, with its call results and its list of agents.${
-          active > 0 ? " Scans that are queued, running or pending are kept." : ""
+          active > 0 ? " Scans that are queued, running or waiting for results are kept." : ""
         } Unregistered Agents and their evidence are kept, and the next scan updates them as usual. ` +
         "This can't be undone.",
       confirmButtonText: "Clear scans",
@@ -340,7 +372,14 @@ export function ScansTab({
     });
 
   const toolbar = canManage ? (
-    <Stack direction="row" justifyContent="flex-end" sx={{ width: "100%" }}>
+    <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ width: "100%" }}>
+      <Button
+        variant="outlined"
+        startIcon={<Upload size={16} />}
+        onClick={() => setUpload({ scan: null })}
+      >
+        Upload results
+      </Button>
       <Button
         variant="outlined"
         color="error"
@@ -405,21 +444,60 @@ export function ScansTab({
                   <Typography variant="body2">{s.findingsCount}</Typography>
                 </ListingTable.Cell>
                 <ListingTable.Cell align="right">
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    aria-label={`View agents of the scan started ${formatRelativeTime(
-                      s.startedAt ?? s.createdAt,
-                    )}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(scanFindingsPath(orgName ?? "", s.id), {
-                        state: returnToState(location),
-                      });
-                    }}
+                  <Stack
+                    direction="row"
+                    spacing={0.5}
+                    justifyContent="flex-end"
+                    alignItems="center"
                   >
-                    View agents
-                  </Button>
+                    {canManage && s.status === "pending" && (
+                      <>
+                        <Tooltip title="Upload results">
+                          <IconButton
+                            size="small"
+                            aria-label={`Upload results of the scan started ${formatRelativeTime(
+                            s.startedAt ?? s.createdAt,
+                          )}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setUpload({ scan: s });
+                            }}
+                          >
+                            <Upload size={16} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Cancel scan">
+                          <IconButton
+                            size="small"
+                            aria-label={`Cancel the scan started ${formatRelativeTime(
+                            s.startedAt ?? s.createdAt,
+                          )}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              confirmCancel(s);
+                            }}
+                          >
+                            <Ban size={16} />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      aria-label={`View agents of the scan started ${formatRelativeTime(
+                        s.startedAt ?? s.createdAt,
+                      )}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(scanFindingsPath(orgName ?? "", s.id), {
+                          state: returnToState(location),
+                        });
+                      }}
+                    >
+                      View agents
+                    </Button>
+                  </Stack>
                 </ListingTable.Cell>
               </ListingTable.Row>
             ))}
@@ -431,6 +509,15 @@ export function ScansTab({
         scan={current}
         onClose={() => setOpen(null)}
         repositoriesLoad={{ isLoading: detail.isLoading, failed: !!detail.error }}
+        onUpload={canManage ? (sc) => setUpload({ scan: sc }) : undefined}
+        onCancel={canManage ? (sc) => confirmCancel(sc) : undefined}
+      />
+      <UploadResultsDialog
+        orgName={orgName}
+        open={!!upload}
+        scan={upload?.scan}
+        scans={scans}
+        onClose={() => setUpload(null)}
       />
     </>
   );

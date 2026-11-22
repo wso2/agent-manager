@@ -39,13 +39,22 @@ export function expiryTime(expiresAt: string | undefined): string {
   return d && !Number.isNaN(d.getTime()) ? d.toLocaleTimeString() : "";
 }
 
+/** The helper text of the Upload results directly switch. */
+export function directUploadHelp(directUpload: boolean): string {
+  return directUpload
+    ? "When the scan ends, the command asks to upload the results with a one-hour token."
+    : "The command saves a results file on your machine. Upload it from Scans when you're ready.";
+}
+
 /**
  * The AI-enhanced detection switch and, only while it is on, the LLM judge
- * switch. Turning AI-enhanced detection off also turns the judge off.
+ * switch, then the Upload results directly switch. Turning AI-enhanced
+ * detection off also turns the judge off.
  */
 export function ScanOptions({
   aiReview,
   llmJudge,
+  directUpload,
   onChange,
   disabled,
 }: ScanCommandOptions & {
@@ -60,7 +69,11 @@ export function ScanOptions({
           <Switch
             checked={aiReview}
             onChange={(e) =>
-              onChange({ aiReview: e.target.checked, llmJudge: e.target.checked && llmJudge })
+              onChange({
+                aiReview: e.target.checked,
+                llmJudge: e.target.checked && llmJudge,
+                directUpload,
+              })
             }
           />
         }
@@ -80,7 +93,7 @@ export function ScanOptions({
           control={
             <Switch
               checked={llmJudge}
-              onChange={(e) => onChange({ aiReview, llmJudge: e.target.checked })}
+              onChange={(e) => onChange({ aiReview, llmJudge: e.target.checked, directUpload })}
             />
           }
           label={
@@ -93,7 +106,52 @@ export function ScanOptions({
           }
         />
       )}
+      <FormControlLabel
+        disabled={disabled}
+        control={
+          <Switch
+            checked={directUpload}
+            onChange={(e) => onChange({ aiReview, llmJudge, directUpload: e.target.checked })}
+          />
+        }
+        label={
+          <Stack>
+            <Typography variant="body2">Upload results directly</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {directUploadHelp(directUpload)}
+            </Typography>
+          </Stack>
+        }
+      />
     </Stack>
+  );
+}
+
+/** What to tell the user once the command is issued. */
+export function IssuedNotice({
+  issued,
+  directUpload,
+  later,
+}: {
+  issued: ShadowRunnerScanResponse;
+  directUpload: boolean;
+  /** Where a new command comes from. */
+  later: string;
+}) {
+  if (!directUpload || !issued.token) {
+    return (
+      <Alert severity="info">
+        Run it in a terminal. The scan shows as Waiting for results until you upload the results
+        file it saves, from Upload results on the Scans tab.
+      </Alert>
+    );
+  }
+  const expires = expiryTime(issued.expiresAt);
+  return (
+    <Alert severity="info">
+      Shown once: copy it now. Its token is valid for 1 hour{expires ? `, until ${expires}` : ""};
+      after that, {later}, or upload the results file from the Scans tab.
+    </Alert>
   );
 }
 
@@ -107,6 +165,7 @@ export function ScanCommandPanel({
   draft,
   aiReview,
   llmJudge,
+  directUpload,
   onChange,
   issued,
   disabled,
@@ -123,7 +182,7 @@ export function ScanCommandPanel({
   error?: string | null;
   onRetry?: () => void;
 }) {
-  const expires = expiryTime(issued?.expiresAt);
+  const options = { aiReview, llmJudge, directUpload };
   return (
     <Card variant="outlined">
       <CardContent>
@@ -133,14 +192,9 @@ export function ScanCommandPanel({
             The rules publish an agent only when they prove it. Choose what happens to the matches
             they cannot prove.
           </Typography>
-          <ScanOptions
-            aiReview={aiReview}
-            llmJudge={llmJudge}
-            onChange={onChange}
-            disabled={disabled || !!issued}
-          />
+          <ScanOptions {...options} onChange={onChange} disabled={disabled || !!issued} />
           <CodeBlock
-            code={buildScanCommand(spec, draft, { aiReview, llmJudge }, issued ?? undefined)}
+            code={buildScanCommand(spec, draft, options, issued ?? undefined)}
             language="bash"
             // Placeholders do not run: copy only the issued command.
             showCopyButton={!!issued}
@@ -148,14 +202,18 @@ export function ScanCommandPanel({
             analyticsId="shadow-scan-command"
           />
           {issued ? (
-            <Alert severity="info">
-              Shown once: copy it now. It is valid for 1 hour{expires ? `, until ${expires}` : ""};
-              after that, get a new one from the platform&apos;s Generate command.
-            </Alert>
+            <IssuedNotice
+              issued={issued}
+              directUpload={directUpload}
+              later="get a new one from the platform's Generate command"
+            />
           ) : (
             <Typography variant="caption" color="text.secondary">
-              Updates as you fill the form. The scan token, scan ID, Agent Manager address and
-              scanner image are filled in when you save.
+              Updates as you fill the form.{" "}
+              {directUpload
+                ? "The scan token, scan ID, Agent Manager address and scanner image are filled " +
+                  "in when you save."
+                : "The scan ID and scanner image are filled in when you save."}
             </Typography>
           )}
           {error && (

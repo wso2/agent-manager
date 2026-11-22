@@ -18,6 +18,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  cancelShadowScan,
   clearShadowScans,
   createShadowConnection,
   createShadowRunnerScan,
@@ -37,6 +38,7 @@ import {
   setShadowFindingHidden,
   testShadowConnection,
   updateShadowConnection,
+  uploadShadowScanResults,
 } from "../apis";
 import type {
   ShadowAgentSummary,
@@ -56,6 +58,8 @@ import type {
   ShadowScanListResponse,
   ShadowScanRequest,
   ShadowScanResponse,
+  ShadowScanResults,
+  ShadowScanResultsUploadResponse,
   ShadowScanStatus,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
@@ -242,6 +246,47 @@ export function useCreateShadowRunnerScan(orgName: string | undefined) {
       createShadowRunnerScan(orgName, connectionId, body, getToken),
     // The new pending scan shows in Scans.
     onSuccess: () => invalidate(),
+  });
+}
+
+/**
+ * Uploads a results file's results to the scan waiting for them. The dialog
+ * shows errors itself; the success notice names the agents found.
+ */
+export function useUploadShadowScanResults(orgName: string | undefined) {
+  const { getToken } = useAuthHooks();
+  const invalidate = useInvalidateShadow();
+  return useApiMutation<
+    ShadowScanResultsUploadResponse,
+    unknown,
+    { scanId: string; results: ShadowScanResults }
+  >({
+    showError: false,
+    successMessage: (r) =>
+      `Results uploaded: ${r.findingsCount} ${r.findingsCount === 1 ? "agent" : "agents"} found`,
+    // The variables hold the whole results file: drop them from the cache at once.
+    gcTime: 0,
+    mutationFn: ({ scanId, results }) =>
+      uploadShadowScanResults(orgName, scanId, results, getToken),
+    // The scan, its agents and the summary change; a 409 means the scan
+    // changed meanwhile: refresh it either way.
+    onSettled: () => invalidate(),
+  });
+}
+
+/** Cancels a source code scan that is waiting for results. */
+export function useCancelShadowScan(orgName: string | undefined) {
+  const { getToken } = useAuthHooks();
+  const invalidate = useInvalidateShadow();
+  return useApiMutation<void, unknown, string>({
+    successMessage: () => "Scan cancelled",
+    errorMessage: (e) =>
+      (e as { status?: number })?.status === 409
+        ? "The scan is no longer waiting for results."
+        : "The scan could not be cancelled. Try again.",
+    mutationFn: (scanId) => cancelShadowScan(orgName, scanId, getToken),
+    // A 409 means the scan changed meanwhile: refresh it either way.
+    onSettled: () => invalidate(),
   });
 }
 

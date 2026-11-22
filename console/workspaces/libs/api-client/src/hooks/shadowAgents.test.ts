@@ -32,10 +32,15 @@ vi.mock("./telemetry", () => ({
   markSessionExpired: vi.fn(),
   useTrack: () => ({ track: vi.fn() }),
 }));
-vi.mock("../apis/shadowAgents", () => ({ deleteShadowConnection: vi.fn(async () => undefined) }));
+vi.mock("../apis/shadowAgents", () => ({
+  deleteShadowConnection: vi.fn(async () => undefined),
+  uploadShadowScanResults: vi.fn(async () => {
+    throw Object.assign(new Error("the scan is not waiting for results"), { status: 409 });
+  }),
+}));
 
 import { deleteShadowConnection } from "../apis/shadowAgents";
-import { useDeleteShadowConnection } from "./shadowAgents";
+import { useDeleteShadowConnection, useUploadShadowScanResults } from "./shadowAgents";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -62,6 +67,34 @@ describe("useDeleteShadowConnection", () => {
 
     expect(deleteShadowConnection).toHaveBeenCalledWith("o", "a", expect.any(Function));
     expect(qc.getQueryData(key)).toEqual({ connections: [{ id: "b" }] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["shadow-agents"] });
+    act(() => root.unmount());
+  });
+});
+
+describe("useUploadShadowScanResults", () => {
+  it("refreshes the scans when the upload is refused too", async () => {
+    const qc = new QueryClient();
+    const invalidate = vi.spyOn(qc, "invalidateQueries").mockImplementation(async () => undefined);
+    const result = {} as { current: ReturnType<typeof useUploadShadowScanResults> };
+    const Probe = () => {
+      result.current = useUploadShadowScanResults("o");
+      return null;
+    };
+    const root = createRoot(document.createElement("div"));
+    await act(async () =>
+      root.render(createElement(QueryClientProvider, { client: qc }, createElement(Probe))),
+    );
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({
+          scanId: "s",
+          results: { complete: true, scannedRepositories: [], failedRepositories: [], agents: [] },
+        })
+        .catch(() => undefined);
+    });
+
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["shadow-agents"] });
     act(() => root.unmount());
   });

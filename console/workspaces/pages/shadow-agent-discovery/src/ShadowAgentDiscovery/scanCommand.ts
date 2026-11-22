@@ -30,12 +30,17 @@ export interface ScanCommandInput {
 export interface ScanCommandOptions {
   aiReview: boolean;
   llmJudge: boolean;
+  /**
+   * The command uploads its results with a scan token. Off, it has no Agent
+   * Manager address or token and only saves the results file.
+   */
+  directUpload: boolean;
 }
 
-/** The parts the service issues for one scan. */
+/** The parts the service issues for one scan; the token only with direct upload. */
 export interface IssuedScan {
   ampUrl: string;
-  token: string;
+  token?: string;
   scanId: string;
   image: string;
 }
@@ -63,7 +68,8 @@ function customURL(spec: Pick<ShadowProviderSpec, "endpoints">, input: ScanComma
 /**
  * The docker command that scans a GitHub connection on the
  * customer's machine. Until a scan is issued, the token, scan ID, Agent
- * Manager address and image are placeholders.
+ * Manager address and image are placeholders. Without direct upload the
+ * command has no Agent Manager address or token lines at all.
  */
 export function buildScanCommand(
   spec: Pick<ShadowProviderSpec, "provider" | "endpoints">,
@@ -92,12 +98,17 @@ export function buildScanCommand(
     lines.push("--ai-review");
     if (options.llmJudge) lines.push("--judge");
   }
+  const upload = options.directUpload
+    ? [
+        `-e AMP_URL=${issued ? shellQuote(issued.ampUrl) : "<amp-url>"}`,
+        `-e AMP_SCAN_TOKEN=${issued?.token ? shellQuote(issued.token) : "<scan-token>"}`,
+      ]
+    : [];
   return [
     "docker run --rm -it",
     `--user "$(id -u):$(id -g)"`,
     `-v "$PWD:/out"`,
-    `-e AMP_URL=${issued ? shellQuote(issued.ampUrl) : "<amp-url>"}`,
-    `-e AMP_SCAN_TOKEN=${issued ? shellQuote(issued.token) : "<scan-token>"}`,
+    ...upload,
     `${issued ? shellQuote(issued.image) : "<scanner-image>"} scan`,
     `--scan-id ${issued ? shellQuote(issued.scanId) : "<scan-id>"}`,
     ...lines,

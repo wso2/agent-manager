@@ -743,6 +743,7 @@ export function ConnectionEditor({
   // holds a scan token, so it lives only in this state.
   const [aiReview, setAiReview] = useState(false);
   const [llmJudge, setLlmJudge] = useState(false);
+  const [directUpload, setDirectUpload] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [issued, setIssued] = useState<ShadowRunnerScanResponse | null>(null);
   // What was saved: the issued command is built from it, not from the form.
@@ -802,7 +803,7 @@ export function ConnectionEditor({
   const issueCommand = (id: string) => {
     setScanError(null);
     runner.mutate(
-      { connectionId: id, aiReview, llmJudge: aiReview && llmJudge },
+      { connectionId: id, aiReview, llmJudge: aiReview && llmJudge, directUpload },
       {
         onSuccess: (r) => {
           setIssued(r);
@@ -1138,9 +1139,11 @@ export function ConnectionEditor({
                 }
                 aiReview={aiReview}
                 llmJudge={llmJudge}
+                directUpload={directUpload}
                 onChange={(next) => {
                   setAiReview(next.aiReview);
                   setLlmJudge(next.llmJudge);
+                  setDirectUpload(next.directUpload);
                 }}
                 issued={issued}
                 disabled={saving || runner.isPending}

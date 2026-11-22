@@ -23,7 +23,8 @@ const github = {
   provider: "github" as const,
   endpoints: [{ key: "api", label: "GitHub API URL", default: "https://api.github.com", placeholders: [] }],
 };
-const off = { aiReview: false, llmJudge: false };
+const off = { aiReview: false, llmJudge: false, directUpload: false };
+const direct = { ...off, directUpload: true };
 // The connection's options: the lines after --scan-id, one option per line.
 const lastLine = (cmd: string) => {
   const lines = cmd.split("\n").map((l) => l.trim().replace(/ \\$/, ""));
@@ -31,8 +32,44 @@ const lastLine = (cmd: string) => {
 };
 
 describe("buildScanCommand", () => {
-  it("uses placeholders until a scan is issued", () => {
+  it("has no Agent Manager address or token without direct upload", () => {
     expect(buildScanCommand(github, { settings: {}, endpoints: {} }, off)).toBe(
+      [
+        "docker run --rm -it \\",
+        `  --user "$(id -u):$(id -g)" \\`,
+        `  -v "$PWD:/out" \\`,
+        "  <scanner-image> scan \\",
+        "  --scan-id <scan-id> \\",
+        "  --github-org <organization> \\",
+        "  --repos=<repositories>",
+      ].join("\n"),
+    );
+    const issued = buildScanCommand(
+      github,
+      { settings: { organization: "acme", allRepositories: true }, endpoints: {} },
+      off,
+      { ampUrl: "https://amp.example.com", scanId: "s9", image: "ghcr.io/wso2/scanner:1.0" },
+    );
+    expect(issued).not.toMatch(/AMP_URL|AMP_SCAN_TOKEN|scan-token/);
+    expect(issued).toContain("ghcr.io/wso2/scanner:1.0 scan \\");
+    expect(issued).toContain("--scan-id s9 \\");
+  });
+
+  it("keeps the preview and the issued command alike, line for line", () => {
+    const input = { settings: { organization: "acme", allRepositories: true }, endpoints: {} };
+    const parts = { ampUrl: "https://amp", token: "t", scanId: "s9", image: "img" };
+    for (const o of [off, direct]) {
+      // Each line's option, or "value" for the image line.
+      const flags = (c: string) =>
+        c.split("\n").map((l) => (l.trim().startsWith("-") ? l.trim().split(/[ =]/)[0] : "value"));
+      expect(flags(buildScanCommand(github, input, o, parts))).toEqual(
+        flags(buildScanCommand(github, input, o)),
+      );
+    }
+  });
+
+  it("uses placeholders until a scan is issued", () => {
+    expect(buildScanCommand(github, { settings: {}, endpoints: {} }, direct)).toBe(
       [
         "docker run --rm -it \\",
         `  --user "$(id -u):$(id -g)" \\`,
@@ -81,11 +118,12 @@ describe("buildScanCommand", () => {
       readCiFiles: true,
     };
     const input = { settings, endpoints: {} };
-    expect(lastLine(buildScanCommand(github, input, { aiReview: true, llmJudge: true }))).toBe(
+    const ai = { ...off, aiReview: true, llmJudge: true };
+    expect(lastLine(buildScanCommand(github, input, ai))).toBe(
       "--github-org acme --all-repos --include-private --read-ci --ai-review --judge",
     );
     // The judge needs AI review.
-    expect(lastLine(buildScanCommand(github, input, { aiReview: false, llmJudge: true }))).toBe(
+    expect(lastLine(buildScanCommand(github, input, { ...off, llmJudge: true }))).toBe(
       "--github-org acme --all-repos --include-private --read-ci",
     );
   });
@@ -122,7 +160,7 @@ describe("buildScanCommand", () => {
     const cmd = buildScanCommand(
       github,
       { settings: { organization: "acme", allRepositories: true }, endpoints: {} },
-      off,
+      direct,
       { ampUrl: "https://amp.example.com", token: "tok.en-1", scanId: "s9", image: "ghcr.io/wso2/scanner:1.0" },
     );
     expect(cmd).toContain("-e AMP_URL=https://amp.example.com \\");

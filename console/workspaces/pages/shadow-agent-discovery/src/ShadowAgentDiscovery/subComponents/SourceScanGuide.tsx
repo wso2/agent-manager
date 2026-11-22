@@ -60,14 +60,21 @@ export function SourceScanGuide({ spec }: { spec: ShadowProviderSpec }) {
                   Save the organization and repositories here. No token is entered or stored.
                 </Typography>
                 <Typography component="li" variant="body2" color="text.secondary">
-                  Turn AI-enhanced detection on or off next to the form and save: the command
-                  is shown there. Later, get a new one from Generate command on the Platforms
-                  tab.
+                  Choose AI-enhanced detection and Upload results directly next to the form and
+                  save: the command is shown there. Later, get a new one from Generate command on
+                  the Platforms tab.
                 </Typography>
                 <Typography component="li" variant="body2" color="text.secondary">
                   Run the command in a terminal. It asks for a read-only token when private
                   repositories are included, and for an LLM API key when AI-enhanced detection is
-                  on. It scans on your machine and publishes only the agents it confirms.
+                  on. It scans on your machine and saves the agents it confirms in a results file
+                  in the folder you ran it from.
+                </Typography>
+                <Typography component="li" variant="body2" color="text.secondary">
+                  Upload the results file from Upload results on the Scans tab, whenever you are
+                  ready. With Upload results directly on, the command offers to upload it for you
+                  when the scan ends, with a token valid for one hour. Until results arrive, the
+                  scan shows as Waiting for results.
                 </Typography>
               </Box>
             </Box>
@@ -78,8 +85,8 @@ export function SourceScanGuide({ spec }: { spec: ShadowProviderSpec }) {
               <Typography variant="subtitle2">What is never stored</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                 Your Git token, your LLM key and your code. The code is read on your machine and
-                deleted; only confirmed agents are sent to Agent Manager: name, repository, file,
-                line, framework, matched symbol and commit.
+                deleted; only confirmed agents are saved in the results file and sent to Agent
+                Manager: name, repository, file, line, framework, matched symbol and commit.
               </Typography>
             </Box>
             {spec.docs.length > 0 && (

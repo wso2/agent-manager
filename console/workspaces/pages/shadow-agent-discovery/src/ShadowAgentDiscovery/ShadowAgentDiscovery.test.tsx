@@ -124,6 +124,9 @@ const hoisted = vi.hoisted(() => ({
   setHidden: vi.fn(),
   start: vi.fn(),
   clear: vi.fn(),
+  cancel: vi.fn(),
+  upload: vi.fn(),
+  resetUpload: vi.fn(),
   deleteAgent: vi.fn(),
   deleteAll: vi.fn(),
   test: vi.fn(),
@@ -187,6 +190,13 @@ vi.mock("@agent-management-platform/api-client", () => ({
     };
   },
   useClearShadowScans: () => ({ mutate: hoisted.clear, isPending: false }),
+  useCancelShadowScan: () => ({ mutate: hoisted.cancel, isPending: false }),
+  useUploadShadowScanResults: () => ({
+    mutate: hoisted.upload,
+    reset: hoisted.resetUpload,
+    isPending: false,
+  }),
+  isRequestTooLargeError: () => false,
   useStartShadowScan: () => ({ mutate: hoisted.start, isPending: false }),
   useDeleteShadowConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useTestShadowConnection: () => ({ mutate: hoisted.test, isPending: false }),
@@ -1306,9 +1316,9 @@ describe("ScanDetailsDrawer", () => {
 });
 
 describe("ScanStatusChip", () => {
-  it("shows a scan waiting for its scan command as Pending", () => {
+  it("shows a scan waiting for its scan command as Waiting for results", () => {
     render(<ScanStatusChip status="pending" />);
-    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for results")).toBeInTheDocument();
   });
 });
 
@@ -1471,7 +1481,7 @@ describe("GenerateCommandDialog", () => {
     fireEvent.click(judge);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: true, llmJudge: true },
+      { connectionId: "c2", aiReview: true, llmJudge: true, directUpload: false },
       expect.anything(),
     );
   });
@@ -1490,7 +1500,7 @@ describe("GenerateCommandDialog", () => {
     fireEvent.click(ai);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: false, llmJudge: false },
+      { connectionId: "c2", aiReview: false, llmJudge: false, directUpload: false },
       expect.anything(),
     );
   });
@@ -1501,18 +1511,42 @@ describe("GenerateCommandDialog", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: false, llmJudge: false },
+      { connectionId: "c2", aiReview: false, llmJudge: false, directUpload: false },
+      expect.anything(),
+    );
+    const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
+    // Without direct upload no token is issued.
+    act(() => opts.onSuccess(issuedScan({ token: undefined, expiresAt: undefined })));
+    // The command as one line: its " \\" line continuations joined.
+    const code = (screen.getByText(/--scan-id s9/).textContent ?? "").replace(/ \\\n\s*/g, " ");
+    expect(code).not.toMatch(/AMP_URL|AMP_SCAN_TOKEN/);
+    expect(code).toContain("ghcr.io/wso2/scanner:1.0 scan --scan-id s9");
+    expect(code).toContain("--github-org wso2 --all-repos");
+    expect(screen.getByText(/shows as Waiting for results until you upload/)).toBeInTheDocument();
+    expect(screen.queryByText(/Shown once/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
+  });
+
+  it("starts with direct upload off, and with it on issues a command with a token", () => {
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
+    const direct = screen.getByRole("switch", { name: /^Upload results directly/ });
+    expect(direct).not.toBeChecked();
+    expect(screen.getByText(/saves a results file on your machine/)).toBeInTheDocument();
+    fireEvent.click(direct);
+    expect(screen.getByText(/asks to upload the results with a one-hour/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c2", aiReview: false, llmJudge: false, directUpload: true },
       expect.anything(),
     );
     const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
     act(() => opts.onSuccess(issuedScan()));
-    // The command as one line: its " \\" line continuations joined.
     const code = (screen.getByText(/AMP_SCAN_TOKEN=tok-1/).textContent ?? "").replace(/ \\\n\s*/g, " ");
     expect(code).toContain("-e AMP_URL=https://amp.example.com");
     expect(code).toContain("ghcr.io/wso2/scanner:1.0 scan --scan-id s9");
-    expect(code).toContain("--github-org wso2 --all-repos");
     expect(screen.getByText(/Shown once: copy it now/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
   });
 
   it("never shows a command again after closing, and closes only with Close", () => {
@@ -1520,6 +1554,7 @@ describe("GenerateCommandDialog", () => {
     const { rerender } = render(
       <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={onClose} />,
     );
+    fireEvent.click(screen.getByRole("switch", { name: /^Upload results directly/ }));
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
     act(() => opts.onSuccess(issuedScan({ token: "secret", expiresAt: "bad date" })));
@@ -1539,6 +1574,8 @@ describe("GenerateCommandDialog", () => {
     );
     expect(screen.queryByText(/AMP_SCAN_TOKEN=secret/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Generate" })).toBeInTheDocument();
+    // Reopened, direct upload is off again.
+    expect(screen.getByRole("switch", { name: /^Upload results directly/ })).not.toBeChecked();
   });
 
   it("says why the command could not be generated", () => {
@@ -1680,6 +1717,10 @@ describe("ConnectionEditor (source code repositories)", () => {
     openNew();
     expect(screen.getByText("Scan command")).toBeInTheDocument();
     expect(commandText()).toContain("--github-org <organization> --repos=<repositories>");
+    // Direct upload starts off: no Agent Manager address or token.
+    expect(screen.getByRole("switch", { name: /^Upload results directly/ })).not.toBeChecked();
+    expect(commandText()).not.toMatch(/AMP_URL|AMP_SCAN_TOKEN/);
+    fireEvent.click(screen.getByRole("switch", { name: /^Upload results directly/ }));
     expect(commandText()).toContain("-e AMP_SCAN_TOKEN=<scan-token>");
     fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
       target: { value: "acme" },
@@ -1699,6 +1740,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
     fireEvent.click(screen.getByRole("switch", { name: /^AI-enhanced detection/ }));
+    fireEvent.click(screen.getByRole("switch", { name: /^Upload results directly/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
     expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
     expect(hoisted.createConnection.mock.lastCall?.[0]).toMatchObject({
@@ -1711,7 +1753,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     };
     act(() => created.onSuccess({ id: "c9", name: "GitHub connection" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c9", aiReview: true, llmJudge: false },
+      { connectionId: "c9", aiReview: true, llmJudge: false, directUpload: true },
       expect.anything(),
     );
     const opts = hoisted.generate.mock.lastCall?.[1] as RunnerMutateOptions;
@@ -1748,7 +1790,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
     expect(hoisted.generate).toHaveBeenCalledTimes(2);
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c9", aiReview: false, llmJudge: false },
+      { connectionId: "c9", aiReview: false, llmJudge: false, directUpload: false },
       expect.anything(),
     );
   });
