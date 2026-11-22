@@ -16,11 +16,12 @@
  * under the License.
  */
 
-import React, { useEffect, useLayoutEffect, type ComponentType } from "react";
-import { Box, Button, Stack } from "@wso2/oxygen-ui";
+import React, { type ComponentType } from "react";
+import { Box, Button, PageContent, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { Settings, Box as ProjectIcon } from "@wso2/oxygen-ui-icons-react";
 import {
   PageLayout,
+  useDocumentTitle,
   useExternalComponentModulesByMountPoint,
   type ProjectSettingsActionProps,
 } from "@agent-management-platform/views";
@@ -37,6 +38,7 @@ import {
 } from "@agent-management-platform/api-client";
 import { AgentTypeSummary } from "./subComponents/AgentTypeSummary";
 import { DeploymentPipelineCard } from "./subComponents/DeploymentPipelineCard";
+import { ProjectLanding } from "./subComponents/ProjectLanding";
 
 const projectRoutes = absoluteRouteMap.children.org.children.projects;
 
@@ -61,10 +63,8 @@ export const ProjectOverview: React.FC = () => {
   });
   const {
     data: agents,
+    isLoading: isAgentsLoading,
     isSuccess: isAgentsLoaded,
-    isFetching: isAgentsFetching,
-    isFetchedAfterMount: isAgentsFetchedAfterMount,
-    refetch: refetchAgents,
   } = useListAgents({
     orgName: orgId,
     projName: projectId,
@@ -82,36 +82,42 @@ export const ProjectOverview: React.FC = () => {
     navigate(generatePath(projectRoutes.children.edit.path, { orgId, projectId }));
   };
 
-  // A project with no agents has nothing to overview; send the user to create
-  // one. The page renders as usual meanwhile (so its other queries run in
-  // parallel), with the agent list on its skeleton until the outcome is known,
-  // so the "no agents" state never flashes before the redirect.
-  //
-  // Only a successful, empty response counts; a failed load must not redirect.
-  // And only one fetched during this visit: an empty list from the cache may be
-  // out of date (an agent created in another tab), so it is fetched again first.
-  const mayRedirect = canCreateAgent && !!orgId && !!projectId;
-  const hasNoAgents = isAgentsLoaded && !agents?.agents?.length;
-  const isEmptyConfirmed = hasNoAgents && isAgentsFetchedAfterMount && !isAgentsFetching;
-  const shouldRedirect = mayRedirect && isEmptyConfirmed;
-  const isCheckingEmpty = mayRedirect && hasNoAgents && !isEmptyConfirmed;
+  const settingsAction =
+    canWriteProject &&
+    (SettingsAction ? (
+      <SettingsAction orgId={orgId} projectId={projectId} disabled={!project} />
+    ) : (
+      <Button
+        variant="outlined"
+        size="small"
+        startIcon={<Settings size={16} />}
+        onClick={manageProject}
+        disabled={!project}
+      >
+        Settings
+      </Button>
+    ));
 
-  // A fresh cached empty list is not refetched on mount (staleTime); fetch it.
-  useEffect(() => {
-    if (isCheckingEmpty && !isAgentsFetchedAfterMount && !isAgentsFetching) {
-      void refetchAgents();
-    }
-  }, [isCheckingEmpty, isAgentsFetchedAfterMount, isAgentsFetching, refetchAgents]);
+  // Until the agent list is known the page could be either the overview or the
+  // landing, so it shows neither.
+  if (isAgentsLoading) {
+    return <ProjectOverviewSkeleton title={project?.displayName} />;
+  }
 
-  // Layout effect: navigate before the browser paints this render.
-  useLayoutEffect(() => {
-    if (shouldRedirect) {
-      // Replace so browser Back doesn't land here and redirect again.
-      navigate(generatePath(projectRoutes.children.newAgent.path, { orgId, projectId }), {
-        replace: true,
-      });
-    }
-  }, [shouldRedirect, navigate, orgId, projectId]);
+  // A project with no agents has nothing to overview, so it shows where to start.
+  // Only a successful, empty response counts; a failed load shows the overview,
+  // whose agent list reports the error.
+  if (isAgentsLoaded && !agents?.agents?.length) {
+    return (
+      <ProjectLanding
+        orgId={orgId}
+        projectId={projectId}
+        projectName={project?.displayName}
+        canCreateAgent={canCreateAgent}
+        settingsAction={settingsAction || undefined}
+      />
+    );
+  }
 
   return (
     <PageLayout
@@ -119,26 +125,11 @@ export const ProjectOverview: React.FC = () => {
       description={project?.description}
       avatar={PROJECT_AVATAR}
       isLoading={isLoading}
-      actions={
-        canWriteProject &&
-        (SettingsAction ? (
-          <SettingsAction orgId={orgId} projectId={projectId} disabled={!project} />
-        ) : (
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<Settings size={16} />}
-            onClick={manageProject}
-            disabled={!project}
-          >
-            Settings
-          </Button>
-        ))
-      }
+      actions={settingsAction}
     >
       <Stack direction={{ xs: "column", lg: "row" }} gap={3} alignItems="flex-start">
         <Box sx={{ flex: 1, minWidth: 0, width: "100%" }}>
-          <AgentList showCreateAction loading={isCheckingEmpty || shouldRedirect} />
+          <AgentList showCreateAction />
         </Box>
         <Stack gap={2} sx={{ width: { xs: "100%", lg: 380 }, flexShrink: 0 }}>
           <AgentTypeSummary />
@@ -148,5 +139,21 @@ export const ProjectOverview: React.FC = () => {
     </PageLayout>
   );
 };
+
+/** Neutral placeholder while it is not yet known whether the project has agents. */
+function ProjectOverviewSkeleton({ title }: { title?: string }) {
+  useDocumentTitle(title ?? "Project Overview");
+  return (
+    <PageContent fullWidth>
+      <Stack spacing={{ xs: 3, md: 4 }}>
+        <Stack spacing={1}>
+          <Skeleton variant="text" width={280} height={48} />
+          <Skeleton variant="text" width={420} />
+        </Stack>
+        <Skeleton variant="rounded" height={360} />
+      </Stack>
+    </PageContent>
+  );
+}
 
 export default ProjectOverview;

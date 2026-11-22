@@ -84,17 +84,9 @@ function AgentListSkeleton() {
 export interface AgentListProps {
   /** Shows "New agent" beside the search, for pages without a header action. */
   showCreateAction?: boolean;
-  /**
-   * Keep the loading skeleton up even once the list has loaded, such as while the
-   * parent decides whether an empty list sends the user elsewhere.
-   */
-  loading?: boolean;
 }
 
-export const AgentList: React.FC<AgentListProps> = ({
-  showCreateAction = false,
-  loading = false,
-}) => {
+export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }) => {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(ROWS_PER_PAGE_OPTIONS[0]);
@@ -166,7 +158,7 @@ export const AgentList: React.FC<AgentListProps> = ({
       confirmButtonText: "Delete",
     });
 
-  if (isLoading || loading) return <AgentListSkeleton />;
+  if (isLoading) return <AgentListSkeleton />;
 
   return (
     <Stack direction="column" spacing={2}>
