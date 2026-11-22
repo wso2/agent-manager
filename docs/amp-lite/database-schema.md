@@ -207,7 +207,7 @@ During an upgrade or rollback involving a pre-vault binary, keep the local vault
 
 ### Standalone OpenBao
 
-Run OpenBao independently of AMP and enable a KV v2 secrets engine. Configure AMP with `SECRET_VAULT_PROVIDER=openbao`, `OPENBAO_ADDR` (the server origin), `OPENBAO_TOKEN` (a scoped token), and optionally `OPENBAO_KV_MOUNT` (defaults to `secret`). Standalone Compose forwards these settings to `amp-api`. For a server on the host, `OPENBAO_ADDR` must be reachable from inside the API container. Use HTTPS and a trusted CA outside local development. Provide the token through the API process environment and use a separate mount per AMP deployment.
+Run OpenBao independently of AMP and enable a KV v2 secrets engine. Configure AMP with `SECRET_VAULT_PROVIDER=openbao`, `OPENBAO_ADDR` (the server origin), `OPENBAO_TOKEN` (a scoped token), and optionally `OPENBAO_KV_MOUNT` (defaults to `secret`). Standalone Compose forwards these settings to `amp-api`. For a server on the host, `OPENBAO_ADDR` must be reachable from inside the API container. Use HTTPS and a trusted CA outside local development. The health check creates one nonsecret probe value at `amp/healthz` in the mount and reads it back, and reports unhealthy unless the mount answers as KV v2. Provide the token through the API process environment and use a separate mount per AMP deployment.
 
 For a mount named `secret`, the API token needs this OpenBao policy (kept in `agent-manager-service/vault/openbao/policy.hcl`; CI runs the OpenBao test with a token limited to it):
 

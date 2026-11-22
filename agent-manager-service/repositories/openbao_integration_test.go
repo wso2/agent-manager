@@ -20,8 +20,10 @@ package repositories
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -157,6 +159,19 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	_, err = writer.Open(ctx, secretRef(&current), sealedOf(&current))
 	require.ErrorContains(t, err, "HTTP 404")
 	require.NoError(t, writer.Destroy(ctx, secretRef(&current), sealedOf(&current)), "destroy can be retried")
+
+	// A KV v1 mount answers a missing key exactly as KV v2 does, and the documented policy lets the token create and
+	// read there too, but it lacks the CAS and versioned cleanup this vault relies on.
+	kv1 := "amp-kv1-" + strings.ReplaceAll(NewID().String(), "-", "")[:8]
+	adminCall(t, adminToken, http.MethodPost, "sys/mounts/"+kv1, map[string]any{"type": "kv", "options": map[string]string{"version": "1"}})
+	t.Cleanup(func() { adminCall(t, adminToken, http.MethodDelete, "sys/mounts/"+kv1, nil) })
+	// Last: the policy installed here replaces the one the token above runs under.
+	t.Setenv("OPENBAO_KV_MOUNT", kv1)
+	t.Setenv("OPENBAO_TOKEN", adminToken)
+	kv1Vault, err := openbao.New(os.Getenv("OPENBAO_ADDR"), tokenWithDocumentedPolicy(t), kv1)
+	require.NoError(t, err)
+	require.ErrorContains(t, kv1Vault.Check(ctx), "not KV v2")
+	require.ErrorContains(t, kv1Vault.Check(ctx), "not KV v2", "the probe an earlier check left changes nothing")
 }
 
 // tokenWithDocumentedPolicy installs the policy the deployment docs give the API
@@ -197,4 +212,22 @@ func tokenWithDocumentedPolicy(t *testing.T) string {
 	call(http.MethodPost, "auth/token/create", map[string]any{"policies": []string{"amp-api-test"}, "no_default_policy": true, "ttl": "15m"}, &created)
 	require.NotEmpty(t, created.Auth.ClientToken)
 	return created.Auth.ClientToken
+}
+
+// adminCall sends an OpenBao API request with token and requires it to succeed.
+func adminCall(t *testing.T, token, method, path string, body any) {
+	t.Helper()
+	var source io.Reader
+	if body != nil {
+		encoded, err := json.Marshal(body)
+		require.NoError(t, err)
+		source = bytes.NewReader(encoded)
+	}
+	req, err := http.NewRequestWithContext(context.Background(), method, strings.TrimRight(os.Getenv("OPENBAO_ADDR"), "/")+"/v1/"+path, source)
+	require.NoError(t, err)
+	req.Header.Set("X-Vault-Token", token)
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = res.Body.Close() }()
+	require.Less(t, res.StatusCode, 300, "%s %s", method, path)
 }

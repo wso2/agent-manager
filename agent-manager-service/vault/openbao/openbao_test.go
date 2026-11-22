@@ -19,6 +19,8 @@ package openbao
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -72,26 +74,70 @@ func TestAbandonFailsWhenTheTokenCannotDestroy(t *testing.T) {
 	require.ErrorContains(t, v.Abandon(t.Context(), ref, path), "HTTP 403")
 }
 
-func TestCheck(t *testing.T) {
+// kvServer imitates a mount. With v2 it answers reads as KV v2 does, with version metadata; otherwise it returns the
+// stored write body as KV v1 does. A missing key answers 404 with an empty error list in both.
+func kvServer(t *testing.T, v2 bool) http.HandlerFunc {
+	stored := map[string]json.RawMessage{}
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			if _, exists := stored[r.URL.Path]; exists {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			stored[r.URL.Path] = body
+		case http.MethodGet:
+			body, ok := stored[r.URL.Path]
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"errors":[]}`))
+				return
+			}
+			if !v2 {
+				_, _ = fmt.Fprintf(w, `{"data":%s}`, body)
+				return
+			}
+			var req writeRequest
+			require.NoError(t, json.Unmarshal(body, &req))
+			data, err := json.Marshal(req.Data)
+			require.NoError(t, err)
+			_, _ = fmt.Fprintf(w, `{"data":{"data":%s,"metadata":{"version":1}}}`, data)
+		}
+	}
+}
+
+func TestCheckAcceptsOnlyKVv2(t *testing.T) {
+	v, calls := newTestVault(t, kvServer(t, true))
+	require.NoError(t, v.Check(t.Context()), "first check creates the probe")
+	path := "/v1/secret/data/amp/healthz"
+	assert.Equal(t, []string{"GET " + path, "POST " + path, "GET " + path}, *calls)
+	require.NoError(t, v.Check(t.Context()), "later checks read the existing probe")
+	assert.Len(t, *calls, 4)
+
+	v1, _ := newTestVault(t, kvServer(t, false))
+	require.ErrorContains(t, v1.Check(t.Context()), "not KV v2")
+	require.ErrorContains(t, v1.Check(t.Context()), "not KV v2", "a KV v1 probe left by an earlier check")
+}
+
+func TestCheckFailures(t *testing.T) {
 	for name, tc := range map[string]struct {
-		status  int
-		body    string
-		healthy bool
+		status int
+		body   string
+		want   string
 	}{
-		"missing key":   {http.StatusNotFound, `{"errors":[]}`, true},
-		"present key":   {http.StatusOK, `{"data":{}}`, true},
-		"missing mount": {http.StatusNotFound, `{"errors":["no handler for route \"nope/data/amp/healthz\". route entry not found."]}`, false},
-		"404 no body":   {http.StatusNotFound, ``, false},
-		"forbidden":     {http.StatusForbidden, `{"errors":["permission denied"]}`, false},
-		"unavailable":   {http.StatusServiceUnavailable, ``, false},
+		"missing mount": {http.StatusNotFound, `{"errors":["no handler for route \"nope/data/amp/healthz\". route entry not found."]}`, "mount does not exist"},
+		"404 no body":   {http.StatusNotFound, ``, "mount does not exist"},
+		"forbidden":     {http.StatusForbidden, `{"errors":["permission denied"]}`, "HTTP 403"},
+		"unavailable":   {http.StatusServiceUnavailable, ``, "HTTP 503"},
+		"other value":   {http.StatusOK, `{"data":{"data":{"value":"b3RoZXI="},"metadata":{"version":1}}}`, "not KV v2"},
 	} {
-		v, calls := newTestVault(t, func(w http.ResponseWriter, _ *http.Request) {
+		v, _ := newTestVault(t, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(tc.status)
 			_, _ = w.Write([]byte(tc.body))
 		})
-		err := v.Check(t.Context())
-		assert.Equal(t, tc.healthy, err == nil, "%s: %v", name, err)
-		assert.Equal(t, []string{"GET /v1/secret/data/amp/healthz"}, *calls)
+		assert.ErrorContains(t, v.Check(t.Context()), tc.want, name)
 	}
 }
 

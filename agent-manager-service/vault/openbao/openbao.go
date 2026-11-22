@@ -125,6 +125,10 @@ type casOptions struct {
 type readResponse struct {
 	Data struct {
 		Data secretData `json:"data"`
+		// Metadata is what KV v2 adds to a read; KV v1 returns the stored map alone.
+		Metadata *struct {
+			Version int `json:"version"`
+		} `json:"metadata"`
 	} `json:"data"`
 }
 
@@ -161,24 +165,44 @@ func (v *Vault) Abandon(ctx context.Context, ref vault.Ref, path string) error {
 	}{Versions: []int{1}}, nil)
 }
 
-// healthPath is never written. Reading it exercises the server, the mount and
-// the token's read access under the API's policy: a usable vault answers 404
-// with an empty error list, KV v2's answer for a missing key. A mount that does
-// not exist answers 404 too, but names the unrouted path in its errors.
-const healthPath = "/data/amp/healthz"
+// healthPath holds a fixed, nonsecret probe value that Check creates once and
+// reads back. Only a KV v2 mount answers with the probe and its version
+// metadata: a missing key and a missing mount both answer 404, and a KV v1
+// mount stores and returns the write body without metadata, so neither 404
+// nor a successful read alone shows the mount provides the CAS and versioned
+// cleanup Seal and Abandon rely on.
+const (
+	healthPath  = "amp/healthz"
+	healthProbe = "amp-healthz"
+)
 
 var _ vault.Checker = (*Vault)(nil)
 
 func (v *Vault) Check(ctx context.Context) error {
-	err := v.request(ctx, http.MethodGet, healthPath, nil, nil)
+	var out readResponse
+	err := v.request(ctx, http.MethodGet, "/data/"+healthPath, nil, &out)
 	var status requestError
-	if err == nil || (errors.As(err, &status) && status.code == http.StatusNotFound && status.missingKey) {
-		return nil
+	if errors.As(err, &status) && status.code == http.StatusNotFound {
+		if !status.missingKey {
+			return fmt.Errorf("%w: the KV v2 mount does not exist", err)
+		}
+		// Create the probe. CAS=0 only creates, so concurrent checks cannot overwrite it; one that lost the race
+		// sees 400 (CAS mismatch) or 403 (the policy grants create, not update) and reads the winner's probe.
+		probe := writeRequest{Options: casOptions{Version: 0}, Data: secretData{Value: []byte(healthProbe)}}
+		werr := v.request(ctx, http.MethodPost, "/data/"+healthPath, probe, nil)
+		if werr != nil && (!errors.As(werr, &status) || (status.code != http.StatusBadRequest && status.code != http.StatusForbidden)) {
+			return fmt.Errorf("create the OpenBao health probe: %w", werr)
+		}
+		out = readResponse{}
+		err = v.request(ctx, http.MethodGet, "/data/"+healthPath, nil, &out)
 	}
-	if status.code == http.StatusNotFound {
-		return fmt.Errorf("%w: the KV v2 mount does not exist", err)
+	if err != nil {
+		return err
 	}
-	return err
+	if out.Data.Metadata == nil || out.Data.Metadata.Version < 1 || string(out.Data.Data.Value) != healthProbe {
+		return errors.New("OpenBao mount is not KV v2: its health probe has no versioned value")
+	}
+	return nil
 }
 
 func (v *Vault) Seal(ctx context.Context, ref vault.Ref, value []byte, _ *vault.Sealed) (vault.Sealed, error) {

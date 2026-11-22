@@ -515,9 +515,17 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		return nil, httpx.ErrInvalidInput
 	}
 
-	// Refuse a project proxy before any validation or network work; it is re-checked on
-	// the locked row below.
-	if existing, err := s.repo.GetByHandle(ctx, handle, orgUUID); err == nil && existing != nil && existing.ProjectUUID != nil {
+	// Refuse a missing or project proxy before any validation, network work or credential
+	// staging; both are re-checked on the locked row below, which catches a proxy deleted
+	// or moved in between. The proxy's current endpoints anchor the checks that follow.
+	existingProxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
+	if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, gwerr.ErrMCPProxyNotFound) || (err == nil && existingProxy == nil) {
+		return nil, gwerr.ErrMCPProxyNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MCP proxy before update: %w", err)
+	}
+	if existingProxy.ProjectUUID != nil {
 		return nil, gwerr.ErrMCPProxyProjectOwned
 	}
 
@@ -533,23 +541,11 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	if err := validateMCPProxyDeploymentHandleLengths(handle, req.Endpoints); err != nil {
 		return nil, err
 	}
-	// Load the proxy's current (environment -> artifact) mapping so the identity-security
-	// probe can anchor each environment on its existing deployment instead of re-selecting
-	// from the environment — mirrors indexExistingMCPEndpoints below, done here (outside
-	// the transaction) because the probe itself performs DB reads. A missing proxy is left
-	// to GetByHandleForUpdate inside the transaction, the authoritative existence check.
-	// Any other failure is returned: the placement check needs the proxy to find the agents
-	// that use it.
-	var existingArtifactByEnv map[string]uuid.UUID
-	proxyUUID := uuid.Nil
-	existingProxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("failed to get MCP proxy before update: %w", err)
-	}
-	if err == nil && existingProxy != nil {
-		existingArtifactByEnv = indexExistingMCPEndpoints(existingProxy.Endpoints).artifactByEnv
-		proxyUUID = existingProxy.UUID
-	}
+	// Anchor the identity-security probe on each environment's existing deployment instead
+	// of re-selecting from the environment — mirrors indexExistingMCPEndpoints below, done
+	// here (outside the transaction) because the probe itself performs DB reads.
+	existingArtifactByEnv := indexExistingMCPEndpoints(existingProxy.Endpoints).artifactByEnv
+	proxyUUID := existingProxy.UUID
 	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
 		return nil, err
 	}
