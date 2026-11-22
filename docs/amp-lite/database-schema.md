@@ -205,6 +205,28 @@ Values go through a vault (`agent-manager-service/vault`), selected by `SECRET_V
 
 During an upgrade or rollback involving a pre-vault binary, keep the local vault, use the same `ENCRYPTION_KEY` on all replicas, and leave `SECRET_VAULT_BIND_LOCAL_ROWS=false` (the default). The local vault writes the legacy AES-GCM format in this mode. After all replicas support the vault and the rollback window has closed, set `SECRET_VAULT_BIND_LOCAL_ROWS=true` to bind newly written local ciphertext to its organization and secret ID. Existing values remain readable and are resealed on update. Enabling row binding, switching to an external vault, or rotating the encryption key can make newly written credentials unreadable by pre-vault replicas. Turning row binding off changes future writes only.
 
+### Standalone OpenBao
+
+Run OpenBao independently of AMP and enable a KV v2 secrets engine. Configure AMP with `SECRET_VAULT_PROVIDER=openbao`, `OPENBAO_ADDR` (the server origin), `OPENBAO_TOKEN` (a scoped token), and optionally `OPENBAO_KV_MOUNT` (defaults to `secret`). Standalone Compose forwards these settings to `amp-api`. For a server on the host, `OPENBAO_ADDR` must be reachable from inside the API container. Use HTTPS and a trusted CA outside local development. Provide the token through the API process environment and use a separate mount per AMP deployment.
+
+For a mount named `secret`, the API token needs this OpenBao policy:
+
+```hcl
+path "secret/data/amp/*" {
+  capabilities = ["create", "read"]
+}
+path "secret/metadata/amp/*" {
+  capabilities = ["delete"]
+}
+```
+
+The API writes each credential to its own immutable OpenBao path and commits only its reference in SQL. The `ciphertext` and `key_id` columns are null for OpenBao rows, and no promotion job stages the value in SQL. Old locally encrypted credentials stay readable and move to OpenBao when rewritten. Keep `OPENBAO_ADDR` and `OPENBAO_KV_MOUNT` pointed at the original mount while it holds referenced values. If you switch back to local writes, set `SECRET_VAULT_READERS=openbao` to keep existing references readable and allow cleanup.
+
+A failed OpenBao request aborts the SQL write. If OpenBao accepted a write but SQL subsequently rolls back or the API exits before commit, the previous committed credential remains readable. An unreferenced value can remain in OpenBao. To remove abandoned values, stop AMP writers and compare paths against committed `secrets.external_ref` values and queued `secret_jobs` references before deleting from the mount. Replaced and deleted committed credentials are reclaimed by the normal job worker.
+
+To test against a disposable standalone server, start `bao server -dev -dev-listen-address=127.0.0.1:8200` in a separate process. Export `OPENBAO_ADDR=http://127.0.0.1:8200` and the dev token as `OPENBAO_TOKEN`, then run `make test-integration` from `agent-manager-service`. The suite runs `TestStandaloneOpenBaoReferenceOnly` when the address is set.
+
+
 An external vault is never written inside a request's transaction. A write seals the value into the row with `local`, so it is readable at once, and queues a `promote` job; a delete, or a write that replaces an external value, queues a `destroy` job for it. Both commit or roll back with the change. After the commit a worker writes the value to the external vault as a new entry or version, points the row at it, and removes the value it replaced. A rolled-back change has therefore written nothing to the external vault, and the value a committed row points to stays readable until a later commit replaces it.
 
 ### secret_jobs

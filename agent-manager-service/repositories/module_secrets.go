@@ -32,8 +32,7 @@ var moduleSecretNamespace = uuid.MustParse("0d7e3a52-8f0b-5c41-a3c9-6d6f64736563
 
 // ModuleSecretStore keeps module secrets in the secrets table, one row per organization, owner kind and owner id. The
 // module host decides the owner kind and id, so a module only reaches its own. Values go through the SecretStore, so
-// they are sealed by the configured vault and promoted to an external one after the change needing them commits, the
-// same as core secrets.
+// the configured vault protects them the same way it protects core secrets.
 type ModuleSecretStore struct {
 	db      *gorm.DB
 	secrets *SecretStore

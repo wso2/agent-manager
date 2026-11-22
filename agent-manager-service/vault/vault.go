@@ -69,11 +69,8 @@ type Sealed struct {
 
 // Vault is one secret backend.
 //
-// An external vault is only ever written after the database change that needs
-// the value has committed, by the secret store's job worker. Until a write's
-// row commits, the row keeps pointing at the previous value, so an external
-// vault must keep that value readable: Seal stages a new value and never
-// changes what current refers to.
+// A vault must preserve the current value until its replacement is committed
+// and the old reference is released through Destroy.
 type Vault interface {
 	// Provider is the name recorded in secrets.provider for values this vault sealed.
 	Provider() string
@@ -101,6 +98,15 @@ type Vault interface {
 type ExternalVault interface {
 	Vault
 	PromotionReference(ref Ref) (string, error)
+}
+
+// ReferenceVault stores new values before their references are committed. The
+// SQL store never seals or queues a copy of the credential for these providers.
+// Seal receives a fresh operation ID and must write to a new, immutable
+// reference. A SQL rollback can leave an unreferenced value in the vault.
+type ReferenceVault interface {
+	Vault
+	ReferenceOnly()
 }
 
 // Config is what a provider is built from. A provider reads any settings of its
@@ -194,8 +200,10 @@ func Open(provider string, cfg Config, readers ...string) (*Vaults, error) {
 			return nil, err
 		}
 		if name != ProviderLocal && name == provider {
-			if _, ok := v.(ExternalVault); !ok {
-				return nil, fmt.Errorf("secret vault writer %q does not support recoverable writes", name)
+			_, promotes := v.(ExternalVault)
+			_, referenceOnly := v.(ReferenceVault)
+			if !promotes && !referenceOnly {
+				return nil, fmt.Errorf("secret vault writer %q does not support external writes", name)
 			}
 		}
 		set.byName[name] = v

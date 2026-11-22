@@ -30,14 +30,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/vault"
 )
 
-// SecretStore keeps secret values in the secrets table. Owning rows hold a secret's id and callers hand over and get
-// back plaintext.
-//
-// A write or delete changes only the database, in the caller's transaction: a write seals the value into the row with
-// the local vault, and anything an external vault has to do waits in secret_jobs until that transaction commits.
-// SecretJobRunner then copies the value to the external vault that seals new values (promote) and removes values no
-// committed row refers to (destroy). So a transaction that rolls back has written nothing to an external vault, and
-// the value a committed row points to stays readable until a later commit replaces it.
+// SecretStore persists secret references and, for local or promoting vaults,
+// ciphertext. Reference-only vaults store the value before the SQL reference
+// is published. Replaced external values are destroyed only after commit.
 type SecretStore struct {
 	vaults *vault.Vaults
 }
@@ -68,16 +63,16 @@ func (s *SecretStore) Write(ctx context.Context, tx *gorm.DB, orgID, ownerKind s
 const writeAttempts = 3
 
 func (s *SecretStore) write(ctx context.Context, tx *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) error {
-	local, err := s.vaults.For(vault.ProviderLocal)
+	orgID = canonicalOrgID(orgID)
+	provider, sealed, err := s.sealWrite(ctx, orgID, ownerKind, id, value)
 	if err != nil {
 		return err
 	}
-	orgID = canonicalOrgID(orgID)
 	db := tx.WithContext(ctx)
 	for range writeAttempts {
 		// Insert the row, or find it already there: an insert that treats a duplicate key as "exists" keeps two first writes of one secret from both
 		// creating it.
-		created, err := s.insert(ctx, db, local, orgID, ownerKind, ownerID, id, value)
+		created, err := s.insert(db, orgID, ownerKind, ownerID, id, provider, sealed)
 		if err != nil || created {
 			return err
 		}
@@ -94,7 +89,7 @@ func (s *SecretStore) write(ctx context.Context, tx *gorm.DB, orgID, ownerKind s
 		if err := db.Where("id = ?", id).Take(&row).Error; err != nil {
 			return fmt.Errorf("failed to read secret %s: %w", id, err)
 		}
-		return s.update(ctx, db, local, &row, orgID, value)
+		return s.update(db, &row, orgID, provider, sealed)
 	}
 	return fmt.Errorf("failed to write secret %s: it was deleted by %d concurrent writes in turn", id, writeAttempts)
 }
@@ -109,17 +104,36 @@ func canonicalOrgID(orgID string) string {
 	return orgID
 }
 
-// insert creates the secret's row unless one exists, and reports whether it did.
-func (s *SecretStore) insert(ctx context.Context, db *gorm.DB, local vault.Vault, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) (bool, error) {
+// sealWrite prepares an immutable value once, before the store takes its row lock.
+func (s *SecretStore) sealWrite(ctx context.Context, orgID, ownerKind string, id uuid.UUID, value []byte) (string, vault.Sealed, error) {
 	ref := vault.Ref{OperationID: uuid.Nil, OrgID: orgID, SecretID: id, OwnerKind: ownerKind}
-	sealed, err := local.Seal(ctx, ref, value, nil)
-	if err != nil {
-		return false, fmt.Errorf("failed to seal secret: %w", err)
+	writer := s.vaults.Writer()
+	_, referenceOnly := writer.(vault.ReferenceVault)
+	if referenceOnly {
+		ref.OperationID = NewID()
+	} else {
+		var err error
+		writer, err = s.vaults.For(vault.ProviderLocal)
+		if err != nil {
+			return "", vault.Sealed{}, err
+		}
 	}
+	sealed, err := writer.Seal(ctx, ref, value, nil)
+	if err != nil {
+		return "", vault.Sealed{}, fmt.Errorf("failed to seal secret: %w", err)
+	}
+	if referenceOnly && (sealed.ExternalRef == "" || len(sealed.Ciphertext) != 0 || sealed.KeyID != "") {
+		return "", vault.Sealed{}, fmt.Errorf("vault %q must return only an external reference", writer.Provider())
+	}
+	return writer.Provider(), sealed, nil
+}
+
+// insert creates the secret's row unless one exists, and reports whether it did.
+func (s *SecretStore) insert(db *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, provider string, sealed vault.Sealed) (bool, error) {
 	now := dbx.Now()
 	row := models.Secret{
-		ID: id, OrgID: orgID, OwnerKind: ownerKind, OwnerID: ownerID, Provider: vault.ProviderLocal,
-		Ciphertext: sealed.Ciphertext, KeyID: nilIfEmpty(sealed.KeyID), ExternalRef: nil, Version: 1,
+		ID: id, OrgID: orgID, OwnerKind: ownerKind, OwnerID: ownerID, Provider: provider,
+		Ciphertext: sealed.Ciphertext, KeyID: nilIfEmpty(sealed.KeyID), ExternalRef: nilIfEmpty(sealed.ExternalRef), Version: 1,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	inserted, err := dbx.InsertIfAbsent(db, &row)
@@ -129,11 +143,11 @@ func (s *SecretStore) insert(ctx context.Context, db *gorm.DB, local vault.Vault
 	if !inserted {
 		return false, nil
 	}
-	return true, s.afterLocalWrite(db, &row, nil)
+	return true, s.afterWrite(db, &row, nil)
 }
 
 // update replaces the value of row, which the caller has locked.
-func (s *SecretStore) update(ctx context.Context, db *gorm.DB, local vault.Vault, row *models.Secret, orgID string, value []byte) error {
+func (s *SecretStore) update(db *gorm.DB, row *models.Secret, orgID, provider string, sealed vault.Sealed) error {
 	if row.OrgID != orgID {
 		return fmt.Errorf("secret %s belongs to another organization", row.ID)
 	}
@@ -145,13 +159,9 @@ func (s *SecretStore) update(ctx context.Context, db *gorm.DB, local vault.Vault
 	if row.ExternalRef != nil {
 		replaced = rowExternalValue(row)
 	}
-	sealed, err := local.Seal(ctx, secretRef(row), value, nil)
-	if err != nil {
-		return fmt.Errorf("failed to seal secret: %w", err)
-	}
 	res := db.Model(&models.Secret{}).Where("id = ?", row.ID).Updates(map[string]any{
-		"provider": vault.ProviderLocal, "ciphertext": sealed.Ciphertext, "key_id": nilIfEmpty(sealed.KeyID),
-		"external_ref": nil, "version": gorm.Expr("version + 1"), "updated_at": dbx.Now(),
+		"provider": provider, "ciphertext": sealed.Ciphertext, "key_id": nilIfEmpty(sealed.KeyID),
+		"external_ref": nilIfEmpty(sealed.ExternalRef), "version": gorm.Expr("version + 1"), "updated_at": dbx.Now(),
 	})
 	if res.Error != nil {
 		return fmt.Errorf("failed to update secret %s: %w", row.ID, res.Error)
@@ -159,15 +169,15 @@ func (s *SecretStore) update(ctx context.Context, db *gorm.DB, local vault.Vault
 	if res.RowsAffected != 1 {
 		return fmt.Errorf("failed to update secret %s: the locked row is gone", row.ID)
 	}
+	row.Provider = provider
 	row.Version++
-	return s.afterLocalWrite(db, row, replaced)
+	return s.afterWrite(db, row, replaced)
 }
 
-// afterLocalWrite queues what the external vault does once the write commits: promote the new version when an
-// external vault seals new values, otherwise destroy the external value it replaced.
-func (s *SecretStore) afterLocalWrite(db *gorm.DB, row *models.Secret, replaced *externalValue) error {
+// afterWrite queues promotion when needed, or releases the previous external reference after commit.
+func (s *SecretStore) afterWrite(db *gorm.DB, row *models.Secret, replaced *externalValue) error {
 	writer := s.vaults.Writer()
-	if writer.Provider() != vault.ProviderLocal {
+	if row.Provider == vault.ProviderLocal && writer.Provider() != vault.ProviderLocal {
 		external, ok := writer.(vault.ExternalVault)
 		if !ok {
 			return fmt.Errorf("vault %q does not support promotion", writer.Provider())
