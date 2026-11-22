@@ -399,13 +399,29 @@ func nameTaken(tx *gorm.DB, d *models.EventDestination) (bool, error) {
 	return n > 0, err
 }
 
+func (r *eventRepository) prepareDestinationSecret(ctx context.Context, d *models.EventDestination, current *uuid.UUID) (*uuid.UUID, context.Context, error) {
+	if d.Secret == "" {
+		return current, ctx, nil
+	}
+	if current == nil {
+		id := NewID()
+		current = &id
+	}
+	prepared, err := r.secrets.PrepareWrite(ctx, r.db, d.OUID, eventDestinationSecretOwner, *current, []byte(d.Secret))
+	return current, prepared, err
+}
+
 func (r *eventRepository) CreateDestination(ctx context.Context, d *models.EventDestination) error {
 	now := dbx.Now()
 	d.CreatedAt, d.UpdatedAt = now, now
 	if d.ID == uuid.Nil {
 		d.ID = NewID()
 	}
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	secretID, ctx, err := r.prepareDestinationSecret(ctx, d, nil)
+	if err != nil {
+		return err
+	}
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if _, err := EnsureOrg(ctx, tx, d.OUID); err != nil {
 			return err
 		}
@@ -415,7 +431,7 @@ func (r *eventRepository) CreateDestination(ctx context.Context, d *models.Event
 			}
 			return err
 		}
-		secretID, err := r.secrets.Put(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, d.Secret)
+		secretID, err := r.secrets.Put(tx, d.OUID, eventDestinationSecretOwner, d.ID, secretID, d.Secret)
 		if err != nil {
 			return err
 		}
@@ -434,7 +450,11 @@ func (r *eventRepository) CreateDestination(ctx context.Context, d *models.Event
 func (r *eventRepository) UpdateDestination(
 	ctx context.Context, d *models.EventDestination, check func(using []models.EventSubscription) error,
 ) error {
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	secretID, ctx, err := r.prepareDestinationSecret(ctx, d, d.SecretID)
+	if err != nil {
+		return err
+	}
+	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := dbx.LockRow(tx, "event_destinations", "name", "org_id = ? AND id = ?", d.OUID, d.ID); err != nil {
 			return err
 		}
@@ -469,7 +489,7 @@ func (r *eventRepository) UpdateDestination(
 		}
 		d.SecretID = locked.SecretID
 		if d.Secret != "" {
-			secretID, err := r.secrets.Put(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, d.Secret)
+			secretID, err := r.secrets.Put(tx, d.OUID, eventDestinationSecretOwner, d.ID, secretID, d.Secret)
 			if err != nil {
 				return err
 			}

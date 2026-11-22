@@ -84,8 +84,6 @@ func New(address, token, mount string) (*Vault, error) {
 
 func (*Vault) Provider() string { return Provider }
 
-func (*Vault) ReferenceOnly() {}
-
 func scope(ref vault.Ref) (string, error) {
 	org, err := uuid.Parse(ref.OrgID)
 	if err != nil || org == uuid.Nil || ref.SecretID == uuid.Nil {
@@ -126,18 +124,44 @@ type readResponse struct {
 	} `json:"data"`
 }
 
+func (*Vault) Reserve(ref vault.Ref) (string, error) {
+	prefix, err := scope(ref)
+	if err != nil {
+		return "", err
+	}
+	if ref.OperationID == uuid.Nil {
+		return "", errors.New("OpenBao write needs an operation ID")
+	}
+	return prefix + ref.OperationID.String(), nil
+}
+
+// Abandon leaves a KV metadata tombstone. CAS=0 on Seal can no longer
+// recreate a value even if its original HTTP request reached OpenBao late.
+func (v *Vault) Abandon(ctx context.Context, ref vault.Ref, path string) error {
+	if err := checkReference(ref, path); err != nil {
+		return err
+	}
+	// If this path was never written, win the CAS with a nonsecret placeholder.
+	// If the writer won first, destroy its version instead.
+	marker := writeRequest{Options: casOptions{Version: 0}, Data: secretData{Value: nil}}
+	err := v.request(ctx, http.MethodPost, "/data/"+path, marker, nil)
+	var status requestError
+	if err != nil && (!errors.As(err, &status) || status.code != http.StatusBadRequest) {
+		return err
+	}
+	return v.request(ctx, http.MethodPut, "/destroy/"+path, struct {
+		Versions []int `json:"versions"`
+	}{Versions: []int{1}}, nil)
+}
+
 func (v *Vault) Seal(ctx context.Context, ref vault.Ref, value []byte, _ *vault.Sealed) (vault.Sealed, error) {
 	if len(value) == 0 {
 		return vault.Sealed{}, vault.ErrEmptyValue
 	}
-	prefix, err := scope(ref)
+	path, err := v.Reserve(ref)
 	if err != nil {
 		return vault.Sealed{}, err
 	}
-	if ref.OperationID == uuid.Nil {
-		return vault.Sealed{}, errors.New("OpenBao write needs an operation ID")
-	}
-	path := prefix + ref.OperationID.String()
 	body := writeRequest{Options: casOptions{Version: 0}, Data: secretData{Value: value}}
 	if err := v.request(ctx, http.MethodPost, "/data/"+path, body, nil); err != nil {
 		return vault.Sealed{}, err
@@ -166,6 +190,15 @@ func (v *Vault) Destroy(ctx context.Context, ref vault.Ref, sealed vault.Sealed)
 	return v.request(ctx, http.MethodDelete, "/metadata/"+sealed.ExternalRef, nil, nil)
 }
 
+type requestError struct {
+	method string
+	code   int
+}
+
+func (e requestError) Error() string {
+	return fmt.Sprintf("OpenBao %s returned HTTP %d", e.method, e.code)
+}
+
 func (v *Vault) request(ctx context.Context, method, path string, body, out any) error {
 	var source io.Reader
 	if body != nil {
@@ -190,7 +223,7 @@ func (v *Vault) request(ctx context.Context, method, path string, body, out any)
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		// A provider error body can contain sensitive request data.
-		return fmt.Errorf("OpenBao %s returned HTTP %d", method, res.StatusCode)
+		return requestError{method: method, code: res.StatusCode}
 	}
 	if out != nil {
 		if err := json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(out); err != nil {

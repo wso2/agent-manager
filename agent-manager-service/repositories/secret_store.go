@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -54,6 +55,13 @@ type externalValue struct {
 // Write stores value as the secret id, creating the row when absent. An existing row keeps its organization and
 // owner. The value is readable in tx at once; a promotion to an external vault follows the commit.
 func (s *SecretStore) Write(ctx context.Context, tx *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) error {
+	if _, active := tx.Statement.ConnPool.(gorm.TxCommitter); !active {
+		var err error
+		ctx, err = s.PrepareWrite(ctx, tx, orgID, ownerKind, id, value)
+		if err != nil {
+			return err
+		}
+	}
 	return tx.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return s.write(ctx, tx, orgID, ownerKind, ownerID, id, value)
 	})
@@ -64,11 +72,11 @@ const writeAttempts = 3
 
 func (s *SecretStore) write(ctx context.Context, tx *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) error {
 	orgID = canonicalOrgID(orgID)
-	provider, sealed, err := s.sealWrite(ctx, orgID, ownerKind, id, value)
+	db := tx.WithContext(ctx)
+	provider, sealed, err := s.sealWrite(ctx, db, orgID, ownerKind, id, value)
 	if err != nil {
 		return err
 	}
-	db := tx.WithContext(ctx)
 	for range writeAttempts {
 		// Insert the row, or find it already there: an insert that treats a duplicate key as "exists" keeps two first writes of one secret from both
 		// creating it.
@@ -104,28 +112,78 @@ func canonicalOrgID(orgID string) string {
 	return orgID
 }
 
-// sealWrite prepares an immutable value once, before the store takes its row lock.
-func (s *SecretStore) sealWrite(ctx context.Context, orgID, ownerKind string, id uuid.UUID, value []byte) (string, vault.Sealed, error) {
-	ref := vault.Ref{OperationID: uuid.Nil, OrgID: orgID, SecretID: id, OwnerKind: ownerKind}
-	writer := s.vaults.Writer()
-	_, referenceOnly := writer.(vault.ReferenceVault)
-	if referenceOnly {
-		ref.OperationID = NewID()
-	} else {
-		var err error
-		writer, err = s.vaults.For(vault.ProviderLocal)
-		if err != nil {
-			return "", vault.Sealed{}, err
-		}
+const stagedSecretTTL = 2 * time.Minute
+
+type stagedSecretKey struct {
+	org, kind string
+	id        uuid.UUID
+}
+type stagedSecret struct {
+	jobID          uuid.UUID
+	provider, path string
+}
+
+// PrepareWrite stages reference-only credentials before the owning SQL
+// transaction starts. The independent cleanup job survives a rollback or a
+// process crash. Its cancellation and publication use the same transaction.
+func (s *SecretStore) PrepareWrite(ctx context.Context, db *gorm.DB, orgID, kind string, id uuid.UUID, value []byte) (context.Context, error) {
+	writer, external := s.vaults.Writer().(vault.ReferenceVault)
+	if !external {
+		return ctx, nil
+	}
+	if _, active := db.Statement.ConnPool.(gorm.TxCommitter); active {
+		return ctx, errors.New("external secret must be staged before the transaction")
+	}
+	key := stagedSecretKey{org: canonicalOrgID(orgID), kind: kind, id: id}
+	if _, exists := ctx.Value(key).(stagedSecret); exists {
+		return ctx, nil
+	}
+	job := newSecretJob(key.org, id, kind, models.SecretJobAbandon, nil)
+	ref := vault.Ref{OperationID: job.ID, OrgID: key.org, SecretID: id, OwnerKind: kind}
+	path, err := writer.Reserve(ref)
+	if err != nil {
+		return ctx, err
+	}
+	provider := writer.Provider()
+	job.Provider, job.ExternalRef = &provider, &path
+	job.AvailableAt = job.AvailableAt.Add(stagedSecretTTL)
+	if err := db.WithContext(ctx).Create(&job).Error; err != nil {
+		return ctx, fmt.Errorf("reserve external secret cleanup: %w", err)
 	}
 	sealed, err := writer.Seal(ctx, ref, value, nil)
 	if err != nil {
+		return ctx, fmt.Errorf("stage external secret: %w", err)
+	}
+	if sealed.ExternalRef != path || len(sealed.Ciphertext) != 0 || sealed.KeyID != "" {
+		return ctx, fmt.Errorf("vault %q must return only the reserved reference", provider)
+	}
+	return context.WithValue(ctx, key, stagedSecret{jobID: job.ID, provider: provider, path: path}), nil
+}
+
+func (s *SecretStore) sealWrite(ctx context.Context, db *gorm.DB, orgID, ownerKind string, id uuid.UUID, value []byte) (string, vault.Sealed, error) {
+	if _, external := s.vaults.Writer().(vault.ReferenceVault); external {
+		staged, ok := ctx.Value(stagedSecretKey{org: orgID, kind: ownerKind, id: id}).(stagedSecret)
+		if !ok {
+			return "", vault.Sealed{}, errors.New("external secret was not staged before the transaction")
+		}
+		res := db.Where("id = ? AND action = ? AND claimed_by IS NULL AND available_at > ?", staged.jobID, models.SecretJobAbandon, dbx.Now()).Delete(&models.SecretJob{})
+		if res.Error != nil {
+			return "", vault.Sealed{}, fmt.Errorf("publish external secret: %w", res.Error)
+		}
+		if res.RowsAffected != 1 {
+			return "", vault.Sealed{}, errors.New("external secret staging expired")
+		}
+		return staged.provider, vault.Sealed{Ciphertext: nil, KeyID: "", ExternalRef: staged.path}, nil
+	}
+	local, err := s.vaults.For(vault.ProviderLocal)
+	if err != nil {
+		return "", vault.Sealed{}, err
+	}
+	sealed, err := local.Seal(ctx, vault.Ref{OperationID: uuid.Nil, OrgID: orgID, SecretID: id, OwnerKind: ownerKind}, value, nil)
+	if err != nil {
 		return "", vault.Sealed{}, fmt.Errorf("failed to seal secret: %w", err)
 	}
-	if referenceOnly && (sealed.ExternalRef == "" || len(sealed.Ciphertext) != 0 || sealed.KeyID != "") {
-		return "", vault.Sealed{}, fmt.Errorf("vault %q must return only an external reference", writer.Provider())
-	}
-	return writer.Provider(), sealed, nil
+	return local.Provider(), sealed, nil
 }
 
 // insert creates the secret's row unless one exists, and reports whether it did.

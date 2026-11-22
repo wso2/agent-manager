@@ -103,10 +103,11 @@ type ExternalVault interface {
 // ReferenceVault stores new values before their references are committed. The
 // SQL store never seals or queues a copy of the credential for these providers.
 // Seal receives a fresh operation ID and must write to a new, immutable
-// reference. A SQL rollback can leave an unreferenced value in the vault.
+// reference. Abandon permanently removes a reserved value and fences late writes.
 type ReferenceVault interface {
 	Vault
-	ReferenceOnly()
+	Reserve(ref Ref) (string, error)
+	Abandon(ctx context.Context, ref Ref, reference string) error
 }
 
 // Config is what a provider is built from. A provider reads any settings of its

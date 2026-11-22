@@ -204,16 +204,42 @@ func (k *A2AAgentKind) externalOrigin(ctx context.Context, env a2aAgentEnv) (*a2
 		OUID: env.ouID, ProjectName: env.projectName, AgentName: env.agentName,
 		EnvironmentName: env.environmentName, EnvironmentUUID: env.environmentUUID,
 	}
-	var origin *a2aOrigin
+	proxy, cardURL, err := k.originSnapshot(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	origin := &a2aOrigin{cardURL: cardURL, header: nil, auth: proxy.UpstreamAuth()}
+	if proxy.UpstreamAuthHeader == "" || proxy.UpstreamAuthSecret == "" {
+		return origin, nil
+	}
+	value, err := k.secrets.Get(ctx, proxy.OUID, proxy.UpstreamAuthSecret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the upstream secret: %w", err)
+	}
+	current, currentURL, err := k.originSnapshot(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if current.ID != proxy.ID || !current.UpdatedAt.Equal(proxy.UpdatedAt) || currentURL != cardURL {
+		return nil, errors.New("A2A origin changed while reading its credential")
+	}
+	origin.header = &A2ACardFetchHeader{Name: proxy.UpstreamAuthHeader, Value: value}
+	return origin, nil
+}
+
+func (k *A2AAgentKind) originSnapshot(ctx context.Context, key agentExposureKey) (*gwmodels.A2AProxy, string, error) {
+	var proxy *gwmodels.A2AProxy
+	var cardURL string
 	err := k.tx(ctx, func(tx *gorm.DB) error {
-		proxy, err := lockedA2AProxy(ctx, k.proxyRepo.WithTx(tx), key)
+		var err error
+		proxy, err = lockedA2AProxy(ctx, k.proxyRepo.WithTx(tx), key)
 		if err != nil {
 			return err
 		}
 		if proxy == nil {
 			return errA2AProxyGone
 		}
-		card, err := k.cardRepo.WithTx(tx).Get(ctx, env.ouID, env.projectName, env.agentName, env.environmentName)
+		card, err := k.cardRepo.WithTx(tx).Get(ctx, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentName)
 		if errors.Is(err, gwrepo.ErrA2AAgentCardNotFound) {
 			return reconcile.Permanent(fmt.Errorf("%w: no card URL is registered for the environment", errA2ANotProxyable))
 		}
@@ -223,25 +249,10 @@ func (k *A2AAgentKind) externalOrigin(ctx context.Context, env a2aAgentEnv) (*a2
 		if _, err := a2aProxyUpstream(card.SourceURL); err != nil {
 			return reconcile.Permanent(err)
 		}
-		header, err := k.originCardHeader(ctx, tx, proxy)
-		if err != nil {
-			return err
-		}
-		origin = &a2aOrigin{cardURL: card.SourceURL, header: header, auth: proxy.UpstreamAuth()}
+		cardURL = card.SourceURL
 		return nil
 	})
-	return origin, err
-}
-
-func (k *A2AAgentKind) originCardHeader(ctx context.Context, tx *gorm.DB, proxy *gwmodels.A2AProxy) (*A2ACardFetchHeader, error) {
-	if proxy.UpstreamAuthHeader == "" || proxy.UpstreamAuthSecret == "" {
-		return nil, nil //nolint:nilnil // A proxy without a stored credential fetches the card unauthenticated.
-	}
-	value, err := k.secrets.In(tx).Get(ctx, proxy.OUID, proxy.UpstreamAuthSecret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read the upstream secret: %w", err)
-	}
-	return &A2ACardFetchHeader{Name: proxy.UpstreamAuthHeader, Value: value}, nil
+	return proxy, cardURL, err
 }
 
 func exposureEnv(e *gwmodels.PlatformAgentExposure) a2aAgentEnv {

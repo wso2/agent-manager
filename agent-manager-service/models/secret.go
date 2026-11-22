@@ -47,6 +47,8 @@ const (
 	SecretJobPromote = "promote"
 	// SecretJobDestroy removes a value from an external vault once no row refers to it.
 	SecretJobDestroy = "destroy"
+	// SecretJobAbandon fences and destroys a staged reference that was never committed.
+	SecretJobAbandon = "abandon"
 )
 
 // SecretJob is external-vault work that runs only after the transaction that queued it commits. A promote job

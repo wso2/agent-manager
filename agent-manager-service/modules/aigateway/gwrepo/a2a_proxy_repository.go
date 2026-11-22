@@ -126,7 +126,30 @@ func (r *a2aProxyRepository) first(ctx context.Context, query string, args ...in
 	return &row, nil
 }
 
+// PrepareUpstream stages an A2A credential before locking the agent environment.
+func (r *a2aProxyRepository) PrepareUpstream(ctx context.Context, org, project, agent string, env uuid.UUID, value string) (context.Context, uuid.UUID, error) {
+	row, err := r.GetByEnvUUID(ctx, org, project, agent, env)
+	var id uuid.UUID
+	switch {
+	case errors.Is(err, ErrA2AProxyNotFound):
+		id = newID()
+	case err != nil:
+		return ctx, id, err
+	default:
+		id = row.ID
+	}
+	prepared, err := gwsecret.PrepareValue(ctx, r.secrets, org, gwsecret.A2AProxy(id), value)
+	return prepared, id, err
+}
+
 func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *gwmodels.A2AProxy) error {
+	if _, active := r.db.Statement.ConnPool.(gorm.TxCommitter); !active && proxy.UpstreamAuthValue != nil {
+		var err error
+		ctx, proxy.ID, err = r.PrepareUpstream(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, proxy.EnvironmentUUID, *proxy.UpstreamAuthValue)
+		if err != nil {
+			return err
+		}
+	}
 	now := dbx.Now()
 	proxy.UpdatedAt = now
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

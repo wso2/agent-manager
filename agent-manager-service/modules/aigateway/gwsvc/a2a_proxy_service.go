@@ -172,6 +172,17 @@ func (s *a2aProxyService) SetA2AProxy(
 	if err != nil {
 		return err
 	}
+	var preparedID uuid.UUID
+	if auth != nil && auth.Value != nil {
+		if preparer, ok := s.proxyRepo.(interface {
+			PrepareUpstream(context.Context, string, string, string, uuid.UUID, string) (context.Context, uuid.UUID, error)
+		}); ok {
+			ctx, preparedID, err = preparer.PrepareUpstream(ctx, ouID, projectName, agentName, t.key.EnvironmentUUID, *auth.Value)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	err = s.tx(ctx, func(tx *gorm.DB) error {
 		existing, err := s.lockedProxy(ctx, tx, t)
 		if err != nil {
@@ -195,7 +206,7 @@ func (s *a2aProxyService) SetA2AProxy(
 		if err != nil {
 			return err
 		}
-		proxy.ArtifactUUID = artifact.ArtifactUUID
+		proxy.ID, proxy.ArtifactUUID = preparedID, artifact.ArtifactUUID
 		if err := s.proxyRepo.WithTx(tx).Upsert(ctx, proxy); err != nil {
 			return fmt.Errorf("failed to save the A2A proxy: %w", err)
 		}

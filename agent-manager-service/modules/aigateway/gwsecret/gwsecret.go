@@ -127,6 +127,31 @@ func (t txStore) Delete(ctx context.Context, orgID, path string) error {
 
 func (t txStore) In(tx *gorm.DB) modkit.Secrets { return txStore{st: t.st, tx: tx} }
 
+// Prepare stages the plaintext, if any, before the owning transaction.
+func Prepare(ctx context.Context, store modkit.Secrets, orgID, path string, auth *gwmodels.UpstreamAuth) (context.Context, error) {
+	if auth == nil || auth.Value == nil {
+		return ctx, nil
+	}
+	return PrepareValue(ctx, store, orgID, path, *auth.Value)
+}
+
+func PrepareValue(ctx context.Context, store modkit.Secrets, orgID, path, value string) (context.Context, error) {
+	if preparer, ok := store.(interface {
+		Prepare(context.Context, string, string, string) (context.Context, error)
+	}); ok {
+		return preparer.Prepare(ctx, orgID, path, value)
+	}
+	return ctx, nil
+}
+
+func (st *Store) Prepare(ctx context.Context, orgID, path, value string) (context.Context, error) {
+	store, err := st.get()
+	if err != nil {
+		return ctx, err
+	}
+	return PrepareValue(ctx, store, orgID, path, value)
+}
+
 // Seal stores auth's plaintext value at path and leaves path in its place as
 // the secretRef, so the row never holds the value. A row whose auth carries
 // no value and no reference holds no credential, so what path held is

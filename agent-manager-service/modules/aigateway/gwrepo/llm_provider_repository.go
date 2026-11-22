@@ -83,6 +83,14 @@ func providerAuth(p *gwmodels.LLMProvider) *gwmodels.UpstreamAuth {
 	return p.Configuration.Upstream.Main.Auth
 }
 
+// PrepareCreate stages the upstream credential before the caller opens its transaction.
+func (r *LLMProviderRepo) PrepareCreate(ctx context.Context, p *gwmodels.LLMProvider, org string) (context.Context, error) {
+	if p.UUID == uuid.Nil {
+		p.UUID = uuid.Must(uuid.NewV7())
+	}
+	return gwsecret.Prepare(ctx, r.secrets, org, gwsecret.LLMProvider(p.UUID), providerAuth(p))
+}
+
 // Create inserts a new LLM provider
 func (r *LLMProviderRepo) Create(tx *gorm.DB, p *gwmodels.LLMProvider, handle, name, version string, orgUUID string) error {
 	slog.Info("LLMProviderRepo.Create: starting", "handle", handle, "name", name, "version", version, "orgUUID", orgUUID)
@@ -223,14 +231,15 @@ func (r *LLMProviderRepo) Count(orgUUID string) (int, error) {
 func (r *LLMProviderRepo) Update(ctx context.Context, p *gwmodels.LLMProvider, providerID string, orgUUID string) error {
 	slog.Info("LLMProviderRepo.Update: starting", "providerID", providerID, "orgUUID", orgUUID)
 
+	parsedUUID, err := uuid.Parse(providerID)
+	if err != nil {
+		return fmt.Errorf("error parsing provider id: %s, error: %w", providerID, err)
+	}
+	ctx, err = gwsecret.Prepare(ctx, r.secrets, orgUUID, gwsecret.LLMProvider(parsedUUID), providerAuth(p))
+	if err != nil {
+		return err
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		slog.Info("LLMProviderRepo.Update: resolved UUID", "providerID", providerID)
-
-		parsedUUID, err := uuid.Parse(providerID)
-		if err != nil {
-			return fmt.Errorf("error parsing provider id: %s, error: %w", providerID, err)
-		}
-
 		if err := gwsecret.Seal(ctx, r.secrets.In(tx), orgUUID, gwsecret.LLMProvider(parsedUUID), providerAuth(p)); err != nil {
 			return err
 		}

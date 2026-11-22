@@ -37,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/vault"
 )
 
 // ProviderName is the name the provider is selected by.
@@ -161,12 +160,17 @@ func (c *client) load(ctx context.Context, tx *gorm.DB, id uuid.UUID) (map[strin
 	return data, nil
 }
 
-func (c *client) store(ctx context.Context, tx *gorm.DB, org string, id uuid.UUID, data map[string]string) error {
+func (c *client) prepare(ctx context.Context, org string, id uuid.UUID, data map[string]string) (context.Context, []byte, error) {
 	payload, err := encode(data)
 	if err != nil {
-		return err
+		return ctx, nil, err
 	}
-	return c.rows.Write(ctx, tx, org, ownerKind, id, id, payload)
+	if preparer, ok := c.rows.(interface {
+		PrepareWrite(context.Context, *gorm.DB, string, string, uuid.UUID, []byte) (context.Context, error)
+	}); ok {
+		ctx, err = preparer.PrepareWrite(ctx, c.db, org, ownerKind, id, payload)
+	}
+	return ctx, payload, err
 }
 
 // PushSecret replaces all of the secret's data, creating it when absent.
@@ -182,9 +186,11 @@ func (c *client) PushSecret(ctx context.Context, location secretmanagersvc.Secre
 	if len(data) == 0 {
 		return "", fmt.Errorf("%w: secret data cannot be empty", httpx.ErrInvalidInput)
 	}
-	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return c.store(ctx, tx, location.OrgName, id, data)
-	})
+	ctx, payload, err := c.prepare(ctx, location.OrgName, id, data)
+	if err != nil {
+		return "", err
+	}
+	err = c.rows.Write(ctx, c.db, location.OrgName, ownerKind, id, id, payload)
 	if err != nil {
 		return "", err
 	}
@@ -212,58 +218,34 @@ func (c *client) PatchSecret(ctx context.Context, location secretmanagersvc.Secr
 		if err != nil {
 			return "", err
 		}
-		// A locally sealed value opens without I/O, so it is read under the lock. An external one is read first, since
-		// opening it calls the external vault; the lock is then taken only at the version read, and the patch starts
-		// over if a write came in between.
-		var external map[string]string
-		if state.Provider != vault.ProviderLocal {
-			if external, err = c.load(ctx, c.db.WithContext(ctx), id); err != nil {
-				return "", err
-			}
+		merged, err := c.load(ctx, c.db, id)
+		if err != nil {
+			return "", err
+		}
+		patch(merged)
+		prepared, payload, err := c.prepare(ctx, location.OrgName, id, merged)
+		if err != nil {
+			return "", err
 		}
 		changed := false
-		err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			where, args := "id = ?", []any{id}
-			if external != nil {
-				where, args = "id = ? AND version = ?", []any{id, state.Version}
-			}
-			err := dbx.LockRow(tx, models.Secret{}.TableName(), "version", where, args...)
+		err = c.db.WithContext(prepared).Transaction(func(tx *gorm.DB) error {
+			err := dbx.LockRow(tx, models.Secret{}.TableName(), "version", "id = ? AND version = ?", id, state.Version)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				changed = true
 				return nil
 			}
 			if err != nil {
-				return fmt.Errorf("failed to lock secret %s: %w", id, err)
+				return fmt.Errorf("lock secret %s: %w", id, err)
 			}
-			if external != nil {
-				// The version restarts at 1 when a secret is deleted and recreated under the same id, so also check that
-				// the locked row is the one the external value was read from.
-				current, err := c.stateIn(tx, id)
-				if err != nil {
-					return err
-				}
-				if !current.CreatedAt.Equal(state.CreatedAt) {
-					changed = true
-					return nil
-				}
+			current, err := c.stateIn(tx, id)
+			if err != nil {
+				return err
 			}
-			merged := external
-			if merged == nil {
-				// Re-check under the lock: a promotion may have made the value external since state was read.
-				current, err := c.stateIn(tx, id)
-				if err != nil {
-					return err
-				}
-				if current.Provider != vault.ProviderLocal {
-					changed = true
-					return nil
-				}
-				if merged, err = c.load(ctx, tx, id); err != nil {
-					return err
-				}
+			if !current.CreatedAt.Equal(state.CreatedAt) {
+				changed = true
+				return nil
 			}
-			patch(merged)
-			return c.store(ctx, tx, location.OrgName, id, merged)
+			return c.rows.Write(prepared, tx, location.OrgName, ownerKind, id, id, payload)
 		})
 		if err != nil {
 			return "", err

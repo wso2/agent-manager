@@ -276,6 +276,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	}
 
 	proxy := &gwmodels.MCPProxy{
+		UUID:        uuid.New(),
 		Description: valueOrEmpty(req.Description),
 		CreatedBy:   createdBy,
 		Status:      gwmodels.StatusCreated,
@@ -286,6 +287,11 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 			Vhost:       req.Vhost,
 			SpecVersion: valueOrEmpty(req.McpSpecVersion),
 		},
+	}
+
+	ctx, err = s.prepareEndpointSecrets(ctx, orgUUID, proxy.UUID, req.Endpoints)
+	if err != nil {
+		return nil, err
 	}
 
 	// Each endpoint deploys one gateway artifact per target environment, in the creating transaction. These are the
@@ -552,6 +558,11 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		return nil, err
 	}
 	deployEndpoints := pinExemptGateways(req.Endpoints, exempt)
+
+	ctx, err = s.prepareEndpointSecrets(ctx, orgUUID, proxyUUID, req.Endpoints)
+	if err != nil {
+		return nil, err
+	}
 
 	// Captured inside the transaction so removed-(endpoint,env) artifacts can be torn down
 	// from their gateways after the update commits. Keyed by environment UUID because
@@ -1925,6 +1936,20 @@ func applyRequestedGatewayUUIDs(proxy *gwmodels.MCPProxy, endpoints []gwmodels.M
 			}
 		}
 	}
+}
+
+func (s *MCPProxyService) prepareEndpointSecrets(ctx context.Context, org string, proxyID uuid.UUID, endpoints []gwmodels.MCPProxyEndpointDTO) (context.Context, error) {
+	for _, endpoint := range endpoints {
+		if endpoint.Upstream.Main == nil {
+			continue
+		}
+		var err error
+		ctx, err = gwsecret.Prepare(ctx, s.secrets, org, gwsecret.MCPEndpoint(proxyID, strings.TrimSpace(endpoint.ID)), endpoint.Upstream.Main.Auth)
+		if err != nil {
+			return ctx, err
+		}
+	}
+	return ctx, nil
 }
 
 // persistMCPEndpoints inserts the endpoint rows and their (endpoint, environment) join rows

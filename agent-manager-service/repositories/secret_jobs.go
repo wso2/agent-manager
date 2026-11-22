@@ -180,6 +180,22 @@ func (r *SecretJobRunner) run(ctx context.Context, job *secretJobAttempt) error 
 		return r.destroy(ctx, job)
 	case models.SecretJobPromote:
 		return r.promote(ctx, job)
+	case models.SecretJobAbandon:
+		if job.Provider == nil || job.ExternalRef == nil {
+			return errors.New("abandon job is missing its vault reference")
+		}
+		backend, err := r.vaults.For(*job.Provider)
+		if err != nil {
+			return err
+		}
+		external, ok := backend.(vault.ReferenceVault)
+		if !ok {
+			return errors.New("vault cannot abandon staged references")
+		}
+		if err := external.Abandon(ctx, jobRef(job.SecretJob), *job.ExternalRef); err != nil {
+			return err
+		}
+		return r.finishQueueing(ctx, job)
 	default:
 		return fmt.Errorf("unknown secret job action %q", job.Action)
 	}

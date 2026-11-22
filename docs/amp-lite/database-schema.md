@@ -215,6 +215,9 @@ For a mount named `secret`, the API token needs this OpenBao policy:
 path "secret/data/amp/*" {
   capabilities = ["create", "read"]
 }
+path "secret/destroy/amp/*" {
+  capabilities = ["update"]
+}
 path "secret/metadata/amp/*" {
   capabilities = ["delete"]
 }
@@ -222,7 +225,7 @@ path "secret/metadata/amp/*" {
 
 The API writes each credential to its own immutable OpenBao path and commits only its reference in SQL. The `ciphertext` and `key_id` columns are null for OpenBao rows, and no promotion job stages the value in SQL. Old locally encrypted credentials stay readable and move to OpenBao when rewritten. Keep `OPENBAO_ADDR` and `OPENBAO_KV_MOUNT` pointed at the original mount while it holds referenced values. If you switch back to local writes, set `SECRET_VAULT_READERS=openbao` to keep existing references readable and allow cleanup.
 
-A failed OpenBao request aborts the SQL write. If OpenBao accepted a write but SQL subsequently rolls back or the API exits before commit, the previous committed credential remains readable. An unreferenced value can remain in OpenBao. To remove abandoned values, stop AMP writers and compare paths against committed `secrets.external_ref` values and queued `secret_jobs` references before deleting from the mount. Replaced and deleted committed credentials are reclaimed by the normal job worker.
+The API reserves a cleanup job before staging a credential in OpenBao, outside the owning SQL transaction. Committing the reference cancels the cleanup job atomically. If the write fails, SQL rolls back, or the API exits before commit, the previous committed credential remains readable and the worker permanently destroys the abandoned value after the staging window. OpenBao retains a metadata tombstone to prevent delayed writes from recreating the value. Replaced and deleted committed credentials are reclaimed by the normal job worker.
 
 To test against a disposable standalone server, start `bao server -dev -dev-listen-address=127.0.0.1:8200` in a separate process. Export `OPENBAO_ADDR=http://127.0.0.1:8200` and the dev token as `OPENBAO_TOKEN`, then run `make test-integration` from `agent-manager-service`. The suite runs `TestStandaloneOpenBaoReferenceOnly` when the address is set.
 

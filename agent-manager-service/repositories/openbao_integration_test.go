@@ -83,9 +83,11 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, n, "there is no SQL-staged promotion")
 	rollback := errors.New("rollback")
+	prepared, err := store.PrepareWrite(ctx, gdb, org, "test_owner", id, []byte("discarded"))
+	require.NoError(t, err)
 	var uncommitted models.Secret
 	err = gdb.Transaction(func(tx *gorm.DB) error {
-		if err := write(tx, "discarded"); err != nil {
+		if err := store.Write(prepared, tx, org, "test_owner", id, id, []byte("discarded")); err != nil {
 			return err
 		}
 		if err := tx.Take(&uncommitted, "id = ?", id).Error; err != nil {
@@ -95,7 +97,19 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	})
 	require.ErrorIs(t, err, rollback)
 	require.Equal(t, first.ExternalRef, checkValue("first").ExternalRef)
-	require.NoError(t, writer.Destroy(ctx, secretRef(&uncommitted), sealedOf(&uncommitted)))
+	var abandoned models.SecretJob
+	require.NoError(t, gdb.Take(&abandoned, "secret_id = ? AND action = ?", id, models.SecretJobAbandon).Error)
+	_, failed, err := runner.RunOnce(ctx, abandoned.AvailableAt.Add(time.Second))
+	require.NoError(t, err)
+	require.Zero(t, failed)
+	_, err = writer.Open(ctx, secretRef(&uncommitted), sealedOf(&uncommitted))
+	require.ErrorContains(t, err, "HTTP 404")
+	late := secretRef(&uncommitted)
+	late.OperationID = abandoned.ID
+	_, err = writer.Seal(ctx, late, []byte("too late"), nil)
+	require.Error(t, err, "a late write cannot recreate an abandoned value")
+	checkValue("first")
+	require.ErrorContains(t, gdb.Transaction(func(tx *gorm.DB) error { return write(tx, "unstaged") }), "not staged")
 
 	bad, err := openbao.New(os.Getenv("OPENBAO_ADDR"), "invalid-test-token", os.Getenv("OPENBAO_KV_MOUNT"))
 	require.NoError(t, err)
@@ -106,7 +120,7 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	require.NoError(t, write(gdb, "rotated"))
 	current := checkValue("rotated")
 	require.NotEqual(t, *first.ExternalRef, *current.ExternalRef)
-	_, failed, err := runner.RunOnce(ctx, time.Now().UTC())
+	_, failed, err = runner.RunOnce(ctx, time.Now().UTC())
 	require.NoError(t, err)
 	require.Zero(t, failed)
 	_, err = writer.Open(ctx, secretRef(&first), sealedOf(&first))

@@ -263,7 +263,7 @@ func (s *LLMProviderService) Create(ctx context.Context, ouID, createdBy string,
 	if err := s.prepareProvider(ouID, createdBy, provider); err != nil {
 		return nil, err
 	}
-	return s.insertProvider(ouID, provider, func(*gorm.DB) error { return nil })
+	return s.insertProvider(ctx, ouID, provider, func(*gorm.DB) error { return nil })
 }
 
 // prepareProvider validates a new provider, fills its defaults from its template and encrypts its upstream key.
@@ -366,10 +366,19 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 }
 
 // insertProvider stores a prepared provider and runs then in the same transaction, then reads it back.
-func (s *LLMProviderService) insertProvider(ouID string, provider *gwmodels.LLMProvider, then func(tx *gorm.DB) error) (*gwmodels.LLMProvider, error) {
+func (s *LLMProviderService) insertProvider(ctx context.Context, ouID string, provider *gwmodels.LLMProvider, then func(tx *gorm.DB) error) (*gwmodels.LLMProvider, error) {
 	handle := provider.Configuration.Handle
 	slog.Info("LLMProviderService.Create: creating provider in database", "ouID", ouID, "handle", handle)
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	if preparer, ok := s.providerRepo.(interface {
+		PrepareCreate(context.Context, *gwmodels.LLMProvider, string) (context.Context, error)
+	}); ok {
+		prepared, err := preparer.PrepareCreate(ctx, provider, ouID)
+		if err != nil {
+			return nil, err
+		}
+		ctx = prepared
+	}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Create provider - uniqueness enforced by DB constraint
 		if err := s.providerRepo.Create(tx, provider, handle, provider.Configuration.Name, provider.Configuration.Version, ouID); err != nil {
 			return err
@@ -1445,7 +1454,7 @@ func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdB
 	// are deployed in id order, the order their event locks must be taken in.
 	slices.Sort(validGatewayIDs)
 	successfulDeployments := 0
-	created, err := s.insertProvider(ouID, provider, func(tx *gorm.DB) error {
+	created, err := s.insertProvider(ctx, ouID, provider, func(tx *gorm.DB) error {
 		for _, gatewayID := range validGatewayIDs {
 			placement := providerPlacement(provider, ouID, uuid.MustParse(gatewayID))
 			err := tx.Transaction(func(tx *gorm.DB) error {
