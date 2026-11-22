@@ -360,11 +360,12 @@ export function ProjectLanding({
             </Stack>
           </Card>
 
-          <Stack spacing={2}>
+          {/* Equal rows that stretch to the hero card's height, so both columns end together. */}
+          <Box sx={{ display: "grid", gap: 2, gridAutoRows: "1fr" }}>
             {shortcuts.map((card, index) => (
               <ResourceCard key={card.title} card={card} index={index} />
             ))}
-          </Stack>
+          </Box>
         </Box>
 
         {docsUrl && (
