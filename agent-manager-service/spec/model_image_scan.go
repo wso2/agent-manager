@@ -17,7 +17,7 @@ import (
 // checks if the ImageScan type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &ImageScan{}
 
-// ImageScan How the build's vulnerability scan treats what it finds, saved for the build workflow to read. Only a workflow that scans the image and declares the imageScan parameter applies it; the workflows this service installs don't scan, so they ignore it. A field that is not set uses that workflow's default.
+// ImageScan How the build's vulnerability scan treats what it finds, saved for the build workflow to read. Only a workflow that scans the image and declares the imageScan parameter applies it; the workflows this service installs don't scan, so they ignore it. The setting is saved without checking the agent's workflow, so reading it back doesn't mean the agent's builds apply it. Sending imageScan replaces the whole saved object: a field left out falls back to that workflow's default, not to the saved value. To change one field, send the other as read.
 type ImageScan struct {
 	// Whether what the scan finds fails the build. When false, the scan still reports it and the image is published.
 	FailBuild *bool `json:"failBuild,omitempty"`
