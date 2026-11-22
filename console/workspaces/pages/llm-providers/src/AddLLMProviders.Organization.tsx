@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import { PageLayout } from "@agent-management-platform/views";
+import { PageLayout, useReturnTo } from "@agent-management-platform/views";
 import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
@@ -57,6 +57,9 @@ export const AddLLMProvidersOrganization: React.FC = () => {
         : "#",
     [orgId],
   );
+  // The page that opened this one, or the providers list on a direct visit.
+  const returnTo = useReturnTo(backHref);
+  const openedElsewhere = returnTo !== backHref;
 
   const {
     data: templatesData,
@@ -111,17 +114,29 @@ export const AddLLMProvidersOrganization: React.FC = () => {
         },
         {
           onSuccess: (data) => {
-            const viewPath = generatePath(
-              absoluteRouteMap.children.org.children.llmProviders.children.view
-                .path,
-              { orgId, providerId: data.uuid },
-            );
-            allowNavigation(() => navigate(viewPath));
+            // Back to the page that opened this one; from the list (or a direct
+            // visit), on to the new provider.
+            const nextPath = openedElsewhere
+              ? returnTo
+              : generatePath(
+                  absoluteRouteMap.children.org.children.llmProviders.children.view
+                    .path,
+                  { orgId, providerId: data.uuid },
+                );
+            allowNavigation(() => navigate(nextPath));
           },
         },
       );
     },
-    [createLLMProvider, navigate, allowNavigation, orgId, templates],
+    [
+      createLLMProvider,
+      navigate,
+      allowNavigation,
+      orgId,
+      templates,
+      openedElsewhere,
+      returnTo,
+    ],
   );
 
   if (!canWrite) {
@@ -131,9 +146,9 @@ export const AddLLMProvidersOrganization: React.FC = () => {
   return (
     <PageLayout
       title="Add LLM Service Provider"
-      backHref={backHref}
+      backHref={returnTo}
       disableIcon
-      backLabel="Back to providers list"
+      backLabel={openedElsewhere ? "Back" : "Back to providers list"}
     >
       <AddLLMProviderForm
         orgId={orgId ?? ""}
@@ -142,7 +157,7 @@ export const AddLLMProvidersOrganization: React.FC = () => {
         missingParamsMessage={missingParamsMessage}
         errorMessage={combinedErrorMessage}
         isSubmitting={isCreating}
-        onCancel={() => allowNavigation(() => navigate(backHref))}
+        onCancel={() => allowNavigation(() => navigate(returnTo))}
         onDirtyChange={setIsDirty}
         onSubmit={handleSubmit}
       />

@@ -38,7 +38,6 @@ import {
   Shield,
   Users,
 } from "@wso2/oxygen-ui-icons-react";
-import { useAuthHooks } from "@agent-management-platform/auth";
 import {
   useListAgentKinds,
   useListEvaluators,
@@ -53,13 +52,14 @@ import { CARD_SLOTS, useRotatingSlots } from "./hooks/useRotatingSlots";
 import { CARD_GRID_SX } from "./cardGrid";
 import { ResourceCard, ResourceCount, type ResourceCardData } from "./subComponents/ResourceCard";
 import { ProjectRow } from "./subComponents/ProjectRow";
+import { OverviewGreeting } from "./subComponents/OverviewGreeting";
+import { mcpServerTotal } from "./resourceCounts";
 
 const orgRoutes = absoluteRouteMap.children.org;
 const PROJECTS_SHOWN = 3;
 
 export const OrganizationOverview: React.FC = () => {
   const { orgId = "" } = useParams<{ orgId: string }>();
-  const { userInfo } = useAuthHooks();
   const location = useLocation();
   const params = { orgName: orgId };
   const { canWrite: canWriteProject } = useResourceAccess("project");
@@ -101,8 +101,7 @@ export const OrganizationOverview: React.FC = () => {
     {
       icon: <Server size={26} />,
       title: "MCP Servers",
-      // Backend sets pagination.count to the org-wide total (the spec text says page size).
-      count: mcpProxies?.pagination?.count ?? mcpProxies?.count,
+      count: mcpServerTotal(mcpProxies),
       loading: isLoadingMCP,
       alwaysShow: true,
       description: "Tool servers your agents can use, registered once and shared.",
@@ -166,34 +165,16 @@ export const OrganizationOverview: React.FC = () => {
       to={createProjectPath}
       state={returnToState(location)}
     >
-      Create project
+      New project
     </Button>
   );
 
   return (
     <PageContent fullWidth>
       <Stack spacing={{ xs: 3, md: 4 }}>
-        <Stack spacing={1}>
-          <Typography
-            variant="h1"
-            component="h1"
-            sx={{ fontWeight: 600 }}
-          >
-            Hello
-            {userInfo?.givenName && (
-              <>
-                {", "}
-                <Box component="span" sx={{ color: "primary.main" }}>
-                  {userInfo.givenName}
-                </Box>
-              </>
-            )}
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Deploy AI agents, connect them to models and tools, then observe them on one
-            platform.
-          </Typography>
-        </Stack>
+        <OverviewGreeting
+          subtitle="Deploy AI agents, connect them to models and tools, then observe them on one platform."
+        />
 
         <Box sx={CARD_GRID_SX}>
           {order.map((cardIndex, index) => (

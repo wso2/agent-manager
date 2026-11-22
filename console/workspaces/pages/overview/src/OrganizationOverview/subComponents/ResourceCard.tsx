@@ -43,6 +43,8 @@ export interface ResourceCardData {
   description: string;
   actionLabel: string;
   to: string;
+  /** Router state for the action link, such as returnToState() on a create link. */
+  state?: unknown;
   /** For resources with no single org-wide total (agent identity is per environment). */
   countless?: boolean;
   /** The count is still loading. */
@@ -55,12 +57,13 @@ interface ResourceCardProps {
   card: ResourceCardData;
   /** Position in the grid, which sets when the entrance starts. */
   index: number;
-  /** The content is lifting away to make room for the next card. */
-  leaving: boolean;
-  onPause: (paused: boolean) => void;
+  /** In a rotating grid: the content is lifting away to make room for the next card. */
+  leaving?: boolean;
+  /** In a rotating grid: hold rotation while the card is hovered or focused. */
+  onPause?: (paused: boolean) => void;
 }
 /** A platform resource at a glance: what it is, how many exist, and where to add more. */
-export function ResourceCard({ card, index, leaving, onPause }: ResourceCardProps) {
+export function ResourceCard({ card, index, leaving = false, onPause }: ResourceCardProps) {
   // Each hold is sent once, and released on unmount (no mouseleave/blur fires then),
   // so a card removed while hovered or focused can't leave rotation paused for good.
   const holds = useRef({ hover: false, focus: false });
@@ -68,15 +71,15 @@ export function ResourceCard({ card, index, leaving, onPause }: ResourceCardProp
     (kind: "hover" | "focus", on: boolean) => {
       if (holds.current[kind] === on) return;
       holds.current[kind] = on;
-      onPause(on);
+      onPause?.(on);
     },
     [onPause],
   );
   useEffect(() => {
     const current = holds.current;
     return () => {
-      if (current.hover) onPause(false);
-      if (current.focus) onPause(false);
+      if (current.hover) onPause?.(false);
+      if (current.focus) onPause?.(false);
       current.hover = false;
       current.focus = false;
     };
@@ -141,6 +144,7 @@ export function ResourceCard({ card, index, leaving, onPause }: ResourceCardProp
       <Stack
         component={RouterLink}
         to={card.to}
+        state={card.state}
         direction="row"
         justifyContent="space-between"
         alignItems="center"

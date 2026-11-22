@@ -147,7 +147,7 @@ function EditEnvironmentForm({ environment, orgId, listHref }: EditEnvironmentFo
         )}
 
         <Collapse in={validationErrorsList.length > 0} timeout="auto" unmountOnExit>
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error">
             {validationErrorsList.map((error, index) => (
               <Box key={index}>{error}</Box>
             ))}
