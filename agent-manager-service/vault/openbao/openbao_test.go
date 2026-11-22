@@ -17,6 +17,8 @@
 package openbao
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -71,13 +73,53 @@ func TestAbandonFailsWhenTheTokenCannotDestroy(t *testing.T) {
 }
 
 func TestCheck(t *testing.T) {
-	for status, healthy := range map[int]bool{
-		http.StatusNotFound: true, http.StatusOK: true,
-		http.StatusForbidden: false, http.StatusServiceUnavailable: false,
+	for name, tc := range map[string]struct {
+		status  int
+		body    string
+		healthy bool
+	}{
+		"missing key":   {http.StatusNotFound, `{"errors":[]}`, true},
+		"present key":   {http.StatusOK, `{"data":{}}`, true},
+		"missing mount": {http.StatusNotFound, `{"errors":["no handler for route \"nope/data/amp/healthz\". route entry not found."]}`, false},
+		"404 no body":   {http.StatusNotFound, ``, false},
+		"forbidden":     {http.StatusForbidden, `{"errors":["permission denied"]}`, false},
+		"unavailable":   {http.StatusServiceUnavailable, ``, false},
 	} {
-		v, calls := newTestVault(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) })
+		v, calls := newTestVault(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(tc.status)
+			_, _ = w.Write([]byte(tc.body))
+		})
 		err := v.Check(t.Context())
-		assert.Equal(t, healthy, err == nil, "HTTP %d", status)
+		assert.Equal(t, tc.healthy, err == nil, "%s: %v", name, err)
 		assert.Equal(t, []string{"GET /v1/secret/data/amp/healthz"}, *calls)
 	}
+}
+
+// A value is refused before it reaches OpenBao unless its read response is sure to fit the decoder's limit.
+func TestSealRefusesValuesItCouldNotReadBack(t *testing.T) {
+	stored := map[string][]byte{}
+	v, _ := newTestVault(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			var req writeRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			stored[r.URL.Path] = req.Data.Value
+		case http.MethodGet:
+			var res readResponse
+			res.Data.Data.Value = stored[r.URL.Path]
+			require.NoError(t, json.NewEncoder(w).Encode(res))
+		}
+	})
+	value := bytes.Repeat([]byte{0xff}, MaxValueBytes)
+	ref := testRef()
+	sealed, err := v.Seal(t.Context(), ref, value, nil)
+	require.NoError(t, err)
+	got, err := v.Open(t.Context(), ref, sealed)
+	require.NoError(t, err, "the largest accepted value reads back")
+	assert.Equal(t, value, got)
+
+	stored = map[string][]byte{}
+	_, err = v.Seal(t.Context(), testRef(), append(value, 0), nil)
+	require.ErrorContains(t, err, "more than")
+	assert.Empty(t, stored, "an oversized value never reaches OpenBao")
 }

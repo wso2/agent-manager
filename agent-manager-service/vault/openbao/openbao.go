@@ -39,6 +39,10 @@ import (
 const (
 	Provider       = "openbao"
 	requestTimeout = 3 * time.Second
+	// MaxValueBytes bounds a stored value so that its read response, which carries it base64-encoded with KV
+	// metadata, always fits maxResponseBytes: a larger value could be written and then never read back.
+	MaxValueBytes    = 3 << 20
+	maxResponseBytes = (MaxValueBytes+2)/3*4 + 64<<10
 )
 
 var mountName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -158,7 +162,9 @@ func (v *Vault) Abandon(ctx context.Context, ref vault.Ref, path string) error {
 }
 
 // healthPath is never written. Reading it exercises the server, the mount and
-// the token's read access under the API's policy: a usable vault answers 404.
+// the token's read access under the API's policy: a usable vault answers 404
+// with an empty error list, KV v2's answer for a missing key. A mount that does
+// not exist answers 404 too, but names the unrouted path in its errors.
 const healthPath = "/data/amp/healthz"
 
 var _ vault.Checker = (*Vault)(nil)
@@ -166,8 +172,11 @@ var _ vault.Checker = (*Vault)(nil)
 func (v *Vault) Check(ctx context.Context) error {
 	err := v.request(ctx, http.MethodGet, healthPath, nil, nil)
 	var status requestError
-	if err == nil || (errors.As(err, &status) && status.code == http.StatusNotFound) {
+	if err == nil || (errors.As(err, &status) && status.code == http.StatusNotFound && status.missingKey) {
 		return nil
+	}
+	if status.code == http.StatusNotFound {
+		return fmt.Errorf("%w: the KV v2 mount does not exist", err)
 	}
 	return err
 }
@@ -175,6 +184,9 @@ func (v *Vault) Check(ctx context.Context) error {
 func (v *Vault) Seal(ctx context.Context, ref vault.Ref, value []byte, _ *vault.Sealed) (vault.Sealed, error) {
 	if len(value) == 0 {
 		return vault.Sealed{}, vault.ErrEmptyValue
+	}
+	if len(value) > MaxValueBytes {
+		return vault.Sealed{}, fmt.Errorf("OpenBao secret value is %d bytes, more than the %d allowed", len(value), MaxValueBytes)
 	}
 	path, err := v.Reserve(ref)
 	if err != nil {
@@ -211,6 +223,8 @@ func (v *Vault) Destroy(ctx context.Context, ref vault.Ref, sealed vault.Sealed)
 type requestError struct {
 	method string
 	code   int
+	// missingKey is a 404 whose body is KV's empty error list, as opposed to one naming a path no mount serves.
+	missingKey bool
 }
 
 func (e requestError) Error() string {
@@ -240,11 +254,20 @@ func (v *Vault) request(ctx context.Context, method, path string, body, out any)
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		// A provider error body can contain sensitive request data.
-		return requestError{method: method, code: res.StatusCode}
+		// A provider error body can contain sensitive request data, so only its shape is kept.
+		reqErr := requestError{method: method, code: res.StatusCode, missingKey: false}
+		if res.StatusCode == http.StatusNotFound {
+			var body struct {
+				Errors *[]json.RawMessage `json:"errors"`
+			}
+			if json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&body) == nil && body.Errors != nil && len(*body.Errors) == 0 {
+				reqErr.missingKey = true
+			}
+		}
+		return reqErr
 	}
 	if out != nil {
-		if err := json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(out); err != nil {
+		if err := json.NewDecoder(io.LimitReader(res.Body, maxResponseBytes)).Decode(out); err != nil {
 			return fmt.Errorf("decode OpenBao response: %w", err)
 		}
 	} else {

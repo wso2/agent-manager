@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/vault"
 )
 
 // ProviderName is the name the provider is selected by.
@@ -213,13 +214,22 @@ func (c *client) PatchSecret(ctx context.Context, location secretmanagersvc.Secr
 			delete(merged, k)
 		}
 	}
-	if !c.stagesWrites() {
-		return name, c.patchLocked(ctx, location.OrgName, id, patch)
-	}
 	for range patchAttempts {
 		state, err := c.state(ctx, id)
 		if err != nil {
 			return "", err
+		}
+		// Patching under the row lock is only safe when the stored value is in the row: reading an external value
+		// there would hold the database's write lock across a vault request.
+		if !c.stagesWrites() && state.Provider == vault.ProviderLocal {
+			done, err := c.patchLocked(ctx, location.OrgName, id, patch)
+			if err != nil {
+				return "", err
+			}
+			if done {
+				return name, nil
+			}
+			continue
 		}
 		merged, err := c.load(ctx, c.db, id)
 		if err != nil {
@@ -268,15 +278,24 @@ func (c *client) stagesWrites() bool {
 }
 
 // patchLocked reads, merges and writes under the row lock, so concurrent patches to the same secret queue instead of
-// retrying. It serves vaults that write inside the transaction.
-func (c *client) patchLocked(ctx context.Context, org string, id uuid.UUID, patch func(map[string]string)) error {
-	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+// retrying. It serves vaults that write inside the transaction, and only rows whose value is stored locally: it
+// reports false without writing when the row turned out to refer to an external value once locked.
+func (c *client) patchLocked(ctx context.Context, org string, id uuid.UUID, patch func(map[string]string)) (bool, error) {
+	done := false
+	err := c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := dbx.LockRow(tx, models.Secret{}.TableName(), "version", "id = ?", id)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return secretmanagersvc.ErrSecretNotFound
 		}
 		if err != nil {
 			return fmt.Errorf("lock secret %s: %w", id, err)
+		}
+		current, err := c.stateIn(tx, id)
+		if err != nil {
+			return err
+		}
+		if current.Provider != vault.ProviderLocal {
+			return nil
 		}
 		merged, err := c.load(ctx, tx, id)
 		if err != nil {
@@ -287,8 +306,13 @@ func (c *client) patchLocked(ctx context.Context, org string, id uuid.UUID, patc
 		if err != nil {
 			return err
 		}
+		done = true
 		return c.rows.Write(ctx, tx, org, ownerKind, id, id, payload)
 	})
+	if err != nil {
+		return false, err
+	}
+	return done, nil
 }
 
 // patchAttempts bounds how often PatchSecret starts over because another write changed an external secret.

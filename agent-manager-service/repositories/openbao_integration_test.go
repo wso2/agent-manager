@@ -42,6 +42,7 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	if os.Getenv("OPENBAO_ADDR") == "" {
 		t.Skip("set OPENBAO_ADDR and OPENBAO_TOKEN to test a standalone OpenBao KV v2 server")
 	}
+	adminToken := os.Getenv("OPENBAO_TOKEN")
 	t.Setenv("OPENBAO_TOKEN", tokenWithDocumentedPolicy(t))
 	ctx := t.Context()
 	gdb := db.GetDB()
@@ -116,6 +117,23 @@ func TestStandaloneOpenBaoReferenceOnly(t *testing.T) {
 	require.Error(t, err, "a late write cannot recreate an abandoned value")
 	checkValue("first")
 	require.ErrorContains(t, gdb.Transaction(func(tx *gorm.DB) error { return write(tx, "unstaged") }), "not staged")
+
+	// A write publishes only the value it staged.
+	staged, err := store.PrepareWrite(ctx, gdb, org, "test_owner", id, []byte("staged"))
+	require.NoError(t, err)
+	_, err = store.PrepareWrite(staged, gdb, org, "test_owner", id, []byte("restaged"))
+	require.ErrorContains(t, err, "different value")
+	require.ErrorContains(t, gdb.Transaction(func(tx *gorm.DB) error {
+		return store.Write(staged, tx, org, "test_owner", id, id, []byte("different"))
+	}), "different value")
+	checkValue("first")
+
+	// The health check passes on the configured mount and fails on one that does not exist, even for a token that
+	// may read anywhere: OpenBao answers 404 for both a missing key and a missing mount.
+	require.NoError(t, writer.(vault.Checker).Check(ctx))
+	wrongMount, err := openbao.New(os.Getenv("OPENBAO_ADDR"), adminToken, "amp-no-such-mount")
+	require.NoError(t, err)
+	require.ErrorContains(t, wrongMount.Check(ctx), "mount does not exist")
 
 	bad, err := openbao.New(os.Getenv("OPENBAO_ADDR"), "invalid-test-token", os.Getenv("OPENBAO_KV_MOUNT"))
 	require.NoError(t, err)

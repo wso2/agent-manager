@@ -19,6 +19,7 @@ package repositories
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -121,6 +122,8 @@ type stagedSecretKey struct {
 type stagedSecret struct {
 	jobID          uuid.UUID
 	provider, path string
+	// digest is the SHA-256 of the staged value, so a write cannot publish a value other than the one it passes.
+	digest [sha256.Size]byte
 }
 
 // PrepareWrite stages reference-only credentials before the owning SQL
@@ -142,7 +145,10 @@ func (s *SecretStore) PrepareWrite(ctx context.Context, db *gorm.DB, orgID, kind
 		return ctx, errors.New("external secret must be staged before the transaction")
 	}
 	key := stagedSecretKey{org: canonicalOrgID(orgID), kind: kind, id: id}
-	if _, exists := ctx.Value(key).(stagedSecret); exists {
+	if staged, exists := ctx.Value(key).(stagedSecret); exists {
+		if staged.digest != sha256.Sum256(value) {
+			return ctx, errors.New("external secret was already staged with a different value")
+		}
 		return ctx, nil
 	}
 	job := newSecretJob(key.org, id, kind, models.SecretJobAbandon, nil)
@@ -164,7 +170,7 @@ func (s *SecretStore) PrepareWrite(ctx context.Context, db *gorm.DB, orgID, kind
 	if sealed.ExternalRef != path || len(sealed.Ciphertext) != 0 || sealed.KeyID != "" {
 		return ctx, fmt.Errorf("vault %q must return only the reserved reference", provider)
 	}
-	return context.WithValue(ctx, key, stagedSecret{jobID: job.ID, provider: provider, path: path}), nil
+	return context.WithValue(ctx, key, stagedSecret{jobID: job.ID, provider: provider, path: path, digest: sha256.Sum256(value)}), nil
 }
 
 func (s *SecretStore) sealWrite(ctx context.Context, db *gorm.DB, orgID, ownerKind string, id uuid.UUID, value []byte) (string, vault.Sealed, error) {
@@ -172,6 +178,9 @@ func (s *SecretStore) sealWrite(ctx context.Context, db *gorm.DB, orgID, ownerKi
 		staged, ok := ctx.Value(stagedSecretKey{org: orgID, kind: ownerKind, id: id}).(stagedSecret)
 		if !ok {
 			return "", vault.Sealed{}, errors.New("external secret was not staged before the transaction")
+		}
+		if staged.digest != sha256.Sum256(value) {
+			return "", vault.Sealed{}, errors.New("external secret was staged with a different value")
 		}
 		res := db.Where("id = ? AND action = ? AND claimed_by IS NULL AND available_at > ?", staged.jobID, models.SecretJobAbandon, dbx.Now()).Delete(&models.SecretJob{})
 		if res.Error != nil {
