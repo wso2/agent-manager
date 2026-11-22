@@ -165,7 +165,7 @@ export const OrganizationOverview: React.FC = () => {
       to={createProjectPath}
       state={returnToState(location)}
     >
-      Create project
+      New project
     </Button>
   );
 

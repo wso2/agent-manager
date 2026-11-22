@@ -283,7 +283,7 @@ export function TopNavigation() {
         })),
         selectedId: projectId ?? null,
         createAction: {
-          label: "Create a Project",
+          label: "New project",
           href: generatePath(
             absoluteRouteMap.children.org.children.newProject.path,
             { orgId },
