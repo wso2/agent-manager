@@ -190,7 +190,6 @@ export const AgentList: React.FC<AgentListProps> = ({ showCreateAction = false }
               <Button
                 variant="contained"
                 color="primary"
-                size="small"
                 startIcon={<Add size={16} />}
                 onClick={handleAddAgent}
               >
