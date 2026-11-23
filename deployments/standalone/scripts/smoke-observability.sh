@@ -145,5 +145,27 @@ BODY=$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $TOKEN" "$API/m/obs
 check trace-route 200 "$(tail -1 <<<"$BODY")"
 check trace-route-has-span yes "$(grep -q "$S1" <<<"$BODY" && echo yes || echo no)"
 
+# --- An agent's export through the module ---------------------------------------------------
+# An external agent's key, then a span sent to the module with a spoofed org
+# header and attribute: it is stored under the key's org and agent.
+A=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
+HANDLE=$(curl -s "${A[@]}" "$API/api/v1/orgs" | jq -r '.organizations[0].name // empty')
+B=$API/api/v1/orgs/${HANDLE:-default}
+P=obs-$RANDOM AG=obs-agent-$RANDOM
+EXT='"provisioning":{"type":"external"},"agentType":{"type":"external-agent-api","subType":"custom-api"}'
+code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+check project-create 202 "$(code "${A[@]}" -X POST "$B/projects" -d "{\"name\":\"$P\",\"displayName\":\"$P\"}")"
+check agent-create 202 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"$AG\",\"displayName\":\"$AG\",$EXT}")"
+KEY=$(curl -s "${A[@]}" -X POST "$B/projects/$P/agents/$AG/token" -d '{}' | jq -r '.token // empty')
+[ -n "$KEY" ] || { check agent-key ok none; exit 1; }
+INGEST=$API/m/observability/otel/v1/traces
+T4=$(hex 16)
+check export-without-key 401 "$(code -X POST "$INGEST" -H 'Content-Type: application/json' -d "$(span "$(hex 16)" "$(hex 8)")")"
+check export-with-key 200 "$(code -X POST "$INGEST" -H 'Content-Type: application/json' \
+  -H "X-Amp-Api-Key: $KEY" -H 'x-org-id: spoofed-org' -d "$(span "$T4" "$(hex 8)")")"
+check export-stored-under-key-org "$ORG" "$(stored "$T4")"
+check export-stored-under-agent "$AG" \
+  "$(ch "SELECT ResourceAttributes['agent-manager/agent'] FROM otel.otel_traces WHERE TraceId = '$T4' LIMIT 1" | xargs)"
+
 echo "== observability: $pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]
