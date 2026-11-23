@@ -89,8 +89,20 @@ const FileSuffix = "_FILE"
 
 // Lookup returns a setting, first found of: the environment variable key
 // (even ""), the file the environment's key_FILE names, the configuration
-// file's key, the file the configuration file's key_file names.
+// file's key, the file the configuration file's key_file names, an older name
+// of the setting, and for a generated secret its file in SecretsDir.
 func Lookup(key string) (string, bool) {
+	v, ok := lookupSet(key)
+	if _, generated := GeneratedSecrets[key]; generated && v == "" {
+		if g, found := generatedValue(key); found {
+			return g, true
+		}
+	}
+	return v, ok
+}
+
+// lookupSet is Lookup without the generated secrets.
+func lookupSet(key string) (string, bool) {
 	fileMu.RLock()
 	track := tracking
 	v, inFile := fileVars[key]
@@ -114,7 +126,7 @@ func Lookup(key string) (string, bool) {
 		return readSettingFile(key+FileSuffix, vFile)
 	}
 	if old, ok := aliases[key]; ok {
-		return Lookup(old)
+		return lookupSet(old)
 	}
 	return "", false
 }
@@ -243,8 +255,15 @@ func configFilePath(flag string) (string, bool) {
 // if present) and then every setting again, with the environment over the
 // file over the defaults. The command line calls it once, after parsing its
 // flags and before anything else reads the configuration. File keys that no
-// setting reads are logged.
-func Load(path string) error {
+// setting reads are logged. An invalid setting exits the process.
+func Load(path string) error { return load(path, true) }
+
+// LoadUnchecked is Load for commands that run before the server's settings
+// are complete, such as amp init generating its secrets: invalid server
+// settings are left for the server to report.
+func LoadUnchecked(path string) error { return load(path, false) }
+
+func load(path string, strict bool) error {
 	vars, mods, err := readConfigFile(path)
 	if err != nil {
 		return err
@@ -268,7 +287,9 @@ func Load(path string) error {
 	if readErr != nil {
 		return readErr
 	}
-	GetConfig()
+	if strict {
+		GetConfig()
+	}
 	if len(unknown) > 0 {
 		slog.Warn("configuration file sets keys no setting reads; check their spelling", "keys", unknown)
 	}

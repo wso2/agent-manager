@@ -131,3 +131,34 @@ func TestSecretProviderFollowsConfiguration(t *testing.T) {
 		}
 	}
 }
+
+func TestInitWritesSecrets(t *testing.T) {
+	for _, k := range []string{"IDP_CLIENT_SECRET", "AMP_API_CLIENT_SECRET", "AMP_SECRETS_DIR", "AMP_DATA_DIR"} {
+		t.Setenv(k, "")
+		assert.NoError(t, os.Unsetenv(k))
+	}
+	dir := filepath.Join(t.TempDir(), "secrets")
+	assert.NoError(t, run("amp", []string{"init", "secrets", dir}))
+	assert.FileExists(t, filepath.Join(dir, "amp-api-client-secret"))
+	assert.FileExists(t, filepath.Join(dir, "admin-password"))
+}
+
+func TestInitThunderImpliesSecrets(t *testing.T) {
+	for k, v := range map[string]string{
+		"THUNDER_BASE_URL": "http://thunder.example:8080", "SERVER_PUBLIC_URL": "http://localhost:9000",
+		"CONSOLE_URL": "http://localhost:9000",
+	} {
+		t.Setenv(k, v)
+	}
+	for _, k := range []string{
+		"IDP_CLIENT_SECRET", "AMP_API_CLIENT_SECRET", "AMP_CONSOLE_CLIENT_SECRET",
+		"THUNDER_CLIENT_SECRET", "AMP_SYSTEM_CLIENT_SECRET", "AMP_SECRETS_DIR",
+	} {
+		t.Setenv(k, "")
+		assert.NoError(t, os.Unsetenv(k))
+	}
+	data := t.TempDir()
+	t.Setenv("AMP_DATA_DIR", data)
+	assert.NoError(t, run("amp", []string{"init", "thunder", filepath.Join(t.TempDir(), "thunder")}))
+	assert.FileExists(t, filepath.Join(data, "secrets", "amp-system-client-secret"))
+}

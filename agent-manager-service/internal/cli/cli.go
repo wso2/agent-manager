@@ -97,7 +97,12 @@ func run(distribution string, args []string) error {
 		return err
 	}
 	// Settings: the environment, then the configuration file, then defaults.
-	if err := config.Load(path); err != nil {
+	// amp init runs before the server's settings are complete.
+	loadConfig := config.Load
+	if len(args) > 0 && args[0] == "init" {
+		loadConfig = config.LoadUnchecked
+	}
+	if err := loadConfig(path); err != nil {
 		return err
 	}
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
@@ -166,7 +171,7 @@ func legacy(args []string) error {
 		if *initGatewayDir != "" {
 			others["ai-gateway"] = *initGatewayDir
 		}
-		return writeConfig(*initThunderDir, *initFileAuthDir, others)
+		return writeConfig("", *initThunderDir, *initFileAuthDir, others)
 	}
 	runApp(app.Options{Server: *serverFlag, Migrate: *migrateFlag, WaitForMigrations: *waitFlag})
 	return nil
@@ -225,14 +230,15 @@ func initCmd(args []string) error {
 		}
 		dirs[args[i]] = args[i+1]
 	}
-	thunder, fileAuth := dirs["thunder"], dirs["fileauth"]
+	secrets, thunder, fileAuth := dirs["secrets"], dirs["thunder"], dirs["fileauth"]
+	delete(dirs, "secrets")
 	delete(dirs, "thunder")
 	delete(dirs, "fileauth")
-	return writeConfig(thunder, fileAuth, dirs)
+	return writeConfig(secrets, thunder, fileAuth, dirs)
 }
 
-func writeConfig(thunderDir, fileAuthDir string, others map[string]string) error {
-	if err := ampinit.Run(thunderDir, fileAuthDir, others); err != nil {
+func writeConfig(secretsDir, thunderDir, fileAuthDir string, others map[string]string) error {
+	if err := ampinit.Run(secretsDir, thunderDir, fileAuthDir, others); err != nil {
 		return fmt.Errorf("writing component configuration failed: %w", err)
 	}
 	return nil

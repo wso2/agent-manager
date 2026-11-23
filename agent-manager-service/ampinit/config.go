@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -305,11 +306,30 @@ func SampleThunderConfig() *ThunderConfig {
 // Run writes the ThunderID files into thunderDir, the file-based sign-in user
 // file into fileAuthDir, and each module's files into the directory others
 // names for it, skipping an empty directory.
-func Run(thunderDir, fileAuthDir string, others map[string]string) error {
+func Run(secretsDir, thunderDir, fileAuthDir string, others map[string]string) error {
 	for name := range others {
 		if _, ok := initComponent(name); !ok {
 			return fmt.Errorf("unknown component %q", name)
 		}
+	}
+	// ThunderID's clients and the sign-in accounts need the secrets, so
+	// writing either generates them where the server reads them.
+	if secretsDir == "" && (thunderDir != "" || fileAuthDir != "") {
+		secretsDir = config.SecretsDir()
+	}
+	if secretsDir != "" {
+		// Settings read below find the generated secrets here.
+		if err := os.Setenv("AMP_SECRETS_DIR", secretsDir); err != nil {
+			return err
+		}
+		owner, err := parseOwner("AMP_FILE_OWNER")
+		if err != nil {
+			return err
+		}
+		if err := EnsureSecrets(secretsDir, owner); err != nil {
+			return fmt.Errorf("generated secrets: %w", err)
+		}
+		slog.Info("Wrote the generated secrets", "dir", secretsDir)
 	}
 	if thunderDir != "" {
 		cfg, err := LoadThunderConfig()

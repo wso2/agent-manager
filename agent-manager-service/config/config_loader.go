@@ -165,7 +165,7 @@ func loadSettings(strict bool) {
 	config.IDP = IDPConfig{
 		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", d.tokenURL),
 		ClientID:     r.readOptionalString("IDP_CLIENT_ID", "amp-api-client"),
-		ClientSecret: r.readOptionalString("IDP_CLIENT_SECRET", "amp-api-client-secret"),
+		ClientSecret: r.readOptionalString("IDP_CLIENT_SECRET", ""),
 	}
 
 	// JWT Signing configuration for agent API tokens
