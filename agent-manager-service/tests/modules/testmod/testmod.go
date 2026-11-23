@@ -28,6 +28,7 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"net/http"
 	"sync"
@@ -68,6 +69,8 @@ const (
 	OldPingerProtocol = "testmod-ping/v1"
 	// EventsPath is the WebSocket route behind the "events" endpoint.
 	EventsPath = "/events"
+	// AgentIngestPath is Name's agent-key route.
+	AgentIngestPath = "/agent/ingest"
 )
 
 //go:embed migrations
@@ -121,6 +124,7 @@ func (module) Manifest() modkit.Manifest {
 			{Name: "secret-write", Class: "credential", Description: "Store a secret"},
 			{Name: "secret-read", Class: "credential", Description: "Read a secret"},
 			{Name: "legacy-ping", Description: "Ping the fixed internal path"},
+			{Name: "agent-ingest", Description: "Receive data an agent sends with its key"},
 		},
 		Workloads: []modkit.WorkloadSpec{{
 			Name: Pinger, Kind: modkit.WorkloadService, Trusted: true, Required: true,
@@ -631,6 +635,21 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	}
 	rt.HandleInternalAt(http.MethodGet, LegacyPath, legacy)
 	rt.HandleInternalAt(http.MethodPost, LegacyPath, legacy, modkit.Audit("legacy-ping"))
+
+	// A route agents call with their key, as trace ingest does. It echoes
+	// what the core put on ctx and whether the key reached the handler.
+	rt.HandleAgent(http.MethodPost, AgentIngestPath, func(w http.ResponseWriter, r *http.Request) {
+		k, _ := modkit.AgentKeyFrom(r.Context())
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"orgId": modkit.OrgID(r.Context()), "key": k,
+			"keyHeader": r.Header.Get(modkit.AgentKeyHeader), "body": string(body),
+		})
+	}, modkit.Audit("agent-ingest"), modkit.AuditCoalesce(time.Hour))
 
 	rt.HandleInternal(http.MethodGet, "/ping", PingScope, func(w http.ResponseWriter, r *http.Request) {
 		wl, _ := modkit.WorkloadFrom(r.Context())

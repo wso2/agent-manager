@@ -62,6 +62,22 @@ func TestEnvelopeNamesAnActorTheHandlerAuthenticated(t *testing.T) {
 	}
 }
 
+// TestAnActorInAnOrgFilesTheRecordThere covers agent-key routes: no token
+// names the org, so the agent key's org does.
+func TestAnActorInAnOrgFilesTheRecordThere(t *testing.T) {
+	ctx := WithSource(context.Background(), Source{Surface: SurfaceAPI})
+	ctx, _ = NewRequestScope(ctx)
+	IdentifyActorInOrg(ctx, ActorAgent, "agent-1", "agent-key", "org-a")
+
+	e := BuildEvent(ctx, testSyncAction)
+	if e.ActorType != ActorAgent || e.ActorID != "agent-1" || e.AuthMethod != "agent-key" {
+		t.Errorf("actor = %q/%q/%q, want the agent the key names", e.ActorType, e.ActorID, e.AuthMethod)
+	}
+	if e.OUID != "org-a" || e.ActorOUID != "org-a" {
+		t.Errorf("OUID = %q, ActorOUID = %q, want the key's org", e.OUID, e.ActorOUID)
+	}
+}
+
 // TestExplicitActorBeatsTheScope keeps precedence right: a semantic emit that
 // names its own actor must not be overwritten by the scope.
 func TestExplicitActorBeatsTheScope(t *testing.T) {
