@@ -42,8 +42,8 @@ func TestDelete_SuccessByHandle(t *testing.T) {
 	if captured.method != "DELETE" {
 		t.Errorf("method = %q, want DELETE", captured.method)
 	}
-	if captured.path != "/orgs/acme/llm-providers/openai" {
-		t.Errorf("path = %q, want /orgs/acme/llm-providers/openai", captured.path)
+	if captured.path != "/llm-providers/openai" {
+		t.Errorf("path = %q, want /llm-providers/openai", captured.path)
 	}
 	if prompter.calls != 1 {
 		t.Errorf("prompter calls = %d, want 1", prompter.calls)
@@ -68,8 +68,8 @@ func TestDelete_ByUUID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if captured.path != "/orgs/acme/llm-providers/"+uuid {
-		t.Errorf("path = %q, want /orgs/acme/llm-providers/%s", captured.path, uuid)
+	if captured.path != "/llm-providers/"+uuid {
+		t.Errorf("path = %q, want /llm-providers/%s", captured.path, uuid)
 	}
 }
 

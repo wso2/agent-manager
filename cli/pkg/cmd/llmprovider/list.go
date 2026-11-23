@@ -19,6 +19,7 @@ package llmprovider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -75,7 +76,7 @@ func runList(ctx context.Context, o *ListOptions) error {
 	// Request a 50-item page to match `project list`; --limit/--offset paging
 	// is not exposed yet.
 	limit := int32(defaultListLimit)
-	resp, err := client.ListLLMProvidersWithResponse(ctx, o.Org, &aigateway.ListLLMProvidersParams{Limit: &limit})
+	resp, err := client.ListLLMProvidersWithResponse(ctx, &aigateway.ListLLMProvidersParams{Limit: &limit})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -87,23 +88,35 @@ func runList(ctx context.Context, o *ListOptions) error {
 		return render.JSONSuccess(o.IO, o.Scope, resp.JSON200)
 	}
 
-	if len(resp.JSON200.Providers) == 0 {
+	if len(resp.JSON200.List) == 0 {
 		return render.EmptyList(o.IO, fmt.Sprintf("No LLM providers found in organization %q.", o.Org))
 	}
 
-	tp := tableprinter.New(o.IO, "id", "name", "template", "status", "created")
+	tp := tableprinter.New(o.IO, "id", "name", "template", "gateways", "created")
 	cs := o.IO.ColorScheme()
-	for _, p := range resp.JSON200.Providers {
-		tp.AddField(p.Id, tableprinter.WithColor(cs.Bold))
-		tp.AddField(p.Name)
-		tp.AddField(p.Template)
-		tp.AddField(string(p.Status))
+	for _, p := range resp.JSON200.List {
+		tp.AddField(p.Metadata.Name, tableprinter.WithColor(cs.Bold))
+		tp.AddField(p.Spec.DisplayName)
+		tp.AddField(p.Spec.Template)
+		tp.AddField(placement(p.Status))
 		created := ""
-		if p.CreatedAt != nil {
-			created = p.CreatedAt.Format("2006-01-02")
+		if p.Metadata.CreationTimestamp != nil {
+			created = p.Metadata.CreationTimestamp.Format("2006-01-02")
 		}
 		tp.AddField(created, tableprinter.WithColor(cs.Gray))
 		tp.EndRow()
 	}
 	return tp.Render()
+}
+
+// placement lists the gateways a provider is on with each one's state, e.g. "edge (DEPLOYED)".
+func placement(status *aigateway.ResourceStatus) string {
+	if status == nil || status.Gateways == nil || len(*status.Gateways) == 0 {
+		return "-"
+	}
+	parts := make([]string, 0, len(*status.Gateways))
+	for _, g := range *status.Gateways {
+		parts = append(parts, fmt.Sprintf("%s (%s)", g.GatewayName, g.Status))
+	}
+	return strings.Join(parts, ", ")
 }

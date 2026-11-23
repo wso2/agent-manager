@@ -187,7 +187,7 @@ func CompleteLLMProviders(cmd *cobra.Command, f *Factory) []string {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
 	}
-	resp, err := client.ListLLMProvidersWithResponse(ctx, org, &aigateway.ListLLMProvidersParams{})
+	resp, err := client.ListLLMProvidersWithResponse(ctx, &aigateway.ListLLMProvidersParams{})
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
@@ -196,9 +196,9 @@ func CompleteLLMProviders(cmd *cobra.Command, f *Factory) []string {
 		logCompletionErr(op, map[string]string{"org": org}, fmt.Errorf("status %d", resp.StatusCode()))
 		return nil
 	}
-	out := make([]string, 0, len(resp.JSON200.Providers))
-	for _, p := range resp.JSON200.Providers {
-		out = append(out, p.Id)
+	out := make([]string, 0, len(resp.JSON200.List))
+	for _, p := range resp.JSON200.List {
+		out = append(out, p.Metadata.Name)
 	}
 	sort.Strings(out)
 	return out

@@ -100,7 +100,7 @@ func runDelete(ctx context.Context, o *DeleteOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.DeleteLLMProviderWithResponse(ctx, o.Org, o.Provider)
+	resp, err := client.DeleteLLMProviderWithResponse(ctx, o.Provider)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
