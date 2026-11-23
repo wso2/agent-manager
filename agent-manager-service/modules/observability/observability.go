@@ -73,6 +73,8 @@ func (module) Manifest() modkit.Manifest {
 		RoleGrants: map[string][]string{
 			"Agent Manager Admin": {PermTracesRead},
 			"Developer":           {PermTracesRead},
+			"AI Lead":             {PermTracesRead},
+			"Platform Engineer":   {PermTracesRead},
 		},
 		UI: &modkit.UI{Pages: []modkit.Page{
 			{ID: "ai-observability/traces", Permission: PermTracesRead},
