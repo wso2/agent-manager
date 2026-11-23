@@ -150,7 +150,10 @@ interface ProjectLandingProps {
   orgId: string;
   projectId: string;
   projectName?: string;
-  /** Shows "Create agent or AI service"; without it the card still explains what the project is for. */
+  /**
+   * Shows "Create agent or AI service"; without it the card still explains what the
+   * project is for.
+   */
   canCreateAgent: boolean;
   /** The project Settings action, in the same place as on the overview. */
   settingsAction?: React.ReactNode;
