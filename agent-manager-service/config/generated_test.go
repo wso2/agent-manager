@@ -59,3 +59,15 @@ func TestGeneratedMissingFile(t *testing.T) {
 	require.NoError(t, loadWith(t, "server: {port: 8080}\n"))
 	assert.Equal(t, "", Value("IDP_CLIENT_SECRET"), "no file and no value: unset, not the old literal default")
 }
+
+// An empty variable for a generated secret does not hide the value amp.yaml
+// sets: an empty secret counts as unset.
+func TestEmptyEnvDoesNotHideFileSecret(t *testing.T) {
+	reloadAfter(t)
+	t.Setenv("AMP_SECRETS_DIR", t.TempDir())
+	unset(t, "AMP_API_CLIENT_SECRET", "IDP_CLIENT_SECRET_FILE")
+	t.Setenv("IDP_CLIENT_SECRET", "")
+	require.NoError(t, loadWith(t, "idp: {client_secret: from-yaml}\n"))
+	assert.Equal(t, "from-yaml", Value("IDP_CLIENT_SECRET"))
+	assert.Equal(t, "from-yaml", SetValue("IDP_CLIENT_SECRET"))
+}

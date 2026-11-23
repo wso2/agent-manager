@@ -113,13 +113,15 @@ func lookupSet(key string) (string, bool) {
 		readKeys[key] = true
 		fileMu.Unlock()
 	}
-	if env, ok := os.LookupEnv(key); ok {
+	// An empty generated secret counts as unset, so a later source fills it.
+	_, generated := GeneratedSecrets[key]
+	if env, ok := os.LookupEnv(key); ok && (env != "" || !generated) {
 		return env, true
 	}
 	if path, ok := os.LookupEnv(key + FileSuffix); ok && path != "" {
 		return readSettingFile(key+FileSuffix, path)
 	}
-	if inFile {
+	if inFile && (v != "" || !generated) {
 		return v, true
 	}
 	if inFileFile && vFile != "" {
