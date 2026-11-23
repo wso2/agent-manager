@@ -17,10 +17,12 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -242,9 +244,13 @@ func (s *projectMCPCapabilityDiscoveryService) attempt(
 		info, err := s.probeUpstream(ctx, target.publicURL, target.headerName, target.headerValue)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list the MCP server's capabilities at its upstream %s: %w",
-				target.publicURL, redactSecret(err, target.headerValue))
+				safeEndpoint(target.publicURL), redactUpstream(err, target))
 		}
-		return normalizeDiscoveredCapabilities(info)
+		capabilities, err := normalizeDiscoveredCapabilities(info)
+		if err != nil {
+			return nil, err
+		}
+		return scrubCapabilities(capabilities, upstreamSecrets(target))
 	}
 	headerName, headerValue := "", ""
 	if target.security.RequiresAPIKey() {
@@ -419,6 +425,73 @@ func redactSecret(err error, secret string) error {
 	return &redactedError{err: err, text: strings.ReplaceAll(err.Error(), secret, "[REDACTED]")}
 }
 
+// upstreamSecrets is what an upstream probe must never let reach lastError, the logs or the stored capabilities: the
+// credential header's value, its credential without a scheme ("Bearer <token>" also hides "<token>"), and what the
+// registered URL carries besides its endpoint (a query, which may hold a key, and userinfo).
+func upstreamSecrets(target *mcpDiscoveryTarget) []string {
+	var secrets []string
+	if v := strings.TrimSpace(target.headerValue); v != "" {
+		secrets = append(secrets, v)
+		if _, credential, ok := strings.Cut(v, " "); ok && strings.TrimSpace(credential) != "" {
+			secrets = append(secrets, strings.TrimSpace(credential))
+		}
+	}
+	if u, err := url.Parse(target.publicURL); err == nil {
+		if u.RawQuery != "" {
+			secrets = append(secrets, u.RawQuery)
+		}
+		if u.User != nil {
+			secrets = append(secrets, u.User.String())
+		}
+	}
+	return secrets
+}
+
+// redactUpstream is an upstream probe's error with each of upstreamSecrets hidden; a transport error that names the
+// whole URL names it without its query or userinfo.
+func redactUpstream(err error, target *mcpDiscoveryTarget) error {
+	for _, secret := range upstreamSecrets(target) {
+		err = redactSecret(err, secret)
+	}
+	return err
+}
+
+// safeEndpoint is a registered URL as a diagnostic names it: scheme, host and path, with no userinfo, query or
+// fragment, which may carry credentials.
+func safeEndpoint(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return "the registered URL"
+	}
+	return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path}).String()
+}
+
+// scrubCapabilities hides secrets in every string an MCP server returned in its capabilities (a description that
+// echoes the request's credential, say), as they appear in the stored JSON, so a binding read never returns one.
+func scrubCapabilities(capabilities *models.MCPProxyCapabilities, secrets []string) (*models.MCPProxyCapabilities, error) {
+	if capabilities == nil || len(secrets) == 0 {
+		return capabilities, nil
+	}
+	encoded, err := json.Marshal(capabilities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the discovered capabilities: %w", err)
+	}
+	text := string(encoded)
+	for _, secret := range secrets {
+		quoted, err := json.Marshal(secret)
+		if err != nil {
+			continue
+		}
+		// The secret as JSON escapes it inside a string, without its quotes.
+		text = strings.ReplaceAll(text, string(quoted[1:len(quoted)-1]), "[REDACTED]")
+	}
+	var scrubbed models.MCPProxyCapabilities
+	if err := json.Unmarshal([]byte(text), &scrubbed); err != nil {
+		return nil, fmt.Errorf("failed to decode the scrubbed capabilities: %w", err)
+	}
+	return &scrubbed, nil
+}
+
 // mcpDiscoveryTarget is what a discovery attempt needs of a binding.
 type mcpDiscoveryTarget struct {
 	artifact  string
@@ -476,19 +549,21 @@ func (s *ProjectMCPProxyService) discoveryTarget(ctx context.Context, ouID strin
 	if callerGaveCapabilities(endpoint.Configuration) {
 		return nil, errMCPDiscoveryNotNeeded
 	}
-	if direct, err := s.directDiscoveryTarget(proxy, endpoint, ee); direct != nil || err != nil {
-		return direct, err
-	}
 	resp, err := s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 	if err != nil {
 		return nil, err
 	}
+	// Discovery runs for a deployed binding only, however it is reached: a refresh queued while the binding deploys
+	// waits for it.
 	if resp.DeploymentStatus != models.MCPDeploymentStatusDeployed {
 		status := resp.DeploymentStatus
 		if status == "" {
 			status = resp.DeploymentStatusReason
 		}
 		return nil, fmt.Errorf("the binding is not deployed (%s)", status)
+	}
+	if direct, err := s.directDiscoveryTarget(proxy, endpoint, ee); direct != nil || err != nil {
+		return direct, err
 	}
 	security := endpoint.Configuration.Security
 	if security != nil && (security.Enabled == nil || *security.Enabled) && !security.RequiresAPIKey() {

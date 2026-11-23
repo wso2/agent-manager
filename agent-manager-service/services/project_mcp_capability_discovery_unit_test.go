@@ -146,13 +146,15 @@ func (m *memDiscoveries) StoreDiscovered(
 type probeCall struct{ url, header, value string }
 
 // discoveryFixture is a deployed project binding, secured with an API key, with a discovery queue and a fake MCP
-// server behind its gateway.
+// server behind its gateway. calls records the gateway prober's calls and upstreamCalls the upstream prober's, so a
+// test sees which way discovery went; neither does network I/O.
 type discoveryFixture struct {
 	*keyFixture
-	queue   *memDiscoveries
-	calls   []probeCall
-	respond func(call probeCall) (*models.MCPServerInfoFetchResponse, error)
-	recon   *projectMCPCapabilityDiscoveryService
+	queue         *memDiscoveries
+	calls         []probeCall
+	upstreamCalls []probeCall
+	respond       func(call probeCall) (*models.MCPServerInfoFetchResponse, error)
+	recon         *projectMCPCapabilityDiscoveryService
 }
 
 var discoveredTools = []map[string]interface{}{
@@ -193,6 +195,11 @@ func newDiscoveryFixture(t *testing.T, req models.MCPProxyEnvironmentRequest) *d
 		return f.respond(call)
 	}
 	f.recon = newProjectMCPCapabilityDiscoveryService(f.queue, f.svc, prober, discardLogger())
+	f.recon.probeUpstream = func(_ context.Context, url, header, value string) (*models.MCPServerInfoFetchResponse, error) {
+		call := probeCall{url: url, header: header, value: value}
+		f.upstreamCalls = append(f.upstreamCalls, call)
+		return f.respond(call)
+	}
 	f.recon.keyWait, f.recon.keyPoll = 50*time.Millisecond, time.Millisecond
 	f.setDeployed(t)
 	return f
@@ -463,8 +470,10 @@ func TestCapabilityDiscovery_IdentityBindingIsProbedAtItsUpstream(t *testing.T) 
 
 	f.recon.RunOnce(context.Background())
 
-	require.Len(t, f.calls, 1)
-	assert.Equal(t, probeCall{url: discoveryUpstreamURL, header: "Authorization", value: "Bearer github-pat"}, f.calls[0])
+	assert.Empty(t, f.calls, "the gateway is not probed")
+
+	require.Len(t, f.upstreamCalls, 1)
+	assert.Equal(t, probeCall{url: discoveryUpstreamURL, header: "Authorization", value: "Bearer github-pat"}, f.upstreamCalls[0])
 	assert.Empty(t, f.keys, "no gateway key is issued")
 	assert.Equal(t, models.MCPCapabilityDiscoveryDiscovered, f.row(t).Status)
 	resp := f.get(t)
@@ -481,8 +490,10 @@ func TestCapabilityDiscovery_IdentityBindingWithoutUpstreamAuthIsProbedWithoutAH
 
 	f.recon.RunOnce(context.Background())
 
-	require.Len(t, f.calls, 1)
-	assert.Equal(t, probeCall{url: discoveryUpstreamURL}, f.calls[0])
+	assert.Empty(t, f.calls, "the gateway is not probed")
+
+	require.Len(t, f.upstreamCalls, 1)
+	assert.Equal(t, probeCall{url: discoveryUpstreamURL}, f.upstreamCalls[0])
 	assert.Equal(t, models.MCPCapabilityDiscoveryDiscovered, f.row(t).Status)
 }
 
@@ -497,7 +508,9 @@ func TestCapabilityDiscovery_IdentityUpstreamErrorsAreRetriedWithTheCredentialRe
 
 	f.recon.RunOnce(context.Background())
 
-	require.Len(t, f.calls, 1, "an upstream 401 is not waited out: no key is on its way")
+	assert.Empty(t, f.calls, "the gateway is not probed")
+
+	require.Len(t, f.upstreamCalls, 1, "an upstream 401 is not waited out: no key is on its way")
 	row := f.row(t)
 	assert.Equal(t, models.MCPCapabilityDiscoveryPending, row.Status)
 	assert.NotContains(t, row.LastError, "github-pat")
@@ -543,8 +556,12 @@ func TestCapabilityDiscovery_ServerRegisteredByURLIsProbedAtItsUpstreamForEveryS
 
 			f.recon.RunOnce(context.Background())
 
-			require.Len(t, f.calls, 1)
-			assert.Equal(t, probeCall{url: discoveryUpstreamURL, header: "Authorization", value: "Bearer github-pat"}, f.calls[0])
+			assert.Empty(t, f.calls, "the gateway is not probed")
+
+			assert.Empty(t, f.calls, "the gateway is not probed")
+
+			require.Len(t, f.upstreamCalls, 1)
+			assert.Equal(t, probeCall{url: discoveryUpstreamURL, header: "Authorization", value: "Bearer github-pat"}, f.upstreamCalls[0])
 			assert.Empty(t, f.keys, "no gateway key is issued")
 			assert.Equal(t, models.MCPCapabilityDiscoveryDiscovered, f.row(t).Status)
 		})
@@ -565,12 +582,102 @@ func TestCapabilityDiscovery_ServerRegisteredByURLIsNotFilteredByItsACL(t *testi
 
 	f.recon.RunOnce(context.Background())
 
-	require.Len(t, f.calls, 1)
-	assert.Equal(t, discoveryUpstreamURL, f.calls[0].url, "the upstream, not the gateway the ACL runs on")
+	assert.Empty(t, f.calls, "the gateway is not probed")
+
+	require.Len(t, f.upstreamCalls, 1)
+	assert.Equal(t, discoveryUpstreamURL, f.upstreamCalls[0].url, "the upstream, not the gateway the ACL runs on")
 	resp := f.get(t)
 	require.NotNil(t, resp.Capabilities)
 	require.NotNil(t, resp.Capabilities.Tools)
 	assert.Len(t, *resp.Capabilities.Tools, 2, "every tool the MCP server lists")
+}
+
+// An upstream error that echoes only the bare token, without its "Bearer" scheme, is stored with the token redacted.
+func TestCapabilityDiscovery_UpstreamBareTokenIsRedacted(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.identityByURL(t, upstreamAPIKey("Authorization", "Bearer github-pat"))
+	f.enqueue(t)
+	f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) {
+		return nil, fmt.Errorf("%w: 403 bad token github-pat", utils.ErrURLUnreachable)
+	}
+
+	f.recon.RunOnce(context.Background())
+
+	row := f.row(t)
+	assert.NotContains(t, row.LastError, "github-pat")
+	assert.Contains(t, row.LastError, "403 bad token [REDACTED]")
+}
+
+// A registered URL's query and userinfo, which may carry credentials, never reach lastError: the diagnostic names the
+// endpoint without them, and a transport error that repeats the whole URL has them redacted.
+func TestCapabilityDiscovery_UpstreamURLCredentialsAreKeptOutOfErrors(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.identityByURL(t, nil)
+	registered := "https://user:hunter2@api.example.com/mcp?api_key=k-123"
+	f.proxy.Endpoints[0].Configuration.Upstream.URL = registered
+	f.enqueue(t)
+	f.respond = func(call probeCall) (*models.MCPServerInfoFetchResponse, error) {
+		return nil, fmt.Errorf("%w: Post %q: dial tcp: connection refused", utils.ErrURLUnreachable, call.url)
+	}
+
+	f.recon.RunOnce(context.Background())
+
+	require.Len(t, f.upstreamCalls, 1)
+	assert.Equal(t, registered, f.upstreamCalls[0].url, "the probe itself uses the URL as registered")
+	row := f.row(t)
+	assert.Contains(t, row.LastError, "at its upstream https://api.example.com/mcp:")
+	assert.NotContains(t, row.LastError, "k-123")
+	assert.NotContains(t, row.LastError, "hunter2")
+}
+
+// Capabilities that echo the upstream credential are stored with it redacted, so a binding read never returns it.
+func TestCapabilityDiscovery_CapabilitiesEchoingTheCredentialAreScrubbed(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.identityByURL(t, upstreamAPIKey("Authorization", "Bearer github-pat"))
+	f.enqueue(t)
+	f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) {
+		tools := []map[string]interface{}{
+			{"name": "whoami", "description": "Authenticated as Bearer github-pat"},
+			{"name": "token_info", "description": "token=github-pat", "inputSchema": map[string]interface{}{"default": "github-pat"}},
+		}
+		return &models.MCPServerInfoFetchResponse{Tools: &tools}, nil
+	}
+
+	f.recon.RunOnce(context.Background())
+
+	require.Equal(t, models.MCPCapabilityDiscoveryDiscovered, f.row(t).Status)
+	resp := f.get(t)
+	require.NotNil(t, resp.Capabilities)
+	require.NotNil(t, resp.Capabilities.Tools)
+	stored := fmt.Sprint(*resp.Capabilities.Tools)
+	assert.NotContains(t, stored, "github-pat")
+	assert.Equal(t, "whoami", (*resp.Capabilities.Tools)[0]["name"], "everything else is kept")
+	assert.Equal(t, "Authenticated as [REDACTED]", (*resp.Capabilities.Tools)[0]["description"])
+}
+
+// A binding registered by URL is not listed while it deploys: a refresh queued meanwhile waits for the deploy, as it
+// does for any binding.
+func TestCapabilityDiscovery_ServerRegisteredByURLWaitsForItsDeploy(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.identityByURL(t, nil)
+	_, ee := f.binding()
+	f.status[ee.ArtifactUUID].Status = models.DeploymentStatusDeploying
+	f.enqueue(t)
+
+	f.recon.RunOnce(context.Background())
+
+	assert.Empty(t, f.upstreamCalls, "not probed while deploying")
+	row := f.row(t)
+	assert.Equal(t, models.MCPCapabilityDiscoveryPending, row.Status)
+	assert.Contains(t, row.LastError, "not deployed")
+
+	f.setDeployed(t)
+	row.NextAttemptAt = new(time.Time)
+	f.setRow(t, row)
+	f.recon.RunOnce(context.Background())
+
+	require.Len(t, f.upstreamCalls, 1)
+	assert.Equal(t, models.MCPCapabilityDiscoveryDiscovered, f.row(t).Status)
 }
 
 // An error that echoes the attempt key is stored, and so shown, with the key redacted.
