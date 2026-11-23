@@ -187,7 +187,9 @@ export function OxygenLayout() {
             fullWidth
             noPadding
             footer={
-              <Footer variant="plain">
+              // The padding moves from the footer onto its content, so the divider runs
+              // edge to edge and meets the sidebar's while the text keeps its inset.
+              <Footer variant="plain" sx={{ px: 0, "& > *": { px: 3 } }}>
                 <Footer.Copyright>
                   © {new Date().getFullYear()} Choreo Labs LLC.
                 </Footer.Copyright>
