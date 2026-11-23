@@ -203,9 +203,10 @@ func (r *LLMProviderTemplateRepo) Update(t *gwmodels.LLMProviderTemplate) error 
 	result := r.db.Model(&gwmodels.LLMProviderTemplate{}).
 		Where("handle = ? AND org_id = ?", t.Handle, t.OUID).
 		Updates(map[string]interface{}{
-			"name":          t.Name,
-			"description":   t.Description,
-			"configuration": dbx.JSON(t.Configuration),
+			"name":        t.Name,
+			"description": t.Description,
+			// Already encoded above: wrapping it again would store a JSON string.
+			"configuration": t.Configuration,
 			"updated_at":    t.UpdatedAt,
 		})
 
