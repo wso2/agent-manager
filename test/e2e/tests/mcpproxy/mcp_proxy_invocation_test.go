@@ -142,6 +142,7 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 				},
 			})
 		Expect(config.UUID).NotTo(BeEmpty())
+		configID = config.UUID
 
 		envMapping, exists := config.EnvMappings[Cfg.DefaultEnv]
 		Expect(exists).To(BeTrue(), "expected env mapping for %s", Cfg.DefaultEnv)

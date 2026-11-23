@@ -140,10 +140,10 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 		scopes := framework.GW(Cfg, "/mcp-proxies/%s/scopes", proxyID)
 		framework.CallObj(Default, Client, http.MethodPost, scopes, framework.Obj{"action": "e2e-read", "description": "read", "tools": []string{"echo"}}, http.StatusCreated)
 		list := framework.CallObj(Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(list, "list"), "action")).To(ContainElement("e2e-read"))
+		Expect(framework.Field(framework.Items(list, "scopes"), "action")).To(ContainElement("e2e-read"))
 		framework.CallObj(Default, Client, http.MethodPut, scopes+"/e2e-read", framework.Obj{"description": "renamed", "tools": []string{"echo", "add"}}, http.StatusOK)
 		list = framework.CallObj(Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
-		for _, sc := range framework.Items(list, "list") {
+		for _, sc := range framework.Items(list, "scopes") {
 			if framework.Str(sc, "action") == "e2e-read" {
 				Expect(sc["tools"]).To(ConsistOf("echo", "add"))
 			}
@@ -153,7 +153,7 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 		Expect(agentScopes).To(HaveKey("scopes"))
 		framework.Call(Default, Client, http.MethodDelete, scopes+"/e2e-read", nil, http.StatusNoContent)
 		list = framework.CallObj(Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(list, "list"), "action")).NotTo(ContainElement("e2e-read"))
+		Expect(framework.Field(framework.Items(list, "scopes"), "action")).NotTo(ContainElement("e2e-read"))
 		framework.CallError(Default, Client, http.MethodDelete, scopes+"/e2e-read", nil, http.StatusNotFound)
 	})
 
