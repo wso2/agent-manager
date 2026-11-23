@@ -269,3 +269,16 @@ func TestGatewayTokenFileStillWorks(t *testing.T) {
 	require.NoError(t, loadWith(t, "log_level: INFO\n"))
 	assert.Equal(t, "/amp/gw/registration-token", Value(key))
 }
+
+// A setting another package registers is read during Load too, so a _FILE
+// it cannot read fails Load instead of only being logged later.
+func TestFileSuffixMissingFileForRegisteredKey(t *testing.T) {
+	reloadAfter(t)
+	RegisterKeys("AMP_TEST_REGISTERED_PORT")
+	t.Setenv("AMP_TEST_REGISTERED_PORT", "")
+	require.NoError(t, os.Unsetenv("AMP_TEST_REGISTERED_PORT"))
+	t.Setenv("AMP_TEST_REGISTERED_PORT_FILE", "/nope/amp-port")
+	err := loadWith(t, "log_level: INFO\n")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "AMP_TEST_REGISTERED_PORT_FILE")
+}

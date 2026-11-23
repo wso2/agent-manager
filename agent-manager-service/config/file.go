@@ -308,6 +308,18 @@ func load(path string, strict bool) error {
 	// Not strict yet: an unreadable _FILE is reported before the settings it
 	// left empty.
 	loadSettings(false)
+	// Settings other packages read later (amp init's, for one) are read now
+	// too, so a source that fails to read fails Load rather than only being
+	// logged when they are used.
+	fileMu.RLock()
+	others := make([]string, 0, len(registered))
+	for k := range registered {
+		others = append(others, k)
+	}
+	fileMu.RUnlock()
+	for _, k := range others {
+		Lookup(k)
+	}
 
 	fileMu.Lock()
 	tracking = false
