@@ -39,6 +39,10 @@ var config *Config
 // that reads the settings without loading (a test binary) fails on them then.
 var pendingErrors []error
 
+// Unchecked returns the settings as last loaded, even invalid ones, for the
+// steps that run before the server (generating its secrets).
+func Unchecked() *Config { return config }
+
 func GetConfig() *Config {
 	if pendingErrors != nil {
 		(&configReader{errors: pendingErrors}).logAndExitIfErrorsFound()
@@ -170,8 +174,8 @@ func loadSettings(strict bool) {
 
 	// JWT Signing configuration for agent API tokens
 	config.JWTSigning = JWTSigningConfig{
-		PrivateKeyPath:        r.readOptionalString("JWT_SIGNING_PRIVATE_KEY_PATH", "keys/private.pem"),
-		PublicKeysConfigPath:  r.readOptionalString("JWT_SIGNING_PUBLIC_KEYS_CONFIG", "keys/public-keys-config.json"),
+		PrivateKeyPath:        r.readOptionalString("JWT_SIGNING_PRIVATE_KEY_PATH", filepath.Join(SecretsDir(), "jwt", "private.pem")),
+		PublicKeysConfigPath:  r.readOptionalString("JWT_SIGNING_PUBLIC_KEYS_CONFIG", filepath.Join(SecretsDir(), "jwt", "public-keys-config.json")),
 		ActiveKeyID:           r.readOptionalString("JWT_SIGNING_ACTIVE_KEY_ID", "key-1"),
 		DefaultExpiryDuration: r.readOptionalString("JWT_SIGNING_DEFAULT_EXPIRY", "2160h"), // 90 days default
 		Issuer:                r.readOptionalString("JWT_SIGNING_ISSUER", "agent-manager-service"),
@@ -195,7 +199,7 @@ func loadSettings(strict bool) {
 		r.errors = append(r.errors, fmt.Errorf("AUTH_MODE must be %q or %q, got %q", AuthModeIDP, AuthModeFile, config.AuthMode))
 	}
 	config.FileAuth = FileAuthConfig{
-		UsersPath: r.readOptionalString("FILE_AUTH_USERS_PATH", "/etc/amp/users.yaml"),
+		UsersPath: r.readOptionalString("FILE_AUTH_USERS_PATH", filepath.Join(DataDir(), "fileauth", "users.yaml")),
 		Issuer:    r.readOptionalString("FILE_AUTH_ISSUER", "amp-file-auth"),
 		Audience:  r.readOptionalString("FILE_AUTH_AUDIENCE", "urn:wso2:amp"),
 		TokenTTL:  8 * time.Hour,

@@ -76,12 +76,9 @@ COPY --from=builder --chown=1000:1000 /go/bin/agent-manager-service /go/bin/agen
 # The same binary under its command name: `amp serve | migrate | init | module`.
 RUN ln -s /go/bin/agent-manager-service /go/bin/amp
 
-# Copy scripts for runtime key generation
-COPY --from=builder --chown=1000:1000 /app/scripts/gen_keys.sh /app/scripts/gen_keys.sh
-
 # Copy entrypoint script
 COPY --from=builder --chown=1000:1000 /app/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh /app/scripts/gen_keys.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Drop root privileges
 USER 1000:1000
@@ -90,6 +87,9 @@ USER 1000:1000
 WORKDIR /app
 
 ENV GODEBUG=x509negativeserial=1
+# State: the SQLite database, certificates, and the secrets amp serve and
+# amp init generate (encryption key, JWT signing keys, client secrets).
+ENV AMP_DATA_DIR=/var/lib/agent-manager
 
 # Expose application port
 EXPOSE 8080

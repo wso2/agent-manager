@@ -78,6 +78,21 @@ func waitFor(ctx context.Context, dbConn *gorm.DB, targetID string, interval tim
 	}
 }
 
+// HasHistory reports whether dbConn holds a migrated install: its migration
+// history table exists and records at least one migration.
+func HasHistory(ctx context.Context, dbConn *gorm.DB) (bool, error) {
+	conn := dbConn.WithContext(ctx)
+	exists, err := historyTableExists(conn)
+	if err != nil || !exists {
+		return false, err
+	}
+	var count int64
+	if err := conn.Table(migrateOptions.TableName).Count(&count).Error; err != nil {
+		return false, fmt.Errorf("reading migration history: %w", err)
+	}
+	return count > 0, nil
+}
+
 // isApplied checks the history table first, so the wait before the first
 // migration run does not log a query error on every poll.
 func isApplied(ctx context.Context, dbConn *gorm.DB, id string) (bool, error) {

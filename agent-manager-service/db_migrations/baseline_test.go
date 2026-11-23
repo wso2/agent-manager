@@ -153,3 +153,19 @@ func TestWaitForBaseline(t *testing.T) {
 	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite))
 	assert.NoError(t, waitFor(context.Background(), gormDB, "001", 20*time.Millisecond))
 }
+
+func TestHasHistory(t *testing.T) {
+	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_txlock=immediate"
+	gormDB, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	has, err := HasHistory(ctx, gormDB)
+	require.NoError(t, err)
+	assert.False(t, has, "an empty database is a new install")
+
+	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite))
+	has, err = HasHistory(ctx, gormDB)
+	require.NoError(t, err)
+	assert.True(t, has)
+}

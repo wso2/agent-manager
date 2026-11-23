@@ -24,6 +24,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -39,6 +40,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/unsupported"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -98,19 +100,20 @@ func run(distribution string, args []string) error {
 	}
 	// Settings: the environment, then the configuration file, then defaults.
 	// amp init runs before the server's settings are complete.
+	// So does amp serve, which generates what is missing before checking.
 	loadConfig := config.Load
-	if len(args) > 0 && args[0] == "init" {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") || args[0] == "init" || args[0] == "serve" {
 		loadConfig = config.LoadUnchecked
 	}
 	if err := loadConfig(path); err != nil {
 		return err
 	}
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
-		return legacy(args)
+		return legacy(args, path)
 	}
 	switch args[0] {
 	case "serve":
-		return serve(args[1:])
+		return serve(args[1:], path)
 	case "migrate":
 		if len(args) > 1 {
 			return errUsage
@@ -155,7 +158,7 @@ func configFlag(args []string) ([]string, string, error) {
 }
 
 // legacy keeps the flags of earlier releases working: no subcommand serves.
-func legacy(args []string) error {
+func legacy(args []string, configPath string) error {
 	fs := flag.NewFlagSet("amp", flag.ContinueOnError)
 	serverFlag := fs.Bool("server", true, "start the http Server")
 	migrateFlag := fs.Bool("migrate", false, "migrate the database")
@@ -173,19 +176,53 @@ func legacy(args []string) error {
 		}
 		return writeConfig("", *initThunderDir, *initFileAuthDir, others)
 	}
+	if err := prepareServer(configPath); err != nil {
+		return err
+	}
 	runApp(app.Options{Server: *serverFlag, Migrate: *migrateFlag, WaitForMigrations: *waitFlag})
 	return nil
 }
 
-func serve(args []string) error {
+func serve(args []string, configPath string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	migrate := fs.Bool("migrate", false, "apply pending core and module migrations before serving")
 	wait := fs.Bool("wait-for-migrations", false, "wait until another process has applied this build's migrations")
 	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
 		return errUsage
 	}
+	if err := prepareServer(configPath); err != nil {
+		return err
+	}
 	runApp(app.Options{Server: true, Migrate: *migrate, WaitForMigrations: *wait})
 	return nil
+}
+
+// prepareServer generates what the server needs and nothing set, then loads
+// the settings again, now checked.
+func prepareServer(configPath string) error {
+	if err := firstRun(context.Background(), databaseHasData); err != nil {
+		return err
+	}
+	return config.Load(configPath)
+}
+
+// databaseHasData reports whether the configured database already holds an
+// install. A SQLite file that does not exist yet holds none.
+func databaseHasData(ctx context.Context) (bool, error) {
+	cfg := config.Unchecked()
+	if cfg.Database.Driver == config.DBDriverSQLite {
+		if _, err := os.Stat(cfg.Database.SQLitePath); errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+	}
+	conn, err := db.Open(cfg.Database, cfg.POSTGRESQL)
+	if err != nil {
+		return false, err
+	}
+	if sqlDB, err := conn.DB(); err == nil {
+		defer func() { _ = sqlDB.Close() }()
+	}
+	return dbmigrations.HasHistory(ctx, conn)
 }
 
 // defaults are the distribution's default modules.

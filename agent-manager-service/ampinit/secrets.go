@@ -139,3 +139,15 @@ func randomPassword(n int) func() ([]byte, error) {
 		return out, nil
 	}
 }
+
+// EnsureServeSecret writes the secret amp serve generates for setting into
+// dir, as EnsureSecrets does, when it is not set; it reports whether the
+// secret was set or kept rather than generated.
+func EnsureServeSecret(dir, setting string, owner *initfiles.Owner) error {
+	for _, s := range Secrets {
+		if s.Setting == setting {
+			return ensureSecret(dir, s, owner)
+		}
+	}
+	return fmt.Errorf("%s is not a generated secret", setting)
+}
