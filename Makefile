@@ -262,9 +262,16 @@ check-contract-drift:
 # Run with focus filter to run a specific test case: make e2e-test FOCUS="Project Deletion Conflict"
 # A focused run (FOCUS) runs serially (--procs=1); everything else uses -p.
 GINKGO_PROCS := $(if $(FOCUS),--procs=1,-p)
+# The running stack's generated client secrets, for the suites unless
+# test/e2e/.env sets them.
+STACK_SECRETS = api=$$(docker ps -q --filter label=com.docker.compose.service=amp-api | head -1); \
+	secret() { [ -n "$$api" ] && docker exec "$$api" cat /var/lib/agent-manager/secrets/$$1 2>/dev/null; }; \
+	: "$${IDP_CLIENT_SECRET:=$$(secret amp-api-client-secret)}" "$${THUNDER_SYSTEM_CLIENT_SECRET:=$$(secret amp-system-client-secret)}"; \
+	export IDP_CLIENT_SECRET THUNDER_SYSTEM_CLIENT_SECRET
+
 e2e-test:
 	@echo "Running E2E tests..."
-	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
+	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && $(STACK_SECRETS) && \
 		go run github.com/onsi/ginkgo/v2/ginkgo -v $(GINKGO_PROCS) --timeout 45m --poll-progress-after=600s \
 		--keep-going --junit-report=e2e-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./tests/$(SUITE)/...,./tests/...)
@@ -322,7 +329,7 @@ security-test-static:
 
 security-test-live:
 	@echo "Running security tests (stack must be running)..."
-	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
+	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && $(STACK_SECRETS) && \
 		go run github.com/onsi/ginkgo/v2/ginkgo -v $(SECURITY_GINKGO_PROCS) --timeout 45m \
 		--poll-progress-after=300s --keep-going --junit-report=security-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./security/$(SUITE)/...,./security/...)

@@ -52,18 +52,7 @@ runs:
         # suite also know the test stack's client secrets and admin password,
         # so they are fixed here instead of generated. The environment wins
         # over amp.yaml.
-        cat > ci-settings.yml <<YAML
-        services:
-          amp-init:
-            environment: &ci
-              AUTH_MODE: ${AUTH_MODE}
-              IDP_CLIENT_SECRET: amp-api-client-secret
-              AMP_CONSOLE_CLIENT_SECRET: amp-console-client-secret
-              THUNDER_CLIENT_SECRET: amp-system-client-secret
-              AMP_ADMIN_PASSWORD: admin
-          amp-api:
-            environment: *ci
-        YAML
+        bash ../../.github/scripts/standalone-ci-settings.sh "$AUTH_MODE" > ci-settings.yml
         export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml:ci-settings.yml
         case "$DISTRIBUTION" in
           amp) ;;

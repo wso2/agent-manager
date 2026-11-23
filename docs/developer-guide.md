@@ -39,7 +39,7 @@ make dev-up    # every day after that
 - The console runs as a Vite dev server on http://localhost:3000.
 - Everything else (ThunderID, gateway) runs from images.
 
-Sign in at http://localhost:3000 as `admin`. The password is `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`, which is created from `.env.example` on the first run.
+Sign in at http://localhost:3000 as `admin`. The password is generated on the first start; `docker compose -f deployments/standalone/docker-compose.yml exec amp-api cat /var/lib/agent-manager/secrets/admin-password` prints it (`make dev-up` shows the command too). Settings are in `deployments/standalone/amp.yaml`; `.env` there is optional.
 
 Other ways to run it:
 

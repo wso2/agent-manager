@@ -43,11 +43,14 @@ API=http://localhost:$API_PORT
 INT=https://localhost:$(setting AMP_INTERNAL_PORT 9243)
 PASSWORD=${AMP_ADMIN_PASSWORD:-}
 if [ -z "$PASSWORD" ]; then
-  project=amp-lite
-  [ "$DIST" = amp-core ] && project=amp-lite-core
-  api=$(docker ps -q --filter "label=com.docker.compose.project=$project" \
-    --filter "label=com.docker.compose.service=amp-api" | head -1)
-  [ -n "$api" ] && PASSWORD=$(docker exec "$api" cat /var/lib/agent-manager/secrets/admin-password 2>/dev/null)
+  # make runs amp-core as its own project; CI runs either under the file's.
+  for project in ${COMPOSE_PROJECT_NAME:-} amp-lite-core amp-lite; do
+    [ "$DIST" != amp-core ] && [ "$project" = amp-lite-core ] && continue
+    api=$(docker ps -q --filter "label=com.docker.compose.project=$project" \
+      --filter "label=com.docker.compose.service=amp-api" | head -1)
+    [ -n "$api" ] && PASSWORD=$(docker exec "$api" cat /var/lib/agent-manager/secrets/admin-password 2>/dev/null)
+    [ -n "$PASSWORD" ] && break
+  done
 fi
 [ -n "$PASSWORD" ] || { echo "AMP_ADMIN_PASSWORD is not set and the generated one could not be read" >&2; exit 2; }
 
