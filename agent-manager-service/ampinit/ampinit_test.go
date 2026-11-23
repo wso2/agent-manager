@@ -414,3 +414,22 @@ func TestConsoleURLDefaultsToServer(t *testing.T) {
 		t.Errorf("ConsoleURL = %q", cfg.ConsoleURL)
 	}
 }
+
+// Configured redirects and origins add to the console's own, so a changed
+// public URL keeps working alongside extra development entries.
+func TestConsoleRedirectsKeepThePublicConsole(t *testing.T) {
+	setThunderEnv(t)
+	t.Setenv("CONSOLE_URL", "")
+	t.Setenv("CONSOLE_REDIRECT_URIS", "http://localhost:3000/login")
+	t.Setenv("THUNDER_CORS_ORIGINS", "http://localhost:3000")
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Join(cfg.ConsoleRedirectURIs, ","), "https://api.example.com/login,http://localhost:3000/login"; got != want {
+		t.Errorf("ConsoleRedirectURIs = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(cfg.CORSOrigins, ","), "https://api.example.com,http://localhost:3000"; got != want {
+		t.Errorf("CORSOrigins = %q, want %q", got, want)
+	}
+}

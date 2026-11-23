@@ -196,11 +196,11 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `AMP_DEFAULT_USERS` | `amp.default_users` |  | More console users: name:password[:admin], comma-separated. **Secret.** |
 | `AMP_DEFAULT_ORG_HANDLE` | `amp.default_org_handle` | `default` | Handle of the organization file sign-in tokens name. |
 | `CONSOLE_URL` | `console.url` | `SERVER_PUBLIC_URL` | Where the console runs, for its sign-in client. |
-| `CONSOLE_REDIRECT_URIS` | `console.redirect_uris` | `CONSOLE_URL/login` | The console client's sign-in redirects, comma-separated. |
+| `CONSOLE_REDIRECT_URIS` | `console.redirect_uris` | `CONSOLE_URL/login` | More sign-in redirects for the console client, comma-separated; CONSOLE_URL/login is always one. |
 | `AMCTL_CLIENT_ID` | `amctl.client_id` | `amctl` | The CLI's client. |
 | `AMCTL_REDIRECT_URIS` | `amctl.redirect_uris` | `http://127.0.0.1:10325/callback` | The CLI client's redirects. |
 | `THUNDER_PORT` | `thunder.port` | `the port of THUNDER_BASE_URL` | Port ThunderID listens on. |
-| `THUNDER_CORS_ORIGINS` | `thunder.cors_origins` | `CONSOLE_URL` | Origins ThunderID accepts browser calls from. |
+| `THUNDER_CORS_ORIGINS` | `thunder.cors_origins` | `CONSOLE_URL` | More origins ThunderID accepts browser calls from; CONSOLE_URL is always one. |
 | `THUNDER_ADMIN_USERNAME` | `thunder.admin_username` | `admin` | ThunderID's admin account. |
 | `THUNDER_ADMIN_EMAIL` | `thunder.admin_email` | `admin@example.com` | Its email. |
 | `THUNDER_ADMIN_GIVEN_NAME` | `thunder.admin_given_name` | `Admin` | Its given name. |

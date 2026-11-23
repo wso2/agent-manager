@@ -44,10 +44,10 @@ services:
       AMP_SHARED_SECRETS_DIR: /out/shared-secrets
       # What only Compose knows: ports and service names.
       THUNDER_PORT: ${THUNDER_PORT:-8080}
-      # The console is served by amp-api. The dev console (`make console`,
-      # Vite on CONSOLE_PORT) may sign in too.
-      CONSOLE_REDIRECT_URIS: http://localhost:${AMP_API_PORT:-9000}/login,http://localhost:${CONSOLE_PORT:-3000}/login
-      THUNDER_CORS_ORIGINS: http://localhost:${AMP_API_PORT:-9000},http://localhost:${CONSOLE_PORT:-3000}
+      # The console amp-api serves (server.public_url) may always sign in; the
+      # dev console (`make console`, Vite on CONSOLE_PORT) may too.
+      CONSOLE_REDIRECT_URIS: http://localhost:${CONSOLE_PORT:-3000}/login
+      THUNDER_CORS_ORIGINS: http://localhost:${CONSOLE_PORT:-3000}
       MODULE_AI_GATEWAY_CONTROLPLANE_HOST: amp-api:9243
       MODULE_AI_GATEWAY_AMP_JWKS_URL: http://amp-api:8080/auth/external/jwks.json
       MODULE_AI_GATEWAY_THUNDER_ISSUER: http://${THUNDER_HOST:-thunder.amp.localhost}:${THUNDER_PORT:-8080}

@@ -28,6 +28,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -126,6 +127,14 @@ func (r *envReader) list(key string, def []string) []string {
 	return out
 }
 
+// withFirst is list with first in front, unless list already holds it.
+func withFirst(first string, list []string) []string {
+	if slices.Contains(list, first) {
+		return list
+	}
+	return append([]string{first}, list...)
+}
+
 func (r *envReader) port(key string, def int) int {
 	v := r.str(key, "")
 	if v == "" {
@@ -200,8 +209,8 @@ func LoadThunderConfig() (*ThunderConfig, error) {
 		cfg.ThunderPort = defaultPort(u)
 		cfg.ThunderListenPort = r.port("THUNDER_PORT", cfg.ThunderPort)
 	}
-	cfg.ConsoleRedirectURIs = r.list("CONSOLE_REDIRECT_URIS", []string{cfg.ConsoleURL + "/login"})
-	cfg.CORSOrigins = r.list("THUNDER_CORS_ORIGINS", []string{cfg.ConsoleURL})
+	cfg.ConsoleRedirectURIs = withFirst(cfg.ConsoleURL+"/login", r.list("CONSOLE_REDIRECT_URIS", nil))
+	cfg.CORSOrigins = withFirst(cfg.ConsoleURL, r.list("THUNDER_CORS_ORIGINS", nil))
 	users, err := parseUsers(r.str("AMP_DEFAULT_USERS", ""))
 	if err != nil {
 		r.errs = append(r.errs, err)
