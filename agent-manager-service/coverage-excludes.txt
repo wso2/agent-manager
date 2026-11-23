@@ -1,0 +1,12 @@
+# Regexes (Python re.search) for files that coverage ignores, relative
+# to the module root. Read by scripts/coverage/go_summary.py.
+^spec/
+^modules/[^/]+/[a-z]+spec/
+mocks?/
+/repomocks/
+^wiring/
+^tests/
+^cmd/
+/schema/cmd/
+_gen\.go$
+\.pb\.go$

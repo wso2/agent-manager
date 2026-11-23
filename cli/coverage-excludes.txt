@@ -1,0 +1,4 @@
+# Regexes (Python re.search) for files that coverage ignores, relative
+# to the module root. Read by scripts/coverage/go_summary.py.
+/gen/
+^cmd/

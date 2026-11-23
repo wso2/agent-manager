@@ -89,6 +89,19 @@ test: gen-keys ## Run all tests (unit + integration) against the main database. 
 test-coverage: gen-keys ## Run unit + integration tests and produce a merged HTML coverage report.
 	bash scripts/run_coverage.sh
 
+COVERAGE_SUMMARY = python3 ../scripts/coverage/go_summary.py localdata/coverage-unit.out localdata/coverage-integration.out \
+	--module github.com/wso2/agent-manager/agent-manager-service --exclude-file coverage-excludes.txt --out localdata/coverage-summary.json
+
+.PHONY: coverage-check
+coverage-check: ## Compare the profiles from `make test-coverage` with coverage-baseline.json.
+	$(COVERAGE_SUMMARY)
+	python3 ../scripts/coverage/ratchet.py localdata/coverage-summary.json coverage-baseline.json --title "agent-manager-service coverage"
+
+.PHONY: coverage-baseline
+coverage-baseline: ## Rewrite coverage-baseline.json from the profiles from `make test-coverage`.
+	$(COVERAGE_SUMMARY)
+	python3 ../scripts/coverage/ratchet.py localdata/coverage-summary.json coverage-baseline.json --update
+
 .PHONY: console-embed
 console-embed: ## Build the console (../console, needs pnpm) and copy it here for `go build -tags console`.
 	cd ../console && pnpm install --frozen-lockfile && NODE_OPTIONS=--max-old-space-size=3072 pnpm build
