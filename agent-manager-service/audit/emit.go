@@ -198,6 +198,12 @@ func newEvent(ctx context.Context, action Action) Event {
 		if authMethod != "" {
 			e.AuthMethod = authMethod
 		}
+		if org := scopeFrom(ctx).actorOrg(); org != "" {
+			e.ActorOUID = org
+			if e.OUID == "" {
+				e.OUID = org
+			}
+		}
 	}
 
 	return e

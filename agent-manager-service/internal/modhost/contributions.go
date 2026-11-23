@@ -145,8 +145,9 @@ func (h *Host) publishCatalogs(v *view) {
 	events.SetModuleTypes(types)
 }
 
-// Routes lists the public routes an active module registered with Handle, in
-// registration order; nil for a module that is not active.
+// Routes lists the routes an active module registered on the API port, with
+// Handle and then HandleAgent, in registration order; nil for a module that
+// is not active.
 func (h *Host) Routes(module string) []Route {
 	return slices.Clone(h.current().routes[module])
 }
