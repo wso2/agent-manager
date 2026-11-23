@@ -12,6 +12,9 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
         include_metadata: true
+        # Caps a request after gzip is undone; the module caps it as sent
+        # (MODULE_OBSERVABILITY_INGEST_MAX_BODY_BYTES, 10 MiB).
+        max_request_body_size: 20971520
 
 processors:
   resource/drop-identity:
