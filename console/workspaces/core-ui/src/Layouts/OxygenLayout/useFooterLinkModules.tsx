@@ -85,24 +85,12 @@ function useWarnUnsupportedFooterModules() {
   }, [names]);
 }
 
+/**
+ * An injected link as a Footer.Link: it navigates to `href`, or without one renders as a
+ * button that runs `onClick`.
+ */
 function renderFooterLink(link: FooterLink, key: string) {
-  if (!link.href) {
-    // An action, not a destination: still focusable and activated with Enter.
-    return (
-      <Footer.Link
-        key={key}
-        href="#"
-        role="button"
-        onClick={(event) => {
-          event.preventDefault();
-          link.onClick?.();
-        }}
-      >
-        {link.label}
-      </Footer.Link>
-    );
-  }
-  const newTab = link.newTab ?? /^https?:\/\//i.test(link.href);
+  const newTab = link.newTab ?? /^https?:\/\//i.test(link.href ?? "");
   return (
     <Footer.Link
       key={key}
