@@ -68,7 +68,7 @@ sequenceDiagram
     API->>DB: store the token's salted hash, unless already stored
 
     Ctl->>Vol: read config.toml
-    Ctl->>API: WebSocket /ws/gateways/connect (internal port), api-key: token
+    Ctl->>API: WebSocket /api/internal/v1/ws/gateways/connect, api-key: token
     API->>DB: find the token by its UUID prefix, compare the hash
     API-->>Ctl: connected as gateway DEFAULT_GATEWAY_NAME
     API-->>Ctl: deployed LLM providers, proxies and policies
@@ -76,7 +76,7 @@ sequenceDiagram
 
 1. **The token** (`gwinit`). `amp init ai-gateway DIR` uses `DEFAULT_GATEWAY_TOKEN` when it is set, and otherwise generates a token on the first run and keeps it: a UUID, a dash and 43 base64url characters, where the UUID is the prefix the token is looked up by. It writes the token to `DIR/registration-token` and into `DIR/config.toml`, next to the control plane's address (`CONTROLPLANE_HOST`). A token set later replaces the kept one.
 2. **The registration** (`gwsvc.DefaultGatewaySeeder`, run by the module before its workers start). It reads the token from `DEFAULT_GATEWAY_TOKEN`, else from `DEFAULT_GATEWAY_TOKEN_FILE`, and resolves the default environment of the organization in `DEFAULT_GATEWAY_ORG_OU_ID` (the core's default organization unless set). A gateway not yet registered under `DEFAULT_GATEWAY_NAME` is registered as a managed gateway with `DEFAULT_GATEWAY_DISPLAY_NAME`, `DEFAULT_GATEWAY_VHOST` and `DEFAULT_GATEWAY_TYPE`, attached to that environment. It then stores the token's salted hash as an active token of the gateway.
-3. **The connection.** The controller opens its WebSocket to the internal port with the token in the `api-key` header. The module finds the stored token by its prefix, checks the hash, and from then on pushes the gateway everything deployed to it. A controller that connects before step 2 is done is refused and retries; a failed step 2 restarts the module's worker with backoff.
+3. **The connection.** The controller opens its WebSocket at `/api/internal/v1/ws/gateways/connect` on the internal port with the token in the `api-key` header. The module finds the stored token by its prefix, checks the hash, and from then on pushes the gateway everything deployed to it. A controller that connects before step 2 is done is refused and retries; a failed step 2 restarts the module's worker with backoff.
 
 Step 2 runs on every start and changes nothing that is already there:
 
