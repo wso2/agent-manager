@@ -26,7 +26,7 @@ import (
 )
 
 // ProviderPlacement reports, per provider, the gateways it is placed on (status heading for DEPLOYED) with each one's status.
-// It reads one status row per gateway, and skips a gateway that no longer exists.
+// It reads every provider's status rows in one query, and skips a gateway that no longer exists.
 func (s *LLMProviderService) ProviderPlacement(
 	ctx context.Context, ouID string, providers []uuid.UUID,
 ) (map[uuid.UUID][]gwmodels.DeploymentSummary, error) {
@@ -44,27 +44,26 @@ func (s *LLMProviderService) ProviderPlacement(
 		byUUID[g.UUID] = g
 	}
 
+	rows, err := s.deploymentRepo.StatusRecordsFor(ctx, ouID, providers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the providers' placement: %w", err)
+	}
 	for _, providerUUID := range providers {
-		rows, err := s.deploymentRepo.StatusRecords(ctx, ouID, providerUUID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read the placement of %s: %w", providerUUID, err)
+		out[providerUUID] = []gwmodels.DeploymentSummary{}
+	}
+	for _, row := range rows {
+		g, ok := byUUID[row.GatewayUUID]
+		if !ok || row.StatusDesired != gwmodels.DeploymentStatusDeployed {
+			continue
 		}
-		summaries := make([]gwmodels.DeploymentSummary, 0, len(rows))
-		for _, row := range rows {
-			g, ok := byUUID[row.GatewayUUID]
-			if !ok || row.StatusDesired != gwmodels.DeploymentStatusDeployed {
-				continue
-			}
-			updatedAt := row.UpdatedAt
-			summaries = append(summaries, gwmodels.DeploymentSummary{
-				GatewayID:   row.GatewayUUID,
-				GatewayName: g.Name,
-				Status:      gwmodels.UserStatusOf(row).Status,
-				DeployedAt:  &updatedAt,
-				VHost:       g.Vhost,
-			})
-		}
-		out[providerUUID] = summaries
+		updatedAt := row.UpdatedAt
+		out[row.ArtifactUUID] = append(out[row.ArtifactUUID], gwmodels.DeploymentSummary{
+			GatewayID:   row.GatewayUUID,
+			GatewayName: g.Name,
+			Status:      gwmodels.UserStatusOf(row).Status,
+			DeployedAt:  &updatedAt,
+			VHost:       g.Vhost,
+		})
 	}
 	return out, nil
 }

@@ -49,9 +49,9 @@ var _ = Describe("amctl llm-provider CRUD", Label("cli", "llm-provider"), Ordere
 
 	It("creates a config-only provider", func() {
 		p := clillmprovider.CreateLLMProvider(Default, H, H.Org(), id, displayName, template)
-		Expect(p.ID).To(Equal(id))
-		Expect(p.Name).To(Equal(displayName))
-		Expect(p.Template).To(Equal(template))
+		Expect(p.Metadata.Name).To(Equal(id))
+		Expect(p.Spec.DisplayName).To(Equal(displayName))
+		Expect(p.Spec.Template).To(Equal(template))
 	})
 
 	It("lists the created provider", func() {

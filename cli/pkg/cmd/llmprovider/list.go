@@ -35,33 +35,26 @@ import (
 const defaultListLimit = 50
 
 type ListOptions struct {
-	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
-	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
-	MakeScope    func(org, proj string) render.Scope
+	IO        *iostreams.IOStreams
+	Client    func(context.Context) (*aigateway.ClientWithResponses, error)
+	MakeScope func(org, proj string) render.Scope
 
-	Org   string
 	Scope render.Scope
 }
 
 func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ListOptions{
-		IO:           f.IOStreams,
-		Client:       f.AIGateway,
-		ResolveScope: f.ResolveOrgProject,
-		MakeScope:    f.Scope,
+		IO:        f.IOStreams,
+		Client:    f.AIGateway,
+		MakeScope: f.Scope,
 	}
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List LLM providers in an organization",
+		Short: "List the LLM providers in your organization",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, _, err := opts.ResolveScope(cmd, true, false)
-			scope := opts.MakeScope(org, "")
-			if err != nil {
-				return render.Error(opts.IO, scope, err)
-			}
-			opts.Org, opts.Scope = org, scope
+			// The org comes from the token, so --org is ignored.
+			opts.Scope = opts.MakeScope("", "")
 			return runList(cmd.Context(), opts)
 		},
 	}
@@ -89,7 +82,7 @@ func runList(ctx context.Context, o *ListOptions) error {
 	}
 
 	if len(resp.JSON200.List) == 0 {
-		return render.EmptyList(o.IO, fmt.Sprintf("No LLM providers found in organization %q.", o.Org))
+		return render.EmptyList(o.IO, "No LLM providers found.")
 	}
 
 	tp := tableprinter.New(o.IO, "id", "name", "template", "gateways", "created")

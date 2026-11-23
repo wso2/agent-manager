@@ -205,8 +205,7 @@ func LLMProviderUpdateFromDocument(
 		return doc, gwspec.UpdateLLMProviderRequest{}, fmt.Errorf("%w: %w", ErrDocument, err)
 	}
 
-	// displayName is the label; the handle is never changed on update, so metadata.name is not
-	// carried into the request.
+	// displayName is the label; metadata.name is checked against the stored handle by the caller.
 	name := doc.Spec.DisplayName
 	req.Name = &name
 

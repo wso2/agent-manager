@@ -32,13 +32,11 @@ import (
 )
 
 type DeleteOptions struct {
-	IO           *iostreams.IOStreams
-	Prompter     prompter.Prompter
-	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
-	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
-	MakeScope    func(org, proj string) render.Scope
+	IO        *iostreams.IOStreams
+	Prompter  prompter.Prompter
+	Client    func(context.Context) (*aigateway.ClientWithResponses, error)
+	MakeScope func(org, proj string) render.Scope
 
-	Org      string
 	Scope    render.Scope
 	Provider string
 	Yes      bool
@@ -51,11 +49,10 @@ type DeleteResult struct {
 
 func NewDeleteCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &DeleteOptions{
-		IO:           f.IOStreams,
-		Prompter:     f.Prompter,
-		Client:       f.AIGateway,
-		ResolveScope: f.ResolveOrgProject,
-		MakeScope:    f.Scope,
+		IO:        f.IOStreams,
+		Prompter:  f.Prompter,
+		Client:    f.AIGateway,
+		MakeScope: f.Scope,
 	}
 	cmd := &cobra.Command{
 		Use:   "delete <provider>",
@@ -63,12 +60,8 @@ func NewDeleteCmd(f *cmdutil.Factory) *cobra.Command {
 		Long:  "Delete an LLM provider by its handle or UUID.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			org, _, err := opts.ResolveScope(cmd, true, false)
-			scope := opts.MakeScope(org, "")
-			if err != nil {
-				return render.Error(opts.IO, scope, err)
-			}
-			opts.Org, opts.Scope = org, scope
+			// The org comes from the token, so --org is ignored.
+			opts.Scope = opts.MakeScope("", "")
 			opts.Provider = args[0]
 			return runDelete(cmd.Context(), opts)
 		},

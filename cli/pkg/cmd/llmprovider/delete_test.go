@@ -34,7 +34,7 @@ func TestDelete_SuccessByHandle(t *testing.T) {
 
 	err := runDelete(context.Background(), &DeleteOptions{
 		IO: io, Prompter: prompter, Client: clientFn, Scope: baseScope(),
-		Org: "acme", Provider: "openai", Yes: false,
+		Provider: "openai", Yes: false,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -63,7 +63,7 @@ func TestDelete_ByUUID(t *testing.T) {
 	uuid := "11111111-1111-1111-1111-111111111111"
 	err := runDelete(context.Background(), &DeleteOptions{
 		IO: io, Prompter: &fakePrompter{}, Client: clientFn, Scope: baseScope(),
-		Org: "acme", Provider: uuid, Yes: true,
+		Provider: uuid, Yes: true,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -81,7 +81,7 @@ func TestDelete_YesSkipsPrompt(t *testing.T) {
 
 	err := runDelete(context.Background(), &DeleteOptions{
 		IO: io, Prompter: prompter, Client: clientFn, Scope: baseScope(),
-		Org: "acme", Provider: "openai", Yes: true,
+		Provider: "openai", Yes: true,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -99,7 +99,7 @@ func TestDelete_NonTTYWithoutYes(t *testing.T) {
 
 	err := runDelete(context.Background(), &DeleteOptions{
 		IO: io, Prompter: &fakePrompter{}, Client: unreachableClient, Scope: baseScope(),
-		Org: "acme", Provider: "openai", Yes: false,
+		Provider: "openai", Yes: false,
 	})
 	if err == nil {
 		t.Fatal("expected error for non-TTY without --yes")
@@ -121,7 +121,7 @@ func TestDelete_NotFound(t *testing.T) {
 
 	err := runDelete(context.Background(), &DeleteOptions{
 		IO: io, Prompter: &fakePrompter{}, Client: clientFn, Scope: baseScope(),
-		Org: "acme", Provider: "openai", Yes: true,
+		Provider: "openai", Yes: true,
 	})
 	if err == nil {
 		t.Fatal("expected error for 404")
@@ -139,7 +139,7 @@ func TestDelete_ConfirmationMismatch(t *testing.T) {
 
 	err := runDelete(context.Background(), &DeleteOptions{
 		IO: io, Prompter: prompter, Client: unreachableClient, Scope: baseScope(),
-		Org: "acme", Provider: "openai", Yes: false,
+		Provider: "openai", Yes: false,
 	})
 	if err == nil {
 		t.Fatal("expected error from confirmation mismatch")

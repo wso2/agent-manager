@@ -93,13 +93,12 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 		authHeader := openaiTpl.Metadata.Auth.Header
 		authValue := openaiTpl.Metadata.Auth.ValuePrefix + Cfg.OpenAIAPIKey
 
-		prov := llmproviderop.CreateLLMProvider(Default, Client, Cfg.DefaultOrg,
-			framework.CreateLLMProviderRequest{
-				ID:       providerID,
-				Name:     "E2E OpenAI Provider " + suffix,
-				Version:  "v1.0",
-				Context:  "/" + providerID,
-				Template: "openai",
+		prov := llmproviderop.CreateLLMProvider(Default, Client, providerID,
+			framework.LLMProviderSpec{
+				DisplayName: "E2E OpenAI Provider " + suffix,
+				Version:     "v1.0",
+				Context:     "/" + providerID,
+				Template:    "openai",
 				Upstream: framework.UpstreamConfig{
 					Main: &framework.UpstreamEndpoint{
 						URL: &upstreamURL,
@@ -124,7 +123,7 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 				},
 				Gateways: []string{gatewayUUID},
 			})
-		providerUUID = prov.UUID
+		providerUUID = prov.Metadata.UID
 		Expect(providerUUID).NotTo(BeEmpty())
 		GinkgoWriter.Printf("LLM provider created and deployed: %s (UUID: %s, gateway: %s)\n", providerID, providerUUID, gatewayUUID)
 	})

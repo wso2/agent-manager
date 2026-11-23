@@ -247,14 +247,19 @@ export function useUpdateLLMProvider() {
     { params: UpdateLLMProviderPathParams; body: UpdateLLMProviderRequest }
   >({
     action: { verb: 'update', target: 'llm provider' },
-    mutationFn: async ({ params, body }) =>
-      providerFromDocument(
+    mutationFn: async ({ params, body }) => {
+      // metadata.name must be the handle; the path's providerId may be a UUID.
+      if (!body.id) {
+        throw new Error("The LLM provider's handle is required to update it");
+      }
+      return providerFromDocument(
         await updateLLMProvider(
           params,
-          documentFromUpdateRequest(body.id ?? params.providerId ?? "", body),
+          documentFromUpdateRequest(body.id, body),
           getToken,
         ),
-      ),
+      );
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-providers"] });
       queryClient.invalidateQueries({ queryKey: ["llm-provider"] });

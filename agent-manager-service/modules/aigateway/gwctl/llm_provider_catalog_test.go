@@ -56,7 +56,8 @@ func TestApplyCatalogKeepsTheWrittenProvider(t *testing.T) {
 
 	ctrl := &llmController{providerService: svc}
 	inCatalog := false
-	got := ctrl.applyCatalog(context.Background(), "test", ouID, written, &inCatalog)
+	got, err := ctrl.applyCatalog(context.Background(), "test", ouID, written, &inCatalog)
+	require.NoError(t, err)
 
 	require.Equal(t, written.ModelProviders, got.ModelProviders)
 	require.False(t, got.InCatalog)
@@ -64,4 +65,21 @@ func TestApplyCatalogKeepsTheWrittenProvider(t *testing.T) {
 	reread, err := svc.Get(stored.UUID.String(), ouID)
 	require.NoError(t, err)
 	require.False(t, reread.Artifact.InCatalog, "the catalog change must be stored")
+}
+
+// A failed catalog change is returned, so the handler can fail the request.
+func TestApplyCatalogReturnsTheFailure(t *testing.T) {
+	gdb := db.GetDB()
+	ouID := dbtest.Org(t, gdb)
+	secrets := gwtest.NewSecrets()
+	svc := gwsvc.NewLLMProviderService(gdb, gwrepo.NewLLMProviderRepo(gdb, secrets), nil, nil, nil, gwrepo.NewArtifactRepo(gdb, secrets), nil, nil, nil, nil)
+	missing := uuid.New()
+	provider := &gwmodels.LLMProvider{UUID: missing, Artifact: &gwmodels.Artifact{UUID: missing, InCatalog: true}}
+
+	ctrl := &llmController{providerService: svc}
+	inCatalog := false
+	got, err := ctrl.applyCatalog(context.Background(), "test", ouID, provider, &inCatalog)
+
+	require.Error(t, err)
+	require.True(t, got.Artifact.InCatalog, "a failed change must not be reported as applied")
 }

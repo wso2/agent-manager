@@ -45,7 +45,7 @@ func TestList_SuccessJSON(t *testing.T) {
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: clientFn, Scope: baseScope(),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -74,7 +74,7 @@ func TestList_RequestsPageSize50(t *testing.T) {
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: clientFn, Scope: baseScope(),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -91,7 +91,7 @@ func TestList_Table(t *testing.T) {
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: clientFn, Scope: baseScope(),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -113,7 +113,7 @@ func TestList_ServerError(t *testing.T) {
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: clientFn, Scope: baseScope(),
 	})
 	if err == nil {
 		t.Fatal("expected error for 500")

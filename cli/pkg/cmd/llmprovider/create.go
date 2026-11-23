@@ -68,6 +68,7 @@ type CreateOptions struct {
 	ResolveScope   func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope      func(org, proj string) render.Scope
 
+	// Org is resolved only to look up --gateways names; providers take the org from the token.
 	Org   string
 	Scope render.Scope
 
@@ -292,7 +293,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create <id>",
 		Short: "Create a new LLM provider",
-		Long: "Create a new LLM provider in an organization.\n\n" +
+		Long: "Create a new LLM provider in your organization.\n\n" +
 			"The endpoint URL and auth scheme are inherited from the chosen --template; " +
 			"override them with --upstream-url/--auth-type/--auth-header only when needed. " +
 			"Supply the provider credential with --api-key-stdin (recommended) or --api-key.\n\n" +
@@ -310,12 +311,14 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 			if err := validateCreate(opts); err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
 			}
-			org, _, err := opts.ResolveScope(cmd, true, false)
-			scope := opts.MakeScope(org, "")
-			if err != nil {
-				return render.Error(opts.IO, scope, err)
+			opts.Scope = opts.MakeScope("", "")
+			if len(gatewayNames(opts.Gateways)) > 0 {
+				org, _, err := opts.ResolveScope(cmd, true, false)
+				if err != nil {
+					return render.Error(opts.IO, opts.Scope, err)
+				}
+				opts.Org = org
 			}
-			opts.Org, opts.Scope = org, scope
 			return runCreate(cmd.Context(), opts)
 		},
 	}

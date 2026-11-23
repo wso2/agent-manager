@@ -45,13 +45,13 @@ func TestProviderPlacement_ReportsPlacedGateways(t *testing.T) {
 			},
 		},
 		deploymentRepo: &gwrepomocks.DeploymentRepositoryMock{
-			StatusRecordsFunc: func(_ context.Context, _ string, artifact uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
-				require.Equal(t, provider, artifact)
+			StatusRecordsForFunc: func(_ context.Context, _ string, artifacts []uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
+				require.Equal(t, []uuid.UUID{provider}, artifacts)
 				return []gwmodels.DeploymentStatusRecord{
-					{GatewayUUID: deployed.UUID, Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed, UpdatedAt: updated},
-					{GatewayUUID: deploying.UUID, Status: gwmodels.DeploymentStatusPending, StatusDesired: gwmodels.DeploymentStatusDeployed},
-					{GatewayUUID: undeployed.UUID, Status: gwmodels.DeploymentStatusUndeployed, StatusDesired: gwmodels.DeploymentStatusUndeployed},
-					{GatewayUUID: gone, Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed},
+					{ArtifactUUID: provider, GatewayUUID: deployed.UUID, Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed, UpdatedAt: updated},
+					{ArtifactUUID: provider, GatewayUUID: deploying.UUID, Status: gwmodels.DeploymentStatusPending, StatusDesired: gwmodels.DeploymentStatusDeployed},
+					{ArtifactUUID: provider, GatewayUUID: undeployed.UUID, Status: gwmodels.DeploymentStatusUndeployed, StatusDesired: gwmodels.DeploymentStatusUndeployed},
+					{ArtifactUUID: provider, GatewayUUID: gone, Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed},
 				}, nil
 			},
 		},
@@ -76,7 +76,7 @@ func TestProviderPlacement_EmptyWhenPlacedNowhere(t *testing.T) {
 			GetByOrganizationIDFunc: func(context.Context, string) ([]*gwmodels.Gateway, error) { return nil, nil },
 		},
 		deploymentRepo: &gwrepomocks.DeploymentRepositoryMock{
-			StatusRecordsFunc: func(context.Context, string, uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) { return nil, nil },
+			StatusRecordsForFunc: func(context.Context, string, []uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) { return nil, nil },
 		},
 	}
 
@@ -85,4 +85,35 @@ func TestProviderPlacement_EmptyWhenPlacedNowhere(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, got[provider])
 	assert.Empty(t, got[provider])
+}
+
+// A page of providers costs one status query, and each row lands on its own provider.
+func TestProviderPlacement_ReadsThePageInOneQuery(t *testing.T) {
+	first, second, idle := uuid.New(), uuid.New(), uuid.New()
+	gw := &gwmodels.Gateway{UUID: uuid.New(), Name: "gw"}
+	repo := &gwrepomocks.DeploymentRepositoryMock{
+		StatusRecordsForFunc: func(context.Context, string, []uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
+			return []gwmodels.DeploymentStatusRecord{
+				{ArtifactUUID: first, GatewayUUID: gw.UUID, Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed},
+				{ArtifactUUID: second, GatewayUUID: gw.UUID, Status: gwmodels.DeploymentStatusPending, StatusDesired: gwmodels.DeploymentStatusDeployed},
+			}, nil
+		},
+	}
+	svc := &LLMProviderService{
+		gatewayRepo: &gwrepomocks.GatewayRepositoryMock{
+			GetByOrganizationIDFunc: func(context.Context, string) ([]*gwmodels.Gateway, error) { return []*gwmodels.Gateway{gw}, nil },
+		},
+		deploymentRepo: repo,
+	}
+
+	got, err := svc.ProviderPlacement(context.Background(), "ou-acme", []uuid.UUID{first, second, idle})
+
+	require.NoError(t, err)
+	require.Len(t, repo.StatusRecordsForCalls(), 1)
+	require.Len(t, got[first], 1)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, got[first][0].Status)
+	require.Len(t, got[second], 1)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, got[second][0].Status)
+	assert.NotNil(t, got[idle])
+	assert.Empty(t, got[idle])
 }

@@ -515,7 +515,12 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	// spec.inCatalog publishes the provider to the catalog.
-	created = c.applyCatalog(ctx, "CreateLLMProvider", ouID, created, doc.Spec.InCatalog)
+	created, err = c.applyCatalog(ctx, "CreateLLMProvider", ouID, created, doc.Spec.InCatalog)
+	if err != nil {
+		modkit.AuditResource(ctx, "llm-provider", created.UUID.String(), created.Artifact.Handle)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, catalogFailedMessage)
+		return
+	}
 
 	out, ok := c.renderLLMProvider(w, r, "CreateLLMProvider", created)
 	if !ok {
@@ -566,6 +571,13 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
 			return
 		}
+	}
+	// The document must name the provider it updates; the path may be its handle or UUID.
+	if doc.Metadata.Name != existing.Artifact.Handle {
+		log.Warn("UpdateLLMProvider: metadata.name does not match the provider", "ouID", ouID,
+			"providerID", providerID, "metadataName", doc.Metadata.Name)
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "metadata.name does not match the LLM provider in the path")
+		return
 	}
 
 	// Resolve Version: use request value if provided, otherwise preserve the stored value.
@@ -751,7 +763,12 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		}()
 	}
 
-	updated = c.applyCatalog(ctx, "UpdateLLMProvider", ouID, updated, doc.Spec.InCatalog)
+	updated, err = c.applyCatalog(ctx, "UpdateLLMProvider", ouID, updated, doc.Spec.InCatalog)
+	if err != nil {
+		modkit.AuditResource(ctx, "llm-provider", updated.UUID.String(), updated.Artifact.Handle)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, catalogFailedMessage)
+		return
+	}
 
 	out, ok := c.renderLLMProvider(w, r, "UpdateLLMProvider", updated)
 	if !ok {
@@ -825,23 +842,26 @@ func (c *llmController) renderLLMProvider(
 	return doc, true
 }
 
-// applyCatalog reconciles spec.inCatalog; best-effort, since the provider is already written.
+// catalogFailedMessage tells the caller the provider was written, so a retried PUT completes it.
+const catalogFailedMessage = "The LLM provider was saved, but setting its catalog status failed; retry the update"
+
+// applyCatalog reconciles spec.inCatalog after the provider is written.
 func (c *llmController) applyCatalog(
 	ctx context.Context, op, ouID string, provider *gwmodels.LLMProvider, declared *bool,
-) *gwmodels.LLMProvider {
+) (*gwmodels.LLMProvider, error) {
 	if declared == nil || provider == nil || provider.Artifact == nil || provider.Artifact.InCatalog == *declared {
-		return provider
+		return provider, nil
 	}
 	if _, err := c.providerService.UpdateCatalogStatus(provider.UUID.String(), ouID, *declared); err != nil {
 		logger.GetLogger(ctx).Error(op+": failed to set the catalog status",
 			"ouID", ouID, "providerID", provider.UUID, "inCatalog", *declared, "error", err)
-		return provider
+		return provider, err
 	}
 	modkit.AuditDetail(ctx, "inCatalog", *declared)
 	// Keep the written provider: the catalog read-back lacks fields such as the parsed model providers.
 	provider.InCatalog = *declared
 	provider.Artifact.InCatalog = *declared
-	return provider
+	return provider, nil
 }
 
 // writeDocumentError maps a refused document to 400 and anything else to 500.
