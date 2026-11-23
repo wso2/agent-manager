@@ -114,6 +114,7 @@ func TestLoadResolvesFileReferences(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(FileEnv, "")
 	t.Setenv(ModulesEnv, "")
+	t.Setenv("DB_PASSWORD", "")
 	require.NoError(t, os.Unsetenv("DB_PASSWORD"))
 	t.Setenv("PGPW", "pw")
 

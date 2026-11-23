@@ -189,12 +189,18 @@ func TestModulesListDeclaration(t *testing.T) {
 	}
 }
 
-func loadWith(t *testing.T, yaml string) error {
+// reloadAfter restores the settings once the test's variables are restored;
+// call it before the test changes any.
+func reloadAfter(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
 		fileVars, fileModules = nil, Modules{}
 		loadEnvs()
 	})
+}
+
+func loadWith(t *testing.T, yaml string) error {
+	t.Helper()
 	t.Setenv(FileEnv, "")
 	t.Setenv(ModulesEnv, "")
 	p := filepath.Join(t.TempDir(), "amp.yaml")
@@ -210,6 +216,8 @@ func secretFile(t *testing.T, body string) string {
 }
 
 func TestFileSuffixFromEnv(t *testing.T) {
+	reloadAfter(t)
+	t.Setenv("DB_PASSWORD", "")
 	require.NoError(t, os.Unsetenv("DB_PASSWORD"))
 	t.Setenv("DB_PASSWORD_FILE", secretFile(t, "pw\n"))
 	require.NoError(t, loadWith(t, "log_level: INFO\n"))
@@ -217,6 +225,7 @@ func TestFileSuffixFromEnv(t *testing.T) {
 }
 
 func TestFileSuffixPrecedence(t *testing.T) {
+	reloadAfter(t)
 	b, c, d := secretFile(t, "b"), "c", secretFile(t, "d")
 
 	t.Setenv("DB_PASSWORD", "a")
@@ -228,12 +237,15 @@ func TestFileSuffixPrecedence(t *testing.T) {
 	require.NoError(t, loadWith(t, "db: {password: "+c+"}\n"))
 	assert.Equal(t, "b", Value("DB_PASSWORD"), "the environment's _FILE wins over the file")
 
+	t.Setenv("DB_PASSWORD_FILE", "")
 	require.NoError(t, os.Unsetenv("DB_PASSWORD_FILE"))
 	require.NoError(t, loadWith(t, "db: {password_file: "+d+"}\n"))
 	assert.Equal(t, "d", Value("DB_PASSWORD"), "the file's _file is read")
 }
 
 func TestFileSuffixMissingFile(t *testing.T) {
+	reloadAfter(t)
+	t.Setenv("DB_PASSWORD", "")
 	require.NoError(t, os.Unsetenv("DB_PASSWORD"))
 	t.Setenv("DB_PASSWORD_FILE", "/nope/amp-db-password")
 	err := loadWith(t, "log_level: INFO\n")
@@ -242,6 +254,7 @@ func TestFileSuffixMissingFile(t *testing.T) {
 }
 
 func TestFileSuffixKeysAreKnown(t *testing.T) {
+	reloadAfter(t)
 	require.NoError(t, loadWith(t, "db: {password_file: "+secretFile(t, "x")+"}\n"))
 	fileMu.Lock()
 	defer fileMu.Unlock()
@@ -249,6 +262,7 @@ func TestFileSuffixKeysAreKnown(t *testing.T) {
 }
 
 func TestGatewayTokenFileStillWorks(t *testing.T) {
+	reloadAfter(t)
 	key := ModuleConfigKey("ai-gateway", "default_gateway_token_file")
 	t.Setenv(key, "/amp/gw/registration-token")
 	require.NoError(t, loadWith(t, "log_level: INFO\n"))

@@ -253,7 +253,9 @@ func Load(path string) error {
 	fileErrs = nil
 	fileMu.Unlock()
 
-	loadEnvs()
+	// Not strict yet: an unreadable _FILE is reported before the settings it
+	// left empty.
+	loadSettings(false)
 
 	fileMu.Lock()
 	tracking = false
@@ -263,6 +265,7 @@ func Load(path string) error {
 	if readErr != nil {
 		return readErr
 	}
+	GetConfig()
 	if len(unknown) > 0 {
 		slog.Warn("configuration file sets keys no setting reads; check their spelling", "keys", unknown)
 	}
