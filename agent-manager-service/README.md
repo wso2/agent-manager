@@ -75,7 +75,7 @@ SQLite is the default: set `DB_PATH` to the database file. For PostgreSQL, set `
 
 ### 4. Configurations
 <!-- Update this section when adding new configs-->
-The service reads its settings from environment variables, and from an optional `amp.yaml` for anything the environment leaves unset (`--config`, else `$AMP_CONFIG`, else `./amp.yaml`). YAML keys are the variable names nested by `_`; see [amp.example.yaml](amp.example.yaml). The file also takes the `modules:` list the server reconciles at boot. For development, create a `.env` file in the project root:
+The service reads its settings from environment variables, and from an optional `amp.yaml` for anything the environment leaves unset (`--config`, else `$AMP_CONFIG`, else `./amp.yaml`). YAML keys are the variable names nested by `_`; see [amp.example.yaml](amp.example.yaml). A value can be a reference, `${env:NAME}` or `${file:/path}` with an optional `:-default`, and any setting can be read from a file with `<SETTING>_FILE` (`<setting>_file` in the YAML). The file also takes the `modules:` list the server reconciles at boot. For development, create a `.env` file in the project root:
 
 
 | **Key**                            | **Description**                                           |
