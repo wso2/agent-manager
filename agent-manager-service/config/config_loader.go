@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -84,7 +85,7 @@ func loadSettings(strict bool) {
 	}
 	config.Database = DatabaseConfig{
 		Driver:     strings.ToLower(strings.TrimSpace(r.readOptionalString("DB_DRIVER", defaultDriver))),
-		SQLitePath: strings.TrimSpace(r.readOptionalString("DB_PATH", "data/agent-manager.db")),
+		SQLitePath: strings.TrimSpace(r.readOptionalString("DB_PATH", filepath.Join(DataDir(), "agent-manager.db"))),
 	}
 	// The server settings are required only when the database is a server.
 	readServerString := r.readOptionalString
@@ -138,11 +139,12 @@ func loadSettings(strict bool) {
 		OUID:   strings.TrimSpace(r.readOptionalString("DEFAULT_ORG_OU_ID", "01900000-0000-7000-8000-000000000001")),
 		Handle: r.readOptionalString("DEFAULT_ORG_HANDLE", "default"),
 	}
+	d := derivedDefaults(config.ServerPort)
 	config.KeyManagerConfigurations = KeyManagerConfigurations{
 		// Comma-separated list of allowed issuers and audiences
-		Issuer:   r.readOptionalStringList("KEY_MANAGER_ISSUER", "Agent Management Platform Local"),
-		Audience: r.readOptionalStringList("KEY_MANAGER_AUDIENCE", "localhost"),
-		JWKSUrl:  r.readOptionalString("KEY_MANAGER_JWKS_URL", ""),
+		Issuer:   r.readOptionalStringList("KEY_MANAGER_ISSUER", d.issuer),
+		Audience: r.readOptionalStringList("KEY_MANAGER_AUDIENCE", d.audience),
+		JWKSUrl:  r.readOptionalString("KEY_MANAGER_JWKS_URL", d.jwksURL),
 	}
 	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
 	config.ServerPublicURL = r.readOptionalString("SERVER_PUBLIC_URL", "")
@@ -156,12 +158,12 @@ func loadSettings(strict bool) {
 		DeploymentModel:           r.readOptionalString("AMP_DEPLOYMENT_MODEL", "on-prem"),
 		Environment:               r.readOptionalString("AMP_ENVIRONMENT", ""),
 	}
-	config.OAuthAuthorizationServers = r.readOptionalStringList("OAUTH_AUTHORIZATION_SERVERS", "")
+	config.OAuthAuthorizationServers = r.readOptionalStringList("OAUTH_AUTHORIZATION_SERVERS", d.thunderURL)
 	config.OAuthScopesSupported = r.readOptionalStringList("OAUTH_SCOPES_SUPPORTED", "")
 
 	// IDP OAuth2 client credentials for service-to-service auth
 	config.IDP = IDPConfig{
-		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", "http://thunder.amp.localhost:8080/oauth2/token"),
+		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", d.tokenURL),
 		ClientID:     r.readOptionalString("IDP_CLIENT_ID", "amp-api-client"),
 		ClientSecret: r.readOptionalString("IDP_CLIENT_SECRET", "amp-api-client-secret"),
 	}
@@ -259,7 +261,7 @@ func loadSettings(strict bool) {
 		Host:                r.readOptionalString("INTERNAL_SERVER_HOST", ""),
 		Port:                int(r.readOptionalInt64("INTERNAL_SERVER_PORT", 9243)),
 		TLSEnabled:          r.readOptionalBool("INTERNAL_SERVER_TLS_ENABLED", true),
-		CertDir:             r.readOptionalString("INTERNAL_SERVER_CERT_DIR", "./data/certs"),
+		CertDir:             r.readOptionalString("INTERNAL_SERVER_CERT_DIR", filepath.Join(DataDir(), "certs")),
 		ReadTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_READ_TIMEOUT_SECONDS", 10)),
 		WriteTimeoutSeconds: int(r.readOptionalInt64("INTERNAL_SERVER_WRITE_TIMEOUT_SECONDS", 90)),
 		IdleTimeoutSeconds:  int(r.readOptionalInt64("INTERNAL_SERVER_IDLE_TIMEOUT_SECONDS", 60)),
@@ -276,7 +278,7 @@ func loadSettings(strict bool) {
 	// Thunder admin API configuration for provisioning per-org OAuth apps
 	config.Thunder = ThunderConfig{
 		BaseURL:                  r.readOptionalString("THUNDER_BASE_URL", ""),
-		ClientID:                 r.readOptionalString("THUNDER_CLIENT_ID", ""),
+		ClientID:                 r.readOptionalString("THUNDER_CLIENT_ID", "amp-system-client"),
 		ClientSecret:             r.readOptionalString("THUNDER_CLIENT_SECRET", ""),
 		ResolveToHost:            r.readOptionalString("THUNDER_RESOLVE_TO_HOST", ""),
 		UseDefaultResourceServer: r.readOptionalBool("AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER", false),
@@ -308,7 +310,7 @@ func loadSettings(strict bool) {
 	// caller, which is the safe end of the failure mode. Warned about rather
 	// than fatal so open-source and local-dev deployments — which have no
 	// platform-admin org at all — still start.
-	config.PlatformAdminOUID = strings.TrimSpace(r.readOptionalString("PLATFORM_ADMIN_OU_ID", ""))
+	config.PlatformAdminOUID = strings.TrimSpace(r.readOptionalString("PLATFORM_ADMIN_OU_ID", DefaultPlatformAdminOUID))
 	if config.PlatformAdminOUID == "" {
 		slog.Warn("PLATFORM_ADMIN_OU_ID is not set; cross-organization platform routes will deny every request")
 	}
@@ -751,4 +753,57 @@ func validateEventsConfig(cfg EventsConfig) []error {
 		errs = append(errs, fmt.Errorf("EVENTS_DELIVERY_RETENTION_DAYS must be positive, got %d", cfg.DeliveryRetentionDays))
 	}
 	return errs
+}
+
+// DefaultPlatformAdminOUID is the organization a single-organization install
+// (file sign-in, amp init's ThunderID bootstrap) uses.
+const DefaultPlatformAdminOUID = "01900000-0000-7000-8000-000000000001"
+
+// defaults are the settings worked out from the public URLs and sign-in mode
+// when they are not set themselves.
+type defaults struct {
+	thunderURL, tokenURL, jwksURL, issuer, audience string
+}
+
+func derivedDefaults(serverPort int) defaults {
+	publicURL := strings.TrimRight(strings.TrimSpace(Value("SERVER_PUBLIC_URL")), "/")
+	thunderURL := strings.TrimRight(strings.TrimSpace(Value("THUNDER_BASE_URL")), "/")
+	// The server dials ThunderID by THUNDER_RESOLVE_TO_HOST when set (a
+	// container name), though its tokens name the public URL.
+	thunderDial := thunderURL
+	if h := strings.TrimSpace(Value("THUNDER_RESOLVE_TO_HOST")); h != "" && thunderURL != "" {
+		if u, err := url.Parse(thunderURL); err == nil {
+			thunderDial = u.Scheme + "://" + h
+		}
+	}
+	d := defaults{
+		thunderURL: thunderURL,
+		tokenURL:   "http://thunder.amp.localhost:8080/oauth2/token",
+		issuer:     "Agent Management Platform Local",
+	}
+	if thunderURL != "" {
+		d.tokenURL = thunderDial + "/oauth2/token"
+		d.issuer += "," + thunderURL
+	}
+	if strings.EqualFold(strings.TrimSpace(Value("AUTH_MODE")), AuthModeFile) {
+		d.jwksURL = fmt.Sprintf("http://127.0.0.1:%d/auth/external/jwks.json", serverPort)
+	} else if thunderURL != "" {
+		d.jwksURL = thunderDial + "/oauth2/jwks"
+	}
+	audience := []string{
+		"urn:wso2:amp", "localhost", valueOr("IDP_CLIENT_ID", "amp-api-client"),
+		valueOr("AMP_CONSOLE_CLIENT_ID", "amp-console-client"), "amctl", "am-mcp",
+	}
+	if publicURL != "" {
+		audience = append(audience, publicURL+"/mcp")
+	}
+	d.audience = strings.Join(audience, ",")
+	return d
+}
+
+func valueOr(key, def string) string {
+	if v := strings.TrimSpace(Value(key)); v != "" {
+		return v
+	}
+	return def
 }

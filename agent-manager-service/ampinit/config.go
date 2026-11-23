@@ -86,12 +86,11 @@ type ThunderConfig struct {
 func init() {
 	config.RegisterKeys(
 		"AMCTL_CLIENT_ID", "AMCTL_REDIRECT_URIS", "AMP_ADMIN_PASSWORD", "AMP_ADMIN_USERNAME",
-		"AMP_API_CLIENT_ID", "AMP_API_CLIENT_SECRET", "AMP_CONSOLE_CLIENT_ID", "AMP_CONSOLE_CLIENT_SECRET",
-		"AMP_DEFAULT_ORG_HANDLE", "AMP_DEFAULT_USERS", "AMP_FILE_OWNER", "AMP_PUBLIC_URL",
-		"AMP_SYSTEM_CLIENT_ID", "AMP_SYSTEM_CLIENT_SECRET",
+		"AMP_CONSOLE_CLIENT_ID", "AMP_CONSOLE_CLIENT_SECRET",
+		"AMP_DEFAULT_ORG_HANDLE", "AMP_DEFAULT_USERS", "AMP_FILE_OWNER",
 		"CONSOLE_URL", "PLATFORM_ADMIN_OU_ID",
 		"THUNDER_ADMIN_EMAIL", "THUNDER_ADMIN_FAMILY_NAME", "THUNDER_ADMIN_GIVEN_NAME", "THUNDER_ADMIN_USERNAME",
-		"THUNDER_CORS_ORIGINS", "THUNDER_FILE_OWNER", "THUNDER_PORT", "THUNDER_PUBLIC_URL",
+		"THUNDER_CORS_ORIGINS", "THUNDER_FILE_OWNER", "THUNDER_PORT",
 	)
 }
 
@@ -170,16 +169,16 @@ func LoadThunderConfig() (*ThunderConfig, error) {
 	r := &envReader{}
 	cfg := &ThunderConfig{
 		Modules:      compiledModules(),
-		AMPPublicURL: strings.TrimRight(r.required("AMP_PUBLIC_URL"), "/"),
+		AMPPublicURL: strings.TrimRight(r.required("SERVER_PUBLIC_URL"), "/"),
 		ConsoleURL:   strings.TrimRight(r.required("CONSOLE_URL"), "/"),
 		APIClient: Client{
-			ID: r.str("AMP_API_CLIENT_ID", "amp-api-client"), Secret: r.required("AMP_API_CLIENT_SECRET"),
+			ID: r.str("IDP_CLIENT_ID", "amp-api-client"), Secret: r.required("IDP_CLIENT_SECRET"),
 		},
 		ConsoleClient: Client{
 			ID: r.str("AMP_CONSOLE_CLIENT_ID", "amp-console-client"), Secret: r.required("AMP_CONSOLE_CLIENT_SECRET"),
 		},
 		SystemClient: Client{
-			ID: r.str("AMP_SYSTEM_CLIENT_ID", "amp-system-client"), Secret: r.required("AMP_SYSTEM_CLIENT_SECRET"),
+			ID: r.str("THUNDER_CLIENT_ID", "amp-system-client"), Secret: r.required("THUNDER_CLIENT_SECRET"),
 		},
 		CLIClient: Client{
 			ID:           r.str("AMCTL_CLIENT_ID", "amctl"),
@@ -192,7 +191,7 @@ func LoadThunderConfig() (*ThunderConfig, error) {
 			FamilyName: r.str("THUNDER_ADMIN_FAMILY_NAME", "User"),
 		},
 	}
-	if u := r.url("THUNDER_PUBLIC_URL"); u != nil {
+	if u := r.url("THUNDER_BASE_URL"); u != nil {
 		cfg.ThunderPublicURL = u.String()
 		cfg.ThunderScheme = u.Scheme
 		cfg.ThunderHost = u.Hostname()
@@ -246,7 +245,7 @@ func LoadFileAuthConfig() (*FileAuthConfig, error) {
 		// The same id the API is given as PLATFORM_ADMIN_OU_ID, so the
 		// organization a file-mode token names is the platform admin one
 		// rather than a second organization beside it.
-		OrgUUID:   r.str("PLATFORM_ADMIN_OU_ID", "01900000-0000-7000-8000-000000000001"),
+		OrgUUID:   r.str("PLATFORM_ADMIN_OU_ID", config.DefaultPlatformAdminOUID),
 		OrgHandle: normaliseHandle(r.str("AMP_DEFAULT_ORG_HANDLE", defaultOrgHandle)),
 	}
 	extra, err := parseUsers(r.str("AMP_DEFAULT_USERS", ""))

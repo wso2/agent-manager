@@ -113,6 +113,9 @@ func Lookup(key string) (string, bool) {
 	if inFileFile && vFile != "" {
 		return readSettingFile(key+FileSuffix, vFile)
 	}
+	if old, ok := aliases[key]; ok {
+		return Lookup(old)
+	}
 	return "", false
 }
 
