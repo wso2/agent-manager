@@ -52,7 +52,6 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useTrack: vi.fn(() => ({ track: vi.fn() })),
   ConsoleAction: { TraceOpened: "trace_opened", DownloadArtifact: "download_artifact" },
   useTrace: vi.fn(() => ({ data: undefined, isLoading: true, isTruncated: false })),
-  useTraceScores: vi.fn(() => ({ data: undefined, isLoading: true })),
   useSpanDetail: vi.fn(() => ({ data: undefined, isLoading: false })),
 }));
 vi.mock("@agent-management-platform/shared-component", () => ({
