@@ -135,6 +135,7 @@ var Settings = []Setting{
 	{Key: "CONSOLE_ENABLED", Group: "Console", Default: "true", Description: "Serve the console on the API port."},
 	{Key: "CONSOLE_ANALYTICS_ENABLED", Group: "Console", Default: "false", Description: "Feature-usage tracking in the console."},
 	{Key: "LOG_LEVEL", Group: "Operations", Default: "INFO", Description: "DEBUG, INFO, WARN or ERROR."},
+	{Key: "LOG_ROUTE_HITS", Group: "Operations", Default: "false", Description: "Log the route pattern, module and status of every API request, and every route at startup; for measuring test coverage."},
 	{Key: "AUTO_MAX_PROCS_ENABLED", Group: "Operations", Default: "true", Description: "Match GOMAXPROCS to the container's CPU limit."},
 	{Key: "AMP_VERSION", Group: "Operations", Default: "the build's version", Description: "Version the API reports."},
 	{Key: "AMP_DEPLOYMENT_MODEL", Group: "Operations", Default: "on-prem", Description: "Deployment model reported with usage data."},

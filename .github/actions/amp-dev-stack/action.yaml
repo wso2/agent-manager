@@ -27,6 +27,12 @@ inputs:
       file; a job that wants to exercise that passes it here.
     required: false
     default: "idp"
+  log_route_hits:
+    description: >
+      Log the route pattern and status of every amp-api request
+      (LOG_ROUTE_HITS), for scripts/coverage/route_coverage.py.
+    required: false
+    default: "false"
 runs:
   using: composite
   steps:
@@ -42,6 +48,7 @@ runs:
         WITH_CONSOLE: ${{ inputs.console }}
         DISTRIBUTION: ${{ inputs.distribution }}
         AUTH_MODE: ${{ inputs.auth_mode }}
+        LOG_ROUTE_HITS: ${{ inputs.log_route_hits }}
       run: |
         set -euo pipefail
         cd deployments/standalone

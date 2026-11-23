@@ -55,12 +55,21 @@ type RouteRegistrar struct {
 	// until SetEventPublisher is called, and then only for routes registered
 	// after it.
 	events events.Publisher
+	// module names the module whose routes this registrar installs; empty
+	// for the core's.
+	module string
 }
 
 // SetEventPublisher makes routes registered from now on publish their
 // catalog events (see events.RouteEventType).
 func (rr *RouteRegistrar) SetEventPublisher(p events.Publisher) {
 	rr.events = p
+}
+
+// SetModule marks the routes registered from now on as the named module's
+// in the route-hit log.
+func (rr *RouteRegistrar) SetModule(name string) {
+	rr.module = name
 }
 
 // NewRouteRegistrar creates a RouteRegistrar backed by the given mux and resolver.
@@ -148,10 +157,10 @@ func (rr *RouteRegistrar) registerWithOrgOverride(
 }
 
 // install records a route in the ledger, wraps it in the audit middleware,
-// outermost, and registers it.
+// outermost but for the route-hit log, and registers it.
 func (rr *RouteRegistrar) install(pattern string, meta audit.RouteMeta, handler http.HandlerFunc) {
 	rr.routes = append(rr.routes, meta)
-	rr.mux.HandleFunc(pattern, WithAudit(rr.auditor, meta)(handler))
+	rr.mux.HandleFunc(pattern, withRouteHitLog(meta, rr.module, WithAudit(rr.auditor, meta)(handler)))
 }
 
 func (rr *RouteRegistrar) HandleFuncWithValidation(pattern string, handler http.HandlerFunc) {

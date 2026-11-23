@@ -66,7 +66,18 @@ jobs:
 
       - name: Run tests
         if: ${{ !cancelled() }}
-        run: go test -mod=readonly -race ./...
+        run: go test -mod=readonly -race -coverprofile=coverage.out ./...
+
+      - name: Check coverage
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: |
+          python3 scripts/coverage/go_summary.py cli/coverage.out \
+            --module github.com/wso2/agent-manager/cli \
+            --exclude-file cli/coverage-excludes.txt \
+            --out cli/coverage-summary.json
+          python3 scripts/coverage/ratchet.py cli/coverage-summary.json \
+            cli/coverage-baseline.json --title "amctl coverage"
 
       - name: Build CLI
         if: ${{ !cancelled() }}

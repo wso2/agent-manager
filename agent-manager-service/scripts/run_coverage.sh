@@ -23,6 +23,8 @@ PROFILES=("$UNIT_OUT")
 
 if [ "${SKIP_INTEGRATION:-0}" = "1" ]; then
     echo "==> SKIP_INTEGRATION=1 set; skipping integration tier"
+    # A profile left by an earlier full run would count stale hits.
+    rm -f "$INTEGRATION_OUT"
 else
     echo "==> Running integration tier"
     COVERAGE_OUT="$INTEGRATION_OUT" bash scripts/run_tests_isolated.sh

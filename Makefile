@@ -49,6 +49,8 @@ help:
 	@echo "  make amctl-build             - Build amctl for current platform"
 	@echo "  make amctl-release-dry-run   - Cross-compile all targets without publishing"
 	@echo "  make amctl-test              - Run amctl tests"
+	@echo "  make amctl-coverage-check    - Run amctl tests and compare coverage with the baseline"
+	@echo "  make amctl-coverage-baseline - Run amctl tests and rewrite the coverage baseline"
 	@echo "🧪 E2E Tests:"
 	@echo "  make e2e-test           - Run E2E tests (stack must be running)"
 	@echo ""
@@ -246,6 +248,17 @@ amctl-release-dry-run:
 
 amctl-test:
 	cd cli && go test ./... -v
+
+amctl-coverage-summary: | .make
+	cd cli && go test -coverprofile=../.make/amctl-coverage.out ./...
+	python3 scripts/coverage/go_summary.py .make/amctl-coverage.out --module github.com/wso2/agent-manager/cli \
+		--exclude-file cli/coverage-excludes.txt --out .make/amctl-coverage.json
+
+amctl-coverage-check: amctl-coverage-summary
+	python3 scripts/coverage/ratchet.py .make/amctl-coverage.json cli/coverage-baseline.json --title "amctl coverage"
+
+amctl-coverage-baseline: amctl-coverage-summary
+	python3 scripts/coverage/ratchet.py .make/amctl-coverage.json cli/coverage-baseline.json --update
 
 # Code generation
 gen-instrumentation-contract:

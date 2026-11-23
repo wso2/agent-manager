@@ -1,0 +1,11 @@
+# Routes left out of the e2e route-coverage report
+# (scripts/coverage/route_coverage.py): routes no user calls. Each entry is a
+# route pattern, as the report names it (* is a wildcard), and a one-line
+# reason. Routes served outside the route registrar (/healthz, /.well-known,
+# the JWKS, sign-in, /mcp, a module's workload routes) are not in the report
+# at all, so they need no entry.
+exemptions:
+  - route: "* /api/internal/v1/*"
+    reason: AI Gateway control-plane API and WebSocket on the internal server, called by gateways with their api key.
+  - route: "POST /telemetry/console-actions"
+    reason: Console usage beacon, sent by the console itself, not a user operation.

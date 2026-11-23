@@ -11,6 +11,7 @@
     "dev": "pnpm --filter web-ui run dev",
     "lint": "pnpm -r --no-sort run lint",
     "test": "pnpm -r --no-sort --no-bail --filter '!@agent-management-platform/eslint-config' run test --passWithNoTests",
+    "test:coverage": "pnpm -r --no-sort --no-bail --filter '!@agent-management-platform/eslint-config' run test --passWithNoTests --coverage",
     "lint:fix": "pnpm -r --no-sort run lint:fix"
   },
   "pnpm": {
@@ -27,5 +28,8 @@
       "minimatch@9": "^9.0.9",
       "minimatch@10": "^11.0.4"
     }
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "3.1.3"
   }
 }

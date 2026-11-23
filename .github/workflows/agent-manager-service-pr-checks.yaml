@@ -165,6 +165,74 @@ jobs:
           path: agent-manager-service/localdata/test_output_isolated.log
           retention-days: 7
 
+  coverage:
+    name: Coverage
+    needs: [unit, integration]
+    if: ${{ !cancelled() }}
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      # A failed test job may not have uploaded its profile; the summary
+      # skips missing profiles.
+      - name: Download unit coverage
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-unit
+          path: coverage/unit
+
+      - name: Download SQLite integration coverage
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-integration-sqlite
+          path: coverage/sqlite
+
+      - name: Download PostgreSQL integration coverage
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-integration-postgres
+          path: coverage/postgres
+
+      - name: Summarise coverage
+        run: |
+          python3 scripts/coverage/go_summary.py \
+            coverage/unit/coverage-unit.out \
+            coverage/sqlite/coverage-integration.out \
+            coverage/postgres/coverage-integration.out \
+            --module github.com/wso2/agent-manager/agent-manager-service \
+            --exclude-file agent-manager-service/coverage-excludes.txt \
+            --out coverage/summary.json \
+            --profile-out coverage/merged.out
+
+      - name: Compare with baseline
+        run: |
+          python3 scripts/coverage/ratchet.py coverage/summary.json \
+            agent-manager-service/coverage-baseline.json \
+            --title "agent-manager-service coverage"
+
+      - name: Generate HTML report
+        if: ${{ !cancelled() }}
+        working-directory: ./agent-manager-service
+        run: go tool cover -html=../coverage/merged.out -o ../coverage/coverage.html
+
+      - name: Upload HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage/coverage.html
+          retention-days: 7
+
   build:
     name: Build
     runs-on:
