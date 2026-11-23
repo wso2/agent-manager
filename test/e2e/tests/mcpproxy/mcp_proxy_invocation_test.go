@@ -24,6 +24,7 @@ package mcpproxy
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -50,6 +51,7 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 		proxyURL    string
 		proxyAPIKey string
 		authHeader  string
+		configID    string
 
 		createReq framework.CreateAgentRequest
 	)
@@ -178,6 +180,9 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 			body, _ := io.ReadAll(resp.Body)
 			g.Expect(resp.StatusCode).To(Equal(http.StatusOK),
 				"MCP initialize returned %d: %s", resp.StatusCode, string(body))
+			// The upstream server answered the handshake, not just the gateway.
+			g.Expect(string(body)).To(ContainSubstring(`"protocolVersion"`))
+			g.Expect(string(body)).To(ContainSubstring(`"serverInfo"`))
 		}).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 	})
 
@@ -205,8 +210,55 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 				return
 			}
 			g.Expect(resp.StatusCode).To(SatisfyAny(
-				Equal(http.StatusUnauthorized), Equal(http.StatusForbidden)),
+				Equal(http.StatusUnauthorized), Equal(http.StatusForbidden),
+			),
 				"expected keyless request to be rejected, got %d: %s", resp.StatusCode, string(body))
 		}).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
+	})
+	// invokeStatus calls the agent's MCP binding with key in the binding's header.
+	invokeStatus := func(g Gomega, key string) int {
+		req, err := http.NewRequest(http.MethodPost, proxyURL, bytes.NewBuffer(mcpInitializeBody()))
+		g.Expect(err).NotTo(HaveOccurred())
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header[authHeader] = []string{key}
+		resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+		g.Expect(err).NotTo(HaveOccurred())
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	It("reads, lists and updates the agent's MCP binding", func() {
+		base := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs", Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName)
+		got := framework.CallObj(Default, Client, http.MethodGet, base+"/"+configID, nil, http.StatusOK)
+		Expect(got["name"]).To(Equal("e2e-mcp-cfg-" + suffix))
+		list := framework.CallObj(Default, Client, http.MethodGet, base, nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(list, "configs"), "uuid")).To(ContainElement(configID))
+		framework.Call(Default, Client, http.MethodPut, base+"/"+configID, framework.Obj{
+			"name": "e2e-mcp-cfg-" + suffix, "description": "updated",
+			"envMappings": framework.Obj{Cfg.DefaultEnv: framework.Obj{"mcpProxyName": proxyID}},
+		}, http.StatusOK)
+		Expect(framework.CallObj(Default, Client, http.MethodGet, base+"/"+configID, nil, http.StatusOK)["description"]).To(Equal("updated"))
+	})
+
+	It("mints a key for the binding that works until it's rotated and then revoked", func() {
+		keys := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs/%s/environments/%s/api-keys",
+			Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, configID, Cfg.DefaultEnv)
+		minted := framework.CallObj(Default, Client, http.MethodPost, keys, framework.Obj{"name": "e2e-mcp-key", "displayName": "e2e-mcp-key"}, http.StatusCreated)
+		first := framework.Str(minted, "apiKey")
+		Expect(first).NotTo(BeEmpty())
+		Expect(framework.Field(framework.Items(framework.CallObj(Default, Client, http.MethodGet, keys, nil, http.StatusOK), "keys"), "name")).
+			To(ContainElement("e2e-mcp-key"))
+		Eventually(func(g Gomega) int { return invokeStatus(g, first) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal(http.StatusOK))
+
+		rotated := framework.Str(framework.CallObj(Default, Client, http.MethodPut, keys+"/e2e-mcp-key", framework.Obj{}, http.StatusOK), "apiKey")
+		Expect(rotated).NotTo(Equal(first))
+		Eventually(func(g Gomega) int { return invokeStatus(g, rotated) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal(http.StatusOK))
+		Eventually(func(g Gomega) int { return invokeStatus(g, first) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal(http.StatusUnauthorized))
+
+		framework.Call(Default, Client, http.MethodDelete, keys+"/e2e-mcp-key", nil, http.StatusNoContent)
+		Eventually(func(g Gomega) int { return invokeStatus(g, rotated) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal(http.StatusUnauthorized))
+		// The binding's own key is untouched.
+		Expect(invokeStatus(Default, proxyAPIKey)).To(Equal(http.StatusOK))
 	})
 })
