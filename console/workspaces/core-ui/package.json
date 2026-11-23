@@ -49,6 +49,7 @@
     "@monaco-editor/react": "4.7.0",
     "@agent-management-platform/ui-module-acp-core": "workspace:*",
     "@agent-management-platform/ui-module-ai-gateway": "workspace:*",
+    "@agent-management-platform/ui-module-ai-observability": "workspace:*",
     "@agent-management-platform/ui-module-agent-identity": "workspace:*"
   },
   "peerDependencies": {
