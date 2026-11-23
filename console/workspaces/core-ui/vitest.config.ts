@@ -29,6 +29,9 @@ export default defineConfig({
   test: {
     coverage,
     globals: true,
+    // First renders pull in the whole design system and every UI module;
+    // they routinely take several seconds on a busy CI runner.
+    testTimeout: 30_000,
     environment: 'jsdom',
     setupFiles: ['./setupTests.ts', '../../vitest.jsdom-storage.ts'],
     server: {
