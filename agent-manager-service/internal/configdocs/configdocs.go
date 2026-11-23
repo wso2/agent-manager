@@ -13,6 +13,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
 // Package configdocs renders the configuration reference
 // (docs/amp-lite/configuration.md) from config.Settings and the module
 // manifests.

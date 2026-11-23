@@ -50,17 +50,25 @@ func TestServeFromAmpYAMLAlone(t *testing.T) {
 	data := filepath.Join(dir, "data")
 	cfg := filepath.Join(dir, "amp.yaml")
 	require.NoError(t, os.WriteFile(cfg, []byte(fmt.Sprintf(
-		"server: {port: %d, public_url: \"http://127.0.0.1:%d\"}\nauth: {mode: file}\namp: {data_dir: %q}\n",
-		port, port, data,
+		"server: {port: %d, public_url: \"http://127.0.0.1:%d\"}\ninternal: {server_port: %d}\n"+
+			"auth: {mode: file}\namp: {data_dir: %q}\n",
+		port, port, freePort(t), data,
 	)), 0o600))
 	base := fmt.Sprintf("http://127.0.0.1:%d", port)
 
+	runs := 0
+	var logPath string
+	serverLog := func() string { b, _ := os.ReadFile(logPath); return string(b) }
 	start := func() *exec.Cmd {
+		runs++
+		logPath = filepath.Join(dir, fmt.Sprintf("serve-%d.log", runs))
+		logs, err := os.Create(logPath)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = logs.Close() })
 		cmd := exec.Command(bin, "serve", "--migrate")
 		cmd.Dir = dir
 		cmd.Env = []string{"AMP_CONFIG=" + cfg, "PATH=" + os.Getenv("PATH"), "HOME=" + dir}
-		var logs bytes.Buffer
-		cmd.Stdout, cmd.Stderr = &logs, &logs
+		cmd.Stdout, cmd.Stderr = logs, logs
 		require.NoError(t, cmd.Start())
 		t.Cleanup(func() { _ = cmd.Process.Kill(); _, _ = cmd.Process.Wait() })
 		deadline := time.Now().Add(60 * time.Second)
@@ -71,7 +79,7 @@ func TestServeFromAmpYAMLAlone(t *testing.T) {
 					return cmd
 				}
 			}
-			require.True(t, time.Now().Before(deadline), "amp serve did not become healthy:\n%s", logs.String())
+			require.True(t, time.Now().Before(deadline), "amp serve did not become healthy:\n%s", serverLog())
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
@@ -90,9 +98,9 @@ func TestServeFromAmpYAMLAlone(t *testing.T) {
 		require.NoError(t, err)
 		body, _ := json.Marshal(map[string]string{"username": "admin", "password": strings.TrimSpace(string(pw))})
 		resp, err := http.Post(base+"/auth/login", "application/json", bytes.NewReader(body))
-		require.NoError(t, err)
+		require.NoError(t, err, serverLog())
 		defer resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusOK, resp.StatusCode, serverLog())
 		var tok struct {
 			AccessToken string `json:"access_token"`
 		}

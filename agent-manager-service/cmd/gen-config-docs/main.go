@@ -13,6 +13,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
 // Command gen-config-docs writes the configuration reference: run as
 // "make config-docs".
 package main
