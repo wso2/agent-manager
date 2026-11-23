@@ -564,6 +564,112 @@ func healthChecksFromMap(values map[string]any) (*models.HealthChecks, error) {
 	return &healthChecks, nil
 }
 
+// workflowParamImageScan is the build parameter holding how the build's vulnerability scan
+// treats what it finds. Only a build workflow that scans the image declares it; any other
+// ignores it.
+const workflowParamImageScan = "imageScan"
+
+// setImageScanWorkflowParameter saves the image scan setting in the build parameters,
+// replacing any saved one. An empty setting removes the saved one, so the next build uses the
+// workflow's defaults. Nil leaves the build parameters unchanged.
+func setImageScanWorkflowParameter(params map[string]any, imageScan *ImageScanConfig) {
+	if imageScan == nil {
+		return
+	}
+	imageScanParam := map[string]any{}
+	if imageScan.FailBuild != nil {
+		imageScanParam["failBuild"] = *imageScan.FailBuild
+	}
+	if imageScan.Severity != nil {
+		imageScanParam["severity"] = *imageScan.Severity
+	}
+	if len(imageScanParam) == 0 {
+		delete(params, workflowParamImageScan)
+		return
+	}
+	params[workflowParamImageScan] = imageScanParam
+}
+
+// refuseUndeclaredImageScan refuses an image scan setting for an agent whose build workflow
+// doesn't declare the imageScan parameter, since its builds would never read it. A namespaced
+// Workflow must be readable. A ClusterWorkflow is read when the API in front of OpenChoreo
+// routes the cluster-scoped call; when it answers 403 or 404 instead, the setting is saved
+// unchecked. Clearing the saved setting is always allowed.
+func (c *openChoreoClient) refuseUndeclaredImageScan(ctx context.Context, namespaceName string, workflow *gen.ComponentWorkflowConfig, imageScan *ImageScanConfig) error {
+	if imageScan == nil || (imageScan.FailBuild == nil && imageScan.Severity == nil) {
+		return nil
+	}
+	if workflow == nil || workflow.Name == "" {
+		return nil
+	}
+	var properties map[string]interface{}
+	if workflow.Kind != nil && *workflow.Kind == gen.ComponentWorkflowConfigKindWorkflow {
+		var err error
+		if properties, err = c.workflowParameterProperties(ctx, namespaceName, workflow.Name); err != nil {
+			return fmt.Errorf("failed to read build workflow %q: %w", workflow.Name, err)
+		}
+	} else {
+		// An unset kind is a ClusterWorkflow, as TriggerBuild reads it.
+		var readable bool
+		var err error
+		if properties, readable, err = c.clusterWorkflowParameterProperties(ctx, workflow.Name); err != nil {
+			return fmt.Errorf("failed to read build cluster workflow %q: %w", workflow.Name, err)
+		}
+		if !readable {
+			slog.DebugContext(ctx, "Build cluster workflow cannot be read here; saving imageScan unchecked", "workflow", workflow.Name)
+			return nil
+		}
+	}
+	if _, declared := properties[workflowParamImageScan]; declared {
+		return nil
+	}
+	return utils.NewValidationErrorf(
+		"This agent's build does not take an image scan setting",
+		"imageScan is not declared by the agent's build workflow %q", workflow.Name,
+	)
+}
+
+// clusterWorkflowParameterProperties returns the top-level properties of the ClusterWorkflow's
+// openAPIV3Schema, or none when it declares no schema. readable is false when the call answers
+// 403 or 404: an organization-scoped API in front of OpenChoreo may not route a cluster-scoped
+// read (see attachBuildClient), and a ClusterWorkflow that doesn't exist builds nothing either.
+func (c *openChoreoClient) clusterWorkflowParameterProperties(ctx context.Context, name string) (properties map[string]interface{}, readable bool, err error) {
+	resp, err := c.ocClient.GetClusterWorkflowWithResponse(ctx, name)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get cluster workflow %q: %w", name, err)
+	}
+	switch resp.StatusCode() {
+	case http.StatusOK:
+	case http.StatusForbidden, http.StatusNotFound:
+		return nil, false, nil
+	default:
+		return nil, false, fmt.Errorf("failed to get cluster workflow %q: status %d", name, resp.StatusCode())
+	}
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil || resp.JSON200.Spec.Parameters == nil || resp.JSON200.Spec.Parameters.OpenAPIV3Schema == nil {
+		return map[string]interface{}{}, true, nil
+	}
+	properties, _ = (*resp.JSON200.Spec.Parameters.OpenAPIV3Schema)["properties"].(map[string]interface{})
+	return properties, true, nil
+}
+
+// imageScanFromWorkflowParameters reads the saved image scan setting from the build
+// parameters. Returns nil when none is saved.
+func imageScanFromWorkflowParameters(params map[string]any) (*models.ImageScan, error) {
+	value, ok := params[workflowParamImageScan]
+	if !ok || value == nil {
+		return nil, nil //nolint:nilnil // documented contract: nil means "none saved", not an error
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read saved image scan setting: %w", err)
+	}
+	var imageScan models.ImageScan
+	if err := json.Unmarshal(encoded, &imageScan); err != nil {
+		return nil, fmt.Errorf("failed to read saved image scan setting: %w", err)
+	}
+	return &imageScan, nil
+}
+
 func isGoogleBuildpack(language string) bool {
 	for _, bp := range utils.Buildpacks {
 		if bp.Language == language && bp.Provider == string(utils.BuildPackProviderGoogle) {
@@ -3367,6 +3473,11 @@ func convertComponentFromTyped(comp *gen.Component) (*models.AgentResponse, erro
 				slog.Warn("failed to read saved health checks", "component", comp.Metadata.Name, "error", err)
 			}
 			agent.HealthChecks = healthChecks
+			imageScan, err := imageScanFromWorkflowParameters(params)
+			if err != nil {
+				slog.Warn("failed to read saved image scan setting", "component", comp.Metadata.Name, "error", err)
+			}
+			agent.ImageScan = imageScan
 		}
 	}
 

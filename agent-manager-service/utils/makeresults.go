@@ -122,6 +122,7 @@ func convertToInternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		},
 		InputInterface: convertToInputInterface(component.InputInterface),
 		HealthChecks:   convertToHealthChecks(component.HealthChecks),
+		ImageScan:      convertToImageScan(component.ImageScan),
 		Build:          convertToBuild(component.Build),
 		Configurations: convertToConfigurations(component.Configurations),
 		KindName: func() *string {
@@ -350,6 +351,18 @@ func convertToHealthChecks(healthChecks *models.HealthChecks) *spec.HealthChecks
 		Startup:   convertToHealthCheck(healthChecks.Startup),
 		Readiness: convertToHealthCheck(healthChecks.Readiness),
 		Liveness:  convertToHealthCheck(healthChecks.Liveness),
+	}
+}
+
+// convertToImageScan converts the saved image scan setting to the API response. Nil stays nil,
+// meaning none is saved.
+func convertToImageScan(imageScan *models.ImageScan) *spec.ImageScan {
+	if imageScan == nil {
+		return nil
+	}
+	return &spec.ImageScan{
+		FailBuild: imageScan.FailBuild,
+		Severity:  imageScan.Severity,
 	}
 }
 

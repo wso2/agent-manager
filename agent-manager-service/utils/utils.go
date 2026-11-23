@@ -22,6 +22,7 @@ import (
 	"math/rand"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -89,6 +90,9 @@ func ValidateAgentBuildParametersUpdatePayload(payload spec.UpdateAgentBuildPara
 		return err
 	}
 	if err := validateHealthChecks(payload.HealthChecks); err != nil {
+		return err
+	}
+	if err := validateImageScan(payload.ImageScan); err != nil {
 		return err
 	}
 
@@ -891,6 +895,24 @@ func validateHealthChecks(healthChecks *spec.HealthChecks) error {
 		return err
 	}
 	return validateHealthCheck("liveness", healthChecks.Liveness, LivenessCheckDefaults)
+}
+
+// imageScanSeverities are the severities an image scan can report and fail from, lowest last.
+var imageScanSeverities = []string{"CRITICAL", "HIGH", "MEDIUM"}
+
+// validateImageScan checks the image scan setting when sent. The build workflow reads the
+// severity as is, so a value outside the list would be saved here and only misread later.
+func validateImageScan(imageScan *spec.ImageScan) error {
+	if imageScan == nil || imageScan.Severity == nil {
+		return nil
+	}
+	if !slices.Contains(imageScanSeverities, *imageScan.Severity) {
+		return NewValidationErrorf(
+			"Invalid image scan severity",
+			"imageScan.severity must be one of %s, got %q", strings.Join(imageScanSeverities, ", "), *imageScan.Severity,
+		)
+	}
+	return nil
 }
 
 func validateHealthCheck(checkName string, check *spec.HealthCheck, defaults HealthCheckDefaults) error {

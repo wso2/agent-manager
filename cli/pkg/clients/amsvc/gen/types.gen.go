@@ -1051,6 +1051,27 @@ func (e IdentityProviderType) Valid() bool {
 	}
 }
 
+// Defines values for ImageScanSeverity.
+const (
+	CRITICAL ImageScanSeverity = "CRITICAL"
+	HIGH     ImageScanSeverity = "HIGH"
+	MEDIUM   ImageScanSeverity = "MEDIUM"
+)
+
+// Valid indicates whether the value is a known member of the ImageScanSeverity enum.
+func (e ImageScanSeverity) Valid() bool {
+	switch e {
+	case CRITICAL:
+		return true
+	case HIGH:
+		return true
+	case MEDIUM:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LLMAccessControlMode.
 const (
 	AllowAll LLMAccessControlMode = "allow_all"
@@ -2364,6 +2385,9 @@ type AgentResponse struct {
 
 	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
 	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+
+	// ImageScan How the build's vulnerability scan treats what it finds, saved for the build workflow to read. Only a workflow that scans the image and declares the imageScan parameter applies it. The update is refused unless the agent's build workflow declares imageScan, so it is refused for an agent on the workflows this service installs, which don't scan. A ClusterWorkflow is checked only where the API in front of OpenChoreo lets it be read; where it can't be, the setting is saved unchecked, and reading it back doesn't mean the agent's builds apply it. Sending imageScan replaces the whole saved object: a field left out falls back to that workflow's default, not to the saved value. To change one field, send the other as read.
+	ImageScan *ImageScan `json:"imageScan,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
@@ -4493,6 +4517,18 @@ type IdentitySecurity struct {
 	// Enabled Whether Agent Identity security is enabled
 	Enabled *bool `json:"enabled,omitempty"`
 }
+
+// ImageScan How the build's vulnerability scan treats what it finds, saved for the build workflow to read. Only a workflow that scans the image and declares the imageScan parameter applies it. The update is refused unless the agent's build workflow declares imageScan, so it is refused for an agent on the workflows this service installs, which don't scan. A ClusterWorkflow is checked only where the API in front of OpenChoreo lets it be read; where it can't be, the setting is saved unchecked, and reading it back doesn't mean the agent's builds apply it. Sending imageScan replaces the whole saved object: a field left out falls back to that workflow's default, not to the saved value. To change one field, send the other as read.
+type ImageScan struct {
+	// FailBuild Whether what the scan finds fails the build. When false, the scan still reports it and the image is published.
+	FailBuild *bool `json:"failBuild,omitempty"`
+
+	// Severity The lowest severity the scan reports and fails on.
+	Severity *ImageScanSeverity `json:"severity,omitempty"`
+}
+
+// ImageScanSeverity The lowest severity the scan reports and fails on.
+type ImageScanSeverity string
 
 // InputInterface Endpoint configurations
 type InputInterface struct {
@@ -6676,6 +6712,9 @@ type UpdateAgentBuildParametersRequest struct {
 
 	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
 	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
+
+	// ImageScan How the build's vulnerability scan treats what it finds, saved for the build workflow to read. Only a workflow that scans the image and declares the imageScan parameter applies it. The update is refused unless the agent's build workflow declares imageScan, so it is refused for an agent on the workflows this service installs, which don't scan. A ClusterWorkflow is checked only where the API in front of OpenChoreo lets it be read; where it can't be, the setting is saved unchecked, and reading it back doesn't mean the agent's builds apply it. Sending imageScan replaces the whole saved object: a field left out falls back to that workflow's default, not to the saved value. To change one field, send the other as read.
+	ImageScan *ImageScan `json:"imageScan,omitempty"`
 
 	// InputInterface Endpoint configurations
 	InputInterface InputInterface `json:"inputInterface"`

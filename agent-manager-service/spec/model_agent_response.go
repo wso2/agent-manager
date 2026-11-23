@@ -33,6 +33,7 @@ type AgentResponse struct {
 	Configurations *Configurations `json:"configurations,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 	HealthChecks   *HealthChecks   `json:"healthChecks,omitempty"`
+	ImageScan      *ImageScan      `json:"imageScan,omitempty"`
 	Build          *Build          `json:"build,omitempty"`
 	// Name of the Agent Kind this agent was instantiated from (absent for source-built agents)
 	KindName *string `json:"kindName,omitempty"`
@@ -388,6 +389,38 @@ func (o *AgentResponse) SetHealthChecks(v HealthChecks) {
 	o.HealthChecks = &v
 }
 
+// GetImageScan returns the ImageScan field value if set, zero value otherwise.
+func (o *AgentResponse) GetImageScan() ImageScan {
+	if o == nil || IsNil(o.ImageScan) {
+		var ret ImageScan
+		return ret
+	}
+	return *o.ImageScan
+}
+
+// GetImageScanOk returns a tuple with the ImageScan field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentResponse) GetImageScanOk() (*ImageScan, bool) {
+	if o == nil || IsNil(o.ImageScan) {
+		return nil, false
+	}
+	return o.ImageScan, true
+}
+
+// HasImageScan returns a boolean if a field has been set.
+func (o *AgentResponse) HasImageScan() bool {
+	if o != nil && !IsNil(o.ImageScan) {
+		return true
+	}
+
+	return false
+}
+
+// SetImageScan gets a reference to the given ImageScan and assigns it to the ImageScan field.
+func (o *AgentResponse) SetImageScan(v ImageScan) {
+	o.ImageScan = &v
+}
+
 // GetBuild returns the Build field value if set, zero value otherwise.
 func (o *AgentResponse) GetBuild() Build {
 	if o == nil || IsNil(o.Build) {
@@ -577,6 +610,9 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.HealthChecks) {
 		toSerialize["healthChecks"] = o.HealthChecks
+	}
+	if !IsNil(o.ImageScan) {
+		toSerialize["imageScan"] = o.ImageScan
 	}
 	if !IsNil(o.Build) {
 		toSerialize["build"] = o.Build
