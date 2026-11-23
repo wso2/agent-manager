@@ -26,9 +26,10 @@ test.describe('sign-in', () => {
     await expect(login.signIn).toBeDisabled();
     await login.signInAs(adminUser, adminPassword());
 
-    // Sign-in opens the organization's default project (or the project list).
+    // Sign-in opens a project (the one named default, else the first), not
+    // the organization; the header's organization link leads there.
     await expect(page).toHaveURL(new RegExp(`/org/${orgName}/`));
-    await new Shell(page).nav('Overview').click();
+    await new Shell(page).org.click();
 
     const overview = new OrgOverviewPage(page);
     await expect(page).toHaveURL(new RegExp(`/org/${orgName}$`));

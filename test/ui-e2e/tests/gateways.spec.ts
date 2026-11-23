@@ -7,9 +7,10 @@ test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 test.describe('gateways', () => {
   const name = uniqueName('gw');
   const displayName = `UI e2e ${name}`;
+  let gatewayId: string | undefined;
 
   test.afterAll(async ({ api }) => {
-    await api.delete(`${api.gw}/gateways/${name}`);
+    if (gatewayId) await api.delete(`${api.gw}/self-hosted-gateways/${gatewayId}`);
   });
 
   test('register a self-hosted gateway, issue a token and remove it', async ({ page, api }) => {
@@ -37,23 +38,27 @@ test.describe('gateways', () => {
 
     await test.step('issue and revoke a registration token', async () => {
       await gateways.row(displayName).getByText(displayName).click();
+      await expect(page).toHaveURL(/\/gateways\/view\/[^/]+$/);
+      gatewayId = page.url().split('/').pop();
       const view = new GatewayViewPage(page);
+      const revoke = view.revoke();
+      // Registration issued the first token.
+      await expect(revoke).toHaveCount(1);
       await view.newToken.click();
       await expect(view.tokenCreated).toBeVisible();
-      const revoke = view.revoke();
-      const before = await revoke.count();
+      await expect(revoke).toHaveCount(2);
       await revoke.first().click();
       await page.getByRole('dialog', { name: 'Revoke token' })
         .getByRole('button', { name: 'Revoke' }).click();
       await expect(page.getByText('Revoked').first()).toBeVisible();
-      await expect(revoke).toHaveCount(before - 1);
+      await expect(revoke).toHaveCount(1);
     });
 
     await test.step('remove', async () => {
       await gateways.goto();
       await gateways.remove(displayName);
       await expect(gateways.row(displayName)).toHaveCount(0);
-      await expect.poll(async () => (await api.get(`${api.gw}/gateways/${name}`)).status).toBe(404);
+      await expect.poll(async () => (await api.get(`${api.gw}/self-hosted-gateways/${gatewayId}`)).status).toBe(404);
     });
   });
 });

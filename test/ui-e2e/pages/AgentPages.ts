@@ -6,14 +6,14 @@ export class RegisterAgentPage {
   readonly name: Locator;
   readonly handle: Locator;
   readonly editHandle: Locator;
-  readonly create: Locator;
+  readonly submit: Locator;
 
   constructor(readonly page: Page) {
     this.heading = page.getByRole('heading', { name: 'Register an Externally-Hosted Agent' });
     this.name = page.getByLabel(/^Name/);
     this.handle = page.getByLabel(/^Agent handle/);
     this.editHandle = page.getByRole('button', { name: 'Edit agent handle' });
-    this.create = page.getByRole('button', { name: 'Create', exact: true });
+    this.submit = page.getByRole('button', { name: 'Register', exact: true });
   }
 
   /** The agent-type picker redirects here while external is the only type. */
@@ -25,7 +25,7 @@ export class RegisterAgentPage {
     await this.name.fill(displayName);
     await this.editHandle.click();
     await this.handle.fill(handle);
-    await this.create.click();
+    await this.submit.click();
   }
 }
 

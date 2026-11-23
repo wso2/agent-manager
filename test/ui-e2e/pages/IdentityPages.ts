@@ -52,11 +52,13 @@ export class AddUserPage {
 export class RolePage {
   readonly usersTab: Locator;
   readonly addUser: Locator;
+  readonly save: Locator;
   readonly updated: Locator;
 
   constructor(readonly page: Page) {
     this.usersTab = page.getByRole('tab', { name: 'Users' });
     this.addUser = page.getByRole('combobox', { name: /Add User/i });
+    this.save = page.getByRole('button', { name: 'Save changes' });
     this.updated = page.getByText('Role updated successfully.');
   }
 

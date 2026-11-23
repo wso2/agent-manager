@@ -48,7 +48,25 @@ export class AmpApi {
         await this.ctx.delete(`${this.org}/projects/${name}/agents/${a.name}`);
       }
     }
-    await this.ctx.delete(`${this.org}/projects/${name}`);
+    // Agent deletion finishes in the background, and a project with agents
+    // left is refused: delete again until the project is gone.
+    await expect
+      .poll(
+        async () => {
+          await this.ctx.delete(`${this.org}/projects/${name}`);
+          return (await this.ctx.get(`${this.org}/projects/${name}`)).status();
+        },
+        { timeout: 60_000, intervals: [1_000, 2_000, 5_000] },
+      )
+      .toBe(404);
+  }
+
+  /** Removes a user found by username, if it exists. */
+  async deleteUser(username: string): Promise<void> {
+    const res = await this.ctx.get(`${this.org}/identities/users`, { params: { limit: 200 } });
+    const users: any[] = res.ok() ? (await res.json()).users ?? [] : [];
+    const user = users.find((u) => u.attributes?.username === username);
+    if (user) await this.ctx.delete(`${this.org}/identities/users/${user.id}`);
   }
 
   async createExternalAgent(project: string, name: string, displayName = name): Promise<void> {

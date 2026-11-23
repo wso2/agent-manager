@@ -1,10 +1,16 @@
 import { type Locator, type Page } from '@playwright/test';
+import { orgName } from '../support/env';
 
-// The navigation every signed-in page shares.
+// The header and navigation every signed-in page shares.
 export class Shell {
-  constructor(readonly page: Page) {}
+  readonly org: Locator;
 
+  constructor(readonly page: Page) {
+    this.org = page.getByRole('link', { name: `Go to ${orgName}` });
+  }
+
+  /** A side-navigation item (rendered as a button inside its link). */
   nav(name: string): Locator {
-    return this.page.getByRole('link', { name, exact: true });
+    return this.page.getByRole('navigation').getByRole('button', { name, exact: true });
   }
 }

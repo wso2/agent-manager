@@ -13,8 +13,19 @@ test.describe.serial('LLM providers and proxies', () => {
   let providerId: string | undefined;
   let configUrl: string | undefined;
 
-  test.afterAll(async ({ api }) => {
-    if (providerId) await api.delete(`/m/ai-gateway/llm-providers/${providerId}`);
+  test.afterAll(async ({ api, workerProject }) => {
+    // A provider an agent still uses can't go: remove the agent first.
+    await api.delete(`${api.org}/projects/${workerProject}/agents/${agent}`);
+    if (!providerId) return;
+    await expect
+      .poll(
+        async () => {
+          await api.delete(`/m/ai-gateway/llm-providers/${providerId}`);
+          return (await api.get(`/m/ai-gateway/llm-providers/${providerId}`)).status;
+        },
+        { timeout: 60_000, intervals: [1_000, 2_000, 5_000] },
+      )
+      .toBe(404);
   });
 
   test('add an organization LLM provider and attach it to an agent', async ({ page, api, workerProject }) => {
@@ -28,7 +39,18 @@ test.describe.serial('LLM providers and proxies', () => {
       await add.template('OpenAI').click();
       // A dummy key: nothing here calls the model.
       await add.apiKey.fill('sk-uie2e-not-a-real-key');
-      await page.getByRole('checkbox').first().check();
+      // With only the bundled gateway the form picks it and hides the choice.
+      // When another spec's gateway also exists, deploy to the bundled one.
+      const env = page.getByRole('checkbox', { name: 'Default', exact: true });
+      const pick = page.getByRole('combobox', { name: 'Egress gateway for Default' });
+      await expect(add.add.or(env).first()).toBeEnabled();
+      if (await env.count()) {
+        await env.check();
+        if (await pick.count()) {
+          await pick.click();
+          await page.getByRole('option', { name: /Default AI Gateway/ }).click();
+        }
+      }
       await add.add.click();
       await expect(page).toHaveURL(/\/llm-providers\/view\/[^/]+$/);
       providerId = page.url().split('/').pop();
@@ -57,7 +79,7 @@ test.describe.serial('LLM providers and proxies', () => {
       await configure.goto(workerProject, agent);
       await expect(configure.config(configName)).toBeVisible();
       const got = await api.get(
-        `${api.gw}/projects/${workerProject}/agents/${agent}/configurations?environment=default`,
+        `${api.gw}/projects/${workerProject}/agents/${agent}/model-configs`,
       );
       expect(got.status).toBe(200);
       expect(JSON.stringify(got.body)).toContain(configName);
@@ -71,7 +93,17 @@ test.describe.serial('LLM providers and proxies', () => {
 
     await test.step('generate the proxy API key', async () => {
       await page.goto(configUrl!);
-      await page.getByRole('button', { name: 'Generate', exact: true }).click();
+      const generate = page.getByRole('button', { name: 'Generate', exact: true });
+      const regenerate = page.getByRole('button', { name: 'Regenerate', exact: true });
+      await expect(generate.or(regenerate).first()).toBeVisible();
+      if (await generate.count()) {
+        await generate.click();
+      } else {
+        // The configuration was created with a key: rotate it to see one.
+        await regenerate.click();
+        await page.getByRole('dialog', { name: 'Regenerate API key?' })
+          .getByRole('button', { name: 'Regenerate' }).click();
+      }
       await expect(page.getByText('You will only see this key once. Copy it now.')).toBeVisible();
       await page.getByRole('button', { name: 'Copy API key' }).click();
       const key = await page.evaluate(() => navigator.clipboard.readText());

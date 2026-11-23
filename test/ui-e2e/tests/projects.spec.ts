@@ -1,6 +1,6 @@
-import { NewProjectPage, EditProjectPage, ProjectOverviewPage } from '../pages/ProjectFormPages';
+import { NewProjectPage, EditProjectPage } from '../pages/ProjectFormPages';
 import { ProjectsPage } from '../pages/ProjectsPage';
-import { uniqueName } from '../support/env';
+import { orgName, uniqueName } from '../support/env';
 import { expect, test } from '../support/fixtures';
 
 test.describe('projects', () => {
@@ -32,16 +32,18 @@ test.describe('projects', () => {
 
     const renamed = `${displayName} renamed`;
     await test.step('edit', async () => {
-      const overview = new ProjectOverviewPage(page);
-      await overview.goto(id);
-      await expect(overview.title(displayName)).toBeVisible();
-      await overview.edit.click();
+      // A project with no agents opens on "register an agent", so its edit
+      // page is reached by its own address.
+      await page.goto(`/org/${orgName}/project/${id}/edit`);
       const edit = new EditProjectPage(page);
       await expect(edit.heading).toBeVisible();
+      await expect(edit.name).toHaveValue(displayName);
       await edit.name.fill(renamed);
       await edit.description.fill('Edited by the UI e2e suite');
       await edit.update.click();
-      await expect(overview.title(renamed)).toBeVisible();
+      await expect(page).not.toHaveURL(/\/edit$/);
+      // The header names the project by its new name.
+      await expect(page.getByRole('link', { name: `Go to ${renamed}` })).toBeVisible();
       const got = await api.getProject(id);
       expect(got.body.displayName).toBe(renamed);
       expect(got.body.description).toBe('Edited by the UI e2e suite');

@@ -31,23 +31,6 @@ export class NewProjectPage {
   }
 }
 
-export class ProjectOverviewPage {
-  readonly edit: Locator;
-
-  constructor(readonly page: Page) {
-    this.edit = page.getByRole('button', { name: 'Edit project' })
-      .or(page.getByRole('link', { name: 'Edit project' }));
-  }
-
-  async goto(project: string): Promise<void> {
-    await this.page.goto(`/org/${orgName}/project/${project}`);
-  }
-
-  title(displayName: string): Locator {
-    return this.page.getByRole('heading', { level: 1, name: displayName });
-  }
-}
-
 export class EditProjectPage {
   readonly heading: Locator;
   readonly name: Locator;
