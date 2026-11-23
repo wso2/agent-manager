@@ -123,7 +123,7 @@ export function useAnimatedCanvas(
   });
 
   // Starting and stopping the loop goes through this, so `active` can change freely.
-  const control = useRef<{ setActive: (on: boolean) => void } | null>(null);
+  const control = useRef<{ setActive: (on: boolean) => void; redraw: () => void } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -184,6 +184,7 @@ export function useAnimatedCanvas(
     motionQuery?.addEventListener?.("change", onMotionChange);
 
     control.current = {
+      redraw: () => render(performance.now()),
       setActive: (on) => {
         clearTimeout(stopTimer);
         if (on) {
@@ -212,6 +213,12 @@ export function useAnimatedCanvas(
   useEffect(() => {
     control.current?.setActive(active);
   }, [active]);
+
+  // A canvas that isn't animating keeps its last frame, so redraw it in the new colours
+  // when the theme changes. (An animating one picks them up on its next frame.)
+  useEffect(() => {
+    control.current?.redraw();
+  }, [palette.accent]);
 
   return canvasRef;
 }

@@ -367,7 +367,8 @@ export function ProjectLanding({
                 }}
               >
                 <Box sx={layerSx(!preview)}>
-                  <AgentSphere size={ILLUSTRATION_SIZE} active={!preview} />
+                  {/* Still: drawn once, fully built, and never animated. */}
+                  <AgentSphere size={ILLUSTRATION_SIZE} active={false} />
                 </Box>
                 {AGENT_TYPES.map((type) => (
                   <Box key={type.id} sx={layerSx(preview === type.id)}>
