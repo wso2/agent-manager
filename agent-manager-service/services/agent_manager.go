@@ -3376,6 +3376,14 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 	// failure leaves the system fully intact and the delete can be retried cleanly.
 	s.logger.Debug("Deleting oc agent", "agentName", agentName, "ouID", ouID, "projectName", projectName)
 
+	// From here the delete runs to completion even if the caller stops waiting. The AgentID
+	// cleanup below can queue behind an in-flight provisioning attempt on the identity lock and
+	// then spend most of a minute on identity platform calls, so a client or edge that gives up
+	// first (a 30s HTTP client, the gateway's upstream cut) would otherwise cancel it halfway and
+	// leave the agent behind, with nothing left to retry it.
+	ctx, cancelDelete := detachedDeleteContext(ctx)
+	defer cancelDelete()
+
 	// Deletion is irreversible and cascades into configs, identities and
 	// monitors, so it is refused when it cannot be recorded.
 	deleteAttempt, auditErr := audit.Begin(
@@ -3529,6 +3537,19 @@ const agentCleanupTimeout = 10 * time.Minute
 // work is not cancelled when the HTTP handler returns; the timeout then puts a ceiling back on.
 func detachedCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), agentCleanupTimeout)
+}
+
+// agentDeleteCommitTimeout bounds the committed part of an agent delete once it no longer
+// follows the request (see detachedDeleteContext): waiting out one provisioning attempt on the
+// identity lock, then removing the AgentID along the pipeline and deleting the component.
+const agentDeleteCommitTimeout = 5 * time.Minute
+
+// detachedDeleteContext returns the context for the committed part of an agent delete: the
+// request's values (audit recorder, trace IDs, logger) without its cancellation, so a caller
+// that stops waiting does not abort the delete halfway, and with agentDeleteCommitTimeout as
+// the ceiling.
+func detachedDeleteContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), agentDeleteCommitTimeout)
 }
 
 // cleanupRetry bounds the retries of an idempotent cleanup step; delay is the wait after 0-based failed attempt n.
