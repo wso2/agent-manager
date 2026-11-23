@@ -23,7 +23,10 @@ import type {
   Span,
   TraceSpanSummaryListResponse,
 } from "@agent-management-platform/types";
-import { httpGETObserver } from "../../shared/utils";
+import { httpGET, moduleBase } from "../../shared/utils";
+
+// The observability module's trace routes, on the API origin.
+const OBSERVABILITY_BASE = moduleBase("observability");
 
 // Params for direct observer service calls.
 export interface ObserverTraceListParams {
@@ -136,7 +139,7 @@ export async function getTraceList(
   if (includeModels) searchParams.include = "models";
   if (cursor) searchParams.cursor = cursor;
 
-  const res = await httpGETObserver("/api/v1/traces", { searchParams, token });
+  const res = await httpGET(`${OBSERVABILITY_BASE}/api/v1/traces`, { searchParams, token });
   return res.json();
 }
 
@@ -177,7 +180,7 @@ export async function exportTraces(
   if (sortOrder) searchParams.sortOrder = sortOrder;
   Object.assign(searchParams, traceFilterSearchParams(filters));
 
-  const res = await httpGETObserver("/api/v1/traces/export", { searchParams, token });
+  const res = await httpGET(`${OBSERVABILITY_BASE}/api/v1/traces/export`, { searchParams, token });
   return res.json();
 }
 
@@ -215,7 +218,7 @@ export async function listTraceSpans(
   if (limit !== undefined) searchParams.limit = limit.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
-  const res = await httpGETObserver(`/api/v1/traces/${encodeURIComponent(traceId)}/spans`, {
+  const res = await httpGET(`${OBSERVABILITY_BASE}/api/v1/traces/${encodeURIComponent(traceId)}/spans`, {
     searchParams,
     token,
   });
@@ -231,8 +234,8 @@ export async function getSpanDetail(
   assertRequired(spanId, "spanId");
 
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGETObserver(
-    `/api/v1/traces/${encodeURIComponent(traceId)}/spans/${encodeURIComponent(spanId)}`,
+  const res = await httpGET(
+    `${OBSERVABILITY_BASE}/api/v1/traces/${encodeURIComponent(traceId)}/spans/${encodeURIComponent(spanId)}`,
     { token },
   );
   return res.json();

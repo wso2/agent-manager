@@ -46,7 +46,6 @@ import {
   useGetAgent,
   useGetOrganization,
   useListEnvironments,
-  isObserverConfigured,
   type TraceListWithRange,
   ConsoleAction,
   useTrack,
@@ -386,19 +385,6 @@ export const TracesComponent: React.FC = () => {
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
-
-  const obsUrlMissing = !isObserverConfigured();
-
-  if (obsUrlMissing) {
-    return (
-      <PageLayout title="Traces" disableIcon>
-        <Alert severity="error" sx={{ mt: 2 }}>
-          <strong>Observer not configured.</strong> This deployment does not
-          run a trace service.
-        </Alert>
-      </PageLayout>
-    );
-  }
 
   if (orgNotFound || agentNotFound || envNotFound) {
     return (

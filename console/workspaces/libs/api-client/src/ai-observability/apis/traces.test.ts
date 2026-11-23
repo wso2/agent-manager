@@ -18,12 +18,15 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TraceFilters } from "@agent-management-platform/types";
-import { httpGETObserver } from "../../shared/utils";
+import { httpGET } from "../../shared/utils";
 import { exportTraces, getTraceList, type ObserverTraceListParams } from "./traces";
 
-vi.mock("../../shared/utils", () => ({ httpGETObserver: vi.fn() }));
+vi.mock("../../shared/utils", () => ({
+  httpGET: vi.fn(),
+  moduleBase: (module: string) => `/m/${module}`,
+}));
 
-const mockGET = vi.mocked(httpGETObserver);
+const mockGET = vi.mocked(httpGET);
 
 const BASE: ObserverTraceListParams = {
   organization: "org",
@@ -51,8 +54,8 @@ const BASE_QUERY = {
 async function sentQuery(params: ObserverTraceListParams): Promise<Record<string, string>> {
   await getTraceList(params);
   const [path, opts] = mockGET.mock.calls[0];
-  expect(path).toBe("/api/v1/traces");
-  return opts.searchParams ?? {};
+  expect(path).toBe("/m/observability/api/v1/traces");
+  return (opts.searchParams ?? {}) as Record<string, string>;
 }
 
 beforeEach(() => {
@@ -118,8 +121,8 @@ describe("exportTraces query string", () => {
   async function sentExportQuery(params: ObserverTraceListParams): Promise<Record<string, string>> {
     await exportTraces(params);
     const [path, opts] = mockGET.mock.calls[0];
-    expect(path).toBe("/api/v1/traces/export");
-    return opts.searchParams ?? {};
+    expect(path).toBe("/m/observability/api/v1/traces/export");
+    return (opts.searchParams ?? {}) as Record<string, string>;
   }
 
   it("sends today's params when no filters are set", async () => {
@@ -187,7 +190,7 @@ describe("getTraceList tool and MCP server filters", () => {
       filters: { tool: "search_web", toolError: true, mcpServer: "github" },
     });
     const [path, opts] = mockGET.mock.calls[0];
-    expect(path).toBe("/api/v1/traces/export");
+    expect(path).toBe("/m/observability/api/v1/traces/export");
     expect(opts.searchParams).toEqual({
       ...BASE_QUERY, tool: "search_web", toolError: "true", mcpServer: "github",
     });
