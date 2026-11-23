@@ -186,12 +186,19 @@ platform_oauth_sync_openbao() (
     env_secret="$(platform_oauth_kubectl get pod "$pod" -n openbao -o \
         jsonpath='{.spec.containers[*].env[?(@.name=="WORKLOAD_PUBLISHER_SECRET")].valueFrom.secretKeyRef.name}')" || exit 1
     if [[ "$env_secret" != "amp-platform-oauth" ]]; then
+        # Name the same cluster this helper checked, so recovery cannot touch another one.
+        local context helm_context="" kubectl_context=""
+        context="$(platform_oauth_context)"
+        if [[ -n "$context" ]]; then
+            helm_context=" --kube-context $context"
+            kubectl_context=" --context $context"
+        fi
         printf '%s\n' 'The OpenBao release predates Secret-backed credentials and would restore old values on restart.' \
             'Upgrade it, recreate the pod (the StatefulSet uses OnDelete), wait for it, then rerun this step:' \
-            '  helm upgrade openbao oci://ghcr.io/openbao/charts/openbao --namespace openbao --version 0.25.6 \' \
+            "  helm upgrade openbao oci://ghcr.io/openbao/charts/openbao${helm_context} --namespace openbao --version 0.25.6 \\" \
             '    --reuse-values --values deployments/single-cluster/values-openbao.yaml' \
-            "  kubectl delete pod -n openbao $pod" \
-            "  kubectl wait --for=condition=Ready pod/$pod -n openbao --timeout=180s" >&2
+            "  kubectl${kubectl_context} delete pod -n openbao $pod" \
+            "  kubectl${kubectl_context} wait --for=condition=Ready pod/$pod -n openbao --timeout=180s" >&2
         exit 1
     fi
 
