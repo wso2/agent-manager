@@ -102,6 +102,12 @@ var _ = Describe("Audit trail", Label("identity", "audit"), func() {
 		secret := framework.Str(key, "apiKey")
 		Expect(secret).NotTo(BeEmpty())
 
+		rotated := framework.CallObj(Default, Client, http.MethodPut, framework.GW(Cfg, "/llm-providers/%s/api-keys/%s", providerID, keyName),
+			framework.Obj{}, http.StatusOK)
+		Expect(framework.Str(rotated, "apiKey")).NotTo(BeEmpty())
+		Expect(framework.Str(rotated, "apiKey")).NotTo(Equal(secret))
+		secret = framework.Str(rotated, "apiKey")
+
 		start := time.Now()
 		framework.Call(Default, Client, http.MethodDelete, framework.GW(Cfg, "/llm-providers/%s/api-keys/%s", providerID, keyName), nil, http.StatusNoContent)
 		keys := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/llm-providers/%s/api-keys", providerID), nil, http.StatusOK)

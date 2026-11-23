@@ -262,4 +262,11 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 		// The binding's own key is untouched.
 		Expect(invokeStatus(Default, proxyAPIKey)).To(Equal(http.StatusOK))
 	})
+	It("removes the binding, after which its key no longer works", func() {
+		base := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs", Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName)
+		framework.Call(Default, Client, http.MethodDelete, base+"/"+configID, nil, http.StatusNoContent)
+		framework.CallError(Default, Client, http.MethodGet, base+"/"+configID, nil, http.StatusNotFound)
+		Eventually(func(g Gomega) int { return invokeStatus(g, proxyAPIKey) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).
+			Should(BeElementOf(http.StatusUnauthorized, http.StatusForbidden))
+	})
 })
