@@ -138,7 +138,7 @@ func TestRouteHitLogKeepsWebSocketUpgrade(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("hello"))
 	})
 	srv := httptest.NewServer(mux)
@@ -148,8 +148,8 @@ func TestRouteHitLogKeepsWebSocketUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upgrade through the route-hit log failed: %v", err)
 	}
-	defer conn.Close()
-	defer resp.Body.Close()
+	defer func() { _ = conn.Close() }()
+	defer func() { _ = resp.Body.Close() }()
 	_, msg, err := conn.ReadMessage()
 	if err != nil || string(msg) != "hello" {
 		t.Fatalf("read %q, %v; want hello", msg, err)
