@@ -27,14 +27,11 @@ import {
   type UIModuleManifest,
 } from "@agent-management-platform/types";
 import { tracesPlugin } from "@agent-management-platform/traces/plugin";
-import { logsPlugin } from "@agent-management-platform/logs/plugin";
-import { metricsPlugin } from "@agent-management-platform/metrics/plugin";
-import { evalPlugin } from "@agent-management-platform/eval/plugin";
 
 export const aiObservabilityModule: UIModuleManifest = {
   id: "ai-observability",
   name: "AI Observability",
-  description: "Traces, runtime logs, system metrics and evaluation.",
+  description: "Traces of your agents.",
   apiVersion: PLUGIN_API_VERSION,
   installation: {
     chart: "wso2-amp-observability-extension",
@@ -58,5 +55,5 @@ export const aiObservabilityModule: UIModuleManifest = {
       },
     ],
   },
-  plugins: [tracesPlugin, logsPlugin, metricsPlugin, evalPlugin],
+  plugins: [tracesPlugin],
 };
