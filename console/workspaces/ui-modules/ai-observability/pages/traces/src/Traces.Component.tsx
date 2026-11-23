@@ -43,6 +43,7 @@ import {
 import {
   useTraceList,
   useExportTraces,
+  TRACE_FILTERS_SUPPORTED,
   useGetAgent,
   useGetOrganization,
   useListEnvironments,
@@ -178,7 +179,10 @@ export const TracesComponent: React.FC = () => {
     return (raw === "asc" || raw === "desc") ? raw : "desc" as GetTraceListPathParams["sortOrder"];
   }, [searchParams]);
 
-  const filters = useMemo(() => parseTraceFilters(searchParams), [searchParams]);
+  const filters = useMemo(
+    () => (TRACE_FILTERS_SUPPORTED ? parseTraceFilters(searchParams) : {}),
+    [searchParams],
+  );
   const hasActiveFilters = Object.keys(filters).length > 0;
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -483,6 +487,7 @@ export const TracesComponent: React.FC = () => {
           open={filtersOpen && !selectedTrace}
           onOpenChange={setFiltersOpen}
           onTraceSearch={handleTraceSelect}
+          filterable={TRACE_FILTERS_SUPPORTED}
         >
           <TracesView
             traces={traceData?.traces ?? []}
@@ -497,7 +502,7 @@ export const TracesComponent: React.FC = () => {
             visibleColumns={visibleColumns}
             onTraceSelect={handleTraceSelect}
             onLoadMore={loadMore}
-            onConversationSelect={handleConversationSelect}
+            onConversationSelect={TRACE_FILTERS_SUPPORTED ? handleConversationSelect : undefined}
             sortOrder={sortOrder}
             onSortOrderChange={handleSortOrderChange}
           />

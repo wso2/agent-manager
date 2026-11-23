@@ -28,6 +28,9 @@ import { httpGET, moduleBase } from "../../shared/utils";
 // The observability module's trace routes, on the API origin.
 const OBSERVABILITY_BASE = moduleBase("observability");
 
+/** Whether the trace routes serve the trace filters; the observability module refuses them. */
+export const TRACE_FILTERS_SUPPORTED = false;
+
 // Params for direct observer service calls.
 export interface ObserverTraceListParams {
   organization: string;
