@@ -568,10 +568,12 @@ components:
             type: object
         recent_reviews:
           type: array
+          maxItems: 100
           items:
             type: object
         nearby_attractions:
           type: array
+          maxItems: 100
           items:
             type: object
     AvailabilityResponse:

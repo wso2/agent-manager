@@ -884,6 +884,7 @@ components:
       properties:
         traces:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/FullTrace"
         totalCount:
