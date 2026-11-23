@@ -294,9 +294,9 @@ func (s *projectMCPCapabilityDiscoveryService) attempt(
 // control plane refuses to call (not publicly routable) and a credential the server rejects (401) cannot get better
 // until the binding changes, and a binding change queues discovery again, so both are permanent. Any other failure is
 // retried; its reason says the control plane could not reach the server, so the last one recorded tells the user
-// what to do.
+// what to do. The endpoint it names is scrubbed too: a credential can sit in the URL's path.
 func upstreamProbeError(err error, target *mcpDiscoveryTarget) error {
-	endpoint := safeEndpoint(target.probeURL)
+	endpoint := scrubString(safeEndpoint(target.probeURL), upstreamSecrets(target))
 	switch {
 	case errors.Is(err, utils.ErrInvalidURL):
 		return &mcpDiscoveryPermanentError{reason: fmt.Sprintf(

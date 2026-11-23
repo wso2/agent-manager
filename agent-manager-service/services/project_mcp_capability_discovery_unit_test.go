@@ -666,6 +666,35 @@ func TestCapabilityDiscovery_UpstreamURLCredentialsAreKeptOutOfErrors(t *testing
 	assert.NotContains(t, row.LastError, "hunter2")
 }
 
+// A credential that sits in the registered URL's path is redacted from the endpoint every upstream error names, the
+// retried ones and the permanent ones alike, while the rest of the path is kept.
+func TestCapabilityDiscovery_CredentialInTheURLPathIsRedactedFromErrors(t *testing.T) {
+	cases := []struct {
+		name   string
+		err    error
+		status string
+	}{
+		{name: "retried", err: fmt.Errorf("%w: connection refused", utils.ErrURLUnreachable), status: models.MCPCapabilityDiscoveryPending},
+		{name: "permanent", err: utils.ErrMCPServerUnauthorized, status: models.MCPCapabilityDiscoveryFailed},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+			f.identityByURL(t, upstreamAPIKey("Authorization", "Bearer github-pat"))
+			f.proxy.Endpoints[0].Configuration.Upstream.URL = "https://api.example.com/github-pat/mcp"
+			f.enqueue(t)
+			f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) { return nil, tc.err }
+
+			f.recon.RunOnce(context.Background())
+
+			row := f.row(t)
+			assert.Equal(t, tc.status, row.Status)
+			assert.NotContains(t, row.LastError, "github-pat")
+			assert.Contains(t, row.LastError, "https://api.example.com/[REDACTED]/mcp")
+		})
+	}
+}
+
 // Capabilities that echo the upstream credential are stored with it redacted, so a binding read never returns it.
 func TestCapabilityDiscovery_CapabilitiesEchoingTheCredentialAreScrubbed(t *testing.T) {
 	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
