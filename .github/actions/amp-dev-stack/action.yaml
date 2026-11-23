@@ -33,6 +33,13 @@ inputs:
       (LOG_ROUTE_HITS), for scripts/coverage/route_coverage.py.
     required: false
     default: "false"
+  private_events:
+    description: >
+      Let amp-api deliver events to private addresses and reach the host as
+      host.docker.internal (EVENTS_ALLOW_PRIVATE_DESTINATIONS), for the e2e
+      webhook journey.
+    required: false
+    default: "false"
 runs:
   using: composite
   steps:
@@ -49,6 +56,7 @@ runs:
         DISTRIBUTION: ${{ inputs.distribution }}
         AUTH_MODE: ${{ inputs.auth_mode }}
         LOG_ROUTE_HITS: ${{ inputs.log_route_hits }}
+        PRIVATE_EVENTS: ${{ inputs.private_events }}
       run: |
         set -euo pipefail
         cd deployments/standalone

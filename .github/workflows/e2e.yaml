@@ -39,6 +39,7 @@ jobs:
         uses: ./.github/actions/amp-dev-stack
         with:
           log_route_hits: "true"
+          private_events: "true"
 
       - name: Run e2e tests
         env:
