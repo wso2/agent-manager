@@ -79,6 +79,9 @@ install_thunder_extension() {
     # random one instead, which is what production wants but is annoying to
     # look up every time on a machine only you can reach anyway.
     platform_oauth_init || return 1
+    # `make reset-amp` keeps OpenBao. Reseed its bootstrap keys so workflows
+    # and observers use the same credentials as the new Thunder install.
+    platform_oauth_sync_openbao || return 1
     helm upgrade --install amp-thunder-extension "${SCRIPT_DIR}/../helm-charts/wso2-amp-thunder-extension" \
         --namespace amp-thunder --create-namespace \
         --set thunder.bootstrap.agentManagerMcpBaseUrl=http://localhost:9000 \

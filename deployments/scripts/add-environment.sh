@@ -56,6 +56,8 @@ set -euo pipefail
 #   - AMS_CONFIGMAP_NAME / AMS_CONFIGMAP_NAMESPACE (default: amp-api / wso2-amp):
 #     where the recorded values above are read from on a non-default release.
 #   - IDP_SKIP_TLS_VERIFY (default: true): skipTlsVerify for the seeded env-Thunder identity provider.
+#   - IDP_SECRET_NAMESPACE (default: DATA_PLANE_NS, else openchoreo-data-plane): namespace
+#     holding the gateway-idp-credentials Secret copied beside each gateway.
 #   - THUNDER_DB_TYPE, THUNDER_DB_*, THUNDER_CACHE_TYPE, THUNDER_REDIS_*, THUNDER_REPLICAS,
 #     THUNDER_STATE_ACCESS_MODE, THUNDER_FORCE_STORAGE_CHANGE: database, cache and replica
 #     settings for this environment's Thunder (default: SQLite, in-memory cache, 1 replica).
@@ -192,6 +194,9 @@ AGENT_MANAGER_API_URL="${AGENT_MANAGER_API_URL:-${AGENT_MANAGER_URL}/api/v1}"
 # The <org>-<env> name stays well under the 63-char namespace limit because the
 # MAX_ENV_NAME_LEN check above already bounds org+env for the Service name.
 GATEWAY_NAMESPACE="${GATEWAY_NAMESPACE:-${ORG_NAME}-${ENV_NAME}}"
+# Source of the gateway IDP credentials. Matches the quick-start installer,
+# which writes gateway-idp-credentials to DATA_PLANE_NS.
+IDP_SECRET_NAMESPACE="${IDP_SECRET_NAMESPACE:-${DATA_PLANE_NS:-openchoreo-data-plane}}"
 IDP_SKIP_TLS_VERIFY="${IDP_SKIP_TLS_VERIFY:-true}"
 case "$IDP_SKIP_TLS_VERIFY" in
     true|false) ;;
@@ -518,6 +523,26 @@ if [ -n "${ISOLATION_TIER}" ]; then
     echo "   Isolation tier: ${ISOLATION_TIER}"
 fi
 
+# Check the gateway IDP credentials before creating anything, so a missing
+# source does not leave a half-created environment behind.
+idp_secret_err="$(mktemp)"
+if ! idp_secret_fields="$(kubectl get secret gateway-idp-credentials -n "${IDP_SECRET_NAMESPACE}" \
+        -o go-template='{{if index .data "client-id"}}id{{end}} {{if index .data "client-secret"}}secret{{end}}' 2>"${idp_secret_err}")"; then
+    if grep -q 'NotFound' "${idp_secret_err}"; then
+        echo "❌ Create ${IDP_SECRET_NAMESPACE}/gateway-idp-credentials before adding an environment." >&2
+    else
+        cat "${idp_secret_err}" >&2
+        echo "❌ Could not read ${IDP_SECRET_NAMESPACE}/gateway-idp-credentials." >&2
+    fi
+    rm -f "${idp_secret_err}"
+    exit 1
+fi
+rm -f "${idp_secret_err}"
+if [ "${idp_secret_fields}" != "id secret" ]; then
+    echo "❌ ${IDP_SECRET_NAMESPACE}/gateway-idp-credentials must contain non-empty client-id and client-secret keys." >&2
+    exit 1
+fi
+
 ENV_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${AGENT_MANAGER_API_URL}/orgs/${ORG_NAME}/environments" \
     -H "${AUTH_HEADER}" \
     -H "Content-Type: application/json" \
@@ -742,12 +767,12 @@ ensure_gateway_encryption_key "${GATEWAY_NAMESPACE}"
 copy_idp_secret() {
     local id sec err
     err="$(mktemp)"
-    if ! id="$(kubectl get secret gateway-idp-credentials -n openchoreo-data-plane -o jsonpath='{.data.client-id}' 2>"${err}")"; then
+    if ! id="$(kubectl get secret gateway-idp-credentials -n "${IDP_SECRET_NAMESPACE}" -o jsonpath='{.data.client-id}' 2>"${err}")"; then
         if grep -q 'NotFound' "${err}"; then rm -f "${err}"; return 2; fi
         cat "${err}" >&2; rm -f "${err}"; return 1
     fi
     rm -f "${err}"
-    sec="$(kubectl get secret gateway-idp-credentials -n openchoreo-data-plane -o jsonpath='{.data.client-secret}' 2>/dev/null)" || return 1
+    sec="$(kubectl get secret gateway-idp-credentials -n "${IDP_SECRET_NAMESPACE}" -o jsonpath='{.data.client-secret}' 2>/dev/null)" || return 1
     [ -n "${id}" ] && [ -n "${sec}" ] || return 1
     printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: gateway-idp-credentials\ndata:\n  client-id: %s\n  client-secret: %s\n' "${id}" "${sec}" \
         | kubectl apply -n "$1" -f - > /dev/null
@@ -787,14 +812,14 @@ IDP_COPY_RC=0
 copy_idp_secret "${GATEWAY_NAMESPACE}" || IDP_COPY_RC=$?
 if [ "${IDP_COPY_RC}" -eq 0 ]; then
     IDP_SECRET_COPIED=true
-    echo "🔑 Using the gateway IDP credentials from openchoreo-data-plane/gateway-idp-credentials"
+    echo "🔑 Using the gateway IDP credentials from ${IDP_SECRET_NAMESPACE}/gateway-idp-credentials"
     HELM_ARGS+=(--set agentManager.idp.existingSecret=gateway-idp-credentials)
 elif [ "${IDP_COPY_RC}" -ne 2 ]; then
     # A missing source is handled below. Other failures must stop the install.
-    echo "❌ Could not copy openchoreo-data-plane/gateway-idp-credentials into '${GATEWAY_NAMESPACE}'." >&2
+    echo "❌ Could not copy ${IDP_SECRET_NAMESPACE}/gateway-idp-credentials into '${GATEWAY_NAMESPACE}'." >&2
     exit 1
 else
-    echo "❌ Create openchoreo-data-plane/gateway-idp-credentials before installing a gateway." >&2
+    echo "❌ Create ${IDP_SECRET_NAMESPACE}/gateway-idp-credentials before installing a gateway." >&2
     exit 1
 fi
 
@@ -882,7 +907,7 @@ if [ "$GATEWAY_TOPOLOGY" = "split" ]; then
     # copy. Stop on failure, as for the main gateway: the default credentials would be wrong.
     if [ "${IDP_SECRET_COPIED}" = "true" ]; then
         copy_idp_secret "${EGRESS_NAMESPACE}" || {
-            echo "❌ Could not copy openchoreo-data-plane/gateway-idp-credentials into '${EGRESS_NAMESPACE}'." >&2
+            echo "❌ Could not copy ${IDP_SECRET_NAMESPACE}/gateway-idp-credentials into '${EGRESS_NAMESPACE}'." >&2
             exit 1
         }
     fi

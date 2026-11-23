@@ -28,7 +28,12 @@ A spec reads as `It` steps that delegate to `operations/` and `testsetup/`.
 ## Configuration
 
 All config is environment variables with defaults matching the quick-start
-install (see `.env.example`). 
+install (see `.env.example`).
+
+`IDP_CLIENT_SECRET` and `THUNDER_SYSTEM_CLIENT_SECRET` are generated per
+install. Leave them blank and `make e2e-test` reads them from the
+`amp-thunder/amp-platform-oauth` Secret on the current cluster. A value you set
+in `.env` or the shell still takes precedence.
 
 ## Shared fixtures
 
