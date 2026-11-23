@@ -17,22 +17,13 @@
  */
 
 import { Box, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
-import {
-  useTrace,
-  useTraceScores,
-  useSpanDetail,
-} from "@agent-management-platform/api-client";
+import { useTrace, useSpanDetail } from "@agent-management-platform/api-client";
 import {
   FadeIn,
   NoDataFound,
   TraceExplorer,
 } from "@agent-management-platform/views";
-import { useParams } from "react-router-dom";
-import {
-  Span,
-  EvaluatorScoreWithMonitor,
-  TraceSpanSummary,
-} from "@agent-management-platform/types";
+import { Span, TraceSpanSummary } from "@agent-management-platform/types";
 import { Workflow } from "@wso2/oxygen-ui-icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SpanDetailsPanel } from "./SpanDetailsPanel";
@@ -92,12 +83,6 @@ export function TraceDetails({
   startTime,
   endTime,
 }: TraceDetailsProps) {
-  const {
-    orgId = "default",
-    projectId = "default",
-    agentId = "default",
-  } = useParams();
-
   const {
     data: traceDetails,
     isPending: isTracePending,
@@ -190,32 +175,6 @@ export function TraceDetails({
     !isSpanDetailError &&
     (isSpanDetailPending || spanDetail?.spanId !== selectedSpanId);
 
-  const { data: traceScoresData } = useTraceScores({
-    orgName: orgId,
-    projName: projectId,
-    agentName: agentId,
-    traceId,
-  });
-
-  const { traceEvalScores, spanScoresMap } = useMemo(() => {
-    const traceEvals: EvaluatorScoreWithMonitor[] = [];
-    const spanMap = new Map<string, EvaluatorScoreWithMonitor[]>();
-
-    for (const monitor of traceScoresData?.monitors ?? []) {
-      for (const ev of monitor.evaluators) {
-        traceEvals.push({ ...ev, monitorName: monitor.monitorName });
-      }
-      for (const span of monitor.spans) {
-        const existing = spanMap.get(span.spanId) ?? [];
-        for (const ev of span.evaluators) {
-          existing.push({ ...ev, monitorName: monitor.monitorName });
-        }
-        spanMap.set(span.spanId, existing);
-      }
-    }
-    return { traceEvalScores: traceEvals, spanScoresMap: spanMap };
-  }, [traceScoresData]);
-
   if (isTracePending) {
     return <TraceDetailsSkeleton />;
   }
@@ -268,19 +227,7 @@ export function TraceDetails({
               </Typography>
             </Box>
           ) : (
-            <SpanDetailsPanel
-              span={panelSpan}
-              evaluatorScores={
-                panelSpan
-                  ? !panelSpan.parentSpanId
-                    ? [
-                        ...traceEvalScores,
-                        ...(spanScoresMap.get(panelSpan.spanId) ?? []),
-                      ]
-                    : spanScoresMap.get(panelSpan.spanId)
-                  : undefined
-              }
-            />
+            <SpanDetailsPanel span={panelSpan} />
           )}
         </Box>
       </Stack>
