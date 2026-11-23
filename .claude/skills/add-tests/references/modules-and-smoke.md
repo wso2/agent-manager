@@ -13,11 +13,15 @@ Background: `docs/amp-lite/modules.md` → Testing.
 - The script lists which routes each distribution serves. A new module route needs a line, for `amp` (served) and for `amp-core` / `amp-off` (not served).
 - It signs in as the admin, so the stack must use file sign-in (the default).
 
+The full and core stacks share ports, so stop one before starting the other, and run `amp-off` on the full stack:
+
 ```bash
 make up && make smoke                       # full stack
-make up-core && make smoke-core             # core only
 (cd deployments/standalone && docker compose exec amp-api /go/bin/amp module disable ai-gateway)
 deployments/standalone/scripts/smoke.sh amp-off
+(cd deployments/standalone && docker compose exec amp-api /go/bin/amp module enable ai-gateway)
+make down && make up-core && make smoke-core  # core only
+make down-core
 ```
 
 CI (`standalone-smoke.yaml`) runs all three on PRs to `amp-2.x` that touch `agent-manager-service/**` or `deployments/standalone/**`, without the console.

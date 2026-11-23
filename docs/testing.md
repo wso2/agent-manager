@@ -9,10 +9,10 @@ Which tests a change needs, where their files go, how to run them and which of t
 | API unit tests | Service logic with mocked repositories and clients, middleware, config, module logic | `*_test.go` next to the code in `agent-manager-service`, **no build tag** | `make test-unit` in `agent-manager-service`; one test with `make test-run RUN=<pattern> PKG=./services/` | PRs that touch `agent-manager-service/**` |
 | Route and permission invariants | Every route is authorized and audited, every permission has an owner and reaches roles and ThunderID, module OpenAPI documents match their routes | `agent-manager-service/api/*_invariant_test.go`, `api/audit_coverage_test.go`, `rbac/*_test.go` | `make security-test-static` (repository root), or as part of `make test-unit` | Same as unit tests |
 | API integration tests | Repositories, SQL, transactions, migrations, the module host, and requests through the real router | `*_test.go` with `//go:build integration` on line 1; API-level ones in `agent-manager-service/tests/` | `make test-integration` (SQLite); `DB_DRIVER=postgres make test-integration` (the server in `.env.test`) | PRs that touch `agent-manager-service/**`, on SQLite and PostgreSQL |
-| End-to-end API tests | User flows over the public API of a running stack | `test/e2e/tests/<domain>/` | `make up`, then `make e2e-test` (`SUITE=<domain>`, `FOCUS=<regex>`) | Every PR to `amp-2.x` except documentation-only ones; release. Not on PRs to `main` |
+| End-to-end API tests | User flows over the public API of a running stack | `test/e2e/tests/<domain>/` | `make up` in ThunderID sign-in mode ([below](#running-the-suites-that-need-a-stack)), then `make e2e-test` (`SUITE=<domain>`, `FOCUS=<regex>`) | Every PR to `amp-2.x` except documentation-only ones; release. Not on PRs to `main` |
 | End-to-end CLI tests | `amctl` as a user runs it: exit codes and `--json` envelopes | `test/e2e/tests/cli/<group>/` | `make e2e-test SUITE=cli` | Same as end-to-end API tests |
 | Live security tests | The scope matrix, roles, tokens and agent identity against a running stack | `test/e2e/security/<area>/` | `make security-test-live` (`SUITE=`, `FOCUS=`) | Same as end-to-end API tests |
-| Compose smoke test | Sign-in, the core API, which routes each distribution serves, the console files | `deployments/standalone/scripts/smoke.sh` | `make up` then `make smoke`; `make up-core` then `make smoke-core` | PRs to `amp-2.x` that touch `agent-manager-service/**` or `deployments/standalone/**` (`amp`, `amp-core`, and `amp` with the gateway disabled) |
+| Compose smoke test | Sign-in, the core API, which routes each distribution serves, the console files | `deployments/standalone/scripts/smoke.sh` | `make up` then `make smoke`; `make down`, `make up-core`, then `make smoke-core` (file sign-in) | PRs to `amp-2.x` that touch `agent-manager-service/**` or `deployments/standalone/**` (`amp`, `amp-core`, and `amp` with the gateway disabled) |
 | File sign-in smoke | `auth.mode: file`: the generated user file, sign-in, the console's auth mode | `.github/workflows/file-auth-smoke.yaml` | The steps in that workflow | PRs that touch sign-in, config or `deployments/standalone/**` |
 | CLI unit tests | Each `amctl` command's `runX` function, clients, config | `cli/pkg/**/*_test.go` | `make amctl-test`, or `go test ./...` in `cli` | PRs that touch `cli/**`, and OpenAPI changes (client drift check) |
 | Console unit tests | Hooks, API clients, components, utilities (Vitest, jsdom) | `*.test.ts(x)` next to the code under `console/workspaces` | `pnpm build` once, then `pnpm test` in `console`, or `pnpm run test` in one package | PRs that touch `console/**` |
@@ -66,7 +66,7 @@ Start from the row that matches the change. A change that spans rows needs each 
 ### Smoke tests
 
 - `smoke.sh` names the routes each distribution serves. A new module route needs a line there.
-- The smoke test signs in as the admin, so the stack must run with file sign-in.
+- The smoke test signs in as the admin, so the stack must run with file sign-in, the default. The e2e suites need ThunderID sign-in instead; see [Running the suites that need a stack](#running-the-suites-that-need-a-stack).
 
 ### CLI (`cli`)
 
@@ -83,9 +83,27 @@ Start from the row that matches the change. A change that spans rows needs each 
 
 ## Running the suites that need a stack
 
-1. Start the stack: `make up` (or `make dev-up` to run the API from source).
+The suites need different sign-in modes, so they can't all run against one stack. The stack's default is file sign-in (`auth.mode: file`), where the API accepts only tokens it issues itself.
+
+| Suites | Sign-in mode | Stack |
+|---|---|---|
+| `make smoke`, `make smoke-core`, `smoke.sh amp-off` | file (the default) | `make up` or `make up-core` as shipped |
+| `make e2e-test`, `make security-test-live`, sample platform smokes | ThunderID (`idp`): they sign in with client credentials against ThunderID | `make up` with these two lines in `deployments/standalone/.env` |
+
+```bash
+AUTH_MODE=idp
+KEY_MANAGER_JWKS_URL=http://thunder:${THUNDER_PORT}/oauth2/jwks
+```
+
+`AUTH_MODE` alone isn't enough: without `KEY_MANAGER_JWKS_URL` the API still validates against its own keys and refuses ThunderID's tokens. Run `make up` again after changing `.env`. Remove both lines and run `make up` again to go back to file sign-in for the smoke test.
+
+For the e2e and live security suites:
+
+1. Start the stack in ThunderID mode as above (or `make dev-up` to run the API from source).
 2. Copy `test/e2e/.env.example` to `test/e2e/.env`. Set `OPENAI_API_KEY` to run the specs that call a model; without it they skip. `make e2e-test` reads the stack's generated client secrets from the `amp-api` container.
-3. Run `make e2e-test`, `make security-test-live` and `make smoke`.
+3. Run `make e2e-test` and `make security-test-live`.
+
+The full stack (`make up`) and the core stack (`make up-core`) use the same ports. Stop one with `make down` or `make down-core` before you start the other.
 
 CI starts the same stack with `.github/actions/amp-dev-stack`, which fixes the client secrets and the admin password through `.github/scripts/standalone-ci-settings.sh`. Change both that script and `test/e2e/framework/config.go` if one of those values changes.
 

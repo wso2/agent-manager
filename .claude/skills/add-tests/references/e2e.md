@@ -23,7 +23,9 @@ Existing suites: `tests/agent` (external agent lifecycle), `tests/project`, `tes
 ## Run
 
 ```bash
-make up                                     # at the repo root, once
+# once: AUTH_MODE=idp and KEY_MANAGER_JWKS_URL=http://thunder:${THUNDER_PORT}/oauth2/jwks
+# in deployments/standalone/.env — the suites sign in through ThunderID
+make up                                     # at the repo root
 cp test/e2e/.env.example test/e2e/.env      # once; OPENAI_API_KEY optional
 make e2e-test FOCUS="<your spec>"           # one spec, one process
 make e2e-test SUITE=<domain>                # one suite

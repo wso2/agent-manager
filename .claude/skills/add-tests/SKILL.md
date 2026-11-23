@@ -48,7 +48,8 @@ description: Use when adding, writing or choosing tests for a change in this rep
 | One Go test | `cd agent-manager-service && make test-run RUN=<Test> PKG=./services/` |
 | Unit tier (includes the invariants) | `make test-unit` in `agent-manager-service` |
 | Integration tier | `make test-integration`; `DB_DRIVER=postgres make test-integration` |
-| e2e / live security / smoke | `make up` at the root, then `make e2e-test FOCUS="<spec>"`, `make security-test-live SUITE=<area>`, `make smoke` |
+| e2e / live security | `make up` with ThunderID sign-in ([references/e2e.md](references/e2e.md)), then `make e2e-test FOCUS="<spec>"`, `make security-test-live SUITE=<area>` |
+| Smoke | `make up` with the default file sign-in, then `make smoke` ([references/modules-and-smoke.md](references/modules-and-smoke.md)) |
 | CLI | `cd cli && go test -race ./pkg/cmd/<group>/...` |
 | Console | `cd console && pnpm build && pnpm test` (one package: `pnpm run test` in it) |
 

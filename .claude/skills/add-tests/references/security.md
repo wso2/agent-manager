@@ -21,7 +21,7 @@ Check with `make security-test-static` at the repository root. An authorization 
 
 ```bash
 make security-test-static                   # no stack
-make up && make security-test-live SUITE=authz
+make up && make security-test-live SUITE=authz   # stack in ThunderID mode, see e2e.md
 make security-test-live FOCUS="scope matrix"
 ```
 

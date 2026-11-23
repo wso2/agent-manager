@@ -123,8 +123,8 @@ The architecture and data-model diagrams are generated. Edit the generators in [
 | API integration tests | `make test-integration` in `agent-manager-service` | Nothing; they run on a throwaway SQLite database |
 | One test | `make test-run RUN=<pattern> PKG=./services/` | Nothing |
 | Route authorization checks | `make security-test-static` | Nothing |
-| End-to-end tests | `make e2e-test` (`SUITE=<name>` or `FOCUS=<regex>` to narrow) | A running stack; copy `test/e2e/.env.example` to `test/e2e/.env` first |
-| Live security tests | `make security-test-live` | A running stack |
+| End-to-end tests | `make e2e-test` (`SUITE=<name>` or `FOCUS=<regex>` to narrow) | A running stack with ThunderID sign-in ([how](testing.md#running-the-suites-that-need-a-stack)); copy `test/e2e/.env.example` to `test/e2e/.env` first |
+| Live security tests | `make security-test-live` | A running stack with ThunderID sign-in |
 | Console tests | `pnpm build`, then `pnpm test` in `console` | Nothing |
 
 Tests that call real model providers need provider keys in `test/e2e/.env`. Without them those specs skip.
