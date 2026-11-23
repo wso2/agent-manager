@@ -177,11 +177,12 @@ func defaultPort(u *url.URL) int {
 // LoadThunderConfig reads the ThunderID inputs from the environment.
 func LoadThunderConfig() (*ThunderConfig, error) {
 	r := &envReader{}
+	publicURL := strings.TrimRight(r.required("SERVER_PUBLIC_URL"), "/")
 	cfg := &ThunderConfig{
 		Modules:      compiledModules(),
-		AMPPublicURL: strings.TrimRight(r.required("SERVER_PUBLIC_URL"), "/"),
+		AMPPublicURL: publicURL,
 		// The console is served by the API unless it runs elsewhere.
-		ConsoleURL: strings.TrimRight(r.str("CONSOLE_URL", config.Value("SERVER_PUBLIC_URL")), "/"),
+		ConsoleURL: strings.TrimRight(r.str("CONSOLE_URL", publicURL), "/"),
 		APIClient: Client{
 			ID: r.str("IDP_CLIENT_ID", "amp-api-client"), Secret: r.required("IDP_CLIENT_SECRET"),
 		},

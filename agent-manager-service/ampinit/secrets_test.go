@@ -92,6 +92,13 @@ func TestEnsureSecretsWritesSharedSetValues(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(dir, "admin-password"))
 	require.NoError(t, err)
 	assert.Equal(t, " spaced ", string(got))
+
+	// Only an empty value is unset, as in the server's lookup.
+	t.Setenv("AMP_ADMIN_PASSWORD", "   ")
+	require.NoError(t, EnsureSecrets(dir, nil))
+	got, err = os.ReadFile(filepath.Join(dir, "admin-password"))
+	require.NoError(t, err)
+	assert.Equal(t, "   ", string(got))
 }
 
 // A secret file that exists but cannot be read is an error, not replaced.

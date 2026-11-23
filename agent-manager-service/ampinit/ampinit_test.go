@@ -433,3 +433,20 @@ func TestConsoleRedirectsKeepThePublicConsole(t *testing.T) {
 		t.Errorf("CORSOrigins = %q, want %q", got, want)
 	}
 }
+
+func TestConsoleURLDefaultIsTrimmed(t *testing.T) {
+	setThunderEnv(t)
+	t.Setenv("CONSOLE_URL", "")
+	t.Setenv("AMP_PUBLIC_URL", "")
+	t.Setenv("SERVER_PUBLIC_URL", " https://api.example.com/ ")
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ConsoleURL != "https://api.example.com" {
+		t.Errorf("ConsoleURL = %q", cfg.ConsoleURL)
+	}
+	if cfg.ConsoleRedirectURIs[0] != "https://api.example.com/login" {
+		t.Errorf("ConsoleRedirectURIs = %q", cfg.ConsoleRedirectURIs)
+	}
+}
