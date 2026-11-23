@@ -94,3 +94,19 @@ func TestGeneratedUnreadableFileFailsLoad(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "IDP_CLIENT_SECRET")
 }
+
+// A _FILE that cannot be read stops the lookup: the generated secret does
+// not stand in for it, outside Load as well as in it.
+func TestUnreadableSecretFileDoesNotFallBack(t *testing.T) {
+	reloadAfter(t)
+	dir := t.TempDir()
+	t.Setenv("AMP_SECRETS_DIR", dir)
+	unset(t, "IDP_CLIENT_SECRET", "AMP_API_CLIENT_SECRET", "IDP_CLIENT_SECRET_FILE")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "amp-api-client-secret"), []byte("generated"), 0o600))
+	require.NoError(t, loadWith(t, "server: {port: 8080}\n"))
+
+	t.Setenv("IDP_CLIENT_SECRET_FILE", filepath.Join(dir, "missing"))
+	v, ok := Lookup("IDP_CLIENT_SECRET")
+	assert.Equal(t, "", v)
+	assert.False(t, ok)
+}

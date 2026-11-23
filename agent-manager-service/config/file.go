@@ -95,8 +95,8 @@ const FileSuffix = "_FILE"
 // file's key, the file the configuration file's key_file names, an older name
 // of the setting, and for a generated secret its file in SecretsDir.
 func Lookup(key string) (string, bool) {
-	v, ok := lookupSet(key)
-	if _, generated := GeneratedSecrets[key]; generated && v == "" {
+	v, ok, failed := lookup(key)
+	if _, generated := GeneratedSecrets[key]; generated && v == "" && !failed {
 		if g, found := generatedValue(key); found {
 			return g, true
 		}
@@ -106,6 +106,13 @@ func Lookup(key string) (string, bool) {
 
 // lookupSet is Lookup without the generated secrets.
 func lookupSet(key string) (string, bool) {
+	v, ok, _ := lookup(key)
+	return v, ok
+}
+
+// lookup is lookupSet that also reports a source that failed to read, which
+// ends the lookup: the generated secret does not stand in for it.
+func lookup(key string) (value string, found, failed bool) {
 	fileMu.RLock()
 	track := tracking
 	v, inFile := fileVars[key]
@@ -120,33 +127,33 @@ func lookupSet(key string) (string, bool) {
 	// An empty generated secret counts as unset, so a later source fills it.
 	_, generated := GeneratedSecrets[key]
 	if env, ok := os.LookupEnv(key); ok && (env != "" || !generated) {
-		return env, true
+		return env, true, false
 	}
 	if path, ok := os.LookupEnv(key + FileSuffix); ok && path != "" {
 		if s, ok := readSettingFile(key+FileSuffix, path); s != "" || !ok || !generated {
-			return s, ok
+			return s, ok, !ok
 		}
 	}
 	if vErr != nil {
 		settingErr(vErr)
-		return "", false
+		return "", false, true
 	}
 	if inFile && (v != "" || !generated) {
-		return v, true
+		return v, true, false
 	}
 	if vFileErr != nil {
 		settingErr(vFileErr)
-		return "", false
+		return "", false, true
 	}
 	if inFileFile && vFile != "" {
 		if s, ok := readSettingFile(key+FileSuffix, vFile); s != "" || !ok || !generated {
-			return s, ok
+			return s, ok, !ok
 		}
 	}
 	if old, ok := aliases[key]; ok {
-		return lookupSet(old)
+		return lookup(old)
 	}
-	return "", false
+	return "", false, false
 }
 
 // readSettingFile reads a _FILE setting's file. A failure is reported by
