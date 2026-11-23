@@ -25,7 +25,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: './setupTests.tsx',
+    setupFiles: ['./setupTests.tsx', '../../../../../vitest.jsdom-storage.ts'],
     // Oxygen UI and MUI X import raw .css, which Node cannot load; inlining
     // them lets Vite handle those imports (same as the traces package).
     server: {

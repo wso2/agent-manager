@@ -10,7 +10,8 @@
 ## Console (`console/`)
 
 - Vitest (jsdom). The test sits next to the file: `<name>.test.ts` or `<name>.test.tsx`. Examples: `workspaces/libs/api-client/src/acp-core/hooks/projects.test.ts`, `workspaces/ui-modules/ai-gateway/pages/gateways/src/subComponents/`.
-- A package needs a `test` script (`vitest run`) and a `vitest.config.ts`; copy them from `workspaces/libs/shared-component` when adding the first test to a package.
+- A package needs a `test` script (`vitest run`) and a `vitest.config.ts`; copy them from `workspaces/libs/shared-component` when adding the first test to a package. Keep `../../../vitest.jsdom-storage.ts` (path relative to the package) in `setupFiles`: on Node 25+ a test that touches `localStorage` fails without it.
+- Mock the workspace hooks a page calls (`vi.mock("@agent-management-platform/api-client", …)`) and render it inside a `MemoryRouter` with the route it expects; `AddNewAgent.test.tsx` and `ProjectOverview.test.tsx` under `ui-modules/acp-core/pages/` are examples.
 - Tests import other workspace packages from their built output, so build first:
 
 ```bash

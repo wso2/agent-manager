@@ -63,6 +63,9 @@ func TestSecurityObservability(t *testing.T) {
 
 var _ = BeforeSuite(func(ctx SpecContext) {
 	Cfg = framework.LoadConfig()
+	if Cfg.ObserverBaseURL == "" {
+		Skip("AM_OBSERVER_BASE_URL is not set: the observer is not part of the AMP Lite stack")
+	}
 
 	By("Checking the observer is reachable")
 	verifyObserverReachable(ctx)

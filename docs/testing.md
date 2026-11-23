@@ -74,7 +74,7 @@ Start from the row that matches the change. A change that spans rows needs each 
 
 ### Console (`console`)
 
-- Vitest with jsdom and `globals: true`; one `vitest.config.ts` per package. To add the first test to a package, copy the `test` script and `vitest.config.ts` from `workspaces/libs/shared-component`.
+- Vitest with jsdom and `globals: true`; one `vitest.config.ts` per package. To add the first test to a package, copy the `test` script and `vitest.config.ts` from `workspaces/libs/shared-component`. Keep `vitest.jsdom-storage.ts` in `setupFiles`: Node 25 and later define their own `localStorage` and `sessionStorage`, which would otherwise shadow jsdom's.
 - Tests import the other workspace packages from their built output: run `pnpm build` before `pnpm test`, and again after changing a package that a test imports.
 
 ### Python
@@ -93,6 +93,7 @@ CI starts the same stack with `.github/actions/amp-dev-stack`, which fixes the c
 
 - The evaluation library and job: their checks run by hand.
 - The heavy tier of the instrumentation matrix: it is off until traces return as a module.
+- The observability live security suite: it skips unless `AM_OBSERVER_BASE_URL` points at an observer, which the AMP Lite stack does not run.
 - Sample platform smokes run only when their sample changes, apart from the manual-instrumentation sample.
 - `standalone-smoke` builds the image without the console, so a change to how the API serves the console needs `make up` and `make smoke` locally.
 - Scheduled workflows run on `main` only, and PRs to `main` don't run the end-to-end suites.
