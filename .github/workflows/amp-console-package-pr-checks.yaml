@@ -56,8 +56,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: console-coverage
-          path: |
-            ${{ runner.temp }}/console-coverage.json
-            console/workspaces/**/coverage/
-            !console/**/node_modules/**
+          # Only the per-package summary: globbing the packages' coverage/
+          # directories walks pnpm's symlinked node_modules and stalls.
+          path: ${{ runner.temp }}/console-coverage.json
           if-no-files-found: ignore
