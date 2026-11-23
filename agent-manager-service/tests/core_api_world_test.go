@@ -91,6 +91,7 @@ func newCoreWorld(t *testing.T) coreWorld {
 	build := func(auth jwtassertion.Middleware) http.Handler {
 		return apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{
 			PlatformRepository: repositories.NewPlatformRepo(db.GetDB()),
+			SecretMgmtClient:   apitestutils.CreateMockSecretManagementClient(),
 		}, auth)
 	}
 	return coreWorld{
