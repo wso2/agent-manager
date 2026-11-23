@@ -25,3 +25,16 @@ var aliases = map[string]string{
 	"THUNDER_CLIENT_ID":     "AMP_SYSTEM_CLIENT_ID",
 	"THUNDER_CLIENT_SECRET": "AMP_SYSTEM_CLIENT_SECRET",
 }
+
+// OldName is the older name a setting is also read by, or "".
+func OldName(key string) string { return aliases[key] }
+
+// IsOldName reports whether key is the older name of another setting.
+func IsOldName(key string) bool {
+	for _, old := range aliases {
+		if old == key {
+			return true
+		}
+	}
+	return false
+}

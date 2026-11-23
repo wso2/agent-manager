@@ -1,4 +1,5 @@
-# Example amp.yaml. Every key is an environment variable name written as
+# Example amp.yaml; docs/amp-lite/configuration.md lists every key.
+# Every key is an environment variable name written as
 # nested YAML: `db: {driver: sqlite}` is DB_DRIVER. A variable set in the
 # environment always wins over this file, even when empty. One file is read:
 # --config, else $AMP_CONFIG, else ./amp.yaml. Keys no setting reads are

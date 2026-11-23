@@ -31,6 +31,9 @@ schema: ## Render db_migrations/schema/lite.yaml into the per-database baseline 
 	@go run ./db_migrations/schema/cmd/schemagen
 
 .PHONY: codegen
+config-docs: ## Write the configuration reference (docs/amp-lite/configuration.md).
+	@go run ./cmd/gen-config-docs ../docs/amp-lite/configuration.md
+
 codegen: ## Run code gen.
 	@echo "Running go generate"
 	@# Requires the `moq` binary on PATH (mock generation for client + repository

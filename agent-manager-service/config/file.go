@@ -498,3 +498,23 @@ func scalar(key string, v any) (string, error) {
 func envName(key string) string {
 	return strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(key))
 }
+
+// KnownKeys are the settings the last Load read, and those registered with
+// RegisterKeys: every setting the configuration file may set, sorted.
+func KnownKeys() []string {
+	fileMu.RLock()
+	defer fileMu.RUnlock()
+	seen := map[string]bool{}
+	for k := range readKeys {
+		seen[k] = true
+	}
+	for k := range registered {
+		seen[k] = true
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
