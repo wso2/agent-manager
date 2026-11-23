@@ -31,9 +31,10 @@ export default defineConfig({
     server: {
       deps: {
         // oxygen-ui's dist imports prismjs subpaths without file extensions
-        // and @mui/x-data-grid imports raw .css, neither of which Node's
-        // native ESM loader accepts; route them through Vite's resolver.
-        inline: ['@wso2/oxygen-ui', '@mui/x-data-grid'],
+        // and oxygen-ui-icons-react and @mui/x-data-grid import raw .css,
+        // neither of which Node's native ESM loader accepts; route them
+        // through Vite's resolver.
+        inline: ['@wso2/oxygen-ui', '@wso2/oxygen-ui-icons-react', '@mui/x-data-grid'],
       },
     },
   },
