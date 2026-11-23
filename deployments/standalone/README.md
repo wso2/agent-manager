@@ -18,7 +18,7 @@ Startup, in order:
 3. `amp-api` (`amp serve --migrate`) migrates the core's and every module's tables, starts the module host, and creates the `default` organization and environment if needed (`DEFAULT_ORG_*`). The `ai-gateway` module, which `amp` installs at first boot, then registers the default gateway (`MODULE_AI_GATEWAY_DEFAULT_GATEWAY_*`) with the token from step 1 ([how the default gateway registers itself](../../docs/amp-lite/ai-gateway.md#how-the-default-gateway-registers-itself)).
 4. `gateway-controller` connects to `amp-api` with that token and receives its APIs.
 
-Without the `observability` profile the stack runs no trace store, and the gateway serves no `/otel` trace-ingest API. With it, ClickHouse and the OpenTelemetry collector run for the `observability` module (see [Observability](#observability-traces)).
+Without the `observability` profile the stack runs no trace store, and the gateway serves no `/otel` trace-ingest API. With it, ClickHouse and the OpenTelemetry collector run for the `observability` module, and agents send traces to the module at `<amp>/m/observability/otel` with their agent key (see [Observability](#observability-traces)).
 
 ## Run
 

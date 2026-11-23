@@ -9,9 +9,31 @@ agent ──OTLP──▶ amp (observability module: checks the agent key, sets 
           otel-collector ──insert──▶ ClickHouse ◀──read── amp
 ```
 
-The module's OTLP ingest route, which forwards to the collector, is still to come. This page covers the install component: ClickHouse, the collector, and the schema step.
+This page covers how agents send traces, and the install component: ClickHouse, the collector, and the schema step.
 
 Without any of this, the module keeps traces in memory, and Lite runs no ClickHouse or collector.
+
+## Sending traces
+
+An agent sends OTLP/HTTP traces to `amp` with its agent key, with no gateway in between:
+
+| Setting | Value |
+|---|---|
+| OTLP endpoint | `<amp>/m/observability/otel` (traces go to `<amp>/m/observability/otel/v1/traces`) |
+| Header | `X-Amp-Api-Key: <the agent's key>` |
+| Body | `application/x-protobuf` or `application/json`, gzip or not |
+
+With `amp-instrumentation`, set `AMP_OTEL_ENDPOINT` to the OTLP endpoint and `AMP_AGENT_API_KEY` to the key; the console's "Set up agent" drawer shows both. `<amp>` is the address agents reach the API on, such as `http://localhost:9000` on the Compose stack.
+
+The module's route (`POST /m/observability/otel/v1/traces`):
+
+- answers `401` for a missing, invalid or expired key, a sign-in token, or a key whose agent was deleted (checked at most once a minute per agent);
+- sends the body unchanged to `MODULE_OBSERVABILITY_COLLECTOR_URL`, with only its type and encoding and the identity headers set from the key (below), and passes the collector's answer back;
+- answers `413` for a body over `MODULE_OBSERVABILITY_INGEST_MAX_BODY_BYTES` (10 MiB by default, as sent), `415` for another content type or an encoding other than gzip, and `503` when no collector is configured or it is unreachable, so the agent retries;
+- answers `404` while the module is not active;
+- is audited as `observability:traces-ingest`, once per agent per hour per replica.
+
+There is no rate limit yet. Agent keys cannot be revoked before they expire; deleting the agent stops its key here within a minute.
 
 ## What is installed
 
@@ -46,7 +68,7 @@ The collector trusts only the headers the module sets from the verified agent ke
 
 3. It drops a span with no `x-org-id`; it never stores one with an empty org.
 
-Only containers on the observability network can reach the collector, so only `amp` sets those headers.
+Only containers on the observability network can reach the collector, so only `amp` sets those headers. The collector also caps a request at 20 MiB once gzip is undone.
 
 ## Quick setup: the Compose profile
 
