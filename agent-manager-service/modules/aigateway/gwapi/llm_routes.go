@@ -33,20 +33,10 @@ func RegisterLLMRoutes(rr Router, ctrl gwctl.LLMController) {
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateDelete,
 		rr.Track("amp.connections.create-llm-provider.template", actionDims("deleted-provider-template"), ctrl.DeleteLLMProviderTemplate))
 
-	// LLM Providers
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers", gwperm.LLMProviderCreate,
-		rr.Track("amp.connections.create-llm-provider", actionDims("created-llm-provider"), ctrl.CreateLLMProvider))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers", gwperm.LLMProviderRead, ctrl.ListLLMProviders)
+	registerLLMProviderRoutes(rr, ctrl)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/policies", gwperm.LLMProviderRead, ctrl.ListAvailableLLMPolicies)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}", gwperm.LLMProviderRead, ctrl.GetLLMProvider)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/llm-proxies", gwperm.LLMProxyRead, ctrl.ListLLMProxiesByProvider)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/consumers", gwperm.LLMProviderRead, ctrl.ListLLMProviderConsumers)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-providers/{providerId}", gwperm.LLMProviderUpdate,
-		rr.Track("amp.connections.create-llm-provider", actionDims("updated-llm-provider"), ctrl.UpdateLLMProvider))
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-providers/{providerId}/catalog", gwperm.LLMProviderUpdate,
-		rr.Track("amp.connections.create-llm-provider", actionDims("updated-llm-provider-catalog-status"), ctrl.UpdateLLMProviderCatalogStatus))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-providers/{providerId}", gwperm.LLMProviderDelete,
-		rr.Track("amp.connections.create-llm-provider", actionDims("deleted-llm-provider"), ctrl.DeleteLLMProvider))
 
 	// LLM Proxies
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies", gwperm.LLMProxyCreate, ctrl.CreateLLMProxy)
@@ -54,4 +44,16 @@ func RegisterLLMRoutes(rr Router, ctrl gwctl.LLMController) {
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}", gwperm.LLMProxyRead, ctrl.GetLLMProxy)
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}", gwperm.LLMProxyUpdate, ctrl.UpdateLLMProxy)
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}", gwperm.LLMProxyDelete, ctrl.DeleteLLMProxy)
+}
+
+// registerLLMProviderRoutes mounts the provider documents. Catalog membership is spec.inCatalog on the PUT.
+func registerLLMProviderRoutes(rr Router, ctrl gwctl.LLMController) {
+	rr.HandleFuncWithValidationAndAuthz("POST /llm-providers", gwperm.LLMProviderCreate,
+		rr.Track("amp.connections.create-llm-provider", actionDims("created-llm-provider"), ctrl.CreateLLMProvider))
+	rr.HandleFuncWithValidationAndAuthz("GET /llm-providers", gwperm.LLMProviderRead, ctrl.ListLLMProviders)
+	rr.HandleFuncWithValidationAndAuthz("GET /llm-providers/{providerId}", gwperm.LLMProviderRead, ctrl.GetLLMProvider)
+	rr.HandleFuncWithValidationAndAuthz("PUT /llm-providers/{providerId}", gwperm.LLMProviderUpdate,
+		rr.Track("amp.connections.create-llm-provider", actionDims("updated-llm-provider"), ctrl.UpdateLLMProvider))
+	rr.HandleFuncWithValidationAndAuthz("DELETE /llm-providers/{providerId}", gwperm.LLMProviderDelete,
+		rr.Track("amp.connections.create-llm-provider", actionDims("deleted-llm-provider"), ctrl.DeleteLLMProvider))
 }

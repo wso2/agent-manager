@@ -23,18 +23,17 @@ import (
 type LLMProvidersAPIService service
 
 type ApiCreateLLMProviderRequest struct {
-	ctx                      context.Context
-	ApiService               *LLMProvidersAPIService
-	orgName                  string
-	createLLMProviderRequest *CreateLLMProviderRequest
+	ctx                 context.Context
+	ApiService          *LLMProvidersAPIService
+	llmProviderDocument *LlmProviderDocument
 }
 
-func (r ApiCreateLLMProviderRequest) CreateLLMProviderRequest(createLLMProviderRequest CreateLLMProviderRequest) ApiCreateLLMProviderRequest {
-	r.createLLMProviderRequest = &createLLMProviderRequest
+func (r ApiCreateLLMProviderRequest) LlmProviderDocument(llmProviderDocument LlmProviderDocument) ApiCreateLLMProviderRequest {
+	r.llmProviderDocument = &llmProviderDocument
 	return r
 }
 
-func (r ApiCreateLLMProviderRequest) Execute() (*LLMProviderResponse, *http.Response, error) {
+func (r ApiCreateLLMProviderRequest) Execute() (*LlmProviderDocument, *http.Response, error) {
 	return r.ApiService.CreateLLMProviderExecute(r)
 }
 
@@ -44,26 +43,24 @@ CreateLLMProvider Create a new LLM provider
 Create a new LLM provider instance from a template
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiCreateLLMProviderRequest
 */
-func (a *LLMProvidersAPIService) CreateLLMProvider(ctx context.Context, orgName string) ApiCreateLLMProviderRequest {
+func (a *LLMProvidersAPIService) CreateLLMProvider(ctx context.Context) ApiCreateLLMProviderRequest {
 	return ApiCreateLLMProviderRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return LLMProviderResponse
-func (a *LLMProvidersAPIService) CreateLLMProviderExecute(r ApiCreateLLMProviderRequest) (*LLMProviderResponse, *http.Response, error) {
+//	@return LlmProviderDocument
+func (a *LLMProvidersAPIService) CreateLLMProviderExecute(r ApiCreateLLMProviderRequest) (*LlmProviderDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *LLMProviderResponse
+		localVarReturnValue *LlmProviderDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMProvidersAPIService.CreateLLMProvider")
@@ -71,18 +68,17 @@ func (a *LLMProvidersAPIService) CreateLLMProviderExecute(r ApiCreateLLMProvider
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-providers"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.createLLMProviderRequest == nil {
-		return localVarReturnValue, nil, reportError("createLLMProviderRequest is required and must be specified")
+	if r.llmProviderDocument == nil {
+		return localVarReturnValue, nil, reportError("llmProviderDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
-	localVarHTTPContentTypes := []string{"application/json"}
+	localVarHTTPContentTypes := []string{"application/json", "application/yaml"}
 
 	// set Content-Type header
 	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
@@ -91,7 +87,7 @@ func (a *LLMProvidersAPIService) CreateLLMProviderExecute(r ApiCreateLLMProvider
 	}
 
 	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
+	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
@@ -99,7 +95,7 @@ func (a *LLMProvidersAPIService) CreateLLMProviderExecute(r ApiCreateLLMProvider
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.createLLMProviderRequest
+	localVarPostBody = r.llmProviderDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -183,7 +179,6 @@ func (a *LLMProvidersAPIService) CreateLLMProviderExecute(r ApiCreateLLMProvider
 type ApiDeleteLLMProviderRequest struct {
 	ctx        context.Context
 	ApiService *LLMProvidersAPIService
-	orgName    string
 	providerId string
 }
 
@@ -201,15 +196,13 @@ removed. Deletion is refused with a 409 while anything still references the
 provider — an LLM proxy, or an agent's LLM configuration.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param providerId Provider UUID
 	@return ApiDeleteLLMProviderRequest
 */
-func (a *LLMProvidersAPIService) DeleteLLMProvider(ctx context.Context, orgName string, providerId string) ApiDeleteLLMProviderRequest {
+func (a *LLMProvidersAPIService) DeleteLLMProvider(ctx context.Context, providerId string) ApiDeleteLLMProviderRequest {
 	return ApiDeleteLLMProviderRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		providerId: providerId,
 	}
 }
@@ -227,8 +220,7 @@ func (a *LLMProvidersAPIService) DeleteLLMProviderExecute(r ApiDeleteLLMProvider
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{providerId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-providers/{providerId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -348,11 +340,10 @@ func (a *LLMProvidersAPIService) DeleteLLMProviderExecute(r ApiDeleteLLMProvider
 type ApiGetLLMProviderRequest struct {
 	ctx        context.Context
 	ApiService *LLMProvidersAPIService
-	orgName    string
 	providerId string
 }
 
-func (r ApiGetLLMProviderRequest) Execute() (*LLMProviderResponse, *http.Response, error) {
+func (r ApiGetLLMProviderRequest) Execute() (*LlmProviderDocument, *http.Response, error) {
 	return r.ApiService.GetLLMProviderExecute(r)
 }
 
@@ -362,28 +353,26 @@ GetLLMProvider Get LLM provider details
 Retrieve detailed information about a specific provider
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param providerId Provider UUID
 	@return ApiGetLLMProviderRequest
 */
-func (a *LLMProvidersAPIService) GetLLMProvider(ctx context.Context, orgName string, providerId string) ApiGetLLMProviderRequest {
+func (a *LLMProvidersAPIService) GetLLMProvider(ctx context.Context, providerId string) ApiGetLLMProviderRequest {
 	return ApiGetLLMProviderRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		providerId: providerId,
 	}
 }
 
 // Execute executes the request
 //
-//	@return LLMProviderResponse
-func (a *LLMProvidersAPIService) GetLLMProviderExecute(r ApiGetLLMProviderRequest) (*LLMProviderResponse, *http.Response, error) {
+//	@return LlmProviderDocument
+func (a *LLMProvidersAPIService) GetLLMProviderExecute(r ApiGetLLMProviderRequest) (*LlmProviderDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *LLMProviderResponse
+		localVarReturnValue *LlmProviderDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMProvidersAPIService.GetLLMProvider")
@@ -391,8 +380,7 @@ func (a *LLMProvidersAPIService) GetLLMProviderExecute(r ApiGetLLMProviderReques
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{providerId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-providers/{providerId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -409,7 +397,7 @@ func (a *LLMProvidersAPIService) GetLLMProviderExecute(r ApiGetLLMProviderReques
 	}
 
 	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
+	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
@@ -796,7 +784,6 @@ func (a *LLMProvidersAPIService) ListLLMProviderConsumersExecute(r ApiListLLMPro
 type ApiListLLMProvidersRequest struct {
 	ctx        context.Context
 	ApiService *LLMProvidersAPIService
-	orgName    string
 	limit      *int32
 	offset     *int32
 }
@@ -820,17 +807,17 @@ func (r ApiListLLMProvidersRequest) Execute() (*LLMProviderListResponse, *http.R
 /*
 ListLLMProviders List all LLM providers
 
-Retrieve a paginated list of LLM providers
+# Retrieve a paginated list of LLM providers
+
+Each item is a LlmProvider document, populated for list use: every REQUIRED field is present, but heavy optional blocks may be omitted. A list item is a valid document, not necessarily a complete one - read the item itself for the full spec. (A `view=full` parameter can be added later if a bulk consumer needs it.)
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiListLLMProvidersRequest
 */
-func (a *LLMProvidersAPIService) ListLLMProviders(ctx context.Context, orgName string) ApiListLLMProvidersRequest {
+func (a *LLMProvidersAPIService) ListLLMProviders(ctx context.Context) ApiListLLMProvidersRequest {
 	return ApiListLLMProvidersRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -850,8 +837,7 @@ func (a *LLMProvidersAPIService) ListLLMProvidersExecute(r ApiListLLMProvidersRe
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-providers"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -873,7 +859,7 @@ func (a *LLMProvidersAPIService) ListLLMProvidersExecute(r ApiListLLMProvidersRe
 	}
 
 	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
+	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
@@ -1121,19 +1107,18 @@ func (a *LLMProvidersAPIService) ListLLMProxiesByProviderExecute(r ApiListLLMPro
 }
 
 type ApiUpdateLLMProviderRequest struct {
-	ctx                      context.Context
-	ApiService               *LLMProvidersAPIService
-	orgName                  string
-	providerId               string
-	updateLLMProviderRequest *UpdateLLMProviderRequest
+	ctx                 context.Context
+	ApiService          *LLMProvidersAPIService
+	providerId          string
+	llmProviderDocument *LlmProviderDocument
 }
 
-func (r ApiUpdateLLMProviderRequest) UpdateLLMProviderRequest(updateLLMProviderRequest UpdateLLMProviderRequest) ApiUpdateLLMProviderRequest {
-	r.updateLLMProviderRequest = &updateLLMProviderRequest
+func (r ApiUpdateLLMProviderRequest) LlmProviderDocument(llmProviderDocument LlmProviderDocument) ApiUpdateLLMProviderRequest {
+	r.llmProviderDocument = &llmProviderDocument
 	return r
 }
 
-func (r ApiUpdateLLMProviderRequest) Execute() (*LLMProviderResponse, *http.Response, error) {
+func (r ApiUpdateLLMProviderRequest) Execute() (*LlmProviderDocument, *http.Response, error) {
 	return r.ApiService.UpdateLLMProviderExecute(r)
 }
 
@@ -1143,28 +1128,26 @@ UpdateLLMProvider Update LLM provider
 Update an existing LLM provider
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param providerId Provider UUID
 	@return ApiUpdateLLMProviderRequest
 */
-func (a *LLMProvidersAPIService) UpdateLLMProvider(ctx context.Context, orgName string, providerId string) ApiUpdateLLMProviderRequest {
+func (a *LLMProvidersAPIService) UpdateLLMProvider(ctx context.Context, providerId string) ApiUpdateLLMProviderRequest {
 	return ApiUpdateLLMProviderRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		providerId: providerId,
 	}
 }
 
 // Execute executes the request
 //
-//	@return LLMProviderResponse
-func (a *LLMProvidersAPIService) UpdateLLMProviderExecute(r ApiUpdateLLMProviderRequest) (*LLMProviderResponse, *http.Response, error) {
+//	@return LlmProviderDocument
+func (a *LLMProvidersAPIService) UpdateLLMProviderExecute(r ApiUpdateLLMProviderRequest) (*LlmProviderDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPut
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *LLMProviderResponse
+		localVarReturnValue *LlmProviderDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMProvidersAPIService.UpdateLLMProvider")
@@ -1172,19 +1155,18 @@ func (a *LLMProvidersAPIService) UpdateLLMProviderExecute(r ApiUpdateLLMProvider
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{providerId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-providers/{providerId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.updateLLMProviderRequest == nil {
-		return localVarReturnValue, nil, reportError("updateLLMProviderRequest is required and must be specified")
+	if r.llmProviderDocument == nil {
+		return localVarReturnValue, nil, reportError("llmProviderDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
-	localVarHTTPContentTypes := []string{"application/json"}
+	localVarHTTPContentTypes := []string{"application/json", "application/yaml"}
 
 	// set Content-Type header
 	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
@@ -1193,7 +1175,7 @@ func (a *LLMProvidersAPIService) UpdateLLMProviderExecute(r ApiUpdateLLMProvider
 	}
 
 	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
+	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
@@ -1201,7 +1183,7 @@ func (a *LLMProvidersAPIService) UpdateLLMProviderExecute(r ApiUpdateLLMProvider
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.updateLLMProviderRequest
+	localVarPostBody = r.llmProviderDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -1258,174 +1240,6 @@ func (a *LLMProvidersAPIService) UpdateLLMProviderExecute(r ApiUpdateLLMProvider
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 409 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarReturnValue, localVarHTTPResponse, newErr
-		}
-		if localVarHTTPResponse.StatusCode == 500 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-	if err != nil {
-		newErr := &GenericOpenAPIError{
-			body:  localVarBody,
-			error: err.Error(),
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type ApiUpdateLLMProviderCatalogStatusRequest struct {
-	ctx                             context.Context
-	ApiService                      *LLMProvidersAPIService
-	orgName                         string
-	providerId                      string
-	updateLLMProviderCatalogRequest *UpdateLLMProviderCatalogRequest
-}
-
-func (r ApiUpdateLLMProviderCatalogStatusRequest) UpdateLLMProviderCatalogRequest(updateLLMProviderCatalogRequest UpdateLLMProviderCatalogRequest) ApiUpdateLLMProviderCatalogStatusRequest {
-	r.updateLLMProviderCatalogRequest = &updateLLMProviderCatalogRequest
-	return r
-}
-
-func (r ApiUpdateLLMProviderCatalogStatusRequest) Execute() (*LLMProviderResponse, *http.Response, error) {
-	return r.ApiService.UpdateLLMProviderCatalogStatusExecute(r)
-}
-
-/*
-UpdateLLMProviderCatalogStatus Update LLM provider catalog status
-
-Add or remove an LLM provider from the catalog.
-
-When `inCatalog` is true, the provider becomes discoverable in the catalog
-and can be used by developers for agent model configurations.
-
-When `inCatalog` is false, the provider is removed from the catalog
-and will not appear in catalog queries.
-
-	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param providerId Provider UUID
-	@return ApiUpdateLLMProviderCatalogStatusRequest
-*/
-func (a *LLMProvidersAPIService) UpdateLLMProviderCatalogStatus(ctx context.Context, orgName string, providerId string) ApiUpdateLLMProviderCatalogStatusRequest {
-	return ApiUpdateLLMProviderCatalogStatusRequest{
-		ApiService: a,
-		ctx:        ctx,
-		orgName:    orgName,
-		providerId: providerId,
-	}
-}
-
-// Execute executes the request
-//
-//	@return LLMProviderResponse
-func (a *LLMProvidersAPIService) UpdateLLMProviderCatalogStatusExecute(r ApiUpdateLLMProviderCatalogStatusRequest) (*LLMProviderResponse, *http.Response, error) {
-	var (
-		localVarHTTPMethod  = http.MethodPut
-		localVarPostBody    interface{}
-		formFiles           []formFile
-		localVarReturnValue *LLMProviderResponse
-	)
-
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMProvidersAPIService.UpdateLLMProviderCatalogStatus")
-	if err != nil {
-		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
-	}
-
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{providerId}/catalog"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
-
-	localVarHeaderParams := make(map[string]string)
-	localVarQueryParams := url.Values{}
-	localVarFormParams := url.Values{}
-	if r.updateLLMProviderCatalogRequest == nil {
-		return localVarReturnValue, nil, reportError("updateLLMProviderCatalogRequest is required and must be specified")
-	}
-
-	// to determine the Content-Type header
-	localVarHTTPContentTypes := []string{"application/json"}
-
-	// set Content-Type header
-	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
-	if localVarHTTPContentType != "" {
-		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
-	}
-
-	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
-
-	// set Accept header
-	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
-	if localVarHTTPHeaderAccept != "" {
-		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
-	}
-	// body params
-	localVarPostBody = r.updateLLMProviderCatalogRequest
-	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
-	if err != nil {
-		return localVarReturnValue, nil, err
-	}
-
-	localVarHTTPResponse, err := a.client.callAPI(req)
-	if err != nil || localVarHTTPResponse == nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
-	localVarHTTPResponse.Body.Close()
-	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
-	if err != nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	if localVarHTTPResponse.StatusCode >= 300 {
-		newErr := &GenericOpenAPIError{
-			body:  localVarBody,
-			error: localVarHTTPResponse.Status,
-		}
-		if localVarHTTPResponse.StatusCode == 400 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarReturnValue, localVarHTTPResponse, newErr
-		}
-		if localVarHTTPResponse.StatusCode == 401 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarReturnValue, localVarHTTPResponse, newErr
-		}
-		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

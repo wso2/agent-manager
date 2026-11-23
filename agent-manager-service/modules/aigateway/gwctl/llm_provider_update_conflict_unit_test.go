@@ -116,8 +116,9 @@ func TestUpdateLLMProvider_UpdateErrors(t *testing.T) {
 				svc := gwsvc.NewLLMProviderService(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil)
 				// A nil deployment service deliberately makes any attempted gateway I/O fail.
 				ctrl := NewLLMController(nil, svc, nil, nil, nil, nil, nil)
-				req := httptest.NewRequest(http.MethodPut, "/orgs/acme/llm-providers/"+providerUUID.String(),
-					strings.NewReader(`{"name":"Provider A"`+gateways.json+`}`))
+				body := `{"apiVersion":"ai-control-plane.choreolabs.com/v1","kind":"LlmProvider","metadata":{"name":"provider-b"},` +
+					`"spec":{"displayName":"Provider A"` + gateways.json + `}}`
+				req := httptest.NewRequest(http.MethodPut, "/llm-providers/"+providerUUID.String(), strings.NewReader(body))
 				req.SetPathValue(gwutil.PathParamProviderId, providerUUID.String())
 				req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: ouID}), ouID))
 				recorder := httptest.NewRecorder()

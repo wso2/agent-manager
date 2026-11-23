@@ -47,6 +47,13 @@ func (c coreRouter) HandleFuncWithValidationAndPlatformAdminAuthz(pattern string
 	c.RouteRegistrar.HandleFuncWithValidationAndPlatformAdminAuthz(pattern, rbac.Permission(perm), withOrgID(h))
 }
 
+// moduleRoute mounts through HandleModuleRoute, as the server mounts module routes; the org comes from the token.
+type moduleRoute struct{ coreRouter }
+
+func (c moduleRoute) HandleFuncWithValidationAndAuthz(pattern string, perm string, h http.HandlerFunc) {
+	c.RouteRegistrar.HandleModuleRoute(pattern, rbac.Permission(perm), middleware.ModuleRoutePolicy{}, withOrgID(h))
+}
+
 func withOrgID(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if org, ok := middleware.GetResolvedOrg(r.Context()); ok {
