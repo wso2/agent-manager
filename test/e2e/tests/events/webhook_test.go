@@ -132,7 +132,7 @@ var _ = Describe("Event delivery to a webhook", Label("events"), Ordered, func()
 		Expect(verifySignature(secret, got[1])).To(BeTrue())
 		var ce framework.Obj
 		Expect(json.Unmarshal(got[1].Body, &ce)).To(Succeed())
-		Expect(ce["type"]).To(Equal("project.created"))
+		Expect(ce["type"]).To(Equal("com.wso2.agentmanager.project.created"))
 
 		Eventually(func(g Gomega) {
 			list := framework.CallObj(g, Client, http.MethodGet, ev("/deliveries?subscriptionId=%s", subID), nil, http.StatusOK)
