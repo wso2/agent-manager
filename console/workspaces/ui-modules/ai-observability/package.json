@@ -1,7 +1,7 @@
 {
   "name": "@agent-management-platform/ui-module-ai-observability",
   "version": "1.0.0",
-  "description": "AI Observability UI module: Traces, runtime logs, system metrics and evaluation.",
+  "description": "AI Observability UI module: traces.",
   "type": "module",
   "types": "dist/index.d.ts",
   "exports": {
@@ -22,9 +22,6 @@
   "dependencies": {
     "@agent-management-platform/types": "workspace:*",
     "@agent-management-platform/traces": "workspace:*",
-    "@agent-management-platform/logs": "workspace:*",
-    "@agent-management-platform/metrics": "workspace:*",
-    "@agent-management-platform/eval": "workspace:*",
     "@agent-management-platform/api-client": "workspace:*"
   },
   "devDependencies": {

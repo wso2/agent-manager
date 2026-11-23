@@ -3432,15 +3432,6 @@ importers:
       '@agent-management-platform/api-client':
         specifier: workspace:*
         version: link:../../libs/api-client
-      '@agent-management-platform/eval':
-        specifier: workspace:*
-        version: link:pages/eval
-      '@agent-management-platform/logs':
-        specifier: workspace:*
-        version: link:pages/logs
-      '@agent-management-platform/metrics':
-        specifier: workspace:*
-        version: link:pages/metrics
       '@agent-management-platform/traces':
         specifier: workspace:*
         version: link:pages/traces
