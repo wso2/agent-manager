@@ -207,14 +207,16 @@ func (p *AuthProvider) executeTokenRequest(ctx context.Context, postAuth bool) (
 }
 
 func isUnauthorizedClientError(statusCode int, body []byte) bool {
-	if statusCode != http.StatusBadRequest {
+	if statusCode != http.StatusBadRequest && statusCode != http.StatusUnauthorized {
 		return false
 	}
 	var errResp tokenErrorResponse
 	if err := json.Unmarshal(body, &errResp); err != nil {
 		return false
 	}
-	return errResp.Error == "unauthorized_client"
+	// Some providers answer a rejected client_secret_basic header with
+	// 401 invalid_client rather than 400 unauthorized_client.
+	return errResp.Error == "unauthorized_client" || errResp.Error == "invalid_client"
 }
 
 // clientBasicAuthHeader builds the client_secret_basic Authorization header.
