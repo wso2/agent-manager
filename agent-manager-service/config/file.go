@@ -242,6 +242,15 @@ func readConfigFile(flag string) (map[string]string, Modules, error) {
 	if err != nil {
 		return nil, Modules{}, fmt.Errorf("%s: %w", path, err)
 	}
+	var errs []error
+	for k, v := range vars {
+		if vars[k], err = resolveRef(k, v, os.LookupEnv, os.ReadFile); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		return nil, Modules{}, fmt.Errorf("%s: %w", path, err)
+	}
 	return vars, mods, nil
 }
 
