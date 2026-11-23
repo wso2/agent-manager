@@ -93,12 +93,12 @@ COVERAGE_SUMMARY = python3 ../scripts/coverage/go_summary.py localdata/coverage-
 	--module github.com/wso2/agent-manager/agent-manager-service --exclude-file coverage-excludes.txt --out localdata/coverage-summary.json
 
 .PHONY: coverage-check
-coverage-check: ## Compare the profiles from `make test-coverage` with coverage-baseline.json.
+coverage-check: ## Compare the profiles from `make test-coverage` with coverage-baseline.json (report only: CI also runs PostgreSQL and enforces it).
 	$(COVERAGE_SUMMARY)
-	python3 ../scripts/coverage/ratchet.py localdata/coverage-summary.json coverage-baseline.json --title "agent-manager-service coverage"
+	python3 ../scripts/coverage/ratchet.py localdata/coverage-summary.json coverage-baseline.json --title "agent-manager-service coverage" --report-only
 
 .PHONY: coverage-baseline
-coverage-baseline: ## Rewrite coverage-baseline.json from the profiles from `make test-coverage`.
+coverage-baseline: ## Raise coverage-baseline.json to the profiles from `make test-coverage` (never lowers an area).
 	$(COVERAGE_SUMMARY)
 	python3 ../scripts/coverage/ratchet.py localdata/coverage-summary.json coverage-baseline.json --update
 

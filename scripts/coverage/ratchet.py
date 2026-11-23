@@ -24,10 +24,15 @@ Both files use one format, written by the per-language summary scripts:
 The check fails when an area's coverage drops more than --tolerance
 percentage points below its baseline. New areas and areas that grew are
 reported, not enforced. --update rewrites the baseline from the current
-summary, for a change that raises coverage or adds or removes areas.
+summary, for a change that raises coverage or adds or removes areas; it
+keeps an area's baseline where the current run is lower (a local run can
+measure less than CI), unless --allow-lower records an intended drop.
+--report-only prints the same report but always exits 0, for a local run
+that measures less than CI does.
 
 Usage:
-    ratchet.py CURRENT.json BASELINE.json [--title T] [--tolerance 0.5] [--update]
+    ratchet.py CURRENT.json BASELINE.json [--title T] [--tolerance 0.5]
+        [--update [--allow-lower] | --report-only]
 
 The report goes to stdout and, in GitHub Actions, to the job summary.
 """
@@ -55,14 +60,27 @@ def main():
     parser.add_argument("--title", default="Coverage")
     parser.add_argument("--tolerance", type=float, default=0.5)
     parser.add_argument("--update", action="store_true")
+    parser.add_argument("--allow-lower", action="store_true")
+    parser.add_argument("--report-only", action="store_true")
     args = parser.parse_args()
 
     with open(args.current) as f:
         current = json.load(f)["areas"]
 
     if args.update:
+        try:
+            with open(args.baseline) as f:
+                old = json.load(f)["areas"]
+        except FileNotFoundError:
+            old = {}
+        updated = {
+            name: area
+            if args.allow_lower or name not in old or pct(area) >= pct(old[name])
+            else old[name]
+            for name, area in current.items()
+        }
         with open(args.baseline, "w") as f:
-            json.dump({"areas": dict(sorted(current.items()))}, f, indent=2)
+            json.dump({"areas": dict(sorted(updated.items()))}, f, indent=2)
             f.write("\n")
         print(f"Wrote {args.baseline} ({len(current)} areas)")
         return 0
@@ -115,7 +133,7 @@ def main():
     if summary:
         with open(summary, "a") as f:
             f.write(report)
-    return 1 if drops else 0
+    return 1 if drops and not args.report_only else 0
 
 
 if __name__ == "__main__":

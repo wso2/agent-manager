@@ -113,11 +113,11 @@ CI reports coverage on every pull request and fails when a package's coverage dr
 
 | Area | Baseline | Check locally | Update the baseline |
 |---|---|---|---|
-| API (`agent-manager-service`), unit and integration tests merged | `agent-manager-service/coverage-baseline.json` | `make test-coverage && make coverage-check` in `agent-manager-service` | `make coverage-baseline` |
+| API (`agent-manager-service`), unit and integration tests merged | `agent-manager-service/coverage-baseline.json` | `make test-coverage && make coverage-check` in `agent-manager-service`: a report only, because CI also runs the PostgreSQL integration tests, so packages with PostgreSQL-only code (such as `db`) read lower on SQLite | `make coverage-baseline`; it only raises areas, so a SQLite run can't lower a floor CI set |
 | CLI | `cli/coverage-baseline.json` | `make amctl-coverage-check` at the repository root | `make amctl-coverage-baseline` |
 | Console, lines per package | `console/coverage-baseline.json` | `pnpm build && pnpm test:coverage` in `console`, then `python3 ../scripts/coverage/console_summary.py /tmp/console.json && python3 ../scripts/coverage/ratchet.py /tmp/console.json coverage-baseline.json` | the same with `--update` |
 
-When your change raises coverage, update the baseline in the same pull request so the higher number becomes the floor. When a drop is intended (code moved to another package, a feature removed), update it and say why in the pull request. The job summary lists every package with its current and baseline numbers, and the CI run uploads the full report.
+When your change raises coverage, update the baseline in the same pull request so the higher number becomes the floor. When a drop is intended (code moved to another package, a feature removed), update it with `ratchet.py ... --update --allow-lower` and say why in the pull request. The job summary lists every package with its current and baseline numbers, and the CI run uploads the full report.
 
 The e2e job also reports which API routes the e2e and live security suites called. The API logs each request's matched route when `LOG_ROUTE_HITS` is on, and `scripts/coverage/route_coverage.py` compares the hits with every registered route. Routes no user calls are listed with a reason in `test/e2e/route-exemptions.yaml`. The report doesn't fail the job yet.
 

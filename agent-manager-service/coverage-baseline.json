@@ -1,7 +1,7 @@
 {
   "areas": {
     "ampinit": {
-      "covered": 318,
+      "covered": 316,
       "total": 382
     },
     "api": {
@@ -41,7 +41,7 @@
       "total": 1402
     },
     "config": {
-      "covered": 561,
+      "covered": 563,
       "total": 637
     },
     "constants": {
@@ -57,7 +57,7 @@
       "total": 37
     },
     "db": {
-      "covered": 50,
+      "covered": 53,
       "total": 73
     },
     "db/connpool": {
@@ -93,7 +93,7 @@
       "total": 42
     },
     "internal/modhost": {
-      "covered": 1565,
+      "covered": 1569,
       "total": 1801
     },
     "internal/reqorigin": {
@@ -161,12 +161,12 @@
       "total": 54
     },
     "modules/aigateway/gwconv": {
-      "covered": 69,
-      "total": 313
+      "covered": 177,
+      "total": 413
     },
     "modules/aigateway/gwctl": {
-      "covered": 965,
-      "total": 4381
+      "covered": 981,
+      "total": 4404
     },
     "modules/aigateway/gwinit": {
       "covered": 60,
@@ -185,16 +185,16 @@
       "total": 5
     },
     "modules/aigateway/gwrepo": {
-      "covered": 1136,
-      "total": 1987
+      "covered": 1147,
+      "total": 1994
     },
     "modules/aigateway/gwsecret": {
       "covered": 33,
       "total": 44
     },
     "modules/aigateway/gwsvc": {
-      "covered": 5973,
-      "total": 9429
+      "covered": 6019,
+      "total": 9452
     },
     "modules/aigateway/gwtest": {
       "covered": 75,
@@ -217,7 +217,7 @@
       "total": 10
     },
     "modules/aigateway/reconcile": {
-      "covered": 406,
+      "covered": 407,
       "total": 468
     },
     "modules/aigateway/websocket": {
@@ -261,7 +261,7 @@
       "total": 45
     },
     "pkg/initfiles": {
-      "covered": 23,
+      "covered": 22,
       "total": 37
     },
     "pkg/logger": {
