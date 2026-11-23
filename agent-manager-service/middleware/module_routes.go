@@ -100,6 +100,18 @@ func (rr *RouteRegistrar) HandleModuleRoute(pattern string, perm rbac.Permission
 	rr.install(pattern, meta, handler)
 }
 
+// HandleModuleAgentRoute registers a module's agent-key route (HandleAgent).
+// The module host verifies the agent key inside handler, so the audit wrapper
+// records refused keys too; no user sign-in or permission applies.
+func (rr *RouteRegistrar) HandleModuleAgentRoute(pattern string, policy ModuleRoutePolicy, handler http.HandlerFunc) {
+	params := extractPathParams(pattern)
+	meta := audit.NewRouteMetaWithPolicy(pattern, params, nil, rr.surface, policy.Audit)
+	if len(params) > 0 {
+		handler = WithPathParamValidation(handler, params...)
+	}
+	rr.install(pattern, meta, handler)
+}
+
 // HandleModuleInternalRoute registers a module's route on the internal server
 // that authenticates its callers itself (HandleInternalAt, HandleWebhook), so
 // only the audit wrapper applies.

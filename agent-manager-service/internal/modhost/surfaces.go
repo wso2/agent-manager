@@ -18,6 +18,7 @@ package modhost
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -74,6 +76,9 @@ type Route struct {
 	PlatformAdmin bool
 	// AllowOrgOverride lets a trusted caller act on another organization.
 	AllowOrgOverride bool
+	// AgentKey marks a HandleAgent route: agents call it with their key, not
+	// a user's sign-in.
+	AgentKey bool
 }
 
 // Pattern is the route's net/http pattern: /m/<module><path> on the API port,
@@ -110,6 +115,11 @@ type Tokens interface {
 	VerifyWorkload(token string) (modkit.Workload, error)
 }
 
+// AgentKeys verifies the agent keys agents present on HandleAgent routes.
+type AgentKeys interface {
+	VerifyAgentKey(token string) (modkit.AgentKey, error)
+}
+
 // Deps is what the host needs from the core to serve modules. The server
 // attaches them before Boot; commands that only change module state run
 // without them.
@@ -124,6 +134,7 @@ type Deps struct {
 	MountInternal func(mux *http.ServeMux, r Route)
 	Core          modkit.CoreAPI
 	Tokens        Tokens
+	AgentKeys     AgentKeys
 	// Secrets is the core's secret store.
 	Secrets SecretStore
 	// InternalURL is the origin workloads reach the internal server at,
@@ -231,6 +242,72 @@ func (h *Host) ServeAPI() http.Handler {
 	})
 }
 
+// AgentRequest reports whether a request on the API port is for an agent-key
+// route: it matches one of an active module's, or it carries an agent key.
+// Such a request skips user sign-in and is served by ServeAgentAPI.
+func (h *Host) AgentRequest(r *http.Request) bool {
+	if r.Header.Get(modkit.AgentKeyHeader) != "" {
+		return true
+	}
+	return h.agentRoute(r) != nil
+}
+
+// ServeAgentAPI serves the active modules' HandleAgent routes. A request that
+// matches none, such as one for a module that is not active, is not found.
+func (h *Host) ServeAgentAPI() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux := h.agentRoute(r)
+		if mux == nil {
+			writeNotFound(w)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
+}
+
+// agentRoute is the agent mux of the request's module when one of its routes
+// matches the request; nil otherwise.
+func (h *Host) agentRoute(r *http.Request) *http.ServeMux {
+	mux := h.current().agent[moduleOf(r.URL.Path)]
+	if mux == nil {
+		return nil
+	}
+	if _, pattern := mux.Handler(r); pattern == "" {
+		return nil
+	}
+	return mux
+}
+
+// requireAgentKey lets in a request whose X-Amp-Api-Key header holds a valid
+// agent key, with its claims and organization on ctx. The header is removed
+// before the handler runs.
+func (h *Host) requireAgentKey(module string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		raw := strings.TrimSpace(r.Header.Get(modkit.AgentKeyHeader))
+		r.Header.Del(modkit.AgentKeyHeader)
+		keys := h.deps().AgentKeys
+		if keys == nil || raw == "" {
+			writeAgentKeyError(w, "an agent key is required in the "+modkit.AgentKeyHeader+" header")
+			return
+		}
+		k, err := keys.VerifyAgentKey(raw)
+		if err != nil {
+			h.log.Debug("modhost:rejected agent key", "module", module, "error", err)
+			writeAgentKeyError(w, "invalid agent key")
+			return
+		}
+		ctx := modkit.WithOrgID(modkit.WithAgentKey(r.Context(), k), k.OrgID)
+		audit.IdentifyActorInOrg(ctx, audit.ActorAgent, k.AgentID, "agent-key", k.OrgID)
+		next(w, r.WithContext(ctx))
+	}
+}
+
+func writeAgentKeyError(w http.ResponseWriter, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_agent_key", "message": msg})
+}
+
 // ServeInternalAt serves the routes modules mount at fixed paths with
 // HandleInternalAt, below /api/internal/v1 on the internal server. Like the
 // other module routes, they are looked up in the current snapshot on every
@@ -325,6 +402,22 @@ func mountPublic(mount func(*http.ServeMux, Route), routes []Route) (mux *http.S
 	mux = http.NewServeMux()
 	for _, rt := range routes {
 		rt.Handler = withOrg(growthanalytics.Trackable(rt.Handler))
+		mount(mux, rt)
+	}
+	return mux, nil
+}
+
+// mountAgent builds a module's agent-key mux: every route requires a valid
+// agent key, checked inside the core's audit wrapper.
+func (h *Host) mountAgent(mount func(*http.ServeMux, Route), module string, routes []Route) (mux *http.ServeMux, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("route refused: %v", p)
+		}
+	}()
+	mux = http.NewServeMux()
+	for _, rt := range routes {
+		rt.Handler = h.requireAgentKey(module, rt.Handler)
 		mount(mux, rt)
 	}
 	return mux, nil

@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,6 +132,11 @@ func TestModuleRoutesAreAudited(t *testing.T) {
 	assert.True(t, read.Audited, "Audit on a read records it")
 	assert.Equal(t, audit.ClassCredential, read.Action.Class(), "the manifest classifies its actions")
 	assert.False(t, byPattern["GET /m/testmod/tags"].Audited, "other reads are not recorded")
+	ingest := byPattern["POST /m/testmod"+testmod.AgentIngestPath]
+	assert.True(t, ingest.Audited, "an agent-key route that changes state is recorded")
+	assert.Equal(t, audit.Action("testmod:agent-ingest"), ingest.Action)
+	assert.Equal(t, time.Hour, ingest.Coalesce, "once per agent per window")
+	assert.Empty(t, ingest.Perms, "an agent-key route takes no user permission")
 }
 
 // TestGatewayRoutesAreAudited holds the AI Gateway's routes to the same

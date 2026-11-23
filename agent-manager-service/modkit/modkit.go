@@ -564,6 +564,14 @@ type Runtime interface {
 	// reads may use. Every route that changes state is audited, under the
 	// permission's name unless an Audit option names the action.
 	Handle(method, path, perm string, h http.HandlerFunc, opts ...RouteOption)
+	// HandleAgent mounts an API route at /m/<module><path> that agents call
+	// with their agent key in the X-Amp-Api-Key header instead of a user's
+	// sign-in. The core verifies the key and answers 401 when it is missing
+	// or invalid; the handler gets its claims from AgentKeyFrom and the key's
+	// organization from OrgID, never the key itself. A request that carries a
+	// key and matches no active agent route is not found. A route that
+	// changes state names its audit action with Audit.
+	HandleAgent(method, path string, h http.HandlerFunc, opts ...RouteOption)
 	// HandleInternal mounts a route for the module's workloads at
 	// /m/<module>/internal<path> on the internal server. Callers present a
 	// token from IssueToken or from a heartbeat that carries scope. While
@@ -695,6 +703,37 @@ func WithWorkload(ctx context.Context, w Workload) context.Context {
 func WorkloadFrom(ctx context.Context) (Workload, bool) {
 	w, ok := ctx.Value(workloadKey{}).(Workload)
 	return w, ok
+}
+
+// AgentKeyHeader is the header an agent sends its agent key in.
+const AgentKeyHeader = "X-Amp-Api-Key"
+
+// AgentKey is the agent calling a HandleAgent route, from its verified key.
+type AgentKey struct {
+	// KeyID is the key's token ID (jti).
+	KeyID string
+	// OrgID is the organization's ID; OrgName its handle.
+	OrgID         string
+	OrgName       string
+	ProjectID     string
+	ProjectName   string
+	AgentID       string
+	AgentName     string
+	EnvironmentID string
+	ExpiresAt     time.Time
+}
+
+type agentKeyKey struct{}
+
+// WithAgentKey returns ctx carrying k, for the core to set on agent requests.
+func WithAgentKey(ctx context.Context, k AgentKey) context.Context {
+	return context.WithValue(ctx, agentKeyKey{}, k)
+}
+
+// AgentKeyFrom returns the agent calling a HandleAgent route.
+func AgentKeyFrom(ctx context.Context) (AgentKey, bool) {
+	k, ok := ctx.Value(agentKeyKey{}).(AgentKey)
+	return k, ok
 }
 
 // Lookup resolves a capability and asserts its contract type.

@@ -107,6 +107,8 @@ type scopeActor struct {
 	typ        ActorType
 	id         string
 	authMethod string
+	// ouID is the organization the actor belongs to, when the handler knows it.
+	ouID string
 }
 
 type resourceRef struct {
@@ -176,6 +178,27 @@ func IdentifyActor(ctx context.Context, actorType ActorType, id, authMethod stri
 	scope.mu.Lock()
 	defer scope.mu.Unlock()
 	scope.actor = scopeActor{typ: actorType, id: id, authMethod: authMethod}
+}
+
+// IdentifyActorInOrg is IdentifyActor for a principal whose credential names
+// its organization, such as an agent key: the record is filed under it.
+func IdentifyActorInOrg(ctx context.Context, actorType ActorType, id, authMethod, ouID string) {
+	IdentifyActor(ctx, actorType, id, authMethod)
+	if scope := scopeFrom(ctx); scope != nil && id != "" {
+		scope.mu.Lock()
+		defer scope.mu.Unlock()
+		scope.actor.ouID = ouID
+	}
+}
+
+// actorOrg is the organization IdentifyActorInOrg named; "" when none.
+func (s *RequestScope) actorOrg() string {
+	if s == nil {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.actor.ouID
 }
 
 // Actor returns the principal named by IdentifyActor. The id is "" when none
