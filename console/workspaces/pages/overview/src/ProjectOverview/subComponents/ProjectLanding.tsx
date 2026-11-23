@@ -42,7 +42,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import { useListLLMProviders, useListMCPProxies } from "@agent-management-platform/api-client";
 import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
-import { absoluteRouteMap, globalConfig } from "@agent-management-platform/types";
+import { absoluteRouteMap, getProductName, globalConfig } from "@agent-management-platform/types";
 import { returnToState, useDocumentTitle } from "@agent-management-platform/views";
 import { ResourceCard, type ResourceCardData } from "../../OrganizationOverview/subComponents/ResourceCard";
 import { OverviewGreeting } from "../../OrganizationOverview/subComponents/OverviewGreeting";
@@ -91,7 +91,7 @@ const EXPLORE = [
     icon: <BookOpenText size={22} />,
     title: "Get Started",
     links: [
-      { label: "What is Agent Manager?", path: "/get-started/what-is-amp/" },
+      { label: `What is ${getProductName()}?`, path: "/get-started/what-is-amp/" },
       { label: "Quick start", path: "/get-started/quick-start/" },
       { label: "Create your first agent", path: "/tutorials/create-your-first-agent/" },
     ],

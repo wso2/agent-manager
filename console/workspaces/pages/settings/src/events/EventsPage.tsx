@@ -47,6 +47,7 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
+  getProductName,
   type EventScope,
   type EventTargetParams,
 } from "@agent-management-platform/types";
@@ -77,7 +78,7 @@ function TabLabel({ label, count }: { label: string; count?: string }) {
 function descriptionOf(scope: EventScope, target: EventTargetParams) {
   if (scope === "org") {
     return (
-      "Send Agent Manager events to Slack, PagerDuty and webhooks. Subscriptions created here apply " +
+      `Send ${getProductName()} events to Slack, PagerDuty and webhooks. Subscriptions created here apply ` +
       "to every project and agent in the organization."
     );
   }
@@ -300,7 +301,7 @@ export function EventsPage({ scope }: { scope: EventScope }) {
         <StateNotice
           icon={BellOff}
           title="Events are not enabled"
-          description="An administrator can turn them on by running Agent Manager with an event bus."
+          description={`An administrator can turn them on by running ${getProductName()} with an event bus.`}
         />
       </PageLayout>
     );

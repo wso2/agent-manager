@@ -36,7 +36,7 @@ import {
   getAgentManagerUrl,
   getRawScriptUrl,
 } from "@agent-management-platform/shared-component";
-import type { Environment } from "@agent-management-platform/types";
+import { getProductName, type Environment } from "@agent-management-platform/types";
 
 const TOKEN_MASK = "•••••••••••••••";
 
@@ -123,8 +123,9 @@ export function DeleteEnvironmentDrawer({
           <Typography variant="body2" color="text.secondary">
             Environments are removed by a script that deprovisions the environment&apos;s dedicated
             identity (Thunder) instance, uninstalls its API Platform Gateway via Helm, and then
-            deletes the environment in Agent Manager. Copy and run the command below in a terminal
-            with <code>kubectl</code> and <code>helm</code> configured against your cluster.
+            deletes the environment in {getProductName()}. Copy and run the command below in a
+            terminal with <code>kubectl</code> and <code>helm</code> configured against your
+            cluster.
           </Typography>
 
           <Alert severity="warning">

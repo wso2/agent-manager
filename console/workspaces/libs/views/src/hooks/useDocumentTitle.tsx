@@ -17,12 +17,11 @@
  */
 
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
-
-const DEFAULT_BASE_TITLE = 'Agent Manager Console';
+import { getProductFullName } from '@agent-management-platform/types';
 
 /**
  * Base (suffix) for every tab title, e.g. "Agents | <baseTitle>". `undefined`
- * means "not provided" — fall back to the page's initial `document.title`.
+ * means "not provided" — fall back to the product name.
  */
 const DocumentTitleContext = createContext<string | undefined>(undefined);
 
@@ -40,14 +39,12 @@ export function DocumentTitleProvider({ children, baseTitle }: DocumentTitleProv
   );
 }
 
-let initialDocumentTitle: string | null = null;
-
 /**
  * Sets the browser tab title to `"<title> | <base>"` and restores the previous
  * title on unmount. The base comes from {@link DocumentTitleProvider}, else the
- * document's initial `<title>`, else `baseTitleFallback`.
+ * configured product name (getProductFullName).
  */
-export function useDocumentTitle(title?: string, baseTitleFallback = DEFAULT_BASE_TITLE) {
+export function useDocumentTitle(title?: string) {
   const providedBaseTitle = useContext(DocumentTitleContext);
   const prevTitleRef = useRef<string | null>(null);
 
@@ -56,11 +53,7 @@ export function useDocumentTitle(title?: string, baseTitleFallback = DEFAULT_BAS
       return;
     }
 
-    if (initialDocumentTitle === null) {
-      initialDocumentTitle = document.title || baseTitleFallback;
-    }
-
-    const baseTitle = providedBaseTitle ?? initialDocumentTitle;
+    const baseTitle = providedBaseTitle ?? getProductFullName();
 
     prevTitleRef.current = document.title;
     document.title = title ? `${title} | ${baseTitle}` : baseTitle;
@@ -70,5 +63,5 @@ export function useDocumentTitle(title?: string, baseTitleFallback = DEFAULT_BAS
         document.title = prevTitleRef.current;
       }
     };
-  }, [baseTitleFallback, providedBaseTitle, title]);
+  }, [providedBaseTitle, title]);
 }

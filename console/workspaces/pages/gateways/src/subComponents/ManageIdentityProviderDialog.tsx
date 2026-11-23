@@ -51,6 +51,7 @@ import {
   type GatewayEnvironmentResponse,
   type IdentityProvider,
   INPUT_LIMITS,
+  getProductName,
 } from "@agent-management-platform/types";
 import {
   useConfirmIfUnsaved,
@@ -361,13 +362,13 @@ export function ManageIdentityProviderDialog({
           <Typography variant="body2" color="text.secondary">
             {managedMode ? (
               <>
-                Identity providers are owned by the gateway. Agent Manager patches the gateway
+                Identity providers are owned by the gateway. {getProductName()} patches the gateway
                 configuration and applies the change for you.
               </>
             ) : (
               <>
                 Identity providers are owned by the gateway. This command patches the gateway
-                configuration and syncs Agent Manager. Run it in a terminal with{" "}
+                configuration and syncs {getProductName()}. Run it in a terminal with{" "}
                 <code>kubectl</code>, <code>helm</code>, and <code>jq</code> configured against
                 your cluster — for the quickstart, run it inside the dev container shell.
               </>

@@ -44,7 +44,7 @@ import {
   useListDataPlanes,
   useCheckThunderUrlAvailability,
 } from "@agent-management-platform/api-client";
-import { globalConfig, type DataPlane } from "@agent-management-platform/types";
+import { globalConfig, type DataPlane, getProductName } from "@agent-management-platform/types";
 import {
   buildScriptCommand,
   deriveResourceName,
@@ -495,7 +495,7 @@ export function CreateEnvironmentDrawer({
         <Stack spacing={3}>
           <Typography variant="body2" color="text.secondary">
             Environments are provisioned by a script that creates the
-            environment in Agent Manager, installs its API Platform Gateway, and
+            environment in {getProductName()}, installs its API Platform Gateway, and
             stands up its dedicated identity (Thunder) instance via Helm. Fill
             in the details below, then copy and run the command in a terminal
             with <code>kubectl</code> and <code>helm</code> configured against

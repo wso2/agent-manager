@@ -19,18 +19,20 @@
 
 import { useTheme } from '@wso2/oxygen-ui';
 import React from 'react';
+import { productNameLines } from './productNameLines';
 
 export type InternalAgentIconProps = React.SVGProps<SVGSVGElement>;
 
 export function InternalAgentIcon(props: InternalAgentIconProps) {
     const theme = useTheme()
     const color = theme.vars?.palette.primary.main;
+    const [nameLine1, nameLine2] = productNameLines();
     return (
     <svg width="243" height="232" viewBox="0 0 243 232" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
-{/* Product name as live text (it was outlined), so it can be renamed. */}
+{/* The configured product name, over two lines. */}
 <text fill={color} fontFamily="inherit" fontSize="18" fontWeight="600" textAnchor="middle">
-  <tspan x="122" y="172">Choreo AI & Agent</tspan>
-  <tspan x="122" y="194">Management</tspan>
+  <tspan x="122" y="172">{nameLine1}</tspan>
+  <tspan x="122" y="194">{nameLine2}</tspan>
 </text>
 <rect x="1" y="1" width="241" height="230" rx="11" stroke={color} strokeWidth="2"/>
 <rect x="67" y="60" width="109" height="49" rx="24.5" fill={color} stroke={color} strokeWidth="2"/>
