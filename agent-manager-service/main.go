@@ -23,6 +23,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -146,8 +147,8 @@ func checkHealth(ctx context.Context, host string, port int) error {
 		},
 	}
 	defer client.CloseIdleConnections()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"http://"+net.JoinHostPort(ips[0].String(), portText)+"/healthz", nil)
+	healthURL := url.URL{Scheme: "http", Host: net.JoinHostPort(ips[0].String(), portText), Path: "/healthz"}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthURL.String(), nil)
 	if err != nil {
 		return fmt.Errorf("build health check: %w", err)
 	}
