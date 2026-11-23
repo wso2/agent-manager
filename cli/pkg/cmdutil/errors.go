@@ -167,3 +167,25 @@ func ObserverErrorFromResponse(err error) clierr.CLIError {
 		AdditionalData: map[string]any{},
 	}
 }
+
+// TracesErrorFromResponse converts a trace API error into a CLIError. A JSON
+// 404 without the module's error field is the host's: the module is not enabled.
+func TracesErrorFromResponse(err error) clierr.CLIError {
+	var herr *observersvc.HTTPError
+	if !errors.As(err, &herr) {
+		return ObserverErrorFromResponse(err)
+	}
+	if herr.StatusCode == http.StatusNotFound && herr.Body != nil && herr.Body.Error == "" {
+		return clierr.CLIError{
+			Status:         herr.StatusCode,
+			Code:           clierr.FeatureUnavailable,
+			Message:        "the observability module is not enabled on this server",
+			AdditionalData: map[string]any{},
+		}
+	}
+	e := ObserverErrorFromResponse(err)
+	if herr.Body == nil || herr.Body.Message == "" {
+		e.Message = fmt.Sprintf("the observability module returned %d", herr.StatusCode)
+	}
+	return e
+}

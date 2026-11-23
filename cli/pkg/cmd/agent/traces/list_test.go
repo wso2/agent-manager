@@ -167,3 +167,21 @@ func TestRenderFilteredOverview_JSONShapeStableWhenEmpty(t *testing.T) {
 		t.Errorf("totalCount = %v, want 0", count)
 	}
 }
+
+// The observability module returns no status or token usage; those cells show "-".
+func TestStatusAndTokens_DashWhenUnset(t *testing.T) {
+	for _, tc := range []struct {
+		got, want string
+	}{
+		{traceStatus(nil), "-"},
+		{traceStatus(&observersvc.TraceStatus{}), "ok"},
+		{traceStatus(&observersvc.TraceStatus{ErrorCount: 2}), "error"},
+		{tokenCount(nil), "-"},
+		{tokenCount(&observersvc.TokenUsage{}), "0"},
+		{tokenCount(&observersvc.TokenUsage{TotalTokens: 42}), "42"},
+	} {
+		if tc.got != tc.want {
+			t.Errorf("got %q, want %q", tc.got, tc.want)
+		}
+	}
+}

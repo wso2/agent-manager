@@ -50,8 +50,10 @@ type Factory struct {
 	AgentManager func(ctx context.Context) (*amsvc.ClientWithResponses, error)
 	// AIGateway is the AI Gateway module's API client, at /m/ai-gateway.
 	AIGateway func(ctx context.Context) (*aigateway.ClientWithResponses, error)
-	Observer  func(ctx context.Context) (*observersvc.Client, error)
-	Token     func(ctx context.Context) (string, error)
+	// Traces is the observability module's trace API client, at /m/observability.
+	Traces   func(ctx context.Context) (*observersvc.Client, error)
+	Observer func(ctx context.Context) (*observersvc.Client, error)
+	Token    func(ctx context.Context) (string, error)
 
 	observerOnce sync.Once
 	observerURL  string
@@ -71,6 +73,9 @@ func NewFactory(cfg *config.Config, io *iostreams.IOStreams) *Factory {
 	}
 	f.AIGateway = func(ctx context.Context) (*aigateway.ClientWithResponses, error) {
 		return f.aiGateway(ctx)
+	}
+	f.Traces = func(ctx context.Context) (*observersvc.Client, error) {
+		return f.traces(ctx)
 	}
 	f.Token = func(ctx context.Context) (string, error) {
 		return f.currentAccessToken(ctx)
@@ -184,6 +189,14 @@ func (f *Factory) aiGateway(ctx context.Context) (*aigateway.ClientWithResponses
 		return nil, err
 	}
 	return aigateway.NewClientWithResponses(serverURL, aigateway.WithHTTPClient(f.HTTPClient()), aigateway.WithRequestEditorFn(edit))
+}
+
+func (f *Factory) traces(ctx context.Context) (*observersvc.Client, error) {
+	serverURL, edit, err := f.apiBase(ctx, ModuleBase("observability"))
+	if err != nil {
+		return nil, err
+	}
+	return observersvc.NewClient(serverURL, observersvc.WithHTTPClient(f.HTTPClient()), observersvc.WithRequestEditor(edit))
 }
 
 // ModuleBase is where a module's API is served, relative to the instance.
