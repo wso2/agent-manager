@@ -44,7 +44,7 @@ INT=https://localhost:$(setting AMP_INTERNAL_PORT 9243)
 PASSWORD=${AMP_ADMIN_PASSWORD:-}
 if [ -z "$PASSWORD" ]; then
   # make runs amp-core as its own project; CI runs either under the file's.
-  for project in ${COMPOSE_PROJECT_NAME:-} amp-lite-core amp-lite; do
+  for project in $(setting COMPOSE_PROJECT_NAME "") amp-lite-core amp-lite; do
     [ "$DIST" != amp-core ] && [ "$project" = amp-lite-core ] && continue
     api=$(docker ps -q --filter "label=com.docker.compose.project=$project" \
       --filter "label=com.docker.compose.service=amp-api" | head -1)

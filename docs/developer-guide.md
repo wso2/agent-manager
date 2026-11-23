@@ -87,7 +87,7 @@ CI fails if generated code is out of date (`make codegenfmt-check`). Commit the 
 
 Every route needs an RBAC permission, and operations on credentials, permissions or deletions need an audit event. The [database schema](amp-lite/database-schema.md) explains the tables and the rules they follow.
 
-Settings come from the environment, with an optional `amp.yaml` for the rest; [`amp.example.yaml`](../agent-manager-service/amp.example.yaml) lists the common ones and the [configuration reference](amp-lite/configuration.md) all of them. The Compose stack reads [`deployments/standalone/amp.yaml`](../deployments/standalone/amp.yaml) and generates its secrets into the `amp-secrets` volume; `docker compose exec amp-api amp secret show admin-password` prints the console password. A stack created before secrets were generated needs `make reset` once.
+Settings come from the environment, with an optional `amp.yaml` for the rest; [`amp.example.yaml`](../agent-manager-service/amp.example.yaml) lists the common ones and the [configuration reference](amp-lite/configuration.md) all of them. The Compose stack reads [`deployments/standalone/amp.yaml`](../deployments/standalone/amp.yaml) and generates its secrets into the `amp-secrets` volume; `docker compose -f deployments/standalone/docker-compose.yml exec amp-api amp secret show admin-password` prints the console password. A stack created before secrets were generated needs `make reset` once.
 
 ### Modules
 
