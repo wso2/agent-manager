@@ -114,6 +114,7 @@ var Settings = []Setting{
 	{Key: "AMP_ORG_NAMESPACE", Group: "Identity provider (ThunderID)", Default: "default", Description: "The organization ThunderID instances are addressed by."},
 	{Key: "AMP_DATA_DIR", Group: "Secrets and state", Default: "data (/var/lib/agent-manager in the image)", Description: "Where state lives: the SQLite file, certificates and generated secrets."},
 	{Key: "AMP_SECRETS_DIR", Group: "Secrets and state", Default: "<data dir>/secrets", Description: "Where generated secrets are kept; `amp secret list` names them."},
+	{Key: "AMP_SHARED_SECRETS_DIR", Group: "Secrets and state", Default: "", Description: "amp init copies the secrets other containers read (the admin and PostgreSQL passwords) here, for a volume only those containers mount."},
 	{Key: "ENCRYPTION_KEY", Group: "Secrets and state", Default: "generated on first start", Description: "AES-256 key (64 hex characters) stored secrets are sealed with. Losing it makes them unreadable.", Secret: true},
 	{Key: "ENCRYPTION_KEY_PREVIOUS", Group: "Secrets and state", Default: "", Description: "Earlier keys, comma-separated, kept after a rotation so older secrets stay readable.", Secret: true},
 	{Key: "SECRET_MANAGER_PROVIDER", Group: "Secrets and state", Default: "inhouse", Description: "Where agent credentials are kept: inhouse (the database) or unsupported (refuses writes)."},

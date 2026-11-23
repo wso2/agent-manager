@@ -30,7 +30,7 @@ func clearSecrets(t *testing.T) {
 	for _, k := range []string{
 		"ENCRYPTION_KEY", "IDP_CLIENT_SECRET", "AMP_API_CLIENT_SECRET", "AMP_CONSOLE_CLIENT_SECRET",
 		"THUNDER_CLIENT_SECRET", "AMP_SYSTEM_CLIENT_SECRET", "AMP_ADMIN_PASSWORD",
-		"MODULE_AI_GATEWAY_ADMIN_PASSWORD", "DB_PASSWORD", "DB_DRIVER", "DB_HOST",
+		"MODULE_AI_GATEWAY_ADMIN_PASSWORD", "DB_PASSWORD", "DB_DRIVER", "DB_HOST", "AMP_SHARED_SECRETS_DIR",
 	} {
 		t.Setenv(k, "")
 		require.NoError(t, os.Unsetenv(k))
@@ -55,11 +55,7 @@ func TestEnsureSecretsGeneratesOnce(t *testing.T) {
 		require.NoError(t, err, name)
 		assert.NotEmpty(t, read(t, p), name)
 		first[name] = read(t, p)
-		if name == "admin-password" {
-			assert.Equal(t, os.FileMode(0o644), info.Mode().Perm(), "a secret other containers read")
-		} else {
-			assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), name)
-		}
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), name)
 	}
 	assert.Len(t, first["admin-password"], 24)
 	assert.NoFileExists(t, filepath.Join(dir, "encryption-key"), "amp serve generates the encryption key")
@@ -111,4 +107,30 @@ func TestDBPasswordOnlyForPostgres(t *testing.T) {
 	t.Setenv("DB_DRIVER", "postgres")
 	require.NoError(t, EnsureSecrets(dir, nil))
 	assert.Len(t, read(t, filepath.Join(dir, "db-password")), 24)
+}
+
+// TestSharedSecretsCopied: only the secrets other containers read are copied
+// to AMP_SHARED_SECRETS_DIR, the one directory those containers mount.
+func TestSharedSecretsCopied(t *testing.T) {
+	clearSecrets(t)
+	dir, shared := t.TempDir(), t.TempDir()
+	t.Setenv("AMP_SHARED_SECRETS_DIR", shared)
+	t.Setenv("DB_DRIVER", "postgres")
+	require.NoError(t, EnsureSecrets(dir, nil))
+
+	entries, err := os.ReadDir(shared)
+	require.NoError(t, err)
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	assert.Equal(t, []string{"admin-password", "db-password"}, names)
+	assert.Equal(t, read(t, filepath.Join(dir, "admin-password")), read(t, filepath.Join(shared, "admin-password")))
+	info, err := os.Stat(filepath.Join(shared, "db-password"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+
+	t.Setenv("AMP_ADMIN_PASSWORD", "mine")
+	require.NoError(t, EnsureSecrets(dir, nil))
+	assert.Equal(t, "mine", read(t, filepath.Join(shared, "admin-password")))
 }

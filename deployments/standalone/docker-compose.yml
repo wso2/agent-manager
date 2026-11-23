@@ -1,7 +1,9 @@
 # AMP Lite without Kubernetes: `docker compose up` from this directory.
 # Agent Manager's settings are in amp.yaml; .env is optional and only changes
 # images, host ports and ThunderID's network name. Secrets are generated on
-# first start and kept in the amp-secrets volume. Each service publishes its
+# first start and kept in the amp-secrets volume; the two other containers
+# read (the admin and PostgreSQL passwords) are copied to amp-shared-secrets,
+# the only secrets volume those containers mount. Each service publishes its
 # own port; there is no ingress controller or reverse proxy. Browsers use the
 # public names (*.localhost resolves to 127.0.0.1); containers dial the
 # service names, and ThunderID's public URL stays the token issuer everywhere.
@@ -38,6 +40,8 @@ services:
     environment:
       AMP_CONFIG: /etc/amp/amp.yaml
       AMP_DATA_DIR: /var/lib/agent-manager
+      # The admin and PostgreSQL passwords, for the containers that read them.
+      AMP_SHARED_SECRETS_DIR: /out/shared-secrets
       # What only Compose knows: ports and service names.
       THUNDER_PORT: ${THUNDER_PORT:-8080}
       # The console is served by amp-api. The dev console (`make console`,
@@ -55,6 +59,7 @@ services:
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-secrets:/var/lib/agent-manager/secrets
+      - amp-shared-secrets:/out/shared-secrets
       - thunder-config:/out/thunder
       - gateway-config:/out/gateway
       - fileauth-config:/out/fileauth
@@ -73,7 +78,7 @@ services:
     volumes:
       - ./thunder:/amp/thunder:ro
       - thunder-config:/amp/thunder-config:ro
-      - amp-secrets:/amp/secrets:ro
+      - amp-shared-secrets:/amp/secrets:ro
       - thunder-db:/opt/thunderid/database
       - thunder-certs:/opt/thunderid/config/certs
       - thunder-secrets:/opt/thunderid/config/secrets
@@ -115,7 +120,7 @@ services:
       POSTGRES_PASSWORD_FILE: /amp/secrets/db-password
       POSTGRES_DB: agent_manager
     volumes:
-      - amp-secrets:/amp/secrets:ro
+      - amp-shared-secrets:/amp/secrets:ro
       - postgres-data:/var/lib/postgresql
     depends_on:
       amp-init:
@@ -234,6 +239,7 @@ volumes:
   postgres-data:
   amp-data:
   amp-secrets:
+  amp-shared-secrets:
   gateway-config:
   gateway-data:
   fileauth-config:

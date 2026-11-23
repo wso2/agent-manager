@@ -112,6 +112,7 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 |---|---|---|---|
 | `AMP_DATA_DIR` | `amp.data_dir` | `data (/var/lib/agent-manager in the image)` | Where state lives: the SQLite file, certificates and generated secrets. |
 | `AMP_SECRETS_DIR` | `amp.secrets_dir` | `<data dir>/secrets` | Where generated secrets are kept; `amp secret list` names them. |
+| `AMP_SHARED_SECRETS_DIR` | `amp.shared_secrets_dir` |  | amp init copies the secrets other containers read (the admin and PostgreSQL passwords) here, for a volume only those containers mount. |
 | `ENCRYPTION_KEY` | `encryption.key` | `generated on first start` | AES-256 key (64 hex characters) stored secrets are sealed with. Losing it makes them unreadable. **Secret.** |
 | `ENCRYPTION_KEY_PREVIOUS` | `encryption.key_previous` |  | Earlier keys, comma-separated, kept after a rotation so older secrets stay readable. **Secret.** |
 | `SECRET_MANAGER_PROVIDER` | `secret.manager_provider` | `inhouse` | Where agent credentials are kept: inhouse (the database) or unsupported (refuses writes). |
