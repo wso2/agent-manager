@@ -13,6 +13,7 @@ Which tests a change needs, where their files go, how to run them and which of t
 | End-to-end CLI tests | `amctl` as a user runs it: exit codes and `--json` envelopes | `test/e2e/tests/cli/<group>/` | `make e2e-test SUITE=cli` | Same as end-to-end API tests |
 | Live security tests | The scope matrix, roles, tokens and agent identity against a running stack | `test/e2e/security/<area>/` | `make security-test-live` (`SUITE=`, `FOCUS=`) | Same as end-to-end API tests |
 | Compose smoke test | Sign-in, the core API, which routes each distribution serves, the console files | `deployments/standalone/scripts/smoke.sh` | `make up` then `make smoke`; `make down`, `make up-core`, then `make smoke-core` (file sign-in) | PRs to `amp-2.x` that touch `agent-manager-service/**` or `deployments/standalone/**` (`amp`, `amp-core`, and `amp` with the gateway disabled) |
+| Console browser journeys | Critical user journeys in the console, in Chromium: sign-in, projects, external agents, LLM providers, gateways, members | `test/ui-e2e/tests/` (Playwright, [README](../test/ui-e2e/README.md)) | `make up`, then `npm ci && npx playwright test` in `test/ui-e2e` ([below](#console-browser-journeys-testui-e2e)) | PRs to `amp-2.x` that touch `console/**`, `agent-manager-service/**`, `test/ui-e2e/**` or `deployments/standalone/**`, except documentation-only ones |
 | File sign-in smoke | `auth.mode: file`: the generated user file, sign-in, the console's auth mode | `.github/workflows/file-auth-smoke.yaml` | The steps in that workflow | PRs that touch sign-in, config or `deployments/standalone/**` |
 | CLI unit tests | Each `amctl` command's `runX` function, clients, config | `cli/pkg/**/*_test.go` | `make amctl-test`, or `go test ./...` in `cli` | PRs that touch `cli/**`, and OpenAPI changes (client drift check) |
 | Console unit tests | Hooks, API clients, components, utilities (Vitest, jsdom) | `*.test.ts(x)` next to the code under `console/workspaces` | `pnpm build` once, then `pnpm test` in `console`, or `pnpm run test` in one package | PRs that touch `console/**` |
@@ -38,6 +39,7 @@ Start from the row that matches the change. A change that spans rows needs each 
 | Anything on the line between the core and a module | Run all three smoke variants (`amp`, `amp-core`, `amp-off`) | `deployments/standalone/scripts/smoke.sh` |
 | An `amctl` command | A unit test of `runX` built from a hand-made `*XxxOptions`; an e2e CLI spec for a user-visible flow | `cli/pkg/cmd/<group>/<command>_test.go`, `test/e2e/tests/cli/<group>/` |
 | A console hook, API function or component | A Vitest test next to the file. API functions live in `apis/` and hooks in `hooks/` (`add-console-api-feature` skill) | `<name>.test.ts` or `<name>.test.tsx` |
+| A console page a critical journey passes through | Update the journey's page object and spec; a new critical journey gets its own spec | `test/ui-e2e/pages/`, `test/ui-e2e/tests/` |
 | Sign-in or configuration | Unit tests, plus the file sign-in smoke (runs on its own) and the e2e suites (ThunderID sign-in) | — |
 | The Compose stack | `make up` and `make smoke`; add smoke checks for new routes | `deployments/standalone/` |
 | The instrumentation library or the observer | pytest or Go tests, and a matrix cell when the emitted spans change | [RUNBOOK](../test/instrumentation-matrix/RUNBOOK.md) |
@@ -68,6 +70,13 @@ Start from the row that matches the change. A change that spans rows needs each 
 - `smoke.sh` names the routes each distribution serves. A new module route needs a line there.
 - The smoke test signs in as the admin, so the stack must run with file sign-in, the default. The e2e suites need ThunderID sign-in instead; see [Running the suites that need a stack](#running-the-suites-that-need-a-stack).
 
+### Console browser journeys (`test/ui-e2e`)
+
+- Playwright, Chromium only, in its own npm package (not the console's pnpm workspace). One page object per page in `pages/`; find elements by role and accessible name. A control with no accessible name gets an `aria-label` in the component.
+- Import `test` from `support/fixtures.ts`: tests start signed in as the admin, each worker gets its own project, and `api` sets up, cleans up and reads back through the API. Name resources with `uniqueName()` (prefix `uie2e-`).
+- The suite needs file sign-in, the stack's default, so it can't share a stack with `make e2e-test`. It reads the admin password like the smoke test: `AMP_ADMIN_PASSWORD`, else the running `amp-api` container.
+- To run it: `make up`, then in `test/ui-e2e` run `npm ci`, `npx playwright install chromium` and `npx playwright test`. A failed test keeps a trace and a screenshot; `npx playwright show-report` opens them. CI uploads the report when the job fails.
+
 ### CLI (`cli`)
 
 - Test `runX(ctx, opts)`, not the cobra `RunE` path. Capture output with `iostreams.Test()`. [cli/AGENTS.md → Testing](../cli/AGENTS.md#testing).
@@ -87,7 +96,7 @@ The suites need different sign-in modes, so they can't all run against one stack
 
 | Suites | Sign-in mode | Stack |
 |---|---|---|
-| `make smoke`, `make smoke-core`, `smoke.sh amp-off` | file (the default) | `make up` or `make up-core` as shipped |
+| `make smoke`, `make smoke-core`, `smoke.sh amp-off`, the console browser journeys | file (the default) | `make up` or `make up-core` as shipped |
 | `make e2e-test`, `make security-test-live`, sample platform smokes | ThunderID (`idp`): they sign in with client credentials against ThunderID | `make up` with these two lines in `deployments/standalone/.env` |
 
 ```bash
