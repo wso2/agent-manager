@@ -5852,6 +5852,9 @@ type PolicyCatalogItemStatus string
 
 // PolicyCatalogResponse defines model for PolicyCatalogResponse.
 type PolicyCatalogResponse struct {
+	// AvailabilityKnown False when none of the checked gateways has reported its policies yet, so installed/not_installed is not known
+	AvailabilityKnown bool `json:"availabilityKnown"`
+
 	// AvailabilityScope Which gateways availability was checked against. "deployed" is the gateways the resource is deployed to; "org_managed" is the organization's active managed gateways.
 	AvailabilityScope PolicyCatalogResponseAvailabilityScope `json:"availabilityScope"`
 	Count             int32                                  `json:"count"`

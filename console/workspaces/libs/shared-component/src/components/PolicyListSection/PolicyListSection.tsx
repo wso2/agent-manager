@@ -166,13 +166,30 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
 
   // Judged against the whole catalog, not the picker's filtered view: a policy
   // the picker hides is still available on the gateway.
+  // Nothing is judged unavailable while no gateway has reported (availability
+  // is not known), so no warning and no forced read-only view.
+  const availabilityKnown = activeCatalog?.availabilityKnown ?? true;
   const isUnavailable = useCallback(
     (policy: PolicySelection) =>
       Boolean(activeCatalog) &&
+      availabilityKnown &&
       !activeCatalog!.data.some(
         (item) => item.status !== "not_installed" && matchAvailable(policy, item),
       ),
-    [activeCatalog, matchAvailable],
+    [activeCatalog, availabilityKnown, matchAvailable],
+  );
+
+  // While availability is unknown an applied policy is edited against any
+  // catalog entry with a schema (name and major); with none there is no form to
+  // build, so it opens read-only, without the "not available" warning.
+  const hasNoSchemaWhileUnknown = useCallback(
+    (policy: PolicySelection) =>
+      Boolean(activeCatalog) &&
+      !availabilityKnown &&
+      !activeCatalog!.data.some(
+        (item) => item.parameters !== undefined && matchAvailable(policy, item),
+      ),
+    [activeCatalog, availabilityKnown, matchAvailable],
   );
 
   const matchEditing = useCallback(
@@ -433,7 +450,8 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
         isAdded={isAdded}
         matchEdit={matchEditing}
         unavailablePolicy={
-          editingPolicy && isUnavailable(editingPolicy)
+          editingPolicy &&
+          (isUnavailable(editingPolicy) || hasNoSchemaWhileUnknown(editingPolicy))
             ? editingPolicy
             : undefined
         }

@@ -82,4 +82,7 @@ type PolicyCatalogResponse struct {
 	List              []PolicyCatalogItem     `json:"list"`
 	HubAvailable      bool                    `json:"hubAvailable"`
 	AvailabilityScope PolicyAvailabilityScope `json:"availabilityScope"`
+	// AvailabilityKnown is false when none of the checked gateways has reported its policies yet, so installed and
+	// not_installed are not known.
+	AvailabilityKnown bool `json:"availabilityKnown"`
 }

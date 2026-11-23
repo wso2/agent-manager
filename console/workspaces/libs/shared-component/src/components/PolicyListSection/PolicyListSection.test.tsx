@@ -48,6 +48,7 @@ const catalog = (
   data,
   hubAvailable: true,
   availabilityScope: "deployed",
+  availabilityKnown: true,
   ...overrides,
 });
 
@@ -157,6 +158,75 @@ describe("PolicyListSection catalog picker", () => {
     renderList({ catalogData: catalog([policy()]) });
     openPicker();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("PolicyListSection while availability is unknown", () => {
+  const UNKNOWN =
+    "This gateway hasn't reported its policies yet — availability will show once it does.";
+  const unknown = { availabilityKnown: false };
+  const applied: PolicySelection[] = [
+    { name: "legacy-guard", version: "v1.0.0", displayName: "Legacy Guard", settings: { mode: "strict" } },
+  ];
+  const notInstalled = (extra = {}) =>
+    policy({ name: "legacy-guard", version: "v1.0.0", status: "not_installed", parameters: undefined, ...extra });
+
+  it("shows the info note in the picker, not the scope or hub notes, and keeps not-installed rows disabled", () => {
+    renderList({
+      catalogData: catalog([policy(), notInstalled({ name: "word-filter", displayName: "Word Filter" })], {
+        ...unknown,
+        availabilityScope: "org_managed",
+        hubAvailable: false,
+      }),
+    });
+    openPicker();
+    expect(screen.getByText(UNKNOWN)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Availability checked against managed gateways/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Policy hub unreachable/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Word Filter/ })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText("Not installed on this gateway")).not.toBeInTheDocument();
+  });
+
+  it("does not flag an applied policy as not available", () => {
+    renderList({ catalogData: catalog([notInstalled()], unknown) }, applied);
+    expect(screen.queryByText("Not available on this gateway")).not.toBeInTheDocument();
+    renderList({ catalogData: catalog([policy()], unknown) }, applied);
+    expect(screen.queryByText("Not available on this gateway")).not.toBeInTheDocument();
+  });
+
+  it("edits an applied policy against a catalog entry with a schema, whatever its status", () => {
+    const { onEdit } = renderList(
+      {
+        catalogData: catalog(
+          [
+            notInstalled({
+              parameters: { type: "object", properties: { mode: { type: "string" } } },
+            }),
+          ],
+          unknown,
+        ),
+      },
+      applied,
+    );
+    fireEvent.click(screen.getByText("Legacy Guard"));
+    fireEvent.change(screen.getByDisplayValue("strict"), { target: { value: "lenient" } });
+    expect(screen.queryByText("Not available on this gateway")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onEdit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "legacy-guard", version: "v1.0.0", settings: { mode: "lenient" } }),
+    );
+  });
+
+  it("opens the read-only view, with the info note instead of the warning, when no entry has a schema", () => {
+    const { onEdit } = renderList({ catalogData: catalog([notInstalled()], unknown) }, applied);
+    fireEvent.click(screen.getByText("Legacy Guard"));
+    expect(screen.getByRole("presentation").textContent).toContain('"mode": "strict"');
+    expect(screen.getByText(/hasn't reported its policies yet/)).toBeInTheDocument();
+    expect(screen.queryByText(/is not available on this gateway/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /save/i })).not.toBeInTheDocument();
+    expect(onEdit).not.toHaveBeenCalled();
   });
 });
 

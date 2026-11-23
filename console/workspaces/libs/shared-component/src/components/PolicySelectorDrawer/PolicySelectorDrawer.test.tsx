@@ -51,6 +51,7 @@ describe("PolicySelectorDrawer", () => {
           count: 1,
           hubAvailable: true,
           availabilityScope: "deployed",
+          availabilityKnown: true,
           data: [policy({ version: "v1.0.2" })],
         }}
         editPolicyKey="pii-masking@v1"
@@ -68,6 +69,7 @@ describe("PolicySelectorDrawer", () => {
       count: data.length,
       hubAvailable: true,
       availabilityScope: "deployed" as const,
+      availabilityKnown: true,
       data,
     });
     const editProps = {
@@ -162,6 +164,54 @@ describe("PolicySelectorDrawer", () => {
       rerender(<PolicySelectorDrawer {...props} catalogData={catalogOf(policy())} />);
       expect(screen.queryByText(WARNING)).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
+    });
+  });
+
+  describe("availability unknown", () => {
+    const UNKNOWN = "This gateway hasn't reported its policies yet — availability will show once it does.";
+    const unknownCatalog = (...data: ReturnType<typeof policy>[]) => ({
+      count: data.length,
+      hubAvailable: true,
+      availabilityScope: "org_managed" as const,
+      availabilityKnown: false,
+      data,
+    });
+    const notInstalled = (extra = {}) =>
+      policy({ status: "not_installed", parameters: undefined, ...extra });
+
+    it("shows the note at the top of the list and keeps not-installed rows disabled", () => {
+      renderWithProviders(
+        <PolicySelectorDrawer
+          open
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          filterPolicies={(items) => items}
+          catalogData={unknownCatalog(notInstalled())}
+        />,
+      );
+      expect(screen.getByText(UNKNOWN)).toBeInTheDocument();
+      expect(screen.getByText("Availability not known yet")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /PII Masking/ })).toHaveAttribute("aria-disabled", "true");
+    });
+
+    it("edit mode: keeps Save enabled for a not-installed entry that carries a schema", () => {
+      renderWithProviders(
+        <PolicySelectorDrawer
+          open
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          filterPolicies={(items) => items}
+          editPolicyKey="pii-masking@v1"
+          matchEdit={(item) => item.name === "pii-masking"}
+          existingSettings={{ blockedWord: "secret" }}
+          catalogData={unknownCatalog(
+            notInstalled({ parameters: { type: "object", properties: { blockedWord: { type: "string" } } } }),
+          )}
+        />,
+      );
+      expect(screen.getByDisplayValue("secret")).toBeInTheDocument();
+      expect(screen.queryByText(/not available on this gateway/i)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     });
   });
 });

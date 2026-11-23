@@ -53,6 +53,7 @@ export function toMCPCatalog(
     })),
     hubAvailable: resp.hubAvailable,
     availabilityScope: resp.availabilityScope,
+    availabilityKnown: resp.availabilityKnown ?? true,
   };
 }
 

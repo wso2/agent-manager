@@ -31,6 +31,7 @@ import type {
 import { Alert, Stack, Typography } from "@wso2/oxygen-ui";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { ACL_POLICY_NAME } from "../constants";
+import { resolveRequiredMCPPolicy } from "./mcpPolicySelection";
 import {
   CAPABILITY_SECTION_KEY,
   type CapabilityKind,
@@ -158,11 +159,8 @@ export function MCPProxyManageToolsTab({
     environmentUuid,
   );
   const availableAclPolicy = useMemo(
-    () =>
-      catalog?.data?.find(
-        (p) => p.name === ACL_POLICY_NAME && p.status === "installed",
-      ),
-    [catalog],
+    () => resolveRequiredMCPPolicy(catalog, ACL_POLICY_NAME, config?.policies),
+    [catalog, config?.policies],
   );
 
   const items = useMemo<AccessControlItem[]>(() => {
@@ -254,7 +252,7 @@ export function MCPProxyManageToolsTab({
     );
     const newPolicy: MCPProxyPolicy = {
       name: ACL_POLICY_NAME,
-      version: availableAclPolicy.savedVersion,
+      version: availableAclPolicy.version,
       displayName: availableAclPolicy.displayName,
       params,
     };

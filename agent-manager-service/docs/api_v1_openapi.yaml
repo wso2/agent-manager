@@ -21046,6 +21046,7 @@ components:
         - list
         - hubAvailable
         - availabilityScope
+        - availabilityKnown
       properties:
         count:
           type: integer
@@ -21063,6 +21064,9 @@ components:
             - deployed
             - org_managed
           description: Which gateways availability was checked against. "deployed" is the gateways the resource is deployed to; "org_managed" is the organization's active managed gateways.
+        availabilityKnown:
+          type: boolean
+          description: False when none of the checked gateways has reported its policies yet, so installed/not_installed is not known
 
     LLMRateLimitingConfig:
       type: object

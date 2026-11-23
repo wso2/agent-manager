@@ -215,7 +215,7 @@ func (m *MockToolsetHandler) ListLLMGuardrails(
 	m.recordCall("ListLLMGuardrails", ouID, providerID)
 	schema := map[string]interface{}{"type": "object", "properties": map[string]interface{}{"mask": map[string]interface{}{"type": "boolean"}}}
 	installed := models.PolicyCatalogStatusInstalled
-	return &models.PolicyCatalogResponse{Count: 4, List: []models.PolicyCatalogItem{
+	return &models.PolicyCatalogResponse{Count: 4, AvailabilityKnown: true, List: []models.PolicyCatalogItem{
 		{Name: testGuardrailName, Version: "v1", Status: installed, Parameters: schema},
 		{Name: "word-count", Version: "v1", Status: installed, Parameters: schema},
 		{Name: "cors", Version: "v1", Status: installed, Parameters: schema},

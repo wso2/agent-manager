@@ -123,6 +123,11 @@ export interface GuardrailsCatalogResponse {
   /** False when the policy hub is disabled or unreachable (installed policies still list). */
   hubAvailable: boolean;
   availabilityScope: PolicyCatalogAvailabilityScope;
+  /**
+   * False when no checked gateway has reported its policies yet: each row's
+   * status is then "not known", not "missing", so no unavailable warnings.
+   */
+  availabilityKnown: boolean;
 }
 
 export function toGuardrailDefinition(
@@ -155,6 +160,8 @@ export function toGuardrailCatalog(
     data: (resp.list ?? []).map(toGuardrailDefinition),
     hubAvailable: resp.hubAvailable,
     availabilityScope: resp.availabilityScope,
+    // Absent only from an older service; assume availability is known then.
+    availabilityKnown: resp.availabilityKnown ?? true,
   };
 }
 

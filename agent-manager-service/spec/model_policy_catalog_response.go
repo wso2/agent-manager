@@ -25,18 +25,21 @@ type PolicyCatalogResponse struct {
 	HubAvailable bool `json:"hubAvailable"`
 	// Which gateways availability was checked against. \"deployed\" is the gateways the resource is deployed to; \"org_managed\" is the organization's active managed gateways.
 	AvailabilityScope string `json:"availabilityScope"`
+	// False when none of the checked gateways has reported its policies yet, so installed/not_installed is not known
+	AvailabilityKnown bool `json:"availabilityKnown"`
 }
 
 // NewPolicyCatalogResponse instantiates a new PolicyCatalogResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewPolicyCatalogResponse(count int32, list []PolicyCatalogItem, hubAvailable bool, availabilityScope string) *PolicyCatalogResponse {
+func NewPolicyCatalogResponse(count int32, list []PolicyCatalogItem, hubAvailable bool, availabilityScope string, availabilityKnown bool) *PolicyCatalogResponse {
 	this := PolicyCatalogResponse{}
 	this.Count = count
 	this.List = list
 	this.HubAvailable = hubAvailable
 	this.AvailabilityScope = availabilityScope
+	this.AvailabilityKnown = availabilityKnown
 	return &this
 }
 
@@ -144,6 +147,30 @@ func (o *PolicyCatalogResponse) SetAvailabilityScope(v string) {
 	o.AvailabilityScope = v
 }
 
+// GetAvailabilityKnown returns the AvailabilityKnown field value
+func (o *PolicyCatalogResponse) GetAvailabilityKnown() bool {
+	if o == nil {
+		var ret bool
+		return ret
+	}
+
+	return o.AvailabilityKnown
+}
+
+// GetAvailabilityKnownOk returns a tuple with the AvailabilityKnown field value
+// and a boolean to check if the value has been set.
+func (o *PolicyCatalogResponse) GetAvailabilityKnownOk() (*bool, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.AvailabilityKnown, true
+}
+
+// SetAvailabilityKnown sets field value
+func (o *PolicyCatalogResponse) SetAvailabilityKnown(v bool) {
+	o.AvailabilityKnown = v
+}
+
 func (o PolicyCatalogResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -158,6 +185,7 @@ func (o PolicyCatalogResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["list"] = o.List
 	toSerialize["hubAvailable"] = o.HubAvailable
 	toSerialize["availabilityScope"] = o.AvailabilityScope
+	toSerialize["availabilityKnown"] = o.AvailabilityKnown
 	return toSerialize, nil
 }
 

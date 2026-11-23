@@ -98,7 +98,15 @@ type guardrailItem struct {
 type listLLMGuardrailsOutput struct {
 	Total      int             `json:"total"`
 	Guardrails []guardrailItem `json:"guardrails"`
+	// AvailabilityKnown is false when no gateway has reported its policies yet; the list is then the full catalog,
+	// whether or not a gateway has each guardrail installed.
+	AvailabilityKnown bool   `json:"availability_known"`
+	Note              string `json:"note,omitempty"`
 }
+
+const guardrailAvailabilityUnknownNote = "No gateway has reported its policies yet, so these are all known guardrails and it is not known " +
+	"which are installed. Availability is checked once a gateway reports."
+
 type providerDeploymentItem struct {
 	GatewayID string `json:"gateway_id"`
 	Success   bool   `json:"success"`
@@ -568,11 +576,17 @@ func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, 
 			return nil, nil, wrapToolError("list_llm_guardrails", err)
 		}
 		var policies []models.PolicyCatalogItem
+		known := resp == nil || resp.AvailabilityKnown
+		note := ""
+		if !known {
+			note = guardrailAvailabilityUnknownNote
+		}
 		if resp != nil {
 			for _, p := range resp.List {
 				// The catalog also lists policies no gateway has installed; only
-				// installed ones can be attached.
-				if p.Status == models.PolicyCatalogStatusInstalled {
+				// installed ones can be attached, unless no gateway has reported
+				// yet and installed vs not is unknown.
+				if !known || p.Status == models.PolicyCatalogStatusInstalled {
 					policies = append(policies, p)
 				}
 			}
@@ -585,7 +599,7 @@ func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, 
 			for _, p := range policies {
 				if p.Name == name && !nonGuardrailPolicies[p.Name] {
 					item := guardrailItem{Name: p.Name, Version: p.Version, DisplayName: p.DisplayName, Description: p.Description, Parameters: p.Parameters}
-					return handleToolResult(listLLMGuardrailsOutput{Total: 1, Guardrails: []guardrailItem{item}}, nil)
+					return handleToolResult(listLLMGuardrailsOutput{Total: 1, Guardrails: []guardrailItem{item}, AvailabilityKnown: known, Note: note}, nil)
 				}
 			}
 			return nil, nil, fmt.Errorf("list_llm_guardrails: no guardrail named %q. Call list_llm_guardrails without name to see valid guardrails", name)
@@ -598,7 +612,7 @@ func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, 
 			}
 			items = append(items, guardrailItem{Name: p.Name, Version: p.Version, DisplayName: p.DisplayName, Description: p.Description})
 		}
-		return handleToolResult(listLLMGuardrailsOutput{Total: len(items), Guardrails: items}, nil)
+		return handleToolResult(listLLMGuardrailsOutput{Total: len(items), Guardrails: items, AvailabilityKnown: known, Note: note}, nil)
 	}
 }
 
@@ -668,7 +682,9 @@ func validateGuardrails(guardrails []guardrailInput) error {
 // not a guardrail (jwt-auth, cors): either would otherwise be stored on the
 // provider and pushed to its gateways. Guardrails are checked against what the
 // provider's gateways report; a provider on no gateway yet reports nothing, so
-// it is checked against the org's gateways, where it can be deployed.
+// it is checked against the org's gateways, where it can be deployed. If no
+// gateway has reported its policies at all, installation is unknown and not
+// checked: any catalog guardrail at a matching major version is accepted.
 func requireAvailableGuardrails(
 	ctx context.Context, toolName string, handler LLMProviderToolsetHandler, ouID, providerID string, guardrails []models.LLMPolicy,
 ) error {
@@ -689,8 +705,10 @@ func requireAvailableGuardrails(
 	}
 	versions := map[string][]string{}
 	if resp != nil {
+		// When no gateway has reported yet, installed vs not is unknown: a catalog guardrail is accepted whatever its
+		// status, so a gateway that has not reported does not block the request.
 		for _, p := range resp.List {
-			if p.Status == models.PolicyCatalogStatusInstalled && !nonGuardrailPolicies[p.Name] {
+			if (!resp.AvailabilityKnown || p.Status == models.PolicyCatalogStatusInstalled) && !nonGuardrailPolicies[p.Name] {
 				versions[p.Name] = append(versions[p.Name], p.Version)
 			}
 		}

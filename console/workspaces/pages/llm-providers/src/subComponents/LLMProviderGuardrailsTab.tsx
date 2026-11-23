@@ -165,13 +165,24 @@ export function LLMProviderGuardrailsTab({
   // Unavailable only once the catalog has loaded cleanly, so nothing flashes
   // while it loads or when it fails.
   const catalogReady = Boolean(catalogData) && !catalogError;
+  // False when no gateway has reported yet: nothing is flagged unavailable then.
+  const availabilityKnown = catalogData?.availabilityKnown ?? true;
+  // A catalog row a saved guardrail can be edited against: installed, or while
+  // availability is unknown, any row that carries a schema.
+  const canEditAgainst = useCallback(
+    (g: GuardrailDefinition) =>
+      g.status === "installed" ||
+      (!availabilityKnown && g.parameters !== undefined),
+    [availabilityKnown],
+  );
   const isUnavailable = useCallback(
     (p: LLMPolicy) =>
       catalogReady &&
+      availabilityKnown &&
       !availableGuardrails.some(
         (g) => g.status === "installed" && matchesSaved(g, p),
       ),
-    [catalogReady, availableGuardrails],
+    [catalogReady, availabilityKnown, availableGuardrails],
   );
 
   const [status, setStatus] = useState<{
@@ -402,7 +413,7 @@ export function LLMProviderGuardrailsTab({
   const handleOpenEditDrawer = useCallback(
     (entry: PolicyEntry) => {
       const guardrailDef = availableGuardrails.find(
-        (g) => g.status === "installed" && matchesSaved(g, entry.policy),
+        (g) => canEditAgainst(g) && matchesSaved(g, entry.policy),
       );
       if (!guardrailDef && !catalogReady) return;
 
@@ -423,7 +434,7 @@ export function LLMProviderGuardrailsTab({
       });
       setDrawerOpen(true);
     },
-    [availableGuardrails, catalogReady],
+    [availableGuardrails, catalogReady, canEditAgainst],
   );
 
   const handleCloseDrawer = useCallback(() => {
@@ -444,16 +455,16 @@ export function LLMProviderGuardrailsTab({
     [drawerContext, editingContext, handleAddGuardrail, handleEditGuardrail, handleCloseDrawer],
   );
 
-  // An installed item of the saved guardrail's name and major opens for editing.
+  // An item of the saved guardrail's name and major opens for editing.
   const matchEdit = useCallback(
     (g: GuardrailDefinition) =>
-      g.status === "installed" &&
+      canEditAgainst(g) &&
       editingContext !== null &&
       matchesSaved(g, {
         name: editingContext.guardrailName,
         version: editingContext.guardrailVersion,
       } as LLMPolicy),
-    [editingContext],
+    [editingContext, canEditAgainst],
   );
 
   const getDisplayName = useCallback(
@@ -758,6 +769,7 @@ export function LLMProviderGuardrailsTab({
         onClose={handleCloseDrawer}
         onSubmit={handleDrawerSubmit}
         providerId={providerData?.uuid}
+        catalogData={catalogData}
         policyNoun="guardrail"
         loadingLabel="Loading guardrails..."
         searchPlaceholder="Search guardrails"

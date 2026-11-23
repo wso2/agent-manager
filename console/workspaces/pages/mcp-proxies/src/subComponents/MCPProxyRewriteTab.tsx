@@ -52,6 +52,7 @@ import { TextInput } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { REWRITE_POLICY_NAME } from "../constants";
+import { resolveRequiredMCPPolicy } from "./mcpPolicySelection";
 import type { CapabilityKind } from "./mcpEndpoints";
 
 const KIND_LABEL: Record<CapabilityKind, string> = {
@@ -388,10 +389,8 @@ export function MCPProxyRewriteTab({
   );
   const availableRewritePolicy = useMemo(
     () =>
-      catalog?.data?.find(
-        (p) => p.name === REWRITE_POLICY_NAME && p.status === "installed",
-      ),
-    [catalog],
+      resolveRequiredMCPPolicy(catalog, REWRITE_POLICY_NAME, config?.policies),
+    [catalog, config?.policies],
   );
 
   useEffect(() => {
@@ -505,7 +504,7 @@ export function MCPProxyRewriteTab({
       const params = buildPolicyParams(state, meta);
       const newPolicy: MCPProxyPolicy = {
         name: REWRITE_POLICY_NAME,
-        version: availableRewritePolicy.savedVersion,
+        version: availableRewritePolicy.version,
         displayName: availableRewritePolicy.displayName,
         params,
       };

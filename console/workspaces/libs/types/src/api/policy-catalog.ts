@@ -44,4 +44,9 @@ export interface PolicyCatalogResponse {
   list: PolicyCatalogItem[];
   hubAvailable: boolean;
   availabilityScope: PolicyCatalogAvailabilityScope;
+  /**
+   * False when none of the checked gateways has reported its policies yet, so
+   * installed / not_installed is not known.
+   */
+  availabilityKnown: boolean;
 }

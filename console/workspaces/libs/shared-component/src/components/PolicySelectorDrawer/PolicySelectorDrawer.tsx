@@ -65,6 +65,9 @@ import { resolvePolicyDetail } from "./resolvePolicyDetail";
 const unavailableMessage = (policyNoun: string) =>
   `This ${policyNoun} is not available on this gateway, so its configuration is read-only. Remove it from the list if it is no longer needed.`;
 
+const availabilityUnknownMessage =
+  "This gateway hasn't reported its policies yet — availability will show once it does.";
+
 const PolicyDetailView: React.FC<{
   policy: GuardrailDefinition;
   /** The catalog no longer has this policy installed; the form stays but cannot be submitted. */
@@ -142,12 +145,18 @@ const PolicyDetailView: React.FC<{
 const UnavailablePolicyView: React.FC<{
   settings?: Record<string, unknown>;
   policyNoun: string;
+  /** False: no gateway has reported, so this is "not known yet", not a warning. */
+  availabilityKnown?: boolean;
   onClose: () => void;
-}> = ({ settings, policyNoun, onClose }) => (
+}> = ({ settings, policyNoun, availabilityKnown = true, onClose }) => (
   <Stack spacing={2}>
-    <Alert severity="warning">
-      {unavailableMessage(policyNoun)}
-    </Alert>
+    {availabilityKnown ? (
+      <Alert severity="warning">{unavailableMessage(policyNoun)}</Alert>
+    ) : (
+      <Alert severity="info">
+        {availabilityUnknownMessage} Its configuration is read-only until then.
+      </Alert>
+    )}
     <CodeBlock
       code={JSON.stringify(settings ?? {}, null, 2)}
       language="json"
@@ -274,6 +283,16 @@ export function PolicySelectorDrawer({
   }, [activeCatalogData, filterPolicies]);
 
   const hubAvailable = hubAvailableProp ?? activeCatalogData?.hubAvailable ?? true;
+  // False when no gateway has reported yet: statuses are then not known.
+  const availabilityKnown = activeCatalogData?.availabilityKnown ?? true;
+  // A row an applied policy can be edited against: installed, or (while
+  // availability is unknown) any row that carries a schema.
+  const isEditable = useCallback(
+    (p: GuardrailDefinition) =>
+      p.status !== "not_installed" ||
+      (!availabilityKnown && p.parameters !== undefined),
+    [availabilityKnown],
+  );
   const availabilityScope =
     availabilityScopeProp ?? activeCatalogData?.availabilityScope ?? "deployed";
 
@@ -321,7 +340,7 @@ export function PolicySelectorDrawer({
     if (!selectedPolicy || !activeCatalogData) return false;
     return !activeCatalogData.data.some(
       (p) =>
-        p.status !== "not_installed" &&
+        isEditable(p) &&
         (editPolicyKey
           ? matchEdit
             ? matchEdit(p)
@@ -329,7 +348,7 @@ export function PolicySelectorDrawer({
           : p.name === selectedPolicy.name &&
             p.version === selectedPolicy.version),
     );
-  }, [selectedPolicy, activeCatalogData, editPolicyKey, matchEdit]);
+  }, [selectedPolicy, activeCatalogData, editPolicyKey, matchEdit, isEditable]);
 
   const handleSubmit = useCallback(
     (policy: GuardrailDefinition, settings: ParameterValues) => {
@@ -354,7 +373,7 @@ export function PolicySelectorDrawer({
     if (!open || !editPolicyKey) return;
     const match = (activeCatalogData?.data ?? []).find(
       (p) =>
-        p.status !== "not_installed" &&
+        isEditable(p) &&
         (matchEdit
           ? matchEdit(p)
           : `${p.name}@${p.version}` === editPolicyKey),
@@ -371,7 +390,7 @@ export function PolicySelectorDrawer({
           : match,
       );
     }
-  }, [open, editPolicyKey, matchEdit, activeCatalogData]);
+  }, [open, editPolicyKey, matchEdit, activeCatalogData, isEditable]);
 
   const drawerTitle = selectedPolicy
     ? selectedPolicy.displayName || selectedPolicy.name
@@ -423,16 +442,20 @@ export function PolicySelectorDrawer({
           <UnavailablePolicyView
             settings={existingSettings}
             policyNoun={policyNoun}
+            availabilityKnown={availabilityKnown}
             onClose={handleClose}
           />
         ) : !selectedPolicy ? (
           <Stack spacing={2}>
-            {availabilityScope === "org_managed" && (
+            {!availabilityKnown && (
+              <Alert severity="info">{availabilityUnknownMessage}</Alert>
+            )}
+            {availabilityKnown && availabilityScope === "org_managed" && (
               <Alert severity="info">
                 {"Availability checked against managed gateways; will be rechecked on deploy."}
               </Alert>
             )}
-            {!hubAvailable && (
+            {availabilityKnown && !hubAvailable && (
               <Alert severity="info">
                 Policy hub unreachable — showing installed policies only.
               </Alert>
@@ -500,7 +523,9 @@ export function PolicySelectorDrawer({
                               ? `Missing on ${policy.missingOn
                                   .map((g) => g.name)
                                   .join(", ")}`
-                              : "Not installed on this gateway"}
+                              : availabilityKnown
+                                ? "Not installed on this gateway"
+                                : "Availability not known yet"}
                           </Typography>
                         )}
                         {policy.description && (

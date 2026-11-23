@@ -91,10 +91,12 @@ func nonNilStrings(s []string) []string {
 // Installed policies come first, then hub policies missing from the gateways; both sorted by name.
 //
 // Which kind a policy belongs to: a custom policy (managedBy organization) is listed in both kinds, whatever the hub
-// says about its name. A non-custom policy takes its kind from the hub's categories; when the hub is unavailable or
-// does not know the name, it is listed in the LLM kind only, so the MCP catalog never shows more than hub policies
-// the gateways carry. A non-custom policy on only some gateways that the hub does not know is listed (LLM only) as
-// a disabled row.
+// says about its name. When the hub is unavailable (hubOK false) nothing is known about categories, so every
+// installed policy, and every partial non-custom gateway row, is listed in both kinds: the built-in MCP policies
+// (mcp-rewrite, mcp-acl-list) must stay selectable and saved ones must not look missing. When the hub is available,
+// a non-custom policy takes its kind from the hub's categories, and one the hub does not know is listed in the LLM
+// kind only, so the MCP catalog never shows more than hub MCP policies the gateways carry. A non-custom policy on
+// only some gateways that the hub does not know is listed as a disabled row (LLM only while the hub is available).
 func buildPolicyCatalog(kind models.PolicyCatalogKind, installed installedPolicies,
 	hub []HubPolicy, hubOK bool,
 ) []models.PolicyCatalogItem {
@@ -104,8 +106,8 @@ func buildPolicyCatalog(kind models.PolicyCatalogKind, installed installedPolici
 	}
 	items := []models.PolicyCatalogItem{}
 
-	// Installed names: custom policies are in both kinds. Others take their kind from the hub when it knows the
-	// name, and are LLM-only when it does not.
+	// Installed names: custom policies are in both kinds, and so is everything while the hub is unavailable. Others
+	// take their kind from the hub when it knows the name, and are LLM-only when the hub is up but does not.
 	for name, m := range installed.ByName {
 		h, known := hubByName[name]
 		custom := installed.Custom[name]
@@ -113,7 +115,7 @@ func buildPolicyCatalog(kind models.PolicyCatalogKind, installed installedPolici
 			if known && !hubPolicyMatchesKind(kind, h.Categories) {
 				continue
 			}
-			if !known && kind != models.PolicyCatalogKindLLM {
+			if hubOK && !known && kind != models.PolicyCatalogKindLLM {
 				continue
 			}
 		}
@@ -167,8 +169,8 @@ func buildPolicyCatalog(kind models.PolicyCatalogKind, installed installedPolici
 	}
 
 	// Non-custom names on only some gateways that the hub does not know: no hub row will cover them, so show a
-	// disabled row from the definition the gateways reported. LLM only (see above).
-	if kind == models.PolicyCatalogKindLLM {
+	// disabled row from the definition the gateways reported. LLM only while the hub is available (see above).
+	if kind == models.PolicyCatalogKindLLM || !hubOK {
 		for name, missing := range installed.MissingOn {
 			if installed.Custom[name] {
 				continue
@@ -244,11 +246,14 @@ func buildCatalogResponse(ctx context.Context, kind models.PolicyCatalogKind, ga
 	if hub != nil {
 		hubPolicies, hubOK = hub.Snapshot(ctx)
 	}
-	items := buildPolicyCatalog(kind, collectInstalledPolicies(gateways), hubPolicies, hubOK)
+	collected := collectInstalledPolicies(gateways)
+	items := buildPolicyCatalog(kind, collected, hubPolicies, hubOK)
 	return &models.PolicyCatalogResponse{
 		Count:             int32(len(items)),
 		List:              items,
 		HubAvailable:      hubOK,
 		AvailabilityScope: scope,
+		// No reporting gateway means installed/not_installed is unknown, not "everything is missing".
+		AvailabilityKnown: len(collected.Reporting) > 0,
 	}, nil
 }

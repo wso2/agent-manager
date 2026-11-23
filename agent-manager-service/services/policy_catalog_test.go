@@ -17,11 +17,16 @@
 package services
 
 import (
+	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 func TestBuildPolicyCatalog(t *testing.T) {
@@ -148,7 +153,7 @@ func TestBuildPolicyCatalog(t *testing.T) {
 			want: []want{{"mystery", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceHub, "v1.0.0", nil}},
 		},
 		{
-			name: "hubOK=false → installed non-custom policies only in llm (llm)",
+			name: "hubOK=false → installed non-custom policies in llm",
 			kind: models.PolicyCatalogKindLLM,
 			installed: installedPolicies{
 				ByName:    map[string]llmPolicyManifestItem{"x": manifest("x", "v1.0.0")},
@@ -158,14 +163,14 @@ func TestBuildPolicyCatalog(t *testing.T) {
 			want: []want{{"x", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceHub, "v1.0.0", nil}},
 		},
 		{
-			name: "hubOK=false → installed non-custom policies not in mcp",
+			name: "hubOK=false → installed non-custom policies also in mcp",
 			kind: models.PolicyCatalogKindMCP,
 			installed: installedPolicies{
-				ByName:    map[string]llmPolicyManifestItem{"x": manifest("x", "v1.0.0")},
+				ByName:    map[string]llmPolicyManifestItem{"mcp-rewrite": manifest("mcp-rewrite", "v1.0.0")},
 				Reporting: []gatewayRef{gwA},
 			},
 			hub: []HubPolicy{hubMCP, hubAI}, hubOK: false,
-			want: []want{},
+			want: []want{{"mcp-rewrite", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceHub, "v1.0.0", nil}},
 		},
 		{
 			name: "hubOK=false → installed custom policy still in mcp",
@@ -220,6 +225,17 @@ func TestBuildPolicyCatalog(t *testing.T) {
 			},
 			hub: []HubPolicy{{Name: "other", Version: "v1", Categories: []string{"MCP"}}}, hubOK: true,
 			want: []want{{"mystery", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.4.0", []gatewayRef{gwB}}},
+		},
+		{
+			name: "non-custom partial, hub unavailable → disabled row in mcp too",
+			kind: models.PolicyCatalogKindMCP,
+			installed: installedPolicies{
+				MissingOn: map[string][]gatewayRef{"mystery": {gwB}},
+				Sighted:   map[string]llmPolicyManifestItem{"mystery": {Name: "mystery", Version: "v1.4.0"}},
+				Reporting: []gatewayRef{gwA, gwB},
+			},
+			hubOK: false,
+			want:  []want{{"mystery", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.4.0", []gatewayRef{gwB}}},
 		},
 		{
 			name: "non-custom partial, hub unavailable → disabled row in llm",
@@ -460,4 +476,44 @@ func TestBuildPolicyCatalog_PartialUnknownNonCustomRowDetails(t *testing.T) {
 	assert.Equal(t, []gatewayRef{gwB}, got[1].MissingOn)
 	assert.Equal(t, models.PolicyCatalogSourceHub, got[1].Source)
 	assert.Equal(t, models.PolicyCatalogStatusNotInstalled, got[1].Status)
+}
+
+type staticHub struct {
+	policies []HubPolicy
+	ok       bool
+}
+
+func (h staticHub) Snapshot(context.Context) ([]HubPolicy, bool) { return h.policies, h.ok }
+
+// availabilityKnown tells the console whether installed/not_installed means anything: it is false only when none of
+// the checked gateways has reported a manifest.
+func TestBuildCatalogResponse_AvailabilityKnown(t *testing.T) {
+	hub := staticHub{policies: []HubPolicy{{Name: "pii-mask", Version: "v1.0", Categories: []string{"AI"}, IsLatest: true}}, ok: true}
+	reported := gatewayWithLLMPolicyManifest(map[string]interface{}{"name": "pii-mask", "version": "v1.0.0"})
+	reported.UUID = uuid.New()
+	silent := &models.Gateway{UUID: uuid.New()}
+
+	for name, tc := range map[string]struct {
+		gateways      []*models.Gateway
+		wantKnown     bool
+		wantInstalled bool
+	}{
+		"one gateway reported":  {[]*models.Gateway{reported}, true, true},
+		"one reported, one not": {[]*models.Gateway{reported, silent}, true, true},
+		"none reported":         {[]*models.Gateway{silent}, false, false},
+		"no gateways at all":    {nil, false, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo := &repomocks.GatewayRepositoryMock{
+				ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) { return tc.gateways, nil },
+			}
+
+			resp, err := buildCatalogResponse(context.Background(), models.PolicyCatalogKindLLM, repo, nil, hub, "org", nil)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantKnown, resp.AvailabilityKnown)
+			require.Len(t, resp.List, 1)
+			assert.Equal(t, tc.wantInstalled, resp.List[0].Status == models.PolicyCatalogStatusInstalled)
+		})
+	}
 }

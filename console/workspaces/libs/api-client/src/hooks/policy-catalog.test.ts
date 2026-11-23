@@ -38,6 +38,7 @@ const response = (
   count: 2,
   hubAvailable: true,
   availabilityScope: "deployed",
+  availabilityKnown: true,
   list: [
     {
       name: "pii-masking",
@@ -59,6 +60,23 @@ const response = (
     },
   ],
   ...overrides,
+});
+
+describe("availabilityKnown", () => {
+  it("is passed through by both mappers", () => {
+    for (const known of [false, true]) {
+      const resp = response({ availabilityKnown: known });
+      expect(toGuardrailCatalog(resp).availabilityKnown).toBe(known);
+      expect(toMCPCatalog(resp).availabilityKnown).toBe(known);
+    }
+  });
+
+  it("defaults to true when the service omits it", () => {
+    const legacy = response() as Partial<PolicyCatalogResponse>;
+    delete legacy.availabilityKnown;
+    expect(toGuardrailCatalog(legacy as PolicyCatalogResponse).availabilityKnown).toBe(true);
+    expect(toMCPCatalog(legacy as PolicyCatalogResponse).availabilityKnown).toBe(true);
+  });
 });
 
 describe("toGuardrailCatalog", () => {

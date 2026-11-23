@@ -26,7 +26,7 @@ vi.mock("@agent-management-platform/api-client", async () => ({
   ).normalizePolicyVersionToMajor,
 }));
 
-import { applyPolicySelection } from "./mcpPolicySelection";
+import { applyPolicySelection, resolveRequiredMCPPolicy } from "./mcpPolicySelection";
 
 describe("applyPolicySelection", () => {
   const saved = [
@@ -81,5 +81,59 @@ describe("applyPolicySelection", () => {
       version: "v2.0.0",
     });
     expect(result).toHaveLength(2);
+  });
+});
+
+describe("resolveRequiredMCPPolicy", () => {
+  const entry = (status: "installed" | "not_installed") => ({
+    name: "mcp-rewrite",
+    version: "v1.0.2",
+    savedVersion: "v1",
+    displayName: "MCP Rewrite",
+    status,
+  });
+  const catalog = (
+    status: "installed" | "not_installed",
+    availabilityKnown: boolean,
+  ) =>
+    ({
+      count: 1,
+      data: [entry(status)],
+      hubAvailable: true,
+      availabilityScope: "deployed",
+      availabilityKnown,
+    }) as never;
+  const saved = [{ name: "mcp-rewrite", version: "v1.0.0", displayName: "Saved Rewrite" }];
+
+  it("uses an installed entry", () => {
+    expect(resolveRequiredMCPPolicy(catalog("installed", true), "mcp-rewrite", [])).toEqual({
+      version: "v1",
+      displayName: "MCP Rewrite",
+    });
+  });
+
+  it("refuses a not-installed entry when availability is known", () => {
+    expect(resolveRequiredMCPPolicy(catalog("not_installed", true), "mcp-rewrite", saved)).toBeUndefined();
+  });
+
+  it("uses a not-installed catalog entry when availability is unknown", () => {
+    expect(resolveRequiredMCPPolicy(catalog("not_installed", false), "mcp-rewrite", [])).toEqual({
+      version: "v1",
+      displayName: "MCP Rewrite",
+    });
+  });
+
+  it("falls back to the saved version when availability is unknown and the catalog lacks the name", () => {
+    const empty = { count: 0, data: [], hubAvailable: false, availabilityScope: "deployed", availabilityKnown: false } as never;
+    expect(resolveRequiredMCPPolicy(empty, "mcp-rewrite", saved)).toEqual({
+      version: "v1",
+      displayName: "Saved Rewrite",
+    });
+    expect(resolveRequiredMCPPolicy(empty, "mcp-rewrite", [])).toBeUndefined();
+  });
+
+  it("does not fall back to the saved version when availability is known", () => {
+    const empty = { count: 0, data: [], hubAvailable: true, availabilityScope: "deployed", availabilityKnown: true } as never;
+    expect(resolveRequiredMCPPolicy(empty, "mcp-rewrite", saved)).toBeUndefined();
   });
 });

@@ -73,11 +73,60 @@ const renderTab = (onUpdate = vi.fn()) =>
     </MemoryRouter>,
   );
 
-const loadedCatalog = (data: unknown[]) => ({
+const loadedCatalog = (data: unknown[], availabilityKnown = true) => ({
   count: data.length,
   data,
   hubAvailable: true,
   availabilityScope: "deployed",
+  availabilityKnown,
+});
+
+describe("LLMProviderGuardrailsTab while availability is unknown", () => {
+  it("does not flag an applied guardrail and opens it read-only, with the info note, when no entry has a schema", () => {
+    catalog.state = {
+      data: loadedCatalog(
+        [{ name: "legacy-guard", version: "v1.0.0", status: "not_installed" }],
+        false,
+      ),
+      error: null,
+    };
+    renderTab();
+    expect(screen.queryByText("Not available on this gateway")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(/legacy-guard/));
+    expect(screen.getByRole("presentation").textContent).toContain('"mode": "strict"');
+    expect(screen.getByText(/hasn't reported its policies yet/)).toBeInTheDocument();
+    expect(screen.queryByText(/is not available on this gateway/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^save$/i })).not.toBeInTheDocument();
+  });
+
+  it("edits an applied guardrail with the schema of a not-installed catalog entry", () => {
+    catalog.state = {
+      data: loadedCatalog(
+        [
+          {
+            name: "legacy-guard",
+            version: "v1.2.0",
+            status: "not_installed",
+            displayName: "legacy-guard",
+            provider: "hub",
+            source: "hub",
+            categories: [],
+            description: "",
+            isLatest: true,
+            parameters: { type: "object", properties: { mode: { type: "string" } } },
+          },
+        ],
+        false,
+      ),
+      error: null,
+    };
+    renderTab();
+    expect(screen.queryByText("Not available on this gateway")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText(/legacy-guard/));
+    expect(screen.getByDisplayValue("strict")).toBeInTheDocument();
+    expect(screen.queryByText(/is not available on this gateway/)).not.toBeInTheDocument();
+  });
 });
 
 describe("LLMProviderGuardrailsTab unavailable guardrails", () => {
