@@ -34,6 +34,7 @@ import { globalConfig, absoluteRouteMap } from "@agent-management-platform/types
 import { LeftNavigation, combineNavItems, flattenWithChildren } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
+import { useFooterLinkModules } from "./useFooterLinkModules";
 import { ConsoleAction, orgRouteId, useGetUserProfile, useListOrganizations, useTrack } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
 import { useFeatureFlag } from "@agent-management-platform/feature-management";
@@ -67,10 +68,7 @@ export function OxygenLayout() {
     useExternalComponentModules(MountPoints.TopStartPanel);
   const externalTopLeftComponentModules =
     useExternalComponentModules(MountPoints.TopLeftPanel);
-  const externalBottomLeftComponentModules =
-    useExternalComponentModules(MountPoints.BottomLeftPanel);
-  const externalBottomRightComponentModules =
-    useExternalComponentModules(MountPoints.BottomRightPanel);
+  const { links: externalFooterLinks, sources: footerLinkSources } = useFooterLinkModules();
   const { data: organizations } = useListOrganizations();
   const homePath = useMemo(() => {
     return generatePath(absoluteRouteMap.children.org.path, {
@@ -127,7 +125,7 @@ export function OxygenLayout() {
                     ))}
                   </div>
                 ) : (
-                  <Logo  />
+                  <Logo />
                 )}
               </Header.BrandLogo>
             </Header.Brand>
@@ -203,21 +201,6 @@ export function OxygenLayout() {
                     </Footer.Version>,
                   ]
                 }
-                {
-                  externalBottomLeftComponentModules?.map((module) => (
-                    <div key={module.moduleName}>
-                      <module.component />
-                    </div>
-                  ))
-                }
-                {
-                  externalBottomRightComponentModules?.map((module) => (
-                    <div key={module.moduleName}>
-                      <module.component />
-                    </div>
-                  ))
-                }
-
                 {globalConfig.docsUrl && (
                   <Footer.Link
                     href={globalConfig.docsUrl + "/get-started/what-is-amp/"}
@@ -231,6 +214,7 @@ export function OxygenLayout() {
                 {globalConfig.footerLinks?.supportUrl && (
                   <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>
                 )}
+                {externalFooterLinks}
                 {globalConfig.footerLinks?.termsOfUseUrl && (
                   <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms of Use</Footer.Link>
                 )}
@@ -246,6 +230,8 @@ export function OxygenLayout() {
       </AppShell>
 
       <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />
+      {/* Report the footer's extra links; mounted out here, as the footer would drop them. */}
+      {footerLinkSources}
     </>
   );
 }

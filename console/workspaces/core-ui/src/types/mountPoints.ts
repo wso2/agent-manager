@@ -24,8 +24,15 @@ export enum MountPoints {
     TopLeftPanel = "top-left-panel",
     TopRightPanel = "top-right-panel",
     TopLogo = "top-logo",
+    // Deprecated, and never rendered: the footer only keeps its own subcomponents,
+    // so a component placed in it is dropped. The console logs a warning for any
+    // module registered here. Use FooterLinks.
     BottomLeftPanel = "bottom-left-panel",
     BottomRightPanel = "bottom-right-panel",
+    // A deployment can add links to the console footer, such as Cookie Settings, by
+    // injecting a component here that reports them (see FooterLinksProps). When
+    // nothing is injected, the footer shows only the built-in links.
+    FooterLinks = "footer-links",
     LeftNavItem = "left-nav-item",
     // A deployment can inject its own environment create/delete drawer components
     // at these mount points. When nothing is injected, the built-in script-based
