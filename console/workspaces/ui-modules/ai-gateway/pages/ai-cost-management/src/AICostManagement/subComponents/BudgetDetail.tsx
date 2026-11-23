@@ -408,12 +408,6 @@ function ThisPeriod({ budget }: { budget: Budget }) {
   );
 }
 
-const PERIOD_PER: Record<string, string> = {
-  day: "per day",
-  week: "per week",
-  month: "per month",
-};
-
 /**
  * This period of a budget counted separately (each agent, each API key, ...): every
  * allowance has the whole limit, so the total is a sum, not a share of it. The list of
@@ -421,11 +415,8 @@ const PERIOD_PER: Record<string, string> = {
  */
 function ThisPeriodEach({ budget }: { budget: Budget }) {
   const lim = budget.spec.limit;
-  const kind = separateKind(budget) ?? "value";
   const period = budget.status?.currentPeriod;
   const span = period ? periodSpan(period.periodStart, lim.period) : null;
-  const limit = amount(lim.amount);
-  const blockAt = lim.action === "block" ? (lim.blockAt ?? 100) : undefined;
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent sx={{ p: 3 }}>
@@ -451,14 +442,6 @@ function ThisPeriodEach({ budget }: { budget: Budget }) {
             </Stack>
           )}
         </Stack>
-        <Typography variant="h6" sx={{ mt: 2 }}>
-          {`Each ${kind} can spend up to ${usd(limit)} ${PERIOD_PER[lim.period]}`}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {blockAt !== undefined
-            ? `Blocked at ${usd((limit * blockAt) / 100)}.`
-            : "Only warns."}
-        </Typography>
         <Divider sx={{ my: 2.5 }} />
         <Stack
           direction={{ xs: "column", sm: "row" }}
@@ -710,11 +693,9 @@ function Scope({ budget, orgName }: { budget: Budget; orgName: string }) {
               )
             }
             note={
-              filters.length
-                ? "Match all filters."
-                : owner
-                  ? `All usage in project ${names.project?.[owner] ?? owner}`
-                  : "Everything in the organization"
+              !filters.length && owner
+                ? `All usage in project ${names.project?.[owner] ?? owner}`
+                : undefined
             }
           />
           <ScopeRow
@@ -726,11 +707,7 @@ function Scope({ budget, orgName }: { budget: Budget; orgName: string }) {
                 : "One shared limit"
             }
             note={
-              split
-                ? split.expression
-                  ? `Told apart by ${split.expression}`
-                  : `Each ${inSentence(KIND_LABEL[split.type])} gets its own ${usd(amount(spec.limit.amount))} limit`
-                : "All matching usage shares one limit"
+              split?.expression ? `Told apart by ${split.expression}` : undefined
             }
           />
         </Stack>

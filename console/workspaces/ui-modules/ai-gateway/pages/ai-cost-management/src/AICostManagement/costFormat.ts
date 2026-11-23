@@ -72,6 +72,11 @@ export function formatUsd(value: number): string {
   return Math.abs(value) < 100 ? usdCents.format(value) : usd.format(value);
 }
 
+/** Dollars and cents, whatever the size: for figures read side by side. */
+export function formatUsdCents(value: number): string {
+  return usdCents.format(value);
+}
+
 /** An API amount (decimal string) as a number; an unparsable one counts as 0. */
 export function amount(value: string | undefined): number {
   const n = Number.parseFloat(value ?? "");

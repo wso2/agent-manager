@@ -39,7 +39,7 @@ import {
   amount,
   changePercent,
   entryMonthly,
-  formatUsd,
+  formatUsdCents,
   groupKey,
   groupLabel,
   keptMonths,
@@ -91,7 +91,13 @@ function Tile({
         </Typography>
         <Typography
           variant="h5"
-          sx={{ mt: 0.5, color: highlight ? "primary.main" : "text.primary" }}
+          fontWeight={700}
+          sx={{
+            mt: 0.5,
+            fontSize: "1.75rem",
+            color: highlight ? "primary.main" : "text.primary",
+            fontVariantNumeric: "tabular-nums",
+          }}
         >
           {value}
         </Typography>
@@ -239,7 +245,7 @@ export function CostOverview({
             <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
               <Tile
                 label={`This month (${thisMonth})`}
-                value={formatUsd(current)}
+                value={formatUsdCents(current)}
                 caption={`So far in ${thisMonth}`}
                 highlight
               />
@@ -247,7 +253,7 @@ export function CostOverview({
             <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
               <Tile
                 label={`Last month (${lastMonth})`}
-                value={formatUsd(last)}
+                value={formatUsdCents(last)}
                 caption={
                   change === undefined
                     ? undefined
@@ -258,7 +264,7 @@ export function CostOverview({
             <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
               <Tile
                 label={`Last 3 months (${firstMonth}–${thisMonth})`}
-                value={formatUsd(threeMonths)}
+                value={formatUsdCents(threeMonths)}
                 caption={`Includes ${thisMonth} so far`}
               />
             </Grid>

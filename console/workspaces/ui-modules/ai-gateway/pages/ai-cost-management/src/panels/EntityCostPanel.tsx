@@ -26,9 +26,7 @@ import {
   Skeleton,
   Stack,
   Typography,
-  useTheme,
 } from "@wso2/oxygen-ui";
-import { Bar, BarChart, Cell } from "@wso2/oxygen-ui-charts-react";
 import { useCosts } from "@agent-management-platform/api-client";
 import { NESTED_CARD_SX } from "@agent-management-platform/shared-component";
 import {
@@ -37,7 +35,7 @@ import {
   type CostNames,
   zeroCostNote,
   entryMonthly,
-  formatUsd,
+  formatUsdCents,
   groupKey,
   groupLabel,
   keptMonths,
@@ -58,57 +56,68 @@ export interface EntityCostPanelProps {
 }
 
 /**
- * A metric tile in the style of the overview's other sections (Recent Traces):
- * the value, its label below, and an optional adornment on the right.
+ * A metric tile: its label, the amount beneath it as the headline, and an optional
+ * adornment on the right. A highlighted tile (this month) shows its amount in the
+ * accent colour, with an accent edge.
  */
 function MetricTile({
   value,
   label,
   adornment,
   loading,
+  highlight,
 }: {
   value: string;
   label: string;
   adornment?: ReactNode;
   loading?: boolean;
+  highlight?: boolean;
 }) {
   return (
     <Card
       variant="outlined"
-      sx={{ ...NESTED_CARD_SX, width: "100%", height: "100%" }}
+      sx={{
+        ...NESTED_CARD_SX,
+        width: "100%",
+        height: "100%",
+        ...(highlight ? { borderColor: "primary.main" } : {}),
+      }}
     >
       <CardContent
         sx={{
-          py: 1,
-          px: 1.5,
-          "&:last-child": { pb: 1 },
+          py: 1.5,
+          px: 2,
+          "&:last-child": { pb: 1.5 },
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 1,
           minHeight: 64,
+          height: "100%",
         }}
       >
         <Box sx={{ minWidth: 0 }}>
-          {loading ? (
-            <Skeleton variant="text" width={64} height={28} />
-          ) : (
-            <Typography
-              variant="h6"
-              lineHeight={1.2}
-              sx={{ fontVariantNumeric: "tabular-nums" }}
-            >
-              {value}
-            </Typography>
-          )}
           <Typography
-            variant="caption"
+            variant="body2"
             color="text.secondary"
             noWrap
             component="div"
           >
             {label}
           </Typography>
+          {loading ? (
+            <Skeleton variant="text" width={96} height={36} />
+          ) : (
+            <Typography
+              variant="h5"
+              fontWeight={700}
+              lineHeight={1.25}
+              color={highlight ? "primary.main" : "text.primary"}
+              sx={{ fontSize: "1.75rem", fontVariantNumeric: "tabular-nums" }}
+            >
+              {value}
+            </Typography>
+          )}
         </Box>
         {!loading && adornment}
       </CardContent>
@@ -127,45 +136,6 @@ function ChangeChip({ change, against }: { change: number; against: string }) {
       label={`${change > 0 ? "+" : ""}${change}% vs ${against}`}
       sx={{ flexShrink: 0 }}
     />
-  );
-}
-
-/** The kept months' totals as a tiny bar chart; the current month in the accent colour. */
-function MonthsSparkline({ totals }: { totals: number[] }) {
-  const theme = useTheme();
-  const data = totals.map((value, i) => ({ i, value }));
-  return (
-    <Box sx={{ flexShrink: 0 }} aria-hidden>
-      <BarChart
-        data={data}
-        xAxisDataKey="i"
-        height={44}
-        width={72}
-        bars={[]}
-        grid={{ show: false }}
-        xAxis={{ show: false }}
-        yAxis={{ show: false }}
-        legend={{ show: false }}
-        tooltip={{ show: false }}
-        isAnimationActive={false}
-        margin={{ top: 4, right: 0, bottom: 0, left: 0 }}
-        barCategoryGap="24%"
-      >
-        <Bar dataKey="value" radius={[2, 2, 0, 0]} isAnimationActive={false}>
-          {data.map((d) => (
-            <Cell
-              key={d.i}
-              fill={
-                d.i === data.length - 1
-                  ? theme.palette.primary.main
-                  : theme.palette.text.secondary
-              }
-              fillOpacity={d.i === data.length - 1 ? 1 : 0.4}
-            />
-          ))}
-        </Bar>
-      </BarChart>
-    </Box>
   );
 }
 
@@ -222,13 +192,14 @@ export function EntityCostTiles({
   const tiles = [
     <MetricTile
       key="current"
-      value={formatUsd(c.current)}
+      value={formatUsdCents(c.current)}
       label={`This month (${c.thisMonth}) so far`}
       loading={c.isLoading}
+      highlight
     />,
     <MetricTile
       key="last"
-      value={formatUsd(c.last)}
+      value={formatUsdCents(c.last)}
       label={`Last month (${c.lastMonth})`}
       adornment={
         c.change !== undefined && (
@@ -239,9 +210,8 @@ export function EntityCostTiles({
     />,
     <MetricTile
       key="window"
-      value={formatUsd(c.window)}
+      value={formatUsdCents(c.window)}
       label={`Last 3 months (${c.firstMonth}–${c.thisMonth})`}
-      adornment={<MonthsSparkline totals={c.totals} />}
       loading={c.isLoading}
     />,
   ];
