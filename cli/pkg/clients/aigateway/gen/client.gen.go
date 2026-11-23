@@ -13,8 +13,6 @@ import (
 	"net/url"
 	"strings"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -10738,7 +10736,6 @@ type ListLLMProvidersResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *LLMProviderListResponse
-	YAML200      *LLMProviderListResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON500      *ErrorResponse
@@ -10764,7 +10761,6 @@ type CreateLLMProviderResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON201      *LlmProviderDocument
-	YAML201      *LlmProviderDocument
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON409      *ErrorResponse
@@ -10818,7 +10814,6 @@ type GetLLMProviderResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *LlmProviderDocument
-	YAML200      *LlmProviderDocument
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -10845,7 +10840,6 @@ type UpdateLLMProviderResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *LlmProviderDocument
-	YAML200      *LlmProviderDocument
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
@@ -15658,13 +15652,6 @@ func ParseListLLMProvidersResp(rsp *http.Response) (*ListLLMProvidersResp, error
 		}
 		response.JSON500 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "yaml") && rsp.StatusCode == 200:
-		var dest LLMProviderListResponse
-		if err := yaml.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.YAML200 = &dest
-
 	}
 
 	return response, nil
@@ -15718,13 +15705,6 @@ func ParseCreateLLMProviderResp(rsp *http.Response) (*CreateLLMProviderResp, err
 			return nil, err
 		}
 		response.JSON500 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "yaml") && rsp.StatusCode == 201:
-		var dest LlmProviderDocument
-		if err := yaml.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.YAML201 = &dest
 
 	}
 
@@ -15841,13 +15821,6 @@ func ParseGetLLMProviderResp(rsp *http.Response) (*GetLLMProviderResp, error) {
 		}
 		response.JSON500 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "yaml") && rsp.StatusCode == 200:
-		var dest LlmProviderDocument
-		if err := yaml.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.YAML200 = &dest
-
 	}
 
 	return response, nil
@@ -15908,13 +15881,6 @@ func ParseUpdateLLMProviderResp(rsp *http.Response) (*UpdateLLMProviderResp, err
 			return nil, err
 		}
 		response.JSON500 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "yaml") && rsp.StatusCode == 200:
-		var dest LlmProviderDocument
-		if err := yaml.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.YAML200 = &dest
 
 	}
 

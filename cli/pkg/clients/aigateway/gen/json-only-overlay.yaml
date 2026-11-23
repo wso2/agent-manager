@@ -1,0 +1,10 @@
+# The CLI speaks JSON only; dropping YAML media types keeps the generated client off gopkg.in/yaml.v2.
+overlay: 1.0.0
+info:
+  title: amctl JSON-only client
+  version: 1.0.0
+actions:
+  - target: $.paths.*.*.responses.*.content['application/yaml']
+    remove: true
+  - target: $.paths.*.*.requestBody.content['application/yaml']
+    remove: true
