@@ -832,14 +832,16 @@ func (c *llmController) applyCatalog(
 	if declared == nil || provider == nil || provider.Artifact == nil || provider.Artifact.InCatalog == *declared {
 		return provider
 	}
-	updated, err := c.providerService.UpdateCatalogStatus(provider.UUID.String(), ouID, *declared)
-	if err != nil {
+	if _, err := c.providerService.UpdateCatalogStatus(provider.UUID.String(), ouID, *declared); err != nil {
 		logger.GetLogger(ctx).Error(op+": failed to set the catalog status",
 			"ouID", ouID, "providerID", provider.UUID, "inCatalog", *declared, "error", err)
 		return provider
 	}
 	modkit.AuditDetail(ctx, "inCatalog", *declared)
-	return updated
+	// Keep the written provider: the catalog read-back lacks fields such as the parsed model providers.
+	provider.InCatalog = *declared
+	provider.Artifact.InCatalog = *declared
+	return provider
 }
 
 // writeDocumentError maps a refused document to 400 and anything else to 500.
