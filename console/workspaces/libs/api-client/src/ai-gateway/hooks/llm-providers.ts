@@ -70,8 +70,6 @@ import type {
   RotateLLMProxyAPIKeyPathParams,
   UndeployLLMProviderPathParams,
   UndeployLLMProviderQuery,
-  UpdateLLMProviderCatalogPathParams,
-  UpdateLLMProviderCatalogRequest,
   UpdateLLMProviderPathParams,
   UpdateLLMProviderRequest,
   UpdateLLMProviderTemplatePathParams,
@@ -109,7 +107,10 @@ import {
   rotateLLMProxyAPIKey,
   undeployLLMProvider,
   updateLLMProvider,
-  updateLLMProviderCatalog,
+  documentFromCreateRequest,
+  documentFromUpdateRequest,
+  providerFromDocument,
+  providerListFromDocuments,
   updateLLMProviderTemplate,
   updateLLMProxy,
 } from "../apis/llm-providers";
@@ -201,7 +202,8 @@ export function useListLLMProviders(
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProviderListResponse>({
     queryKey: ["llm-providers", params, query],
-    queryFn: () => listLLMProviders(params, query, getToken),
+    queryFn: async () =>
+      providerListFromDocuments(await listLLMProviders(params, query, getToken)),
     enabled: gatewayPresent && !!params.orgName,
   });
 }
@@ -211,7 +213,7 @@ export function useGetLLMProvider(params: GetLLMProviderPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProviderResponse>({
     queryKey: ["llm-provider", params],
-    queryFn: () => getLLMProvider(params, getToken),
+    queryFn: async () => providerFromDocument(await getLLMProvider(params, getToken)),
     enabled: gatewayPresent && !!params.orgName && !!params.providerId,
   });
 }
@@ -225,7 +227,10 @@ export function useCreateLLMProvider() {
     { params: CreateLLMProviderPathParams; body: CreateLLMProviderRequest }
   >({
     action: { verb: 'create', target: 'llm provider' },
-    mutationFn: ({ params, body }) => createLLMProvider(params, body, getToken),
+    mutationFn: async ({ params, body }) =>
+      providerFromDocument(
+        await createLLMProvider(params, documentFromCreateRequest(body), getToken),
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-providers"] });
       queryClient.invalidateQueries({ queryKey: ["catalog", "llm-providers"] });
@@ -242,7 +247,14 @@ export function useUpdateLLMProvider() {
     { params: UpdateLLMProviderPathParams; body: UpdateLLMProviderRequest }
   >({
     action: { verb: 'update', target: 'llm provider' },
-    mutationFn: ({ params, body }) => updateLLMProvider(params, body, getToken),
+    mutationFn: async ({ params, body }) =>
+      providerFromDocument(
+        await updateLLMProvider(
+          params,
+          documentFromUpdateRequest(body.id ?? params.providerId ?? "", body),
+          getToken,
+        ),
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-providers"] });
       queryClient.invalidateQueries({ queryKey: ["llm-provider"] });
@@ -260,24 +272,6 @@ export function useDeleteLLMProvider() {
     action: { verb: 'delete', target: 'llm provider' },
     mutationFn: (params) => deleteLLMProvider(params, getToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["llm-providers"] });
-    },
-  });
-}
-
-export function useUpdateLLMProviderCatalog() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    void,
-    unknown,
-    { params: UpdateLLMProviderCatalogPathParams; body: UpdateLLMProviderCatalogRequest }
-  >({
-    action: { verb: 'update', target: 'llm provider catalog' },
-    mutationFn: ({ params, body }) =>
-      updateLLMProviderCatalog(params, body, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["llm-provider"] });
       queryClient.invalidateQueries({ queryKey: ["llm-providers"] });
     },
   });
