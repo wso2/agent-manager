@@ -333,7 +333,7 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 			if time.Since(conn.GetLastHeartbeat()) > m.heartbeatTimeout {
 				slog.Warn("Heartbeat timeout detected",
 					"gatewayID", utils.SanitizeForLog(conn.GatewayID), "connectionID", utils.SanitizeForLog(conn.ConnectionID),
-					"lastHeartbeat", conn.GetLastHeartbeat())
+					"secondsSinceHeartbeat", int64(time.Since(conn.GetLastHeartbeat()).Seconds()))
 				m.Unregister(conn.GatewayID, conn.ConnectionID)
 				return
 			}

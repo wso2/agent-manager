@@ -18,6 +18,7 @@ package observer
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -173,10 +174,7 @@ func (p *AuthProvider) executeTokenRequest(ctx context.Context, postAuth bool) (
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if !postAuth {
-		// The service loads the client ID and secret from runtime configuration.
-		// nosemgrep: go.lang.security.audit.crypto.hardcoded-credentials
-		//nolint:gosec // False positive: credentials are loaded via os.Getenv("IDP_CLIENT_SECRET")
-		req.SetBasicAuth(p.clientID, p.clientSecret)
+		req.Header.Set("Authorization", clientBasicAuthHeader(p.clientID, p.clientSecret))
 	}
 
 	resp, err := p.httpClient.Do(req)
@@ -217,4 +215,12 @@ func isUnauthorizedClientError(statusCode int, body []byte) bool {
 		return false
 	}
 	return errResp.Error == "unauthorized_client"
+}
+
+// clientBasicAuthHeader builds the client_secret_basic Authorization header.
+// RFC 6749 section 2.3.1 requires the client ID and secret to be
+// form-urlencoded before they are joined and base64-encoded.
+func clientBasicAuthHeader(clientID, clientSecret string) string {
+	pair := url.QueryEscape(clientID) + ":" + url.QueryEscape(clientSecret)
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(pair))
 }
