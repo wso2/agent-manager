@@ -112,6 +112,7 @@ func TestLoadResolvesFileReferences(t *testing.T) {
 		loadEnvs()
 	})
 	dir := t.TempDir()
+	t.Setenv("ENV_FILE_PATH", "")
 	t.Setenv(FileEnv, "")
 	t.Setenv(ModulesEnv, "")
 	t.Setenv("DB_PASSWORD", "")
@@ -129,6 +130,20 @@ func TestLoadResolvesFileReferences(t *testing.T) {
 	bad := filepath.Join(dir, "bad.yaml")
 	require.NoError(t, os.WriteFile(bad, []byte("db: {password: \"${env:AMP_TEST_UNSET_VAR}\"}\n"), 0o600))
 	err := Load(bad)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_PASSWORD")
+}
+
+// A reference is resolved only where amp.yaml supplies the value: one the
+// environment overrides may be unresolvable.
+func TestOverriddenReferenceIsNotResolved(t *testing.T) {
+	reloadAfter(t)
+	t.Setenv("DB_PASSWORD", "override")
+	require.NoError(t, loadWith(t, "db: {password: \"${env:AMP_TEST_UNSET_VAR}\"}\n"))
+	assert.Equal(t, "override", Value("DB_PASSWORD"))
+
+	require.NoError(t, os.Unsetenv("DB_PASSWORD"))
+	err := loadWith(t, "db: {password: \"${env:AMP_TEST_UNSET_VAR}\"}\n")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "DB_PASSWORD")
 }

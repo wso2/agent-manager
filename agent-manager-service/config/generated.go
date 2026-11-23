@@ -17,8 +17,8 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
 )
@@ -54,7 +54,7 @@ func generatedValue(key string) (string, bool) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
-			slog.Error("reading a generated secret failed", "setting", key, "error", err)
+			settingErr(fmt.Errorf("%s: generated secret: %w", key, err))
 		}
 		return "", false
 	}

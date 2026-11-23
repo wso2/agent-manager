@@ -71,3 +71,26 @@ func TestEmptyEnvDoesNotHideFileSecret(t *testing.T) {
 	assert.Equal(t, "from-yaml", Value("IDP_CLIENT_SECRET"))
 	assert.Equal(t, "from-yaml", SetValue("IDP_CLIENT_SECRET"))
 }
+
+// An empty _FILE for a generated secret counts as unset too.
+func TestEmptySecretFileDoesNotHideFileSecret(t *testing.T) {
+	reloadAfter(t)
+	t.Setenv("AMP_SECRETS_DIR", t.TempDir())
+	unset(t, "AMP_API_CLIENT_SECRET", "IDP_CLIENT_SECRET")
+	t.Setenv("IDP_CLIENT_SECRET_FILE", secretFile(t, "\n"))
+	require.NoError(t, loadWith(t, "idp: {client_secret: from-yaml}\n"))
+	assert.Equal(t, "from-yaml", Value("IDP_CLIENT_SECRET"))
+}
+
+// A generated secret's file that exists but cannot be read fails Load
+// instead of leaving the secret empty.
+func TestGeneratedUnreadableFileFailsLoad(t *testing.T) {
+	reloadAfter(t)
+	dir := t.TempDir()
+	t.Setenv("AMP_SECRETS_DIR", dir)
+	unset(t, "IDP_CLIENT_SECRET", "AMP_API_CLIENT_SECRET", "IDP_CLIENT_SECRET_FILE")
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "amp-api-client-secret"), 0o700))
+	err := loadWith(t, "server: {port: 8080}\n")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "IDP_CLIENT_SECRET")
+}

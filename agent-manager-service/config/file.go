@@ -71,6 +71,9 @@ var (
 	tracking   bool
 	// fileErrs are the _FILE settings Load could not read.
 	fileErrs []error
+	// refErrs are the configuration file's references that did not resolve,
+	// by variable name: an error only where the file's value is used.
+	refErrs map[string]error
 )
 
 // RegisterKeys declares settings a package reads with Value outside Load
@@ -107,6 +110,7 @@ func lookupSet(key string) (string, bool) {
 	track := tracking
 	v, inFile := fileVars[key]
 	vFile, inFileFile := fileVars[key+FileSuffix]
+	vErr, vFileErr := refErrs[key], refErrs[key+FileSuffix]
 	fileMu.RUnlock()
 	if track {
 		fileMu.Lock()
@@ -119,13 +123,25 @@ func lookupSet(key string) (string, bool) {
 		return env, true
 	}
 	if path, ok := os.LookupEnv(key + FileSuffix); ok && path != "" {
-		return readSettingFile(key+FileSuffix, path)
+		if s, ok := readSettingFile(key+FileSuffix, path); s != "" || !ok || !generated {
+			return s, ok
+		}
+	}
+	if vErr != nil {
+		settingErr(vErr)
+		return "", false
 	}
 	if inFile && (v != "" || !generated) {
 		return v, true
 	}
+	if vFileErr != nil {
+		settingErr(vFileErr)
+		return "", false
+	}
 	if inFileFile && vFile != "" {
-		return readSettingFile(key+FileSuffix, vFile)
+		if s, ok := readSettingFile(key+FileSuffix, vFile); s != "" || !ok || !generated {
+			return s, ok
+		}
 	}
 	if old, ok := aliases[key]; ok {
 		return lookupSet(old)
@@ -140,15 +156,20 @@ func readSettingFile(name, path string) (string, bool) {
 	if err == nil {
 		return trimNewline(string(data)), true
 	}
-	err = fmt.Errorf("%s: %w", name, err)
+	settingErr(fmt.Errorf("%s: %w", name, err))
+	return "", false
+}
+
+// settingErr reports a setting that could not be read: Load returns it when
+// it happens there, and it is logged otherwise.
+func settingErr(err error) {
 	fileMu.Lock()
 	defer fileMu.Unlock()
 	if tracking {
 		fileErrs = append(fileErrs, err)
 	} else {
-		slog.Error("reading a setting's file failed", "error", err)
+		slog.Error("reading a setting failed", "error", err)
 	}
-	return "", false
 }
 
 // Value is Lookup's value, "" when unset.
@@ -266,12 +287,12 @@ func Load(path string) error { return load(path, true) }
 func LoadUnchecked(path string) error { return load(path, false) }
 
 func load(path string, strict bool) error {
-	vars, mods, err := readConfigFile(path)
+	vars, mods, unresolved, err := readConfigFile(path)
 	if err != nil {
 		return err
 	}
 	fileMu.Lock()
-	fileVars, fileModules = vars, mods
+	fileVars, fileModules, refErrs = vars, mods, unresolved
 	readKeys = map[string]bool{}
 	tracking = true
 	fileErrs = nil
@@ -284,6 +305,12 @@ func load(path string, strict bool) error {
 	fileMu.Lock()
 	tracking = false
 	unknown := unknownKeys(vars)
+	// A reference no setting read during Load is still an error.
+	for k, e := range unresolved {
+		if !readKeys[strings.TrimSuffix(k, FileSuffix)] {
+			fileErrs = append(fileErrs, e)
+		}
+	}
 	readErr := errors.Join(fileErrs...)
 	fileMu.Unlock()
 	if readErr != nil {
@@ -298,29 +325,29 @@ func load(path string, strict bool) error {
 	return nil
 }
 
-func readConfigFile(flag string) (map[string]string, Modules, error) {
+// readConfigFile reads and parses the configuration file and resolves its
+// references. A reference that does not resolve is returned by variable name
+// rather than failing: it is an error only where its value is used.
+func readConfigFile(flag string) (map[string]string, Modules, map[string]error, error) {
 	path, named := configFilePath(flag)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !named && errors.Is(err, os.ErrNotExist) {
-			return nil, Modules{}, nil
+			return nil, Modules{}, nil, nil
 		}
-		return nil, Modules{}, fmt.Errorf("reading %s: %w", path, err)
+		return nil, Modules{}, nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	vars, mods, err := parseConfigFile(data)
 	if err != nil {
-		return nil, Modules{}, fmt.Errorf("%s: %w", path, err)
+		return nil, Modules{}, nil, fmt.Errorf("%s: %w", path, err)
 	}
-	var errs []error
+	unresolved := map[string]error{}
 	for k, v := range vars {
 		if vars[k], err = resolveRef(k, v, os.LookupEnv, os.ReadFile); err != nil {
-			errs = append(errs, err)
+			unresolved[k] = fmt.Errorf("%s: %w", path, err)
 		}
 	}
-	if err := errors.Join(errs...); err != nil {
-		return nil, Modules{}, fmt.Errorf("%s: %w", path, err)
-	}
-	return vars, mods, nil
+	return vars, mods, unresolved, nil
 }
 
 // unknownKeys lists the file's keys that no setting read during Load and no
