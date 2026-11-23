@@ -45,9 +45,6 @@ const (
 	budgetTestProjectID = "0193f1c2-0000-7000-8000-0000000000a1"
 )
 
-var (
-)
-
 func budgetI32(v int32) *int32 { return &v }
 
 // Gateways identify consumers by token claims (attributes) today.
