@@ -25,9 +25,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
-// ProviderPlacement reports where providers are placed, one summary per gateway holding each.
-// It takes a slice so a list page costs two queries rather than two per row, and skips a
-// deployment whose gateway is gone - gatewayName is required and a blank one tells a reader nothing.
+// ProviderPlacement reports, per provider, the gateways it is placed on (status heading for DEPLOYED) with each one's status.
+// It reads one status row per gateway, and skips a gateway that no longer exists.
 func (s *LLMProviderService) ProviderPlacement(
 	ctx context.Context, ouID string, providers []uuid.UUID,
 ) (map[uuid.UUID][]gwmodels.DeploymentSummary, error) {
@@ -46,43 +45,26 @@ func (s *LLMProviderService) ProviderPlacement(
 	}
 
 	for _, providerUUID := range providers {
-		deployments, err := s.deploymentRepo.GetDeploymentsWithState(providerUUID.String(), ouID, nil, nil, 0)
+		rows, err := s.deploymentRepo.StatusRecords(ctx, ouID, providerUUID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read deployments of %s: %w", providerUUID, err)
+			return nil, fmt.Errorf("failed to read the placement of %s: %w", providerUUID, err)
 		}
-		summaries := make([]gwmodels.DeploymentSummary, 0, len(deployments))
-		for _, d := range deployments {
-			g, ok := byUUID[d.GatewayUUID]
-			if !ok {
+		summaries := make([]gwmodels.DeploymentSummary, 0, len(rows))
+		for _, row := range rows {
+			g, ok := byUUID[row.GatewayUUID]
+			if !ok || row.StatusDesired != gwmodels.DeploymentStatusDeployed {
 				continue
 			}
-			summary := gwmodels.DeploymentSummary{
-				GatewayID:   d.GatewayUUID,
+			updatedAt := row.UpdatedAt
+			summaries = append(summaries, gwmodels.DeploymentSummary{
+				GatewayID:   row.GatewayUUID,
 				GatewayName: g.Name,
-				DeployedAt:  d.UpdatedAt,
+				Status:      gwmodels.UserStatusOf(row).Status,
+				DeployedAt:  &updatedAt,
 				VHost:       g.Vhost,
-			}
-			// The status a USER is shown, not the raw row: a deployment with a
-			// retry owed reads as DEPLOYING, which is what the v1 catalog
-			// already reports for the same row.
-			summary.Status = gwmodels.UserStatusOf(gwmodels.DeploymentStatusRecord{
-				Status:        deref(d.Status),
-				StatusDesired: deref(d.StatusDesired),
-				StatusReason:  deref(d.StatusReason),
-				NextAttemptAt: d.NextAttemptAt,
-				RenderReason:  deref(d.RenderReason),
-			}).Status
-			summaries = append(summaries, summary)
+			})
 		}
 		out[providerUUID] = summaries
 	}
 	return out, nil
-}
-
-func deref[T any](p *T) T {
-	var zero T
-	if p == nil {
-		return zero
-	}
-	return *p
 }
