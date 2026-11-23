@@ -17,7 +17,7 @@ import (
 // checks if the ImageScan type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &ImageScan{}
 
-// ImageScan How the build's vulnerability scan treats what it finds, saved for the build workflow to read. Only a workflow that scans the image and declares the imageScan parameter applies it; the workflows this service installs don't scan, so they ignore it. The update is refused unless the agent's build workflow declares imageScan. A ClusterWorkflow is checked only where the API in front of OpenChoreo lets it be read; where it can't be, the setting is saved unchecked, and reading it back doesn't mean the agent's builds apply it. Sending imageScan replaces the whole saved object: a field left out falls back to that workflow's default, not to the saved value. To change one field, send the other as read.
+// ImageScan How the build's vulnerability scan treats what it finds, saved for the build workflow to read. Only a workflow that scans the image and declares the imageScan parameter applies it. The update is refused unless the agent's build workflow declares imageScan, so it is refused for an agent on the workflows this service installs, which don't scan. A ClusterWorkflow is checked only where the API in front of OpenChoreo lets it be read; where it can't be, the setting is saved unchecked, and reading it back doesn't mean the agent's builds apply it. Sending imageScan replaces the whole saved object: a field left out falls back to that workflow's default, not to the saved value. To change one field, send the other as read.
 type ImageScan struct {
 	// Whether what the scan finds fails the build. When false, the scan still reports it and the image is published.
 	FailBuild *bool `json:"failBuild,omitempty"`
