@@ -12,8 +12,8 @@ Runs AMP Lite with no Kubernetes, Helm or ingress controller. Every service publ
 
 Startup, in order:
 
-1. `amp-init` (the `amp-api` image, `amp init thunder … ai-gateway … fileauth …`) writes ThunderID's configuration and bootstrap resources and the AI Gateway's `config.toml` from the settings in `docker-compose.yml` and `.env`: public URLs, ports, client IDs and secrets, default users. Scope lists and role grants come from Agent Manager's own permission catalog. On the first run it also creates the gateway's encryption key, listener certificate and registration token (unless `DEFAULT_GATEWAY_TOKEN` is set), and keeps them afterwards.
-2. `thunder-setup` runs ThunderID's setup when the generated bootstrap differs from the one last applied. A rerun is additive: it updates AMP's clients, roles and settings and keeps everything else in ThunderID's database. It also sets the admin password to `AMP_ADMIN_PASSWORD` again.
+1. `amp-init` (the `amp-api` image, `amp init thunder … ai-gateway … fileauth …`) generates the secrets nothing sets (client secrets, the admin and gateway passwords) into the `amp-secrets` volume, then writes ThunderID's configuration and bootstrap resources and the AI Gateway's `config.toml` from `amp.yaml`: public URLs, client IDs and secrets, default users. Scope lists and role grants come from Agent Manager's own permission catalog. On the first run it also creates the gateway's encryption key, listener certificate and registration token, and keeps all of these afterwards.
+2. `thunder-setup` runs ThunderID's setup when the generated bootstrap differs from the one last applied. A rerun is additive: it updates AMP's clients, roles and settings and keeps everything else in ThunderID's database. It also sets the admin password to the one in `amp-secrets` again.
 3. `amp-api` (`amp serve --migrate`) migrates the core's and every module's tables, starts the module host, and creates the `default` organization and environment if needed (`DEFAULT_ORG_*`). The `ai-gateway` module, which `amp` installs at first boot, then registers the default gateway (`MODULE_AI_GATEWAY_DEFAULT_GATEWAY_*`) with the token from step 1.
 4. `gateway-controller` connects to `amp-api` with that token and receives its APIs.
 
@@ -28,31 +28,31 @@ cp .env.example .env
 docker compose up -d --wait
 ```
 
-From a source checkout, `make up` at the repository root builds the Agent Manager images and starts the whole stack; `make dev-up` instead runs the API from source under air (hot reload, via `docker-compose.dev.yml`, built without the embedded console) and the console with `make console` on :3000 (Vite, hot reload). Both create `.env` from `.env.example` on first run. `make help` lists the rest (`down`, `logs`, `reset`, `thunder-reset`, …). Without make, run this from `deployments/standalone`:
+Agent Manager's settings are in [`amp.yaml`](amp.yaml), mounted into `amp-init` and `amp-api`. `.env` is optional: it changes only what Compose itself needs (images, host ports, ThunderID's network name), and every value has a default. The API port and ThunderID's host and port appear in both files, so change them together. Every key `amp.yaml` takes is in the [configuration reference](../../docs/amp-lite/configuration.md); a value can be a `${env:...}` or `${file:...}` reference.
+
+From a source checkout, `make up` at the repository root builds the Agent Manager images and starts the whole stack; `make dev-up` instead runs the API from source under air (hot reload, via `docker-compose.dev.yml`, built without the embedded console) and the console with `make console` on :3000 (Vite, hot reload). `make help` lists the rest (`down`, `logs`, `reset`, `thunder-reset`, …). Without make, run this from `deployments/standalone`:
 
 ```bash
-cp .env.example .env
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build --wait
 ```
 
 `docker-compose.build.yml` builds the Agent Manager images from the checkout; release bundles leave it out.
 
-Sign in to the console (http://localhost:9000, served by `amp-api`) as `admin` with `AMP_ADMIN_PASSWORD` from `.env`. The console's settings are `CONSOLE_*` variables on `amp-api` (each fills the `$NAME` of the same name in the console's `config.js`); which of its pages show comes from the modules the API runs (`GET /api/v1/ui-manifest`), plus any listed in `CONSOLE_UI_MODULES_ENABLE`. Behind a reverse proxy, set `SERVER_PUBLIC_URL` on amp-api to the public origin.
+Sign in to the console (http://localhost:9000, served by `amp-api`) as `admin`, with the password generated on first start:
 
-`amp-api` takes its settings from the environment Compose passes it. Anything else can go in an `amp.yaml` the container reads (`--config` or `AMP_CONFIG`), including the `modules:` list it reconciles at boot; environment variables win over the file. See [`amp.example.yaml`](../../agent-manager-service/amp.example.yaml).
+```bash
+docker compose exec amp-api amp secret show admin-password
+```
 
-`AUTH_MODE` decides how sign-in works and ships as `file`: the API checks the
-password against `/amp/fileauth/users.yaml` (`FILE_AUTH_USERS_PATH`) and issues its own tokens, with no
-identity provider involved. `amp-init` regenerates that file on every start from
-`AMP_ADMIN_PASSWORD` and `AMP_DEFAULT_USERS`, so edit `.env` and restart rather
-than the file itself. Sessions last `FILE_AUTH_TOKEN_TTL` (8 hours) and are not
-renewed.
+`amp secret list` names the other generated secrets; they live in the `amp-secrets` volume and are kept across restarts. To choose a secret instead, set it in `amp.yaml` (for example `amp: {admin_password: ...}`, or a `${file:...}` reference); a set value always wins.
 
-File mode suits local and single-operator installs. For anything shared, set
-`AUTH_MODE=idp` to hand sign-in to ThunderID — along with `KEY_MANAGER_JWKS_URL`,
-which defaults to the API's own key set and does not follow `AUTH_MODE`.
-`.env.example` lists both. ThunderID runs either way, because
-agent identity uses it; `amctl` and the MCP endpoints need `idp`.
+The console's settings are `console:` keys in `amp.yaml` (`CONSOLE_<NAME>` fills the `$NAME` of the same name in the console's `config.js`); which of its pages show comes from the modules the API runs (`GET /api/v1/ui-manifest`), plus any listed in `console.ui_modules_enable`. Behind a reverse proxy, set `server.public_url` to the public origin.
+
+Environment variables still win over `amp.yaml`, so a setting given on a service's `environment:` overrides the file.
+
+`auth.mode` decides how sign-in works and ships as `file`: the API checks the password against `/amp/fileauth/users.yaml` (`FILE_AUTH_USERS_PATH`) and issues its own tokens, with no identity provider involved. `amp-init` regenerates that file on every start from the admin password and `amp.default_users`, so edit `amp.yaml` and restart rather than the file itself. Sessions last `FILE_AUTH_TOKEN_TTL` (8 hours) and are not renewed.
+
+File mode suits local and single-operator installs. For anything shared, set `auth.mode: idp` to hand sign-in to ThunderID; the key set the API validates tokens with follows the mode. ThunderID runs either way, because agent identity uses it; `amctl` and the MCP endpoints need `idp`.
 
 ### amp-core (no AI Gateway)
 
@@ -64,11 +64,11 @@ docker compose -p amp-lite-core -f docker-compose.yml -f docker-compose.build.ym
 
 ### Smoke test
 
-`make smoke` (or `make smoke-core`) runs `scripts/smoke.sh amp|amp-core` against the running stack: sign-in, the core API, which routes the distribution serves, the console and the UI manifest. It reads ports and `AMP_ADMIN_PASSWORD` from the environment or `.env`, and needs `AUTH_MODE=file`.
+`make smoke` (or `make smoke-core`) runs `scripts/smoke.sh amp|amp-core` against the running stack: sign-in, the core API, which routes the distribution serves, the console and the UI manifest. It reads ports from the environment or `.env`, the admin password from `AMP_ADMIN_PASSWORD` or the running `amp-api`, and needs `auth.mode: file`.
 
 ### PostgreSQL
 
-SQLite is the default database. To use PostgreSQL, uncomment `COMPOSE_PROFILES=postgres` and `AMP_DB_DRIVER=postgres` in `.env` (or run `make up DB=postgres`); `amp-api` migrates it on start. Switching does not copy data between the two.
+SQLite is the default database. To use PostgreSQL, run `make up DB=postgres`, or set `COMPOSE_PROFILES=postgres` in `.env` and add `-f docker-compose.postgres.yml` (or set the `db:` block in `amp.yaml`); its password is generated with the other secrets, and `amp-api` migrates it on start. Switching does not copy data between the two.
 
 On macOS with Colima, keep this folder inside your home folder: Colima shares only that with its VM, and the bind mounts come up empty anywhere else.
 
@@ -85,5 +85,7 @@ docker compose --profile postgres down -v   # delete all data, including Thunder
 
 ## Files
 
+- `amp.yaml` — Agent Manager's settings, read by `amp-init` and `amp-api`.
+- `docker-compose.postgres.yml` — points Agent Manager at the bundled PostgreSQL.
 - `thunder/entrypoint.sh` — installs the configuration `amp-init` generated into the ThunderID image and runs its setup or server. The templates live in `agent-manager-service/ampinit`.
 - `gateway/model_prices.json` — LLM pricing data for the gateway's cost policies.

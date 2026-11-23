@@ -76,7 +76,7 @@ func TestLoadThunderConfigReportsEveryMissingValue(t *testing.T) {
 	if err == nil {
 		t.Fatal("want an error")
 	}
-	for _, want := range []string{"THUNDER_BASE_URL", "SERVER_PUBLIC_URL", "CONSOLE_URL", "THUNDER_CLIENT_SECRET"} {
+	for _, want := range []string{"THUNDER_BASE_URL", "SERVER_PUBLIC_URL", "THUNDER_CLIENT_SECRET"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not name %s", err, want)
 		}
@@ -399,5 +399,18 @@ func TestLoadThunderConfigReadsCanonicalNames(t *testing.T) {
 	}
 	if cfg.APIClient.ID != "my-api" || cfg.APIClient.Secret != "s1" || cfg.SystemClient.Secret != "s4" {
 		t.Errorf("clients = %+v, %+v", cfg.APIClient, cfg.SystemClient)
+	}
+}
+
+// TestConsoleURLDefaultsToServer: the console is served by the API.
+func TestConsoleURLDefaultsToServer(t *testing.T) {
+	setThunderEnv(t)
+	t.Setenv("CONSOLE_URL", "")
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ConsoleURL != "https://api.example.com" {
+		t.Errorf("ConsoleURL = %q", cfg.ConsoleURL)
 	}
 }

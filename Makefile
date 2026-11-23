@@ -70,11 +70,11 @@ include tools.mk
 # to `make console`.
 STACK_DIR   := deployments/standalone
 # DB=postgres runs the postgres profile and points the API at it (SQLite otherwise).
+COMPOSE     := docker compose --project-directory $(STACK_DIR) -f $(STACK_DIR)/docker-compose.yml -f $(STACK_DIR)/docker-compose.build.yml
 ifeq ($(DB),postgres)
 export COMPOSE_PROFILES := postgres
-export AMP_DB_DRIVER := postgres
+COMPOSE     += -f $(STACK_DIR)/docker-compose.postgres.yml
 endif
-COMPOSE     := docker compose --project-directory $(STACK_DIR) -f $(STACK_DIR)/docker-compose.yml -f $(STACK_DIR)/docker-compose.build.yml
 DEV_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.dev.yml
 # amp-core: the core binary without modules (no AI Gateway), as its own
 # Compose project so its data never mixes with the full stack's. It uses the
@@ -84,10 +84,6 @@ CORE_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.core.yml -p amp-lite-c
 # DB=postgres run.
 ALL_PROFILES := --profile postgres
 
-$(STACK_DIR)/.env:
-	@cp $(STACK_DIR)/.env.example $@
-	@echo "📝 Created $@ from .env.example"
-
 # Complete setup
 setup: tools
 	@$(MAKE) dev-up
@@ -95,11 +91,11 @@ setup: tools
 	@echo "Run 'make dev-down' to stop the stack and the console"
 
 # Full stack from images
-up: $(STACK_DIR)/.env
+up:
 	@echo "🚀 Building images and starting AMP..."
 	@$(COMPOSE) up -d --build --wait --remove-orphans
 	@echo "✅ AMP is running"
-	@echo "   Console: http://localhost:9000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   Console: http://localhost:9000 (sign in as admin; password: $(COMPOSE) exec amp-api amp secret show admin-password)"
 	@echo "   API:     http://localhost:9000/api/v1"
 
 down:
@@ -111,11 +107,11 @@ logs:
 reset:
 	@$(COMPOSE) $(ALL_PROFILES) down -v
 
-up-core: $(STACK_DIR)/.env
+up-core:
 	@echo "🚀 Building the amp-core image and starting AMP core (no AI Gateway)..."
 	@$(CORE_COMPOSE) up -d --build --wait --remove-orphans
 	@echo "✅ AMP core is running"
-	@echo "   Console: http://localhost:9000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   Console: http://localhost:9000 (sign in as admin; password: $(CORE_COMPOSE) exec amp-api amp secret show admin-password)"
 
 down-core:
 	@$(CORE_COMPOSE) $(ALL_PROFILES) down
@@ -123,7 +119,7 @@ down-core:
 reset-core:
 	@$(CORE_COMPOSE) $(ALL_PROFILES) down -v
 
-# Smoke checks against a running stack (scripts/smoke.sh reads .env).
+# Smoke checks against a running stack (scripts/smoke.sh).
 smoke:
 	@$(STACK_DIR)/scripts/smoke.sh amp
 
@@ -159,12 +155,12 @@ setup-console-local-force:
 # Daily development commands
 # --build: plain `up -d` reuses an image built from an older Dockerfile, silently
 # running a stale toolchain. Cached layers keep the no-change case near-free.
-dev-up: $(STACK_DIR)/.env
+dev-up:
 	@echo "🚀 Starting Agent Manager (dev)..."
 	@$(DEV_COMPOSE) up -d --build --wait --remove-orphans
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
-	@echo "   Console: http://localhost:3000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   Console: http://localhost:3000 (sign in as admin; password: $(DEV_COMPOSE) exec amp-api cat /var/lib/agent-manager/secrets/admin-password)"
 	@echo "   API:     http://localhost:9000"
 
 dev-down:
@@ -198,7 +194,7 @@ thunder-restart:
 
 # Deletes ThunderID's users, applications and keys; tokens it issued stop working.
 # The configuration amp-init generates is kept and applied again.
-thunder-reset: $(STACK_DIR)/.env
+thunder-reset:
 	@echo "🧹 Resetting ThunderID (data wipe + bootstrap)..."
 	@$(COMPOSE) rm -sf thunder thunder-setup amp-init
 	@project=$$($(COMPOSE) config --format json | sed -n 's/^ *"name": "\(.*\)",$$/\1/p' | head -1); \

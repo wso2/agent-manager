@@ -171,7 +171,8 @@ func LoadThunderConfig() (*ThunderConfig, error) {
 	cfg := &ThunderConfig{
 		Modules:      compiledModules(),
 		AMPPublicURL: strings.TrimRight(r.required("SERVER_PUBLIC_URL"), "/"),
-		ConsoleURL:   strings.TrimRight(r.required("CONSOLE_URL"), "/"),
+		// The console is served by the API unless it runs elsewhere.
+		ConsoleURL: strings.TrimRight(r.str("CONSOLE_URL", config.Value("SERVER_PUBLIC_URL")), "/"),
 		APIClient: Client{
 			ID: r.str("IDP_CLIENT_ID", "amp-api-client"), Secret: r.required("IDP_CLIENT_SECRET"),
 		},

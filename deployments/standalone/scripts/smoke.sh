@@ -12,8 +12,10 @@
 # image built with CONSOLE=none.
 #
 # Settings come from the environment, else from .env next to the compose
-# files: AMP_API_PORT, AMP_INTERNAL_PORT and AMP_ADMIN_PASSWORD. Sign-in uses the
-# admin account, so the stack must run with AUTH_MODE=file. The token is never
+# files: AMP_API_PORT and AMP_INTERNAL_PORT. The admin password is
+# AMP_ADMIN_PASSWORD if set, else the one amp-init generated, read from the
+# amp-api container. Sign-in uses the admin account, so the stack must run
+# with file sign-in (auth.mode: file). The token is never
 # printed. Exits non-zero if any check fails.
 set -uo pipefail
 
@@ -39,8 +41,15 @@ setting() { # NAME DEFAULT: the environment, else .env, else DEFAULT
 API_PORT=$(setting AMP_API_PORT 9000)
 API=http://localhost:$API_PORT
 INT=https://localhost:$(setting AMP_INTERNAL_PORT 9243)
-PASSWORD=$(setting AMP_ADMIN_PASSWORD "")
-[ -n "$PASSWORD" ] || { echo "AMP_ADMIN_PASSWORD is not set and not in $ENV_FILE" >&2; exit 2; }
+PASSWORD=${AMP_ADMIN_PASSWORD:-}
+if [ -z "$PASSWORD" ]; then
+  project=amp-lite
+  [ "$DIST" = amp-core ] && project=amp-lite-core
+  api=$(docker ps -q --filter "label=com.docker.compose.project=$project" \
+    --filter "label=com.docker.compose.service=amp-api" | head -1)
+  [ -n "$api" ] && PASSWORD=$(docker exec "$api" cat /var/lib/agent-manager/secrets/admin-password 2>/dev/null)
+fi
+[ -n "$PASSWORD" ] || { echo "AMP_ADMIN_PASSWORD is not set and the generated one could not be read" >&2; exit 2; }
 
 pass=0 fail=0 skipped=0
 check() { # NAME WANT GOT

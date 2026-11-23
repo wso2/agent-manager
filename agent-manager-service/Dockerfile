@@ -90,6 +90,8 @@ ENV GODEBUG=x509negativeserial=1
 # State: the SQLite database, certificates, and the secrets amp serve and
 # amp init generate (encryption key, JWT signing keys, client secrets).
 ENV AMP_DATA_DIR=/var/lib/agent-manager
+# `amp` on the PATH, for `docker compose exec amp-api amp ...`.
+ENV PATH=/go/bin:$PATH
 
 # Expose application port
 EXPOSE 8080
