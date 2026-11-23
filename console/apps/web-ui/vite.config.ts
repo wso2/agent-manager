@@ -4,6 +4,13 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { workspaceSourceAliases } from '../../workspace-aliases.mjs'
 
+// Free-text values that land inside single-quoted JS strings in the template. Escaped so a
+// quote or backslash in them can't break config.js; same list and rules as
+// scripts/40-config-setup.sh.
+const JS_STRING_VARS = new Set(['PRODUCT_BRAND', 'PRODUCT_NAME'])
+const escapeJsString = (value: string) =>
+  value.replace(/[\\']/g, '\\$&').replace(/[\r\n\u2028\u2029]/g, ' ')
+
 // Dev-server stand-in for the production image's envsubst step (scripts/40-config-setup.sh):
 // serves config.js from config.template.js, filled from .env.development with the process
 // env on top (e.g. DISABLE_AUTH=true pnpm dev). Unset placeholders become '', as with envsubst.
@@ -17,7 +24,11 @@ function runtimeConfig(): Plugin {
         const env = loadEnv(mode, envDir, '')
         const template = fs.readFileSync(path.join(publicDir, 'config.template.js'), 'utf8')
         res.setHeader('Content-Type', 'text/javascript')
-        const render = (_match: string, braced?: string, bare?: string) => env[braced ?? bare ?? ''] ?? ''
+        const render = (_match: string, braced?: string, bare?: string) => {
+          const name = braced ?? bare ?? ''
+          const value = env[name] ?? ''
+          return JS_STRING_VARS.has(name) ? escapeJsString(value) : value
+        }
         res.end(template.replace(/\$(?:\{(\w+)\}|(\w+))/g, render))
       })
     },
