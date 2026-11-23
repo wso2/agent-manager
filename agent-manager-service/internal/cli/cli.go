@@ -56,8 +56,8 @@ const usage = `Usage: %[1]s [--config amp.yaml] <command>
   %[1]s migrate                                      apply the core's and every compiled-in module's migrations
   %[1]s init <component> <dir> [<component> <dir>...]
                                                      write a component's configuration into dir and exit;
-                                                     components: thunder, fileauth, and those of the
-                                                     compiled-in modules (ai-gateway)
+                                                     components: secrets, thunder, fileauth, and those
+                                                     of the compiled-in modules (ai-gateway)
   %[1]s module list                                  list the modules compiled into this binary
   %[1]s module install <name> [--with-deps]          install a module (and the providers it needs)
   %[1]s module enable <name>
@@ -68,6 +68,8 @@ const usage = `Usage: %[1]s [--config amp.yaml] <command>
                                                      mint a credential for a module's service workload; it is
                                                      printed once, or written to FILE (kept if FILE exists)
   %[1]s module health [<name>]                       report ok, degraded or inactive, with connected workloads
+  %[1]s secret list                                  list the generated secrets (names only)
+  %[1]s secret show <name>                           print a generated secret, such as admin-password
   %[1]s version
 
 Module changes take effect on running servers within seconds, without a restart.
@@ -102,7 +104,7 @@ func run(distribution string, args []string) error {
 	// amp init runs before the server's settings are complete.
 	// So does amp serve, which generates what is missing before checking.
 	loadConfig := config.Load
-	if len(args) == 0 || strings.HasPrefix(args[0], "-") || args[0] == "init" || args[0] == "serve" {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") || args[0] == "init" || args[0] == "serve" || args[0] == "secret" {
 		loadConfig = config.LoadUnchecked
 	}
 	if err := loadConfig(path); err != nil {
@@ -124,6 +126,8 @@ func run(distribution string, args []string) error {
 		return initCmd(args[1:])
 	case "module", "modules":
 		return moduleCmd(args[1:])
+	case "secret", "secrets":
+		return secretCmd(args[1:], os.Stdout)
 	case "version":
 		fmt.Printf("%s %s, core API v%d, modules:", distribution, config.Version, modkit.CoreAPIVersion)
 		for _, m := range modkit.Registered() {
@@ -521,4 +525,40 @@ func dash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+// secretCmd lists the generated secrets in the secrets directory, or prints
+// one of them.
+func secretCmd(args []string, w io.Writer) error {
+	dir := config.SecretsDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			names = append(names, e.Name())
+		}
+	}
+	switch {
+	case len(args) == 1 && args[0] == "list":
+		for _, n := range names {
+			if _, err := fmt.Fprintln(w, n); err != nil {
+				return err
+			}
+		}
+		return nil
+	case len(args) == 2 && args[0] == "show":
+		if !slices.Contains(names, args[1]) {
+			return fmt.Errorf("no generated secret %q in %s (have: %s)", args[1], dir, strings.Join(names, ", "))
+		}
+		data, err := os.ReadFile(filepath.Join(dir, args[1]))
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(w, strings.TrimRight(string(data), "\r\n"))
+		return err
+	}
+	return errUsage
 }
