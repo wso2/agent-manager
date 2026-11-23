@@ -145,3 +145,30 @@ export interface ProjectSettingsActionProps {
   /** True until the project has loaded. */
   disabled: boolean;
 }
+
+/** A link a component injected at MountPoints.FooterLinks adds to the console footer. */
+export interface FooterLink {
+  /** Unique within the component's links; keys the rendered link. */
+  id: string;
+  /** Text shown in the footer. */
+  label: string;
+  /** Where the link goes. Omit for an action-only link, such as one opening a dialog. */
+  href?: string;
+  /** Runs on click, before any navigation to `href`. */
+  onClick?: () => void;
+  /** Opens `href` in a new tab. Defaults to true for http(s) URLs. */
+  newTab?: boolean;
+}
+
+/**
+ * Props passed to a component injected at MountPoints.FooterLinks. The footer only
+ * renders its own link elements, so the component does not render links itself: it
+ * reports them through onLinksChange and the console renders each as a footer link,
+ * after the built-in ones. The component is mounted outside the footer, so anything it
+ * renders (for example a consent dialog its link opens) is not placed in the footer.
+ * Until it reports, and whenever it reports null, it adds no links.
+ */
+export interface FooterLinksProps {
+  /** Reports the links to add, or null for none. */
+  onLinksChange: (links: FooterLink[] | null) => void;
+}
