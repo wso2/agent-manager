@@ -216,13 +216,13 @@ export function OxygenLayout() {
                 {globalConfig.footerLinks?.supportUrl && (
                   <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>
                 )}
-                {externalFooterLinks}
                 {globalConfig.footerLinks?.termsOfUseUrl && (
                   <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms of Use</Footer.Link>
                 )}
                 {globalConfig.footerLinks?.privacyPolicyUrl && (
                   <Footer.Link href={globalConfig.footerLinks.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
                 )}
+                {externalFooterLinks}
               </Footer>
             }
           >
