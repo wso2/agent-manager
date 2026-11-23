@@ -27,26 +27,35 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
-func sampleProviderResponse() aigateway.LLMProviderResponse {
-	return aigateway.LLMProviderResponse{
-		Uuid:     "11111111-1111-1111-1111-111111111111",
-		Id:       "openai",
-		Name:     "OpenAI",
-		Version:  "v1",
-		Context:  "/",
-		Template: "openai",
-		Status:   aigateway.LLMProviderResponseStatus("pending"),
+func sampleProviderResponse() aigateway.LlmProviderDocument {
+	return aigateway.LlmProviderDocument{
+		ApiVersion: aigateway.LlmProviderDocumentApiVersion("ai-control-plane.choreolabs.com/v1"),
+		Kind:       aigateway.LlmProviderDocumentKindLlmProvider,
+		Metadata:   aigateway.DocumentMetadata{Name: "openai"},
+		Spec: aigateway.LlmProviderSpec{
+			DisplayName: "OpenAI", Version: "v1.0", Context: "/", Template: "openai",
+		},
 	}
+}
+
+// specOf returns the spec object of a captured create document.
+func specOf(t *testing.T, raw []byte) map[string]any {
+	t.Helper()
+	var doc map[string]any
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal body: %v\nbody=%s", err, raw)
+	}
+	spec, ok := doc["spec"].(map[string]any)
+	if !ok {
+		t.Fatalf("body has no spec object: %s", raw)
+	}
+	return spec
 }
 
 // authValue digs out upstream.main.auth.value from a captured create body.
 func authValue(t *testing.T, raw []byte) (string, bool) {
 	t.Helper()
-	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil {
-		t.Fatalf("unmarshal body: %v\nbody=%s", err, raw)
-	}
-	up, ok := m["upstream"].(map[string]any)
+	up, ok := specOf(t, raw)["upstream"].(map[string]any)
 	if !ok {
 		return "", false
 	}
@@ -68,7 +77,7 @@ func TestCreate_SuccessWithAPIKey(t *testing.T) {
 	defer closeFn()
 
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: unreachableClient, ProviderClient: clientFn, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: "v1", Context: "/",
 		Template: "openai", AuthType: "api-key", APIKey: "sk-test",
 	})
@@ -78,16 +87,16 @@ func TestCreate_SuccessWithAPIKey(t *testing.T) {
 	if captured.method != "POST" {
 		t.Errorf("method = %q, want POST", captured.method)
 	}
-	if captured.path != "/orgs/acme/llm-providers" {
-		t.Errorf("path = %q, want /orgs/acme/llm-providers", captured.path)
+	if captured.path != "/llm-providers" {
+		t.Errorf("path = %q, want /llm-providers", captured.path)
 	}
 	if v, ok := authValue(t, captured.body); !ok || v != "sk-test" {
 		t.Errorf("upstream auth value = %q (ok=%v), want sk-test", v, ok)
 	}
 	env := decodeEnvelope(t, out.String())
 	data := env["data"].(map[string]any)
-	if data["id"] != "openai" {
-		t.Errorf("id = %v, want openai", data["id"])
+	if name := data["metadata"].(map[string]any)["name"]; name != "openai" {
+		t.Errorf("metadata.name = %v, want openai", name)
 	}
 }
 
@@ -99,7 +108,7 @@ func TestCreate_MinimalDefersToTemplate(t *testing.T) {
 	// No key, no upstream overrides, no explicit auth flags: the request must
 	// not carry an upstream auth block — the template supplies it.
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: unreachableClient, ProviderClient: clientFn, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: "v1", Context: "/",
 		Template: "openai", AuthType: "api-key",
 	})
@@ -117,7 +126,7 @@ func TestCreate_APIKeyStdin(t *testing.T) {
 	defer closeFn()
 
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: unreachableClient, ProviderClient: clientFn, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: "v1", Context: "/",
 		Template: "openai", AuthType: "api-key", APIKeyStdin: true,
 	})
@@ -132,7 +141,7 @@ func TestCreate_APIKeyStdin(t *testing.T) {
 func TestCreate_EmptyStdinKey(t *testing.T) {
 	io, out, _ := newTestIOWithStdin(true, "   \n")
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: io, Client: unreachableClient, Org: "acme", Scope: baseScope(),
+		IO: io, Client: unreachableClient, ProviderClient: unreachableClient, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: "v1", Context: "/",
 		Template: "openai", AuthType: "api-key", APIKeyStdin: true,
 	})
@@ -155,7 +164,7 @@ func TestCreate_Conflict(t *testing.T) {
 	defer closeFn()
 
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: unreachableClient, ProviderClient: clientFn, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: "v1", Context: "/",
 		Template: "openai", AuthType: "api-key", APIKey: "sk-test",
 	})

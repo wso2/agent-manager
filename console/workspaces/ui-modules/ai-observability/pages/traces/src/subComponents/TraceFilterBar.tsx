@@ -47,6 +47,8 @@ export interface TraceFilterBarProps {
   onOpenChange: (open: boolean) => void;
   /** Opens one trace by ID; the field shows only when this is set. */
   onTraceSearch?: (traceId: string) => void;
+  /** Whether to show the status toggle, chips and Advanced filters; default true. */
+  filterable?: boolean;
   /** The list below the bar. */
   children?: React.ReactNode;
 }
@@ -118,6 +120,7 @@ export const TraceFilterBar: React.FC<TraceFilterBarProps> = ({
   open,
   onOpenChange,
   onTraceSearch,
+  filterable = true,
   children,
 }) => {
   const [draft, setDraft] = useState<TraceFilterDraft>(() => draftFrom(filters));
@@ -170,39 +173,44 @@ export const TraceFilterBar: React.FC<TraceFilterBarProps> = ({
           sx={{ float: "right", maxWidth: "100%", minWidth: 0, "&&": { mr: 0, ml: 1 } }}
         >
           {onTraceSearch && <TraceIdSearch onSearch={onTraceSearch} />}
-          <Button
-            ref={setFiltersButton}
-            variant="outlined"
-            color="inherit"
-            startIcon={<ListFilter size={16} />}
-            aria-expanded={open}
-            aria-controls={TRACE_FILTERS_DRAWER_ID}
-            onClick={() => (open ? onOpenChange(false) : openDrawer())}
-            sx={{ textTransform: "none", borderColor: "divider" }}
-          >
-            Advanced filters
-          </Button>
+          {filterable && (
+            <Button
+              ref={setFiltersButton}
+              variant="outlined"
+              color="inherit"
+              startIcon={<ListFilter size={16} />}
+              aria-expanded={open}
+              aria-controls={TRACE_FILTERS_DRAWER_ID}
+              onClick={() => (open ? onOpenChange(false) : openDrawer())}
+              sx={{ textTransform: "none", borderColor: "divider" }}
+            >
+              Advanced filters
+            </Button>
+          )}
         </Stack>
-        <StatusToggle
-          value={filters.status}
-          onChange={(status) => onChange({ ...filters, status })}
-        />
-        {chips.map((chip) => (
-          <FilterChip
-            key={chip.key}
-            chip={chip}
-            onOpen={openDrawer}
-            onRemove={() => remove(chip)}
+        {filterable && (
+          <StatusToggle
+            value={filters.status}
+            onChange={(status) => onChange({ ...filters, status })}
           />
-        ))}
-        {chips.length + (filters.status ? 1 : 0) >= 2 && (
+        )}
+        {filterable &&
+          chips.map((chip) => (
+            <FilterChip
+              key={chip.key}
+              chip={chip}
+              onOpen={openDrawer}
+              onRemove={() => remove(chip)}
+            />
+          ))}
+        {filterable && chips.length + (filters.status ? 1 : 0) >= 2 && (
           <Button size="small" variant="text" onClick={clearAll}>
             Clear all
           </Button>
         )}
       </Box>
       {children}
-      {open && filtersButton && (
+      {filterable && open && filtersButton && (
         <TraceFiltersDrawer
           anchorEl={filtersButton}
           draft={draft}

@@ -30,7 +30,12 @@ if [ "${1:-}" = "--setup" ]; then
         echo "ThunderID bootstrap is up to date; skipping setup."
         exit 0
     fi
-    : "${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set to run the setup}"
+    # The admin password amp-init generated (or was given), from its file.
+    if [ -z "${ADMIN_PASSWORD:-}" ] && [ -n "${ADMIN_PASSWORD_FILE:-}" ] && [ -r "$ADMIN_PASSWORD_FILE" ]; then
+        ADMIN_PASSWORD=$(cat "$ADMIN_PASSWORD_FILE")
+        export ADMIN_PASSWORD
+    fi
+    : "${ADMIN_PASSWORD:?ADMIN_PASSWORD or ADMIN_PASSWORD_FILE must be set to run the setup}"
     # A restarted container still holds the files of its last run; keep only
     # ThunderID's own (0*), so a user imported then is not imported again.
     find "$THUNDER_HOME/bootstrap" -type f ! -name '0*' -delete

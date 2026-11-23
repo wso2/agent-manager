@@ -224,22 +224,6 @@ func ConvertSpecToModelLLMProvider(req *gwspec.CreateLLMProviderRequest, orgName
 }
 
 // ConvertModelToSpecLLMProviderResponse converts gwmodels.LLMProvider to gwspec.LLMProviderResponse
-func ConvertModelToSpecLLMProviderListItemResponse(model *gwmodels.LLMProvider) gwspec.LLMProviderListItem {
-	resp := &gwspec.LLMProviderListItem{
-		Uuid:      model.UUID.String(),
-		Id:        model.Artifact.Handle,
-		Name:      model.Artifact.Name,
-		CreatedBy: stringToPtr(model.CreatedBy),
-		Template:  model.TemplateHandle,
-		Status:    model.Status,
-		CreatedAt: &model.Artifact.CreatedAt,
-		UpdatedAt: &model.Artifact.UpdatedAt,
-	}
-
-	return *resp
-}
-
-// ConvertModelToSpecLLMProviderResponse converts gwmodels.LLMProvider to gwspec.LLMProviderResponse
 func ConvertModelToSpecLLMProviderResponse(model *gwmodels.LLMProvider) gwspec.LLMProviderResponse {
 	var upstream gwspec.UpstreamConfig
 	if model.Configuration.Upstream != nil {

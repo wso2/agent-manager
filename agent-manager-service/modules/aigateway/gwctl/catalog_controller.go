@@ -364,10 +364,10 @@ func validCatalogKinds() []string {
 	}
 }
 
-func convertDeploymentSummaries(deployments []gwmodels.DeploymentSummary) []gwspec.DeploymentSummary {
-	result := make([]gwspec.DeploymentSummary, len(deployments))
+func convertDeploymentSummaries(deployments []gwmodels.DeploymentSummary) []gwspec.CatalogDeploymentSummary {
+	result := make([]gwspec.CatalogDeploymentSummary, len(deployments))
 	for i, d := range deployments {
-		result[i] = gwspec.DeploymentSummary{
+		result[i] = gwspec.CatalogDeploymentSummary{
 			GatewayId:       d.GatewayID.String(),
 			GatewayName:     d.GatewayName,
 			EnvironmentName: d.EnvironmentName,

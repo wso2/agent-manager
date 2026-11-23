@@ -34,6 +34,12 @@ import (
 // override.
 var routeOptions = map[string][]modkit.RouteOption{
 	"GET /orgs/{orgName}/gateways": {modkit.AllowOrgOverride()},
+
+	// Document routes keep v1's audit actions and webhook events, so reports don't split across the migration.
+	"POST /llm-providers":                {modkit.Audit("llm-providers.create"), modkit.Emits(gwaudit.LLMProviderCreated)},
+	"PUT /llm-providers/{providerId}":    {modkit.Audit("llm-providers.update"), modkit.Emits(gwaudit.LLMProviderUpdated)},
+	"DELETE /llm-providers/{providerId}": {modkit.Audit("llm-providers.delete"), modkit.Emits(gwaudit.LLMProviderDeleted)},
+
 	"DELETE /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}":                                                  {modkit.Audit("agent-identities.delete")},
 	"DELETE /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}":                                                    {modkit.Audit("agent-identities.delete")},
 	"DELETE /orgs/{orgName}/gateways/{gatewayID}":                                                                                      {modkit.Audit("gateways.delete"), modkit.Emits(gwaudit.GatewayDeleted), modkit.AuditFailClosed()},
@@ -42,7 +48,6 @@ var routeOptions = map[string][]modkit.RouteOption{
 	"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}":                                                                     {modkit.Audit("gateway-tokens.revoke"), modkit.AuditFailClosed()},
 	"DELETE /orgs/{orgName}/llm-provider-templates/{templateId}":                                                                       {modkit.Audit("llm-provider-templates.delete")},
 	"DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}":                                                                     {modkit.Audit("api-keys.revoke"), modkit.AuditFailClosed()},
-	"DELETE /orgs/{orgName}/llm-providers/{providerId}":                                                                                {modkit.Audit("llm-providers.delete"), modkit.Emits(gwaudit.LLMProviderDeleted)},
 	"DELETE /orgs/{orgName}/llm-providers/{providerId}/deployments/{deploymentId}":                                                     {modkit.Audit("llm-providers.delete-deployment")},
 	"DELETE /orgs/{orgName}/mcp-proxies/{proxyId}":                                                                                     {modkit.Audit("mcp-servers.delete"), modkit.Emits(gwaudit.MCPServerDeleted)},
 	"DELETE /orgs/{orgName}/mcp-proxies/{proxyId}/scopes/{scopeAction}":                                                                {modkit.Audit("scopes.delete")},
@@ -78,7 +83,6 @@ var routeOptions = map[string][]modkit.RouteOption{
 	"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":                                                                   {modkit.Audit("gateways.assign-environment")},
 	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                                                                                 {modkit.Audit("gateway-tokens.rotate"), modkit.AuditFailClosed()},
 	"POST /orgs/{orgName}/llm-provider-templates":                                                                                      {modkit.Audit("llm-provider-templates.create")},
-	"POST /orgs/{orgName}/llm-providers":                                                                                               {modkit.Audit("llm-providers.create"), modkit.Emits(gwaudit.LLMProviderCreated)},
 	"POST /orgs/{orgName}/llm-providers/{id}/api-keys":                                                                                 {modkit.Audit("api-keys.create"), modkit.AuditFailClosed()},
 	"POST /orgs/{orgName}/llm-providers/{providerId}/deployments":                                                                      {modkit.Audit("llm-providers.deploy"), modkit.Emits(gwaudit.LLMProviderDeployed)},
 	"POST /orgs/{orgName}/llm-providers/{providerId}/deployments/restore":                                                              {modkit.Audit("llm-providers.restore")},
@@ -107,8 +111,6 @@ var routeOptions = map[string][]modkit.RouteOption{
 	"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":                                                               {modkit.Audit("gateways.set-identity-provider"), modkit.AuditFailClosed(), modkit.AllowOrgOverride()},
 	"PUT /orgs/{orgName}/llm-provider-templates/{templateId}":                                                                          {modkit.Audit("llm-provider-templates.update")},
 	"PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}":                                                                        {modkit.Audit("api-keys.rotate"), modkit.AuditFailClosed()},
-	"PUT /orgs/{orgName}/llm-providers/{providerId}":                                                                                   {modkit.Audit("llm-providers.update"), modkit.Emits(gwaudit.LLMProviderUpdated)},
-	"PUT /orgs/{orgName}/llm-providers/{providerId}/catalog":                                                                           {modkit.Audit("llm-providers.update-catalog")},
 	"PUT /orgs/{orgName}/mcp-proxies/{proxyId}":                                                                                        {modkit.Audit("mcp-servers.update"), modkit.Emits(gwaudit.MCPServerUpdated)},
 	"PUT /orgs/{orgName}/mcp-proxies/{proxyId}/scopes/{scopeAction}":                                                                   {modkit.Audit("scopes.update")},
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings":                                                       {modkit.Audit("agents.update-deploy-settings"), modkit.Emits(gwaudit.AgentConfigurationSet)},

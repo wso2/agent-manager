@@ -1,0 +1,12 @@
+# PostgreSQL instead of SQLite: `make up DB=postgres`, or add
+# `-f docker-compose.postgres.yml` with COMPOSE_PROFILES=postgres. Setting the
+# db: block in amp.yaml instead does the same.
+services:
+  amp-init:
+    environment: &postgres
+      DB_DRIVER: postgres
+      DB_HOST: postgres
+      DB_USER: amp
+      DB_NAME: agent_manager
+  amp-api:
+    environment: *postgres

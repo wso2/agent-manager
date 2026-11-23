@@ -83,6 +83,8 @@ type DeploymentRepository interface {
 	GetStatusRecord(ctx context.Context, placement gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error)
 	// StatusRecords are the artifact's status rows on every gateway, in gateway order.
 	StatusRecords(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error)
+	// StatusRecordsFor are the status rows of several artifacts, read in one query, in artifact then gateway order.
+	StatusRecordsFor(ctx context.Context, ouID string, artifactUUIDs []uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error)
 
 	// Gateway startup sync.
 	ListForGatewaySync(ctx context.Context, ouID, gatewayID string) ([]gwmodels.GatewaySyncRow, error)

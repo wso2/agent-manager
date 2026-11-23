@@ -25,17 +25,20 @@ import (
 	"github.com/wso2/agent-manager/test/e2e/framework/amctl"
 )
 
-// LLMProvider is the subset of the CLI's llm-provider envelope data we assert on
-// (matches the server's LLMProviderResponse / LLMProviderListItem shapes).
+// LLMProvider is the subset of the CLI's llm-provider document we assert on.
 type LLMProvider struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Template string `json:"template"`
+	Metadata struct {
+		Name string `json:"name"`
+	} `json:"metadata"`
+	Spec struct {
+		DisplayName string `json:"displayName"`
+		Template    string `json:"template"`
+	} `json:"spec"`
 }
 
 // LLMProviderList is the data shape of `amctl llm-provider list --json`.
 type LLMProviderList struct {
-	Providers []LLMProvider `json:"providers"`
+	List []LLMProvider `json:"list"`
 }
 
 // DeleteResult is the data shape of `amctl llm-provider delete --json`.
@@ -77,9 +80,9 @@ func DeleteLLMProvider(g Gomega, h *amctl.Harness, org, id string) DeleteResult 
 
 // Ids returns the provider ids in the list, for membership assertions.
 func (l LLMProviderList) Ids() []string {
-	ids := make([]string, 0, len(l.Providers))
-	for _, p := range l.Providers {
-		ids = append(ids, p.ID)
+	ids := make([]string, 0, len(l.List))
+	for _, p := range l.List {
+		ids = append(ids, p.Metadata.Name)
 	}
 	return ids
 }

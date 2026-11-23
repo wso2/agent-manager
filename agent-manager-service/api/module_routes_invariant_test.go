@@ -45,6 +45,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/memory"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/sqlitedialect"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/modules/testmod"
@@ -219,6 +221,26 @@ func TestGatewaySpecMatchesRoutes(t *testing.T) {
 			checkModuleSpec(t, m, host.Routes(gwperm.Module))
 		}
 	}
+}
+
+// TestObservabilityRoutesAreAuthorized checks that every observability route
+// is a read under /m/observability that requires traces-read.
+func TestObservabilityRoutesAreAuthorized(t *testing.T) {
+	host, public, internal := mountedModule(t, observability.New(memory.New()))
+	require.NotEmpty(t, host.Routes(observability.Name))
+	require.NotEmpty(t, public)
+	assert.Empty(t, internal)
+	for _, meta := range public {
+		assert.Equal(t, http.MethodGet, meta.Method, meta.Pattern)
+		assert.True(t, strings.HasPrefix(meta.Path, "/m/observability/"), "%s is outside /m/observability", meta.Pattern)
+		assert.Equal(t, []rbac.Permission{observability.TracesRead}, meta.Perms, meta.Pattern)
+	}
+}
+
+func TestObservabilitySpecMatchesRoutes(t *testing.T) {
+	m := observability.New(memory.New())
+	host, _, _ := mountedModule(t, m)
+	checkModuleSpec(t, m, host.Routes(observability.Name))
 }
 
 // TestCoreSpecHasNoModulePaths keeps module APIs out of the core's document:

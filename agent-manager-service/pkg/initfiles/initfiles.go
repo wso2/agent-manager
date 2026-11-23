@@ -22,7 +22,9 @@ package initfiles
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -69,11 +71,14 @@ func WriteFile(path string, data []byte, mode os.FileMode, o *Owner) error {
 // WriteOnce creates path with what gen returns unless it already exists, and
 // returns its content either way.
 func WriteOnce(path string, mode os.FileMode, o *Owner, gen func() ([]byte, error)) ([]byte, error) {
-	if data, err := os.ReadFile(path); err == nil && len(data) > 0 {
+	data, err := os.ReadFile(path)
+	switch {
+	case err == nil && len(data) > 0:
 		return data, Settle(path, mode, o)
+	case err != nil && !errors.Is(err, fs.ErrNotExist):
+		return nil, err
 	}
-	data, err := gen()
-	if err != nil {
+	if data, err = gen(); err != nil {
 		return nil, err
 	}
 	return data, WriteFile(path, data, mode, o)

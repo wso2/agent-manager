@@ -28,6 +28,7 @@ import (
 func storedProvider() *gwmodels.LLMProvider {
 	enabled := true
 	return &gwmodels.LLMProvider{
+		Description: "the stored description",
 		OpenAPISpec: "openapi: 3.0.0",
 		ModelList:   `[{"name":"gpt-4o-mini"}]`,
 		Configuration: gwmodels.LLMProviderConfig{
@@ -112,4 +113,15 @@ func TestPreserveOmittedProviderFields_EmptySliceClears(t *testing.T) {
 
 	require.Empty(t, provider.Configuration.Policies,
 		"an explicitly empty policy list must clear rather than be restored")
+}
+
+// An update that omits description keeps the stored one rather than clearing it.
+func TestPreserveOmittedProviderFields_OmittedDescriptionKept(t *testing.T) {
+	existing := storedProvider()
+	req := &gwspec.UpdateLLMProviderRequest{}
+	provider := &gwmodels.LLMProvider{}
+
+	preserveOmittedProviderFields(provider, existing, req)
+
+	require.Equal(t, "the stored description", provider.Description)
 }

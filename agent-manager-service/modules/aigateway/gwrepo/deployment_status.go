@@ -430,6 +430,21 @@ func (r *DeploymentRepo) StatusRecords(ctx context.Context, ouID string, artifac
 	return rows, nil
 }
 
+func (r *DeploymentRepo) StatusRecordsFor(ctx context.Context, ouID string, artifactUUIDs []uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
+	if len(artifactUUIDs) == 0 {
+		return nil, nil
+	}
+	var rows []gwmodels.DeploymentStatusRecord
+	err := r.db.WithContext(ctx).
+		Where("artifact_id IN ? AND org_id = ?", artifactUUIDs, ouID).
+		Order("artifact_id, gateway_id").
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the artifacts' status rows: %w", err)
+	}
+	return rows, nil
+}
+
 // GetStatusRecord returns the placement's status row, or nil when there is none.
 func (r *DeploymentRepo) GetStatusRecord(ctx context.Context, p gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error) {
 	var row gwmodels.DeploymentStatusRecord

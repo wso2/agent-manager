@@ -284,7 +284,7 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 ### LLM
 
 - `llm_provider_templates`: org templates only (built-ins ship in code, `modules/aigateway/resources/builtin_llm_templates.go`). org_id NOT NULL, unique (org_id, handle). `is_system` dropped.
-- `llm_providers`: id = artifact id. The upstream API key is in the module's secret store; `configuration` carries its path as `secretRef` ([modules.md](modules.md#where-the-gateway-stands)).
+- `llm_providers`: id = artifact id. The upstream API key is in the module's secret store; `configuration` carries its path as `secretRef` ([modules.md](ai-gateway.md#where-the-gateway-stands)).
 - `llm_proxies`: id = artifact id. project_id (no key into `projects`). provider_id → llm_providers, restrict (a provider in use can't be deleted). Upstream auth, including the key minted on the provider for a proxy, is in the module's secret store; `configuration` carries its path as `secretRef`.
 
 ### Agent model and MCP configs

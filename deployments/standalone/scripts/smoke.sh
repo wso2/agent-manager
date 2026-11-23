@@ -12,8 +12,10 @@
 # image built with CONSOLE=none.
 #
 # Settings come from the environment, else from .env next to the compose
-# files: AMP_API_PORT, AMP_INTERNAL_PORT and AMP_ADMIN_PASSWORD. Sign-in uses the
-# admin account, so the stack must run with AUTH_MODE=file. The token is never
+# files: AMP_API_PORT and AMP_INTERNAL_PORT. The admin password is
+# AMP_ADMIN_PASSWORD if set, else the one amp-init generated, read from the
+# amp-api container. Sign-in uses the admin account, so the stack must run
+# with file sign-in (auth.mode: file). The token is never
 # printed. Exits non-zero if any check fails.
 set -uo pipefail
 
@@ -39,8 +41,18 @@ setting() { # NAME DEFAULT: the environment, else .env, else DEFAULT
 API_PORT=$(setting AMP_API_PORT 9000)
 API=http://localhost:$API_PORT
 INT=https://localhost:$(setting AMP_INTERNAL_PORT 9243)
-PASSWORD=$(setting AMP_ADMIN_PASSWORD "")
-[ -n "$PASSWORD" ] || { echo "AMP_ADMIN_PASSWORD is not set and not in $ENV_FILE" >&2; exit 2; }
+PASSWORD=${AMP_ADMIN_PASSWORD:-}
+if [ -z "$PASSWORD" ]; then
+  # make runs amp-core as its own project; CI runs either under the file's.
+  for project in $(setting COMPOSE_PROJECT_NAME "") amp-lite-core amp-lite; do
+    [ "$DIST" != amp-core ] && [ "$project" = amp-lite-core ] && continue
+    api=$(docker ps -q --filter "label=com.docker.compose.project=$project" \
+      --filter "label=com.docker.compose.service=amp-api" | head -1)
+    [ -n "$api" ] && PASSWORD=$(docker exec "$api" cat /var/lib/agent-manager/secrets/admin-password 2>/dev/null)
+    [ -n "$PASSWORD" ] && break
+  done
+fi
+[ -n "$PASSWORD" ] || { echo "AMP_ADMIN_PASSWORD is not set and the generated one could not be read" >&2; exit 2; }
 
 pass=0 fail=0 skipped=0
 check() { # NAME WANT GOT
@@ -74,6 +86,8 @@ ORG=${ORG:-default}
 B=$API/api/v1/orgs/$ORG
 # The AI Gateway module's API.
 GW=$API/m/ai-gateway/orgs/$ORG
+# Migrated gateway resources take the org from the token.
+GWR=$API/m/ai-gateway
 P=smoke-$RANDOM
 AG=ext-$RANDOM
 EXT='"provisioning":{"type":"external"},"agentType":{"type":"external-agent-api","subType":"custom-api"}'
@@ -97,7 +111,8 @@ check events-types 200 "$(code "${A[@]}" "$B/events/event-types")"
 
 # --- Gateway routes: served by amp, absent from amp-core -----------------------------------
 check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
-check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GW/llm-providers")"
+check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GWR/llm-providers")"
+check llm-providers-old-path 404 "$(code "${A[@]}" "$GW/llm-providers")"
 check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/environments/default/gateways")"
 check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/deployments")"
 check agent-config "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/configurations?environment=default")"
@@ -123,6 +138,14 @@ check agent-kinds 404 "$(code "${A[@]}" "$B/agent-kinds")"
 check monitors 404 "$(code "${A[@]}" "$B/projects/$P/agents/$AG/monitors")"
 check evaluators 404 "$(code "${A[@]}" "$B/evaluators")"
 check module-route-404 404 "$(code "${A[@]}" "$API/m/testmod/whoami")"
+# The observability module is installable, not on by default: its trace routes
+# are absent until `amp module install observability`.
+OBS=$API/m/observability/api/v1/traces
+WINDOW="startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z"
+check traces-not-installed 404 "$(code "${A[@]}" "$OBS?project=$P&agent=$AG&$WINDOW")"
+check traces-export-not-installed 404 "$(code "${A[@]}" "$OBS/export?project=$P&agent=$AG&$WINDOW")"
+check trace-spans-not-installed 404 "$(code "${A[@]}" "$OBS/t/spans?$WINDOW")"
+check trace-span-not-installed 404 "$(code "${A[@]}" "$OBS/t/spans/s")"
 check workload-heartbeat-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workloads/heartbeat" -d '{"credential":"x.y","protocol":"p/v1"}')"
 
 check agent-delete 204 "$(code "${A[@]}" -X DELETE "$B/projects/$P/agents/$AG")"

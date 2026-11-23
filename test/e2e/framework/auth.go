@@ -38,8 +38,8 @@ type tokenResponse struct {
 // token that are EXPLICITLY requested (it returns requested ∩ allowed), so
 // omitting these yields an unscoped token and every guarded route returns 403. Scopes are amp:-prefixed to match what Thunder
 // (v0.44+) issues and what RBAC checks — i.e. Permission.Scope() in
-// agent-manager-service/rbac/permissions.go and the AI Gateway module's
-// modules/aigateway/gwperm; the IDP grants only the ones the
+// agent-manager-service/rbac/permissions.go and the modules' manifests
+// (modules/aigateway/gwperm, modules/observability); the IDP grants only the ones the
 // client app is actually allowed, so requesting the superset is safe.
 const ampScopes = "amp:agent:build amp:agent:create amp:agent:delete amp:agent:read amp:agent:suspend " +
 	"amp:agent:token-manage amp:agent:update " +
@@ -62,7 +62,9 @@ const ampScopes = "amp:agent:build amp:agent:create amp:agent:delete amp:agent:r
 	"amp:ai-gateway:scopes.create amp:ai-gateway:scopes.read amp:ai-gateway:scopes.update amp:ai-gateway:scopes.delete " +
 	"amp:ai-gateway:catalog.read " +
 	"amp:ai-gateway:agent-identities.create amp:ai-gateway:agent-identities.read amp:ai-gateway:agent-identities.update amp:ai-gateway:agent-identities.delete " +
-	"amp:ai-gateway:agent-api-keys.manage amp:ai-gateway:deploy.non-production amp:ai-gateway:deploy.production"
+	"amp:ai-gateway:agent-api-keys.manage amp:ai-gateway:deploy.non-production amp:ai-gateway:deploy.production " +
+	// The observability module's permissions.
+	"amp:observability:traces-read"
 
 // FetchToken obtains an OAuth2 access token from the Thunder IDP using the
 // client_credentials grant type, carrying the full ampScopes superset. It

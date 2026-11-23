@@ -111,7 +111,7 @@ func CleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 	// project references it) → LLM providers → environments (an environment refuses
 	// deletion while a pipeline references it).
 	cleanupStaleDeploymentPipelines(client, orgName)
-	cleanupStaleLLMProviders(client, orgName)
+	cleanupStaleLLMProviders(client)
 	cleanupStaleMCPProxies(client, orgName)
 }
 
@@ -183,10 +183,9 @@ func cleanupStaleDeploymentPipelines(client *framework.AMPClient, orgName string
 // cleanupStaleLLMProviders deletes e2e-created LLM providers (name prefixed with
 // "e2e", case-insensitive) created more than the cutoff ago. These are org-scoped and
 // are not cascaded by project or environment deletion.
-func cleanupStaleLLMProviders(client *framework.AMPClient, orgName string) {
+func cleanupStaleLLMProviders(client *framework.AMPClient) {
 
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-providers", orgName)
-	resp, err := client.Get(path)
+	resp, err := client.Get("/m/ai-gateway/llm-providers?limit=100")
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list LLM providers: %v\n", err)
 		return
@@ -210,23 +209,23 @@ func cleanupStaleLLMProviders(client *framework.AMPClient, orgName string) {
 		return
 	}
 
-	for _, p := range providers.Providers {
-		// e2e providers are named/identified "E2E ..." / "e2e-..."; match either ID or Name.
-		if !strings.HasPrefix(strings.ToLower(p.Name), "e2e") && !strings.HasPrefix(strings.ToLower(p.ID), "e2e") {
+	for _, p := range providers.List {
+		// e2e providers are named/identified "E2E ..." / "e2e-..."; match either handle or display name.
+		handle := p.Metadata.Name
+		if !strings.HasPrefix(strings.ToLower(p.Spec.DisplayName), "e2e") && !strings.HasPrefix(strings.ToLower(handle), "e2e") {
 			continue
 		}
-		if p.CreatedAt != nil && time.Since(*p.CreatedAt) < cutoff {
+		if p.Metadata.CreationTimestamp != nil && time.Since(*p.Metadata.CreationTimestamp) < cutoff {
 			continue
 		}
 
-		providerPath := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-providers/%s", orgName, p.ID)
-		delResp, err := client.Delete(providerPath)
+		delResp, err := client.Delete(fmt.Sprintf("/m/ai-gateway/llm-providers/%s", handle))
 		if err != nil {
-			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete LLM provider %s: %v\n", p.ID, err)
+			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete LLM provider %s: %v\n", handle, err)
 			continue
 		}
 		delResp.Body.Close()
-		logDeleteResult("LLM provider", p.ID, delResp.StatusCode)
+		logDeleteResult("LLM provider", handle, delResp.StatusCode)
 	}
 }
 
