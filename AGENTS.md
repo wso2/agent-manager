@@ -27,6 +27,7 @@ Repeatable, error-prone procedures are captured as Claude Code skills in `.claud
 | Skill | Use when |
 |---|---|
 | `add-api-resource` | Adding/changing a REST endpoint in `agent-manager-service` (spec-first → codegen → RBAC → layers) |
+| `add-tests` | Choosing and writing the tests a change needs (unit, integration, e2e, security, smoke, CLI, console) |
 | `add-service-unit-test` | Writing a Go service unit test (mocks, CI lint traps) |
 | `add-audit-event` | Recording a security-critical operation in the audit trail, or fixing a route the audit policy cannot label |
 | `add-console-api-feature` | Wiring a new backend call into the console (two-file `apis/`+`hooks/` pattern) |
@@ -63,7 +64,7 @@ make dev-migrate  # run DB migrations
 make e2e-test     # run the e2e suite against the local stack
 ```
 
-Run `make help` at the root for the full target list (DB access, smoke tests, codegen helpers, etc.).
+Run `make help` at the root for the full target list (DB access, smoke tests, codegen helpers, etc.). [docs/testing.md](docs/testing.md) says which tests a change needs and which of them CI runs.
 
 ## Cross-cutting engineering rules
 

@@ -183,6 +183,9 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 	})
 
 	It("invokes the LLM proxy endpoint successfully", func() {
+		if Cfg.OpenAIAPIKey == "" {
+			Skip("OPENAI_API_KEY is not set (pull requests from forks get no secrets)")
+		}
 		Expect(proxyURL).NotTo(BeEmpty(), "proxy URL must be set")
 		Expect(proxyAPIKey).NotTo(BeEmpty(), "proxy API key must be set")
 

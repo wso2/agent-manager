@@ -115,6 +115,8 @@ The architecture and data-model diagrams are generated. Edit the generators in [
 
 ## Tests
 
+[The testing guide](testing.md) lists every kind of test in the repository, which tests a change needs, where their files go, how to run them and which of them CI runs. The ones you will run most:
+
 | Tests | Command | Needs |
 |---|---|---|
 | API unit tests | `make test-unit` in `agent-manager-service` | Nothing |
@@ -123,8 +125,9 @@ The architecture and data-model diagrams are generated. Edit the generators in [
 | Route authorization checks | `make security-test-static` | Nothing |
 | End-to-end tests | `make e2e-test` (`SUITE=<name>` or `FOCUS=<regex>` to narrow) | A running stack; copy `test/e2e/.env.example` to `test/e2e/.env` first |
 | Live security tests | `make security-test-live` | A running stack |
+| Console tests | `pnpm build`, then `pnpm test` in `console` | Nothing |
 
-Tests that call real model providers need provider keys in `test/e2e/.env`. Without them those specs are skipped or fail at the first model call.
+Tests that call real model providers need provider keys in `test/e2e/.env`. Without them those specs skip.
 
 To try a change the way a user would, register one of the [samples](../samples) as an external agent, attach an LLM provider to it in the console, and run the sample with that provider's connection settings, so its model calls go through the AI Gateway. For the IT Helpdesk sample that is `USE_LLM_PROVIDER=true` with `LLM_PROVIDER_URL` and `LLM_PROVIDER_KEY` from the agent's LLM configuration.
 

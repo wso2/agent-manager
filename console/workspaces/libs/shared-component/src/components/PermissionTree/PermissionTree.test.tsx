@@ -82,9 +82,11 @@ describe("PermissionTree", () => {
         initialSelected={["amp:catalog:read"]}
       />,
     );
+    // MUI marks an indeterminate checkbox with data-indeterminate rather
+    // than the input's indeterminate property.
     const catalogCheckbox = getCheckbox("Catalog") as HTMLInputElement;
     expect(catalogCheckbox.checked).toBe(false);
-    expect(catalogCheckbox.indeterminate).toBe(true);
+    expect(catalogCheckbox).toHaveAttribute("data-indeterminate", "true");
   });
 
   it("shows a parent fully checked once both its own scope and all descendants are selected", () => {
@@ -96,7 +98,7 @@ describe("PermissionTree", () => {
     );
     const catalogCheckbox = getCheckbox("Catalog") as HTMLInputElement;
     expect(catalogCheckbox.checked).toBe(true);
-    expect(catalogCheckbox.indeterminate).toBe(false);
+    expect(catalogCheckbox).toHaveAttribute("data-indeterminate", "false");
   });
 
   it("expands a group via the chevron to reveal its children", () => {

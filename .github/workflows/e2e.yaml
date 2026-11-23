@@ -1,6 +1,16 @@
+# Runs the e2e and live security suites against the Docker Compose stack built
+# from the pull request. Pull requests from forks get no secrets, so the specs
+# that call a real model skip themselves there.
 name: E2E Tests
 
 on:
+  pull_request:
+    branches:
+      - amp-2.x
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.claude/**'
   workflow_dispatch:
 
 permissions:
@@ -61,8 +71,10 @@ jobs:
           path: /tmp/service-logs/
           retention-days: 7
 
+      # The checks API needs a token that can write, which a fork's pull
+      # request does not get; the reports are in the uploaded logs instead.
       - name: Publish test results
-        if: always()
+        if: ${{ always() && !github.event.pull_request.head.repo.fork }}
         uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
         with:
           name: E2E Test Results
@@ -70,7 +82,7 @@ jobs:
           reporter: java-junit
 
       - name: Publish security test results
-        if: ${{ always() && hashFiles('test/e2e/security-report.xml') != '' }}
+        if: ${{ always() && !github.event.pull_request.head.repo.fork && hashFiles('test/e2e/security-report.xml') != '' }}
         uses: dorny/test-reporter@6e6a65b7a0bd2c9197df7d0ae36ac5cee784230c # v2.0.0
         with:
           name: Security Conformance Results
@@ -85,4 +97,6 @@ jobs:
           path: |
             test/e2e/e2e-output.log
             test/e2e/security-output.log
+            test/e2e/report.xml
+            test/e2e/security-report.xml
           retention-days: 7
