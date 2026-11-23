@@ -291,8 +291,10 @@ export function LeftNavigation({
             <Divider sx={{ my: 1 }} />
           </>
         )}
-        {/* A plain item rather than Sidebar.CollapseToggle, whose tooltip can't be styled. */}
-        <Sidebar.Category>
+        {/* A plain item rather than Sidebar.CollapseToggle, whose tooltip can't be styled.
+            No bottom margin: the row stays the 60px the page footer is sized to match,
+            so the two dividers line up. */}
+        <Sidebar.Category sx={{ mb: 0 }}>
           <Sidebar.Item
             id={COLLAPSE_TOGGLE_ID}
             link={<NavigationTooltip tooltip={collapsed ? "Expand" : ""} expanded={!collapsed} />}

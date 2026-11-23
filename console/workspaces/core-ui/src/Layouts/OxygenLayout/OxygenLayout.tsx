@@ -187,7 +187,9 @@ export function OxygenLayout() {
             fullWidth
             noPadding
             footer={
-              <Footer variant="plain">
+              // The padding moves from the footer onto its content, so the divider runs
+              // edge to edge and meets the sidebar's while the text keeps its inset.
+              <Footer variant="plain" sx={{ px: 0, "& > *": { px: 3 } }}>
                 <Footer.Copyright>
                   © {new Date().getFullYear()} Choreo Labs LLC.
                 </Footer.Copyright>
@@ -214,13 +216,13 @@ export function OxygenLayout() {
                 {globalConfig.footerLinks?.supportUrl && (
                   <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>
                 )}
-                {externalFooterLinks}
                 {globalConfig.footerLinks?.termsOfUseUrl && (
                   <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms of Use</Footer.Link>
                 )}
                 {globalConfig.footerLinks?.privacyPolicyUrl && (
                   <Footer.Link href={globalConfig.footerLinks.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
                 )}
+                {externalFooterLinks}
               </Footer>
             }
           >
