@@ -119,6 +119,7 @@ return modkit.Manifest{
 - **Events:** the event types the module publishes, named `<module>.<event>`, each with a description. An event with a `Scope` (`org`, `project` or `agent`, the narrowest resource it is about) is also a webhook event: while the module is active it is listed in the event catalog (`GET /api/v1/orgs/{org}/events/event-types`) and organizations can subscribe to it. Routes raise it with `modkit.Emits` (see [Route options](#route-options)). An event without a scope only reaches module subscribers.
 - **AuditActions:** the audit actions the module's routes and tools name with `modkit.Audit`, each recorded as `<module>:<name>`, with a class (`credential`, `identity`, `deployment`, `config` or `read`; `config` when empty) and a severity (`info`, `notice`, `warning` or `critical`; `critical` for credential and identity actions and `info` otherwise when empty). An entry named after one of the module's permissions classifies the action that permission names. `Details` lists the detail keys the action's records may carry, each with its kind (see [Audit records](#audit-records)).
 - **Workloads:** the parts of the module that run outside the binary. See [Workloads](#workloads).
+- **Settings:** the settings the module reads with `rt.Config` (and `InitRequest.Config`): key, default, description, and whether it is a secret. They go into the [configuration reference](configuration.md) (`make config-docs`); a test in the module should check them against what it reads, as `modules/aigateway/settings_test.go` does.
 - **UI:** console pages the module turns on, listed by `GET /api/v1/ui-manifest`. From the gateway:
 
   ```go
@@ -175,7 +176,7 @@ The core's default organization (`DEFAULT_ORG_OU_ID`) and its default environmen
   - `LockAgent(ctx, tx, orgID, agentID)` locks the agent's row inside `tx` (a hook's `req.Tx` or your own transaction) until it ends, so changes to that agent made meanwhile wait;
   - `EnsureOrg(ctx, orgID)` creates the caller's organization, with its default environment, if no core route has created it yet; call it before a route writes the first rows of an organization.
 - `rt.Secrets()` keeps secret values in the core's `secrets` table, sealed by the core's configured vault (see [Modules and vaults](#modules-and-vaults)): `Put(ctx, orgID, path, value)`, `Get` (`modkit.ErrNotFound` when there is none) and `Delete`. Paths are the module's own (`providers/<id>/api-key`: segments of letters, digits, `.`, `_` and `-`), so a module never reaches another module's secrets or the core's. With a hook's `ctx` they go through the hook's transaction; `rt.Secrets().In(tx)` writes through your own.
-- `rt.Config(key)` returns the module's own setting: `MODULE_<NAME>_<KEY>` from the environment, else the `config:` block of its `modules:` entry in `amp.yaml`.
+- `rt.Config(key)` returns the module's own setting: `MODULE_<NAME>_<KEY>` from the environment, else the `config:` block of its `modules:` entry in `amp.yaml`, where a value may be an `${env:...}` or `${file:...}` reference.
 - `rt.Logger()` is a logger tagged with the module.
 
 ### Routes

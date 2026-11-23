@@ -20,11 +20,11 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
-// Components returns the names "amp init" takes: the core's (ThunderID and
-// file-based sign-in) first, then every compiled-in module that implements
+// Components returns the names "amp init" takes: the core's (generated
+// secrets, ThunderID and file-based sign-in) first, then every compiled-in module that implements
 // modkit.InitComponent, by module name.
 func Components() []string {
-	names := []string{"thunder", "fileauth"}
+	names := []string{"secrets", "thunder", "fileauth"}
 	for _, m := range modkit.Registered() {
 		if _, ok := m.(modkit.InitComponent); ok {
 			names = append(names, m.Manifest().Name)

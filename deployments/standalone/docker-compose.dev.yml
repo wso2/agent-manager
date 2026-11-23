@@ -17,13 +17,11 @@ services:
       - /bin/sh
       - -c
       - >-
-        bash /app/scripts/gen_keys.sh &&
-        chown -R 1000:1000 /app/keys /var/lib/agent-manager &&
+        chown -R 1000:1000 /var/lib/agent-manager &&
         exec air -c .air.toml
         -build.full_bin "su-exec 1000:1000 ./tmp/agent-manager-service"
     volumes:
       - ../../agent-manager-service:/app
-      - amp-keys:/app/keys
       - amp-data:/var/lib/agent-manager
       # Keep container build output off the host mount.
       - /app/tmp

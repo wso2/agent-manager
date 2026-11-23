@@ -138,8 +138,8 @@ func TestAdvertisedScopesMatchCatalog(t *testing.T) {
 
 	advertised := compose.Services["amp-api"].Environment["OAUTH_SCOPES_SUPPORTED"]
 	if strings.TrimSpace(advertised) == "" {
-		t.Fatalf("%s: amp-api declares no OAUTH_SCOPES_SUPPORTED; "+
-			"the protected-resource metadata endpoint answers 503 without it", standaloneComposePath)
+		// Unset, the API advertises the whole catalog (api.catalogScopes).
+		t.Skipf("%s: amp-api leaves OAUTH_SCOPES_SUPPORTED to the API's default, the catalog", standaloneComposePath)
 	}
 
 	chartSide := make(map[Permission]bool)

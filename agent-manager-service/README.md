@@ -75,7 +75,7 @@ SQLite is the default: set `DB_PATH` to the database file. For PostgreSQL, set `
 
 ### 4. Configurations
 <!-- Update this section when adding new configs-->
-The service reads its settings from environment variables, and from an optional `amp.yaml` for anything the environment leaves unset (`--config`, else `$AMP_CONFIG`, else `./amp.yaml`). YAML keys are the variable names nested by `_`; see [amp.example.yaml](amp.example.yaml). The file also takes the `modules:` list the server reconciles at boot. For development, create a `.env` file in the project root:
+The service reads its settings from environment variables, and from an optional `amp.yaml` for anything the environment leaves unset (`--config`, else `$AMP_CONFIG`, else `./amp.yaml`). YAML keys are the variable names nested by `_`; see [amp.example.yaml](amp.example.yaml). A value can be a reference, `${env:NAME}` or `${file:/path}` with an optional `:-default`, and any setting can be read from a file with `<SETTING>_FILE` (`<setting>_file` in the YAML). The file also takes the `modules:` list the server reconciles at boot. For development, create a `.env` file in the project root:
 
 
 | **Key**                            | **Description**                                           |
@@ -154,13 +154,14 @@ The `amp` binary's subcommands:
 
 | Command | What it does |
 |---|---|
-| `amp serve [--migrate] [--wait-for-migrations]` | Run the API server |
+| `amp serve [--migrate] [--wait-for-migrations]` | Run the API server; on first run it generates the encryption key, JWT signing keys and secrets nothing sets, under `AMP_DATA_DIR` |
 | `amp migrate` | Apply the core's migrations, then every compiled-in module's |
-| `amp init thunder <dir> [ai-gateway <dir>] [fileauth <dir>]` | Write component configuration and exit |
+| `amp init [secrets <dir>] thunder <dir> [ai-gateway <dir>] [fileauth <dir>]` | Generate the secrets nothing sets (kept afterwards), write component configuration and exit |
 | `amp module list` | List compiled-in modules and their state |
 | `amp module install <name> [--with-deps]`, `enable`, `disable`, `uninstall [--purge]` | Change a module's state; running servers pick it up without a restart. `--purge` also empties the module's tables, deletes its secrets and revokes its workload credentials |
 | `amp module credential <name> <workload> [--subject S] [--out FILE]` | Mint a workload credential, shown once; the workload trades it for short-lived tokens at `POST /api/internal/v1/workloads/heartbeat` |
 | `amp module health [<name>]` | Module state and, for each workload, whether it is connected |
+| `amp secret list`, `amp secret show <name>` | List the generated secrets, or print one (for example `admin-password` to sign in) |
 
 The flags of earlier releases (`-migrate`, `-server=false`, `-init-thunder=<dir>`, ...) still work.
 
