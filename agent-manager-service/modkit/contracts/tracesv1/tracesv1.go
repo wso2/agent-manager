@@ -33,7 +33,8 @@ var (
 	ErrMissingOrg = errors.New("tracesv1: scope has no organization")
 	// ErrForeignOrg is returned when a Scope names another organization than the caller's.
 	ErrForeignOrg = errors.New("tracesv1: scope is not the caller's organization")
-	// ErrNotFound is returned when a trace or span is not in the Scope.
+	// ErrNotFound is returned when a trace or span is not in the Scope, or
+	// the Scope's project, agent or environment does not exist.
 	ErrNotFound = errors.New("tracesv1: not found")
 )
 
@@ -48,26 +49,18 @@ type Query interface {
 	GetSpanDetails(ctx context.Context, s Scope, traceID, spanID string) (*SpanDetails, error)
 }
 
-// Names are the scope's names.
-type Names struct {
-	Org         string
-	Project     string
-	Agent       string
-	Environment string
-}
-
-// Scope is who a query is for: the IDs and the names they resolve to.
+// Scope is who a query is for, by ID. OrgID is required; an empty
+// ProjectID, AgentID or EnvironmentID matches any.
 type Scope struct {
 	OrgID         string
 	ProjectID     string
 	AgentID       string
 	EnvironmentID string
-	Names         Names
 }
 
 // Validate rejects a Scope with no organization.
 func (s Scope) Validate() error {
-	if strings.TrimSpace(s.OrgID) == "" || strings.TrimSpace(s.Names.Org) == "" {
+	if strings.TrimSpace(s.OrgID) == "" {
 		return ErrMissingOrg
 	}
 	return nil

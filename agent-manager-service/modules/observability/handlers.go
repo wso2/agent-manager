@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store"
 )
 
 const (
@@ -47,7 +48,7 @@ var unsupportedParams = []string{
 
 type handlers struct {
 	core   modkit.CoreAPI
-	traces tracesv1.Query
+	traces store.TraceStore
 	log    *slog.Logger
 }
 
@@ -69,32 +70,32 @@ func notFound(what string) error {
 
 // scope resolves the caller's organization and the named project and agent.
 // The organization always comes from the request's sign-in, never its query.
-func (h handlers) scope(r *http.Request, project, agent string) (tracesv1.Scope, error) {
+func (h handlers) scope(r *http.Request, project, agent string) (store.Scope, error) {
 	ctx := r.Context()
 	orgID := modkit.OrgID(ctx)
 	if orgID == "" {
-		return tracesv1.Scope{}, &statusError{status: http.StatusUnauthorized, msg: "the request has no organization"}
+		return store.Scope{}, &statusError{status: http.StatusUnauthorized, msg: "the request has no organization"}
 	}
 	org, err := h.core.GetOrg(ctx, orgID)
 	if err != nil {
 		if errors.Is(err, modkit.ErrNotFound) {
-			return tracesv1.Scope{}, notFound("organization")
+			return store.Scope{}, notFound("organization")
 		}
-		return tracesv1.Scope{}, fmt.Errorf("get organization: %w", err)
+		return store.Scope{}, fmt.Errorf("get organization: %w", err)
 	}
-	s := tracesv1.Scope{OrgID: orgID, Names: tracesv1.Names{Org: org.Handle}}
+	s := store.Scope{OrgID: orgID, Names: store.Names{Org: org.Handle}}
 	if project == "" {
 		if agent != "" {
-			return tracesv1.Scope{}, badRequest("agent needs project")
+			return store.Scope{}, badRequest("agent needs project")
 		}
 		return s, nil
 	}
 	p, err := h.core.GetProjectByName(ctx, orgID, project)
 	if err != nil {
 		if errors.Is(err, modkit.ErrNotFound) {
-			return tracesv1.Scope{}, notFound("project")
+			return store.Scope{}, notFound("project")
 		}
-		return tracesv1.Scope{}, fmt.Errorf("get project: %w", err)
+		return store.Scope{}, fmt.Errorf("get project: %w", err)
 	}
 	s.ProjectID, s.Names.Project = p.ID, p.Name
 	if agent == "" {
@@ -103,9 +104,9 @@ func (h handlers) scope(r *http.Request, project, agent string) (tracesv1.Scope,
 	a, err := h.core.GetAgentByName(ctx, orgID, project, agent)
 	if err != nil {
 		if errors.Is(err, modkit.ErrNotFound) {
-			return tracesv1.Scope{}, notFound("agent")
+			return store.Scope{}, notFound("agent")
 		}
-		return tracesv1.Scope{}, fmt.Errorf("get agent: %w", err)
+		return store.Scope{}, fmt.Errorf("get agent: %w", err)
 	}
 	s.AgentID, s.Names.Agent = a.ID, a.Name
 	return s, nil

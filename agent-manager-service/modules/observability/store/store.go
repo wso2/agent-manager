@@ -20,6 +20,7 @@ package store
 
 import (
 	"context"
+	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
 )
@@ -41,10 +42,33 @@ type TraceStore interface {
 	GetSpanDetails(ctx context.Context, s Scope, traceID, spanID string) (*SpanDetails, error)
 }
 
-// The store's types are the capability's.
+// Names are the names a Scope's IDs resolve to.
+type Names struct {
+	Org         string
+	Project     string
+	Agent       string
+	Environment string
+}
+
+// Scope is who a query is for: the IDs and the names they resolve to.
+type Scope struct {
+	OrgID         string
+	ProjectID     string
+	AgentID       string
+	EnvironmentID string
+	Names         Names
+}
+
+// Validate rejects a Scope with no organization ID or name.
+func (s Scope) Validate() error {
+	if strings.TrimSpace(s.OrgID) == "" || strings.TrimSpace(s.Names.Org) == "" {
+		return ErrMissingOrg
+	}
+	return nil
+}
+
+// The store's other types are the capability's.
 type (
-	Scope       = tracesv1.Scope
-	Names       = tracesv1.Names
 	TraceQuery  = tracesv1.TraceQuery
 	SpanQuery   = tracesv1.SpanQuery
 	TracePage   = tracesv1.TracePage

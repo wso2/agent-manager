@@ -22,8 +22,11 @@ package observability
 import (
 	"context"
 	_ "embed"
+	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
+	"slices"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
@@ -36,6 +39,8 @@ const (
 	Name = "observability"
 	// PermTracesRead lets a caller read the organization's traces.
 	PermTracesRead = "traces-read"
+	// TracesRead is PermTracesRead's full name, as the host names it.
+	TracesRead = "observability:traces-read"
 )
 
 func init() {
@@ -82,24 +87,24 @@ func (module) UI() fs.FS         { return nil }
 func (module) OpenAPI() []byte { return openAPI }
 
 func (m module) Activate(_ context.Context, rt modkit.Runtime) error {
-	q := guarded(m)
-	rt.Provide(tracesv1.ID, q)
-	h := handlers{core: rt.Core(), traces: q, log: rt.Logger()}
+	traces := guarded(m)
+	rt.Provide(tracesv1.ID, capability{core: rt.Core(), traces: traces})
+	h := handlers{core: rt.Core(), traces: traces, log: rt.Logger()}
 	rt.Handle(http.MethodGet, "/api/v1/traces", PermTracesRead, h.listTraces)
 	rt.Handle(http.MethodGet, "/api/v1/traces/{traceId}/spans", PermTracesRead, h.listSpans)
 	rt.Handle(http.MethodGet, "/api/v1/traces/{traceId}/spans/{spanId}", PermTracesRead, h.getSpan)
 	return nil
 }
 
-// guarded is the traces.query/v1 implementation: it refuses a Scope of
-// another organization than the caller's.
+// guarded is the store behind the routes and the capability: it refuses a
+// Scope of another organization than the caller's.
 type guarded struct {
 	traces store.TraceStore
 }
 
-var _ tracesv1.Query = guarded{}
+var _ store.TraceStore = guarded{}
 
-func (g guarded) check(ctx context.Context, s tracesv1.Scope) error {
+func (g guarded) check(ctx context.Context, s store.Scope) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
@@ -109,23 +114,111 @@ func (g guarded) check(ctx context.Context, s tracesv1.Scope) error {
 	return nil
 }
 
-func (g guarded) QueryTraces(ctx context.Context, s tracesv1.Scope, q tracesv1.TraceQuery) (*tracesv1.TracePage, error) {
+func (g guarded) QueryTraces(ctx context.Context, s store.Scope, q store.TraceQuery) (*store.TracePage, error) {
 	if err := g.check(ctx, s); err != nil {
 		return nil, err
 	}
 	return g.traces.QueryTraces(ctx, s, q)
 }
 
-func (g guarded) QueryTraceSpans(ctx context.Context, s tracesv1.Scope, traceID string, q tracesv1.SpanQuery) (*tracesv1.SpanPage, error) {
+func (g guarded) QueryTraceSpans(ctx context.Context, s store.Scope, traceID string, q store.SpanQuery) (*store.SpanPage, error) {
 	if err := g.check(ctx, s); err != nil {
 		return nil, err
 	}
 	return g.traces.QueryTraceSpans(ctx, s, traceID, q)
 }
 
-func (g guarded) GetSpanDetails(ctx context.Context, s tracesv1.Scope, traceID, spanID string) (*tracesv1.SpanDetails, error) {
+func (g guarded) GetSpanDetails(ctx context.Context, s store.Scope, traceID, spanID string) (*store.SpanDetails, error) {
 	if err := g.check(ctx, s); err != nil {
 		return nil, err
 	}
 	return g.traces.GetSpanDetails(ctx, s, traceID, spanID)
+}
+
+// capability is the traces.query/v1 implementation: it looks up the names of
+// a Scope's IDs and reads through guarded.
+type capability struct {
+	core   modkit.CoreAPI
+	traces guarded
+}
+
+var _ tracesv1.Query = capability{}
+
+// resolve returns the store Scope of s, with the names of its IDs.
+func (c capability) resolve(ctx context.Context, s tracesv1.Scope) (store.Scope, error) {
+	if err := s.Validate(); err != nil {
+		return store.Scope{}, err
+	}
+	if s.OrgID != modkit.OrgID(ctx) {
+		return store.Scope{}, tracesv1.ErrForeignOrg
+	}
+	org, err := c.core.GetOrg(ctx, s.OrgID)
+	if err != nil {
+		return store.Scope{}, lookupErr("organization", err)
+	}
+	r := store.Scope{
+		OrgID: s.OrgID, ProjectID: s.ProjectID, AgentID: s.AgentID, EnvironmentID: s.EnvironmentID,
+		Names: store.Names{Org: org.Handle},
+	}
+	switch {
+	case s.AgentID != "":
+		a, err := c.core.GetAgent(ctx, s.OrgID, s.AgentID)
+		if err != nil {
+			return store.Scope{}, lookupErr("agent", err)
+		}
+		if s.ProjectID != "" && a.ProjectID != s.ProjectID {
+			return store.Scope{}, tracesv1.ErrNotFound
+		}
+		r.ProjectID, r.Names.Project, r.Names.Agent = a.ProjectID, a.ProjectName, a.Name
+	case s.ProjectID != "":
+		p, err := c.core.GetProject(ctx, s.OrgID, s.ProjectID)
+		if err != nil {
+			return store.Scope{}, lookupErr("project", err)
+		}
+		r.Names.Project = p.Name
+	}
+	if s.EnvironmentID != "" {
+		envs, err := c.core.ListEnvironments(ctx, s.OrgID)
+		if err != nil {
+			return store.Scope{}, lookupErr("environments", err)
+		}
+		i := slices.IndexFunc(envs, func(e modkit.Environment) bool { return e.ID == s.EnvironmentID })
+		if i < 0 {
+			return store.Scope{}, tracesv1.ErrNotFound
+		}
+		r.Names.Environment = envs[i].Name
+	}
+	return r, nil
+}
+
+// lookupErr maps the core's ErrNotFound to the capability's.
+func lookupErr(what string, err error) error {
+	if errors.Is(err, modkit.ErrNotFound) {
+		return fmt.Errorf("%s: %w", what, tracesv1.ErrNotFound)
+	}
+	return fmt.Errorf("get %s: %w", what, err)
+}
+
+func (c capability) QueryTraces(ctx context.Context, s tracesv1.Scope, q tracesv1.TraceQuery) (*tracesv1.TracePage, error) {
+	r, err := c.resolve(ctx, s)
+	if err != nil {
+		return nil, err
+	}
+	return c.traces.QueryTraces(ctx, r, q)
+}
+
+func (c capability) QueryTraceSpans(ctx context.Context, s tracesv1.Scope, traceID string, q tracesv1.SpanQuery) (*tracesv1.SpanPage, error) {
+	r, err := c.resolve(ctx, s)
+	if err != nil {
+		return nil, err
+	}
+	return c.traces.QueryTraceSpans(ctx, r, traceID, q)
+}
+
+func (c capability) GetSpanDetails(ctx context.Context, s tracesv1.Scope, traceID, spanID string) (*tracesv1.SpanDetails, error) {
+	r, err := c.resolve(ctx, s)
+	if err != nil {
+		return nil, err
+	}
+	return c.traces.GetSpanDetails(ctx, r, traceID, spanID)
 }

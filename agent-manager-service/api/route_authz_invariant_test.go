@@ -32,8 +32,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // the full distribution's routes
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"     // the full distribution's routes
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/observability" // the full distribution's routes
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -92,6 +92,8 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"AI Gateway and authenticates the gateway with an api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
 	{"handle", "Handle", "method"}: "the AI Gateway's adapter onto modkit.Runtime.Handle: the module host registers each route through " +
 		"RouteRegistrar.HandleModuleRoute, which applies the permission the route names.",
+	{"Activate", "Handle", "http.MethodGet"}: "the observability module's routes, mounted with modkit.Runtime.Handle: the module host registers each " +
+		"route through RouteRegistrar.HandleModuleRoute, which applies the permission the route names.",
 	{"registerJWKSRoute", "HandleFunc", "GET /auth/external/jwks.json"}: "publishes public signing keys and must be unauthenticated.",
 	{"registerFileAuthRoutes", "Handle", "POST /auth/login"}: "file-mode sign-in: this is where a caller goes to obtain a token, so it cannot " +
 		"require one. It verifies a bcrypt password against the configured user file and answers 404 when file mode is off; both outcomes are " +
@@ -204,6 +206,12 @@ var declaredButUnenforcedPermissions = map[string]string{
 	"gwperm.LLMProviderConnect":            "NOT ENFORCED: no route consults it",
 	"gwperm.MCPServerConfigureGuardrail":   "NOT ENFORCED: no route consults it",
 	"gwperm.MCPServerAPIKeyManage":         "NOT ENFORCED: no route consults it",
+
+	// --- ENFORCED BY THE MODULE HOST ---------------------------------------
+	// Routes mounted with modkit.Runtime.Handle name their permission there;
+	// the walk above cannot see it.
+	"observability.TracesRead": "ENFORCED BY THE MODULE HOST: each trace route passes PermTracesRead to " +
+		"modkit.Runtime.Handle, and TestObservabilityRoutesAreAuthorized checks the mounted routes require it.",
 
 	// --- NOT SERVED --------------------------------------------------------
 	// Lite does not serve these features; their placeholder routes are gone.
@@ -462,11 +470,15 @@ func TestSecurityInvariantHandlersNeverReadOrgFromPath(t *testing.T) {
 var routePackages = []string{
 	".", filepath.Join("..", "mcp"),
 	filepath.Join("..", "modules", "aigateway", "gwapi"),
+	filepath.Join("..", "modules", "observability"),
 }
 
 // modulePermissionPackages declare the modules' permissions, as
 // <package>.<Name> string constants.
-var modulePermissionPackages = []string{filepath.Join("..", "modules", "aigateway", "gwperm")}
+var modulePermissionPackages = []string{
+	filepath.Join("..", "modules", "aigateway", "gwperm"),
+	filepath.Join("..", "modules", "observability"),
+}
 
 // forEachRouteRegistration walks every production Go file in routePackages and
 // invokes fn for every net/http or RouteRegistrar registration call. Permission
@@ -819,18 +831,17 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 			t.Errorf("reviewed role mapping %s -> %s has no entry in rbac.PredefinedRolePermissions", roleConstant, handle)
 		}
 	}
-	// The AI Gateway module grants its own permissions, as the bootstrap
+	// The linked modules grant their own permissions, as the bootstrap
 	// renders them (see thunderBootstrap).
 	byName := map[string]string{
 		rbac.RoleAdmin: "admin", rbac.RoleDeveloper: "developer",
 		rbac.RoleAILead: "ai-lead", rbac.RolePlatformEngineer: "platform-engineer",
 	}
 	for _, m := range modkit.Registered() {
-		if mf := m.Manifest(); mf.Name == gwperm.Module {
-			for role, names := range mf.RoleGrants {
-				for _, n := range names {
-					roles[byName[role]][rbac.Permission(mf.PermissionName(n)).Scope()] = true
-				}
+		mf := m.Manifest()
+		for role, names := range mf.RoleGrants {
+			for _, n := range names {
+				roles[byName[role]][rbac.Permission(mf.PermissionName(n)).Scope()] = true
 			}
 		}
 	}
@@ -841,13 +852,11 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 // install generates.
 func thunderBootstrap(t *testing.T) map[string][]byte {
 	t.Helper()
-	// The full distribution's bootstrap: the core's resources and the AI
-	// Gateway module's.
+	// The full distribution's bootstrap: the core's resources and every
+	// linked module's.
 	cfg := ampinit.SampleThunderConfig()
 	for _, m := range modkit.Registered() {
-		if m.Manifest().Name == gwperm.Module {
-			cfg.Modules = append(cfg.Modules, m.Manifest())
-		}
+		cfg.Modules = append(cfg.Modules, m.Manifest())
 	}
 	files, err := ampinit.RenderThunder(cfg)
 	if err != nil {

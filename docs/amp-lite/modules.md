@@ -14,7 +14,7 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, and `observability` (traces, from an in-process store) another. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
+- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, and `observability` (traces) another. Its store is in memory and per replica, and nothing writes to it yet, so it serves no traces until a real backend replaces it. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
 - **Distribution defaults.** A distribution's `main` passes its default modules to `cli.Main` (`cmd/amp`: `cli.Main("amp", "ai-gateway")`; `cmd/amp-core` none). With no modules list declared, the server installs each default at boot, with its providers, only if it was never installed (or was purged), and changes nothing else, so a default an operator disabled or uninstalled stays that way across restarts. A declared list replaces the defaults.
 
 A distribution is a `main` package that chooses its modules with blank imports:
@@ -33,7 +33,7 @@ Both call `cli.Main`, so they share every command. The Dockerfile builds one or 
 | Core | Modules |
 |---|---|
 | Organizations (including the default org created at startup), projects, environments, the agent registry | The AI Gateway (`ai-gateway`): gateways, LLM and MCP proxies, A2A, agent API keys, agent identity pages |
-| Users, roles and RBAC, the permission registry | `observability`: traces, and the `traces.query/v1` capability |
+| Users, roles and RBAC, the permission registry | `observability`: traces, and the `traces.query/v1` capability (no trace data yet, see above) |
 | Audit log, settings, secrets, agent tokens and JWKS | Later: evaluation, agent identity, A2A and other product areas as they are split out |
 | HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | |
 
@@ -529,6 +529,7 @@ Capabilities today:
 | `identity.directory/v1` (`modkit/contracts/identityv1`) | 1 | the core | `For(org, environment)` opens an environment's directory; the client lists, gets, creates, updates and deletes groups and roles, changes group members, role permissions and role assignments, and ensures or removes MCP resource servers. `ListProvisionedAgents(org, environment)` lists the agents the core provisions identities for there, from the core's own records. In Lite only the default environment has one (the platform ThunderID); any other answers `ErrNotProvisioned`. | `ai-gateway` (agent-identity pages, MCP proxy scopes) |
 | `llm.proxy/v1` (`modkit/contracts/llmv1`) | 1 | `ai-gateway` | `ValidateProviders` | none in this repository |
 | `mcp.proxy/v1` (`modkit/contracts/mcpv1`) | 1 | `ai-gateway` | `ValidateProxies` | none in this repository |
+| `traces.query/v1` (`modkit/contracts/tracesv1`) | 1 | `observability` | `QueryTraces`, `QueryTraceSpans` and `GetSpanDetails`, for a `Scope` of IDs (organization required; project, agent and environment optional). Each refuses a `Scope` of another organization than the ctx's with `ErrForeignOrg`, and answers an unknown project, agent or environment with `ErrNotFound`. | none in this repository |
 
 ## Testing
 

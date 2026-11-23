@@ -31,6 +31,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/memory"
 )
 
@@ -48,20 +49,26 @@ func (fakeCore) ListProjects(context.Context, string) ([]modkit.Project, error) 
 	return nil, nil
 }
 
-func (fakeCore) GetProject(context.Context, string, string) (modkit.Project, error) {
-	return modkit.Project{}, modkit.ErrNotFound
+func (fakeCore) GetProject(_ context.Context, orgID, projectID string) (modkit.Project, error) {
+	if projectID != "p1" {
+		return modkit.Project{}, modkit.ErrNotFound
+	}
+	return modkit.Project{ID: projectID, OrgID: orgID, Name: "shop"}, nil
 }
 
 func (fakeCore) ListAgents(context.Context, string, string) ([]modkit.Agent, error) {
 	return nil, nil
 }
 
-func (fakeCore) GetAgent(context.Context, string, string) (modkit.Agent, error) {
-	return modkit.Agent{}, modkit.ErrNotFound
+func (fakeCore) GetAgent(_ context.Context, orgID, agentID string) (modkit.Agent, error) {
+	if agentID != "a1" {
+		return modkit.Agent{}, modkit.ErrNotFound
+	}
+	return modkit.Agent{ID: agentID, OrgID: orgID, ProjectID: "p1", ProjectName: "shop", Name: "bot"}, nil
 }
 
-func (fakeCore) ListEnvironments(context.Context, string) ([]modkit.Environment, error) {
-	return nil, nil
+func (fakeCore) ListEnvironments(_ context.Context, orgID string) ([]modkit.Environment, error) {
+	return []modkit.Environment{{ID: "e1", OrgID: orgID, Name: "dev"}}, nil
 }
 
 func (fakeCore) GetProjectByName(_ context.Context, orgID, name string) (modkit.Project, error) {
@@ -75,7 +82,7 @@ func (fakeCore) GetAgentByName(_ context.Context, orgID, projectName, name strin
 	if projectName != "shop" || name != "bot" {
 		return modkit.Agent{}, modkit.ErrNotFound
 	}
-	return modkit.Agent{ID: "a1", OrgID: orgID, ProjectID: "p1", Name: name}, nil
+	return modkit.Agent{ID: "a1", OrgID: orgID, ProjectID: "p1", ProjectName: projectName, Name: name}, nil
 }
 
 func (fakeCore) GetEnvironmentByName(context.Context, string, string) (modkit.Environment, error) {
@@ -143,7 +150,7 @@ func TestListTracesRequests(t *testing.T) {
 
 func TestUnencodableSpanIsA500(t *testing.T) {
 	traces := memory.New()
-	traces.Add(tracesv1.Scope{OrgID: "org-a", Names: tracesv1.Names{Org: "acme"}},
+	traces.Add(store.Scope{OrgID: "org-a", Names: store.Names{Org: "acme"}},
 		tracesv1.Trace{TraceID: "t"},
 		tracesv1.SpanDetails{SpanID: "s", Attributes: map[string]any{"score": math.NaN()}})
 	h := handlers{core: fakeCore{}, traces: guarded{traces: traces}, log: slog.New(slog.DiscardHandler)}
@@ -158,9 +165,9 @@ func TestUnencodableSpanIsA500(t *testing.T) {
 }
 
 func TestCapabilityRefusesAnotherOrganization(t *testing.T) {
-	q := guarded{traces: memory.New()}
+	q := capability{core: fakeCore{}, traces: guarded{traces: memory.New()}}
 	ctx := modkit.WithOrgID(context.Background(), "org-a")
-	foreign := tracesv1.Scope{OrgID: "org-b", Names: tracesv1.Names{Org: "globex"}}
+	foreign := tracesv1.Scope{OrgID: "org-b"}
 	day := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
 
 	if _, err := q.QueryTraces(ctx, foreign, tracesv1.TraceQuery{StartTime: day}); !errors.Is(err, tracesv1.ErrForeignOrg) {
@@ -175,8 +182,44 @@ func TestCapabilityRefusesAnotherOrganization(t *testing.T) {
 	if _, err := q.QueryTraces(context.Background(), foreign, tracesv1.TraceQuery{}); !errors.Is(err, tracesv1.ErrForeignOrg) {
 		t.Errorf("QueryTraces with no org on ctx = %v, want ErrForeignOrg", err)
 	}
-	own := tracesv1.Scope{OrgID: "org-a", Names: tracesv1.Names{Org: "acme"}}
+	own := tracesv1.Scope{OrgID: "org-a"}
 	if _, err := q.QueryTraces(ctx, own, tracesv1.TraceQuery{}); err != nil {
 		t.Errorf("QueryTraces of the caller's org = %v, want nil", err)
+	}
+}
+
+func TestCapabilityResolvesIDsToNames(t *testing.T) {
+	traces := memory.New()
+	named := store.Scope{
+		OrgID: "org-a", ProjectID: "p1", AgentID: "a1", EnvironmentID: "e1",
+		Names: store.Names{Org: "acme", Project: "shop", Agent: "bot", Environment: "dev"},
+	}
+	traces.Add(named, tracesv1.Trace{TraceID: "t"}, tracesv1.SpanDetails{SpanID: "s"})
+	q := capability{core: fakeCore{}, traces: guarded{traces: traces}}
+	ctx := modkit.WithOrgID(context.Background(), "org-a")
+
+	for _, s := range []tracesv1.Scope{
+		{OrgID: "org-a"},
+		{OrgID: "org-a", ProjectID: "p1"},
+		{OrgID: "org-a", AgentID: "a1"},
+		{OrgID: "org-a", ProjectID: "p1", AgentID: "a1", EnvironmentID: "e1"},
+	} {
+		page, err := q.QueryTraces(ctx, s, tracesv1.TraceQuery{})
+		if err != nil || len(page.Traces) != 1 {
+			t.Errorf("QueryTraces(%+v) = %v, %v; want the trace", s, page, err)
+		}
+	}
+	if _, err := q.GetSpanDetails(ctx, tracesv1.Scope{OrgID: "org-a", AgentID: "a1"}, "t", "s"); err != nil {
+		t.Errorf("GetSpanDetails by agent ID = %v, want nil", err)
+	}
+	for _, s := range []tracesv1.Scope{
+		{OrgID: "org-a", ProjectID: "nosuch"},
+		{OrgID: "org-a", AgentID: "nosuch"},
+		{OrgID: "org-a", ProjectID: "p2", AgentID: "a1"},
+		{OrgID: "org-a", EnvironmentID: "nosuch"},
+	} {
+		if _, err := q.QueryTraces(ctx, s, tracesv1.TraceQuery{}); !errors.Is(err, tracesv1.ErrNotFound) {
+			t.Errorf("QueryTraces(%+v) = %v, want ErrNotFound", s, err)
+		}
 	}
 }
