@@ -162,7 +162,8 @@ export function SelfHostedGatewayTokensCard({
               sx={{ fontFamily: "monospace", flex: 1 }}
               title="Only the start of the token is shown"
             >
-              {`${token.prefix}-••••••••`}
+              {/* A service that predates the prefix field sends none. */}
+              {token.prefix ? `${token.prefix}-••••••••` : "••••••••"}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               Created {formatDistanceToNow(new Date(token.createdAt), { addSuffix: true })}

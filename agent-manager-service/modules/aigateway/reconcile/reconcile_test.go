@@ -37,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -1063,7 +1062,7 @@ func TestAfterLive(t *testing.T) {
 		second := deploy(t, core, p).DeploymentID
 		// The sweep is not scoped to this test, and other packages' tests share the database: age this row past
 		// a cutoff in the past instead of sweeping with a future cutoff, which would fail their in-flight rows.
-		require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
+		require.NoError(t, db.GetDB().Model(&gwmodels.DeploymentStatusRecord{}).
 			Where("artifact_id = ? AND org_id = ? AND gateway_id = ?", p.ArtifactUUID, p.OUID, p.GatewayUUID).
 			Update("performed_at", statusRow(t, p).PerformedAt.Add(-10*time.Minute)).Error)
 		_, err := gwrepo.NewDeploymentRepo(db.GetDB()).FailStaleTransitional(context.Background(), time.Now().Add(-5*time.Minute))

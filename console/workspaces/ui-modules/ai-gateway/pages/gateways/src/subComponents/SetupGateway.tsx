@@ -15,14 +15,13 @@
  * under the License.
  */
 
-import { useState } from "react";
 import { Alert, Box, Button, Stack } from "@wso2/oxygen-ui";
 import { generatePath, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { LoadErrorNotice, PageLayout } from "@agent-management-platform/views";
 import { isGatewayActive, useGetGateway } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, isSelfHostedGateway } from "@agent-management-platform/types";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
-import { newGatewayToken, useForgetNewGatewayTokenOnLeave } from "./newGatewayToken";
+import { useForgetNewGatewayTokenOnLeave, useNewGatewayToken } from "./newGatewayToken";
 
 /** Router state the add page leaves for this page; never carries the token itself. */
 export interface SetupGatewayState {
@@ -48,9 +47,9 @@ function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
   const { orgId = "" } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const { state } = useLocation() as { state: SetupGatewayState | null };
-  // Whether the add page left a token, read once for the notices below. The steps
-  // read the token itself from the store.
-  const [token] = useState(() => newGatewayToken(gatewayId));
+  // Whether a token is held for the notices below, following the store: a Reconfigure
+  // after a failed mint replaces the failure notice, and a revoke drops the success one.
+  const token = useNewGatewayToken(gatewayId);
   // Leaving the gateway's pages (Back, the sidebar) forgets the token: it may be
   // revoked afterwards, and a later visit must not offer it again.
   useForgetNewGatewayTokenOnLeave(gatewayId);

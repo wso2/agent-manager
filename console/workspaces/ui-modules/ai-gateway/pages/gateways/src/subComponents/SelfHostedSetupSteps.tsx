@@ -34,7 +34,11 @@ import {
   dockerCommands,
   reconfigureToken,
 } from "./selfHostedSetup";
-import { keepNewGatewayToken, useNewGatewayToken } from "./newGatewayToken";
+import {
+  forgetRevokedGatewayToken,
+  keepNewGatewayToken,
+  useNewGatewayToken,
+} from "./newGatewayToken";
 
 const DEFAULT_GATEWAY_VERSION = "v2026.09.24";
 const DEFAULT_CONTROL_PLANE_URL = "http://localhost:9243";
@@ -179,7 +183,11 @@ export function SelfHostedSetupSteps({
           const { data } = await refetchTokens({ throwOnError: true });
           return activeTokens(data?.list ?? []).map((t) => t.id);
         },
-        (tokenId) => revokeToken({ ...params, tokenId }),
+        async (tokenId) => {
+          await revokeToken({ ...params, tokenId });
+          // If minting fails after this, the steps must not keep offering a revoked token.
+          forgetRevokedGatewayToken(gatewayId, tokenId);
+        },
         async () => {
           const { token: newToken, tokenId } = await createToken(params);
           // Kept in the store, not in this component: if the user has left by now, the

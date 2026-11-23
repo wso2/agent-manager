@@ -198,12 +198,14 @@ func sqliteDir(t *testing.T) string {
 	dir, err := os.MkdirTemp("", "modhost-test-")
 	require.NoError(t, err)
 	t.Cleanup(func() {
+		var err error
 		for range 50 {
-			if os.RemoveAll(dir) == nil {
+			if err = os.RemoveAll(dir); err == nil {
 				return
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
+		t.Errorf("remove SQLite test directory %s: %v", dir, err)
 	})
 	return dir
 }
