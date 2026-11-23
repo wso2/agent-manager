@@ -160,3 +160,49 @@ func TestShadowScanPublishThroughTheRouteStack(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, code, resp)
 	assert.Contains(t, resp, "already published")
 }
+
+// TestShadowScanUploadByAUserThroughTheRouteStack uploads a results file the
+// way the console does: an Admin's user token, the org in the path.
+func TestShadowScanUploadByAUserThroughTheRouteStack(t *testing.T) {
+	ctx := context.Background()
+	cfg := config.GetConfig()
+	origEnabled := cfg.ShadowRunner.Enabled
+	cfg.ShadowRunner.Enabled = true
+	t.Cleanup(func() { cfg.ShadowRunner.Enabled = origEnabled })
+
+	ouID := "ou-" + uuid.NewString()
+	repo := repositories.NewShadowAgentRepository(db.GetDB())
+	conn := &models.ShadowConnection{
+		ID: uuid.New(), OUID: ouID, Name: "repos", Provider: models.ShadowProviderGitHub,
+		Config: models.ShadowConnectionConfig{
+			Endpoints: map[string]string{"api": "https://api.github.com"}, Organization: "acme", AllRepositories: true,
+		},
+		SecretHints: map[string]string{},
+	}
+	require.NoError(t, repo.CreateConnection(ctx, conn))
+	t.Cleanup(func() { _, _ = repo.DeleteConnection(context.Background(), ouID, conn.ID) })
+	scan := &models.ShadowScan{
+		ID: uuid.New(), OUID: ouID, Status: models.ShadowScanPending, ConnectionIDs: []string{conn.ID.String()},
+	}
+	require.NoError(t, repo.CreateScan(ctx, scan))
+	t.Cleanup(func() { db.GetDB().Exec("DELETE FROM shadow_scans WHERE id = ?", scan.ID) })
+
+	exp := jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour))}
+	current := &jwtassertion.TokenClaims{
+		Sub: "admin-user", OuId: ouID, OuHandle: "acme-org", ClientID: "amp-console", Scope: adminScopes(),
+		RegisteredClaims: exp,
+	}
+	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{OpenChoreoClient: apitestutils.CreateMockOpenChoreoClient()},
+		claimsMiddleware(&current))
+	body := `{"complete":true,"scannedRepositories":["acme/agent"],"failedRepositories":[],
+		"agents":[{"externalId":"acme/agent:agent.py","name":"agent","repository":"agent",
+		"attributes":{"reviewedBy":"rules"},
+		"evidence":[{"code":"github.d2_agent_import","source":"agent.py","observed":{}}]}]}`
+	req := httptest.NewRequest(http.MethodPost,
+		"/api/v1/orgs/acme-org/shadow-agents/scans/"+scan.ID.String()+"/results", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	app.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"findingsCount":1`)
+}
