@@ -41,7 +41,7 @@ Agent Manager reads each setting from, first found:
 5. for a generated secret, its file in the secrets directory (` + "`amp secret list`" + `);
 6. its default.
 
-A value in ` + "`amp.yaml`" + ` can be a reference: ` + "`${env:NAME}`" + ` or ` + "`${file:/path}`" + `, optionally with a default (` + "`${env:NAME:-default}`" + `). ` + "`amp init`" + ` and ` + "`amp serve`" + ` generate the secrets marked _generated_ on first run when nothing sets them, and keep them.
+A value in ` + "`amp.yaml`" + ` can be a reference: ` + "`${env:NAME}`" + ` or ` + "`${file:/path}`" + `, optionally with a default (` + "`${env:NAME:-default}`" + `). A reference that does not resolve stops startup only when ` + "`amp.yaml`" + `'s value is the one used, so the environment can override it. ` + "`amp init`" + ` and ` + "`amp serve`" + ` generate the secrets marked _generated_ on first run when nothing sets them, and keep them; for these, an empty value or an empty file counts as unset. A generated secret's file that exists but cannot be read stops startup and is never replaced.
 `
 
 // Render returns the configuration reference page.

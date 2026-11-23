@@ -46,7 +46,7 @@ docker compose exec amp-api amp secret show admin-password
 
 `amp secret list` names the other generated secrets; they live in the `amp-secrets` volume and are kept across restarts. To choose a secret instead, set it in `amp.yaml` (for example `amp: {admin_password: ...}`, or a `${file:...}` reference); a set value always wins.
 
-The console's settings are `console:` keys in `amp.yaml` (`CONSOLE_<NAME>` fills the `$NAME` of the same name in the console's `config.js`); which of its pages show comes from the modules the API runs (`GET /api/v1/ui-manifest`), plus any listed in `console.ui_modules_enable`. Behind a reverse proxy, set `server.public_url` to the public origin.
+The console's settings are `console:` keys in `amp.yaml` (`CONSOLE_<NAME>` fills the `$NAME` of the same name in the console's `config.js`); which of its pages show comes from the modules the API runs (`GET /api/v1/ui-manifest`), plus any listed in `console.ui_modules_enable`. Behind a reverse proxy, set `server.public_url` to the public origin; ThunderID always accepts sign-in from the console at that URL, and the stack adds the development console (`CONSOLE_PORT`) to it.
 
 Environment variables still win over `amp.yaml`, so a setting given on a service's `environment:` overrides the file.
 
