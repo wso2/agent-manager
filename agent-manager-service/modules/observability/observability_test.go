@@ -164,7 +164,8 @@ func TestExportTraces(t *testing.T) {
 		spans[i] = tracesv1.SpanDetails{SpanID: fmt.Sprint(i), StartTime: at, Attributes: map[string]any{"i": i}}
 	}
 	traces.Add(scope, tracesv1.Trace{TraceID: "big", StartTime: at}, spans...)
-	traces.Add(scope, tracesv1.Trace{TraceID: "small", StartTime: at.Add(time.Second)}, spans[0])
+	late := tracesv1.SpanDetails{SpanID: "late", StartTime: at.Add(24 * time.Hour)}
+	traces.Add(scope, tracesv1.Trace{TraceID: "small", StartTime: at.Add(time.Second)}, spans[0], late)
 	h := handlers{core: fakeCore{}, traces: guarded{traces: traces}, log: slog.New(slog.DiscardHandler)}
 
 	r := httptest.NewRequest(http.MethodGet, "/?project=shop&agent=bot&"+testWindow, nil)
@@ -185,6 +186,9 @@ func TestExportTraces(t *testing.T) {
 	}
 	if !got.SpansTruncated || !got.Truncated {
 		t.Errorf("spansTruncated = %v, truncated = %v; want both true", got.SpansTruncated, got.Truncated)
+	}
+	if n := len(got.Traces[0].Spans); n != 2 {
+		t.Errorf("small trace has %d spans, want 2, the one after the window included", n)
 	}
 	if got.Traces[0].Spans[0].Attributes["i"] != float64(0) {
 		t.Errorf("exported span attributes = %v, want i=0", got.Traces[0].Spans[0].Attributes)

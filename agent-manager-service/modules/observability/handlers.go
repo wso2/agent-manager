@@ -185,7 +185,7 @@ func (h handlers) exportTraces(w http.ResponseWriter, r *http.Request) {
 	resp := TraceExportResponse{Traces: make([]FullTrace, 0, len(page.Traces)), TotalCount: page.Total}
 	for _, t := range page.Traces {
 		spans, err := h.traces.QueryTraceSpans(ctx, s, t.TraceID, tracesv1.SpanQuery{
-			StartTime: window.start, EndTime: window.end, Limit: maxExportSpans, SortOrder: "asc", IncludeAttributes: true,
+			Limit: maxExportSpans, SortOrder: "asc", IncludeAttributes: true,
 		})
 		if err != nil {
 			h.log.WarnContext(ctx, "observability: export left out a trace",

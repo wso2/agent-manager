@@ -75,7 +75,8 @@ type TraceQuery struct {
 	SortOrder string
 }
 
-// SpanQuery is the time window and paging of a span list.
+// SpanQuery is the time window and paging of a span list. A zero StartTime
+// or EndTime leaves that side open.
 type SpanQuery struct {
 	StartTime time.Time
 	EndTime   time.Time
