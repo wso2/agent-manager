@@ -35,9 +35,11 @@ First, register your agent at the [WSO2 Agent Manager](https://github.com/wso2/a
 ### 2. Set Required Environment Variables
 
 ```bash
-export AMP_OTEL_ENDPOINT="https://amp-otel-endpoint.com" # AMP OTEL endpoint
+export AMP_OTEL_ENDPOINT="https://<amp-host>/m/observability/otel" # AMP's OTLP endpoint
 export AMP_AGENT_API_KEY="your-agent-api-key" # Agent-specific key generated after registration
 ```
+
+The console's "Set up agent" drawer shows both values. Traces go to `<AMP_OTEL_ENDPOINT>/v1/traces` with the key in the `x-amp-api-key` header; AMP stores them under the agent the key belongs to.
 
 Optional: prompt and completion content is captured by default. To suppress it, set `TRACELOOP_TRACE_CONTENT=false`.
 

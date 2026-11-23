@@ -18,7 +18,7 @@
 Manual-instrumentation helper.
 
 ``init_otel()`` configures the global OpenTelemetry tracer provider to export
-spans over OTLP/HTTP to the AMP gateway, using the ``AMP_OTEL_ENDPOINT`` and
+spans over OTLP/HTTP to AMP, using the ``AMP_OTEL_ENDPOINT`` and
 ``AMP_AGENT_API_KEY`` environment variables (the same ones AMP injects into
 platform-hosted agents). It does *no* instrumentation itself — it only wires up
 the exporter so a customer emitting their own OpenTelemetry GenAI spans does not
