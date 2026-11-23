@@ -32,6 +32,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
@@ -55,7 +56,7 @@ func TestBudgetUsageRepository_RecordMergesAndRaisesWarningsOnce(t *testing.T) {
 		seen = append(seen, stored)
 		return []gwmodels.BudgetWarning{{
 			BudgetID: budgetID, AllowanceID: allowance, PeriodStart: stored.PeriodStart, Amount: "80.00",
-			OUID: ou, Threshold: 80, Event: map[string]any{"budget": "per-agent"},
+			OUID: ou, Threshold: 80, Notice: notifyv1.Notification{Subject: "per-agent"},
 		}}
 	}
 	var published []gwmodels.BudgetWarning
@@ -67,7 +68,7 @@ func TestBudgetUsageRepository_RecordMergesAndRaisesWarningsOnce(t *testing.T) {
 
 	require.NoError(t, repo.Record(ctx, []gwmodels.BudgetUsage{report(november, "80.14", 3)}, warn, publish))
 	require.Len(t, published, 1, "the first crossing is raised")
-	assert.Equal(t, "per-agent", published[0].Event["budget"])
+	assert.Equal(t, "per-agent", published[0].Notice.Subject)
 
 	require.NoError(t, repo.Record(ctx, []gwmodels.BudgetUsage{report(november, "90", 2)}, warn, publish))
 	assert.Len(t, published, 1, "the same warning is raised once")

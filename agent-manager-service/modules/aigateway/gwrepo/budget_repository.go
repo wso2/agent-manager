@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -285,6 +286,23 @@ func ProjectBudgets(tx *gorm.DB, ouID, projectID string) ([]string, error) {
 		return nil, fmt.Errorf("failed to release the project's gateway budgets: %w", err)
 	}
 	return nil, nil
+}
+
+// ChannelBudgets returns the names of the organization's budgets that send warnings to
+// the channel, sorted: budgets name their channels, so one they name keeps its name and
+// is not deleted.
+func ChannelBudgets(db *gorm.DB, ouID, channel string) ([]string, error) {
+	var budgets []gwmodels.Budget
+	if err := db.Where("org_id = ?", ouID).Order("name").Find(&budgets).Error; err != nil {
+		return nil, fmt.Errorf("failed to read the organization's budgets: %w", err)
+	}
+	var names []string
+	for i := range budgets {
+		if w := budgets[i].Configuration.Warnings; w != nil && slices.Contains(w.Channels, channel) {
+			names = append(names, budgets[i].Name)
+		}
+	}
+	return names, nil
 }
 
 // withOwners fills in the budgets' organization and project handles.

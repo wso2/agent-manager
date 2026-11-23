@@ -74,6 +74,9 @@ var eventRetryBackoff = []time.Duration{
 type eventDeliveryJob struct {
 	DestinationID string          `json:"destinationId"`
 	Event         json.RawMessage `json:"event"`
+	// Direct marks a delivery to a destination the event named itself
+	// (notifications/v1), which no subscription has to still want.
+	Direct bool `json:"direct,omitempty"`
 }
 
 // EventDispatcherService consumes published events and delivers each one to
@@ -204,6 +207,10 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 		return
 	}
 	log := d.logger.With("eventId", e.ID, "type", e.Name())
+	if len(e.Destinations) > 0 {
+		d.handleDirect(ctx, msg, e, log)
+		return
+	}
 
 	candidates, err := d.repo.CandidateSubscriptions(ctx, e.OrgID, e.Project, e.Agent)
 	if err != nil {
@@ -271,6 +278,61 @@ func (d *eventDispatcher) handleEvent(ctx context.Context, msg events.Message) {
 	_ = msg.Ack()
 }
 
+// handleDirect queues an event that names its destinations (notifications/v1) for each
+// of them that still exists, without consulting subscriptions.
+func (d *eventDispatcher) handleDirect(ctx context.Context, msg events.Message, e events.Event, log *slog.Logger) {
+	ids := make([]uuid.UUID, 0, len(e.Destinations))
+	for _, raw := range e.Destinations {
+		if id, err := uuid.Parse(raw); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	found, err := d.repo.DestinationsByID(ctx, e.OrgID, ids)
+	if err != nil {
+		log.Error("Failed to load event destinations; will retry", "error", err)
+		d.retryFanout(msg, log)
+		return
+	}
+	sent := e
+	sent.Destinations = nil
+	data, err := json.Marshal(sent)
+	if err != nil {
+		log.Error("Dropping an event that cannot be encoded", "error", err)
+		_ = msg.Drop()
+		return
+	}
+	for i := range found {
+		dest := &found[i]
+		if err := d.repo.RecordQueuedDelivery(ctx, &models.EventDelivery{
+			OUID:            e.OrgID,
+			DestinationID:   dest.ID,
+			SubscriptionIDs: []string{},
+			EventID:         e.ID,
+			EventType:       e.Name(),
+			EventScope:      string(e.Scope),
+			ProjectName:     e.Project,
+			AgentName:       e.Agent,
+			Environment:     e.Environment,
+			Status:          models.EventDeliveryPending,
+		}); err != nil {
+			log.Error("Failed to record event delivery; will retry", "destinationId", dest.ID, "error", err)
+			d.retryFanout(msg, log)
+			return
+		}
+		body, err := json.Marshal(eventDeliveryJob{DestinationID: dest.ID.String(), Event: data, Direct: true})
+		if err != nil {
+			log.Error("Failed to encode event delivery", "destinationId", dest.ID, "error", err)
+			continue
+		}
+		if err := d.bus.Enqueue(ctx, events.QueueEventDeliveries, e.ID+":"+dest.ID.String(), body); err != nil {
+			log.Error("Failed to queue event delivery; will retry", "destinationId", dest.ID, "error", err)
+			d.retryFanout(msg, log)
+			return
+		}
+	}
+	_ = msg.Ack()
+}
+
 // handleDelivery delivers one event to one destination.
 func (d *eventDispatcher) handleDelivery(ctx context.Context, msg events.Message) {
 	var job eventDeliveryJob
@@ -318,7 +380,10 @@ func (d *eventDispatcher) handleDelivery(ctx context.Context, msg events.Message
 	// The subscriptions may have been disabled,
 	// deleted or cut off from the destination since; a retry hours later
 	// must not send what nobody wants any more.
-	stillWanted, err := d.stillWanted(ctx, delivery, dest, e)
+	stillWanted, err := true, error(nil)
+	if !job.Direct {
+		stillWanted, err = d.stillWanted(ctx, delivery, dest, e)
+	}
 	if err != nil {
 		log.Error("Failed to check event delivery eligibility; will retry", "error", err)
 		_ = msg.Retry(eventFanoutRetryDelay)

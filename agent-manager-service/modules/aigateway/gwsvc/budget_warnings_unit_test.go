@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -36,10 +36,16 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
-// publishedEvent is one event the warning service raised.
-type publishedEvent struct {
-	eventType string
-	data      map[string]any
+// recordingNotifier keeps the warnings sent, as notifications/v1 would queue them.
+type recordingNotifier struct{ sent *[]notifyv1.Notification }
+
+func (n recordingNotifier) Notify(_ context.Context, _ *gorm.DB, in notifyv1.Notification) error {
+	*n.sent = append(*n.sent, in)
+	return nil
+}
+
+func (recordingNotifier) Unusable(context.Context, string, string, []string) ([]notifyv1.Unusable, error) {
+	return nil, nil
 }
 
 // warningsEnv is a BudgetWarningService over mocks: one budget "per-agent" in project
@@ -50,7 +56,7 @@ type warningsEnv struct {
 	budget    *gwmodels.Budget
 	rows      map[uuid.UUID]gwmodels.BudgetUsage
 	warned    []gwmodels.BudgetWarning
-	published []publishedEvent
+	published []notifyv1.Notification
 	usage     *gwrepomocks.BudgetUsageRepositoryMock
 }
 
@@ -127,12 +133,7 @@ func newWarningsEnv(t *testing.T) *warningsEnv {
 		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return &gwmodels.Gateway{OUID: budgetTestOrg}, nil },
 	}
 	env.usage = usage
-	env.svc = NewBudgetWarningService(budgets, usage, gateways, nil, gwconfig.Settings{})
-	env.svc.Use(func(_ context.Context, _ *gorm.DB, eventType string, data any) error {
-		m, _ := data.(map[string]any)
-		env.published = append(env.published, publishedEvent{eventType: eventType, data: m})
-		return nil
-	})
+	env.svc = NewBudgetWarningService(budgets, usage, gateways, nil, recordingNotifier{sent: &env.published}, gwconfig.Settings{})
 	return env
 }
 
@@ -166,20 +167,21 @@ func TestBudgetWarnings_ACrossedThresholdRaisesOneEvent(t *testing.T) {
 	assert.Equal(t, "80.00", w.Amount)
 	assert.Equal(t, 80, w.Threshold)
 	e := env.published[0]
-	assert.Equal(t, gwaudit.BudgetThresholdCrossed, e.eventType)
-	assert.Equal(t, budgetTestOrg, e.data["orgId"])
-	assert.Equal(t, budgetTestOrgName, e.data["orgName"], "notifications name the organization by its handle")
-	assert.Equal(t, "api-platform", e.data["project"])
-	assert.Equal(t, "support-agent", e.data["agent"])
-	assert.Equal(t, "per-agent", e.data["subject"])
-	assert.Equal(t, "per-agent", e.data["budget"])
-	assert.Equal(t, "API Platform, per agent", e.data["displayName"])
-	assert.Equal(t, "80.14", e.data["spent"])
-	assert.EqualValues(t, 80, e.data["threshold"])
-	assert.Equal(t, "2026-11-01", e.data["periodStart"])
-	assert.Equal(t, "2026-12-01T00:00:00Z", e.data["resetsAt"])
-	assert.Equal(t, []string{"all-email", "org-slack"}, e.data["channels"])
-	assert.Equal(t, "support-agent at 80% ($80.14 of $100.00), resets 1 Dec", e.data["message"])
+	assert.Equal(t, BudgetWarningEvent, e.Type)
+	assert.Equal(t, budgetTestOrg, e.OrgID)
+	assert.Equal(t, budgetTestOrgName, e.OrgName, "notifications name the organization by its handle")
+	assert.Equal(t, []string{"all-email", "org-slack"}, e.Channels, "sent to the budget's channels")
+	assert.Equal(t, "api-platform", e.Project)
+	assert.Equal(t, "support-agent", e.Agent)
+	assert.Equal(t, "per-agent", e.Subject)
+	assert.Equal(t, "budget:"+env.budget.ID.String()+":2026-11-01:5d6e2c1a-8f3b-5c47-a1d9-7e2b4c6f0a83:80.00", e.ID,
+		"the ID is the budget, period, allowance and threshold amount")
+	assert.Equal(t, "per-agent", e.Data["budget"])
+	assert.Equal(t, "API Platform, per agent", e.Data["displayName"])
+	assert.Equal(t, "80.14", e.Data["spent"])
+	assert.EqualValues(t, 80, e.Data["threshold"])
+	assert.Equal(t, "2026-12-01T00:00:00Z", e.Data["resetsAt"])
+	assert.Equal(t, "support-agent at 80% ($80.14 of $100.00), resets 1 Dec", e.Data["message"])
 
 	// The same total again, or a higher one below 100%, raises nothing new.
 	env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, supportAgentUsage("85")))
@@ -189,7 +191,7 @@ func TestBudgetWarnings_ACrossedThresholdRaisesOneEvent(t *testing.T) {
 // Without a publisher (the module not yet activated) spend is recorded and nothing is raised.
 func TestBudgetWarnings_NoPublisherRecordsSpendWithoutWarnings(t *testing.T) {
 	env := newWarningsEnv(t)
-	env.svc.publish.Store(nil)
+	env.svc.notifier = nil
 	env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, supportAgentUsage("99")))
 	assert.Len(t, env.rows, 1, "spend is recorded")
 	assert.Empty(t, env.warned)

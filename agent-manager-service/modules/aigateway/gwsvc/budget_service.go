@@ -36,6 +36,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -200,6 +201,7 @@ type budgetService struct {
 	gateways     BudgetGatewaySender
 	warner       BudgetWarner
 	usageRepo    gwrepo.BudgetUsageRepository
+	channels     notifyv1.Notifier
 	now          func() time.Time
 }
 
@@ -213,10 +215,11 @@ func NewBudgetService(
 	gateways BudgetGatewaySender,
 	warner BudgetWarner,
 	usageRepo gwrepo.BudgetUsageRepository,
+	channels notifyv1.Notifier,
 ) BudgetService {
 	return &budgetService{
 		budgetRepo: budgetRepo, artifactRepo: artifactRepo, platform: platform,
-		gateways: gateways, warner: warner, usageRepo: usageRepo, now: time.Now,
+		gateways: gateways, warner: warner, usageRepo: usageRepo, channels: channels, now: time.Now,
 	}
 }
 
@@ -1407,7 +1410,35 @@ func (s *budgetService) checkEditableReferences(ctx context.Context, ouID string
 			return err
 		}
 	}
-	return nil
+	return s.checkChannels(ctx, ouID, budgetProject(b), b.Warnings)
+}
+
+// checkChannels checks each warning channel, given by name, exists and is available to
+// the budget (Interfaces 2.4): availability all or org, or projects when the budget's
+// project (budgetProject) is one of them.
+func (s *budgetService) checkChannels(ctx context.Context, ouID, project string, warnings *gwmodels.BudgetWarnings) error {
+	if s.channels == nil || warnings == nil || len(warnings.Channels) == 0 {
+		return nil
+	}
+	unusable, err := s.channels.Unusable(ctx, ouID, project, warnings.Channels)
+	if err != nil {
+		return fmt.Errorf("failed to check notification channels: %w", err)
+	}
+	if len(unusable) == 0 {
+		return nil
+	}
+	u := unusable[0]
+	field := fmt.Sprintf("warnings.channels[%d]", slices.Index(warnings.Channels, u.Name))
+	if u.Missing {
+		return &BudgetError{
+			Code: gwerr.ErrCodeChannelNotAvailable, Field: field,
+			Message: fmt.Sprintf("Notification channel '%s' was not found.", u.Name),
+		}
+	}
+	return &BudgetError{
+		Code: gwerr.ErrCodeChannelNotAvailable, Field: field,
+		Message: fmt.Sprintf("Notification channel %s is not available to this budget.", u.Name),
+	}
 }
 
 func (s *budgetService) checkArtifact(ouID, kind, handle, field, what string) error {

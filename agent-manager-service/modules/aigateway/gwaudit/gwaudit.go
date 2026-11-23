@@ -161,9 +161,6 @@ const (
 	AgentAPIKeyCreated    = "ai-gateway.agent.api_key_created"
 	AgentAPIKeyRotated    = "ai-gateway.agent.api_key_rotated"
 	AgentAPIKeyRevoked    = "ai-gateway.agent.api_key_revoked"
-	// BudgetThresholdCrossed is a budget allowance's spend reaching a warning threshold,
-	// raised by the usage flush rather than a route.
-	BudgetThresholdCrossed = "ai-gateway.budget.threshold_crossed"
 )
 
 // AgentBindingsChanged is published when an agent update changes its
@@ -175,7 +172,6 @@ const AgentBindingsChanged = "ai-gateway.agent.bindings_changed"
 var Events = []modkit.EventType{
 	{Name: AgentBindingsChanged, Description: "An agent's LLM or MCP bindings changed."},
 	{Name: MCPServerCreated, Scope: "org", Description: "An MCP server was added."},
-	{Name: BudgetThresholdCrossed, Scope: "org", Description: "A budget's spend reached a warning threshold."},
 	{Name: MCPServerUpdated, Scope: "org", Description: "An MCP server was updated."},
 	{Name: MCPServerDeleted, Scope: "org", Description: "An MCP server was deleted."},
 	{Name: LLMProviderCreated, Scope: "org", Description: "An LLM provider was added."},

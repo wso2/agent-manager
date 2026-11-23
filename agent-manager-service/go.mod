@@ -3,6 +3,7 @@ module github.com/wso2/agent-manager/agent-manager-service
 go 1.26.10
 
 require (
+	cel.dev/cel-go v0.33.1
 	github.com/go-gormigrate/gormigrate/v2 v2.1.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
@@ -26,7 +27,6 @@ require (
 )
 
 require (
-	cel.dev/cel-go v0.33.1 // indirect
 	cel.dev/expr v0.25.1 // indirect
 	github.com/antithesishq/antithesis-sdk-go v0.6.0-default-no-op // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect

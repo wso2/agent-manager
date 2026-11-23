@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwapi"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
@@ -64,7 +65,7 @@ func (module) Manifest() modkit.Manifest {
 		Description:  "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
 		CoreAPI:      modkit.CoreAPIVersion,
 		Provides:     []string{llmv1.ID, mcpv1.ID},
-		Requires:     []string{identityv1.ID},
+		Requires:     []string{identityv1.ID, notifyv1.ID},
 		Permissions:  perms,
 		RoleGrants:   gwperm.RoleGrants,
 		Events:       gwaudit.Events,
@@ -159,8 +160,10 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	})
 	gw.Permissions.Use(rt.Can)
 	gw.Secrets.Use(rt.Secrets())
-	if gw.BudgetWarnings != nil {
-		gw.BudgetWarnings.Use(rt.PublishTx)
+	if gw.Notifications != nil {
+		gw.Notifications.Use(func() (notifyv1.Notifier, bool) {
+			return modkit.Lookup[notifyv1.Notifier](rt, notifyv1.ID)
+		})
 	}
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())

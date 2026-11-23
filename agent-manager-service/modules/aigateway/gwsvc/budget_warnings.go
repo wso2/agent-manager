@@ -32,7 +32,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -71,16 +72,15 @@ type BudgetWarner interface {
 
 // BudgetWarningService keeps the spend gateways report for each budget allowance and
 // raises a warning, once, for every threshold an allowance crosses (Interfaces 1.2, 6):
-// the ai-gateway.budget.threshold_crossed event, published in the transaction that
-// records the crossing, which organizations' webhook subscriptions receive.
+// sent to the budget's notification channels through notifications/v1, queued in the
+// transaction that records the crossing.
 type BudgetWarningService struct {
 	budgets  gwrepo.BudgetRepository
 	usage    gwrepo.BudgetUsageRepository
 	gateways gwrepo.GatewayRepository
 	costs    CostRecorder
-	// publish raises an event in a transaction (the module runtime's PublishTx); unset,
-	// spend is recorded and no warning is raised.
-	publish atomic.Pointer[EventPublisher]
+	// notifier sends warnings to channels; nil records spend without warnings.
+	notifier notifyv1.Notifier
 
 	// Reports are coalesced here, per organization, latest total per allowance and cost key,
 	// and written every flush interval, so the database load follows how many totals
@@ -112,15 +112,13 @@ type (
 // defaultUsageFlush is the flush interval when the settings give none.
 const defaultUsageFlush = 2 * time.Second
 
-// EventPublisher raises one of the module's events inside tx.
-type EventPublisher func(ctx context.Context, tx *gorm.DB, eventType string, data any) error
-
 // NewBudgetWarningService creates a BudgetWarningService; settings give the flush interval.
 func NewBudgetWarningService(
 	budgets gwrepo.BudgetRepository,
 	usage gwrepo.BudgetUsageRepository,
 	gateways gwrepo.GatewayRepository,
 	costs CostRecorder,
+	notifier notifyv1.Notifier,
 	settings gwconfig.Settings,
 ) *BudgetWarningService {
 	flush := settings.BudgetUsageFlush
@@ -128,26 +126,19 @@ func NewBudgetWarningService(
 		flush = defaultUsageFlush
 	}
 	return &BudgetWarningService{
-		budgets: budgets, usage: usage, gateways: gateways, costs: costs,
+		budgets: budgets, usage: usage, gateways: gateways, costs: costs, notifier: notifier,
 		pending: map[string]*pendingUsage{}, flush: flush, stopCh: make(chan struct{}),
 	}
 }
 
-// Use sets how warnings are raised: the module runtime's PublishTx.
-func (s *BudgetWarningService) Use(publish EventPublisher) {
-	s.publish.Store(&publish)
-}
-
-// publisher returns how a newly recorded warning's event is raised, or nil when warnings
-// are not raised.
+// publisher returns how a newly recorded warning is sent, or nil when warnings are not
+// sent.
 func (s *BudgetWarningService) publisher() gwrepo.WarningPublisher {
-	p := s.publish.Load()
-	if p == nil {
+	if s.notifier == nil {
 		return nil
 	}
-	publish := *p
 	return func(ctx context.Context, tx *gorm.DB, w gwmodels.BudgetWarning) error {
-		return publish(ctx, tx, gwaudit.BudgetThresholdCrossed, w.Event)
+		return s.notifier.Notify(ctx, tx, w.Notice)
 	}
 }
 
@@ -463,20 +454,27 @@ func budgetWarnings(b *gwmodels.Budget, row gwmodels.BudgetUsage) []gwmodels.Bud
 		out = append(out, gwmodels.BudgetWarning{
 			BudgetID: b.ID, AllowanceID: row.AllowanceID, PeriodStart: row.PeriodStart.UTC(),
 			Amount: at.FloatString(2), OUID: b.OrgID, Threshold: int(t),
-			Event: warningEventData(b, row, int(t), spent),
+			Notice: warningNotice(b, row, int(t), at, spent),
 		})
 	}
 	return out
 }
 
-// warningEventData is the data of the ai-gateway.budget.threshold_crossed event of one
-// threshold crossed (Interfaces 6). orgId, orgName, project, agent and subject also set the
-// webhook event's own attributes; channels are the budget's notification channels, by name.
-func warningEventData(b *gwmodels.Budget, row gwmodels.BudgetUsage, threshold int, spent *big.Rat) map[string]any {
+// BudgetWarningEvent is the type of a budget warning sent to its channels.
+const BudgetWarningEvent = "ai-gateway.budget.threshold_crossed"
+
+// warningNotice is the warning of one threshold crossed, for the budget's channels
+// (Interfaces 6). Its ID is the budget, period, allowance and threshold amount, so each
+// reaches a channel once (BR-13).
+func warningNotice(b *gwmodels.Budget, row gwmodels.BudgetUsage, threshold int, at, spent *big.Rat) notifyv1.Notification {
 	period := row.PeriodStart.UTC()
 	project := row.Allowance[budgetTypeProject]
 	if project == "" {
 		project = budgetProject(&b.Configuration)
+	}
+	agent := ""
+	if project != "" {
+		agent = row.Allowance[budgetTypeAgent]
 	}
 	limit := b.Configuration.Limit
 	resets := periodEnd(limit.Period, period)
@@ -484,34 +482,27 @@ func warningEventData(b *gwmodels.Budget, row gwmodels.BudgetUsage, threshold in
 	if displayName == "" {
 		displayName = b.Name
 	}
-	data := map[string]any{
-		"orgId":       b.OrgID,
-		"orgName":     b.OrgName,
-		"subject":     b.Name,
-		"budget":      b.Name,
-		"displayName": displayName,
-		"allowance":   row.Allowance,
-		"allowanceId": row.AllowanceID.String(),
-		"limit":       limit.Amount,
-		"action":      limit.Action,
-		"threshold":   threshold,
-		"spent":       spent.FloatString(2),
-		"periodStart": period.Format(time.DateOnly),
-		"resetsAt":    resets.Format(time.RFC3339),
-		"channels":    []string{},
-		"message": fmt.Sprintf("%s at %d%% ($%s of $%s), resets %s", allowanceLabel(row.Allowance), threshold,
-			spent.FloatString(2), amountString(limit.Amount), resets.Format("2 Jan")),
+	var channels []string
+	if w := b.Configuration.Warnings; w != nil {
+		channels = w.Channels
 	}
-	if w := b.Configuration.Warnings; w != nil && w.Channels != nil {
-		data["channels"] = w.Channels
+	return notifyv1.Notification{
+		OrgID: b.OrgID, OrgName: b.OrgName, Channels: channels, Type: BudgetWarningEvent,
+		ID:      fmt.Sprintf("budget:%s:%s:%s:%s", b.ID, period.Format(time.DateOnly), row.AllowanceID, at.FloatString(2)),
+		Project: project, Agent: agent, Subject: b.Name,
+		Data: map[string]any{
+			"budget":      b.Name,
+			"displayName": displayName,
+			"allowance":   row.Allowance,
+			"limit":       limit.Amount,
+			"action":      limit.Action,
+			"threshold":   threshold,
+			"spent":       spent.FloatString(2),
+			"resetsAt":    resets.Format(time.RFC3339),
+			"message": fmt.Sprintf("%s at %d%% ($%s of $%s), resets %s", allowanceLabel(row.Allowance), threshold,
+				spent.FloatString(2), amountString(limit.Amount), resets.Format("2 Jan")),
+		},
 	}
-	if project != "" {
-		data["project"] = project
-		if agent := row.Allowance[budgetTypeAgent]; agent != "" {
-			data["agent"] = agent
-		}
-	}
-	return data
 }
 
 // allowanceLabel names an allowance in a warning: its values, or "Spend" when the

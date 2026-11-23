@@ -131,7 +131,7 @@ good,100,month,block,,,,,,,
 bad-amount,ten,month,block,,,,,,,
 bad-block-at,100,month,block,most,,,,,,
 no-such-agent,100,month,block,,,,api-platform/ghost,,,
-any-channel-name,100,month,block,,,,,,80,pagerduty
+no-such-channel,100,month,block,,,,,,80,pagerduty
 bad-json,100,month,block,,,,,[{,,
 other-project,100,month,block,,api-platform,support,,,,
 existing,100,month,block,,,,,,,
@@ -140,8 +140,7 @@ bad-agent,100,month,block,,,,ghost,,,
 `
 	result := importBudgets(t, env, file, false)
 	assert.False(t, result.Applied)
-	// Channels are kept by name and not checked: webhook subscriptions deliver warnings.
-	assert.Equal(t, gwspec.BudgetImportSummary{Valid: 2, Error: 8, Created: 2}, result.Summary)
+	assert.Equal(t, gwspec.BudgetImportSummary{Valid: 1, Error: 9, Created: 1}, result.Summary)
 	assert.Empty(t, env.budgets.CreateManyForControlPlaneCalls(), "one bad row and nothing is saved")
 	assert.Empty(t, env.sender.sent)
 
@@ -161,6 +160,7 @@ bad-agent,100,month,block,,,,ghost,,,
 		3:  {"amount", httpx.ErrCodeValidation},
 		4:  {"blockAt", httpx.ErrCodeValidation},
 		5:  {"agent", gwerr.ErrCodeReferenceNotFound},
+		6:  {"channels", gwerr.ErrCodeChannelNotAvailable},
 		7:  {"exemptions", httpx.ErrCodeValidation},
 		8:  {"project", httpx.ErrCodeValidation},
 		9:  {"name", gwerr.ErrCodeBudgetAlreadyExists},

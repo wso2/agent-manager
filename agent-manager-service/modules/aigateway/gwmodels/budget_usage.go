@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 )
 
 // BudgetUsage is one budget allowance's spend in one period, as gateways report it
@@ -51,8 +53,8 @@ type BudgetWarning struct {
 	Threshold int       `gorm:"column:threshold"`
 	CreatedAt time.Time `gorm:"column:created_at"`
 
-	// Event is the warning's event data, published when the row is new.
-	Event map[string]any `gorm:"-"`
+	// Notice is the warning sent to the budget's channels when the row is new.
+	Notice notifyv1.Notification `gorm:"-"`
 }
 
 func (BudgetWarning) TableName() string { return "mod_ai_gateway_budget_warnings" }

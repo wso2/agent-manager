@@ -334,9 +334,10 @@ func (r *runtime) Hook(resource string, phase modkit.Phase, h modkit.HookFunc) {
 	if !r.registering("Hook") {
 		return
 	}
-	if resource != modkit.ResourceAgent && resource != modkit.ResourceEnvironment && resource != modkit.ResourceProject {
-		r.fail(fmt.Errorf("Hook: resource %q takes no hooks (want %s, %s or %s)", resource,
-			modkit.ResourceAgent, modkit.ResourceEnvironment, modkit.ResourceProject))
+	if resource != modkit.ResourceAgent && resource != modkit.ResourceEnvironment && resource != modkit.ResourceProject &&
+		resource != modkit.ResourceEventDestination {
+		r.fail(fmt.Errorf("Hook: resource %q takes no hooks (want %s, %s, %s or %s)", resource,
+			modkit.ResourceAgent, modkit.ResourceEnvironment, modkit.ResourceProject, modkit.ResourceEventDestination))
 		return
 	}
 	if phase != modkit.Validate && phase != modkit.Apply && phase != modkit.Finalize {
@@ -345,6 +346,10 @@ func (r *runtime) Hook(resource string, phase modkit.Phase, h modkit.HookFunc) {
 	}
 	if resource == modkit.ResourceProject && phase != modkit.Finalize {
 		r.fail(fmt.Errorf("Hook: projects take only %s hooks", modkit.Finalize))
+		return
+	}
+	if resource == modkit.ResourceEventDestination && phase != modkit.Validate {
+		r.fail(fmt.Errorf("Hook: event destinations take only %s hooks", modkit.Validate))
 		return
 	}
 	if h == nil {

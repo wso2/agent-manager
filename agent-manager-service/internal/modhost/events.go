@@ -28,10 +28,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // Module events live in module_events, with one module_event_deliveries row
@@ -173,45 +171,8 @@ func (h *Host) publish(ctx context.Context, tx *gorm.DB, module, eventType strin
 	if tx == nil {
 		tx = h.db
 	}
-	e := modkit.Event{Type: eventType, Source: module, OrgID: org, Data: raw}
-	mt, _ := h.manifests[module].Event(eventType)
-	if mt.Scope == "" {
-		return record(tx.WithContext(ctx), e, h.current().subscribers(eventType))
-	}
-	// A scoped event is also a webhook event: it goes to the core's outbox in
-	// the same transaction, so subscriptions get it only if the caller commits.
-	return tx.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := record(tx, e, h.current().subscribers(eventType)); err != nil {
-			return err
-		}
-		return repositories.NewEventOutboxRepository(tx).Put(ctx, webhookEvent(e, events.Scope(mt.Scope)))
-	})
-}
-
-// webhookEvent is the webhook form of a scoped module event. Its project,
-// agent, environment and subject come from the data's "project", "agent",
-// "environment" and "subject" fields, and its organization handle from
-// "orgName".
-func webhookEvent(e modkit.Event, scope events.Scope) events.Event {
-	var about struct {
-		OrgName     string `json:"orgName"`
-		Project     string `json:"project"`
-		Agent       string `json:"agent"`
-		Environment string `json:"environment"`
-		Subject     string `json:"subject"`
-	}
-	_ = json.Unmarshal(e.Data, &about)
-	out := events.New("evt_"+uuid.NewString(), e.Type, scope, e.OrgID, about.Project, about.Agent, dbx.Now())
-	out.OrgHandle = about.OrgName
-	out.Environment = about.Environment
-	out.Subject = about.Subject
-	if len(e.Data) > 0 {
-		var data map[string]any
-		if json.Unmarshal(e.Data, &data) == nil {
-			out.Data = data
-		}
-	}
-	return out
+	return record(tx.WithContext(ctx), modkit.Event{Type: eventType, Source: module, OrgID: org, Data: raw},
+		h.current().subscribers(eventType))
 }
 
 type deliveryRow struct {

@@ -13,6 +13,7 @@ import (
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
@@ -100,7 +101,8 @@ func Initialize(db *gorm.DB, logger *slog.Logger, coreAPI modkit.CoreAPI, settin
 	budgetUsageRepository := gwrepo.NewBudgetUsageRepository(db)
 	costUsageRepository := gwrepo.NewCostUsageRepository(db)
 	costService := gwsvc.NewCostService(costUsageRepository)
-	budgetWarningService := gwsvc.NewBudgetWarningService(budgetRepository, budgetUsageRepository, gatewayRepository, costService, settings)
+	notifications := gwsvc.NewNotifications()
+	budgetWarningService := gwsvc.NewBudgetWarningService(budgetRepository, budgetUsageRepository, gatewayRepository, costService, notifications, settings)
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository, core, budgetWarningService)
 	webSocketController := ProvideWebSocketController(manager, eventHub, platformGatewayService, deploymentAckHandler, settings)
 	gatewayInternalAPIService := gwsvc.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, artifactRepository, gatewayRepository, coreAPI, store, core)
@@ -119,7 +121,7 @@ func Initialize(db *gorm.DB, logger *slog.Logger, coreAPI modkit.CoreAPI, settin
 	agentGatewayController := gwctl.NewAgentGatewayController(agentGatewayService)
 	environmentGatewayService := gwsvc.NewEnvironmentGatewayService(logger, gatewayRepository, coreAPI)
 	environmentGatewayController := gwctl.NewEnvironmentGatewayController(environmentGatewayService)
-	budgetService := gwsvc.NewBudgetService(budgetRepository, artifactRepository, platformRepository, budgetGateways, budgetWarningService, budgetUsageRepository)
+	budgetService := gwsvc.NewBudgetService(budgetRepository, artifactRepository, platformRepository, budgetGateways, budgetWarningService, budgetUsageRepository, notifications)
 	budgetController := gwctl.NewBudgetController(budgetService)
 	costController := gwctl.NewCostController(costService, coreAPI)
 	a2ACardReconcilerService := gwsvc.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, coreAPI, logger)
@@ -161,6 +163,7 @@ func Initialize(db *gorm.DB, logger *slog.Logger, coreAPI modkit.CoreAPI, settin
 		AgentConfigurationService:    agentConfigurationService,
 		AgentGateway:                 agentGatewayService,
 		IdentityDirectory:            identityDirectory,
+		Notifications:                notifications,
 		Permissions:                  permissions,
 		Secrets:                      store,
 	}
@@ -184,7 +187,7 @@ var repositoryProviderSet = wire.NewSet(
 )
 
 var serviceProviderSet = wire.NewSet(gwsvc.NewA2ACardFetcher, gwsvc.NewA2ACardReconcilerService, gwsvc.NewConfiguredDeploymentTimeoutSweeper, gwsvc.NewA2AAgentCardService, ProvideTxRunner, gwsvc.NewAgentExposurePublisher, gwsvc.NewA2APublisher, gwsvc.NewA2AProxyService, ProvideA2AProxyHooks,
-	ProvidePlatformGatewayService, gwsvc.NewLLMProviderTemplateService, gwsvc.NewLLMProviderService, gwsvc.NewLLMProxyService, gwsvc.NewLLMProviderDeploymentService, gwsvc.NewLLMProviderAPIKeyService, gwsvc.NewLLMProxyAPIKeyService, gwsvc.NewAgentAPIKeyService, gwsvc.NewLLMProxyDeploymentService, gwsvc.NewMCPProxyService, gwsvc.NewIdentityDirectory, gwsvc.NewPermissions, gwsecret.NewStore, wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)), wire.Bind(new(modkit.Secrets), new(*gwsecret.Store)), gwsvc.NewMCPProxyScopeService, wire.Bind(new(gwsvc.MCPProxyRedeployer), new(*gwsvc.MCPProxyService)), wire.Bind(new(gwctl.MCPResourceServerIdentifierResolver), new(*gwsvc.MCPProxyService)), gwsvc.NewGatewayInternalAPIService, gwsvc.NewCatalogService, gwsvc.NewAgentConfigurationService, gwsvc.NewLLMTemplateStore, gwsvc.NewAIApplicationService, gwsvc.NewAgentGatewayService, gwsvc.NewEnvironmentGatewayService, gwsvc.NewGatewayResourceSyncService, gwsvc.NewBudgetService, gwsvc.NewBudgetGateways, wire.Bind(new(gwsvc.BudgetGatewaySender), new(*gwsvc.BudgetGateways)), gwsvc.NewBudgetWarningService, wire.Bind(new(gwsvc.BudgetWarner), new(*gwsvc.BudgetWarningService)), gwsvc.NewCostService, wire.Bind(new(gwsvc.CostRecorder), new(gwsvc.CostService)),
+	ProvidePlatformGatewayService, gwsvc.NewLLMProviderTemplateService, gwsvc.NewLLMProviderService, gwsvc.NewLLMProxyService, gwsvc.NewLLMProviderDeploymentService, gwsvc.NewLLMProviderAPIKeyService, gwsvc.NewLLMProxyAPIKeyService, gwsvc.NewAgentAPIKeyService, gwsvc.NewLLMProxyDeploymentService, gwsvc.NewMCPProxyService, gwsvc.NewIdentityDirectory, gwsvc.NewPermissions, gwsecret.NewStore, wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)), gwsvc.NewNotifications, wire.Bind(new(notifyv1.Notifier), new(*gwsvc.Notifications)), wire.Bind(new(modkit.Secrets), new(*gwsecret.Store)), gwsvc.NewMCPProxyScopeService, wire.Bind(new(gwsvc.MCPProxyRedeployer), new(*gwsvc.MCPProxyService)), wire.Bind(new(gwctl.MCPResourceServerIdentifierResolver), new(*gwsvc.MCPProxyService)), gwsvc.NewGatewayInternalAPIService, gwsvc.NewCatalogService, gwsvc.NewAgentConfigurationService, gwsvc.NewLLMTemplateStore, gwsvc.NewAIApplicationService, gwsvc.NewAgentGatewayService, gwsvc.NewEnvironmentGatewayService, gwsvc.NewGatewayResourceSyncService, gwsvc.NewBudgetService, gwsvc.NewBudgetGateways, wire.Bind(new(gwsvc.BudgetGatewaySender), new(*gwsvc.BudgetGateways)), gwsvc.NewBudgetWarningService, wire.Bind(new(gwsvc.BudgetWarner), new(*gwsvc.BudgetWarningService)), gwsvc.NewCostService, wire.Bind(new(gwsvc.CostRecorder), new(gwsvc.CostService)),
 )
 
 var controllerProviderSet = wire.NewSet(gwctl.NewGatewayController, gwctl.NewLLMController, gwctl.NewLLMDeploymentController, gwctl.NewLLMProviderAPIKeyController, gwctl.NewLLMProxyAPIKeyController, gwctl.NewAgentAPIKeyController, gwctl.NewA2AAgentCardController, gwctl.NewA2AProxyController, gwctl.NewLLMProxyDeploymentController, gwctl.NewMCPProxyController, ProvideWebSocketController, gwctl.NewGatewayInternalController, gwctl.NewCatalogController, gwctl.NewAgentConfigurationController, gwctl.NewMCPProxyScopeController, gwctl.NewAgentIdentityController, gwctl.NewAgentGatewayController, gwctl.NewEnvironmentGatewayController, gwctl.NewBudgetController, gwctl.NewCostController)

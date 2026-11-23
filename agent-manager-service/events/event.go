@@ -85,6 +85,11 @@ type Event struct {
 	Environment string `json:"environment,omitempty"`
 	ActorType   string `json:"actortype,omitempty"`
 	ActorID     string `json:"actorid,omitempty"`
+
+	// Destinations, when set, are the IDs of the only destinations the event goes to,
+	// named by a module through notifications/v1 instead of chosen by subscriptions.
+	// The dispatcher clears it before sending, so receivers never see it.
+	Destinations []string `json:"destinations,omitempty"`
 }
 
 // New returns an event of the catalog type name (e.g. "agent.deployed") with

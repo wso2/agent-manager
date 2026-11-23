@@ -27,7 +27,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -95,6 +97,29 @@ type budgetTestEnv struct {
 	created []gwmodels.Budget
 	store   map[string]gwmodels.Budget
 	sender  *recordingSender
+	// channels are the organization's notification channels: finance-email for the whole
+	// organization, platform-slack for project api-platform only.
+	channels testChannels
+}
+
+// testChannels stands in for notifications/v1's channel check.
+type testChannels struct{}
+
+func (testChannels) Notify(context.Context, *gorm.DB, notifyv1.Notification) error { return nil }
+
+func (testChannels) Unusable(_ context.Context, _, project string, names []string) ([]notifyv1.Unusable, error) {
+	var out []notifyv1.Unusable
+	for _, name := range names {
+		switch {
+		case name == "finance-email":
+		case name == "platform-slack" && project == "api-platform":
+		case name == "platform-slack":
+			out = append(out, notifyv1.Unusable{Name: name})
+		default:
+			out = append(out, notifyv1.Unusable{Name: name, Missing: true})
+		}
+	}
+	return out, nil
 }
 
 // newBudgetTestEnv has: provider openai, proxy support-proxy, project api-platform with
@@ -264,7 +289,7 @@ func newBudgetTestEnv(t *testing.T) *budgetTestEnv {
 			return out, nil
 		},
 	}
-	env.svc = NewBudgetService(env.budgets, artifacts, platform, env.sender, nil, usageRepo)
+	env.svc = NewBudgetService(env.budgets, artifacts, platform, env.sender, nil, usageRepo, env.channels)
 	env.svc.(*budgetService).now = func() time.Time { return budgetTestNow }
 	return env
 }
@@ -438,6 +463,13 @@ func TestBudgetService_CreateRefusesInvalidPayloads(t *testing.T) {
 		{"repeated channel", func(r *budgetRequest) {
 			r.Warnings.Channels = []string{"finance-email", "finance-email"}
 		}, httpx.ErrCodeValidation, "warnings.channels[1]"},
+		{"unknown channel", func(r *budgetRequest) {
+			r.Warnings.Channels = []string{"pagerduty"}
+		}, gwerr.ErrCodeChannelNotAvailable, "warnings.channels[0]"},
+		{"project channel without that project", func(r *budgetRequest) {
+			r.Filters = []gwspec.BudgetFilter{{Type: "llmProvider", Id: strPtr("openai")}}
+			r.Warnings.Channels = []string{"finance-email", "platform-slack"}
+		}, gwerr.ErrCodeChannelNotAvailable, "warnings.channels[1]"},
 		{"unknown provider", func(r *budgetRequest) { r.Filters[0].Id = strPtr("anthropic") }, gwerr.ErrCodeReferenceNotFound, "filters[0].id"},
 		{"name taken", func(r *budgetRequest) { r.Name = "taken" }, gwerr.ErrCodeBudgetAlreadyExists, "name"},
 	}
@@ -684,6 +716,9 @@ func TestBudgetService_UpdateRefusals(t *testing.T) {
 		{"unknown exempt agent", "team-a", func(r *budgetUpdateRequest) {
 			r.Exemptions = []gwspec.BudgetExemption{{Type: "agent", Project: strPtr("api-platform"), Id: strPtr("nope")}}
 		}, gwerr.ErrCodeReferenceNotFound},
+		{"unknown channel", "team-a", func(r *budgetUpdateRequest) {
+			r.Warnings = &gwspec.BudgetWarnings{Thresholds: []int32{80}, Channels: []string{"pagerduty"}}
+		}, gwerr.ErrCodeChannelNotAvailable},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

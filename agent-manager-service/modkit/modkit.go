@@ -290,11 +290,15 @@ const (
 )
 
 // Resources that take hooks, and the actions they report. Projects take only
-// Finalize, on delete.
+// Finalize, on delete. Event destinations (notification channels) take only
+// Validate, before a rename (update) or a delete, so a module that names channels
+// can refuse; the object carries the channel's "id", "name" and, on a rename,
+// "newName".
 const (
-	ResourceAgent       = "agent"
-	ResourceEnvironment = "environment"
-	ResourceProject     = "project"
+	ResourceAgent            = "agent"
+	ResourceEnvironment      = "environment"
+	ResourceProject          = "project"
+	ResourceEventDestination = "event-destination"
 
 	ActionCreate = "create"
 	ActionUpdate = "update"
@@ -309,7 +313,7 @@ const OperationTimeout = 10 * time.Second
 
 // HookRequest is passed to a hook.
 type HookRequest struct {
-	Resource string `json:"resource"` // ResourceAgent, ResourceEnvironment or ResourceProject
+	Resource string `json:"resource"` // ResourceAgent, ResourceEnvironment, ResourceProject or ResourceEventDestination
 	Action   string `json:"action"`   // ActionCreate, ActionUpdate or ActionDelete
 	OrgID    string `json:"orgId,omitempty"`
 	// ID is the resource id. It is empty in the validate phase of a create.

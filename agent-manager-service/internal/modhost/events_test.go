@@ -18,8 +18,6 @@ package modhost_test
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"testing"
 	"time"
 
@@ -29,7 +27,6 @@ import (
 	"gorm.io/gorm"
 
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
-	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
@@ -188,45 +185,4 @@ func bootWith(t *testing.T, ctx context.Context, d database, g *gorm.DB, mods []
 	require.NoError(t, err)
 	require.NoError(t, h.Boot(ctx))
 	return h
-}
-
-func TestPublishedScopedEventReachesWebhooks(t *testing.T) {
-	eachDatabase(t, publishedScopedEventReachesWebhooks)
-}
-
-func publishedScopedEventReachesWebhooks(t *testing.T, d database) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	var rt modkit.Runtime
-	mf := manifest("t-pub", nil, nil)
-	mf.Events = []modkit.EventType{{Name: "t-pub.crossed", Scope: "project"}, {Name: "t-pub.internal"}}
-	pub := &testModule{manifest: mf, activate: func(r modkit.Runtime) error { rt = r; return nil }}
-	g := d.open(t)
-	h := bootWith(t, ctx, d, g, []modkit.Module{pub}, nil)
-	installAll(t, h, "t-pub")
-	require.NotNil(t, rt)
-	org := newOrg(t, g)
-	outbox := `SELECT count(*) FROM event_outbox WHERE org_id = '` + org + `'`
-
-	require.NoError(t, rt.Publish(ctx, "t-pub.internal", map[string]any{"orgId": org}))
-	assert.Zero(t, count(t, g, outbox), "an event without a scope stays with modules")
-
-	require.NoError(t, rt.Publish(ctx, "t-pub.crossed", map[string]any{"orgId": org, "project": "p1", "subject": "b1"}))
-	assert.EqualValues(t, 1, count(t, g, outbox), "a scoped event goes to the webhook outbox")
-	var body string
-	require.NoError(t, g.Raw(`SELECT body FROM event_outbox WHERE org_id = ?`, org).Scan(&body).Error)
-	var e events.Event
-	require.NoError(t, json.Unmarshal([]byte(body), &e))
-	assert.Equal(t, "t-pub.crossed", e.Name())
-	assert.Equal(t, events.Scope("project"), e.Scope)
-	assert.Equal(t, "p1", e.Project)
-	assert.Equal(t, "b1", e.Subject)
-
-	rollback := errors.New("rolled back")
-	err := g.Transaction(func(tx *gorm.DB) error {
-		require.NoError(t, rt.PublishTx(ctx, tx, "t-pub.crossed", map[string]any{"orgId": org}))
-		return rollback
-	})
-	require.ErrorIs(t, err, rollback)
-	assert.EqualValues(t, 1, count(t, g, outbox), "a rolled-back publish sends nothing")
 }

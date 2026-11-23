@@ -11,6 +11,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
@@ -72,6 +73,8 @@ var serviceProviderSet = wire.NewSet(
 	gwsvc.NewPermissions,
 	gwsecret.NewStore,
 	wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)),
+	gwsvc.NewNotifications,
+	wire.Bind(new(notifyv1.Notifier), new(*gwsvc.Notifications)),
 	wire.Bind(new(modkit.Secrets), new(*gwsecret.Store)),
 	gwsvc.NewMCPProxyScopeService,
 	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to

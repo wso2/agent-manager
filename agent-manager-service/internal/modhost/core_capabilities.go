@@ -20,12 +20,13 @@ import (
 	"slices"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 )
 
 // CoreCapabilities are the capabilities the core provides to every module. A module lists one in Requires like
 // any other; it is always satisfied, and no module may provide it. The server supplies the implementations in
 // Deps.Capabilities; a host without them (a CLI command) resolves them as missing at call time.
-var CoreCapabilities = []string{identityv1.ID}
+var CoreCapabilities = []string{identityv1.ID, notifyv1.ID}
 
 // coreProvider is the provider name a core capability resolves to.
 const coreProvider = "core"
