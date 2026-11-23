@@ -182,7 +182,10 @@ func (s *SecretStore) sealWrite(ctx context.Context, db *gorm.DB, orgID, ownerKi
 		if staged.digest != sha256.Sum256(value) {
 			return "", vault.Sealed{}, errors.New("external secret was staged with a different value")
 		}
-		res := db.Where("id = ? AND action = ? AND claimed_by IS NULL AND available_at > ?", staged.jobID, models.SecretJobAbandon, dbx.Now()).Delete(&models.SecretJob{})
+		// attempts = 0 refuses a job a worker has already tried: a failed Abandon
+		// may have destroyed the value before retryLater released the claim and
+		// pushed available_at past now, so committing the reference would break it.
+		res := db.Where("id = ? AND action = ? AND claimed_by IS NULL AND attempts = 0 AND available_at > ?", staged.jobID, models.SecretJobAbandon, dbx.Now()).Delete(&models.SecretJob{})
 		if res.Error != nil {
 			return "", vault.Sealed{}, fmt.Errorf("publish external secret: %w", res.Error)
 		}

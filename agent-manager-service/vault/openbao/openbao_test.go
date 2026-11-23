@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -198,8 +199,13 @@ func TestNewTransportRules(t *testing.T) {
 // An HTTPS server is reached with certificate verification on: an untrusted
 // certificate fails, and redirects are not followed.
 func TestHTTPSKeepsVerificationAndRefusesRedirects(t *testing.T) {
+	var targetHits atomic.Int32
+	target := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		targetHits.Add(1)
+	}))
+	t.Cleanup(target.Close)
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "https://elsewhere.example/", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
 	}))
 	t.Cleanup(server.Close)
 	v, err := New(server.URL, "token", "")
@@ -210,4 +216,5 @@ func TestHTTPSKeepsVerificationAndRefusesRedirects(t *testing.T) {
 	v.client.Transport = server.Client().Transport
 	err = v.Check(context.Background())
 	require.Error(t, err, "a redirect is an error, not followed")
+	require.Zero(t, targetHits.Load(), "the redirect target must not be contacted")
 }
