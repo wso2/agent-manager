@@ -680,6 +680,101 @@ func TestCapabilityDiscovery_ServerRegisteredByURLWaitsForItsDeploy(t *testing.T
 	assert.Equal(t, models.MCPCapabilityDiscoveryDiscovered, f.row(t).Status)
 }
 
+// A credential carried as a query value is redacted when the upstream echoes it alone, decoded or as encoded, in an
+// error and in a capability description.
+func TestCapabilityDiscovery_UpstreamQueryValueIsRedactedAlone(t *testing.T) {
+	const key = "k+12345/xyz" // encodes as k%2B12345%2Fxyz
+	registered := "https://api.example.com/mcp?api_key=k%2B12345%2Fxyz"
+
+	t.Run("error", func(t *testing.T) {
+		f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+		f.identityByURL(t, nil)
+		f.proxy.Endpoints[0].Configuration.Upstream.URL = registered
+		f.enqueue(t)
+		f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) {
+			return nil, fmt.Errorf("%w: key %s rejected (sent k%%2B12345%%2Fxyz)", utils.ErrURLUnreachable, key)
+		}
+
+		f.recon.RunOnce(context.Background())
+
+		row := f.row(t)
+		assert.Equal(t, models.MCPCapabilityDiscoveryPending, row.Status, "retried")
+		assert.NotContains(t, row.LastError, key)
+		assert.NotContains(t, row.LastError, "k%2B12345%2Fxyz")
+		assert.Contains(t, row.LastError, "key [REDACTED] rejected (sent [REDACTED])")
+	})
+
+	t.Run("description", func(t *testing.T) {
+		f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+		f.identityByURL(t, nil)
+		f.proxy.Endpoints[0].Configuration.Upstream.URL = registered
+		f.enqueue(t)
+		f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) {
+			tools := []map[string]interface{}{{"name": "whoami", "description": "Using key " + key}}
+			return &models.MCPServerInfoFetchResponse{Tools: &tools}, nil
+		}
+
+		f.recon.RunOnce(context.Background())
+
+		resp := f.get(t)
+		require.NotNil(t, resp.Capabilities)
+		require.NotNil(t, resp.Capabilities.Tools)
+		assert.Equal(t, "Using key [REDACTED]", (*resp.Capabilities.Tools)[0]["description"])
+	})
+}
+
+// A short query value (?format=json) is too likely an ordinary word to redact on its own, so descriptions keep it.
+func TestCapabilityDiscovery_ShortQueryValueIsNotRedactedAlone(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.identityByURL(t, nil)
+	f.proxy.Endpoints[0].Configuration.Upstream.URL = "https://api.example.com/mcp?format=json"
+	f.enqueue(t)
+	f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) {
+		tools := []map[string]interface{}{{"name": "export", "description": "Exports json"}}
+		return &models.MCPServerInfoFetchResponse{Tools: &tools}, nil
+	}
+
+	f.recon.RunOnce(context.Background())
+
+	resp := f.get(t)
+	require.NotNil(t, resp.Capabilities)
+	assert.Equal(t, "Exports json", (*resp.Capabilities.Tools)[0]["description"])
+}
+
+// Scrubbing walks the values: only strings change, so numbers, booleans, nulls, arrays and keys keep their types and
+// the stored schema stays valid; the probe's own answer is not modified.
+func TestScrubCapabilitiesKeepsNonStringValues(t *testing.T) {
+	answer := []map[string]interface{}{{
+		"name":        "search",
+		"description": "token s3cr3t-value",
+		"inputSchema": map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"limit": map[string]interface{}{"type": "integer", "maximum": float64(100), "default": nil},
+				"mode":  map[string]interface{}{"enum": []interface{}{"fast", "s3cr3t-value"}, "deprecated": false},
+			},
+			"required": []interface{}{"limit"},
+		},
+	}}
+
+	got, err := scrubCapabilities(&models.MCPProxyCapabilities{Tools: &answer}, []string{"s3cr3t-value"})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.Tools)
+	tool := (*got.Tools)[0]
+	assert.Equal(t, "token [REDACTED]", tool["description"])
+	props := tool["inputSchema"].(map[string]interface{})["properties"].(map[string]interface{})
+	limit := props["limit"].(map[string]interface{})
+	assert.Equal(t, float64(100), limit["maximum"])
+	assert.Contains(t, limit, "default")
+	assert.Nil(t, limit["default"])
+	mode := props["mode"].(map[string]interface{})
+	assert.Equal(t, []interface{}{"fast", "[REDACTED]"}, mode["enum"])
+	assert.Equal(t, false, mode["deprecated"])
+	assert.Equal(t, []interface{}{"limit"}, tool["inputSchema"].(map[string]interface{})["required"])
+	assert.Equal(t, "token s3cr3t-value", answer[0]["description"], "the probe's answer is unchanged")
+}
+
 // An error that echoes the attempt key is stored, and so shown, with the key redacted.
 func TestCapabilityDiscovery_ErrorsAreStoredWithTheKeyRedacted(t *testing.T) {
 	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})

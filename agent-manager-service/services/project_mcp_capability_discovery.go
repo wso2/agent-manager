@@ -17,12 +17,12 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -425,25 +425,48 @@ func redactSecret(err error, secret string) error {
 	return &redactedError{err: err, text: strings.ReplaceAll(err.Error(), secret, "[REDACTED]")}
 }
 
+// mcpDiscoveryMinQuerySecret is the shortest query or userinfo value redacted on its own. A shorter one (?format=json)
+// is too likely to be an ordinary word to blank out of every description; the whole query, which contains it, is
+// still redacted.
+const mcpDiscoveryMinQuerySecret = 6
+
 // upstreamSecrets is what an upstream probe must never let reach lastError, the logs or the stored capabilities: the
 // credential header's value, its credential without a scheme ("Bearer <token>" also hides "<token>"), and what the
-// registered URL carries besides its endpoint (a query, which may hold a key, and userinfo).
+// registered URL carries besides its endpoint: its query, each query value (decoded and as encoded), and its
+// userinfo and password. Longest first, so a secret that contains another is replaced whole.
 func upstreamSecrets(target *mcpDiscoveryTarget) []string {
+	seen := map[string]bool{}
 	var secrets []string
+	add := func(secret string, minLen int) {
+		secret = strings.TrimSpace(secret)
+		if len(secret) < minLen || seen[secret] {
+			return
+		}
+		seen[secret] = true
+		secrets = append(secrets, secret)
+	}
 	if v := strings.TrimSpace(target.headerValue); v != "" {
-		secrets = append(secrets, v)
-		if _, credential, ok := strings.Cut(v, " "); ok && strings.TrimSpace(credential) != "" {
-			secrets = append(secrets, strings.TrimSpace(credential))
+		add(v, 1)
+		if _, credential, ok := strings.Cut(v, " "); ok {
+			add(credential, 1)
 		}
 	}
 	if u, err := url.Parse(target.publicURL); err == nil {
-		if u.RawQuery != "" {
-			secrets = append(secrets, u.RawQuery)
+		add(u.RawQuery, 1)
+		for _, values := range u.Query() {
+			for _, value := range values {
+				add(value, mcpDiscoveryMinQuerySecret)
+				add(url.QueryEscape(value), mcpDiscoveryMinQuerySecret)
+			}
 		}
 		if u.User != nil {
-			secrets = append(secrets, u.User.String())
+			add(u.User.String(), 1)
+			if password, ok := u.User.Password(); ok {
+				add(password, mcpDiscoveryMinQuerySecret)
+			}
 		}
 	}
+	sort.SliceStable(secrets, func(i, j int) bool { return len(secrets[i]) > len(secrets[j]) })
 	return secrets
 }
 
@@ -467,29 +490,65 @@ func safeEndpoint(raw string) string {
 }
 
 // scrubCapabilities hides secrets in every string an MCP server returned in its capabilities (a description that
-// echoes the request's credential, say), as they appear in the stored JSON, so a binding read never returns one.
+// echoes the request's credential, say), so a binding read never returns one. It walks the values, so map keys,
+// numbers, booleans and nulls are kept as they are and the schemas stay valid.
 func scrubCapabilities(capabilities *models.MCPProxyCapabilities, secrets []string) (*models.MCPProxyCapabilities, error) {
 	if capabilities == nil || len(secrets) == 0 {
 		return capabilities, nil
 	}
-	encoded, err := json.Marshal(capabilities)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode the discovered capabilities: %w", err)
+	return &models.MCPProxyCapabilities{
+		Tools:     scrubCapabilityList(capabilities.Tools, secrets),
+		Prompts:   scrubCapabilityList(capabilities.Prompts, secrets),
+		Resources: scrubCapabilityList(capabilities.Resources, secrets),
+	}, nil
+}
+
+func scrubCapabilityList(list *[]map[string]interface{}, secrets []string) *[]map[string]interface{} {
+	if list == nil {
+		return nil
 	}
-	text := string(encoded)
-	for _, secret := range secrets {
-		quoted, err := json.Marshal(secret)
-		if err != nil {
-			continue
+	out := make([]map[string]interface{}, len(*list))
+	for i, entry := range *list {
+		out[i], _ = scrubValue(entry, secrets).(map[string]interface{})
+	}
+	return &out
+}
+
+// scrubValue is v with secrets replaced in every string it holds; the containers are copied, never changed in place.
+func scrubValue(v interface{}, secrets []string) interface{} {
+	switch t := v.(type) {
+	case string:
+		for _, secret := range secrets {
+			t = strings.ReplaceAll(t, secret, "[REDACTED]")
 		}
-		// The secret as JSON escapes it inside a string, without its quotes.
-		text = strings.ReplaceAll(text, string(quoted[1:len(quoted)-1]), "[REDACTED]")
+		return t
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(t))
+		for k, item := range t {
+			out[k] = scrubValue(item, secrets)
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(t))
+		for i, item := range t {
+			out[i] = scrubValue(item, secrets)
+		}
+		return out
+	case []map[string]interface{}:
+		out := make([]map[string]interface{}, len(t))
+		for i, item := range t {
+			out[i], _ = scrubValue(item, secrets).(map[string]interface{})
+		}
+		return out
+	case []string:
+		out := make([]string, len(t))
+		for i, item := range t {
+			out[i], _ = scrubValue(item, secrets).(string)
+		}
+		return out
+	default:
+		return v
 	}
-	var scrubbed models.MCPProxyCapabilities
-	if err := json.Unmarshal([]byte(text), &scrubbed); err != nil {
-		return nil, fmt.Errorf("failed to decode the scrubbed capabilities: %w", err)
-	}
-	return &scrubbed, nil
 }
 
 // mcpDiscoveryTarget is what a discovery attempt needs of a binding.
