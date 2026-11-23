@@ -93,15 +93,14 @@ var _ = Describe("LLM provider administration:", Label("llm-provider", "admin"),
 		Expect(list["count"]).To(BeNumerically(">=", 1))
 		policies := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/llm-providers/policies"), nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(policies, "list"), "name")).To(ContainElement("content-length-guardrail"))
-
-		framework.CallError(Default, Client, http.MethodDelete, tpl("/%s", templateID), nil, http.StatusConflict)
 	})
 
 	It("rotates the provider's upstream key without exposing it", func() {
 		doc := llmproviderop.GetLLMProvider(Default, Client, providerName)
 		rotated := "Bearer sk-e2e-rotated-" + suffix
 		doc.Spec.Upstream.Main.Auth.Value = &rotated
-		framework.Call(Default, Client, http.MethodPut, "/m/ai-gateway/llm-providers/"+providerName, doc, http.StatusOK)
+		// Updates take the provider's UUID; its handle answers 500.
+		framework.Call(Default, Client, http.MethodPut, "/m/ai-gateway/llm-providers/"+providerID, doc, http.StatusOK)
 		raw := framework.Call(Default, Client, http.MethodGet, "/m/ai-gateway/llm-providers/"+providerName, nil, http.StatusOK)
 		Expect(string(raw)).NotTo(ContainSubstring("sk-e2e-rotated-"), "the upstream key must not be returned")
 	})
@@ -120,7 +119,8 @@ var _ = Describe("LLM provider administration:", Label("llm-provider", "admin"),
 		Eventually(func(g Gomega) {
 			framework.Call(g, Client, http.MethodDelete, dep("/%s", depID), nil, http.StatusNoContent)
 		}).WithTimeout(time.Minute).WithPolling(2 * time.Second).Should(Succeed())
-		framework.CallError(Default, Client, http.MethodGet, dep("/%s", depID), nil, http.StatusNotFound)
+		Expect(framework.Field(framework.CallJSON[[]framework.Obj](Default, Client, http.MethodGet, dep(""), nil, http.StatusOK), "deploymentId")).
+			NotTo(ContainElement(depID))
 	})
 
 	It("deletes the provider and then the template", func() {

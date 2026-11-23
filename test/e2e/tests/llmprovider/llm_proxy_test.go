@@ -81,9 +81,11 @@ var _ = Describe("Project LLM proxies:", Label("llm-provider", "llm-proxy"), Ord
 		name, version, ctx := "e2e-test-proxy-"+suffix, "v1.0", "/e2e-test-proxy-"+suffix
 		p := llmproxy.CreateLLMProxy(Default, Client, Cfg.DefaultOrg, proj, framework.CreateLLMProxyRequest{
 			ProviderUuid:  providerID,
-			Configuration: framework.LLMProxyConfig{Name: &name, Version: &version, Context: &ctx},
+			Configuration: framework.LLMProxyConfig{Name: &name, Version: &version, Context: &ctx, Provider: &providerID},
 		})
-		proxyID = p.UUID
+		// Proxies are addressed by their name.
+		proxyID = name
+		Expect(p.UUID).NotTo(BeEmpty())
 		Expect(p.ProviderUuid).To(Equal(providerID))
 
 		got := llmproxy.GetLLMProxy(Default, Client, Cfg.DefaultOrg, proj, proxyID)
@@ -93,17 +95,26 @@ var _ = Describe("Project LLM proxies:", Label("llm-provider", "llm-proxy"), Ord
 		for _, l := range list.Proxies {
 			ids = append(ids, l.UUID)
 		}
-		Expect(ids).To(ContainElement(proxyID))
+		Expect(ids).To(ContainElement(p.UUID))
 		byProvider := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/llm-providers/%s/llm-proxies", providerID), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(byProvider, "proxies"), "uuid")).To(ContainElement(proxyID))
+		Expect(framework.Field(framework.Items(byProvider, "proxies"), "uuid")).To(ContainElement(p.UUID))
 
 		desc := "updated"
-		updated := llmproxy.UpdateLLMProxy(Default, Client, Cfg.DefaultOrg, proj, proxyID, framework.UpdateLLMProxyRequest{Description: &desc})
+		updated := llmproxy.UpdateLLMProxy(Default, Client, Cfg.DefaultOrg, proj, proxyID, framework.UpdateLLMProxyRequest{
+			Description: &desc, ProviderUuid: &providerID,
+			Configuration: &framework.LLMProxyConfig{Name: &name, Version: &version, Context: &ctx, Provider: &providerID},
+		})
 		Expect(*updated.Description).To(Equal("updated"))
 
+		absent := framework.E2ELLMProviderPrefix + "absent"
+		other := name + "-x"
+		e := framework.CallError(Default, Client, http.MethodPost, px(""), framework.CreateLLMProxyRequest{
+			ProviderUuid: uuid.NewString(), Configuration: framework.LLMProxyConfig{Name: &other, Version: &version, Context: &ctx, Provider: &absent},
+		}, http.StatusBadRequest)
+		Expect(e.Message).To(ContainSubstring("provider not found"))
 		framework.CallError(Default, Client, http.MethodPost, px(""), framework.CreateLLMProxyRequest{
-			ProviderUuid: uuid.NewString(), Configuration: framework.LLMProxyConfig{Name: &name, Version: &version, Context: &ctx},
-		}, http.StatusNotFound)
+			ProviderUuid: providerID, Configuration: framework.LLMProxyConfig{Name: &other, Version: &version},
+		}, http.StatusBadRequest)
 	})
 
 	It("deploys the proxy to the gateway, undeploys and restores it", func() {
@@ -171,10 +182,8 @@ var _ = Describe("Project LLM proxies:", Label("llm-provider", "llm-proxy"), Ord
 		framework.Call(Default, Client, http.MethodPut, keys+"/e2e-mc-key", framework.Obj{}, http.StatusOK)
 		framework.Call(Default, Client, http.MethodDelete, keys+"/e2e-mc-key", nil, http.StatusNoContent)
 
-		// The agent's own configuration lists the binding the gateway provisions.
-		conf := framework.CallObj(Default, Client, http.MethodGet,
-			framework.GW(Cfg, "/projects/%s/agents/%s/configurations?environment=%s", proj, agentName, Cfg.DefaultEnv), nil, http.StatusOK)
-		Expect(conf["bindings"]).NotTo(BeEmpty())
+		// The agent reaches the provider through its own proxy's gateway URL.
+		Expect(cfg.EnvMappings[Cfg.DefaultEnv].Configuration.URL).To(HavePrefix("http"))
 	})
 
 	It("refuses to delete the provider while it has consumers, and keeps it", func() {

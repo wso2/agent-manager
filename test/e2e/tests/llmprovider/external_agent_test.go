@@ -333,7 +333,7 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 		doc := llmproviderop.GetLLMProvider(Default, Client, providerID)
 		rotated := "Bearer " + Cfg.OpenAIAPIKey
 		doc.Spec.Upstream.Main.Auth.Value = &rotated
-		framework.Call(Default, Client, http.MethodPut, "/m/ai-gateway/llm-providers/"+providerID, doc, http.StatusOK)
+		framework.Call(Default, Client, http.MethodPut, "/m/ai-gateway/llm-providers/"+providerUUID, doc, http.StatusOK)
 
 		By("Calling the model through the agent's unchanged proxy key")
 		body := `{"model":"gpt-5-mini","messages":[{"role":"user","content":"Say hello in one word"}]}`
