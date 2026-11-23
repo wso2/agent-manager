@@ -166,7 +166,7 @@ func LLMProviderFromDocument(doc gwspec.LlmProviderDocument) (gwspec.CreateLLMPr
 	}
 	var req gwspec.CreateLLMProviderRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
-		return gwspec.CreateLLMProviderRequest{}, fmt.Errorf("%w: %s", ErrDocument, err)
+		return gwspec.CreateLLMProviderRequest{}, fmt.Errorf("%w: %w", ErrDocument, err)
 	}
 
 	// The §5.2 rename in reverse: handle from metadata.name, label from spec.displayName.
@@ -190,7 +190,7 @@ func LLMProviderUpdateFromDocument(
 ) (gwspec.LlmProviderDocument, gwspec.UpdateLLMProviderRequest, error) {
 	var doc gwspec.LlmProviderDocument
 	if err := json.Unmarshal(body, &doc); err != nil {
-		return doc, gwspec.UpdateLLMProviderRequest{}, fmt.Errorf("%w: %s", ErrDocument, err)
+		return doc, gwspec.UpdateLLMProviderRequest{}, fmt.Errorf("%w: %w", ErrDocument, err)
 	}
 	if err := checkDocument(doc); err != nil {
 		return doc, gwspec.UpdateLLMProviderRequest{}, err
@@ -202,7 +202,7 @@ func LLMProviderUpdateFromDocument(
 	}
 	var req gwspec.UpdateLLMProviderRequest
 	if err := json.Unmarshal(rawSpec, &req); err != nil {
-		return doc, gwspec.UpdateLLMProviderRequest{}, fmt.Errorf("%w: %s", ErrDocument, err)
+		return doc, gwspec.UpdateLLMProviderRequest{}, fmt.Errorf("%w: %w", ErrDocument, err)
 	}
 
 	// displayName is the label; the handle is never changed on update, so metadata.name is not
@@ -245,7 +245,7 @@ func rawSpecOf(body []byte) (json.RawMessage, error) {
 		Spec json.RawMessage `json:"spec"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrDocument, err)
+		return nil, fmt.Errorf("%w: %w", ErrDocument, err)
 	}
 	if len(envelope.Spec) == 0 {
 		return nil, fmt.Errorf("%w: spec is required", ErrDocument)

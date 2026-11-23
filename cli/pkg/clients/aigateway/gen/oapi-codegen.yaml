@@ -5,6 +5,3 @@ generate:
   models: true
   client: false
   embedded-spec: false
-output-options:
-  overlay:
-    path: cli/pkg/clients/aigateway/gen/json-only-overlay.yaml

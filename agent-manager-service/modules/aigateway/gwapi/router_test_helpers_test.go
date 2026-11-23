@@ -51,7 +51,7 @@ func (c coreRouter) HandleFuncWithValidationAndPlatformAdminAuthz(pattern string
 type moduleRoute struct{ coreRouter }
 
 func (c moduleRoute) HandleFuncWithValidationAndAuthz(pattern string, perm string, h http.HandlerFunc) {
-	c.RouteRegistrar.HandleModuleRoute(pattern, rbac.Permission(perm), middleware.ModuleRoutePolicy{}, withOrgID(h))
+	c.HandleModuleRoute(pattern, rbac.Permission(perm), middleware.ModuleRoutePolicy{}, withOrgID(h))
 }
 
 func withOrgID(h http.HandlerFunc) http.HandlerFunc {

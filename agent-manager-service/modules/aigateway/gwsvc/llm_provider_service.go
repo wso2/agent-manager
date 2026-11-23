@@ -1554,6 +1554,9 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, ouID string, inCata
 
 	// Update InCatalog field to reflect the committed change
 	provider.InCatalog = inCatalog
+	if provider.Artifact != nil {
+		provider.Artifact.InCatalog = inCatalog
+	}
 
 	slog.Info("LLMProviderService.UpdateCatalogStatus: completed successfully", "providerID", providerID, "inCatalog", inCatalog)
 	return provider, nil

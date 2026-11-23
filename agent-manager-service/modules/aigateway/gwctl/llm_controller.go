@@ -394,6 +394,9 @@ func preserveOmittedProviderFields(
 	if req.Openapi == nil {
 		provider.OpenAPISpec = existing.OpenAPISpec
 	}
+	if req.Description == nil {
+		provider.Description = existing.Description
+	}
 }
 
 const (
@@ -736,9 +739,11 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		// context is cancelled before the sync gets far. It keeps the request's values
 		// (trace and tenant metadata) so the minting it may do is still attributable.
 		syncCtx := context.WithoutCancel(r.Context())
+		// A copy, since applyCatalog below reassigns updated.
+		syncProvider := updated
 		go func() {
 			if err := c.providerService.SyncDependentProxyAuthHeaders(
-				syncCtx, updated, ouID, c.proxyService, c.proxyDeploymentService,
+				syncCtx, syncProvider, ouID, c.proxyService, c.proxyDeploymentService,
 			); err != nil {
 				log.Error("UpdateLLMProvider: failed to sync dependent proxy auth headers",
 					"ouID", ouID, "providerID", providerID, "error", err)

@@ -6,6 +6,4 @@ generate:
   client: true
   embedded-spec: false
 output-options:
-  overlay:
-    path: cli/pkg/clients/aigateway/gen/json-only-overlay.yaml
   response-type-suffix: Resp

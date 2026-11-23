@@ -6507,9 +6507,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LLMProviderListResponse'
-            application/yaml:
-              schema:
-                $ref: '#/components/schemas/LLMProviderListResponse'
           description: Successfully retrieved provider list
         "400":
           content:
@@ -6540,17 +6537,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/LlmProviderDocument'
-          application/yaml:
-            schema:
-              $ref: '#/components/schemas/LlmProviderDocument'
         required: true
       responses:
         "201":
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/LlmProviderDocument'
-            application/yaml:
               schema:
                 $ref: '#/components/schemas/LlmProviderDocument'
           description: Provider created successfully
@@ -6643,9 +6634,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LlmProviderDocument'
-            application/yaml:
-              schema:
-                $ref: '#/components/schemas/LlmProviderDocument'
           description: Successfully retrieved provider
         "400":
           content:
@@ -6689,17 +6677,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/LlmProviderDocument'
-          application/yaml:
-            schema:
-              $ref: '#/components/schemas/LlmProviderDocument'
         required: true
       responses:
         "200":
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/LlmProviderDocument'
-            application/yaml:
               schema:
                 $ref: '#/components/schemas/LlmProviderDocument'
           description: Provider updated successfully
@@ -6736,7 +6718,7 @@ paths:
       summary: Update LLM provider
       tags:
         - LLM Providers
-      x-amp-replace: document PUT is a full replace; the previous merge schema was UpdateLLMProviderRequest
+      x-amp-replace: document PUT replaces the fields it supplies; omitted optional fields keep their stored values
 components:
   securitySchemes:
     bearerAuth:
