@@ -22,13 +22,12 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
-// NewLLMProviderCmd builds the `llm-provider` command group. LLM providers are
-// org-scoped, so the group relies on the root persistent --org flag rather than
-// registering its own scope override.
+// NewLLMProviderCmd builds the `llm-provider` command group. The server takes the org from
+// the token, so --org only picks the org that create looks up --gateways names in.
 func NewLLMProviderCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "llm-provider",
-		Short:   "Manage LLM providers in an organization",
+		Short:   "Manage the LLM providers in your organization",
 		Aliases: []string{"llm-providers"},
 	}
 	cmd.AddCommand(NewListCmd(f))

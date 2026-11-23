@@ -3104,331 +3104,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/llm-providers:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-
-    post:
-      tags:
-        - LLM Providers
-      summary: Create a new LLM provider
-      description: Create a new LLM provider instance from a template
-      operationId: createLLMProvider
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateLLMProviderRequest"
-      responses:
-        "201":
-          description: Provider created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LLMProviderResponse"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: Provider already exists
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    get:
-      tags:
-        - LLM Providers
-      summary: List all LLM providers
-      description: Retrieve a paginated list of LLM providers
-      operationId: listLLMProviders
-      parameters:
-        - name: limit
-          in: query
-          description: Maximum number of results to return
-          schema:
-            type: integer
-            format: int32
-            minimum: 1
-            maximum: 100
-            default: 20
-        - name: offset
-          in: query
-          description: Number of results to skip
-          schema:
-            type: integer
-            format: int32
-            minimum: 0
-            default: 0
-      responses:
-        "200":
-          description: Successfully retrieved provider list
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LLMProviderListResponse"
-        "400":
-          description: Invalid request parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/llm-providers/{providerId}:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-      - name: providerId
-        in: path
-        required: true
-        description: Provider UUID
-        schema:
-          type: string
-
-    get:
-      tags:
-        - LLM Providers
-      summary: Get LLM provider details
-      description: Retrieve detailed information about a specific provider
-      operationId: getLLMProvider
-      responses:
-        "200":
-          description: Successfully retrieved provider
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LLMProviderResponse"
-        "400":
-          description: Invalid provider ID
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Provider not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    put:
-      tags:
-        - LLM Providers
-      summary: Update LLM provider
-      description: Update an existing LLM provider
-      operationId: updateLLMProvider
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateLLMProviderRequest"
-      responses:
-        "200":
-          description: Provider updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LLMProviderResponse"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Provider not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: Another provider already uses this name and version in the organization
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    delete:
-      tags:
-        - LLM Providers
-      summary: Delete LLM provider
-      description: |
-        Delete an LLM provider.
-
-        The provider is undeployed from every gateway it is deployed to before it is
-        removed. Deletion is refused with a 409 while anything still references the
-        provider — an LLM proxy, or an agent's LLM configuration.
-      operationId: deleteLLMProvider
-      responses:
-        "204":
-          description: Provider deleted successfully
-        "400":
-          description: Invalid provider ID
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "403":
-          description: Caller lacks the llm-provider:delete permission
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Provider not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: |
-            Provider still has dependents (LLM proxies or agent LLM configurations),
-            or undeploying it from its gateways failed. The message names the blocker.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/llm-providers/{providerId}/catalog:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-      - name: providerId
-        in: path
-        required: true
-        description: Provider UUID
-        schema:
-          type: string
-
-    put:
-      tags:
-        - LLM Providers
-      summary: Update LLM provider catalog status
-      description: |
-        Add or remove an LLM provider from the catalog.
-
-        When `inCatalog` is true, the provider becomes discoverable in the catalog
-        and can be used by developers for agent model configurations.
-
-        When `inCatalog` is false, the provider is removed from the catalog
-        and will not appear in catalog queries.
-      operationId: updateLLMProviderCatalogStatus
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateLLMProviderCatalogRequest"
-      responses:
-        "200":
-          description: Catalog status updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LLMProviderResponse"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Provider not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
   /orgs/{orgName}/llm-providers/{providerId}/llm-proxies:
     parameters:
       - name: orgName
@@ -6801,6 +6476,249 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /llm-providers:
+    get:
+      description: |-
+        Retrieve a paginated list of LLM providers
+
+        Each item is a LlmProvider document, populated for list use: every REQUIRED field is present, but heavy optional blocks may be omitted. A list item is a valid document, not necessarily a complete one - read the item itself for the full spec. (A `view=full` parameter can be added later if a bulk consumer needs it.)
+      operationId: listLLMProviders
+      parameters:
+        - description: Maximum number of results to return
+          in: query
+          name: limit
+          schema:
+            default: 20
+            format: int32
+            maximum: 100
+            minimum: 1
+            type: integer
+        - description: Number of results to skip
+          in: query
+          name: offset
+          schema:
+            default: 0
+            format: int32
+            minimum: 0
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LLMProviderListResponse'
+          description: Successfully retrieved provider list
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request parameters
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal server error
+      summary: List all LLM providers
+      tags:
+        - LLM Providers
+    post:
+      description: Create a new LLM provider instance from a template
+      operationId: createLLMProvider
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LlmProviderDocument'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmProviderDocument'
+          description: Provider created successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Provider already exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal server error
+      summary: Create a new LLM provider
+      tags:
+        - LLM Providers
+  /llm-providers/{providerId}:
+    delete:
+      description: |
+        Delete an LLM provider.
+
+        The provider is undeployed from every gateway it is deployed to before it is
+        removed. Deletion is refused with a 409 while anything still references the
+        provider — an LLM proxy, or an agent's LLM configuration.
+      operationId: deleteLLMProvider
+      responses:
+        "204":
+          description: Provider deleted successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid provider ID
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Caller lacks the llm-provider:delete permission
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Provider not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: |
+            Provider still has dependents (LLM proxies or agent LLM configurations),
+            or undeploying it from its gateways failed. The message names the blocker.
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal server error
+      summary: Delete LLM provider
+      tags:
+        - LLM Providers
+    get:
+      description: Retrieve detailed information about a specific provider
+      operationId: getLLMProvider
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmProviderDocument'
+          description: Successfully retrieved provider
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid provider ID
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Provider not found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal server error
+      summary: Get LLM provider details
+      tags:
+        - LLM Providers
+    parameters:
+      - description: Provider UUID
+        in: path
+        name: providerId
+        required: true
+        schema:
+          type: string
+    put:
+      description: Update an existing LLM provider
+      operationId: updateLLMProvider
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LlmProviderDocument'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmProviderDocument'
+          description: Provider updated successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Invalid request
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Provider not found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Another provider already uses this name and version in the organization
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal server error
+      summary: Update LLM provider
+      tags:
+        - LLM Providers
+      x-amp-replace: document PUT replaces the fields it supplies; omitted optional fields keep their stored values
 components:
   securitySchemes:
     bearerAuth:
@@ -8710,66 +8628,6 @@ components:
             type: string
             format: uuid
 
-    UpdateLLMProviderCatalogRequest:
-      type: object
-      required:
-        - inCatalog
-      properties:
-        inCatalog:
-          type: boolean
-          description: |
-            Whether the provider should be available in the catalog.
-            - true: Add to catalog (makes it discoverable for agent configurations)
-            - false: Remove from catalog (hides from catalog queries)
-          example: true
-
-    LLMProviderListItem:
-      required:
-        - uuid
-        - id
-        - name
-        - template
-        - status
-      properties:
-        uuid:
-          type: string
-          description: Provider UUID
-        id:
-          type: string
-          description: Unique identifier for the LLM provider
-        name:
-          type: string
-          description: Human-readable name of the LLM provider
-        createdBy:
-          type: string
-          description: User who created the provider
-          readOnly: true
-        template:
-          type: string
-          description: Template identifier
-        status:
-          type: string
-          description: Provider status
-          enum:
-            - pending
-            - deployed
-            - failed
-        gateways:
-          type: array
-          items:
-            type: string
-            format: uuid
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was created
-          readOnly: true
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was last updated
-          readOnly: true
-
     LLMProviderResponse:
       type: object
       required:
@@ -8856,28 +8714,6 @@ components:
           format: date-time
           description: Timestamp when the resource was last updated
           readOnly: true
-
-    LLMProviderListResponse:
-      type: object
-      required:
-        - providers
-        - total
-        - limit
-        - offset
-      properties:
-        providers:
-          type: array
-          items:
-            $ref: "#/components/schemas/LLMProviderListItem"
-        total:
-          type: integer
-          format: int32
-        limit:
-          type: integer
-          format: int32
-        offset:
-          type: integer
-          format: int32
 
     # ============================================
     # LLM PROXY SCHEMAS
@@ -10390,7 +10226,7 @@ components:
             The provider's live deployments, one per gateway currently serving it. Gateways it is only owed a
             deploy to are not listed.
           items:
-            $ref: "#/components/schemas/DeploymentSummary"
+            $ref: "#/components/schemas/CatalogDeploymentSummary"
         createdAt:
           type: string
           format: date-time
@@ -10551,7 +10387,7 @@ components:
           type: string
           format: date-time
 
-    DeploymentSummary:
+    CatalogDeploymentSummary:
       type: object
       required:
         - gatewayId
@@ -10756,4 +10592,206 @@ components:
           type: integer
           format: int32
           description: Total number of consumers
+    LlmProviderDocument:
+      description: An LLM provider as a document; metadata.name is its handle, spec.displayName its label.
+      properties:
+        apiVersion:
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+          type: string
+        kind:
+          description: Must match the route; never ignored.
+          enum:
+            - LlmProvider
+          type: string
+        metadata:
+          $ref: '#/components/schemas/DocumentMetadata'
+        spec:
+          $ref: '#/components/schemas/LlmProviderSpec'
+        status:
+          $ref: '#/components/schemas/ResourceStatus'
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+      type: object
+    LlmProviderSpec:
+      properties:
+        accessControl:
+          $ref: '#/components/schemas/LLMAccessControl'
+        context:
+          default: /
+          description: API context path (must start with /, no trailing slash)
+          example: /openai
+          pattern: ^\/([a-zA-Z0-9_\-\/]*[^\/])?$
+          type: string
+        description:
+          description: Description of the LLM provider
+          example: OpenAI GPT-4 provider for production
+          type: string
+        displayName:
+          description: Display name for the LLM provider
+          example: OpenAI Provider
+          type: string
+        gateways:
+          items:
+            format: uuid
+            type: string
+          type: array
+        inCatalog:
+          description: 'Whether the provider is published to the catalog. Replaces the removed PUT /llm-providers/{providerId}/catalog endpoint: catalog membership is declared here and reconciled, not toggled by a side call.'
+          type: boolean
+        modelProviders:
+          description: List of model providers and their models
+          items:
+            $ref: '#/components/schemas/LLMModelProvider'
+          type: array
+        openapi:
+          description: Custom OpenAPI specification (YAML or JSON)
+          type: string
+        policies:
+          description: List of policies applied to this provider
+          items:
+            $ref: '#/components/schemas/LLMPolicy'
+          type: array
+        rateLimiting:
+          $ref: '#/components/schemas/LLMRateLimitingConfig'
+        resilience:
+          $ref: '#/components/schemas/Resilience'
+        security:
+          $ref: '#/components/schemas/SecurityConfig'
+        template:
+          description: Template identifier being used
+          example: openai
+          type: string
+        upstream:
+          $ref: '#/components/schemas/UpstreamConfig'
+        version:
+          description: Version of the LLM provider
+          example: v1.0
+          pattern: ^v\d+\.\d+$
+          type: string
+      required:
+        - displayName
+        - version
+        - context
+        - template
+        - upstream
+      type: object
+    LLMProviderListResponse:
+      properties:
+        count:
+          description: Number of items in this page.
+          format: int32
+          type: integer
+        list:
+          items:
+            $ref: '#/components/schemas/LlmProviderDocument'
+          type: array
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+        - list
+      type: object
+    DocumentMetadata:
+      properties:
+        createdBy:
+          description: Subject that created the resource.
+          readOnly: true
+          type: string
+        creationTimestamp:
+          description: When the resource was created (the flat body's `createdAt`).
+          format: date-time
+          readOnly: true
+          type: string
+        name:
+          description: The artifact handle (the flat body's `id`).
+          type: string
+        uid:
+          description: Server-assigned UUID (the flat body's `uuid`).
+          format: uuid
+          readOnly: true
+          type: string
+        updateTimestamp:
+          description: When the resource last changed (the flat body's `updatedAt`).
+          format: date-time
+          readOnly: true
+          type: string
+      required:
+        - name
+      type: object
+    ResourceStatus:
+      additionalProperties: true
+      description: |-
+        Observed state. Server-populated and ignored on input.
 
+        `gateways` is the authoritative placement report: one entry per gateway the resource is placed on, so a client renders a row without joining against the deployments endpoint. There is deliberately NO aggregate status field - the rule for collapsing several gateway states into one badge is a product decision, not a transport one, so a caller that wants a single badge derives it from this array.
+      properties:
+        deployedAt:
+          description: When the resource was last successfully placed on any gateway. Distinct from metadata.updateTimestamp, which tracks spec edits.
+          format: date-time
+          type: string
+        gateways:
+          description: Per-gateway placement and state. Reuses DeploymentSummary, which is already the shape the deployments endpoints report.
+          items:
+            $ref: '#/components/schemas/DeploymentSummary'
+          type: array
+        warnings:
+          description: Non-fatal findings from the last reconcile - the resource is live, but something about it is worth surfacing. Empty or absent means none.
+          items:
+            type: string
+          type: array
+      readOnly: true
+      type: object
+    DeploymentSummary:
+      properties:
+        deployedAt:
+          description: Timestamp when the resource was deployed
+          example: "2026-01-15T10:30:00Z"
+          format: date-time
+          type: string
+        gatewayId:
+          description: Gateway UUID
+          example: 660e8400-e29b-41d4-a716-446655440001
+          format: uuid
+          type: string
+        gatewayName:
+          description: Gateway name/identifier
+          example: production-gateway
+          type: string
+        status:
+          description: The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
+          enum:
+            - DEPLOYING
+            - DEPLOYED
+            - UNDEPLOYING
+            - UNDEPLOYED
+            - FAILED
+          example: DEPLOYED
+          type: string
+        vhost:
+          description: Gateway virtual host
+          example: api.prod.example.com
+          type: string
+      required:
+        - gatewayId
+        - gatewayName
+        - status
+      type: object
+    Pagination:
+      description: Where this page sits in the collection.
+      properties:
+        limit:
+          description: Maximum items requested for this page.
+          format: int32
+          type: integer
+        offset:
+          description: Items skipped before this page.
+          format: int32
+          type: integer
+        total:
+          description: Total items in the collection, across all pages.
+          format: int32
+          type: integer
+      type: object

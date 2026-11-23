@@ -86,6 +86,8 @@ ORG=${ORG:-default}
 B=$API/api/v1/orgs/$ORG
 # The AI Gateway module's API.
 GW=$API/m/ai-gateway/orgs/$ORG
+# Migrated gateway resources take the org from the token.
+GWR=$API/m/ai-gateway
 P=smoke-$RANDOM
 AG=ext-$RANDOM
 EXT='"provisioning":{"type":"external"},"agentType":{"type":"external-agent-api","subType":"custom-api"}'
@@ -109,7 +111,8 @@ check events-types 200 "$(code "${A[@]}" "$B/events/event-types")"
 
 # --- Gateway routes: served by amp, absent from amp-core -----------------------------------
 check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
-check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GW/llm-providers")"
+check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GWR/llm-providers")"
+check llm-providers-old-path 404 "$(code "${A[@]}" "$GW/llm-providers")"
 check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/environments/default/gateways")"
 check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/deployments")"
 check agent-config "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/configurations?environment=default")"

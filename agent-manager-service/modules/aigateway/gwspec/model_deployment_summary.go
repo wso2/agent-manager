@@ -20,16 +20,14 @@ var _ MappedNullable = &DeploymentSummary{}
 
 // DeploymentSummary struct for DeploymentSummary
 type DeploymentSummary struct {
+	// Timestamp when the resource was deployed
+	DeployedAt *time.Time `json:"deployedAt,omitempty"`
 	// Gateway UUID
 	GatewayId string `json:"gatewayId"`
 	// Gateway name/identifier
 	GatewayName string `json:"gatewayName"`
-	// Environment name (from gateway name or properties)
-	EnvironmentName *string `json:"environmentName,omitempty"`
 	// The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
 	Status string `json:"status"`
-	// Timestamp when the resource was deployed
-	DeployedAt *time.Time `json:"deployedAt,omitempty"`
 	// Gateway virtual host
 	Vhost *string `json:"vhost,omitempty"`
 }
@@ -52,6 +50,38 @@ func NewDeploymentSummary(gatewayId string, gatewayName string, status string) *
 func NewDeploymentSummaryWithDefaults() *DeploymentSummary {
 	this := DeploymentSummary{}
 	return &this
+}
+
+// GetDeployedAt returns the DeployedAt field value if set, zero value otherwise.
+func (o *DeploymentSummary) GetDeployedAt() time.Time {
+	if o == nil || IsNil(o.DeployedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.DeployedAt
+}
+
+// GetDeployedAtOk returns a tuple with the DeployedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeploymentSummary) GetDeployedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.DeployedAt) {
+		return nil, false
+	}
+	return o.DeployedAt, true
+}
+
+// HasDeployedAt returns a boolean if a field has been set.
+func (o *DeploymentSummary) HasDeployedAt() bool {
+	if o != nil && !IsNil(o.DeployedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetDeployedAt gets a reference to the given time.Time and assigns it to the DeployedAt field.
+func (o *DeploymentSummary) SetDeployedAt(v time.Time) {
+	o.DeployedAt = &v
 }
 
 // GetGatewayId returns the GatewayId field value
@@ -102,38 +132,6 @@ func (o *DeploymentSummary) SetGatewayName(v string) {
 	o.GatewayName = v
 }
 
-// GetEnvironmentName returns the EnvironmentName field value if set, zero value otherwise.
-func (o *DeploymentSummary) GetEnvironmentName() string {
-	if o == nil || IsNil(o.EnvironmentName) {
-		var ret string
-		return ret
-	}
-	return *o.EnvironmentName
-}
-
-// GetEnvironmentNameOk returns a tuple with the EnvironmentName field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *DeploymentSummary) GetEnvironmentNameOk() (*string, bool) {
-	if o == nil || IsNil(o.EnvironmentName) {
-		return nil, false
-	}
-	return o.EnvironmentName, true
-}
-
-// HasEnvironmentName returns a boolean if a field has been set.
-func (o *DeploymentSummary) HasEnvironmentName() bool {
-	if o != nil && !IsNil(o.EnvironmentName) {
-		return true
-	}
-
-	return false
-}
-
-// SetEnvironmentName gets a reference to the given string and assigns it to the EnvironmentName field.
-func (o *DeploymentSummary) SetEnvironmentName(v string) {
-	o.EnvironmentName = &v
-}
-
 // GetStatus returns the Status field value
 func (o *DeploymentSummary) GetStatus() string {
 	if o == nil {
@@ -156,38 +154,6 @@ func (o *DeploymentSummary) GetStatusOk() (*string, bool) {
 // SetStatus sets field value
 func (o *DeploymentSummary) SetStatus(v string) {
 	o.Status = v
-}
-
-// GetDeployedAt returns the DeployedAt field value if set, zero value otherwise.
-func (o *DeploymentSummary) GetDeployedAt() time.Time {
-	if o == nil || IsNil(o.DeployedAt) {
-		var ret time.Time
-		return ret
-	}
-	return *o.DeployedAt
-}
-
-// GetDeployedAtOk returns a tuple with the DeployedAt field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *DeploymentSummary) GetDeployedAtOk() (*time.Time, bool) {
-	if o == nil || IsNil(o.DeployedAt) {
-		return nil, false
-	}
-	return o.DeployedAt, true
-}
-
-// HasDeployedAt returns a boolean if a field has been set.
-func (o *DeploymentSummary) HasDeployedAt() bool {
-	if o != nil && !IsNil(o.DeployedAt) {
-		return true
-	}
-
-	return false
-}
-
-// SetDeployedAt gets a reference to the given time.Time and assigns it to the DeployedAt field.
-func (o *DeploymentSummary) SetDeployedAt(v time.Time) {
-	o.DeployedAt = &v
 }
 
 // GetVhost returns the Vhost field value if set, zero value otherwise.
@@ -232,15 +198,12 @@ func (o DeploymentSummary) MarshalJSON() ([]byte, error) {
 
 func (o DeploymentSummary) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["gatewayId"] = o.GatewayId
-	toSerialize["gatewayName"] = o.GatewayName
-	if !IsNil(o.EnvironmentName) {
-		toSerialize["environmentName"] = o.EnvironmentName
-	}
-	toSerialize["status"] = o.Status
 	if !IsNil(o.DeployedAt) {
 		toSerialize["deployedAt"] = o.DeployedAt
 	}
+	toSerialize["gatewayId"] = o.GatewayId
+	toSerialize["gatewayName"] = o.GatewayName
+	toSerialize["status"] = o.Status
 	if !IsNil(o.Vhost) {
 		toSerialize["vhost"] = o.Vhost
 	}

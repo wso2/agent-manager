@@ -74,7 +74,7 @@ func NewAPICmd(f *cmdutil.Factory) *cobra.Command {
 			The endpoint is resolved relative to the current instance's API base, so
 			"/api/v1" may be omitted: "amctl api /orgs" and "amctl api /api/v1/orgs"
 			are equivalent. A module's API is reached at its own root, which is kept as
-			given: "amctl api /m/ai-gateway/orgs/{org}/llm-providers". The current
+			given: "amctl api /m/ai-gateway/llm-providers". The current
 			instance's access token is attached automatically.
 
 			Resources are scoped under /orgs/{org}/projects/{project}/...; there are no
@@ -106,7 +106,7 @@ func NewAPICmd(f *cmdutil.Factory) *cobra.Command {
 			$ amctl api /orgs/default/projects/default/agents/it-helpdesk-agent
 
 			# List LLM providers, from the AI Gateway module's API
-			$ amctl api /m/ai-gateway/orgs/{org}/llm-providers
+			$ amctl api /m/ai-gateway/llm-providers
 
 			# Filter with query parameters (explicit GET keeps fields in the query)
 			$ amctl api -X GET /orgs/{org}/projects/{project}/agents -f limit=10

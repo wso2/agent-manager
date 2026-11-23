@@ -224,8 +224,8 @@ func TestSubstituteContext_EmptyValueErrors(t *testing.T) {
 }
 
 // TestAPIExamplesUseRealEndpoints guards against documenting endpoints that do
-// not exist: every "amctl api <endpoint>" example must address an /orgs path,
-// since this API has no flat top-level resources.
+// not exist: every core "amctl api <endpoint>" example must address an /orgs path,
+// since the core API has no flat top-level resources. Module routes take the org from the token.
 func TestAPIExamplesUseRealEndpoints(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
 	cmd := NewAPICmd(&cmdutil.Factory{IOStreams: ios})
@@ -246,9 +246,11 @@ func TestAPIExamplesUseRealEndpoints(t *testing.T) {
 		t.Fatal("found no example endpoints to check")
 	}
 	for _, ep := range endpoints {
-		// A module's API keeps its root (/m/<module>) before the org.
-		if _, rest, ok := strings.Cut(strings.TrimPrefix(ep, "/m/"), "/"); ok && strings.HasPrefix(ep, "/m/") {
-			ep = "/" + rest
+		if strings.HasPrefix(ep, "/m/") {
+			if _, rest, ok := strings.Cut(strings.TrimPrefix(ep, "/m/"), "/"); !ok || rest == "" {
+				t.Errorf("module example endpoint %q must name a resource after its root", ep)
+			}
+			continue
 		}
 		if !strings.HasPrefix(ep, "/orgs") {
 			t.Errorf("example endpoint %q must begin with /orgs (this API has no flat resources)", ep)
