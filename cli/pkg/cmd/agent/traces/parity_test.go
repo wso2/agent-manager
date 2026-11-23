@@ -71,7 +71,7 @@ func runAmctl(t *testing.T, handler http.HandlerFunc, jsonMode bool, args ...str
 	ios, out, errOut := newTraceTestIO(jsonMode)
 	f := &cmdutil.Factory{
 		IOStreams:    ios,
-		Observer:     func(context.Context) (*observersvc.Client, error) { return client, nil },
+		Traces:       func(context.Context) (*observersvc.Client, error) { return client, nil },
 		AgentManager: func(context.Context) (*amsvc.ClientWithResponses, error) { return am, nil },
 		Config: func() (*config.Config, error) {
 			return &config.Config{

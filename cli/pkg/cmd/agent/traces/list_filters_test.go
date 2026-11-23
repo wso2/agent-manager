@@ -73,7 +73,7 @@ func runTracesCmd(t *testing.T, body any, args ...string) (*capturedRequest, err
 
 	f := &cmdutil.Factory{
 		IOStreams:    ios,
-		Observer:     traceClient,
+		Traces:       traceClient,
 		AgentManager: func(context.Context) (*amsvc.ClientWithResponses, error) { return am, nil },
 		Config: func() (*config.Config, error) {
 			return &config.Config{

@@ -167,7 +167,7 @@ func runListTraces(ctx context.Context, o *ListTracesOptions) error {
 		if o.Cursor != "" && isInvalidCursor(err) {
 			return render.Error(o.IO, o.Scope, cmdutil.FlagErrorf("--cursor: not a nextCursor the server accepts"))
 		}
-		return render.Error(o.IO, o.Scope, cmdutil.ObserverErrorFromResponse(err))
+		return render.Error(o.IO, o.Scope, cmdutil.TracesErrorFromResponse(err))
 	}
 
 	link := consoleLinkFor(o)
@@ -277,7 +277,7 @@ func runToolCallFails(ctx context.Context, o *ListTracesOptions) error {
 
 	resp, err := client.ExportTraces(ctx, listParams(o))
 	if err != nil {
-		return render.Error(o.IO, o.Scope, cmdutil.ObserverErrorFromResponse(err))
+		return render.Error(o.IO, o.Scope, cmdutil.TracesErrorFromResponse(err))
 	}
 	var filtered []observersvc.FullTrace
 	for _, tr := range resp.Traces {
@@ -474,18 +474,21 @@ func matchesFullCondition(tr observersvc.FullTrace) bool {
 	return false
 }
 
-// traceStatus is error when the trace has errors, else ok.
+// traceStatus is error when the trace has errors, ok when it has none, or "-" when unset.
 func traceStatus(status *observersvc.TraceStatus) string {
-	if status != nil && status.ErrorCount > 0 {
+	switch {
+	case status == nil:
+		return "-"
+	case status.ErrorCount > 0:
 		return "error"
 	}
 	return "ok"
 }
 
-// tokenCount is the trace's total tokens, or 0 when unset.
+// tokenCount is the trace's total tokens, or "-" when unset.
 func tokenCount(usage *observersvc.TokenUsage) string {
 	if usage == nil {
-		return "0"
+		return "-"
 	}
 	return fmt.Sprintf("%d", usage.TotalTokens)
 }

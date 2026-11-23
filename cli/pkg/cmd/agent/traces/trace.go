@@ -58,7 +58,7 @@ type TraceOptions struct {
 func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &TraceOptions{
 		IO:           f.IOStreams,
-		TraceClient:  f.Observer,
+		TraceClient:  f.Traces,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
 		MakeScope:    f.AgentScope,
@@ -183,7 +183,7 @@ func runTrace(ctx context.Context, o *TraceOptions) error {
 		Limit:        &limit,
 	})
 	if err != nil {
-		return render.Error(o.IO, o.Scope, cmdutil.ObserverErrorFromResponse(err))
+		return render.Error(o.IO, o.Scope, cmdutil.TracesErrorFromResponse(err))
 	}
 
 	link := traceConsoleLink(o)
@@ -252,7 +252,7 @@ func runSpanDetail(ctx context.Context, o *TraceOptions) error {
 
 	span, err := client.GetSpanDetail(ctx, o.TraceID, o.SpanID)
 	if err != nil {
-		return render.Error(o.IO, o.Scope, cmdutil.ObserverErrorFromResponse(err))
+		return render.Error(o.IO, o.Scope, cmdutil.TracesErrorFromResponse(err))
 	}
 
 	link := traceConsoleLink(o)

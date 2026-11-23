@@ -27,8 +27,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/config"
+	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 func TestEnsureFreshToken_ZeroExpiryReturnsCachedToken(t *testing.T) {
@@ -151,5 +153,39 @@ func TestEnsureFreshToken_MissingRefreshTokenAsksToLogIn(t *testing.T) {
 	var cliErr clierr.CLIError
 	if !errors.As(err, &cliErr) || cliErr.Code != clierr.AuthTokenExpired {
 		t.Fatalf("err = %v, want %s", err, clierr.AuthTokenExpired)
+	}
+}
+
+// Traces calls the observability module on the instance's API origin, signed in.
+func TestTraces_CallsTheModuleSignedIn(t *testing.T) {
+	var gotPath, gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotAuth = r.URL.Path, r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"spans":[],"totalCount":0}`))
+	}))
+	defer server.Close()
+	cfg := &config.Config{
+		CurrentInstance: "x",
+		Instances: map[string]config.Instance{"x": {
+			URL:  server.URL + "/",
+			Auth: config.AuthConfig{AccessToken: "tok"},
+		}},
+	}
+	ios, _, _, _ := iostreams.Test()
+	f := NewFactory(cfg, ios)
+
+	client, err := f.Traces(context.Background())
+	if err != nil {
+		t.Fatalf("Traces: %v", err)
+	}
+	if want := server.URL + "/m/observability"; client.URL() != want {
+		t.Errorf("URL = %q, want %q", client.URL(), want)
+	}
+	if _, err := client.GetTraceSpans(context.Background(), "abc", &observersvc.GetTraceSpansParams{}); err != nil {
+		t.Fatalf("GetTraceSpans: %v", err)
+	}
+	if gotPath != "/m/observability/api/v1/traces/abc/spans" || gotAuth != "Bearer tok" {
+		t.Errorf("path = %q, auth = %q", gotPath, gotAuth)
 	}
 }

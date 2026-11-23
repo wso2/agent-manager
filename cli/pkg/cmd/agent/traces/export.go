@@ -51,7 +51,7 @@ type ExportTracesOptions struct {
 func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ExportTracesOptions{
 		IO:           f.IOStreams,
-		TraceClient:  f.Observer,
+		TraceClient:  f.Traces,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
 		MakeScope:    f.AgentScope,
@@ -137,7 +137,7 @@ func runExportTraces(ctx context.Context, o *ExportTracesOptions) error {
 	setFilterParams(params, &o.Filters)
 	resp, err := client.ExportTraces(ctx, params)
 	if err != nil {
-		return render.Error(o.IO, o.Scope, cmdutil.ObserverErrorFromResponse(err))
+		return render.Error(o.IO, o.Scope, cmdutil.TracesErrorFromResponse(err))
 	}
 
 	return render.JSONSuccess(o.IO, o.Scope, resp)
