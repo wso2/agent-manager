@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
@@ -232,4 +233,23 @@ func TestDeleteAgentDoesNotRetryAnIdentityConflict(t *testing.T) {
 
 	require.ErrorIs(t, err, utils.ErrConflict)
 	require.Len(t, svc.repo.(*repomocks.AgentThunderClientRepositoryMock).FindByAgentCalls(), 1, "a conflict must not be retried")
+}
+
+// Once the component is gone, a new agent of the same name can be created and take over the
+// remaining bindings, so a failure after the component delete is left for a manual retry.
+func TestDeleteAgentDoesNotRetryAfterTheComponentIsDeleted(t *testing.T) {
+	shrinkIdentityDeleteRetryDelay(t)
+	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
+	svc := f.service(f.failIfUsedResolver(), thundersvc.IdentityManagementCPManaged, f.deletionProvider()).(*agentThunderProvisioningService)
+	repo := svc.repo.(*repomocks.AgentThunderClientRepositoryMock)
+	repo.DeleteByIDsFunc = func(context.Context, []uuid.UUID) error { return errors.New("database unavailable") }
+	oc := deletableAgentOC(func(context.Context) error { return nil })
+	manager := deletionManager(oc, svc)
+
+	handled, _, err := manager.deleteAgentWithIdentityCleanup(auditableCtx(t), goneCaller(t), "org-a", "project-a", "agent-a")
+
+	require.Error(t, err)
+	require.True(t, handled)
+	require.Len(t, oc.DeleteComponentCalls(), 1)
+	require.Len(t, repo.FindByAgentCalls(), 1, "a failure after the component delete must not be retried")
 }
