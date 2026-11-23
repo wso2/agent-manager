@@ -47,6 +47,10 @@ export const coverage = {
   exclude: [
     "src/**/*.stories.*",
     "src/**/*.{test,spec}.*",
+    // Shared test helpers, not product code.
+    "src/**/test-utils/**",
+    "src/**/__test__/**",
+    "src/**/__tests__/**",
     "src/**/*.d.ts",
     "src/**/generated/**",
     "src/**/*.generated.*",

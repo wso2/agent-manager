@@ -24,5 +24,7 @@ export default defineConfig({
     coverage,
     environment: "jsdom",
     setupFiles: ["./setupTests.ts", "../../../vitest.jsdom-storage.ts"],
+    // First renders can pass Vitest's 5 s default on a loaded runner.
+    testTimeout: 30_000,
   },
 });
