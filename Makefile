@@ -411,8 +411,10 @@ setup-ai-gateway: dev-migrate
 GINKGO_PROCS := $(if $(FOCUS),--procs=1,-p)
 e2e-test:
 	@echo "Running E2E tests..."
-	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
-		bash -ec 'source ../../deployments/scripts/platform-oauth.sh; platform_oauth_test_env; exec "$$@"' _ \
+	@cd test/e2e && _idp="$${IDP_CLIENT_SECRET:-}" _sys="$${THUNDER_SYSTEM_CLIENT_SECRET:-}" && \
+		set -a && { [ ! -f .env ] || . ./.env; } && set +a && \
+		IDP_CLIENT_SECRET="$${_idp:-$${IDP_CLIENT_SECRET:-}}" THUNDER_SYSTEM_CLIENT_SECRET="$${_sys:-$${THUNDER_SYSTEM_CLIENT_SECRET:-}}" \
+				bash -ec 'source ../../deployments/scripts/platform-oauth.sh; platform_oauth_test_env; exec "$$@"' _ \
 		go run github.com/onsi/ginkgo/v2/ginkgo -v $(GINKGO_PROCS) --timeout 45m --poll-progress-after=600s \
 		--keep-going --junit-report=e2e-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./tests/$(SUITE)/...,./tests/...)
@@ -471,8 +473,10 @@ security-test-static:
 
 security-test-live:
 	@echo "Running security tests (cluster must be running)..."
-	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
-		bash -ec 'source ../../deployments/scripts/platform-oauth.sh; platform_oauth_test_env; exec "$$@"' _ \
+	@cd test/e2e && _idp="$${IDP_CLIENT_SECRET:-}" _sys="$${THUNDER_SYSTEM_CLIENT_SECRET:-}" && \
+		set -a && { [ ! -f .env ] || . ./.env; } && set +a && \
+		IDP_CLIENT_SECRET="$${_idp:-$${IDP_CLIENT_SECRET:-}}" THUNDER_SYSTEM_CLIENT_SECRET="$${_sys:-$${THUNDER_SYSTEM_CLIENT_SECRET:-}}" \
+				bash -ec 'source ../../deployments/scripts/platform-oauth.sh; platform_oauth_test_env; exec "$$@"' _ \
 		go run github.com/onsi/ginkgo/v2/ginkgo -v $(SECURITY_GINKGO_PROCS) --timeout 45m \
 		--poll-progress-after=300s --keep-going --junit-report=security-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./security/$(SUITE)/...,./security/...)

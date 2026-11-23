@@ -155,11 +155,24 @@ platform_oauth_test_env() {
 platform_oauth_sync_openbao() (
     set -o pipefail
     local pod key path value stored directory
+    local env_secret
+    # A lookup error must fail; only a successful lookup with no pod skips sync.
     pod="$(platform_oauth_kubectl get pods -n openbao -l app.kubernetes.io/name=openbao \
-        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)" || pod=""
+        -o jsonpath='{.items[0].metadata.name}')" || exit 1
     if [[ -z "$pod" ]]; then
         printf '%s\n' 'OpenBao is not running; its credentials are seeded when it starts.' >&2
         exit 0
+    fi
+    # A release that predates Secret-backed seeding restores the old fixed
+    # credentials on every restart, so require an upgrade before syncing.
+    env_secret="$(platform_oauth_kubectl get pod "$pod" -n openbao -o \
+        jsonpath='{.spec.containers[*].env[?(@.name=="WORKLOAD_PUBLISHER_SECRET")].valueFrom.secretKeyRef.name}')" || exit 1
+    if [[ "$env_secret" != "amp-platform-oauth" ]]; then
+        printf '%s\n' 'The OpenBao release predates Secret-backed credentials and would restore old values on restart.' \
+            'Upgrade it, then rerun this step:' \
+            '  helm upgrade openbao oci://ghcr.io/openbao/charts/openbao --namespace openbao --version 0.25.6 \' \
+            '    --reuse-values --values deployments/single-cluster/values-openbao.yaml' >&2
+        exit 1
     fi
 
     umask 077
