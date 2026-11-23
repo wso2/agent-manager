@@ -44,9 +44,6 @@ const (
 	// shadowConnectionTimeout bounds one connection's scan.
 	shadowConnectionTimeout = 30 * time.Minute
 	shadowConnectionWorkers = 4
-	// shadowPendingScanLife is how long a pending source code scan waits for
-	// its scan command to publish: the life of the scan token.
-	shadowPendingScanLife = time.Hour
 )
 
 // Connection outcomes in a scan result.
@@ -130,14 +127,8 @@ func (s *shadowAgentScanner) Stop() error {
 
 func (s *shadowAgentScanner) RunOnce(ctx context.Context) {
 	now := s.now().UTC()
-	// One guarded update, safe to run on every replica at every tick.
-	if n, err := s.repo.ExpirePendingScans(ctx, now.Add(-shadowPendingScanLife), now); err != nil {
-		if ctx.Err() == nil {
-			s.logger.Error("Failed to expire pending shadow agent scans", "error", err)
-		}
-	} else if n > 0 {
-		s.logger.Info("Expired pending shadow agent scans", "count", n)
-	}
+	// Pending source code scans are never claimed or expired: each waits for
+	// its results until they are published or uploaded, or it is cancelled.
 	scans, err := s.repo.ClaimDueScans(ctx, now, shadowScanLease, shadowScanBatch)
 	if err != nil {
 		if ctx.Err() == nil {

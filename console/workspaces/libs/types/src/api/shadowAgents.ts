@@ -234,6 +234,11 @@ export interface ShadowRunnerScanRequest {
   aiReview: boolean;
   /** A second model must agree with the reviewer; needs aiReview. */
   llmJudge: boolean;
+  /**
+   * The command may upload its results with a one-hour scan token. Off, no
+   * token is issued and the results file is uploaded from the console.
+   */
+  directUpload?: boolean;
 }
 
 /**
@@ -242,10 +247,10 @@ export interface ShadowRunnerScanRequest {
  */
 export interface ShadowRunnerScanResponse {
   scanId: string;
-  /** The scan token the command publishes results with. */
-  token: string;
-  /** When the scan token expires (1 hour). */
-  expiresAt: string;
+  /** The scan token the command uploads results with; only with directUpload. */
+  token?: string;
+  /** When the scan token expires (1 hour); only with directUpload. */
+  expiresAt?: string;
   /** The Agent Manager address the scanner publishes to. */
   ampUrl: string;
   /** The scanner container image. */
@@ -429,4 +434,62 @@ export interface AgentSourceSeed {
 export interface AgentSourceSeedState {
   from?: string;
   agentSourceSeed?: AgentSourceSeed;
+}
+
+/** The format name of the results file the scan command saves. */
+export const SHADOW_SCAN_RESULTS_FORMAT = "amp-shadow-scan-results";
+
+/** A repository the scan command could not scan, as it uploads it. */
+export interface ShadowScanResultsFailedRepository {
+  name: string;
+  reason: string;
+}
+
+/** One piece of evidence of an uploaded code agent. */
+export interface ShadowScanResultsSignal {
+  code: string;
+  source: string;
+  observed: Record<string, unknown>;
+}
+
+/** One confirmed code agent, as the scan command uploads it. */
+export interface ShadowScanResultsAgent {
+  externalId: string;
+  name: string;
+  repository: string;
+  attributes: Record<string, unknown>;
+  evidence: ShadowScanResultsSignal[];
+}
+
+/** The results of a source code scan: the body the scan command uploads. */
+export interface ShadowScanResults {
+  complete: boolean;
+  scannedRepositories: string[];
+  failedRepositories: ShadowScanResultsFailedRepository[];
+  agents: ShadowScanResultsAgent[];
+}
+
+/** What the results file says about itself; for display only. */
+export interface ShadowScanResultsSummary {
+  organization?: string;
+  repositoriesScanned?: number;
+  repositoriesFailed?: number;
+  agents?: number;
+}
+
+/** The results file the scan command saves (results-<scanId>.json). */
+export interface ShadowScanResultsFile {
+  format: typeof SHADOW_SCAN_RESULTS_FORMAT;
+  version: 1;
+  scanId: string;
+  createdAt?: string;
+  summary?: ShadowScanResultsSummary;
+  results: ShadowScanResults;
+}
+
+/** The answer to uploaded scan results. */
+export interface ShadowScanResultsUploadResponse {
+  scanId: string;
+  status: ShadowScanStatus;
+  findingsCount: number;
 }

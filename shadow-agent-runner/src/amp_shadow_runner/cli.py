@@ -32,14 +32,15 @@ from amp_shadow_runner.config import (
 )
 from amp_shadow_runner.engine import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
-from amp_shadow_runner.pipeline import YES_ENV, PublishInterrupted, assume_yes, run_scan
-from amp_shadow_runner.publish import Publisher, PublishError, published_line, report_exit_code
-from amp_shadow_runner.report import DEFAULT_REPORT_PATH, ReportError, read_report
+from amp_shadow_runner.pipeline import YES_ENV, PublishInterrupted, UploadCancelled, assume_yes, run_scan
+from amp_shadow_runner.publish import Publisher, PublishError, body_exit_code, build_body, published_line
+from amp_shadow_runner.report import DEFAULT_REPORT_PATH, Report, ReportError, read_json
+from amp_shadow_runner.results import CONSOLE_PLACE, is_results, parse_results
 from amp_shadow_runner.scantoken import ScanTokenError
 
 PROG = "amp-shadow-runner"
 UPLOAD_MIN_SECONDS = 60
-"""``upload`` only publishes, so it needs a minute of token lifetime, not a scan's ten."""
+"""``upload`` sends the results at once, so a minute of token lifetime is enough."""
 
 Handler = Callable[[argparse.Namespace], int]
 
@@ -71,16 +72,31 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     except (ConfigError, ScanTokenError, ReportError) as exc:  # Their messages never contain a token.
         print(f"{PROG}: {exc}", file=sys.stderr)
         return exc.exit_code
-    except PublishInterrupted:
-        print(
-            f"\n{PROG}: Cancelled while publishing. The results may already have been published; "
-            "check the scan in Agent Manager.",
-            file=sys.stderr,
-        )
+    except PublishInterrupted as exc:
+        message = "Cancelled while uploading. The results may already be in Agent Manager; check the scan there."
+        if exc.results_file:
+            message += f" If they are not, upload {exc.results_file} in Agent Manager ({CONSOLE_PLACE})."
+        print(f"\n{PROG}: {message}", file=sys.stderr)
+        return ExitCode.RUNTIME_ERROR
+    except UploadCancelled as exc:
+        message = "Cancelled. Nothing was uploaded."
+        if exc.results_file:
+            message += f" Upload {exc.results_file} in Agent Manager when you are ready ({CONSOLE_PLACE})."
+        print(f"\n{PROG}: {message}", file=sys.stderr)
         return ExitCode.RUNTIME_ERROR
     except KeyboardInterrupt:  # The workspace is already deleted.
-        print(f"\n{PROG}: Cancelled. Nothing was published.", file=sys.stderr)
+        print(f"\n{PROG}: Cancelled. Nothing was saved or uploaded.", file=sys.stderr)
         return ExitCode.RUNTIME_ERROR
+
+
+def _saved_body(path: Path) -> tuple[str, str, dict[str, object]]:
+    """Read a results file or a report: ``(what it is, its scan ID, the body to send)``. Raises ReportError."""
+    data = read_json(path)
+    if is_results(data):
+        saved = parse_results(data, path)
+        return "results file", saved.scan_id, saved.body
+    report = Report.from_json(data)
+    return "report", report.scan_id, build_body(report)
 
 
 def _cmd_upload(args: argparse.Namespace) -> int:
@@ -88,35 +104,41 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     try:
         scan_id = check_scan_id(args.scan_id)
         amp_url, token, expires_at = agent_manager_env(min_seconds=UPLOAD_MIN_SECONDS)
-        report = read_report(path)
-        if report.scan_id.lower() != scan_id:
+        what, saved_id, body = _saved_body(path)
+        if saved_id.lower() != scan_id:
             raise ConfigError(
-                f"{path} is the report of scan {report.scan_id}, not of scan {scan_id}. "
-                "Upload a report with the scan ID it was made for."
+                f"{path} is the {what} of scan {saved_id}, not of scan {scan_id}. "
+                f"Upload a {what} with the scan ID it was made for."
             )
-        result = Publisher(amp_url, token, expires_at=expires_at).publish(report, report_location=str(path))
+        result = Publisher(amp_url, token, expires_at=expires_at).publish_body(scan_id, body)
     except (ConfigError, ScanTokenError, ReportError, PublishError) as exc:  # Their messages never hold a token.
         print(f"{PROG}: {exc}", file=sys.stderr)
+        if isinstance(exc, PublishError) and exc.console_can_upload:
+            print(f"{PROG}: Upload the results file in Agent Manager instead ({CONSOLE_PLACE}).", file=sys.stderr)
         return exc.exit_code
     print(published_line(result), file=sys.stderr)
-    return report_exit_code(report)
+    return body_exit_code(body)
 
 
 def _add_upload_arguments(sub: argparse.ArgumentParser) -> None:
-    sub.epilog = "AMP_URL and AMP_SCAN_TOKEN must be set in the environment, as for scan."
-    sub.add_argument("--scan-id", required=True, help="The scan ID the report was made for.")
+    sub.epilog = (
+        "AMP_URL and AMP_SCAN_TOKEN must be set in the environment. Without a scan token, upload the results "
+        f"file in Agent Manager instead ({CONSOLE_PLACE})."
+    )
+    sub.add_argument("--scan-id", required=True, help="The scan ID the file was made for.")
     sub.add_argument(
         "report",
         nargs="?",
         default=str(DEFAULT_REPORT_PATH),
-        help=f"The saved scan report (default {DEFAULT_REPORT_PATH}).",
+        help=f"A saved results-<scan id>.json, or a scan report (default {DEFAULT_REPORT_PATH}).",
     )
 
 
 def _add_scan_arguments(sub: argparse.ArgumentParser) -> None:
     sub.epilog = (
-        "AMP_URL and AMP_SCAN_TOKEN must be set in the environment. "
-        "Agent Manager builds the whole command; copy it from there."
+        "The scan saves report.json and results-<scan id>.json in /out. When Agent Manager's command sets "
+        "AMP_URL and AMP_SCAN_TOKEN, it then asks to upload the results; without them, upload the results "
+        f"file in Agent Manager ({CONSOLE_PLACE}). Agent Manager builds the whole command; copy it from there."
     )
     sub.add_argument("--scan-id", required=True, help="The scan ID that Agent Manager issued.")
     sub.add_argument(
@@ -146,14 +168,17 @@ def _add_scan_arguments(sub: argparse.ArgumentParser) -> None:
     sub.add_argument(
         "--yes",
         action="store_true",
-        help=f"Scan the listed repositories without asking to confirm (also {YES_ENV}=1). Needed without a terminal.",
+        help=(
+            f"Scan the listed repositories, and upload the results with a scan token, without asking "
+            f"(also {YES_ENV}=1). Needed without a terminal."
+        ),
     )
 
 
 # (name, help, handler).
 _COMMANDS: tuple[tuple[str, str, Handler], ...] = (
-    ("scan", "Scan repositories and publish the confirmed agents to Agent Manager.", _cmd_scan),
-    ("upload", "Publish a saved scan report to Agent Manager.", _cmd_upload),
+    ("scan", "Scan repositories and save the confirmed agents for Agent Manager.", _cmd_scan),
+    ("upload", "Upload a saved results file or scan report to Agent Manager with a scan token.", _cmd_upload),
     ("version", "Print the runner version, engine version and rule-pack id.", _cmd_version),
 )
 
@@ -162,7 +187,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser. argparse exits with 2 on usage errors, which is ExitCode.CONFIG_ERROR."""
     parser = argparse.ArgumentParser(
         prog=PROG,
-        description="Find AI agents in source code repositories and publish them to WSO2 Agent Manager.",
+        description="Find AI agents in source code repositories and save them for WSO2 Agent Manager.",
     )
     parser.add_argument("--version", action="version", version=f"{PROG} {__version__}")
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")

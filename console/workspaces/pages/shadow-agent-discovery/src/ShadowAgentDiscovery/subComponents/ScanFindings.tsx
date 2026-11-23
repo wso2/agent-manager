@@ -18,7 +18,7 @@
 
 import { useState } from "react";
 import { Button, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
-import { SearchX } from "@wso2/oxygen-ui-icons-react";
+import { SearchX, Upload } from "@wso2/oxygen-ui-icons-react";
 import { useParams } from "react-router-dom";
 import { PageLayout, StateNotice, useReturnTo } from "@agent-management-platform/views";
 import { useShadowScan } from "@agent-management-platform/api-client";
@@ -26,19 +26,25 @@ import { formatRelativeTime } from "@agent-management-platform/shared-component"
 import { ScanStatusChip } from "../shadowUi";
 import { FindingsTab } from "./FindingsTab";
 import { ScanDetailsDrawer } from "./ScansTab";
+import { UploadResultsDialog, useConfirmCancelScan } from "./UploadResultsDialog";
 
 /** The agents one scan found (scans/:scanId), with the scan's call details. */
 export function ScanFindings({
   orgName,
   listPath,
+  canManage = false,
 }: {
   orgName: string | undefined;
   listPath: string;
+  /** May upload results to, or cancel, a scan waiting for results. */
+  canManage?: boolean;
 }) {
   const { scanId } = useParams<{ scanId: string }>();
   const returnTo = useReturnTo(`${listPath}?tab=scans`);
   const scan = useShadowScan(orgName, scanId);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const confirmCancel = useConfirmCancelScan(orgName);
   const back = { backHref: returnTo, backLabel: "Back to scans" };
 
   if (scan.isLoading) {
@@ -61,6 +67,7 @@ export function ScanFindings({
   }
   const s = scan.data;
   const started = formatRelativeTime(s.startedAt ?? s.createdAt);
+  const waiting = canManage && s.status === "pending";
 
   return (
     <PageLayout
@@ -69,9 +76,25 @@ export function ScanFindings({
       disableIcon
       {...back}
       actions={
-        <Button variant="outlined" onClick={() => setDetailsOpen(true)}>
-          Scan details
-        </Button>
+        <Stack direction="row" spacing={1}>
+          {waiting && (
+            <>
+              <Button
+                variant="contained"
+                startIcon={<Upload size={16} />}
+                onClick={() => setUploadOpen(true)}
+              >
+                Upload results
+              </Button>
+              <Button variant="outlined" color="error" onClick={() => confirmCancel(s)}>
+                Cancel scan
+              </Button>
+            </>
+          )}
+          <Button variant="outlined" onClick={() => setDetailsOpen(true)}>
+            Scan details
+          </Button>
+        </Stack>
       }
     >
       <Stack spacing={3}>
@@ -96,7 +119,19 @@ export function ScanFindings({
           }
         />
       </Stack>
-      <ScanDetailsDrawer scan={detailsOpen ? s : null} onClose={() => setDetailsOpen(false)} />
+      <ScanDetailsDrawer
+        scan={detailsOpen ? s : null}
+        onClose={() => setDetailsOpen(false)}
+        onUpload={waiting ? () => setUploadOpen(true) : undefined}
+        onCancel={waiting ? (sc) => confirmCancel(sc) : undefined}
+      />
+      <UploadResultsDialog
+        orgName={orgName}
+        open={uploadOpen}
+        scan={s}
+        scans={[s]}
+        onClose={() => setUploadOpen(false)}
+      />
     </PageLayout>
   );
 }

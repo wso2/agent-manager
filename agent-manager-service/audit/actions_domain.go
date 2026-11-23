@@ -73,6 +73,7 @@ const (
 	ActionShadowConnectionTest   Action = "shadow-connection:test"
 	ActionShadowScanCreate       Action = "shadow-scan:create"
 	ActionShadowScanClear        Action = "shadow-scan:clear"
+	ActionShadowScanCancel       Action = "shadow-scan:cancel"
 	ActionShadowFindingOnboard   Action = "shadow-finding:onboard"
 	ActionShadowFindingHide      Action = "shadow-finding:hide"
 	ActionShadowFindingDelete    Action = "shadow-finding:delete"
@@ -81,7 +82,8 @@ const (
 	// scan token (amp:shadow-agent:publish) the command publishes with.
 	ActionShadowScanTokenIssue Action = "shadow-scan-token:issue"
 	// ActionShadowScanPublish is a source code scan command publishing the
-	// code agents it found, with its scan token.
+	// code agents it found, with its scan token, or a signed-in user
+	// uploading its results file from the console.
 	ActionShadowScanPublish Action = "shadow-scan:publish"
 
 	// An event subscription decides which events are sent to a destination.
@@ -350,6 +352,8 @@ func init() {
 	RegisterDetailSchema(ActionShadowScanCreate, nil)
 	Register(ActionShadowScanClear, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionShadowScanClear, nil)
+	Register(ActionShadowScanCancel, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowScanCancel, nil)
 	Register(ActionShadowFindingOnboard, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionShadowFindingOnboard, nil)
 	Register(ActionShadowFindingHide, ClassConfig, SeverityNotice)
@@ -368,7 +372,8 @@ func init() {
 		"aiReview": KindFlag,
 		"llmJudge": KindFlag,
 	})
-	// A scan command publishing with its scan token: no RBAC user is behind
+	// A scan command publishing with its scan token, or a signed-in user
+	// uploading its results file. With a scan token no RBAC user is behind
 	// it, so this record is the only account of which scan changed the
 	// organization's agents. Agents and repositories are counted, never
 	// named.

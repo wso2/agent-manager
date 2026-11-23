@@ -45,6 +45,10 @@ func registerShadowAgentRoutes(rr *middleware.RouteRegistrar, controller control
 	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/scans"), rbac.ShadowAgentManage, controller.CreateScan)
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/scans"), rbac.ShadowAgentManage, controller.ClearScans)
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/scans/{scanId}"), rbac.ShadowAgentRead, controller.GetScan)
+	// A source code scan's results file, uploaded by a signed-in user: the
+	// same permission as creating the scan command.
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/scans/{scanId}/results"), rbac.ShadowAgentManage, controller.UploadScanResults)
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/scans/{scanId}/cancel"), rbac.ShadowAgentManage, controller.CancelScan)
 
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/findings"), rbac.ShadowAgentRead, controller.ListFindings)
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/findings"), rbac.ShadowAgentManage, controller.DeleteFindings)

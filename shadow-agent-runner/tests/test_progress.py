@@ -133,7 +133,7 @@ def test_terminal_redraws_one_line_in_place_and_ends_with_the_permanent_line() -
     assert any("extracting" in f for f in frames)
     assert any(f.endswith("scanning ██████████░░░░░░░░░░ 5/10 files") for f in frames)
     assert any(f.endswith("AI check ██████████░░░░░░░░░░ 1/2") for f in frames)
-    assert "Publishing to Agent Manager…" in frames[-1]
+    assert "Uploading to Agent Manager…" in frames[-1]
     permanent = [line.rsplit("\x1b[K", 1)[-1] for line in text.split("\n")[:-1]]
     assert permanent == [
         "  ✓ ag-ui-copy   1 agent · 1 in test code · 10 files · 5.7s",

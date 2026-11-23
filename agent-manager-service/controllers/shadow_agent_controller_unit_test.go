@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -70,18 +71,37 @@ func TestShadowCreateRunnerScan_ResponseIsNeverCached(t *testing.T) {
 	svc := &runnerScanService{result: &services.ShadowRunnerScan{
 		ScanID: uuid.New(), Token: "tok", ExpiresAt: exp, AMPURL: "https://amp.example.com", Image: "img",
 	}}
-	w := postRunnerScan(t, svc, `{"aiReview":true,"llmJudge":false}`)
+	w := postRunnerScan(t, svc, `{"aiReview":true,"llmJudge":false,"directUpload":true}`)
 	require.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
-	assert.Equal(t, models.ShadowScanOptions{AIReview: true}, svc.opts)
+	assert.Equal(t, models.ShadowScanOptions{AIReview: true, DirectUpload: true}, svc.opts)
 
 	var resp spec.ShadowRunnerScanResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, svc.result.ScanID.String(), resp.ScanId)
-	assert.Equal(t, "tok", resp.Token)
-	assert.True(t, exp.Equal(resp.ExpiresAt))
+	require.NotNil(t, resp.Token)
+	assert.Equal(t, "tok", *resp.Token)
+	require.NotNil(t, resp.ExpiresAt)
+	assert.True(t, exp.Equal(*resp.ExpiresAt))
 	assert.Equal(t, "https://amp.example.com", resp.AmpUrl)
 	assert.Equal(t, "img", resp.Image)
+}
+
+// Without direct upload (the default) the response has no token or expiry.
+func TestShadowCreateRunnerScan_WithoutDirectUploadHasNoToken(t *testing.T) {
+	svc := &runnerScanService{result: &services.ShadowRunnerScan{
+		ScanID: uuid.New(), AMPURL: "https://amp.example.com", Image: "img",
+	}}
+	w := postRunnerScan(t, svc, `{"aiReview":false,"llmJudge":false}`)
+	require.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+	assert.Equal(t, models.ShadowScanOptions{}, svc.opts)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.NotContains(t, body, "token")
+	assert.NotContains(t, body, "expiresAt")
+	assert.Equal(t, svc.result.ScanID.String(), body["scanId"])
 }
 
 func TestShadowCreateRunnerScan_ErrorStatuses(t *testing.T) {
@@ -208,6 +228,7 @@ func TestShadowPublishScanResults_ErrorStatuses(t *testing.T) {
 		{"turned off", services.ErrShadowScanPublishDisabled, http.StatusNotFound},
 		{"already published", fmt.Errorf("%w: already published", utils.ErrShadowScanNotPending), http.StatusConflict},
 		{"newer scan published", utils.ErrShadowScanSuperseded, http.StatusConflict},
+		{"scan token outlived", utils.ErrShadowScanTokenExpired, http.StatusConflict},
 		{"audit trail down", audit.ErrRecorderUnavailable, http.StatusServiceUnavailable},
 		{"other", fmt.Errorf("db down"), http.StatusInternalServerError},
 	}
@@ -220,6 +241,138 @@ func TestShadowPublishScanResults_ErrorStatuses(t *testing.T) {
 			assert.NotEmpty(t, body["message"])
 		})
 	}
+}
+
+// uploadScanService answers UploadRunnerScanResults and CancelRunnerScan only.
+type uploadScanService struct {
+	services.ShadowAgentService
+	err    error
+	ouID   string
+	req    *models.PublishShadowScanRequest
+	called bool
+}
+
+func (s *uploadScanService) UploadRunnerScanResults(
+	_ context.Context, ouID string, scanID uuid.UUID, req *models.PublishShadowScanRequest,
+) (*models.PublishShadowScanResponse, error) {
+	s.ouID, s.req, s.called = ouID, req, true
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &models.PublishShadowScanResponse{ScanID: scanID.String(), Status: models.ShadowScanPartial, FindingsCount: 2}, nil
+}
+
+func (s *uploadScanService) CancelRunnerScan(_ context.Context, ouID string, scanID uuid.UUID) (*models.ShadowScan, error) {
+	s.ouID, s.called = ouID, true
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &models.ShadowScan{ID: scanID, OUID: ouID, Status: models.ShadowScanFailed, Results: []models.ShadowScanConnectionResult{
+		{ConnectionID: uuid.NewString(), Outcome: "failed", Message: models.ShadowScanCancelledMessage},
+	}}, nil
+}
+
+func orgScanRequest(path, scanID, body string) *http.Request {
+	r := httptest.NewRequest(http.MethodPost, "/orgs/acme/shadow-agents/scans/"+scanID+path, strings.NewReader(body))
+	r.SetPathValue(PathParamShadowScanID, scanID)
+	return r.WithContext(middleware.WithResolvedOrg(r.Context(), middleware.ResolvedOrg{OUID: "ou-acme"}))
+}
+
+func uploadScanResults(svc services.ShadowAgentService, scanID, body string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	NewShadowAgentController(svc).UploadScanResults(w, orgScanRequest("/results", scanID, body))
+	return w
+}
+
+// The upload takes the org from the signed-in user's request, and the body
+// of the scan publisher endpoint.
+func TestShadowUploadScanResults_DecodesTheBody(t *testing.T) {
+	svc := &uploadScanService{}
+	body := `{"complete":true,"scannedRepositories":["a"],"failedRepositories":[],
+		"agents":[{"externalId":"e","name":"n","repository":"a","attributes":{"reviewedBy":"rules"},
+		"evidence":[{"code":"github.d1_agent_dependency","source":"requirements.txt","observed":{"n":1}}]}]}`
+	w := uploadScanResults(svc, uuid.NewString(), body)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.True(t, svc.called)
+	assert.Equal(t, "ou-acme", svc.ouID)
+	require.Len(t, svc.req.Agents, 1)
+	var resp models.PublishShadowScanResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, models.ShadowScanPartial, resp.Status)
+	assert.Equal(t, 2, resp.FindingsCount)
+}
+
+func TestShadowUploadScanResults_RejectsBadBodies(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"malformed", `{"complete":`, http.StatusBadRequest},
+		{"trailing data", `{"complete":true} {}`, http.StatusBadRequest},
+		{
+			"too large", `{"scannedRepositories":["` + strings.Repeat("a", maxShadowPublishBodyBytes) + `"]}`,
+			http.StatusRequestEntityTooLarge,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &uploadScanService{}
+			w := uploadScanResults(svc, uuid.NewString(), tc.body)
+			assert.Equal(t, tc.want, w.Code)
+			assert.False(t, svc.called, "a bad body never reaches the service")
+		})
+	}
+	svc := &uploadScanService{}
+	assert.Equal(t, http.StatusNotFound, uploadScanResults(svc, "not-a-uuid", `{}`).Code)
+	assert.False(t, svc.called)
+}
+
+func TestShadowUploadScanResults_ErrorStatuses(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"invalid agent", fmt.Errorf("%w: agent 0 has no evidence", utils.ErrInvalidInput), http.StatusBadRequest},
+		{"scan of another org or not a source code scan", utils.ErrShadowScanNotFound, http.StatusNotFound},
+		{"turned off", services.ErrShadowScanPublishDisabled, http.StatusNotFound},
+		{"cancelled", fmt.Errorf("%w: %s", utils.ErrShadowScanNotPending, models.ShadowScanCancelledMessage), http.StatusConflict},
+		{"newer scan published", utils.ErrShadowScanSuperseded, http.StatusConflict},
+		{"audit trail down", audit.ErrRecorderUnavailable, http.StatusServiceUnavailable},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := uploadScanResults(&uploadScanService{err: tc.err}, uuid.NewString(), `{"complete":true}`)
+			assert.Equal(t, tc.want, w.Code)
+		})
+	}
+}
+
+func TestShadowCancelScan(t *testing.T) {
+	cancel := func(svc services.ShadowAgentService, scanID string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		NewShadowAgentController(svc).CancelScan(w, orgScanRequest("/cancel", scanID, ""))
+		return w
+	}
+	svc := &uploadScanService{}
+	id := uuid.NewString()
+	w := cancel(svc, id)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Equal(t, "ou-acme", svc.ouID)
+	var resp spec.ShadowScanResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, id, resp.Id)
+	assert.Equal(t, models.ShadowScanFailed, resp.Status)
+	require.Len(t, resp.Results, 1)
+	assert.Equal(t, models.ShadowScanCancelledMessage, resp.Results[0].GetMessage())
+
+	assert.Equal(t, http.StatusConflict,
+		cancel(&uploadScanService{err: fmt.Errorf("%w: already published", utils.ErrShadowScanNotPending)}, id).Code)
+	assert.Equal(t, http.StatusNotFound, cancel(&uploadScanService{err: utils.ErrShadowScanNotFound}, id).Code)
+	notCalled := &uploadScanService{}
+	assert.Equal(t, http.StatusNotFound, cancel(notCalled, "nope").Code)
+	assert.False(t, notCalled.called)
 }
 
 // scanReadService answers GetScan and ListScans with one source code scan.

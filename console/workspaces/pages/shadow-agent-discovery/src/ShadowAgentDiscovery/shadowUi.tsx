@@ -225,8 +225,8 @@ export function CodeHint({ code, label }: { code: string; label: string }) {
   );
 }
 
-const SCAN_STATUS_LABELS: Record<ShadowScanStatus, string> = {
-  pending: "Pending",
+export const SCAN_STATUS_LABELS: Record<ShadowScanStatus, string> = {
+  pending: "Waiting for results",
   queued: "Queued",
   running: "Running",
   succeeded: "Succeeded",

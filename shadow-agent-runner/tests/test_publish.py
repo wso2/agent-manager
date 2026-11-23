@@ -42,7 +42,8 @@ from amp_shadow_runner.publish import (
     report_exit_code,
     reviewed_by,
 )
-from amp_shadow_runner.report import Report, RepositoryReport, RepositoryStatus, write_report
+from amp_shadow_runner.report import Report, ReportError, RepositoryReport, RepositoryStatus, write_report
+from amp_shadow_runner.results import SavedResults, parse_results, results_path, write_results
 from tests.test_config import _token
 
 SCAN_ID = "0b6b1a52-6f3c-4a8e-9a43-3f0f6c1f8f11"
@@ -203,7 +204,7 @@ def test_evidence_is_cut_to_the_first_50() -> None:
 
 def test_too_many_agents_is_refused() -> None:
     findings = [dataclasses.replace(_finding("A"), external_id=f"r:p:{i}") for i in range(1001)]
-    with pytest.raises(PublishError, match="1001 agents to publish.*at most 1000.*Nothing was published"):
+    with pytest.raises(PublishError, match="1001 agents to publish.*at most 1000.*cannot be uploaded"):
         build_body(_report(*findings))
 
 
@@ -232,25 +233,37 @@ def test_publish_sends_the_body_with_the_token(amp: _Server) -> None:
 
 
 @pytest.mark.parametrize(
-    ("status", "exit_code", "message"),
+    ("status", "exit_code", "message", "console"),
     [
-        (401, ExitCode.AUTH_ERROR, "refused the scan token \\(HTTP 401\\)"),
-        (403, ExitCode.AUTH_ERROR, "refused the scan token \\(HTTP 403\\)"),
-        (404, ExitCode.CONFIG_ERROR, "source code scans are turned off"),
-        (409, ExitCode.RUNTIME_ERROR, "no longer waiting for results"),
-        (400, ExitCode.RUNTIME_ERROR, "refused the results \\(HTTP 400\\). Agent Manager said: bad agent"),
-        (413, ExitCode.RUNTIME_ERROR, "refused the results \\(HTTP 413\\)"),
-        (503, ExitCode.RUNTIME_ERROR, f"(?s)HTTP 503.*AMP_SCAN_TOKEN=\\.\\.\\. <image> upload --scan-id {SCAN_ID}"),
-        (500, ExitCode.RUNTIME_ERROR, "HTTP 500"),
+        (401, ExitCode.AUTH_ERROR, "refused the scan token \\(HTTP 401\\)", True),
+        (403, ExitCode.AUTH_ERROR, "refused the scan token \\(HTTP 403\\)", True),
+        (404, ExitCode.CONFIG_ERROR, "source code scans are turned off", False),
+        (409, ExitCode.RUNTIME_ERROR, "no longer waiting for results.*cancelled", False),
+        (400, ExitCode.RUNTIME_ERROR, "refused the results \\(HTTP 400\\). Agent Manager said: bad agent", False),
+        (413, ExitCode.RUNTIME_ERROR, "refused the results \\(HTTP 413\\)", False),
+        (503, ExitCode.RUNTIME_ERROR, "Could not upload the results .*HTTP 503", True),
+        (500, ExitCode.RUNTIME_ERROR, "HTTP 500", True),
     ],
 )
-def test_status_codes_map_to_exit_codes(amp: _Server, status: int, exit_code: ExitCode, message: str) -> None:
+def test_status_codes_map_to_exit_codes(
+    amp: _Server, status: int, exit_code: ExitCode, message: str, console: bool
+) -> None:
     amp.replies = [(status, {"message": "bad agent"})]
     with pytest.raises(PublishError, match=message) as raised:
-        _publisher(amp).publish(_report(_finding("A")), report_location="/out/report.json")
+        _publisher(amp).publish(_report(_finding("A")))
     assert raised.value.exit_code == exit_code
-    assert "/out/report.json" in str(raised.value)
+    assert raised.value.console_can_upload is console
     assert TOKEN not in str(raised.value)
+
+
+def test_a_409_for_an_expired_scan_token_points_to_the_console(amp: _Server) -> None:
+    amp.replies = [
+        (409, {"message": "the scan token of this scan has expired; upload the results file from the console"})
+    ]
+    with pytest.raises(PublishError, match="scan token has expired \\(HTTP 409\\)") as raised:
+        _publisher(amp).publish(_report(_finding("A")))
+    assert raised.value.console_can_upload
+    assert raised.value.exit_code == ExitCode.RUNTIME_ERROR
 
 
 def test_server_errors_are_retried(amp: _Server) -> None:
@@ -267,9 +280,10 @@ def test_an_unexpected_answer_is_an_error(amp: _Server) -> None:
 
 def test_an_expired_token_is_not_sent(amp: _Server) -> None:
     publisher = _publisher(amp, expires_at=WHEN, now=lambda: WHEN.timestamp() + 1)
-    with pytest.raises(PublishError, match="expired before the results") as raised:
+    with pytest.raises(PublishError, match="The scan token has expired.") as raised:
         publisher.publish(_report())
     assert raised.value.exit_code == ExitCode.AUTH_ERROR
+    assert raised.value.console_can_upload
     assert amp.seen == []
     assert TOKEN not in repr(publisher)
 
@@ -299,9 +313,97 @@ def test_upload_publishes_a_saved_report(
     path = write_report(_report(_finding("A")), tmp_path / "report.json")
     assert main(["upload", "--scan-id", SCAN_ID.upper(), str(path)]) == ExitCode.OK
     out, err = capsys.readouterr()
-    assert err == "Published to Agent Manager: scan succeeded, 1 agent saved.\n"
+    assert err == "Uploaded to Agent Manager: scan succeeded, 1 agent saved.\n"
     assert TOKEN not in out + err
     assert [a["name"] for a in amp.seen[0][2]["agents"]] == ["A"]
+
+
+def _results_file(tmp_path: Path, report: Report) -> Path:
+    path = results_path(tmp_path / "report.json", report.scan_id)
+    return write_results(report, build_body(report), path, created_at=WHEN)
+
+
+def test_the_results_file_holds_the_publish_body(tmp_path: Path) -> None:
+    report = _report(_finding("A"), _finding("B", tag="test"), extra=(RepositoryReport("x", RepositoryStatus.FAILED),))
+    path = _results_file(tmp_path, dataclasses.replace(report, scan_id=SCAN_ID.upper()))
+    assert path.name == f"results-{SCAN_ID}.json"
+    data = json.loads(path.read_text())
+    assert data == {
+        "format": "amp-shadow-scan-results",
+        "version": 1,
+        "scanId": SCAN_ID,
+        "createdAt": "2026-11-19T10:00:00Z",
+        "summary": {"organization": "acme", "repositoriesScanned": 1, "repositoriesFailed": 1, "agents": 1},
+        "results": build_body(report),
+    }
+    assert parse_results(data, path) == SavedResults(SCAN_ID, build_body(report))
+
+
+@pytest.mark.parametrize(
+    ("change", "problem"),
+    [
+        ({"format": "other"}, "an unknown format"),
+        ({"version": 2}, "an unknown version"),
+        ({"scanId": 1}, "scanId is missing"),
+        ({"results": []}, "results is missing"),
+        ({"results": {"scannedRepositories": [], "failedRepositories": [], "agents": []}}, "results.complete"),
+        ({"results": {"complete": True, "agents": []}}, "a list in results is missing"),
+    ],
+)
+def test_a_file_that_is_not_a_results_file_is_refused(tmp_path: Path, change: dict[str, object], problem: str) -> None:
+    data = {**json.loads(_results_file(tmp_path, _report()).read_text()), **change}
+    with pytest.raises(ReportError, match=problem):
+        parse_results(data, tmp_path / "x.json")
+
+
+def test_upload_publishes_a_results_file(
+    amp: _Server, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _upload_env(monkeypatch, amp.url)
+    report = _report(_finding("A"), extra=(RepositoryReport("x", RepositoryStatus.FAILED, reason="r"),))
+    path = _results_file(tmp_path, report)
+    assert main(["upload", "--scan-id", SCAN_ID, str(path)]) == ExitCode.PARTIAL_FAILURE
+    assert capsys.readouterr().err == "Uploaded to Agent Manager: scan succeeded, 1 agent saved.\n"
+    [(sent_path, headers, body)] = amp.seen
+    assert sent_path == PUBLISH_PATH.format(scan_id=SCAN_ID)
+    assert headers["authorization"] == f"Bearer {TOKEN}"
+    assert body == build_body(report) == json.loads(path.read_text())["results"]
+
+
+def test_upload_of_another_scans_results_file_is_refused(
+    amp: _Server, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _upload_env(monkeypatch, amp.url)
+    path = _results_file(tmp_path, _report(_finding("A")))
+    other = "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f"
+    assert main(["upload", "--scan-id", other, str(path)]) == ExitCode.CONFIG_ERROR
+    assert f"is the results file of scan {SCAN_ID}, not of scan {other}" in capsys.readouterr().err
+    assert amp.seen == []
+
+
+def test_upload_with_a_refused_token_points_to_the_console(
+    amp: _Server, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _upload_env(monkeypatch, amp.url)
+    amp.replies = [(401, {"message": "invalid token"})]
+    path = _results_file(tmp_path, _report(_finding("A")))
+    assert main(["upload", "--scan-id", SCAN_ID, str(path)]) == ExitCode.AUTH_ERROR
+    err = capsys.readouterr().err
+    assert err.endswith(
+        "amp-shadow-runner: Upload the results file in Agent Manager instead "
+        "(Shadow Agent Discovery, Scans, Upload results).\n"
+    )
+    assert TOKEN not in err
+
+
+def test_upload_with_an_expired_token_points_to_the_console(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("AMP_URL", "https://agent-manager.example.com")
+    monkeypatch.setenv("AMP_SCAN_TOKEN", _token(time.time() - 1))
+    path = _results_file(tmp_path, _report(_finding("A")))
+    assert main(["upload", "--scan-id", SCAN_ID, str(path)]) == ExitCode.CONFIG_ERROR
+    assert "The scan token has expired. Upload the results file in Agent Manager instead" in capsys.readouterr().err
 
 
 def test_upload_of_another_scans_report_is_refused(
@@ -347,6 +449,7 @@ def test_upload_help_names_the_default_report(capsys: pytest.CaptureFixture[str]
     out = capsys.readouterr().out
     assert "--scan-id" in out
     assert "/out/report.json" in out
+    assert "results-<scan id>.json" in out
 
 
 def test_deploy_attributes_are_published_only_when_known() -> None:

@@ -124,6 +124,9 @@ const hoisted = vi.hoisted(() => ({
   setHidden: vi.fn(),
   start: vi.fn(),
   clear: vi.fn(),
+  cancel: vi.fn(),
+  upload: vi.fn(),
+  resetUpload: vi.fn(),
   deleteAgent: vi.fn(),
   deleteAll: vi.fn(),
   test: vi.fn(),
@@ -187,6 +190,13 @@ vi.mock("@agent-management-platform/api-client", () => ({
     };
   },
   useClearShadowScans: () => ({ mutate: hoisted.clear, isPending: false }),
+  useCancelShadowScan: () => ({ mutate: hoisted.cancel, isPending: false }),
+  useUploadShadowScanResults: () => ({
+    mutate: hoisted.upload,
+    reset: hoisted.resetUpload,
+    isPending: false,
+  }),
+  isRequestTooLargeError: () => false,
   useStartShadowScan: () => ({ mutate: hoisted.start, isPending: false }),
   useDeleteShadowConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useTestShadowConnection: () => ({ mutate: hoisted.test, isPending: false }),
@@ -232,7 +242,7 @@ vi.mock("@agent-management-platform/shared-component", async () => {
 });
 
 import { FindingsTab } from "./subComponents/FindingsTab";
-import { FindingDetail, relationLabel } from "./subComponents/FindingDetail";
+import { FindingDetail, parseCodeLocation, relationLabel } from "./subComponents/FindingDetail";
 import { OnboardFinding } from "./subComponents/OnboardFinding";
 import { OverviewPanel } from "./subComponents/OverviewPanel";
 import { RunScanButton } from "./subComponents/RunScanButton";
@@ -607,8 +617,9 @@ describe("FindingDetail", () => {
       </Routes>,
       "/organizations/acme/shadow-agent-discovery/agents/f1",
     );
+  const sidebar = () => screen.getByRole("complementary", { name: "Properties" });
 
-  it("shows the details, source and evidence, and offers onboarding", () => {
+  it("shows why it is an agent, what it uses and its status, and offers onboarding", () => {
     hoisted.detail = detail({
       attributes: {
         model: "gpt-4.1",
@@ -619,38 +630,68 @@ describe("FindingDetail", () => {
     renderDetail();
     expect(screen.getByRole("heading", { name: /^Support Bot/ })).toBeInTheDocument();
     expect(screen.getByText("Agent on OpenAI")).toBeInTheDocument();
-    expect(screen.getByText("Not onboarded")).toBeInTheDocument();
-    for (const section of ["Overview", "Details", "Evidence", "Source"]) {
+    expect(screen.getByText("proj_1")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Location in code")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Not onboarded").length).toBeGreaterThan(0);
+    for (const section of ["Why this is an agent", "What it uses", "Status", "Technical IDs"]) {
       expect(screen.getByText(section)).toBeInTheDocument();
     }
     expect(screen.getByText("Agent object")).toBeInTheDocument();
+    expect(screen.getByText("Returned by GET /v1/agents")).toBeInTheDocument();
+    expect(screen.getByText("Listed by the OpenAI API.")).toBeInTheDocument();
+    expect(screen.queryByText(/Confirmed by/)).not.toBeInTheDocument();
+    expect(screen.getByText("Show listing details")).toBeInTheDocument();
+    expect(screen.queryByText("Show matched code")).not.toBeInTheDocument();
+    // The raw evidence is behind Show listing details, and only rendered once opened.
+    for (const name of ["Show listing details", "Technical IDs"]) {
+      expect(screen.getByRole("button", { name })).toHaveAttribute("aria-expanded", "false");
+    }
+    expect(screen.queryByText(/an item in data/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show listing details" }));
     expect(screen.getByText(/an item in data/)).toBeInTheDocument();
     expect(screen.getByText("toolCount: 2")).toBeInTheDocument();
+    expect(screen.getByText("openai.agent_object")).toBeInTheDocument();
+    expect(screen.getByText("Model")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("function · lookup_order")).toBeInTheDocument();
     expect(screen.getByText("github · https://mcp.example.com")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
+    expect(screen.getByText("Platform ID")).toBeInTheDocument();
     expect(screen.getByText("agent_abc")).toBeInTheDocument();
-    expect(screen.getByText("OpenAI prod · Listed")).toBeInTheDocument();
-    expect(screen.getByText("Platform")).toBeInTheDocument();
-    expect(screen.getByText("active")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 1 connection")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("OpenAI prod")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Listed")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/merged into one agent/)).not.toBeInTheDocument();
+    expect(within(sidebar()).getByText("active")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Last found")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("First found")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /from list|in list/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Onboard as external agent" })).toHaveAttribute(
       "href",
       "/organizations/acme/shadow-agent-discovery/agents/f1/onboard",
     );
     expect(screen.queryByText(/score|verdict|reviewed|dismiss/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/no longer listed/i)).not.toBeInTheDocument();
-    expect(
-      screen.getByText("Why this is an agent: the platform listing that returned it."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("No longer found")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("Might be the same agent")).not.toBeInTheDocument();
     expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
+    // Both were opened above.
+    expect(screen.getByRole("button", { name: "Show listing details" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Technical IDs" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 
   const codeAgent = (reviewedBy: string, over: Partial<ShadowFindingDetail> = {}) =>
     detail({
       provider: "github",
       kind: "code_agent",
-      externalId: "wso2/support-bot:agent.py",
+      scope: "support-bot",
+      externalId: "support-bot:samples/support/agent.py:SupportAgent",
       attributes: { framework: "langgraph", reviewedBy },
       signals: [
         {
@@ -665,36 +706,158 @@ describe("FindingDetail", () => {
       ...over,
     });
 
-  it("explains code evidence and warns that AI confirmed a code agent", () => {
-    hoisted.detail = codeAgent("ai_review_judge");
+  it("shows a code agent's location as a breadcrumb, with a copy button", () => {
+    hoisted.detail = codeAgent("rules");
     renderDetail();
+    expect(screen.getByText("Code agent on GitHub")).toBeInTheDocument();
+    const crumbs = screen.getByRole("navigation", { name: "Location in code" });
+    expect(within(crumbs).getByText("support-bot")).toBeInTheDocument();
+    expect(within(crumbs).getByText("samples/support/agent.py")).toBeInTheDocument();
+    expect(within(crumbs).getByText("SupportAgent")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy location" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
+    expect(screen.getByText("Location in code")).toBeInTheDocument();
+    expect(screen.queryByText("Platform ID")).not.toBeInTheDocument();
+    expect(screen.getByText("In requirements.txt")).toBeInTheDocument();
+    expect(screen.getByText("Show matched code")).toBeInTheDocument();
+    expect(screen.getByText(/What it uses/)).toBeInTheDocument();
+    expect(screen.getByText(/Reported by the scan command/)).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found")).toBeInTheDocument();
+    expect(screen.queryByText("State")).not.toBeInTheDocument();
+    expect(screen.queryByText("Created at the platform")).not.toBeInTheDocument();
+  });
+
+  it("parses a code location, including an @N repeat and a location without a name", () => {
+    expect(parseCodeLocation("support-bot:samples/support/agent.py:SupportAgent@2")).toEqual({
+      repository: "support-bot",
+      path: "samples/support/agent.py",
+      symbol: "SupportAgent",
+      occurrence: 2,
+    });
+    expect(parseCodeLocation("bot:app/main.py:Router.build")).toEqual({
+      repository: "bot",
+      path: "app/main.py",
+      symbol: "Router.build",
+    });
+    expect(parseCodeLocation("wso2/support-bot:agent.py")).toEqual({
+      repository: "wso2/support-bot",
+      path: "agent.py",
+      symbol: "",
+    });
+  });
+
+  it("shows the name without its @N suffix, and copies the full location", () => {
+    hoisted.detail = codeAgent("rules", {
+      externalId: "support-bot:samples/support/agent.py:SupportAgent@2",
+    });
+    renderDetail();
+    const crumbs = screen.getByRole("navigation", { name: "Location in code" });
+    expect(within(crumbs).getByText("SupportAgent")).toBeInTheDocument();
+    expect(within(crumbs).queryByText(/@2/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
     expect(
-      screen.getByText("Why this is an agent: the code in the repository that matched each rule."),
+      screen.getByText("support-bot:samples/support/agent.py:SupportAgent@2"),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText("Why this is an agent: the platform listing that returned it."),
-    ).toBeNull();
-    expect(screen.getByText("requirements.txt")).toBeInTheDocument();
-    expect(screen.getByText("Confirmed by")).toBeInTheDocument();
-    expect(screen.getByText("AI and LLM judge")).toBeInTheDocument();
-    expect(screen.getByText("AI can make mistakes, so check the evidence.")).toBeInTheDocument();
-    expect(screen.getByLabelText("Location in code")).toBeInTheDocument();
-    expect(screen.getByText("wso2/support-bot:agent.py")).toBeInTheDocument();
-    expect(screen.getAllByText("Repository").length).toBeGreaterThan(0);
-    expect(screen.queryByLabelText("Platform ID")).not.toBeInTheDocument();
-    expect(screen.queryByText("Scope")).not.toBeInTheDocument();
-    expect(screen.getByText(/What the scan command reported/)).toBeInTheDocument();
   });
 
-  it("warns about AI mistakes for a code agent confirmed by AI alone", () => {
-    hoisted.detail = codeAgent("ai_review");
+  it.each([
+    ["rules", "Confirmed by detection rules", false],
+    ["ai_review", "Confirmed by AI review", true],
+    ["ai_review_judge", "Confirmed by AI review, checked by a second model", true],
+  ])("words who confirmed a code agent (%s)", (reviewedBy, text, ai) => {
+    hoisted.detail = codeAgent(reviewedBy);
     renderDetail();
-    expect(screen.getByText("AI")).toBeInTheDocument();
-    expect(screen.getByText(/AI can make mistakes/)).toBeInTheDocument();
+    expect(screen.getByText(text)).toBeInTheDocument();
+    expect(screen.queryByText("Confirmed by")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // The AI caution is visible text, shown once, not hidden in a tooltip.
+    const caution = screen.queryAllByText("AI review can make mistakes, so check the evidence.");
+    expect(caution).toHaveLength(ai ? 1 : 0);
+    expect(screen.queryByLabelText(/can make mistakes/)).not.toBeInTheDocument();
   });
 
-  it("words a code agent that is no longer found, without platform-only fields", () => {
+  it("shows only the repository of a location the runner capped", () => {
+    expect(parseCodeLocation(`support-bot:${"a/".repeat(20)}agent.py#0123456789ab`)).toEqual({
+      repository: "support-bot",
+      path: "",
+      symbol: "",
+    });
+    const capped = `support-bot:${"a/".repeat(20)}agent.py:Sup#0123456789ab`;
+    hoisted.detail = codeAgent("rules", { externalId: capped });
+    renderDetail();
+    const crumbs = screen.getByRole("navigation", { name: "Location in code" });
+    expect(within(crumbs).getByText("support-bot")).toBeInTheDocument();
+    expect(within(crumbs).queryByText(/agent\.py|#0123456789ab/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy location" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
+    expect(screen.getByText(capped)).toBeInTheDocument();
+  });
+
+  it("labels branch, folder and language, and drops a folder the location already shows", () => {
+    hoisted.detail = codeAgent("rules", {
+      attributes: {
+        framework: "langgraph",
+        branch: "develop",
+        language: "python",
+        projectPath: "/samples/support",
+        reviewedBy: "rules",
+        description: "",
+      },
+    });
+    const { unmount } = renderDetail();
+    for (const label of ["Framework", "Branch", "Language"]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    expect(screen.getByText("develop")).toBeInTheDocument();
+    expect(screen.getByText("python")).toBeInTheDocument();
+    expect(screen.queryByText("Folder")).not.toBeInTheDocument();
+    expect(screen.queryByText("Description")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^(branch|language|projectPath|reviewedBy)$/)).toBeNull();
+    unmount();
+
+    hoisted.detail = codeAgent("rules", { attributes: { projectPath: "/services/bot" } });
+    renderDetail();
+    expect(screen.getByText("Folder")).toBeInTheDocument();
+    expect(screen.getByText("/services/bot")).toBeInTheDocument();
+  });
+
+  it("says so when the listing reports nothing more", () => {
+    hoisted.detail = codeAgent("rules", { attributes: {} });
+    renderDetail();
+    expect(screen.getByText("Nothing more was reported about this agent.")).toBeInTheDocument();
+  });
+
+  it("shows one short notice and a chip when no connection finds the agent any more", () => {
     hoisted.detail = codeAgent("ai_review", {
+      present: false,
+      foundBy: [
+        { findingId: "f1", connectionId: "c1", connectionName: "WSO2 GitHub", present: false },
+        { findingId: "f9", connectionId: "c9", connectionName: "WSO2 mirror", present: false },
+      ],
+    });
+    renderDetail();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The latest scans no longer find this agent.",
+    );
+    expect(screen.getByText("No longer found")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 2 connections")).toBeInTheDocument();
+    expect(within(sidebar()).getAllByText("Not in latest scan")).toHaveLength(2);
+  });
+
+  it("falls back to the agent's own presence when it lists no connections", () => {
+    hoisted.detail = codeAgent("rules", { present: false, foundBy: [] });
+    renderDetail();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The latest scans no longer find this agent.",
+    );
+    expect(screen.getByText("No longer found")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 1 connection")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Not in latest scan")).toBeInTheDocument();
+  });
+
+  it("shows no notice while one connection still finds the agent, and says they merged", () => {
+    hoisted.detail = codeAgent("rules", {
       present: false,
       foundBy: [
         { findingId: "f1", connectionId: "c1", connectionName: "WSO2 GitHub", present: false },
@@ -702,26 +865,19 @@ describe("FindingDetail", () => {
       ],
     });
     renderDetail();
-    expect(screen.getAllByRole("alert")).toHaveLength(2);
-    expect(screen.getByText(/no longer found this agent/)).toBeInTheDocument();
-    expect(screen.queryByText(/no longer listed this agent/)).not.toBeInTheDocument();
-    expect(screen.getByText("WSO2 GitHub · No longer found")).toBeInTheDocument();
-    expect(screen.queryByText(/No longer listed/)).not.toBeInTheDocument();
-    expect(screen.getByText("WSO2 mirror · Found")).toBeInTheDocument();
-    expect(screen.getByText(/found through 2 connections/)).toBeInTheDocument();
-    expect(screen.queryByText("State at the platform")).not.toBeInTheDocument();
-    expect(screen.queryByText("Created at the platform")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("No longer found")).not.toBeInTheDocument();
+    expect(within(sidebar()).getByText("Not in latest scan")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found")).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", {
+        name: "Results from these connections were merged into one agent.",
+      }),
+    ).toHaveAttribute("tabindex", "0");
+    expect(screen.queryByText(/It is shown once/)).not.toBeInTheDocument();
   });
 
-  it("shows a rule-proven code agent without the AI warning", () => {
-    hoisted.detail = codeAgent("rules");
-    renderDetail();
-    expect(screen.getByText("Confirmed by")).toBeInTheDocument();
-    expect(screen.getByText("Rules")).toBeInTheDocument();
-    expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
-  });
-
-  it("links an onboarded agent to the registered agent", () => {
+  it("links an onboarded agent to the registered agent, without a banner", () => {
     hoisted.detail = detail({
       onboarded: true,
       linkedProject: "default",
@@ -729,51 +885,68 @@ describe("FindingDetail", () => {
       onboardedAt: "2026-11-12T00:00:00Z",
     });
     renderDetail();
-    expect(screen.getByText("Onboarded")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "default / support-bot" })).toHaveAttribute(
+    const heading = screen.getByRole("heading", { name: /^Support Bot/ });
+    expect(within(heading).getByText("Onboarded")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Onboarded as")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const linked = within(sidebar()).getByRole("link", { name: "default / support-bot" });
+    expect(linked).toHaveAttribute(
       "href",
       "/organizations/acme/projects/default/agents/support-bot",
     );
+    expect(linked).toHaveClass("MuiLink-root");
     expect(screen.getByRole("link", { name: "Open registered agent" })).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Onboard as external agent" }),
     ).not.toBeInTheDocument();
   });
 
-  it("notes an agent found through several connections, and its owner when listed", () => {
+  it("shows the owner of a cloud agent, and its other connections", () => {
     hoisted.detail = detail({
       ownerHint: { email: "alice@acme.com", source: "GET /v1/agents" },
+      providerCreatedAt: "2026-10-01T00:00:00Z",
       foundBy: [
         { findingId: "f1", connectionId: "c1", connectionName: "OpenAI prod", present: true },
         { findingId: "f9", connectionId: "c9", connectionName: "OpenAI audit", present: false },
       ],
     });
     renderDetail();
-    expect(screen.getByText("OpenAI audit · No longer listed")).toBeInTheDocument();
-    expect(screen.getByText(/found through 2 connections/)).toBeInTheDocument();
-    expect(screen.getByText(/Created by/)).toBeInTheDocument();
-    expect(screen.getByText("alice@acme.com")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("OpenAI audit")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Not in latest scan")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 2 connections")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Created by")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("alice@acme.com")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("From GET /v1/agents")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Created at the platform")).toBeInTheDocument();
   });
 
-  it("warns when the platform no longer lists the agent, and shows possible duplicates", () => {
+  it("words a cloud agent no platform lists any more, and shows possible duplicates", () => {
     hoisted.detail = detail({
       present: false,
+      foundBy: [
+        { findingId: "f1", connectionId: "c1", connectionName: "OpenAI prod", present: false },
+      ],
       related: [
         {
           findingId: "f7",
           relation: "possible_duplicate",
           displayName: "support-bot",
           provider: "foundry",
+          reason: "same name",
         },
       ],
     });
     renderDetail();
-    expect(screen.getByText(/no longer listed this agent/)).toBeInTheDocument();
-    expect(screen.getByText("Possible duplicates")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "support-bot" })).toHaveAttribute(
-      "href",
-      "/organizations/acme/shadow-agent-discovery/agents/f7",
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The latest scans no longer list this agent.",
     );
+    expect(within(sidebar()).getByText("Might be the same agent")).toBeInTheDocument();
+    const related = within(sidebar()).getByRole("link", { name: "support-bot" });
+    expect(related).toHaveAttribute("href", "/organizations/acme/shadow-agent-discovery/agents/f7");
+    expect(related).toHaveClass("MuiLink-root");
+    expect(
+      within(sidebar()).getByText("Possible duplicate · Microsoft Foundry · same name"),
+    ).toBeInTheDocument();
     expect(relationLabel("possible_duplicate")).toBe("Possible duplicate");
   });
 
@@ -1306,9 +1479,9 @@ describe("ScanDetailsDrawer", () => {
 });
 
 describe("ScanStatusChip", () => {
-  it("shows a scan waiting for its scan command as Pending", () => {
+  it("shows a scan waiting for its scan command as Waiting for results", () => {
     render(<ScanStatusChip status="pending" />);
-    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for results")).toBeInTheDocument();
   });
 });
 
@@ -1471,7 +1644,7 @@ describe("GenerateCommandDialog", () => {
     fireEvent.click(judge);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: true, llmJudge: true },
+      { connectionId: "c2", aiReview: true, llmJudge: true, directUpload: false },
       expect.anything(),
     );
   });
@@ -1490,7 +1663,7 @@ describe("GenerateCommandDialog", () => {
     fireEvent.click(ai);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: false, llmJudge: false },
+      { connectionId: "c2", aiReview: false, llmJudge: false, directUpload: false },
       expect.anything(),
     );
   });
@@ -1501,18 +1674,42 @@ describe("GenerateCommandDialog", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: false, llmJudge: false },
+      { connectionId: "c2", aiReview: false, llmJudge: false, directUpload: false },
+      expect.anything(),
+    );
+    const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
+    // Without direct upload no token is issued.
+    act(() => opts.onSuccess(issuedScan({ token: undefined, expiresAt: undefined })));
+    // The command as one line: its " \\" line continuations joined.
+    const code = (screen.getByText(/--scan-id s9/).textContent ?? "").replace(/ \\\n\s*/g, " ");
+    expect(code).not.toMatch(/AMP_URL|AMP_SCAN_TOKEN/);
+    expect(code).toContain("ghcr.io/wso2/scanner:1.0 scan --scan-id s9");
+    expect(code).toContain("--github-org wso2 --all-repos");
+    expect(screen.getByText(/shows as Waiting for results until you upload/)).toBeInTheDocument();
+    expect(screen.queryByText(/Shown once/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
+  });
+
+  it("starts with direct upload off, and with it on issues a command with a token", () => {
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
+    const direct = screen.getByRole("switch", { name: /^Upload results directly/ });
+    expect(direct).not.toBeChecked();
+    expect(screen.getByText(/saves a results file on your machine/)).toBeInTheDocument();
+    fireEvent.click(direct);
+    expect(screen.getByText(/asks to upload the results with a one-hour/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c2", aiReview: false, llmJudge: false, directUpload: true },
       expect.anything(),
     );
     const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
     act(() => opts.onSuccess(issuedScan()));
-    // The command as one line: its " \\" line continuations joined.
     const code = (screen.getByText(/AMP_SCAN_TOKEN=tok-1/).textContent ?? "").replace(/ \\\n\s*/g, " ");
     expect(code).toContain("-e AMP_URL=https://amp.example.com");
     expect(code).toContain("ghcr.io/wso2/scanner:1.0 scan --scan-id s9");
-    expect(code).toContain("--github-org wso2 --all-repos");
     expect(screen.getByText(/Shown once: copy it now/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
   });
 
   it("never shows a command again after closing, and closes only with Close", () => {
@@ -1520,6 +1717,7 @@ describe("GenerateCommandDialog", () => {
     const { rerender } = render(
       <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={onClose} />,
     );
+    fireEvent.click(screen.getByRole("switch", { name: /^Upload results directly/ }));
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
     act(() => opts.onSuccess(issuedScan({ token: "secret", expiresAt: "bad date" })));
@@ -1539,6 +1737,8 @@ describe("GenerateCommandDialog", () => {
     );
     expect(screen.queryByText(/AMP_SCAN_TOKEN=secret/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Generate" })).toBeInTheDocument();
+    // Reopened, direct upload is off again.
+    expect(screen.getByRole("switch", { name: /^Upload results directly/ })).not.toBeChecked();
   });
 
   it("says why the command could not be generated", () => {
@@ -1680,6 +1880,10 @@ describe("ConnectionEditor (source code repositories)", () => {
     openNew();
     expect(screen.getByText("Scan command")).toBeInTheDocument();
     expect(commandText()).toContain("--github-org <organization> --repos=<repositories>");
+    // Direct upload starts off: no Agent Manager address or token.
+    expect(screen.getByRole("switch", { name: /^Upload results directly/ })).not.toBeChecked();
+    expect(commandText()).not.toMatch(/AMP_URL|AMP_SCAN_TOKEN/);
+    fireEvent.click(screen.getByRole("switch", { name: /^Upload results directly/ }));
     expect(commandText()).toContain("-e AMP_SCAN_TOKEN=<scan-token>");
     fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
       target: { value: "acme" },
@@ -1699,6 +1903,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
     fireEvent.click(screen.getByRole("switch", { name: /^AI-enhanced detection/ }));
+    fireEvent.click(screen.getByRole("switch", { name: /^Upload results directly/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
     expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
     expect(hoisted.createConnection.mock.lastCall?.[0]).toMatchObject({
@@ -1711,7 +1916,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     };
     act(() => created.onSuccess({ id: "c9", name: "GitHub connection" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c9", aiReview: true, llmJudge: false },
+      { connectionId: "c9", aiReview: true, llmJudge: false, directUpload: true },
       expect.anything(),
     );
     const opts = hoisted.generate.mock.lastCall?.[1] as RunnerMutateOptions;
@@ -1748,7 +1953,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
     expect(hoisted.generate).toHaveBeenCalledTimes(2);
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c9", aiReview: false, llmJudge: false },
+      { connectionId: "c9", aiReview: false, llmJudge: false, directUpload: false },
       expect.anything(),
     );
   });
@@ -1869,7 +2074,7 @@ describe("FindingDetail (listing and identifiers)", () => {
   it("puts a removed agent back in the list, and says it was removed", () => {
     hoisted.detail = onboarded(true);
     renderDetail();
-    expect(screen.getByText(/removed from the Unregistered Agents list/)).toBeInTheDocument();
+    expect(screen.getByText(/Removed from the Unregistered Agents list/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show in list" }));
     expect(hoisted.setHidden).toHaveBeenCalledWith(false);
   });
@@ -1884,13 +2089,17 @@ describe("FindingDetail (listing and identifiers)", () => {
       },
     });
     renderDetail();
-    expect(screen.getByText("Identifiers")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy Agent URL" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
     expect(screen.getByText("Agent URL")).toBeInTheDocument();
     expect(screen.getByText("https://agents.example.com/invoice")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy Agent URL" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy Platform ID" })).toBeInTheDocument();
     expect(screen.getByText("Runs on")).toBeInTheDocument();
     expect(screen.getByText("LangGraph Platform")).toBeInTheDocument();
+    expect(screen.getByText("Sorts invoices")).toBeInTheDocument();
     expect(screen.getByText("Agent on Your inventory")).toBeInTheDocument();
+    expect(screen.getByText("Listed by your inventory.")).toBeInTheDocument();
     expect(screen.queryByText("agentUrl")).not.toBeInTheDocument();
   });
 });

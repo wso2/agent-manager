@@ -958,7 +958,6 @@ func newShadowScannerHarness(scan models.ShadowScan, conns ...models.ShadowConne
 		byID[c.ID] = c
 	}
 	h.repo = &repomocks.ShadowAgentRepositoryMock{
-		ExpirePendingScansFunc: func(context.Context, time.Time, time.Time) (int64, error) { return 0, nil },
 		ClaimDueScansFunc: func(context.Context, time.Time, time.Duration, int) ([]models.ShadowScan, error) {
 			return []models.ShadowScan{scan}, nil
 		},
@@ -1079,7 +1078,6 @@ func TestShadowScannerGivesUpAfterMaxAttempts(t *testing.T) {
 	scan := models.ShadowScan{ID: uuid.New(), OUID: shadowTestOU, Attempts: shadowScanMaxAttempts + 1, ConnectionIDs: []string{uuid.New().String()}}
 	var finished *models.ShadowScan
 	repo := &repomocks.ShadowAgentRepositoryMock{
-		ExpirePendingScansFunc: func(context.Context, time.Time, time.Time) (int64, error) { return 0, nil },
 		ClaimDueScansFunc: func(context.Context, time.Time, time.Duration, int) ([]models.ShadowScan, error) {
 			return []models.ShadowScan{scan}, nil
 		},
@@ -1093,35 +1091,23 @@ func TestShadowScannerGivesUpAfterMaxAttempts(t *testing.T) {
 	assert.Equal(t, models.ShadowScanFailed, finished.Status)
 }
 
-// TestShadowScannerExpiresPendingScans: every tick fails the pending source
-// code scans older than an hour, then claims queued scans as usual, also when
-// expiring fails.
-func TestShadowScannerExpiresPendingScans(t *testing.T) {
-	now := time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC)
-	var olderThan time.Time
+// TestShadowScannerLeavesPendingScans: a tick only claims queued (and
+// orphaned running) scans. A pending source code scan never expires; it waits
+// for its results until they are published or uploaded, or it is cancelled.
+// Every other repository func is nil, so any other call panics.
+func TestShadowScannerLeavesPendingScans(t *testing.T) {
 	claimed := 0
 	repo := &repomocks.ShadowAgentRepositoryMock{
-		ExpirePendingScansFunc: func(_ context.Context, before, at time.Time) (int64, error) {
-			olderThan = before
-			assert.Equal(t, now, at)
-			return 1, nil
-		},
 		ClaimDueScansFunc: func(context.Context, time.Time, time.Duration, int) ([]models.ShadowScan, error) {
 			claimed++
 			return nil, nil
 		},
 	}
 	scanner := NewShadowAgentScanner(repo, ShadowConnectors{}, shadowTestKey, discardLogger())
-	scanner.(*shadowAgentScanner).now = func() time.Time { return now }
+	scanner.(*shadowAgentScanner).now = func() time.Time { return time.Date(2026, 11, 17, 10, 0, 0, 0, time.UTC) }
 	scanner.RunOnce(context.Background())
-	assert.Equal(t, now.Add(-time.Hour), olderThan)
-	assert.Equal(t, 1, claimed)
-
-	repo.ExpirePendingScansFunc = func(context.Context, time.Time, time.Time) (int64, error) {
-		return 0, errors.New("db down")
-	}
 	scanner.RunOnce(context.Background())
-	assert.Equal(t, 2, claimed, "a failed expiry does not stop the scan worker")
+	assert.Equal(t, 2, claimed)
 }
 
 func TestShadowDeleteAgents(t *testing.T) {

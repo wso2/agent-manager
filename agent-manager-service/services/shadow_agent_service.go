@@ -92,14 +92,21 @@ type ShadowAgentService interface {
 	UpdateConnection(ctx context.Context, ouID string, id uuid.UUID, in ShadowConnectionInput) (*ShadowConnectionView, error)
 	DeleteConnection(ctx context.Context, ouID string, id uuid.UUID) error
 	TestConnection(ctx context.Context, ouID string, id uuid.UUID) (*models.ShadowConnectionTestInfo, error)
-	// CreateRunnerScan creates a pending scan of a GitHub
-	// connection and the scan token its scan command publishes with.
+	// CreateRunnerScan creates a pending scan of a GitHub connection and,
+	// with opts.DirectUpload, the scan token its scan command publishes with.
 	CreateRunnerScan(ctx context.Context, ouID string, id uuid.UUID, opts models.ShadowScanOptions) (*ShadowRunnerScan, error)
 	// PublishRunnerScan saves the code agents a source code scan command
 	// confirmed, and the repositories it scanned and could not scan, and
 	// finishes its pending scan.
 	PublishRunnerScan(ctx context.Context, ouID string, scanID uuid.UUID,
 		req *models.PublishShadowScanRequest) (*models.PublishShadowScanResponse, error)
+	// UploadRunnerScanResults saves a source code scan's results file,
+	// uploaded by a signed-in user, as PublishRunnerScan saves a publish.
+	UploadRunnerScanResults(ctx context.Context, ouID string, scanID uuid.UUID,
+		req *models.PublishShadowScanRequest) (*models.PublishShadowScanResponse, error)
+	// CancelRunnerScan fails a pending source code scan that will get no
+	// results.
+	CancelRunnerScan(ctx context.Context, ouID string, scanID uuid.UUID) (*models.ShadowScan, error)
 
 	// CreateScan queues a scan of the given connections, or of every
 	// connection when none is given.

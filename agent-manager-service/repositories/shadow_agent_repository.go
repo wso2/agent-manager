@@ -70,10 +70,11 @@ type ShadowScanPublish struct {
 	// to the number of agents written.
 	Result     models.ShadowScanConnectionResult
 	FinishedAt time.Time
-	// ExpireCreatedBy is when a pending scan created at or before it has
-	// expired (the life of its scan token), whether or not the scan worker
-	// has marked it yet. The zero time expires none.
-	ExpireCreatedBy time.Time
+	// TokenExpiredCreatedBy is, for a publish with a scan token, when a scan
+	// created at or before it has outlived its own scan token, so its results
+	// may only be uploaded from the console. The zero time (a console upload)
+	// limits none.
+	TokenExpiredCreatedBy time.Time
 }
 
 // ShadowFindingFilter selects agents.
@@ -144,10 +145,10 @@ type ShadowAgentRepository interface {
 	// or running, and returns how many it deleted. Agents and their evidence
 	// are kept; only the scan records and their per-scan lists go.
 	DeleteFinishedScans(ctx context.Context, ouID string) (int64, error)
-	// ExpirePendingScans fails, across orgs, the pending scans created before
-	// olderThan: their scan command never published results. Each connection
-	// of such a scan gets a failed result saying so.
-	ExpirePendingScans(ctx context.Context, olderThan, now time.Time) (int64, error)
+	// CancelPendingScan fails the org's pending scan id: no results were
+	// published or uploaded for it. Each connection of the scan gets a failed
+	// result saying so. It returns false when the org has no pending scan id.
+	CancelPendingScan(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error)
 	// LatestScan returns the org's newest scan that is not pending (a pending
 	// source code scan must not hide a cloud scan that is running), or
 	// gorm.ErrRecordNotFound when it has none.
@@ -166,10 +167,10 @@ type ShadowAgentRepository interface {
 	// wrote. It locks the connection and the scan, so publishes of one
 	// connection run one at a time. It fails with gorm.ErrRecordNotFound when
 	// the org has no such scan or connection, utils.ErrShadowScanNotPending
-	// when the scan was published already or expired (including one created
-	// at or before in.ExpireCreatedBy that the worker has not marked yet), and
-	// utils.ErrShadowScanSuperseded when a newer scan of the connection has
-	// published its results.
+	// when the scan was published, cancelled or expired already,
+	// utils.ErrShadowScanTokenExpired for a scan created at or before
+	// in.TokenExpiredCreatedBy, and utils.ErrShadowScanSuperseded when a newer
+	// scan of the connection has published its results.
 	PublishScanResults(ctx context.Context, in ShadowScanPublish) (int, error)
 	// ListOrgFindings returns the org's present agents (for correlation).
 	ListOrgFindings(ctx context.Context, ouID string) ([]models.ShadowFinding, error)
@@ -372,7 +373,9 @@ func (r *shadowAgentRepository) ClaimDueScans(
 	return out, err
 }
 
-func (r *shadowAgentRepository) ExpirePendingScans(ctx context.Context, olderThan, now time.Time) (int64, error) {
+func (r *shadowAgentRepository) CancelPendingScan(
+	ctx context.Context, ouID string, id uuid.UUID, now time.Time,
+) (bool, error) {
 	res := r.db.WithContext(ctx).Exec(`UPDATE shadow_scans s
 		SET status = ?, finished_at = ?, updated_at = ?,
 			results = (
@@ -383,10 +386,10 @@ func (r *shadowAgentRepository) ExpirePendingScans(ctx context.Context, olderTha
 				FROM jsonb_array_elements_text(s.connection_ids) AS c(id)
 				LEFT JOIN shadow_connections sc ON sc.ou_id = s.ou_id AND sc.id::text = c.id
 			)
-		WHERE s.status = ? AND s.created_at < ?`,
-		models.ShadowScanFailed, now, now, models.ShadowScanFailed, models.ShadowScanExpiredMessage,
-		models.ShadowScanPending, olderThan)
-	return res.RowsAffected, res.Error
+		WHERE s.ou_id = ? AND s.id = ? AND s.status = ?`,
+		models.ShadowScanFailed, now, now, models.ShadowScanFailed, models.ShadowScanCancelledMessage,
+		ouID, id, models.ShadowScanPending)
+	return res.RowsAffected > 0, res.Error
 }
 
 func (r *shadowAgentRepository) RenewScanLease(ctx context.Context, id uuid.UUID, until time.Time) error {
@@ -496,23 +499,30 @@ func (r *shadowAgentRepository) PublishScanResults(ctx context.Context, in Shado
 		if err := ShadowScanNotPendingError(&scan); err != nil {
 			return err
 		}
-		if !in.ExpireCreatedBy.IsZero() && !scan.CreatedAt.After(in.ExpireCreatedBy) {
-			return fmt.Errorf("%w: %s", utils.ErrShadowScanNotPending, models.ShadowScanExpiredMessage)
+		if !in.TokenExpiredCreatedBy.IsZero() && !scan.CreatedAt.After(in.TokenExpiredCreatedBy) {
+			return utils.ErrShadowScanTokenExpired
 		}
 		connIDs, err := toJSON([]string{ap.ConnectionID.String()})
 		if err != nil {
 			return err
 		}
+		// A newer scan that expired or was cancelled published nothing, so
+		// it does not stop this one.
 		expired, err := toJSON([]map[string]string{{"message": models.ShadowScanExpiredMessage}})
+		if err != nil {
+			return err
+		}
+		cancelled, err := toJSON([]map[string]string{{"message": models.ShadowScanCancelledMessage}})
 		if err != nil {
 			return err
 		}
 		var newer bool
 		if err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM shadow_scans
 			WHERE ou_id = ? AND id <> ? AND connection_ids @> ?::jsonb AND created_at > ?
-				AND status IN (?, ?, ?) AND finished_at IS NOT NULL AND NOT (results @> ?::jsonb))`,
+				AND status IN (?, ?, ?) AND finished_at IS NOT NULL
+				AND NOT (results @> ?::jsonb) AND NOT (results @> ?::jsonb))`,
 			ap.OUID, ap.ScanID, connIDs, scan.CreatedAt,
-			models.ShadowScanSucceeded, models.ShadowScanPartial, models.ShadowScanFailed, expired,
+			models.ShadowScanSucceeded, models.ShadowScanPartial, models.ShadowScanFailed, expired, cancelled,
 		).Scan(&newer).Error; err != nil {
 			return fmt.Errorf("checking for a newer scan: %w", err)
 		}
@@ -539,15 +549,15 @@ func (r *shadowAgentRepository) PublishScanResults(ctx context.Context, in Shado
 }
 
 // ShadowScanNotPendingError returns nil for a pending scan, and otherwise
-// utils.ErrShadowScanNotPending saying whether the scan was published already
-// or expired waiting for its results.
+// utils.ErrShadowScanNotPending saying whether the scan was published
+// already, cancelled, or expired waiting for its results.
 func ShadowScanNotPendingError(s *models.ShadowScan) error {
 	if s.Status == models.ShadowScanPending {
 		return nil
 	}
 	for _, r := range s.Results {
-		if r.Message == models.ShadowScanExpiredMessage {
-			return fmt.Errorf("%w: %s", utils.ErrShadowScanNotPending, models.ShadowScanExpiredMessage)
+		if r.Message == models.ShadowScanExpiredMessage || r.Message == models.ShadowScanCancelledMessage {
+			return fmt.Errorf("%w: %s", utils.ErrShadowScanNotPending, r.Message)
 		}
 	}
 	return fmt.Errorf("%w: already published", utils.ErrShadowScanNotPending)

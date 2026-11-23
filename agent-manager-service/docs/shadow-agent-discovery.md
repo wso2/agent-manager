@@ -10,10 +10,10 @@ Shadow Agent Discovery finds the agents your organization runs outside Agent Man
 | What | Read | Change |
 |---|---|---|
 | Platforms catalog, connections, scans, unregistered agents | `amp:shadow-agent:read` | — |
-| Add platforms, test, run and clear scans, create scan commands, onboard and delete agents | — | `amp:shadow-agent:manage` |
-| Publish the results of a source code scan | — | `amp:shadow-agent:publish` |
+| Add platforms, test, run and clear scans, create scan commands, upload scan results, cancel scans, onboard and delete agents | — | `amp:shadow-agent:manage` |
+| Publish the results of a source code scan from the scan command | — | `amp:shadow-agent:publish` |
 
-All three are granted to the Agent Manager Admin role only: connections hold platform credentials. `amp:shadow-agent:publish` is held by the scan token and used by the scan command only: the publish endpoint refuses a user token, even an Admin's. Every change is in the audit trail (`shadow-connection:*` and `shadow-scan-token:issue` are credential operations; `shadow-scan:create`, `shadow-scan:publish`, `shadow-scan:clear`, `shadow-finding:onboard`, `shadow-finding:hide`, `shadow-finding:delete`, `shadow-finding:clear`). `shadow-scan-token:issue` and `shadow-scan:publish` are fail-closed: nothing is issued or saved unrecorded.
+All three are granted to the Agent Manager Admin role only: connections hold platform credentials. `amp:shadow-agent:publish` is held by the scan token and used by the scan command only: the publish endpoint refuses a user token, even an Admin's. Every change is in the audit trail (`shadow-connection:*` and `shadow-scan-token:issue` are credential operations; `shadow-scan:create`, `shadow-scan:publish`, `shadow-scan:cancel`, `shadow-scan:clear`, `shadow-finding:onboard`, `shadow-finding:hide`, `shadow-finding:delete`, `shadow-finding:clear`). `shadow-scan:publish` covers both the scan command's publish and a console upload, told apart by the actor. `shadow-scan-token:issue` and `shadow-scan:publish` are fail-closed: nothing is issued or saved unrecorded.
 
 ## Platforms
 
@@ -64,7 +64,7 @@ Each scan records the agents it found, so **Scans** > **View agents** lists one 
 
 The choices are stored with the scan (`options`). Without AI review, only the agents the rules prove are published.
 
-**3. The command.** **Add platform and get command** (or **Save and get command** when editing) saves the platform and creates the scan (`POST .../connections/{connectionId}/runner-scans`). This creates a `pending` scan and a scan token valid for 1 hour, and the console fills the scan ID, token, Agent Manager address and image into the command. The command is shown once: the form locks, and **Done** leaves the page. The token is kept only in the page's memory, never in a URL, storage or the query cache. For a saved platform, **Generate command** on its row in **Platforms** does the same in a dialog. The command is available only where `AMP_SHADOW_RUNNER_ENABLED` is on (see [Configuration](#configuration)); otherwise the platform is saved and getting the command answers 503.
+**3. The command.** **Add platform and get command** (or **Save and get command** when editing) saves the platform and creates the scan (`POST .../connections/{connectionId}/runner-scans`). This creates a `pending` scan, and the console fills the scan ID and image into the command. With **Upload results directly** (off by default) it also creates a scan token valid for 1 hour, and the command carries the Agent Manager address and the token (`AMP_URL`, `AMP_SCAN_TOKEN`); without it no token is created and the command has neither. The command is shown once: the form locks, and **Done** leaves the page. The token is kept only in the page's memory, never in a URL, storage or the query cache. For a saved platform, **Generate command** on its row in **Platforms** does the same in a dialog. The command is available only where `AMP_SHADOW_RUNNER_ENABLED` is on (see [Configuration](#configuration)); otherwise the platform is saved and getting the command answers 503.
 
 The command has one option per line; values you entered are shell-quoted:
 
@@ -91,13 +91,14 @@ docker run --rm -it \
 
 The scan command's image (`AMP_SHADOW_RUNNER_IMAGE`) is not released yet, so the command cannot be run until it is.
 
-**4. On the customer's machine.** The command asks for the Git token (for GitHub, only when private repositories are included) and for the LLM API key (only with AI review). It lists the repositories it will scan and asks to confirm, scans them, deletes the code, and publishes only the confirmed agents, with the names of the repositories it scanned and could not scan. The agents appear in **Unregistered Agents** as code agents.
+**4. On the customer's machine.** The command asks for the Git token (for GitHub, only when private repositories are included) and for the LLM API key (only with AI review). It lists the repositories it will scan and asks to confirm, scans them, deletes the code, and saves a results file (`results-<scanId>.json`, next to `report.json`) holding only the confirmed agents, with the names of the repositories it scanned and could not scan. With a scan token it then offers to publish the results itself. Otherwise, or later, **Upload results** on the scan in **Scans** uploads the file as the signed-in user. The agents appear in **Unregistered Agents** as code agents.
 
-**Pending scans.** The scan worker never runs a pending scan, and it does not count as the organization's queued or running scan. A pending scan ends when its command publishes. One with no results within 1 hour becomes failed with *expired: no results within 1 hour*. **Clear scans** keeps pending scans.
+**Pending scans.** The scan worker never runs a pending scan, and it does not count as the organization's queued or running scan. A pending scan (*Waiting for results*) never expires: it ends when its results are published or uploaded, or when **Cancel scan** fails it with *cancelled: no results uploaded*. Scans an earlier version failed with *expired: no results within 1 hour* keep that result. **Clear scans** keeps pending scans.
 
-**Publish rules.**
+**Publish rules.** They apply alike to the scan command's publish and to a console upload.
 
-- A publish is refused (409) when the scan was already published, has expired, or a newer scan of the same platform has already published.
+- A publish is refused (409) when the scan was already published, was cancelled or expired, or a newer scan of the same platform has already published. A cancelled or expired newer scan published nothing, so it does not count.
+- A publish with a scan token is also refused (409) for a scan created more than 1 hour ago, when its own token has expired. Its results file can still be uploaded from the console.
 - The scan becomes **succeeded**, **partial** when some repositories failed or agents could not be marked as no longer present (see below), or **failed** when every repository failed.
 - An agent the command did not publish is marked as no longer present only in repositories the scan finished. The repositories it could not scan keep their agents and evidence. For a GitHub list of repositories, a configured repository the command did not report as scanned is kept too.
 - Nothing is marked as no longer present when the command could not list every repository. New agents are still saved.
@@ -158,9 +159,9 @@ Error messages and failure reasons are scrubbed of anything that looks like a cr
 
 ## API
 
-All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`, tag *Shadow Agent Discovery*): `providers`, `summary`, `connections` (+ `/{id}`, `/{id}/test`, `/{id}/runner-scans`), `scans` (+ `/{id}`; `DELETE` clears the finished scans), `findings` (+ `/{id}`, `/{id}/onboarding`, `/{id}/hidden`).
+All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`, tag *Shadow Agent Discovery*): `providers`, `summary`, `connections` (+ `/{id}`, `/{id}/test`, `/{id}/runner-scans`), `scans` (+ `/{id}`, `/{id}/results`, `/{id}/cancel`; `DELETE` clears the finished scans), `findings` (+ `/{id}`, `/{id}/onboarding`, `/{id}/hidden`).
 
-**`POST .../connections/{connectionId}/runner-scans`** (`amp:shadow-agent:manage`) creates a pending scan of a GitHub connection and its scan token. Request: `{"aiReview": true, "llmJudge": false}` (the LLM judge needs AI review). Response (201, `Cache-Control: no-store`): `{scanId, token, expiresAt, ampUrl, image}`, the parts the console builds the command from. 400 for any other platform or the LLM judge without AI review; 404 for an unknown connection; 503 when source code scans are turned off or not set up (the message says what to set), when the identity provider is unavailable, or when the audit trail is unavailable.
+**`POST .../connections/{connectionId}/runner-scans`** (`amp:shadow-agent:manage`) creates a pending scan of a GitHub connection and, with `directUpload`, its scan token. Request: `{"aiReview": true, "llmJudge": false, "directUpload": false}` (the LLM judge needs AI review; `directUpload` is optional and defaults to `false`, and is stored in the scan's `options`). Response (201, `Cache-Control: no-store`): `{scanId, token, expiresAt, ampUrl, image}`, the parts the console builds the command from; `token` and `expiresAt` only with `directUpload`. Without it no token is obtained, and the scan is recorded as `shadow-scan:create`, not `shadow-scan-token:issue`. 400 for any other platform or the LLM judge without AI review; 404 for an unknown connection; 503 when source code scans are turned off or not set up (the message says what to set), when the identity provider is unavailable, or when the audit trail is unavailable.
 
 **`POST /api/v1/shadow-agent-publisher/scans/{scanId}/results`** is the scan command's publish endpoint. Like the build publisher, it is not in the OpenAPI spec. It admits only a scan token: one this service obtained with its own client (`IDP_CLIENT_ID`) for one organization, holding `amp:shadow-agent:publish` and no other scope. A user token is refused (403), whatever its role. The organization comes from the token, never from the request.
 
@@ -186,6 +187,10 @@ All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`
 
 Response (200): `{"scanId": "…", "status": "partial", "findingsCount": 1}`, the scan's new status and the number of agents saved. 404 when the scan is not a source code scan of the token's organization or source code scans are turned off; 409 under the publish rules above; 503 when the audit trail is unavailable.
 
+**`POST .../scans/{scanId}/results`** (`amp:shadow-agent:manage`) uploads the `results` object of a results file, as the signed-in user, for a pending source code scan of the organization in the path. The body, limits, checks, response and errors are those of the publish endpoint above; only the authentication differs, and there is no scan token time limit.
+
+**`POST .../scans/{scanId}/cancel`** (`amp:shadow-agent:manage`) fails a pending source code scan with *cancelled: no results uploaded* and returns the scan (200). 404 for an unknown scan; 409 when it is not pending.
+
 ## Configuration
 
 Source code scans need the settings below. While `AMP_SHADOW_RUNNER_ENABLED` is off, or without `SERVER_PUBLIC_URL` or the identity provider client, `runner-scans` answers 503 and the rest of Shadow Agent Discovery works.
@@ -206,4 +211,4 @@ Source code scans need the settings below. While `AMP_SHADOW_RUNNER_ENABLED` is 
 - Some platform fields (such as the AWS Agent Registry provenance and the Google `RuntimeReference`) are not documented exhaustively; connectors parse them leniently and record a call as `unsupported_response` when a response no longer has the documented shape.
 - A code agent is found only in the repositories the scan command scanned, and only when it runs: Agent Manager does not scan repositories on its own.
 - AI review and the LLM judge can make mistakes.
-- A scan token is valid for 1 hour, and each scan accepts one publish: run each command once, and get a new one with **Generate command**.
+- A scan token is valid for 1 hour, and each scan accepts one publish or upload: run each command once, and get a new one with **Generate command**.

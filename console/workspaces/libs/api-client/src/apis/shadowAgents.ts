@@ -36,6 +36,8 @@ import type {
   ShadowScanListResponse,
   ShadowScanRequest,
   ShadowScanResponse,
+  ShadowScanResults,
+  ShadowScanResultsUploadResponse,
 } from "@agent-management-platform/types";
 
 async function tokenOf(getToken?: () => Promise<string>) {
@@ -182,6 +184,34 @@ export async function createShadowRunnerScan(
     { token },
   );
   return res.json();
+}
+
+/** Uploads the results of a source code scan that is waiting for them. */
+export async function uploadShadowScanResults(
+  orgName: string | undefined,
+  scanId: string,
+  body: ShadowScanResults,
+  getToken?: () => Promise<string>,
+): Promise<ShadowScanResultsUploadResponse> {
+  const token = await tokenOf(getToken);
+  const res = await httpPOST(
+    `${shadowBase(orgName)}/scans/${encodeURIComponent(scanId)}/results`,
+    body,
+    { token },
+  );
+  return res.json();
+}
+
+/** Cancels a source code scan that is waiting for results; it becomes Failed. */
+export async function cancelShadowScan(
+  orgName: string | undefined,
+  scanId: string,
+  getToken?: () => Promise<string>,
+): Promise<void> {
+  const token = await tokenOf(getToken);
+  await httpPOST(`${shadowBase(orgName)}/scans/${encodeURIComponent(scanId)}/cancel`, {}, {
+    token,
+  });
 }
 
 /** Deletes the finished scans; a queued or running scan and all findings are kept. */

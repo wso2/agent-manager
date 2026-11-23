@@ -27,9 +27,10 @@ import pytest
 
 from amp_shadow_runner import __version__
 from amp_shadow_runner.cli import main
+from amp_shadow_runner.config import ScanConfig
 from amp_shadow_runner.engine import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
-from amp_shadow_runner.pipeline import PublishInterrupted
+from amp_shadow_runner.pipeline import PublishInterrupted, UploadCancelled
 from tests.test_config import _token
 
 
@@ -168,8 +169,18 @@ def test_scan_of_another_provider_is_a_usage_error(
 @pytest.mark.parametrize(
     ("interrupt", "message"),
     [
-        (KeyboardInterrupt(), "Cancelled. Nothing was published."),
-        (PublishInterrupted(), "Cancelled while publishing. The results may already have been published"),
+        (KeyboardInterrupt(), "Cancelled. Nothing was saved or uploaded.\n"),
+        (UploadCancelled(), "Cancelled. Nothing was uploaded.\n"),
+        (
+            UploadCancelled("results-x.json"),
+            "Cancelled. Nothing was uploaded. Upload results-x.json in Agent Manager when you are ready "
+            "(Shadow Agent Discovery, Scans, Upload results).\n",
+        ),
+        (
+            PublishInterrupted("results-x.json"),
+            "Cancelled while uploading. The results may already be in Agent Manager; check the scan there. "
+            "If they are not, upload results-x.json in Agent Manager (Shadow Agent Discovery, Scans, Upload results).",
+        ),
     ],
 )
 def test_ctrl_c_says_whether_anything_was_published(
@@ -184,3 +195,20 @@ def test_ctrl_c_says_whether_anything_was_published(
     argv = ["scan", "--scan-id", "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f", "--github-org", "o", "--all-repos"]
     assert main(argv) == ExitCode.RUNTIME_ERROR
     assert message in capsys.readouterr().err
+
+
+def test_scan_without_agent_manager_variables_saves_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[tuple[ScanConfig, bool]] = []
+
+    def capture(config: ScanConfig, *, yes: bool) -> int:
+        seen.append((config, yes))
+        return ExitCode.OK
+
+    monkeypatch.setattr("amp_shadow_runner.cli.run_scan", capture)
+    monkeypatch.delenv("AMP_URL", raising=False)
+    monkeypatch.delenv("AMP_SCAN_TOKEN", raising=False)
+    monkeypatch.setenv("AMP_SHADOW_YES", "1")
+    argv = ["scan", "--scan-id", "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f", "--github-org", "o", "--all-repos"]
+    assert main(argv) == ExitCode.OK
+    [(config, yes)] = seen
+    assert (config.amp_url, config.token, yes) == (None, None, True)

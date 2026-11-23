@@ -23,6 +23,8 @@ type ShadowRunnerScanRequest struct {
 	AiReview bool `json:"aiReview"`
 	// A second model must confirm the reviewer. Only with aiReview.
 	LlmJudge bool `json:"llmJudge"`
+	// Issue a scan token so the scan command can publish its results itself. Without it no token is issued, and the results file is uploaded from the console.
+	DirectUpload *bool `json:"directUpload,omitempty"`
 }
 
 // NewShadowRunnerScanRequest instantiates a new ShadowRunnerScanRequest object
@@ -33,6 +35,8 @@ func NewShadowRunnerScanRequest(aiReview bool, llmJudge bool) *ShadowRunnerScanR
 	this := ShadowRunnerScanRequest{}
 	this.AiReview = aiReview
 	this.LlmJudge = llmJudge
+	var directUpload bool = false
+	this.DirectUpload = &directUpload
 	return &this
 }
 
@@ -41,6 +45,8 @@ func NewShadowRunnerScanRequest(aiReview bool, llmJudge bool) *ShadowRunnerScanR
 // but it doesn't guarantee that properties required by API are set
 func NewShadowRunnerScanRequestWithDefaults() *ShadowRunnerScanRequest {
 	this := ShadowRunnerScanRequest{}
+	var directUpload bool = false
+	this.DirectUpload = &directUpload
 	return &this
 }
 
@@ -92,6 +98,38 @@ func (o *ShadowRunnerScanRequest) SetLlmJudge(v bool) {
 	o.LlmJudge = v
 }
 
+// GetDirectUpload returns the DirectUpload field value if set, zero value otherwise.
+func (o *ShadowRunnerScanRequest) GetDirectUpload() bool {
+	if o == nil || IsNil(o.DirectUpload) {
+		var ret bool
+		return ret
+	}
+	return *o.DirectUpload
+}
+
+// GetDirectUploadOk returns a tuple with the DirectUpload field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowRunnerScanRequest) GetDirectUploadOk() (*bool, bool) {
+	if o == nil || IsNil(o.DirectUpload) {
+		return nil, false
+	}
+	return o.DirectUpload, true
+}
+
+// HasDirectUpload returns a boolean if a field has been set.
+func (o *ShadowRunnerScanRequest) HasDirectUpload() bool {
+	if o != nil && !IsNil(o.DirectUpload) {
+		return true
+	}
+
+	return false
+}
+
+// SetDirectUpload gets a reference to the given bool and assigns it to the DirectUpload field.
+func (o *ShadowRunnerScanRequest) SetDirectUpload(v bool) {
+	o.DirectUpload = &v
+}
+
 func (o ShadowRunnerScanRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -104,6 +142,9 @@ func (o ShadowRunnerScanRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["aiReview"] = o.AiReview
 	toSerialize["llmJudge"] = o.LlmJudge
+	if !IsNil(o.DirectUpload) {
+		toSerialize["directUpload"] = o.DirectUpload
+	}
 	return toSerialize, nil
 }
 

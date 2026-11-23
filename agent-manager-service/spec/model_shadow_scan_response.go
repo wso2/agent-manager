@@ -21,7 +21,7 @@ var _ MappedNullable = &ShadowScanResponse{}
 // ShadowScanResponse struct for ShadowScanResponse
 type ShadowScanResponse struct {
 	Id string `json:"id"`
-	// pending: a source code scan waiting for its scan command to publish results (it fails after 1 hour without them); queued and running: a cloud scan in progress.
+	// pending: a source code scan waiting for its results, until they are published or uploaded or the scan is cancelled; queued and running: a cloud scan in progress.
 	Status        string                       `json:"status"`
 	ConnectionIds []string                     `json:"connectionIds"`
 	Options       *ShadowScanOptions           `json:"options,omitempty"`

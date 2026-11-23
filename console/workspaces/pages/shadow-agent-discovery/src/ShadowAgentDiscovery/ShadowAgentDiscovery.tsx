@@ -169,7 +169,12 @@ export function ShadowAgentDiscovery() {
   return (
     <Routes>
       <Route index element={<ShadowOverview orgName={orgId} canManage={access.canManage} />} />
-      <Route path="scans/:scanId" element={<ScanFindings orgName={orgId} listPath={listPath} />} />
+      <Route
+        path="scans/:scanId"
+        element={
+          <ScanFindings orgName={orgId} listPath={listPath} canManage={access.canManage} />
+        }
+      />
       <Route
         path="agents/:findingId"
         element={<FindingDetail orgName={orgId} canManage={access.canManage} listPath={listPath} />}

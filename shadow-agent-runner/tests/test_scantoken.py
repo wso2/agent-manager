@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 import pytest
 
 from amp_shadow_runner.exitcodes import ExitCode
-from amp_shadow_runner.scantoken import DEFAULT_MIN_SECONDS, ScanTokenError, require_lifetime
+from amp_shadow_runner.scantoken import DEFAULT_MIN_SECONDS, ScanTokenError, require_lifetime, token_expiry
 
 NOW = 1_800_000_000
 INVALID = "AMP_SCAN_TOKEN is not a valid scan token. Copy the whole command from Agent Manager again."
@@ -81,21 +81,21 @@ def test_exactly_min_seconds_left_is_accepted() -> None:
 def test_one_second_under_min_seconds_is_refused() -> None:
     exc = _refuse(_token({"exp": NOW + DEFAULT_MIN_SECONDS - 1}))
     assert str(exc) == (
-        "The scan token expires in 9 minutes, and a scan needs at least 10 minutes. "
-        "Generate a new command in Agent Manager and run it again."
+        "The scan token expires in less than a minute, and an upload needs at least 1 minute. "
+        "Upload the results file in Agent Manager instead (Shadow Agent Discovery, Scans, Upload results)."
     )
 
 
 def test_custom_min_seconds() -> None:
     token = _token({"exp": NOW + 120})
     assert require_lifetime(token, 60, now=_clock) == datetime.fromtimestamp(NOW + 120, tz=UTC)
-    assert "expires in 2 minutes, and a scan needs at least 3 minutes" in str(_refuse(token, 180))
+    assert "expires in 2 minutes, and an upload needs at least 3 minutes" in str(_refuse(token, 180))
 
 
 def test_minimum_rounds_up_to_whole_minutes() -> None:
     # 90 seconds needed and 89 left: the minimum reads 2 minutes, never "less than a minute".
     exc = _refuse(_token({"exp": NOW + 89}), 90)
-    assert "expires in 1 minute, and a scan needs at least 2 minutes." in str(exc)
+    assert "expires in 1 minute, and an upload needs at least 2 minutes." in str(exc)
     assert "needs at least 1 minute." in str(_refuse(_token({"exp": NOW + 10}), 30))
 
 
@@ -103,14 +103,24 @@ def test_minimum_rounds_up_to_whole_minutes() -> None:
     ("left", "phrase"),
     [(240, "4 minutes"), (60, "1 minute,"), (30, "less than a minute")],
 )
-def test_less_than_ten_minutes_left_is_refused(left: int, phrase: str) -> None:
-    assert f"The scan token expires in {phrase}" in str(_refuse(_token({"exp": NOW + left})))
+def test_less_than_the_minimum_left_is_refused(left: int, phrase: str) -> None:
+    assert f"The scan token expires in {phrase}" in str(_refuse(_token({"exp": NOW + left}), 600))
 
 
 @pytest.mark.parametrize("exp", [NOW, NOW - 1])
 def test_expired_token_is_refused(exp: int) -> None:
     exc = _refuse(_token({"exp": exp}))
-    assert str(exc).startswith("The scan token has expired. Generate a new command in Agent Manager and run it again.")
+    assert str(exc).startswith("The scan token has expired. Upload the results file in Agent Manager instead")
+
+
+@pytest.mark.parametrize("exp", [NOW - 3600, NOW + 3600])
+def test_token_expiry_reads_exp_even_when_past(exp: int) -> None:
+    assert token_expiry(_token({"exp": exp})) == datetime.fromtimestamp(exp, tz=UTC)
+
+
+def test_token_expiry_refuses_an_unreadable_token() -> None:
+    with pytest.raises(ScanTokenError, match="not a valid scan token"):
+        token_expiry("not-a-jwt")
 
 
 def test_fractional_exp_is_accepted() -> None:

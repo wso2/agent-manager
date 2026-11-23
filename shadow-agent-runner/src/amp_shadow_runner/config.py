@@ -34,7 +34,7 @@ from typing import ClassVar, Literal, get_args
 from urllib.parse import urlsplit
 
 from amp_shadow_runner.exitcodes import ExitCode
-from amp_shadow_runner.scantoken import DEFAULT_MIN_SECONDS, require_lifetime
+from amp_shadow_runner.scantoken import DEFAULT_MIN_SECONDS, require_lifetime, token_expiry
 
 Provider = Literal["github"]
 """The Git hosts the runner scans. Any other provider is refused as unsupported."""
@@ -57,11 +57,16 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class ScanConfig:
-    """Everything one scan needs. ``repr`` never shows the token."""
+    """Everything one scan needs. ``repr`` never shows the token.
 
-    amp_url: str
-    token: str = field(repr=False)
-    token_expires_at: datetime
+    ``amp_url``, ``token`` and ``token_expires_at`` are all set, or all None: the command uploads the results
+    directly only when Agent Manager put ``AMP_URL`` and ``AMP_SCAN_TOKEN`` in it.
+    """
+
+    amp_url: str | None
+    token: str | None = field(repr=False)
+    token_expires_at: datetime | None
+    """When the token expires; it may already have expired."""
     scan_id: str
     provider: Provider
     organization: str
@@ -191,17 +196,33 @@ def agent_manager_env(
     return amp_url, token, require_lifetime(token, min_seconds, now=now)
 
 
+def scan_agent_manager_env(env: Mapping[str, str] | None = None) -> tuple[str | None, str | None, datetime | None]:
+    """Return ``AMP_URL``, ``AMP_SCAN_TOKEN`` and the token's expiry for a scan, or three Nones without a token.
+
+    The token is optional: without it the results are only saved. With it, ``AMP_URL`` is required and the
+    token must be readable, but it may have expired (the scan then saves the results for the console).
+    Without a token ``AMP_URL`` is ignored. Raises ConfigError or ScanTokenError.
+    """
+    env = os.environ if env is None else env
+    token = env.get("AMP_SCAN_TOKEN", "").strip()
+    if not token:
+        return None, None, None
+    amp_url = env.get("AMP_URL", "")
+    if not amp_url.strip():
+        raise ConfigError(f"AMP_URL is not set. {_COPY_AGAIN}")
+    return _url(amp_url, "AMP_URL"), token, token_expiry(token)
+
+
 def build_scan_config(
     args: argparse.Namespace,
     env: Mapping[str, str] | None = None,
-    *,
-    now: Callable[[], float] = time.time,
 ) -> ScanConfig:
     """Build the scan configuration from the parsed ``scan`` flags and the environment.
 
     ``env`` defaults to ``os.environ``. Raises ConfigError for an unusable flag
-    or variable, and ScanTokenError when the token has under 10 minutes left
-    or cannot be read. Both have exit code CONFIG_ERROR.
+    or variable, and ScanTokenError when a given token cannot be read. Both
+    have exit code CONFIG_ERROR. A scan does not check the token's lifetime
+    (see ``scan_agent_manager_env``).
     """
     scan_id = check_scan_id(args.scan_id)
     provider: Provider = "github"
@@ -211,7 +232,7 @@ def build_scan_config(
     if judge and not ai_review:
         raise ConfigError("--judge needs --ai-review.")
 
-    amp_url, token, expires_at = agent_manager_env(env, now=now)
+    amp_url, token, expires_at = scan_agent_manager_env(env)
 
     return ScanConfig(
         amp_url=amp_url,

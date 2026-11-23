@@ -94,6 +94,10 @@ expect_exit 2 GITHUB_TOKEN "${scan[@]}" --include-private
 echo "scan with no terminal and without --yes exits 2 and names --yes"
 expect_exit 2 "--yes" "${scan[@]}"
 
+echo "scan without AMP_URL and AMP_SCAN_TOKEN (save results only) also gets that far"
+expect_exit 2 "--yes" "${run[@]}" --tmpfs /out:uid=10001,gid=10001 \
+  "$image" scan --scan-id 3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f --github-org acme --all-repos
+
 echo "pip is not shipped"
 if "${run[@]}" --entrypoint python "$image" -c 'import pip' 2>/dev/null; then
   echo "pip is present in the image" >&2
