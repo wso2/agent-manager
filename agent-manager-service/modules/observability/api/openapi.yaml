@@ -66,6 +66,54 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/v1/traces/export:
+    get:
+      tags: [traces]
+      summary: Export traces
+      description: |
+        Exports the agent's traces whose root span starts in the window, each with its
+        spans and their attributes (at most 1000 spans a trace). The filters and `cursor`
+        are refused with 400 as on the list. A trace whose spans can't be read is left
+        out and named in `failedTraceIds`.
+      operationId: exportTraces
+      parameters:
+        - $ref: "#/components/parameters/project"
+        - $ref: "#/components/parameters/agent"
+        - $ref: "#/components/parameters/environment"
+        - $ref: "#/components/parameters/startTime"
+        - $ref: "#/components/parameters/endTime"
+        - name: limit
+          in: query
+          description: Traces to export (default 100, at most 1000)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: The exported traces
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TraceExportResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/traces/{traceId}/spans:
     get:
       tags: [traces]
@@ -299,6 +347,40 @@ components:
           format: int64
         spanCount:
           type: integer
+
+    TraceExportResponse:
+      type: object
+      required: [traces, totalCount, truncated, spansTruncated]
+      properties:
+        traces:
+          type: array
+          items:
+            $ref: "#/components/schemas/FullTrace"
+        totalCount:
+          type: integer
+          description: Traces in the window
+        truncated:
+          type: boolean
+          description: True when `spansTruncated` is
+        spansTruncated:
+          type: boolean
+          description: True when an exported trace has more than 1000 spans and its spans were cut
+        failedTraceIds:
+          type: array
+          description: Traces left out because their spans couldn't be read
+          items:
+            type: string
+
+    FullTrace:
+      allOf:
+        - $ref: "#/components/schemas/TraceOverview"
+        - type: object
+          required: [spans]
+          properties:
+            spans:
+              type: array
+              items:
+                $ref: "#/components/schemas/EnrichedSpan"
 
     SpanSummaryListResponse:
       type: object

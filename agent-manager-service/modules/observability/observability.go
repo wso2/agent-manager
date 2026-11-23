@@ -91,6 +91,7 @@ func (m module) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Provide(tracesv1.ID, capability{core: rt.Core(), traces: traces})
 	h := handlers{core: rt.Core(), traces: traces, log: rt.Logger()}
 	rt.Handle(http.MethodGet, "/api/v1/traces", PermTracesRead, h.listTraces)
+	rt.Handle(http.MethodGet, "/api/v1/traces/export", PermTracesRead, h.exportTraces)
 	rt.Handle(http.MethodGet, "/api/v1/traces/{traceId}/spans", PermTracesRead, h.listSpans)
 	rt.Handle(http.MethodGet, "/api/v1/traces/{traceId}/spans/{spanId}", PermTracesRead, h.getSpan)
 	return nil

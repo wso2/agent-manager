@@ -128,6 +128,7 @@ check module-route-404 404 "$(code "${A[@]}" "$API/m/testmod/whoami")"
 OBS=$API/m/observability/api/v1/traces
 WINDOW="startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z"
 check traces-not-installed 404 "$(code "${A[@]}" "$OBS?project=$P&agent=$AG&$WINDOW")"
+check traces-export-not-installed 404 "$(code "${A[@]}" "$OBS/export?project=$P&agent=$AG&$WINDOW")"
 check trace-spans-not-installed 404 "$(code "${A[@]}" "$OBS/t/spans?$WINDOW")"
 check trace-span-not-installed 404 "$(code "${A[@]}" "$OBS/t/spans/s")"
 check workload-heartbeat-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workloads/heartbeat" -d '{"credential":"x.y","protocol":"p/v1"}')"

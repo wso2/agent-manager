@@ -55,6 +55,21 @@ type TraceOverview struct {
 	Output          any          `json:"output,omitempty"`
 }
 
+// TraceExportResponse is the body of the trace export.
+type TraceExportResponse struct {
+	Traces         []FullTrace `json:"traces"`
+	TotalCount     int         `json:"totalCount"`
+	Truncated      bool        `json:"truncated"`
+	SpansTruncated bool        `json:"spansTruncated"`
+	FailedTraceIDs []string    `json:"failedTraceIds,omitempty"`
+}
+
+// FullTrace is one exported trace with its spans.
+type FullTrace struct {
+	TraceOverview
+	Spans []Span `json:"spans"`
+}
+
 // TokenUsage is a trace's token usage.
 type TokenUsage struct {
 	InputTokens  int  `json:"inputTokens"`

@@ -35,6 +35,9 @@ import (
 const (
 	defaultLimit = 10
 	maxLimit     = 1000
+	// defaultExportLimit and maxExportSpans match the observer's export.
+	defaultExportLimit = 100
+	maxExportSpans     = 1000
 	// resourceAgent is the resource attribute naming a span's agent.
 	resourceAgent = "agent-manager/agent"
 )
@@ -112,30 +115,35 @@ func (h handlers) scope(r *http.Request, project, agent string) (store.Scope, er
 	return s, nil
 }
 
-// listTraces serves GET /api/v1/traces.
-func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
+// traceQuery parses a trace list or export request: its agent's scope and window.
+func (h handlers) traceQuery(r *http.Request, limit int) (store.Scope, window, error) {
 	query, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
-		h.fail(w, r, badRequest("invalid query: %v", err))
-		return
+		return store.Scope{}, window{}, badRequest("invalid query: %v", err)
 	}
 	for _, p := range unsupportedParams {
 		if query.Has(p) {
-			h.fail(w, r, badRequest("%s is not supported by this trace store", p))
-			return
+			return store.Scope{}, window{}, badRequest("%s is not supported by this trace store", p)
 		}
 	}
 	project, agent := query.Get("project"), query.Get("agent")
 	if project == "" || agent == "" {
-		h.fail(w, r, badRequest("project and agent are required"))
-		return
+		return store.Scope{}, window{}, badRequest("project and agent are required")
 	}
-	window, err := parseWindow(query, "desc")
+	win, err := parseWindow(query, "desc", limit)
 	if err != nil {
-		h.fail(w, r, err)
-		return
+		return store.Scope{}, window{}, err
 	}
 	s, err := h.scope(r, project, agent)
+	if err != nil {
+		return store.Scope{}, window{}, err
+	}
+	return s, win, nil
+}
+
+// listTraces serves GET /api/v1/traces.
+func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
+	s, window, err := h.traceQuery(r, defaultLimit)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -149,12 +157,7 @@ func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := TraceOverviewResponse{Traces: make([]TraceOverview, 0, len(page.Traces)), TotalCount: page.Total}
 	for _, t := range page.Traces {
-		resp.Traces = append(resp.Traces, TraceOverview{
-			TraceID: t.TraceID, RootSpanID: t.RootSpanID, RootSpanName: t.RootSpanName,
-			RootSpanKind: spanKind(t.RootSpanName),
-			StartTime:    formatTime(t.StartTime), EndTime: formatTime(t.EndTime),
-			DurationInNanos: t.DurationNs, SpanCount: t.SpanCount,
-		})
+		resp.Traces = append(resp.Traces, overview(t))
 	}
 	resp.LookedBackTo = formatTime(window.edge())
 	if n := len(page.Traces); n > 0 && n < page.Total {
@@ -163,10 +166,51 @@ func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
 	h.ok(w, r, resp)
 }
 
+// exportTraces serves GET /api/v1/traces/export: the window's traces, each
+// with its spans and their attributes.
+func (h handlers) exportTraces(w http.ResponseWriter, r *http.Request) {
+	s, window, err := h.traceQuery(r, defaultExportLimit)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	ctx := r.Context()
+	page, err := h.traces.QueryTraces(ctx, s, tracesv1.TraceQuery{
+		StartTime: window.start, EndTime: window.end, Limit: window.limit, SortOrder: window.sort,
+	})
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	resp := TraceExportResponse{Traces: make([]FullTrace, 0, len(page.Traces)), TotalCount: page.Total}
+	for _, t := range page.Traces {
+		spans, err := h.traces.QueryTraceSpans(ctx, s, t.TraceID, tracesv1.SpanQuery{
+			StartTime: window.start, EndTime: window.end, Limit: maxExportSpans, SortOrder: "asc", IncludeAttributes: true,
+		})
+		if err != nil {
+			h.log.WarnContext(ctx, "observability: export left out a trace",
+				"org", modkit.OrgID(ctx), "traceId", t.TraceID, "error", err)
+			resp.FailedTraceIDs = append(resp.FailedTraceIDs, t.TraceID)
+			continue
+		}
+		full := FullTrace{TraceOverview: overview(t), Spans: make([]Span, 0, len(spans.Spans))}
+		for _, sp := range spans.Spans {
+			full.Spans = append(full.Spans, toSpan(t.TraceID, tracesv1.SpanDetails(sp)))
+		}
+		resp.SpansTruncated = resp.SpansTruncated || len(spans.Spans) < spans.Total
+		resp.Traces = append(resp.Traces, full)
+	}
+	resp.Truncated = resp.SpansTruncated
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q",
+		"traces-export-"+time.Now().UTC().Format("20060102-150405")+".json"))
+	w.Header().Set("Cache-Control", "no-store")
+	h.ok(w, r, resp)
+}
+
 // listSpans serves GET /api/v1/traces/{traceId}/spans.
 func (h handlers) listSpans(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
-	window, err := parseWindow(query, "asc")
+	window, err := parseWindow(query, "asc", defaultLimit)
 	if err != nil {
 		h.fail(w, r, err)
 		return
@@ -210,6 +254,21 @@ func (h handlers) getSpan(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
+	h.ok(w, r, toSpan(traceID, *d))
+}
+
+// overview is a trace's list entry.
+func overview(t tracesv1.Trace) TraceOverview {
+	return TraceOverview{
+		TraceID: t.TraceID, RootSpanID: t.RootSpanID, RootSpanName: t.RootSpanName,
+		RootSpanKind: spanKind(t.RootSpanName),
+		StartTime:    formatTime(t.StartTime), EndTime: formatTime(t.EndTime),
+		DurationInNanos: t.DurationNs, SpanCount: t.SpanCount,
+	}
+}
+
+// toSpan is a span with its attributes, in the observer's shape.
+func toSpan(traceID string, d tracesv1.SpanDetails) Span {
 	span := Span{
 		TraceID: traceID, SpanID: d.SpanID, ParentSpanID: d.ParentSpanID, Name: d.SpanName,
 		StartTime: d.StartTime, EndTime: d.EndTime, DurationInNanos: d.DurationNs, Kind: d.Kind,
@@ -221,7 +280,7 @@ func (h handlers) getSpan(w http.ResponseWriter, r *http.Request) {
 		span.Status, span.StatusMessage = strings.ToLower(d.Status.Code), d.Status.Message
 		span.AmpAttributes.Status.Message = d.Status.Message
 	}
-	h.ok(w, r, span)
+	return span
 }
 
 // fail writes err with its status: a request error as is, a store error by kind.
@@ -258,7 +317,7 @@ func (w window) edge() time.Time {
 	return w.start
 }
 
-func parseWindow(query url.Values, defaultSort string) (window, error) {
+func parseWindow(query url.Values, defaultSort string, defaultLimit int) (window, error) {
 	var w window
 	var err error
 	if w.start, err = parseTime(query.Get("startTime")); err != nil {

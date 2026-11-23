@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math"
 	"net/http"
@@ -145,6 +146,48 @@ func TestListTracesRequests(t *testing.T) {
 		if got := serve(t, h.listTraces, "org-a", "/?"+tc.query); got != tc.want {
 			t.Errorf("%s: listTraces = %d, want %d", tc.name, got, tc.want)
 		}
+		if got := serve(t, h.exportTraces, "org-a", "/?"+tc.query); got != tc.want {
+			t.Errorf("%s: exportTraces = %d, want %d", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestExportTraces(t *testing.T) {
+	traces := memory.New()
+	scope := store.Scope{
+		OrgID: "org-a", ProjectID: "p1", AgentID: "a1",
+		Names: store.Names{Org: "acme", Project: "shop", Agent: "bot"},
+	}
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	spans := make([]tracesv1.SpanDetails, maxExportSpans+1)
+	for i := range spans {
+		spans[i] = tracesv1.SpanDetails{SpanID: fmt.Sprint(i), StartTime: at, Attributes: map[string]any{"i": i}}
+	}
+	traces.Add(scope, tracesv1.Trace{TraceID: "big", StartTime: at}, spans...)
+	traces.Add(scope, tracesv1.Trace{TraceID: "small", StartTime: at.Add(time.Second)}, spans[0])
+	h := handlers{core: fakeCore{}, traces: guarded{traces: traces}, log: slog.New(slog.DiscardHandler)}
+
+	r := httptest.NewRequest(http.MethodGet, "/?project=shop&agent=bot&"+testWindow, nil)
+	w := httptest.NewRecorder()
+	h.exportTraces(w, r.WithContext(modkit.WithOrgID(r.Context(), "org-a")))
+	if w.Code != http.StatusOK {
+		t.Fatalf("exportTraces = %d %s, want 200", w.Code, w.Body.String())
+	}
+	var got TraceExportResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Traces) != 2 || got.TotalCount != 2 || got.Traces[0].TraceID != "small" {
+		t.Fatalf("exported %+v, want small then big", got)
+	}
+	if n := len(got.Traces[1].Spans); n != maxExportSpans {
+		t.Errorf("big trace has %d spans, want the cap %d", n, maxExportSpans)
+	}
+	if !got.SpansTruncated || !got.Truncated {
+		t.Errorf("spansTruncated = %v, truncated = %v; want both true", got.SpansTruncated, got.Truncated)
+	}
+	if got.Traces[0].Spans[0].Attributes["i"] != float64(0) {
+		t.Errorf("exported span attributes = %v, want i=0", got.Traces[0].Spans[0].Attributes)
 	}
 }
 

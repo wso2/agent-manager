@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,11 +147,12 @@ func TestObservabilityModule(t *testing.T) {
 		}
 		return "/m/observability/api/v1/traces?" + q.Encode()
 	}
+	exportPath := strings.Replace(listPath(nil), "/traces?", "/traces/export?", 1)
 	spansPath := "/m/observability/api/v1/traces/trace-a/spans?" + window.Encode() + "&project=" + project + "&agent=" + agent
 	spanPath := "/m/observability/api/v1/traces/trace-a/spans/llm"
 
 	t.Run("routes are not found before install", func(t *testing.T) {
-		for _, p := range []string{listPath(nil), spansPath, spanPath} {
+		for _, p := range []string{listPath(nil), exportPath, spansPath, spanPath} {
 			code, _ := call(a.full, p)
 			assert.Equal(t, http.StatusNotFound, code, p)
 		}
@@ -186,10 +188,20 @@ func TestObservabilityModule(t *testing.T) {
 		require.NotNil(t, span.AmpAttributes)
 		assert.Equal(t, "llm", span.AmpAttributes.Kind)
 		assert.Equal(t, "gpt-4o", span.Attributes["gen_ai.request.model"])
+
+		code, body = call(a.full, exportPath)
+		require.Equal(t, http.StatusOK, code, string(body))
+		var export observability.TraceExportResponse
+		require.NoError(t, json.Unmarshal(body, &export))
+		require.Len(t, export.Traces, 1)
+		assert.Equal(t, 1, export.TotalCount)
+		assert.Equal(t, "trace-a", export.Traces[0].TraceID)
+		require.Len(t, export.Traces[0].Spans, 2)
+		assert.Equal(t, "gpt-4o", export.Traces[0].Spans[1].Attributes["gen_ai.request.model"])
 	})
 
 	t.Run("routes need traces-read", func(t *testing.T) {
-		for _, p := range []string{listPath(nil), spansPath, spanPath} {
+		for _, p := range []string{listPath(nil), exportPath, spansPath, spanPath} {
 			code, _ := call(a.limited, p)
 			assert.Equal(t, http.StatusForbidden, code, p)
 		}
@@ -198,6 +210,10 @@ func TestObservabilityModule(t *testing.T) {
 	t.Run("another organization sees nothing", func(t *testing.T) {
 		// The organization in the query is ignored, as is the observer's.
 		code, body := call(b.full, listPath(url.Values{"organization": {a.handle}}))
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.JSONEq(t, `[]`, string(mustField(t, body, "traces")))
+
+		code, body = call(b.full, exportPath)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.JSONEq(t, `[]`, string(mustField(t, body, "traces")))
 
@@ -218,7 +234,7 @@ func TestObservabilityModule(t *testing.T) {
 
 	t.Run("disabling the module removes its routes", func(t *testing.T) {
 		require.NoError(t, host.Disable(ctx, observability.Name))
-		for _, p := range []string{listPath(nil), spansPath, spanPath} {
+		for _, p := range []string{listPath(nil), exportPath, spansPath, spanPath} {
 			code, _ := call(a.full, p)
 			assert.Equal(t, http.StatusNotFound, code, p)
 		}
