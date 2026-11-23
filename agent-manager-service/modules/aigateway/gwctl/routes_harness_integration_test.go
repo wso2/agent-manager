@@ -40,6 +40,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -69,12 +70,25 @@ type routeAPI struct {
 // newRouteAPI serves the whole server for a fresh organization.
 func newRouteAPI(t *testing.T) *routeAPI {
 	t.Helper()
+	return newRouteAPIWith(t, apitestutils.CreateMockPlatformRepository())
+}
+
+// newRouteAPIWithRealCore is newRouteAPI with the core's platform repository
+// on the test database, for tests that create or change core rows through
+// the core's routes, which run the gateway's hooks.
+func newRouteAPIWithRealCore(t *testing.T) *routeAPI {
+	t.Helper()
+	return newRouteAPIWith(t, repositories.NewPlatformRepo(db.GetDB()))
+}
+
+func newRouteAPIWith(t *testing.T, platform repositories.PlatformRepository) *routeAPI {
+	t.Helper()
 	gdb := db.GetDB()
 	org := dbtest.Org(t, gdb)
 	var handle string
 	require.NoError(t, gdb.Raw(`SELECT handle FROM organizations WHERE id = ?`, org).Scan(&handle).Error)
 	h := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{
-		PlatformRepository: apitestutils.CreateMockPlatformRepository(),
+		PlatformRepository: platform,
 		SecretMgmtClient:   apitestutils.CreateMockSecretManagementClient(),
 	}, tokenFor(org))
 	require.NotNil(t, aigateway.Current(), "the gateway module is active")
