@@ -201,6 +201,7 @@ export const UserInvitePage: React.FC = () => {
                     fullWidth
                     value={inviteLink}
                     InputProps={{ readOnly: true }}
+                    inputProps={{ "aria-label": "Invite Link" }}
                   />
                   <Tooltip title={copied ? "Copied!" : "Copy link"}>
                     <IconButton onClick={handleCopy} size="small">
