@@ -201,6 +201,7 @@ func reloadAfter(t *testing.T) {
 
 func loadWith(t *testing.T, yaml string) error {
 	t.Helper()
+	t.Setenv("ENV_FILE_PATH", "")
 	t.Setenv(FileEnv, "")
 	t.Setenv(ModulesEnv, "")
 	p := filepath.Join(t.TempDir(), "amp.yaml")

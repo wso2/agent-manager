@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,7 +36,7 @@ func firstRunEnv(t *testing.T, authMode string) string {
 	for _, k := range []string{
 		"AMP_SECRETS_DIR", "ENCRYPTION_KEY", "JWT_SIGNING_PRIVATE_KEY_PATH", "JWT_SIGNING_PUBLIC_KEYS_CONFIG",
 		"FILE_AUTH_USERS_PATH", "AMP_ADMIN_PASSWORD", "IDP_CLIENT_SECRET", "AMP_API_CLIENT_SECRET",
-		"DB_DRIVER", "DB_HOST", "AMP_FILE_OWNER", "AMP_CONFIG",
+		"DB_DRIVER", "DB_HOST", "AMP_FILE_OWNER", "AMP_CONFIG", "ENV_FILE_PATH",
 	} {
 		t.Setenv(k, "")
 		require.NoError(t, os.Unsetenv(k))
@@ -87,7 +88,7 @@ func TestFirstRunRefusesKeyForExistingData(t *testing.T) {
 
 func TestFirstRunKeepsSetKey(t *testing.T) {
 	data := firstRunEnv(t, "idp")
-	t.Setenv("ENCRYPTION_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("ENCRYPTION_KEY", strings.Repeat("0123456789abcdef", 4))
 	require.NoError(t, firstRun(context.Background(), hasData))
 	assert.NoFileExists(t, filepath.Join(data, "secrets", "encryption-key"))
 }
