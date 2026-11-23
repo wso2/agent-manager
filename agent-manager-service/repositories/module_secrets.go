@@ -18,27 +18,30 @@ package repositories
 
 import (
 	"context"
-
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+	"fmt"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
-// ModuleSecretStore keeps module secrets in the secrets table, one row per
-// organization, owner kind and owner id, encrypted with the core's key. The
-// module host decides the owner kind and id, so a module only reaches its own.
+// moduleSecretNamespace derives a module secret's row id from its organization, owner kind and owner, so two first
+// writes of one secret meet on the primary key instead of creating two rows.
+var moduleSecretNamespace = uuid.MustParse("0d7e3a52-8f0b-5c41-a3c9-6d6f64736563")
+
+// ModuleSecretStore keeps module secrets in the secrets table, one row per organization, owner kind and owner id. The
+// module host decides the owner kind and id, so a module only reaches its own. Values go through the SecretStore, so
+// they are sealed by the configured vault and promoted to an external one after the change needing them commits, the
+// same as core secrets.
 type ModuleSecretStore struct {
-	db  *gorm.DB
-	key []byte
+	db      *gorm.DB
+	secrets *SecretStore
 }
 
 // NewModuleSecretStore returns the secret store for modules.
-func NewModuleSecretStore(db *gorm.DB, key []byte) *ModuleSecretStore {
-	return &ModuleSecretStore{db: db, key: key}
+func NewModuleSecretStore(db *gorm.DB, secrets *SecretStore) *ModuleSecretStore {
+	return &ModuleSecretStore{db: db, secrets: secrets}
 }
 
 func (s *ModuleSecretStore) conn(ctx context.Context, tx *gorm.DB) *gorm.DB {
@@ -52,49 +55,79 @@ func ownerCond(orgID, kind string, owner uuid.UUID) (string, []any) {
 	return "org_id = ? AND owner_kind = ? AND owner_id = ?", []any{orgID, kind, owner}
 }
 
+// ownerRows lists the ids of the owner's secret rows. There is one, except for rows left by concurrent first writes
+// before ids were derived from the owner.
+func (s *ModuleSecretStore) ownerRows(db *gorm.DB, orgID, kind string, owner uuid.UUID) ([]uuid.UUID, error) {
+	where, args := ownerCond(orgID, kind, owner)
+	var ids []uuid.UUID
+	if err := db.Model(&models.Secret{}).Where(where, args...).Order("created_at, id").Pluck("id", &ids).Error; err != nil {
+		return nil, fmt.Errorf("failed to find %s secret %s: %w", kind, owner, err)
+	}
+	return ids, nil
+}
+
 // Put stores value, rewriting the owner's secret or creating it.
 func (s *ModuleSecretStore) Put(ctx context.Context, tx *gorm.DB, orgID, kind string, owner uuid.UUID, value string) error {
-	ciphertext, err := aesgcm.Encrypt([]byte(value), s.key)
-	if err != nil {
-		return err
-	}
-	db := s.conn(ctx, tx)
-	where, args := ownerCond(orgID, kind, owner)
-	now := dbx.Now()
-	res := db.Model(&models.Secret{}).Where(where, args...).
-		Updates(map[string]any{"ciphertext": ciphertext, "version": gorm.Expr("version + 1"), "updated_at": now})
-	if res.Error != nil || res.RowsAffected > 0 {
-		return res.Error
-	}
 	org, err := uuid.Parse(orgID)
 	if err != nil {
 		return err
 	}
-	return db.Create(&models.Secret{
-		ID: NewID(), OrgID: org.String(), OwnerKind: kind, OwnerID: owner, Provider: models.SecretProviderLocal,
-		Ciphertext: ciphertext, Version: 1, CreatedAt: now, UpdatedAt: now,
-	}).Error
+	return s.conn(ctx, tx).Transaction(func(db *gorm.DB) error {
+		ids, err := s.ownerRows(db, org.String(), kind, owner)
+		if err != nil {
+			return err
+		}
+		id := uuid.NewSHA1(moduleSecretNamespace, []byte(org.String()+"/"+kind+"/"+owner.String()))
+		if len(ids) > 0 {
+			id = ids[0]
+		}
+		return s.secrets.write(ctx, db, org.String(), kind, owner, id, []byte(value))
+	})
 }
 
 // Get reads the owner's secret; ok is false when there is none.
 func (s *ModuleSecretStore) Get(ctx context.Context, tx *gorm.DB, orgID, kind string, owner uuid.UUID) (string, bool, error) {
-	where, args := ownerCond(orgID, kind, owner)
-	var rows []models.Secret
-	if err := s.conn(ctx, tx).Where(where, args...).Limit(1).Find(&rows).Error; err != nil {
+	db := s.conn(ctx, tx)
+	ids, err := s.ownerRows(db, orgID, kind, owner)
+	if err != nil || len(ids) == 0 {
 		return "", false, err
 	}
-	if len(rows) == 0 {
-		return "", false, nil
-	}
-	plain, err := aesgcm.Decrypt(rows[0].Ciphertext, s.key)
-	if err != nil {
+	value, found, err := s.secrets.read(ctx, db, ids[0], false)
+	if err != nil || !found {
 		return "", false, err
 	}
-	return string(plain), true, nil
+	return string(value), true, nil
 }
 
-// Delete removes the owner's secret, if any.
+// Delete removes the owner's secret, if any. An external value it had is destroyed after tx commits.
 func (s *ModuleSecretStore) Delete(ctx context.Context, tx *gorm.DB, orgID, kind string, owner uuid.UUID) error {
-	where, args := ownerCond(orgID, kind, owner)
-	return s.conn(ctx, tx).Where(where, args...).Delete(&models.Secret{}).Error
+	return s.conn(ctx, tx).Transaction(func(db *gorm.DB) error {
+		ids, err := s.ownerRows(db, orgID, kind, owner)
+		if err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if err := ReleaseSecret(db, &id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// ReleaseSecretsOfKind releases every secret of an owner kind, in every organization, in tx. Like ReleaseSecret it
+// needs no vault, so a purge from a process without one still queues the removal of external values.
+func ReleaseSecretsOfKind(tx *gorm.DB, kind string) error {
+	return tx.Transaction(func(db *gorm.DB) error {
+		var ids []uuid.UUID
+		if err := db.Model(&models.Secret{}).Where("owner_kind = ?", kind).Pluck("id", &ids).Error; err != nil {
+			return fmt.Errorf("failed to list %s secrets: %w", kind, err)
+		}
+		for _, id := range ids {
+			if err := ReleaseSecret(db, &id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

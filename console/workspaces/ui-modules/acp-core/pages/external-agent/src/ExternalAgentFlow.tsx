@@ -41,7 +41,6 @@ export const ExternalAgentFlow: React.FC = () => {
   }>();
 
   const [formData, setFormData] = useState<ConnectAgentFormValues>({
-    deploymentType: "existing" as const,
     name: "",
     displayName: "",
     description: "",
@@ -140,7 +139,6 @@ export const ExternalAgentFlow: React.FC = () => {
           onCancel={handleCancel}
           onSubmit={handleConnect}
           isNameEmpty={!formData.name.trim()}
-          mode="connect"
         />
       </Form.Stack>
     </PageLayout>

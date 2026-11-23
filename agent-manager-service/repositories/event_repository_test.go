@@ -33,17 +33,85 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
+func TestEventDestinationMetadataAndEditsSurviveUnreadableCredential(t *testing.T) {
+	ctx := context.Background()
+	gdb := db.GetDB()
+	repo := NewEventRepository(gdb, testSecrets(t))
+	d := &models.EventDestination{
+		ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
+		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://hooks.example.com"}`),
+		Secret: "original", Availability: models.DestinationAvailableAll, Projects: []string{},
+	}
+	require.NoError(t, repo.CreateDestination(ctx, d))
+	t.Cleanup(func() { _, err := repo.DeleteDestination(ctx, d.OUID, d.ID); assert.NoError(t, err) })
+	require.NotNil(t, d.SecretID)
+	id := *d.SecretID
+	require.NoError(t, gdb.Model(&models.Secret{}).Where("id = ?", id).Update("ciphertext", []byte("invalid")).Error)
+
+	list, err := repo.ListDestinations(ctx, d.OUID)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Empty(t, list[0].Secret)
+
+	edit, err := repo.GetDestination(ctx, d.OUID, d.ID)
+	require.NoError(t, err)
+	assert.Empty(t, edit.Secret)
+	require.Error(t, repo.LoadDestinationSecret(ctx, edit))
+	edit.Name = "renamed"
+	require.NoError(t, repo.UpdateDestination(ctx, edit, nil))
+	assert.Equal(t, &id, edit.SecretID)
+	require.Error(t, repo.LoadDestinationSecret(ctx, edit))
+
+	edit.Secret = "replacement"
+	require.NoError(t, repo.UpdateDestination(ctx, edit, nil))
+	fresh, err := repo.GetDestination(ctx, d.OUID, d.ID)
+	require.NoError(t, err)
+	assert.Empty(t, fresh.Secret)
+	require.NoError(t, repo.LoadDestinationSecret(ctx, fresh))
+	assert.Equal(t, "replacement", fresh.Secret)
+}
+
+func TestEventDestinationSecretIsNotPairedWithOlderSettings(t *testing.T) {
+	ctx := context.Background()
+	repo := NewEventRepository(db.GetDB(), testSecrets(t))
+	d := &models.EventDestination{
+		ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
+		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://old.example.com"}`),
+		Secret: "old-signing-secret", Availability: models.DestinationAvailableAll, Projects: []string{},
+	}
+	require.NoError(t, repo.CreateDestination(ctx, d))
+	t.Cleanup(func() { _, err := repo.DeleteDestination(ctx, d.OUID, d.ID); assert.NoError(t, err) })
+
+	// A delivery reads the settings, then an update commits new settings and a new secret before it reads the secret.
+	delivery, err := repo.GetDestination(ctx, d.OUID, d.ID)
+	require.NoError(t, err)
+	edit, err := repo.GetDestination(ctx, d.OUID, d.ID)
+	require.NoError(t, err)
+	edit.Config = json.RawMessage(`{"url":"https://new.example.com"}`)
+	edit.Secret = "new-signing-secret"
+	require.NoError(t, repo.UpdateDestination(ctx, edit, nil))
+
+	require.ErrorIs(t, repo.LoadDestinationSecret(ctx, delivery), ErrEventDestinationChanged)
+	assert.Empty(t, delivery.Secret, "the new secret must not be handed out with the old settings")
+
+	fresh, err := repo.GetDestination(ctx, d.OUID, d.ID)
+	require.NoError(t, err)
+	require.NoError(t, repo.LoadDestinationSecret(ctx, fresh))
+	assert.Equal(t, "new-signing-secret", fresh.Secret)
+	assert.JSONEq(t, `{"url":"https://new.example.com"}`, string(fresh.Config))
+}
+
 func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 	for _, first := range []string{"rotation", "settings"} {
 		t.Run(first+" wins", func(t *testing.T) {
 			ctx := context.Background()
-			repo := NewEventRepository(db.GetDB())
+			repo := NewEventRepository(db.GetDB(), testSecrets(t))
 			d := &models.EventDestination{
 				ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
-				Kind:            models.DestinationKindWebhook,
-				Config:          json.RawMessage(`{"url":"https://old.example.com"}`),
-				SecretEncrypted: []byte("old-secret"),
-				Availability:    models.DestinationAvailableAll, Projects: []string{},
+				Kind:         models.DestinationKindWebhook,
+				Config:       json.RawMessage(`{"url":"https://old.example.com"}`),
+				Secret:       "old-secret",
+				Availability: models.DestinationAvailableAll, Projects: []string{},
 			}
 			require.NoError(t, repo.CreateDestination(ctx, d))
 			t.Cleanup(func() { _, err := repo.DeleteDestination(ctx, d.OUID, d.ID); assert.NoError(t, err) })
@@ -51,13 +119,15 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 			require.NoError(t, err)
 			stale, err := repo.GetDestination(ctx, d.OUID, d.ID)
 			require.NoError(t, err)
+			wantSecret := "old-secret"
 			if first == "rotation" {
-				current.SecretEncrypted = []byte("new-secret")
+				wantSecret = "new-secret"
+				current.Secret = wantSecret
 				stale.Config = json.RawMessage(`{"url":"https://new.example.com"}`)
 			} else {
 				current.Config = json.RawMessage(`{"url":"https://new.example.com"}`)
 				current.Availability = models.DestinationAvailableOrg
-				stale.SecretEncrypted = []byte("new-secret")
+				stale.Secret = "new-secret"
 			}
 			require.NoError(t, repo.UpdateDestination(ctx, current, nil))
 			checked := false
@@ -66,19 +136,22 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 			assert.False(t, checked, "stale input is rejected before availability checks")
 			saved, err := repo.GetDestination(ctx, d.OUID, d.ID)
 			require.NoError(t, err)
-			assert.Equal(t, current.SecretEncrypted, saved.SecretEncrypted)
+			require.NoError(t, repo.LoadDestinationSecret(ctx, saved))
+			assert.Equal(t, wantSecret, saved.Secret)
 			assert.JSONEq(t, string(current.Config), string(saved.Config))
 			assert.Equal(t, current.Availability, saved.Availability)
 			assert.True(t, current.UpdatedAt.Equal(saved.UpdatedAt), "returned revision matches the stored one")
 
 			// An edit based on the latest value succeeds without reverting
 			// the secret or settings written by the first request.
+			saved.Secret = ""
 			saved.Description = "fresh edit"
 			require.NoError(t, repo.UpdateDestination(ctx, saved, nil))
 			fresh, err := repo.GetDestination(ctx, d.OUID, d.ID)
 			require.NoError(t, err)
 			assert.Equal(t, "fresh edit", fresh.Description)
-			assert.Equal(t, current.SecretEncrypted, fresh.SecretEncrypted)
+			require.NoError(t, repo.LoadDestinationSecret(ctx, fresh))
+			assert.Equal(t, wantSecret, fresh.Secret)
 			assert.JSONEq(t, string(current.Config), string(fresh.Config))
 		})
 	}
@@ -86,7 +159,7 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 
 func TestEventDeliveryClaimAndFinishedOutcomes(t *testing.T) {
 	ctx := context.Background()
-	repo := NewEventRepository(db.GetDB())
+	repo := NewEventRepository(db.GetDB(), testSecrets(t))
 	d := &models.EventDestination{
 		ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
 		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://example.com"}`),
@@ -137,7 +210,7 @@ func TestEventDeliveryClaimAndFinishedOutcomes(t *testing.T) {
 func TestEventDeliveryFailStaleDeliveries(t *testing.T) {
 	ctx := context.Background()
 	gdb := db.GetDB()
-	repo := NewEventRepository(gdb)
+	repo := NewEventRepository(gdb, testSecrets(t))
 	d := &models.EventDestination{
 		ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
 		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://example.com"}`),

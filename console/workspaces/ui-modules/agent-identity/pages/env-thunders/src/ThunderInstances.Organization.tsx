@@ -19,7 +19,6 @@
 import React from "react";
 import { Navigate, Route, Routes, generatePath, useParams } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useEnvironmentFeatures } from "@agent-management-platform/feature-management";
 import { AgentIdentityEnvironmentProvider } from "./context/AgentIdentityEnvironmentContext";
 import { AgentsOrganization } from "./AgentsOrganization";
 import { RolesOrganization } from "./RolesOrganization";
@@ -30,10 +29,9 @@ const thunderInstancesNode = absoluteRouteMap.children.org.children.thunderInsta
 // Back-compat redirect: agent/role/group management moved from
 // /thunder-instances/view/:envName/(agents|roles|groups) to the top-level
 // /thunder-instances/(agents|roles|groups) pages, which read the environment
-// from an `envName` query param instead of the URL path. The old
-// view/:envName overview (gateways, identity provider) moved to
-// /environments/:envName. Preserve any trailing sub-path so existing deep
-// links keep working.
+// from an `envName` query param instead of the URL path. Any other link lands
+// on the groups page. Preserve any trailing sub-path so existing deep links
+// keep working.
 function LegacyThunderInstanceViewRedirect() {
   const { orgId, envName, "*": rest } = useParams<{
     orgId: string;
@@ -41,7 +39,6 @@ function LegacyThunderInstanceViewRedirect() {
     "*": string;
   }>();
   const [section, ...tail] = (rest ?? "").split("/").filter(Boolean);
-  const { canView: canViewEnvironments } = useEnvironmentFeatures();
   const envQuery = `?envName=${encodeURIComponent(envName ?? "")}`;
 
   if (section === "agents" || section === "roles" || section === "groups") {
@@ -50,15 +47,9 @@ function LegacyThunderInstanceViewRedirect() {
     return <Navigate to={`${target}${envQuery}`} replace />;
   }
 
-  // With the Environments pages hidden, fall back to the agent identity groups.
   return (
     <Navigate
-      to={canViewEnvironments
-        ? generatePath(
-          absoluteRouteMap.children.org.children.environments.children.view.path,
-          { orgId, envName },
-        )
-        : `${generatePath(thunderInstancesNode.children.groups.path, { orgId })}${envQuery}`}
+      to={`${generatePath(thunderInstancesNode.children.groups.path, { orgId })}${envQuery}`}
       replace
     />
   );
@@ -66,10 +57,7 @@ function LegacyThunderInstanceViewRedirect() {
 
 export const ThunderInstancesOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
-  const { canView: canViewEnvironments } = useEnvironmentFeatures();
-  const fallbackPath = canViewEnvironments
-    ? absoluteRouteMap.children.org.children.environments.path
-    : thunderInstancesNode.children.groups.path;
+  const fallbackPath = thunderInstancesNode.children.groups.path;
 
   return (
     <AgentIdentityEnvironmentProvider>

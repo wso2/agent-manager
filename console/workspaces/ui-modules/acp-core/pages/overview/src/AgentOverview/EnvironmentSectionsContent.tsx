@@ -19,7 +19,6 @@
 import {
     OverviewPanels,
     type AgentOverviewPanelProps,
-    type DeploymentStatus,
 } from "@agent-management-platform/shared-component";
 import { PLUGIN_MOUNT_POINTS } from "@agent-management-platform/types";
 import { Divider } from "@wso2/oxygen-ui";
@@ -30,24 +29,23 @@ interface EnvironmentSectionsContentProps {
     agentId: string;
     envId: string;
     external?: boolean;
-    deploymentStatus?: DeploymentStatus;
 }
 
 /**
  * An environment's sections on the agent overview. Each comes from the module
- * that owns its data (endpoints: agent-runtime; agent card and LLM/MCP
- * configs: ai-gateway; roles and groups: agent-identity; monitors and
- * observability: ai-observability), as panels at agentOverviewEnvironment.
+ * that owns its data (agent card and LLM/MCP configs: ai-gateway; roles and
+ * groups: agent-identity; monitors and observability: ai-observability), as
+ * panels at agentOverviewEnvironment.
  */
 export function EnvironmentSectionsContent({
-    orgId, projectId, agentId, envId, external, deploymentStatus,
+    orgId, projectId, agentId, envId, external,
 }: EnvironmentSectionsContentProps) {
     return (
         <>
             <Divider sx={{ my: 1.5, mt: 0 }} />
             <OverviewPanels<AgentOverviewPanelProps>
                 mountPoint={PLUGIN_MOUNT_POINTS.agentOverviewEnvironment}
-                props={{ orgId, projectId, agentId, envId, external, deploymentStatus }}
+                props={{ orgId, projectId, agentId, envId, external }}
             />
         </>
     );

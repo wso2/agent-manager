@@ -16,13 +16,6 @@
 
 package utils
 
-type EndpointType string
-
-const (
-	EndpointTypeDefault EndpointType = "DEFAULT"
-	EndpointTypeCustom  EndpointType = "CUSTOM"
-)
-
 type ResourceType string
 
 const (
@@ -40,39 +33,14 @@ const (
 	NameGenerationAlphabet    = "abcdefghijklmnopqrstuvwxyz"
 )
 
-// File mount shape limits. The content size caps are operator-configurable;
-// see config.FileMountLimitsConfig (FILE_MOUNT_MAX_FILE_BYTES,
-// FILE_MOUNT_MAX_TOTAL_BYTES).
-const (
-	MaxFileMountKeyLength = 253  // matches k8s metadata.name limit
-	MaxMountPathLength    = 4095 // Linux PATH_MAX minus one for safety
-)
-
-// Caps for the repository and build inputs that reach the build workflow. Each
-// of these becomes an argument to git or to the container build running inside
-// the build pod, so each is bounded on its own rather than only by the overall
-// request size.
-const (
-	MaxRepositoryURLLength = 2048 // generous URL bound; the host itself is pinned separately
-	MaxGitBranchLength     = 255  // git has no hard limit, but refs are filenames
-	MaxSafePathLength      = 1024 // application / Dockerfile / schema / base path
-)
-
 // Path parameter names used in HTTP routes
 const (
-	PathParamOrgName      = "orgName"
-	PathParamProjName     = "projName"
-	PathParamAgentName    = "agentName"
-	PathParamBuildName    = "buildName"
-	PathParamTraceId      = "traceId"
-	PathParamPipelineName = "pipelineName"
-	PathParamSecretName   = "secretName"
-	PathParamUserID       = "userID"
-	PathParamGroupID      = "groupID"
-	PathParamRoleID       = "roleID"
-	PathParamKindName     = "kindName"
-	PathParamVersionTag   = "versionTag"
-	PathParamScopeName    = "scopeName"
+	PathParamOrgName   = "orgName"
+	PathParamProjName  = "projName"
+	PathParamAgentName = "agentName"
+	PathParamUserID    = "userID"
+	PathParamGroupID   = "groupID"
+	PathParamRoleID    = "roleID"
 )
 
 // Pagination constants
@@ -82,21 +50,4 @@ const (
 	MaxLimit      = 100
 	DefaultOffset = 0
 	MinOffset     = 0
-)
-
-// Deployment state constants
-const (
-	DeploymentStateActive   = "Active"
-	DeploymentStateUndeploy = "Undeploy"
-)
-
-// Isolation tier constants. Tier values are the API-facing names stored on the
-// environment; the RuntimeClass names are what the rendered pod spec requests
-// (kata-deploy registers the QEMU variant under "kata-qemu").
-const (
-	IsolationTierGvisor = "gvisor"
-	IsolationTierKata   = "kata"
-
-	RuntimeClassGvisor   = "gvisor"
-	RuntimeClassKataQemu = "kata-qemu"
 )

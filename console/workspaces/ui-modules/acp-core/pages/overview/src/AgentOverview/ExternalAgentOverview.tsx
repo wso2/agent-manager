@@ -20,15 +20,13 @@ import { Box, Button, Skeleton } from "@wso2/oxygen-ui";
 import { Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
-  DeploymentStatus,
   EnvironmentCard,
-  usePipelineEnvironmentsState,
+  useOrgEnvironmentsState,
   UppercaseCaptionLabel,
 } from "@agent-management-platform/shared-component";
 import { SetupAgentDrawer } from "./SetupAgentDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
 import { EnvironmentSectionsContent } from "./EnvironmentSectionsContent";
-import { EnvironmentSingleHeader } from "./EnvironmentSingleHeader";
 import { EnvironmentTabsBar } from "./EnvironmentTabsBar";
 import { ENV_SEARCH_PARAM, useSelectedEnvironmentParam } from "./useSelectedEnvironmentParam";
 
@@ -36,10 +34,8 @@ export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Show only the environments in the current project's deployment pipeline,
-  // ordered by the promotion chain. isLoading covers environments + project + pipelines.
   const { environments: sortedEnvironmentList, isLoading: isEnvironmentsLoading } =
-    usePipelineEnvironmentsState(orgId, projectId);
+    useOrgEnvironmentsState(orgId);
   const { selectedEnvironment, selectEnvironment } =
     useSelectedEnvironmentParam(sortedEnvironmentList);
   const selectedEnvironmentId = selectedEnvironment?.id ?? "";
@@ -110,14 +106,9 @@ export const ExternalAgentOverview = () => {
                     onSelect={selectEnvironment}
                     dotColor={() => "success.main"}
                   />
-                ) : (
-                  <EnvironmentSingleHeader
-                    environment={selectedEnvironment}
-                    status={DeploymentStatus.ACTIVE}
-                    dotColor="success.main"
-                  />
-                )
+                ) : undefined
               }
+              hideEnvTitle={!hasMultipleEnvironments}
               actions={
                 <Button
                   variant="text"

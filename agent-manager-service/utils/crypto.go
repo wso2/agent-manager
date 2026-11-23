@@ -84,3 +84,7 @@ func ParseAPIKeyToken(token string) (string, error) {
 	}
 	return string(decoded), nil
 }
+
+// SecretRefKeys is the key ring for values sealed with the core's encryption key: the current key first, then the
+// retained keys a rotation keeps readable.
+type SecretRefKeys [][]byte

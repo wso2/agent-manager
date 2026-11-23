@@ -103,6 +103,10 @@ type Config struct {
 	// of secrets at rest (e.g., LLM provider API keys in monitor configs).
 	EncryptionKey string `json:"-"`
 
+	// PreviousEncryptionKeys is a comma-separated list of hex-encoded keys the
+	// secret vault still opens values with after EncryptionKey was rotated.
+	PreviousEncryptionKeys string `json:"-"`
+
 	// Secret Manager configuration
 	SecretManager SecretManagerConfig
 
@@ -132,12 +136,6 @@ type Config struct {
 
 	// TLS Configurations
 	TLSConfig TLSConfig
-
-	// PerAgentResourceLimits defines the operator-configured maximum values for agent resource configs
-	PerAgentResourceLimits ResourceLimitsConfig
-
-	// FileMountLimits bounds the inline content of agent file mounts
-	FileMountLimits FileMountLimitsConfig
 
 	// Audit configures the audit trail.
 	Audit AuditConfig
@@ -216,8 +214,17 @@ type TLSConfig struct {
 
 // SecretManagerConfig holds secret manager client configuration
 type SecretManagerConfig struct {
-	// Provider is the secret store provider name (e.g., "unsupported")
+	// Provider is the secret store provider name (e.g., "inhouse")
 	Provider string
+
+	// VaultProvider names the vault that protects values kept in the secrets
+	// table: "local" encrypts them into the database; a deployment that
+	// registers an external vault names it here.
+	VaultProvider string
+	// VaultReaders lists external backends retained for reads and cleanup.
+	VaultReaders string
+	// VaultBindLocalRows enables row binding after the mixed-version and rollback window.
+	VaultBindLocalRows bool
 }
 
 // GitHubConfig holds GitHub API configuration
@@ -471,29 +478,6 @@ func (c ThunderConfig) ResolvedSystemResourceIdentifier() string {
 		return ""
 	}
 	return strings.TrimRight(c.BaseURL, "/") + "/mcp"
-}
-
-// FileMountLimitsConfig holds the operator-configured size caps for agent file mounts.
-// Sizes are in bytes of inline file content; secret-reference mounts carry no
-// inline content and do not count.
-type FileMountLimitsConfig struct {
-	// MaxFileBytes is the largest inline content a single file mount may carry.
-	MaxFileBytes int
-	// MaxTotalBytes caps the combined inline content of all file mounts in one
-	// request. The mounts render into a single ConfigMap/Secret, which Kubernetes
-	// limits to 1 MiB including metadata, so this cannot usefully exceed that.
-	MaxTotalBytes int
-}
-
-// ResourceLimitsConfig holds the operator-configured upper bounds for agent resource configs.
-// All user-submitted values are validated against these limits and rejected with 400 if exceeded.
-type ResourceLimitsConfig struct {
-	// MaxReplicas is the maximum replica count (static and autoscaling maxReplicas)
-	MaxReplicas int
-	// MaxCPU is the maximum CPU value (Kubernetes quantity string) applied to both requests and limits
-	MaxCPU string
-	// MaxMemory is the maximum memory value (Kubernetes quantity string) applied to both requests and limits
-	MaxMemory string
 }
 
 // DefaultOrgConfig names the organization created at startup, with its default environment. An empty

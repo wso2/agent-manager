@@ -50,7 +50,20 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		return nil, err
 	}
 	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentThunderProvisioning, identityClient, logger)
-	eventRepository := repositories.NewEventRepository(db)
+	v, err := ProvideEncryptionKey(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	secretRefKeys, err := ProvideSecretRefKeys(configConfig, v)
+	if err != nil {
+		return nil, err
+	}
+	vaults, err := ProvideSecretVaults(configConfig, secretRefKeys)
+	if err != nil {
+		return nil, err
+	}
+	secretStore := repositories.NewSecretStore(vaults)
+	eventRepository := repositories.NewEventRepository(db, secretStore)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, platformRepository, logger)
 	agentController := controllers.NewAgentController(agentManagerService, eventSubscriptionService)
 	infraResourceManager := services.NewInfraResourceManager(platformRepository, logger)
@@ -61,14 +74,12 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	environmentController := controllers.NewEnvironmentController(environmentService)
 	identityController := controllers.NewIdentityController(identityClient)
 	registry := ProvideDestinationDrivers(configConfig)
-	v, err := ProvideEncryptionKey(configConfig)
-	if err != nil {
-		return nil, err
-	}
-	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
+	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, logger)
 	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
 	agentThunderClientRepository := ProvideAgentThunderClientRepository(db)
 	agentThunderReconcilerService := services.NewAgentThunderReconcilerService(agentThunderProvisioning, agentThunderClientRepository, logger)
+	secretJobRunner := repositories.NewSecretJobRunner(db, vaults, logger)
+	secretJobWorker := services.NewSecretJobWorker(secretJobRunner, logger)
 	bus, err := ProvideEventBus(configConfig, logger)
 	if err != nil {
 		return nil, err
@@ -80,7 +91,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	}
 	outbox := repositories.NewEventOutboxRepository(db)
 	publisher := ProvideEventPublisher(bus, outbox, logger)
-	secretManagementClient, err := ProvideSecretManagementClient(configConfig, secretProvider)
+	secretManagementClient, err := ProvideSecretManagementClient(configConfig, db, secretStore, secretProvider)
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +111,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		IdentityController:           identityController,
 		EventsController:             eventsController,
 		AgentThunderReconciler:       agentThunderReconcilerService,
+		SecretJobWorker:              secretJobWorker,
 		InfraResourceManager:         infraResourceManager,
 		AgentManagerService:          agentManagerService,
 		AgentTokenManagerService:     agentTokenManagerService,
@@ -111,7 +123,9 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		PlatformRepository:           platformRepository,
 		Config:                       cfg,
 		EncryptionKey:                v,
+		SecretRefKeys:                secretRefKeys,
 		SecretManagementClient:       secretManagementClient,
+		SecretStore:                  secretStore,
 		IdentityClient:               identityClient,
 		EnvThunderResolver:           envThunderResolver,
 		AgentThunderClientRepository: agentThunderClientRepository,
@@ -144,7 +158,20 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	secretManagementClient := ProvideTestSecretManagementClient(testClients)
 	agentThunderProvisioningService := services.NewAgentThunderProvisioningService(agentThunderClientRepository, envThunderResolver, secretManagementClient, logger)
 	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentThunderProvisioningService, identityClient, logger)
-	eventRepository := repositories.NewEventRepository(db)
+	v, err := ProvideEncryptionKey(configConfig)
+	if err != nil {
+		return nil, err
+	}
+	secretRefKeys, err := ProvideSecretRefKeys(configConfig, v)
+	if err != nil {
+		return nil, err
+	}
+	vaults, err := ProvideSecretVaults(configConfig, secretRefKeys)
+	if err != nil {
+		return nil, err
+	}
+	secretStore := repositories.NewSecretStore(vaults)
+	eventRepository := repositories.NewEventRepository(db, secretStore)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, platformRepository, logger)
 	agentController := controllers.NewAgentController(agentManagerService, eventSubscriptionService)
 	infraResourceManager := services.NewInfraResourceManager(platformRepository, logger)
@@ -155,13 +182,11 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	environmentController := controllers.NewEnvironmentController(environmentService)
 	identityController := controllers.NewIdentityController(identityClient)
 	registry := ProvideDestinationDrivers(configConfig)
-	v, err := ProvideEncryptionKey(configConfig)
-	if err != nil {
-		return nil, err
-	}
-	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, v, logger)
+	eventDestinationService := services.NewEventDestinationService(eventRepository, registry, logger)
 	eventsController := controllers.NewEventsController(eventDestinationService, eventSubscriptionService)
 	agentThunderReconcilerService := services.NewAgentThunderReconcilerService(agentThunderProvisioningService, agentThunderClientRepository, logger)
+	secretJobRunner := repositories.NewSecretJobRunner(db, vaults, logger)
+	secretJobWorker := services.NewSecretJobWorker(secretJobRunner, logger)
 	bus, err := ProvideEventBus(configConfig, logger)
 	if err != nil {
 		return nil, err
@@ -186,6 +211,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		IdentityController:           identityController,
 		EventsController:             eventsController,
 		AgentThunderReconciler:       agentThunderReconcilerService,
+		SecretJobWorker:              secretJobWorker,
 		InfraResourceManager:         infraResourceManager,
 		AgentManagerService:          agentManagerService,
 		AgentTokenManagerService:     agentTokenManagerService,
@@ -197,7 +223,9 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		PlatformRepository:           platformRepository,
 		Config:                       cfg,
 		EncryptionKey:                v,
+		SecretRefKeys:                secretRefKeys,
 		SecretManagementClient:       secretManagementClient,
+		SecretStore:                  secretStore,
 		IdentityClient:               identityClient,
 		EnvThunderResolver:           envThunderResolver,
 		AgentThunderClientRepository: agentThunderClientRepository,
@@ -213,6 +241,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 	ProvideEncryptionKey,
+	ProvideSecretRefKeys,
+	ProvideSecretVaults, repositories.NewSecretStore, repositories.NewSecretJobRunner,
 )
 
 var clientProviderSet = wire.NewSet(repositories.NewPlatformRepo, ProvideSecretManagementClient,
@@ -221,7 +251,7 @@ var clientProviderSet = wire.NewSet(repositories.NewPlatformRepo, ProvideSecretM
 	ProvideOUHandleLookup, thundersvc.NewProber, services.NewPlatformThunderSecretReader, services.NewPlatformThunderURLReader, ProvideEnvThunderResolverWithEndpoints,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, fileauth.NewService, ProvideThunderConfig, services.NewAgentThunderReconcilerService, services.NewEnvironmentService, ProvideEventBus,
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, fileauth.NewService, ProvideThunderConfig, services.NewAgentThunderReconcilerService, services.NewSecretJobWorker, services.NewEnvironmentService, ProvideEventBus,
 	ProvideEventPublisher, repositories.NewEventOutboxRepository, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService,
 )
 
@@ -263,13 +293,11 @@ func ProvideAuditRecorder(cfg config.Config, logger *slog.Logger) audit.Recorder
 }
 
 // ProvideSecretManagementClient creates the secret management service client.
-// If the provider implements secretmanagersvc.SecretReferenceManager and
-// reports that it manages SecretReferences itself, no SecretReference client is
-// forwarded — preventing the high-level client from making redundant
-// SecretReference CRUD calls.
-func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
+// The database and its secret store are handed to the provider for the
+// in-house store; a provider with its own backend ignores them.
+func ProvideSecretManagementClient(cfg config.Config, db *gorm.DB, secrets *repositories.SecretStore, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
 	return secretmanagersvc.NewSecretManagementClientWithConfig(secretmanagersvc.SecretManagementClientConfig{
-		StoreConfig: &secretmanagersvc.StoreConfig{Provider: cfg.SecretManager.Provider},
+		StoreConfig: &secretmanagersvc.StoreConfig{Provider: cfg.SecretManager.Provider, DB: db, Secrets: secrets},
 		Provider:    secretProvider,
 	})
 }

@@ -24,11 +24,9 @@
 
 import { useCallback } from "react";
 import {
-  BookOpenText,
   Box as BoxIcon,
   IdCard,
   Network,
-  Rocket,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   Button,
@@ -48,10 +46,8 @@ export interface MarketplaceListing {
 
 const MOCK_LISTINGS: Record<string, MarketplaceListing> = {
   "acp-core": { icon: BoxIcon, category: "Platform", publisher: "WSO2", version: "1.0.0" },
-  "agent-runtime": { icon: Rocket, category: "Runtime", publisher: "WSO2", version: "1.0.0" },
   "ai-gateway": { icon: Network, category: "Gateway", publisher: "WSO2", version: "1.0.0" },
   "agent-identity": { icon: IdCard, category: "Security", publisher: "WSO2", version: "1.0.0" },
-  "agent-portal": { icon: BookOpenText, category: "Catalog", publisher: "WSO2", version: "1.0.0" },
 };
 
 const FALLBACK_LISTING: MarketplaceListing = {
