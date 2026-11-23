@@ -74,7 +74,7 @@ Start from the row that matches the change. A change that spans rows needs each 
 
 ### Console (`console`)
 
-- Vitest with jsdom and `globals: true`; one `vitest.config.ts` per package. To add the first test to a package, copy the `test` script and `vitest.config.ts` from `workspaces/libs/shared-component`. Keep `vitest.jsdom-storage.ts` in `setupFiles`: Node 25 and later define their own `localStorage` and `sessionStorage`, which would otherwise shadow jsdom's.
+- Vitest with jsdom and `globals: true`; one `vitest.config.ts` per package. To add the first test to a package, copy the `test` script and `vitest.config.ts` from `workspaces/libs/shared-component`. Keep `console/vitest.jsdom-storage.ts` in `setupFiles`: Node 25 and later define their own `localStorage` and `sessionStorage`, which would otherwise shadow jsdom's. The path is relative to the package, so adjust it to the package's depth: `../../../vitest.jsdom-storage.ts` from `workspaces/libs/<lib>`, `../../../../../vitest.jsdom-storage.ts` from `workspaces/ui-modules/<module>/pages/<page>`.
 - Tests import the other workspace packages from their built output: run `pnpm build` before `pnpm test`, and again after changing a package that a test imports.
 
 ### Python
