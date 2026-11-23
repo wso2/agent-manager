@@ -214,8 +214,10 @@ export const EnvObservabilitySection: React.FC<EnvObservabilitySectionProps> = (
             : null;
     })();
 
-    const successRate = traces.length
-        ? (traces.filter((t) => (t.status?.errorCount ?? 0) === 0).length / traces.length) * 100
+    // Over the traces that report a status; none do on a trace store without one.
+    const withStatus = traces.filter((t) => t.status != null);
+    const successRate = withStatus.length
+        ? (withStatus.filter((t) => t.status!.errorCount === 0).length / withStatus.length) * 100
         : null;
     const successRateColor: DonutColor = getDonutColorForPercent(successRate);
 
