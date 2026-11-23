@@ -16,11 +16,15 @@
  * under the License.
  */
 
+// Prism-only entry keeps the highlight.js renderer out of the bundle; the reference loads the
+// module declarations for these deep imports.
+/// <reference types="react-syntax-highlighter" />
+
 import { Box, IconButton, Tooltip } from "@wso2/oxygen-ui";
 import { Copy as ContentCopy } from "@wso2/oxygen-ui-icons-react";
 import { useState } from "react";
 import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import SyntaxHighlighter from "react-syntax-highlighter/dist/esm/prism";
 import { materialOceanic } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 interface CodeBlockProps {
