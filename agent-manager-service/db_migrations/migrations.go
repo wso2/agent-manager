@@ -114,7 +114,8 @@ func isApplied(ctx context.Context, dbConn *gorm.DB, id string) (bool, error) {
 // historyTableExists asks the catalog directly: Migrator().HasTable returns false for a failed query, which would make
 // a database error look like a schema that has not been migrated yet.
 func historyTableExists(conn *gorm.DB) (bool, error) {
-	query := "SELECT count(*) FROM information_schema.tables WHERE table_schema = CURRENT_SCHEMA() AND table_name = ?"
+	// to_regclass resolves the name through search_path, as the history queries do.
+	query := "SELECT CASE WHEN to_regclass(?) IS NULL THEN 0 ELSE 1 END"
 	if conn.Name() == "sqlite" {
 		query = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
 	}
