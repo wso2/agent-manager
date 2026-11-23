@@ -85,11 +85,12 @@ def main():
         print(f"Wrote {args.baseline} ({len(current)} areas)")
         return 0
 
-    try:
-        with open(args.baseline) as f:
-            baseline = json.load(f)["areas"]
-    except FileNotFoundError:
-        baseline = {}
+    # A missing baseline would make every area new and pass unchecked.
+    if not os.path.exists(args.baseline):
+        print(f"error: baseline {args.baseline} not found; create it with --update", file=sys.stderr)
+        return 1
+    with open(args.baseline) as f:
+        baseline = json.load(f)["areas"]
 
     rows, drops = [], []
     for name in sorted(set(current) | set(baseline)):

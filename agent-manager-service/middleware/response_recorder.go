@@ -72,9 +72,13 @@ func (r *responseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return conn, rw, err
 }
 
-// Flush sends buffered data to the client, for streaming responses.
+// Flush sends buffered data to the client, for streaming responses. A flush
+// before any header commits an implicit 200, so that is the status recorded.
 func (r *responseRecorder) Flush() {
-	_ = http.NewResponseController(r.ResponseWriter).Flush()
+	if err := http.NewResponseController(r.ResponseWriter).Flush(); err == nil && !r.written {
+		r.status = http.StatusOK
+		r.written = true
+	}
 }
 
 // Unwrap exposes the underlying writer to http.ResponseController.
