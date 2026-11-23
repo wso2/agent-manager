@@ -80,6 +80,7 @@ import {
   type EnvironmentVariableConfig,
   type EnvProviderConfigMappings,
   type MCPProxyEndpoint,
+  getProductName,
 } from "@agent-management-platform/types";
 import {
   getCapabilityId,
@@ -521,14 +522,14 @@ export const ViewMCPServerComponent = () => {
       ? {
           title: "Discovering tools",
           description:
-            "Agent Manager is listing this MCP server's tools through its gateway. They appear here once found.",
+            `${getProductName()} is listing this MCP server's tools through its gateway. They appear here once found.`,
         }
       : toolDiscovery?.status === "Failed"
         ? {
             title: "Tool discovery failed",
             description: toolDiscovery.lastError
-              ? `Agent Manager could not list this MCP server's tools: ${toolDiscovery.lastError}`
-              : "Agent Manager could not list this MCP server's tools.",
+              ? `${getProductName()} could not list this MCP server's tools: ${toolDiscovery.lastError}`
+              : `${getProductName()} could not list this MCP server's tools.`,
           }
         : {
             title: "No tools available",

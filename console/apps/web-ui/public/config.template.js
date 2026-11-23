@@ -102,6 +102,12 @@ window.__RUNTIME_CONFIG__ = {
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
   fileMountMaxFileBytes: '$FILE_MOUNT_MAX_FILE_BYTES',
   docsUrl: '$DOCS_URL',
+  // Product name shown across the console: the logo, page titles, diagrams and copy.
+  // Defaults to "Choreo AI & Agent Management".
+  product: {
+    brand: ('$PRODUCT_BRAND'.trim() || 'Choreo'),
+    name: ('$PRODUCT_NAME'.trim() || 'AI & Agent Management'),
+  },
   footerLinks: {
     privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
     termsOfUseUrl: 'https://wso2.com/agent-platform/agent-manager/',

@@ -18,6 +18,7 @@
 
 import { Box, Typography, useColorScheme } from '@wso2/oxygen-ui';
 import React from 'react';
+import { getProductBrand, getProductName } from '@agent-management-platform/types';
 
 export type LogoProps = React.SVGProps<SVGSVGElement>;
 
@@ -43,7 +44,7 @@ export function Logo(props: LogoProps) {
         </g>
       </svg>
       <Typography variant="h5" color={color} marginLeft={1} mb={0.2}>
-        <Box component="span" fontWeight="bold">Choreo&nbsp;</Box>Agent Manager
+        <Box component="span" fontWeight="bold">{getProductBrand()}&nbsp;</Box>{getProductName()}
       </Typography>
     </Box>
   );

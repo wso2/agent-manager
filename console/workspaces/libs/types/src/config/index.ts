@@ -133,6 +133,15 @@ export interface AppConfig {
    * (the default) manages projects in this console.
    */
   externalProjectManagementUrl?: string;
+  /**
+   * Product name shown in the UI. `brand` is the leading word set in bold in the logo
+   * ("Choreo"), `name` the rest ("AI & Agent Management"). Read it via getProductBrand(),
+   * getProductName() and getProductFullName(), which fall back to the defaults.
+   */
+  product?: {
+    brand?: string;
+    name?: string;
+  };
   /** URL for the product documentation. Shown as a "Docs" link in the footer. */
   docsUrl?: string;
   /** Base URL of the Identity Platform console for configuring agent delegation. */
@@ -162,6 +171,20 @@ declare global {
 }
 
 export const globalConfig: AppConfig = window.__RUNTIME_CONFIG__;
+
+const DEFAULT_PRODUCT_BRAND = "Choreo";
+const DEFAULT_PRODUCT_NAME = "AI & Agent Management";
+
+/** The brand word of the product name, e.g. "Choreo". */
+export const getProductBrand = (): string =>
+  globalConfig?.product?.brand?.trim() || DEFAULT_PRODUCT_BRAND;
+
+/** The product name without the brand, e.g. "AI & Agent Management", as used in running text. */
+export const getProductName = (): string =>
+  globalConfig?.product?.name?.trim() || DEFAULT_PRODUCT_NAME;
+
+/** The full product name, e.g. "Choreo AI & Agent Management". */
+export const getProductFullName = (): string => `${getProductBrand()} ${getProductName()}`;
 
 /**
  * Normalised base path: no trailing slash, leading slash when non-empty.
