@@ -26,6 +26,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -70,12 +71,16 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 	require.NoError(t, dbmigrations.MigrateBaseline(g, "sqlite"))
 	host := modhost.NewWith(g, "sqlite", slog.New(slog.DiscardHandler), []modkit.Module{m})
 	// Every activation (the trial one included) mounts afresh, as the host
-	// does; the ledgers keep each pattern's last registration.
+	// does; the ledgers keep each pattern's last registration. The host's
+	// follow loop can re-mount while Install does, so the ledgers are locked.
+	var mu sync.Mutex
 	public, internal := map[string]audit.RouteMeta{}, map[string]audit.RouteMeta{}
 	host.Attach(modhost.Deps{
 		Mount: func(mux *http.ServeMux, r modhost.Route) {
 			rr := middleware.NewRouteRegistrar(mux, nil, nil)
 			mountModuleRoute(rr, r, func(context.Context, string) (string, error) { return "", nil })
+			mu.Lock()
+			defer mu.Unlock()
 			for _, meta := range rr.Routes() {
 				public[meta.Pattern] = meta
 			}
@@ -83,6 +88,8 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 		MountInternal: func(mux *http.ServeMux, r modhost.Route) {
 			rr := middleware.NewInternalRouteRegistrar(mux, nil)
 			rr.HandleModuleInternalRoute(r.Pattern(), modulePolicy(r), r.Handler)
+			mu.Lock()
+			defer mu.Unlock()
 			for _, meta := range rr.Routes() {
 				internal[meta.Pattern] = meta
 			}
@@ -95,6 +102,8 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 	require.NoError(t, err)
 	require.Equal(t, []string{m.Manifest().Name}, host.Active())
 	values := func(m map[string]audit.RouteMeta) []audit.RouteMeta {
+		mu.Lock()
+		defer mu.Unlock()
 		out := make([]audit.RouteMeta, 0, len(m))
 		for _, v := range m {
 			out = append(out, v)
