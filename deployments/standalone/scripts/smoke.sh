@@ -107,6 +107,7 @@ check agent-update 200 "$(code "${A[@]}" -X PUT "$AGS/$AG?project=$P" -d "$(agen
 check agent-token 200 "$(code "${A[@]}" -X POST "$AGS/$AG/token?project=$P" -d '{}')"
 if jq -e '.token | type == "string" and length > 0' "$BODY" >/dev/null 2>&1; then check agent-token-issued yes yes
 else check agent-token-issued yes no; fi
+KEY=$(jq -r '.token // empty' "$BODY" 2>/dev/null)
 check unknown-extension 400 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "x$AG" "X" ',"extensions":{"nosuch":{}}')")"
 # An LLM binding goes in the AI Gateway's extension block: amp has no provider by
 # that name, and amp-core no ai-gateway module.
@@ -157,6 +158,10 @@ check traces-not-installed 404 "$(code "${A[@]}" "$OBS?project=$P&agent=$AG&$WIN
 check traces-export-not-installed 404 "$(code "${A[@]}" "$OBS/export?project=$P&agent=$AG&$WINDOW")"
 check trace-spans-not-installed 404 "$(code "${A[@]}" "$OBS/t/spans?$WINDOW")"
 check trace-span-not-installed 404 "$(code "${A[@]}" "$OBS/t/spans/s")"
+# An agent key opens only an active module's agent-key routes: anywhere else
+# under /m/ it is not found, never sent to user sign-in.
+check agent-key-user-route 404 "$(code -H "X-Amp-Api-Key: $KEY" "$GW/gateways")"
+check agent-key-inactive-module 404 "$(code -X POST -H "X-Amp-Api-Key: $KEY" "$API/m/testmod/agent/ingest")"
 check workload-heartbeat-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workloads/heartbeat" -d '{"credential":"x.y","protocol":"p/v1"}')"
 
 check agent-delete 204 "$(code "${A[@]}" -X DELETE "$AGS/$AG?project=$P")"
