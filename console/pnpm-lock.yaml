@@ -20,6 +20,11 @@ overrides:
   uri-js: npm:uri-js-replace@^1.0.2
   parse5: ^8.1.1
 
+patchedDependencies:
+  lowlight@1.20.0:
+    hash: k5nr4qoeadbysypcsglesrapvu
+    path: patches/lowlight@1.20.0.patch
+
 importers:
 
   .: {}
@@ -15024,7 +15029,7 @@ snapshots:
 
   loupe@3.2.1: {}
 
-  lowlight@1.20.0:
+  lowlight@1.20.0(patch_hash=k5nr4qoeadbysypcsglesrapvu):
     dependencies:
       fault: 1.0.4
       highlight.js: 11.12.0
@@ -15918,7 +15923,7 @@ snapshots:
       '@babel/runtime': 7.29.7
       highlight.js: 11.12.0
       highlightjs-vue: 1.0.0
-      lowlight: 1.20.0
+      lowlight: 1.20.0(patch_hash=k5nr4qoeadbysypcsglesrapvu)
       prismjs: 1.30.0
       react: 19.2.3
       refractor: 3.6.0
@@ -15928,7 +15933,7 @@ snapshots:
       '@babel/runtime': 7.29.7
       highlight.js: 11.12.0
       highlightjs-vue: 1.0.0
-      lowlight: 1.20.0
+      lowlight: 1.20.0(patch_hash=k5nr4qoeadbysypcsglesrapvu)
       prismjs: 1.30.0
       react: 19.2.3
       refractor: 5.0.0

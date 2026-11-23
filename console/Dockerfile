@@ -20,6 +20,7 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc workspace-aliases.mjs workspace-aliases.d.mts ./
 
 # Copy all project sources
+COPY patches/ patches/
 COPY apps/ apps/
 COPY workspaces/ workspaces/
 
