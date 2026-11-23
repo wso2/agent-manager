@@ -8,5 +8,5 @@ langchain-text-splitters~=1.1.3
 langchain-openai~=1.7.3
 langchain-pinecone~=0.2.13
 pinecone~=7.3.0
-pypdf~=6.21.4
+pypdf~=7.1.1
 python-dotenv~=1.2.4
