@@ -16,7 +16,11 @@
 
 package middleware
 
-import "net/http"
+import (
+	"bufio"
+	"net"
+	"net/http"
+)
 
 // responseRecorder captures the response status so middleware can record the
 // outcome of a request. The only other ResponseWriter wrapper in this service
@@ -24,8 +28,9 @@ import "net/http"
 // for telemetry; this one is what makes status observable to the audit trail.
 //
 // It implements Unwrap so http.ResponseController continues to find Flush,
-// Hijack and the rest on the underlying writer. Without that, wrapping a
-// handler here would silently break streaming responses if any were added.
+// Hijack and the rest on the underlying writer, and Hijack and Flush
+// themselves for code that type-asserts instead: gorilla/websocket asserts
+// http.Hijacker, so without it a wrapped WebSocket route cannot upgrade.
 type responseRecorder struct {
 	http.ResponseWriter
 	status  int
@@ -54,6 +59,22 @@ func (r *responseRecorder) Write(b []byte) (int, error) {
 	n, err := r.ResponseWriter.Write(b)
 	r.bytes += int64(n)
 	return n, err
+}
+
+// Hijack hands the connection over, as for a WebSocket upgrade, and records
+// the switch of protocols.
+func (r *responseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	conn, rw, err := http.NewResponseController(r.ResponseWriter).Hijack()
+	if err == nil && !r.written {
+		r.status = http.StatusSwitchingProtocols
+		r.written = true
+	}
+	return conn, rw, err
+}
+
+// Flush sends buffered data to the client, for streaming responses.
+func (r *responseRecorder) Flush() {
+	_ = http.NewResponseController(r.ResponseWriter).Flush()
 }
 
 // Unwrap exposes the underlying writer to http.ResponseController.

@@ -23,7 +23,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/gorilla/websocket"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 )
@@ -110,4 +114,67 @@ func TestRouteHitLogOff(t *testing.T) {
 	if lines := routeHitLines(t, false); len(lines) != 0 {
 		t.Errorf("route-hit log off wrote %d lines: %v", len(lines), lines)
 	}
+}
+
+// A route wrapped by the route-hit log still upgrades to a WebSocket: the
+// upgrader type-asserts http.Hijacker on the writer it is given.
+func TestRouteHitLogKeepsWebSocketUpgrade(t *testing.T) {
+	// The hit is logged after the hijacked handler returns, on its own
+	// goroutine, so the log is read under a lock and waited for.
+	var buf lockedBuffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	SetRouteHitLog(true)
+	t.Cleanup(func() {
+		slog.SetDefault(prev)
+		SetRouteHitLog(false)
+	})
+
+	mux := http.NewServeMux()
+	rr := NewInternalRouteRegistrar(mux, nil)
+	var upgrader websocket.Upgrader
+	rr.HandleFuncWithValidation("GET /ws", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("hello"))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	conn, resp, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http")+"/ws", nil)
+	if err != nil {
+		t.Fatalf("upgrade through the route-hit log failed: %v", err)
+	}
+	defer conn.Close()
+	defer resp.Body.Close()
+	_, msg, err := conn.ReadMessage()
+	if err != nil || string(msg) != "hello" {
+		t.Fatalf("read %q, %v; want hello", msg, err)
+	}
+	for deadline := time.Now().Add(2 * time.Second); !strings.Contains(buf.String(), `"status":101`); {
+		if time.Now().After(deadline) {
+			t.Fatalf("route hit not logged as 101: %s", buf.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
