@@ -80,7 +80,7 @@ func ensureSecret(dir string, s Secret, owner *initfiles.Owner) error {
 	name := config.GeneratedSecrets[s.Setting]
 	path := filepath.Join(dir, name)
 	var value []byte
-	if set := strings.TrimSpace(config.SetValue(s.Setting)); set != "" {
+	if set := config.SetValue(s.Setting); strings.TrimSpace(set) != "" {
 		if !s.Shared {
 			return nil
 		}

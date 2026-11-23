@@ -85,6 +85,29 @@ func TestEnsureSecretsWritesSharedSetValues(t *testing.T) {
 	t.Setenv("AMP_ADMIN_PASSWORD", "other")
 	require.NoError(t, EnsureSecrets(dir, nil))
 	assert.Equal(t, "other", read(t, filepath.Join(dir, "admin-password")))
+
+	// Written as the server reads it, so the two sides agree.
+	t.Setenv("AMP_ADMIN_PASSWORD", " spaced ")
+	require.NoError(t, EnsureSecrets(dir, nil))
+	got, err := os.ReadFile(filepath.Join(dir, "admin-password"))
+	require.NoError(t, err)
+	assert.Equal(t, " spaced ", string(got))
+}
+
+// A secret file that exists but cannot be read is an error, not replaced.
+func TestEnsureSecretsKeepsUnreadableFile(t *testing.T) {
+	clearSecrets(t)
+	if os.Geteuid() == 0 {
+		t.Skip("root reads any file")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "amp-api-client-secret")
+	require.NoError(t, os.WriteFile(path, []byte("kept"), 0o000))
+	err := EnsureSecrets(dir, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "IDP_CLIENT_SECRET")
+	require.NoError(t, os.Chmod(path, 0o600))
+	assert.Equal(t, "kept", read(t, path))
 }
 
 func TestEnsureSecretsKeepsStaleFile(t *testing.T) {
