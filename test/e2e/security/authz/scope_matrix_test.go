@@ -133,11 +133,6 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodGet, agentBase + "/" + absentName, []string{"amp:agent:read"}},
 		{http.MethodPut, agentBase + "/" + absentName, []string{"amp:agent:update"}},
 		{http.MethodDelete, agentBase + "/" + absentName, []string{"amp:agent:delete"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/builds", []string{"amp:agent:build"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/deployments", []string{"amp:agent:update"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/promote", []string{"amp:agent:update"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/deployments/state", []string{"amp:agent:suspend"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/publish-kind", []string{"amp:agent-kind:create"}},
 		{
 			http.MethodPost, gwAgentBase + "/" + absentName + "/environments/" + absentName + "/api-keys",
 			[]string{"amp:ai-gateway:agent-api-keys.manage"},

@@ -26,6 +26,7 @@
 > Link to drafts of marketing content that will describe and promote this feature, including product page changes, technical articles, blog posts, videos, etc., if applicable
 
 ## Automation tests
+> Which tests the change needs, and which CI does not run: docs/testing.md
  - Unit tests 
    > Code coverage information
  - Integration tests

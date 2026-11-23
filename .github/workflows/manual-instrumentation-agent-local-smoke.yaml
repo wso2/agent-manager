@@ -9,6 +9,10 @@ on:
       - 'test/instrumentation-matrix/heavy/amp_client.py'
       - '.github/actions/amp-dev-stack/**'
       - '.github/workflows/manual-instrumentation-agent-local-smoke.yaml'
+      # The external-agent smoke for API changes: registration, API keys and
+      # the key on span exports.
+      - 'agent-manager-service/**'
+      - 'deployments/standalone/**'
   workflow_dispatch:
 permissions:
   contents: read

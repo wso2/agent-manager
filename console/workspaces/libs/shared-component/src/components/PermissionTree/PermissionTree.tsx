@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Checkbox,
@@ -144,6 +144,14 @@ const PermissionTreeRow: React.FC<PermissionTreeRowProps> = ({
     .map((segment) => formatLabel(segment, node.path))
     .join(" / ");
   const canToggle = !readOnly && total > 0;
+  // MUI only renders the indeterminate icon; set the native property so
+  // assistive technology announces a partially selected group as mixed.
+  const checkboxRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = indeterminate;
+    }
+  }, [indeterminate]);
 
   return (
     <Box>
@@ -170,6 +178,7 @@ const PermissionTreeRow: React.FC<PermissionTreeRowProps> = ({
           indeterminate={indeterminate}
           disabled={!canToggle}
           onChange={() => onToggleNode(node)}
+          inputRef={checkboxRef}
           inputProps={{ "aria-label": fullPathLabel }}
         />
         <Stack

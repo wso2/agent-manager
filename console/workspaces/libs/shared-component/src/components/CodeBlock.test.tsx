@@ -28,6 +28,9 @@ Object.assign(navigator, {
     },
 });
 
+// The highlighter splits code into token spans, so match the block's text.
+const codeText = (container: HTMLElement) => container.querySelector('pre')?.textContent ?? '';
+
 const renderWithTheme = (component: React.ReactElement, mode: 'light' | 'dark' = 'light') => {
     const theme = createTheme({
         palette: {
@@ -44,8 +47,8 @@ const renderWithTheme = (component: React.ReactElement, mode: 'light' | 'dark' =
 
 describe('CodeBlock', () => {
     it('renders code with syntax highlighting', () => {
-        renderWithTheme(<CodeBlock code="pip install agent-instrumentation" />);
-        expect(screen.getByText(/pip install agent-instrumentation/i)).toBeInTheDocument();
+        const { container } = renderWithTheme(<CodeBlock code="pip install agent-instrumentation" />);
+        expect(codeText(container)).toContain('pip install agent-instrumentation');
     });
 
     it('displays copy button by default', () => {
@@ -77,8 +80,9 @@ describe('CodeBlock', () => {
         const copyButton = screen.getByRole('button');
         fireEvent.click(copyButton);
 
+        // The tooltip's title is the button's accessible name.
         await waitFor(() => {
-            expect(screen.getByText('Copied!')).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Copied!' })).toBeInTheDocument();
         });
     });
 
@@ -87,11 +91,9 @@ describe('CodeBlock', () => {
 export VAR2="value2"
 export VAR3="value3"`;
         
-        renderWithTheme(<CodeBlock code={multiLineCode} />);
+        const { container } = renderWithTheme(<CodeBlock code={multiLineCode} />);
         
-        expect(screen.getByText(/export VAR1/)).toBeInTheDocument();
-        expect(screen.getByText(/export VAR2/)).toBeInTheDocument();
-        expect(screen.getByText(/export VAR3/)).toBeInTheDocument();
+        expect(codeText(container)).toContain(multiLineCode);
     });
 
     it('uses correct theme for dark mode', () => {
@@ -115,8 +117,9 @@ export VAR3="value3"`;
     });
 
     it('applies custom language prop', () => {
-        renderWithTheme(<CodeBlock code="const x = 1;" language="javascript" />);
-        expect(screen.getByText(/const x = 1;/)).toBeInTheDocument();
+        const { container } = renderWithTheme(<CodeBlock code="const x = 1;" language="javascript" />);
+        expect(codeText(container)).toContain('const x = 1;');
+        expect(container.querySelector('code.language-javascript')).toBeInTheDocument();
     });
 
     it('handles copy errors gracefully', async () => {
