@@ -156,23 +156,16 @@ platform_oauth_sync_openbao() (
     set -o pipefail
     local pod key path value stored directory
     local env_secret
+    local -a pods=()
     # A lookup error must fail; only a successful lookup with no pod skips sync.
+    # items[*] yields nothing for an empty list, where items[0] would error.
     pod="$(platform_oauth_kubectl get pods -n openbao -l app.kubernetes.io/name=openbao \
-        -o jsonpath='{.items[0].metadata.name}')" || exit 1
+        -o jsonpath='{.items[*].metadata.name}')" || exit 1
+    read -r -a pods <<< "$pod"
+    pod="${pods[0]:-}"
     if [[ -z "$pod" ]]; then
         printf '%s\n' 'OpenBao is not running; its credentials are seeded when it starts.' >&2
         exit 0
-    fi
-    # A release that predates Secret-backed seeding restores the old fixed
-    # credentials on every restart, so require an upgrade before syncing.
-    env_secret="$(platform_oauth_kubectl get pod "$pod" -n openbao -o \
-        jsonpath='{.spec.containers[*].env[?(@.name=="WORKLOAD_PUBLISHER_SECRET")].valueFrom.secretKeyRef.name}')" || exit 1
-    if [[ "$env_secret" != "amp-platform-oauth" ]]; then
-        printf '%s\n' 'The OpenBao release predates Secret-backed credentials and would restore old values on restart.' \
-            'Upgrade it, then rerun this step:' \
-            '  helm upgrade openbao oci://ghcr.io/openbao/charts/openbao --namespace openbao --version 0.25.6 \' \
-            '    --reuse-values --values deployments/single-cluster/values-openbao.yaml' >&2
-        exit 1
     fi
 
     umask 077
@@ -186,6 +179,21 @@ platform_oauth_sync_openbao() (
     # Replace the OpenBao copy so a later pod restart seeds the same values.
     platform_oauth_kubectl create secret generic amp-platform-oauth -n openbao "${sources[@]}" \
         --dry-run=client -o yaml | platform_oauth_kubectl apply -f - >/dev/null || exit 1
+
+    # A release that predates Secret-backed seeding restores the old fixed
+    # credentials on every restart, so require an upgrade before syncing. The
+    # namespace Secret above is already in place for the recreated pod.
+    env_secret="$(platform_oauth_kubectl get pod "$pod" -n openbao -o \
+        jsonpath='{.spec.containers[*].env[?(@.name=="WORKLOAD_PUBLISHER_SECRET")].valueFrom.secretKeyRef.name}')" || exit 1
+    if [[ "$env_secret" != "amp-platform-oauth" ]]; then
+        printf '%s\n' 'The OpenBao release predates Secret-backed credentials and would restore old values on restart.' \
+            'Upgrade it, recreate the pod (the StatefulSet uses OnDelete), wait for it, then rerun this step:' \
+            '  helm upgrade openbao oci://ghcr.io/openbao/charts/openbao --namespace openbao --version 0.25.6 \' \
+            '    --reuse-values --values deployments/single-cluster/values-openbao.yaml' \
+            "  kubectl delete pod -n openbao $pod" \
+            "  kubectl wait --for=condition=Ready pod/$pod -n openbao --timeout=180s" >&2
+        exit 1
+    fi
 
     for pair in workflow-plane-oauth-client-secret=WORKLOAD_PUBLISHER_SECRET \
         amp-publisher-client-secret=AMP_PUBLISHER_CLIENT_SECRET \
