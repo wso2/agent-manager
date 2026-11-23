@@ -640,19 +640,33 @@ func (a *MCPProxiesAPIService) GetMCPProxyExecute(r ApiGetMCPProxyRequest) (*MCP
 }
 
 type ApiListAvailableMCPPoliciesRequest struct {
-	ctx        context.Context
-	ApiService *MCPProxiesAPIService
-	orgName    string
+	ctx             context.Context
+	ApiService      *MCPProxiesAPIService
+	orgName         string
+	proxyId         *string
+	environmentUuid *string
 }
 
-func (r ApiListAvailableMCPPoliciesRequest) Execute() (*MCPPolicyAvailabilityResponse, *http.Response, error) {
+// MCP proxy handle (same identifier as /mcp-proxies/{proxyId}). When set, scope the result to the gateways this MCP proxy is deployed to, instead of every active managed gateway in the organization.
+func (r ApiListAvailableMCPPoliciesRequest) ProxyId(proxyId string) ApiListAvailableMCPPoliciesRequest {
+	r.proxyId = &proxyId
+	return r
+}
+
+// Environment UUID; with proxyId, availability is checked only against the gateways of the proxy&#39;s binding in this environment.
+func (r ApiListAvailableMCPPoliciesRequest) EnvironmentUuid(environmentUuid string) ApiListAvailableMCPPoliciesRequest {
+	r.environmentUuid = &environmentUuid
+	return r
+}
+
+func (r ApiListAvailableMCPPoliciesRequest) Execute() (*PolicyCatalogResponse, *http.Response, error) {
 	return r.ApiService.ListAvailableMCPPoliciesExecute(r)
 }
 
 /*
 ListAvailableMCPPolicies List available MCP policies
 
-Returns MCP policy names and versions reported by active gateways.
+Returns the merged MCP policy catalog (policy hub plus gateway-reported policies) with per-gateway installation status.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -668,13 +682,13 @@ func (a *MCPProxiesAPIService) ListAvailableMCPPolicies(ctx context.Context, org
 
 // Execute executes the request
 //
-//	@return MCPPolicyAvailabilityResponse
-func (a *MCPProxiesAPIService) ListAvailableMCPPoliciesExecute(r ApiListAvailableMCPPoliciesRequest) (*MCPPolicyAvailabilityResponse, *http.Response, error) {
+//	@return PolicyCatalogResponse
+func (a *MCPProxiesAPIService) ListAvailableMCPPoliciesExecute(r ApiListAvailableMCPPoliciesRequest) (*PolicyCatalogResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *MCPPolicyAvailabilityResponse
+		localVarReturnValue *PolicyCatalogResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "MCPProxiesAPIService.ListAvailableMCPPolicies")
@@ -689,6 +703,12 @@ func (a *MCPProxiesAPIService) ListAvailableMCPPoliciesExecute(r ApiListAvailabl
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
+	if r.proxyId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "proxyId", r.proxyId, "")
+	}
+	if r.environmentUuid != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "environmentUuid", r.environmentUuid, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -728,7 +748,29 @@ func (a *MCPProxiesAPIService) ListAvailableMCPPoliciesExecute(r ApiListAvailabl
 			body:  localVarBody,
 			error: localVarHTTPResponse.Status,
 		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
 		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

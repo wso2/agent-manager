@@ -211,13 +211,15 @@ func (m *MockToolsetHandler) GatewayEnvironmentIDs(
 
 func (m *MockToolsetHandler) ListLLMGuardrails(
 	ctx context.Context, ouID string, providerID string,
-) (*models.LLMPolicyAvailabilityResponse, error) {
+) (*models.PolicyCatalogResponse, error) {
 	m.recordCall("ListLLMGuardrails", ouID, providerID)
 	schema := map[string]interface{}{"type": "object", "properties": map[string]interface{}{"mask": map[string]interface{}{"type": "boolean"}}}
-	return &models.LLMPolicyAvailabilityResponse{Count: 3, List: []models.LLMPolicyDefinition{
-		{Name: testGuardrailName, Version: "v1", Parameters: schema},
-		{Name: "word-count", Version: "v1", Parameters: schema},
-		{Name: "cors", Version: "v1", Parameters: schema},
+	installed := models.PolicyCatalogStatusInstalled
+	return &models.PolicyCatalogResponse{Count: 4, AvailabilityKnown: true, List: []models.PolicyCatalogItem{
+		{Name: testGuardrailName, Version: "v1", Status: installed, Parameters: schema},
+		{Name: "word-count", Version: "v1", Status: installed, Parameters: schema},
+		{Name: "cors", Version: "v1", Status: installed, Parameters: schema},
+		{Name: testNotInstalledGuardrail, Version: "v1", Status: models.PolicyCatalogStatusNotInstalled, Parameters: schema},
 	}}, nil
 }
 

@@ -338,10 +338,10 @@ func TestGetLLMProviderNamesDeploymentEnvironments(t *testing.T) {
 // report no guardrails, the org's gateways do.
 type undeployedProviderMock struct{ policiesMock }
 
-func (m undeployedProviderMock) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
+func (m undeployedProviderMock) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.PolicyCatalogResponse, error) {
 	if providerID != "" {
 		m.recordCall("ListLLMGuardrails", ouID, providerID)
-		return &models.LLMPolicyAvailabilityResponse{}, nil
+		return &models.PolicyCatalogResponse{}, nil
 	}
 	return m.MockToolsetHandler.ListLLMGuardrails(ctx, ouID, providerID) // records the org-wide call
 }
@@ -358,6 +358,7 @@ func TestAddGuardrailMustBeOneTheGatewaysReport(t *testing.T) {
 		"non-guardrail policy":    {map[string]any{"name": "jwt-auth", "version": "v1"}, "jwt-auth is a gateway policy, not a guardrail"},
 		"reported, not guardrail": {map[string]any{"name": "cors", "version": "v1"}, "cors is a gateway policy, not a guardrail"},
 		"unavailable version":     {map[string]any{"name": "word-count", "version": "v9"}, "word-count version v9 is not available"},
+		"not installed":           {map[string]any{"name": testNotInstalledGuardrail, "version": "v1"}, `no guardrail named "` + testNotInstalledGuardrail + `"`},
 	} {
 		t.Run(name, func(t *testing.T) {
 			failed, text, saved := callGuardrailTool(t, nil, "add_llm_provider_guardrails", map[string]any{"guardrails": []any{tc.guardrail}})
@@ -386,6 +387,139 @@ func TestAddGuardrailMustBeOneTheGatewaysReport(t *testing.T) {
 		}
 		if len(scopes) != 2 || scopes[0] != testProviderID || scopes[1] != "" {
 			t.Errorf("looked up guardrails for %v, want the provider's then the org's", scopes)
+		}
+	})
+}
+
+// patchVersionMock reports word-count at a patch version, as a gateway does: the catalog lists one installed
+// version per name.
+type patchVersionMock struct{ policiesMock }
+
+func (m patchVersionMock) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.PolicyCatalogResponse, error) {
+	resp, err := m.MockToolsetHandler.ListLLMGuardrails(ctx, ouID, providerID)
+	for i := range resp.List {
+		if resp.List[i].Name == "word-count" {
+			resp.List[i].Version = "v1.0.2"
+		}
+	}
+	return resp, err
+}
+
+// The catalog carries one installed version per guardrail, so a request for another version of the same major is
+// accepted; a different major, or a not-installed guardrail, is still refused.
+func TestAddGuardrailAcceptsSameMajorVersion(t *testing.T) {
+	for name, tc := range map[string]struct {
+		version string
+		refused bool
+	}{
+		"exact":             {"v1.0.2", false},
+		"major only":        {"v1", false},
+		"newer minor":       {"v1.3.0", false},
+		"no v prefix":       {"1.1.0", false},
+		"upper case prefix": {"V1", false},
+		"other major":       {"v2", true},
+		"other major full":  {"v2.0.0", true},
+		"prefix lookalike":  {"v10", true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mock := patchVersionMock{policiesMock{MockToolsetHandler: NewMockToolsetHandler()}}
+			session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: mock})
+			res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "add_llm_provider_guardrails", Arguments: map[string]any{
+				"provider_id": testProviderID,
+				"guardrails":  []any{map[string]any{"name": "word-count", "version": tc.version}},
+			}})
+			if err != nil {
+				t.Fatalf("CallTool: %v", err)
+			}
+			if res.IsError != tc.refused {
+				t.Fatalf("version %s: refused=%v, want %v: %+v", tc.version, res.IsError, tc.refused, res.Content)
+			}
+			if tc.refused {
+				text := res.Content[0].(*gomcp.TextContent).Text
+				if !strings.Contains(text, "is not available") || !strings.Contains(text, "v1.0.2") {
+					t.Errorf("refusal should name the available version: %s", text)
+				}
+			}
+		})
+	}
+
+	t.Run("not installed stays refused at any version", func(t *testing.T) {
+		mock := patchVersionMock{policiesMock{MockToolsetHandler: NewMockToolsetHandler()}}
+		session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: mock})
+		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "add_llm_provider_guardrails", Arguments: map[string]any{
+			"provider_id": testProviderID,
+			"guardrails":  []any{map[string]any{"name": testNotInstalledGuardrail, "version": "v1"}},
+		}})
+		if err != nil || !res.IsError {
+			t.Fatalf("a not-installed guardrail must be refused: err=%v %+v", err, res.Content)
+		}
+	})
+}
+
+// unknownAvailabilityMock serves a catalog where no gateway has reported its policies: every row is not_installed
+// and the response says installation is unknown.
+type unknownAvailabilityMock struct{ policiesMock }
+
+func (m unknownAvailabilityMock) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.PolicyCatalogResponse, error) {
+	resp, err := m.MockToolsetHandler.ListLLMGuardrails(ctx, ouID, providerID)
+	resp.AvailabilityKnown = false
+	for i := range resp.List {
+		resp.List[i].Status = models.PolicyCatalogStatusNotInstalled
+	}
+	return resp, err
+}
+
+// When no gateway has reported yet, a not-installed catalog guardrail is accepted (the major version must still
+// match, and non-guardrail policies are still refused), and the guardrail list says availability is unknown.
+func TestGuardrailsWhenAvailabilityUnknown(t *testing.T) {
+	newSession := func() (*gomcp.ClientSession, unknownAvailabilityMock) {
+		mock := unknownAvailabilityMock{policiesMock{MockToolsetHandler: NewMockToolsetHandler()}}
+		return setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: mock}), mock
+	}
+	add := func(session *gomcp.ClientSession, g map[string]any) *gomcp.CallToolResult {
+		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "add_llm_provider_guardrails", Arguments: map[string]any{
+			"provider_id": testProviderID, "guardrails": []any{g},
+		}})
+		if err != nil {
+			t.Fatalf("CallTool: %v", err)
+		}
+		return res
+	}
+
+	t.Run("accepts a catalog guardrail whatever its status", func(t *testing.T) {
+		session, mock := newSession()
+		if res := add(session, map[string]any{"name": "word-count", "version": "v1"}); res.IsError {
+			t.Fatalf("want accepted, got %+v", res.Content)
+		}
+		if len(mock.calls["UpdateLLMProviderGuardrails"]) != 1 {
+			t.Errorf("guardrail was not saved")
+		}
+	})
+
+	t.Run("still refuses a different major, an unknown name and a non-guardrail", func(t *testing.T) {
+		session, _ := newSession()
+		for name, g := range map[string]map[string]any{
+			"other major":   {"name": "word-count", "version": "v9"},
+			"unknown name":  {"name": "pii-maskin", "version": "v1"},
+			"non-guardrail": {"name": "cors", "version": "v1"},
+		} {
+			if res := add(session, g); !res.IsError {
+				t.Errorf("%s: want a refusal", name)
+			}
+		}
+	})
+
+	t.Run("list does not filter by status and flags the unknown availability", func(t *testing.T) {
+		session, _ := newSession()
+		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "list_llm_guardrails", Arguments: map[string]any{}})
+		if err != nil || res.IsError {
+			t.Fatalf("CallTool: %v %+v", err, res.Content)
+		}
+		text := res.Content[0].(*gomcp.TextContent).Text
+		for _, want := range []string{"word-count", testNotInstalledGuardrail, `"availability_known":false`, "not known which are installed"} {
+			if !strings.Contains(text, want) {
+				t.Errorf("list should contain %q: %s", want, text)
+			}
 		}
 	})
 }

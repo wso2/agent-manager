@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -32,34 +31,17 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
-// llmPolicyManifestItem is one guardrail policy definition reported by a gateway's
-// pushed manifest. Scoped to LLM guardrail listing only — intentionally independent
-// from MCP proxy's own manifest walk in mcp_proxy_service.go, which has different
-// availability semantics (hub-intersected) and must not be affected by this endpoint.
+// llmPolicyManifestItem is one policy definition reported by a gateway's pushed
+// manifest. LLM guardrail and MCP policy listings both read manifests through this
+// path, merged with the policy hub by buildCatalogResponse.
 type llmPolicyManifestItem struct {
 	Name             string
 	Version          string
 	DisplayName      string
 	Description      string
+	ManagedBy        string
 	Parameters       map[string]interface{}
 	SystemParameters map[string]interface{}
-}
-
-// intersectActiveGatewayLLMPolicies returns, keyed by "name\x00version", the full policy
-// definitions available across every active managed gateway in the org (listCatalogGateways).
-// Used when the caller has no specific provider/deployment to scope to (e.g. a
-// provider-agnostic listing).
-// See intersectLLMPolicies for the availability semantics.
-func intersectActiveGatewayLLMPolicies(gatewayRepo repositories.GatewayRepository, orgUUID string) (map[string]llmPolicyManifestItem, error) {
-	if gatewayRepo == nil {
-		return map[string]llmPolicyManifestItem{}, nil
-	}
-
-	gateways, err := listCatalogGateways(gatewayRepo, orgUUID)
-	if err != nil {
-		return nil, err
-	}
-	return intersectLLMPolicies(gateways), nil
 }
 
 // listCatalogGateways is the gateways whose reported policies make up an org-wide policy catalog: the active managed
@@ -78,42 +60,137 @@ func listCatalogGateways(gatewayRepo repositories.GatewayRepository, orgUUID str
 	return gateways, nil
 }
 
-// intersectDeployedGatewayLLMPolicies returns, keyed by "name\x00version", the full policy
-// definitions available across the gateways a specific LLM provider is deployed to. Used
-// to scope the guardrail catalog to what that provider's actual gateways support, instead
-// of every active gateway in the org. See intersectLLMPolicies for the availability
-// semantics.
-func intersectDeployedGatewayLLMPolicies(ctx context.Context, gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, providerUUID uuid.UUID, orgUUID string) (map[string]llmPolicyManifestItem, error) {
-	if gatewayRepo == nil || deploymentRepo == nil {
-		return map[string]llmPolicyManifestItem{}, nil
+// resolveCatalogGateways returns the gateways a policy catalog is checked against. When the artifacts are placed on at
+// least one gateway of the org, those gateways (of any hosting) are returned with the deployed scope. Otherwise (no
+// artifacts, no deployment repository, or none placed) the org's active managed gateways are returned with the
+// org_managed scope. A resource deployed through several artifacts, as an MCP proxy is, passes all of them.
+func resolveCatalogGateways(ctx context.Context, gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, orgUUID string, artifactUUIDs []uuid.UUID) ([]*models.Gateway, models.PolicyAvailabilityScope, error) {
+	if gatewayRepo == nil {
+		return []*models.Gateway{}, models.PolicyAvailabilityScopeOrgManaged, nil
 	}
-
-	gatewayUUIDs, err := deploymentRepo.PlacedGateways(ctx, orgUUID, providerUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list deployed gateways for provider: %w", err)
-	}
-
-	gateways := make([]*models.Gateway, 0, len(gatewayUUIDs))
-	for _, gatewayUUID := range gatewayUUIDs {
-		gateway, err := gatewayRepo.GetByUUID(gatewayUUID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				// A deployment row can outlive the gateway it points to (e.g. the
-				// gateway was since deleted); skip it rather than failing the whole
-				// listing over one stale reference.
-				continue
+	if deploymentRepo != nil && len(artifactUUIDs) > 0 {
+		var gatewayUUIDs []string
+		seen := map[string]struct{}{}
+		for _, artifactUUID := range artifactUUIDs {
+			placed, err := deploymentRepo.PlacedGateways(ctx, orgUUID, artifactUUID)
+			if err != nil {
+				return nil, "", fmt.Errorf("failed to list deployed gateways: %w", err)
 			}
-			return nil, fmt.Errorf("failed to get deployed gateway %s: %w", gatewayUUID, err)
+			for _, id := range placed {
+				if _, dup := seen[id]; !dup {
+					seen[id] = struct{}{}
+					gatewayUUIDs = append(gatewayUUIDs, id)
+				}
+			}
 		}
-		// Defense in depth: GetByUUID isn't org-scoped, so verify the gateway we
-		// fetched actually belongs to the caller's org before including its
-		// policies, even though gatewayUUIDs itself was already org-filtered.
-		if gateway != nil && gateway.OUID == orgUUID {
-			gateways = append(gateways, gateway)
+
+		gateways := make([]*models.Gateway, 0, len(gatewayUUIDs))
+		for _, gatewayUUID := range gatewayUUIDs {
+			gateway, err := gatewayRepo.GetByUUID(gatewayUUID)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					// A deployment row can outlive the gateway it points to (e.g. the
+					// gateway was since deleted); skip it rather than failing the whole
+					// listing over one stale reference.
+					continue
+				}
+				return nil, "", fmt.Errorf("failed to get deployed gateway %s: %w", gatewayUUID, err)
+			}
+			// Defense in depth: GetByUUID isn't org-scoped, so verify the gateway we
+			// fetched actually belongs to the caller's org before including its
+			// policies, even though gatewayUUIDs itself was already org-filtered.
+			if gateway != nil && gateway.OUID == orgUUID {
+				gateways = append(gateways, gateway)
+			}
+		}
+		if len(gateways) > 0 {
+			return gateways, models.PolicyAvailabilityScopeDeployed, nil
 		}
 	}
 
-	return intersectLLMPolicies(gateways), nil
+	gateways, err := listCatalogGateways(gatewayRepo, orgUUID)
+	if err != nil {
+		return nil, "", err
+	}
+	return gateways, models.PolicyAvailabilityScopeOrgManaged, nil
+}
+
+// gatewayRef identifies a gateway in catalog results.
+type gatewayRef = models.PolicyCatalogGatewayRef
+
+// installedPolicies is the per-gateway presence of policies across a set of gateways.
+type installedPolicies struct {
+	// ByName is the available policy per name (see intersectLLMPolicies).
+	ByName map[string]llmPolicyManifestItem
+	// Custom is true for names that any reporting gateway marks managedBy "organization".
+	Custom map[string]bool
+	// MissingOn lists, for names seen on at least one but not all reporting gateways, the gateways lacking them.
+	MissingOn map[string][]gatewayRef
+	// Sighted is, per name, the highest-version definition any reporting gateway reported. It lets a policy that is
+	// not installed everywhere still show its real name, version and description.
+	Sighted map[string]llmPolicyManifestItem
+	// Reporting lists the gateways that have reported a manifest.
+	Reporting []gatewayRef
+}
+
+// collectInstalledPolicies computes which policies are installed, custom or missing on which of the given gateways.
+// A gateway that has not reported a manifest is left out of every result, as in intersectLLMPolicies.
+func collectInstalledPolicies(gateways []*models.Gateway) installedPolicies {
+	result := installedPolicies{
+		ByName:    map[string]llmPolicyManifestItem{},
+		Custom:    map[string]bool{},
+		MissingOn: map[string][]gatewayRef{},
+		Sighted:   map[string]llmPolicyManifestItem{},
+		Reporting: []gatewayRef{},
+	}
+	// Read every manifest exactly once: a gateway can push a new manifest at any moment, and the intersection and the
+	// per-gateway views below must be computed from the same snapshot.
+	snapshots := snapshotGatewayManifests(gateways)
+
+	// Several versions of one name can survive the intersection (every gateway reports both); take the highest, so
+	// the result does not depend on map iteration order.
+	for _, item := range intersectGatewaySnapshots(snapshots) {
+		if current, ok := result.ByName[item.Name]; ok && compareVersions(item.Version, current.Version) <= 0 {
+			continue
+		}
+		result.ByName[item.Name] = item
+	}
+
+	type reported struct {
+		ref   gatewayRef
+		names map[string]struct{}
+	}
+	var reporting []reported
+	allNames := map[string]struct{}{}
+	for _, snapshot := range snapshots {
+		gateway := snapshot.gateway
+		name := gateway.DisplayName
+		if name == "" {
+			name = gateway.Name
+		}
+		entry := reported{ref: gatewayRef{ID: gateway.UUID.String(), Name: name}, names: map[string]struct{}{}}
+		for _, policy := range snapshot.items {
+			entry.names[policy.Name] = struct{}{}
+			allNames[policy.Name] = struct{}{}
+			if policy.ManagedBy == "organization" {
+				result.Custom[policy.Name] = true
+			}
+			if current, ok := result.Sighted[policy.Name]; !ok || compareVersions(policy.Version, current.Version) > 0 {
+				result.Sighted[policy.Name] = policy
+			}
+		}
+		reporting = append(reporting, entry)
+		result.Reporting = append(result.Reporting, entry.ref)
+	}
+
+	for name := range allNames {
+		for _, entry := range reporting {
+			if _, ok := entry.names[name]; !ok {
+				result.MissingOn[name] = append(result.MissingOn[name], entry.ref)
+			}
+		}
+	}
+	return result
 }
 
 // intersectLLMPolicies returns, keyed by "name\x00version", the full policy definitions
@@ -126,6 +203,31 @@ func intersectDeployedGatewayLLMPolicies(ctx context.Context, gatewayRepo reposi
 // A gateway that has not reported a manifest yet (see gatewayManifest) is left out of the
 // intersection rather than emptying it; if none has reported, nothing is available.
 func intersectLLMPolicies(gateways []*models.Gateway) map[string]llmPolicyManifestItem {
+	return intersectGatewaySnapshots(snapshotGatewayManifests(gateways))
+}
+
+// gatewayManifestSnapshot is one gateway's policy items as read from its manifest at a single point in time.
+type gatewayManifestSnapshot struct {
+	gateway *models.Gateway
+	items   []llmPolicyManifestItem
+}
+
+// snapshotGatewayManifests reads each gateway's manifest exactly once and extracts its policy items. Gateways that
+// have not reported a manifest (see gatewayManifest) are left out.
+func snapshotGatewayManifests(gateways []*models.Gateway) []gatewayManifestSnapshot {
+	snapshots := make([]gatewayManifestSnapshot, 0, len(gateways))
+	for _, gateway := range gateways {
+		manifest, known := gatewayManifest(gateway)
+		if !known {
+			continue
+		}
+		snapshots = append(snapshots, gatewayManifestSnapshot{gateway: gateway, items: extractLLMPolicyManifestItems(manifest)})
+	}
+	return snapshots
+}
+
+// intersectGatewaySnapshots is the intersection logic of intersectLLMPolicies over already-read manifests.
+func intersectGatewaySnapshots(snapshots []gatewayManifestSnapshot) map[string]llmPolicyManifestItem {
 	var perGatewayPolicies []map[string]llmPolicyManifestItem
 	// byName collects every (gateway, version) sighting per policy name, used for the
 	// backward-compatible fallback when strict intersection yields nothing for that name.
@@ -136,15 +238,11 @@ func intersectLLMPolicies(gateways []*models.Gateway) map[string]llmPolicyManife
 	gatewayCountByName := map[string]int{}
 	gatewayCount := 0
 
-	for _, gateway := range gateways {
-		manifest, known := gatewayManifest(gateway)
-		if !known {
-			continue
-		}
+	for _, snapshot := range snapshots {
 		gatewayCount++
 		gatewayPolicies := map[string]llmPolicyManifestItem{}
 		namesOnThisGateway := map[string]struct{}{}
-		for _, policy := range extractLLMPolicyManifestItems(manifest) {
+		for _, policy := range snapshot.items {
 			if policy.Name == "" || policy.Version == "" {
 				continue
 			}
@@ -229,22 +327,6 @@ func compareVersions(a, b string) int {
 	return len(segmentsA) - len(segmentsB)
 }
 
-// sortedLLMPolicyManifestItems returns the map's values sorted by Name then Version,
-// for a stable API response.
-func sortedLLMPolicyManifestItems(available map[string]llmPolicyManifestItem) []llmPolicyManifestItem {
-	items := make([]llmPolicyManifestItem, 0, len(available))
-	for _, item := range available {
-		items = append(items, item)
-	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Name == items[j].Name {
-			return items[i].Version < items[j].Version
-		}
-		return items[i].Name < items[j].Name
-	})
-	return items
-}
-
 // extractLLMPolicyManifestItems recursively walks a gateway's arbitrarily-shaped,
 // self-reported manifest JSON and pulls out every policy definition it can find,
 // including the metadata (displayName/description/parameters/systemParameters) the
@@ -295,6 +377,7 @@ func extractLLMPolicyManifestItems(value interface{}) []llmPolicyManifestItem {
 			Version:          version,
 			DisplayName:      stringValue(lookup(entry, "displayName")),
 			Description:      stringValue(lookup(entry, "description")),
+			ManagedBy:        stringValue(lookup(entry, "managedBy")),
 			Parameters:       mapValue(lookup(entry, "parameters")),
 			SystemParameters: mapValue(lookup(entry, "systemParameters")),
 		})

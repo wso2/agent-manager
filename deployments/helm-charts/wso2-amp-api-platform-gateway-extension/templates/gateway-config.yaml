@@ -37,6 +37,10 @@ data:
             type: sqlite
             sqlite:
               path: ./data/gateway.db
+          {{- with .Values.apiGateway.config.policyDefinitionsPath }}
+          policies:
+            definitions_path: {{ . | quote }}
+          {{- end }}
           controlplane:
             insecure_skip_verify: {{ .Values.apiGateway.controlPlane.tls.insecureSkipVerify }}
             reconnect_initial: 1s

@@ -6187,7 +6187,7 @@ paths:
       tags:
         - LLM Providers
       summary: List available LLM guardrail policies
-      description: Returns full guardrail policy definitions (including parameter schemas) reported by active gateways in the organization. When providerId is given, the result is scoped to the gateways that provider is currently deployed to; otherwise it covers every active gateway in the organization.
+      description: Returns the merged LLM guardrail policy catalog (policy hub plus gateway-reported policies, including parameter schemas) with per-gateway installation status. When providerId is given, availability is checked against the gateways that provider is currently deployed to; otherwise against the organization's active managed gateways.
       operationId: listAvailableLLMPolicies
       parameters:
         - name: providerId
@@ -6199,11 +6199,11 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Available LLM guardrail policies
+          description: Merged LLM guardrail policy catalog
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LLMPolicyAvailabilityResponse"
+                $ref: "#/components/schemas/PolicyCatalogResponse"
         "401":
           description: Unauthorized
           content:
@@ -7007,17 +7007,43 @@ paths:
       tags:
         - MCP Proxies
       summary: List available MCP policies
-      description: Returns MCP policy names and versions reported by active gateways.
+      description: Returns the merged MCP policy catalog (policy hub plus gateway-reported policies) with per-gateway installation status.
       operationId: listAvailableMCPPolicies
+      parameters:
+        - name: proxyId
+          in: query
+          required: false
+          description: MCP proxy handle (same identifier as /mcp-proxies/{proxyId}). When set, scope the result to the gateways this MCP proxy is deployed to, instead of every active managed gateway in the organization.
+          schema:
+            type: string
+        - name: environmentUuid
+          in: query
+          required: false
+          description: Environment UUID; with proxyId, availability is checked only against the gateways of the proxy's binding in this environment.
+          schema:
+            type: string
+            format: uuid
       responses:
         "200":
-          description: Available MCP policies
+          description: Merged MCP policy catalog
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPPolicyAvailabilityResponse"
+                $ref: "#/components/schemas/PolicyCatalogResponse"
+        "400":
+          description: Invalid environmentUuid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: MCP proxy not found
           content:
             application/json:
               schema:
@@ -20754,33 +20780,6 @@ components:
             type: object
             additionalProperties: true
 
-    MCPPolicyAvailabilityResponse:
-      type: object
-      required:
-        - count
-        - list
-      properties:
-        count:
-          type: integer
-          format: int32
-        list:
-          type: array
-          items:
-            $ref: "#/components/schemas/MCPPolicyAvailableItem"
-
-    MCPPolicyAvailableItem:
-      type: object
-      required:
-        - name
-        - version
-      properties:
-        name:
-          type: string
-          description: Policy name
-        version:
-          type: string
-          description: Policy version
-
     MCPServerInfoFetchRequest:
       type: object
       properties:
@@ -21063,25 +21062,27 @@ components:
           additionalProperties: true
           description: Policy parameters
 
-    LLMPolicyAvailabilityResponse:
+    PolicyCatalogGatewayRef:
       type: object
       required:
-        - count
-        - list
+        - id
+        - name
       properties:
-        count:
-          type: integer
-          format: int32
-        list:
-          type: array
-          items:
-            $ref: "#/components/schemas/LLMPolicyDefinition"
+        id:
+          type: string
+          description: Gateway ID
+        name:
+          type: string
+          description: Gateway name
 
-    LLMPolicyDefinition:
+    PolicyCatalogItem:
       type: object
       required:
         - name
         - version
+        - source
+        - status
+        - categories
       properties:
         name:
           type: string
@@ -21098,6 +21099,28 @@ components:
         description:
           type: string
           description: Policy description
+        source:
+          type: string
+          enum:
+            - hub
+            - custom
+          description: Where the definition comes from. "hub" is published in the policy hub; "custom" is an organization-managed policy reported by a gateway.
+        status:
+          type: string
+          enum:
+            - installed
+            - not_installed
+          description: Whether the policy is installed on every checked gateway.
+        missingOn:
+          type: array
+          items:
+            $ref: "#/components/schemas/PolicyCatalogGatewayRef"
+          description: Checked gateways that do not have the policy installed
+        categories:
+          type: array
+          items:
+            type: string
+          description: Policy categories
         parameters:
           type: object
           additionalProperties: true
@@ -21106,6 +21129,35 @@ components:
           type: object
           additionalProperties: true
           description: JSON-Schema describing operator-level (gateway config) parameters
+
+    PolicyCatalogResponse:
+      type: object
+      required:
+        - count
+        - list
+        - hubAvailable
+        - availabilityScope
+        - availabilityKnown
+      properties:
+        count:
+          type: integer
+          format: int32
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/PolicyCatalogItem"
+        hubAvailable:
+          type: boolean
+          description: Whether the policy hub was reachable (or cached) when the catalog was built
+        availabilityScope:
+          type: string
+          enum:
+            - deployed
+            - org_managed
+          description: Which gateways availability was checked against. "deployed" is the gateways the resource is deployed to; "org_managed" is the organization's active managed gateways.
+        availabilityKnown:
+          type: boolean
+          description: False when none of the checked gateways has reported its policies yet, so installed/not_installed is not known
 
     LLMRateLimitingConfig:
       type: object

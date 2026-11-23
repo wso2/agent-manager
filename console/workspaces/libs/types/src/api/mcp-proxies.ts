@@ -43,16 +43,6 @@ export interface MCPProxyPolicy {
   params?: Record<string, unknown>;
 }
 
-export interface MCPPolicyAvailableItem {
-  name: string;
-  version: string;
-}
-
-export interface MCPPolicyAvailabilityResponse {
-  count: number;
-  list: MCPPolicyAvailableItem[];
-}
-
 /**
  * MCPEndpointConfig is the deployable configuration of a single MCP proxy endpoint:
  * upstream (URL + auth), policies, capabilities and security. It is the flat config
@@ -319,6 +309,15 @@ export type RefreshProjectMCPProxyCapabilitiesPathParams = GetProjectMCPProxyPat
 export type UpdateMCPProxyPathParams = OrgPathParams & { proxyId: string };
 export type ListMCPProxiesPathParams = OrgPathParams;
 export type ListAvailableMCPPoliciesPathParams = OrgPathParams;
+export interface ListAvailableMCPPoliciesQuery {
+  /** MCP proxy handle; scopes availability to the gateways the proxy is deployed on. */
+  proxyId?: string;
+  /**
+   * Environment UUID; used with proxyId to scope availability to the gateways
+   * the proxy is deployed on in that environment.
+   */
+  environmentUuid?: string;
+}
 export type ListMCPProxiesQuery = ListQuery & {
   /**
    * OpenChoreo project name. When set, the list also includes that project's

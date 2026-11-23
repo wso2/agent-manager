@@ -71,6 +71,8 @@ type LLMProviderService struct {
 	agentMappingRepo   repositories.EnvAgentModelMappingRepository
 	monitorMappingRepo repositories.MonitorLLMMappingRepository
 	apiKeyService      *LLMProviderAPIKeyService
+	// policyHub supplies the public policy catalog merged into the guardrail listing; nil disables it.
+	policyHub PolicyHubClient
 
 	// proxySyncLocks serialises dependent-proxy syncs per provider. Zero value is
 	// usable, so it needs no wiring in the constructor.
@@ -122,6 +124,7 @@ func NewLLMProviderService(
 	agentMappingRepo repositories.EnvAgentModelMappingRepository,
 	monitorMappingRepo repositories.MonitorLLMMappingRepository,
 	apiKeyService *LLMProviderAPIKeyService,
+	policyHub PolicyHubClient,
 ) *LLMProviderService {
 	svc := &LLMProviderService{
 		db:                 db,
@@ -136,6 +139,7 @@ func NewLLMProviderService(
 		agentMappingRepo:   agentMappingRepo,
 		monitorMappingRepo: monitorMappingRepo,
 		apiKeyService:      apiKeyService,
+		policyHub:          policyHub,
 	}
 	if locker, ok := providerRepo.(repositories.LLMProviderSyncLocker); ok {
 		svc.proxySyncDBLocker = locker
@@ -496,50 +500,25 @@ func (s *LLMProviderService) List(ouID string, limit, offset int) ([]*models.LLM
 	return providers, totalCount, nil
 }
 
-// ListAvailableLLMPolicies returns full guardrail policy definitions reported by active
-// gateways in the organization, so the console can list and configure them directly
-// without depending on the external policy hub. When providerID is non-empty, the result
-// is scoped to the gateways that provider is currently deployed to, instead of every
-// active gateway in the org.
-func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
-	var available map[string]llmPolicyManifestItem
-	var err error
+// ListAvailableLLMPolicies returns the guardrail policy catalog: policies installed on the gateways the provider is
+// checked against, merged with the public policy hub. When providerID is set and the provider is placed on gateways,
+// those gateways are used (deployed scope); otherwise the org's active managed gateways (org_managed scope).
+func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID, providerID string) (*models.PolicyCatalogResponse, error) {
+	var artifactUUIDs []uuid.UUID
 	if providerID != "" {
-		provider, resolveErr := s.resolveProvider(providerID, ouID)
-		if resolveErr != nil {
-			if errors.Is(resolveErr, gorm.ErrRecordNotFound) {
+		provider, err := s.resolveProvider(providerID, ouID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, utils.ErrLLMProviderNotFound
 			}
-			return nil, fmt.Errorf("failed to resolve provider: %w", resolveErr)
+			return nil, fmt.Errorf("failed to resolve provider: %w", err)
 		}
 		if provider == nil {
 			return nil, utils.ErrLLMProviderNotFound
 		}
-		available, err = intersectDeployedGatewayLLMPolicies(ctx, s.gatewayRepo, s.deploymentRepo, provider.UUID, ouID)
-	} else {
-		available, err = intersectActiveGatewayLLMPolicies(s.gatewayRepo, ouID)
+		artifactUUIDs = []uuid.UUID{provider.UUID}
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	sorted := sortedLLMPolicyManifestItems(available)
-	items := make([]models.LLMPolicyDefinition, 0, len(sorted))
-	for _, item := range sorted {
-		items = append(items, models.LLMPolicyDefinition{
-			Name:             item.Name,
-			Version:          item.Version,
-			DisplayName:      item.DisplayName,
-			Description:      item.Description,
-			Parameters:       item.Parameters,
-			SystemParameters: item.SystemParameters,
-		})
-	}
-
-	return &models.LLMPolicyAvailabilityResponse{
-		Count: int32(len(items)),
-		List:  items,
-	}, nil
+	return buildCatalogResponse(ctx, models.PolicyCatalogKindLLM, s.gatewayRepo, s.deploymentRepo, s.policyHub, ouID, artifactUUIDs)
 }
 
 // Get retrieves an LLM provider by ID

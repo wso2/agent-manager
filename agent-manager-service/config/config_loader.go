@@ -216,6 +216,10 @@ func loadEnvs() {
 	config.GatewayPublicVhostFallback = r.readOptionalBool("GATEWAY_PUBLIC_VHOST_FALLBACK", false)
 	config.EvalJobsUsePublicGatewayURL = r.readOptionalBool("EVAL_JOBS_USE_PUBLIC_GATEWAY_URL", false)
 
+	config.PolicyHub = PolicyHubConfig{
+		BaseURL: readPolicyHubBaseURL(),
+	}
+
 	// Gateway manifest cache backend. "memory" (default) is process-local and only
 	// safe for a single replica; HA deployments must set this to "redis" so every
 	// replica reads and writes the same per-gateway cached manifests.
@@ -437,6 +441,7 @@ func loadEnvs() {
 	validateServerPublicURL(config, r)
 	validateInstrumentationURL(config, r)
 	validateObserverURLs(config, r)
+	validatePolicyHubBaseURL(config, r)
 	validateGrowthAnalyticsConfig(config)
 	validateResourceLimitsConfig(config, r)
 	validateFileMountLimitsConfig(config, r)
@@ -797,6 +802,22 @@ func validateInstrumentationURL(cfg *Config, r *configReader) {
 	}
 }
 
+// validatePolicyHubBaseURL rejects a malformed POLICY_HUB_BASE_URL at startup. Empty is valid: it disables the hub.
+func validatePolicyHubBaseURL(cfg *Config, r *configReader) {
+	raw := strings.TrimSpace(cfg.PolicyHub.BaseURL)
+	if raw == "" {
+		return
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		r.errors = append(r.errors, fmt.Errorf("POLICY_HUB_BASE_URL %q is not a valid URL: %w", raw, err))
+		return
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		r.errors = append(r.errors, fmt.Errorf("POLICY_HUB_BASE_URL %q must be an absolute http or https URL with a host", raw))
+	}
+}
+
 func validateObserverURLs(cfg *Config, r *configReader) {
 	validate := func(envVar, raw string) {
 		if raw == "" {
@@ -1044,4 +1065,16 @@ func validateEventsConfig(cfg EventsConfig) []error {
 		errs = append(errs, fmt.Errorf("EVENTS_DELIVERY_RETENTION_DAYS must be positive, got %d", cfg.DeliveryRetentionDays))
 	}
 	return errs
+}
+
+// defaultPolicyHubBaseURL is the public WSO2 policy hub endpoint.
+const defaultPolicyHubBaseURL = "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies"
+
+// readPolicyHubBaseURL distinguishes unset (use the public default) from set to
+// empty (hub disabled), which readOptionalString cannot express.
+func readPolicyHubBaseURL() string {
+	if v, ok := os.LookupEnv("POLICY_HUB_BASE_URL"); ok {
+		return v
+	}
+	return defaultPolicyHubBaseURL
 }

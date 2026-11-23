@@ -18,8 +18,12 @@
 
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
-  globalConfig,
-  type GuardrailCapabilities,
+  type PolicyCatalogAvailabilityScope,
+  type PolicyCatalogGatewayRef,
+  type PolicyCatalogItem,
+  type PolicyCatalogResponse,
+  type PolicyCatalogSource,
+  type PolicyCatalogStatus,
 } from "@agent-management-platform/types";
 import { listAvailableLLMPolicies } from "../apis";
 import { useApiQuery } from "./react-query-notifications";
@@ -32,10 +36,15 @@ export interface GuardrailDefinition {
   provider: string;
   categories: string[];
   isLatest: boolean;
+  /** Where the policy comes from: the public hub or an organization-managed custom policy. */
+  source: PolicyCatalogSource;
+  /** Whether the policy is installed on the gateways it would be deployed to. */
+  status: PolicyCatalogStatus;
+  /** Gateways the policy is missing on; set only when `status` is `not_installed`. */
+  missingOn?: PolicyCatalogGatewayRef[];
   /**
-   * Present only for gateway-manifest-sourced policies (see useLLMPoliciesCatalog).
-   * When set, PolicySelectorDrawer renders the parameter form directly from these
-   * instead of fetching+parsing a YAML definition from the policy hub.
+   * Present only for installed policies (see useLLMPoliciesCatalog). When set,
+   * PolicySelectorDrawer renders the parameter form directly from these.
    */
   parameters?: Record<string, unknown>;
   systemParameters?: Record<string, unknown>;
@@ -80,192 +89,87 @@ const NON_GUARDRAIL_POLICY_EXCLUDELIST = new Set([
   "subscription-validation",
 ]);
 
-// Tier 2: Hidden by default — require external system config.
-// Shown only when the corresponding capability flag is enabled in runtime config.
-// Typed as Record<keyof GuardrailCapabilities, ...> so adding a new capability flag
-// without a corresponding policy entry (or vice versa) is a compile error.
-const CAPABILITY_POLICY_MAP: Record<keyof GuardrailCapabilities, string[]> = {
-  awsBedrock: ["aws-bedrock-guardrail"],
-  azureContentSafety: ["azure-content-safety-content-moderation"],
-  graniteGuardian: ["granite-guardian-prompt-injection"],
-  nemoGuard: ["nvidia-nemoguard-content-safety"],
-  semanticGuardrails: ["semantic-prompt-guard", "semantic-cache"],
-};
-
-const ALL_CAPABILITY_GATED_POLICIES = new Set(
-  Object.values(CAPABILITY_POLICY_MAP).flat(),
-);
-
 /**
  * Filters the raw policy catalog for display in the guardrail selector.
  *
- * Tier 1 — always hidden: infra/auth/MCP policies.
- * Tier 2 — hidden by default: policies requiring external system config;
- *           shown when the corresponding capability flag is true in `capabilities`.
- * Tier 3 — always shown: OOTB policies with no external dependencies.
+ * Always hidden: infra/auth/MCP policies (NON_GUARDRAIL_POLICY_EXCLUDELIST).
+ * Not-installed policies the hub categorises must be categorised "Guardrails"
+ * to be shown; rows without categories (from the gateways) are exempt.
+ * Everything else is shown, including guardrails that need external system
+ * configuration on the gateway (AWS Bedrock, Azure Content Safety, …).
  */
 export function filterGuardrailPolicies(
   policies: GuardrailDefinition[],
-  capabilities?: GuardrailCapabilities,
 ): GuardrailDefinition[] {
-  const enabledCapabilityPolicies = new Set(
-    (
-      Object.entries(CAPABILITY_POLICY_MAP) as [
-        keyof GuardrailCapabilities,
-        string[],
-      ][]
-    )
-      .filter(([key]) => capabilities?.[key])
-      .flatMap(([, names]) => names),
-  );
-
   return policies.filter((p) => {
-    if (NON_GUARDRAIL_POLICY_EXCLUDELIST.has(p.name)) return false;
-    if (ALL_CAPABILITY_GATED_POLICIES.has(p.name))
-      return enabledCapabilityPolicies.has(p.name);
-    return true;
+    // The hub tags about twenty non-guardrail policies "AI"; a not-installed
+    // policy the hub categorises is only worth offering when it files it under
+    // Guardrails. Rows with no categories come from the gateways (custom
+    // policies, or ones on only some gateways that the hub doesn't know), so the
+    // rule doesn't apply to them; the exclude list still does.
+    if (
+      p.status === "not_installed" &&
+      p.categories.length > 0 &&
+      !p.categories.includes("Guardrails")
+    )
+      return false;
+    return !NON_GUARDRAIL_POLICY_EXCLUDELIST.has(p.name);
   });
 }
 
 export interface GuardrailsCatalogResponse {
   count: number;
   data: GuardrailDefinition[];
+  /** False when the policy hub is disabled or unreachable (installed policies still list). */
+  hubAvailable: boolean;
+  availabilityScope: PolicyCatalogAvailabilityScope;
+  /**
+   * False when no checked gateway has reported its policies yet: each row's
+   * status is then "not known", not "missing", so no unavailable warnings.
+   */
+  availabilityKnown: boolean;
 }
 
-export function useGuardrailsCatalog(enabled = true) {
-  const url = globalConfig.guardrailsCatalogUrl;
-  const { getToken } = useAuthHooks();
-
-  return useApiQuery<GuardrailsCatalogResponse>({
-    queryKey: ["Guardrails catalog", url],
-    enabled: enabled && Boolean(url),
-    queryFn: async () => {
-      if (!url) {
-        throw new Error("Guardrails catalog URL is not configured.");
-      }
-
-      const token = await getToken();
-      const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(
-          text || `Failed to fetch guardrails catalog: ${res.status}`,
-        );
-      }
-      return (await res.json()) as GuardrailsCatalogResponse;
-    },
-  });
+export function toGuardrailDefinition(
+  item: PolicyCatalogItem,
+): GuardrailDefinition {
+  return {
+    name: item.name,
+    version: item.version,
+    displayName: item.displayName || item.name,
+    description: item.description ?? "",
+    provider: item.source,
+    source: item.source,
+    status: item.status,
+    missingOn: item.missingOn,
+    categories: item.categories ?? [],
+    isLatest: true,
+    // Left undefined for not-installed items (no schema available). An inline,
+    // possibly empty, object is what tells PolicySelectorDrawer the schema is known.
+    parameters: item.parameters,
+    systemParameters: item.systemParameters,
+  };
 }
 
-/**
- * Fetches a single guardrail policy definition (YAML) by name and version.
- *
- * The definition endpoint returns YAML content which should be
- * parsed by the consumer (e.g. with `parsePolicyYaml`).
- *
- * URL pattern:
- * `{guardrailsDefinitionBaseUrl}/{name}/versions/{version}/definition`
- */
-export function useGuardrailPolicyDefinition(
-  name: string | undefined,
-  version: string | undefined,
-) {
-  const baseUrl = globalConfig.guardrailsDefinitionBaseUrl;
-  const { getToken } = useAuthHooks();
-  const enabled = Boolean(baseUrl && name && version);
-
-  return useApiQuery<string>({
-    queryKey: ["Guardrail policy definition", baseUrl, name, version],
-    enabled,
-    queryFn: async () => {
-      if (!baseUrl || !name || !version) {
-        throw new Error(
-          "Guardrails definition base URL, policy name," +
-            " and version are required.",
-        );
-      }
-
-      const token = await getToken();
-      const url =
-        `${baseUrl}/${encodeURIComponent(name)}` +
-        `/versions/${encodeURIComponent(version)}` +
-        `/definition`;
-      const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        throw new Error(
-          errText || `Failed to fetch policy definition: ${res.status}`,
-        );
-      }
-      return res.text();
-    },
-  });
+/** Maps the agent-manager-service policy catalog response 1:1 for the picker. */
+export function toGuardrailCatalog(
+  resp: PolicyCatalogResponse,
+): GuardrailsCatalogResponse {
+  return {
+    count: resp.count,
+    data: (resp.list ?? []).map(toGuardrailDefinition),
+    hubAvailable: resp.hubAvailable,
+    availabilityScope: resp.availabilityScope,
+    // Absent only from an older service; assume availability is known then.
+    availabilityKnown: resp.availabilityKnown ?? true,
+  };
 }
 
 /**
- * Best-effort lookup of {policyName → displayName} from the public policy hub.
- *
- * Used purely to give WSO2's built-in policies a friendly name when the gateway's
- * own manifest omits `displayName` (which, today, it does for all but one). The hub
- * is NEVER consulted for availability or version — only for a nicer label. Any
- * failure (hub unconfigured, unreachable, or a bad response) resolves to an empty
- * map so the picker degrades to the raw kebab-case name instead of erroring. Keyed
- * by name only: display names are stable across patch versions, and the hub's coarse
- * `major.minor` version wouldn't match the gateway's exact build version anyway.
- *
- * Bounded by an AbortController timeout: a hub that hangs (unreachable host, stalled
- * TLS) rather than failing fast must NOT block the authoritative gateway list this
- * runs in parallel with — on timeout the abort rejects the fetch and we fall back.
- */
-const HUB_DISPLAY_NAME_TIMEOUT_MS = 3000;
-
-async function fetchHubPolicyDisplayNames(
-  token: string | undefined,
-): Promise<Map<string, string>> {
-  const displayNames = new Map<string, string>();
-  const url = globalConfig.guardrailsCatalogUrl;
-  if (!url) return displayNames;
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(),
-    HUB_DISPLAY_NAME_TIMEOUT_MS,
-  );
-  try {
-    const res = await fetch(url, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      signal: controller.signal,
-    });
-    if (!res.ok) return displayNames;
-    const catalog = (await res.json()) as GuardrailsCatalogResponse;
-    for (const policy of catalog.data ?? []) {
-      if (policy.displayName) displayNames.set(policy.name, policy.displayName);
-    }
-  } catch {
-    // Hub is a best-effort name source only (includes AbortError on timeout);
-    // ignore and fall back to kebab names.
-  } finally {
-    clearTimeout(timer);
-  }
-  return displayNames;
-}
-
-/**
- * Fetches available LLM guardrail policies from the gateway's own reported manifest
- * (via agent-manager-service), instead of the external policy hub. Every policy
- * carries its full JSON-Schema `parameters`/`systemParameters` inline, so the picker
- * never needs a second round-trip to fetch a YAML definition, and a custom policy
- * appears the moment its gateway redeploys — no policy-hub publishing step involved.
- *
- * The gateway is the sole source of truth for which policies exist and at which
- * version. The policy hub is consulted only as a best-effort source of friendly
- * display names for policies whose gateway manifest left `displayName` empty (see
- * fetchHubPolicyDisplayNames) — a hybrid that keeps user-authored custom policies
- * working (they fall through to their own name) without depending on the hub for
- * availability.
+ * Fetches the merged LLM policy catalog from agent-manager-service: the public hub's
+ * policies plus organization-managed custom ones, each flagged installed or
+ * not-installed against the gateways the provider is deployed to (or all managed
+ * gateways when no provider is given). The browser never calls the policy hub.
  */
 export function useLLMPoliciesCatalog(
   orgName?: string,
@@ -275,44 +179,19 @@ export function useLLMPoliciesCatalog(
   const { getToken } = useAuthHooks();
 
   return useApiQuery<GuardrailsCatalogResponse>({
-    queryKey: [
-      "LLM gateway policies catalog",
-      orgName,
-      providerId,
-      globalConfig.guardrailsCatalogUrl,
-    ],
+    queryKey: ["LLM gateway policies catalog", orgName, providerId],
     enabled: enabled && Boolean(orgName),
     queryFn: async () => {
       if (!orgName) {
         throw new Error("Organization name is required to list LLM policies.");
       }
-
       const token = await getToken();
-      // Run both in parallel: the hub lookup adds no latency beyond the slower call,
-      // and a hub failure never blocks the (authoritative) gateway list.
-      const [available, hubDisplayNames] = await Promise.all([
-        listAvailableLLMPolicies({ orgName }, { providerId }, async () => token),
-        fetchHubPolicyDisplayNames(token),
-      ]);
-      const data: GuardrailDefinition[] = (available.list ?? []).map((p) => ({
-        name: p.name,
-        // Always the gateway's exact build version — never the hub's coarser one.
-        version: p.version,
-        // Priority: the gateway's own displayName (authoritative; the only source
-        // for a user-authored custom policy) → the policy hub's friendly name (for
-        // WSO2 built-ins the gateway left blank) → the raw kebab-case name.
-        displayName: p.displayName || hubDisplayNames.get(p.name) || p.name,
-        description: p.description ?? "",
-        provider: "gateway",
-        categories: [],
-        isLatest: true,
-        // Never undefined: an inline (possibly empty) object is what signals to
-        // PolicySelectorDrawer that this policy's schema is already known, so it
-        // can skip the hub YAML-definition fetch entirely.
-        parameters: p.parameters ?? {},
-        systemParameters: p.systemParameters ?? {},
-      }));
-      return { count: data.length, data };
+      const resp = await listAvailableLLMPolicies(
+        { orgName },
+        { providerId },
+        async () => token,
+      );
+      return toGuardrailCatalog(resp);
     },
   });
 }

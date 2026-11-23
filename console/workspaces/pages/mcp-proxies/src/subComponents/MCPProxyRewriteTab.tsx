@@ -52,6 +52,7 @@ import { TextInput } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { REWRITE_POLICY_NAME } from "../constants";
+import { resolveRequiredMCPPolicy } from "./mcpPolicySelection";
 import type { CapabilityKind } from "./mcpEndpoints";
 
 const KIND_LABEL: Record<CapabilityKind, string> = {
@@ -341,6 +342,10 @@ export type MCPProxyRewriteTabProps = {
   config: MCPEndpointConfig | undefined;
   selectedEndpointId: string;
   orgName: string | undefined;
+  /** MCP proxy handle; scopes policy availability to the proxy's gateways. */
+  proxyId?: string;
+  /** Environment UUID; narrows policy availability to that environment's gateways. */
+  environmentUuid?: string;
   isLoading?: boolean;
   onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
@@ -350,6 +355,8 @@ export function MCPProxyRewriteTab({
   config,
   selectedEndpointId,
   orgName,
+  proxyId,
+  environmentUuid,
   isLoading = false,
   onUpdate,
   isUpdating,
@@ -377,10 +384,13 @@ export function MCPProxyRewriteTab({
 
   const { data: catalog, isLoading: isCatalogLoading } = useMCPPoliciesCatalog(
     orgName,
+    proxyId,
+    environmentUuid,
   );
   const availableRewritePolicy = useMemo(
-    () => catalog?.data?.find((p) => p.name === REWRITE_POLICY_NAME),
-    [catalog],
+    () =>
+      resolveRequiredMCPPolicy(catalog, REWRITE_POLICY_NAME, config?.policies),
+    [catalog, config?.policies],
   );
 
   useEffect(() => {

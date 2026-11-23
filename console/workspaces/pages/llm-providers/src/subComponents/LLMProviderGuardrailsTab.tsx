@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  normalizePolicyVersionToMajor,
   useLLMPoliciesCatalog,
   type GuardrailDefinition,
 } from "@agent-management-platform/api-client";
@@ -79,6 +80,16 @@ const PoliciesPayloadSchema = z.object({
   policies: z.array(PolicySchema),
 });
 
+// A saved guardrail uses a catalog item of the same name and major version, so
+// the saved version stays consistent with the parameter schema it is edited in.
+function matchesSaved(g: GuardrailDefinition, p: LLMPolicy): boolean {
+  return (
+    g.name === p.name &&
+    normalizePolicyVersionToMajor(g.version) ===
+      normalizePolicyVersionToMajor(p.version)
+  );
+}
+
 function isGlobalPath(p: LLMPolicyPath): boolean {
   return p.path === "/*" && (p.methods?.includes("*") ?? false);
 }
@@ -105,7 +116,21 @@ type EditingContext = {
   guardrailName: string;
   guardrailVersion: string;
   params: Record<string, unknown>;
+  /** The saved guardrail has no installed catalog item; show it read-only. */
+  unavailable?: boolean;
+  displayName?: string;
 };
+
+function UnavailableChip() {
+  return (
+    <Chip
+      label="Not available on this gateway"
+      size="small"
+      color="warning"
+      variant="outlined"
+    />
+  );
+}
 
 export type LLMProviderGuardrailsTabProps = {
   providerData: LLMProviderResponse | null | undefined;
@@ -126,7 +151,7 @@ export function LLMProviderGuardrailsTab({
 }: LLMProviderGuardrailsTabProps) {
   const { canWrite } = useResourceAccess("llm_provider");
   const { orgId } = useParams<{ orgId: string }>();
-  const { data: catalogData } = useLLMPoliciesCatalog(
+  const { data: catalogData, error: catalogError } = useLLMPoliciesCatalog(
     orgId,
     true,
     providerData?.uuid,
@@ -135,6 +160,29 @@ export function LLMProviderGuardrailsTab({
   const availableGuardrails = useMemo(
     () => catalogData?.data ?? [],
     [catalogData],
+  );
+
+  // Unavailable only once the catalog has loaded cleanly, so nothing flashes
+  // while it loads or when it fails.
+  const catalogReady = Boolean(catalogData) && !catalogError;
+  // False when no gateway has reported yet: nothing is flagged unavailable then.
+  const availabilityKnown = catalogData?.availabilityKnown ?? true;
+  // A catalog row a saved guardrail can be edited against: installed, or while
+  // availability is unknown, any row that carries a schema.
+  const canEditAgainst = useCallback(
+    (g: GuardrailDefinition) =>
+      g.status === "installed" ||
+      (!availabilityKnown && g.parameters !== undefined),
+    [availabilityKnown],
+  );
+  const isUnavailable = useCallback(
+    (p: LLMPolicy) =>
+      catalogReady &&
+      availabilityKnown &&
+      !availableGuardrails.some(
+        (g) => g.status === "installed" && matchesSaved(g, p),
+      ),
+    [catalogReady, availabilityKnown, availableGuardrails],
   );
 
   const [status, setStatus] = useState<{
@@ -365,9 +413,9 @@ export function LLMProviderGuardrailsTab({
   const handleOpenEditDrawer = useCallback(
     (entry: PolicyEntry) => {
       const guardrailDef = availableGuardrails.find(
-        (g) => g.name === entry.policy.name && g.version === entry.policy.version,
+        (g) => canEditAgainst(g) && matchesSaved(g, entry.policy),
       );
-      if (!guardrailDef) return;
+      if (!guardrailDef && !catalogReady) return;
 
       const pathEntry = entry.path;
       const context: DrawerContext = isGlobalPath(pathEntry)
@@ -381,10 +429,12 @@ export function LLMProviderGuardrailsTab({
         guardrailName: entry.policy.name,
         guardrailVersion: entry.policy.version,
         params: (pathEntry.params ?? {}) as Record<string, unknown>,
+        unavailable: !guardrailDef,
+        displayName: guardrailDef?.displayName,
       });
       setDrawerOpen(true);
     },
-    [availableGuardrails],
+    [availableGuardrails, catalogReady, canEditAgainst],
   );
 
   const handleCloseDrawer = useCallback(() => {
@@ -405,11 +455,22 @@ export function LLMProviderGuardrailsTab({
     [drawerContext, editingContext, handleAddGuardrail, handleEditGuardrail, handleCloseDrawer],
   );
 
+  // An item of the saved guardrail's name and major opens for editing.
+  const matchEdit = useCallback(
+    (g: GuardrailDefinition) =>
+      canEditAgainst(g) &&
+      editingContext !== null &&
+      matchesSaved(g, {
+        name: editingContext.guardrailName,
+        version: editingContext.guardrailVersion,
+      } as LLMPolicy),
+    [editingContext, canEditAgainst],
+  );
+
   const getDisplayName = useCallback(
     (p: LLMPolicy): string => {
       const def = availableGuardrails.find(
-        (g: GuardrailDefinition) =>
-          g.name === p.name && g.version === p.version,
+        (g: GuardrailDefinition) => matchesSaved(g, p),
       );
       return def?.displayName ?? p.name;
     },
@@ -485,20 +546,27 @@ export function LLMProviderGuardrailsTab({
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 {globalEntries.map((entry) => (
-                  <Chip
+                  <Stack
                     key={`${entry.policyIndex}-${entry.pathIndex}`}
-                    label={`${getDisplayName(entry.policy)} (${formatPolicyVersion(entry.policy.version)})`}
-                    color="warning"
-                    variant="outlined"
-                    onClick={canWrite ? () => handleOpenEditDrawer(entry) : undefined}
-                    onDelete={
-                      canWrite
-                        ? () => handleRemoveGuardrail(entry.policyIndex, entry.pathIndex)
-                        : undefined
-                    }
-                    disabled={isUpdating}
-                    sx={{ cursor: canWrite ? "pointer" : undefined }}
-                  />
+                    direction="row"
+                    spacing={0.5}
+                    alignItems="center"
+                  >
+                    <Chip
+                      label={`${getDisplayName(entry.policy)} (${formatPolicyVersion(entry.policy.version)})`}
+                      color="warning"
+                      variant="outlined"
+                      onClick={canWrite ? () => handleOpenEditDrawer(entry) : undefined}
+                      onDelete={
+                        canWrite
+                          ? () => handleRemoveGuardrail(entry.policyIndex, entry.pathIndex)
+                          : undefined
+                      }
+                      disabled={isUpdating}
+                      sx={{ cursor: canWrite ? "pointer" : undefined }}
+                    />
+                    {isUnavailable(entry.policy) && <UnavailableChip />}
+                  </Stack>
                 ))}
                 {canWrite && (
                 <Button
@@ -604,8 +672,13 @@ export function LLMProviderGuardrailsTab({
                                 </Typography>
                               ) : (
                                 resourceGuardrails.map((entry) => (
-                                  <Chip
+                                  <Stack
                                     key={`${resource.path}-${entry.policyIndex}-${entry.pathIndex}`}
+                                    direction="row"
+                                    spacing={0.5}
+                                    alignItems="center"
+                                  >
+                                  <Chip
                                     label={`${getDisplayName(entry.policy)} (${formatPolicyVersion(entry.policy.version)})`}
                                     color="warning"
                                     variant="outlined"
@@ -624,6 +697,8 @@ export function LLMProviderGuardrailsTab({
                                     disabled={isUpdating}
                                     sx={{ cursor: canWrite ? "pointer" : undefined }}
                                   />
+                                    {isUnavailable(entry.policy) && <UnavailableChip />}
+                                  </Stack>
                                 ))
                               )}
                             </Stack>
@@ -694,6 +769,7 @@ export function LLMProviderGuardrailsTab({
         onClose={handleCloseDrawer}
         onSubmit={handleDrawerSubmit}
         providerId={providerData?.uuid}
+        catalogData={catalogData}
         policyNoun="guardrail"
         loadingLabel="Loading guardrails..."
         searchPlaceholder="Search guardrails"
@@ -702,6 +778,15 @@ export function LLMProviderGuardrailsTab({
         emptyCatalogTitle="No guardrails available"
         emptyCatalogDescription="No guardrail policies are available in the catalog."
         existingSettings={editingContext?.params}
+        unavailablePolicy={
+          editingContext?.unavailable
+            ? {
+                name: editingContext.guardrailName,
+                displayName: editingContext.displayName,
+              }
+            : undefined
+        }
+        matchEdit={matchEdit}
         editPolicyKey={
           editingContext
             ? `${editingContext.guardrailName}@${editingContext.guardrailVersion}`

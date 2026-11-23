@@ -186,20 +186,6 @@ export interface LLMPolicy {
   paths: LLMPolicyPath[];
 }
 
-export interface LLMPolicyDefinition {
-  name: string;
-  version: string;
-  displayName?: string;
-  description?: string;
-  parameters?: Record<string, unknown>;
-  systemParameters?: Record<string, unknown>;
-}
-
-export interface LLMPolicyAvailabilityResponse {
-  count: number;
-  list: LLMPolicyDefinition[];
-}
-
 export type ListAvailableLLMPoliciesPathParams = OrgPathParams;
 
 export interface RateLimitingLimitConfig {

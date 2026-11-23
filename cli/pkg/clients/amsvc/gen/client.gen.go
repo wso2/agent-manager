@@ -592,7 +592,7 @@ type ClientInterface interface {
 	FetchMCPProxyServerInfo(ctx context.Context, orgName string, body FetchMCPProxyServerInfoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListAvailableMCPPolicies request
-	ListAvailableMCPPolicies(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ListAvailableMCPPolicies(ctx context.Context, orgName string, params *ListAvailableMCPPoliciesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteMCPProxy request
 	DeleteMCPProxy(ctx context.Context, orgName string, proxyId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3344,8 +3344,8 @@ func (c *Client) FetchMCPProxyServerInfo(ctx context.Context, orgName string, bo
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListAvailableMCPPolicies(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListAvailableMCPPoliciesRequest(c.Server, orgName)
+func (c *Client) ListAvailableMCPPolicies(ctx context.Context, orgName string, params *ListAvailableMCPPoliciesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAvailableMCPPoliciesRequest(c.Server, orgName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -12924,7 +12924,7 @@ func NewFetchMCPProxyServerInfoRequestWithBody(server string, orgName string, co
 }
 
 // NewListAvailableMCPPoliciesRequest generates requests for ListAvailableMCPPolicies
-func NewListAvailableMCPPoliciesRequest(server string, orgName string) (*http.Request, error) {
+func NewListAvailableMCPPoliciesRequest(server string, orgName string, params *ListAvailableMCPPoliciesParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -12947,6 +12947,44 @@ func NewListAvailableMCPPoliciesRequest(server string, orgName string) (*http.Re
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.ProxyId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "proxyId", *params.ProxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.EnvironmentUuid != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "environmentUuid", *params.EnvironmentUuid, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -23161,7 +23199,7 @@ type ClientWithResponsesInterface interface {
 	FetchMCPProxyServerInfoWithResponse(ctx context.Context, orgName string, body FetchMCPProxyServerInfoJSONRequestBody, reqEditors ...RequestEditorFn) (*FetchMCPProxyServerInfoResp, error)
 
 	// ListAvailableMCPPoliciesWithResponse request
-	ListAvailableMCPPoliciesWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListAvailableMCPPoliciesResp, error)
+	ListAvailableMCPPoliciesWithResponse(ctx context.Context, orgName string, params *ListAvailableMCPPoliciesParams, reqEditors ...RequestEditorFn) (*ListAvailableMCPPoliciesResp, error)
 
 	// DeleteMCPProxyWithResponse request
 	DeleteMCPProxyWithResponse(ctx context.Context, orgName string, proxyId string, reqEditors ...RequestEditorFn) (*DeleteMCPProxyResp, error)
@@ -26615,7 +26653,7 @@ func (r CreateLLMProviderResp) StatusCode() int {
 type ListAvailableLLMPoliciesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *LLMPolicyAvailabilityResponse
+	JSON200      *PolicyCatalogResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
@@ -27141,8 +27179,10 @@ func (r FetchMCPProxyServerInfoResp) StatusCode() int {
 type ListAvailableMCPPoliciesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *MCPPolicyAvailabilityResponse
+	JSON200      *PolicyCatalogResponse
+	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -32527,8 +32567,8 @@ func (c *ClientWithResponses) FetchMCPProxyServerInfoWithResponse(ctx context.Co
 }
 
 // ListAvailableMCPPoliciesWithResponse request returning *ListAvailableMCPPoliciesResp
-func (c *ClientWithResponses) ListAvailableMCPPoliciesWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListAvailableMCPPoliciesResp, error) {
-	rsp, err := c.ListAvailableMCPPolicies(ctx, orgName, reqEditors...)
+func (c *ClientWithResponses) ListAvailableMCPPoliciesWithResponse(ctx context.Context, orgName string, params *ListAvailableMCPPoliciesParams, reqEditors ...RequestEditorFn) (*ListAvailableMCPPoliciesResp, error) {
+	rsp, err := c.ListAvailableMCPPolicies(ctx, orgName, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -39484,7 +39524,7 @@ func ParseListAvailableLLMPoliciesResp(rsp *http.Response) (*ListAvailableLLMPol
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest LLMPolicyAvailabilityResponse
+		var dest PolicyCatalogResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -40594,11 +40634,18 @@ func ParseListAvailableMCPPoliciesResp(rsp *http.Response) (*ListAvailableMCPPol
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest MCPPolicyAvailabilityResponse
+		var dest PolicyCatalogResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest ErrorResponse
@@ -40606,6 +40653,13 @@ func ParseListAvailableMCPPoliciesResp(rsp *http.Response) (*ListAvailableMCPPol
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse

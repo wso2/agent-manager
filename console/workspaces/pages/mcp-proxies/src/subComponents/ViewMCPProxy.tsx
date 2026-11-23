@@ -326,6 +326,13 @@ export function ViewMCPProxy() {
     }));
   }, [selectedEndpoint, environments]);
 
+  // The policy catalog is scoped to one environment's gateways. An endpoint bound
+  // to several environments has no single one to scope to, so it stays proxy-wide.
+  const selectedPolicyEnvironmentUuid =
+    selectedEnvironmentBindings.length === 1
+      ? selectedEnvironmentBindings[0].binding.environmentUuid
+      : undefined;
+
   // Chips describing each environment the selected endpoint is bound to, with its
   // per-environment deployment status.
   const selectedEnvChips = useMemo(
@@ -610,6 +617,8 @@ export function ViewMCPProxy() {
                       config={selectedConfig}
                       selectedEndpointId={selectedEndpointId}
                       orgName={orgId}
+                      proxyId={routeProxyId}
+                      environmentUuid={selectedPolicyEnvironmentUuid}
                       isLoading={isTabContentLoading}
                       onUpdate={updateSelectedEndpointConfig}
                       isUpdating={updateMCPProxy.isPending}
@@ -635,6 +644,8 @@ export function ViewMCPProxy() {
                       config={selectedConfig}
                       selectedEndpointId={selectedEndpointId}
                       orgName={orgId}
+                      proxyId={routeProxyId}
+                      environmentUuid={selectedPolicyEnvironmentUuid}
                       isLoading={isTabContentLoading}
                       onUpdate={updateSelectedEndpointConfig}
                       isUpdating={updateMCPProxy.isPending}
@@ -645,6 +656,8 @@ export function ViewMCPProxy() {
                       config={selectedConfig}
                       selectedEndpointId={selectedEndpointId}
                       orgName={orgId}
+                      proxyId={routeProxyId}
+                      environmentUuid={selectedPolicyEnvironmentUuid}
                       onUpdate={updateSelectedEndpointConfig}
                       isUpdating={updateMCPProxy.isPending}
                     />

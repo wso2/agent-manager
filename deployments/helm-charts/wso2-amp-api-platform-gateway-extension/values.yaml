@@ -259,6 +259,16 @@ apiGateway:
     #           key: subscription-key
     systemExtraEnv: []
 
+    # Directory the gateway-controller reads policy definitions from, and so the policy
+    # list it reports to Agent Manager. Empty keeps the gateway chart default
+    # (./default-policies, the list baked into the stock image).
+    # Set to "./policies" when the controller image is a custom build
+    # (`ap gateway image build`): that build writes its compiled policy definitions,
+    # including custom ones, to /app/policies. Without it the gateway runs custom
+    # policies but never reports them, so they never appear in the policy pickers.
+    # Do NOT set it for the stock image: it has no /app/policies directory.
+    policyDefinitionsPath: ""
+
 # Bootstrap Job configuration
 #
 # The job runs as a pre-install, pre-upgrade AND pre-rollback hook, so `helm rollback` now

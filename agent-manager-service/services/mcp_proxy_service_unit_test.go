@@ -201,7 +201,9 @@ func TestListAvailableMCPPolicies_SkipsGatewayThatHasNotReported(t *testing.T) {
 		},
 	}
 
-	resp, err := (&MCPProxyService{gatewayRepo: gwRepo}).ListAvailableMCPPolicies(context.Background(), "org1")
+	// The hub lists mcp-auth as an MCP policy: the MCP catalog shows only hub policies the gateways carry.
+	hub := fakePolicyHubClient{ok: true, policies: []HubPolicy{{Name: "mcp-auth", Version: "v1", Categories: []string{"MCP"}}}}
+	resp, err := (&MCPProxyService{gatewayRepo: gwRepo, policyHub: hub}).ListAvailableMCPPolicies(context.Background(), "org1", "", "")
 
 	assert.NoError(t, err)
 	if assert.Len(t, resp.List, 1) {
@@ -219,7 +221,7 @@ func TestListAvailableMCPPolicies_ListsOnlyManagedGateways(t *testing.T) {
 		},
 	}
 
-	_, err := (&MCPProxyService{gatewayRepo: gwRepo}).ListAvailableMCPPolicies(context.Background(), "org1")
+	_, err := (&MCPProxyService{gatewayRepo: gwRepo}).ListAvailableMCPPolicies(context.Background(), "org1", "", "")
 
 	assert.NoError(t, err)
 	assert.Equal(t, models.GatewayHostingManaged, captured.Hosting)
@@ -1638,4 +1640,196 @@ func TestValidateMCPEndpointKeyLocations(t *testing.T) {
 	err = validateMCPEndpointKeyLocations([]models.MCPProxyEndpointDTO{endpoint("other", "query", true)},
 		[]models.MCPProxyEndpoint{stored("main", "query")})
 	assert.ErrorIs(t, err, utils.ErrInvalidInput, "only the endpoint that had it keeps it")
+}
+
+func TestListAvailableMCPPolicies_ProxyScopedToDeployedGateways(t *testing.T) {
+	artifactUUID := uuid.New()
+	proxy := &models.MCPProxy{
+		UUID: uuid.New(),
+		Endpoints: []models.MCPProxyEndpoint{{
+			Environments: []models.MCPProxyEndpointEnvironment{{ArtifactUUID: artifactUUID}},
+		}},
+	}
+	selfHosted := catalogGateway("self-hosted",
+		map[string]interface{}{"name": "my-custom-policy", "version": "v1.0.0", "managedBy": "organization"})
+	selfHosted.OUID = "org1"
+	selfHosted.Hosting = models.GatewayHostingSelfHosted
+
+	svc := &MCPProxyService{
+		repo: &repomocks.MCPProxyRepositoryMock{
+			GetByHandleFunc: func(_ context.Context, handle, orgUUID string) (*models.MCPProxy, error) {
+				assert.Equal(t, "my-proxy", handle)
+				assert.Equal(t, "org1", orgUUID)
+				return proxy, nil
+			},
+		},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc: func(_ context.Context, _ string, id uuid.UUID) ([]string, error) {
+				assert.Equal(t, artifactUUID, id)
+				return []string{"gw-self-hosted"}, nil
+			},
+		},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			GetByUUIDFunc: func(_ string) (*models.Gateway, error) { return selfHosted, nil },
+		},
+		policyHub: fakePolicyHubClient{ok: true},
+	}
+
+	resp, err := svc.ListAvailableMCPPolicies(context.Background(), "org1", "my-proxy", "")
+
+	require.NoError(t, err)
+	assert.Equal(t, models.PolicyAvailabilityScopeDeployed, resp.AvailabilityScope)
+	assert.True(t, resp.HubAvailable)
+	require.Len(t, resp.List, 1)
+	assert.Equal(t, "my-custom-policy", resp.List[0].Name)
+	assert.Equal(t, models.PolicyCatalogStatusInstalled, resp.List[0].Status)
+	assert.Equal(t, models.PolicyCatalogSourceCustom, resp.List[0].Source)
+}
+
+func TestListAvailableMCPPolicies_UnknownProxyNotFound(t *testing.T) {
+	svc := &MCPProxyService{
+		repo: &repomocks.MCPProxyRepositoryMock{
+			GetByHandleFunc: func(_ context.Context, _, _ string) (*models.MCPProxy, error) {
+				return nil, gorm.ErrRecordNotFound
+			},
+		},
+	}
+
+	_, err := svc.ListAvailableMCPPolicies(context.Background(), "org1", "missing", "")
+
+	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound)
+}
+
+// With an environment, only the proxy's binding in that environment decides which gateways availability is checked
+// against.
+func TestListAvailableMCPPolicies_EnvironmentScopesToThatBinding(t *testing.T) {
+	devEnv, prodEnv := uuid.New(), uuid.New()
+	devArtifact, prodArtifact := uuid.New(), uuid.New()
+	proxy := &models.MCPProxy{
+		UUID: uuid.New(),
+		Endpoints: []models.MCPProxyEndpoint{{
+			Environments: []models.MCPProxyEndpointEnvironment{
+				{EnvironmentUUID: devEnv, ArtifactUUID: devArtifact},
+				{EnvironmentUUID: prodEnv, ArtifactUUID: prodArtifact},
+			},
+		}},
+	}
+	prodGateway := catalogGateway("prod-gw", map[string]interface{}{"name": "prod-only", "version": "v1.0.0", "managedBy": "organization"})
+	prodGateway.OUID = "org1"
+	prodGateway.Hosting = models.GatewayHostingSelfHosted
+
+	var placedFor []uuid.UUID
+	svc := &MCPProxyService{
+		repo: &repomocks.MCPProxyRepositoryMock{
+			GetByHandleFunc: func(context.Context, string, string) (*models.MCPProxy, error) { return proxy, nil },
+		},
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{
+			PlacedGatewaysFunc: func(_ context.Context, _ string, id uuid.UUID) ([]string, error) {
+				placedFor = append(placedFor, id)
+				return []string{"gw-prod"}, nil
+			},
+		},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			GetByUUIDFunc: func(string) (*models.Gateway, error) { return prodGateway, nil },
+		},
+		policyHub: fakePolicyHubClient{ok: true},
+	}
+
+	resp, err := svc.ListAvailableMCPPolicies(context.Background(), "org1", "my-proxy", prodEnv.String())
+
+	require.NoError(t, err)
+	assert.Equal(t, []uuid.UUID{prodArtifact}, placedFor, "only the production binding is consulted")
+	assert.Equal(t, models.PolicyAvailabilityScopeDeployed, resp.AvailabilityScope)
+	require.Len(t, resp.List, 1)
+	assert.Equal(t, "prod-only", resp.List[0].Name)
+
+	placedFor = nil
+	_, err = svc.ListAvailableMCPPolicies(context.Background(), "org1", "my-proxy", "")
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []uuid.UUID{devArtifact, prodArtifact}, placedFor, "no environment keeps every binding")
+}
+
+// A proxy with no binding in the requested environment has nothing deployed there, so the catalog falls back to
+// the org's gateways.
+func TestListAvailableMCPPolicies_EnvironmentWithoutBindingFallsBackToOrg(t *testing.T) {
+	proxy := &models.MCPProxy{
+		UUID: uuid.New(),
+		Endpoints: []models.MCPProxyEndpoint{{
+			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: uuid.New(), ArtifactUUID: uuid.New()}},
+		}},
+	}
+	orgGateways := 0
+	svc := &MCPProxyService{
+		repo: &repomocks.MCPProxyRepositoryMock{
+			GetByHandleFunc: func(context.Context, string, string) (*models.MCPProxy, error) { return proxy, nil },
+		},
+		// PlacedGatewaysFunc is left nil: consulting a deployment for another environment's binding would panic.
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+				orgGateways++
+				return []*models.Gateway{}, nil
+			},
+		},
+		policyHub: fakePolicyHubClient{ok: true},
+	}
+
+	resp, err := svc.ListAvailableMCPPolicies(context.Background(), "org1", "my-proxy", uuid.NewString())
+
+	require.NoError(t, err)
+	assert.Equal(t, models.PolicyAvailabilityScopeOrgManaged, resp.AvailabilityScope)
+	assert.Equal(t, 1, orgGateways)
+}
+
+// The all-zero UUID is a valid filter value, not "no filter": it matches no binding, so the org's gateways are used.
+func TestListAvailableMCPPolicies_NilEnvironmentUUIDStillFilters(t *testing.T) {
+	proxy := &models.MCPProxy{
+		UUID: uuid.New(),
+		Endpoints: []models.MCPProxyEndpoint{{
+			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: uuid.New(), ArtifactUUID: uuid.New()}},
+		}},
+	}
+	svc := &MCPProxyService{
+		repo: &repomocks.MCPProxyRepositoryMock{
+			GetByHandleFunc: func(context.Context, string, string) (*models.MCPProxy, error) { return proxy, nil },
+		},
+		// PlacedGatewaysFunc is left nil: consulting the other environment's binding would panic.
+		deploymentRepo: &repomocks.DeploymentRepositoryMock{},
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+				return []*models.Gateway{}, nil
+			},
+		},
+		policyHub: fakePolicyHubClient{ok: true},
+	}
+
+	resp, err := svc.ListAvailableMCPPolicies(context.Background(), "org1", "my-proxy", uuid.Nil.String())
+
+	require.NoError(t, err)
+	assert.Equal(t, models.PolicyAvailabilityScopeOrgManaged, resp.AvailabilityScope)
+}
+
+func TestListAvailableMCPPolicies_InvalidEnvironmentUUID(t *testing.T) {
+	// The repository is left unconfigured: a malformed environment must be refused before any lookup.
+	svc := &MCPProxyService{repo: &repomocks.MCPProxyRepositoryMock{}}
+
+	_, err := svc.ListAvailableMCPPolicies(context.Background(), "org1", "my-proxy", "not-a-uuid")
+
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+}
+
+// environmentUuid only narrows a proxy's catalog; without a proxy it is ignored, malformed or not.
+func TestListAvailableMCPPolicies_EnvironmentWithoutProxyIsIgnored(t *testing.T) {
+	svc := &MCPProxyService{
+		gatewayRepo: &repomocks.GatewayRepositoryMock{
+			ListWithFiltersFunc: func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+				return []*models.Gateway{}, nil
+			},
+		},
+	}
+
+	resp, err := svc.ListAvailableMCPPolicies(context.Background(), "org1", "", "not-a-uuid")
+
+	require.NoError(t, err)
+	assert.Equal(t, models.PolicyAvailabilityScopeOrgManaged, resp.AvailabilityScope)
 }

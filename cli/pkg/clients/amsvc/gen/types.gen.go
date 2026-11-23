@@ -1035,16 +1035,16 @@ func (e HealthStatusResponseStatus) Valid() bool {
 
 // Defines values for IdentityProviderType.
 const (
-	Custom IdentityProviderType = "custom"
-	System IdentityProviderType = "system"
+	IdentityProviderTypeCustom IdentityProviderType = "custom"
+	IdentityProviderTypeSystem IdentityProviderType = "system"
 )
 
 // Valid indicates whether the value is a known member of the IdentityProviderType enum.
 func (e IdentityProviderType) Valid() bool {
 	switch e {
-	case Custom:
+	case IdentityProviderTypeCustom:
 		return true
-	case System:
+	case IdentityProviderTypeSystem:
 		return true
 	default:
 		return false
@@ -1453,6 +1453,60 @@ func (e MonitorScoreThresholdOperator) Valid() bool {
 	case Above:
 		return true
 	case Below:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyCatalogItemSource.
+const (
+	PolicyCatalogItemSourceCustom PolicyCatalogItemSource = "custom"
+	PolicyCatalogItemSourceHub    PolicyCatalogItemSource = "hub"
+)
+
+// Valid indicates whether the value is a known member of the PolicyCatalogItemSource enum.
+func (e PolicyCatalogItemSource) Valid() bool {
+	switch e {
+	case PolicyCatalogItemSourceCustom:
+		return true
+	case PolicyCatalogItemSourceHub:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyCatalogItemStatus.
+const (
+	Installed    PolicyCatalogItemStatus = "installed"
+	NotInstalled PolicyCatalogItemStatus = "not_installed"
+)
+
+// Valid indicates whether the value is a known member of the PolicyCatalogItemStatus enum.
+func (e PolicyCatalogItemStatus) Valid() bool {
+	switch e {
+	case Installed:
+		return true
+	case NotInstalled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PolicyCatalogResponseAvailabilityScope.
+const (
+	Deployed   PolicyCatalogResponseAvailabilityScope = "deployed"
+	OrgManaged PolicyCatalogResponseAvailabilityScope = "org_managed"
+)
+
+// Valid indicates whether the value is a known member of the PolicyCatalogResponseAvailabilityScope enum.
+func (e PolicyCatalogResponseAvailabilityScope) Valid() bool {
+	switch e {
+	case Deployed:
+		return true
+	case OrgManaged:
 		return true
 	default:
 		return false
@@ -4692,33 +4746,6 @@ type LLMPolicy struct {
 	Version string `json:"version"`
 }
 
-// LLMPolicyAvailabilityResponse defines model for LLMPolicyAvailabilityResponse.
-type LLMPolicyAvailabilityResponse struct {
-	Count int32                 `json:"count"`
-	List  []LLMPolicyDefinition `json:"list"`
-}
-
-// LLMPolicyDefinition defines model for LLMPolicyDefinition.
-type LLMPolicyDefinition struct {
-	// Description Policy description
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable policy name
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// Name Policy name
-	Name string `json:"name"`
-
-	// Parameters JSON-Schema describing the user-configurable parameters
-	Parameters *map[string]interface{} `json:"parameters,omitempty"`
-
-	// SystemParameters JSON-Schema describing operator-level (gateway config) parameters
-	SystemParameters *map[string]interface{} `json:"systemParameters,omitempty"`
-
-	// Version Policy version
-	Version string `json:"version"`
-}
-
 // LLMPolicyPath defines model for LLMPolicyPath.
 type LLMPolicyPath struct {
 	Methods []string `json:"methods"`
@@ -5169,21 +5196,6 @@ type MCPPolicy struct {
 
 	// Params Policy-specific parameters
 	Params *map[string]interface{} `json:"params,omitempty"`
-
-	// Version Policy version
-	Version string `json:"version"`
-}
-
-// MCPPolicyAvailabilityResponse defines model for MCPPolicyAvailabilityResponse.
-type MCPPolicyAvailabilityResponse struct {
-	Count int32                    `json:"count"`
-	List  []MCPPolicyAvailableItem `json:"list"`
-}
-
-// MCPPolicyAvailableItem defines model for MCPPolicyAvailableItem.
-type MCPPolicyAvailableItem struct {
-	// Name Policy name
-	Name string `json:"name"`
 
 	// Version Policy version
 	Version string `json:"version"`
@@ -5842,6 +5854,71 @@ type PaginationInfo struct {
 	// Offset Number of items skipped
 	Offset int `json:"offset"`
 }
+
+// PolicyCatalogGatewayRef defines model for PolicyCatalogGatewayRef.
+type PolicyCatalogGatewayRef struct {
+	// Id Gateway ID
+	Id string `json:"id"`
+
+	// Name Gateway name
+	Name string `json:"name"`
+}
+
+// PolicyCatalogItem defines model for PolicyCatalogItem.
+type PolicyCatalogItem struct {
+	// Categories Policy categories
+	Categories []string `json:"categories"`
+
+	// Description Policy description
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable policy name
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// MissingOn Checked gateways that do not have the policy installed
+	MissingOn *[]PolicyCatalogGatewayRef `json:"missingOn,omitempty"`
+
+	// Name Policy name
+	Name string `json:"name"`
+
+	// Parameters JSON-Schema describing the user-configurable parameters
+	Parameters *map[string]interface{} `json:"parameters,omitempty"`
+
+	// Source Where the definition comes from. "hub" is published in the policy hub; "custom" is an organization-managed policy reported by a gateway.
+	Source PolicyCatalogItemSource `json:"source"`
+
+	// Status Whether the policy is installed on every checked gateway.
+	Status PolicyCatalogItemStatus `json:"status"`
+
+	// SystemParameters JSON-Schema describing operator-level (gateway config) parameters
+	SystemParameters *map[string]interface{} `json:"systemParameters,omitempty"`
+
+	// Version Policy version
+	Version string `json:"version"`
+}
+
+// PolicyCatalogItemSource Where the definition comes from. "hub" is published in the policy hub; "custom" is an organization-managed policy reported by a gateway.
+type PolicyCatalogItemSource string
+
+// PolicyCatalogItemStatus Whether the policy is installed on every checked gateway.
+type PolicyCatalogItemStatus string
+
+// PolicyCatalogResponse defines model for PolicyCatalogResponse.
+type PolicyCatalogResponse struct {
+	// AvailabilityKnown False when none of the checked gateways has reported its policies yet, so installed/not_installed is not known
+	AvailabilityKnown bool `json:"availabilityKnown"`
+
+	// AvailabilityScope Which gateways availability was checked against. "deployed" is the gateways the resource is deployed to; "org_managed" is the organization's active managed gateways.
+	AvailabilityScope PolicyCatalogResponseAvailabilityScope `json:"availabilityScope"`
+	Count             int32                                  `json:"count"`
+
+	// HubAvailable Whether the policy hub was reachable (or cached) when the catalog was built
+	HubAvailable bool                `json:"hubAvailable"`
+	List         []PolicyCatalogItem `json:"list"`
+}
+
+// PolicyCatalogResponseAvailabilityScope Which gateways availability was checked against. "deployed" is the gateways the resource is deployed to; "org_managed" is the organization's active managed gateways.
+type PolicyCatalogResponseAvailabilityScope string
 
 // ProjectListItem defines model for ProjectListItem.
 type ProjectListItem struct {
@@ -7379,6 +7456,15 @@ type ListMCPProxiesParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListAvailableMCPPoliciesParams defines parameters for ListAvailableMCPPolicies.
+type ListAvailableMCPPoliciesParams struct {
+	// ProxyId MCP proxy handle (same identifier as /mcp-proxies/{proxyId}). When set, scope the result to the gateways this MCP proxy is deployed to, instead of every active managed gateway in the organization.
+	ProxyId *string `form:"proxyId,omitempty" json:"proxyId,omitempty"`
+
+	// EnvironmentUuid Environment UUID; with proxyId, availability is checked only against the gateways of the proxy's binding in this environment.
+	EnvironmentUuid *openapi_types.UUID `form:"environmentUuid,omitempty" json:"environmentUuid,omitempty"`
 }
 
 // ListProjectsParams defines parameters for ListProjects.

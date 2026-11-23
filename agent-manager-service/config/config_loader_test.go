@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -1293,4 +1294,59 @@ func TestLoadEnvs_A2ACardTestUpstreamHosts(t *testing.T) {
 			t.Errorf("A2ACardTestUpstreamHosts = %v, want empty", got)
 		}
 	})
+}
+
+func TestReadPolicyHubBaseURL(t *testing.T) {
+	t.Run("unset uses public default", func(t *testing.T) {
+		t.Setenv("POLICY_HUB_BASE_URL", "")
+		if err := os.Unsetenv("POLICY_HUB_BASE_URL"); err != nil {
+			t.Fatal(err)
+		}
+		if got := readPolicyHubBaseURL(); got != defaultPolicyHubBaseURL {
+			t.Errorf("got %q, want default %q", got, defaultPolicyHubBaseURL)
+		}
+	})
+	t.Run("set empty disables the hub", func(t *testing.T) {
+		t.Setenv("POLICY_HUB_BASE_URL", "")
+		if got := readPolicyHubBaseURL(); got != "" {
+			t.Errorf("got %q, want empty", got)
+		}
+	})
+	t.Run("custom value is used as-is", func(t *testing.T) {
+		t.Setenv("POLICY_HUB_BASE_URL", "https://hub.example.com/policies")
+		if got := readPolicyHubBaseURL(); got != "https://hub.example.com/policies" {
+			t.Errorf("got %q", got)
+		}
+	})
+}
+
+func TestValidatePolicyHubBaseURL(t *testing.T) {
+	tests := []struct {
+		name       string
+		url        string
+		wantErrors int
+	}{
+		{"valid https", "https://hub.example.com/policies", 0},
+		{"valid http", "http://localhost:8080/policies", 0},
+		{"empty disables the hub", "", 0},
+		{"unparsable", "%", 1},
+		{"relative path", "/policies", 1},
+		{"unsupported scheme", "ftp://x", 1},
+		{"missing host", "https:///policies", 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{PolicyHub: PolicyHubConfig{BaseURL: tc.url}}
+			r := &configReader{}
+			validatePolicyHubBaseURL(cfg, r)
+			if len(r.errors) != tc.wantErrors {
+				t.Fatalf("expected %d errors, got %d: %v", tc.wantErrors, len(r.errors), r.errors)
+			}
+			for _, e := range r.errors {
+				if !strings.Contains(e.Error(), "POLICY_HUB_BASE_URL") {
+					t.Errorf("error should name the variable: %v", e)
+				}
+			}
+		})
+	}
 }

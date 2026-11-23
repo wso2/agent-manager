@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/google/wire"
@@ -111,6 +112,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAgentAPIKeyService,
 	services.NewLLMProxyDeploymentService,
 	services.NewMCPProxyService,
+	ProvidePolicyHubClient,
 	services.NewProjectMCPProxyService,
 	services.NewMCPProxyScopeService,
 	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to
@@ -225,6 +227,12 @@ func ProvideAuditRecorder(cfg config.Config, logger *slog.Logger) audit.Recorder
 		BatchSize:     cfg.Audit.BatchSize,
 		FlushInterval: time.Duration(cfg.Audit.FlushIntervalMs) * time.Millisecond,
 	})
+}
+
+// ProvidePolicyHubClient builds the cached public policy hub client. An empty
+// base URL disables the hub.
+func ProvidePolicyHubClient(cfg config.Config) services.PolicyHubClient {
+	return services.NewPolicyHubClient(cfg.PolicyHub.BaseURL, 10*time.Minute, 3*time.Second, &http.Client{})
 }
 
 // ProvideInstrumentationCatalog loads the instrumentation catalog and

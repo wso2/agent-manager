@@ -429,6 +429,12 @@
               "items": {},
               "title": "systemExtraEnv",
               "type": "array"
+            },
+            "policyDefinitionsPath": {
+              "default": "",
+              "description": "Directory the gateway-controller reads policy definitions from, and so the policy list it reports to Agent Manager. Empty keeps the gateway chart default (./default-policies, the list baked into the stock image). Set to \"./policies\" when the controller image is a custom build (ap gateway image build), which writes its compiled policy definitions, including custom ones, to /app/policies. Do not set it for the stock image: it has no /app/policies directory.",
+              "title": "policyDefinitionsPath",
+              "type": "string"
             }
           },
           "required": [],
