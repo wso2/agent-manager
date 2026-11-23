@@ -20,14 +20,9 @@ import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider, focusManager, onlineManager } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  TraceFilters,
-  TraceListResponse,
-  TraceOverview,
-} from "@agent-management-platform/types";
+import type { TraceListResponse, TraceOverview } from "@agent-management-platform/types";
 import type * as TracesApi from "../apis/traces";
 import { getTraceList } from "../apis/traces";
-import { getAgentTraceScores } from "../apis/monitors";
 import { useTraceList, type TraceListOptions } from "./traces";
 
 const { getToken } = vi.hoisted(() => ({ getToken: async () => "token" }));
@@ -36,7 +31,6 @@ vi.mock("../apis/traces", async (importOriginal) => ({
   ...(await importOriginal<typeof TracesApi>()),
   getTraceList: vi.fn(),
 }));
-vi.mock("../apis/monitors", () => ({ getAgentTraceScores: vi.fn() }));
 vi.mock("@agent-management-platform/auth", () => ({ useAuthHooks: () => ({ getToken }) }));
 vi.mock("../../shared/react-query-notifications", async () => {
   const rq = await import("@tanstack/react-query");
@@ -46,7 +40,6 @@ vi.mock("../../shared/react-query-notifications", async () => {
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const mockList = vi.mocked(getTraceList);
-const mockScores = vi.mocked(getAgentTraceScores);
 
 const START = "2026-10-02T09:00:00Z";
 const END = "2026-10-02T10:00:00Z";
@@ -64,9 +57,15 @@ function trace(id: string, startTime: string): TraceOverview {
   };
 }
 
-/** A trace-list response for the given traces. */
-function page(traces: TraceOverview[], extra: Partial<TraceListResponse> = {}): TraceListResponse {
-  return { traces, totalCount: traces.length, ...extra };
+/** A trace-list response holding the whole window. */
+function page(traces: TraceOverview[]): TraceListResponse {
+  return { traces, totalCount: traces.length };
+}
+
+/** A page of a window holding `total` traces, with lookedBackTo set as the module sets it. */
+function partial(traces: TraceOverview[], total: number): TraceListResponse {
+  const lookedBackTo = traces[traces.length - 1].startTime;
+  return { traces, totalCount: total, lookedBackTo };
 }
 
 type HookResult = ReturnType<typeof useTraceList>;
@@ -111,8 +110,6 @@ async function waitFor(check: () => boolean) {
 
 beforeEach(() => {
   mockList.mockReset();
-  mockScores.mockReset();
-  mockScores.mockResolvedValue({ traces: [], totalCount: 0 });
 });
 
 afterEach(() => {
@@ -121,60 +118,62 @@ afterEach(() => {
   focusManager.setFocused(undefined);
 });
 
-describe("useTraceList cursor paging", () => {
-  it.each([
-    ["without filters", undefined],
-    ["with filters", { status: "error", minTokens: 1000 } satisfies TraceFilters],
-  ])("loadMore sends the original window plus nextCursor %s", async (_, filters) => {
+describe("useTraceList window paging", () => {
+  it("loadMore moves the window's end to the last trace shown, in desc", async () => {
     mockList
-      .mockResolvedValueOnce(page(
-        [trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:40:00Z")],
-        { nextCursor: "c1" },
+      .mockResolvedValueOnce(partial(
+        [trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:40:00Z")], 4,
       ))
-      .mockResolvedValueOnce(page([trace("t3", "2026-10-02T09:30:00Z")], { nextCursor: "c2" }))
-      .mockResolvedValueOnce(page([trace("t4", "2026-10-02T09:20:00Z")]));
-
-    const result = renderTraceList({ filters });
-    await waitFor(() => result.current.traceList?.traces.length === 2);
-    expect(mockList.mock.calls[0][0].cursor).toBeUndefined();
-
-    await act(() => result.current.loadMore());
-    await act(() => result.current.loadMore());
-
-    const expectedFilters = filters ?? {};
-    expect(mockList.mock.calls[1][0]).toMatchObject({
-      startTime: START, endTime: END, sortOrder: "desc", filters: expectedFilters, cursor: "c1",
-    });
-    expect(mockList.mock.calls[2][0]).toMatchObject({
-      startTime: START, endTime: END, sortOrder: "desc", filters: expectedFilters, cursor: "c2",
-    });
-    expect(result.current.traceList?.traces.map((t) => t.traceId)).toEqual(["t1", "t2", "t3", "t4"]);
-    expect(result.current.hasMore).toBe(false);
-  });
-
-  it("loadMore follows the cursor forward in asc and appends later traces", async () => {
-    mockList
-      .mockResolvedValueOnce(page(
-        [trace("t1", "2026-10-02T09:10:00Z"), trace("t2", "2026-10-02T09:20:00Z")],
-        { nextCursor: "c1" },
+      .mockResolvedValueOnce(partial(
+        [trace("t2", "2026-10-02T09:40:00Z"), trace("t3", "2026-10-02T09:30:00Z")], 3,
       ))
-      .mockResolvedValueOnce(page([trace("t3", "2026-10-02T09:30:00Z")], { nextCursor: "c2" }))
-      .mockResolvedValueOnce(page([trace("t4", "2026-10-02T09:40:00Z")]));
+      .mockResolvedValueOnce(page(
+        [trace("t3", "2026-10-02T09:30:00Z"), trace("t4", "2026-10-02T09:20:00Z")],
+      ));
 
-    const result = renderTraceList(undefined, "asc");
+    const result = renderTraceList();
     await waitFor(() => result.current.traceList?.traces.length === 2);
-    expect(mockList.mock.calls[0][0]).toMatchObject({ startTime: START, endTime: END, sortOrder: "asc" });
-    expect(mockList.mock.calls[0][0].cursor).toBeUndefined();
     expect(result.current.hasMore).toBe(true);
 
     await act(() => result.current.loadMore());
     await act(() => result.current.loadMore());
 
     expect(mockList.mock.calls[1][0]).toMatchObject({
-      startTime: START, endTime: END, sortOrder: "asc", cursor: "c1",
+      startTime: START, endTime: "2026-10-02T09:40:00Z", sortOrder: "desc",
     });
     expect(mockList.mock.calls[2][0]).toMatchObject({
-      startTime: START, endTime: END, sortOrder: "asc", cursor: "c2",
+      startTime: START, endTime: "2026-10-02T09:30:00Z", sortOrder: "desc",
+    });
+    for (const [params] of mockList.mock.calls) expect(params).not.toHaveProperty("cursor");
+    expect(result.current.traceList?.traces.map((t) => t.traceId)).toEqual(["t1", "t2", "t3", "t4"]);
+    expect(result.current.hasMore).toBe(false);
+  });
+
+  it("loadMore moves the window's start to the last trace shown, in asc", async () => {
+    mockList
+      .mockResolvedValueOnce(partial(
+        [trace("t1", "2026-10-02T09:10:00Z"), trace("t2", "2026-10-02T09:20:00Z")], 4,
+      ))
+      .mockResolvedValueOnce(partial(
+        [trace("t2", "2026-10-02T09:20:00Z"), trace("t3", "2026-10-02T09:30:00Z")], 3,
+      ))
+      .mockResolvedValueOnce(page(
+        [trace("t3", "2026-10-02T09:30:00Z"), trace("t4", "2026-10-02T09:40:00Z")],
+      ));
+
+    const result = renderTraceList(undefined, "asc");
+    await waitFor(() => result.current.traceList?.traces.length === 2);
+    expect(mockList.mock.calls[0][0]).toMatchObject({ startTime: START, endTime: END, sortOrder: "asc" });
+    expect(result.current.hasMore).toBe(true);
+
+    await act(() => result.current.loadMore());
+    await act(() => result.current.loadMore());
+
+    expect(mockList.mock.calls[1][0]).toMatchObject({
+      startTime: "2026-10-02T09:20:00Z", endTime: END, sortOrder: "asc",
+    });
+    expect(mockList.mock.calls[2][0]).toMatchObject({
+      startTime: "2026-10-02T09:30:00Z", endTime: END, sortOrder: "asc",
     });
     expect(result.current.traceList?.traces.map((t) => t.traceId)).toEqual(["t1", "t2", "t3", "t4"]);
     expect(result.current.hasMore).toBe(false);
@@ -195,8 +194,8 @@ describe("useTraceList cursor paging", () => {
 
   it.each(blips)("keeps loaded pages when %s", async (_, blip) => {
     mockList
-      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")], { nextCursor: "c1" }))
-      .mockResolvedValueOnce(page([trace("t2", "2026-10-02T09:40:00Z")]));
+      .mockResolvedValueOnce(partial([trace("t1", "2026-10-02T09:50:00Z")], 2))
+      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:40:00Z")]));
 
     const result = renderTraceList({ paged: true });
     await waitFor(() => result.current.traceList?.traces.length === 1);
@@ -225,7 +224,7 @@ describe("useTraceList cursor paging", () => {
     expect(mockList).toHaveBeenCalledTimes(2);
   });
 
-  it("reports hasMore false and skips loadMore when nextCursor is absent", async () => {
+  it("reports hasMore false and skips loadMore when the page holds the whole window", async () => {
     mockList.mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")]));
 
     const result = renderTraceList();
@@ -236,37 +235,27 @@ describe("useTraceList cursor paging", () => {
     expect(mockList).toHaveBeenCalledTimes(1);
   });
 
-  it("treats truncated without nextCursor as no more pages", async () => {
-    mockList.mockResolvedValueOnce(page(
-      [trace("t1", "2026-10-02T09:50:00Z")],
-      { truncated: true, lookedBackTo: "2026-10-02T09:10:00.123456789Z" },
-    ));
+  it("stops paging when a page adds no rows", async () => {
+    // More traces than the page size share the edge's start time.
+    mockList
+      .mockResolvedValueOnce(partial(
+        [trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:40:00Z")], 5,
+      ))
+      .mockResolvedValueOnce(partial([trace("t2", "2026-10-02T09:40:00Z")], 4));
 
-    const result = renderTraceList({ filters: { status: "error" } });
-    await waitFor(() => result.current.traceList?.traces.length === 1);
+    const result = renderTraceList();
+    await waitFor(() => result.current.traceList?.traces.length === 2);
+
+    let added: unknown;
+    await act(async () => { added = await result.current.loadMore(); });
+    expect(added).toBe(false);
     expect(result.current.hasMore).toBe(false);
-    expect(result.current.truncated).toBe(true);
-    expect(result.current.lookedBackTo).toBe("2026-10-02T09:10:00.123456789Z");
   });
 
-  it("can page on from an empty filtered first page", async () => {
+  it("shows the edge trace, which both windows hold, once", async () => {
     mockList
-      .mockResolvedValueOnce(page([], { truncated: true, nextCursor: "c1" }))
-      .mockResolvedValueOnce(page([trace("t9", "2026-10-02T09:05:00Z")]));
-
-    const result = renderTraceList({ filters: { model: "gpt-4o" } });
-    await waitFor(() => result.current.hasMore);
-
-    await act(() => result.current.loadMore());
-    expect(mockList.mock.calls[1][0].cursor).toBe("c1");
-    expect(result.current.traceList?.traces.map((t) => t.traceId)).toEqual(["t9"]);
-  });
-
-  it("shows a trace repeated across pages once", async () => {
-    mockList
-      .mockResolvedValueOnce(page(
-        [trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:40:00Z")],
-        { nextCursor: "c1" },
+      .mockResolvedValueOnce(partial(
+        [trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:40:00Z")], 3,
       ))
       .mockResolvedValueOnce(page(
         [trace("t2", "2026-10-02T09:40:00Z"), trace("t3", "2026-10-02T09:30:00Z")],
@@ -282,12 +271,12 @@ describe("useTraceList cursor paging", () => {
   it("resolves loadMore to whether the page added rows, and undefined after a reset", async () => {
     let resolveOld: (res: TraceListResponse) => void = () => undefined;
     mockList
-      .mockResolvedValueOnce(page(
-        [trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:40:00Z")],
-        { nextCursor: "c1" },
+      .mockResolvedValueOnce(partial(
+        [trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:40:00Z")], 5,
       ))
-      .mockResolvedValueOnce(page([trace("t2", "2026-10-02T09:40:00Z")], { nextCursor: "c2" }))
-      .mockResolvedValueOnce(page([trace("t3", "2026-10-02T09:30:00Z")], { nextCursor: "c3" }))
+      .mockResolvedValueOnce(partial(
+        [trace("t2", "2026-10-02T09:40:00Z"), trace("t3", "2026-10-02T09:30:00Z")], 4,
+      ))
       .mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }))
       .mockResolvedValueOnce(page([trace("t9", "2026-10-02T09:55:00Z")]));
 
@@ -295,75 +284,24 @@ describe("useTraceList cursor paging", () => {
     await waitFor(() => result.current.traceList?.traces.length === 2);
     const added: unknown[] = [];
     await act(async () => { added.push(await result.current.loadMore()); });
-    await act(async () => { added.push(await result.current.loadMore()); });
 
     let oldLoad: Promise<unknown> = Promise.resolve();
     act(() => { oldLoad = result.current.loadMore(); });
-    act(() => result.setOptions({ filters: { status: "error" } }));
+    act(() => result.setOptions({ includeModels: true }));
     await waitFor(() => result.current.traceList?.traces[0]?.traceId === "t9");
     await act(async () => {
       resolveOld(page([trace("t4", "2026-10-02T09:20:00Z")]));
       added.push(await oldLoad);
     });
 
-    expect(added).toEqual([false, true, undefined]);
+    expect(added).toEqual([true, undefined]);
     expect(result.current.traceList?.traces.map((t) => t.traceId)).toEqual(["t9"]);
-  });
-
-  it("fetches scores for the span of the returned page", async () => {
-    mockList
-      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")], { nextCursor: "c1" }))
-      .mockResolvedValueOnce(page(
-        [trace("t2", "2026-10-02T09:40:00Z"), trace("t3", "2026-10-02T09:30:00Z")],
-      ));
-    mockScores.mockResolvedValue({
-      traces: [{ traceId: "t3", score: 0.5, totalCount: 1, skippedCount: 0 }],
-      totalCount: 1,
-    });
-
-    const result = renderTraceList();
-    await waitFor(() => result.current.traceList?.traces.length === 1);
-    await act(() => result.current.loadMore());
-
-    expect(mockScores.mock.calls[1][0]).toMatchObject({
-      startTime: "2026-10-02T09:29:59.000Z",
-      endTime: "2026-10-02T09:40:01.000Z",
-      limit: 100,
-    });
-    const t3 = result.current.traceList?.traces.find((t) => t.traceId === "t3");
-    expect(t3?.score).toEqual({ score: 0.5, totalCount: 1, skippedCount: 0 });
-  });
-
-  it("pages through scores until every trace on a filtered page is found", async () => {
-    mockList.mockResolvedValueOnce(page(
-      [trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:10:00Z")],
-    ));
-    const others = Array.from({ length: 100 }, (_, i) => (
-      { traceId: `other${i}`, score: 0.1, totalCount: 1, skippedCount: 0 }
-    ));
-    mockScores
-      .mockResolvedValueOnce({
-        traces: [{ traceId: "t1", score: 0.9, totalCount: 1, skippedCount: 0 }, ...others.slice(1)],
-        totalCount: 200,
-      })
-      .mockResolvedValueOnce({
-        traces: [...others.slice(0, 99), { traceId: "t2", score: 0.2, totalCount: 1, skippedCount: 0 }],
-        totalCount: 200,
-      });
-
-    const result = renderTraceList({ filters: { status: "error" } });
-    await waitFor(() => result.current.traceList?.traces.length === 2);
-
-    expect(mockScores).toHaveBeenCalledTimes(2);
-    expect(mockScores.mock.calls[0][0]).toMatchObject({ limit: 100, offset: 0 });
-    expect(mockScores.mock.calls[1][0]).toMatchObject({ limit: 100, offset: 100 });
-    expect(result.current.traceList?.traces.map((t) => t.score?.score)).toEqual([0.9, 0.2]);
   });
 
   it("sets loadError on a failed loadMore and clears it when the next loadMore starts", async () => {
     let resolveRetry: (res: TraceListResponse) => void = () => undefined;
     mockList
-      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")], { nextCursor: "c1" }))
+      .mockResolvedValueOnce(partial([trace("t1", "2026-10-02T09:50:00Z")], 2))
       .mockRejectedValueOnce(new Error("upstream down"))
       .mockImplementationOnce(() => new Promise((resolve) => { resolveRetry = resolve; }));
 
@@ -376,10 +314,10 @@ describe("useTraceList cursor paging", () => {
     let retry: Promise<unknown> = Promise.resolve();
     act(() => { retry = result.current.loadMore(); });
     expect(result.current.loadError).toBeNull();
-    expect(mockList.mock.calls[2][0].cursor).toBe("c1");
+    expect(mockList.mock.calls[2][0].endTime).toBe("2026-10-02T09:50:00Z");
 
     await act(async () => {
-      resolveRetry(page([trace("t2", "2026-10-02T09:40:00Z")]));
+      resolveRetry(page([trace("t1", "2026-10-02T09:50:00Z"), trace("t2", "2026-10-02T09:40:00Z")]));
       await retry;
     });
     expect(result.current.loadError).toBeNull();
@@ -387,8 +325,8 @@ describe("useTraceList cursor paging", () => {
   });
 
   const listResets: [string, (result: ReturnType<typeof renderTraceList>) => unknown][] = [
-    ["a filter change", (result) => {
-      act(() => result.setOptions({ filters: { status: "error" } }));
+    ["a scope change", (result) => {
+      act(() => result.setOptions({ includeModels: true }));
     }],
     ["Refresh", async (result) => {
       await act(() => result.current.refetch());
@@ -397,7 +335,7 @@ describe("useTraceList cursor paging", () => {
 
   it.each(listResets)("clears loadError when %s resets the list", async (_, reset) => {
     mockList
-      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")], { nextCursor: "c1" }))
+      .mockResolvedValueOnce(partial([trace("t1", "2026-10-02T09:50:00Z")], 2))
       .mockRejectedValueOnce(new Error("upstream down"))
       .mockResolvedValueOnce(page([trace("t9", "2026-10-02T09:55:00Z")]));
 
@@ -415,9 +353,9 @@ describe("useTraceList cursor paging", () => {
     let rejectOld: (err: Error) => void = () => undefined;
     let resolveNew: (res: TraceListResponse) => void = () => undefined;
     mockList
-      .mockResolvedValueOnce(page([trace("t1", "2026-10-02T09:50:00Z")], { nextCursor: "c1" }))
+      .mockResolvedValueOnce(partial([trace("t1", "2026-10-02T09:50:00Z")], 2))
       .mockImplementationOnce(() => new Promise((_res, reject) => { rejectOld = reject; }))
-      .mockResolvedValueOnce(page([trace("t9", "2026-10-02T09:55:00Z")], { nextCursor: "c9" }))
+      .mockResolvedValueOnce(partial([trace("t9", "2026-10-02T09:55:00Z")], 2))
       .mockImplementationOnce(() => new Promise((resolve) => { resolveNew = resolve; }));
 
     const result = renderTraceList();
@@ -433,7 +371,7 @@ describe("useTraceList cursor paging", () => {
     // The new list pages while the old request is still in flight.
     let newLoad: Promise<unknown> = Promise.resolve();
     act(() => { newLoad = result.current.loadMore(); });
-    expect(mockList.mock.calls[3][0].cursor).toBe("c9");
+    expect(mockList.mock.calls[3][0].endTime).toBe("2026-10-02T09:55:00Z");
 
     await act(async () => {
       rejectOld(new Error("upstream down"));
@@ -443,7 +381,7 @@ describe("useTraceList cursor paging", () => {
     expect(result.current.isLoadingMore).toBe(true);
 
     await act(async () => {
-      resolveNew(page([trace("t8", "2026-10-02T09:45:00Z")]));
+      resolveNew(page([trace("t9", "2026-10-02T09:55:00Z"), trace("t8", "2026-10-02T09:45:00Z")]));
       await newLoad;
     });
     expect(result.current.isLoadingMore).toBe(false);
@@ -451,7 +389,7 @@ describe("useTraceList cursor paging", () => {
     expect(result.current.traceList?.traces.map((t) => t.traceId)).toEqual(["t9", "t8"]);
   });
 
-  it("sends includeModels and filters on the first page", async () => {
+  it("passes includeModels and filters to the client, which decides what it sends", async () => {
     mockList.mockResolvedValueOnce(page([]));
 
     renderTraceList({ filters: { conversationId: "conv-1" }, includeModels: true });

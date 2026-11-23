@@ -62,12 +62,10 @@ export interface TraceOverview {
 export interface TraceListResponse {
   traces: TraceOverview[];
   totalCount: number;
-  /** How far back the server looked (RFC3339Nano). Display only, never a paging bound. */
+  /** The page's last start time while the window holds more, else the window's far edge (RFC3339Nano). */
   lookedBackTo?: string;
   /** True when a server cap stopped the request before the page filled. */
   truncated?: boolean;
-  /** Opaque cursor for the next page of the same window; absent when the window ran out. */
-  nextCursor?: string;
 }
 
 /** A trace field the missing filter can require to be absent. */

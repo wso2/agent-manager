@@ -44,15 +44,10 @@ export interface ObserverTraceListParams {
   filters?: TraceFilters;
   /** Fill models on every trace; costs the server one extra upstream call per trace. */
   includeModels?: boolean;
-  /** nextCursor from the previous page of the same window, sort order and filters. */
-  cursor?: string;
 }
 
-/** Export takes the list's window and filters; it has no cursor or include. */
-export type ExportTracesQueryParams = Omit<
-  ObserverTraceListParams,
-  "includeModels" | "cursor"
->;
+/** Export takes the list's window and filters; it has no include. */
+export type ExportTracesQueryParams = Omit<ObserverTraceListParams, "includeModels">;
 
 /** Returns only the set filter fields, in a fixed order. */
 export function normalizeTraceFilters(filters?: TraceFilters): TraceFilters {
@@ -101,7 +96,7 @@ function assertRequired(value: string, field: string): void {
   if (!value?.trim()) throw new Error(`Missing required parameters: ${field}`);
 }
 
-/** Fetches one page of the trace list, with any filters and cursor. */
+/** Fetches one page of the trace list for the window, with any filters. */
 export async function getTraceList(
   params: ObserverTraceListParams,
   getToken?: () => Promise<string>
@@ -117,7 +112,6 @@ export async function getTraceList(
     sortOrder,
     filters,
     includeModels,
-    cursor,
   } = params;
   assertRequired(organization, "organization");
   assertRequired(project, "project");
@@ -138,9 +132,9 @@ export async function getTraceList(
   };
   if (limit !== undefined) searchParams.limit = limit.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
-  Object.assign(searchParams, traceFilterSearchParams(filters));
+  // The observability module refuses the filters with 400.
+  if (TRACE_FILTERS_SUPPORTED) Object.assign(searchParams, traceFilterSearchParams(filters));
   if (includeModels) searchParams.include = "models";
-  if (cursor) searchParams.cursor = cursor;
 
   const res = await httpGET(`${OBSERVABILITY_BASE}/api/v1/traces`, { searchParams, token });
   return res.json();
@@ -181,7 +175,8 @@ export async function exportTraces(
   };
   if (limit !== undefined) searchParams.limit = limit.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
-  Object.assign(searchParams, traceFilterSearchParams(filters));
+  // The observability module refuses the filters with 400.
+  if (TRACE_FILTERS_SUPPORTED) Object.assign(searchParams, traceFilterSearchParams(filters));
 
   const res = await httpGET(`${OBSERVABILITY_BASE}/api/v1/traces/export`, { searchParams, token });
   return res.json();

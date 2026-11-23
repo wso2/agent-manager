@@ -19,7 +19,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TraceFilters } from "@agent-management-platform/types";
 import { httpGET } from "../../shared/utils";
-import { exportTraces, getTraceList, type ObserverTraceListParams } from "./traces";
+import {
+  exportTraces,
+  getTraceList,
+  traceFilterSearchParams,
+  type ObserverTraceListParams,
+} from "./traces";
 
 vi.mock("../../shared/utils", () => ({
   httpGET: vi.fn(),
@@ -65,40 +70,33 @@ beforeEach(() => {
   );
 });
 
+// Every filter set, and the query params the observability module refuses with 400.
+const ALL_FILTERS: TraceFilters = {
+  status: "error",
+  minDurationMs: 5000,
+  minTokens: 1000,
+  minSpanCount: 20,
+  model: "gpt-4o",
+  conversationId: "conv-1",
+  tool: "search_web",
+  toolError: true,
+  mcpServer: "github",
+  missing: ["conversationId"],
+};
+const REFUSED = [
+  "status", "minDurationMs", "minTokens", "minSpanCount", "model",
+  "conversationId", "tool", "toolError", "mcpServer", "missing", "cursor",
+];
+
 describe("getTraceList query string", () => {
-  it("sends today's params when no filters, includeModels or cursor are set", async () => {
+  it("sends the module's params", async () => {
     expect(await sentQuery(BASE)).toEqual(BASE_QUERY);
   });
 
-  it("sends every set filter", async () => {
-    const query = await sentQuery({
-      ...BASE,
-      filters: {
-        status: "error",
-        minDurationMs: 5000,
-        minTokens: 1000,
-        minSpanCount: 20,
-        model: "gpt-4o",
-        conversationId: "conv-1",
-      },
-    });
-    expect(query).toEqual({
-      ...BASE_QUERY,
-      status: "error",
-      minDurationMs: "5000",
-      minTokens: "1000",
-      minSpanCount: "20",
-      model: "gpt-4o",
-      conversationId: "conv-1",
-    });
-  });
-
-  it("omits unset and empty filters but keeps a zero threshold", async () => {
-    const query = await sentQuery({
-      ...BASE,
-      filters: { minTokens: 0, model: "", conversationId: undefined },
-    });
-    expect(query).toEqual({ ...BASE_QUERY, minTokens: "0" });
+  it("sends no param the module refuses, even with every filter set", async () => {
+    const query = await sentQuery({ ...BASE, filters: ALL_FILTERS });
+    expect(query).toEqual(BASE_QUERY);
+    for (const key of REFUSED) expect(query).not.toHaveProperty(key);
   });
 
   it.each([
@@ -107,12 +105,6 @@ describe("getTraceList query string", () => {
     [undefined, {}],
   ])("includeModels=%s", async (includeModels, extra) => {
     expect(await sentQuery({ ...BASE, includeModels })).toEqual({ ...BASE_QUERY, ...extra });
-  });
-
-  it("sends the cursor only when set", async () => {
-    expect(await sentQuery({ ...BASE, cursor: "abc" })).toEqual({ ...BASE_QUERY, cursor: "abc" });
-    mockGET.mockClear();
-    expect(await sentQuery({ ...BASE, cursor: "" })).toEqual(BASE_QUERY);
   });
 });
 
@@ -125,83 +117,44 @@ describe("exportTraces query string", () => {
     return (opts.searchParams ?? {}) as Record<string, string>;
   }
 
-  it("sends today's params when no filters are set", async () => {
+  it("sends the module's params", async () => {
     expect(await sentExportQuery(BASE)).toEqual(BASE_QUERY);
   });
 
-  it("sends every set filter", async () => {
-    const query = await sentExportQuery({
-      ...BASE,
-      filters: {
-        status: "ok",
-        minDurationMs: 5000,
-        minTokens: 1000,
-        minSpanCount: 20,
-        model: "gpt-4o",
-        conversationId: "conv-1",
-      },
-    });
-    expect(query).toEqual({
-      ...BASE_QUERY,
-      status: "ok",
+  it("sends no param the module refuses, even with every filter set", async () => {
+    const query = await sentExportQuery({ ...BASE, filters: ALL_FILTERS });
+    expect(query).toEqual(BASE_QUERY);
+    for (const key of REFUSED) expect(query).not.toHaveProperty(key);
+  });
+});
+
+describe("traceFilterSearchParams", () => {
+  it("encodes every set filter", () => {
+    expect(traceFilterSearchParams(ALL_FILTERS)).toEqual({
+      status: "error",
       minDurationMs: "5000",
       minTokens: "1000",
       minSpanCount: "20",
       model: "gpt-4o",
       conversationId: "conv-1",
+      tool: "search_web",
+      toolError: "true",
+      mcpServer: "github",
+      missing: "conversationId",
     });
   });
 
-  it("omits unset and empty filters but keeps a zero threshold", async () => {
-    const query = await sentExportQuery({
-      ...BASE,
-      filters: { status: undefined, minSpanCount: 0, model: "" },
-    });
-    expect(query).toEqual({ ...BASE_QUERY, minSpanCount: "0" });
-  });
-});
-
-describe("getTraceList tool and MCP server filters", () => {
-  it.each([
-    [{ tool: "search_web" }, { tool: "search_web" }],
-    [{ toolError: true }, { toolError: "true" }],
-    [{ mcpServer: "github" }, { mcpServer: "github" }],
-  ] satisfies [TraceFilters, Record<string, string>][])("sends %o", async (filters, extra) => {
-    expect(await sentQuery({ ...BASE, filters })).toEqual({ ...BASE_QUERY, ...extra });
+  it("omits unset and empty filters but keeps a zero threshold", () => {
+    expect(
+      traceFilterSearchParams({ minTokens: 0, model: "", conversationId: undefined, tool: "" }),
+    ).toEqual({ minTokens: "0" });
   });
 
-  it("sends tool and toolError together", async () => {
-    const query = await sentQuery({ ...BASE, filters: { tool: "search_web", toolError: true } });
-    expect(query).toEqual({ ...BASE_QUERY, tool: "search_web", toolError: "true" });
+  it.each([false, undefined])("omits toolError=%s", (toolError) => {
+    expect(traceFilterSearchParams({ toolError })).toEqual({});
   });
 
-  it.each([false, undefined])("sends nothing for toolError=%s", async (toolError) => {
-    expect(await sentQuery({ ...BASE, filters: { toolError } })).toEqual(BASE_QUERY);
-  });
-
-  it("omits empty strings", async () => {
-    const query = await sentQuery({ ...BASE, filters: { tool: "", mcpServer: "" } });
-    expect(query).toEqual(BASE_QUERY);
-  });
-
-  it("exports with the same filters", async () => {
-    await exportTraces({
-      ...BASE,
-      filters: { tool: "search_web", toolError: true, mcpServer: "github" },
-    });
-    const [path, opts] = mockGET.mock.calls[0];
-    expect(path).toBe("/m/observability/api/v1/traces/export");
-    expect(opts.searchParams).toEqual({
-      ...BASE_QUERY, tool: "search_web", toolError: "true", mcpServer: "github",
-    });
-  });
-});
-
-describe("getTraceList missing filter", () => {
-  it.each([
-    [{ missing: ["conversationId"] }, { missing: "conversationId" }],
-    [{ missing: [] }, {}],
-  ] satisfies [TraceFilters, Record<string, string>][])("sends %o", async (filters, extra) => {
-    expect(await sentQuery({ ...BASE, filters })).toEqual({ ...BASE_QUERY, ...extra });
+  it("omits an empty missing list", () => {
+    expect(traceFilterSearchParams({ missing: [] })).toEqual({});
   });
 });
