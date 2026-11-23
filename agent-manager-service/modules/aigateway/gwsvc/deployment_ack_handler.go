@@ -29,14 +29,23 @@ import (
 type DeploymentAckHandler struct {
 	deploymentRepo gwrepo.DeploymentRepository
 	afterLive      gwrepo.AfterLiveFunc
+	usage          GatewayUsageHandler
+}
+
+// GatewayUsageHandler takes a gateway's usage message: budget allowance totals.
+type GatewayUsageHandler interface {
+	HandleUsage(ctx context.Context, gatewayID string, payload json.RawMessage)
 }
 
 // NewDeploymentAckHandler creates a new deployment ack handler. afterLive runs in the ack's transaction when a row
-// goes DEPLOYED (the reconcile core's kind hooks).
-func NewDeploymentAckHandler(deploymentRepo gwrepo.DeploymentRepository, afterLive gwrepo.AfterLiveFunc) *DeploymentAckHandler {
+// goes DEPLOYED (the reconcile core's kind hooks). usage, when not nil, takes usage messages.
+func NewDeploymentAckHandler(
+	deploymentRepo gwrepo.DeploymentRepository, afterLive gwrepo.AfterLiveFunc, usage GatewayUsageHandler,
+) *DeploymentAckHandler {
 	return &DeploymentAckHandler{
 		deploymentRepo: deploymentRepo,
 		afterLive:      afterLive,
+		usage:          usage,
 	}
 }
 
@@ -52,6 +61,12 @@ func (h *DeploymentAckHandler) HandleMessage(gatewayID string, data []byte) bool
 	switch msg.Type {
 	case "deployment.ack":
 		h.handleDeploymentAck(gatewayID, msg.Payload)
+		return true
+	case GatewayMessageBudgetUsage:
+		if h.usage == nil {
+			return false
+		}
+		h.usage.HandleUsage(context.Background(), gatewayID, msg.Payload)
 		return true
 	default:
 		slog.Debug("DeploymentAckHandler: unhandled message type", "gatewayID", gatewayID, "type", msg.Type)

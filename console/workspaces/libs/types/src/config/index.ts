@@ -130,6 +130,12 @@ export interface AppConfig {
   maxRequestBodyBytes?: string | number;
   /** URL for the product documentation. Shown as a "Docs" link in the footer. */
   docsUrl?: string;
+  /**
+   * The organization's analytics dashboard (Moesif or any other), opened by
+   * "Advanced analytics" on the Cost Management dashboard. Unset (no analytics
+   * integration), the dashboard shows a plain note instead.
+   */
+  analyticsDashboardUrl?: string;
   /** URLs rendered in the footer. */
   footerLinks?: {
     privacyPolicyUrl?: string;

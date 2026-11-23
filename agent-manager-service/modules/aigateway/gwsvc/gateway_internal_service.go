@@ -62,7 +62,8 @@ type GatewayDeploymentResponse struct {
 
 // DeploymentMetadata represents metadata in deployment
 type DeploymentMetadata struct {
-	Name string `yaml:"name"`
+	Name        string            `yaml:"name"`
+	Annotations map[string]string `yaml:"annotations,omitempty"`
 }
 
 // NewGatewayInternalAPIService creates a new gateway internal API service

@@ -1,0 +1,83 @@
+module: ai-gateway
+# Budgets and AI costs. A budget is a spend limit on LLM traffic, created in the
+# control plane or by a gateway through its own API and mirrored here from the
+# gateway's resource sync (POST /api/internal/v1/gateways/{gatewayId}/resources),
+# read-only and replaced by each sync. Names are unique in the organization,
+# whoever created the budget. project_id references a core project without a
+# foreign key, as the module's other tables do.
+tables:
+
+  - name: mod_ai_gateway_budgets
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: name, type: text, size: 255}
+      - {name: origin, type: text, size: 16}
+      - {name: gateway_id, type: id, nullable: true}
+      - {name: project_id, type: id, nullable: true}
+      - {name: configuration, type: json}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, name], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id, gateway_id], references: mod_ai_gateway_gateways, ref_columns: [org_id, id], on_delete: cascade}
+    checks:
+      - "origin IN ('control_plane', 'gateway_api')"
+      - "(origin = 'gateway_api') = (gateway_id IS NOT NULL)"
+    indexes: [[gateway_id], [project_id]]
+
+  # One row per budget allowance and period: its spend, as gateways report it.
+  # Spend is a decimal string in USD, compared in code. A crossed warning
+  # threshold is recorded in warned, so each one is sent once per period.
+  - name: mod_ai_gateway_budget_usage
+    columns:
+      - {name: budget_id, type: id}
+      - {name: allowance_id, type: id}
+      - {name: org_id, type: id}
+      - {name: allowance, type: json}
+      - {name: period_start, type: time}
+      - {name: spent, type: text, size: 32}
+      - {name: unpriced_requests, type: bigint}
+      - {name: updated_at, type: time}
+    primary_key: [budget_id, allowance_id, period_start]
+    foreign_keys:
+      - {columns: [org_id, budget_id], references: mod_ai_gateway_budgets, ref_columns: [org_id, id], on_delete: cascade}
+    indexes: [[org_id, budget_id, period_start]]
+
+  # The warning thresholds each allowance crossed in a period, one row per
+  # threshold amount: written with the warning's event, so each warns once.
+  - name: mod_ai_gateway_budget_warnings
+    columns:
+      - {name: budget_id, type: id}
+      - {name: allowance_id, type: id}
+      - {name: period_start, type: time}
+      - {name: amount, type: text, size: 32}
+      - {name: org_id, type: id}
+      - {name: threshold, type: int}
+      - {name: created_at, type: time}
+    primary_key: [budget_id, allowance_id, period_start, amount]
+    foreign_keys:
+      - {columns: [budget_id, allowance_id, period_start], references: mod_ai_gateway_budget_usage, ref_columns: [budget_id, allowance_id, period_start], on_delete: cascade}
+
+  # What LLM traffic cost per month and combination of project, agent, API key,
+  # user, provider and model, as gateways report it. Values are the names
+  # gateways report; a row is kept 3 months. Cost is a decimal string in USD.
+  - name: mod_ai_gateway_cost_usage
+    columns:
+      - {name: org_id, type: id}
+      - {name: month, type: time}
+      - {name: cost_key, type: id}
+      - {name: project, type: text, size: 63, nullable: true}
+      - {name: agent, type: text, size: 63, nullable: true}
+      - {name: api_key, type: text, size: 255, nullable: true}
+      - {name: user_id, type: text, size: 255, nullable: true}
+      - {name: llm_provider, type: text, size: 255}
+      - {name: model, type: text, size: 255, nullable: true}
+      - {name: cost, type: text, size: 32}
+      - {name: missing_price_requests, type: bigint}
+      - {name: usage_unavailable_requests, type: bigint}
+      - {name: updated_at, type: time}
+    primary_key: [org_id, month, cost_key]
+    indexes: [[month]]

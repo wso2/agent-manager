@@ -170,9 +170,11 @@ type AuditAction struct {
 // EventType is an event type a module publishes, named "<module>.<event>".
 type EventType struct {
 	Name string `json:"name"`
-	// Scope makes the type a webhook event organizations can subscribe to,
-	// raised by the routes that declare it with Emits: "org", "project" or
-	// "agent", the narrowest resource it is about. Without a scope the event
+	// Scope makes the type a webhook event organizations can subscribe to:
+	// "org", "project" or "agent", the narrowest resource it is about. Routes
+	// that declare it with Emits raise it after a 2xx response; Publish and
+	// PublishTx raise it too, from the data's "project", "agent",
+	// "environment", "subject" and "orgName" fields. Without a scope the event
 	// only reaches module subscribers (Publish and Subscribe).
 	Scope       string `json:"scope,omitempty"`
 	Description string `json:"description,omitempty"`

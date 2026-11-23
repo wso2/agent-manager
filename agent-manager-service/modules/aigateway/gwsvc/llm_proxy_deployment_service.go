@@ -518,11 +518,25 @@ func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *gwmode
 	if err != nil {
 		return "", fmt.Errorf("failed to get provider: %w", err)
 	}
-	return renderLLMProxy(proxy, provider)
+	return renderLLMProxy(proxy, provider, proxy.Configuration.Annotations)
 }
 
-// renderLLMProxy is the proxy's gateway configuration; provider is the one it fronts.
-func renderLLMProxy(proxy *gwmodels.LLMProxy, provider *gwmodels.LLMProvider) (string, error) {
+// Annotations on an agent's hidden LLM proxy naming its project and agent. The gateway
+// makes the project-id the route's project (as it does for every artifact) and passes the
+// agent-id to the budget system policy, which matches project and agent budget consumers
+// by them.
+const (
+	AnnotationProjectID = "gateway.api-platform.wso2.com/project-id"
+	AnnotationAgentID   = "gateway.api-platform.wso2.com/agent-id"
+)
+
+// AnnotationOrgID names the organization that owns a budget, by handle. Every budget
+// carries it; one sent without it gets the organization in the path.
+const AnnotationOrgID = "gateway.api-platform.wso2.com/org-id"
+
+// renderLLMProxy renders an LLM proxy's deployment; annotations, when given, are set on
+// its metadata.
+func renderLLMProxy(proxy *gwmodels.LLMProxy, provider *gwmodels.LLMProvider, annotations map[string]string) (string, error) {
 	if provider == nil {
 		return "", gwerr.ErrLLMProviderNotFound
 	}
@@ -601,7 +615,8 @@ func renderLLMProxy(proxy *gwmodels.LLMProxy, provider *gwmodels.LLMProvider) (s
 		ApiVersion: apiVersionLLMProxy,
 		Kind:       kindLLMProxy,
 		Metadata: DeploymentMetadata{
-			Name: proxy.Handle, // Use handle (artifact identifier) for metadata.name
+			Name:        proxy.Handle, // Use handle (artifact identifier) for metadata.name
+			Annotations: annotations,
 		},
 		Spec: LLMProxyDeploymentSpec{
 			DisplayName: proxy.Configuration.Name,

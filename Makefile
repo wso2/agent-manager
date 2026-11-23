@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima up-core down-core reset-core smoke smoke-core setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-instrumentation-contract check-contract-drift e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima up-core down-core reset-core smoke smoke-core setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-instrumentation-contract check-contract-drift e2e-mock-llm-up e2e-mock-llm-down e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -266,6 +266,21 @@ check-contract-drift:
 # Run with focus filter to run a specific test case: make e2e-test FOCUS="Project Deletion Conflict"
 # A focused run (FOCUS) runs serially (--procs=1); everything else uses -p.
 GINKGO_PROCS := $(if $(FOCUS),--procs=1,-p)
+# Mock LLM backend for E2E (test/e2e/mockllm): OpenAI, Azure OpenAI, Anthropic, Gemini
+# and OpenAI-compatible shapes, fixed usage, any key. It joins the stack network as
+# mock-llm; set OPENAI_BASE_URL=http://mock-llm:8000/v1 in test/e2e/.env to use it.
+# E2E_STACK_NETWORK is the stack's network (<compose project>_amp).
+E2E_STACK_NETWORK ?= standalone_amp
+
+e2e-mock-llm-up:
+	@docker build -q -t amp-e2e-mock-llm test/e2e/mockllm >/dev/null
+	@docker rm -f amp-e2e-mock-llm >/dev/null 2>&1 || true
+	@docker run -d --name amp-e2e-mock-llm --network $(E2E_STACK_NETWORK) --network-alias mock-llm amp-e2e-mock-llm >/dev/null
+	@echo "Mock LLM running as mock-llm on $(E2E_STACK_NETWORK)"
+
+e2e-mock-llm-down:
+	@docker rm -f amp-e2e-mock-llm >/dev/null 2>&1 || true
+
 e2e-test:
 	@echo "Running E2E tests..."
 	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \

@@ -42,6 +42,9 @@ describe("dockerCommands", () => {
     expect(configure).toContain("api-platform.env");
     expect(configure).toContain(`APIP_GW_CONTROLLER_CONTROLPLANE_HOST=${HOST}`);
     expect(configure).toContain(`APIP_GW_CONTROLLER_CONTROLPLANE_TOKEN=${TOKEN}`);
+    // Budgets and AI cost stats are off by default on a gateway; Agent Manager uses both.
+    expect(configure).toContain("APIP_GW_AI_COST_TRACKING_ENABLED=true");
+    expect(configure).toContain("APIP_GW_AI_COST_BUDGETS_ENABLED=true");
   });
 
   it("runs setup.sh before the configure step", () => {

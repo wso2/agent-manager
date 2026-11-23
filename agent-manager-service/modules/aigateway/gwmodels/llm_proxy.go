@@ -60,6 +60,9 @@ type LLMProxyConfig struct {
 	Resilience   *Resilience     `json:"resilience,omitempty"`
 	Policies     []LLMPolicy     `json:"policies,omitempty"`
 	Security     *SecurityConfig `json:"security,omitempty"`
+	// Annotations are set on the proxy's gateway deployment. An agent's hidden proxy carries
+	// its project and agent, which the gateway's budget policy matches budgets by.
+	Annotations map[string]string `json:"annotations,omitempty"`
 
 	// AuthRolloutPendingGateways names gateways for which no deployment of the config
 	// above was recorded. A gateway that is merely unreachable is not one of them:

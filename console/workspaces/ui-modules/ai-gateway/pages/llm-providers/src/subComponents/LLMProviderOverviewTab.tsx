@@ -64,7 +64,11 @@ import {
   type UpdateLLMProviderRequest,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import {
+  useFeatureManagement,
+  useResourceAccess,
+} from "@agent-management-platform/feature-management";
+import { LLMProviderCostSection } from "@agent-management-platform/ai-cost-management";
 import { parseOpenApiSpec } from "../utils/openapiResources";
 import {
   pendingStatusChip,
@@ -102,6 +106,7 @@ export function LLMProviderOverviewTab({
 }: LLMProviderOverviewTabProps) {
   const theme = useTheme();
   const { canWrite } = useResourceAccess("llm_provider");
+  const canReadCost = useFeatureManagement().hasAccess("ai_cost_read");
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -564,6 +569,15 @@ export function LLMProviderOverviewTab({
           </Card>
         </Grid>
       </Grid>
+      {/* This provider's cost (Cost Management), below the details as the design has it.
+          Budgets and cost name a provider by its handle (id), not the URL's UUID. */}
+      {canReadCost && orgName && providerData?.id && (
+        <LLMProviderCostSection
+          orgId={orgName}
+          providerId={providerData.id}
+          providerName={providerData.name || providerData.id}
+        />
+      )}
       {/* Invoke URLs & API Key section */}
       {orgName && providerId && (
         <InvokeEndpoints

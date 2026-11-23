@@ -49,6 +49,9 @@ type LLMProviderRepository interface {
 	DeleteTx(ctx context.Context, tx *gorm.DB, providerID, orgUUID string) error
 	Exists(providerID, orgUUID string) (bool, error)
 	HasAssociatedProxies(ctx context.Context, providerUUID uuid.UUID) (bool, error)
+	// BudgetsUsing returns the names of the organization's budgets whose llmProvider filter
+	// names the provider: deleting it is refused while any does.
+	BudgetsUsing(ctx context.Context, ouID, handle string) ([]string, error)
 	MarkDeleting(providerUUID uuid.UUID) (bool, error)
 	ClearDeleting(providerUUID uuid.UUID) error
 	// IsDeletingForUpdate reports whether the provider is mid-delete, locking its row
@@ -284,6 +287,17 @@ func (r *LLMProviderRepo) HasAssociatedProxies(ctx context.Context, providerUUID
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *LLMProviderRepo) BudgetsUsing(ctx context.Context, ouID, handle string) ([]string, error) {
+	return BudgetsUsing(r.db.WithContext(ctx), ouID, func(c gwmodels.BudgetConfig) bool {
+		for _, f := range c.Filters {
+			if f.Type == "llmProvider" && f.ID != nil && *f.ID == handle {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 // IsDeletingForUpdate reports whether the provider is mid-delete, taking a row lock

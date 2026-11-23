@@ -35,11 +35,11 @@ func TestEnvironmentTierScopes(t *testing.T) {
 	}
 }
 
-// TestActions checks the module's 42 permissions: <resource>.<action>, unique,
+// TestActions checks the module's 47 permissions: <resource>.<action>, unique,
 // and every role grant names one of them.
 func TestActions(t *testing.T) {
-	if len(Actions) != 42 {
-		t.Errorf("%d permissions, want 42", len(Actions))
+	if len(Actions) != 47 {
+		t.Errorf("%d permissions, want 47", len(Actions))
 	}
 	name := regexp.MustCompile(`^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$`)
 	var names []string

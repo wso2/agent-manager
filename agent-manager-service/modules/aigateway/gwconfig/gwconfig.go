@@ -43,6 +43,9 @@ type Settings struct {
 	Failure              Failure
 	// AgentCORS is the CORS policy an agent's gateway route gets unless its settings say otherwise.
 	AgentCORS CORS
+	// BudgetUsageFlush is how often each replica writes the budget and cost totals gateways report; reports are
+	// coalesced in memory, latest total per key, in between.
+	BudgetUsageFlush time.Duration
 }
 
 // DefaultGateway registers one gateway at startup, so a bundled gateway connects with no manual step. An empty
@@ -176,6 +179,7 @@ func Load(get func(key string) string) (Settings, error) {
 			AllowHeaders:     r.str("AGENT_CORS_ALLOWED_HEADERS", "authorization,Content-Type,Origin,X-API-Key"),
 			AllowCredentials: r.boolean("AGENT_CORS_ALLOW_CREDENTIALS", false),
 		},
+		BudgetUsageFlush: r.seconds("BUDGET_USAGE_FLUSH_SECONDS", 2),
 	}
 	s.check(&r)
 	return s, errors.Join(r.errs...)

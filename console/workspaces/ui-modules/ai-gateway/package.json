@@ -25,7 +25,8 @@
     "@agent-management-platform/llm-providers": "workspace:*",
     "@agent-management-platform/mcp-proxies": "workspace:*",
     "@agent-management-platform/agent-security": "workspace:*",
-    "@agent-management-platform/configure-agent": "workspace:*"
+    "@agent-management-platform/configure-agent": "workspace:*",
+    "@agent-management-platform/ai-cost-management": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.6.0",

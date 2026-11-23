@@ -53,6 +53,8 @@ type GatewayInternalController interface {
 	CheckArtifactsExist(w http.ResponseWriter, r *http.Request)
 	GetApplications(w http.ResponseWriter, r *http.Request)
 	PushGatewayManifest(w http.ResponseWriter, r *http.Request)
+	SyncGatewayResources(w http.ResponseWriter, r *http.Request)
+	GetBudgets(w http.ResponseWriter, r *http.Request)
 }
 
 type gatewayInternalController struct {
@@ -60,6 +62,8 @@ type gatewayInternalController struct {
 	gatewayInternalService *gwsvc.GatewayInternalAPIService
 	apiKeyRepo             gwrepo.APIKeyRepository
 	aiApplicationRepo      gwrepo.AIApplicationRepository
+	resourceSyncService    *gwsvc.GatewayResourceSyncService
+	budgetGateways         *gwsvc.BudgetGateways
 }
 
 // NewGatewayInternalController creates a new gateway internal controller
@@ -68,13 +72,40 @@ func NewGatewayInternalController(
 	gatewayInternalService *gwsvc.GatewayInternalAPIService,
 	apiKeyRepo gwrepo.APIKeyRepository,
 	aiApplicationRepo gwrepo.AIApplicationRepository,
+	resourceSyncService *gwsvc.GatewayResourceSyncService,
+	budgetGateways *gwsvc.BudgetGateways,
 ) GatewayInternalController {
 	return &gatewayInternalController{
 		gatewayService:         gatewayService,
 		gatewayInternalService: gatewayInternalService,
 		apiKeyRepo:             apiKeyRepo,
 		aiApplicationRepo:      aiApplicationRepo,
+		resourceSyncService:    resourceSyncService,
+		budgetGateways:         budgetGateways,
 	}
+}
+
+// GetBudgets handles GET /api/internal/v1/budgets: the control-plane budgets the
+// authenticated gateway enforces, in the form budget events carry (Interfaces 4.1). The
+// gateway calls it on connect, saves newer budgets and drops the control-plane budgets
+// not listed.
+func (c *gatewayInternalController) GetBudgets(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+	identity, ok := c.authenticateGateway(w, r, "internal-read")
+	if !ok {
+		return
+	}
+	budgets, err := c.budgetGateways.ForGatewayID(r.Context(), identity.OUID, identity.ID)
+	if err != nil {
+		if errors.Is(err, gwerr.ErrGatewayNotFound) {
+			http.Error(w, "Gateway not found", http.StatusNotFound)
+			return
+		}
+		log.Error("Failed to list budgets for gateway", "gatewayId", identity.ID, "error", err)
+		http.Error(w, "Failed to list budgets", http.StatusInternalServerError)
+		return
+	}
+	httpx.WriteSuccessResponse(w, http.StatusOK, budgets)
 }
 
 // GetLLMProvider handles GET /api/internal/v1/llm-providers/:providerId
@@ -575,4 +606,66 @@ func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// maxGatewayResourcesBytes bounds a gateway resource sync body.
+const maxGatewayResourcesBytes = 8 << 20
+
+// SyncGatewayResources handles POST /api/internal/v1/gateways/{gatewayId}/resources.
+// The gateway pushes the resources it created through its own API, like its artifacts:
+// created or updated ones, deleted ones, and its complete list on connect.
+func (c *gatewayInternalController) SyncGatewayResources(w http.ResponseWriter, r *http.Request) {
+	log := logger.GetLogger(r.Context())
+	gatewayID := r.PathValue("gatewayId")
+	if gatewayID == "" {
+		http.Error(w, "Gateway ID is required", http.StatusBadRequest)
+		return
+	}
+
+	identity, ok := c.authenticateGateway(w, r, "sync-resources")
+	if !ok {
+		return
+	}
+	if identity.ID != gatewayID {
+		log.Warn("Gateway resource sync token does not match gateway", "gatewayId", gatewayID, "tokenGatewayId", identity.ID)
+		recordGatewayAuthFailure(r, "gateway-id-mismatch", identity.ID)
+		http.Error(w, "Gateway token does not match gateway ID", http.StatusForbidden)
+		return
+	}
+
+	var req gwmodels.GatewayResourcesRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxGatewayResourcesBytes)).Decode(&req); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			http.Error(w, "Gateway resources are too large", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "Invalid gateway resources", http.StatusBadRequest)
+		}
+		log.Warn("Refused gateway resource sync", "gatewayId", gatewayID)
+		return
+	}
+
+	// Recorded after the fact, as the manifest push is: the gateway retries.
+	resp, err := c.resourceSyncService.Sync(r.Context(), gatewayID, identity.OUID, req)
+	resourceCount, failedCount := len(req.Resources)+len(req.Deleted), 0
+	if resp != nil {
+		failedCount = resp.Failed
+	}
+	modkit.AuditResource(r.Context(), gwaudit.ResourceGateway, gatewayID, "")
+	modkit.AuditDetail(r.Context(), "resourceCount", resourceCount)
+	modkit.AuditDetail(r.Context(), "failedCount", failedCount)
+	if err != nil {
+		if errors.Is(err, gwerr.ErrGatewayNotFound) {
+			http.Error(w, "Gateway not found", http.StatusNotFound)
+			return
+		}
+		log.Error("Failed to sync gateway resources", "gatewayId", gatewayID, "error", err)
+		http.Error(w, "Failed to sync gateway resources", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Error("Failed to write gateway resource sync response", "gatewayId", gatewayID, "error", err)
+	}
 }

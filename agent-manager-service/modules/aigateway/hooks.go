@@ -96,7 +96,17 @@ var projectTables = []struct{ table, what string }{
 }
 
 func finalizeProject(_ context.Context, req modkit.HookRequest) error {
+	// A control-plane budget the project owns must be deleted first, so the gateways
+	// enforcing it are told; the budgets a gateway created for it become the
+	// organization's, as the gateway owns them.
+	budgets, err := gwrepo.ProjectBudgets(req.Tx, req.OrgID, req.ID)
+	if err != nil {
+		return err
+	}
 	var left []string
+	if len(budgets) > 0 {
+		left = append(left, fmt.Sprintf("%d budget(s) (%s)", len(budgets), strings.Join(budgets, ", ")))
+	}
 	for _, t := range projectTables {
 		var n int64
 		if err := req.Tx.Raw("SELECT COUNT(*) FROM "+t.table+" WHERE org_id = ? AND project_id = ?", req.OrgID, req.ID).Scan(&n).Error; err != nil {

@@ -18,6 +18,9 @@ import (
 //
 //		// make and configure a mocked gwrepo.LLMProviderRepository
 //		mockedLLMProviderRepository := &LLMProviderRepositoryMock{
+//			BudgetsUsingFunc: func(ctx context.Context, ouID string, handle string) ([]string, error) {
+//				panic("mock out the BudgetsUsing method")
+//			},
 //			ClearDeletingFunc: func(providerUUID uuid.UUID) error {
 //				panic("mock out the ClearDeleting method")
 //			},
@@ -67,6 +70,9 @@ import (
 //
 //	}
 type LLMProviderRepositoryMock struct {
+	// BudgetsUsingFunc mocks the BudgetsUsing method.
+	BudgetsUsingFunc func(ctx context.Context, ouID string, handle string) ([]string, error)
+
 	// ClearDeletingFunc mocks the ClearDeleting method.
 	ClearDeletingFunc func(providerUUID uuid.UUID) error
 
@@ -111,6 +117,15 @@ type LLMProviderRepositoryMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// BudgetsUsing holds details about calls to the BudgetsUsing method.
+		BudgetsUsing []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// Handle is the handle argument value.
+			Handle string
+		}
 		// ClearDeleting holds details about calls to the ClearDeleting method.
 		ClearDeleting []struct {
 			// ProviderUUID is the providerUUID argument value.
@@ -226,6 +241,7 @@ type LLMProviderRepositoryMock struct {
 			OrgUUID string
 		}
 	}
+	lockBudgetsUsing         sync.RWMutex
 	lockClearDeleting        sync.RWMutex
 	lockCount                sync.RWMutex
 	lockCreate               sync.RWMutex
@@ -240,6 +256,46 @@ type LLMProviderRepositoryMock struct {
 	lockList                 sync.RWMutex
 	lockMarkDeleting         sync.RWMutex
 	lockUpdate               sync.RWMutex
+}
+
+// BudgetsUsing calls BudgetsUsingFunc.
+func (mock *LLMProviderRepositoryMock) BudgetsUsing(ctx context.Context, ouID string, handle string) ([]string, error) {
+	if mock.BudgetsUsingFunc == nil {
+		panic("LLMProviderRepositoryMock.BudgetsUsingFunc: method is nil but LLMProviderRepository.BudgetsUsing was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		OuID   string
+		Handle string
+	}{
+		Ctx:    ctx,
+		OuID:   ouID,
+		Handle: handle,
+	}
+	mock.lockBudgetsUsing.Lock()
+	mock.calls.BudgetsUsing = append(mock.calls.BudgetsUsing, callInfo)
+	mock.lockBudgetsUsing.Unlock()
+	return mock.BudgetsUsingFunc(ctx, ouID, handle)
+}
+
+// BudgetsUsingCalls gets all the calls that were made to BudgetsUsing.
+// Check the length with:
+//
+//	len(mockedLLMProviderRepository.BudgetsUsingCalls())
+func (mock *LLMProviderRepositoryMock) BudgetsUsingCalls() []struct {
+	Ctx    context.Context
+	OuID   string
+	Handle string
+} {
+	var calls []struct {
+		Ctx    context.Context
+		OuID   string
+		Handle string
+	}
+	mock.lockBudgetsUsing.RLock()
+	calls = mock.calls.BudgetsUsing
+	mock.lockBudgetsUsing.RUnlock()
+	return calls
 }
 
 // ClearDeleting calls ClearDeletingFunc.

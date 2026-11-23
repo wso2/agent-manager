@@ -727,6 +727,20 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 		slog.Warn("LLMProviderService.Delete: provider has associated proxies", "ouID", ouID, "providerID", providerID)
 		return gwerr.ErrLLMProviderHasProxies
 	}
+	// Budgets name the provider by handle; they must stop using it first (Interfaces 1.1).
+	handle := provider.Configuration.Handle
+	if handle == "" && provider.Artifact != nil {
+		handle = provider.Artifact.Handle
+	}
+	budgets, err := s.providerRepo.BudgetsUsing(ctx, ouID, handle)
+	if err != nil {
+		slog.Error("LLMProviderService.Delete: failed to check budgets", "ouID", ouID, "providerID", providerID, "error", err)
+		return fmt.Errorf("failed to check budgets: %w", err)
+	}
+	if len(budgets) > 0 {
+		slog.Warn("LLMProviderService.Delete: budgets use the provider", "ouID", ouID, "providerID", providerID, "budgets", budgets)
+		return fmt.Errorf("%w: %s. Change or delete them first", gwerr.ErrLLMProviderUsedByBudgets, strings.Join(budgets, ", "))
+	}
 
 	deployedGatewayIDs, err := deploymentService.deploymentRepo.PlacedGateways(ctx, ouID, providerUUID)
 	if err != nil {
