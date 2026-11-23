@@ -42,31 +42,18 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 		Use:   "traces <agent>",
 		Short: "List and manage traces for an agent",
 		Long: "List traces for an agent.\n\n" +
-			"Filters run on the server across the whole --since window, not just one page, and AND together. " +
-			"If the server stops searching early, a notice on stderr says so; a narrower time range shows more.\n\n" +
-			"--condition is a shorthand for one filter: error_status is --status error, " +
-			"high_latency is a duration above --max-latency, high_token_usage is tokens above --max-tokens, " +
-			"and excessive_steps is spans above --max-spans. tool_call_fails is checked in the CLI " +
-			"over one page of exported traces.\n\n" +
-			"--tool and --mcp-server match any tool or MCP server whose name contains the value, ignoring case. " +
-			"--tool-error keeps traces with a failed tool; with --tool, the failed tool must be one --tool matches. " +
-			"--tool-error searches the whole window on the server, but it knows a tool span only by its name " +
-			"and a failure only by the span's OTel status. tool_call_fails reads span attributes instead, so it also " +
-			"finds tool spans named after the function and failures marked only by error.type or gen_ai.tool.status. " +
-			"MCP servers show only for traces that open an MCP session.\n\n" +
-			"--no-conversation keeps traces with no conversation ID. --start and --end set a fixed window " +
-			"instead of --since. When the server stops searching early in table output, the notice prints the " +
-			"command for the next page; JSON output carries nextCursor, which --cursor takes with the same " +
-			"window, sort and filters.\n\n" +
+			"Traces come from the observability module, which lists the window's traces by start time. " +
+			"It doesn't filter them yet, so the filter flags are hidden and refused. --condition tool_call_fails " +
+			"still works: the CLI checks it over one page of exported traces, by span attributes. " +
+			"For older traces, narrow the window with --start and --end, which set a fixed window instead of --since.\n\n" +
 			"--console-url prints the console path that shows the same list; paste it after your console's host. " +
 			"--from-url takes a console URL, path or \"?...\" query and lists the same traces. Its path sets the " +
 			"org, project and agent, so <agent> is optional; with no time range in the URL, the window " +
-			"is the console's 1h. A filter can't come from both the URL and its flag; --limit, --sort, --since, " +
-			"--start and --end override the URL.\n\n" +
+			"is the console's 1h. --limit, --sort, --since, --start and --end override the URL.\n\n" +
 			"Examples:\n" +
-			"  amctl agent traces my-agent --min-duration 5s --since 3h --console-url\n" +
+			"  amctl agent traces my-agent --since 3h --console-url\n" +
 			"  amctl agent traces --from-url 'https://console.example.com/org/acme/project/triage/agents/my-agent/" +
-			"environment/default/observability/traces?minDurationMs=5000&timeRange=3h'",
+			"environment/default/observability/traces?timeRange=3h'",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if fromURL != "" {
@@ -74,6 +61,9 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 				if args, err = applyFromURL(cmd, opts.IO.ErrOut, fromURL, args, opts.Condition); err != nil {
 					return render.Error(opts.IO, render.Scope{}, err)
 				}
+			}
+			if err := checkModuleSupport(cmd.Flags(), opts.Condition); err != nil {
+				return render.Error(opts.IO, render.Scope{}, err)
 			}
 			org, proj, err := opts.ResolveScope(cmd, true, true)
 			if err != nil {
@@ -120,11 +110,12 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().BoolVar(&opts.ShowModels, "show-models", false, "Add a Model column (costs the server one extra call per trace)")
 	cmd.Flags().BoolVar(&opts.ShowTools, "show-tools", false, "Add a Tools column, with failed tools marked (costs the server up to one extra call per trace)")
 	cmd.Flags().BoolVar(&opts.ShowMCPServers, "show-mcp-servers", false, "Add an MCP Servers column (costs the server extra calls per trace)")
-	cmd.Flags().StringVar(&opts.Condition, "condition", "", "Shorthand filter: error_status, high_latency, high_token_usage, tool_call_fails, excessive_steps")
+	cmd.Flags().StringVar(&opts.Condition, "condition", "", "Shorthand filter: tool_call_fails")
 	cmd.Flags().IntVar(&opts.MaxLatency, "max-latency", 30000, "Latency threshold in ms; high_latency matches traces above it")
 	cmd.Flags().IntVar(&opts.MaxTokens, "max-tokens", 10000, "Token threshold; high_token_usage matches traces above it")
 	cmd.Flags().IntVar(&opts.MaxSpans, "max-spans", 40, "Span count threshold; excessive_steps matches traces above it")
 	addConsoleFlags(cmd, &opts.ShowConsoleURL, &fromURL)
+	hideUnsupportedFlags(cmd)
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp

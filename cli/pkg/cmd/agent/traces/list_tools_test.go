@@ -84,6 +84,7 @@ func assertToolFilterQuery(t *testing.T, q url.Values, want map[string]string) {
 }
 
 func TestTracesCmd_ToolAndMCPFlagsReachTheServer(t *testing.T) {
+	allowAllFlags(t)
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -126,6 +127,7 @@ func TestTracesCmd_ToolAndMCPFlagsReachTheServer(t *testing.T) {
 }
 
 func TestTracesCmd_RejectsInvalidToolFlags(t *testing.T) {
+	allowAllFlags(t)
 	for _, tc := range []struct {
 		args    []string
 		wantErr string
@@ -151,6 +153,7 @@ func TestTracesCmd_RejectsInvalidToolFlags(t *testing.T) {
 }
 
 func TestTracesCmd_ToolCallFailsSendsNewFiltersToExport(t *testing.T) {
+	allowAllFlags(t)
 	captured, _, _, err := runTracesCmdOutput(t, observersvc.TraceExportResponse{},
 		"--condition", "tool_call_fails", "--tool", "search", "--mcp-server", "github")
 	if err != nil {

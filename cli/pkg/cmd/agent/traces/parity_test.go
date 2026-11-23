@@ -106,7 +106,7 @@ var (
 
 // consoleParamFlags maps each console trace-list param to the CLI flags that send
 // it. Keep it in step with TRACE_FILTER_KEYS in
-// console/workspaces/pages/traces/src/traceFilters.ts and the window, sortOrder,
+// console/workspaces/ui-modules/ai-observability/pages/traces/src/traceFilters.ts and the window, sortOrder,
 // limit and cursor handling in Traces.Component.tsx.
 var consoleParamFlags = []struct {
 	param string
@@ -137,6 +137,7 @@ var consoleParamFlags = []struct {
 
 // Every console param has a flag on list and export that sends it.
 func TestConsoleParamParity(t *testing.T) {
+	allowAllFlags(t)
 	for _, p := range consoleParamFlags {
 		for _, cmd := range []struct {
 			name string
@@ -225,6 +226,7 @@ func TestListTraces_NoNoticeForAFullPage(t *testing.T) {
 
 // Each new flag reaches the export request, with the list's filter flags.
 func TestExportCmd_FilterFlagsReachTheServer(t *testing.T) {
+	allowAllFlags(t)
 	args := append(slices.Clone(exportArgs),
 		"--start", testStart, "--end", testEnd,
 		"--status", "error", "--min-duration", "2s", "--min-tokens", "0", "--min-spans", "3",
@@ -253,6 +255,7 @@ func TestExportCmd_FilterFlagsReachTheServer(t *testing.T) {
 
 // Conflicting or invalid window and filter flags are flag errors on list and export, before any request.
 func TestTracesCmd_RejectsInvalidWindowAndFilterFlags(t *testing.T) {
+	allowAllFlags(t)
 	for _, tc := range []struct {
 		name     string
 		args     []string
@@ -368,6 +371,7 @@ func shellSplit(s string) []string {
 
 // Pasting the printed next-page command pages through every trace once, with the same window and filters.
 func TestListTraces_CursorPagesWithThePrintedCommand(t *testing.T) {
+	allowAllFlags(t)
 	ids := []string{"trace-a", "trace-b", "trace-c", "trace-d", "trace-e"}
 	args := append(slices.Clone(listArgs), "--limit", "2", "--tool-error", "--model", "gpt 4o's", "--since", "1h")
 	var out strings.Builder
@@ -415,6 +419,7 @@ func TestListTraces_CursorPagesWithThePrintedCommand(t *testing.T) {
 
 // JSON output carries nextCursor when the server sends one, and --cursor takes it.
 func TestListTraces_JSONCursorPages(t *testing.T) {
+	allowAllFlags(t)
 	ids := []string{"trace-a", "trace-b", "trace-c"}
 	args := append(slices.Clone(listArgs), "--limit", "2", "--start", testStart, "--end", testEnd)
 

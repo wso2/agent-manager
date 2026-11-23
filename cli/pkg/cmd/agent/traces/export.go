@@ -65,11 +65,14 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 		Use:   "export <agent>",
 		Short: "Export traces with full span data as JSON",
 		Long: "Export traces with full span data as JSON.\n\n" +
-			"Takes the same filters as `amctl agent traces`, run on the server across the whole window. " +
-			"Set the window with --since, or with --start and --end.",
+			"Exports the window's traces by start time from the observability module, which doesn't filter " +
+			"them yet, so the filter flags are hidden and refused. Set the window with --since, or with --start and --end.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.IO.JSON = true
+			if err := checkModuleSupport(cmd.Flags(), ""); err != nil {
+				return render.Error(opts.IO, render.Scope{}, err)
+			}
 			org, proj, err := opts.ResolveScope(cmd, true, true)
 			if err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
@@ -104,6 +107,7 @@ func NewExportCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&opts.Limit, "limit", 100, "Max traces to export (1-100)")
 	cmd.Flags().StringVar(&opts.SortOrder, "sort", "desc", "Sort order: asc or desc")
 	addFilterFlags(cmd, &opts.Filters, &filters, false)
+	hideUnsupportedFlags(cmd)
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp

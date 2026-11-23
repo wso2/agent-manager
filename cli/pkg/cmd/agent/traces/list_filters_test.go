@@ -92,6 +92,7 @@ func runTracesCmd(t *testing.T, body any, args ...string) (*capturedRequest, err
 }
 
 func TestTracesCmd_FilterFlagsReachTheServer(t *testing.T) {
+	allowAllFlags(t)
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -130,6 +131,7 @@ func TestTracesCmd_FilterFlagsReachTheServer(t *testing.T) {
 }
 
 func TestTracesCmd_RejectsInvalidFilterFlags(t *testing.T) {
+	allowAllFlags(t)
 	for _, args := range [][]string{
 		{"--status", "failed"},
 		{"--min-duration", "-1s"},
@@ -155,6 +157,7 @@ func TestTracesCmd_RejectsInvalidFilterFlags(t *testing.T) {
 }
 
 func TestTracesCmd_ConditionMapsToServerFilter(t *testing.T) {
+	allowAllFlags(t)
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -188,6 +191,7 @@ func TestTracesCmd_ConditionMapsToServerFilter(t *testing.T) {
 }
 
 func TestTracesCmd_ToolCallFailsStaysClientSide(t *testing.T) {
+	allowAllFlags(t)
 	captured, err := runTracesCmd(t, observersvc.TraceExportResponse{}, "--condition", "tool_call_fails", "--status", "error")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -199,6 +203,7 @@ func TestTracesCmd_ToolCallFailsStaysClientSide(t *testing.T) {
 }
 
 func TestTracesCmd_RejectsConditionWithItsFlag(t *testing.T) {
+	allowAllFlags(t)
 	for _, args := range [][]string{
 		{"--condition", "error_status", "--status", "ok"},
 		{"--condition", "high_latency", "--min-duration", "1s"},

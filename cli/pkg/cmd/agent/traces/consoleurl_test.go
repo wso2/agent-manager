@@ -126,6 +126,7 @@ func TestConsoleParams_MatchTheParityTable(t *testing.T) {
 
 // Each param's flag writes it to the link, and the link read back sends the same list request.
 func TestConsoleURL_EachParamBothWays(t *testing.T) {
+	allowAllFlags(t)
 	for _, p := range consoleParamFlags {
 		if p.param == "cursor" {
 			continue
@@ -157,6 +158,7 @@ func TestConsoleURL_EachParamBothWays(t *testing.T) {
 
 // Filters, window, sort and limit together survive flags → --console-url → --from-url.
 func TestConsoleURL_RoundTrip(t *testing.T) {
+	allowAllFlags(t)
 	for _, args := range [][]string{
 		{"--status", "ok", "--min-duration", "2.5s", "--model", "gpt 4o", "--tool", "search", "--tool-error",
 			"--sort", "asc", "--limit", "50", "--since", "3h"},
@@ -171,6 +173,7 @@ func TestConsoleURL_RoundTrip(t *testing.T) {
 
 // The example path, a full URL, a route path and a URL under a base path read to the same request.
 func TestFromURL_FormsReadTheSame(t *testing.T) {
+	allowAllFlags(t)
 	query := "?sortOrder=desc&minDurationMs=5000&minTokens=5000&minSpanCount=20&columns=traceId,status&foo=bar"
 	want := mustRun(t, append(slices.Clone(listArgs), "--min-duration", "5s", "--min-tokens", "5000",
 		"--min-spans", "20", "--since", "1h")...)
@@ -215,6 +218,7 @@ func TestConsoleURL_Window(t *testing.T) {
 
 // With no window in the URL the list covers the console's 1h; a custom range beats timeRange.
 func TestFromURL_Window(t *testing.T) {
+	allowAllFlags(t)
 	for _, tc := range []struct {
 		query string
 		want  time.Duration
@@ -232,6 +236,7 @@ func TestFromURL_Window(t *testing.T) {
 
 // Each --condition writes the server param it stands for; tool_call_fails has none, so it writes no toolError.
 func TestConsoleURL_Conditions(t *testing.T) {
+	allowAllFlags(t)
 	for condition, want := range map[string][2]string{
 		conditionErrorStatus:    {"status", "error"},
 		conditionHighLatency:    {"minDurationMs", "30001"},
@@ -292,6 +297,7 @@ func TestFromURL_Rejects(t *testing.T) {
 
 // The scope repeated as it is in the URL is fine, and --limit, --sort and --since override the URL.
 func TestFromURL_FlagsOverride(t *testing.T) {
+	allowAllFlags(t)
 	link := consolePath + "?limit=50&sortOrder=asc&timeRange=7d&tool=search"
 	run := mustRun(t, "traces", "my-agent", "--org", "acme", "--project", "triage",
 		"--from-url", link, "--limit", "25", "--sort", "desc", "--since", "3h")
