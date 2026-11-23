@@ -17,7 +17,7 @@ paths:
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments:
     get:
       summary: List agent deployments with detailed information
-      description: Retrieves detailed deployment information for a specific agent across all environments
+      description: Retrieves detailed deployment information for a specific agent across all environments.
       operationId: listAgentDeployments
       parameters:
         - name: agentName
