@@ -18,7 +18,9 @@ package dbmigrations
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -168,4 +170,25 @@ func TestHasHistory(t *testing.T) {
 	has, err = HasHistory(ctx, gormDB)
 	require.NoError(t, err)
 	assert.True(t, has)
+}
+
+// A failed catalog query is an error, never "not migrated": the server would
+// otherwise treat an existing install as new.
+func TestHasHistoryReportsCatalogErrors(t *testing.T) {
+	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") + "?_pragma=foreign_keys(1)&_txlock=immediate"
+	gormDB, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	require.NoError(t, MigrateBaseline(gormDB, config.DBDriverSQLite))
+	failCatalog := func(db *gorm.DB) {
+		if strings.Contains(db.Statement.SQL.String(), "sqlite_master") {
+			_ = db.AddError(errors.New("catalog unavailable"))
+		}
+	}
+	require.NoError(t, gormDB.Callback().Row().Before("gorm:row").Register("test:fail_catalog_row", failCatalog))
+	require.NoError(t, gormDB.Callback().Raw().Before("gorm:raw").Register("test:fail_catalog_raw", failCatalog))
+	require.NoError(t, gormDB.Callback().Query().Before("gorm:query").Register("test:fail_catalog_query", failCatalog))
+
+	_, err = HasHistory(context.Background(), gormDB)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "catalog unavailable")
 }

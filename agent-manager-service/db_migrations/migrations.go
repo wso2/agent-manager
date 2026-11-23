@@ -111,20 +111,18 @@ func isApplied(ctx context.Context, dbConn *gorm.DB, id string) (bool, error) {
 	return count > 0, nil
 }
 
-// historyTableExists reports query errors: Migrator().HasTable returns false for them, so a false answer is checked
-// with a ping, which would otherwise make a database error look like a schema that has not been migrated yet.
+// historyTableExists asks the catalog directly: Migrator().HasTable returns false for a failed query, which would make
+// a database error look like a schema that has not been migrated yet.
 func historyTableExists(conn *gorm.DB) (bool, error) {
-	if conn.Migrator().HasTable(migrateOptions.TableName) {
-		return true, nil
+	query := "SELECT count(*) FROM information_schema.tables WHERE table_schema = CURRENT_SCHEMA() AND table_name = ?"
+	if conn.Name() == "sqlite" {
+		query = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
 	}
-	sqlDB, err := conn.DB()
-	if err == nil {
-		err = sqlDB.PingContext(conn.Statement.Context)
-	}
-	if err != nil {
+	var count int64
+	if err := conn.Raw(query, migrateOptions.TableName).Scan(&count).Error; err != nil {
 		return false, fmt.Errorf("checking for migration history: %w", err)
 	}
-	return false, nil
+	return count > 0, nil
 }
 
 // latestApplied describes the newest recorded migration for a timeout message,
