@@ -79,6 +79,7 @@ func loadSettings(strict bool) {
 
 	// Logging configuration
 	config.LogLevel = r.readOptionalString("LOG_LEVEL", "INFO")
+	config.LogRouteHits = r.readOptionalBool("LOG_ROUTE_HITS", false)
 
 	// read database configs
 	// SQLite is the shipped database; a configured DB_HOST without DB_DRIVER still means PostgreSQL, so an install

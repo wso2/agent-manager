@@ -213,6 +213,7 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | Setting | amp.yaml | Default | Description |
 |---|---|---|---|
 | `LOG_LEVEL` | `log.level` | `INFO` | DEBUG, INFO, WARN or ERROR. |
+| `LOG_ROUTE_HITS` | `log.route_hits` | `false` | Log the route pattern, module and status of every API request, and every route at startup; for measuring test coverage. |
 | `AUTO_MAX_PROCS_ENABLED` | `auto.max_procs_enabled` | `true` | Match GOMAXPROCS to the container's CPU limit. |
 | `AMP_VERSION` | `amp.version` | `the build's version` | Version the API reports. |
 | `AMP_DEPLOYMENT_MODEL` | `amp.deployment_model` | `on-prem` | Deployment model reported with usage data. |
