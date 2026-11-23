@@ -19,10 +19,12 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { coverage } from '../../../../../vitest.coverage';
 
 export default defineConfig({
   plugins: [react()],
   test: {
+    coverage,
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./setupTests.tsx', '../../../../../vitest.jsdom-storage.ts'],

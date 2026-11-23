@@ -18,9 +18,11 @@
 
 /// <reference types="vitest" />
 import { defineConfig } from "vite";
+import { coverage } from "../../../vitest.coverage";
 
 export default defineConfig({
   test: {
+    coverage,
     // The package has no tests yet; `pnpm -r test` should not fail on it.
     passWithNoTests: true,
   },

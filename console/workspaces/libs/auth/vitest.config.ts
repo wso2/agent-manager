@@ -17,9 +17,11 @@
  */
 
 import { defineConfig } from "vitest/config";
+import { coverage } from "../../../vitest.coverage";
 
 export default defineConfig({
   test: {
+    coverage,
     environment: "jsdom",
     setupFiles: ["./setupTests.ts", "../../../vitest.jsdom-storage.ts"],
   },

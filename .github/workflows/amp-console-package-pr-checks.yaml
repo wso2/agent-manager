@@ -6,6 +6,8 @@ on:
     paths:
       - "console/**"
       - ".github/workflows/amp-console-package-pr-checks.yaml"
+      - "scripts/coverage/console_summary.py"
+      - "scripts/coverage/ratchet.py"
 
 permissions:
   contents: read
@@ -38,4 +40,24 @@ jobs:
         run: pnpm build
 
       - name: Run ${{ matrix.task }}
-        run: pnpm ${{ matrix.task }}
+        run: pnpm ${{ matrix.task == 'test' && 'test:coverage' || matrix.task }}
+
+      # Fails when a package's line coverage drops more than 0.5 points below
+      # console/coverage-baseline.json.
+      - name: Check coverage against the baseline
+        if: matrix.task == 'test'
+        run: |
+          python3 ../scripts/coverage/console_summary.py "$RUNNER_TEMP/console-coverage.json"
+          python3 ../scripts/coverage/ratchet.py "$RUNNER_TEMP/console-coverage.json" \
+            coverage-baseline.json --title "Console coverage"
+
+      - name: Upload coverage reports
+        if: ${{ !cancelled() && matrix.task == 'test' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: console-coverage
+          path: |
+            ${{ runner.temp }}/console-coverage.json
+            console/workspaces/**/coverage/
+            !console/**/node_modules/**
+          if-no-files-found: ignore
