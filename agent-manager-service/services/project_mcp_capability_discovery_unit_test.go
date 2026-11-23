@@ -497,25 +497,61 @@ func TestCapabilityDiscovery_IdentityBindingWithoutUpstreamAuthIsProbedWithoutAH
 	assert.Equal(t, models.MCPCapabilityDiscoveryDiscovered, f.row(t).Status)
 }
 
-// An upstream probe that fails is retried, with the upstream credential redacted from the stored reason.
+// An upstream probe that fails is retried, with the upstream credential redacted from the stored reason, which says
+// the control plane could not reach the server and what to do about it.
 func TestCapabilityDiscovery_IdentityUpstreamErrorsAreRetriedWithTheCredentialRedacted(t *testing.T) {
 	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
 	f.identityByURL(t, upstreamAPIKey("Authorization", "Bearer github-pat"))
 	f.enqueue(t)
 	f.respond = func(call probeCall) (*models.MCPServerInfoFetchResponse, error) {
-		return nil, fmt.Errorf("%w: upstream said bad token %s", utils.ErrMCPServerUnauthorized, call.value)
+		return nil, fmt.Errorf("%w: upstream said bad token %s", utils.ErrURLUnreachable, call.value)
 	}
 
 	f.recon.RunOnce(context.Background())
 
 	assert.Empty(t, f.calls, "the gateway is not probed")
-
-	require.Len(t, f.upstreamCalls, 1, "an upstream 401 is not waited out: no key is on its way")
+	require.Len(t, f.upstreamCalls, 1)
 	row := f.row(t)
 	assert.Equal(t, models.MCPCapabilityDiscoveryPending, row.Status)
 	assert.NotContains(t, row.LastError, "github-pat")
 	assert.Contains(t, row.LastError, "[REDACTED]")
 	assert.Contains(t, row.LastError, discoveryUpstreamURL)
+	assert.Contains(t, row.LastError, "the control plane could not list")
+	assert.Contains(t, row.LastError, "send capabilities with the binding")
+}
+
+// Upstream failures that cannot get better until the binding changes fail the row at once instead of retrying for
+// half an hour: a URL the SSRF guard refuses, and a credential the server rejects.
+func TestCapabilityDiscovery_UpstreamFailuresThatNeedABindingChangeAreFinal(t *testing.T) {
+	cases := []struct {
+		name   string
+		err    error
+		reason string
+	}{
+		{
+			name:   "address not publicly reachable",
+			err:    fmt.Errorf("%w: %w", utils.ErrInvalidURL, errors.New("url host is not publicly reachable")),
+			reason: "not publicly reachable",
+		},
+		{name: "credential rejected", err: utils.ErrMCPServerUnauthorized, reason: "rejected the binding's upstream credential"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+			f.identityByURL(t, upstreamAPIKey("Authorization", "Bearer github-pat"))
+			f.enqueue(t)
+			f.respond = func(probeCall) (*models.MCPServerInfoFetchResponse, error) { return nil, tc.err }
+
+			f.recon.RunOnce(context.Background())
+
+			require.Len(t, f.upstreamCalls, 1)
+			row := f.row(t)
+			assert.Equal(t, models.MCPCapabilityDiscoveryFailed, row.Status, "failed without retrying")
+			assert.Contains(t, row.LastError, tc.reason)
+			assert.Contains(t, row.LastError, discoveryUpstreamURL)
+			assert.NotContains(t, row.LastError, "github-pat")
+		})
+	}
 }
 
 // An Agent Identity binding of a component's MCP server cannot be probed at all: its upstream is in-cluster.
@@ -625,7 +661,7 @@ func TestCapabilityDiscovery_UpstreamURLCredentialsAreKeptOutOfErrors(t *testing
 	require.Len(t, f.upstreamCalls, 1)
 	assert.Equal(t, registered, f.upstreamCalls[0].url, "the probe itself uses the URL as registered")
 	row := f.row(t)
-	assert.Contains(t, row.LastError, "at its upstream https://api.example.com/mcp:")
+	assert.Contains(t, row.LastError, "capabilities at https://api.example.com/mcp ")
 	assert.NotContains(t, row.LastError, "k-123")
 	assert.NotContains(t, row.LastError, "hunter2")
 }
@@ -741,8 +777,8 @@ func TestCapabilityDiscovery_ShortQueryValueIsNotRedactedAlone(t *testing.T) {
 	assert.Equal(t, "Exports json", (*resp.Capabilities.Tools)[0]["description"])
 }
 
-// Scrubbing walks the values: only strings change, so numbers, booleans, nulls, arrays and keys keep their types and
-// the stored schema stays valid; the probe's own answer is not modified.
+// Scrubbing walks the values: only strings change, so numbers, booleans, nulls and arrays keep their types and the
+// stored schema stays valid; the probe's own answer is not modified.
 func TestScrubCapabilitiesKeepsNonStringValues(t *testing.T) {
 	answer := []map[string]interface{}{{
 		"name":        "search",
@@ -773,6 +809,48 @@ func TestScrubCapabilitiesKeepsNonStringValues(t *testing.T) {
 	assert.Equal(t, false, mode["deprecated"])
 	assert.Equal(t, []interface{}{"limit"}, tool["inputSchema"].(map[string]interface{})["required"])
 	assert.Equal(t, "token s3cr3t-value", answer[0]["description"], "the probe's answer is unchanged")
+}
+
+// A map key that carries a secret is scrubbed like a value, so the schema's references to it (a required list) still
+// match, and the probe's answer is not modified.
+func TestScrubCapabilitiesScrubsKeys(t *testing.T) {
+	answer := []map[string]interface{}{{
+		"name": "whoami",
+		"_meta": map[string]interface{}{
+			"github-pat": "active",
+			"nested":     map[string]interface{}{"Bearer github-pat": true},
+		},
+		"inputSchema": map[string]interface{}{
+			"properties": map[string]interface{}{"github-pat": map[string]interface{}{"type": "string"}},
+			"required":   []interface{}{"github-pat"},
+		},
+	}}
+
+	got, err := scrubCapabilities(&models.MCPProxyCapabilities{Tools: &answer}, []string{"Bearer github-pat", "github-pat"})
+
+	require.NoError(t, err)
+	tool := (*got.Tools)[0]
+	meta := tool["_meta"].(map[string]interface{})
+	assert.Equal(t, map[string]interface{}{"[REDACTED]": "active", "nested": map[string]interface{}{"[REDACTED]": true}}, meta)
+	schema := tool["inputSchema"].(map[string]interface{})
+	assert.Contains(t, schema["properties"], "[REDACTED]")
+	assert.Equal(t, []interface{}{"[REDACTED]"}, schema["required"], "references still name the scrubbed key")
+	assert.Contains(t, answer[0]["_meta"], "github-pat", "the probe's answer is unchanged")
+}
+
+// Two keys that scrub to the same key would lose one of them, so the capabilities are refused instead.
+func TestScrubCapabilitiesRefusesKeysThatCollide(t *testing.T) {
+	answer := []map[string]interface{}{{
+		"name":  "whoami",
+		"_meta": map[string]interface{}{"github-pat": "a", "[REDACTED]": "b"},
+	}}
+
+	_, err := scrubCapabilities(&models.MCPProxyCapabilities{Tools: &answer}, []string{"github-pat"})
+
+	var permanent *mcpDiscoveryPermanentError
+	require.ErrorAs(t, err, &permanent)
+	assert.Contains(t, permanent.Error(), "field names")
+	assert.NotContains(t, permanent.Error(), "github-pat")
 }
 
 // An error that echoes the attempt key is stored, and so shown, with the key redacted.
