@@ -46,8 +46,6 @@ const (
 )
 
 var (
-	budgetOrgChannel     = "3f2b8c1e-5a7d-4e9b-8c21-6d0f4a9e7b13"
-	budgetProjectChannel = "9c4e1a7b-2d8f-4b3a-a5e6-1f7c0d2b8e94"
 )
 
 func budgetI32(v int32) *int32 { return &v }

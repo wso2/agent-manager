@@ -179,14 +179,14 @@ func TestCostService_RefusesBadQueries(t *testing.T) {
 func TestCostService_RecordsReportsAndSkipsBadOrOldOnes(t *testing.T) {
 	s, repo := newCostTestService(nil)
 	key := uuid.New().String()
-	s.RecordCosts(context.Background(), budgetTestOrg, []GatewayCostUsage{
+	require.NoError(t, s.RecordCosts(context.Background(), budgetTestOrg, []GatewayCostUsage{
 		{Month: "2026-11-01", CostKey: key, Project: "api-platform", Agent: "support-agent", LLMProvider: "openai", Model: "gpt-4o", Cost: "80.14", MissingPriceRequests: 3},
 		{Month: "2026-08-01", CostKey: uuid.New().String(), LLMProvider: "openai", Cost: "1"},
 		{Month: "not-a-date", CostKey: uuid.New().String(), LLMProvider: "openai", Cost: "1"},
 		{Month: "2026-11-01", CostKey: "x", LLMProvider: "openai", Cost: "1"},
 		{Month: "2026-11-01", CostKey: uuid.New().String(), Cost: "1"},
 		{Month: "2026-11-01", CostKey: uuid.New().String(), LLMProvider: "openai", Cost: "ten"},
-	})
+	}))
 	calls := repo.RecordCalls()
 	require.Len(t, calls, 1, "one write per message")
 	require.Len(t, calls[0].Rows, 1, "older than the kept months, or unreadable: skipped")
