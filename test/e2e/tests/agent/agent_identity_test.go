@@ -38,6 +38,7 @@ var _ = Describe("Agent identity:", Label("agent", "agent-identity"), Ordered, f
 		suffix, agentName, tokenURL string
 		clientID, secret            string
 		roleID, groupID             string
+		identityID                  string
 	)
 	proj := framework.E2ESharedProjectName
 	ai := func(f string, a ...any) string {
@@ -90,7 +91,12 @@ var _ = Describe("Agent identity:", Label("agent", "agent-identity"), Ordered, f
 		Expect(views[0].ClientID).To(Equal(clientID))
 
 		agents := framework.CallObj(Default, Client, http.MethodGet, ai("/agents"), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(agents, "agents"), "agentName")).To(ContainElement(agentName))
+		for _, a := range framework.Items(agents, "agents") {
+			if framework.Str(a, "agentName") == agentName {
+				identityID = framework.Str(a, "thunderAgentId")
+			}
+		}
+		Expect(identityID).NotTo(BeEmpty(), "the environment's agents listing has no identity for %s", agentName)
 	})
 
 	It("mints a token with its client credentials and loses the old secret on rotation", func(ctx context.Context) {
@@ -139,9 +145,9 @@ var _ = Describe("Agent identity:", Label("agent", "agent-identity"), Ordered, f
 			To(ContainElement(groupID))
 
 		framework.Call(Default, Client, http.MethodPost, ai("/groups/%s/members/add", groupID),
-			framework.Obj{"agentIds": []string{clientIDAgent(clientID, agentName)}}, http.StatusOK)
+			framework.Obj{"agentIds": []string{identityID}}, http.StatusOK)
 		members := framework.CallObj(Default, Client, http.MethodGet, ai("/groups/%s/members", groupID), nil, http.StatusOK)
-		Expect(members["agents"]).NotTo(BeEmpty())
+		Expect(framework.Items(members, "members")).To(HaveLen(1))
 
 		framework.Call(Default, Client, http.MethodPost, ai("/roles/%s/assignments/add", roleID), framework.AgentIdentityAssignmentsRequest{
 			Assignments: []framework.AgentIdentityAssignment{{ID: groupID, Type: "group"}},
@@ -164,7 +170,7 @@ var _ = Describe("Agent identity:", Label("agent", "agent-identity"), Ordered, f
 		assigned := framework.CallObj(Default, Client, http.MethodGet, ai("/roles/%s/assignments", roleID), nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(assigned, "groups"), "id")).NotTo(ContainElement(groupID))
 		framework.Call(Default, Client, http.MethodPost, ai("/groups/%s/members/remove", groupID),
-			framework.Obj{"agentIds": []string{clientIDAgent(clientID, agentName)}}, http.StatusOK)
+			framework.Obj{"agentIds": []string{identityID}}, http.StatusOK)
 
 		framework.Call(Default, Client, http.MethodDelete, ai("/roles/%s", roleID), nil, http.StatusNoContent)
 		framework.Call(Default, Client, http.MethodDelete, ai("/groups/%s", groupID), nil, http.StatusNoContent)
@@ -182,8 +188,3 @@ var _ = Describe("Agent identity:", Label("agent", "agent-identity"), Ordered, f
 		}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 	})
 })
-
-// clientIDAgent names the agent in group membership requests. Membership takes
-// the agent's identity ID, which the agents listing reports as thunderAgentId;
-// until that is resolved the client ID stands in.
-func clientIDAgent(clientID, _ string) string { return clientID }

@@ -83,7 +83,8 @@ var _ = Describe("External agent registration:", Label("agent", "external-agent"
 		Expect(claims).NotTo(BeEmpty())
 		Expect(tok.ExpiresAt).To(BeNumerically(">", tok.IssuedAt))
 
-		framework.CallError(Default, Client, http.MethodPost, core("/token?environment=no-such-env"), framework.TokenRequest{ExpiresIn: "1h"}, http.StatusNotFound)
+		framework.CallError(Default, Client, http.MethodPost,
+			framework.API(Cfg, "/projects/%s/agents/%s/token", proj, framework.E2EAgentPrefix+"absent00"), framework.TokenRequest{ExpiresIn: "1h"}, http.StatusNotFound)
 	})
 
 	It("shows where the agent runs and what the gateway provisions for it", func() {

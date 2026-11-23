@@ -16,7 +16,7 @@
 
 // J6: a platform engineer registers gateways, issues the token a gateway
 // connects with, maps the gateway to an environment, and removes it again:
-// the token stops working and what was deployed to it no longer routes there.
+// the token stops working, and a gateway still serving a deployment is kept.
 
 package gatewaytests
 
@@ -31,7 +31,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
-	"github.com/wso2/agent-manager/test/e2e/operations/gateway"
 	llmproviderop "github.com/wso2/agent-manager/test/e2e/operations/llmprovider"
 )
 
@@ -160,11 +159,12 @@ var _ = Describe("Platform gateway", Label("gateway"), Ordered, func() {
 
 	It("registers a gateway and maps it to the environment", func() {
 		g := framework.CallObj(Default, Client, http.MethodPost, gw(""), framework.Obj{
-			"name": name, "displayName": "E2E platform gateway", "gatewayType": "BOTH",
+			"name": name, "displayName": "E2E platform gateway", "gatewayType": "EGRESS",
 			"vhost": "http://" + name + ".gateway.localhost:19080",
 		}, http.StatusCreated)
 		gwID = framework.Str(g, "uuid")
 
+		// The environment already has its ingress gateway, so this one is egress-only.
 		framework.Call(Default, Client, http.MethodPost, gw("/%s/environments/%s", gwID, envUUID), framework.Obj{}, http.StatusCreated)
 		envs := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/environments", gwID), nil, http.StatusOK)
 		Expect(envs).NotTo(BeEmpty())
@@ -180,7 +180,7 @@ var _ = Describe("Platform gateway", Label("gateway"), Ordered, func() {
 	})
 
 	It("manages the gateway's token and trusted identity providers", func() {
-		t := framework.CallObj(Default, Client, http.MethodPost, gw("/%s/tokens", gwID), framework.Obj{}, http.StatusCreated)
+		t := framework.CallObj(Default, Client, http.MethodPost, gw("/%s/tokens", gwID), framework.Obj{}, http.StatusOK)
 		tokenID := framework.Str(t, "tokenId")
 		tokens := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/tokens", gwID), nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(tokens, "list"), "id")).To(ContainElement(tokenID))
@@ -202,8 +202,7 @@ var _ = Describe("Platform gateway", Label("gateway"), Ordered, func() {
 		Expect(framework.Field(framework.Items(idps, "list"), "name")).NotTo(ContainElement(idp))
 	})
 
-	It("stops routing a provider through the gateway once it's removed", func() {
-		gateway.WaitForActiveGatewayForEnv(Client, Cfg.DefaultOrg, Cfg.DefaultEnv, 3*time.Minute)
+	It("keeps a gateway that serves a deployment, and removes it once that is gone", func() {
 		url, header, value := "https://api.openai.com/v1", "Authorization", "Bearer sk-e2e-placeholder"
 		prov := llmproviderop.CreateLLMProvider(Default, Client, providerName, framework.LLMProviderSpec{
 			DisplayName: providerName, Version: "v1.0", Context: "/" + providerName, Template: "openai",
@@ -212,20 +211,36 @@ var _ = Describe("Platform gateway", Label("gateway"), Ordered, func() {
 			}},
 			Gateways: []string{gwID},
 		})
-		deployedTo := func() []string {
-			deps := framework.CallJSON[[]framework.Obj](Default, Client, http.MethodGet,
+		deps := func() []framework.Obj {
+			return framework.CallJSON[[]framework.Obj](Default, Client, http.MethodGet,
 				framework.GW(Cfg, "/llm-providers/%s/deployments", prov.Metadata.UID), nil, http.StatusOK)
-			return framework.Field(deps, "gatewayId")
 		}
-		Expect(deployedTo()).To(ContainElement(gwID))
+		var depID string
+		for _, d := range deps() {
+			if framework.Str(d, "gatewayId") == gwID {
+				depID = framework.Str(d, "deploymentId")
+			}
+		}
+		Expect(depID).NotTo(BeEmpty(), "the provider wasn't deployed to the gateway")
 
+		By("Refusing to remove a gateway that still serves a deployment, and keeping both")
+		framework.CallError(Default, Client, http.MethodDelete, gw("/%s", gwID), nil, http.StatusConflict)
+		framework.Call(Default, Client, http.MethodGet, gw("/%s", gwID), nil, http.StatusOK)
+		Expect(framework.Field(deps(), "deploymentId")).To(ContainElement(depID))
+
+		By("Unmapping it from the environment")
 		framework.Call(Default, Client, http.MethodDelete, gw("/%s/environments/%s", gwID, envUUID), nil, http.StatusNoContent)
 		got := framework.CallObj(Default, Client, http.MethodGet, gw("/%s", gwID), nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(got, "environments"), "id")).NotTo(ContainElement(envUUID))
 
-		framework.Call(Default, Client, http.MethodDelete, gw("/%s", gwID), nil, http.StatusNoContent)
+		By("Removing it once the provider deployed to it is gone")
+		// The gateway never connected, so an undeploy would never be acknowledged;
+		// deleting the provider takes its deployments off every gateway.
+		framework.Call(Default, Client, http.MethodDelete, "/m/ai-gateway/llm-providers/"+providerName, nil, http.StatusNoContent)
+		Eventually(func(g Gomega) {
+			framework.Call(g, Client, http.MethodDelete, gw("/%s", gwID), nil, http.StatusNoContent)
+		}).WithPolling(2 * time.Second).Should(Succeed())
 		framework.CallError(Default, Client, http.MethodGet, gw("/%s", gwID), nil, http.StatusNotFound)
-		Eventually(deployedTo).WithPolling(2 * time.Second).ShouldNot(ContainElement(gwID))
 		gwID = ""
 	})
 })
