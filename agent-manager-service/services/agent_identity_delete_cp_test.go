@@ -383,7 +383,6 @@ func (deletionAgentKindStub) HasKindsSourcedFrom(context.Context, string, string
 }
 
 func TestDeleteAgentCPManagedReturnsFailureWithoutDeletingComponent(t *testing.T) {
-	shrinkIdentityDeleteRetryDelay(t)
 	f := newCPDeleteFixture(t, models.AgentProvisioningTypeExternal)
 	f.deleteErr["stage"] = errors.New("stage unavailable")
 	oc := &clientmocks.OpenChoreoClientMock{

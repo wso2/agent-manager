@@ -3381,7 +3381,6 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 	// then spend most of a minute on identity platform calls, so a client or edge that gives up
 	// first (a 30s HTTP client, the gateway's upstream cut) would otherwise cancel it halfway and
 	// leave the agent behind, with nothing left to retry it.
-	callerCtx := ctx
 	ctx, cancelDelete := detachedDeleteContext(ctx)
 	defer cancelDelete()
 
@@ -3400,7 +3399,17 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 		return auditErr
 	}
 
-	identityCleanupHandled, outsidePipeline, err := s.deleteAgentWithIdentityCleanup(ctx, callerCtx, ouID, projectName, agentName)
+	identityCleanupHandled := false
+	var outsidePipeline []string
+	if cleanup, ok := s.agentThunderProvisioning.(ProjectAgentIdentityCleanup); ok {
+		identityCleanupHandled, outsidePipeline, err = cleanup.DeleteAgentWithIdentityCleanup(ctx, ouID, projectName, agentName, func(deleteCtx context.Context) error {
+			deleteErr := s.ocClient.DeleteComponent(deleteCtx, ouID, projectName, agentName)
+			if errors.Is(translateAgentError(deleteErr), utils.ErrAgentNotFound) {
+				return nil
+			}
+			return deleteErr
+		})
+	}
 	if !identityCleanupHandled && err == nil {
 		err = s.ocClient.DeleteComponent(ctx, ouID, projectName, agentName)
 	}
@@ -3531,8 +3540,8 @@ func detachedCleanupContext(ctx context.Context) (context.Context, context.Cance
 }
 
 // agentDeleteCommitTimeout bounds the committed part of an agent delete once it no longer
-// follows the request (see detachedDeleteContext). It covers waiting out one provisioning
-// attempt on the identity lock plus every identity cleanup attempt in agentIdentityDeleteRetry.
+// follows the request (see detachedDeleteContext): waiting out one provisioning attempt on the
+// identity lock, then removing the AgentID along the pipeline and deleting the component.
 const agentDeleteCommitTimeout = 5 * time.Minute
 
 // detachedDeleteContext returns the context for the committed part of an agent delete: the
@@ -3543,81 +3552,20 @@ func detachedDeleteContext(ctx context.Context) (context.Context, context.Cancel
 	return context.WithTimeout(context.WithoutCancel(ctx), agentDeleteCommitTimeout)
 }
 
-// The identity platform fails AgentID removal intermittently (timeouts, a version it has not
-// caught up on yet), and a later attempt usually succeeds. Variables rather than constants so
-// tests can shrink the delay; production never reassigns them.
-var (
-	agentIdentityDeleteAttempts   = 3
-	agentIdentityDeleteRetryDelay = 5 * time.Second
-)
-
-// agentIdentityDeleteRetry retries a failed AgentID cleanup only once the caller has stopped
-// waiting (callerCtx is done). A caller still waiting gets the failure at once, as before, and
-// retries the deletion itself; one that gave up has nobody left to retry it.
-//
-// It never retries a conflict, which needs the identity reconciled by hand first, nor a failure
-// after the component was deleted (componentDeleted reports true). Each attempt finds the
-// component and bindings by agent name, and once the component is gone a new agent of the same
-// name can be created and take over the remaining bindings, so a later attempt could delete that
-// agent instead. While the component exists no agent of that name can be created, so every
-// attempt targets the same agent.
-func agentIdentityDeleteRetry(callerCtx context.Context, componentDeleted func() bool) cleanupRetry {
-	return cleanupRetry{
-		attempts: agentIdentityDeleteAttempts,
-		delay:    func(n int) time.Duration { return agentIdentityDeleteRetryDelay << n },
-		permanent: func(err error) bool {
-			return errors.Is(err, utils.ErrConflict) || callerCtx.Err() == nil || componentDeleted()
-		},
-	}
-}
-
-// deleteAgentWithIdentityCleanup removes the agent's AgentIDs and then its component, when the
-// provisioning service manages identities through the control plane. handled is false when it
-// does not, and the caller then deletes the component itself. ctx carries the work; callerCtx is
-// the request, and decides whether a failed attempt is retried (see agentIdentityDeleteRetry).
-// Every attempt is a complete, idempotent retry of the cleanup: the component and bindings stay
-// until it succeeds.
-func (s *agentManagerService) deleteAgentWithIdentityCleanup(
-	ctx, callerCtx context.Context, ouID, projectName, agentName string,
-) (handled bool, outsidePipeline []string, err error) {
-	cleanup, ok := s.agentThunderProvisioning.(ProjectAgentIdentityCleanup)
-	if !ok {
-		return false, nil, nil
-	}
-	componentDeleted := false
-	deleteComponent := func(deleteCtx context.Context) error {
-		deleteErr := s.ocClient.DeleteComponent(deleteCtx, ouID, projectName, agentName)
-		if deleteErr == nil || errors.Is(translateAgentError(deleteErr), utils.ErrAgentNotFound) {
-			componentDeleted = true
-			return nil
-		}
-		return deleteErr
-	}
-	retry := agentIdentityDeleteRetry(callerCtx, func() bool { return componentDeleted })
-	err = retryCleanup(ctx, s.logger, retry, "Agent identity cleanup", func() error {
-		var attemptErr error
-		handled, outsidePipeline, attemptErr = cleanup.DeleteAgentWithIdentityCleanup(ctx, ouID, projectName, agentName, deleteComponent)
-		return attemptErr
-	}, "ouID", ouID, "projectName", projectName, "agentName", agentName)
-	return handled, outsidePipeline, err
-}
-
 // cleanupRetry bounds the retries of an idempotent cleanup step; delay is the wait after 0-based failed attempt n.
-// permanent, when set, reports an error that retrying cannot fix, which ends the retries at once.
 type cleanupRetry struct {
-	attempts  int
-	delay     func(n int) time.Duration
-	permanent func(err error) bool
+	attempts int
+	delay    func(n int) time.Duration
 }
 
 // fixedCleanupRetry waits the same backoff between every attempt.
 func fixedCleanupRetry(attempts int, backoff time.Duration) cleanupRetry {
-	return cleanupRetry{attempts: attempts, delay: func(int) time.Duration { return backoff }, permanent: nil}
+	return cleanupRetry{attempts: attempts, delay: func(int) time.Duration { return backoff }}
 }
 
 // agentConfigCleanupRetry backs off exponentially: an un-revoked credential stays live, so a few seconds to rule out a transient cause is worth it.
 func agentConfigCleanupRetry() cleanupRetry {
-	return cleanupRetry{attempts: agentConfigCleanupAttempts, delay: func(n int) time.Duration { return agentConfigCleanupRetryDelay << n }, permanent: nil}
+	return cleanupRetry{attempts: agentConfigCleanupAttempts, delay: func(n int) time.Duration { return agentConfigCleanupRetryDelay << n }}
 }
 
 // retryCleanup runs an idempotent step until it succeeds or r is spent, never waiting after the final attempt.
@@ -3630,7 +3578,7 @@ func retryCleanup(ctx context.Context, logger *slog.Logger, r cleanupRetry, step
 			}
 			return nil
 		}
-		if attempt == r.attempts-1 || (r.permanent != nil && r.permanent(lastErr)) {
+		if attempt == r.attempts-1 {
 			break
 		}
 		delay := r.delay(attempt)
