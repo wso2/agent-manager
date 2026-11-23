@@ -47,6 +47,10 @@ class TestTracesEndpoint:
                 "https://otel.example.com/v1/traces/",
                 "https://otel.example.com/v1/traces",
             ),
+            (
+                "http://localhost:9000/m/observability/otel",
+                "http://localhost:9000/m/observability/otel/v1/traces",
+            ),
         ],
     )
     def test_appends_traces_path_once(self, base, expected):
@@ -69,6 +73,36 @@ class TestInitOtel:
         with pytest.raises(ValueError) as exc_info:
             otel.init_otel()
         assert env_vars.AMP_AGENT_API_KEY in str(exc_info.value)
+
+    def test_exports_to_the_module_endpoint_with_the_key(
+        self, clean_environment, monkeypatch
+    ):
+        captured = {}
+
+        class FakeExporter:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            def export(self, spans):
+                return None
+
+            def shutdown(self):
+                return None
+
+            def force_flush(self, timeout_millis=None):
+                return True
+
+        monkeypatch.setattr(otel, "OTLPSpanExporter", FakeExporter)
+        monkeypatch.setenv(
+            env_vars.AMP_OTEL_ENDPOINT, "http://localhost:9000/m/observability/otel"
+        )
+        monkeypatch.setenv(env_vars.AMP_AGENT_API_KEY, "agent-key")
+        otel._initialized = False
+        otel.init_otel()
+        assert captured == {
+            "endpoint": "http://localhost:9000/m/observability/otel/v1/traces",
+            "headers": {"x-amp-api-key": "agent-key"},
+        }
 
     def test_configures_provider_and_is_idempotent(self, configure_environment):
         otel._initialized = False
