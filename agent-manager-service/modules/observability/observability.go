@@ -27,6 +27,7 @@ import (
 	"io/fs"
 	"net/http"
 	"slices"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
@@ -40,6 +41,8 @@ const (
 	PermTracesRead = "traces-read"
 	// TracesRead is PermTracesRead's full name, as the host names it.
 	TracesRead = "observability:traces-read"
+	// ActionTracesIngest records agents sending traces.
+	ActionTracesIngest = "traces-ingest"
 )
 
 func init() {
@@ -78,6 +81,9 @@ func (module) Manifest() modkit.Manifest {
 			"AI Lead":             {PermTracesRead},
 			"Platform Engineer":   {PermTracesRead},
 		},
+		AuditActions: []modkit.AuditAction{
+			{Name: ActionTracesIngest, Description: "An agent sent traces with its agent key"},
+		},
 		UI: &modkit.UI{Pages: []modkit.Page{
 			{ID: "ai-observability/traces", Permission: PermTracesRead},
 		}},
@@ -103,6 +109,12 @@ func (m module) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Subscribe(modkit.EventAgentDeleted, cleanup{cleaner: cleaner, log: rt.Logger()}.agentDeleted)
 	g := guarded{traces: traces}
 	rt.Provide(tracesv1.ID, capability{core: rt.Core(), traces: g})
+	in, err := newIngest(rt)
+	if err != nil {
+		return err
+	}
+	// Agents export steadily, so one record per agent per hour.
+	rt.HandleAgent(http.MethodPost, IngestPath, in.serve, modkit.Audit(ActionTracesIngest), modkit.AuditCoalesce(time.Hour))
 	h := handlers{core: rt.Core(), traces: g, log: rt.Logger()}
 	rt.Handle(http.MethodGet, "/api/v1/traces", PermTracesRead, h.listTraces)
 	rt.Handle(http.MethodGet, "/api/v1/traces/export", PermTracesRead, h.exportTraces)

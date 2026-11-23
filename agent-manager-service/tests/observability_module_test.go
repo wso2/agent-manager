@@ -21,13 +21,16 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,6 +57,21 @@ const tracesReadScope = "amp:observability:traces-read"
 // TestObservabilityModule drives the observability module over the HTTP API:
 // install and disable, its permission, and organization isolation.
 func TestObservabilityModule(t *testing.T) {
+	// The collector the module forwards agents' exports to.
+	type export struct {
+		header http.Header
+		body   []byte
+	}
+	exports := make(chan export, 16)
+	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		exports <- export{header: r.Header.Clone(), body: body}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer collector.Close()
+	t.Setenv("MODULE_OBSERVABILITY_COLLECTOR_URL", collector.URL)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	database := db.DB(context.Background())
 	traces := memory.New()
@@ -151,11 +169,35 @@ func TestObservabilityModule(t *testing.T) {
 	spansPath := "/m/observability/api/v1/traces/trace-a/spans?" + window.Encode() + "&project=" + project + "&agent=" + agent
 	spanPath := "/m/observability/api/v1/traces/trace-a/spans/llm"
 
+	// keyOf signs an agent key for o's agent, with over replacing claims.
+	keyOf := func(o org, over jwt.MapClaims) string {
+		c := jwt.MapClaims{
+			"iss": config.GetConfig().JWTSigning.Issuer, "sub": agent, "jti": uuid.NewString(),
+			"org_id": o.id, "organization": o.handle, "project_uid": o.projectID, "project": project,
+			"component_uid": o.agentID, "agent": agent, "environment_uid": "env-1", "exp": time.Now().Add(time.Hour).Unix(),
+		}
+		for k, v := range over {
+			c[k] = v
+		}
+		return signLikeTheCore(t, c)
+	}
+	// A span whose resource claims org B.
+	span := map[string]any{"resourceSpans": []any{map[string]any{
+		"resource": map[string]any{"attributes": []any{
+			map[string]any{"key": "agent-manager/org-id", "value": map[string]any{"stringValue": b.id}},
+		}},
+	}}}
+	ingest := func(h http.Handler, header ...string) (int, []byte) {
+		return moduleWorld{}.call(t, h, http.MethodPost, "/m/observability"+observability.IngestPath, span, header...)
+	}
+
 	t.Run("routes are not found before install", func(t *testing.T) {
 		for _, p := range []string{listPath(nil), exportPath, spansPath, spanPath} {
 			code, _ := call(a.full, p)
 			assert.Equal(t, http.StatusNotFound, code, p)
 		}
+		code, _ := ingest(a.full, modkit.AgentKeyHeader, keyOf(a, nil))
+		assert.Equal(t, http.StatusNotFound, code, "nor is trace ingest")
 	})
 
 	_, err = host.Install(ctx, observability.Name, false)
@@ -232,12 +274,53 @@ func TestObservabilityModule(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, code)
 	})
 
+	t.Run("an agent's traces go to the collector under its key's org", func(t *testing.T) {
+		// Sent through org B's handler, with org B's headers: only the key counts.
+		code, body := ingest(b.full, modkit.AgentKeyHeader, keyOf(a, nil),
+			"X-Org-Id", b.id, "X-User-Component", b.agentID, "X-User-Agent-Name", "spoofed")
+		require.Equal(t, http.StatusOK, code, string(body))
+		e := <-exports
+		want := map[string]string{
+			"X-Org-Id": a.id, "X-User-Project": a.projectID, "X-User-Component": a.agentID, "X-User-Environment": "env-1",
+			"X-User-Organization-Name": a.handle, "X-User-Project-Name": project, "X-User-Agent-Name": agent,
+		}
+		for h, v := range want {
+			assert.Equal(t, []string{v}, e.header.Values(h), h)
+		}
+		assert.Empty(t, e.header.Get(modkit.AgentKeyHeader), "the key never reaches the collector")
+		sent, err := json.Marshal(span)
+		require.NoError(t, err)
+		assert.Equal(t, sent, e.body, "the body is forwarded unchanged; the collector replaces its identity attributes")
+	})
+
+	t.Run("trace ingest needs a valid agent key", func(t *testing.T) {
+		login := signLikeTheCore(t, jwt.MapClaims{
+			"iss": "amp-test-login", "sub": "tester", "ouId": a.id, "ouHandle": a.handle, "exp": time.Now().Add(time.Minute).Unix(),
+		})
+		refused := map[string][]string{
+			"no key":                    nil,
+			"a sign-in token":           {"Authorization", "Bearer " + login},
+			"a sign-in token as key":    {modkit.AgentKeyHeader, login},
+			"an expired key":            {modkit.AgentKeyHeader, keyOf(a, jwt.MapClaims{"exp": time.Now().Add(-time.Minute).Unix()})},
+			"another issuer's key":      {modkit.AgentKeyHeader, keyOf(a, jwt.MapClaims{"iss": "someone-else"})},
+			"a key for no agent":        {modkit.AgentKeyHeader, keyOf(a, jwt.MapClaims{"component_uid": uuid.NewString()})},
+			"a key for another's agent": {modkit.AgentKeyHeader, keyOf(a, jwt.MapClaims{"component_uid": b.agentID})},
+		}
+		for name, header := range refused {
+			code, body := ingest(a.full, header...)
+			assert.Equal(t, http.StatusUnauthorized, code, "%s: %s", name, body)
+		}
+		assert.Empty(t, exports, "nothing refused reaches the collector")
+	})
+
 	t.Run("disabling the module removes its routes", func(t *testing.T) {
 		require.NoError(t, host.Disable(ctx, observability.Name))
 		for _, p := range []string{listPath(nil), exportPath, spansPath, spanPath} {
 			code, _ := call(a.full, p)
 			assert.Equal(t, http.StatusNotFound, code, p)
 		}
+		code, _ := ingest(a.full, modkit.AgentKeyHeader, keyOf(a, nil))
+		assert.Equal(t, http.StatusNotFound, code, "an agent's export gets 404")
 	})
 }
 

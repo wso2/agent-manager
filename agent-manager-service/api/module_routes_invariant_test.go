@@ -239,17 +239,30 @@ func TestGatewaySpecMatchesRoutes(t *testing.T) {
 }
 
 // TestObservabilityRoutesAreAuthorized checks that every observability route
-// is a read under /m/observability that requires traces-read.
+// is under /m/observability: the user routes are reads that require
+// traces-read, and the agent-key ingest route is audited and takes no user
+// permission.
 func TestObservabilityRoutesAreAuthorized(t *testing.T) {
 	host, public, internal := mountedModule(t, observability.New(memory.New()))
 	require.NotEmpty(t, host.Routes(observability.Name))
 	require.NotEmpty(t, public)
 	assert.Empty(t, internal)
+	ingestPattern := "POST /m/observability" + observability.IngestPath
+	var ingest audit.RouteMeta
 	for _, meta := range public {
-		assert.Equal(t, http.MethodGet, meta.Method, meta.Pattern)
 		assert.True(t, strings.HasPrefix(meta.Path, "/m/observability/"), "%s is outside /m/observability", meta.Pattern)
+		if meta.Pattern == ingestPattern {
+			ingest = meta
+			continue
+		}
+		assert.Equal(t, http.MethodGet, meta.Method, meta.Pattern)
 		assert.Equal(t, []rbac.Permission{observability.TracesRead}, meta.Perms, meta.Pattern)
 	}
+	require.Equal(t, ingestPattern, ingest.Pattern, "the ingest route is mounted")
+	assert.True(t, ingest.Audited, "the ingest route is recorded")
+	assert.Equal(t, audit.Action("observability:traces-ingest"), ingest.Action)
+	assert.Equal(t, time.Hour, ingest.Coalesce, "once per agent per window")
+	assert.Empty(t, ingest.Perms, "an agent-key route takes no user permission")
 }
 
 func TestObservabilitySpecMatchesRoutes(t *testing.T) {

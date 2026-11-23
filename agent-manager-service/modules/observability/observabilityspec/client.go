@@ -48,6 +48,8 @@ type APIClient struct {
 
 	// API Services
 
+	IngestAPI *IngestAPIService
+
 	TracesAPI *TracesAPIService
 }
 
@@ -67,6 +69,7 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.common.client = c
 
 	// API Services
+	c.IngestAPI = (*IngestAPIService)(&c.common)
 	c.TracesAPI = (*TracesAPIService)(&c.common)
 
 	return c
