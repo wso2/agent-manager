@@ -69,6 +69,8 @@ var (
 	readKeys   = map[string]bool{}
 	registered = map[string]bool{}
 	tracking   bool
+	// fileErrs are the _FILE settings Load could not read.
+	fileErrs []error
 )
 
 // RegisterKeys declares settings a package reads with Value outside Load
@@ -81,12 +83,18 @@ func RegisterKeys(keys ...string) {
 	}
 }
 
-// Lookup returns a setting: the environment variable key if it is set (even
-// to ""), else the configuration file's value.
+// FileSuffix names a setting's file: KEY_FILE holds a path whose contents
+// are KEY's value.
+const FileSuffix = "_FILE"
+
+// Lookup returns a setting, first found of: the environment variable key
+// (even ""), the file the environment's key_FILE names, the configuration
+// file's key, the file the configuration file's key_file names.
 func Lookup(key string) (string, bool) {
 	fileMu.RLock()
 	track := tracking
 	v, inFile := fileVars[key]
+	vFile, inFileFile := fileVars[key+FileSuffix]
 	fileMu.RUnlock()
 	if track {
 		fileMu.Lock()
@@ -96,7 +104,34 @@ func Lookup(key string) (string, bool) {
 	if env, ok := os.LookupEnv(key); ok {
 		return env, true
 	}
-	return v, inFile
+	if path, ok := os.LookupEnv(key + FileSuffix); ok && path != "" {
+		return readSettingFile(key+FileSuffix, path)
+	}
+	if inFile {
+		return v, true
+	}
+	if inFileFile && vFile != "" {
+		return readSettingFile(key+FileSuffix, vFile)
+	}
+	return "", false
+}
+
+// readSettingFile reads a _FILE setting's file. A failure is reported by
+// Load when it happens there, and logged otherwise.
+func readSettingFile(name, path string) (string, bool) {
+	data, err := os.ReadFile(path)
+	if err == nil {
+		return trimNewline(string(data)), true
+	}
+	err = fmt.Errorf("%s: %w", name, err)
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	if tracking {
+		fileErrs = append(fileErrs, err)
+	} else {
+		slog.Error("reading a setting's file failed", "error", err)
+	}
+	return "", false
 }
 
 // Value is Lookup's value, "" when unset.
@@ -215,6 +250,7 @@ func Load(path string) error {
 	fileVars, fileModules = vars, mods
 	readKeys = map[string]bool{}
 	tracking = true
+	fileErrs = nil
 	fileMu.Unlock()
 
 	loadEnvs()
@@ -222,7 +258,11 @@ func Load(path string) error {
 	fileMu.Lock()
 	tracking = false
 	unknown := unknownKeys(vars)
+	readErr := errors.Join(fileErrs...)
 	fileMu.Unlock()
+	if readErr != nil {
+		return readErr
+	}
 	if len(unknown) > 0 {
 		slog.Warn("configuration file sets keys no setting reads; check their spelling", "keys", unknown)
 	}
@@ -259,7 +299,9 @@ func readConfigFile(flag string) (map[string]string, Modules, error) {
 func unknownKeys(vars map[string]string) []string {
 	var out []string
 	for k := range vars {
-		if readKeys[k] || registered[k] || strings.HasPrefix(k, ConsolePrefix) || strings.HasPrefix(k, ModulePrefix) {
+		base := strings.TrimSuffix(k, FileSuffix)
+		if readKeys[k] || registered[k] || readKeys[base] || registered[base] ||
+			strings.HasPrefix(k, ConsolePrefix) || strings.HasPrefix(k, ModulePrefix) {
 			continue
 		}
 		out = append(out, k)
