@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
+	"github.com/wso2/agent-manager/test/e2e/framework/amctl"
 )
 
 // Client is the shared API client used by all project tests.
@@ -31,16 +32,11 @@ var Client *framework.AMPClient
 // Cfg is the shared test configuration.
 var Cfg *framework.Config
 
-func TestProject(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Project Suite")
-}
-
-var _ = BeforeSuite(func() {
+// H is the amctl harness, the second channel journeys read their changes back
+// through. It owns the suite's only SynchronizedBeforeSuite, so the API client
+// is set up in its every-process hook.
+var H = amctl.RegisterSuite(amctl.WithSharedSetup(func() []byte { return nil }, func([]byte) {
 	Cfg = framework.LoadConfig()
-
-	By("Waiting for API readiness")
-	framework.WaitForAPIReady(Cfg)
 
 	By("Creating API client")
 	var err error
@@ -49,4 +45,9 @@ var _ = BeforeSuite(func() {
 
 	By("Verifying default organization")
 	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
-})
+}))
+
+func TestProject(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Project Suite")
+}

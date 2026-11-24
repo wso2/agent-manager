@@ -19,7 +19,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LLMProviderDocument, UpdateLLMProviderRequest } from "@agent-management-platform/types";
 import { httpDELETE, httpGET, httpPOST, httpPUT } from "../../shared/utils";
+import { describeHttpCases, type HttpMocks } from "../../test-utils/http-cases";
 import {
+  createLLMDeployment,
+  createLLMProviderAPIKey,
+  createLLMProviderTemplate,
+  createLLMProxy,
+  createLLMProxyAPIKey,
+  deleteLLMDeployment,
+  deleteLLMProviderTemplate,
+  deleteLLMProxy,
+  getLLMDeployment,
+  getLLMProviderTemplate,
+  getLLMProxy,
+  listAvailableLLMPolicies,
+  listLLMDeployments,
+  listLLMProviderAPIKeys,
+  listLLMProviderConsumers,
+  listLLMProviderProxies,
+  listLLMProviderTemplates,
+  listLLMProxies,
+  listLLMProxyAPIKeys,
+  restoreLLMDeployment,
+  revokeLLMProviderAPIKey,
+  revokeLLMProxyAPIKey,
+  rotateLLMProviderAPIKey,
+  rotateLLMProxyAPIKey,
+  undeployLLMProvider,
+  updateLLMProviderTemplate,
+  updateLLMProxy,
   createLLMProvider,
   deleteLLMProvider,
   documentFromCreateRequest,
@@ -202,3 +230,190 @@ describe("provider document conversion", () => {
     expect(JSON.parse(JSON.stringify(sent.spec))).toEqual(JSON.parse(JSON.stringify(expected)));
   });
 });
+
+const ORG = "/m/ai-gateway/orgs/acme%20corp";
+const PROV = `${ORG}/llm-providers/open%2Fai`;
+const PROXY = `${ORG}/projects/p%201/llm-proxies/px%2F1`;
+const org = { orgName: "acme corp" };
+const prov = { ...org, providerId: "open/ai" };
+const proxy = { ...org, projName: "p 1", proxyId: "px/1" };
+const dep = { ...prov, deploymentId: "d 1" };
+const httpMocks = {
+  GET: vi.mocked(httpGET),
+  POST: vi.mocked(httpPOST),
+  PUT: vi.mocked(httpPUT),
+  DELETE: vi.mocked(httpDELETE),
+} as unknown as HttpMocks;
+
+describeHttpCases("LLM provider template API", httpMocks, [
+  {
+    name: "listLLMProviderTemplates with paging",
+    call: () => listLLMProviderTemplates(org, { limit: 5, offset: 10 }, getToken),
+    method: "GET", url: `${ORG}/llm-provider-templates`, searchParams: { limit: "5", offset: "10" },
+  },
+  {
+    name: "listLLMProviderTemplates without paging",
+    call: () => listLLMProviderTemplates(org, undefined, getToken),
+    method: "GET", url: `${ORG}/llm-provider-templates`,
+  },
+  {
+    name: "createLLMProviderTemplate",
+    call: () => createLLMProviderTemplate(org, { id: "t" } as never, getToken),
+    method: "POST", url: `${ORG}/llm-provider-templates`, body: { id: "t" },
+  },
+  {
+    name: "getLLMProviderTemplate",
+    call: () => getLLMProviderTemplate({ ...org, templateId: "t/1" }, getToken),
+    method: "GET", url: `${ORG}/llm-provider-templates/t%2F1`,
+  },
+  {
+    name: "updateLLMProviderTemplate",
+    call: () => updateLLMProviderTemplate({ ...org, templateId: "t/1" }, { name: "T" } as never, getToken),
+    method: "PUT", url: `${ORG}/llm-provider-templates/t%2F1`, body: { name: "T" },
+  },
+  {
+    name: "deleteLLMProviderTemplate",
+    call: () => deleteLLMProviderTemplate({ ...org, templateId: "t/1" }, getToken),
+    method: "DELETE", url: `${ORG}/llm-provider-templates/t%2F1`, returnsBody: false,
+  },
+  {
+    name: "listLLMProviders without paging",
+    call: () => listLLMProviders(org, undefined, getToken),
+    method: "GET", url: BASE,
+  },
+]);
+
+describeHttpCases("LLM policy availability API", httpMocks, [
+  {
+    name: "listAvailableLLMPolicies scoped to a provider",
+    call: () => listAvailableLLMPolicies(org, { providerId: "openai" }, getToken),
+    method: "GET", url: `${ORG}/llm-providers/policies`, searchParams: { providerId: "openai" },
+    checksOk: false,
+  },
+  {
+    name: "listAvailableLLMPolicies for the whole org",
+    call: () => listAvailableLLMPolicies(org, undefined, getToken),
+    method: "GET", url: `${ORG}/llm-providers/policies`, checksOk: false,
+  },
+]);
+
+describeHttpCases("LLM proxy API", httpMocks, [
+  {
+    name: "listLLMProviderProxies",
+    call: () => listLLMProviderProxies(prov, { limit: 1, offset: 2 }, getToken),
+    method: "GET", url: `${PROV}/llm-proxies`, searchParams: { limit: "1", offset: "2" },
+  },
+  {
+    name: "listLLMProviderProxies without paging",
+    call: () => listLLMProviderProxies(prov, undefined, getToken),
+    method: "GET", url: `${PROV}/llm-proxies`,
+  },
+  {
+    name: "listLLMProxies",
+    call: () => listLLMProxies({ ...org, projName: "p 1" }, { limit: 50 }, getToken),
+    method: "GET", url: `${ORG}/projects/p%201/llm-proxies`, searchParams: { limit: "50" },
+  },
+  {
+    name: "listLLMProxies without paging",
+    call: () => listLLMProxies({ ...org, projName: "p 1" }, undefined, getToken),
+    method: "GET", url: `${ORG}/projects/p%201/llm-proxies`,
+  },
+  {
+    name: "createLLMProxy",
+    call: () => createLLMProxy({ ...org, projName: "p 1" }, { name: "px" } as never, getToken),
+    method: "POST", url: `${ORG}/projects/p%201/llm-proxies`, body: { name: "px" },
+  },
+  { name: "getLLMProxy", call: () => getLLMProxy(proxy, getToken), method: "GET", url: PROXY },
+  {
+    name: "updateLLMProxy",
+    call: () => updateLLMProxy(proxy, { name: "px2" } as never, getToken),
+    method: "PUT", url: PROXY, body: { name: "px2" },
+  },
+  {
+    name: "deleteLLMProxy", call: () => deleteLLMProxy(proxy, getToken),
+    method: "DELETE", url: PROXY, returnsBody: false,
+  },
+]);
+
+describeHttpCases("LLM deployment API", httpMocks, [
+  {
+    name: "listLLMDeployments filtered",
+    call: () => listLLMDeployments(prov, { gatewayId: "gw", status: "DEPLOYED" }, getToken),
+    method: "GET", url: `${PROV}/deployments`, searchParams: { gatewayId: "gw", status: "DEPLOYED" },
+  },
+  {
+    name: "listLLMDeployments unfiltered",
+    call: () => listLLMDeployments(prov, undefined, getToken),
+    method: "GET", url: `${PROV}/deployments`,
+  },
+  {
+    name: "createLLMDeployment",
+    call: () => createLLMDeployment(prov, { gatewayId: "gw" } as never, getToken),
+    method: "POST", url: `${PROV}/deployments`, body: { gatewayId: "gw" },
+  },
+  {
+    name: "undeployLLMProvider",
+    call: () => undeployLLMProvider(prov, { deploymentId: "d1", gatewayId: "gw" }, getToken),
+    method: "POST", url: `${PROV}/deployments/undeploy`, body: {},
+    searchParams: { deploymentId: "d1", gatewayId: "gw" }, returnsBody: false,
+  },
+  {
+    name: "restoreLLMDeployment",
+    call: () => restoreLLMDeployment(prov, { deploymentId: "d1", gatewayId: "gw" }, getToken),
+    method: "POST", url: `${PROV}/deployments/restore`, body: {},
+    searchParams: { deploymentId: "d1", gatewayId: "gw" },
+  },
+  {
+    name: "getLLMDeployment", call: () => getLLMDeployment(dep, getToken),
+    method: "GET", url: `${PROV}/deployments/d%201`,
+  },
+  {
+    name: "deleteLLMDeployment", call: () => deleteLLMDeployment(dep, getToken),
+    method: "DELETE", url: `${PROV}/deployments/d%201`, returnsBody: false,
+  },
+  {
+    name: "listLLMProviderConsumers", call: () => listLLMProviderConsumers(prov, getToken),
+    method: "GET", url: `${PROV}/consumers`,
+  },
+]);
+
+describeHttpCases("LLM API key API", httpMocks, [
+  {
+    name: "listLLMProviderAPIKeys", call: () => listLLMProviderAPIKeys(prov, getToken),
+    method: "GET", url: `${PROV}/api-keys`,
+  },
+  {
+    name: "createLLMProviderAPIKey",
+    call: () => createLLMProviderAPIKey(prov, { name: "k" } as never, getToken),
+    method: "POST", url: `${PROV}/api-keys`, body: { name: "k" },
+  },
+  {
+    name: "rotateLLMProviderAPIKey",
+    call: () => rotateLLMProviderAPIKey({ ...prov, keyName: "k 1" }, {} as never, getToken),
+    method: "PUT", url: `${PROV}/api-keys/k%201`, body: {},
+  },
+  {
+    name: "revokeLLMProviderAPIKey",
+    call: () => revokeLLMProviderAPIKey({ ...prov, keyName: "k 1" }, getToken),
+    method: "DELETE", url: `${PROV}/api-keys/k%201`, returnsBody: false,
+  },
+  {
+    name: "listLLMProxyAPIKeys", call: () => listLLMProxyAPIKeys(proxy, getToken),
+    method: "GET", url: `${PROXY}/api-keys`,
+  },
+  {
+    name: "createLLMProxyAPIKey",
+    call: () => createLLMProxyAPIKey(proxy, { name: "k" } as never, getToken),
+    method: "POST", url: `${PROXY}/api-keys`, body: { name: "k" },
+  },
+  {
+    name: "rotateLLMProxyAPIKey",
+    call: () => rotateLLMProxyAPIKey({ ...proxy, keyName: "k 1" }, {} as never, getToken),
+    method: "PUT", url: `${PROXY}/api-keys/k%201`, body: {},
+  },
+  {
+    name: "revokeLLMProxyAPIKey",
+    call: () => revokeLLMProxyAPIKey({ ...proxy, keyName: "k 1" }, getToken),
+    method: "DELETE", url: `${PROXY}/api-keys/k%201`, returnsBody: false,
+  },
+]);

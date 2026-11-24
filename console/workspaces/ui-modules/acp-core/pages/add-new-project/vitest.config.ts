@@ -28,5 +28,12 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./setupTests.tsx', '../../../../../vitest.jsdom-storage.ts'],
+    // Oxygen UI and MUI X import raw .css, which Node cannot load; inlining
+    // them lets Vite handle those imports.
+    server: {
+      deps: {
+        inline: ['@wso2/oxygen-ui', '@wso2/oxygen-ui-icons-react', '@mui/x-data-grid'],
+      },
+    },
   },
 });

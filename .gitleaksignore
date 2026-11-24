@@ -15,3 +15,5 @@ a37d7c58c02781395f57076cbbb2f71d52545e30:deployments/standalone/.env.example:gen
 02725980ca4e2353dbf1701e441c1c8b3fbcdf12:agent-manager-service/audit/sanitize_url_test.go:generic-api-key:99
 # Fixed hex ENCRYPTION_KEY a first-run test sets to prove a set key is kept, not a credential.
 f789e53ae813057ab0c8fa8bfa1b488ccafd9158:agent-manager-service/internal/cli/firstrun_test.go:generic-api-key:90
+# Dummy "mcp-secret" key in a test of the curl command the MCP proxy page shows, not a credential.
+2227a02856da4b3e18c8e5b3614732c9dbf036f5:console/workspaces/ui-modules/ai-gateway/pages/configure-agent/src/ViewMCPServer.Guide.test.tsx:curl-auth-header:278

@@ -573,7 +573,7 @@ type LLMProxyResponse struct {
 }
 
 type LLMProxyListResponse struct {
-	Proxies []LLMProxyResponse `json:"llmProxies"`
+	Proxies []LLMProxyResponse `json:"proxies"`
 	Total   int                `json:"total"`
 	Limit   int                `json:"limit"`
 	Offset  int                `json:"offset"`

@@ -31,7 +31,6 @@ func TestE2E(t *testing.T) {
 	RunSpecs(t, "AMP E2E Root Suite")
 }
 
-
 var _ = Describe("Stale E2E resource cleanup", Label("cleanup"), func() {
 	It("removes stale e2e resources left by prior runs", func() {
 		cfg := framework.LoadConfig()

@@ -17,12 +17,25 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { httpGET } from "../../shared/utils";
-import { getProjectMCPProxy, listMCPProxies } from "./mcp-proxies";
+import { httpDELETE, httpGET, httpPOST, httpPUT } from "../../shared/utils";
+import { describeHttpCases, getToken, type HttpMocks } from "../../test-utils/http-cases";
+import {
+  createMCPProxy,
+  deleteMCPProxy,
+  fetchMCPProxyServerInfo,
+  getMCPProxy,
+  getProjectMCPProxy,
+  listAvailableMCPPolicies,
+  listMCPProxies,
+  updateMCPProxy,
+} from "./mcp-proxies";
 
 vi.mock("../../shared/utils", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../shared/utils")>()),
   httpGET: vi.fn(),
+  httpPOST: vi.fn(),
+  httpPUT: vi.fn(),
+  httpDELETE: vi.fn(),
 }));
 
 const mockGET = vi.mocked(httpGET);
@@ -61,5 +74,62 @@ describe("getProjectMCPProxy", () => {
       getProjectMCPProxy({ orgName: "org", projName: undefined, proxyId: "orders" }),
     ).rejects.toThrow();
     expect(mockGET).not.toHaveBeenCalled();
+  });
+});
+
+const ORG = "/m/ai-gateway/orgs/acme%20corp";
+const proxy = { orgName: "acme corp", proxyId: "orders/v1" };
+const body = { name: "orders", upstream: { url: "https://mcp.example" } };
+const httpMocks = {
+  GET: vi.mocked(httpGET),
+  POST: vi.mocked(httpPOST),
+  PUT: vi.mocked(httpPUT),
+  DELETE: vi.mocked(httpDELETE),
+} as unknown as HttpMocks;
+
+describeHttpCases("MCP proxy API", httpMocks, [
+  {
+    name: "listMCPProxies without a query",
+    call: () => listMCPProxies({ orgName: "acme corp" }, undefined, getToken),
+    method: "GET", url: `${ORG}/mcp-proxies`,
+  },
+  {
+    name: "listAvailableMCPPolicies",
+    call: () => listAvailableMCPPolicies({ orgName: "acme corp" }, getToken),
+    method: "GET", url: `${ORG}/mcp-proxies/policies`,
+  },
+  {
+    name: "createMCPProxy",
+    call: () => createMCPProxy({ orgName: "acme corp" }, body as never, getToken),
+    method: "POST", url: `${ORG}/mcp-proxies`, body,
+  },
+  { name: "getMCPProxy", call: () => getMCPProxy(proxy, getToken), method: "GET", url: `${ORG}/mcp-proxies/orders%2Fv1` },
+  {
+    name: "getProjectMCPProxy",
+    call: () => getProjectMCPProxy({ ...proxy, projName: "p 1" }, getToken),
+    method: "GET", url: `${ORG}/projects/p%201/mcp-proxies/orders%2Fv1`,
+  },
+  {
+    name: "updateMCPProxy",
+    call: () => updateMCPProxy(proxy, body as never, getToken),
+    method: "PUT", url: `${ORG}/mcp-proxies/orders%2Fv1`, body,
+  },
+  {
+    name: "deleteMCPProxy", call: () => deleteMCPProxy(proxy, getToken),
+    method: "DELETE", url: `${ORG}/mcp-proxies/orders%2Fv1`, returnsBody: false,
+  },
+  {
+    name: "fetchMCPProxyServerInfo",
+    call: () => fetchMCPProxyServerInfo({ orgName: "acme corp" }, { url: "https://mcp.example" } as never, getToken),
+    method: "POST", url: `${ORG}/mcp-proxies/fetch-server-info`, body: { url: "https://mcp.example" },
+  },
+]);
+
+describe("fetchMCPProxyServerInfo", () => {
+  it("passes the caller's abort signal to the request", async () => {
+    vi.mocked(httpPOST).mockReset().mockResolvedValue(new Response("{}"));
+    const controller = new AbortController();
+    await fetchMCPProxyServerInfo({ orgName: "o" }, { url: "u" } as never, getToken, controller.signal);
+    expect(vi.mocked(httpPOST).mock.calls[0][2]).toEqual({ token: "jwt", signal: controller.signal });
   });
 });

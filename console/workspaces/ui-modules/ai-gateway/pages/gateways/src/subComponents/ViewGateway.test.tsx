@@ -16,8 +16,8 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import {
   FeatureManagementProvider,
   type FeatureFlags,
@@ -33,14 +33,35 @@ vi.mock("@agent-management-platform/api-client", () => ({
 vi.mock("@agent-management-platform/views", async () => {
   const React = await import("react");
   return {
-    PageLayout: ({ children }: { children: React.ReactNode }) =>
-      React.createElement("div", null, children),
+    PageLayout: ({
+      children,
+      title,
+      description,
+      actions,
+      titleTail,
+    }: {
+      children: React.ReactNode;
+      title: string;
+      description?: string;
+      actions?: React.ReactNode;
+      titleTail?: React.ReactNode;
+    }) =>
+      React.createElement(
+        "div",
+        null,
+        React.createElement("h1", null, title),
+        description && React.createElement("p", null, description),
+        actions,
+        titleTail,
+        children,
+      ),
   };
 });
 
 vi.mock("@agent-management-platform/shared-component", () => ({
-  GatewayTypeChip: () => null,
-  getErrorMessage: () => "",
+  GatewayTypeChip: ({ type }: { type: string }) => <span>type {type}</span>,
+  getErrorMessage: (e: unknown) => (e instanceof Error ? e.message : ""),
+  formatRelativeTime: () => "3 days ago",
 }));
 
 vi.mock("./GatewayIdentityProvidersCard", () => ({
@@ -56,29 +77,44 @@ vi.mock("./SelfHostedSetupSteps", () => ({
 }));
 
 let featureFlags: Partial<FeatureFlags> = {};
+let canWrite = true;
 
-const renderGateway = (hosting: "MANAGED" | "SELF_HOSTED") => {
-  getGateway.mockReturnValue({
-    data: {
-      uuid: "gw-1",
-      name: "gw-1",
-      displayName: "Gateway 1",
-      hosting,
-      status: "ACTIVE",
-      environments: [],
-    },
-    isLoading: false,
-    error: null,
-  });
+const Location = () => <div data-testid="location">{useLocation().pathname}</div>;
+
+const renderGateway = (
+  hosting: "MANAGED" | "SELF_HOSTED",
+  query?: { data?: Record<string, unknown>; isLoading?: boolean; error?: unknown },
+) => {
+  getGateway.mockReturnValue(
+    query
+      ? { isLoading: false, error: null, ...query }
+      : {
+          data: {
+            uuid: "gw-1",
+            name: "gw-1",
+            displayName: "Gateway 1",
+            hosting,
+            status: "ACTIVE",
+            environments: [],
+          },
+          isLoading: false,
+          error: null,
+        },
+  );
   render(
-    <FeatureManagementProvider featureFlags={featureFlags}>
+    <FeatureManagementProvider
+      featureFlags={featureFlags}
+      featureAccess={{ gateway_write: canWrite }}
+    >
       <MemoryRouter
         initialEntries={["/org/acme/gateways/gw-1"]}
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
         <Routes>
           <Route path="/org/:orgId/gateways/:gatewayId" element={<ViewGateway />} />
+          <Route path="*" element={null} />
         </Routes>
+        <Location />
       </MemoryRouter>
     </FeatureManagementProvider>,
   );
@@ -86,6 +122,7 @@ const renderGateway = (hosting: "MANAGED" | "SELF_HOSTED") => {
 
 afterEach(() => {
   featureFlags = {};
+  canWrite = true;
 });
 
 describe("ViewGateway with enableSelfHostedGateways off", () => {
@@ -105,5 +142,63 @@ describe("ViewGateway with enableSelfHostedGateways off", () => {
     expect(screen.getByText("identity providers card")).toBeInTheDocument();
     expect(screen.queryByText("setup steps")).not.toBeInTheDocument();
     expect(screen.queryByText("tokens card")).not.toBeInTheDocument();
+  });
+});
+
+describe("ViewGateway details", () => {
+  const detailed = {
+    uuid: "gw-1",
+    name: "edge",
+    displayName: "Edge Gateway",
+    hosting: "MANAGED",
+    status: "INACTIVE",
+    isCritical: true,
+    gatewayType: "AI",
+    vhost: "edge.example.com",
+    createdAt: "2026-01-01T00:00:00Z",
+    environments: [
+      { id: "e1", name: "dev", displayName: "Development" },
+      { id: "e2", name: "prod", displayName: "" },
+    ],
+  };
+
+  it("shows the gateway's status, host and environments", () => {
+    renderGateway("MANAGED", { data: detailed });
+
+    expect(screen.getByRole("heading", { name: "Edge Gateway" })).toBeInTheDocument();
+    expect(screen.getByText("Created 3 days ago")).toBeInTheDocument();
+    expect(screen.getByText("Inactive")).toBeInTheDocument();
+    expect(screen.getByText("Critical")).toBeInTheDocument();
+    expect(screen.getByText("type AI")).toBeInTheDocument();
+    expect(screen.getByText("edge.example.com")).toBeInTheDocument();
+    expect(screen.getByText("Development")).toBeInTheDocument();
+    expect(screen.getByText("prod")).toBeInTheDocument();
+  });
+
+  it("opens the edit page", () => {
+    renderGateway("MANAGED", { data: detailed });
+    fireEvent.click(screen.getByRole("button", { name: "Edit gateway" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/org/acme/gateways/edit/gw-1");
+  });
+
+  it("offers no edit without gateway write access", () => {
+    canWrite = false;
+    renderGateway("MANAGED", { data: detailed });
+    expect(screen.queryByRole("button", { name: "Edit gateway" })).not.toBeInTheDocument();
+  });
+
+  it("reports a failed load and shows no details", () => {
+    renderGateway("MANAGED", { data: undefined, error: new Error("gateway not found") });
+
+    expect(screen.getByText(/Failed to load gateway\. gateway not found/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "gw-1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit gateway" })).toBeDisabled();
+    expect(screen.queryByText("identity providers card")).not.toBeInTheDocument();
+  });
+
+  it("shows no details while loading", () => {
+    renderGateway("MANAGED", { data: undefined, isLoading: true });
+    expect(screen.queryByText("Virtual Host")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Failed to load gateway/)).not.toBeInTheDocument();
   });
 });

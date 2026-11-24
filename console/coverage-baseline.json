@@ -1,11 +1,15 @@
 {
   "areas": {
+    "workspaces/core-ui": {
+      "covered": 2448,
+      "total": 2492
+    },
     "workspaces/libs/api-client": {
-      "covered": 1285,
-      "total": 8552
+      "covered": 7258,
+      "total": 8597
     },
     "workspaces/libs/auth": {
-      "covered": 261,
+      "covered": 807,
       "total": 841
     },
     "workspaces/libs/feature-management": {
@@ -13,52 +17,64 @@
       "total": 73
     },
     "workspaces/libs/shared-component": {
-      "covered": 1761,
+      "covered": 8196,
       "total": 8237
     },
     "workspaces/libs/views": {
-      "covered": 0,
+      "covered": 1885,
       "total": 2643
     },
     "workspaces/ui-modules/acp-core/pages/add-new-agent": {
-      "covered": 135,
+      "covered": 150,
       "total": 189
     },
     "workspaces/ui-modules/acp-core/pages/add-new-project": {
-      "covered": 0,
+      "covered": 308,
       "total": 345
     },
     "workspaces/ui-modules/acp-core/pages/external-agent": {
-      "covered": 0,
+      "covered": 233,
       "total": 266
     },
+    "workspaces/ui-modules/acp-core/pages/identities": {
+      "covered": 2585,
+      "total": 2637
+    },
     "workspaces/ui-modules/acp-core/pages/level-resource-listing": {
-      "covered": 0,
+      "covered": 416,
       "total": 492
     },
     "workspaces/ui-modules/acp-core/pages/overview": {
-      "covered": 580,
+      "covered": 1192,
       "total": 1455
     },
+    "workspaces/ui-modules/acp-core/pages/settings": {
+      "covered": 2825,
+      "total": 2894
+    },
     "workspaces/ui-modules/agent-identity/pages/env-thunders": {
-      "covered": 0,
+      "covered": 3334,
       "total": 3402
     },
     "workspaces/ui-modules/ai-gateway/pages/agent-security": {
-      "covered": 135,
+      "covered": 219,
       "total": 234
     },
     "workspaces/ui-modules/ai-gateway/pages/configure-agent": {
-      "covered": 1618,
+      "covered": 5490,
       "total": 5750
     },
     "workspaces/ui-modules/ai-gateway/pages/gateways": {
-      "covered": 691,
-      "total": 1927
+      "covered": 1864,
+      "total": 1929
     },
     "workspaces/ui-modules/ai-gateway/pages/llm-providers": {
-      "covered": 226,
+      "covered": 4410,
       "total": 4739
+    },
+    "workspaces/ui-modules/ai-gateway/pages/mcp-proxies": {
+      "covered": 5028,
+      "total": 5211
     },
     "workspaces/ui-modules/ai-observability/pages/eval": {
       "covered": 0,

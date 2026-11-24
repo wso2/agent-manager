@@ -62,6 +62,10 @@ type Connection struct {
 
 	// closed tracks whether the connection has been terminated
 	closed bool
+
+	// writeMu serializes Send and SendPing: the transport allows one writer
+	// at a time, and both run under the shared read lock.
+	writeMu sync.Mutex
 }
 
 // NewConnection creates a new Connection wrapper with the provided parameters
@@ -89,6 +93,8 @@ func (c *Connection) Send(message []byte) error {
 		return ErrConnectionClosed
 	}
 
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	return c.Transport.Send(message)
 }
 
@@ -115,6 +121,8 @@ func (c *Connection) SendPing() error {
 		return ErrConnectionClosed
 	}
 
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	return c.Transport.SendPing()
 }
 
