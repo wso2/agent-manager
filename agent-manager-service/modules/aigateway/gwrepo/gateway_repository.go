@@ -449,13 +449,18 @@ func (r *GatewayRepo) CountActiveTokens(gatewayId string) (int, error) {
 	return int(count), err
 }
 
-// HasGatewayDeployments reports whether the gateway holds any artifact: a row that names a deployment and isn't
-// UNDEPLOYED. PENDING rows were never sent, and UNDEPLOYED rows are kept for good.
+// HasGatewayDeployments reports whether the gateway holds any artifact the user still wants on it: a row that names a
+// deployment and isn't UNDEPLOYED. PENDING rows were never sent, and UNDEPLOYED rows are kept for good. An undeploy
+// that FAILED (most often timed out, as on a gateway that never connected) doesn't count: the user asked for the
+// artifact to go, and deleting the gateway removes its rows and revokes its tokens. An undeploy still in flight does,
+// so a connected gateway gets its timeout to confirm it.
 func (r *GatewayRepo) HasGatewayDeployments(gatewayID, ouID string) (bool, error) {
 	var count int64
 	err := r.db.Model(&gwmodels.DeploymentStatusRecord{}).
 		Where("gateway_id = ? AND org_id = ? AND deployment_id IS NOT NULL AND status <> ?",
 			gatewayID, ouID, gwmodels.DeploymentStatusUndeployed).
+		Where("NOT (status_desired = ? AND status = ?)",
+			gwmodels.DeploymentStatusUndeployed, gwmodels.DeploymentStatusFailed).
 		Count(&count).Error
 	if err != nil {
 		return false, err
