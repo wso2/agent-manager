@@ -396,6 +396,17 @@ describe("OxygenLayout header and footer", () => {
     expect(screen.getByRole("link", { name: "Privacy Policy" })).toBeInTheDocument();
   });
 
+  it("renders footer mount-point panels", () => {
+    runtimeConfig.docsUrl = "https://docs.example.com";
+    renderAt("/org/acme/overview", [
+      panel(MountPoints.BottomLeftPanel, "bottom left"),
+      panel(MountPoints.BottomRightPanel, "bottom right"),
+    ]);
+    expect(screen.getByText("bottom left")).toBeInTheDocument();
+    expect(screen.getByText("bottom right")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Documentation" })).toBeInTheDocument();
+  });
+
   it("leaves footer links out when they are not configured", () => {
     renderAt("/org/acme/overview");
     expect(screen.queryByRole("link", { name: "Documentation" })).not.toBeInTheDocument();
