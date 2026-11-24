@@ -45,11 +45,6 @@ const scope = { ...proxy, scopeAction: "read:orders" };
 describeHttpCases("MCP proxy scope API", mocks, [
   { name: "listMCPProxyScopes", call: () => listMCPProxyScopes(proxy, getToken), method: "GET", url: SCOPES },
   {
-    name: "listMCPProxyScopes falls back to the default org",
-    call: () => listMCPProxyScopes({ proxyId: "p" } as never, getToken),
-    method: "GET", url: "/m/ai-gateway/orgs/default/mcp-proxies/p/scopes",
-  },
-  {
     name: "createMCPProxyScope",
     call: () => createMCPProxyScope(proxy, { action: "read:orders", tools: ["list"] } as never, getToken),
     method: "POST", url: SCOPES, body: { action: "read:orders", tools: ["list"] },
@@ -76,5 +71,19 @@ describe("MCP proxy scope API required params", () => {
     await expect(call()).rejects.toThrow("scopeAction");
     expect(mocks.PUT).not.toHaveBeenCalled();
     expect(mocks.DELETE).not.toHaveBeenCalled();
+  });
+});
+
+describe("MCP proxy scope API refuses a missing org or proxy", () => {
+  it.each([
+    ["org", () => listMCPProxyScopes({ proxyId: "p" } as never, getToken), "orgName"],
+    ["proxy", () => listMCPProxyScopes({ orgName: "acme" } as never, getToken), "proxyId"],
+    ["proxy on create", () => createMCPProxyScope({ orgName: "acme" } as never, {} as never, getToken), "proxyId"],
+  ])("without the %s", async (_n, call, label) => {
+    mocks.GET.mockReset();
+    mocks.POST.mockReset();
+    await expect(call()).rejects.toThrow(label);
+    expect(mocks.GET).not.toHaveBeenCalled();
+    expect(mocks.POST).not.toHaveBeenCalled();
   });
 });

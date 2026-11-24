@@ -26,8 +26,10 @@ import type {
   MCPProxyScopePathParams,
 } from "@agent-management-platform/types";
 
-const scopesBase = (orgName: string, proxyId: string) =>
-  `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/mcp-proxies/${encodeURIComponent(proxyId)}/scopes`;
+// Both are required: a missing one would request another org's, or
+// `/mcp-proxies/undefined/`, scopes.
+const scopesBase = (orgName: string | undefined, proxyId: string | undefined) =>
+  `${GATEWAY_BASE}/orgs/${encodeRequired(orgName, "orgName")}/mcp-proxies/${encodeRequired(proxyId, "proxyId")}/scopes`;
 
 /**
  * List an MCP proxy's scopes
@@ -36,7 +38,7 @@ export async function listMCPProxyScopes(
   params: MCPProxyScopesPathParams,
   getToken?: () => Promise<string>,
 ): Promise<MCPProxyScopeListResponse> {
-  const { orgName = "default", proxyId } = params;
+  const { orgName, proxyId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(scopesBase(orgName, proxyId), { token });
   if (!res.ok) throw await res.json();
@@ -51,7 +53,7 @@ export async function createMCPProxyScope(
   body: MCPProxyScopeRequest,
   getToken?: () => Promise<string>,
 ): Promise<MCPProxyScopeResponse> {
-  const { orgName = "default", proxyId } = params;
+  const { orgName, proxyId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(scopesBase(orgName, proxyId), body, { token });
   if (!res.ok) throw await res.json();
@@ -67,7 +69,7 @@ export async function updateMCPProxyScope(
   body: MCPProxyScopeUpdateRequest,
   getToken?: () => Promise<string>,
 ): Promise<MCPProxyScopeResponse> {
-  const { orgName = "default", proxyId, scopeAction } = params;
+  const { orgName, proxyId, scopeAction } = params;
   const action = encodeRequired(scopeAction, "scopeAction");
   const token = getToken ? await getToken() : undefined;
   const res = await httpPUT(`${scopesBase(orgName, proxyId)}/${action}`, body, { token });
@@ -82,7 +84,7 @@ export async function deleteMCPProxyScope(
   params: MCPProxyScopePathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", proxyId, scopeAction } = params;
+  const { orgName, proxyId, scopeAction } = params;
   const action = encodeRequired(scopeAction, "scopeAction");
   const token = getToken ? await getToken() : undefined;
   const res = await httpDELETE(`${scopesBase(orgName, proxyId)}/${action}`, { token });
