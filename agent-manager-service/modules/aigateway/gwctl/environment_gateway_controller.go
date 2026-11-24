@@ -77,6 +77,8 @@ func convertToSpecGatewayResponse(gw *gwmodels.GatewayResponse) gwspec.GatewayRe
 		Vhost:       gw.VHost,
 		IsCritical:  gw.IsCritical,
 		Status:      gwspec.GatewayStatus(gw.Status),
+		CreatedAt:   gw.CreatedAt,
+		UpdatedAt:   gw.UpdatedAt,
 	}
 
 	return response

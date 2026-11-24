@@ -248,6 +248,11 @@ func TestCovMCPConfigurationMappings(t *testing.T) {
 	proxies := NewMCPProxyRepo(gdb, repositories.NewCoreReadAPI(gdb), gwtest.NewSecrets())
 	configs := NewAgentConfigurationRepository(gdb)
 	mappings := NewEnvAgentMCPMappingRepository(gdb)
+	require.NotPanics(t, func() {
+		require.Error(t, mappings.Create(context.Background(), gdb, &gwmodels.EnvAgentMCPMapping{}, nil, "h", "n", "v1", ou),
+			"a missing proxy mapping is refused, not dereferenced")
+		require.Error(t, mappings.Create(context.Background(), gdb, nil, &gwmodels.MCPProxyMapping{}, "h", "n", "v1", ou))
+	})
 	proxyHandle := "m-" + uuid.NewString()[:6]
 	proxy := covMCPProxy(t, proxies, ou, proxyHandle, "")
 	other := covMCPProxy(t, proxies, ou, "m2-"+uuid.NewString()[:6], "")

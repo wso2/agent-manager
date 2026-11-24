@@ -152,6 +152,11 @@ var _ = Describe("Project LLM proxies:", Label("llm-provider", "llm-proxy"), Ord
 		framework.Call(Default, Client, http.MethodDelete, px("/%s/api-keys/e2e-px-key", proxyID), nil, http.StatusNoContent)
 		keys = framework.CallObj(Default, Client, http.MethodGet, px("/%s/api-keys", proxyID), nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(keys, "keys"), "name")).NotTo(ContainElement("e2e-px-key"))
+
+		// Rotating a revoked key does not bring it back.
+		framework.CallError(Default, Client, http.MethodPut, px("/%s/api-keys/e2e-px-key", proxyID), framework.Obj{}, http.StatusNotFound)
+		keys = framework.CallObj(Default, Client, http.MethodGet, px("/%s/api-keys", proxyID), nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(keys, "keys"), "name")).NotTo(ContainElement("e2e-px-key"))
 	})
 
 	It("lets an agent consume the provider through its own proxy, as amctl shows", func() {

@@ -60,13 +60,16 @@ func NewEnvAgentMCPMappingRepository(db *gorm.DB) EnvAgentMCPMappingRepository {
 }
 
 func (r *envAgentMCPMappingRepository) Create(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping, proxyMapping *gwmodels.MCPProxyMapping, handle, name, version, ouID string) error {
+	if mapping == nil {
+		return fmt.Errorf("agent MCP mapping is required")
+	}
+	if proxyMapping == nil {
+		return fmt.Errorf("MCP proxy mapping is required")
+	}
 	if mapping.ArtifactUUID == uuid.Nil {
 		mapping.ArtifactUUID = uuid.Must(uuid.NewV7())
 	}
 	proxyMapping.OrgID = ouID
-	if proxyMapping == nil {
-		return fmt.Errorf("MCP proxy mapping is required")
-	}
 	if proxyMapping.UUID == uuid.Nil {
 		proxyMapping.UUID = mapping.ArtifactUUID
 	}

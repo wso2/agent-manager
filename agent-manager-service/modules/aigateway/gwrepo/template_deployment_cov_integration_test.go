@@ -134,6 +134,11 @@ func TestCovDeploymentRepoReadsDeploymentsAndTheirGateways(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, archived.Status)
 	assert.Equal(t, gwmodels.DeploymentStatusArchived, *archived.Status, "a deployment no row points at is archived")
+	unknown, err := repo.GetWithState(uuid.NewString(), artifact.String(), ou)
+	require.ErrorIs(t, err, gwerr.ErrDeploymentNotFound, "an unknown deployment is not read back as an empty archived one")
+	assert.Nil(t, unknown)
+	_, err = repo.GetWithState(current.DeploymentID.String(), artifact.String(), newOrg(t))
+	require.ErrorIs(t, err, gwerr.ErrDeploymentNotFound, "nor is another organization's")
 
 	sent, err := repo.SentGateways(context.Background(), ou, artifact)
 	require.NoError(t, err)

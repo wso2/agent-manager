@@ -135,7 +135,7 @@ func TestGWRoutesCatalog(t *testing.T) {
 			}},
 		},
 	}, gw.UUID.String()), gw.UUID.String())
-	gwCreateProvider(t, a, idle)
+	idleUID := gwCreateProvider(t, a, idle)
 
 	all := gwCatalogQuery(t, a, "")
 	require.Equal(t, 2, all.Total)
@@ -148,6 +148,12 @@ func TestGWRoutesCatalog(t *testing.T) {
 		handles = append(handles, e.Handle)
 	}
 	require.ElementsMatch(t, []string{deployed, idle}, handles)
+	for _, e := range all.Entries {
+		require.NotEqual(t, uuid.Nil.String(), e.UUID, "%s carries its artifact ID", e.Handle)
+		if e.Handle == idle {
+			require.Equal(t, idleUID, e.UUID)
+		}
+	}
 
 	page := gwCatalogQuery(t, a, "?limit=1&offset=1")
 	require.Equal(t, 2, page.Total)
@@ -280,6 +286,17 @@ func TestGWRoutesEnvironmentGateways(t *testing.T) {
 	require.Equal(t, ingress.Name, byID[ingress.UUID.String()].Name)
 	require.Equal(t, "MANAGED", byID[ingress.UUID.String()].Hosting)
 	require.Equal(t, ingress.Vhost, byID[ingress.UUID.String()].Vhost)
+
+	// The response decodes into the generated client's types: the status is
+	// one of the spec's values and the timestamps are the gateway's own.
+	typed := expectInto[gwspec.GetEnvironmentGateways200Response](t,
+		a.do(http.MethodGet, "/orgs/{org}/environments/default/gateways", nil), http.StatusOK)
+	require.Len(t, typed.Gateways, 2)
+	for _, g := range typed.Gateways {
+		require.True(t, g.Status.IsValid(), "status %q is in the spec enum", g.Status)
+		require.False(t, g.CreatedAt.IsZero(), "%s has its creation time", g.Name)
+		require.False(t, g.UpdatedAt.IsZero(), "%s has its update time", g.Name)
+	}
 
 	// Either the environment or the gateway read permission admits the caller.
 	expect(t, a.do(http.MethodGet, "/orgs/{org}/environments/default/gateways", nil, withScopes(scope(gwperm.Read))), http.StatusOK)
