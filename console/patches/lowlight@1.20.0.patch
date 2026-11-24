@@ -1,0 +1,55 @@
+diff --git a/lib/core.js b/lib/core.js
+index 73c543b..4f6279e 100644
+--- a/lib/core.js
++++ b/lib/core.js
+@@ -14,6 +14,10 @@ Emitter.prototype.addKeyword = addKeyword
+ Emitter.prototype.addSublanguage = addSublanguage
+ Emitter.prototype.openNode = open
+ Emitter.prototype.closeNode = close
++// highlight.js 11.9+ emitter API.
++Emitter.prototype.startScope = startScope
++Emitter.prototype.endScope = close
++Emitter.prototype.__addSublanguage = addSublanguage
+ Emitter.prototype.closeAllNodes = noop
+ Emitter.prototype.finalize = noop
+ Emitter.prototype.toHTML = toHtmlNoop
+@@ -58,7 +62,7 @@ function highlight(name, value, options) {
+   return {
+     relevance: result.relevance,
+     language: result.language,
+-    value: result.emitter.rootNode.children
++    value: (result._emitter || result.emitter).rootNode.children
+   }
+ }
+ 
+@@ -196,6 +200,30 @@ function open(name) {
+   stack.push(child)
+ }
+ 
++// Map a highlight.js 11 scope such as `title.function` to the class names
++// highlight.js itself renders (`hljs-title function_`).
++function startScope(scope) {
++  var parts = scope.split('.')
++  var className = [this.options.classPrefix + parts[0]]
++  var index = 0
++  var stack = this.stack
++  var child
++
++  while (++index < parts.length) {
++    className.push(parts[index] + '_'.repeat(index))
++  }
++
++  child = {
++    type: 'element',
++    tagName: 'span',
++    properties: {className: className},
++    children: []
++  }
++
++  stack[stack.length - 1].children.push(child)
++  stack.push(child)
++}
++
+ function close() {
+   this.stack.pop()
+ }

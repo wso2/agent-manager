@@ -9,6 +9,7 @@ overrides:
   axios: ^1.20.0
   dompurify: ^3.4.17
   prismjs: ^1.30.0
+  highlight.js: ^11.11.1
   js-yaml@<4.3.2: ^4.3.2
   brace-expansion@1: ^1.1.21
   brace-expansion@2: ^2.1.7
@@ -18,6 +19,11 @@ overrides:
   minimatch@10: ^11.0.4
   uri-js: npm:uri-js-replace@^1.0.2
   parse5: ^8.1.1
+
+patchedDependencies:
+  lowlight@1.20.0:
+    hash: k5nr4qoeadbysypcsglesrapvu
+    path: patches/lowlight@1.20.0.patch
 
 importers:
 
@@ -7880,8 +7886,9 @@ packages:
   hermes-parser@0.25.1:
     resolution: {integrity: sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA==}
 
-  highlight.js@10.7.3:
-    resolution: {integrity: sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==}
+  highlight.js@11.12.0:
+    resolution: {integrity: sha512-nbfWpyRMcMrPMmDwJB+dhX/eiaPKtc2RB+0QZskqJ3WjRA/FDS0e9hZrx8EC/lbEv8gXy98FcDbNa/dspAaJMg==}
+    engines: {node: '>=12.0.0'}
 
   highlightjs-vue@1.0.0:
     resolution: {integrity: sha512-PDEfEF102G23vHmPhLyPboFCD+BkMGu+GuJe2d9/eH4FsCwvgBpnc9n0pGE+ffKdph38s6foEZiEjdgHdzp+IA==}
@@ -14533,7 +14540,7 @@ snapshots:
     dependencies:
       hermes-estree: 0.25.1
 
-  highlight.js@10.7.3: {}
+  highlight.js@11.12.0: {}
 
   highlightjs-vue@1.0.0: {}
 
@@ -15022,10 +15029,10 @@ snapshots:
 
   loupe@3.2.1: {}
 
-  lowlight@1.20.0:
+  lowlight@1.20.0(patch_hash=k5nr4qoeadbysypcsglesrapvu):
     dependencies:
       fault: 1.0.4
-      highlight.js: 10.7.3
+      highlight.js: 11.12.0
 
   lru-cache@10.4.3: {}
 
@@ -15914,9 +15921,9 @@ snapshots:
   react-syntax-highlighter@15.6.1(react@19.2.3):
     dependencies:
       '@babel/runtime': 7.29.7
-      highlight.js: 10.7.3
+      highlight.js: 11.12.0
       highlightjs-vue: 1.0.0
-      lowlight: 1.20.0
+      lowlight: 1.20.0(patch_hash=k5nr4qoeadbysypcsglesrapvu)
       prismjs: 1.30.0
       react: 19.2.3
       refractor: 3.6.0
@@ -15924,9 +15931,9 @@ snapshots:
   react-syntax-highlighter@16.1.2(react@19.2.3):
     dependencies:
       '@babel/runtime': 7.29.7
-      highlight.js: 10.7.3
+      highlight.js: 11.12.0
       highlightjs-vue: 1.0.0
-      lowlight: 1.20.0
+      lowlight: 1.20.0(patch_hash=k5nr4qoeadbysypcsglesrapvu)
       prismjs: 1.30.0
       react: 19.2.3
       refractor: 5.0.0

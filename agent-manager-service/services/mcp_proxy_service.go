@@ -2600,11 +2600,21 @@ func (s *MCPProxyService) postJSONRPCWithSession(ctx context.Context, endpointUR
 }
 
 func (s *MCPProxyService) postJSONRPC(ctx context.Context, endpointURL string, payload interface{}, sessionID string, headerName string, headerValue string, extraHeaders map[string]string) ([]byte, http.Header, error) {
+	// Every caller validates the endpoint before reaching here, and s.client pins dials to public
+	// addresses. Re-check the URL shape so this helper never sends to a non-http(s) URL on its own.
+	// Fragments are never sent; drop one first so ParseRequestURI does not fold it into the path.
+	if i := strings.IndexByte(endpointURL, '#'); i >= 0 {
+		endpointURL = endpointURL[:i]
+	}
+	parsedURL, err := ssrf.ValidateURLShape(endpointURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
+	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, nil, err
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewBuffer(data))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, parsedURL.String(), bytes.NewBuffer(data))
 	if err != nil {
 		return nil, nil, err
 	}
