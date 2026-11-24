@@ -1064,14 +1064,17 @@ func (s methodNotFoundOnHTTPErrorServer) ServeHTTP(w http.ResponseWriter, r *htt
 	}
 }
 
-// "Method not found" means the server has none of that kind whatever HTTP status carries it, so
-// even a strict fetch (capability discovery) succeeds. Any other HTTP error still fails it.
+// "Method not found" means the server has none of that kind under any HTTP error status but 401,
+// so even a strict fetch (capability discovery) succeeds. Any other HTTP error still fails it, and a
+// 401 stays an authorization failure whatever its body: discovery retries it while its key arrives.
 func TestFetchMCPServerInfo_MethodNotFoundUnderHTTPErrorIsNone(t *testing.T) {
 	tests := []struct {
-		name    string
-		server  methodNotFoundOnHTTPErrorServer
-		wantErr bool
+		name        string
+		server      methodNotFoundOnHTTPErrorServer
+		wantErr     bool
+		wantErrorIs error
 	}{
+		{name: "401 with -32601 is still unauthorized", server: methodNotFoundOnHTTPErrorServer{promptsStatus: 401, resourcesStatus: 404}, wantErr: true, wantErrorIs: utils.ErrMCPServerUnauthorized},
 		{name: "404 and 400 with -32601", server: methodNotFoundOnHTTPErrorServer{promptsStatus: 404, resourcesStatus: 400}},
 		{name: "500 with -32601", server: methodNotFoundOnHTTPErrorServer{promptsStatus: 500, resourcesStatus: 500}},
 		{name: "404 without a JSON-RPC body fails", server: methodNotFoundOnHTTPErrorServer{promptsStatus: 404, resourcesStatus: 404, promptsBody: "not found"}, wantErr: true},
@@ -1086,6 +1089,9 @@ func TestFetchMCPServerInfo_MethodNotFoundUnderHTTPErrorIsNone(t *testing.T) {
 			resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
 			if tt.wantErr {
 				assert.Error(t, err)
+				if tt.wantErrorIs != nil {
+					assert.ErrorIs(t, err, tt.wantErrorIs)
+				}
 				return
 			}
 			require.NoError(t, err)

@@ -2277,8 +2277,10 @@ func obtainValidMCPVersionsFromServer(versions []string) *[]string {
 // protocolVersion decides how to send each request (see postJSONRPCForVersion). Prompts and
 // resources are asked for only when the server advertised them in capabilities (see
 // mcpServerOffers); tools are always asked for. A list the server does not implement (-32601, with
-// any HTTP status) is none. Any other failed list is left out of the response, or fails the fetch
-// when strictLists is set. Running out of time always fails the whole fetch, so a cut-off probe is
+// HTTP 200 or an HTTP error status other than 401) is none. A 401 stays an authorization failure
+// (utils.ErrMCPServerUnauthorized), which capability discovery retries while its key reaches the
+// gateway. Any other failed list is left out of the response, or fails the fetch when strictLists
+// is set. Running out of time always fails the whole fetch, so a cut-off probe is
 // not reported as complete.
 func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string, serverInfo map[string]interface{}, serverVersions []string, capabilities map[string]interface{}) (*models.MCPServerInfoFetchResponse, error) {
 	resp := &models.MCPServerInfoFetchResponse{}
@@ -2525,6 +2527,7 @@ func mcpListError(method string, e *mcpJSONRPCError) error {
 // isMethodNotFoundReply reports whether a failed request was a non-2xx answer whose body is the
 // JSON-RPC "Method not found" error. MCP 2026-07-28 servers can send it with an HTTP error status
 // (Ballerina's mcp.v2 uses 404), and it means the same as with 200: the server has none of that kind.
+// A 401 never reaches here: postJSONRPC reports it as utils.ErrMCPServerUnauthorized whatever its body.
 func isMethodNotFoundReply(err error) bool {
 	var statusErr *mcpHTTPStatusError
 	if !errors.As(err, &statusErr) {
