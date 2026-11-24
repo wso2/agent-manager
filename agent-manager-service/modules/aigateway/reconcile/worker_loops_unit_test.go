@@ -80,10 +80,14 @@ func newLoopWorker(t *testing.T, kinds Kinds) (*Worker, *syncBuffer) {
 	return NewWorker(core, logger), logs
 }
 
-// A placement pass that fails, at start or for a newly mapped environment, is logged and the worker keeps running.
+// A placement pass that fails, fleet-wide or for a newly mapped environment, is logged and the worker keeps running.
+// Only the placement loops run: the core has no database, which the drift loop would reach on its next interval
+// boundary.
 func TestWorkerLogsAFailedPlacementPass(t *testing.T) {
 	worker, logs := newLoopWorker(t, Kinds{failingPlacementKind{}})
-	require.NoError(t, worker.Start(context.Background()))
+	worker.placeAll(context.Background())
+	worker.done.Add(1)
+	go worker.placeRequested(context.Background())
 	t.Cleanup(func() { _ = worker.Stop() })
 
 	worker.RequestPlaceEnv("ou-1", uuid.New())
