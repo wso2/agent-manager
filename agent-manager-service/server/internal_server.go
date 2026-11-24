@@ -45,9 +45,19 @@ type InternalServer struct {
 
 // NewInternalServer creates a new internal HTTPS server
 func NewInternalServer(cfg *config.InternalServerConfig, handler http.Handler) *InternalServer {
+	// The http.Server is built here, not in Start, because Start runs on its
+	// own goroutine and Shutdown may run before or while it does.
 	return &InternalServer{
 		cfg:     cfg,
 		handler: handler,
+		server: &http.Server{
+			Addr:           fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
+			Handler:        handler,
+			ReadTimeout:    time.Duration(cfg.ReadTimeoutSeconds) * time.Second,
+			WriteTimeout:   time.Duration(cfg.WriteTimeoutSeconds) * time.Second,
+			IdleTimeout:    time.Duration(cfg.IdleTimeoutSeconds) * time.Second,
+			MaxHeaderBytes: cfg.MaxHeaderBytes,
+		},
 	}
 }
 
@@ -56,16 +66,6 @@ func NewInternalServer(cfg *config.InternalServerConfig, handler http.Handler) *
 func (s *InternalServer) Start() error {
 	if s.cfg.Port < 1 || s.cfg.Port > 65535 {
 		return fmt.Errorf("invalid port: %d", s.cfg.Port)
-	}
-
-	address := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
-	s.server = &http.Server{
-		Addr:           address,
-		Handler:        s.handler,
-		ReadTimeout:    time.Duration(s.cfg.ReadTimeoutSeconds) * time.Second,
-		WriteTimeout:   time.Duration(s.cfg.WriteTimeoutSeconds) * time.Second,
-		IdleTimeout:    time.Duration(s.cfg.IdleTimeoutSeconds) * time.Second,
-		MaxHeaderBytes: s.cfg.MaxHeaderBytes,
 	}
 
 	if !s.cfg.TLSEnabled {
@@ -122,9 +122,6 @@ func (s *InternalServer) Start() error {
 
 // Shutdown gracefully shuts down the server
 func (s *InternalServer) Shutdown(shutdownCtx context.Context) error {
-	if s.server == nil {
-		return nil
-	}
 	return s.server.Shutdown(shutdownCtx)
 }
 
