@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/gen"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -288,12 +289,15 @@ func (c *openChoreoClient) DeleteSecretReference(ctx context.Context, ouID, secr
 func (c *openChoreoClient) GetWorkloadSecretRefNames(ctx context.Context, ouID, projectName, componentName string) ([]string, error) {
 	namespaceName := c.NamespaceFor(ouID)
 
-	// Collect unique secret reference names across all sources.
+	// Collect unique secret reference names across all sources. Each source is listed by
+	// component name alone, which OpenChoreo scopes to the namespace, so each keeps only what
+	// projectName owns: an agent of the same name in another project must not hand over its
+	// secrets, which a delete then removes.
 	secretRefNames := make(map[string]struct{})
 	err := errors.Join(
-		c.collectComponentWorkflowSecretRefNames(ctx, namespaceName, componentName, secretRefNames),
-		c.collectReleaseBindingSecretRefNames(ctx, namespaceName, componentName, secretRefNames),
-		c.collectWorkloadSecretRefNames(ctx, namespaceName, componentName, secretRefNames),
+		c.collectComponentWorkflowSecretRefNames(ctx, namespaceName, projectName, componentName, secretRefNames),
+		c.collectReleaseBindingSecretRefNames(ctx, namespaceName, projectName, componentName, secretRefNames),
+		c.collectWorkloadSecretRefNames(ctx, namespaceName, projectName, componentName, secretRefNames),
 	)
 
 	result := make([]string, 0, len(secretRefNames))
@@ -305,7 +309,7 @@ func (c *openChoreoClient) GetWorkloadSecretRefNames(ctx context.Context, ouID, 
 
 // collectReleaseBindingSecretRefNames adds the SecretReference names in every ReleaseBinding's
 // workloadOverrides, where per-environment configuration lives.
-func (c *openChoreoClient) collectReleaseBindingSecretRefNames(ctx context.Context, namespaceName, componentName string, out map[string]struct{}) error {
+func (c *openChoreoClient) collectReleaseBindingSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string, out map[string]struct{}) error {
 	resp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
 		Component: &componentName,
 		Limit:     &defaultListLimit,
@@ -325,8 +329,8 @@ func (c *openChoreoClient) collectReleaseBindingSecretRefNames(ctx context.Conte
 		return nil
 	}
 	for _, binding := range resp.JSON200.Items {
-		if binding.Spec == nil || binding.Spec.WorkloadOverrides == nil ||
-			binding.Spec.WorkloadOverrides.Container == nil {
+		if binding.Spec == nil || !ownedBy(binding.Spec.Owner.ProjectName, projectName) ||
+			binding.Spec.WorkloadOverrides == nil || binding.Spec.WorkloadOverrides.Container == nil {
 			continue
 		}
 		container := binding.Spec.WorkloadOverrides.Container
@@ -337,7 +341,7 @@ func (c *openChoreoClient) collectReleaseBindingSecretRefNames(ctx context.Conte
 
 // collectWorkloadSecretRefNames adds the SecretReference names in the Workload's container
 // spec, for agents created before configuration moved to the bindings.
-func (c *openChoreoClient) collectWorkloadSecretRefNames(ctx context.Context, namespaceName, componentName string, out map[string]struct{}) error {
+func (c *openChoreoClient) collectWorkloadSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string, out map[string]struct{}) error {
 	resp, err := c.ocClient.ListWorkloadsWithResponse(ctx, namespaceName, &gen.ListWorkloadsParams{
 		Component: &componentName,
 		Limit:     &defaultListLimit,
@@ -360,6 +364,13 @@ func (c *openChoreoClient) collectWorkloadSecretRefNames(ctx context.Context, na
 		if workload.Spec == nil || workload.Spec.Container == nil {
 			continue
 		}
+		owner := ""
+		if workload.Spec.Owner != nil {
+			owner = workload.Spec.Owner.ProjectName
+		}
+		if !ownedBy(owner, projectName) {
+			continue
+		}
 		collectSecretRefNames(workload.Spec.Container.Env, workload.Spec.Container.Files, out)
 	}
 	return nil
@@ -367,7 +378,7 @@ func (c *openChoreoClient) collectWorkloadSecretRefNames(ctx context.Context, na
 
 // collectComponentWorkflowSecretRefNames adds the SecretReference names behind the
 // valueFrom.secretKeyRef entries in the Component's build workflow env vars and file mounts.
-func (c *openChoreoClient) collectComponentWorkflowSecretRefNames(ctx context.Context, namespaceName, componentName string, out map[string]struct{}) error {
+func (c *openChoreoClient) collectComponentWorkflowSecretRefNames(ctx context.Context, namespaceName, projectName, componentName string, out map[string]struct{}) error {
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
 		return fmt.Errorf("failed to get component: %w", err)
@@ -383,8 +394,8 @@ func (c *openChoreoClient) collectComponentWorkflowSecretRefNames(ctx context.Co
 			JSON500: resp.JSON500,
 		})
 	}
-	if resp.JSON200 == nil || resp.JSON200.Spec == nil || resp.JSON200.Spec.Workflow == nil ||
-		resp.JSON200.Spec.Workflow.Parameters == nil {
+	if resp.JSON200 == nil || resp.JSON200.Spec == nil || !ownedBy(resp.JSON200.Spec.Owner.ProjectName, projectName) ||
+		resp.JSON200.Spec.Workflow == nil || resp.JSON200.Spec.Workflow.Parameters == nil {
 		return nil
 	}
 	params := *resp.JSON200.Spec.Workflow.Parameters
@@ -408,6 +419,14 @@ func (c *openChoreoClient) collectComponentWorkflowSecretRefNames(ctx context.Co
 		}
 	}
 	return nil
+}
+
+// ownedBy reports whether a resource whose owner is ownerProject belongs to projectName. Only a
+// resource that names projectName as its owner does; OpenChoreo requires a non-empty owner
+// project on Workloads, ReleaseBindings and Components, so one that names none is not shown to
+// be this project's. An empty projectName filters nothing.
+func ownedBy(ownerProject, projectName string) bool {
+	return projectName == "" || (ownerProject != "" && strings.EqualFold(ownerProject, projectName))
 }
 
 // collectSecretRefNames adds the SecretReference names behind any valueFrom.secretKeyRef in the

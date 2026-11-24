@@ -100,11 +100,12 @@ func bindingWithOverrides(env []gen.EnvVar, files []gen.FileVar) gen.ReleaseBind
 	if len(files) > 0 {
 		container.Files = &files
 	}
-	return gen.ReleaseBinding{
-		Spec: &gen.ReleaseBindingSpec{
-			WorkloadOverrides: &gen.WorkloadOverrides{Container: container},
-		},
+	spec := &gen.ReleaseBindingSpec{
+		WorkloadOverrides: &gen.WorkloadOverrides{Container: container},
 	}
+	// OpenChoreo requires the owner project; the lookups below are for my-project.
+	spec.Owner.ProjectName = "my-project"
+	return gen.ReleaseBinding{Spec: spec}
 }
 
 // Configuration lives on the per-environment ReleaseBindings, not the Workload, so deletion has
@@ -132,10 +133,12 @@ func TestGetWorkloadSecretRefNames_UnionsWorkloadAndDeduplicates(t *testing.T) {
 	bindings := gen.ReleaseBindingList{Items: []gen.ReleaseBinding{
 		bindingWithOverrides([]gen.EnvVar{secretEnvVar("API_KEY", "shared-secret")}, nil),
 	}}
-	workloadEnv := []gen.EnvVar{secretEnvVar("API_KEY", "shared-secret"), secretEnvVar("LEGACY", "legacy-secret")}
-	workloads := gen.WorkloadList{Items: []gen.Workload{{
-		Spec: &gen.WorkloadSpec{Container: &gen.WorkloadContainer{Image: "img", Env: &workloadEnv}},
-	}}}
+	var workloads gen.WorkloadList
+	require.NoError(t, json.Unmarshal([]byte(`{"items":[{"metadata":{"name":"my-agent"},"spec":{
+		"owner":{"componentName":"my-agent","projectName":"my-project"},
+		"container":{"image":"img","env":[
+			{"key":"API_KEY","valueFrom":{"secretKeyRef":{"name":"shared-secret"}}},
+			{"key":"LEGACY","valueFrom":{"secretKeyRef":{"name":"legacy-secret"}}}]}}}]}`), &workloads))
 	c := newTestClient(t, serveLists(t, bindings, workloads))
 
 	names, err := c.GetWorkloadSecretRefNames(context.Background(), "acme", "my-project", "my-agent")

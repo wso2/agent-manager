@@ -257,8 +257,8 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("org id is required: %w", utils.ErrInvalidInput)
 	}
 
-	// Fetch component UID from OpenChoreo. Agent names are unique organization-wide,
-	// not per-project, so this resolves by name alone regardless of req.ProjectName.
+	// Fetch component UID from OpenChoreo. GetComponent already reports an agent of this name
+	// in another project as not found; the check below keeps the refusal explicit here.
 	component, err := s.ocClient.GetComponent(ctx, req.OrgName, req.ProjectName, req.AgentName)
 	if err != nil {
 		s.logger.Error("Failed to get agent component", "agentName", req.AgentName, "error", err)

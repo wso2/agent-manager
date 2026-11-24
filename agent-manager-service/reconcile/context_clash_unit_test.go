@@ -131,6 +131,22 @@ func TestClash(t *testing.T) {
 	})
 }
 
+// The clash names what holds the context, so a CONTEXT_IN_USE can be traced to its holder: for an
+// agent, a <project>/<agent>/<environment> handle, possibly of an agent deleted without its
+// gateway rows.
+func TestClashHolderNamesTheHoldingArtifact(t *testing.T) {
+	gw := "gw.example.com"
+	self := uuid.New()
+	holder := models.ArtifactRef{ArtifactUUID: uuid.New(), Kind: models.KindRestAPI, Handle: "project-a/support-agent/env-1"}
+	rows := []models.GatewayDeploymentContent{{ArtifactRef: holder, Content: content("/support-agent", "")}}
+
+	got, other, clash := clashHolder(self, NewRoute("/support-agent", "", gw), rows, gw)
+
+	require.True(t, clash)
+	assert.Equal(t, holder, got)
+	assert.Equal(t, "/support-agent", other.Context)
+}
+
 // clashRepo is a gateway holding one other artifact at otherContext, deployed.
 func clashRepo(otherContext string) (*repomocks.DeploymentRepositoryMock, *int) {
 	other := uuid.New()

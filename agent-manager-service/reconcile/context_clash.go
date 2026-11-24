@@ -114,12 +114,20 @@ func normalizeVhost(v string) string {
 // own. An artifact already deployed there at next is grandfathered: first deployed wins, so a re-render at an
 // unchanged route never fails over an overlap that was already there.
 func Clash(self uuid.UUID, next Route, deployed []models.GatewayDeploymentContent, gatewayVhost string) (Route, bool) {
+	_, other, clash := clashHolder(self, next, deployed, gatewayVhost)
+	return other, clash
+}
+
+// clashHolder is Clash, also returning the artifact that holds the overlapping route.
+func clashHolder(
+	self uuid.UUID, next Route, deployed []models.GatewayDeploymentContent, gatewayVhost string,
+) (models.ArtifactRef, Route, bool) {
 	if next.Context == "" {
-		return Route{}, false
+		return models.ArtifactRef{}, Route{}, false
 	}
 	for _, d := range deployed {
 		if d.ArtifactUUID == self && RouteOf(d.Content, gatewayVhost) == next {
-			return Route{}, false
+			return models.ArtifactRef{}, Route{}, false
 		}
 	}
 	for _, d := range deployed {
@@ -127,10 +135,10 @@ func Clash(self uuid.UUID, next Route, deployed []models.GatewayDeploymentConten
 			continue
 		}
 		if other := RouteOf(d.Content, gatewayVhost); other.Context != "" && other.Overlaps(next) {
-			return other, true
+			return d.ArtifactRef, other, true
 		}
 	}
-	return Route{}, false
+	return models.ArtifactRef{}, Route{}, false
 }
 
 // CheckContext returns an error wrapping utils.ErrContextInUse when next, self's route on gateway, overlaps another
@@ -163,8 +171,11 @@ func CheckContext(
 	if err != nil {
 		return fmt.Errorf("failed to read the gateway's artifacts: %w", err)
 	}
-	if other, clash := Clash(self, next, contents, gateway.Vhost); clash {
-		return fmt.Errorf("%w: %s overlaps %s on gateway %s", utils.ErrContextInUse, next.Context, other.Context, gateway.UUID)
+	// The holder's kind and handle name what to look at: for an agent the handle is
+	// <project>/<agent>/<environment>, which may be an agent deleted without its gateway rows.
+	if holder, other, clash := clashHolder(self, next, contents, gateway.Vhost); clash {
+		return fmt.Errorf("%w: %s overlaps %s, held by %s %q, on gateway %s",
+			utils.ErrContextInUse, next.Context, other.Context, holder.Kind, holder.Handle, gateway.UUID)
 	}
 	return nil
 }

@@ -416,4 +416,29 @@ func TestCreateAgent_InterruptedComponentCreate(t *testing.T) {
 		require.ErrorIs(t, err, utils.ErrConflict)
 		assert.Empty(t, *deleted)
 	})
+
+	// The create was never sent, so a component of that name that just appeared is another
+	// request's and must be left alone.
+	t.Run("leaves components alone when the create was never sent", func(t *testing.T) {
+		svc, deleted := interruptedCreateFixture(t,
+			fmt.Errorf("%w: name check: %w", client.ErrComponentCreateNotSent, context.DeadlineExceeded),
+			&models.AgentResponse{Name: cleanupAgent, CreatedAt: time.Now()})
+
+		err := svc.createComponentAgent(tierGrantedCtx(t), cleanupOrg, cleanupProj, createAgentRequest(utils.InternalAgent), "")
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Empty(t, *deleted)
+	})
+
+	// Component names are per organization, so the name may be taken in another project; the
+	// caller gets "agent already exists" (409) with the client's reason, naming that project.
+	t.Run("a conflict is reported as the agent name being taken", func(t *testing.T) {
+		svc, _ := interruptedCreateFixture(t,
+			fmt.Errorf("%w: component %q already exists in project %q", utils.ErrConflict, cleanupAgent, "project-a"), nil)
+
+		err := svc.createComponentAgent(tierGrantedCtx(t), cleanupOrg, cleanupProj, createAgentRequest(utils.InternalAgent), "")
+
+		require.ErrorIs(t, err, utils.ErrAgentAlreadyExists)
+		assert.Contains(t, err.Error(), `project "project-a"`)
+	})
 }
