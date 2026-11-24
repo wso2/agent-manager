@@ -561,7 +561,11 @@ func (s *agentThunderProvisioningService) RetryProvisioning(ctx context.Context,
 		}
 		return models.AgentIdentityEnvironmentView{}, err
 	}
-	if binding.Status != models.AgentThunderStatusFailed {
+	// A pending binding with an error is waiting for its automatic retry, and its
+	// message asks the user to retry; doing it now is the same as a failed one.
+	failed := binding.Status == models.AgentThunderStatusFailed ||
+		(binding.Status == models.AgentThunderStatusPending && binding.LastError != "")
+	if !failed {
 		return models.AgentIdentityEnvironmentView{}, fmt.Errorf("%w: %s in %s is %s", utils.ErrAgentIdentityRetryNotAllowed, agentName, envName, binding.Status)
 	}
 

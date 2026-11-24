@@ -399,6 +399,10 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 	if scope != models.EventScopeOrg {
 		h.AvailableDestinations = func(w http.ResponseWriter, r *http.Request) {
 			t := target(r)
+			if err := c.subscriptions.CheckTarget(r.Context(), t); err != nil {
+				writeEventsError(w, r, err, "Failed to list event destinations")
+				return
+			}
 			list, stats, err := c.destinations.Available(r.Context(), t.OUID, t.ProjectName)
 			if err != nil {
 				writeEventsError(w, r, err, "Failed to list event destinations")
