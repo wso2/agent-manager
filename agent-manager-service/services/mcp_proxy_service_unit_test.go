@@ -805,6 +805,8 @@ type oldMCPServerForTest struct {
 	// status and body instead.
 	discoverStatus int
 	discoverBody   string
+	// initCapabilities, when set, is the capabilities object its initialize answer advertises.
+	initCapabilities string
 
 	methods        []string // the JSON-RPC method of each request, in order
 	discoverHeader http.Header
@@ -831,7 +833,11 @@ func (f *oldMCPServerForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Bad Request: Unsupported protocol version", http.StatusBadRequest)
 	case "initialize":
 		w.Header().Set("Mcp-Session-Id", "session-1")
-		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"protocolVersion":"2025-06-18","serverInfo":{"name":"old-server"}}}`, req.ID)
+		capabilities := ""
+		if f.initCapabilities != "" {
+			capabilities = `,"capabilities":` + f.initCapabilities
+		}
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"protocolVersion":"2025-06-18","serverInfo":{"name":"old-server"}%s}}`, req.ID, capabilities)
 	case "notifications/initialized":
 		w.WriteHeader(http.StatusAccepted)
 	case "tools/list":
@@ -932,10 +938,11 @@ func TestFetchMCPServerInfo_NewServerListsToolsTheNewWay(t *testing.T) {
 	if assert.NotNil(t, resp.ServerInfo) {
 		assert.Equal(t, "new-server", (*resp.ServerInfo)["name"])
 	}
-	// No initialize, and no notifications/initialized: straight from discover to the lists.
-	assert.Equal(t, []string{"server/discover", "tools/list", "prompts/list", "resources/list"}, fake.methods)
+	// No initialize, and no notifications/initialized: straight from discover to the lists. The
+	// server advertised only tools, so prompts and resources are not asked for.
+	assert.Equal(t, []string{"server/discover", "tools/list"}, fake.methods)
 	// No session on any request.
-	assert.Equal(t, []string{"", "", "", ""}, fake.sessionIDs)
+	assert.Equal(t, []string{"", ""}, fake.sessionIDs)
 }
 
 // MCP versions are dates, so the check compares dates. An empty version counts as old.
@@ -973,6 +980,10 @@ func TestFetchMCPServerInfo_WhenToFallBackToInitialize(t *testing.T) {
 		{name: "200 with Method not found (-32601) refuses the method", discoverStatus: 200, discoverBody: jsonRPCError, wantFallBack: true},
 		{name: "200 unsupported protocol version (-32022) is reported", discoverStatus: 200, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32022,"message":"Unsupported protocol version","data":{"supported":["2027-03-01"],"requested":"2026-07-28"}}}`},
 		{name: "200 header mismatch (-32020) is reported", discoverStatus: 200, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32020,"message":"Header mismatch"}}`},
+		{name: "400 unsupported protocol version (-32022) listing an earlier version falls back", discoverStatus: 400, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32022,"message":"Unsupported protocol version","data":{"supported":["2025-11-25","2025-06-18"],"requested":"2026-07-28"}}}`, wantFallBack: true},
+		{name: "200 unsupported protocol version (-32022) listing an earlier version falls back", discoverStatus: 200, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32022,"message":"Unsupported protocol version","data":{"supported":["2024-11-05"],"requested":"2026-07-28"}}}`, wantFallBack: true},
+		{name: "400 unsupported protocol version (-32022) without data is reported", discoverStatus: 400, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32022,"message":"Unsupported protocol version"}}`},
+		{name: "403 with -32022 listing an earlier version is still reported", discoverStatus: 403, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32022,"message":"Unsupported protocol version","data":{"supported":["2025-06-18"]}}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -992,6 +1003,195 @@ func TestFetchMCPServerInfo_WhenToFallBackToInitialize(t *testing.T) {
 				assert.ErrorIs(t, err, tt.wantErrorIs)
 			}
 			assert.Equal(t, []string{"server/discover"}, fake.methods, "initialize must not be sent")
+		})
+	}
+}
+
+// Prompts and resources are listed only when the server advertised them. A server that sent no
+// capabilities object is asked for everything, as before (see TestFetchMCPServerInfo_AsksServerDiscoverFirst).
+func TestFetchMCPServerInfo_ListsOnlyAdvertisedCapabilities(t *testing.T) {
+	tests := []struct {
+		name         string
+		capabilities string
+		wantLists    []string
+	}{
+		{name: "tools only", capabilities: `{"tools":{}}`, wantLists: []string{"tools/list"}},
+		{name: "tools and prompts", capabilities: `{"tools":{},"prompts":{"listChanged":false}}`, wantLists: []string{"tools/list", "prompts/list"}},
+		{name: "tools and resources", capabilities: `{"tools":{},"resources":{}}`, wantLists: []string{"tools/list", "resources/list"}},
+		{name: "empty object still lists tools", capabilities: `{}`, wantLists: []string{"tools/list"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := &oldMCPServerForTest{initCapabilities: tt.capabilities}
+			_, err := fetchFromTestMCPServer(t, fake)
+
+			require.NoError(t, err)
+			want := append([]string{"server/discover", "initialize", "notifications/initialized"}, tt.wantLists...)
+			assert.Equal(t, want, fake.methods)
+		})
+	}
+}
+
+// methodNotFoundOnHTTPErrorServer has no capabilities object, so every list is asked for, and
+// answers prompts/list and resources/list with JSON-RPC "Method not found" under an HTTP error.
+type methodNotFoundOnHTTPErrorServer struct {
+	promptsStatus, resourcesStatus int
+	promptsBody                    string
+}
+
+func (s methodNotFoundOnHTTPErrorServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	req := decodeMCPTestRequest(r)
+	notFound := fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"error":{"code":-32601,"message":"Method not found"}}`, req.ID)
+	switch req.Method {
+	case "server/discover":
+		http.Error(w, "Bad Request: Unsupported protocol version", http.StatusBadRequest)
+	case "initialize":
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"protocolVersion":"2025-06-18","serverInfo":{"name":"s"}}}`, req.ID)
+	case "notifications/initialized":
+		w.WriteHeader(http.StatusAccepted)
+	case "tools/list":
+		_, _ = fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%d,"result":{"tools":[{"name":"echo"}]}}`, req.ID)
+	case "prompts/list":
+		body := notFound
+		if s.promptsBody != "" {
+			body = s.promptsBody
+		}
+		w.WriteHeader(s.promptsStatus)
+		_, _ = w.Write([]byte(body))
+	case "resources/list":
+		w.WriteHeader(s.resourcesStatus)
+		_, _ = w.Write([]byte(notFound))
+	}
+}
+
+// "Method not found" means the server has none of that kind under any HTTP error status but 401,
+// so even a strict fetch (capability discovery) succeeds. Any other HTTP error still fails it, and a
+// 401 stays an authorization failure whatever its body: discovery retries it while its key arrives.
+func TestFetchMCPServerInfo_MethodNotFoundUnderHTTPErrorIsNone(t *testing.T) {
+	tests := []struct {
+		name        string
+		server      methodNotFoundOnHTTPErrorServer
+		wantErr     bool
+		wantErrorIs error
+	}{
+		{name: "401 with -32601 is still unauthorized", server: methodNotFoundOnHTTPErrorServer{promptsStatus: 401, resourcesStatus: 404}, wantErr: true, wantErrorIs: utils.ErrMCPServerUnauthorized},
+		{name: "404 and 400 with -32601", server: methodNotFoundOnHTTPErrorServer{promptsStatus: 404, resourcesStatus: 400}},
+		{name: "500 with -32601", server: methodNotFoundOnHTTPErrorServer{promptsStatus: 500, resourcesStatus: 500}},
+		{name: "404 without a JSON-RPC body fails", server: methodNotFoundOnHTTPErrorServer{promptsStatus: 404, resourcesStatus: 404, promptsBody: "not found"}, wantErr: true},
+		{name: "404 with another JSON-RPC error fails", server: methodNotFoundOnHTTPErrorServer{promptsStatus: 404, resourcesStatus: 404, promptsBody: `{"jsonrpc":"2.0","id":3,"error":{"code":-32603,"message":"Internal error"}}`}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(tt.server)
+			t.Cleanup(srv.Close)
+			svc := &MCPProxyService{client: srv.Client(), logger: discardLogger(), strictLists: true}
+
+			resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.wantErrorIs != nil {
+					assert.ErrorIs(t, err, tt.wantErrorIs)
+				}
+				return
+			}
+			require.NoError(t, err)
+			if assert.NotNil(t, resp.Tools) {
+				assert.Len(t, *resp.Tools, 1)
+			}
+			assert.Nil(t, resp.Prompts)
+			assert.Nil(t, resp.Resources)
+		})
+	}
+}
+
+// ballerinaMCPServerForTest answers the way the Ballerina MCP modules did on dev on 2026-11-24
+// (captured from the pods). Every flavour advertises only tools.
+//   - ballerinaLegacyOnly: ballerina/mcp, which rejects any MCP-Protocol-Version 2026-07-28 request
+//     with 400 -32600 and answers unknown methods with 200 -32601.
+//   - ballerinaV2: ballerina/mcp.v2 in its default mode. It answers server/discover with
+//     2026-07-28 and answers unknown 2026-07-28 methods with 404 -32601.
+//   - ballerinaV2Legacy: ballerina/mcp.v2 with protocolMode "legacy". It refuses every 2026-07-28
+//     request with 400 -32022, listing the earlier versions it speaks.
+type ballerinaMCPServerForTest struct {
+	flavour string
+	methods []string
+}
+
+const (
+	ballerinaLegacyOnly = "ballerina/mcp"
+	ballerinaV2         = "ballerina/mcp.v2"
+	ballerinaV2Legacy   = "ballerina/mcp.v2 legacy mode"
+)
+
+func (f *ballerinaMCPServerForTest) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	req := decodeMCPTestRequest(r)
+	f.methods = append(f.methods, req.Method)
+	tools := fmt.Sprintf(`{"jsonrpc":"2.0", "id":%d, "result":{"tools":[{"name":"add", "inputSchema":{"type":"object"}}]}}`, req.ID)
+	notFound := fmt.Sprintf(`{"jsonrpc":"2.0", "id":%d, "error":{"code":-32601, "message":"Method not found"}}`, req.ID)
+	reply := func(status int, body string) {
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}
+
+	if r.Header.Get("MCP-Protocol-Version") == "2026-07-28" {
+		switch {
+		case f.flavour == ballerinaLegacyOnly:
+			reply(http.StatusBadRequest, `{"jsonrpc":"2.0", "id":null, "error":{"code":-32600, "message":"Unsupported MCP-Protocol-Version header: 2026-07-28"}}`)
+		case f.flavour == ballerinaV2Legacy:
+			reply(http.StatusBadRequest, fmt.Sprintf(`{"jsonrpc":"2.0", "id":%d, "error":{"code":-32022, "message":"Unsupported protocol version", `+
+				`"data":{"supported":["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"], "requested":"2026-07-28"}}}`, req.ID))
+		case req.Method == "server/discover":
+			reply(http.StatusOK, fmt.Sprintf(`{"jsonrpc":"2.0", "id":%d, "result":{"resultType":"complete", `+
+				`"_meta":{"io.modelcontextprotocol/serverInfo":{"version":"1.0.0", "name":"task-management"}}, `+
+				`"supportedVersions":["2026-07-28", "2025-11-25", "2025-06-18"], "capabilities":{"tools":{"listChanged":false}}}}`, req.ID))
+		case req.Method == "tools/list":
+			reply(http.StatusOK, tools)
+		default:
+			reply(http.StatusNotFound, notFound)
+		}
+		return
+	}
+
+	switch req.Method {
+	case "initialize":
+		w.Header().Set("Mcp-Session-Id", "s1")
+		reply(http.StatusOK, fmt.Sprintf(`{"jsonrpc":"2.0", "id":%d, "result":{"protocolVersion":"2025-06-18", `+
+			`"capabilities":{"tools":{}}, "serverInfo":{"version":"1.0.0", "name":"ballerina"}}}`, req.ID))
+	case "notifications/initialized":
+		w.WriteHeader(http.StatusAccepted)
+	case "tools/list":
+		reply(http.StatusOK, tools)
+	default:
+		reply(http.StatusOK, notFound)
+	}
+}
+
+// Capability discovery (strict lists) finds the tools of every Ballerina MCP module flavour.
+// mcp.v2 used to fail on its 404 for prompts/list, and its legacy mode on its -32022 for
+// server/discover.
+func TestFetchMCPServerInfo_BallerinaMCPServers(t *testing.T) {
+	tests := []struct {
+		flavour     string
+		wantMethods []string
+	}{
+		{flavour: ballerinaLegacyOnly, wantMethods: []string{"server/discover", "initialize", "notifications/initialized", "tools/list"}},
+		{flavour: ballerinaV2, wantMethods: []string{"server/discover", "tools/list"}},
+		{flavour: ballerinaV2Legacy, wantMethods: []string{"server/discover", "initialize", "notifications/initialized", "tools/list"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.flavour, func(t *testing.T) {
+			fake := &ballerinaMCPServerForTest{flavour: tt.flavour}
+			srv := httptest.NewServer(fake)
+			t.Cleanup(srv.Close)
+			svc := &MCPProxyService{client: srv.Client(), logger: discardLogger(), strictLists: true}
+
+			resp, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
+
+			require.NoError(t, err)
+			if assert.NotNil(t, resp.Tools) {
+				assert.Equal(t, "add", (*resp.Tools)[0]["name"])
+			}
+			assert.Equal(t, tt.wantMethods, fake.methods)
 		})
 	}
 }
