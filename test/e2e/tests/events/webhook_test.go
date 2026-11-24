@@ -121,8 +121,8 @@ var _ = Describe("Event delivery to a webhook", Label("events"), Ordered, func()
 		subID = framework.Str(sub, "id")
 		Expect(sub["enabled"]).To(BeTrue())
 
-		s.failNextN(1)
 		proj := framework.E2EProjectPrefix + "ev-" + suffix
+		s.failNextN(proj, 1)
 		createProject(proj)
 
 		Eventually(func() []delivery { return s.matching(proj) }).

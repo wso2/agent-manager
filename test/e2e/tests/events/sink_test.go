@@ -39,12 +39,14 @@ type delivery struct {
 	At                       time.Time
 }
 
-// sink is a webhook receiver in the test process. It answers each delivery
-// with the next status from fail (then 200), so a spec can make the platform
-// retry.
+// sink is a webhook receiver in the test process. It answers 503 to the
+// next deliveries that carry failFor, then 200, so a spec can make the
+// platform retry. Matching on content keeps another spec's event, which the
+// same subscription can receive meanwhile, from taking the failure.
 type sink struct {
 	mu       sync.Mutex
 	got      []delivery
+	failFor  string
 	failNext int
 	srv      *http.Server
 	URL      string
@@ -71,7 +73,7 @@ func startSink() *sink {
 			Signature: r.Header.Get("webhook-signature"), Body: body, At: time.Now(),
 		})
 		status := http.StatusOK
-		if s.failNext > 0 {
+		if s.failNext > 0 && strings.Contains(string(body), s.failFor) {
 			s.failNext--
 			status = http.StatusServiceUnavailable
 		}
@@ -85,10 +87,11 @@ func startSink() *sink {
 
 func (s *sink) stop() { _ = s.srv.Close() }
 
-func (s *sink) failNextN(n int) {
+// failNextN fails the next n deliveries whose body contains needle.
+func (s *sink) failNextN(needle string, n int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.failNext = n
+	s.failFor, s.failNext = needle, n
 }
 
 // matching returns the deliveries whose body contains needle.
