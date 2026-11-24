@@ -187,9 +187,19 @@ func TestCoreEventsAPI(t *testing.T) {
 		assert.ElementsMatch(t, []string{"everywhere", "shop-only"}, names(w.path("/projects/shop/events/destinations")))
 		assert.ElementsMatch(t, []string{"everywhere"}, names(w.path("/projects/lab/events/destinations")))
 		assert.ElementsMatch(t, []string{"everywhere", "shop-only"}, names(w.path("/projects/shop/agents/cashier/events/destinations")))
-		// A project name nobody uses is not looked up: it is offered only
-		// what every project is.
-		assert.ElementsMatch(t, []string{"everywhere"}, names(w.path("/projects/nowhere/events/destinations")))
+		// A project or agent that does not exist is a 404 on every read, as
+		// it is on create.
+		for _, p := range []string{
+			"/projects/nowhere/events/destinations",
+			"/projects/nowhere/events/subscriptions",
+			"/projects/nowhere/events/deliveries",
+			"/projects/shop/agents/ghost/events/destinations",
+			"/projects/shop/agents/ghost/events/subscriptions",
+			"/projects/shop/agents/ghost/events/deliveries",
+		} {
+			status, body := call(t, w.reader, http.MethodGet, w.path("%s", p), nil)
+			assert.Equal(t, http.StatusNotFound, status, "%s: %s", p, body)
+		}
 	})
 
 	var orgSub, agentSub spec.EventSubscriptionResponse
