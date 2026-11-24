@@ -205,17 +205,6 @@ export const generatedRouteMap =  {
           "path": "/organizations/:orgId/shadow-agent-discovery",
           "wildPath": "/organizations/:orgId/shadow-agent-discovery/*",
           "children": {
-            "finding": {
-              "path": "/organizations/:orgId/shadow-agent-discovery/agents/:findingId",
-              "wildPath": "/organizations/:orgId/shadow-agent-discovery/agents/:findingId/*",
-              "children": {
-                "onboard": {
-                  "path": "/organizations/:orgId/shadow-agent-discovery/agents/:findingId/onboard",
-                  "wildPath": "/organizations/:orgId/shadow-agent-discovery/agents/:findingId/onboard/*",
-                  "children": {}
-                }
-              }
-            },
             "scan": {
               "path": "/organizations/:orgId/shadow-agent-discovery/scans/:scanId",
               "wildPath": "/organizations/:orgId/shadow-agent-discovery/scans/:scanId/*",
@@ -285,6 +274,17 @@ export const generatedRouteMap =  {
               "path": "/organizations/:orgId/agent-registry/projects/:registryProjectId/agents/:registryAgentId",
               "wildPath": "/organizations/:orgId/agent-registry/projects/:registryProjectId/agents/:registryAgentId/*",
               "children": {}
+            },
+            "unregisteredAgent": {
+              "path": "/organizations/:orgId/agent-registry/unregistered/:findingId",
+              "wildPath": "/organizations/:orgId/agent-registry/unregistered/:findingId/*",
+              "children": {
+                "onboard": {
+                  "path": "/organizations/:orgId/agent-registry/unregistered/:findingId/onboard",
+                  "wildPath": "/organizations/:orgId/agent-registry/unregistered/:findingId/onboard/*",
+                  "children": {}
+                }
+              }
             }
           }
         },

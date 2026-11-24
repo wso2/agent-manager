@@ -27,14 +27,32 @@ import {
   Copy,
   TriangleAlert,
 } from "@wso2/oxygen-ui-icons-react";
-import type {
-  ShadowCallOutcome,
-  ShadowFindingKind,
-  ShadowOwnerHint,
-  ShadowProvider,
-  ShadowReviewedBy,
-  ShadowScanStatus,
+import { generatePath } from "react-router-dom";
+import {
+  absoluteRouteMap,
+  type ShadowCallOutcome,
+  type ShadowFindingKind,
+  type ShadowOwnerHint,
+  type ShadowProvider,
+  type ShadowReviewedBy,
+  type ShadowScanStatus,
 } from "@agent-management-platform/types";
+
+// The unregistered agents are listed and opened in the agent registry; Shadow Agent Discovery
+// only finds them.
+const registryRoutes = absoluteRouteMap.children.org.children.agentRegistry;
+
+/** The agent registry's Unregistered tab, filtered to one platform when given. */
+export function unregisteredAgentsPath(orgId: string, platform?: string): string {
+  const params = new URLSearchParams({ registration: "unregistered" });
+  if (platform) params.set("foundOn", platform);
+  return `${generatePath(registryRoutes.path, { orgId })}?${params.toString()}`;
+}
+
+/** An unregistered agent's page in the agent registry. */
+export function unregisteredAgentPath(orgId: string, findingId: string): string {
+  return generatePath(registryRoutes.children.unregisteredAgent.path, { orgId, findingId });
+}
 
 export const PROVIDER_LABELS: Record<ShadowProvider, string> = {
   openai: "OpenAI",

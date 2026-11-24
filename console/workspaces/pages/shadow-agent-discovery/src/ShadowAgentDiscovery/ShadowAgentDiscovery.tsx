@@ -32,17 +32,16 @@ import { PageLayout, returnToState, StateNotice } from "@agent-management-platfo
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { ConnectionEditor, editConnectionPath } from "./subComponents/ConnectionEditor";
 import { ConnectionsTab } from "./subComponents/ConnectionsTab";
-import { FindingDetail } from "./subComponents/FindingDetail";
-import { FindingsTab } from "./subComponents/FindingsTab";
-import { OnboardFinding } from "./subComponents/OnboardFinding";
 import { OverviewPanel } from "./subComponents/OverviewPanel";
 import { RunScanButton } from "./subComponents/RunScanButton";
 import { ScanFindings } from "./subComponents/ScanFindings";
 import { ScansTab } from "./subComponents/ScansTab";
 import { useShadowAccess } from "./useShadowAccess";
+import { unregisteredAgentsPath } from "./shadowUi";
 
-export type ShadowTab = "overview" | "agents" | "scans" | "platforms";
-const TABS: ShadowTab[] = ["overview", "agents", "scans", "platforms"];
+// The unregistered agents it finds are listed in the agent registry, not here.
+export type ShadowTab = "overview" | "scans" | "platforms";
+const TABS: ShadowTab[] = ["overview", "scans", "platforms"];
 
 const PAGE_TITLE = "Shadow Agent Discovery";
 const PAGE_DESCRIPTION =
@@ -60,11 +59,9 @@ function ShadowOverview({
   const [searchParams, setSearchParams] = useSearchParams();
   const requested = searchParams.get("tab") as ShadowTab | null;
   const tab: ShadowTab = requested && TABS.includes(requested) ? requested : "overview";
-  const platform = searchParams.get("platform") ?? "";
-  const setTab = (t: ShadowTab, params: Record<string, string> = {}) =>
-    setSearchParams({ tab: t, ...params }, { replace: true });
+  const setTab = (t: ShadowTab) => setSearchParams({ tab: t }, { replace: true });
   const openAgents = (provider?: string) =>
-    setTab("agents", provider ? { platform: provider } : {});
+    navigate(unregisteredAgentsPath(orgName ?? "", provider));
   const newConnection = () =>
     navigate(
       generatePath(
@@ -93,7 +90,6 @@ function ShadowOverview({
               allowScrollButtonsMobile
             >
               <Tab value="overview" label="Overview" />
-              <Tab value="agents" label="Unregistered Agents" />
               <Tab value="scans" label="Scans" />
               <Tab value="platforms" label="Platforms" />
             </Tabs>
@@ -108,14 +104,6 @@ function ShadowOverview({
                 onOpenScans={() => setTab("scans")}
                 onOpenPlatforms={() => setTab("platforms")}
                 onOpenAgents={openAgents}
-              />
-            )}
-            {tab === "agents" && (
-              <FindingsTab
-                orgName={orgName}
-                canManage={canManage}
-                provider={platform}
-                onProviderChange={(p) => setTab("agents", p ? { platform: p } : {})}
               />
             )}
             {tab === "scans" && <ScansTab orgName={orgName} canManage={canManage} />}
@@ -175,16 +163,8 @@ export function ShadowAgentDiscovery() {
           <ScanFindings orgName={orgId} listPath={listPath} canManage={access.canManage} />
         }
       />
-      <Route
-        path="agents/:findingId"
-        element={<FindingDetail orgName={orgId} canManage={access.canManage} listPath={listPath} />}
-      />
       {access.canManage && (
         <>
-          <Route
-            path="agents/:findingId/onboard"
-            element={<OnboardFinding orgName={orgId} listPath={listPath} />}
-          />
           <Route
             path="platforms/new"
             element={<ConnectionEditor orgName={orgId} listPath={listPath} />}

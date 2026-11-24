@@ -66,7 +66,7 @@ import {
   providerInSentence,
   providerLabel,
   shortDate,
-} from "../shadowUi";
+} from "@agent-management-platform/shadow-agent-discovery";
 import { CodeAgentOnboardActions } from "./OnboardActions";
 
 /** A related agent's relation, as a short label. */
@@ -840,7 +840,7 @@ function DuplicatesSection({ f, orgName }: { f: ShadowFindingDetail; orgName: st
               <Link
                 component={RouterLink}
                 to={generatePath(
-                  absoluteRouteMap.children.org.children.shadowAgentDiscovery.children.finding
+                  absoluteRouteMap.children.org.children.agentRegistry.children.unregisteredAgent
                     .path,
                   { orgId: orgName, findingId: r.findingId },
                 )}
@@ -942,7 +942,7 @@ export function FindingDetail({
   listPath: string;
 }) {
   const { findingId } = useParams<{ findingId: string }>();
-  const returnTo = useReturnTo(`${listPath}?tab=agents`);
+  const returnTo = useReturnTo(listPath);
   const { data: f, isLoading, error } = useShadowFinding(orgName, findingId);
   const setHidden = useSetShadowFindingHidden(orgName, findingId);
   const back = { backHref: returnTo, backLabel: "Back" };
@@ -978,7 +978,7 @@ export function FindingDetail({
         })
       : "";
   const onboardPath = generatePath(
-    absoluteRouteMap.children.org.children.shadowAgentDiscovery.children.finding.children.onboard
+    absoluteRouteMap.children.org.children.agentRegistry.children.unregisteredAgent.children.onboard
       .path,
     { orgId: orgName ?? "", findingId: f.id },
   );

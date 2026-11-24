@@ -30,7 +30,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { ScanSearch, Trash2 } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { returnToState, TextInput } from "@agent-management-platform/views";
 import {
   useDeleteShadowFinding,
@@ -44,11 +44,7 @@ import {
   ResourceListShell,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
-import {
-  absoluteRouteMap,
-  type ShadowFindingListQuery,
-  type ShadowFindingSummary,
-} from "@agent-management-platform/types";
+import type { ShadowFindingListQuery, ShadowFindingSummary } from "@agent-management-platform/types";
 import {
   AGENT_PLATFORMS,
   AiReviewChip,
@@ -56,6 +52,7 @@ import {
   OnboardingChip,
   providerLabel,
   SOURCE_HOSTS,
+  unregisteredAgentPath,
 } from "../shadowUi";
 
 const PAGE_SIZE = 50;
@@ -293,14 +290,9 @@ export function FindingsTab({
               hover
               sx={{ cursor: "pointer" }}
               onClick={() =>
-                navigate(
-                  generatePath(
-                    absoluteRouteMap.children.org.children.shadowAgentDiscovery.children.finding
-                      .path,
-                    { orgId: orgName ?? "", findingId: f.id },
-                  ),
-                  { state: returnToState(location) },
-                )
+                navigate(unregisteredAgentPath(orgName ?? "", f.id), {
+                  state: returnToState(location),
+                })
               }
             >
               <ListingTable.Cell sx={{ maxWidth: 360 }}>

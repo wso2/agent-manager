@@ -53,7 +53,7 @@ import {
   providerInSentence,
   providerLabel,
   suggestAgentName,
-} from "../shadowUi";
+} from "@agent-management-platform/shadow-agent-discovery";
 
 /** Instrumentation of a Python agent (Agent Manager docs: amp-instrumentation). */
 export const INSTRUMENTATION_SHELL = [
@@ -122,7 +122,7 @@ export function OnboardFinding({
   const { findingId } = useParams<{ findingId: string }>();
   const navigate = useNavigate();
   const findingPath = generatePath(
-    absoluteRouteMap.children.org.children.shadowAgentDiscovery.children.finding.path,
+    absoluteRouteMap.children.org.children.agentRegistry.children.unregisteredAgent.path,
     { orgId: orgName ?? "", findingId: findingId ?? "" },
   );
   const returnTo = useReturnTo(findingPath || listPath);

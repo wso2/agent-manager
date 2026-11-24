@@ -28,7 +28,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Ban, History, Trash2, Upload, X } from "@wso2/oxygen-ui-icons-react";
+import { Ban, History, Library, Trash2, Upload, X } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useLocation, useNavigate } from "react-router-dom";
 import { returnToState } from "@agent-management-platform/views";
 import {
@@ -55,6 +55,7 @@ import {
   providerLabel,
   ScanStatusChip,
   SOURCE_HOSTS,
+  unregisteredAgentsPath,
 } from "../shadowUi";
 import { UploadResultsDialog, useConfirmCancelScan } from "./UploadResultsDialog";
 
@@ -371,27 +372,37 @@ export function ScansTab({
       },
     });
 
-  const toolbar = canManage ? (
+  const toolbar = (
     <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ width: "100%" }}>
+      {/* The agents the scans found are listed in the agent registry. */}
       <Button
         variant="outlined"
-        startIcon={<Upload size={16} />}
-        onClick={() => setUpload({ scan: null })}
+        startIcon={<Library size={16} />}
+        onClick={() => navigate(unregisteredAgentsPath(orgName ?? ""))}
       >
-        Upload results
+        View unregistered agents
       </Button>
-      <Button
-        variant="outlined"
-        color="error"
-        startIcon={<Trash2 size={16} />}
-        disabled={finished === 0 || clear.isPending}
-        onClick={handleClear}
-      >
-        Clear scans
-      </Button>
+      {canManage && (
+        <>
+          <Button
+            variant="outlined"
+            startIcon={<Upload size={16} />}
+            onClick={() => setUpload({ scan: null })}
+          >
+            Upload results
+          </Button>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<Trash2 size={16} />}
+            disabled={finished === 0 || clear.isPending}
+            onClick={handleClear}
+          >
+            Clear scans
+          </Button>
+        </>
+      )}
     </Stack>
-  ) : (
-    <span />
   );
 
   return (

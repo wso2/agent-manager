@@ -22,8 +22,8 @@ import {
   type ShadowConnectionResponse,
   type ShadowFindingDetail,
 } from "@agent-management-platform/types";
-import { suggestAgentName } from "./shadowUi";
-import { discoveredDescription } from "./subComponents/OnboardFinding";
+import { suggestAgentName } from "@agent-management-platform/shadow-agent-discovery";
+import { discoveredDescription } from "./OnboardFinding";
 
 /** The only GitHub API a platform-hosted agent can build from (github.com). */
 export const GITHUB_COM_API = "https://api.github.com";
