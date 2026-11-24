@@ -172,6 +172,25 @@ func TestPassiveHostRunsNoWorkers(t *testing.T) {
 	assert.Zero(t, c.runs.Load(), "a CLI command that installs a module does not run its workers")
 }
 
+// A host told to run no workers still activates the module, as a test server
+// does whose database other tests share.
+func TestHostWithoutWorkersActivatesTheModule(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var c counter
+	var activated atomic.Bool
+	m := &testModule{manifest: manifest("t-work", nil, nil), activate: func(rt modkit.Runtime) error {
+		activated.Store(true)
+		rt.Go("count", c.work)
+		return nil
+	}}
+	h := configured(t, ctx, databases(t)[0], []modkit.Module{m}, func(h *modhost.Host) { h.NoWorkers = true })
+	installAll(t, h, "t-work")
+	time.Sleep(50 * time.Millisecond)
+	assert.True(t, activated.Load(), "the module is active")
+	assert.Zero(t, c.runs.Load(), "its workers do not run")
+}
+
 func toolModule(name, tool string) *testModule {
 	mf := manifest(name, nil, nil)
 	mf.Permissions = []modkit.Permission{{Name: "use"}}

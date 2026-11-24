@@ -25,7 +25,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
@@ -61,7 +60,10 @@ func TestStopWaitsForARequestedPlacement(t *testing.T) {
 		DriftInterval: time.Hour,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	worker := NewWorker(core, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	require.NoError(t, worker.Start(context.Background()))
+	// Only the requested-placement loop: the core has no database, which the drift loop would reach on its next
+	// interval boundary.
+	worker.done.Add(1)
+	go worker.placeRequested(context.Background())
 	env := uuid.New()
 
 	worker.RequestPlaceEnv("ou-1", env)
