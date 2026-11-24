@@ -883,19 +883,6 @@ export function useNavigationItems(): Array<
         ),
       },
       {
-        label: "Agent registry",
-        type: "item",
-        icon: <Library size={20} />,
-        href: generatePath(
-          absoluteRouteMap.children.org.children.agentRegistry.path,
-          { orgId },
-        ),
-        isActive: !!matchPath(
-          absoluteRouteMap.children.org.children.agentRegistry.wildPath,
-          pathname,
-        ),
-      },
-      {
         label: "Agent catalog",
         type: "item",
         icon: <BookOpenText size={20} />,
@@ -905,6 +892,19 @@ export function useNavigationItems(): Array<
         ),
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.catalog.wildPath,
+          pathname,
+        ),
+      },
+      {
+        label: "Agent registry",
+        type: "item",
+        icon: <Library size={20} />,
+        href: generatePath(
+          absoluteRouteMap.children.org.children.agentRegistry.path,
+          { orgId },
+        ),
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.agentRegistry.wildPath,
           pathname,
         ),
       },
