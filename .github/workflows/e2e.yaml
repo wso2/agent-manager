@@ -39,6 +39,7 @@ jobs:
         uses: ./.github/actions/amp-dev-stack
         with:
           log_route_hits: "true"
+          private_events: "true"
 
       - name: Run e2e tests
         env:
@@ -86,7 +87,7 @@ jobs:
           mkdir -p /tmp/service-logs
           docker compose ps -a > /tmp/service-logs/services.txt 2>&1 || true
           for service in $(docker compose config --services); do
-            docker compose logs --no-color --tail 500 "$service" > "/tmp/service-logs/${service}.txt" 2>&1 || true
+            docker compose logs --no-color "$service" > "/tmp/service-logs/${service}.txt" 2>&1 || true
           done
 
       - name: Upload service logs

@@ -1,15 +1,15 @@
 {
   "areas": {
     "pkg/amcmd": {
-      "covered": 0,
+      "covered": 21,
       "total": 25
     },
     "pkg/auth": {
-      "covered": 0,
+      "covered": 110,
       "total": 115
     },
     "pkg/browser": {
-      "covered": 0,
+      "covered": 2,
       "total": 5
     },
     "pkg/clients": {
@@ -21,15 +21,15 @@
       "total": 160
     },
     "pkg/clierr": {
-      "covered": 0,
+      "covered": 3,
       "total": 3
     },
     "pkg/cloud": {
-      "covered": 10,
+      "covered": 18,
       "total": 20
     },
     "pkg/cmd": {
-      "covered": 56,
+      "covered": 135,
       "total": 137
     },
     "pkg/cmd/agent": {
@@ -69,7 +69,7 @@
       "total": 207
     },
     "pkg/cmd/context": {
-      "covered": 0,
+      "covered": 81,
       "total": 109
     },
     "pkg/cmd/context/instance": {
@@ -85,11 +85,11 @@
       "total": 111
     },
     "pkg/cmd/llmprovider": {
-      "covered": 208,
-      "total": 262
+      "covered": 221,
+      "total": 269
     },
     "pkg/cmd/project": {
-      "covered": 84,
+      "covered": 117,
       "total": 144
     },
     "pkg/cmd/skills": {
@@ -97,15 +97,15 @@
       "total": 125
     },
     "pkg/cmdutil": {
-      "covered": 185,
+      "covered": 383,
       "total": 436
     },
     "pkg/config": {
-      "covered": 43,
+      "covered": 59,
       "total": 69
     },
     "pkg/iostreams": {
-      "covered": 0,
+      "covered": 24,
       "total": 24
     },
     "pkg/prompter": {
@@ -121,11 +121,11 @@
       "total": 273
     },
     "pkg/tableprinter": {
-      "covered": 0,
+      "covered": 57,
       "total": 58
     },
     "pkg/update": {
-      "covered": 22,
+      "covered": 83,
       "total": 85
     },
     "pkg/version": {

@@ -116,10 +116,25 @@ type GatewayUpstream struct {
 
 // resolveProvider looks up a provider by UUID or handle.
 func (s *LLMProviderDeploymentService) resolveProvider(identifier, ouID string) (*gwmodels.LLMProvider, error) {
-	if _, err := uuid.Parse(identifier); err == nil {
-		return s.providerRepo.GetByUUID(identifier, ouID)
+	return lookupLLMProvider(s.providerRepo, identifier, ouID)
+}
+
+// lookupLLMProvider finds an org's provider by UUID or handle. An unknown one is
+// ErrLLMProviderNotFound.
+func lookupLLMProvider(repo gwrepo.LLMProviderRepository, identifier, ouID string) (*gwmodels.LLMProvider, error) {
+	var (
+		provider *gwmodels.LLMProvider
+		err      error
+	)
+	if _, parseErr := uuid.Parse(identifier); parseErr == nil {
+		provider, err = repo.GetByUUID(identifier, ouID)
+	} else {
+		provider, err = repo.GetByHandle(identifier, ouID)
 	}
-	return s.providerRepo.GetByHandle(identifier, ouID)
+	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && provider == nil) {
+		return nil, gwerr.ErrLLMProviderNotFound
+	}
+	return provider, err
 }
 
 // DeployLLMProvider deploys the provider's current configuration to a gateway. The deployment is named by the
@@ -142,10 +157,10 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 		return nil, fmt.Errorf("invalid gateway UUID: %w", err)
 	}
 
-	gateway, err := s.gatewayRepo.GetByUUID(req.GatewayID)
-	if err != nil {
+	gateway, err := normalizeGatewayLookup(s.gatewayRepo.GetByUUID(req.GatewayID))
+	if err != nil && !errors.Is(err, gwerr.ErrGatewayNotFound) {
 		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to get gateway", "providerID", providerID, "gatewayID", req.GatewayID, "error", err)
-		return nil, fmt.Errorf("failed to get gateway: %w", err)
+		return nil, err
 	}
 	if gateway == nil || gateway.OUID != ouID {
 		slog.Warn("LLMProviderDeploymentService.DeployLLMProvider: gateway not found or org mismatch", "providerID", providerID, "gatewayID", req.GatewayID, "ouID", ouID)

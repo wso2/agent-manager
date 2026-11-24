@@ -40,8 +40,22 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 }
 
 // MakeAppClientWithHost is MakeAppClientWithDeps that also returns the module
-// host, for tests that change modules.
+// host. The modules' background workers do not run: they act on every
+// organization, and on PostgreSQL other packages' tests share the database
+// in parallel, so a worker started here would place and render their rows
+// mid-test.
 func MakeAppClientWithHost(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware) (http.Handler, *modhost.Host) {
+	return makeAppClient(t, testClients, authMiddleware, false)
+}
+
+// MakeAppClientWithWorkers is MakeAppClientWithHost with the modules'
+// background workers running, for tests of a module's lifecycle. Such a test
+// should run only where packages do not share the database in parallel.
+func MakeAppClientWithWorkers(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware) (http.Handler, *modhost.Host) {
+	return makeAppClient(t, testClients, authMiddleware, true)
+}
+
+func makeAppClient(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware, workers bool) (http.Handler, *modhost.Host) {
 	// Use wire to initialize the app parameters with test clients. The plain
 	// handle, as the server uses: db.DB(ctx) carries an operation timeout
 	// that starts now, which would expire under the module host's workers.
@@ -60,6 +74,7 @@ func MakeAppClientWithHost(t *testing.T, testClients wiring.TestClients, authMid
 		}
 	}
 	host := modhost.NewWith(db, config.GetConfig().Database.Driver, slog.Default(), mods)
+	host.NoWorkers = !workers
 	// The host follows module changes until the test ends.
 	ctx, cancel := context.WithCancel(context.Background())
 	stop, err := app.StartModules(ctx, host, db, appParams)

@@ -386,6 +386,11 @@ func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http
 		return
 	}
 	if err := client.AddGroupMembers(ctx, groupID, agentMemberEntries(body.AgentIds)); err != nil {
+		// The group was found above, so a refusal here is about the agents.
+		if errors.Is(err, identityv1.ErrInvalid) || errors.Is(err, identityv1.ErrNotFound) {
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "agentIds must name agent identities in this environment")
+			return
+		}
 		log.Error("agent-identity AddGroupMembers failed", "groupID", groupID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
 		return

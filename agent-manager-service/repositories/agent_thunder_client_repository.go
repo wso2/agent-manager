@@ -68,15 +68,18 @@ type AgentThunderClientRepository interface {
 	// pending/stale) — the caller must skip the attempt.
 	ClaimForAttempt(ctx context.Context, id uuid.UUID) (claimed bool, err error)
 
-	// ResetFailedForRetry atomically transitions a binding from FAILED back to
+	// ResetFailedForRetry atomically transitions a binding that failed back to
 	// PENDING for a manual retry — clearing attempt_count, last_error, and
 	// last_attempted_at so it starts a fresh attempt budget, and setting
 	// next_retry_at to now so the reconciler's sweep is a safety net even if
-	// the caller's own inline attempt never runs. Conditioned on the row's
-	// CURRENT status being FAILED, so two concurrent retry calls (e.g. a
-	// double click) can only ever reset it once; reset=false means it already
-	// changed state (a concurrent retry won, or the reconciler got there
-	// first) and the caller must treat that as a conflict, not a silent no-op.
+	// the caller's own inline attempt never runs. A binding has failed when it
+	// is FAILED, or PENDING with the last attempt's error while it waits for
+	// its automatic retry; the user is told to retry in both cases.
+	// Conditioned on the row's CURRENT state, so two concurrent retry calls
+	// (e.g. a double click) can only ever reset it once; reset=false means it
+	// already changed state (a concurrent retry won, or the reconciler got
+	// there first) and the caller must treat that as a conflict, not a silent
+	// no-op.
 	ResetFailedForRetry(ctx context.Context, id uuid.UUID) (reset bool, err error)
 
 	// UpdateAfterAttempt records the outcome of a provisioning attempt: the resolved
@@ -290,7 +293,8 @@ func (r *AgentThunderClientRepo) ClaimForAttempt(ctx context.Context, id uuid.UU
 func (r *AgentThunderClientRepo) ResetFailedForRetry(ctx context.Context, id uuid.UUID) (bool, error) {
 	now := dbx.Now()
 	result := r.db.WithContext(ctx).Model(&models.AgentThunderClient{}).
-		Where("id = ? AND status = ?", id, models.AgentThunderStatusFailed).
+		Where("id = ? AND (status = ? OR (status = ? AND last_error <> ''))",
+			id, models.AgentThunderStatusFailed, models.AgentThunderStatusPending).
 		Updates(map[string]interface{}{
 			"status":        models.AgentThunderStatusPending,
 			"attempt_count": 0,

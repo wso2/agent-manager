@@ -35,8 +35,11 @@ vi.mock("../apis/a2a-proxy", () => ({
   refreshA2AProxy: vi.fn(async () => undefined),
 }));
 
-import { getA2AProxy, setA2AProxy } from "../apis/a2a-proxy";
-import { useGetA2AProxy, useIsSavingA2AProxy, useSetA2AProxy } from "./a2a-proxy";
+import { deleteA2AProxy, getA2AProxy, refreshA2AProxy, setA2AProxy } from "../apis/a2a-proxy";
+import {
+  useDeleteA2AProxy, useGetA2AProxy, useIsSavingA2AProxy, useRefreshA2AProxy, useSetA2AProxy,
+} from "./a2a-proxy";
+import { cleanupHooks, flush, renderHook, runMutation } from "../../test-utils/query-hooks";
 import { a2aProxyQueryKey, agentCardQueryKey } from "./a2a-query-keys";
 import { POLL_INTERVAL } from "../../shared/utils";
 
@@ -126,5 +129,55 @@ describe("useIsSavingA2AProxy", () => {
 
     await act(async () => { finish(); await new Promise((r) => setTimeout(r, 20)); });
     expect(seen.current.same).toBe(false);
+  });
+});
+
+describe("gateway routing removal and republish", () => {
+  afterEach(() => cleanupHooks());
+
+  const SEEDED = {
+    proxy: a2aProxyQueryKey(params),
+    card: agentCardQueryKey(params),
+    otherEnvProxy: a2aProxyQueryKey({ ...params, envId: "prod" }),
+  };
+
+  it("removing the routing reads it as direct and refetches the card and routing", async () => {
+    vi.mocked(deleteA2AProxy).mockResolvedValueOnce(undefined);
+    const { invalidated, qc, error } = await runMutation(useDeleteA2AProxy, params, SEEDED);
+    expect(error).toBeUndefined();
+    expect(deleteA2AProxy).toHaveBeenCalledWith(params, expect.any(Function));
+    expect(qc.getQueryData(a2aProxyQueryKey(params))).toBeNull();
+    expect(invalidated).toEqual(["card", "proxy"]);
+  });
+
+  it("a failed removal leaves the cached routing alone", async () => {
+    vi.mocked(deleteA2AProxy).mockRejectedValueOnce(new Error("conflict"));
+    const { invalidated, qc, error } = await runMutation(useDeleteA2AProxy, params, SEEDED);
+    expect((error as Error).message).toBe("conflict");
+    expect(qc.getQueryData(a2aProxyQueryKey(params))).toEqual({});
+    expect(invalidated).toEqual([]);
+  });
+
+  it("a republish refetches only this environment's card and routing", async () => {
+    vi.mocked(refreshA2AProxy).mockResolvedValueOnce(undefined);
+    const { invalidated } = await runMutation(useRefreshA2AProxy, params, SEEDED);
+    expect(refreshA2AProxy).toHaveBeenCalledWith(params, expect.any(Function));
+    expect(invalidated).toEqual(["card", "proxy"]);
+  });
+
+  it.each([
+    ["orgName"], ["projName"], ["agentName"], ["envId"],
+  ] as const)("does not read the routing without %s", async (missing) => {
+    vi.mocked(getA2AProxy).mockClear();
+    await renderHook(() => useGetA2AProxy({ ...params, [missing]: "" }));
+    await flush();
+    expect(getA2AProxy).not.toHaveBeenCalled();
+  });
+
+  it("does not read the routing when the caller disables it", async () => {
+    vi.mocked(getA2AProxy).mockClear();
+    await renderHook(() => useGetA2AProxy(params, { enabled: false }));
+    await flush();
+    expect(getA2AProxy).not.toHaveBeenCalled();
   });
 });

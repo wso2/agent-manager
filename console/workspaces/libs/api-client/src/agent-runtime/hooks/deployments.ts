@@ -71,7 +71,9 @@ export function useListAgentDeployments(
   return useApiQuery<DeploymentListResponse>({
     queryKey: ['agent-deployments', params.orgName, params.projName, params.agentName],
     queryFn: () => listAgentDeployments(params, getToken),
-    enabled: options?.enabled ?? (!!params.orgName && !!params.projName && !!params.agentName),
+    // The caller's flag can only narrow this: it never sends a request without the agent's path.
+    enabled:
+      (options?.enabled ?? true) && !!params.orgName && !!params.projName && !!params.agentName,
     refetchInterval: (queryState) => {
       // Check if any deployment is in progress
       const hasInProgressDeployment = 

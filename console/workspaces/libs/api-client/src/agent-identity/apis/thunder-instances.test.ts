@@ -1,0 +1,57 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { describe, expect, it, vi } from "vitest";
+import { httpDELETE, httpGET, httpPOST, httpPUT } from "../../shared/utils";
+import { describeHttpCases, getToken, type HttpMocks } from "../../test-utils/http-cases";
+import { listThunderInstances } from "./thunder-instances";
+
+vi.mock("../../shared/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../shared/utils")>()),
+  httpGET: vi.fn(),
+  httpPOST: vi.fn(),
+  httpPUT: vi.fn(),
+  httpDELETE: vi.fn(),
+}));
+
+const mocks = {
+  GET: vi.mocked(httpGET),
+  POST: vi.mocked(httpPOST),
+  PUT: vi.mocked(httpPUT),
+  DELETE: vi.mocked(httpDELETE),
+} as unknown as HttpMocks;
+
+describeHttpCases("thunder instances API", mocks, [
+  {
+    name: "listThunderInstances",
+    call: () => listThunderInstances({ orgName: "acme corp" }, getToken),
+    method: "GET",
+    url: "/api/v1/orgs/acme%20corp/thunder-instances",
+    response: { thunderInstances: [{ envName: "dev", displayName: "Dev" }] },
+  },
+]);
+
+describe("listThunderInstances", () => {
+  it("refuses to call the API without an org", async () => {
+    vi.mocked(httpGET).mockClear();
+    await expect(listThunderInstances({ orgName: "" }, getToken)).rejects.toThrow(
+      "Missing required parameter: orgName",
+    );
+    expect(httpGET).not.toHaveBeenCalled();
+  });
+});

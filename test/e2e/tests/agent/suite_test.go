@@ -30,45 +30,36 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
+	"github.com/wso2/agent-manager/test/e2e/framework/amctl"
 	"github.com/wso2/agent-manager/test/e2e/testsetup"
 )
 
-// Client is the shared API client used by all agent tests.
+// Client is the shared API client.
 var Client *framework.AMPClient
 
 // Cfg is the shared test configuration.
 var Cfg *framework.Config
 
-func TestAgent(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Agent Suite")
-}
-
-// The shared project the agent specs create agents in is created once here (on
-// a single process) rather than by the specs themselves, so that under
-// `ginkgo -p` the specs — distributed across parallel processes — do not race
-// to create it. Each process still builds its own API client.
-var _ = SynchronizedBeforeSuite(func() []byte {
+// H is the amctl harness, the second channel journeys read their changes back
+// through. It owns the suite's only SynchronizedBeforeSuite.
+var H = amctl.RegisterSuite(amctl.WithSharedSetup(func() []byte {
 	cfg := framework.LoadConfig()
-
-	By("Waiting for API readiness")
 	framework.WaitForAPIReady(cfg)
-
-	By("Creating API client")
 	client, err := framework.NewAMPClient(cfg)
 	Expect(err).NotTo(HaveOccurred(), "failed to create API client")
-
-	By("Verifying default organization")
 	framework.VerifyDefaultOrg(client, cfg.DefaultOrg)
-
 	By("Ensuring shared project exists")
 	testsetup.EnsureProject(client, cfg, framework.E2ESharedProjectName,
 		"E2E Shared Project", "Shared project for e2e tests")
 	return nil
-}, func(_ []byte) {
+}, func([]byte) {
 	Cfg = framework.LoadConfig()
-	framework.WaitForAPIReady(Cfg)
 	var err error
 	Client, err = framework.NewAMPClient(Cfg)
 	Expect(err).NotTo(HaveOccurred(), "failed to create API client")
-})
+}))
+
+func TestAgent(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Agent Suite")
+}

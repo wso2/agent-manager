@@ -816,6 +816,26 @@ func assertNoRows(t *testing.T, ref gwmodels.ArtifactRef) {
 }
 
 // PlaceEnv after a mapping places only that environment, and renders what it places in the same call.
+// A placement that cannot find its gateway fails the pass and places nothing; one whose environment has no gateway
+// is left for later.
+func TestPlaceEnvTargetFailures(t *testing.T) {
+	kind := newFakeEnvKind(true)
+	_, worker := newWorker(t, kind)
+	ouID, env := testOU(t), uuid.New()
+	ref := seedArtifact(t, ouID, fakeEnvKindName)
+	seedRecord(t, nil, ref, env)
+	gateway := seedGateway(t, ouID, env)
+
+	kind.targets = func(Record) (uuid.UUID, bool, error) { return uuid.Nil, false, errors.New("lookup failed") }
+	err := worker.PlaceEnv(context.Background(), ouID, env)
+	require.ErrorContains(t, err, "failed to find the gateway")
+	assert.Nil(t, statusRow(t, gwmodels.Placement{ArtifactRef: ref, GatewayUUID: gateway}))
+
+	kind.targets = func(Record) (uuid.UUID, bool, error) { return uuid.Nil, false, nil }
+	require.NoError(t, worker.PlaceEnv(context.Background(), ouID, env))
+	assert.Nil(t, statusRow(t, gwmodels.Placement{ArtifactRef: ref, GatewayUUID: gateway}), "no gateway, nothing placed")
+}
+
 func TestPlaceEnv(t *testing.T) {
 	kind := newFakeEnvKind(true)
 	_, worker := newWorker(t, kind)

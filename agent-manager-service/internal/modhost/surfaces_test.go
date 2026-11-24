@@ -258,28 +258,39 @@ func modulePermissionsAndRoutes(t *testing.T, d database) {
 	mf.Permissions = []modkit.Permission{{Name: "thing-read"}}
 	mf.RoleGrants = map[string][]string{rbac.RoleDeveloper: {"thing-read"}}
 	mf.Events = []modkit.EventType{{Name: "t-perm.happened"}}
+	// The host's follow loop can activate and mount alongside installAll, so
+	// what the callbacks record is locked.
+	var mu sync.Mutex
 	var published error
 	m := &testModule{manifest: mf, activate: func(rt modkit.Runtime) error {
 		rt.Handle(http.MethodGet, "/things", "thing-read", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) })
 		rt.Handle(http.MethodGet, "/agents", string(rbac.AgentRead), func(http.ResponseWriter, *http.Request) {})
-		published = rt.Publish(ctx, "t-perm.undeclared", nil)
+		err := rt.Publish(ctx, "t-perm.undeclared", nil)
+		mu.Lock()
+		published = err
+		mu.Unlock()
 		return nil
 	}}
 	var mounted []modhost.Route
 	h, _ := replica(t, ctx, d, []modkit.Module{m})
 	h.Attach(modhost.Deps{Mount: func(mux *http.ServeMux, r modhost.Route) {
+		mu.Lock()
 		mounted = append(mounted, r)
+		mu.Unlock()
 		mux.HandleFunc(r.Pattern(), r.Handler)
 	}})
 	installAll(t, h, "t-perm")
-	require.Error(t, published, "an event the manifest does not list cannot be published")
+	mu.Lock()
+	publishErr, routes := published, append([]modhost.Route(nil), mounted...)
+	mu.Unlock()
+	require.Error(t, publishErr, "an event the manifest does not list cannot be published")
 
 	owner, ok := h.Permissions().Owner("t-perm:thing-read")
 	assert.True(t, ok)
 	assert.Equal(t, "t-perm", owner)
 	assert.Contains(t, rbac.RoleGrants(rbac.RoleDeveloper), rbac.Permission("t-perm:thing-read"))
 	perms := map[string]rbac.Permission{}
-	for _, r := range mounted {
+	for _, r := range routes {
 		perms[r.Path] = r.Permission
 	}
 	assert.Equal(t, map[string]rbac.Permission{"/things": "t-perm:thing-read", "/agents": rbac.AgentRead}, perms)

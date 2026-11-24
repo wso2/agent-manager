@@ -172,6 +172,25 @@ func TestPassiveHostRunsNoWorkers(t *testing.T) {
 	assert.Zero(t, c.runs.Load(), "a CLI command that installs a module does not run its workers")
 }
 
+// A host told to run no workers still activates the module, as a test server
+// does whose database other tests share.
+func TestHostWithoutWorkersActivatesTheModule(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var c counter
+	var activated atomic.Bool
+	m := &testModule{manifest: manifest("t-work", nil, nil), activate: func(rt modkit.Runtime) error {
+		activated.Store(true)
+		rt.Go("count", c.work)
+		return nil
+	}}
+	h := configured(t, ctx, databases(t)[0], []modkit.Module{m}, func(h *modhost.Host) { h.NoWorkers = true })
+	installAll(t, h, "t-work")
+	time.Sleep(50 * time.Millisecond)
+	assert.True(t, activated.Load(), "the module is active")
+	assert.Zero(t, c.runs.Load(), "its workers do not run")
+}
+
 func toolModule(name, tool string) *testModule {
 	mf := manifest(name, nil, nil)
 	mf.Permissions = []modkit.Permission{{Name: "use"}}
@@ -248,17 +267,21 @@ func projectFinalizeCanRefuse(t *testing.T, d database) {
 // secretsModule stores secrets through rt.Secrets() from its exported fields.
 type secretsModule struct {
 	*testModule
-	rt modkit.Runtime
+	// The host may activate the module again from its reload goroutine while
+	// the test reads the runtime.
+	rt atomic.Pointer[modkit.Runtime]
 }
 
 func newSecretsModule(name string) *secretsModule {
 	s := &secretsModule{}
 	s.testModule = &testModule{manifest: manifest(name, nil, nil), activate: func(rt modkit.Runtime) error {
-		s.rt = rt
+		s.rt.Store(&rt)
 		return nil
 	}}
 	return s
 }
+
+func (s *secretsModule) runtime() modkit.Runtime { return *s.rt.Load() }
 
 func TestSecretsStayInTheModule(t *testing.T) { eachDatabase(t, secretsStayInTheModule) }
 
@@ -275,7 +298,7 @@ func secretsStayInTheModule(t *testing.T, d database) {
 	require.NoError(t, g.Exec(`INSERT INTO organizations (id, handle, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
 		org, "o-"+org[:8], "Org", now, now).Error)
 
-	sa, sb := a.rt.Secrets(), b.rt.Secrets()
+	sa, sb := a.runtime().Secrets(), b.runtime().Secrets()
 	require.NoError(t, sa.Put(ctx, org, "providers/p1/api-key", "s3cret"))
 	require.NoError(t, sa.Put(ctx, org, "providers/p1/api-key", "s3cret-2"), "a second Put replaces the value")
 	got, err := sa.Get(ctx, org, "providers/p1/api-key")
