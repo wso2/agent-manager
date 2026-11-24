@@ -2038,7 +2038,11 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		if hasSecrets {
 			s.cleanupSecretsOnRollback(ctx, secretLocation)
 		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		// A cancellation or deadline hides whether the create reached OpenChoreo, so a component
+		// it made may exist. An error raised before the create was sent leaves none, and any
+		// component found would be another request's.
+		interrupted := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+		if interrupted && !errors.Is(err, client.ErrComponentCreateNotSent) {
 			s.deleteComponentCreatedSince(ctx, ouID, projectName, req.Name, createStartedAt)
 		}
 		if errors.Is(err, utils.ErrConflict) {

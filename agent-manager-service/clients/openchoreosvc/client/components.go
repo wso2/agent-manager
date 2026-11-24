@@ -38,19 +38,33 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
+// ErrComponentCreateNotSent marks a CreateComponent error raised before the create request was
+// sent, so no component can exist because of it. A caller that cleans up after an interrupted
+// create (a cancellation or deadline whose outcome is unknown) must not do so for these.
+var ErrComponentCreateNotSent = errors.New("component create was not sent")
+
+// createNotSentError wraps an error raised before the create was sent. It keeps the wrapped
+// error's message, so callers and users see the same reason as before, and matches
+// ErrComponentCreateNotSent as well as everything the wrapped error matches.
+type createNotSentError struct{ err error }
+
+func (e createNotSentError) Error() string        { return e.err.Error() }
+func (e createNotSentError) Unwrap() error        { return e.err }
+func (e createNotSentError) Is(target error) bool { return target == ErrComponentCreateNotSent }
+
 func (c *openChoreoClient) CreateComponent(ctx context.Context, ouID, projectName string, req CreateComponentRequest) error {
 	if err := workloadpolicy.Check(ctx, ouID); err != nil {
-		return err
+		return createNotSentError{err}
 	}
 	namespaceName := c.NamespaceFor(ouID)
 	createComponentReqBody, err := buildCreateComponentRequestBody(namespaceName, projectName, req)
 	if err != nil {
-		return fmt.Errorf("failed to build component request: %w", err)
+		return createNotSentError{fmt.Errorf("failed to build component request: %w", err)}
 	}
 	createComponentReqBody.Metadata.Labels = c.withResourceLabels(createComponentReqBody.Metadata.Labels)
 
 	if err := c.requireComponentNameFree(ctx, namespaceName, req.Name); err != nil {
-		return err
+		return createNotSentError{err}
 	}
 
 	resp, err := c.ocClient.CreateComponentWithResponse(ctx, namespaceName, createComponentReqBody)

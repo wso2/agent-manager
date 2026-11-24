@@ -225,3 +225,48 @@ func TestGetWorkloadSecretRefNames_KeepsOnlyItsOwnProjectsRefs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"mine"}, names)
 }
+
+// OpenChoreo requires an owner project, so a source that names none is not shown to be this
+// project's and contributes nothing.
+func TestGetWorkloadSecretRefNames_SkipsSourcesWithoutAnOwner(t *testing.T) {
+	ownerless := bindingWithOverrides([]gen.EnvVar{secretEnvVar("API_KEY", "ownerless-binding")}, nil)
+	ownerless.Spec.Owner.ProjectName = ""
+	var workloads gen.WorkloadList
+	require.NoError(t, json.Unmarshal([]byte(`{"items":[{"metadata":{"name":"my-agent"},"spec":{
+		"container":{"image":"x","env":[{"key":"K","valueFrom":{"secretKeyRef":{"name":"ownerless-workload"}}}]}}}]}`), &workloads))
+	c := newTestClient(t, serveLists(t, gen.ReleaseBindingList{Items: []gen.ReleaseBinding{ownerless}}, workloads))
+
+	names, err := c.GetWorkloadSecretRefNames(context.Background(), "acme", "my-project", "my-agent")
+
+	require.NoError(t, err)
+	assert.Empty(t, names)
+}
+
+// An error before the create is sent leaves no component behind, so it is marked: a caller
+// cleaning up after an interrupted create must not delete a component of that name, which
+// could only be another request's.
+func TestCreateComponent_FailureBeforeSendingIsMarkedNotSent(t *testing.T) {
+	srv := &componentServer{name: "other", project: "project-a", createdAs: "support-agent"}
+	c := newTestClient(t, srv)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := c.CreateComponent(ctx, "ou", "project-b",
+		CreateComponentRequest{Name: "support-agent", ProvisioningType: ProvisioningExternal})
+
+	require.ErrorIs(t, err, ErrComponentCreateNotSent)
+	require.ErrorIs(t, err, context.Canceled, "the cause is kept")
+	assert.Empty(t, srv.sent(http.MethodPost))
+}
+
+// A conflict found by the name check keeps its message and its sentinel.
+func TestCreateComponent_NameTakenIsMarkedNotSent(t *testing.T) {
+	c := newTestClient(t, &componentServer{name: "support-agent", project: "project-a"})
+
+	err := c.CreateComponent(context.Background(), "ou", "project-b",
+		CreateComponentRequest{Name: "support-agent", ProvisioningType: ProvisioningExternal})
+
+	require.ErrorIs(t, err, ErrComponentCreateNotSent)
+	require.ErrorIs(t, err, utils.ErrConflict)
+	assert.Equal(t, `conflict: component "support-agent" already exists in project "project-a"`, err.Error())
+}

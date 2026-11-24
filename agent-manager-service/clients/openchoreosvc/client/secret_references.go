@@ -364,7 +364,11 @@ func (c *openChoreoClient) collectWorkloadSecretRefNames(ctx context.Context, na
 		if workload.Spec == nil || workload.Spec.Container == nil {
 			continue
 		}
-		if workload.Spec.Owner != nil && !ownedBy(workload.Spec.Owner.ProjectName, projectName) {
+		owner := ""
+		if workload.Spec.Owner != nil {
+			owner = workload.Spec.Owner.ProjectName
+		}
+		if !ownedBy(owner, projectName) {
 			continue
 		}
 		collectSecretRefNames(workload.Spec.Container.Env, workload.Spec.Container.Files, out)
@@ -417,10 +421,12 @@ func (c *openChoreoClient) collectComponentWorkflowSecretRefNames(ctx context.Co
 	return nil
 }
 
-// ownedBy reports whether a resource whose owner is ownerProject belongs to projectName. An
-// empty projectName, or a resource that names no owner, is not filtered out.
+// ownedBy reports whether a resource whose owner is ownerProject belongs to projectName. Only a
+// resource that names projectName as its owner does; OpenChoreo requires a non-empty owner
+// project on Workloads, ReleaseBindings and Components, so one that names none is not shown to
+// be this project's. An empty projectName filters nothing.
 func ownedBy(ownerProject, projectName string) bool {
-	return projectName == "" || ownerProject == "" || strings.EqualFold(ownerProject, projectName)
+	return projectName == "" || (ownerProject != "" && strings.EqualFold(ownerProject, projectName))
 }
 
 // collectSecretRefNames adds the SecretReference names behind any valueFrom.secretKeyRef in the
