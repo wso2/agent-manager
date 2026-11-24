@@ -224,17 +224,6 @@ export const rootRouteMap: AppRoute = {
                     path: 'shadow-agent-discovery',
                     index: true,
                     children: {
-                        finding: {
-                            path: 'agents/:findingId',
-                            index: true,
-                            children: {
-                                onboard: {
-                                    path: 'onboard',
-                                    index: true,
-                                    children: {},
-                                },
-                            },
-                        },
                         scan: {
                             path: 'scans/:scanId',
                             index: true,
@@ -306,6 +295,18 @@ export const rootRouteMap: AppRoute = {
                             path: 'projects/:registryProjectId/agents/:registryAgentId',
                             index: true,
                             children: {},
+                        },
+                        // A shadow agent: no project, so it is found by its discovery finding.
+                        unregisteredAgent: {
+                            path: 'unregistered/:findingId',
+                            index: true,
+                            children: {
+                                onboard: {
+                                    path: 'onboard',
+                                    index: true,
+                                    children: {},
+                                },
+                            },
                         },
                     },
                 },

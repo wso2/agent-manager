@@ -109,8 +109,6 @@ const shadow = agent({
     externalId: "agent_alpha",
     state: "active",
     foundBy: [{ findingId: "f1", connectionId: "c1", connectionName: "OpenAI prod", present: true }],
-    attributes: { model: "gpt-x" },
-    signals: [],
   },
 });
 

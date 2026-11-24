@@ -32,5 +32,8 @@ export const metaData: PageMetadata = {
 };
 
 export { ShadowAgentDiscovery };
+// Shared with the agent registry, which lists and opens the unregistered agents.
+export * from "./ShadowAgentDiscovery/shadowUi";
+export { useShadowAccess } from "./ShadowAgentDiscovery/useShadowAccess";
 
 export default ShadowAgentDiscovery;

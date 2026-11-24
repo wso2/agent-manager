@@ -20,18 +20,28 @@ import { Route, Routes } from "react-router-dom";
 import { relativeRouteMap } from "@agent-management-platform/types";
 import { AgentRegistry } from "./AgentRegistry/AgentRegistry";
 import { AgentRegistryOverview } from "./AgentRegistryOverview/AgentRegistryOverview";
+import {
+  UnregisteredAgentOnboardPage,
+  UnregisteredAgentPage,
+} from "./UnregisteredAgent/UnregisteredAgentPages";
 
 const registryRoutes = relativeRouteMap.children.org.children.agentRegistry.children;
+const unregisteredRoute = registryRoutes.unregisteredAgent;
 
 /**
- * The registry's pages under /agent-registry: the list, and a registered agent's overview.
- * An unregistered agent opens on its Shadow Agent Discovery page.
+ * The registry's pages under /agent-registry: the list, a registered agent's overview, and an
+ * unregistered agent's page with onboarding.
  */
 export function AgentRegistryRoutes() {
   return (
     <Routes>
       <Route index element={<AgentRegistry />} />
       <Route path={registryRoutes.agent.path} element={<AgentRegistryOverview />} />
+      <Route path={unregisteredRoute.path} element={<UnregisteredAgentPage />} />
+      <Route
+        path={`${unregisteredRoute.path}/${unregisteredRoute.children.onboard.path}`}
+        element={<UnregisteredAgentOnboardPage />}
+      />
     </Routes>
   );
 }

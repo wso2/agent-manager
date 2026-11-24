@@ -42,7 +42,7 @@ import {
   type AgentSourceSeedState,
   type ShadowFindingDetail,
 } from "@agent-management-platform/types";
-import { buildAgentSourceSeed, platformHostedBlocker } from "../platformHostedSeed";
+import { buildAgentSourceSeed, platformHostedBlocker } from "./platformHostedSeed";
 
 /** Asks which project to deploy the code agent to, then opens the platform-hosted agent form. */
 function DeployDialog({
