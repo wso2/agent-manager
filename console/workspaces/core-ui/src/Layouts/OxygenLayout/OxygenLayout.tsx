@@ -205,7 +205,7 @@ export function OxygenLayout() {
                 }
                 {globalConfig.docsUrl && (
                   <Footer.Link
-                    href={globalConfig.docsUrl + "/get-started/what-is-amp/"}
+                    href={globalConfig.docsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => track(ConsoleAction.DocsLinkClick, { doc_target: "getting-started" })}
