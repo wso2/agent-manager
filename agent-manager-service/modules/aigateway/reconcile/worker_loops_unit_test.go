@@ -31,6 +31,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
 // syncBuffer is a log sink the worker's goroutines may write while the test reads it.
@@ -128,4 +132,42 @@ func TestLoopRunsOnTickAndOnWake(t *testing.T) {
 	go cancelled.loop(ctx, time.Hour, nil, run)
 	cancel()
 	cancelled.done.Wait()
+}
+
+// A render pass that cannot claim its due rows is logged, and one whose write-back fails is logged per row. A row of
+// a kind no reconciler handles is left waiting for later, not rendered.
+func TestRunOnceLogsClaimAndWriteBackFailures(t *testing.T) {
+	logs := &syncBuffer{}
+	logger := slog.New(slog.NewTextHandler(logs, nil))
+	repo := &gwrepomocks.DeploymentRepositoryMock{
+		ClaimDueRendersFunc: func(context.Context, time.Time, time.Duration, int) ([]gwmodels.ClaimedRender, error) {
+			return nil, errors.New("claim failed")
+		},
+	}
+	core := NewCore(nil, repo, nil, Kinds{stubKind{}}, Config{Lease: time.Minute}, logger)
+	worker := NewWorker(core, logger)
+
+	worker.RunOnce(context.Background())
+	assert.Contains(t, logs.String(), "Failed to claim due renders")
+
+	var outcome gwrepo.RenderOutcome
+	repo.ClaimDueRendersFunc = func(context.Context, time.Time, time.Duration, int) ([]gwmodels.ClaimedRender, error) {
+		return []gwmodels.ClaimedRender{{
+			Placement: gwmodels.Placement{
+				ArtifactRef: gwmodels.ArtifactRef{ArtifactUUID: uuid.New(), Kind: "NoSuchKind"},
+				GatewayUUID: uuid.New(),
+			},
+			ClaimedAt: time.Now(),
+		}}, nil
+	}
+	repo.RecordRenderOutcomeFunc = func(_ context.Context, _ gwmodels.ClaimedRender, o gwrepo.RenderOutcome) error {
+		outcome = o
+		return errors.New("write-back failed")
+	}
+
+	worker.RunOnce(context.Background())
+	assert.Equal(t, gwrepo.RenderWaiting, outcome.Outcome, "an unregistered kind's render waits")
+	assert.Contains(t, outcome.Reason, `no reconciler for artifact kind "NoSuchKind"`)
+	require.NotNil(t, outcome.NextAttemptAt)
+	assert.Contains(t, logs.String(), "Failed to write back a render")
 }
