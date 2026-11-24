@@ -77,6 +77,12 @@ func TestRunWithoutServerReturnsOnceTheSchemaIsCurrent(t *testing.T) {
 // test in the package that starts the server.
 func TestRunServesAndShutsDownOnSignal(t *testing.T) {
 	cfg := config.GetConfig()
+	// The server's workers act on every org in the database. On PostgreSQL
+	// the packages share one database in parallel, so they would place and
+	// render other packages' gateway rows mid-test; SQLite runs them serially.
+	if cfg.Database.Driver != "sqlite" {
+		t.Skip("boots every background worker; runs on SQLite, where packages run serially")
+	}
 	saved := *cfg
 	t.Cleanup(func() { *cfg = saved })
 
