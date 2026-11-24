@@ -23,7 +23,7 @@ import (
 )
 
 // CostUsage is what one combination of project, agent, API key, user, LLM provider and
-// model cost in one month, as gateways report it (AI cost stats, Interfaces 1.3). The
+// model cost in one month, as gateways report it (AI cost stats). The
 // values are the names gateways report, empty when unknown; Cost is a decimal string in
 // USD.
 type CostUsage struct {

@@ -31,7 +31,7 @@ import (
 )
 
 // CostUsageRepository keeps what LLM traffic cost per month and combination of values
-// (AI cost stats, Interfaces 1.3).
+// (AI cost stats).
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/cost_usage_repository_mock.go . CostUsageRepository:CostUsageRepositoryMock
 type CostUsageRepository interface {

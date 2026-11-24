@@ -18,7 +18,7 @@
 
 import type { ListQuery, OrgPathParams, PaginationMeta } from "./common";
 
-// Budgets and AI costs (agent-manager-service docs/api_v1_openapi.yaml).
+// Budgets and AI costs (agent-manager-service/modules/aigateway/api/openapi.yaml).
 
 export const BUDGET_API_VERSION = "gateway.api-platform.wso2.com/v1";
 /** Names the organization that owns a budget, by handle. */
@@ -106,7 +106,7 @@ export interface BudgetCurrentPeriod {
 }
 
 export interface BudgetServerStatus {
-  origin: "control_plane" | "gateway_api";
+  origin: "controlPlane" | "gatewayApi";
   currentPeriod?: BudgetCurrentPeriod;
   createdBy?: string;
   createdAt: string;
@@ -141,7 +141,7 @@ export interface BudgetUsageListResponse extends PaginationMeta {
 export type ListBudgetsPathParams = OrgPathParams;
 export interface ListBudgetsQuery extends ListQuery {
   /** Only the budgets this project owns. */
-  projectId?: string;
+  project?: string;
   filter?: string;
   /** Budgets whose name, display name or a label contains this text, ignoring case. */
   search?: string;

@@ -94,7 +94,7 @@ function Tile({
           fontWeight={700}
           sx={{
             mt: 0.5,
-            fontSize: "1.75rem",
+            fontSize: "1.5rem",
             color: highlight ? "primary.main" : "text.primary",
             fontVariantNumeric: "tabular-nums",
           }}

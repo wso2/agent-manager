@@ -26,10 +26,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
@@ -234,13 +236,13 @@ func TestGatewayResourceSync_TheProjectAnnotationMakesAProjectBudget(t *testing.
 			return true, nil
 		},
 	}
-	platform := &gwrepomocks.PlatformRepositoryMock{
-		GetProjectFunc: func(_ context.Context, ouID, name string) (*gwmodels.ProjectResponse, error) {
+	platform := &gwtest.Core{
+		GetProjectFunc: func(_ context.Context, ouID, name string) (*modkit.Project, error) {
 			assert.Equal(t, resourceSyncOrg, ouID)
 			if name != "api-platform" {
-				return nil, gwerr.ErrProjectNotFound
+				return nil, modkit.ErrNotFound
 			}
-			return &gwmodels.ProjectResponse{UUID: budgetTestProjectID, Name: name}, nil
+			return &modkit.Project{ID: budgetTestProjectID, Name: name}, nil
 		},
 	}
 	annotated := func(id, name, project string, filters ...map[string]any) gwmodels.GatewayResourceItem {
@@ -415,10 +417,10 @@ func TestGatewayResourceSync_ABudgetNamingAnotherOrganizationFails(t *testing.T)
 			return true, nil
 		},
 	}
-	platform := &gwrepomocks.PlatformRepositoryMock{
-		GetOrganizationFunc: func(_ context.Context, ouID string) (*gwmodels.OrganizationResponse, error) {
+	platform := &gwtest.Core{
+		GetOrgFunc: func(_ context.Context, ouID string) (modkit.Org, error) {
 			assert.Equal(t, resourceSyncOrg, ouID)
-			return &gwmodels.OrganizationResponse{Name: "wso2", Handle: "wso2"}, nil
+			return modkit.Org{ID: ouID, Handle: "wso2"}, nil
 		},
 	}
 	withOrg := func(id, name, org string) gwmodels.GatewayResourceItem {

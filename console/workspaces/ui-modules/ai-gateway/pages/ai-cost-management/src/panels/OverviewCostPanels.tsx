@@ -36,7 +36,7 @@ type AddBudgetProps = Omit<QuickBudgetDialogProps, "open" | "onClose">;
 
 /** "Add budget" and its quick form, for users who may create budgets. */
 function AddBudget(props: AddBudgetProps): ReactNode {
-  const canWrite = useFeatureManagement().hasAccess("budget_create");
+  const canWrite = useFeatureManagement().hasAccess("cost_write");
   const [open, setOpen] = useState(false);
   if (!canWrite) return null;
   return (
@@ -99,7 +99,7 @@ function ViewCostDetails({ href }: { href: string }) {
 /** Budget pages at org level, or under a project. */
 function budgetRoutes(orgId: string) {
   // Budgets are created and managed at organization level.
-  const page = orgNav.aiCostManagement;
+  const page = orgNav.costManagement;
   return {
     createHref: generatePath(page.children.budgets.children.create.path, {
       orgId,
@@ -130,7 +130,7 @@ export const LLMProviderCostSection: React.FC<{
   /** Shown to the user. */
   providerName?: string;
 }> = ({ orgId, providerId, providerName }) => {
-  const base = generatePath(orgNav.aiCostManagement.path, { orgId });
+  const base = generatePath(orgNav.costManagement.path, { orgId });
   return (
     <Box sx={{ width: "100%" }}>
       <CostSectionHeader

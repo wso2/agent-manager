@@ -51,7 +51,7 @@ const ampScopes = "amp:agent:build amp:agent:create amp:agent:delete amp:agent:r
 	"amp:role:create amp:role:delete amp:role:read amp:role:update " +
 	"amp:profile:read amp:profile:update-attributes " +
 	// The AI Gateway module's permissions.
-	"amp:ai-gateway:budgets.create amp:ai-gateway:budgets.read amp:ai-gateway:budgets.update amp:ai-gateway:budgets.delete amp:ai-gateway:costs.read " +
+	"amp:ai-gateway:costs.read amp:ai-gateway:costs.write amp:ai-gateway:costs.delete " +
 	"amp:ai-gateway:gateways.create amp:ai-gateway:gateways.read amp:ai-gateway:gateways.update amp:ai-gateway:gateways.delete amp:ai-gateway:gateways.token-manage " +
 	"amp:ai-gateway:llm-providers.create amp:ai-gateway:llm-providers.read amp:ai-gateway:llm-providers.update amp:ai-gateway:llm-providers.delete " +
 	"amp:ai-gateway:llm-providers.configure-guardrail amp:ai-gateway:llm-providers.connect amp:ai-gateway:llm-providers.deploy amp:ai-gateway:llm-providers.api-key-manage " +

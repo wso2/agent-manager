@@ -402,10 +402,18 @@ func destinationHooks(ctx context.Context, action, ouID string, d *models.EventD
 		modkit.HookRequest{Action: action, OrgID: ouID, ID: d.ID.String(), Object: object}, nil)
 	var rejected *modkit.Error
 	if errors.As(err, &rejected) && rejected.Status == http.StatusConflict {
-		return fmt.Errorf("%w: %s", utils.ErrEventDestinationInUse, rejected.Message)
+		return destinationInUseError{message: rejected.Message}
 	}
 	return err
 }
+
+// destinationInUseError is a module's refusal to let a destination go: a 409 like
+// utils.ErrEventDestinationInUse, but worded by the module, since what uses the
+// destination is not a subscription.
+type destinationInUseError struct{ message string }
+
+func (e destinationInUseError) Error() string { return e.message }
+func (e destinationInUseError) Unwrap() error { return utils.ErrEventDestinationInUse }
 
 func (s *eventDestinationService) RotateSecret(ctx context.Context, ouID string, id uuid.UUID) (string, error) {
 	d, err := s.Get(ctx, ouID, id)

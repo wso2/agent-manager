@@ -32,6 +32,7 @@ type Core struct {
 	GetEnvironmentFunc   func(ctx context.Context, orgID, envName string) (*modkit.Environment, error)
 	ListEnvironmentsFunc func(ctx context.Context, orgID string) ([]*modkit.Environment, error)
 	EnsureOrgFunc        func(ctx context.Context, orgID string) (modkit.Org, error)
+	GetOrgFunc           func(ctx context.Context, orgID string) (modkit.Org, error)
 }
 
 var _ modkit.CoreAPI = (*Core)(nil)
@@ -81,7 +82,12 @@ func (c *Core) EnsureOrg(ctx context.Context, orgID string) (modkit.Org, error) 
 	return c.EnsureOrgFunc(ctx, orgID)
 }
 
-func (c *Core) GetOrg(context.Context, string) (modkit.Org, error) { panic("gwtest.Core: GetOrg") }
+func (c *Core) GetOrg(ctx context.Context, orgID string) (modkit.Org, error) {
+	if c.GetOrgFunc == nil {
+		panic("gwtest.Core: GetOrg")
+	}
+	return c.GetOrgFunc(ctx, orgID)
+}
 
 func (c *Core) ListProjects(context.Context, string) ([]modkit.Project, error) {
 	panic("gwtest.Core: ListProjects")
@@ -126,6 +132,9 @@ func Merge(cur modkit.CoreAPI, next *Core) *Core {
 	}
 	if m.EnsureOrgFunc == nil {
 		m.EnsureOrgFunc = c.EnsureOrgFunc
+	}
+	if m.GetOrgFunc == nil {
+		m.GetOrgFunc = c.GetOrgFunc
 	}
 	return &m
 }

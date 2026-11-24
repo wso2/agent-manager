@@ -20,7 +20,7 @@ var _ MappedNullable = &BudgetServerStatus{}
 
 // BudgetServerStatus Set by the server on responses
 type BudgetServerStatus struct {
-	// gateway_api: created on a gateway; only displayName, description and warnings change here
+	// gatewayApi: created on a gateway; only displayName, description and warnings change here
 	Origin        string               `json:"origin"`
 	CurrentPeriod *BudgetCurrentPeriod `json:"currentPeriod,omitempty"`
 	CreatedBy     *string              `json:"createdBy,omitempty"`

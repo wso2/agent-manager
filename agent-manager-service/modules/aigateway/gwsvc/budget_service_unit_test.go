@@ -29,12 +29,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
@@ -71,7 +73,7 @@ func (r *recordingSender) SendBudgetDeleted(_ context.Context, b *gwmodels.Budge
 	r.sent = append(r.sent, "deleted:"+b.Name)
 }
 
-// budgetTestRequest is the design's example payload (Interfaces 2.2).
+// budgetTestRequest is an example payload.
 func budgetTestRequest() budgetRequest {
 	return budgetRequest{
 		Name:        "api-platform-per-agent-openai",
@@ -250,21 +252,21 @@ func newBudgetTestEnv(t *testing.T) *budgetTestEnv {
 			return kind == gwmodels.KindLLMProvider && handle == "openai", nil
 		},
 	}
-	platform := &gwrepomocks.PlatformRepositoryMock{
-		GetProjectFunc: func(_ context.Context, _, name string) (*gwmodels.ProjectResponse, error) {
+	core := &gwtest.Core{
+		GetProjectFunc: func(_ context.Context, _, name string) (*modkit.Project, error) {
 			if name != "api-platform" {
-				return nil, gwerr.ErrProjectNotFound
+				return nil, modkit.ErrNotFound
 			}
-			return &gwmodels.ProjectResponse{UUID: budgetTestProjectID, Name: name}, nil
+			return &modkit.Project{ID: budgetTestProjectID, Name: name}, nil
 		},
-		GetOrganizationFunc: func(context.Context, string) (*gwmodels.OrganizationResponse, error) {
-			return &gwmodels.OrganizationResponse{Name: budgetTestOrgName, Handle: budgetTestOrgName}, nil
+		GetOrgFunc: func(_ context.Context, id string) (modkit.Org, error) {
+			return modkit.Org{ID: id, Handle: budgetTestOrgName}, nil
 		},
-		GetAgentFunc: func(_ context.Context, _, project, name string) (*gwmodels.AgentResponse, error) {
+		GetAgentFunc: func(_ context.Context, _, project, name string) (*modkit.Agent, error) {
 			if project != "api-platform" || name != "hotel-booking" {
-				return nil, gwerr.ErrAgentNotFound
+				return nil, modkit.ErrNotFound
 			}
-			return &gwmodels.AgentResponse{Name: name}, nil
+			return &modkit.Agent{Name: name}, nil
 		},
 	}
 	usageRepo := &gwrepomocks.BudgetUsageRepositoryMock{
@@ -289,7 +291,7 @@ func newBudgetTestEnv(t *testing.T) *budgetTestEnv {
 			return out, nil
 		},
 	}
-	env.svc = NewBudgetService(env.budgets, artifacts, platform, env.sender, nil, usageRepo, env.channels)
+	env.svc = NewBudgetService(env.budgets, artifacts, core, env.sender, nil, usageRepo, env.channels)
 	env.svc.(*budgetService).now = func() time.Time { return budgetTestNow }
 	return env
 }
@@ -329,7 +331,7 @@ func TestBudgetService_CreateStoresTheBudgetKindWithDefaults(t *testing.T) {
 	assert.Equal(t, []string{"finance-email"}, resp.Spec.Warnings.Channels, "stored and returned by name")
 	assert.Equal(t, "api-platform-per-agent-openai", resp.Metadata.Name)
 	assert.Equal(t, "active", *resp.Spec.Status)
-	assert.Equal(t, "control_plane", resp.Status.Origin)
+	assert.Equal(t, "controlPlane", resp.Status.Origin)
 	assert.Equal(t, "USD", *resp.Spec.Limit.Currency)
 	assert.Equal(t, int32(100), *resp.Spec.Limit.BlockAt)
 	assert.Equal(t, "alice", *resp.Status.CreatedBy)
@@ -579,7 +581,7 @@ func TestBudgetService_GetReturnsTheBudgetOrNotFound(t *testing.T) {
 	resp, err := env.svc.Get(context.Background(), budgetTestOrg, "team-a")
 	require.NoError(t, err)
 	assert.Equal(t, "team-a", resp.Metadata.Name)
-	assert.Equal(t, "control_plane", resp.Status.Origin)
+	assert.Equal(t, "controlPlane", resp.Status.Origin)
 
 	_, err = env.svc.Get(context.Background(), budgetTestOrg, "missing")
 	assert.Equal(t, gwerr.ErrCodeBudgetNotFound, budgetErrorCode(t, err))
@@ -817,7 +819,7 @@ func TestBudgetService_GatewayBudgetsTakeOnlyAgentManagerFields(t *testing.T) {
 	assert.Equal(t, "Research, monthly", *resp.Spec.DisplayName)
 	assert.Equal(t, "Set on the research gateway.", *resp.Spec.Description)
 	require.NotNil(t, resp.Spec.Warnings)
-	assert.Equal(t, "gateway_api", resp.Status.Origin)
+	assert.Equal(t, "gatewayApi", resp.Status.Origin)
 	stored := env.store["from-gateway"]
 	assert.Equal(t, gwmodels.BudgetOriginGateway, stored.Origin)
 	assert.Equal(t, "Research, monthly", stored.Configuration.DisplayName)

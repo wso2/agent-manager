@@ -106,8 +106,7 @@ func Initialize(db *gorm.DB, logger *slog.Logger, coreAPI modkit.CoreAPI, settin
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository, core, budgetWarningService)
 	webSocketController := ProvideWebSocketController(manager, eventHub, platformGatewayService, deploymentAckHandler, settings)
 	gatewayInternalAPIService := gwsvc.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, artifactRepository, gatewayRepository, coreAPI, store, core)
-	platformRepository := gwrepo.NewPlatformRepository(coreAPI)
-	gatewayResourceSyncService := gwsvc.NewGatewayResourceSyncService(gatewayRepository, budgetRepository, platformRepository)
+	gatewayResourceSyncService := gwsvc.NewGatewayResourceSyncService(gatewayRepository, budgetRepository, coreAPI)
 	budgetGateways := gwsvc.NewBudgetGateways(gatewayEventsService, gatewayRepository, budgetRepository)
 	gatewayInternalController := gwctl.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService, apiKeyRepository, aiApplicationRepository, gatewayResourceSyncService, budgetGateways)
 	catalogRepository := ProvideCatalogRepository(db)
@@ -121,7 +120,7 @@ func Initialize(db *gorm.DB, logger *slog.Logger, coreAPI modkit.CoreAPI, settin
 	agentGatewayController := gwctl.NewAgentGatewayController(agentGatewayService)
 	environmentGatewayService := gwsvc.NewEnvironmentGatewayService(logger, gatewayRepository, coreAPI)
 	environmentGatewayController := gwctl.NewEnvironmentGatewayController(environmentGatewayService)
-	budgetService := gwsvc.NewBudgetService(budgetRepository, artifactRepository, platformRepository, budgetGateways, budgetWarningService, budgetUsageRepository, notifications)
+	budgetService := gwsvc.NewBudgetService(budgetRepository, artifactRepository, coreAPI, budgetGateways, budgetWarningService, budgetUsageRepository, notifications)
 	budgetController := gwctl.NewBudgetController(budgetService)
 	costController := gwctl.NewCostController(costService, coreAPI)
 	a2ACardReconcilerService := gwsvc.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, coreAPI, logger)
@@ -183,7 +182,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideA2AProxyRepository,
 	ProvideArtifactRepository,
 	ProvideCatalogRepository,
-	ProvideAPIKeyRepository, gwrepo.NewAgentConfigurationRepository, gwrepo.NewAgentConfigRepo, gwrepo.NewEnvAgentModelMappingRepository, gwrepo.NewEnvAgentMCPMappingRepository, gwrepo.NewAgentEnvConfigVariableRepository, ProvideAIApplicationRepository, gwrepo.NewMCPProxyScopeRepository, ProvideBudgetRepository, gwrepo.NewBudgetUsageRepository, gwrepo.NewCostUsageRepository, gwrepo.NewPlatformRepository,
+	ProvideAPIKeyRepository, gwrepo.NewAgentConfigurationRepository, gwrepo.NewAgentConfigRepo, gwrepo.NewEnvAgentModelMappingRepository, gwrepo.NewEnvAgentMCPMappingRepository, gwrepo.NewAgentEnvConfigVariableRepository, ProvideAIApplicationRepository, gwrepo.NewMCPProxyScopeRepository, ProvideBudgetRepository, gwrepo.NewBudgetUsageRepository, gwrepo.NewCostUsageRepository,
 )
 
 var serviceProviderSet = wire.NewSet(gwsvc.NewA2ACardFetcher, gwsvc.NewA2ACardReconcilerService, gwsvc.NewConfiguredDeploymentTimeoutSweeper, gwsvc.NewA2AAgentCardService, ProvideTxRunner, gwsvc.NewAgentExposurePublisher, gwsvc.NewA2APublisher, gwsvc.NewA2AProxyService, ProvideA2AProxyHooks,

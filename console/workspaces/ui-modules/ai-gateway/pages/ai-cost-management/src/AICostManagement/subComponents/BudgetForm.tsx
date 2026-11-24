@@ -30,6 +30,7 @@ import {
   Button,
   Chip,
   Divider,
+  Form,
   FormControlLabel,
   IconButton,
   InputAdornment,
@@ -246,31 +247,6 @@ function Section({
   );
 }
 
-/** A static label over a field, as the console's TextInput draws it. */
-export function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Box sx={{ width: "100%" }}>
-      <Typography variant="body2" sx={{ mb: 0.75 }}>
-        {label}
-        {required && (
-          <Typography component="span" color="primary.main">
-            {" *"}
-          </Typography>
-        )}
-      </Typography>
-      {children}
-    </Box>
-  );
-}
-
 /** A pill of choices; one is on. */
 export function Segmented<T extends string>({
   value,
@@ -320,7 +296,7 @@ function ChoiceField<T extends string>({
   disabled?: boolean;
 }) {
   return (
-    <Field label={label}>
+    <Form.ElementWrapper label={label} name={label}>
       <RadioGroup
         value={value}
         onChange={(_, v) => onChange(v as T)}
@@ -370,7 +346,7 @@ function ChoiceField<T extends string>({
           />
         ))}
       </RadioGroup>
-    </Field>
+    </Form.ElementWrapper>
   );
 }
 
@@ -483,7 +459,7 @@ export function Thresholds({
     onChange([...new Set(next)].sort((x, y) => x - y));
   };
   return (
-    <Field label="Warn at">
+    <Form.ElementWrapper label="Warn at" name="Warn at">
       <Autocomplete
         multiple
         freeSolo
@@ -533,7 +509,7 @@ export function Thresholds({
           />
         )}
       />
-    </Field>
+    </Form.ElementWrapper>
   );
 }
 
@@ -630,7 +606,10 @@ export function Channels({
   list?: ListState;
 }) {
   return (
-    <Field label="Notification channels">
+    <Form.ElementWrapper
+      label="Notification channels"
+      name="Notification channels"
+    >
       <Autocomplete
         multiple
         size="small"
@@ -669,7 +648,7 @@ export function Channels({
           />
         )}
       />
-    </Field>
+    </Form.ElementWrapper>
   );
 }
 
@@ -690,14 +669,14 @@ export function BudgetWizard({
   const editing = !!budgetName;
   const existing = useGetBudget({ orgName, budgetName });
   // A budget created on a gateway: only its name, description and warnings change here.
-  const fromGateway = existing.data?.status?.origin === "gateway_api";
+  const fromGateway = existing.data?.status?.origin === "gatewayApi";
   const budgets = useListBudgets({ orgName }, { limit: 100 });
   const providers = useListLLMProviders({ orgName });
   const projects = useListProjects({ orgName }, { limit: 100 });
   const orgAgents = useListOrgAgents({ orgName });
   const destinations = useListEventDestinations(orgName);
-  const create = useCreateBudget({ orgName });
-  const update = useUpdateBudget({ orgName, budgetName });
+  const create = useCreateBudget();
+  const update = useUpdateBudget();
 
   // "Advanced options" on an entity's page opens this form with the entity filled in.
   // Those values are where the form starts, not changes, so they don't make it dirty.
@@ -930,15 +909,21 @@ export function BudgetWizard({
     });
     const done = (name: string) => allowNavigation(() => onSaved(name));
     if (editing) {
-      update.mutate(body, {
-        onSuccess: () => done(body.metadata.name),
-        onError: onSaveError,
-      });
+      update.mutate(
+        { params: { orgName, budgetName }, body },
+        {
+          onSuccess: () => done(body.metadata.name),
+          onError: onSaveError,
+        },
+      );
     } else {
-      create.mutate(body, {
-        onSuccess: (b) => done(b.metadata.name),
-        onError: onSaveError,
-      });
+      create.mutate(
+        { params: { orgName }, body },
+        {
+          onSuccess: (b) => done(b.metadata.name),
+          onError: onSaveError,
+        },
+      );
     }
   };
 
@@ -1099,33 +1084,31 @@ export function BudgetWizard({
   const details = (
     <Section title="General details">
       <Stack spacing={3} sx={fieldWidth}>
-        <Field label="Name" required>
-          <TextInput
-            size="small"
-            fullWidth
-            value={form.displayName}
-            onChange={(e) => set("displayName", e.target.value)}
-            placeholder="e.g. Payments on OpenAI"
-            error={!!errors.displayName}
-            helperText={errors.displayName}
-            maxLength={INPUT_LIMITS.NAME}
-            hideCharacterCount
-          />
-        </Field>
-        <Field label="Description (optional)">
-          <TextInput
-            fullWidth
-            multiline
-            minRows={3}
-            value={form.description}
-            onChange={(e) => set("description", e.target.value)}
-            placeholder="e.g. Payments team's OpenAI spend"
-            error={!!errors.description}
-            helperText={errors.description}
-            maxLength={INPUT_LIMITS.DESCRIPTION}
-            hideCharacterCount
-          />
-        </Field>
+        <TextInput
+          label="Name"
+          size="small"
+          fullWidth
+          value={form.displayName}
+          onChange={(e) => set("displayName", e.target.value)}
+          placeholder="e.g. Payments on OpenAI"
+          error={!!errors.displayName}
+          helperText={errors.displayName}
+          maxLength={INPUT_LIMITS.NAME}
+          hideCharacterCount
+        />
+        <TextInput
+          label="Description (optional)"
+          fullWidth
+          multiline
+          minRows={3}
+          value={form.description}
+          onChange={(e) => set("description", e.target.value)}
+          placeholder="e.g. Payments team's OpenAI spend"
+          error={!!errors.description}
+          helperText={errors.description}
+          maxLength={INPUT_LIMITS.DESCRIPTION}
+          hideCharacterCount
+        />
       </Stack>
     </Section>
   );
@@ -1312,57 +1295,55 @@ export function BudgetWizard({
           alignItems={{ md: "flex-start" }}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Field label="Separate limit per">
-              <TextInput
-                select
-                size="small"
-                fullWidth
-                value={form.splitBy || "none"}
-                disabled={editing}
-                onChange={(e) =>
-                  setSplit(
-                    e.target.value === "none"
-                      ? ""
-                      : (e.target.value as ScopeKind),
-                  )
-                }
-                error={!!splitPickError}
-                helperText={
-                  splitPickError ||
-                  (form.splitBy
-                    ? `Each ${inSentence(KIND_LABEL[form.splitBy])} gets its own ${Number(form.amount) > 0 ? `$${Number(form.amount).toFixed(2)} ` : ""}limit.`
-                    : "All matching usage shares one limit.")
-                }
-              >
-                <MenuItem value="none">None (one shared limit)</MenuItem>
-                {splitChoices(form.filters).map((k) => (
-                  <MenuItem key={k} value={k}>
-                    {KIND_LABEL[k]}
-                  </MenuItem>
-                ))}
-              </TextInput>
-            </Field>
+            <TextInput
+              label="Separate limit per"
+              select
+              size="small"
+              fullWidth
+              value={form.splitBy || "none"}
+              disabled={editing}
+              onChange={(e) =>
+                setSplit(
+                  e.target.value === "none"
+                    ? ""
+                    : (e.target.value as ScopeKind),
+                )
+              }
+              error={!!splitPickError}
+              helperText={
+                splitPickError ||
+                (form.splitBy
+                  ? `Each ${inSentence(KIND_LABEL[form.splitBy])} gets its own ${Number(form.amount) > 0 ? `$${Number(form.amount).toFixed(2)} ` : ""}limit.`
+                  : "All matching usage shares one limit.")
+              }
+            >
+              <MenuItem value="none">None (one shared limit)</MenuItem>
+              {splitChoices(form.filters).map((k) => (
+                <MenuItem key={k} value={k}>
+                  {KIND_LABEL[k]}
+                </MenuItem>
+              ))}
+            </TextInput>
           </Box>
           {form.splitBy && isCelKind(form.splitBy) && (
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Field label="Identity expression">
-                <TextInput
-                  size="small"
-                  fullWidth
-                  value={form.splitExpression}
-                  disabled={editing}
-                  onChange={(e) => set("splitExpression", e.target.value)}
-                  placeholder='e.g. request.Headers["x-cost-center"]'
-                  error={!!errors.splitBy}
-                  helperText={
-                    errors.splitBy ??
-                    `CEL value that identifies each ${inSentence(KIND_LABEL[form.splitBy])}.`
-                  }
-                  maxLength={MAX_EXPRESSION_LENGTH}
-                  hideCharacterCount
-                  sx={{ "& input": { fontFamily: "monospace" } }}
-                />
-              </Field>
+              <TextInput
+                label="Identity expression"
+                size="small"
+                fullWidth
+                value={form.splitExpression}
+                disabled={editing}
+                onChange={(e) => set("splitExpression", e.target.value)}
+                placeholder='e.g. request.Headers["x-cost-center"]'
+                error={!!errors.splitBy}
+                helperText={
+                  errors.splitBy ??
+                  `CEL value that identifies each ${inSentence(KIND_LABEL[form.splitBy])}.`
+                }
+                maxLength={MAX_EXPRESSION_LENGTH}
+                hideCharacterCount
+                sx={{ "& input": { fontFamily: "monospace" } }}
+              />
             </Box>
           )}
         </Stack>
@@ -1373,32 +1354,31 @@ export function BudgetWizard({
           alignItems={{ md: "flex-start" }}
         >
           <Box sx={{ flex: 1 }}>
-            <Field label="Amount" required>
-              <TextInput
-                size="small"
-                fullWidth
-                value={form.amount}
-                disabled={fromGateway}
-                onChange={(e) => set("amount", e.target.value)}
-                placeholder="e.g. 1000"
-                error={!!errors.amount}
-                helperText={errors.amount}
-                inputMode="decimal"
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">$</InputAdornment>
-                    ),
-                    endAdornment: (
-                      <InputAdornment position="end">USD</InputAdornment>
-                    ),
-                  },
-                }}
-              />
-            </Field>
+            <TextInput
+              label="Amount"
+              size="small"
+              fullWidth
+              value={form.amount}
+              disabled={fromGateway}
+              onChange={(e) => set("amount", e.target.value)}
+              placeholder="e.g. 1000"
+              error={!!errors.amount}
+              helperText={errors.amount}
+              inputMode="decimal"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">$</InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">USD</InputAdornment>
+                  ),
+                },
+              }}
+            />
           </Box>
           <Box sx={{ flex: 1 }}>
-            <Field label="Reset period">
+            <Form.ElementWrapper label="Reset period" name="Reset period">
               <Segmented
                 label="Reset period"
                 value={form.period}
@@ -1417,7 +1397,7 @@ export function BudgetWizard({
               >
                 {editing ? "Fixed once created." : "Periods use UTC."}
               </Typography>
-            </Field>
+            </Form.ElementWrapper>
           </Box>
         </Stack>
         <ChoiceField
@@ -1439,27 +1419,24 @@ export function BudgetWizard({
           ]}
         />
         {form.action === "block" && (
-          <Field label="Block at">
-            <TextInput
-              size="small"
-              fullWidth
-              value={form.blockAt}
-              disabled={fromGateway}
-              onChange={(e) => set("blockAt", e.target.value)}
-              error={!!errors.blockAt}
-              helperText={
-                errors.blockAt ?? "Refuse requests at this % of the amount."
-              }
-              inputMode="numeric"
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">%</InputAdornment>
-                  ),
-                },
-              }}
-            />
-          </Field>
+          <TextInput
+            label="Block at"
+            size="small"
+            fullWidth
+            value={form.blockAt}
+            disabled={fromGateway}
+            onChange={(e) => set("blockAt", e.target.value)}
+            error={!!errors.blockAt}
+            helperText={
+              errors.blockAt ?? "Refuse requests at this % of the amount."
+            }
+            inputMode="numeric"
+            slotProps={{
+              input: {
+                endAdornment: <InputAdornment position="end">%</InputAdornment>,
+              },
+            }}
+          />
         )}
       </Stack>
     </Section>

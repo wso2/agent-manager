@@ -101,27 +101,35 @@ export function useBudgetUsage(params: BudgetPathParams, query?: ListQuery) {
   });
 }
 
-export function useCreateBudget(params: ListBudgetsPathParams) {
+export function useCreateBudget() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useApiMutation<Budget, unknown, Budget>({
+  return useApiMutation<
+    Budget,
+    unknown,
+    { params: ListBudgetsPathParams; body: Budget }
+  >({
     action: { verb: "create", target: "budget" },
     errorMessage: budgetErrorMessage("create"),
-    mutationFn: (body) => createBudget(params, body, getToken),
+    mutationFn: ({ params, body }) => createBudget(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["budgets"] });
     },
   });
 }
 
-export function useUpdateBudget(params: BudgetPathParams) {
+export function useUpdateBudget() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useApiMutation<Budget, unknown, Budget>({
+  return useApiMutation<
+    Budget,
+    unknown,
+    { params: BudgetPathParams; body: Budget }
+  >({
     action: { verb: "update", target: "budget" },
     errorMessage: budgetErrorMessage("update"),
-    mutationFn: (body) => updateBudget(params, body, getToken),
-    onSuccess: () => {
+    mutationFn: ({ params, body }) => updateBudget(params, body, getToken),
+    onSuccess: (_data, { params }) => {
       queryClient.invalidateQueries({ queryKey: ["budgets"] });
       queryClient.invalidateQueries({ queryKey: ["budget", params] });
     },

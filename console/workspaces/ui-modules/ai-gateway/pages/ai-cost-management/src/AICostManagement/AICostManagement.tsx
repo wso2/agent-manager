@@ -22,16 +22,21 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { PageLayout } from "@agent-management-platform/views";
+import {
+  PageLayout,
+  returnToState,
+  useReturnTo,
+} from "@agent-management-platform/views";
 import { useEntityNames } from "./useEntityNames";
 import { useFeatureManagement } from "@agent-management-platform/feature-management";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { CostOverview } from "./subComponents/CostOverview";
-import { BudgetsTab } from "./subComponents/BudgetsTab";
+import { BudgetCreateAction, BudgetsTab } from "./subComponents/BudgetsTab";
 import { BudgetDetail } from "./subComponents/BudgetDetail";
 import { BudgetWizard } from "./subComponents/BudgetForm";
 import { startQuery } from "./budgetForm";
@@ -51,13 +56,13 @@ function useScope() {
   const org = absoluteRouteMap.children.org.children;
   const route =
     projectId && agentId
-      ? org.projects.children.agents.children.aiCostManagement
+      ? org.projects.children.agents.children.costManagement
       : projectId
-        ? org.projects.children.aiCostManagement
-        : org.aiCostManagement;
+        ? org.projects.children.costManagement
+        : org.costManagement;
   const params = { orgId, projectId, agentId };
   const budgets = route.children.budgets;
-  const orgBudgets = org.aiCostManagement.children.budgets;
+  const orgBudgets = org.costManagement.children.budgets;
   return {
     orgId,
     projectId,
@@ -149,6 +154,21 @@ function CostManagementPage({ view }: { view: View }) {
   // On a project's or agent's page "Add budget" opens the quick form with it filled in;
   // its "Advanced options" opens the full form.
   const [quickOpen, setQuickOpen] = useState(false);
+  // The header has the create action only while the list has budgets; an empty list
+  // shows it in its empty state.
+  const [budgetsEmpty, setBudgetsEmpty] = useState(false);
+  const location = useLocation();
+  const onCreate = () =>
+    start
+      ? setQuickOpen(true)
+      : navigate(budgetCreate, { state: returnToState(location) });
+  const createAction = (
+    <BudgetCreateAction
+      orgName={orgId}
+      projectName={projectId}
+      onCreate={onCreate}
+    />
+  );
   const names = useEntityNames(orgId ?? "");
   const projectName = names.project?.[projectId ?? ""];
   const agentName = agentId
@@ -159,6 +179,7 @@ function CostManagementPage({ view }: { view: View }) {
       title={TITLES[view]}
       description={describe(view, projectId, projectName, agentName)}
       disableIcon
+      actions={view === "budgets" && !budgetsEmpty ? createAction : undefined}
     >
       {view === "overview" ? (
         <CostOverview
@@ -173,7 +194,8 @@ function CostManagementPage({ view }: { view: View }) {
           projectName={projectId}
           agentName={agentId}
           onOpen={(name) => navigate(budgetView(name))}
-          onCreate={() => (start ? setQuickOpen(true) : navigate(budgetCreate))}
+          createAction={createAction}
+          onEmptyChange={setBudgetsEmpty}
         />
       )}
       {quickOpen && start && orgId && (
@@ -239,11 +261,15 @@ function BudgetFormRoute({ editing }: { editing?: boolean }) {
   const navigate = useNavigate();
   const { budgetName } = useParams<{ budgetName: string }>();
   const { orgId, budgets, budgetView } = useScope();
+  // Back to the page that opened it; the budget, or the list, on a direct visit.
+  const backHref = useReturnTo(
+    editing && budgetName ? budgetView(budgetName) : budgets,
+  );
   return (
     <BudgetWizard
       orgName={orgId}
       budgetName={editing ? budgetName : undefined}
-      backHref={editing && budgetName ? budgetView(budgetName) : budgets}
+      backHref={backHref}
       backLabel={editing ? "Back to the budget" : "Back to budgets"}
       onSaved={(name) => navigate(budgetView(name))}
     />
@@ -255,60 +281,30 @@ function BudgetFormRoute({ editing }: { editing?: boolean }) {
 export const AICostManagement: React.FC = () => {
   const { overview, budgets, projectId } = useScope();
   const { hasAccess } = useFeatureManagement();
-  const canReadCost = hasAccess("ai_cost_read");
-  const canReadBudgets = hasAccess("budget_read");
-  // The module opens with either access (plugin.ts); each page checks its own.
-  const home = canReadCost ? overview : budgets;
+  // The module is active only with costs.read (plugin.ts), which reads every page;
+  // creating and editing check their own access.
   return (
     <Routes>
-      <Route
-        index
-        element={
-          <Guard allowed={canReadCost} fallback={budgets}>
-            <CostManagementPage view="overview" />
-          </Guard>
-        }
-      />
-      <Route
-        path="unpriced-requests"
-        element={
-          <Guard allowed={canReadCost} fallback={home}>
-            <UnpricedRequestsPage />
-          </Guard>
-        }
-      />
-      <Route
-        path="budgets"
-        element={
-          <Guard allowed={canReadBudgets} fallback={overview}>
-            <CostManagementPage view="budgets" />
-          </Guard>
-        }
-      />
+      <Route index element={<CostManagementPage view="overview" />} />
+      <Route path="unpriced-requests" element={<UnpricedRequestsPage />} />
+      <Route path="budgets" element={<CostManagementPage view="budgets" />} />
       <Route
         path="budgets/create"
         element={
           <Guard
-            allowed={hasAccess("budget_create") && !projectId}
+            allowed={hasAccess("cost_write") && !projectId}
             fallback={budgets}
           >
             <BudgetFormRoute />
           </Guard>
         }
       />
-      <Route
-        path="budgets/view/:budgetName"
-        element={
-          <Guard allowed={canReadBudgets} fallback={overview}>
-            <BudgetDetailPage />
-          </Guard>
-        }
-      />
+      <Route path="budgets/view/:budgetName" element={<BudgetDetailPage />} />
       <Route
         path="budgets/view/:budgetName/edit"
         element={<BudgetEditRoute />}
       />
-      <Route path="*" element={<Navigate to={home} replace />} />
+      <Route path="*" element={<Navigate to={overview} replace />} />
     </Routes>
   );
 };
@@ -319,7 +315,7 @@ function BudgetEditRoute() {
   const { budgetView, projectId } = useScope();
   // Budgets are managed at organization level only.
   const allowed =
-    useFeatureManagement().hasAccess("budget_update") && !projectId;
+    useFeatureManagement().hasAccess("cost_write") && !projectId;
   return (
     <Guard allowed={allowed} fallback={budgetView(budgetName)}>
       <BudgetFormRoute editing />

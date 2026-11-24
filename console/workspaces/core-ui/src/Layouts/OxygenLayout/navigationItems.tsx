@@ -60,12 +60,12 @@ const NAV_LAYOUT: Record<PluginLevel, NavSlot[]> = {
     { key: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
     { key: "infrastructure", title: "Infrastructure", icon: <Server /> },
     { key: "agent-identities", title: "Agent identities", icon: <IdCard /> },
-    { key: "cost-management", title: "Cost Management", icon: <Wallet size={20} /> },
+    { key: "cost-management", title: "Cost management", icon: <Wallet /> },
   ],
   project: [
     { key: "main" },
     { key: "footer" },
-    { key: "cost-management", title: "Cost Management", icon: <Wallet size={20} /> },
+    { key: "cost-management", title: "Cost management", icon: <Wallet /> },
   ],
   agent: [
     { key: "main" },
@@ -73,7 +73,7 @@ const NAV_LAYOUT: Record<PluginLevel, NavSlot[]> = {
     { key: "security", title: "Security", icon: <Lock /> },
     { key: "observability", title: "Observability", icon: <Activity /> },
     { key: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
-    { key: "cost-management", title: "Cost Management", icon: <Wallet size={20} /> },
+    { key: "cost-management", title: "Cost management", icon: <Wallet /> },
     { key: "footer" },
   ],
 };

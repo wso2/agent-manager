@@ -41,7 +41,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
-// CSV import of budgets (Interfaces 2.5): one budget per row, the same fields and checks
+// CSV import of budgets: one budget per row, the same fields and checks
 // as POST /budgets, saved all or none.
 
 // MaxBudgetImportBytes is the largest CSV file an import takes.
@@ -422,7 +422,7 @@ func budgetCSVColumn(field string, req budgetRequest) string {
 	return ""
 }
 
-// resolveExisting decides each valid row whose name is already taken (Interfaces 2.5): a
+// resolveExisting decides each valid row whose name is already taken: a
 // name held by another kind always fails; an existing budget fails the row (fail, the
 // default), is left as it is (skip), or has its editable fields replaced (update).
 func (s *budgetService) resolveExisting(ctx context.Context, ouID string, rows []*importRow, onExisting string) error {
@@ -475,7 +475,7 @@ func (s *budgetService) resolveExisting(ctx context.Context, ouID string, rows [
 
 // importUpdateRefusal returns why a row cannot update an existing budget, and the column
 // to fix: a gateway's budget is changed only on the gateway, and what a budget covers is
-// fixed after creation (BR-15).
+// fixed after creation.
 func importUpdateRefusal(existing, incoming *gwmodels.Budget) (column, message string) {
 	if existing.Origin != gwmodels.BudgetOriginControlPlane {
 		return csvName, fmt.Sprintf("Budget %s was created on a gateway; change it there.", existing.Name)

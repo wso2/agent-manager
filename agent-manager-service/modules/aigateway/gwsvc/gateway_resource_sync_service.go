@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -71,10 +72,10 @@ type GatewayResourceSyncService struct {
 func NewGatewayResourceSyncService(
 	gatewayRepo gwrepo.GatewayRepository,
 	budgetRepo gwrepo.BudgetRepository,
-	platform gwrepo.PlatformRepository,
+	core modkit.CoreAPI,
 ) *GatewayResourceSyncService {
 	s := &GatewayResourceSyncService{gatewayRepo: gatewayRepo, kinds: map[string]GatewayResourceKindSyncer{}}
-	for _, k := range []GatewayResourceKindSyncer{newGatewayBudgetSyncer(budgetRepo, platform)} {
+	for _, k := range []GatewayResourceKindSyncer{newGatewayBudgetSyncer(budgetRepo, core)} {
 		s.kinds[k.Kind()] = k
 	}
 	return s
@@ -208,12 +209,12 @@ func sortedKinds[T any](m map[string]T) []string {
 // gatewayBudgetSyncer stores the budgets a gateway created through its own API as
 // gateway-origin budgets owned by that gateway.
 type gatewayBudgetSyncer struct {
-	repo     gwrepo.BudgetRepository
-	platform gwrepo.PlatformRepository
+	repo gwrepo.BudgetRepository
+	core modkit.CoreAPI
 }
 
-func newGatewayBudgetSyncer(repo gwrepo.BudgetRepository, platform gwrepo.PlatformRepository) *gatewayBudgetSyncer {
-	return &gatewayBudgetSyncer{repo: repo, platform: platform}
+func newGatewayBudgetSyncer(repo gwrepo.BudgetRepository, core modkit.CoreAPI) *gatewayBudgetSyncer {
+	return &gatewayBudgetSyncer{repo: repo, core: core}
 }
 
 func (b *gatewayBudgetSyncer) Kind() string { return gwmodels.GatewayResourceKindBudget }
@@ -233,19 +234,19 @@ func (b *gatewayBudgetSyncer) Save(ctx context.Context, gateway *gwmodels.Gatewa
 	// The org-id annotation, when sent, must name the gateway's own organization; left
 	// out, the budget is the gateway's organization's.
 	if org := gatewayBudgetOrg(item.Configuration); org != "" {
-		owner, err := b.platform.GetOrganization(ctx, gateway.OUID)
+		owner, err := LookupOrg(ctx, b.core, gateway.OUID)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get organization: %w", err)
 		}
-		if org != owner.Name {
+		if org != owner.Handle {
 			return "", GatewayResourceErrInvalid, nil
 		}
 	}
 	// The project-id annotation makes it a project budget, as the artifact import reads it
-	// for project-scoped kinds (Interfaces 4.3).
+	// for project-scoped kinds.
 	var projectID *uuid.UUID
 	if project != "" {
-		projectID, err = budgetProjectID(ctx, b.platform, gateway.OUID, project, "")
+		projectID, err = budgetProjectID(ctx, b.core, gateway.OUID, project, "")
 		var refused *BudgetError
 		if errors.As(err, &refused) {
 			return "", GatewayResourceErrReferenceNotFound, nil
@@ -296,8 +297,7 @@ func gatewayBudgetOrg(raw json.RawMessage) string {
 
 // gatewayBudgetConfig maps a pushed Budget kind onto the stored model: its spec, with the
 // defaults the REST API fills in, and the project its project-id annotation names (empty
-// for an organization budget). A gateway budget has no display name, so its name is shown
-// (Interfaces 1.1).
+// for an organization budget). A gateway budget has no display name, so its name is shown.
 func gatewayBudgetConfig(name string, raw json.RawMessage) (gwmodels.BudgetConfig, string, error) {
 	var doc struct {
 		Metadata struct {

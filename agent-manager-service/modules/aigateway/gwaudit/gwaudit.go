@@ -34,6 +34,7 @@ const (
 	ResourceAPIKey  = "api-key"
 	ResourceGateway = "gateway"
 	ResourceAgent   = "agent"
+	ResourceBudget  = "budget"
 )
 
 // APIKeyOwner names the kind of resource an API key belongs to. Every API-key
@@ -162,6 +163,9 @@ const (
 	AgentAPIKeyCreated    = "ai-gateway.agent.api_key_created"
 	AgentAPIKeyRotated    = "ai-gateway.agent.api_key_rotated"
 	AgentAPIKeyRevoked    = "ai-gateway.agent.api_key_revoked"
+	BudgetCreated         = "ai-gateway.budget.created"
+	BudgetUpdated         = "ai-gateway.budget.updated"
+	BudgetDeleted         = "ai-gateway.budget.deleted"
 )
 
 // AgentBindingsChanged is published when an agent update changes its
@@ -187,6 +191,9 @@ var Events = []modkit.EventType{
 	{Name: AgentAPIKeyCreated, Scope: "agent", Description: "An API key was created for the agent."},
 	{Name: AgentAPIKeyRotated, Scope: "agent", Description: "An API key was rotated."},
 	{Name: AgentAPIKeyRevoked, Scope: "agent", Description: "An API key was revoked."},
+	{Name: BudgetCreated, Scope: "org", Description: "A budget was created."},
+	{Name: BudgetUpdated, Scope: "org", Description: "A budget was updated."},
+	{Name: BudgetDeleted, Scope: "org", Description: "A budget was deleted."},
 }
 
 // withDetails gives each action the detail keys its records may carry.

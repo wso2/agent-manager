@@ -31,7 +31,7 @@ import (
 )
 
 // BudgetUsageRepository keeps each budget allowance's spend in its current period
-// (Interfaces 1.2) and records the warnings it crosses (Interfaces 6).
+// and records the warnings it crosses.
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/budget_usage_repository_mock.go . BudgetUsageRepository:BudgetUsageRepositoryMock
 type BudgetUsageRepository interface {

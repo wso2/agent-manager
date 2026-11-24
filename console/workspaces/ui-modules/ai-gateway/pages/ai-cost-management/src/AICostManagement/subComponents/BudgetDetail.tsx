@@ -53,7 +53,7 @@ import {
   SearchX,
   Tag,
 } from "@wso2/oxygen-ui-icons-react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import {
   useBudgetUsage,
   useGetBudget,
@@ -64,6 +64,7 @@ import { LabelChips } from "@agent-management-platform/shared-component";
 import {
   PageLayout,
   PageMetaItem,
+  returnToState,
   StateNotice,
 } from "@agent-management-platform/views";
 import {
@@ -1032,10 +1033,11 @@ export function BudgetDetail({
   unpricedHref,
 }: BudgetDetailProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasAccess } = useFeatureManagement();
-  const canUpdate = !readOnly && hasAccess("budget_update");
-  const canDelete = !readOnly && hasAccess("budget_delete");
-  const canReadCost = hasAccess("ai_cost_read");
+  const canUpdate = !readOnly && hasAccess("cost_write");
+  const canDelete = !readOnly && hasAccess("cost_delete");
+  const canReadCost = hasAccess("cost_read");
   const {
     data: budget,
     isLoading,
@@ -1043,14 +1045,11 @@ export function BudgetDetail({
     refetch,
   } = useGetBudget({ orgName, budgetName });
   const notFound = isBudgetNotFound(error);
-  const { mutate: update, isPending: isUpdating } = useUpdateBudget({
-    orgName,
-    budgetName,
-  });
+  const { mutate: update, isPending: isUpdating } = useUpdateBudget();
   const { confirmDelete: confirmBudgetDelete, isDeleting } =
     useConfirmDeleteBudget(orgName);
 
-  const fromGateway = budget?.status?.origin === "gateway_api";
+  const fromGateway = budget?.status?.origin === "gatewayApi";
   const inactive = budget?.spec.status === "inactive";
   const name = notFound
     ? "Budget not found"
@@ -1064,10 +1063,13 @@ export function BudgetDetail({
     // The kind goes back whole with the status flipped; the server sets `status`.
     const { apiVersion, kind, metadata, spec } = budget;
     update({
-      apiVersion,
-      kind,
-      metadata,
-      spec: { ...spec, status: inactive ? "active" : "inactive" },
+      params: { orgName, budgetName: budgetName ?? "" },
+      body: {
+        apiVersion,
+        kind,
+        metadata,
+        spec: { ...spec, status: inactive ? "active" : "inactive" },
+      },
     });
   };
 
@@ -1083,7 +1085,7 @@ export function BudgetDetail({
         <Button
           variant="outlined"
           startIcon={<Pencil size={16} />}
-          onClick={() => navigate(editHref)}
+          onClick={() => navigate(editHref, { state: returnToState(location) })}
         >
           Edit
         </Button>

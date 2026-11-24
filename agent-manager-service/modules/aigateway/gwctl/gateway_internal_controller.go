@@ -86,7 +86,7 @@ func NewGatewayInternalController(
 }
 
 // GetBudgets handles GET /api/internal/v1/budgets: the control-plane budgets the
-// authenticated gateway enforces, in the form budget events carry (Interfaces 4.1). The
+// authenticated gateway enforces, in the form budget events carry. The
 // gateway calls it on connect, saves newer budgets and drops the control-plane budgets
 // not listed.
 func (c *gatewayInternalController) GetBudgets(w http.ResponseWriter, r *http.Request) {

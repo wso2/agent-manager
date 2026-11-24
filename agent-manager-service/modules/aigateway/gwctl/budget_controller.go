@@ -78,7 +78,7 @@ func (c *budgetController) CreateBudget(w http.ResponseWriter, r *http.Request) 
 }
 
 // ImportBudgets handles POST /orgs/{orgName}/budgets/import: a CSV file, one budget per
-// row, saved all or none (Interfaces 2.5). 200 when every row passed, 400 with the same
+// row, saved all or none. 200 when every row passed, 400 with the same
 // result when a row failed, 400 INVALID_CSV when the file cannot be read.
 func (c *budgetController) ImportBudgets(w http.ResponseWriter, r *http.Request) {
 	if mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type")); err != nil || mediaType != "text/csv" {
@@ -131,7 +131,7 @@ func (c *budgetController) ListBudgets(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("label can be given at most %d times.", maxBudgetLabelFilters), "", httpx.ErrCodeValidation)
 		return
 	}
-	resp, err := c.budgets.List(r.Context(), modkit.OrgID(r.Context()), query.Get("projectId"), query["filter"],
+	resp, err := c.budgets.List(r.Context(), modkit.OrgID(r.Context()), query.Get("project"), query["filter"],
 		labels, query.Get("search"), query.Get("status"), limit, offset)
 	if err != nil {
 		writeBudgetError(w, r, err, "Failed to list budgets")
@@ -215,26 +215,32 @@ func (c *budgetController) DeleteBudget(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// writeBudgetError answers a refused request with its code and field (Interfaces 2.3).
+// writeBudgetError answers a refused request: the error's class sets the status, and
+// its code, message and field (additionalData.field, so a form can show the message
+// beside the field) make the body.
 func writeBudgetError(w http.ResponseWriter, r *http.Request, err error, fallback string) {
 	var be *gwsvc.BudgetError
-	if errors.As(err, &be) {
-		status := http.StatusBadRequest
-		switch be.Code {
-		case gwerr.ErrCodeBudgetAlreadyExists, gwerr.ErrCodeBudgetReadOnly:
-			status = http.StatusConflict
-		case gwerr.ErrCodeBudgetNotFound:
-			status = http.StatusNotFound
-		}
-		body := gwspec.NewErrorResponse(be.Message, be.Code)
-		if be.Field != "" {
-			body.AdditionalData = map[string]interface{}{"field": be.Field}
-		}
-		httpx.WriteSuccessResponse(w, status, body)
+	if !errors.As(err, &be) {
+		logger.GetLogger(r.Context()).Error(fallback, "error", err)
+		httpx.WriteErrorResponseWithReason(w, http.StatusInternalServerError, fallback, "", httpx.ErrCodeInternalError)
 		return
 	}
-	logger.GetLogger(r.Context()).Error(fallback, "error", err)
-	httpx.WriteErrorResponseWithReason(w, http.StatusInternalServerError, fallback, "", httpx.ErrCodeInternalError)
+	status := http.StatusBadRequest
+	switch {
+	case errors.Is(err, gwerr.ErrBudgetConflict):
+		status = http.StatusConflict
+	case errors.Is(err, gwerr.ErrBudgetNotFound):
+		status = http.StatusNotFound
+	}
+	if be.Field == "" {
+		httpx.WriteErrorResponseWithReason(w, status, be.Message, "", be.Code)
+		return
+	}
+	body := gwspec.NewErrorResponse(be.Message, be.Code)
+	body.AdditionalData = map[string]interface{}{"field": be.Field}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(body)
 }
 
 // decodeBudgetKind reads the Budget kind of a create or update, as JSON or, like the

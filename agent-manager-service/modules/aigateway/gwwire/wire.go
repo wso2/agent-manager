@@ -46,7 +46,6 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideBudgetRepository,
 	gwrepo.NewBudgetUsageRepository,
 	gwrepo.NewCostUsageRepository,
-	gwrepo.NewPlatformRepository,
 )
 
 var serviceProviderSet = wire.NewSet(

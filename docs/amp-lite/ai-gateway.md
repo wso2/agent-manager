@@ -34,6 +34,7 @@ What it already does as a module:
   | `RECONCILE_RENDER_INTERVAL_SECONDS`, `_PLACE_INTERVAL_SECONDS`, `_DRIFT_INTERVAL_SECONDS`, `_RENDER_LEASE_SECONDS`, `_RENDER_ATTEMPT_BUDGET` | The reconcile worker. |
   | `FAILURE_THRESHOLD_SECONDS`, `FAILURE_MAX_AGE_SECONDS`, `FAILURE_PERCENTAGE_THRESHOLD` | The platform gateway failure summary. |
   | `AGENT_CORS_ALLOWED_ORIGIN`, `_METHODS`, `_HEADERS`, `AGENT_CORS_ALLOW_CREDENTIALS` | The CORS policy agents' gateway routes get by default. |
+  | `BUDGET_USAGE_FLUSH_SECONDS` | How often gateways' budget and cost totals are written to the database (default 2). |
 
   `amp init ai-gateway DIR` reads its own keys from the same place: `CONTROLPLANE_HOST`, `ADMIN_PASSWORD`, `AMP_JWKS_URL`, `THUNDER_ISSUER`, `THUNDER_JWKS_URL`, `HOST`, `LISTENER_PORT` and `FILE_OWNER` for the controller's `config.toml`, and `DEFAULT_GATEWAY_TOKEN` as the registration token it writes (it generates and keeps one when unset).
 

@@ -21,33 +21,18 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
-// Gateway events that carry control-plane budgets (Interfaces 4.1).
+// Gateway events that carry control-plane budgets.
 const (
 	BudgetEventCreated = "budget.created"
 	BudgetEventUpdated = "budget.updated"
 	BudgetEventDeleted = "budget.deleted"
 )
-
-// BudgetGatewayPayload is a budget as a gateway gets it, in budget.created and
-// budget.updated events and from GET /api/internal/v1/budgets. A gateway ignores one whose
-// updatedAt is older than its stored copy.
-type BudgetGatewayPayload struct {
-	BudgetID  string     `json:"budgetId"`
-	UpdatedAt time.Time  `json:"updatedAt"`
-	Budget    BudgetKind `json:"budget"`
-}
-
-// budgetDeletedPayload is the payload of budget.deleted.
-type budgetDeletedPayload struct {
-	BudgetID string `json:"budgetId"`
-}
 
 // BudgetGatewaySender sends control-plane budgets to the gateways that enforce them.
 type BudgetGatewaySender interface {
@@ -75,8 +60,8 @@ func NewBudgetGateways(
 }
 
 // gatewayPayload is the budget as gateways get it.
-func gatewayPayload(b *gwmodels.Budget) BudgetGatewayPayload {
-	return BudgetGatewayPayload{
+func gatewayPayload(b *gwmodels.Budget) gwmodels.BudgetGatewayPayload {
+	return gwmodels.BudgetGatewayPayload{
 		BudgetID: b.ID.String(), UpdatedAt: b.UpdatedAt.UTC(), Budget: BuildBudgetKind(b.Name, b.OrgName, b.Configuration, true),
 	}
 }
@@ -93,7 +78,7 @@ func (g *BudgetGateways) SendBudget(ctx context.Context, b *gwmodels.Budget, cre
 
 // SendBudgetDeleted tells the gateways a budget covered that it was deleted.
 func (g *BudgetGateways) SendBudgetDeleted(ctx context.Context, b *gwmodels.Budget) {
-	g.send(ctx, b, BudgetEventDeleted, "DELETE", budgetDeletedPayload{BudgetID: b.ID.String()})
+	g.send(ctx, b, BudgetEventDeleted, "DELETE", gwmodels.BudgetDeletedPayload{BudgetID: b.ID.String()})
 }
 
 func (g *BudgetGateways) send(ctx context.Context, b *gwmodels.Budget, eventType, action string, payload any) {
@@ -131,7 +116,7 @@ func (g *BudgetGateways) targets(ctx context.Context, ouID string) ([]string, er
 }
 
 // ForGatewayID is ForGateway for the gateway with that ID in the organization.
-func (g *BudgetGateways) ForGatewayID(ctx context.Context, ouID, gatewayID string) ([]BudgetGatewayPayload, error) {
+func (g *BudgetGateways) ForGatewayID(ctx context.Context, ouID, gatewayID string) ([]gwmodels.BudgetGatewayPayload, error) {
 	gateway, err := g.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load gateway %s: %w", gatewayID, err)
@@ -144,8 +129,8 @@ func (g *BudgetGateways) ForGatewayID(ctx context.Context, ouID, gatewayID strin
 
 // ForGateway returns the control-plane budgets a gateway enforces, as the gateway gets
 // them: what GET /api/internal/v1/budgets answers when it connects.
-func (g *BudgetGateways) ForGateway(ctx context.Context, ouID string, gateway *gwmodels.Gateway) ([]BudgetGatewayPayload, error) {
-	out := []BudgetGatewayPayload{}
+func (g *BudgetGateways) ForGateway(ctx context.Context, ouID string, gateway *gwmodels.Gateway) ([]gwmodels.BudgetGatewayPayload, error) {
+	out := []gwmodels.BudgetGatewayPayload{}
 	if !slices.Contains(gwmodels.EgressGatewayRoles, gateway.GatewayFunctionalityType) {
 		return out, nil
 	}

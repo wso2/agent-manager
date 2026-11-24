@@ -33,13 +33,19 @@ import (
 // module names. The event goes through the outbox and the event dispatcher like any
 // other, but to the named destinations instead of to subscriptions.
 type moduleNotifier struct {
-	db  *gorm.DB
-	now func() time.Time
+	destinations repositories.EventRepository
+	// outbox is the outbox in a transaction, so a notification is queued only if the
+	// caller's transaction commits.
+	outbox func(tx *gorm.DB) events.Outbox
+	db     *gorm.DB
+	now    func() time.Time
 }
 
-// NewModuleNotifier returns the core's notifications/v1 implementation.
-func NewModuleNotifier(db *gorm.DB) notifyv1.Notifier {
-	return &moduleNotifier{db: db, now: time.Now}
+// NewModuleNotifier returns the core's notifications/v1 implementation: destinations
+// looks up the channels a module names, and outbox queues the event in the caller's
+// transaction (db when it gives none).
+func NewModuleNotifier(destinations repositories.EventRepository, outbox func(tx *gorm.DB) events.Outbox, db *gorm.DB) notifyv1.Notifier {
+	return &moduleNotifier{destinations: destinations, outbox: outbox, db: db, now: time.Now}
 }
 
 func (n *moduleNotifier) Notify(ctx context.Context, tx *gorm.DB, in notifyv1.Notification) error {
@@ -49,7 +55,7 @@ func (n *moduleNotifier) Notify(ctx context.Context, tx *gorm.DB, in notifyv1.No
 	if tx == nil {
 		tx = n.db
 	}
-	all, err := repositories.NewEventRepository(tx, nil).ListDestinations(ctx, in.OrgID)
+	all, err := n.destinations.ListDestinations(ctx, in.OrgID)
 	if err != nil {
 		return err
 	}
@@ -76,14 +82,14 @@ func (n *moduleNotifier) Notify(ctx context.Context, tx *gorm.DB, in notifyv1.No
 		e.Data = in.Data
 	}
 	e.Destinations = ids
-	return repositories.NewEventOutboxRepository(tx).Put(ctx, e)
+	return n.outbox(tx).Put(ctx, e)
 }
 
 func (n *moduleNotifier) Unusable(ctx context.Context, orgID, project string, names []string) ([]notifyv1.Unusable, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
-	all, err := repositories.NewEventRepository(n.db, nil).ListDestinations(ctx, orgID)
+	all, err := n.destinations.ListDestinations(ctx, orgID)
 	if err != nil {
 		return nil, err
 	}

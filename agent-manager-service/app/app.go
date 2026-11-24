@@ -384,7 +384,7 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 		InternalURL:   config.GetConfig().InternalServerPublicURL,
 		Capabilities: map[string]any{
 			identityv1.ID: services.NewIdentityDirectory(deps.EnvThunderResolver, deps.AgentThunderClientRepository),
-			notifyv1.ID:   services.NewModuleNotifier(database),
+			notifyv1.ID:   services.NewModuleNotifier(repositories.NewEventRepository(database, nil), repositories.NewEventOutboxRepository, database),
 		},
 	}
 	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {

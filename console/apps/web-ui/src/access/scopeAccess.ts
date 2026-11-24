@@ -45,7 +45,6 @@ const llmProxy = gatewayResource('llm-proxies');
 const mcpServer = gatewayResource('mcp-servers');
 const evaluator = resource('evaluator');
 const monitor = resource('monitor');
-const budget = gatewayResource('budgets');
 const members = ['amp:org:invite-member', 'amp:org:remove-member'];
 const roleScopes = ['amp:role:read', ...crud('role')];
 const groupScopes = ['amp:group:read', ...crud('group')];
@@ -77,11 +76,12 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   monitor_read: monitor.read,
   monitor_write: monitor.write,
   monitor_execute: { anyOf: ['amp:monitor:execute'] },
-  budget_read: budget.read,
-  budget_create: { anyOf: [gatewayScope('budgets', 'create')] },
-  budget_update: { anyOf: [gatewayScope('budgets', 'update')] },
-  budget_delete: { anyOf: [gatewayScope('budgets', 'delete')] },
-  ai_cost_read: { anyOf: [gatewayScope('costs', 'read')] },
+
+  // Cost management: read opens the dashboard, cost panels and budgets; write
+  // creates, updates and imports budgets; delete deletes them.
+  cost_read: { anyOf: [gatewayScope('costs', 'read')] },
+  cost_write: { anyOf: [gatewayScope('costs', 'write')] },
+  cost_delete: { anyOf: [gatewayScope('costs', 'delete')] },
   // The Users page has no read scope of its own; either member scope opens it.
   member_read: { anyOf: members },
   member_invite: { anyOf: ['amp:org:invite-member'] },

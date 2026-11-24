@@ -184,7 +184,7 @@ func (r *budgetRepository) SaveForGateway(ctx context.Context, budget *gwmodels.
 			return nil
 		}
 		// The gateway owns what it enforces; Agent Manager owns what gateways never get,
-		// so its display name, description and warnings are kept (Interfaces 4.3).
+		// so its display name, description and warnings are kept.
 		budget.Configuration.DisplayName = existing.Configuration.DisplayName
 		budget.Configuration.Description = existing.Configuration.Description
 		budget.Configuration.Warnings = existing.Configuration.Warnings
@@ -250,7 +250,7 @@ func (r *budgetRepository) DeleteForGatewayExcept(ctx context.Context, ouID stri
 }
 
 // BudgetsUsing returns the names of the organization's budgets for which uses is true, in
-// name order: what refuses deleting a provider they use (Interfaces 1.1). An organization
+// name order: what refuses deleting a provider they use. An organization
 // has at most a few thousand budgets, so they are checked in code rather than with
 // database-specific JSON queries.
 func BudgetsUsing(tx *gorm.DB, ouID string, uses func(gwmodels.BudgetConfig) bool) ([]string, error) {

@@ -27,21 +27,6 @@ import {
 } from "@wso2/oxygen-ui-charts-react";
 import { formatUsd } from "../costFormat";
 
-/**
- * Series colours, in this fixed order by the group's rank in the kept months
- * (never cycled; colour follows the group). Each mode's five steps pass the
- * colour-vision checks as neighbours (worst CVD ΔE 8.4 dark / 9.1 light, normal
- * vision ≥ 19.3), and a dark step clears 3:1 on the card. Each month is stacked
- * by its own ranking, so any two may touch; the gap between segments, the legend
- * and the tooltip keep them apart. The light steps of slots 3–5 are below 3:1 on
- * white, so the legend and tooltip carry the values. "Other" is a neutral.
- */
-const SERIES_COLORS = {
-  dark: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"],
-  light: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"],
-};
-const OTHER_COLOR = { dark: "#475066", light: "#c3c7d1" };
-
 export interface CostSeries {
   /** Key of the series' values in each row. */
   key: string;
@@ -238,16 +223,24 @@ export function CostChart({
   maxBarSize = 220,
 }: CostChartProps) {
   const theme = useTheme();
-  const mode = theme.palette.mode === "dark" ? "dark" : "light";
+  // Series colours from the theme, in a fixed order by the group's rank in the kept
+  // months (colour follows the group); "Other" is neutral. Each month is stacked by its
+  // own ranking, so the gap between segments, the legend and the tooltip keep them apart.
+  const palette = [
+    theme.palette.info.main,
+    theme.palette.primary.main,
+    theme.palette.success.main,
+    theme.palette.warning.main,
+    theme.palette.secondary.main,
+  ];
+  const otherColor = theme.palette.text.disabled;
   const ranked = series.filter((s) => !s.other);
   const colorOf = (s: CostSeries) =>
-    s.other
-      ? OTHER_COLOR[mode]
-      : SERIES_COLORS[mode][ranked.indexOf(s) % SERIES_COLORS[mode].length];
+    s.other ? otherColor : palette[ranked.indexOf(s) % palette.length];
   const seriesByKey = new Map(series.map((s) => [s.key, s]));
   const colorOfKey = (key: string) => {
     const s = seriesByKey.get(key);
-    return s ? colorOf(s) : OTHER_COLOR[mode];
+    return s ? colorOf(s) : otherColor;
   };
   // Each month stacked by its own ranking: its largest group at the bottom.
   const rankedRows: RankedRow[] = rows.map((row) => {

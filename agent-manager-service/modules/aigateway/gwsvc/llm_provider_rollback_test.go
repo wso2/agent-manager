@@ -273,7 +273,7 @@ func TestDelete_CompletesAfterCancellationFollowingSuccessfulUndeploy(t *testing
 }
 
 // A provider a budget limits spend on is not deleted, nor undeployed, until the budget
-// stops naming it (Interfaces 1.1).
+// stops naming it.
 func TestDelete_RejectsWithoutUndeployingWhenBudgetsUseTheProvider(t *testing.T) {
 	created := createdProvider()
 	clearCalled := false

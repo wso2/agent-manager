@@ -30,15 +30,8 @@ import {
 const orgNav = absoluteRouteMap.children.org.children;
 const agentNav = orgNav.projects.children.agents.children;
 
-/** Cost Management shows cost and budgets; reading either opens it. */
-const useCostAccess = () => {
-  const { hasAccess } = useFeatureManagement();
-  return hasAccess("ai_cost_read") || hasAccess("budget_read");
-};
-
-/** The Dashboard and the cost panels need cost read; budgets have their own access. */
-const useCostRead = () => useFeatureManagement().hasAccess("ai_cost_read");
-const useBudgetRead = () => useFeatureManagement().hasAccess("budget_read");
+/** Reading cost management (costs.read) opens the dashboard, the cost panels and budgets. */
+const useCostRead = () => useFeatureManagement().hasAccess("cost_read");
 
 const loadPage = () =>
   import("./AICostManagement/AICostManagement").then((m) => ({
@@ -47,38 +40,38 @@ const loadPage = () =>
 
 export const aiCostManagementPlugin: PluginManifest = {
   id: "ai-cost-management",
-  name: "Cost Management",
+  name: "Cost management",
   apiVersion: PLUGIN_API_VERSION,
-  useActivation: useCostAccess,
+  useActivation: useCostRead,
   contributions: [
     {
       type: "route",
       id: "org-page",
       level: "org",
-      path: orgNav.aiCostManagement.path + "/*",
+      path: orgNav.costManagement.path + "/*",
       load: loadPage,
     },
     {
       type: "route",
       id: "project-page",
       level: "project",
-      path: orgNav.projects.children.aiCostManagement.path + "/*",
+      path: orgNav.projects.children.costManagement.path + "/*",
       load: loadPage,
     },
     {
       type: "route",
       id: "agent-page",
       level: "agent",
-      path: agentNav.aiCostManagement.path + "/*",
+      path: agentNav.costManagement.path + "/*",
       load: loadPage,
     },
     ...(["org", "project", "agent"] as const).flatMap((level) => {
       const page =
         level === "org"
-          ? orgNav.aiCostManagement
+          ? orgNav.costManagement
           : level === "project"
-            ? orgNav.projects.children.aiCostManagement
-            : agentNav.aiCostManagement;
+            ? orgNav.projects.children.costManagement
+            : agentNav.costManagement;
       return [
         {
           type: "nav-item" as const,
@@ -95,7 +88,7 @@ export const aiCostManagementPlugin: PluginManifest = {
         {
           type: "nav-item" as const,
           id: `${level}-budgets-nav`,
-          useActivation: useBudgetRead,
+          useActivation: useCostRead,
           level,
           section: "cost-management",
           order: 20,

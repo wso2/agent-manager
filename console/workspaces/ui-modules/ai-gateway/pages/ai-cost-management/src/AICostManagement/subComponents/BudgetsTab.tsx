@@ -69,8 +69,10 @@ interface BudgetsTabProps {
   agentName?: string;
   /** Opens a budget's detail page. */
   onOpen: (budgetName: string) => void;
-  /** Opens the create page (on a project's or agent's page: with it filled in). */
-  onCreate: () => void;
+  /** The create action, shown in the empty state; the page header has it otherwise. */
+  createAction?: React.ReactNode;
+  /** Told whether the list is empty, so the page shows its header action only when not. */
+  onEmptyChange?: (empty: boolean) => void;
 }
 
 /** What a budget's limit is split by (each agent, each API key, ...), if anything. */
@@ -141,15 +143,14 @@ export function BudgetsTab({
   projectName,
   agentName,
   onOpen,
-  onCreate,
+  createAction,
+  onEmptyChange,
 }: BudgetsTabProps) {
   // Budgets are managed at organization level; a project sees, read-only, the budgets
   // that count its usage.
   const { hasAccess } = useFeatureManagement();
-  const canCreate = hasAccess("budget_create");
-  // Import and row actions are for the organization's list only.
-  const canWrite = canCreate && !projectName;
-  const canDelete = hasAccess("budget_delete") && !projectName;
+  // Row actions are for the organization's list only.
+  const canDelete = hasAccess("cost_delete") && !projectName;
   const { confirmDelete } = useConfirmDeleteBudget(orgName);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -184,10 +185,11 @@ export function BudgetsTab({
       offset: page * rowsPerPage,
     },
   );
-  const [importing, setImporting] = useState(false);
   const budgets = data?.budgets ?? [];
   const total = data?.total ?? 0;
   const isFiltered = !!query || statusFilter !== "all";
+  const isEmpty = isListEmpty({ isLoading, count: total, isFiltered });
+  useEffect(() => onEmptyChange?.(isEmpty), [isEmpty, onEmptyChange]);
   const statusSelect = (
     <TextField
       select
@@ -221,34 +223,18 @@ export function BudgetsTab({
             direction={{ xs: "column", md: "row" }}
             spacing={1.5}
             alignItems={{ xs: "stretch", md: "center" }}
+            justifyContent="space-between"
           >
             <SearchBar
               placeholder="Search by name or label"
               size="small"
-              fullWidth
+              width="standard"
               value={search}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 setSearch(e.target.value)
               }
             />
             {statusSelect}
-            {canWrite && (
-              <CreateBudgetMenu
-                onCreate={onCreate}
-                onImport={() => setImporting(true)}
-              />
-            )}
-            {/* A project's or agent's page: a new organization budget for it. */}
-            {canCreate && !canWrite && (
-              <Button
-                variant="contained"
-                startIcon={<Plus size={16} />}
-                onClick={onCreate}
-                sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
-              >
-                Add budget
-              </Button>
-            )}
           </Stack>
         }
         error={
@@ -257,7 +243,7 @@ export function BudgetsTab({
             : undefined
         }
         isLoading={isLoading}
-        isEmpty={isListEmpty({ isLoading, count: total, isFiltered })}
+        isEmpty={isEmpty}
         isSearchEmpty={!isLoading && isFiltered && total === 0}
         emptyState={{
           illustration: <Wallet size={64} />,
@@ -271,21 +257,8 @@ export function BudgetsTab({
             : projectName
               ? "Budgets for this project show here."
               : "Cap LLM spend per day, week or month.",
-          // The toolbar, with its Create button, is not shown while the list is empty.
-          action: canWrite ? (
-            <CreateBudgetMenu
-              onCreate={onCreate}
-              onImport={() => setImporting(true)}
-            />
-          ) : canCreate ? (
-            <Button
-              variant="contained"
-              startIcon={<Plus size={16} />}
-              onClick={onCreate}
-            >
-              Add budget
-            </Button>
-          ) : undefined,
+          // While the list is empty the create action is here, not in the page header.
+          action: createAction,
         }}
         searchEmptyState={{
           illustration: <Wallet size={64} />,
@@ -377,7 +350,7 @@ export function BudgetsTab({
                     {canDelete && (
                       <ListingTable.Cell align="right" sx={{ width: 110 }}>
                         {/* Gateway-made budgets are deleted on their gateway. */}
-                        {b.status?.origin !== "gateway_api" && (
+                        {b.status?.origin !== "gatewayApi" && (
                           <Stack className="budget-actions" direction="row">
                             <Button
                               variant="outlined"
@@ -420,6 +393,45 @@ export function BudgetsTab({
           )}
         </ListingTable.Container>
       </ResourceListShell>
+    </>
+  );
+}
+
+/**
+ * The create action of a budgets list: on the organization's list, Create budget with
+ * its menu (the form, or a CSV import); on a project's or agent's page, Add budget for
+ * it. Nothing without budgets.create.
+ */
+export function BudgetCreateAction({
+  orgName,
+  projectName,
+  onCreate,
+}: {
+  orgName?: string;
+  projectName?: string;
+  onCreate: () => void;
+}) {
+  const canCreate = useFeatureManagement().hasAccess("cost_write");
+  const [importing, setImporting] = useState(false);
+  if (!canCreate) return null;
+  if (projectName) {
+    return (
+      <Button
+        variant="contained"
+        startIcon={<Plus size={16} />}
+        onClick={onCreate}
+        sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+      >
+        Add budget
+      </Button>
+    );
+  }
+  return (
+    <>
+      <CreateBudgetMenu
+        onCreate={onCreate}
+        onImport={() => setImporting(true)}
+      />
       <ImportBudgetsDialog
         open={importing}
         orgName={orgName}

@@ -26,7 +26,7 @@ tables:
     checks:
       - "origin IN ('control_plane', 'gateway_api')"
       - "(origin = 'gateway_api') = (gateway_id IS NOT NULL)"
-    indexes: [[gateway_id], [project_id]]
+    indexes: [[gateway_id], [org_id, project_id]]
 
   # One row per budget allowance and period: its spend, as gateways report it.
   # Spend is a decimal string in USD, compared in code. A crossed warning

@@ -37,6 +37,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -44,7 +45,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
-// Budget field values and limits (Interfaces 2.2).
+// Budget field values and limits.
 const (
 	budgetAPIVersion      = "gateway.api-platform.wso2.com/v1"
 	budgetStatusActive    = "active"
@@ -98,6 +99,17 @@ type BudgetError struct {
 }
 
 func (e *BudgetError) Error() string { return e.Message }
+
+// Unwrap returns the class of the refusal, which sets the response status.
+func (e *BudgetError) Unwrap() error {
+	switch e.Code {
+	case gwerr.ErrCodeBudgetAlreadyExists, gwerr.ErrCodeBudgetReadOnly:
+		return gwerr.ErrBudgetConflict
+	case gwerr.ErrCodeBudgetNotFound:
+		return gwerr.ErrBudgetNotFound
+	}
+	return gwerr.ErrBudgetInvalid
+}
 
 func invalidBudget(field, format string, args ...any) error {
 	return &BudgetError{Code: httpx.ErrCodeValidation, Message: fmt.Sprintf(format, args...), Field: field}
@@ -173,7 +185,7 @@ func budgetReferenceNotFound(field, format string, args ...any) error {
 type BudgetService interface {
 	// Create stores a new, active budget for the organization. createdBy is the caller.
 	Create(ctx context.Context, ouID, createdBy string, kind gwspec.Budget) (*gwspec.Budget, error)
-	// Import creates the budgets of a CSV file, one per row, all or none (Interfaces 2.5).
+	// Import creates the budgets of a CSV file, one per row, all or none.
 	// onExisting says what a row naming an existing budget does: fail (default), skip or
 	// update.
 	// The result lists each row's errors; applied says whether they were saved. A file that
@@ -197,7 +209,7 @@ type BudgetService interface {
 type budgetService struct {
 	budgetRepo   gwrepo.BudgetRepository
 	artifactRepo gwrepo.ArtifactRepository
-	platform     gwrepo.PlatformRepository
+	core         modkit.CoreAPI
 	gateways     BudgetGatewaySender
 	warner       BudgetWarner
 	usageRepo    gwrepo.BudgetUsageRepository
@@ -211,45 +223,30 @@ type budgetService struct {
 func NewBudgetService(
 	budgetRepo gwrepo.BudgetRepository,
 	artifactRepo gwrepo.ArtifactRepository,
-	platform gwrepo.PlatformRepository,
+	core modkit.CoreAPI,
 	gateways BudgetGatewaySender,
 	warner BudgetWarner,
 	usageRepo gwrepo.BudgetUsageRepository,
 	channels notifyv1.Notifier,
 ) BudgetService {
 	return &budgetService{
-		budgetRepo: budgetRepo, artifactRepo: artifactRepo, platform: platform,
+		budgetRepo: budgetRepo, artifactRepo: artifactRepo, core: core,
 		gateways: gateways, warner: warner, usageRepo: usageRepo, channels: channels, now: time.Now,
 	}
 }
 
-// BudgetKind is the Budget kind (Interfaces 3): what gateways receive and what pipelines
-// keep in files. Agent Manager stores only its spec, as BudgetConfig.
-type BudgetKind struct {
-	APIVersion string                `json:"apiVersion" yaml:"apiVersion"`
-	Kind       string                `json:"kind" yaml:"kind"`
-	Metadata   BudgetKindMetadata    `json:"metadata" yaml:"metadata"`
-	Spec       gwmodels.BudgetConfig `json:"spec" yaml:"spec"`
-}
-
-// BudgetKindMetadata names the budget and, by annotation, its organization.
-type BudgetKindMetadata struct {
-	Name        string            `json:"name" yaml:"name"`
-	Annotations map[string]string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
-}
-
 // BuildBudgetKind wraps a stored budget in the Budget kind, with the org-id annotation
 // naming its organization (orgName, its handle). For a gateway it leaves out what gateways
-// never get: displayName, description and warnings (Interfaces 3).
-func BuildBudgetKind(name, orgName string, cfg gwmodels.BudgetConfig, forGateway bool) BudgetKind {
+// never get: displayName, description and warnings.
+func BuildBudgetKind(name, orgName string, cfg gwmodels.BudgetConfig, forGateway bool) gwmodels.BudgetKind {
 	if forGateway {
 		cfg.DisplayName, cfg.Description, cfg.Warnings = "", nil, nil
 	}
-	metadata := BudgetKindMetadata{Name: name}
+	metadata := gwmodels.BudgetKindMetadata{Name: name}
 	if orgName != "" {
 		metadata.Annotations = map[string]string{AnnotationOrgID: orgName}
 	}
-	return BudgetKind{APIVersion: budgetAPIVersion, Kind: gwmodels.KindBudget, Metadata: metadata, Spec: cfg}
+	return gwmodels.BudgetKind{APIVersion: budgetAPIVersion, Kind: gwmodels.KindBudget, Metadata: metadata, Spec: cfg}
 }
 
 // budgetRequest is a new budget's fields: from a Budget kind (Create, Update) or a CSV
@@ -288,7 +285,7 @@ type budgetUpdateLimit struct {
 	BlockAt *int32
 }
 
-// budgetFromKind reads a Budget kind sent to the API (Interfaces 3): the org-id annotation
+// budgetFromKind reads a Budget kind sent to the API: the org-id annotation
 // names the organization, which must be the one in the path (left out, it is that one); the
 // project-id annotation names the owning project.
 func budgetFromKind(kind gwspec.Budget) (budgetRequest, error) {
@@ -351,7 +348,7 @@ func (s *budgetService) create(ctx context.Context, ouID, createdBy string, req 
 	return s.response(ctx, ouID, budget)
 }
 
-// prepareBudget checks a new budget (Interfaces 2.2), its owner and every name it refers
+// prepareBudget checks a new budget, its owner and every name it refers
 // to, and returns it ready to store; Create and Import share it.
 func (s *budgetService) prepareBudget(ctx context.Context, ouID, createdBy string, req budgetRequest) (*gwmodels.Budget, error) {
 	req.Filters = withProjectFilter(req.Filters, req.ProjectId)
@@ -404,29 +401,29 @@ func sameOrg(sent *string, orgName string) error {
 
 // orgHandle returns the organization's handle.
 func (s *budgetService) orgHandle(ctx context.Context, ouID string) (string, error) {
-	org, err := s.platform.GetOrganization(ctx, ouID)
+	org, err := LookupOrg(ctx, s.core, ouID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get organization: %w", err)
 	}
-	return org.Name, nil
+	return org.Handle, nil
 }
 
 // projectID returns the ID of the organization's project with that name.
 func (s *budgetService) projectID(ctx context.Context, ouID, name, field string) (*uuid.UUID, error) {
-	return budgetProjectID(ctx, s.platform, ouID, name, field)
+	return budgetProjectID(ctx, s.core, ouID, name, field)
 }
 
 // budgetProjectID returns the ID of the organization's project with that name, or
 // REFERENCE_NOT_FOUND on field when there is none.
-func budgetProjectID(ctx context.Context, platform gwrepo.PlatformRepository, ouID, name, field string) (*uuid.UUID, error) {
-	p, err := platform.GetProject(ctx, ouID, name)
+func budgetProjectID(ctx context.Context, core modkit.CoreAPI, ouID, name, field string) (*uuid.UUID, error) {
+	p, err := LookupProject(ctx, core, ouID, name)
 	if err != nil {
 		if errors.Is(err, gwerr.ErrProjectNotFound) {
 			return nil, budgetReferenceNotFound(field, "Project '%s' was not found.", name)
 		}
 		return nil, fmt.Errorf("failed to get project %q: %w", name, err)
 	}
-	id, err := uuid.Parse(p.UUID)
+	id, err := uuid.Parse(p.ID)
 	if err != nil {
 		return nil, fmt.Errorf("project %q has an invalid ID: %w", name, err)
 	}
@@ -453,7 +450,7 @@ func withProjectFilter(filters []gwspec.BudgetFilter, project *string) []gwspec.
 }
 
 // ownByProject checks a budget owned by a project (the project-id annotation) is that
-// project's own (Interfaces 2.2): its filters name that project, so it counts only that
+// project's own: its filters name that project, so it counts only that
 // project's usage (an id-less project filter, any project, is refused); any agent it names
 // is of that project; its limit is not split by
 // project; and it exempts only agents of that project. Create adds the project filter when
@@ -555,7 +552,7 @@ func (s *budgetService) List(ctx context.Context, ouID, projectID string, filter
 		return nil, invalidBudget("search", "search must be at most %d characters.", maxBudgetSearch)
 	}
 	search = strings.ToLower(strings.TrimSpace(search))
-	// An organization has at most a few thousand budgets (Interfaces 2.2), so they are
+	// An organization has at most a few thousand budgets, so they are
 	// filtered here rather than with database-specific JSON queries.
 	all, err := s.budgetRepo.List(ctx, ouID)
 	if err != nil {
@@ -665,7 +662,7 @@ func (s *budgetService) responses(ctx context.Context, ouID string, budgets []*g
 }
 
 // budgetPeriodStart is the start of the budget period that holds now: the UTC day, the
-// week from Monday, or the month from the 1st (Interfaces 2.2).
+// week from Monday, or the month from the 1st.
 func budgetPeriodStart(period string, now time.Time) time.Time {
 	now = now.UTC()
 	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
@@ -680,7 +677,7 @@ func budgetPeriodStart(period string, now time.Time) time.Time {
 }
 
 // spendIn is an allowance's spend in the period starting at start: its stored totals, or
-// nothing when they belong to an earlier period (Interfaces 1.2).
+// nothing when they belong to an earlier period.
 func spendIn(r gwmodels.BudgetUsage, start time.Time) (*big.Rat, int64) {
 	if !r.PeriodStart.UTC().Equal(start) {
 		return new(big.Rat), 0
@@ -774,7 +771,7 @@ func (s *budgetService) Update(ctx context.Context, ouID, name string, kind gwsp
 }
 
 // fixedFieldsUnchanged checks an update sends the fields fixed after creation as stored:
-// the owning project, currency, period, limit.splitBy and filters (Interfaces 2.2). A
+// the owning project, currency, period, limit.splitBy and filters. A
 // project budget may leave out its project filter, as on create.
 func fixedFieldsUnchanged(b *gwmodels.Budget, req budgetRequest) error {
 	fixed := func(field, what string) error {
@@ -852,7 +849,7 @@ func (s *budgetService) update(ctx context.Context, ouID string, b *gwmodels.Bud
 	}
 	if b.Origin != gwmodels.BudgetOriginControlPlane && !gatewayFieldsUnchanged(&cfg, status, limit, exemptions) {
 		// A gateway's budget: the gateway owns what it enforces; only Agent Manager's
-		// fields, which gateways never get, change here (Interfaces 4.3).
+		// fields, which gateways never get, change here.
 		return nil, &BudgetError{
 			Code: gwerr.ErrCodeBudgetReadOnly,
 			Message: fmt.Sprintf("Budget %s was created on a gateway: status, limit and exemptions can be changed only "+
@@ -916,7 +913,7 @@ func (s *budgetService) Delete(ctx context.Context, ouID, name string) error {
 		return err
 	}
 	s.gateways.SendBudgetDeleted(ctx, b)
-	modkit.AuditResource(ctx, "budget", b.ID.String(), name)
+	modkit.AuditResource(ctx, gwaudit.ResourceBudget, b.ID.String(), name)
 	modkit.AuditDetail(ctx, "budgetName", name)
 	return nil
 }
@@ -1008,7 +1005,7 @@ func budgetLimitReached(b *gwspec.Budget) bool {
 
 type budgetListFilter struct{ typ, id string }
 
-// parseBudgetFilters reads type:id list filters (Interfaces 2.1).
+// parseBudgetFilters reads type:id list filters.
 func parseBudgetFilters(filters []string) ([]budgetListFilter, error) {
 	out := make([]budgetListFilter, 0, len(filters))
 	for i, f := range filters {
@@ -1080,8 +1077,7 @@ func budgetCountsAgent(c *gwmodels.BudgetConfig, project, agent string) bool {
 	return projectNamed
 }
 
-// budgetDisplayName is the display name given, or the budget's name when none is
-// (Interfaces 2.2).
+// budgetDisplayName is the display name given, or the budget's name when none is.
 func budgetDisplayName(in *string, name string) (string, error) {
 	if in == nil || strings.TrimSpace(*in) == "" {
 		return name, nil
@@ -1093,7 +1089,7 @@ func budgetDisplayName(in *string, name string) (string, error) {
 	return displayName, nil
 }
 
-// normalizeBudget checks the payload (Interfaces 2.2) and returns the budget's settings
+// normalizeBudget checks the payload and returns the budget's settings
 // with defaults filled in.
 func normalizeBudget(req budgetRequest) (*gwmodels.BudgetConfig, error) {
 	if !budgetNamePattern.MatchString(req.Name) {
@@ -1414,7 +1410,7 @@ func (s *budgetService) checkEditableReferences(ctx context.Context, ouID string
 }
 
 // checkChannels checks each warning channel, given by name, exists and is available to
-// the budget (Interfaces 2.4): availability all or org, or projects when the budget's
+// the budget: availability all or org, or projects when the budget's
 // project (budgetProject) is one of them.
 func (s *budgetService) checkChannels(ctx context.Context, ouID, project string, warnings *gwmodels.BudgetWarnings) error {
 	if s.channels == nil || warnings == nil || len(warnings.Channels) == 0 {
@@ -1453,7 +1449,7 @@ func (s *budgetService) checkArtifact(ouID, kind, handle, field, what string) er
 }
 
 func (s *budgetService) checkProject(ctx context.Context, ouID, name, field string) error {
-	if _, err := s.platform.GetProject(ctx, ouID, name); err != nil {
+	if _, err := LookupProject(ctx, s.core, ouID, name); err != nil {
 		if errors.Is(err, gwerr.ErrProjectNotFound) {
 			return budgetReferenceNotFound(field, "Project '%s' was not found.", name)
 		}
@@ -1463,7 +1459,7 @@ func (s *budgetService) checkProject(ctx context.Context, ouID, name, field stri
 }
 
 func (s *budgetService) checkAgent(ctx context.Context, ouID, project, name, field string) error {
-	if _, err := s.platform.GetAgent(ctx, ouID, project, name); err != nil {
+	if _, err := LookupAgent(ctx, s.core, ouID, project, name); err != nil {
 		if errors.Is(err, gwerr.ErrAgentNotFound) || errors.Is(err, gwerr.ErrProjectNotFound) {
 			return budgetReferenceNotFound(field, "Agent '%s' was not found in project '%s'.", name, project)
 		}
@@ -1472,7 +1468,7 @@ func (s *budgetService) checkAgent(ctx context.Context, ouID, project, name, fie
 	return nil
 }
 
-// BudgetResponse is a stored budget as the API returns it (Interfaces 2.3).
+// BudgetResponse is a stored budget as the API returns it.
 // BudgetAsKind is a stored budget as the API returns it: the Budget kind, with the org-id
 // annotation, the project-id annotation for a project budget and the server's fields in
 // status.
@@ -1511,7 +1507,7 @@ func BudgetAsKind(b *gwmodels.Budget) *gwspec.Budget {
 	if len(annotations) > 0 {
 		metadata.Annotations = &annotations
 	}
-	serverStatus := gwspec.NewBudgetServerStatus(string(b.Origin), b.CreatedAt, b.UpdatedAt)
+	serverStatus := gwspec.NewBudgetServerStatus(b.Origin.API(), b.CreatedAt, b.UpdatedAt)
 	if b.CreatedBy != "" {
 		serverStatus.CreatedBy = &b.CreatedBy
 	}

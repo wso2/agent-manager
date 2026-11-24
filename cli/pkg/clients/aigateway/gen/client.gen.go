@@ -3084,9 +3084,9 @@ func NewListBudgetsRequest(server string, orgName string, params *ListBudgetsPar
 	if params != nil {
 		queryValues := queryURL.Query()
 
-		if params.ProjectId != nil {
+		if params.Project != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "projectId", *params.ProjectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "project", *params.Project, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -3487,7 +3487,7 @@ func NewListBudgetUsageRequest(server string, orgName string, budgetName string,
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/orgs/%s/budgets/%s/budget-usage", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/orgs/%s/budgets/%s/usage", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}

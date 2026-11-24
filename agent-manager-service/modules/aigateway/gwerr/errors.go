@@ -30,7 +30,7 @@ const (
 	ErrCodeAgentNotFound           = "AGENT_NOT_FOUND"
 	ErrCodeEnvironmentNotFound     = "ENVIRONMENT_NOT_FOUND"
 
-	// Budget errors (Interfaces 2.3)
+	// Budget errors
 	ErrCodeReferenceNotFound   = "REFERENCE_NOT_FOUND"
 	ErrCodeUnsupportedConsumer = "UNSUPPORTED_CONSUMER"
 	ErrCodeInvalidExpression   = "INVALID_EXPRESSION"
@@ -41,10 +41,13 @@ const (
 	ErrCodeChannelNotAvailable = "CHANNEL_NOT_AVAILABLE"
 )
 
-// Budget errors.
+// Budget errors. A refused budget request wraps one of them, which sets its status: 409
+// for ErrBudgetConflict, 404 for ErrBudgetNotFound, 400 for ErrBudgetInvalid.
 var (
 	ErrBudgetAlreadyExists = errors.New("budget already exists")
 	ErrBudgetNotFound      = errors.New("budget not found")
+	ErrBudgetConflict      = errors.New("budget conflict")
+	ErrBudgetInvalid       = errors.New("invalid budget")
 )
 
 // The core resources a gateway route addresses by name, when they do not

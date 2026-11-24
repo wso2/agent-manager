@@ -220,7 +220,7 @@ export const rootRouteMap: AppRoute = {
                     index: true,
                     children: {},
                 },
-                aiCostManagement: {
+                costManagement: {
                     path: 'cost-management',
                     index: true,
                     children: {
@@ -272,7 +272,7 @@ export const rootRouteMap: AppRoute = {
                             index: true,
                             children: {},
                         },
-                        aiCostManagement: {
+                        costManagement: {
                             path: 'cost-management',
                             index: true,
                             children: {
@@ -330,7 +330,7 @@ export const rootRouteMap: AppRoute = {
                             path: 'agents/:agentId',
                             index: true,
                             children: {
-                                aiCostManagement: {
+                                costManagement: {
                                     path: 'cost-management',
                                     index: true,
                                     children: {

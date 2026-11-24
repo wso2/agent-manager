@@ -17,37 +17,19 @@
 package gwapi
 
 import (
-	"net/http"
-
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
-// RegisterBudgetRoutes registers the budget routes. can checks a permission the route
-// itself does not require.
-func RegisterBudgetRoutes(rr Router, controller gwctl.BudgetController, can func(r *http.Request, perm string) bool) {
+// RegisterBudgetRoutes registers the budget routes: costs.read reads budgets, costs.write
+// creates, updates and imports them, and costs.delete deletes them.
+func RegisterBudgetRoutes(rr Router, controller gwctl.BudgetController) {
 	base := "/orgs/{orgName}/budgets"
-	rr.HandleFuncWithValidationAndAuthz("GET "+base, gwperm.BudgetRead, controller.ListBudgets)
-	rr.HandleFuncWithValidationAndAuthz("POST "+base, gwperm.BudgetCreate, controller.CreateBudget)
-	rr.HandleFuncWithValidationAndAuthz("POST "+base+"/import", gwperm.BudgetCreate, importBudgets(controller, can))
-	rr.HandleFuncWithValidationAndAuthz("GET "+base+"/{budgetName}", gwperm.BudgetRead, controller.GetBudget)
-	rr.HandleFuncWithValidationAndAuthz("GET "+base+"/{budgetName}/budget-usage", gwperm.BudgetRead, controller.GetBudgetUsage)
-	rr.HandleFuncWithValidationAndAuthz("PUT "+base+"/{budgetName}", gwperm.BudgetUpdate, controller.UpdateBudget)
-	rr.HandleFuncWithValidationAndAuthz("DELETE "+base+"/{budgetName}", gwperm.BudgetDelete, controller.DeleteBudget)
-}
-
-// importBudgets is the import handler: an import that may replace existing budgets
-// (onExisting=update) also needs budgets.update, dry run or not, so creating budgets
-// never lets a caller change ones that exist.
-func importBudgets(controller gwctl.BudgetController, can func(r *http.Request, perm string) bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("onExisting") == gwsvc.OnExistingUpdate && !can(r, short(gwperm.BudgetUpdate)) {
-			httpx.WriteErrorResponseWithReason(w, http.StatusForbidden, "Forbidden",
-				"Replacing existing budgets needs the "+gwperm.BudgetUpdate+" permission", httpx.ErrCodeForbidden)
-			return
-		}
-		controller.ImportBudgets(w, r)
-	}
+	rr.HandleFuncWithValidationAndAuthz("GET "+base, gwperm.CostRead, controller.ListBudgets)
+	rr.HandleFuncWithValidationAndAuthz("POST "+base, gwperm.CostWrite, controller.CreateBudget)
+	rr.HandleFuncWithValidationAndAuthz("POST "+base+"/import", gwperm.CostWrite, controller.ImportBudgets)
+	rr.HandleFuncWithValidationAndAuthz("GET "+base+"/{budgetName}", gwperm.CostRead, controller.GetBudget)
+	rr.HandleFuncWithValidationAndAuthz("GET "+base+"/{budgetName}/usage", gwperm.CostRead, controller.GetBudgetUsage)
+	rr.HandleFuncWithValidationAndAuthz("PUT "+base+"/{budgetName}", gwperm.CostWrite, controller.UpdateBudget)
+	rr.HandleFuncWithValidationAndAuthz("DELETE "+base+"/{budgetName}", gwperm.CostDelete, controller.DeleteBudget)
 }

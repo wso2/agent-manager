@@ -35,7 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 )
 
-// AI cost stats (Interfaces 1.3, 2.6): gateways with [ai_cost_management.tracking] on count what every
+// AI cost stats: gateways with [ai_cost_management.tracking] on count what every
 // LLM request cost and report it in their usage messages (4.2); the totals are kept per
 // month and combination of project, agent, API key, user, LLM provider and model, for 3
 // months.
@@ -60,7 +60,7 @@ const (
 var costGroupTypes = []string{costByOrganization, costByProject, costByAgent, costByAPIKey, costByUser, costByLLMProvider, costByModel}
 
 // GatewayCostUsage is what one combination of values cost in one month, across every
-// gateway sharing the counter store (Interfaces 4.2).
+// gateway sharing the counter store.
 type GatewayCostUsage struct {
 	Month                    string `json:"month"`
 	CostKey                  string `json:"costKey"`

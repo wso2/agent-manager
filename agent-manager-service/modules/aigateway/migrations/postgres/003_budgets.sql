@@ -19,7 +19,7 @@ CREATE TABLE mod_ai_gateway_budgets (
     CONSTRAINT ck_mod_ai_gateway_budgets_2 CHECK ((origin = 'gateway_api') = (gateway_id IS NOT NULL))
 );
 CREATE INDEX idx_mod_ai_gateway_budgets_gateway_id ON mod_ai_gateway_budgets (gateway_id);
-CREATE INDEX idx_mod_ai_gateway_budgets_project_id ON mod_ai_gateway_budgets (project_id);
+CREATE INDEX idx_mod_ai_gateway_budgets_org_id_project_id ON mod_ai_gateway_budgets (org_id, project_id);
 
 CREATE TABLE mod_ai_gateway_budget_usage (
     budget_id UUID NOT NULL,

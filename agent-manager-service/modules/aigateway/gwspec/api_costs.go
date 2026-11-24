@@ -49,7 +49,7 @@ func (r ApiGetCostsRequest) Execute() (*CostReport, *http.Response, error) {
 /*
 GetCosts Costs
 
-What LLM traffic cost in the last 3 months, the current one so far, grouped by one value (Interfaces 2.6). Counted by gateways with cost tracking on, with or without budgets. Every group, highest cost first; no paging. Needs cost:read.
+What LLM traffic cost in the last 3 months, the current one so far, grouped by one value. Counted by gateways with cost tracking on, with or without budgets. Every group, highest cost first; no paging. Needs costs.read.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name

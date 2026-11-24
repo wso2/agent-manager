@@ -39,8 +39,8 @@ export function dockerCommands(version: string, cpHost: string, token: string): 
     configure: `cat >> ${ENV_FILE} << 'ENVFILE'
 APIP_GW_CONTROLLER_CONTROLPLANE_HOST=${cpHost}
 APIP_GW_CONTROLLER_CONTROLPLANE_TOKEN=${token}
-APIP_GW_AI_COST_TRACKING_ENABLED=true
-APIP_GW_AI_COST_BUDGETS_ENABLED=true
+APIP_GW_AI_COST_MANAGEMENT_TRACKING_ENABLED=true
+APIP_GW_AI_COST_MANAGEMENT_BUDGETS_ENABLED=true
 ENVFILE`,
     start: "docker compose up",
   };

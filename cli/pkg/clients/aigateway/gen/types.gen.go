@@ -352,8 +352,8 @@ func (e BudgetLimitPeriod) Valid() bool {
 
 // Defines values for BudgetServerStatusOrigin.
 const (
-	ControlPlane BudgetServerStatusOrigin = "control_plane"
-	GatewayApi   BudgetServerStatusOrigin = "gateway_api"
+	ControlPlane BudgetServerStatusOrigin = "controlPlane"
+	GatewayApi   BudgetServerStatusOrigin = "gatewayApi"
 )
 
 // Valid indicates whether the value is a known member of the BudgetServerStatusOrigin enum.
@@ -1751,12 +1751,12 @@ type BudgetServerStatus struct {
 	// CurrentPeriod Spend this period; always returned, zero before any usage.
 	CurrentPeriod *BudgetCurrentPeriod `json:"currentPeriod,omitempty"`
 
-	// Origin gateway_api: created on a gateway; only displayName, description and warnings change here
+	// Origin gatewayApi: created on a gateway; only displayName, description and warnings change here
 	Origin    BudgetServerStatusOrigin `json:"origin"`
 	UpdatedAt time.Time                `json:"updatedAt"`
 }
 
-// BudgetServerStatusOrigin gateway_api: created on a gateway; only displayName, description and warnings change here
+// BudgetServerStatusOrigin gatewayApi: created on a gateway; only displayName, description and warnings change here
 type BudgetServerStatusOrigin string
 
 // BudgetSpec defines model for BudgetSpec.
@@ -3826,8 +3826,8 @@ type ListLLMProvidersParams struct {
 
 // ListBudgetsParams defines parameters for ListBudgets.
 type ListBudgetsParams struct {
-	// ProjectId Only the budgets this project owns; omitted, every budget in the organization.
-	ProjectId *string `form:"projectId,omitempty" json:"projectId,omitempty"`
+	// Project Only the budgets this project owns; omitted, every budget in the organization.
+	Project *string `form:"project,omitempty" json:"project,omitempty"`
 
 	// Filter type:id, with type project, agent, apiKey or llmProvider: budgets whose filters or exemptions name it (project also matches an agent filter or exemption of that project). agent:<project>/<agent> lists the budgets that count that agent: those naming it, and those naming its project and no agent. Repeat for AND.
 	Filter *[]string `form:"filter,omitempty" json:"filter,omitempty"`

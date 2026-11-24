@@ -20,7 +20,7 @@ import type { PageMetadata } from "@agent-management-platform/types";
 import { AICostManagement } from "./AICostManagement/AICostManagement";
 
 export const metaData: PageMetadata = {
-  title: "Cost Management",
+  title: "Cost management",
   description: "Cost overview and budgets",
   icon: Wallet,
   path: "/cost-management",

@@ -201,7 +201,7 @@ export const generatedRouteMap =  {
           "wildPath": "/org/:orgId/events/*",
           "children": {}
         },
-        "aiCostManagement": {
+        "costManagement": {
           "path": "/org/:orgId/cost-management",
           "wildPath": "/org/:orgId/cost-management/*",
           "children": {
@@ -253,7 +253,7 @@ export const generatedRouteMap =  {
               "wildPath": "/org/:orgId/project/:projectId/events/*",
               "children": {}
             },
-            "aiCostManagement": {
+            "costManagement": {
               "path": "/org/:orgId/project/:projectId/cost-management",
               "wildPath": "/org/:orgId/project/:projectId/cost-management/*",
               "children": {
@@ -311,7 +311,7 @@ export const generatedRouteMap =  {
               "path": "/org/:orgId/project/:projectId/agents/:agentId",
               "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/*",
               "children": {
-                "aiCostManagement": {
+                "costManagement": {
                   "path": "/org/:orgId/project/:projectId/agents/:agentId/cost-management",
                   "wildPath": "/org/:orgId/project/:projectId/agents/:agentId/cost-management/*",
                   "children": {

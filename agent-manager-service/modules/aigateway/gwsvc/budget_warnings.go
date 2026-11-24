@@ -41,15 +41,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 )
 
-// GatewayMessageBudgetUsage is the type of a gateway's usage message (Interfaces 4.2),
+// GatewayMessageBudgetUsage is the type of a gateway's usage message,
 // dotted like deployment.ack.
 const GatewayMessageBudgetUsage = "budget.usage"
 
 // GatewayUsageMessage is the usage message a gateway sends on its connection
-// (Interfaces 4.2): budget allowance totals.
+// : budget allowance totals.
 type GatewayUsageMessage struct {
 	Allowances []GatewayAllowanceUsage `json:"allowances"`
-	// Costs are the AI cost stats, from gateways with [ai_cost_management.tracking] on (Interfaces 4.2).
+	// Costs are the AI cost stats, from gateways with [ai_cost_management.tracking] on.
 	Costs []GatewayCostUsage `json:"costs"`
 }
 
@@ -71,7 +71,7 @@ type BudgetWarner interface {
 }
 
 // BudgetWarningService keeps the spend gateways report for each budget allowance and
-// raises a warning, once, for every threshold an allowance crosses (Interfaces 1.2, 6):
+// raises a warning, once, for every threshold an allowance crosses:
 // sent to the budget's notification channels through notifications/v1, queued in the
 // transaction that records the crossing.
 type BudgetWarningService struct {
@@ -84,7 +84,7 @@ type BudgetWarningService struct {
 
 	// Reports are coalesced here, per organization, latest total per allowance and cost key,
 	// and written every flush interval, so the database load follows how many totals
-	// changed, not how many reports, gateways or requests there were (Interfaces 4.2). A
+	// changed, not how many reports, gateways or requests there were. A
 	// gateway's connection never waits on the database. Before Start (tests), HandleUsage
 	// records inline.
 	mu       sync.Mutex
@@ -408,7 +408,7 @@ func (s *BudgetWarningService) record(ctx context.Context, budgets map[uuid.UUID
 
 // CheckBudget raises the warnings a budget's stored spend already crosses: after an
 // edit lowers the limit or adds a threshold. Raising the limit gives new amounts, so
-// warnings re-arm (BR-15).
+// warnings re-arm.
 func (s *BudgetWarningService) CheckBudget(ctx context.Context, b *gwmodels.Budget) {
 	log := slog.With("budget", b.Name)
 	publish := s.publisher()
@@ -431,7 +431,7 @@ func (s *BudgetWarningService) CheckBudget(ctx context.Context, b *gwmodels.Budg
 
 // budgetWarnings returns a warning for every threshold the stored spend has reached,
 // with its event. A warning is keyed by the budget, allowance, period and threshold amount,
-// so each is raised once (BR-13).
+// so each is raised once.
 func budgetWarnings(b *gwmodels.Budget, row gwmodels.BudgetUsage) []gwmodels.BudgetWarning {
 	w := b.Configuration.Warnings
 	if w == nil || b.Configuration.Status != budgetStatusActive {
@@ -463,9 +463,9 @@ func budgetWarnings(b *gwmodels.Budget, row gwmodels.BudgetUsage) []gwmodels.Bud
 // BudgetWarningEvent is the type of a budget warning sent to its channels.
 const BudgetWarningEvent = "ai-gateway.budget.threshold_crossed"
 
-// warningNotice is the warning of one threshold crossed, for the budget's channels
-// (Interfaces 6). Its ID is the budget, period, allowance and threshold amount, so each
-// reaches a channel once (BR-13).
+// warningNotice is the warning of one threshold crossed, for the budget's channels.
+// Its ID is the budget, period, allowance and threshold amount, so each reaches a
+// channel once.
 func warningNotice(b *gwmodels.Budget, row gwmodels.BudgetUsage, threshold int, at, spent *big.Rat) notifyv1.Notification {
 	period := row.PeriodStart.UTC()
 	project := row.Allowance[budgetTypeProject]

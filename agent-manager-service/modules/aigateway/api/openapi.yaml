@@ -6733,7 +6733,7 @@ paths:
           schema:
             type: string
           description: Organization name
-        - name: projectId
+        - name: project
           in: query
           required: false
           description: Only the budgets this project owns; omitted, every budget in the organization.
@@ -6898,10 +6898,9 @@ paths:
     post:
       summary: Import budgets from CSV
       description: |
-        Creates many budgets from a CSV file, one budget per row (Interfaces 2.5). Each row is
+        Creates many budgets from a CSV file, one budget per row. Each row is
         checked like a created budget; if any row fails, nothing is saved. With dryRun, every
-        row is checked and nothing is saved. Needs budget:create; with onExisting=update, also
-        budget:update (dry run included).
+        row is checked and nothing is saved. Needs costs.write, also with onExisting=update.
 
         Columns (name, amount, period and action required):
         name,projectId,displayName,description,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels,labels
@@ -7166,11 +7165,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /orgs/{orgName}/budgets/{budgetName}/budget-usage:
+  /orgs/{orgName}/budgets/{budgetName}/usage:
     get:
       summary: Budget usage
       description: >-
-        Each allowance's spend in the budget's current period, highest spend first (FR-15). An
+        Each allowance's spend in the budget's current period, highest spend first. An
         allowance whose last report was in an earlier period has spent nothing this period.
       operationId: listBudgetUsage
       tags:
@@ -7245,8 +7244,8 @@ paths:
       summary: Costs
       description: >-
         What LLM traffic cost in the last 3 months, the current one so far, grouped by one
-        value (Interfaces 2.6). Counted by gateways with cost tracking on, with or without
-        budgets. Every group, highest cost first; no paging. Needs cost:read.
+        value. Counted by gateways with cost tracking on, with or without
+        budgets. Every group, highest cost first; no paging. Needs costs.read.
       operationId: getCosts
       tags:
         - Costs
@@ -7539,8 +7538,8 @@ components:
       properties:
         origin:
           type: string
-          enum: [control_plane, gateway_api]
-          description: "gateway_api: created on a gateway; only displayName, description and warnings change here"
+          enum: [controlPlane, gatewayApi]
+          description: "gatewayApi: created on a gateway; only displayName, description and warnings change here"
         currentPeriod:
           allOf:
             - $ref: "#/components/schemas/BudgetCurrentPeriod"

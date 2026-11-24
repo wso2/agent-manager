@@ -32,7 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
-// importCSV is the design's example (Interfaces 2.5), in the test environment's names.
+// importCSV is an example, in the test environment's names.
 const importCSV = `name,projectId,displayName,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels
 wso2-monthly,,WSO2 monthly ceiling,10000,month,block,99,,,,,,,,"[{""type"": ""project"", ""id"": ""api-platform""}]",50;80;100,finance-email
 api-platform-agents,api-platform,"API Platform, per agent",100,month,block,,agent,,openai,,,,,"[{""type"": ""agent"", ""project"": ""api-platform"", ""id"": ""hotel-booking""}]",80;100,platform-slack

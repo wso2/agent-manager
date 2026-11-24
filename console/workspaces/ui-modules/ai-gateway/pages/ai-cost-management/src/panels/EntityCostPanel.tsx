@@ -113,7 +113,7 @@ function MetricTile({
               fontWeight={700}
               lineHeight={1.25}
               color={highlight ? "primary.main" : "text.primary"}
-              sx={{ fontSize: "1.75rem", fontVariantNumeric: "tabular-nums" }}
+              sx={{ fontSize: "1.5rem", fontVariantNumeric: "tabular-nums" }}
             >
               {value}
             </Typography>

@@ -87,6 +87,7 @@ func TestEventDestinationService_ModulesCanRefuseRenameAndDelete(t *testing.T) {
 	_, err = svc.Update(ctx, "ou-1", d.ID, renamed)
 	require.ErrorIs(t, err, utils.ErrEventDestinationInUse)
 	assert.Contains(t, err.Error(), "budget(s) b1 send warnings to it")
+	assert.NotContains(t, err.Error(), "subscriptions", "a module's refusal is worded by the module")
 	require.Len(t, asked, 1)
 	assert.Equal(t, modkit.ActionUpdate, asked[0].Action)
 	assert.Equal(t, "ops-hook-2", asked[0].Object["newName"])

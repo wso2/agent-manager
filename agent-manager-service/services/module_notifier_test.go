@@ -58,7 +58,7 @@ func TestModuleNotifier(t *testing.T) {
 	}
 	finance := add("finance", models.DestinationAvailableOrg)
 	shop := add("shop-hook", models.DestinationAvailableProjects, "shop")
-	n := NewModuleNotifier(gdb)
+	n := NewModuleNotifier(repositories.NewEventRepository(gdb, nil), repositories.NewEventOutboxRepository, gdb)
 
 	unusable, err := n.Unusable(ctx, org, "", []string{"finance", "shop-hook", "nope"})
 	require.NoError(t, err)

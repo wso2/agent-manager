@@ -26,6 +26,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  Form,
   IconButton,
   InputAdornment,
   Link,
@@ -34,13 +35,13 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { X } from "@wso2/oxygen-ui-icons-react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import {
   useCreateBudget,
   useListBudgets,
   useListEventDestinations,
 } from "@agent-management-platform/api-client";
-import { TextInput } from "@agent-management-platform/views";
+import { returnToState, TextInput } from "@agent-management-platform/views";
 import { INPUT_LIMITS } from "@agent-management-platform/types";
 import {
   budgetFromForm,
@@ -55,7 +56,6 @@ import {
 } from "../AICostManagement/budgetForm";
 import {
   Channels,
-  Field,
   Segmented,
   Thresholds,
 } from "../AICostManagement/subComponents/BudgetForm";
@@ -95,9 +95,10 @@ export function QuickBudgetDialog({
   viewHref,
 }: QuickBudgetDialogProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const budgets = useListBudgets({ orgName }, { limit: 100 });
   const destinations = useListEventDestinations(orgName, open);
-  const create = useCreateBudget({ orgName });
+  const create = useCreateBudget();
   const [initialForm] = useState<BudgetFormState>(() => formFor(start));
   const [form, setForm] = useState<BudgetFormState>(initialForm);
   const [submitted, setSubmitted] = useState(false);
@@ -144,18 +145,23 @@ export function QuickBudgetDialog({
       name: handleFor(form.displayName, taken),
       projectOwner,
     });
-    create.mutate(body, {
-      onSuccess: (b) => {
-        onClose();
-        navigate(viewHref(b.metadata.name));
+    create.mutate(
+      { params: { orgName }, body },
+      {
+        onSuccess: (b) => {
+          onClose();
+          navigate(viewHref(b.metadata.name));
+        },
+        onError: (err) => {
+          const { field, message } = serverFieldError(err);
+          // The dialog has name, amount, period, action and warnings; the rest show above.
+          const shown = ["displayName", "amount", "thresholds", "channels"];
+          setServerErrors({
+            [shown.includes(field) ? field : "form"]: message,
+          });
+        },
       },
-      onError: (err) => {
-        const { field, message } = serverFieldError(err);
-        // The dialog has name, amount, period, action and warnings; the rest show above.
-        const shown = ["displayName", "amount", "thresholds", "channels"];
-        setServerErrors({ [shown.includes(field) ? field : "form"]: message });
-      },
-    });
+    );
   };
 
   return (
@@ -241,7 +247,10 @@ export function QuickBudgetDialog({
               ))}
             </TextInput>
           </Stack>
-          <Field label="When the limit is reached">
+          <Form.ElementWrapper
+            label="When the limit is reached"
+            name="When the limit is reached"
+          >
             <Box sx={{ maxWidth: 280 }}>
               <Segmented
                 label="When the limit is reached"
@@ -258,7 +267,7 @@ export function QuickBudgetDialog({
                 ? "Refuse requests at the limit."
                 : "Only warns."}
             </Typography>
-          </Field>
+          </Form.ElementWrapper>
           <Divider />
           <Box>
             <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
@@ -295,6 +304,7 @@ export function QuickBudgetDialog({
           <Link
             component={RouterLink}
             to={`${createHref}${startQuery(start)}`}
+            state={returnToState(location)}
             underline="hover"
           >
             Advanced options

@@ -727,7 +727,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 		slog.Warn("LLMProviderService.Delete: provider has associated proxies", "ouID", ouID, "providerID", providerID)
 		return gwerr.ErrLLMProviderHasProxies
 	}
-	// Budgets name the provider by handle; they must stop using it first (Interfaces 1.1).
+	// Budgets name the provider by handle; they must stop using it first.
 	handle := provider.Configuration.Handle
 	if handle == "" && provider.Artifact != nil {
 		handle = provider.Artifact.Handle

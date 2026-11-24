@@ -38,6 +38,14 @@ const (
 	BudgetOriginGateway BudgetOrigin = "gateway_api"
 )
 
+// API returns the origin as the REST API names it: controlPlane or gatewayApi.
+func (o BudgetOrigin) API() string {
+	if o == BudgetOriginGateway {
+		return "gatewayApi"
+	}
+	return "controlPlane"
+}
+
 // Budget is a spend limit on LLM traffic: a mod_ai_gateway_budgets row, named by the
 // budget name (unique in the organization). Configuration is the control-plane model, as
 // LLMProviderConfig is for a provider: the spec of the Budget kind, which is built from it
@@ -49,8 +57,8 @@ type Budget struct {
 	Origin    BudgetOrigin `gorm:"column:origin"`
 	GatewayID *uuid.UUID   `gorm:"column:gateway_id"` // set for gateway budgets only
 	ProjectID *uuid.UUID   `gorm:"column:project_id"` // the owning project; nil: the organization
-	// Configuration is the kind's spec; the column holds the whole Budget kind as received
-	// (Interfaces 1.1), written and read by the budgetkind serializer.
+	// Configuration is the kind's spec; the column holds the whole Budget kind as received,
+	// written and read by the budgetkind serializer.
 	Configuration BudgetConfig `gorm:"column:configuration;serializer:budgetkind"`
 	CreatedBy     string       `gorm:"column:created_by"`
 	CreatedAt     time.Time    `gorm:"column:created_at"`
@@ -62,8 +70,8 @@ type Budget struct {
 	ProjectName string `gorm:"-"`
 }
 
-// BudgetConfig is a budget's settings (Interfaces 2.2), with defaults filled in: the
-// spec of the Budget kind (Interfaces 3).
+// BudgetConfig is a budget's settings, with defaults filled in: the
+// spec of the Budget kind.
 type BudgetConfig struct {
 	DisplayName string            `json:"displayName,omitempty"`
 	Description *string           `json:"description,omitempty"`
@@ -136,7 +144,7 @@ const BudgetAPIVersion = "gateway.api-platform.wso2.com/v1"
 const AnnotationBudgetProjectID = "gateway.api-platform.wso2.com/project-id"
 
 // BudgetDocument is a budget as stored, as a gateway stores it: the Budget kind as
-// received (Interfaces 1.1, 3).
+// received.
 type BudgetDocument struct {
 	APIVersion string                 `json:"apiVersion"`
 	Kind       string                 `json:"kind"`
@@ -222,22 +230,31 @@ func (budgetKindSerializer) Value(_ context.Context, _ *schema.Field, dst reflec
 	return string(b), nil
 }
 
-// OrganizationResponse, ProjectResponse and AgentResponse are the core's organization,
-// project and agent as budgets look them up.
-type OrganizationResponse struct {
-	UUID   string
-	Name   string // the handle
-	Handle string
+// BudgetKind is the Budget kind: what gateways receive and what pipelines
+// keep in files. Agent Manager stores only its spec, as BudgetConfig.
+type BudgetKind struct {
+	APIVersion string             `json:"apiVersion" yaml:"apiVersion"`
+	Kind       string             `json:"kind" yaml:"kind"`
+	Metadata   BudgetKindMetadata `json:"metadata" yaml:"metadata"`
+	Spec       BudgetConfig       `json:"spec" yaml:"spec"`
 }
 
-// ProjectResponse is a core project.
-type ProjectResponse struct {
-	UUID string
-	Name string
+// BudgetKindMetadata names the budget and, by annotation, its organization.
+type BudgetKindMetadata struct {
+	Name        string            `json:"name" yaml:"name"`
+	Annotations map[string]string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
 }
 
-// AgentResponse is a core agent.
-type AgentResponse struct {
-	UUID string
-	Name string
+// BudgetGatewayPayload is a budget as a gateway gets it, in budget.created and
+// budget.updated events and from GET /api/internal/v1/budgets. A gateway ignores one whose
+// updatedAt is older than its stored copy.
+type BudgetGatewayPayload struct {
+	BudgetID  string     `json:"budgetId"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+	Budget    BudgetKind `json:"budget"`
+}
+
+// BudgetDeletedPayload is the payload of budget.deleted.
+type BudgetDeletedPayload struct {
+	BudgetID string `json:"budgetId"`
 }

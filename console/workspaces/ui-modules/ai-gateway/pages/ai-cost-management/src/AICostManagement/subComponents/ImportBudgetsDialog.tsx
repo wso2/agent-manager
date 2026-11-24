@@ -86,7 +86,7 @@ export function ImportBudgetsDialog({
   orgName,
   onClose,
 }: ImportBudgetsDialogProps) {
-  const canUpdate = useFeatureManagement().hasAccess("budget_update");
+  const canUpdate = useFeatureManagement().hasAccess("cost_write");
   const check = useCheckBudgetImport({ orgName });
   const save = useImportBudgets({ orgName });
   const input = useRef<HTMLInputElement>(null);

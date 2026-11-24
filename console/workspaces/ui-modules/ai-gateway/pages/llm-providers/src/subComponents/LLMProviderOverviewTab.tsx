@@ -106,7 +106,7 @@ export function LLMProviderOverviewTab({
 }: LLMProviderOverviewTabProps) {
   const theme = useTheme();
   const { canWrite } = useResourceAccess("llm_provider");
-  const canReadCost = useFeatureManagement().hasAccess("ai_cost_read");
+  const canReadCost = useFeatureManagement().hasAccess("cost_read");
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 

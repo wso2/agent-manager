@@ -524,10 +524,9 @@ func (r ApiImportBudgetsRequest) Execute() (*BudgetImportResult, *http.Response,
 /*
 ImportBudgets Import budgets from CSV
 
-Creates many budgets from a CSV file, one budget per row (Interfaces 2.5). Each row is
+Creates many budgets from a CSV file, one budget per row. Each row is
 checked like a created budget; if any row fails, nothing is saved. With dryRun, every
-row is checked and nothing is saved. Needs budget:create; with onExisting=update, also
-budget:update (dry run included).
+row is checked and nothing is saved. Needs costs.write, also with onExisting=update.
 
 Columns (name, amount, period and action required):
 name,projectId,displayName,description,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels,labels
@@ -714,7 +713,7 @@ func (r ApiListBudgetUsageRequest) Execute() (*BudgetUsageListResponse, *http.Re
 /*
 ListBudgetUsage Budget usage
 
-Each allowance's spend in the budget's current period, highest spend first (FR-15). An allowance whose last report was in an earlier period has spent nothing this period.
+Each allowance's spend in the budget's current period, highest spend first. An allowance whose last report was in an earlier period has spent nothing this period.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
@@ -746,7 +745,7 @@ func (a *BudgetsAPIService) ListBudgetUsageExecute(r ApiListBudgetUsageRequest) 
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/budgets/{budgetName}/budget-usage"
+	localVarPath := localBasePath + "/orgs/{orgName}/budgets/{budgetName}/usage"
 	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"budgetName"+"}", url.PathEscape(parameterValueToString(r.budgetName, "budgetName")), -1)
 
@@ -872,7 +871,7 @@ type ApiListBudgetsRequest struct {
 	ctx        context.Context
 	ApiService *BudgetsAPIService
 	orgName    string
-	projectId  *string
+	project    *string
 	filter     *[]string
 	search     *string
 	label      *[]string
@@ -882,8 +881,8 @@ type ApiListBudgetsRequest struct {
 }
 
 // Only the budgets this project owns; omitted, every budget in the organization.
-func (r ApiListBudgetsRequest) ProjectId(projectId string) ApiListBudgetsRequest {
-	r.projectId = &projectId
+func (r ApiListBudgetsRequest) Project(project string) ApiListBudgetsRequest {
+	r.project = &project
 	return r
 }
 
@@ -965,8 +964,8 @@ func (a *BudgetsAPIService) ListBudgetsExecute(r ApiListBudgetsRequest) (*Budget
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
-	if r.projectId != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "projectId", r.projectId, "")
+	if r.project != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	}
 	if r.filter != nil {
 		t := *r.filter

@@ -49,7 +49,7 @@ export async function listBudgets(
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
   const searchParams: Record<string, string> = {};
-  if (query?.projectId) searchParams.projectId = query.projectId;
+  if (query?.project) searchParams.project = query.project;
   if (query?.filter) searchParams.filter = query.filter;
   if (query?.search) searchParams.search = query.search;
   if (query?.status) searchParams.status = query.status;
@@ -121,7 +121,7 @@ export async function getBudgetUsage(
   const searchParams: Record<string, string> = {};
   if (query?.limit !== undefined) searchParams.limit = String(query.limit);
   if (query?.offset !== undefined) searchParams.offset = String(query.offset);
-  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/budgets/${name}/budget-usage`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/budgets/${name}/usage`, {
     searchParams,
     token,
   });

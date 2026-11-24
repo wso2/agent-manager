@@ -25,7 +25,7 @@ import (
 )
 
 // BudgetUsage is one budget allowance's spend in one period, as gateways report it
-// (Interfaces 1.2); each period keeps its own row. Spent is a decimal string in USD.
+// ; each period keeps its own row. Spent is a decimal string in USD.
 type BudgetUsage struct {
 	BudgetID         uuid.UUID         `gorm:"column:budget_id;primaryKey"`
 	AllowanceID      uuid.UUID         `gorm:"column:allowance_id;primaryKey"`

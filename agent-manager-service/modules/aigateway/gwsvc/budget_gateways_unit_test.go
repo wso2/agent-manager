@@ -110,8 +110,8 @@ func TestBudgetGateways_SendsToTheEgressGatewaysOfTheBudget(t *testing.T) {
 	evt := hub.published[0]
 	assert.Equal(t, b.ID.String(), evt.EntityID, "keyed by the budget, so a replay keeps its latest state")
 	var envelope struct {
-		Type    string               `json:"type"`
-		Payload BudgetGatewayPayload `json:"payload"`
+		Type    string                        `json:"type"`
+		Payload gwmodels.BudgetGatewayPayload `json:"payload"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(evt.EventData), &envelope))
 	assert.Equal(t, BudgetEventCreated, envelope.Type)
