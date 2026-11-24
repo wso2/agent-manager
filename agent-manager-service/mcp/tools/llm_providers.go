@@ -18,6 +18,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
@@ -179,7 +180,9 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 		Name: "get_llm_provider",
 		Description: "Get one LLM provider's details: its template, upstream URL, the guardrails enforced on it, " +
 			"and the gateways it is deployed to with each deployment's status and the environments that gateway serves. " +
-			"Use it to check a provider is deployed before attach_llm_provider_to_agent. Credentials are never returned.",
+			"Use it to check a provider is deployed before attach_llm_provider_to_agent. Credentials are never returned. " +
+			"Guardrail parameter names are listed, but text values are shown as \"" + redactedParamValue + "\" because a guardrail parameter " +
+			"can hold a secret; booleans and numbers are shown as set.",
 		InputSchema: createSchema(map[string]any{
 			"provider_id": stringProperty("Required. LLM provider id from list_llm_providers."),
 		}, []string{"provider_id"}),
@@ -550,6 +553,72 @@ func routeLabels(paths []models.LLMPolicyPath) []string {
 	return labels
 }
 
+// redactedParamValue replaces every text value in a guardrail's params in
+// model-facing output. Policy definitions do not yet mark which parameters are
+// sensitive, so a parameter name says nothing reliable and values are denied by
+// default. Booleans and numbers are kept: they cannot carry a secret.
+const redactedParamValue = "[redacted]"
+
+// redactParams returns a copy of params with every string leaf, at any depth,
+// replaced by redactedParamValue. The keys stay, so the model can see which
+// parameters are configured. An empty string is kept, as it holds nothing.
+func redactParams(params map[string]any) map[string]any {
+	if params == nil {
+		return nil
+	}
+	out := make(map[string]any, len(params))
+	for k, v := range params {
+		out[k] = redactParamValue(v)
+	}
+	return out
+}
+
+func redactParamValue(v any) any {
+	switch t := v.(type) {
+	case nil, bool, float64, float32, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, json.Number:
+		return t
+	case string:
+		if t == "" {
+			return t
+		}
+		return redactedParamValue
+	case map[string]any:
+		return redactParams(t)
+	case []any:
+		out := make([]any, len(t))
+		for i, item := range t {
+			out[i] = redactParamValue(item)
+		}
+		return out
+	default:
+		// An unknown shape could hold anything.
+		return redactedParamValue
+	}
+}
+
+// containsRedactedValue reports whether params holds the redaction marker at
+// any depth: a model that copies a value it read back into a write would
+// otherwise overwrite the stored value with the marker.
+func containsRedactedValue(v any) bool {
+	switch t := v.(type) {
+	case string:
+		return t == redactedParamValue
+	case map[string]any:
+		for _, item := range t {
+			if containsRedactedValue(item) {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range t {
+			if containsRedactedValue(item) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // toProviderGuardrailItems shows each guardrail with its full scope, so a
 // guardrail the console scoped to single routes never reads as provider-wide.
 // It is never nil, so an empty list is [] in JSON.
@@ -559,9 +628,9 @@ func toProviderGuardrailItems(policies []models.LLMPolicy) []providerGuardrailIt
 		g := providerGuardrailItem{Name: p.Name, Version: p.Version}
 		for _, path := range p.Paths {
 			if !isAllRoutesPath(path) {
-				g.Routes = append(g.Routes, guardrailRouteItem{Path: path.Path, Methods: path.Methods, Params: path.Params})
+				g.Routes = append(g.Routes, guardrailRouteItem{Path: path.Path, Methods: path.Methods, Params: redactParams(path.Params)})
 			} else if !g.AllRoutes {
-				g.AllRoutes, g.Params = true, path.Params
+				g.AllRoutes, g.Params = true, redactParams(path.Params)
 			}
 		}
 		items = append(items, g)
@@ -668,6 +737,10 @@ func validateGuardrails(guardrails []guardrailInput) error {
 	for i, g := range guardrails {
 		if strings.TrimSpace(g.Name) == "" || strings.TrimSpace(g.Version) == "" {
 			return fmt.Errorf("guardrails[%d]: name and version are required. Call list_llm_guardrails to see valid guardrails", i)
+		}
+		if containsRedactedValue(g.Params) {
+			return fmt.Errorf("guardrails[%d] (%s): params contain %q, which get_llm_provider shows in place of a stored value. "+
+				"This tool cannot read stored text values back, so send the real value, or change this guardrail in the console", i, strings.TrimSpace(g.Name), redactedParamValue)
 		}
 		if path := credentialParam(g.Params, ""); path != "" {
 			return fmt.Errorf("guardrails[%d] (%s): parameter %q looks like a credential, and a credential must not pass through an MCP tool call. "+
