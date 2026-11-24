@@ -2041,6 +2041,12 @@ func (s *agentManagerService) createComponentAgent(ctx context.Context, ouID, pr
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			s.deleteComponentCreatedSince(ctx, ouID, projectName, req.Name, createStartedAt)
 		}
+		if errors.Is(err, utils.ErrConflict) {
+			// Component names are per organization, not per project: the name may be taken in
+			// another project.
+			return fmt.Errorf("%w: agent name %q is already used in this organization; choose another name: %w",
+				utils.ErrAgentAlreadyExists, req.Name, err)
+		}
 		return err
 	}
 

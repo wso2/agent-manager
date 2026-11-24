@@ -416,4 +416,16 @@ func TestCreateAgent_InterruptedComponentCreate(t *testing.T) {
 		require.ErrorIs(t, err, utils.ErrConflict)
 		assert.Empty(t, *deleted)
 	})
+
+	// Component names are per organization, so the name may be taken in another project; the
+	// caller gets "agent already exists" (409) with the client's reason, naming that project.
+	t.Run("a conflict is reported as the agent name being taken", func(t *testing.T) {
+		svc, _ := interruptedCreateFixture(t,
+			fmt.Errorf("%w: component %q already exists in project %q", utils.ErrConflict, cleanupAgent, "project-a"), nil)
+
+		err := svc.createComponentAgent(tierGrantedCtx(t), cleanupOrg, cleanupProj, createAgentRequest(utils.InternalAgent), "")
+
+		require.ErrorIs(t, err, utils.ErrAgentAlreadyExists)
+		assert.Contains(t, err.Error(), `project "project-a"`)
+	})
 }

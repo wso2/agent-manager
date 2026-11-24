@@ -49,6 +49,10 @@ func (c *openChoreoClient) CreateComponent(ctx context.Context, ouID, projectNam
 	}
 	createComponentReqBody.Metadata.Labels = c.withResourceLabels(createComponentReqBody.Metadata.Labels)
 
+	if err := c.requireComponentNameFree(ctx, namespaceName, req.Name); err != nil {
+		return err
+	}
+
 	resp, err := c.ocClient.CreateComponentWithResponse(ctx, namespaceName, createComponentReqBody)
 	if err != nil {
 		return fmt.Errorf("failed to create component: %w", err)
@@ -69,7 +73,62 @@ func (c *openChoreoClient) CreateComponent(ctx context.Context, ouID, projectNam
 			return &getResp.JSON200.Metadata, nil
 		})
 	}
+	if resp.JSON201 != nil && resp.JSON201.Metadata.Name != "" && resp.JSON201.Metadata.Name != req.Name {
+		return c.refuseRenamedComponent(ctx, namespaceName, req.Name, resp.JSON201.Metadata.Name)
+	}
 	return nil
+}
+
+// requireComponentNameFree refuses a create whose name a component already holds, in any
+// project: OpenChoreo names components per namespace. Upstream OpenChoreo would answer the
+// create with a 409, but some builds create the component under a suffixed name instead, so
+// the name is checked before the create is sent, and the error names the project that holds
+// it. A holder still being deleted is reported as such, so the caller knows to retry.
+func (c *openChoreoClient) requireComponentNameFree(ctx context.Context, namespaceName, name string) error {
+	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, name)
+	if err != nil {
+		return fmt.Errorf("failed to check whether component name %q is free: %w", name, err)
+	}
+	switch resp.StatusCode() {
+	case http.StatusNotFound:
+		return nil
+	case http.StatusOK:
+	default:
+		return fmt.Errorf("failed to check whether component name %q is free: %w", name,
+			handleErrorResponse(resp.StatusCode(), ErrorResponses{
+				JSON401: resp.JSON401,
+				JSON403: resp.JSON403,
+				JSON404: resp.JSON404,
+				JSON500: resp.JSON500,
+			}))
+	}
+	if resp.JSON200 == nil {
+		return fmt.Errorf("%w: component %q already exists", utils.ErrConflict, name)
+	}
+	if isTerminating(resp.JSON200.Metadata) {
+		return fmt.Errorf("%w: component %q is still being cleaned up, try again shortly", utils.ErrResourceBeingDeleted, name)
+	}
+	if resp.JSON200.Spec != nil && resp.JSON200.Spec.Owner.ProjectName != "" {
+		return fmt.Errorf("%w: component %q already exists in project %q", utils.ErrConflict, name, resp.JSON200.Spec.Owner.ProjectName)
+	}
+	return fmt.Errorf("%w: component %q already exists", utils.ErrConflict, name)
+}
+
+// refuseRenamedComponent undoes a create that OpenChoreo answered by making the component
+// under another name, and reports the requested name as taken. Some OpenChoreo builds do this
+// instead of a 409 when the name is in use; the caller would otherwise go on as if it owned
+// the component named requested, which is another agent's. The renamed component is this
+// create's own and nothing else refers to it, so it is deleted by the name it was given.
+func (c *openChoreoClient) refuseRenamedComponent(ctx context.Context, namespaceName, requested, created string) error {
+	resp, err := c.ocClient.DeleteComponentWithResponse(ctx, namespaceName, created)
+	if err != nil {
+		slog.Error("Failed to delete a component OpenChoreo created under another name",
+			"requested", requested, "created", created, "error", err)
+	} else if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusNoContent && resp.StatusCode() != http.StatusNotFound {
+		slog.Error("Failed to delete a component OpenChoreo created under another name",
+			"requested", requested, "created", created, "status", resp.StatusCode())
+	}
+	return fmt.Errorf("%w: component %q already exists (OpenChoreo created %q instead)", utils.ErrConflict, requested, created)
 }
 
 func buildCreateComponentRequestBody(namespaceName, projectName string, req CreateComponentRequest) (gen.CreateComponentJSONRequestBody, error) {
@@ -881,7 +940,35 @@ func reconcileBlockFromConditions(conditions *[]gen.Condition) *ComponentReconci
 	return nil
 }
 
+// GetComponent returns the component named componentName in projectName. OpenChoreo names
+// components per namespace, not per project, so the lookup is by name and the project is
+// checked here: a component of that name in another project is reported as not found, as
+// if it did not exist. Without the check a request naming one project acts on another
+// project's agent of the same name. An empty projectName skips the check, for callers that
+// know only the name.
 func (c *openChoreoClient) GetComponent(ctx context.Context, ouID, projectName, componentName string) (*models.AgentResponse, error) {
+	component, err := c.getComponentByName(ctx, ouID, componentName)
+	if err != nil {
+		return nil, err
+	}
+	if err := requireComponentProject(component, projectName); err != nil {
+		return nil, err
+	}
+	return component, nil
+}
+
+// requireComponentProject returns a not-found error when component is not in projectName.
+// An empty projectName matches any project.
+func requireComponentProject(component *models.AgentResponse, projectName string) error {
+	if projectName == "" || strings.EqualFold(component.ProjectName, projectName) {
+		return nil
+	}
+	return fmt.Errorf("%w: component %q is not in project %q", utils.ErrNotFound, component.Name, projectName)
+}
+
+// getComponentByName returns the component named componentName in the organization's
+// namespace, whatever its project.
+func (c *openChoreoClient) getComponentByName(ctx context.Context, ouID, componentName string) (*models.AgentResponse, error) {
 	namespaceName := c.NamespaceFor(ouID)
 	resp, err := c.ocClient.GetComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
@@ -1513,7 +1600,13 @@ func toInt32(v interface{}) (int32, bool) {
 	return 0, false
 }
 
+// DeleteComponent deletes the component named componentName in projectName. OpenChoreo
+// deletes by name alone, so the component's project is checked first: a component of that
+// name in another project is left alone and reported as not found.
 func (c *openChoreoClient) DeleteComponent(ctx context.Context, ouID, projectName, componentName string) error {
+	if _, err := c.GetComponent(ctx, ouID, projectName, componentName); err != nil {
+		return err
+	}
 	namespaceName := c.NamespaceFor(ouID)
 	resp, err := c.ocClient.DeleteComponentWithResponse(ctx, namespaceName, componentName)
 	if err != nil {
@@ -1704,9 +1797,10 @@ func (c *openChoreoClient) ListComponentsByKind(ctx context.Context, ouID, proje
 	return components, nil
 }
 
+// ComponentExists reports whether the name is taken in the organization, in any project:
+// OpenChoreo names components per namespace, so a name used in another project is not free.
 func (c *openChoreoClient) ComponentExists(ctx context.Context, ouID, projectName, componentName string) (bool, error) {
-	namespaceName := c.NamespaceFor(ouID)
-	_, err := c.GetComponent(ctx, namespaceName, projectName, componentName)
+	_, err := c.getComponentByName(ctx, ouID, componentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrNotFound) {
 			return false, nil
