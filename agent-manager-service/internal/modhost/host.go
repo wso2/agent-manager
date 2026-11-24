@@ -83,6 +83,12 @@ type Host struct {
 	// Install and Enable still trial-activate the module set they produce.
 	Passive bool
 
+	// NoWorkers activates modules without starting their background workers.
+	// For tests: a module's workers act on every organization in the database,
+	// so on a database shared by tests running in parallel they would change
+	// other tests' rows mid-test. Set it before Boot.
+	NoWorkers bool
+
 	// warned holds modules already reported as active but not compiled in.
 	warned sync.Map
 
