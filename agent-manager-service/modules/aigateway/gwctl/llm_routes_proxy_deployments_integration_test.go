@@ -162,6 +162,12 @@ func TestLLMRoutesProxyDeploymentErrors(t *testing.T) {
 			"restore an unknown deployment", http.MethodPost, base + "/restore" + llmDeploymentQuery(unknown, unknown), nil, http.StatusNotFound,
 			"Deployment not found",
 		},
+		{"get an unknown deployment", http.MethodGet, base + "/" + unknown, nil, http.StatusNotFound, "Deployment not found"},
+		{"delete an unknown deployment", http.MethodDelete, base + "/" + unknown, nil, http.StatusNotFound, "Deployment not found"},
+		{
+			"undeploy an unknown deployment", http.MethodPost, base + "/undeploy" + llmDeploymentQuery(unknown, unknown), nil, http.StatusNotFound,
+			"Deployment not found",
+		},
 		{
 			"restore on another gateway", http.MethodPost, base + "/restore" + llmDeploymentQuery(dep.DeploymentId, unknown), nil, http.StatusBadRequest,
 			"Deployment is bound to a different gateway",

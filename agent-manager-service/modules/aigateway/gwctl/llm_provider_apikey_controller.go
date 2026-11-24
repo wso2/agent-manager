@@ -207,6 +207,9 @@ func (c *llmProviderAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *htt
 			log.Warn("RotateLLMProviderAPIKey: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
+		case errors.Is(err, gwerr.ErrAPIKeyNotFound):
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "API key not found")
+			return
 		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("RotateLLMProviderAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")

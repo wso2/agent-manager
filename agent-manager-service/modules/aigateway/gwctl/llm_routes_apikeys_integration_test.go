@@ -165,6 +165,15 @@ func TestLLMRoutesAPIKeyErrors(t *testing.T) {
 	rec = a.do(http.MethodPost, proxyKeys, map[string]any{"name": "ab"})
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	require.Contains(t, errorMessage(t, rec), "must be at least")
+
+	// Rotating replaces an existing key; it does not create one.
+	for _, keys := range []string{providerKeys, proxyKeys} {
+		rec = a.do(http.MethodPut, keys+"/never-created", nil)
+		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", keys, rec.Body.String())
+		require.Equal(t, "API key not found", errorMessage(t, rec))
+		list := expect(t, a.do(http.MethodGet, keys, nil), http.StatusOK)
+		require.NotContains(t, llmKeyNames(t, list), "never-created")
+	}
 }
 
 // API key routes need the API-key permission of their owner.

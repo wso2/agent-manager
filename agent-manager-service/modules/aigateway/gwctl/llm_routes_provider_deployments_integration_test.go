@@ -86,6 +86,8 @@ func TestLLMRoutesProviderDeploymentLifecycle(t *testing.T) {
 	remaining := expectInto[[]gwspec.LLMDeploymentResponse](t, a.do(http.MethodGet, base, nil), http.StatusOK)
 	require.Len(t, remaining, 1, "the deleted deployment is gone")
 	require.Equal(t, second.DeploymentId, remaining[0].DeploymentId)
+	rec = a.do(http.MethodGet, base+"/"+first.DeploymentId, nil)
+	require.Equal(t, http.StatusNotFound, rec.Code, "a deleted deployment is not read back as an archived placeholder: %s", rec.Body.String())
 }
 
 // Provider deployment routes map bad input, unknown resources and state conflicts to their statuses.
@@ -137,6 +139,12 @@ func TestLLMRoutesProviderDeploymentErrors(t *testing.T) {
 		},
 		{
 			"restore an unknown deployment", http.MethodPost, base + "/restore" + llmDeploymentQuery(unknown, unknown), nil, http.StatusNotFound,
+			"Deployment not found",
+		},
+		{"get an unknown deployment", http.MethodGet, base + "/" + unknown, nil, http.StatusNotFound, "Deployment not found"},
+		{"delete an unknown deployment", http.MethodDelete, base + "/" + unknown, nil, http.StatusNotFound, "Deployment not found"},
+		{
+			"undeploy an unknown deployment", http.MethodPost, base + "/undeploy" + llmDeploymentQuery(unknown, unknown), nil, http.StatusNotFound,
 			"Deployment not found",
 		},
 		{

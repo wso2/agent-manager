@@ -283,6 +283,9 @@ func (c *Core) Restore(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, d
 	if err != nil {
 		return fmt.Errorf("failed to read the restored deployment: %w", err)
 	}
+	if deployment == nil {
+		return fmt.Errorf("the restored deployment %s is gone", deploymentID)
+	}
 	if err := c.checkContext(ctx, tx, p, deployment.Content); err != nil {
 		return err
 	}

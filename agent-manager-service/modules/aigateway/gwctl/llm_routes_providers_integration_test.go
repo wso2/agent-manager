@@ -247,6 +247,11 @@ func TestLLMRoutesProviderUpdateErrors(t *testing.T) {
 			"unknown template with gateways", path, llmProviderUpdate(handle, map[string]any{"template": "no-such-template", "gateways": []string{}}),
 			http.StatusBadRequest, "Referenced template not found",
 		},
+		{"malformed version", path, llmProviderUpdate(handle, map[string]any{"version": "one"}), http.StatusBadRequest, "Invalid input"},
+		{
+			"malformed version with gateways", path, llmProviderUpdate(handle, map[string]any{"version": "one", "gateways": []string{}}),
+			http.StatusBadRequest, "Invalid input",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

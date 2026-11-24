@@ -102,6 +102,8 @@ func (s *EnvironmentGatewayService) GetEnvironmentGateways(ctx context.Context, 
 			VHost:            gateway.Vhost,
 			IsCritical:       gateway.IsCritical,
 			Status:           status,
+			CreatedAt:        gateway.CreatedAt,
+			UpdatedAt:        gateway.UpdatedAt,
 		})
 	}
 

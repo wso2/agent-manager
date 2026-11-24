@@ -533,6 +533,13 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 		slog.Error("LLMProviderService.Update: invalid input", "ouID", ouID, "providerID", providerID, "updatesIsNil", updates == nil)
 		return nil, httpx.ErrInvalidInput
 	}
+	// An empty version keeps the stored one; a new one must have the form create requires.
+	if v := updates.Configuration.Version; v != "" {
+		if err := validateProviderVersion(v); err != nil {
+			slog.Warn("LLMProviderService.Update: invalid version", "ouID", ouID, "providerID", providerID, "version", v)
+			return nil, err
+		}
+	}
 
 	// Validate template exists (check both built-in and user templates)
 	template := updates.Configuration.Template
