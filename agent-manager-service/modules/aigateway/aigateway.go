@@ -72,6 +72,7 @@ func (module) Manifest() modkit.Manifest {
 		AuditActions: gwaudit.Actions,
 		UI:           &ui,
 		Workloads:    workloads,
+		Settings:     settings,
 	}
 }
 

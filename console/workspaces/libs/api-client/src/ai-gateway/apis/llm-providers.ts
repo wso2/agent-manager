@@ -51,6 +51,9 @@ import type {
   LLMDeploymentResponse,
   LLMPolicyAvailabilityResponse,
   LLMProviderConsumerListResponse,
+  LLMProviderDocument,
+  LLMProviderDocumentList,
+  LLMProviderUpdateSpec,
   LLMProviderListResponse,
   LLMProviderResponse,
   LLMProviderTemplateListResponse,
@@ -67,8 +70,6 @@ import type {
   RotateLLMProxyAPIKeyPathParams,
   UndeployLLMProviderPathParams,
   UndeployLLMProviderQuery,
-  UpdateLLMProviderCatalogPathParams,
-  UpdateLLMProviderCatalogRequest,
   UpdateLLMProviderPathParams,
   UpdateLLMProviderRequest,
   UpdateLLMProviderTemplatePathParams,
@@ -77,6 +78,10 @@ import type {
   UpdateLLMProxyRequest,
 } from "@agent-management-platform/types";
 import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
+
+const PROVIDERS = `${GATEWAY_BASE}/llm-providers`;
+const API_VERSION = "ai-control-plane.choreolabs.com/v1";
+const KIND = "LlmProvider";
 
 interface PaginationQuery {
   limit?: number;
@@ -177,11 +182,10 @@ export async function deleteLLMProviderTemplate(
 }
 
 export async function listLLMProviders(
-  params: ListLLMProvidersPathParams,
+  _params: ListLLMProvidersPathParams,
   query?: PaginationQuery,
   getToken?: () => Promise<string>,
-): Promise<LLMProviderListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<LLMProviderDocumentList> {
   const token = getToken ? await getToken() : undefined;
 
   const searchParams: Record<string, string> = {};
@@ -192,7 +196,7 @@ export async function listLLMProviders(
     searchParams.offset = String(query.offset);
   }
 
-  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/llm-providers`, {
+  const res = await httpGET(PROVIDERS, {
     token,
     searchParams: Object.keys(searchParams).length ? searchParams : undefined,
   });
@@ -222,16 +226,13 @@ export async function listAvailableLLMPolicies(
 }
 
 export async function createLLMProvider(
-  params: CreateLLMProviderPathParams,
-  body: CreateLLMProviderRequest,
+  _params: CreateLLMProviderPathParams,
+  body: LLMProviderDocument,
   getToken?: () => Promise<string>,
-): Promise<LLMProviderResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<LLMProviderDocument> {
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPOST(`${GATEWAY_BASE}/orgs/${org}/llm-providers`, body, {
-    token,
-  });
+  const res = await httpPOST(PROVIDERS, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -239,32 +240,24 @@ export async function createLLMProvider(
 export async function getLLMProvider(
   params: GetLLMProviderPathParams,
   getToken?: () => Promise<string>,
-): Promise<LLMProviderResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<LLMProviderDocument> {
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}`, {
-    token,
-  });
+  const res = await httpGET(`${PROVIDERS}/${id}`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
 export async function updateLLMProvider(
   params: UpdateLLMProviderPathParams,
-  body: UpdateLLMProviderRequest,
+  body: LLMProviderDocument<LLMProviderUpdateSpec>,
   getToken?: () => Promise<string>,
-): Promise<LLMProviderResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<LLMProviderDocument> {
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPUT(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}`,
-    body,
-    { token },
-  );
+  const res = await httpPUT(`${PROVIDERS}/${id}`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -273,31 +266,89 @@ export async function deleteLLMProvider(
   params: DeleteLLMProviderPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpDELETE(`${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}`, {
-    token,
-  });
+  const res = await httpDELETE(`${PROVIDERS}/${id}`, { token });
   if (!res.ok) throw await res.json();
 }
 
-export async function updateLLMProviderCatalog(
-  params: UpdateLLMProviderCatalogPathParams,
-  body: UpdateLLMProviderCatalogRequest,
-  getToken?: () => Promise<string>,
-): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.providerId, "providerId");
-  const token = getToken ? await getToken() : undefined;
+// The UI works on a flat provider; these convert it to and from the document the API serves.
 
-  const res = await httpPUT(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/catalog`,
-    body,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
+export function providerFromDocument(doc: LLMProviderDocument): LLMProviderResponse {
+  const { metadata, spec } = doc;
+  return {
+    uuid: metadata.uid ?? "",
+    id: metadata.name,
+    name: spec.displayName,
+    version: spec.version,
+    context: spec.context,
+    template: spec.template,
+    upstream: spec.upstream,
+    resilience: spec.resilience,
+    description: spec.description,
+    createdBy: metadata.createdBy,
+    accessControl: spec.accessControl,
+    policies: spec.policies,
+    openapi: spec.openapi,
+    modelProviders: spec.modelProviders,
+    rateLimiting: spec.rateLimiting,
+    security: spec.security,
+    gateways: spec.gateways,
+    inCatalog: spec.inCatalog,
+    createdAt: metadata.creationTimestamp,
+    updatedAt: metadata.updateTimestamp,
+  };
+}
+
+export function providerListFromDocuments(list: LLMProviderDocumentList): LLMProviderListResponse {
+  const providers = list.list.map(providerFromDocument);
+  return {
+    providers,
+    total: list.pagination?.total ?? providers.length,
+    limit: list.pagination?.limit ?? providers.length,
+    offset: list.pagination?.offset ?? 0,
+  };
+}
+
+export function documentFromCreateRequest(body: CreateLLMProviderRequest): LLMProviderDocument {
+  const { id, name, ...spec } = body;
+  return {
+    apiVersion: API_VERSION,
+    kind: KIND,
+    metadata: { name: id },
+    spec: { ...spec, displayName: name },
+  };
+}
+
+// Leaves catalog membership out so an edit never changes it; absent fields keep stored values.
+export function documentFromUpdateRequest(
+  handle: string,
+  body: UpdateLLMProviderRequest,
+): LLMProviderDocument<LLMProviderUpdateSpec> {
+  const { name, ...rest } = body;
+  const spec: LLMProviderUpdateSpec = {
+    displayName: name ?? "",
+    description: rest.description,
+    version: rest.version,
+    context: rest.context,
+    template: rest.template,
+    upstream: rest.upstream,
+    resilience: rest.resilience,
+    accessControl: rest.accessControl,
+    policies: rest.policies,
+    openapi: rest.openapi,
+    modelProviders: rest.modelProviders,
+    rateLimiting: rest.rateLimiting,
+    security: rest.security,
+    gateways: rest.gateways,
+  };
+  return {
+    apiVersion: API_VERSION,
+    kind: KIND,
+    metadata: { name: handle },
+    spec,
+  };
 }
 
 export async function listLLMProviderProxies(

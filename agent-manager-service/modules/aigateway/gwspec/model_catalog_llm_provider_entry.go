@@ -50,7 +50,7 @@ type CatalogLLMProviderEntry struct {
 	Security       *SecuritySummary     `json:"security,omitempty"`
 	RateLimiting   *RateLimitingSummary `json:"rateLimiting,omitempty"`
 	// The provider's live deployments, one per gateway currently serving it. Gateways it is only owed a deploy to are not listed.
-	Deployments []DeploymentSummary `json:"deployments,omitempty"`
+	Deployments []CatalogDeploymentSummary `json:"deployments,omitempty"`
 	// Timestamp when the provider was created
 	CreatedAt time.Time `json:"createdAt"`
 }
@@ -530,9 +530,9 @@ func (o *CatalogLLMProviderEntry) SetRateLimiting(v RateLimitingSummary) {
 }
 
 // GetDeployments returns the Deployments field value if set, zero value otherwise.
-func (o *CatalogLLMProviderEntry) GetDeployments() []DeploymentSummary {
+func (o *CatalogLLMProviderEntry) GetDeployments() []CatalogDeploymentSummary {
 	if o == nil || IsNil(o.Deployments) {
-		var ret []DeploymentSummary
+		var ret []CatalogDeploymentSummary
 		return ret
 	}
 	return o.Deployments
@@ -540,7 +540,7 @@ func (o *CatalogLLMProviderEntry) GetDeployments() []DeploymentSummary {
 
 // GetDeploymentsOk returns a tuple with the Deployments field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CatalogLLMProviderEntry) GetDeploymentsOk() ([]DeploymentSummary, bool) {
+func (o *CatalogLLMProviderEntry) GetDeploymentsOk() ([]CatalogDeploymentSummary, bool) {
 	if o == nil || IsNil(o.Deployments) {
 		return nil, false
 	}
@@ -556,8 +556,8 @@ func (o *CatalogLLMProviderEntry) HasDeployments() bool {
 	return false
 }
 
-// SetDeployments gets a reference to the given []DeploymentSummary and assigns it to the Deployments field.
-func (o *CatalogLLMProviderEntry) SetDeployments(v []DeploymentSummary) {
+// SetDeployments gets a reference to the given []CatalogDeploymentSummary and assigns it to the Deployments field.
+func (o *CatalogLLMProviderEntry) SetDeployments(v []CatalogDeploymentSummary) {
 	o.Deployments = v
 }
 

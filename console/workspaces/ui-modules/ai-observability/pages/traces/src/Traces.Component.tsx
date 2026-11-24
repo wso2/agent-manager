@@ -43,10 +43,10 @@ import {
 import {
   useTraceList,
   useExportTraces,
+  TRACE_FILTERS_SUPPORTED,
   useGetAgent,
   useGetOrganization,
   useListEnvironments,
-  isObserverConfigured,
   type TraceListWithRange,
   ConsoleAction,
   useTrack,
@@ -179,7 +179,10 @@ export const TracesComponent: React.FC = () => {
     return (raw === "asc" || raw === "desc") ? raw : "desc" as GetTraceListPathParams["sortOrder"];
   }, [searchParams]);
 
-  const filters = useMemo(() => parseTraceFilters(searchParams), [searchParams]);
+  const filters = useMemo(
+    () => (TRACE_FILTERS_SUPPORTED ? parseTraceFilters(searchParams) : {}),
+    [searchParams],
+  );
   const hasActiveFilters = Object.keys(filters).length > 0;
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -387,19 +390,6 @@ export const TracesComponent: React.FC = () => {
     refetch();
   }, [refetch]);
 
-  const obsUrlMissing = !isObserverConfigured();
-
-  if (obsUrlMissing) {
-    return (
-      <PageLayout title="Traces" disableIcon>
-        <Alert severity="error" sx={{ mt: 2 }}>
-          <strong>Observer not configured.</strong> This deployment does not
-          run a trace service.
-        </Alert>
-      </PageLayout>
-    );
-  }
-
   if (orgNotFound || agentNotFound || envNotFound) {
     return (
       <PageLayout title="Traces" disableIcon>
@@ -497,6 +487,7 @@ export const TracesComponent: React.FC = () => {
           open={filtersOpen && !selectedTrace}
           onOpenChange={setFiltersOpen}
           onTraceSearch={handleTraceSelect}
+          filterable={TRACE_FILTERS_SUPPORTED}
         >
           <TracesView
             traces={traceData?.traces ?? []}
@@ -511,7 +502,7 @@ export const TracesComponent: React.FC = () => {
             visibleColumns={visibleColumns}
             onTraceSelect={handleTraceSelect}
             onLoadMore={loadMore}
-            onConversationSelect={handleConversationSelect}
+            onConversationSelect={TRACE_FILTERS_SUPPORTED ? handleConversationSelect : undefined}
             sortOrder={sortOrder}
             onSortOrderChange={handleSortOrderChange}
           />

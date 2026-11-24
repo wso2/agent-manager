@@ -1,0 +1,51 @@
+# Agent Manager's settings for the Compose stack, read by amp-init and
+# amp-api. Every key is a setting's variable name as nested YAML; the
+# configuration reference lists them all.
+#
+# Images, host ports and ThunderID's network name are Compose's, in .env
+# (optional). The API port and ThunderID's host and port appear in both
+# files: change them together.
+#
+# Secrets are generated on first start and kept in the amp-secrets volume.
+# Read one with: docker compose exec amp-api amp secret show admin-password
+# To bring your own, set it here, for example as a reference:
+#   idp: {client_secret: "${file:/run/secrets/amp-api-client-secret}"}
+
+server:
+  # Where browsers reach the API and the console (AMP_API_PORT in .env).
+  public_url: http://localhost:9000
+
+thunder:
+  # ThunderID as browsers see it: THUNDER_HOST and THUNDER_PORT in .env.
+  base_url: http://thunder.amp.localhost:8080
+
+auth:
+  # How operators sign in to the console: file (accounts below, the API
+  # issues tokens) or idp (ThunderID). ThunderID runs either way.
+  mode: file
+
+amp:
+  # Console users besides admin: name:password[:admin], comma-separated.
+  default_users: ""
+
+db:
+  # sqlite (in the amp-data volume). For the bundled PostgreSQL, run
+  # `make up DB=postgres` (docker-compose.postgres.yml), or set
+  # COMPOSE_PROFILES=postgres in .env and driver: postgres, host: postgres,
+  # user: amp, name: agent_manager here. Its password is generated.
+  driver: sqlite
+
+events:
+  mode: embedded
+
+console:
+  docs_url: https://wso2.com/agent-platform/docs/next
+  # The analytics dashboard (Moesif or any other tool) that Cost Management's
+  # "Advanced analytics" link opens; unset hides the link.
+  # analytics_dashboard_url: ""
+  # Console UI modules to turn on besides those the API's modules offer,
+  # e.g. "agent-runtime agent-portal".
+  ui_modules_enable: ""
+
+# Modules are managed with `amp module ...`; ai-gateway is installed on first
+# start. A modules: list here would instead be applied at every boot.

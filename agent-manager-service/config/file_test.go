@@ -188,3 +188,97 @@ func TestModulesListDeclaration(t *testing.T) {
 		assert.Equal(t, want, got, v)
 	}
 }
+
+// reloadAfter restores the settings once the test's variables are restored;
+// call it before the test changes any.
+func reloadAfter(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		fileVars, fileModules = nil, Modules{}
+		loadEnvs()
+	})
+}
+
+func loadWith(t *testing.T, yaml string) error {
+	t.Helper()
+	t.Setenv("ENV_FILE_PATH", "")
+	t.Setenv(FileEnv, "")
+	t.Setenv(ModulesEnv, "")
+	p := filepath.Join(t.TempDir(), "amp.yaml")
+	require.NoError(t, os.WriteFile(p, []byte(yaml), 0o600))
+	return Load(p)
+}
+
+func secretFile(t *testing.T, body string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "secret")
+	require.NoError(t, os.WriteFile(p, []byte(body), 0o600))
+	return p
+}
+
+func TestFileSuffixFromEnv(t *testing.T) {
+	reloadAfter(t)
+	t.Setenv("DB_PASSWORD", "")
+	require.NoError(t, os.Unsetenv("DB_PASSWORD"))
+	t.Setenv("DB_PASSWORD_FILE", secretFile(t, "pw\n"))
+	require.NoError(t, loadWith(t, "log_level: INFO\n"))
+	assert.Equal(t, "pw", Value("DB_PASSWORD"))
+}
+
+func TestFileSuffixPrecedence(t *testing.T) {
+	reloadAfter(t)
+	b, c, d := secretFile(t, "b"), "c", secretFile(t, "d")
+
+	t.Setenv("DB_PASSWORD", "a")
+	t.Setenv("DB_PASSWORD_FILE", b)
+	require.NoError(t, loadWith(t, "db: {password: "+c+"}\n"))
+	assert.Equal(t, "a", Value("DB_PASSWORD"), "the variable wins over its _FILE")
+
+	require.NoError(t, os.Unsetenv("DB_PASSWORD"))
+	require.NoError(t, loadWith(t, "db: {password: "+c+"}\n"))
+	assert.Equal(t, "b", Value("DB_PASSWORD"), "the environment's _FILE wins over the file")
+
+	t.Setenv("DB_PASSWORD_FILE", "")
+	require.NoError(t, os.Unsetenv("DB_PASSWORD_FILE"))
+	require.NoError(t, loadWith(t, "db: {password_file: "+d+"}\n"))
+	assert.Equal(t, "d", Value("DB_PASSWORD"), "the file's _file is read")
+}
+
+func TestFileSuffixMissingFile(t *testing.T) {
+	reloadAfter(t)
+	t.Setenv("DB_PASSWORD", "")
+	require.NoError(t, os.Unsetenv("DB_PASSWORD"))
+	t.Setenv("DB_PASSWORD_FILE", "/nope/amp-db-password")
+	err := loadWith(t, "log_level: INFO\n")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_PASSWORD_FILE")
+}
+
+func TestFileSuffixKeysAreKnown(t *testing.T) {
+	reloadAfter(t)
+	require.NoError(t, loadWith(t, "db: {password_file: "+secretFile(t, "x")+"}\n"))
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	assert.Empty(t, unknownKeys(map[string]string{"DB_PASSWORD_FILE": "x"}))
+}
+
+func TestGatewayTokenFileStillWorks(t *testing.T) {
+	reloadAfter(t)
+	key := ModuleConfigKey("ai-gateway", "default_gateway_token_file")
+	t.Setenv(key, "/amp/gw/registration-token")
+	require.NoError(t, loadWith(t, "log_level: INFO\n"))
+	assert.Equal(t, "/amp/gw/registration-token", Value(key))
+}
+
+// A setting another package registers is read during Load too, so a _FILE
+// it cannot read fails Load instead of only being logged later.
+func TestFileSuffixMissingFileForRegisteredKey(t *testing.T) {
+	reloadAfter(t)
+	RegisterKeys("AMP_TEST_REGISTERED_PORT")
+	t.Setenv("AMP_TEST_REGISTERED_PORT", "")
+	require.NoError(t, os.Unsetenv("AMP_TEST_REGISTERED_PORT"))
+	t.Setenv("AMP_TEST_REGISTERED_PORT_FILE", "/nope/amp-port")
+	err := loadWith(t, "log_level: INFO\n")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "AMP_TEST_REGISTERED_PORT_FILE")
+}

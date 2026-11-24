@@ -31,6 +31,9 @@ schema: ## Render db_migrations/schema/lite.yaml into the per-database baseline 
 	@go run ./db_migrations/schema/cmd/schemagen
 
 .PHONY: codegen
+config-docs: ## Write the configuration reference (docs/amp-lite/configuration.md).
+	@go run ./cmd/gen-config-docs ../docs/amp-lite/configuration.md
+
 codegen: ## Run code gen.
 	@echo "Running go generate"
 	@# Requires the `moq` binary on PATH (mock generation for client + repository
@@ -85,6 +88,19 @@ test: gen-keys ## Run all tests (unit + integration) against the main database. 
 .PHONY: test-coverage
 test-coverage: gen-keys ## Run unit + integration tests and produce a merged HTML coverage report.
 	bash scripts/run_coverage.sh
+
+COVERAGE_SUMMARY = python3 ../scripts/coverage/go_summary.py localdata/coverage-unit.out localdata/coverage-integration.out \
+	--module github.com/wso2/agent-manager/agent-manager-service --exclude-file coverage-excludes.txt --out localdata/coverage-summary.json
+
+.PHONY: coverage-check
+coverage-check: ## Compare the profiles from `make test-coverage` with coverage-baseline.json (report only: CI also runs PostgreSQL and enforces it).
+	$(COVERAGE_SUMMARY)
+	python3 ../scripts/coverage/ratchet.py localdata/coverage-summary.json coverage-baseline.json --title "agent-manager-service coverage" --report-only
+
+.PHONY: coverage-baseline
+coverage-baseline: ## Raise coverage-baseline.json to the profiles from `make test-coverage` (never lowers an area).
+	$(COVERAGE_SUMMARY)
+	python3 ../scripts/coverage/ratchet.py localdata/coverage-summary.json coverage-baseline.json --update
 
 .PHONY: console-embed
 console-embed: ## Build the console (../console, needs pnpm) and copy it here for `go build -tags console`.

@@ -116,6 +116,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	cfg := config.GetConfig()
 	// Installed before the HTTP server starts, so no request sees it change.
 	middleware.SetOrgOverrideResolver(opts.OrgOverrideResolver)
+	middleware.SetRouteHitLog(cfg.LogRouteHits)
 
 	setupLogger(cfg)
 

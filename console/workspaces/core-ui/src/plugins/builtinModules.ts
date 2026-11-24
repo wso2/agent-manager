@@ -19,17 +19,18 @@
 import type { UIModuleManifest } from "@agent-management-platform/types";
 import { acpCoreModule } from "@agent-management-platform/ui-module-acp-core";
 import { aiGatewayModule } from "@agent-management-platform/ui-module-ai-gateway";
+import { aiObservabilityModule } from "@agent-management-platform/ui-module-ai-observability";
 import { agentIdentityModule } from "@agent-management-platform/ui-module-agent-identity";
 
 /**
  * UI modules that ship with the console, in the order the Module manager lists
  * them. Each lives in workspaces/ui-modules/<id>. The server says which modules and
  * pages are on (GET /api/v1/ui-manifest); extra modules
- * can be passed to CoreUI. ai-observability is left out until traces return
- * as a backend module.
+ * can be passed to CoreUI.
  */
 export const builtinModules: UIModuleManifest[] = [
   acpCoreModule,
   aiGatewayModule,
+  aiObservabilityModule,
   agentIdentityModule,
 ];

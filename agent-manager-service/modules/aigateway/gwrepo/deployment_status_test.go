@@ -693,3 +693,32 @@ func TestLockStatusRows(t *testing.T) {
 	require.NoError(t, <-done)
 	assert.Equal(t, []string{"first released", "second"}, order, "the row is held until the transaction ends")
 }
+
+// StatusRecordsFor reads several artifacts' rows in one query, and only the org's.
+func TestStatusRecordsForReadsSeveralArtifacts(t *testing.T) {
+	first, other := seedPlacement(t, gwmodels.KindLLMProvider), seedPlacement(t, gwmodels.KindLLMProvider)
+	secondUUID := uuid.New()
+	require.NoError(t, NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()).Create(db.GetDB(), &gwmodels.Artifact{
+		UUID: secondUUID, Handle: "handle-" + secondUUID.String()[:8], Name: "second", Version: "v1.0",
+		Kind: gwmodels.KindLLMProvider, OUID: first.OUID,
+	}))
+	second := first
+	second.ArtifactUUID = secondUUID
+	insertPendingRow(t, first)
+	insertPendingRow(t, second)
+	insertPendingRow(t, other)
+	repo := NewDeploymentRepo(db.GetDB())
+
+	rows, err := repo.StatusRecordsFor(context.Background(), first.OUID,
+		[]uuid.UUID{first.ArtifactUUID, second.ArtifactUUID, other.ArtifactUUID})
+	require.NoError(t, err)
+	got := []uuid.UUID{}
+	for _, row := range rows {
+		got = append(got, row.ArtifactUUID)
+	}
+	assert.ElementsMatch(t, []uuid.UUID{first.ArtifactUUID, second.ArtifactUUID}, got, "another org's rows are left out")
+
+	rows, err = repo.StatusRecordsFor(context.Background(), first.OUID, nil)
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+}

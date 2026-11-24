@@ -24,23 +24,12 @@
 // its page components and would put them in the shell's main chunk.
 import {
   PLUGIN_API_VERSION,
-  type UIModuleInstallState,
   type UIModuleManifest,
 } from "@agent-management-platform/types";
-import { isObserverConfigured } from "@agent-management-platform/api-client";
 import { tracesPlugin } from "@agent-management-platform/traces/plugin";
 import { logsPlugin } from "@agent-management-platform/logs/plugin";
 import { metricsPlugin } from "@agent-management-platform/metrics/plugin";
 import { evalPlugin } from "@agent-management-platform/eval/plugin";
-
-/**
- * Installed once something sets the observer URL (setObserverBaseUrl). The
- * console no longer registers this module and nothing sets the URL: the
- * source stays for the observability module that will replace it.
- */
-function useDetectObserver(): UIModuleInstallState | undefined {
-  return isObserverConfigured() ? "installed" : "not-installed";
-}
 
 export const aiObservabilityModule: UIModuleManifest = {
   id: "ai-observability",
@@ -49,7 +38,6 @@ export const aiObservabilityModule: UIModuleManifest = {
   apiVersion: PLUGIN_API_VERSION,
   installation: {
     chart: "wso2-amp-observability-extension",
-    useDetect: useDetectObserver,
     steps: [
       {
         title: "Install the observability extension",

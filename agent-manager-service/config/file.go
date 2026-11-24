@@ -69,6 +69,11 @@ var (
 	readKeys   = map[string]bool{}
 	registered = map[string]bool{}
 	tracking   bool
+	// fileErrs are the _FILE settings Load could not read.
+	fileErrs []error
+	// refErrs are the configuration file's references that did not resolve,
+	// by variable name: an error only where the file's value is used.
+	refErrs map[string]error
 )
 
 // RegisterKeys declares settings a package reads with Value outside Load
@@ -81,22 +86,97 @@ func RegisterKeys(keys ...string) {
 	}
 }
 
-// Lookup returns a setting: the environment variable key if it is set (even
-// to ""), else the configuration file's value.
+// FileSuffix names a setting's file: KEY_FILE holds a path whose contents
+// are KEY's value.
+const FileSuffix = "_FILE"
+
+// Lookup returns a setting, first found of: the environment variable key
+// (even ""), the file the environment's key_FILE names, the configuration
+// file's key, the file the configuration file's key_file names, an older name
+// of the setting, and for a generated secret its file in SecretsDir.
 func Lookup(key string) (string, bool) {
+	v, ok, failed := lookup(key)
+	if _, generated := GeneratedSecrets[key]; generated && v == "" && !failed {
+		if g, found := generatedValue(key); found {
+			return g, true
+		}
+	}
+	return v, ok
+}
+
+// lookupSet is Lookup without the generated secrets.
+func lookupSet(key string) (string, bool) {
+	v, ok, _ := lookup(key)
+	return v, ok
+}
+
+// lookup is lookupSet that also reports a source that failed to read, which
+// ends the lookup: the generated secret does not stand in for it.
+func lookup(key string) (value string, found, failed bool) {
 	fileMu.RLock()
 	track := tracking
 	v, inFile := fileVars[key]
+	vFile, inFileFile := fileVars[key+FileSuffix]
+	vErr, vFileErr := refErrs[key], refErrs[key+FileSuffix]
 	fileMu.RUnlock()
 	if track {
 		fileMu.Lock()
 		readKeys[key] = true
 		fileMu.Unlock()
 	}
-	if env, ok := os.LookupEnv(key); ok {
-		return env, true
+	// An empty generated secret counts as unset, so a later source fills it.
+	_, generated := GeneratedSecrets[key]
+	if env, ok := os.LookupEnv(key); ok && (env != "" || !generated) {
+		return env, true, false
 	}
-	return v, inFile
+	if path, ok := os.LookupEnv(key + FileSuffix); ok && path != "" {
+		if s, ok := readSettingFile(key+FileSuffix, path); s != "" || !ok || !generated {
+			return s, ok, !ok
+		}
+	}
+	if vErr != nil {
+		settingErr(vErr)
+		return "", false, true
+	}
+	if inFile && (v != "" || !generated) {
+		return v, true, false
+	}
+	if vFileErr != nil {
+		settingErr(vFileErr)
+		return "", false, true
+	}
+	if inFileFile && vFile != "" {
+		if s, ok := readSettingFile(key+FileSuffix, vFile); s != "" || !ok || !generated {
+			return s, ok, !ok
+		}
+	}
+	if old, ok := aliases[key]; ok {
+		return lookup(old)
+	}
+	return "", false, false
+}
+
+// readSettingFile reads a _FILE setting's file. A failure is reported by
+// Load when it happens there, and logged otherwise.
+func readSettingFile(name, path string) (string, bool) {
+	data, err := os.ReadFile(path)
+	if err == nil {
+		return trimNewline(string(data)), true
+	}
+	settingErr(fmt.Errorf("%s: %w", name, err))
+	return "", false
+}
+
+// settingErr reports a setting that could not be read: Load returns it when
+// it happens there, and it is logged otherwise.
+func settingErr(err error) {
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	if tracking {
+		fileErrs = append(fileErrs, err)
+	} else {
+		slog.Error("reading a setting failed", "error", err)
+	}
 }
 
 // Value is Lookup's value, "" when unset.
@@ -205,44 +285,88 @@ func configFilePath(flag string) (string, bool) {
 // if present) and then every setting again, with the environment over the
 // file over the defaults. The command line calls it once, after parsing its
 // flags and before anything else reads the configuration. File keys that no
-// setting reads are logged.
-func Load(path string) error {
-	vars, mods, err := readConfigFile(path)
+// setting reads are logged. An invalid setting exits the process.
+func Load(path string) error { return load(path, true) }
+
+// LoadUnchecked is Load for commands that run before the server's settings
+// are complete, such as amp init generating its secrets: invalid server
+// settings are left for the server to report.
+func LoadUnchecked(path string) error { return load(path, false) }
+
+func load(path string, strict bool) error {
+	vars, mods, unresolved, err := readConfigFile(path)
 	if err != nil {
 		return err
 	}
 	fileMu.Lock()
-	fileVars, fileModules = vars, mods
+	fileVars, fileModules, refErrs = vars, mods, unresolved
 	readKeys = map[string]bool{}
 	tracking = true
+	fileErrs = nil
 	fileMu.Unlock()
 
-	loadEnvs()
+	// Not strict yet: an unreadable _FILE is reported before the settings it
+	// left empty.
+	loadSettings(false)
+	// Settings other packages read later (amp init's, for one) are read now
+	// too, so a source that fails to read fails Load rather than only being
+	// logged when they are used.
+	fileMu.RLock()
+	others := make([]string, 0, len(registered))
+	for k := range registered {
+		others = append(others, k)
+	}
+	fileMu.RUnlock()
+	for _, k := range others {
+		Lookup(k)
+	}
 
 	fileMu.Lock()
 	tracking = false
 	unknown := unknownKeys(vars)
+	// A reference no setting read during Load is still an error.
+	for k, e := range unresolved {
+		if !readKeys[strings.TrimSuffix(k, FileSuffix)] {
+			fileErrs = append(fileErrs, e)
+		}
+	}
+	readErr := errors.Join(fileErrs...)
 	fileMu.Unlock()
+	if readErr != nil {
+		return readErr
+	}
+	if strict {
+		GetConfig()
+	}
 	if len(unknown) > 0 {
 		slog.Warn("configuration file sets keys no setting reads; check their spelling", "keys", unknown)
 	}
 	return nil
 }
 
-func readConfigFile(flag string) (map[string]string, Modules, error) {
+// readConfigFile reads and parses the configuration file and resolves its
+// references. A reference that does not resolve is returned by variable name
+// rather than failing: it is an error only where its value is used.
+func readConfigFile(flag string) (map[string]string, Modules, map[string]error, error) {
 	path, named := configFilePath(flag)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !named && errors.Is(err, os.ErrNotExist) {
-			return nil, Modules{}, nil
+			return nil, Modules{}, nil, nil
 		}
-		return nil, Modules{}, fmt.Errorf("reading %s: %w", path, err)
+		return nil, Modules{}, nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	vars, mods, err := parseConfigFile(data)
 	if err != nil {
-		return nil, Modules{}, fmt.Errorf("%s: %w", path, err)
+		return nil, Modules{}, nil, fmt.Errorf("%s: %w", path, err)
 	}
-	return vars, mods, nil
+	unresolved := map[string]error{}
+	for k, v := range vars {
+		if vars[k], err = resolveRef(k, v, os.LookupEnv, os.ReadFile); err != nil {
+			unresolved[k] = fmt.Errorf("%s: %w", path, err)
+		}
+	}
+	return vars, mods, unresolved, nil
 }
 
 // unknownKeys lists the file's keys that no setting read during Load and no
@@ -250,7 +374,9 @@ func readConfigFile(flag string) (map[string]string, Modules, error) {
 func unknownKeys(vars map[string]string) []string {
 	var out []string
 	for k := range vars {
-		if readKeys[k] || registered[k] || strings.HasPrefix(k, ConsolePrefix) || strings.HasPrefix(k, ModulePrefix) {
+		base := strings.TrimSuffix(k, FileSuffix)
+		if readKeys[k] || registered[k] || readKeys[base] || registered[base] ||
+			strings.HasPrefix(k, ConsolePrefix) || strings.HasPrefix(k, ModulePrefix) {
 			continue
 		}
 		out = append(out, k)
@@ -419,4 +545,24 @@ func scalar(key string, v any) (string, error) {
 
 func envName(key string) string {
 	return strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(key))
+}
+
+// KnownKeys are the settings the last Load read, and those registered with
+// RegisterKeys: every setting the configuration file may set, sorted.
+func KnownKeys() []string {
+	fileMu.RLock()
+	defer fileMu.RUnlock()
+	seen := map[string]bool{}
+	for k := range readKeys {
+		seen[k] = true
+	}
+	for k := range registered {
+		seen[k] = true
+	}
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

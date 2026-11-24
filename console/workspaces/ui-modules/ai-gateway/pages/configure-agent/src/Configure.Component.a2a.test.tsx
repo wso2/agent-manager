@@ -32,6 +32,8 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useListAgentMCPConfigs: () => emptyList,
   useDeleteAgentModelConfig: () => mutation,
   useDeleteAgentMCPConfig: () => mutation,
+  // BindingStateNotice: no bindings, so no notice.
+  useGetAgentConfigurations: () => ({ data: undefined }),
 }));
 vi.mock("@agent-management-platform/shared-component", () => ({
   useOrgEnvironmentsState: () => ({

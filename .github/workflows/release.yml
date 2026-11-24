@@ -321,6 +321,10 @@ jobs:
         working-directory: deployments/standalone
         run: |
           cp .env.example .env
+          # The e2e and security suites know the test stack's client secrets
+          # and admin password, so they are fixed rather than generated.
+          bash ../../.github/scripts/standalone-ci-settings.sh > ci-settings.yml
+          export COMPOSE_FILE=docker-compose.yml:ci-settings.yml
           sudo sysctl -w vm.max_map_count=262144
           docker compose up -d --wait --wait-timeout 600
 

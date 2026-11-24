@@ -49,6 +49,8 @@ help:
 	@echo "  make amctl-build             - Build amctl for current platform"
 	@echo "  make amctl-release-dry-run   - Cross-compile all targets without publishing"
 	@echo "  make amctl-test              - Run amctl tests"
+	@echo "  make amctl-coverage-check    - Run amctl tests and compare coverage with the baseline"
+	@echo "  make amctl-coverage-baseline - Run amctl tests and rewrite the coverage baseline"
 	@echo "🧪 E2E Tests:"
 	@echo "  make e2e-test           - Run E2E tests (stack must be running)"
 	@echo ""
@@ -70,11 +72,11 @@ include tools.mk
 # to `make console`.
 STACK_DIR   := deployments/standalone
 # DB=postgres runs the postgres profile and points the API at it (SQLite otherwise).
+COMPOSE     := docker compose --project-directory $(STACK_DIR) -f $(STACK_DIR)/docker-compose.yml -f $(STACK_DIR)/docker-compose.build.yml
 ifeq ($(DB),postgres)
 export COMPOSE_PROFILES := postgres
-export AMP_DB_DRIVER := postgres
+COMPOSE     += -f $(STACK_DIR)/docker-compose.postgres.yml
 endif
-COMPOSE     := docker compose --project-directory $(STACK_DIR) -f $(STACK_DIR)/docker-compose.yml -f $(STACK_DIR)/docker-compose.build.yml
 DEV_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.dev.yml
 # amp-core: the core binary without modules (no AI Gateway), as its own
 # Compose project so its data never mixes with the full stack's. It uses the
@@ -84,10 +86,6 @@ CORE_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.core.yml -p amp-lite-c
 # DB=postgres run.
 ALL_PROFILES := --profile postgres
 
-$(STACK_DIR)/.env:
-	@cp $(STACK_DIR)/.env.example $@
-	@echo "📝 Created $@ from .env.example"
-
 # Complete setup
 setup: tools
 	@$(MAKE) dev-up
@@ -95,11 +93,11 @@ setup: tools
 	@echo "Run 'make dev-down' to stop the stack and the console"
 
 # Full stack from images
-up: $(STACK_DIR)/.env
+up:
 	@echo "🚀 Building images and starting AMP..."
 	@$(COMPOSE) up -d --build --wait --remove-orphans
 	@echo "✅ AMP is running"
-	@echo "   Console: http://localhost:9000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   Console: http://localhost:9000 (sign in as admin; password: $(COMPOSE) exec amp-api amp secret show admin-password)"
 	@echo "   API:     http://localhost:9000/api/v1"
 
 down:
@@ -111,11 +109,11 @@ logs:
 reset:
 	@$(COMPOSE) $(ALL_PROFILES) down -v
 
-up-core: $(STACK_DIR)/.env
+up-core:
 	@echo "🚀 Building the amp-core image and starting AMP core (no AI Gateway)..."
 	@$(CORE_COMPOSE) up -d --build --wait --remove-orphans
 	@echo "✅ AMP core is running"
-	@echo "   Console: http://localhost:9000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   Console: http://localhost:9000 (sign in as admin; password: $(CORE_COMPOSE) exec amp-api amp secret show admin-password)"
 
 down-core:
 	@$(CORE_COMPOSE) $(ALL_PROFILES) down
@@ -123,7 +121,7 @@ down-core:
 reset-core:
 	@$(CORE_COMPOSE) $(ALL_PROFILES) down -v
 
-# Smoke checks against a running stack (scripts/smoke.sh reads .env).
+# Smoke checks against a running stack (scripts/smoke.sh).
 smoke:
 	@$(STACK_DIR)/scripts/smoke.sh amp
 
@@ -159,12 +157,12 @@ setup-console-local-force:
 # Daily development commands
 # --build: plain `up -d` reuses an image built from an older Dockerfile, silently
 # running a stale toolchain. Cached layers keep the no-change case near-free.
-dev-up: $(STACK_DIR)/.env
+dev-up:
 	@echo "🚀 Starting Agent Manager (dev)..."
 	@$(DEV_COMPOSE) up -d --build --wait --remove-orphans
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
-	@echo "   Console: http://localhost:3000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   Console: http://localhost:3000 (sign in as admin; password: $(DEV_COMPOSE) exec amp-api cat /var/lib/agent-manager/secrets/admin-password)"
 	@echo "   API:     http://localhost:9000"
 
 dev-down:
@@ -198,7 +196,7 @@ thunder-restart:
 
 # Deletes ThunderID's users, applications and keys; tokens it issued stop working.
 # The configuration amp-init generates is kept and applied again.
-thunder-reset: $(STACK_DIR)/.env
+thunder-reset:
 	@echo "🧹 Resetting ThunderID (data wipe + bootstrap)..."
 	@$(COMPOSE) rm -sf thunder thunder-setup amp-init
 	@project=$$($(COMPOSE) config --format json | sed -n 's/^ *"name": "\(.*\)",$$/\1/p' | head -1); \
@@ -251,6 +249,17 @@ amctl-release-dry-run:
 amctl-test:
 	cd cli && go test ./... -v
 
+amctl-coverage-summary: | .make
+	cd cli && go test -coverprofile=../.make/amctl-coverage.out ./...
+	python3 scripts/coverage/go_summary.py .make/amctl-coverage.out --module github.com/wso2/agent-manager/cli \
+		--exclude-file cli/coverage-excludes.txt --out .make/amctl-coverage.json
+
+amctl-coverage-check: amctl-coverage-summary
+	python3 scripts/coverage/ratchet.py .make/amctl-coverage.json cli/coverage-baseline.json --title "amctl coverage"
+
+amctl-coverage-baseline: amctl-coverage-summary
+	python3 scripts/coverage/ratchet.py .make/amctl-coverage.json cli/coverage-baseline.json --update
+
 # Code generation
 gen-instrumentation-contract:
 	@$(MAKE) -C agent-manager-observer gen-instrumentation-contract
@@ -266,6 +275,13 @@ check-contract-drift:
 # Run with focus filter to run a specific test case: make e2e-test FOCUS="Project Deletion Conflict"
 # A focused run (FOCUS) runs serially (--procs=1); everything else uses -p.
 GINKGO_PROCS := $(if $(FOCUS),--procs=1,-p)
+# The running stack's generated client secrets, for the suites unless
+# test/e2e/.env sets them.
+STACK_SECRETS = api=$$(docker ps -q --filter label=com.docker.compose.service=amp-api | head -1); \
+	secret() { [ -n "$$api" ] && docker exec "$$api" cat /var/lib/agent-manager/secrets/$$1 2>/dev/null; }; \
+	: "$${IDP_CLIENT_SECRET:=$$(secret amp-api-client-secret)}" "$${THUNDER_SYSTEM_CLIENT_SECRET:=$$(secret amp-system-client-secret)}"; \
+	export IDP_CLIENT_SECRET THUNDER_SYSTEM_CLIENT_SECRET
+
 # Mock LLM backend for E2E (test/e2e/mockllm): OpenAI, Azure OpenAI, Anthropic, Gemini
 # and OpenAI-compatible shapes, fixed usage, any key. It joins the stack network as
 # mock-llm; set OPENAI_BASE_URL=http://mock-llm:8000/v1 in test/e2e/.env to use it.
@@ -283,7 +299,7 @@ e2e-mock-llm-down:
 
 e2e-test:
 	@echo "Running E2E tests..."
-	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
+	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && $(STACK_SECRETS) && \
 		go run github.com/onsi/ginkgo/v2/ginkgo -v $(GINKGO_PROCS) --timeout 45m --poll-progress-after=600s \
 		--keep-going --junit-report=e2e-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./tests/$(SUITE)/...,./tests/...)
@@ -341,7 +357,7 @@ security-test-static:
 
 security-test-live:
 	@echo "Running security tests (stack must be running)..."
-	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && \
+	@cd test/e2e && set -a && [ -f .env ] && . ./.env; set +a && $(STACK_SECRETS) && \
 		go run github.com/onsi/ginkgo/v2/ginkgo -v $(SECURITY_GINKGO_PROCS) --timeout 45m \
 		--poll-progress-after=300s --keep-going --junit-report=security-report.xml --output-dir=. \
 		$(if $(FOCUS),--focus="$(FOCUS)") $(if $(SUITE),./security/$(SUITE)/...,./security/...)

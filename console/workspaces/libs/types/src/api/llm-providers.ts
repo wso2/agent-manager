@@ -318,6 +318,8 @@ export interface CreateLLMProviderRequest {
 }
 
 export interface UpdateLLMProviderRequest {
+  /** The provider's handle, sent as the document's metadata.name. */
+  id?: string;
   name?: string;
   description?: string;
   version?: string;
@@ -339,7 +341,7 @@ export interface LLMProviderListItem {
   id: string;
   name: string;
   template: string;
-  status: "pending" | "deployed" | "failed";
+  status?: "pending" | "deployed" | "failed";
   createdBy?: string;
   gateways?: string[];
   createdAt?: string;
@@ -355,7 +357,7 @@ export interface LLMProviderResponse {
   template: string;
   upstream: UpstreamConfig;
   resilience?: Resilience;
-  status: "pending" | "deployed" | "failed";
+  status?: "pending" | "deployed" | "failed";
   description?: string;
   createdBy?: string;
   accessControl?: LLMAccessControl;
@@ -377,8 +379,47 @@ export interface LLMProviderListResponse {
   offset: number;
 }
 
-export interface UpdateLLMProviderCatalogRequest {
-  inCatalog: boolean;
+// -----------------------------------------------------------------------------
+// LLM provider documents — the wire format at /m/ai-gateway/llm-providers
+// -----------------------------------------------------------------------------
+
+export interface DocumentMetadata {
+  /** The provider's handle. */
+  name: string;
+  uid?: string;
+  creationTimestamp?: string;
+  updateTimestamp?: string;
+  createdBy?: string;
+}
+
+export interface LLMProviderSpec extends Omit<CreateLLMProviderRequest, "id" | "name"> {
+  displayName: string;
+  inCatalog?: boolean;
+}
+
+/** A PUT keeps any spec field it leaves out, so only displayName is required. */
+export type LLMProviderUpdateSpec = Partial<LLMProviderSpec> & { displayName: string };
+
+export interface GatewayPlacement {
+  gatewayId: string;
+  gatewayName: string;
+  status: string;
+  deployedAt?: string;
+  vhost?: string;
+}
+
+export interface LLMProviderDocument<S = LLMProviderSpec> {
+  apiVersion: "ai-control-plane.choreolabs.com/v1";
+  kind: "LlmProvider";
+  metadata: DocumentMetadata;
+  spec: S;
+  status?: { gateways?: GatewayPlacement[] };
+}
+
+export interface LLMProviderDocumentList {
+  count?: number;
+  list: LLMProviderDocument[];
+  pagination?: { limit?: number; offset?: number; total?: number };
 }
 
 export type ListLLMProvidersPathParams = OrgPathParams;
@@ -394,7 +435,6 @@ export interface LLMProviderPathParams extends OrgPathParams {
 export type GetLLMProviderPathParams = LLMProviderPathParams;
 export type UpdateLLMProviderPathParams = LLMProviderPathParams;
 export type DeleteLLMProviderPathParams = LLMProviderPathParams;
-export type UpdateLLMProviderCatalogPathParams = LLMProviderPathParams;
 export type ListLLMProviderProxiesPathParams = LLMProviderPathParams;
 
 // -----------------------------------------------------------------------------

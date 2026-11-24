@@ -2,7 +2,8 @@
 # stamp-standalone-release.sh — stamp a release version into the standalone bundle.
 #
 # Pins deployments/standalone/.env.example to the release's images and points
-# the console's documentation links at the docs version this release ships
+# the console's documentation links (console.docs_url in
+# deployments/standalone/amp.yaml) at the docs version this release ships
 # with (release candidates and nightlies keep following /docs/latest), after
 # checking that docs version is published.
 #
@@ -12,14 +13,17 @@ set -euo pipefail
 TARGET_VERSION="${1:?usage: stamp-standalone-release.sh <target-version> <registry/org>}"
 PREFIX="${2:?usage: stamp-standalone-release.sh <target-version> <registry/org>}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="deployments/standalone/.env.example"
+AMP_YAML="deployments/standalone/amp.yaml"
 
 DOCS_VERSION="$(bash "$SCRIPT_DIR/resolve-docs-version.sh" "$TARGET_VERSION")"
 bash "$SCRIPT_DIR/assert-docs-version-published.sh" "$DOCS_VERSION" "$TARGET_VERSION"
 
 bash "$SCRIPT_DIR/pin-standalone-images.sh" "v${TARGET_VERSION}" "$PREFIX"
 
+DOCS_URL="https://wso2.com/agent-platform/docs/${DOCS_VERSION:-latest}"
 tmp="$(mktemp)"
-sed "s#^DOCS_VERSION=.*#DOCS_VERSION=${DOCS_VERSION:-latest}#" "$ENV_FILE" > "$tmp"
-mv "$tmp" "$ENV_FILE"
+sed "s#^\(  docs_url: \).*#\1${DOCS_URL}#" "$AMP_YAML" > "$tmp"
+mv "$tmp" "$AMP_YAML"
+grep -q "^  docs_url: ${DOCS_URL}\$" "$AMP_YAML" \
+    || { echo "failed to set console.docs_url in $AMP_YAML" >&2; exit 1; }
 echo "Console documentation links follow /docs/${DOCS_VERSION:-latest}"

@@ -6,6 +6,7 @@ package gen
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/oapi-codegen/runtime"
@@ -406,6 +407,33 @@ func (e BudgetSplitType) Valid() bool {
 	case BudgetSplitTypeLlmProvider:
 		return true
 	case BudgetSplitTypeProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CatalogDeploymentSummaryStatus.
+const (
+	CatalogDeploymentSummaryStatusDEPLOYED    CatalogDeploymentSummaryStatus = "DEPLOYED"
+	CatalogDeploymentSummaryStatusDEPLOYING   CatalogDeploymentSummaryStatus = "DEPLOYING"
+	CatalogDeploymentSummaryStatusFAILED      CatalogDeploymentSummaryStatus = "FAILED"
+	CatalogDeploymentSummaryStatusUNDEPLOYED  CatalogDeploymentSummaryStatus = "UNDEPLOYED"
+	CatalogDeploymentSummaryStatusUNDEPLOYING CatalogDeploymentSummaryStatus = "UNDEPLOYING"
+)
+
+// Valid indicates whether the value is a known member of the CatalogDeploymentSummaryStatus enum.
+func (e CatalogDeploymentSummaryStatus) Valid() bool {
+	switch e {
+	case CatalogDeploymentSummaryStatusDEPLOYED:
+		return true
+	case CatalogDeploymentSummaryStatusDEPLOYING:
+		return true
+	case CatalogDeploymentSummaryStatusFAILED:
+		return true
+	case CatalogDeploymentSummaryStatusUNDEPLOYED:
+		return true
+	case CatalogDeploymentSummaryStatusUNDEPLOYING:
 		return true
 	default:
 		return false
@@ -834,55 +862,43 @@ func (e LLMDeploymentResponseStatusDesired) Valid() bool {
 
 // Defines values for LLMProviderConsumerItemConsumerType.
 const (
-	Agent LLMProviderConsumerItemConsumerType = "agent"
+	LLMProviderConsumerItemConsumerTypeAgent LLMProviderConsumerItemConsumerType = "agent"
 )
 
 // Valid indicates whether the value is a known member of the LLMProviderConsumerItemConsumerType enum.
 func (e LLMProviderConsumerItemConsumerType) Valid() bool {
 	switch e {
-	case Agent:
+	case LLMProviderConsumerItemConsumerTypeAgent:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for LLMProviderListItemStatus.
+// Defines values for LlmProviderDocumentApiVersion.
 const (
-	LLMProviderListItemStatusDeployed LLMProviderListItemStatus = "deployed"
-	LLMProviderListItemStatusFailed   LLMProviderListItemStatus = "failed"
-	LLMProviderListItemStatusPending  LLMProviderListItemStatus = "pending"
+	AiControlPlaneChoreolabsComv1 LlmProviderDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
 )
 
-// Valid indicates whether the value is a known member of the LLMProviderListItemStatus enum.
-func (e LLMProviderListItemStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the LlmProviderDocumentApiVersion enum.
+func (e LlmProviderDocumentApiVersion) Valid() bool {
 	switch e {
-	case LLMProviderListItemStatusDeployed:
-		return true
-	case LLMProviderListItemStatusFailed:
-		return true
-	case LLMProviderListItemStatusPending:
+	case AiControlPlaneChoreolabsComv1:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for LLMProviderResponseStatus.
+// Defines values for LlmProviderDocumentKind.
 const (
-	LLMProviderResponseStatusDeployed LLMProviderResponseStatus = "deployed"
-	LLMProviderResponseStatusFailed   LLMProviderResponseStatus = "failed"
-	LLMProviderResponseStatusPending  LLMProviderResponseStatus = "pending"
+	LlmProviderDocumentKindLlmProvider LlmProviderDocumentKind = "LlmProvider"
 )
 
-// Valid indicates whether the value is a known member of the LLMProviderResponseStatus enum.
-func (e LLMProviderResponseStatus) Valid() bool {
+// Valid indicates whether the value is a known member of the LlmProviderDocumentKind enum.
+func (e LlmProviderDocumentKind) Valid() bool {
 	switch e {
-	case LLMProviderResponseStatusDeployed:
-		return true
-	case LLMProviderResponseStatusFailed:
-		return true
-	case LLMProviderResponseStatusPending:
+	case LlmProviderDocumentKindLlmProvider:
 		return true
 	default:
 		return false
@@ -1149,28 +1165,28 @@ func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
 
 // Defines values for GetLLMProxyDeploymentsParamsStatus.
 const (
-	ARCHIVED    GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
-	DEPLOYED    GetLLMProxyDeploymentsParamsStatus = "DEPLOYED"
-	DEPLOYING   GetLLMProxyDeploymentsParamsStatus = "DEPLOYING"
-	FAILED      GetLLMProxyDeploymentsParamsStatus = "FAILED"
-	UNDEPLOYED  GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYED"
-	UNDEPLOYING GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYING"
+	GetLLMProxyDeploymentsParamsStatusARCHIVED    GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
+	GetLLMProxyDeploymentsParamsStatusDEPLOYED    GetLLMProxyDeploymentsParamsStatus = "DEPLOYED"
+	GetLLMProxyDeploymentsParamsStatusDEPLOYING   GetLLMProxyDeploymentsParamsStatus = "DEPLOYING"
+	GetLLMProxyDeploymentsParamsStatusFAILED      GetLLMProxyDeploymentsParamsStatus = "FAILED"
+	GetLLMProxyDeploymentsParamsStatusUNDEPLOYED  GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYED"
+	GetLLMProxyDeploymentsParamsStatusUNDEPLOYING GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYING"
 )
 
 // Valid indicates whether the value is a known member of the GetLLMProxyDeploymentsParamsStatus enum.
 func (e GetLLMProxyDeploymentsParamsStatus) Valid() bool {
 	switch e {
-	case ARCHIVED:
+	case GetLLMProxyDeploymentsParamsStatusARCHIVED:
 		return true
-	case DEPLOYED:
+	case GetLLMProxyDeploymentsParamsStatusDEPLOYED:
 		return true
-	case DEPLOYING:
+	case GetLLMProxyDeploymentsParamsStatusDEPLOYING:
 		return true
-	case FAILED:
+	case GetLLMProxyDeploymentsParamsStatusFAILED:
 		return true
-	case UNDEPLOYED:
+	case GetLLMProxyDeploymentsParamsStatusUNDEPLOYED:
 		return true
-	case UNDEPLOYING:
+	case GetLLMProxyDeploymentsParamsStatusUNDEPLOYING:
 		return true
 	default:
 		return false
@@ -1811,6 +1827,30 @@ type CORSConfig struct {
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
+// CatalogDeploymentSummary defines model for CatalogDeploymentSummary.
+type CatalogDeploymentSummary struct {
+	// DeployedAt Timestamp when the resource was deployed
+	DeployedAt *time.Time `json:"deployedAt,omitempty"`
+
+	// EnvironmentName Environment name (from gateway name or properties)
+	EnvironmentName *string `json:"environmentName,omitempty"`
+
+	// GatewayId Gateway UUID
+	GatewayId openapi_types.UUID `json:"gatewayId"`
+
+	// GatewayName Gateway name/identifier
+	GatewayName string `json:"gatewayName"`
+
+	// Status The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
+	Status CatalogDeploymentSummaryStatus `json:"status"`
+
+	// Vhost Gateway virtual host
+	Vhost *string `json:"vhost,omitempty"`
+}
+
+// CatalogDeploymentSummaryStatus The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
+type CatalogDeploymentSummaryStatus string
+
 // CatalogEntry defines model for CatalogEntry.
 type CatalogEntry struct {
 	// CreatedAt Timestamp when the entry was created
@@ -1850,7 +1890,7 @@ type CatalogLLMProviderEntry struct {
 	CreatedBy *string `json:"createdBy,omitempty"`
 
 	// Deployments The provider's live deployments, one per gateway currently serving it. Gateways it is only owed a deploy to are not listed.
-	Deployments *[]DeploymentSummary `json:"deployments,omitempty"`
+	Deployments *[]CatalogDeploymentSummary `json:"deployments,omitempty"`
 
 	// Description Provider description
 	Description *string `json:"description,omitempty"`
@@ -2040,47 +2080,6 @@ type CreateLLMAPIKeyResponse struct {
 	Status string `json:"status"`
 }
 
-// CreateLLMProviderRequest defines model for CreateLLMProviderRequest.
-type CreateLLMProviderRequest struct {
-	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
-
-	// Context API context path (must start with /, no trailing slash)
-	Context string `json:"context"`
-
-	// Description Description of the LLM provider
-	Description *string               `json:"description,omitempty"`
-	Gateways    *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique identifier for the LLM provider
-	Id string `json:"id"`
-
-	// ModelProviders List of model providers and their models
-	ModelProviders *[]LLMModelProvider `json:"modelProviders,omitempty"`
-
-	// Name Human-readable name of the LLM provider
-	Name string `json:"name"`
-
-	// Openapi Custom OpenAPI specification (YAML or JSON)
-	Openapi *string `json:"openapi,omitempty"`
-
-	// Policies List of policies applied to this provider
-	Policies     *[]LLMPolicy           `json:"policies,omitempty"`
-	RateLimiting *LLMRateLimitingConfig `json:"rateLimiting,omitempty"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Security Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
-	Security *SecurityConfig `json:"security,omitempty"`
-
-	// Template Template identifier being used
-	Template string         `json:"template"`
-	Upstream UpstreamConfig `json:"upstream"`
-
-	// Version Version of the LLM provider
-	Version string `json:"version"`
-}
-
 // CreateLLMProviderTemplateRequest defines model for CreateLLMProviderTemplateRequest.
 type CreateLLMProviderTemplateRequest struct {
 	CompletionTokens *ExtractionIdentifier `json:"completionTokens,omitempty"`
@@ -2180,9 +2179,6 @@ type DeploymentSummary struct {
 	// DeployedAt Timestamp when the resource was deployed
 	DeployedAt *time.Time `json:"deployedAt,omitempty"`
 
-	// EnvironmentName Environment name (from gateway name or properties)
-	EnvironmentName *string `json:"environmentName,omitempty"`
-
 	// GatewayId Gateway UUID
 	GatewayId openapi_types.UUID `json:"gatewayId"`
 
@@ -2198,6 +2194,24 @@ type DeploymentSummary struct {
 
 // DeploymentSummaryStatus The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
 type DeploymentSummaryStatus string
+
+// DocumentMetadata defines model for DocumentMetadata.
+type DocumentMetadata struct {
+	// CreatedBy Subject that created the resource.
+	CreatedBy *string `json:"createdBy,omitempty"`
+
+	// CreationTimestamp When the resource was created (the flat body's `createdAt`).
+	CreationTimestamp *time.Time `json:"creationTimestamp,omitempty"`
+
+	// Name The artifact handle (the flat body's `id`).
+	Name string `json:"name"`
+
+	// Uid Server-assigned UUID (the flat body's `uuid`).
+	Uid *openapi_types.UUID `json:"uid,omitempty"`
+
+	// UpdateTimestamp When the resource last changed (the flat body's `updatedAt`).
+	UpdateTimestamp *time.Time `json:"updateTimestamp,omitempty"`
+}
 
 // EnvModelConfigRequest defines model for EnvModelConfigRequest.
 type EnvModelConfigRequest struct {
@@ -2780,106 +2794,15 @@ type LLMProviderConsumerListResponse struct {
 	Total int32 `json:"total"`
 }
 
-// LLMProviderListItem defines model for LLMProviderListItem.
-type LLMProviderListItem struct {
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy User who created the provider
-	CreatedBy *string               `json:"createdBy,omitempty"`
-	Gateways  *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique identifier for the LLM provider
-	Id string `json:"id"`
-
-	// Name Human-readable name of the LLM provider
-	Name string `json:"name"`
-
-	// Status Provider status
-	Status LLMProviderListItemStatus `json:"status"`
-
-	// Template Template identifier
-	Template string `json:"template"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-
-	// Uuid Provider UUID
-	Uuid string `json:"uuid"`
-}
-
-// LLMProviderListItemStatus Provider status
-type LLMProviderListItemStatus string
-
 // LLMProviderListResponse defines model for LLMProviderListResponse.
 type LLMProviderListResponse struct {
-	Limit     int32                 `json:"limit"`
-	Offset    int32                 `json:"offset"`
-	Providers []LLMProviderListItem `json:"providers"`
-	Total     int32                 `json:"total"`
+	// Count Number of items in this page.
+	Count *int32                `json:"count,omitempty"`
+	List  []LlmProviderDocument `json:"list"`
+
+	// Pagination Where this page sits in the collection.
+	Pagination *Pagination `json:"pagination,omitempty"`
 }
-
-// LLMProviderResponse defines model for LLMProviderResponse.
-type LLMProviderResponse struct {
-	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
-
-	// Context API context path
-	Context string `json:"context"`
-
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy User who created the provider
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Description Provider description
-	Description *string               `json:"description,omitempty"`
-	Gateways    *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique identifier for the LLM provider
-	Id string `json:"id"`
-
-	// InCatalog Whether the provider is available in the catalog
-	InCatalog *bool `json:"inCatalog,omitempty"`
-
-	// ModelProviders List of model providers
-	ModelProviders *[]LLMModelProvider `json:"modelProviders,omitempty"`
-
-	// Name Human-readable name of the LLM provider
-	Name string `json:"name"`
-
-	// Openapi OpenAPI specification
-	Openapi *string `json:"openapi,omitempty"`
-
-	// Policies List of policies applied to this provider
-	Policies     *[]LLMPolicy           `json:"policies,omitempty"`
-	RateLimiting *LLMRateLimitingConfig `json:"rateLimiting,omitempty"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Security Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
-	Security *SecurityConfig `json:"security,omitempty"`
-
-	// Status Provider status
-	Status LLMProviderResponseStatus `json:"status"`
-
-	// Template Template identifier
-	Template string `json:"template"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Upstream  UpstreamConfig `json:"upstream"`
-
-	// Uuid UUID of the llm provider
-	Uuid string `json:"uuid"`
-
-	// Version Version of the LLM provider
-	Version string `json:"version"`
-}
-
-// LLMProviderResponseStatus Provider status
-type LLMProviderResponseStatus string
 
 // LLMProviderTemplateAuth defines model for LLMProviderTemplateAuth.
 type LLMProviderTemplateAuth struct {
@@ -3024,6 +2947,68 @@ type Labels map[string]string
 type ListAPIKeysResponse struct {
 	// Keys List of masked API keys.
 	Keys []APIKeyInfo `json:"keys"`
+}
+
+// LlmProviderDocument An LLM provider as a document; metadata.name is its handle, spec.displayName its label.
+type LlmProviderDocument struct {
+	ApiVersion LlmProviderDocumentApiVersion `json:"apiVersion"`
+
+	// Kind Must match the route; never ignored.
+	Kind     LlmProviderDocumentKind `json:"kind"`
+	Metadata DocumentMetadata        `json:"metadata"`
+	Spec     LlmProviderSpec         `json:"spec"`
+
+	// Status Observed state. Server-populated and ignored on input.
+	//
+	// `gateways` is the authoritative placement report: one entry per gateway the resource is placed on, so a client renders a row without joining against the deployments endpoint. There is deliberately NO aggregate status field - the rule for collapsing several gateway states into one badge is a product decision, not a transport one, so a caller that wants a single badge derives it from this array.
+	Status *ResourceStatus `json:"status,omitempty"`
+}
+
+// LlmProviderDocumentApiVersion defines model for LlmProviderDocument.ApiVersion.
+type LlmProviderDocumentApiVersion string
+
+// LlmProviderDocumentKind Must match the route; never ignored.
+type LlmProviderDocumentKind string
+
+// LlmProviderSpec defines model for LlmProviderSpec.
+type LlmProviderSpec struct {
+	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
+
+	// Context API context path (must start with /, no trailing slash)
+	Context string `json:"context"`
+
+	// Description Description of the LLM provider
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Display name for the LLM provider
+	DisplayName string                `json:"displayName"`
+	Gateways    *[]openapi_types.UUID `json:"gateways,omitempty"`
+
+	// InCatalog Whether the provider is published to the catalog. Replaces the removed PUT /llm-providers/{providerId}/catalog endpoint: catalog membership is declared here and reconciled, not toggled by a side call.
+	InCatalog *bool `json:"inCatalog,omitempty"`
+
+	// ModelProviders List of model providers and their models
+	ModelProviders *[]LLMModelProvider `json:"modelProviders,omitempty"`
+
+	// Openapi Custom OpenAPI specification (YAML or JSON)
+	Openapi *string `json:"openapi,omitempty"`
+
+	// Policies List of policies applied to this provider
+	Policies     *[]LLMPolicy           `json:"policies,omitempty"`
+	RateLimiting *LLMRateLimitingConfig `json:"rateLimiting,omitempty"`
+
+	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
+	Resilience *Resilience `json:"resilience,omitempty"`
+
+	// Security Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
+	Security *SecurityConfig `json:"security,omitempty"`
+
+	// Template Template identifier being used
+	Template string         `json:"template"`
+	Upstream UpstreamConfig `json:"upstream"`
+
+	// Version Version of the LLM provider
+	Version string `json:"version"`
 }
 
 // MCPEndpointEnvironment One endpoint→environment binding.
@@ -3329,6 +3314,18 @@ type OidcDiscoveryResponse struct {
 	JwksUri string `json:"jwksUri"`
 }
 
+// Pagination Where this page sits in the collection.
+type Pagination struct {
+	// Limit Maximum items requested for this page.
+	Limit *int32 `json:"limit,omitempty"`
+
+	// Offset Items skipped before this page.
+	Offset *int32 `json:"offset,omitempty"`
+
+	// Total Total items in the collection, across all pages.
+	Total *int32 `json:"total,omitempty"`
+}
+
 // PaginationInfo defines model for PaginationInfo.
 type PaginationInfo struct {
 	// Count Number of items in current response
@@ -3469,6 +3466,21 @@ type Resilience struct {
 
 	// Timeout Max duration for the whole request→upstream-response. "0s" disables it; omit to use the gateway's default.
 	Timeout *string `json:"timeout,omitempty"`
+}
+
+// ResourceStatus Observed state. Server-populated and ignored on input.
+//
+// `gateways` is the authoritative placement report: one entry per gateway the resource is placed on, so a client renders a row without joining against the deployments endpoint. There is deliberately NO aggregate status field - the rule for collapsing several gateway states into one badge is a product decision, not a transport one, so a caller that wants a single badge derives it from this array.
+type ResourceStatus struct {
+	// DeployedAt When the resource was last successfully placed on any gateway. Distinct from metadata.updateTimestamp, which tracks spec edits.
+	DeployedAt *time.Time `json:"deployedAt,omitempty"`
+
+	// Gateways Per-gateway placement and state. Reuses DeploymentSummary, which is already the shape the deployments endpoints report.
+	Gateways *[]DeploymentSummary `json:"gateways,omitempty"`
+
+	// Warnings Non-fatal findings from the last reconcile - the resource is live, but something about it is worth surfacing. Empty or absent means none.
+	Warnings             *[]string              `json:"warnings,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
 // ResourceWiseRateLimitingConfig defines model for ResourceWiseRateLimitingConfig.
@@ -3707,52 +3719,6 @@ type UpdateGatewayRequest struct {
 	Status *GatewayStatus `json:"status,omitempty"`
 }
 
-// UpdateLLMProviderCatalogRequest defines model for UpdateLLMProviderCatalogRequest.
-type UpdateLLMProviderCatalogRequest struct {
-	// InCatalog Whether the provider should be available in the catalog.
-	// - true: Add to catalog (makes it discoverable for agent configurations)
-	// - false: Remove from catalog (hides from catalog queries)
-	InCatalog bool `json:"inCatalog"`
-}
-
-// UpdateLLMProviderRequest defines model for UpdateLLMProviderRequest.
-type UpdateLLMProviderRequest struct {
-	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
-
-	// Context Updated API context path
-	Context *string `json:"context,omitempty"`
-
-	// Description Updated description
-	Description *string               `json:"description,omitempty"`
-	Gateways    *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// ModelProviders Updated model providers list
-	ModelProviders *[]LLMModelProvider `json:"modelProviders,omitempty"`
-
-	// Name Updated human-readable name
-	Name *string `json:"name,omitempty"`
-
-	// Openapi Updated OpenAPI specification
-	Openapi *string `json:"openapi,omitempty"`
-
-	// Policies Updated list of policies
-	Policies     *[]LLMPolicy           `json:"policies,omitempty"`
-	RateLimiting *LLMRateLimitingConfig `json:"rateLimiting,omitempty"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Security Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
-	Security *SecurityConfig `json:"security,omitempty"`
-
-	// Template Updated template identifier
-	Template *string         `json:"template,omitempty"`
-	Upstream *UpstreamConfig `json:"upstream,omitempty"`
-
-	// Version Updated version
-	Version *string `json:"version,omitempty"`
-}
-
 // UpdateLLMProviderTemplateRequest defines model for UpdateLLMProviderTemplateRequest.
 type UpdateLLMProviderTemplateRequest struct {
 	CompletionTokens *ExtractionIdentifier `json:"completionTokens,omitempty"`
@@ -3848,6 +3814,15 @@ type AgentIdentityOrgName = string
 
 // AgentIdentityRoleID defines model for AgentIdentityRoleID.
 type AgentIdentityRoleID = string
+
+// ListLLMProvidersParams defines parameters for ListLLMProviders.
+type ListLLMProvidersParams struct {
+	// Limit Maximum number of results to return
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
 
 // ListBudgetsParams defines parameters for ListBudgets.
 type ListBudgetsParams struct {
@@ -3993,15 +3968,6 @@ type ListLLMProviderTemplatesParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
-// ListLLMProvidersParams defines parameters for ListLLMProviders.
-type ListLLMProvidersParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
 // ListAvailableLLMPoliciesParams defines parameters for ListAvailableLLMPolicies.
 type ListAvailableLLMPoliciesParams struct {
 	// ProviderId When set, scope the result to the gateways this LLM provider is deployed to, instead of every active gateway in the organization.
@@ -4131,6 +4097,12 @@ type ListSelfHostedGatewaysParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// CreateLLMProviderJSONRequestBody defines body for CreateLLMProvider for application/json ContentType.
+type CreateLLMProviderJSONRequestBody = LlmProviderDocument
+
+// UpdateLLMProviderJSONRequestBody defines body for UpdateLLMProvider for application/json ContentType.
+type UpdateLLMProviderJSONRequestBody = LlmProviderDocument
+
 // CreateBudgetJSONRequestBody defines body for CreateBudget for application/json ContentType.
 type CreateBudgetJSONRequestBody = Budget
 
@@ -4179,20 +4151,11 @@ type CreateLLMProviderTemplateJSONRequestBody = CreateLLMProviderTemplateRequest
 // UpdateLLMProviderTemplateJSONRequestBody defines body for UpdateLLMProviderTemplate for application/json ContentType.
 type UpdateLLMProviderTemplateJSONRequestBody = UpdateLLMProviderTemplateRequest
 
-// CreateLLMProviderJSONRequestBody defines body for CreateLLMProvider for application/json ContentType.
-type CreateLLMProviderJSONRequestBody = CreateLLMProviderRequest
-
 // CreateLLMProviderAPIKeyJSONRequestBody defines body for CreateLLMProviderAPIKey for application/json ContentType.
 type CreateLLMProviderAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
 
 // RotateLLMProviderAPIKeyJSONRequestBody defines body for RotateLLMProviderAPIKey for application/json ContentType.
 type RotateLLMProviderAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
-
-// UpdateLLMProviderJSONRequestBody defines body for UpdateLLMProvider for application/json ContentType.
-type UpdateLLMProviderJSONRequestBody = UpdateLLMProviderRequest
-
-// UpdateLLMProviderCatalogStatusJSONRequestBody defines body for UpdateLLMProviderCatalogStatus for application/json ContentType.
-type UpdateLLMProviderCatalogStatusJSONRequestBody = UpdateLLMProviderCatalogRequest
 
 // DeployLLMProviderJSONRequestBody defines body for DeployLLMProvider for application/json ContentType.
 type DeployLLMProviderJSONRequestBody = LLMDeployRequest
@@ -4271,6 +4234,104 @@ type RegisterSelfHostedGatewayJSONRequestBody = SelfHostedGatewayRequest
 
 // UpdateSelfHostedGatewayJSONRequestBody defines body for UpdateSelfHostedGateway for application/json ContentType.
 type UpdateSelfHostedGatewayJSONRequestBody = SelfHostedGatewayUpdateRequest
+
+// Getter for additional properties for ResourceStatus. Returns the specified
+// element and whether it was found
+func (a ResourceStatus) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for ResourceStatus
+func (a *ResourceStatus) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for ResourceStatus to handle AdditionalProperties
+func (a *ResourceStatus) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["deployedAt"]; found {
+		err = json.Unmarshal(raw, &a.DeployedAt)
+		if err != nil {
+			return fmt.Errorf("error reading 'deployedAt': %w", err)
+		}
+		delete(object, "deployedAt")
+	}
+
+	if raw, found := object["gateways"]; found {
+		err = json.Unmarshal(raw, &a.Gateways)
+		if err != nil {
+			return fmt.Errorf("error reading 'gateways': %w", err)
+		}
+		delete(object, "gateways")
+	}
+
+	if raw, found := object["warnings"]; found {
+		err = json.Unmarshal(raw, &a.Warnings)
+		if err != nil {
+			return fmt.Errorf("error reading 'warnings': %w", err)
+		}
+		delete(object, "warnings")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for ResourceStatus to handle AdditionalProperties
+func (a ResourceStatus) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.DeployedAt != nil {
+		object["deployedAt"], err = json.Marshal(a.DeployedAt)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'deployedAt': %w", err)
+		}
+	}
+
+	if a.Gateways != nil {
+		object["gateways"], err = json.Marshal(a.Gateways)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'gateways': %w", err)
+		}
+	}
+
+	if a.Warnings != nil {
+		object["warnings"], err = json.Marshal(a.Warnings)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'warnings': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
 
 // AsCatalogEntry returns the union data inside the CatalogListResponse_Entries_Item as a CatalogEntry
 func (t CatalogListResponse_Entries_Item) AsCatalogEntry() (CatalogEntry, error) {
