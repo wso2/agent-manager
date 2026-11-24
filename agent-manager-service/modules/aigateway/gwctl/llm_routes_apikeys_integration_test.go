@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
@@ -90,19 +91,21 @@ func TestLLMRoutesAPIKeyErrors(t *testing.T) {
 	a := newRouteAPI(t)
 	project := unique("proj")
 	dbtest.EnsureProject(t, a.db, a.org, project)
-	providerUID := *llmCreateProvider(t, a, unique("prov")).Metadata.Uid
+	providerHandle := unique("prov")
+	providerUID := *llmCreateProvider(t, a, providerHandle).Metadata.Uid
 	proxy := llmCreateProxy(t, a, project, providerUID, unique("px"))
 	providerKeys := "/orgs/{org}/llm-providers/" + providerUID + "/api-keys"
 	proxyKeys := llmProxiesPath(project) + "/" + *proxy.Configuration.Name + "/api-keys"
 
-	tests := []struct {
+	type keyCase struct {
 		name    string
 		method  string
 		path    string
 		body    any
 		status  int
 		message string
-	}{
+	}
+	tests := []keyCase{
 		{"provider create malformed body", http.MethodPost, providerKeys, "{", http.StatusBadRequest, "Invalid request body"},
 		{
 			"provider create without a name", http.MethodPost, providerKeys,
@@ -150,6 +153,16 @@ func TestLLMRoutesAPIKeyErrors(t *testing.T) {
 			http.StatusNotFound, "Project not found",
 		},
 	}
+	// An unknown provider is a 404 whether it is named by UUID or by handle.
+	for _, id := range []string{uuid.NewString(), unique("missing")} {
+		keys := "/orgs/{org}/llm-providers/" + id + "/api-keys"
+		tests = append(tests,
+			keyCase{"list on unknown provider " + id, http.MethodGet, keys, nil, http.StatusNotFound, "LLM provider not found"},
+			keyCase{"create on unknown provider " + id, http.MethodPost, keys, map[string]any{"name": "ci-key"}, http.StatusNotFound, "LLM provider not found"},
+			keyCase{"revoke on unknown provider " + id, http.MethodDelete, keys + "/ci-key", nil, http.StatusNotFound, "LLM provider not found"},
+			keyCase{"rotate on unknown provider " + id, http.MethodPut, keys + "/ci-key", nil, http.StatusNotFound, "LLM provider not found"},
+		)
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := a.do(tt.method, tt.path, tt.body)
@@ -158,8 +171,12 @@ func TestLLMRoutesAPIKeyErrors(t *testing.T) {
 		})
 	}
 
+	// The provider's handle names it as well as its UUID.
+	rec := a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+providerHandle+"/api-keys", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
 	gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleEgress)
-	rec := a.do(http.MethodPost, providerKeys, map[string]any{"name": "ab"})
+	rec = a.do(http.MethodPost, providerKeys, map[string]any{"name": "ab"})
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	require.Contains(t, errorMessage(t, rec), "must be at least")
 	rec = a.do(http.MethodPost, proxyKeys, map[string]any{"name": "ab"})

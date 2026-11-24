@@ -21,8 +21,10 @@ package gwctl_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -39,6 +41,10 @@ import (
 
 // agIdentityOU is the organization unit the environment's directory reports.
 const agIdentityOU = "ou-env"
+
+// agUnknownMember prefixes a member ID the in-memory directory does not know,
+// so it refuses to add it the way the identity provider does.
+const agUnknownMember = "ghost-"
 
 // agDirectory is an in-memory identity directory for one environment: the
 // identity provider the agent-identity routes front. Everything else on the
@@ -142,6 +148,11 @@ func (d *agDirectory) client() identityv1.Client {
 		},
 		AddGroupMembersFunc: func(_ context.Context, id string, members []identityv1.Member) error {
 			defer lock()()
+			for _, m := range members {
+				if strings.HasPrefix(m.ID, agUnknownMember) {
+					return fmt.Errorf("member %s: %w", m.ID, identityv1.ErrInvalid)
+				}
+			}
 			d.members[id] = append(d.members[id], members...)
 			return nil
 		},
@@ -393,6 +404,13 @@ func TestAGRoutesAgentIdentityGroupRejections(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	list := expect(t, a.do(http.MethodGet, groups, nil), http.StatusOK)
 	assert.EqualValues(t, 0, list["total"], "no refused request created a group")
+
+	// An agent the directory does not know is the caller's mistake, not a 500.
+	group := expect(t, a.do(http.MethodPost, groups, map[string]any{"name": "g-" + uuid.NewString()[:8]}), http.StatusCreated)
+	rec = a.do(http.MethodPost, groups+"/"+group["id"].(string)+"/members/add",
+		map[string]any{"agentIds": []string{agUnknownMember + uuid.NewString()}})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Equal(t, "agentIds must name agent identities in this environment", errorMessage(t, rec))
 }
 
 // TestAGRoutesAgentIdentityRoles creates a role granting a real MCP proxy's

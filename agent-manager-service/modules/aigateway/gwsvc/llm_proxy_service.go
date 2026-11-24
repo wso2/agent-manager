@@ -346,15 +346,12 @@ func (s *LLMProxyService) ListByProvider(ouID, providerID string, limit, offset 
 	}
 
 	// Get provider to get its UUID
-	provider, err := s.providerRepo.GetByUUID(providerID, ouID)
+	provider, err := lookupLLMProvider(s.providerRepo, providerID, ouID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, 0, gwerr.ErrLLMProviderNotFound
+		if errors.Is(err, gwerr.ErrLLMProviderNotFound) {
+			return nil, 0, err
 		}
 		return nil, 0, fmt.Errorf("failed to get provider: %w", err)
-	}
-	if provider == nil {
-		return nil, 0, gwerr.ErrLLMProviderNotFound
 	}
 
 	// List proxies by provider UUID

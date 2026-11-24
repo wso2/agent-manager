@@ -150,6 +150,8 @@ var _ = Describe("Agent identity:", Label("agent", "agent-identity"), Ordered, f
 
 		framework.Call(Default, Client, http.MethodPost, ai("/groups/%s/members/add", groupID),
 			framework.Obj{"agentIds": []string{identityID}}, http.StatusOK)
+		framework.CallError(Default, Client, http.MethodPost, ai("/groups/%s/members/add", groupID),
+			framework.Obj{"agentIds": []string{uuid.NewString()}}, http.StatusBadRequest)
 		members := framework.CallObj(Default, Client, http.MethodGet, ai("/groups/%s/members", groupID), nil, http.StatusOK)
 		Expect(framework.Items(members, "members")).To(HaveLen(1))
 

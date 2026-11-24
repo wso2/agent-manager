@@ -18,6 +18,7 @@ package thundersvc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -396,9 +397,19 @@ func TestIdentityClientErrorMapping(t *testing.T) {
 	require.ErrorContains(t, err, "thunder get group decode")
 
 	_, err = c.UpdateRole(ctx, "r1", UpdateRoleRequest{})
-	require.ErrorContains(t, err, "HTTP 400: bad role")
+	require.True(t, IsBadRequest(err), "400 maps to BadRequestError: %v", err)
+	require.ErrorContains(t, err, "bad request: bad role")
 	assert.False(t, IsConflict(err))
 	assert.False(t, IsNotFound(err))
+	assert.Equal(t, "fallback", BadRequestDescription(err, "fallback"), "a body that is not Thunder's JSON has no description")
+}
+
+// A 400's JSON description is kept for the caller to show.
+func TestBadRequestKeepsThunderDescription(t *testing.T) {
+	err := error(newBadRequestError([]byte(`{"code":"USR-1019","message":"Invalid request","description":"attribute email is required"}`)))
+	require.True(t, IsBadRequest(err))
+	assert.Equal(t, "attribute email is required", BadRequestDescription(err, "fallback"))
+	assert.False(t, IsBadRequest(errors.New("other")))
 }
 
 // Without a system token no identity call reaches ThunderID.

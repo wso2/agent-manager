@@ -37,6 +37,9 @@ var (
 	ErrNotProvisioned = errors.New("the environment has no identity directory")
 	// ErrNotFound means the group, role or resource server does not exist.
 	ErrNotFound = errors.New("not found in the identity directory")
+	// ErrInvalid means the directory refused the request's content, such as a
+	// member that is not in it.
+	ErrInvalid = errors.New("refused by the identity directory")
 )
 
 // Names of the directory's own administrator role and group and of the core's system client role, which a module

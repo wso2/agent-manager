@@ -98,6 +98,7 @@ func TestLLMRoutesProviderDeploymentErrors(t *testing.T) {
 	base := "/orgs/{org}/llm-providers/" + handle + "/deployments"
 	dep := expectInto[gwspec.LLMDeploymentResponse](t, a.do(http.MethodPost, base, map[string]any{"gatewayId": egress.UUID.String()}), http.StatusCreated)
 	unknown := uuid.NewString()
+	missing := "/orgs/{org}/llm-providers/" + unique("missing") + "/deployments"
 
 	tests := []struct {
 		name    string
@@ -144,6 +145,23 @@ func TestLLMRoutesProviderDeploymentErrors(t *testing.T) {
 			"Deployment is bound to a different gateway",
 		},
 		{"list with a bad status", http.MethodGet, base + "?status=BOGUS", nil, http.StatusBadRequest, "Invalid deployment status"},
+		{"deploy to an unknown gateway", http.MethodPost, base, map[string]any{"gatewayId": unknown}, http.StatusNotFound, "Gateway not found"},
+		{
+			"deploy an unknown provider", http.MethodPost, missing,
+			map[string]any{"gatewayId": egress.UUID.String()},
+			http.StatusNotFound, "LLM provider not found",
+		},
+		{"list an unknown provider", http.MethodGet, missing, nil, http.StatusNotFound, "LLM provider not found"},
+		{"get on an unknown provider", http.MethodGet, missing + "/" + unknown, nil, http.StatusNotFound, "LLM provider not found"},
+		{"delete on an unknown provider", http.MethodDelete, missing + "/" + unknown, nil, http.StatusNotFound, "LLM provider not found"},
+		{
+			"undeploy on an unknown provider", http.MethodPost, missing + "/undeploy" + llmDeploymentQuery(unknown, unknown), nil,
+			http.StatusNotFound, "LLM provider not found",
+		},
+		{
+			"restore on an unknown provider", http.MethodPost, missing + "/restore" + llmDeploymentQuery(unknown, unknown), nil,
+			http.StatusNotFound, "LLM provider not found",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

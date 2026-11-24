@@ -18,6 +18,7 @@ package gwsvc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
@@ -58,13 +59,14 @@ func (s *LLMProviderAPIKeyService) ListAPIKeys(
 	ctx context.Context,
 	orgID, providerID string,
 ) (*gwmodels.ListAPIKeysResponse, error) {
-	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
+	provider, err := lookupLLMProvider(s.providerRepo, providerID, orgID)
 	if err != nil {
+		if errors.Is(err, gwerr.ErrLLMProviderNotFound) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
-	if provider == nil {
-		return nil, gwerr.ErrLLMProviderNotFound
-	}
+	providerID = provider.UUID.String()
 
 	stored, err := s.apiKeyRepo.ListByArtifact(ctx, providerID)
 	if err != nil {
@@ -80,13 +82,14 @@ func (s *LLMProviderAPIKeyService) CreateAPIKey(
 	orgID, providerID string,
 	req *gwmodels.CreateAPIKeyRequest,
 ) (*gwmodels.CreateAPIKeyResponse, error) {
-	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
+	provider, err := lookupLLMProvider(s.providerRepo, providerID, orgID)
 	if err != nil {
+		if errors.Is(err, gwerr.ErrLLMProviderNotFound) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
-	if provider == nil {
-		return nil, gwerr.ErrLLMProviderNotFound
-	}
+	providerID = provider.UUID.String()
 
 	annotateAPIKey(ctx, apiKeyAuditTarget{
 		OwnerType: gwaudit.APIKeyOwnerLLMProvider,
@@ -104,13 +107,14 @@ func (s *LLMProviderAPIKeyService) RevokeAPIKey(
 	ctx context.Context,
 	orgID, providerID, keyName string,
 ) error {
-	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
+	provider, err := lookupLLMProvider(s.providerRepo, providerID, orgID)
 	if err != nil {
+		if errors.Is(err, gwerr.ErrLLMProviderNotFound) {
+			return err
+		}
 		return fmt.Errorf("failed to get LLM provider: %w", err)
 	}
-	if provider == nil {
-		return gwerr.ErrLLMProviderNotFound
-	}
+	providerID = provider.UUID.String()
 
 	annotateAPIKey(ctx, apiKeyAuditTarget{
 		OwnerType: gwaudit.APIKeyOwnerLLMProvider,
@@ -129,13 +133,14 @@ func (s *LLMProviderAPIKeyService) RevokeAllUserManagedKeys(
 	ctx context.Context,
 	orgID, providerID string,
 ) error {
-	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
+	provider, err := lookupLLMProvider(s.providerRepo, providerID, orgID)
 	if err != nil {
+		if errors.Is(err, gwerr.ErrLLMProviderNotFound) {
+			return err
+		}
 		return fmt.Errorf("failed to get LLM provider: %w", err)
 	}
-	if provider == nil {
-		return gwerr.ErrLLMProviderNotFound
-	}
+	providerID = provider.UUID.String()
 
 	// A bulk revocation, triggered when API-key security is turned off. Recorded
 	// as one event naming the provider rather than one per key: the operation
@@ -158,13 +163,14 @@ func (s *LLMProviderAPIKeyService) RotateAPIKey(
 	orgID, providerID, keyName string,
 	req *gwmodels.RotateAPIKeyRequest,
 ) (*gwmodels.CreateAPIKeyResponse, error) {
-	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
+	provider, err := lookupLLMProvider(s.providerRepo, providerID, orgID)
 	if err != nil {
+		if errors.Is(err, gwerr.ErrLLMProviderNotFound) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
-	if provider == nil {
-		return nil, gwerr.ErrLLMProviderNotFound
-	}
+	providerID = provider.UUID.String()
 
 	annotateAPIKey(ctx, apiKeyAuditTarget{
 		OwnerType: gwaudit.APIKeyOwnerLLMProvider,
