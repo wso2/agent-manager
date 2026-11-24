@@ -46,11 +46,21 @@ jobs:
           cache: npm
           cache-dependency-path: test/ui-e2e/package-lock.json
 
+      # The browser is cached per Playwright version. No --with-deps: the
+      # runner image ships Chrome and its libraries, and the apt-get update it
+      # runs has hung on a mirror until the job timed out.
+      - name: Cache the Playwright browser
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('test/ui-e2e/package-lock.json') }}
+
       - name: Install Playwright
         working-directory: test/ui-e2e
+        timeout-minutes: 10
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
 
       # amp-dev-stack fixes the admin password (standalone-ci-settings.sh).
       - name: Run the journeys
