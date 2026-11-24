@@ -63,6 +63,9 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
       : { orgId: "", projectId: "", agentId: "", envId: "" },
   );
   const isFailed = binding?.status === "failed";
+  // A failed attempt with attempts left stays pending with its error until the
+  // automatic retry; the user can retry it now, as the error asks.
+  const isRetryWaiting = binding?.status === "pending" && !!binding?.lastError;
   // No binding row exists for this environment at all yet — distinct from
   // "pending"/"in_progress" (already attempted, still running) or "failed"
   // (attempted, didn't work). Older internal and external agents can both
@@ -229,7 +232,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
           Couldn&apos;t load the Agent ID for this environment. Refresh the page to try again.
         </Alert>
       )}
-      {isFailed && !isLoadingIdentity && !isIdentityError && (
+      {(isFailed || isRetryWaiting) && !isLoadingIdentity && !isIdentityError && (
         <Alert
           severity="error"
           icon={<AlertTriangle size={18} />}
@@ -249,7 +252,9 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
           }
           sx={{ mt: 1.5, flexWrap: "wrap", "& .MuiAlert-action": { flexShrink: 0 } }}
         >
-          Provisioning failed{binding?.lastError ? `: ${binding.lastError}` : ""}
+          {isFailed
+            ? `Provisioning failed${binding?.lastError ? `: ${binding.lastError}` : ""}`
+            : `The last attempt failed and will be retried automatically: ${binding?.lastError}`}
         </Alert>
       )}
       {canSelfProvision && (

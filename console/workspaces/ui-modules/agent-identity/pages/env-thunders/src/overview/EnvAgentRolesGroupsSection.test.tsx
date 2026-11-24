@@ -189,6 +189,28 @@ describe("EnvAgentRolesGroupsSection", () => {
     });
   });
 
+  it("offers a retry while a failed attempt waits for its automatic retry", () => {
+    apiState.binding = {
+      binding: { status: "pending", lastError: "Identity provisioning failed. Please retry." },
+      provisioned: false,
+      isLoading: false,
+      isError: false,
+    };
+    renderCard();
+
+    expect(screen.queryByText("Provisioning Status : Failed")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "The last attempt failed and will be retried automatically: Identity provisioning failed. Please retry.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(mutation("useRetryAgentIdentityProvisioning")).toHaveBeenCalledWith({
+      params: { orgName: "acme", projName: "shop", agentName: "support-bot" },
+      body: { environment: "dev" },
+    });
+  });
+
   it("shows Retrying while a retry runs, and no Retry for read-only users", () => {
     apiState.binding = {
       binding: { status: "failed" },

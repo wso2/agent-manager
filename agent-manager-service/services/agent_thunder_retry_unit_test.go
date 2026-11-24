@@ -40,35 +40,45 @@ func bindingWith(status models.AgentThunderStatus) *models.AgentThunderClient {
 }
 
 func TestRetryProvisioning_ResetsAFailedBindingAndAttemptsAgain(t *testing.T) {
-	failed := bindingWith(models.AgentThunderStatusFailed)
-	attempted := make(chan uuid.UUID, 1)
-	repo := &repomocks.AgentThunderClientRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
-			return failed, nil
-		},
-		ResetFailedForRetryFunc: func(_ context.Context, id uuid.UUID) (bool, error) {
-			assert.Equal(t, failed.ID, id)
-			return true, nil
-		},
-		// The background attempt starts by claiming the binding; declining ends it there.
-		ClaimForAttemptFunc: func(_ context.Context, id uuid.UUID) (bool, error) {
-			attempted <- id
-			return false, nil
-		},
-	}
-	svc := newTestProvisioningService(repo, nil, nil)
+	// bindingWith carries the last attempt's error.
+	waiting := bindingWith(models.AgentThunderStatusPending)
+	for name, failed := range map[string]*models.AgentThunderClient{
+		"failed": bindingWith(models.AgentThunderStatusFailed),
+		// A failed attempt with attempts left waits for its automatic retry
+		// with an error that asks the user to retry.
+		"pending with an error": waiting,
+	} {
+		t.Run(name, func(t *testing.T) {
+			attempted := make(chan uuid.UUID, 1)
+			repo := &repomocks.AgentThunderClientRepositoryMock{
+				GetFunc: func(context.Context, string, string, string, string) (*models.AgentThunderClient, error) {
+					return failed, nil
+				},
+				ResetFailedForRetryFunc: func(_ context.Context, id uuid.UUID) (bool, error) {
+					assert.Equal(t, failed.ID, id)
+					return true, nil
+				},
+				// The background attempt starts by claiming the binding; declining ends it there.
+				ClaimForAttemptFunc: func(_ context.Context, id uuid.UUID) (bool, error) {
+					attempted <- id
+					return false, nil
+				},
+			}
+			svc := newTestProvisioningService(repo, nil, nil)
 
-	view, err := svc.RetryProvisioning(context.Background(), "ou", "p", "a", "default")
-	require.NoError(t, err)
-	assert.Equal(t, models.AgentThunderStatusPending, view.Status)
-	assert.Equal(t, "default", view.EnvironmentName)
-	assert.Equal(t, "tid", view.AgentID)
-	assert.Equal(t, "user-1", view.RequestedBy)
-	select {
-	case id := <-attempted:
-		assert.Equal(t, failed.ID, id)
-	case <-time.After(5 * time.Second):
-		t.Fatal("no provisioning attempt followed the reset")
+			view, err := svc.RetryProvisioning(context.Background(), "ou", "p", "a", "default")
+			require.NoError(t, err)
+			assert.Equal(t, models.AgentThunderStatusPending, view.Status)
+			assert.Equal(t, "default", view.EnvironmentName)
+			assert.Equal(t, "tid", view.AgentID)
+			assert.Equal(t, "user-1", view.RequestedBy)
+			select {
+			case id := <-attempted:
+				assert.Equal(t, failed.ID, id)
+			case <-time.After(5 * time.Second):
+				t.Fatal("no provisioning attempt followed the reset")
+			}
+		})
 	}
 }
 
@@ -90,6 +100,14 @@ func TestRetryProvisioning_Refusals(t *testing.T) {
 		"not failed": {
 			get: func() (*models.AgentThunderClient, error) {
 				return bindingWith(models.AgentThunderStatusCompleted), nil
+			},
+			want: utils.ErrAgentIdentityRetryNotAllowed,
+		},
+		"pending without an error": {
+			get: func() (*models.AgentThunderClient, error) {
+				b := bindingWith(models.AgentThunderStatusPending)
+				b.LastError = ""
+				return b, nil
 			},
 			want: utils.ErrAgentIdentityRetryNotAllowed,
 		},

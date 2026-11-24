@@ -119,7 +119,20 @@ func TestAgentThunderClientRepo_ResetFailedForRetry(t *testing.T) {
 
 	reset, err := repo.ResetFailedForRetry(ctx, c.ID)
 	require.NoError(t, err)
-	assert.False(t, reset, "only a failed binding is reset")
+	assert.False(t, reset, "a pending binding that has not failed is not reset")
+
+	// A failed attempt that still has attempts left stays PENDING with its
+	// error; the user is told to retry, and can.
+	require.NoError(t, repo.UpdateAfterAttempt(ctx, c.ID, AgentThunderAttemptUpdate{
+		Status: models.AgentThunderStatusPending, LastError: "thunder busy",
+	}))
+	reset, err = repo.ResetFailedForRetry(ctx, c.ID)
+	require.NoError(t, err)
+	assert.True(t, reset, "a pending binding with an error is reset")
+	again, err := repo.Get(ctx, ou, "p", "retry", "dev")
+	require.NoError(t, err)
+	assert.Zero(t, again.AttemptCount)
+	assert.Empty(t, again.LastError)
 
 	for range 3 {
 		require.NoError(t, repo.UpdateAfterAttempt(ctx, c.ID, AgentThunderAttemptUpdate{
