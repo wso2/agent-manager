@@ -268,3 +268,27 @@ func covProxyID(t *testing.T, repo LLMProxyRepository, handle, ou string) uuid.U
 	require.NoError(t, err)
 	return p.UUID
 }
+
+// A template an LLM provider of its organization uses is not deleted; one used only in another organization is.
+func TestLLMProviderTemplateRepoDeleteRefusesATemplateInUse(t *testing.T) {
+	gdb := db.GetDB()
+	providers := NewLLMProviderRepo(gdb, gwtest.NewSecrets())
+	templates := NewLLMProviderTemplateRepo(gdb)
+	ou, other := newOrg(t), newOrg(t)
+	for _, org := range []string{ou, other} {
+		require.NoError(t, templates.Create(&gwmodels.LLMProviderTemplate{OUID: org, Handle: "custom", Name: "Custom"}))
+	}
+	p, _ := covProvider(t, providers, ou, "sk-provider")
+	require.NoError(t, gdb.Model(&gwmodels.LLMProvider{}).Where("id = ?", p.UUID).Update("template_handle", "custom").Error)
+
+	require.ErrorIs(t, templates.Delete("custom", ou), gwerr.ErrLLMProviderTemplateInUse)
+	exists, err := templates.Exists("custom", ou)
+	require.NoError(t, err)
+	require.True(t, exists, "a template in use is kept")
+
+	require.NoError(t, templates.Delete("custom", other), "another organization's provider doesn't hold the template")
+
+	require.NoError(t, providers.Delete(p.UUID.String(), ou))
+	require.NoError(t, templates.Delete("custom", ou))
+	require.ErrorIs(t, templates.Delete("custom", ou), gorm.ErrRecordNotFound)
+}

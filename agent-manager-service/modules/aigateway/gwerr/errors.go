@@ -81,6 +81,7 @@ var (
 	ErrDeploymentNotActive         = errors.New("deployment not active")
 	ErrLLMProviderTemplateNotFound = errors.New("LLM provider template not found")
 	ErrLLMProviderTemplateExists   = errors.New("LLM provider template already exists")
+	ErrLLMProviderTemplateInUse    = errors.New("cannot delete LLM provider template: LLM providers use it. Switch those providers to another template or delete them first")
 	ErrLLMProviderNotFound         = errors.New("LLM provider not found")
 	ErrLLMProviderExists           = errors.New("LLM provider already exists")
 	ErrLLMProviderHasProxies       = errors.New("cannot delete LLM provider: it has associated LLM proxies. Please delete all proxies before deleting the provider")
