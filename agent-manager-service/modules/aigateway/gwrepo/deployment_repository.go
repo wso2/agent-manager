@@ -248,7 +248,7 @@ func (r *DeploymentRepo) GetWithStateCtx(ctx context.Context, deploymentID, arti
 	}
 	// Scan leaves the struct empty rather than failing when no row matches.
 	if res.RowsAffected == 0 {
-		return nil, nil
+		return nil, gwerr.ErrDeploymentNotFound
 	}
 
 	// If status is NULL, it's ARCHIVED
