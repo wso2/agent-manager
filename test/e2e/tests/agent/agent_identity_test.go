@@ -82,7 +82,11 @@ var _ = Describe("Agent identity:", Label("agent", "agent-identity"), Ordered, f
 			g.Expect(views).To(HaveLen(1))
 			g.Expect(views[0].Status).To(Equal("completed"), "last error: %s", views[0].LastError)
 			clientID = views[0].ClientID
-		}).WithTimeout(time.Minute).WithPolling(2 * time.Second).Should(Succeed())
+			// A failed attempt that isn't the last stays pending and is retried
+			// after 3 minutes, picked up on the reconciler's 1-minute tick. The
+			// test identity provider's SQLite can refuse a write under parallel
+			// load, so allow for one automatic retry.
+		}).WithTimeout(5 * time.Minute).WithPolling(2 * time.Second).Should(Succeed())
 		Expect(clientID).NotTo(BeEmpty())
 
 		// Retrying a completed provisioning is a no-op that keeps the client.
