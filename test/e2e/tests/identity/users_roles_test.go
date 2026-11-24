@@ -107,6 +107,12 @@ var _ = Describe("Users, groups and custom roles", Label("identity"), Ordered, f
 		}}, http.StatusOK)
 		got := framework.CallObj(Default, Client, http.MethodGet, id("/users/%s", userID), nil, http.StatusOK)
 		Expect(framework.Str(got, "attributes", "given_name")).To(Equal("Renamed"))
+
+		// The update replaces every attribute, so leaving out a required one is refused.
+		framework.CallError(Default, Client, http.MethodPut, id("/users/%s", userID),
+			framework.Obj{"attributes": framework.Obj{"given_name": "Partial"}}, http.StatusBadRequest)
+		got = framework.CallObj(Default, Client, http.MethodGet, id("/users/%s", userID), nil, http.StatusOK)
+		Expect(framework.Str(got, "attributes", "given_name")).To(Equal("Renamed"))
 	})
 
 	It("keeps profiles private to their owner", func() {

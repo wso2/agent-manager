@@ -113,6 +113,12 @@ func TestLLMRoutesProviderCatalogFlag(t *testing.T) {
 
 	got := expectInto[gwspec.LlmProviderDocument](t, a.do(http.MethodGet, "/llm-providers/"+handle, nil), http.StatusOK)
 	require.True(t, *got.Spec.InCatalog, "the catalog change is stored")
+
+	// The handle names the provider on update too, as it does on GET and DELETE.
+	byHandle := expectInto[gwspec.LlmProviderDocument](t, a.do(http.MethodPut, "/llm-providers/"+handle,
+		llmProviderUpdate(handle, map[string]any{"inCatalog": false, "gateways": []string{}})), http.StatusOK)
+	require.False(t, *byHandle.Spec.InCatalog)
+	require.Equal(t, uid, *byHandle.Metadata.Uid)
 }
 
 // spec.gateways deploys on create, is reported back, and an empty list on update undeploys.
@@ -331,10 +337,17 @@ func TestLLMRoutesProviderProxiesAndConsumers(t *testing.T) {
 	require.Equal(t, "agent", consumers.Consumers[0].ConsumerType)
 	require.Equal(t, "llm-cons", consumers.Consumers[0].ProjectName)
 
-	for _, p := range []string{"/llm-proxies", "/consumers"} {
-		rec := a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+uuid.NewString()+p, nil)
-		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", p, rec.Body.String())
-		require.Equal(t, "LLM provider not found", errorMessage(t, rec))
+	byHandle := expectInto[gwspec.LLMProxyListResponse](t,
+		a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+handle+"/llm-proxies", nil), http.StatusOK)
+	require.EqualValues(t, 2, byHandle.Total)
+
+	// An unknown provider is a 404 whether it is named by UUID or by handle.
+	for _, id := range []string{uuid.NewString(), unique("missing")} {
+		for _, p := range []string{"/llm-proxies", "/consumers"} {
+			rec := a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+id+p, nil)
+			require.Equal(t, http.StatusNotFound, rec.Code, "%s%s: %s", id, p, rec.Body.String())
+			require.Equal(t, "LLM provider not found", errorMessage(t, rec))
+		}
 	}
 }
 

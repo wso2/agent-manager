@@ -596,6 +596,8 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 		return nil, gwerr.ErrLLMProviderNotFound
 	}
 	apiKeyAuthWasEnabled := isAPIKeyAuthEnabled(existing.Configuration.Security)
+	// The caller may name the provider by handle; the row is keyed by UUID.
+	providerID = existing.UUID.String()
 
 	// Only vet the location when the update touches security — a legacy row stored with
 	// an unsupported one would otherwise be uneditable.
@@ -824,12 +826,9 @@ func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID
 
 	slog.Info("LLMProviderService.UpdateAndSync: provider updated successfully", "providerID", providerID, "providerUUID", updated.UUID)
 
-	// Parse UUIDs
-	providerUUID, err := uuid.Parse(providerID)
-	if err != nil {
-		slog.Error("LLMProviderService.UpdateAndSync: invalid provider UUID", "providerID", providerID, "error", err)
-		return nil, fmt.Errorf("invalid provider UUID: %w", err)
-	}
+	// The caller may name the provider by handle.
+	providerUUID := updated.UUID
+	providerID = providerUUID.String()
 
 	// Convert gateway IDs to UUIDs and track invalid ones
 	gatewayUUIDs := make([]uuid.UUID, 0, len(gatewayIDs))

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -394,6 +395,17 @@ func TestIdentityController_UpdateUser(t *testing.T) {
 			idCall{method: http.MethodPut, url: "/x", body: `{"attributes":{"email":"new@example.com"}}`, params: params})
 		require.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "new@example.com", decodeMap(t, w)["attributes"].(map[string]any)["email"])
+	})
+
+	t.Run("attributes the user type refuses are a 400 with Thunder's reason", func(t *testing.T) {
+		client := owned()
+		client.UpdateUserFunc = func(context.Context, string, thundersvc.UpdateUserRequest) (*thundersvc.ThunderUser, error) {
+			return nil, fmt.Errorf("thunder update user: %w", &thundersvc.BadRequestError{Message: "{}", Description: "attribute email is required"})
+		}
+		w := serveIdentity(t, client, updateUser,
+			idCall{method: http.MethodPut, url: "/x", body: `{"attributes":{"given_name":"A"}}`, params: params})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "attribute email is required")
 	})
 
 	t.Run("no attributes sends an empty set", func(t *testing.T) {

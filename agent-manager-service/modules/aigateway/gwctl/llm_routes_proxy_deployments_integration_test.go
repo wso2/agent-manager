@@ -138,6 +138,7 @@ func TestLLMRoutesProxyDeploymentErrors(t *testing.T) {
 			http.StatusBadRequest, gwerr.ErrDeploymentBaseNotCurrent.Error(),
 		},
 		{"deploy to an ingress gateway", http.MethodPost, base, map[string]any{"gatewayId": ingress.UUID.String()}, http.StatusBadRequest, "Invalid input"},
+		{"deploy to an unknown gateway", http.MethodPost, base, map[string]any{"gatewayId": unknown}, http.StatusNotFound, "Gateway not found"},
 		{
 			"undeploy without a deployment", http.MethodPost, base + "/undeploy?gatewayId=" + unknown, nil, http.StatusBadRequest,
 			"deploymentId query parameter is required",

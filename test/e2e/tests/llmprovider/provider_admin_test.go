@@ -99,8 +99,9 @@ var _ = Describe("LLM provider administration:", Label("llm-provider", "admin"),
 		doc := llmproviderop.GetLLMProvider(Default, Client, providerName)
 		rotated := "Bearer sk-e2e-rotated-" + suffix
 		doc.Spec.Upstream.Main.Auth.Value = &rotated
-		// Updates take the provider's UUID; its handle answers 500.
+		// Updates take the provider's UUID or its handle, like GET and DELETE.
 		framework.Call(Default, Client, http.MethodPut, "/m/ai-gateway/llm-providers/"+providerID, doc, http.StatusOK)
+		framework.Call(Default, Client, http.MethodPut, "/m/ai-gateway/llm-providers/"+providerName, doc, http.StatusOK)
 		raw := framework.Call(Default, Client, http.MethodGet, "/m/ai-gateway/llm-providers/"+providerName, nil, http.StatusOK)
 		Expect(string(raw)).NotTo(ContainSubstring("sk-e2e-rotated-"), "the upstream key must not be returned")
 	})

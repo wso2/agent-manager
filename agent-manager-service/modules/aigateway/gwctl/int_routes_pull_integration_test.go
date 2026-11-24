@@ -108,4 +108,9 @@ func TestINTRoutesPullServesADeployedLLMProviderAndProxy(t *testing.T) {
 	rec = a.call(http.MethodGet, "/llm-proxies/"+unique("unknown"), nil)
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	require.Contains(t, rec.Body.String(), "LLM proxy not found")
+	for _, id := range []string{uuid.NewString(), unique("unknown")} {
+		rec = a.call(http.MethodGet, "/llm-providers/"+id, nil)
+		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
+		require.Contains(t, rec.Body.String(), "LLM provider not found")
+	}
 }
