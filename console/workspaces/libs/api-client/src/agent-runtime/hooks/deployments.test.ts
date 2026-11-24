@@ -99,6 +99,8 @@ describeQueryHooks("deployment queries", [
       () => useListAgentDeployments({ ...params, agentName: "" }),
       // The caller's flag wins over complete params.
       () => useListAgentDeployments(params, { enabled: false }),
+      // ...but cannot send a request that is missing the agent's path.
+      () => useListAgentDeployments({ ...params, agentName: "" }, { enabled: true }),
     ],
   },
   {

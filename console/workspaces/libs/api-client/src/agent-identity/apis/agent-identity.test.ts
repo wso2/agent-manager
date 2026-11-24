@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { httpDELETE, httpGET, httpPOST, httpPUT } from "../../shared/utils";
 import { describeHttpCases, getToken, type HttpMocks } from "../../test-utils/http-cases";
 import {
@@ -80,11 +80,6 @@ describeHttpCases("agent identity API", mocks, [
     name: "listAgentIdentityGroups without a query sends no page params",
     call: () => listAgentIdentityGroups(env, undefined, getToken),
     method: "GET", url: `${BASE}/groups`,
-  },
-  {
-    name: "listAgentIdentityGroups falls back to the default org",
-    call: () => listAgentIdentityGroups({ envName: "dev" } as never, undefined, getToken),
-    method: "GET", url: "/m/ai-gateway/orgs/default/environments/dev/agent-identities/groups",
   },
   {
     name: "createAgentIdentityGroup",
@@ -177,3 +172,11 @@ describeHttpCases("agent identity API", mocks, [
     method: "GET", url: `${BASE}/scopes`,
   },
 ]);
+
+describe("agent identity API refuses a missing org", () => {
+  it("does not send the request to another org", async () => {
+    mocks.GET.mockReset();
+    await expect(listAgentIdentityGroups({ envName: "dev" } as never, undefined, getToken)).rejects.toThrow("orgName");
+    expect(mocks.GET).not.toHaveBeenCalled();
+  });
+});

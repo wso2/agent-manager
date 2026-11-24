@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { LoginPage } from '../pages/LoginPage';
 import { OrgOverviewPage } from '../pages/OrgOverviewPage';
-import { Shell } from '../pages/Shell';
 import { adminPassword, adminUser, orgName } from '../support/env';
 
 // Signs in through the form, so it starts signed out (no stored session).
@@ -26,11 +25,7 @@ test.describe('sign-in', () => {
     await expect(login.signIn).toBeDisabled();
     await login.signInAs(adminUser, adminPassword());
 
-    // Sign-in opens a project (the one named default, else the first), not
-    // the organization; the header's organization link leads there.
-    await expect(page).toHaveURL(new RegExp(`/org/${orgName}/`));
-    await new Shell(page).org.click();
-
+    // Sign-in lands on the organization overview.
     const overview = new OrgOverviewPage(page);
     await expect(page).toHaveURL(new RegExp(`/org/${orgName}$`));
     await expect(overview.greeting).toBeVisible();

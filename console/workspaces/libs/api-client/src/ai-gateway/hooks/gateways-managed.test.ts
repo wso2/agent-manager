@@ -154,7 +154,7 @@ describeMutationHooks("gateway mutations", SEEDED, [
   },
   {
     name: "useDeleteGateway", use: useDeleteGateway, api: m.deleteGateway,
-    variables: gw, args: [gw], invalidates: ["gateways"],
+    variables: gw, args: [gw], invalidates: ["gateways", "gateway"],
   },
   {
     name: "useAssignGatewayToEnvironment", use: useAssignGatewayToEnvironment, api: m.assignGatewayToEnvironment,
