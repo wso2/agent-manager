@@ -107,3 +107,56 @@ func TestResolutionFailuresWrapErrHostNotPublic(t *testing.T) {
 		t.Errorf("a malformed URL is not a host failure: %v", err)
 	}
 }
+
+// A name is checked by every address it resolves to.
+func TestResolvePublicIPsChecksEveryResolvedAddress(t *testing.T) {
+	addrs := func(ss ...string) []netip.Addr {
+		out := make([]netip.Addr, 0, len(ss))
+		for _, s := range ss {
+			out = append(out, netip.MustParseAddr(s))
+		}
+		return out
+	}
+	errDNS := errors.New("dns down")
+	for name, tc := range map[string]struct {
+		resolved []netip.Addr
+		err      error
+		want     []netip.Addr
+		wantErr  bool
+	}{
+		"all public":               {resolved: addrs("8.8.8.8", "2001:4860:4860::8888"), want: addrs("8.8.8.8", "2001:4860:4860::8888")},
+		"an IPv4-mapped address":   {resolved: addrs("::ffff:8.8.4.4"), want: addrs("8.8.4.4")},
+		"one private among public": {resolved: addrs("8.8.8.8", "10.1.2.3"), wantErr: true},
+		"a mapped private address": {resolved: addrs("::ffff:127.0.0.1"), wantErr: true},
+		"no addresses":             {resolved: nil, wantErr: true},
+		"lookup failure":           {err: errDNS, wantErr: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			saved := lookupNetIP
+			t.Cleanup(func() { lookupNetIP = saved })
+			lookupNetIP = func(context.Context, string, string) ([]netip.Addr, error) { return tc.resolved, tc.err }
+
+			got, err := ResolvePublicIPs(context.Background(), "api.example.com")
+			if tc.wantErr {
+				if !errors.Is(err, ErrHostNotPublic) {
+					t.Fatalf("err = %v, want ErrHostNotPublic", err)
+				}
+				if tc.err != nil && !errors.Is(err, tc.err) {
+					t.Fatalf("err = %v, want it to wrap %v", err, tc.err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("got %v, want %v", got, tc.want)
+				}
+			}
+		})
+	}
+}
