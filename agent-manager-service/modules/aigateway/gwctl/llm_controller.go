@@ -297,6 +297,9 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 		case errors.Is(err, gwerr.ErrLLMProviderTemplateNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
+		case errors.Is(err, gwerr.ErrLLMProviderTemplateInUse):
+			httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrLLMProviderTemplateInUse.Error())
+			return
 		case errors.Is(err, httpx.ErrInvalidInput):
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid template id")
 			return

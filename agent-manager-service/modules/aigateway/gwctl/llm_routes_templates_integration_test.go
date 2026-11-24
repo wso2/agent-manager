@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 )
@@ -69,6 +70,27 @@ func TestLLMRoutesTemplateLifecycle(t *testing.T) {
 	rec = a.do(http.MethodGet, llmTemplatesPath+"/"+handle, nil)
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	require.Equal(t, "LLM provider template not found", errorMessage(t, rec))
+}
+
+// A template an LLM provider uses is not deleted until the provider is gone.
+func TestLLMRoutesTemplateInUseIsNotDeleted(t *testing.T) {
+	a := newRouteAPI(t)
+	handle := unique("used-tpl")
+	expect(t, a.do(http.MethodPost, llmTemplatesPath, map[string]any{
+		"id": handle, "name": "Used", "metadata": map[string]any{"endpointUrl": "https://llm.example.com/v1"},
+	}), http.StatusCreated)
+	provider := unique("on-custom")
+	doc := llmProviderDoc(provider)
+	doc["spec"].(map[string]any)["template"] = handle
+	expect(t, a.do(http.MethodPost, "/llm-providers", doc), http.StatusCreated)
+
+	rec := a.do(http.MethodDelete, llmTemplatesPath+"/"+handle, nil)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	require.Equal(t, gwerr.ErrLLMProviderTemplateInUse.Error(), errorMessage(t, rec))
+	expect(t, a.do(http.MethodGet, llmTemplatesPath+"/"+handle, nil), http.StatusOK)
+
+	expect(t, a.do(http.MethodDelete, "/llm-providers/"+provider, nil), http.StatusNoContent)
+	expect(t, a.do(http.MethodDelete, llmTemplatesPath+"/"+handle, nil), http.StatusNoContent)
 }
 
 // A built-in template is readable but cannot be shadowed, changed or deleted.
