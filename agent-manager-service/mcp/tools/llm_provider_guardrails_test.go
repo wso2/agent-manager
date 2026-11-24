@@ -183,8 +183,8 @@ func TestGetLLMProviderShowsGuardrailRouteScope(t *testing.T) {
 		t.Fatalf("tool failed: %s", text)
 	}
 	want := `"guardrails":[{"name":"` + testGuardrailName + `","version":"v1","all_routes":false,"routes":[` +
-		`{"path":"/chat/completions","methods":["POST"],"params":{"mask":"chat"}},` +
-		`{"path":"/embeddings","methods":["POST"],"params":{"mask":"embed"}}]}]`
+		`{"path":"/chat/completions","methods":["POST"],"params":{"mask":"[redacted]"}},` +
+		`{"path":"/embeddings","methods":["POST"],"params":{"mask":"[redacted]"}}]}]`
 	if !strings.Contains(text, want) {
 		t.Errorf("output does not show the route scope\n got: %s\nwant: %s", text, want)
 	}
@@ -522,4 +522,63 @@ func TestGuardrailsWhenAvailabilityUnknown(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Policy definitions do not mark sensitive parameters, so text values must be
+// hidden whatever the parameter is called, at any depth, on every tool that
+// returns guardrails.
+func TestGuardrailOutputRedactsParamValues(t *testing.T) {
+	const secret = "s3cr3t-synthetic-value"
+	policies := []models.LLMPolicy{{Name: "basic-auth", Version: "v1", Paths: []models.LLMPolicyPath{
+		allRoutes(map[string]any{
+			"username": "alice",
+			"password": secret,
+			"value":    secret + "-1",
+			"nested":   map[string]any{"anything": secret + "-2", "list": []any{map[string]any{"x": secret + "-3"}, secret + "-4"}},
+			"enabled":  true,
+			"limit":    float64(5),
+			"empty":    "",
+		}),
+		chatRoute(map[string]any{"token": secret + "-5"}),
+	}}}
+	for _, tool := range []string{"get_llm_provider", "remove_llm_provider_guardrail"} {
+		args := map[string]any{}
+		if tool != "get_llm_provider" {
+			args["name"] = "no-such-guardrail"
+		}
+		_, text, _ := callGuardrailTool(t, policies, tool, args)
+		if tool == "get_llm_provider" {
+			if strings.Contains(text, secret) {
+				t.Errorf("%s leaked a param value: %s", tool, text)
+			}
+			for _, want := range []string{`"enabled":true`, `"limit":5`, `"username":"[redacted]"`, `"password":"[redacted]"`} {
+				if !strings.Contains(text, want) {
+					t.Errorf("%s output missing %s: %s", tool, want, text)
+				}
+			}
+		}
+	}
+
+	// A mutation echoes the saved guardrails: they must be redacted too.
+	policies = []models.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []models.LLMPolicyPath{
+		allRoutes(map[string]any{"mask": "old"}),
+		chatRoute(map[string]any{"apiKey": secret}),
+	}}}
+	failed, text, _ := callGuardrailTool(t, policies, "add_llm_provider_guardrails", map[string]any{
+		"guardrails": []any{map[string]any{"name": testGuardrailName, "version": "v1", "params": map[string]any{"mask": "new"}}},
+	})
+	if failed || strings.Contains(text, secret) || strings.Contains(text, `"new"`) {
+		t.Errorf("add leaked a param value or failed (failed=%v): %s", failed, text)
+	}
+}
+
+// A model that copies the redaction marker back must not overwrite the stored value.
+func TestAddGuardrailRejectsRedactionMarker(t *testing.T) {
+	policies := []models.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []models.LLMPolicyPath{allRoutes(map[string]any{"mask": "old"})}}}
+	failed, text, saved := callGuardrailTool(t, policies, "add_llm_provider_guardrails", map[string]any{
+		"guardrails": []any{map[string]any{"name": testGuardrailName, "version": "v1", "params": map[string]any{"deep": map[string]any{"mask": "[redacted]"}}}},
+	})
+	if !failed || saved != nil || !strings.Contains(text, "[redacted]") {
+		t.Errorf("marker must be refused before saving (failed=%v saved=%v): %s", failed, saved, text)
+	}
 }
