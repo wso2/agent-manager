@@ -27,8 +27,6 @@ type Query = { data?: unknown; isLoading: boolean; error?: unknown };
 const mocks = vi.hoisted(() => ({
   auth: {} as Record<string, unknown>,
   orgs: {} as Query,
-  projects: {} as Query,
-  projectQueries: [] as unknown[],
   setTelemetryTokenProvider: vi.fn(),
   setTelemetrySubject: vi.fn(),
   sessionSubjects: [] as unknown[],
@@ -42,10 +40,6 @@ vi.mock("@agent-management-platform/auth", async (importOriginal) => ({
 vi.mock("@agent-management-platform/api-client", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useListOrganizations: () => mocks.orgs,
-  useListProjects: (params: unknown) => {
-    mocks.projectQueries.push(params);
-    return mocks.projects;
-  },
   setTelemetryTokenProvider: mocks.setTelemetryTokenProvider,
   setTelemetrySubject: mocks.setTelemetrySubject,
   useSessionAnalytics: (subject: unknown) => {
@@ -68,8 +62,6 @@ function renderAt(path: string) {
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/login" element={<Where />} />
-          <Route path="/org/:orgId/project/:projectId" element={<Where />} />
-          <Route path="/org/:orgId/projects" element={<Where />} />
           {["/", "/org/:orgId"].map((p) => (
             <Route
               key={p}
@@ -92,7 +84,6 @@ const getToken = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.projectQueries.length = 0;
   mocks.sessionSubjects.length = 0;
   mocks.auth = {
     isAuthenticated: true,
@@ -106,7 +97,6 @@ beforeEach(() => {
     isLoading: false,
     error: null,
   };
-  mocks.projects = { data: { projects: [{ name: "p1" }, { name: "default" }] }, isLoading: false };
 });
 
 describe("Protected", () => {
@@ -132,8 +122,6 @@ describe("Protected", () => {
     expect(mocks.sessionSubjects).toContain("user-1");
     expect(mocks.setTelemetryTokenProvider).toHaveBeenCalledWith(getToken);
     expect(mocks.setTelemetrySubject).toHaveBeenCalledWith("user-1");
-    // The landing project list is not needed when the URL names an org.
-    expect(mocks.projectQueries.at(-1)).toEqual({ orgName: "" });
     view.unmount();
     expect(mocks.setTelemetryTokenProvider).toHaveBeenLastCalledWith(undefined);
   });
@@ -161,29 +149,9 @@ describe("Protected", () => {
     expect(logout).toHaveBeenCalled();
   });
 
-  it("lands on the first org's default project at /", () => {
+  it("lands on the first org's overview at /", () => {
     renderAt("/");
-    expect(screen.getByTestId("where")).toHaveTextContent("/org/acme/project/default|/");
-    // Projects are listed for the namespace, not the URL handle.
-    expect(mocks.projectQueries.at(-1)).toEqual({ orgName: "ns-acme" });
-  });
-
-  it("falls back to the first project when there is no default one", () => {
-    mocks.projects = { data: { projects: [{ name: "p1" }, { name: "p2" }] }, isLoading: false };
-    renderAt("/");
-    expect(screen.getByTestId("where")).toHaveTextContent("/org/acme/project/p1|/");
-  });
-
-  it("lands on the project listing when the org has no projects", () => {
-    mocks.projects = { data: { projects: [] }, isLoading: false };
-    renderAt("/");
-    expect(screen.getByTestId("where")).toHaveTextContent("/org/acme/projects|/");
-  });
-
-  it("waits for the project list before landing", () => {
-    mocks.projects = { isLoading: true };
-    renderAt("/");
-    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
-    expect(screen.queryByTestId("where")).not.toBeInTheDocument();
+    // Only /org/:orgId renders the content for a signed-in user; / redirects.
+    expect(screen.getByText("protected content")).toBeInTheDocument();
   });
 });
