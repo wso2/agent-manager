@@ -35,6 +35,9 @@ import {
 } from "../__test__/renderWithProviders";
 import { LLMProviderRateLimitingTab } from "./LLMProviderRateLimitingTab";
 
+// Oxygen UI pages are slow to render under a loaded CI runner.
+vi.setConfig({ testTimeout: 60_000 });
+
 const onUpdate = vi.fn();
 
 const renderTab = (
