@@ -29,12 +29,12 @@ _tool_hint() {
 
 # verify_prerequisites [extra-tool ...] — confirm the required host tools are present
 # (and the Docker daemon is reachable) BEFORE any cluster work. Core set:
-# docker/k3d/kubectl/helm/curl; callers may append extras (e.g. openssl). All missing
+# docker/k3d/kubectl/helm/curl; callers may append extras. All missing
 # tools are reported together with install hints, then the installer exits non-zero.
 verify_prerequisites() {
   # lsof is required by the wrapped quick-start installer (install.sh port checks),
   # so include it here to fail fast in this friendly preflight rather than deep inside.
-  local -a required=(docker k3d kubectl helm curl lsof) missing=()
+  local -a required=(docker k3d kubectl helm curl lsof openssl) missing=()
   required+=("$@")
   local t
   for t in "${required[@]}"; do

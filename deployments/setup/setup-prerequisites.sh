@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/env.sh"
 source "$SCRIPT_DIR/utils.sh"
+source "$SCRIPT_DIR/../scripts/platform-oauth.sh"
 
 # ============================================================================
 # Version Constants
@@ -87,6 +88,8 @@ echo "✅ Kgateway installed successfully"
 # ============================================================================
 echo ""
 echo "5️⃣  Openbao SecretBackend for Workflow plane"
+platform_oauth_init
+platform_oauth_for_openbao
 helm_install_if_not_exists "openbao" "openbao" \
     "oci://ghcr.io/openbao/charts/openbao" \
     --version ${OPENBAO_VERSION} \

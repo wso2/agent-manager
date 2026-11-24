@@ -3,20 +3,23 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/../scripts/platform-oauth.sh"
 
 # Keep the developer stack aligned with the Thunder release installed by setup.
 # Export either value explicitly to use a different set of client credentials.
 if [[ -z "${IDP_CLIENT_SECRET:-}" || -z "${THUNDER_CLIENT_SECRET:-}" ]]; then
-    command -v jq >/dev/null || { echo "Install jq or export both Thunder client credentials." >&2; exit 1; }
-    bootstrap=$(helm get values amp-thunder-extension --namespace amp-thunder \
-        --kube-context "$CLUSTER_CONTEXT" --all --output json |
-        jq -ce '.thunder.bootstrap')
-    if [[ -z "${IDP_CLIENT_SECRET:-}" ]]; then
-        IDP_CLIENT_SECRET=$(jq -er '.ampApiClient.clientSecret | strings | select(length > 0)' <<< "$bootstrap")
+    # Mirror the Thunder bootstrap: explicit Helm credentials take precedence.
+    release="$(helm list --namespace amp-thunder --kube-context "$CLUSTER_CONTEXT" \
+        --filter '^amp-thunder-extension$' --short)"
+    if [[ -n "$release" ]]; then
+        command -v jq >/dev/null || { echo "Install jq or export both Thunder client credentials." >&2; exit 1; }
+        bootstrap="$(helm get values amp-thunder-extension --namespace amp-thunder \
+            --kube-context "$CLUSTER_CONTEXT" --all --output json | jq -ce '.thunder.bootstrap')"
+        IDP_CLIENT_SECRET="${IDP_CLIENT_SECRET:-$(jq -r '.ampApiClient.clientSecret // empty' <<< "$bootstrap")}"
+        THUNDER_CLIENT_SECRET="${THUNDER_CLIENT_SECRET:-$(jq -r '.ampSystemClient.clientSecret // empty' <<< "$bootstrap")}"
     fi
-    if [[ -z "${THUNDER_CLIENT_SECRET:-}" ]]; then
-        THUNDER_CLIENT_SECRET=$(jq -er '.ampSystemClient.clientSecret | strings | select(length > 0)' <<< "$bootstrap")
-    fi
+    IDP_CLIENT_SECRET="${IDP_CLIENT_SECRET:-$(platform_oauth_read AMP_API_CLIENT_SECRET "$CLUSTER_CONTEXT")}"
+    THUNDER_CLIENT_SECRET="${THUNDER_CLIENT_SECRET:-$(platform_oauth_read AMP_SYSTEM_CLIENT_SECRET "$CLUSTER_CONTEXT")}"
 fi
 
 export IDP_CLIENT_SECRET THUNDER_CLIENT_SECRET

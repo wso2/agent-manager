@@ -61,7 +61,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 missing=()
-for tool in k3d kubectl helm curl tar lsof; do
+for tool in k3d kubectl helm curl tar lsof openssl; do
   command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
 done
 [[ ${#missing[@]} -eq 0 ]] || \

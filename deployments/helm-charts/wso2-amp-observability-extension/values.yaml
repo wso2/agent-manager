@@ -39,23 +39,16 @@ amObserver:
     # Seeded by wso2-amp-thunder-extension (amObserverClient); authorized via
     # the amp-observer-reader ClusterAuthzRoleBinding in
     # wso2-amp-platform-resources-extension. No amp:* scopes.
-    # Generate this the same way as every other client secret in this
-    # product (e.g. AM_OBSERVER_CLIENT_SECRET="$(openssl rand -hex 32)") and
-    # pass it here AND to thunder.bootstrap.amObserverClient.clientSecret —
-    # they must match, since Thunder is what actually issued this client.
-    # Prefer existingSecret below over the inline value for production.
-    # NOTE: the Thunder bootstrap job is a pre-install-only hook — on an existing install, helm upgrade does NOT create this client; re-run the bootstrap job (or reinstall the thunder extension) before rolling out this value.
     idpClientId: "am-observer-client"
-    # Unlike apiKey/encryptionKey elsewhere in this product, there is no safe
-    # empty-value fallback here: this must match whatever Thunder actually
-    # issued for amObserverClient, so it stays at the same default that chart
-    # ships (thunder.bootstrap.amObserverClient.clientSecret) rather than
-    # being emptied — override BOTH together via existingSecret in production.
-    idpClientSecret: "am-observer-client-secret"
+    # Use the same credential as thunder.bootstrap.amObserverClient.
+    # Defaults to amp-observer-oauth in this namespace when no inline secret is supplied.
+    idpClientSecret: ""
     # Reference an existing secret for IDP credentials (recommended for production).
     # When set, idpClientId/idpClientSecret above are ignored.
     existingSecret: ""
+    # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
     existingSecretClientIdKey: "idpClientId"
+    # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
     existingSecretClientSecretKey: "idpClientSecret"
     defaultNamespace: "default"
   # JWT authentication — must match the agent-manager keyManager config so the

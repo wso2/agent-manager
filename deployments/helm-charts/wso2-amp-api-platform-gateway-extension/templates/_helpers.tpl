@@ -128,11 +128,11 @@ chart ships in lockstep with that operator where AMS config did not.
 Resolve the IDP client ID from secret or direct value
 */}}
 {{- define "wso2-amp-gateway-extension.idpClientIdEnv" -}}
-{{- if .Values.agentManager.idp.existingSecret }}
+{{- if or .Values.agentManager.idp.existingSecret (not .Values.agentManager.idp.clientSecret) }}
 - name: IDP_CLIENT_ID
   valueFrom:
     secretKeyRef:
-      name: {{ .Values.agentManager.idp.existingSecret }}
+      name: {{ .Values.agentManager.idp.existingSecret | default "gateway-idp-credentials" | quote }}
       key: {{ required "agentManager.idp.existingSecretClientIdKey is required when using existingSecret" .Values.agentManager.idp.existingSecretClientIdKey }}
 {{- else }}
 - name: IDP_CLIENT_ID
@@ -144,11 +144,11 @@ Resolve the IDP client ID from secret or direct value
 Resolve the IDP client secret from secret or direct value
 */}}
 {{- define "wso2-amp-gateway-extension.idpClientSecretEnv" -}}
-{{- if .Values.agentManager.idp.existingSecret }}
+{{- if or .Values.agentManager.idp.existingSecret (not .Values.agentManager.idp.clientSecret) }}
 - name: IDP_CLIENT_SECRET
   valueFrom:
     secretKeyRef:
-      name: {{ .Values.agentManager.idp.existingSecret }}
+      name: {{ .Values.agentManager.idp.existingSecret | default "gateway-idp-credentials" | quote }}
       key: {{ required "agentManager.idp.existingSecretClientSecretKey is required when using existingSecret" .Values.agentManager.idp.existingSecretClientSecretKey }}
 {{- else }}
 - name: IDP_CLIENT_SECRET

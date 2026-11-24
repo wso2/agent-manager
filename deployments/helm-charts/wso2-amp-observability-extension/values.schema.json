@@ -173,13 +173,13 @@
             },
             "idpClientId": {
               "default": "am-observer-client",
-              "description": "Dedicated outbound identity for calls to the OpenChoreo observer. Seeded by wso2-amp-thunder-extension (amObserverClient); authorized via the amp-observer-reader ClusterAuthzRoleBinding in wso2-amp-platform-resources-extension. No amp:* scopes. Generate this the same way as every other client secret in this product (e.g. AM_OBSERVER_CLIENT_SECRET=\"$(openssl rand -hex 32)\") and pass it here AND to thunder.bootstrap.amObserverClient.clientSecret \u2014 they must match, since Thunder is what actually issued this client. Prefer existingSecret below over the inline value for production. NOTE: the Thunder bootstrap job is a pre-install-only hook \u2014 on an existing install, helm upgrade does NOT create this client; re-run the bootstrap job (or reinstall the thunder extension) before rolling out this value.",
+              "description": "Dedicated outbound identity for calls to the OpenChoreo observer. Seeded by wso2-amp-thunder-extension (amObserverClient); authorized via the amp-observer-reader ClusterAuthzRoleBinding in wso2-amp-platform-resources-extension. No amp:* scopes. Prefer existingSecret below over the inline value for production. NOTE: the Thunder bootstrap job is a pre-install-only hook \u2014 on an existing install, helm upgrade does NOT create this client; re-run the bootstrap job (or reinstall the thunder extension) before rolling out this value.",
               "title": "idpClientId",
               "type": "string"
             },
             "idpClientSecret": {
-              "default": "am-observer-client-secret",
-              "description": "Unlike apiKey/encryptionKey elsewhere in this product, there is no safe empty-value fallback here: this must match whatever Thunder actually issued for amObserverClient, so it stays at the same default that chart ships (thunder.bootstrap.amObserverClient.clientSecret) rather than being emptied \u2014 override BOTH together via existingSecret in production.",
+              "default": "",
+              "description": "Defaults to amp-observer-oauth in this namespace when no inline secret is supplied.",
               "title": "idpClientSecret",
               "type": "string"
             },

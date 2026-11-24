@@ -294,6 +294,7 @@ spec:
             name: ${metadata.workflowRunName}-llm-proxy-credentials
             creationPolicy: Owner
           data: |
+            {{- /* checkov:skip=CKV_SECRET_6:ExternalSecret lookup names */}}
             ${externalRefs['llm-proxy-secret-reference'].spec.data.filter(secret, secret.secretKey == "LLM_API_KEY").map(secret, {
               "secretKey": secret.secretKey,
               "remoteRef": {

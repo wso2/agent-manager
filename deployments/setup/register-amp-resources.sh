@@ -17,7 +17,8 @@ set -e
 
 THUNDER_URL="${THUNDER_URL:-http://thunder.amp.localhost:8080}"
 CLIENT_ID="${THUNDER_CLIENT_ID:-amp-system-client}"
-CLIENT_SECRET="${THUNDER_CLIENT_SECRET:-amp-system-client-secret}"
+source "$(dirname "${BASH_SOURCE[0]}")/../scripts/platform-oauth.sh"
+CLIENT_SECRET="${THUNDER_CLIENT_SECRET:-$(platform_oauth_read AMP_SYSTEM_CLIENT_SECRET)}"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 log_info()    { echo -e "${BLUE}[INFO]${NC} $1" >&2; }

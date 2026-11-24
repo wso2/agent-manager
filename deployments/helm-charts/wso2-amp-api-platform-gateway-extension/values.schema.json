@@ -52,7 +52,7 @@
               "type": "string"
             },
             "clientSecret": {
-              "default": "amp-api-client-secret",
+              "default": "",
               "description": "OAuth 2.0 client secret. Prefer an existing Secret in real deployments. Allowed values: Prefer existingSecret; only set this for local/dev use.",
               "title": "clientSecret",
               "type": "string"

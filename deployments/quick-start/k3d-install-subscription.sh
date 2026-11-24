@@ -125,7 +125,7 @@ if [[ "$DOWNLOAD_ONLY" == false ]]; then
     fi
     die "$msg"
   fi
-  required=(k3d kubectl helm curl tar lsof)
+  required=(k3d kubectl helm curl tar lsof openssl)
 else
   required=(helm curl tar)
 fi

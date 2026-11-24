@@ -559,6 +559,10 @@ jobs:
           CHART_VERSION: ${{ inputs.target_version }}
         run: |
           set -o pipefail
+          if [[ -f deployments/scripts/platform-oauth.sh ]]; then
+            source deployments/scripts/platform-oauth.sh
+            platform_oauth_test_env
+          fi
           cd test/e2e && go run github.com/onsi/ginkgo/v2/ginkgo -v --procs=2 --timeout 70m \
             --poll-progress-after=600s --keep-going --junit-report=report.xml \
             ./tests/... 2>&1 | tee e2e-output.log
