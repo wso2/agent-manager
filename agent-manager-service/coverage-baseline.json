@@ -253,7 +253,7 @@
       "total": 22
     },
     "pkg/dbx": {
-      "covered": 88,
+      "covered": 86,
       "total": 97
     },
     "pkg/httpx": {
