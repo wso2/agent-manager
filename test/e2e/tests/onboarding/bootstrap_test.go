@@ -23,6 +23,8 @@ package onboarding
 import (
 	"net/http"
 
+	"github.com/google/uuid"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -112,14 +114,22 @@ var _ = Describe("Sign-in and first-org bootstrap", Label("onboarding"), func() 
 	})
 
 	It("turns a display name into a free resource name", func() {
+		// The stack starts with no project, so the spec makes the one it names.
+		project := framework.E2EProjectPrefix + "name-" + uuid.NewString()[:8]
+		framework.Call(Default, Client, http.MethodPost, framework.API(Cfg, "/projects"),
+			framework.NewCreateProjectRequest(project, "Name generation", "", "default"), http.StatusAccepted)
+		DeferCleanup(func() {
+			framework.Send(Default, Client, http.MethodDelete, framework.API(Cfg, "/projects/%s", project), nil)
+		})
+
 		gen := framework.CallObj(Default, Client, http.MethodPost, framework.API(Cfg, "/utils/generate-name"),
-			framework.Obj{"displayName": "My E2E Agent", "resourceType": "agent", "projectName": Cfg.DefaultProject}, http.StatusOK)
+			framework.Obj{"displayName": "My E2E Agent", "resourceType": "agent", "projectName": project}, http.StatusOK)
 		Expect(gen["name"]).To(Equal("my-e2e-agent"))
 
-		// The default project exists, so its name is taken and a suffix is added.
+		// The project exists, so its name is taken and a suffix is added.
 		gen = framework.CallObj(Default, Client, http.MethodPost, framework.API(Cfg, "/utils/generate-name"),
-			framework.Obj{"displayName": Cfg.DefaultProject, "resourceType": "project"}, http.StatusOK)
-		Expect(gen["name"]).To(HavePrefix(Cfg.DefaultProject + "-"))
+			framework.Obj{"displayName": project, "resourceType": "project"}, http.StatusOK)
+		Expect(gen["name"]).To(HavePrefix(project + "-"))
 
 		framework.CallError(Default, Client, http.MethodPost, framework.API(Cfg, "/utils/generate-name"),
 			framework.Obj{"displayName": "x", "resourceType": "widget"}, http.StatusBadRequest)
