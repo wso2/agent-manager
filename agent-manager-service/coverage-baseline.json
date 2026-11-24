@@ -5,15 +5,15 @@
       "total": 382
     },
     "api": {
-      "covered": 320,
+      "covered": 327,
       "total": 385
     },
     "app": {
-      "covered": 49,
+      "covered": 179,
       "total": 227
     },
     "audit": {
-      "covered": 601,
+      "covered": 603,
       "total": 635
     },
     "clients/moesifcollector": {
@@ -21,11 +21,11 @@
       "total": 29
     },
     "clients/requests": {
-      "covered": 81,
+      "covered": 159,
       "total": 169
     },
     "clients/secretmanagersvc": {
-      "covered": 99,
+      "covered": 126,
       "total": 126
     },
     "clients/secretmanagersvc/providers/inhouse": {
@@ -33,11 +33,11 @@
       "total": 144
     },
     "clients/secretmanagersvc/providers/unsupported": {
-      "covered": 2,
+      "covered": 10,
       "total": 10
     },
     "clients/thundersvc": {
-      "covered": 780,
+      "covered": 1174,
       "total": 1402
     },
     "config": {
@@ -49,15 +49,15 @@
       "total": 1
     },
     "controllers": {
-      "covered": 419,
+      "covered": 1817,
       "total": 1841
     },
     "coreext": {
-      "covered": 20,
+      "covered": 37,
       "total": 37
     },
     "db": {
-      "covered": 53,
+      "covered": 54,
       "total": 73
     },
     "db/connpool": {
@@ -65,12 +65,12 @@
       "total": 91
     },
     "db/dbtest": {
-      "covered": 43,
+      "covered": 44,
       "total": 44
     },
     "db_migrations": {
-      "covered": 72,
-      "total": 93
+      "covered": 78,
+      "total": 96
     },
     "db_migrations/schema": {
       "covered": 308,
@@ -81,7 +81,7 @@
       "total": 258
     },
     "fileauth": {
-      "covered": 73,
+      "covered": 99,
       "total": 101
     },
     "internal/cli": {
@@ -93,7 +93,7 @@
       "total": 42
     },
     "internal/modhost": {
-      "covered": 1569,
+      "covered": 1578,
       "total": 1801
     },
     "internal/reqorigin": {
@@ -105,7 +105,7 @@
       "total": 17
     },
     "mcp/handlers": {
-      "covered": 3,
+      "covered": 17,
       "total": 17
     },
     "mcp/tools": {
@@ -113,8 +113,8 @@
       "total": 350
     },
     "middleware": {
-      "covered": 429,
-      "total": 509
+      "covered": 447,
+      "total": 517
     },
     "middleware/growthanalytics": {
       "covered": 188,
@@ -125,7 +125,7 @@
       "total": 302
     },
     "models": {
-      "covered": 60,
+      "covered": 61,
       "total": 72
     },
     "modkit": {
@@ -137,11 +137,11 @@
       "total": 3
     },
     "modules/aigateway": {
-      "covered": 95,
+      "covered": 116,
       "total": 147
     },
     "modules/aigateway/eventhub": {
-      "covered": 195,
+      "covered": 301,
       "total": 317
     },
     "modules/aigateway/gatewaytoken": {
@@ -149,7 +149,7 @@
       "total": 12
     },
     "modules/aigateway/gwapi": {
-      "covered": 199,
+      "covered": 204,
       "total": 210
     },
     "modules/aigateway/gwaudit": {
@@ -161,11 +161,11 @@
       "total": 54
     },
     "modules/aigateway/gwconv": {
-      "covered": 177,
+      "covered": 402,
       "total": 413
     },
     "modules/aigateway/gwctl": {
-      "covered": 981,
+      "covered": 3414,
       "total": 4404
     },
     "modules/aigateway/gwinit": {
@@ -177,7 +177,7 @@
       "total": 639
     },
     "modules/aigateway/gwmodels": {
-      "covered": 213,
+      "covered": 268,
       "total": 308
     },
     "modules/aigateway/gwperm": {
@@ -185,15 +185,15 @@
       "total": 5
     },
     "modules/aigateway/gwrepo": {
-      "covered": 1147,
+      "covered": 1727,
       "total": 1994
     },
     "modules/aigateway/gwsecret": {
-      "covered": 33,
+      "covered": 37,
       "total": 44
     },
     "modules/aigateway/gwsvc": {
-      "covered": 6019,
+      "covered": 7478,
       "total": 9452
     },
     "modules/aigateway/gwtest": {
@@ -201,7 +201,7 @@
       "total": 82
     },
     "modules/aigateway/gwtrack": {
-      "covered": 1,
+      "covered": 12,
       "total": 12
     },
     "modules/aigateway/gwtx": {
@@ -209,7 +209,7 @@
       "total": 6
     },
     "modules/aigateway/gwutil": {
-      "covered": 64,
+      "covered": 67,
       "total": 91
     },
     "modules/aigateway/gwwire": {
@@ -217,12 +217,12 @@
       "total": 10
     },
     "modules/aigateway/reconcile": {
-      "covered": 407,
+      "covered": 418,
       "total": 468
     },
     "modules/aigateway/websocket": {
-      "covered": 83,
-      "total": 205
+      "covered": 199,
+      "total": 209
     },
     "modules/observability": {
       "covered": 208,
@@ -245,7 +245,7 @@
       "total": 3
     },
     "pkg/aesgcm": {
-      "covered": 19,
+      "covered": 23,
       "total": 28
     },
     "pkg/dberr": {
@@ -253,7 +253,7 @@
       "total": 22
     },
     "pkg/dbx": {
-      "covered": 86,
+      "covered": 88,
       "total": 97
     },
     "pkg/httpx": {
@@ -261,7 +261,7 @@
       "total": 45
     },
     "pkg/initfiles": {
-      "covered": 22,
+      "covered": 33,
       "total": 37
     },
     "pkg/logger": {
@@ -269,11 +269,11 @@
       "total": 17
     },
     "pkg/sqlitedialect": {
-      "covered": 35,
+      "covered": 82,
       "total": 85
     },
     "pkg/ssrf": {
-      "covered": 54,
+      "covered": 84,
       "total": 87
     },
     "rbac": {
@@ -281,35 +281,35 @@
       "total": 65
     },
     "repositories": {
-      "covered": 954,
+      "covered": 1311,
       "total": 1566
     },
     "server": {
-      "covered": 0,
-      "total": 51
+      "covered": 6,
+      "total": 47
     },
     "services": {
-      "covered": 1399,
+      "covered": 1692,
       "total": 1903
     },
     "services/eventdestinations": {
-      "covered": 42,
+      "covered": 46,
       "total": 48
     },
     "services/eventdestinations/notify": {
-      "covered": 206,
+      "covered": 210,
       "total": 260
     },
     "services/eventdestinations/webhook": {
-      "covered": 79,
+      "covered": 80,
       "total": 98
     },
     "signals": {
-      "covered": 0,
+      "covered": 11,
       "total": 11
     },
     "utils": {
-      "covered": 108,
+      "covered": 236,
       "total": 237
     },
     "vault": {
