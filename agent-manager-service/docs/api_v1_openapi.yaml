@@ -8679,6 +8679,7 @@ paths:
             application/json:
               schema:
                 type: array
+                maxItems: 1000
                 items:
                   $ref: "#/components/schemas/LLMDeploymentResponse"
         "400":
@@ -9882,6 +9883,7 @@ paths:
             application/json:
               schema:
                 type: array
+                maxItems: 1000
                 items:
                   $ref: "#/components/schemas/StoredAPIKey"
         "401":
@@ -11883,6 +11885,7 @@ paths:
             application/json:
               schema:
                 type: array
+                maxItems: 1000
                 items:
                   $ref: "#/components/schemas/AgentKindVersionResponse"
         "500":
@@ -14757,6 +14760,7 @@ components:
           example: Read access to repository tools
         tools:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: >-
@@ -14770,6 +14774,7 @@ components:
           type: string
         tools:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: >-
@@ -14789,6 +14794,7 @@ components:
           type: string
         tools:
           type: array
+          maxItems: 1000
           items:
             type: string
         createdAt:
@@ -14803,6 +14809,7 @@ components:
       properties:
         scopes:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MCPProxyScopeResponse"
     AgentIdentityGroupRequest:
@@ -14821,6 +14828,7 @@ components:
       properties:
         agentIds:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Thunder agent IDs (from the agents picker)
@@ -14835,6 +14843,7 @@ components:
           type: string
         scopes:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: >-
@@ -14862,6 +14871,7 @@ components:
       properties:
         assignments:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/AgentIdentityAssignmentEntry"
     AgentIdentityRoleAssignmentsResponse:
@@ -14869,11 +14879,13 @@ components:
       properties:
         agents:
           type: array
+          maxItems: 1000
           description: Raw agent assignment entries; resolve display data via the agents picker.
           items:
             $ref: "#/components/schemas/AgentIdentityAssignmentEntry"
         groups:
           type: array
+          maxItems: 1000
           items:
             type: object
             required:
@@ -14915,6 +14927,7 @@ components:
       properties:
         agents:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/AgentIdentityAgentResponse"
     AgentIdentityScopeEntry:
@@ -14937,6 +14950,7 @@ components:
       properties:
         scopes:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/AgentIdentityScopeEntry"
     ConfigResponse:
@@ -15012,6 +15026,7 @@ components:
       properties:
         keys:
           type: array
+          maxItems: 1000
           description: List of masked API keys.
           items:
             $ref: "#/components/schemas/APIKeyInfo"
@@ -15357,6 +15372,7 @@ components:
           $ref: "#/components/schemas/HealthChecks"
         modelConfig:
           type: array
+          maxItems: 1000
           description: >-
             Optional LLM configurations to create atomically with the agent.
             Applied to the component's initial (lowest) environment. Name and
@@ -15365,6 +15381,7 @@ components:
             $ref: "#/components/schemas/ModelConfigRequest"
         mcpConfig:
           type: array
+          maxItems: 1000
           description: >-
             Optional MCP proxy configurations to create atomically with the
             agent. Applied to every environment in the project's deployment
@@ -15425,6 +15442,7 @@ components:
           $ref: "#/components/schemas/EnvProviderConfiguration"
         environmentVariables:
           type: array
+          maxItems: 1000
           description: Optional custom environment variable names exposed to the agent
           uniqueItems: true
           items:
@@ -15444,6 +15462,7 @@ components:
             automatically once the proxy becomes available there.
         environmentVariables:
           type: array
+          maxItems: 1000
           description: Optional custom environment variable names exposed to the agent
           uniqueItems: true
           items:
@@ -15563,16 +15582,19 @@ components:
           default: true
         allowOrigin:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Allowed origins. Use ["*"] to allow all (incompatible with allowCredentials)
         allowMethods:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Allowed HTTP methods for CORS
         allowHeaders:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Allowed request headers for CORS
@@ -15698,11 +15720,13 @@ components:
           description: Enable CORS on the public Agent Card route. Required on a request when inherit is false.
         allowOrigin:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Allowed origins. Use ["*"] to allow all (incompatible with allowCredentials).
         allowHeaders:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Allowed request headers.
@@ -15720,6 +15744,7 @@ components:
       properties:
         issuers:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: >-
@@ -15728,6 +15753,7 @@ components:
             and every name must be one of the environment's configured identity providers.
         audiences:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: >-
@@ -15963,6 +15989,7 @@ components:
       properties:
         agents:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/AgentResponse"
         total:
@@ -15998,6 +16025,7 @@ components:
       properties:
         agents:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/AgentSummary"
       required:
@@ -16007,6 +16035,7 @@ components:
       properties:
         builds:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/BuildResponse"
         total:
@@ -16157,6 +16186,7 @@ components:
       properties:
         logs:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LogEntry"
         totalCount:
@@ -16215,6 +16245,7 @@ components:
               maximum: 100
             steps:
               type: array
+              maxItems: 1000
               description: Array of build steps with their status
               items:
                 $ref: "#/components/schemas/BuildStep"
@@ -16234,11 +16265,13 @@ components:
           description: Container image ID to deploy
         env:
           type: array
+          maxItems: 1000
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
         files:
           type: array
+          maxItems: 1000
           description: File mounts
           items:
             $ref: "#/components/schemas/FileMount"
@@ -16312,11 +16345,13 @@ components:
       properties:
         env:
           type: array
+          maxItems: 1000
           description: Environment variables
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
         files:
           type: array
+          maxItems: 1000
           description: File mounts
           items:
             $ref: "#/components/schemas/FileMount"
@@ -16577,6 +16612,7 @@ components:
           description: Timestamp of last deployment
         endpoints:
           type: array
+          maxItems: 1000
           description: List of deployment endpoints
           items:
             $ref: "#/components/schemas/DeploymentEndpoint"
@@ -16695,6 +16731,7 @@ components:
 
     EnvironmentListResponse:
       type: array
+      maxItems: 1000
       items:
         $ref: "#/components/schemas/Environment"
       description: List of environments
@@ -16723,6 +16760,7 @@ components:
 
     DataPlaneListResponse:
       type: array
+      maxItems: 1000
       items:
         $ref: "#/components/schemas/DataPlane"
       description: List of data planes
@@ -16745,6 +16783,7 @@ components:
           description: Timestamp when the pipeline was created
         promotionPaths:
           type: array
+          maxItems: 1000
           description: List of promotion paths in the pipeline
           items:
             $ref: "#/components/schemas/PromotionPath"
@@ -16772,6 +16811,7 @@ components:
           description: Optional project to associate the pipeline with
         promotionPaths:
           type: array
+          maxItems: 1000
           description: Ordered list of promotion paths
           minItems: 1
           items:
@@ -16790,6 +16830,7 @@ components:
           description: Updated description
         promotionPaths:
           type: array
+          maxItems: 1000
           description: Updated list of promotion paths
           minItems: 1
           items:
@@ -16800,6 +16841,7 @@ components:
       properties:
         deploymentPipelines:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/DeploymentPipelineResponse"
         total:
@@ -16823,6 +16865,7 @@ components:
           description: Reference to the source environment
         targetEnvironmentRefs:
           type: array
+          maxItems: 1000
           description: List of target environment references
           items:
             $ref: "#/components/schemas/TargetEnvironmentRef"
@@ -16888,11 +16931,13 @@ components:
           properties:
             env:
               type: array
+              maxItems: 1000
               description: List of environment variable configurations
               items:
                 $ref: "#/components/schemas/ConfigurationItem"
             files:
               type: array
+              maxItems: 1000
               description: List of file mount configurations
               items:
                 $ref: "#/components/schemas/FileMount"
@@ -16980,6 +17025,7 @@ components:
       properties:
         organizations:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/OrganizationListItem"
         total:
@@ -17056,6 +17102,7 @@ components:
       properties:
         projects:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/ProjectListItem"
         total:
@@ -17104,6 +17151,7 @@ components:
           example: "development"
         evaluators:
           type: array
+          maxItems: 1000
           description: List of evaluators with optional configuration
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
@@ -17159,6 +17207,7 @@ components:
           maxLength: 128
         evaluators:
           type: array
+          maxItems: 1000
           description: List of evaluators with optional configuration
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
@@ -17241,6 +17290,7 @@ components:
           example: "development"
         evaluators:
           type: array
+          maxItems: 1000
           description: List of evaluators with configuration
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
@@ -17303,6 +17353,7 @@ components:
       properties:
         monitors:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MonitorResponse"
           description: List of monitors
@@ -17330,6 +17381,7 @@ components:
           example: "customer-support-quality"
         evaluators:
           type: array
+          maxItems: 1000
           description: Evaluators used in this run (snapshot at run time)
           items:
             $ref: "#/components/schemas/MonitorEvaluator"
@@ -17374,6 +17426,7 @@ components:
           example: "Failed to fetch traces from observer service"
         scores:
           type: array
+          maxItems: 1000
           description: Evaluator score summaries (included when includeScores=true)
           items:
             $ref: "#/components/schemas/EvaluatorScoreSummary"
@@ -17386,6 +17439,7 @@ components:
       properties:
         runs:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MonitorRunResponse"
           description: List of monitor runs
@@ -17500,6 +17554,7 @@ components:
           example: "trace"
         tags:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Classification tags
@@ -17510,6 +17565,7 @@ components:
           example: true
         configSchema:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EvaluatorConfigParam"
           description: Configuration schema for the evaluator
@@ -17565,10 +17621,12 @@ components:
           description: Python source code or prompt template
         configSchema:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EvaluatorConfigParam"
         tags:
           type: array
+          maxItems: 1000
           items:
             type: string
 
@@ -17586,10 +17644,12 @@ components:
           description: Python source code or prompt template
         configSchema:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EvaluatorConfigParam"
         tags:
           type: array
+          maxItems: 1000
           items:
             type: string
 
@@ -17633,6 +17693,7 @@ components:
           example: 1.0
         enumValues:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Possible values (for enum type)
@@ -17648,6 +17709,7 @@ components:
       properties:
         evaluators:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EvaluatorResponse"
           description: List of evaluators
@@ -17690,6 +17752,7 @@ components:
       properties:
         warnings:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/AgentDeleteWarning"
       required:
@@ -17706,6 +17769,7 @@ components:
           description: What the user must do next
         environments:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Environments the warning concerns
@@ -17745,6 +17809,7 @@ components:
           description: Description of the agent type
         subtypes:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/AgentTypeSubtype"
           description: List of subtypes for this agent type
@@ -17759,6 +17824,7 @@ components:
       properties:
         traces:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/TraceOverview"
           description: List of trace overviews
@@ -17774,6 +17840,7 @@ components:
       properties:
         traces:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/FullTrace"
           description: List of complete trace objects with all span details
@@ -17826,6 +17893,7 @@ components:
           nullable: true
         spans:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/Span"
           description: All spans in the trace with complete details
@@ -17917,6 +17985,7 @@ components:
       properties:
         spans:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/Span"
           description: List of spans in the trace
@@ -17994,9 +18063,11 @@ components:
         input:
           oneOf:
             - type: array
+              maxItems: 1000
               items:
                 $ref: "#/components/schemas/PromptMessage"
             - type: array
+              maxItems: 1000
               items:
                 type: string
             - type: string
@@ -18004,6 +18075,7 @@ components:
         output:
           oneOf:
             - type: array
+              maxItems: 1000
               items:
                 $ref: "#/components/schemas/PromptMessage"
             - type: string
@@ -18026,6 +18098,7 @@ components:
       properties:
         tools:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/ToolDefinition"
           description: Available tools/functions
@@ -18079,6 +18152,7 @@ components:
           description: Agent name
         tools:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Available tool names for the agent
@@ -18106,6 +18180,7 @@ components:
           description: Message content
         toolCalls:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/ToolCall"
           description: Tool calls made by assistant
@@ -18258,6 +18333,7 @@ components:
       properties:
         keys:
           type: array
+          maxItems: 1000
           description: Array of JSON Web Keys
           items:
             $ref: "#/components/schemas/JWK"
@@ -18331,6 +18407,7 @@ components:
       properties:
         branches:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/Branch"
           description: List of branches
@@ -18422,6 +18499,7 @@ components:
       properties:
         commits:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/Commit"
           description: List of commits
@@ -18780,11 +18858,13 @@ components:
           example: default
         env:
           type: array
+          maxItems: 1000
           description: Environment variables to apply to the agent's release binding for this environment. System-managed keys are filtered server-side and re-injected from the agent's LLM/MCP configuration. Sending an empty array clears all user-managed env vars.
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
         files:
           type: array
+          maxItems: 1000
           description: File mounts to apply to the agent's release binding for this environment. Sending an empty array clears all user-managed file mounts.
           items:
             $ref: "#/components/schemas/FileMount"
@@ -18857,11 +18937,13 @@ components:
             supplied in the request.
         env:
           type: array
+          maxItems: 1000
           description: Environment-specific environment variables for the target environment.
           items:
             $ref: "#/components/schemas/EnvironmentVariable"
         files:
           type: array
+          maxItems: 1000
           description: Environment-specific file mounts for the target environment.
           items:
             $ref: "#/components/schemas/FileMount"
@@ -19045,6 +19127,7 @@ components:
           example: "2026-02-01T08:00:00Z"
         environments:
           type: array
+          maxItems: 1000
           description: List of environments mapped to this gateway
           items:
             $ref: "#/components/schemas/GatewayEnvironmentResponse"
@@ -19122,6 +19205,7 @@ components:
           example: 2
         list:
           type: array
+          maxItems: 1000
           description: List of token metadata
           items:
             $ref: "#/components/schemas/GatewayTokenInfo"
@@ -19189,6 +19273,7 @@ components:
           example: 1
         list:
           type: array
+          maxItems: 1000
           description: List of identity providers
           items:
             $ref: "#/components/schemas/IdentityProvider"
@@ -19335,6 +19420,7 @@ components:
           type: boolean
         endpoints:
           type: array
+          maxItems: 1000
           minItems: 1
           description: >-
             At least one http(s) endpoint URL. The first is the gateway's address.
@@ -19406,6 +19492,7 @@ components:
       properties:
         gateways:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/GatewayResponse"
         total:
@@ -19594,6 +19681,7 @@ components:
       properties:
         templates:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LLMProviderTemplateResponse"
         total:
@@ -19658,6 +19746,7 @@ components:
           $ref: "#/components/schemas/LLMAccessControl"
         policies:
           type: array
+          maxItems: 1000
           description: List of policies applied to this provider
           items:
             $ref: "#/components/schemas/LLMPolicy"
@@ -19666,6 +19755,7 @@ components:
           description: Custom OpenAPI specification (YAML or JSON)
         modelProviders:
           type: array
+          maxItems: 1000
           description: List of model providers and their models
           items:
             $ref: "#/components/schemas/LLMModelProvider"
@@ -19675,6 +19765,7 @@ components:
           $ref: "#/components/schemas/SecurityConfig"
         gateways:
           type: array
+          maxItems: 1000
           items:
             type: string
             format: uuid
@@ -19708,6 +19799,7 @@ components:
           $ref: "#/components/schemas/LLMAccessControl"
         policies:
           type: array
+          maxItems: 1000
           description: Updated list of policies
           items:
             $ref: "#/components/schemas/LLMPolicy"
@@ -19716,6 +19808,7 @@ components:
           description: Updated OpenAPI specification
         modelProviders:
           type: array
+          maxItems: 1000
           description: Updated model providers list
           items:
             $ref: "#/components/schemas/LLMModelProvider"
@@ -19725,6 +19818,7 @@ components:
           $ref: "#/components/schemas/SecurityConfig"
         gateways:
           type: array
+          maxItems: 1000
           items:
             type: string
             format: uuid
@@ -19775,6 +19869,7 @@ components:
             - failed
         gateways:
           type: array
+          maxItems: 1000
           items:
             type: string
             format: uuid
@@ -19834,6 +19929,7 @@ components:
           $ref: "#/components/schemas/LLMAccessControl"
         policies:
           type: array
+          maxItems: 1000
           description: List of policies applied to this provider
           items:
             $ref: "#/components/schemas/LLMPolicy"
@@ -19842,6 +19938,7 @@ components:
           description: OpenAPI specification
         modelProviders:
           type: array
+          maxItems: 1000
           description: List of model providers
           items:
             $ref: "#/components/schemas/LLMModelProvider"
@@ -19858,6 +19955,7 @@ components:
             - failed
         gateways:
           type: array
+          maxItems: 1000
           items:
             type: string
             format: uuid
@@ -19886,6 +19984,7 @@ components:
       properties:
         providers:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LLMProviderListItem"
         total:
@@ -19984,6 +20083,7 @@ components:
       properties:
         proxies:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LLMProxyResponse"
         total:
@@ -20018,6 +20118,7 @@ components:
           $ref: "#/components/schemas/Resilience"
         policies:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LLMPolicy"
         security:
@@ -20065,6 +20166,7 @@ components:
           example: "2025-03-26"
         endpoints:
           type: array
+          maxItems: 1000
           minItems: 1
           description: >-
             Deployable endpoint definitions of the MCP proxy. Each endpoint is
@@ -20078,6 +20180,7 @@ components:
           example: true
         gateways:
           type: array
+          maxItems: 1000
           deprecated: true
           description: |
             Deprecated and never implemented. Deployment is per (endpoint, environment),
@@ -20120,6 +20223,7 @@ components:
           description: MCP specification version implemented by the upstream server
         endpoints:
           type: array
+          maxItems: 1000
           minItems: 1
           description: >-
             Deployable endpoint definitions of the MCP proxy. Each endpoint
@@ -20131,6 +20235,7 @@ components:
           description: Whether the MCP proxy is available in the catalog
         gateways:
           type: array
+          maxItems: 1000
           description: Gateway UUIDs associated with the MCP proxy
           items:
             type: string
@@ -20186,6 +20291,7 @@ components:
           readOnly: true
         environments:
           type: array
+          maxItems: 1000
           description: The environments the proxy is bound to.
           readOnly: true
           items:
@@ -20285,6 +20391,7 @@ components:
           example: https://mcp.example.com/mcp
         resetBindingAuthFor:
           type: array
+          maxItems: 1000
           writeOnly: true
           items:
             type: string
@@ -20332,6 +20439,7 @@ components:
           description: Set for a proxy registered by a public URL.
         environments:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MCPProxyEnvironmentResponse"
         createdBy:
@@ -20393,6 +20501,7 @@ components:
           description: Set for a proxy registered by a public URL.
         environments:
           type: array
+          maxItems: 1000
           description: A summary per binding. GET the binding for its security and policies.
           items:
             $ref: "#/components/schemas/ProjectMCPProxyEnvironmentSummary"
@@ -20418,6 +20527,7 @@ components:
           description: Items in this page
         list:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/ProjectMCPProxyListItem"
         pagination:
@@ -20458,6 +20568,7 @@ components:
           $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"
         policies:
           type: array
+          maxItems: 1000
           description: Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
           items:
             $ref: "#/components/schemas/MCPPolicy"
@@ -20508,10 +20619,12 @@ components:
           type: boolean
         issuers:
           type: array
+          maxItems: 1000
           items:
             type: string
         audiences:
           type: array
+          maxItems: 1000
           items:
             type: string
 
@@ -20614,6 +20727,7 @@ components:
           $ref: "#/components/schemas/MCPProxyEnvironmentSecurity"
         policies:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MCPPolicy"
         upstreamAuth:
@@ -20653,6 +20767,7 @@ components:
           format: int32
         list:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MCPProxyListItem"
         pagination:
@@ -20682,12 +20797,14 @@ components:
           $ref: "#/components/schemas/Resilience"
         policies:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MCPPolicy"
         capabilities:
           $ref: "#/components/schemas/MCPProxyCapabilities"
         mcpSpecVersions:
           type: array
+          maxItems: 1000
           minItems: 1
           description: >-
             MCP specification versions this endpoint's upstream server supports, for example
@@ -20702,6 +20819,7 @@ components:
           $ref: "#/components/schemas/SecurityConfig"
         environments:
           type: array
+          maxItems: 1000
           description: Environments this endpoint is deployed to.
           items:
             $ref: "#/components/schemas/MCPEndpointEnvironment"
@@ -20768,16 +20886,19 @@ components:
       properties:
         prompts:
           type: array
+          maxItems: 1000
           items:
             type: object
             additionalProperties: true
         resources:
           type: array
+          maxItems: 1000
           items:
             type: object
             additionalProperties: true
         tools:
           type: array
+          maxItems: 1000
           items:
             type: object
             additionalProperties: true
@@ -20804,21 +20925,25 @@ components:
           description: MCP server metadata returned by initialize
         prompts:
           type: array
+          maxItems: 1000
           items:
             type: object
             additionalProperties: true
         resources:
           type: array
+          maxItems: 1000
           items:
             type: object
             additionalProperties: true
         tools:
           type: array
+          maxItems: 1000
           items:
             type: object
             additionalProperties: true
         supportedVersions:
           type: array
+          maxItems: 1000
           description: >-
             MCP specification versions the upstream server supports. For a server that answers
             server/discover (MCP 2026-07-28 and later), the versions it reported; for an earlier
@@ -20846,6 +20971,7 @@ components:
           example: OpenAI
         models:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LLMModel"
 
@@ -21001,6 +21127,7 @@ components:
           example: allow_all
         exceptions:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/RouteException"
 
@@ -21016,6 +21143,7 @@ components:
           example: /health
         methods:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: HTTP methods
@@ -21040,6 +21168,7 @@ components:
           example: v1
         paths:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LLMPolicyPath"
 
@@ -21055,6 +21184,7 @@ components:
           example: /v1/chat/completions
         methods:
           type: array
+          maxItems: 1000
           items:
             type: string
           example:
@@ -21115,11 +21245,13 @@ components:
           description: Whether the policy is installed on every checked gateway.
         missingOn:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/PolicyCatalogGatewayRef"
           description: Checked gateways that do not have the policy installed
         categories:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: Policy categories
@@ -21146,6 +21278,7 @@ components:
           format: int32
         list:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/PolicyCatalogItem"
         hubAvailable:
@@ -21187,6 +21320,7 @@ components:
           $ref: "#/components/schemas/RateLimitingLimitConfig"
         resources:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/RateLimitingResourceLimit"
 
@@ -21404,10 +21538,12 @@ components:
       properties:
         aggregates:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EvaluationAggregateResponse"
         scores:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EvaluationScoreResponse"
         total:
@@ -21460,6 +21596,7 @@ components:
           description: Time bucket granularity (automatically selected by the server based on data density and time range)
         points:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/TimeSeriesPoint"
 
@@ -21474,6 +21611,7 @@ components:
           description: Display name of the evaluator
         points:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/TimeSeriesPoint"
 
@@ -21493,6 +21631,7 @@ components:
           description: Shared time-bucket granularity for all evaluators (automatically selected by the server)
         evaluators:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/BatchTimeSeriesEvaluatorSeries"
 
@@ -21510,6 +21649,7 @@ components:
           enum: [trace, agent, llm]
         scores:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EvaluationScoreResponse"
 
@@ -21523,6 +21663,7 @@ components:
           type: string
         evaluators:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/TraceScoreGroup"
 
@@ -21540,6 +21681,7 @@ components:
           $ref: "#/components/schemas/TimeRange"
         evaluators:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EvaluatorScoreSummary"
 
@@ -21559,6 +21701,7 @@ components:
           description: Name of the monitor
         evaluators:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EvaluatorScoreSummary"
 
@@ -21615,6 +21758,7 @@ components:
       properties:
         traces:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/TraceScoreSummary"
         totalCount:
@@ -21655,6 +21799,7 @@ components:
           description: Trace ID
         monitors:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/TraceMonitorGroup"
 
@@ -21672,6 +21817,7 @@ components:
           description: Human-readable label (agent name or vendor/model)
         evaluators:
           type: array
+          maxItems: 1000
           description: Evaluator scores for this span
           items:
             $ref: "#/components/schemas/TraceEvaluatorScore"
@@ -21710,11 +21856,13 @@ components:
           description: Name of the monitor
         evaluators:
           type: array
+          maxItems: 1000
           description: Trace-level evaluator scores
           items:
             $ref: "#/components/schemas/TraceEvaluatorScore"
         spans:
           type: array
+          maxItems: 1000
           description: Span-level evaluator scores grouped by span
           items:
             $ref: "#/components/schemas/TraceSpanGroup"
@@ -21736,6 +21884,7 @@ components:
           $ref: "#/components/schemas/TimeRange"
         groups:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/ScoreLabelGroup"
 
@@ -21750,6 +21899,7 @@ components:
           description: Span label (agent name or vendor/model)
         evaluators:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LabelEvaluatorSummary"
 
@@ -21861,10 +22011,12 @@ components:
       properties:
         individualScores:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/PublishScoreItem"
         aggregatedScores:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/PublishAggregateItem"
 
@@ -21914,6 +22066,7 @@ components:
                     enabled: true
         environmentVariables:
           type: array
+          maxItems: 1000
           description: Optional custom environment variable names. If omitted, names are auto-generated from the config name. Duplicate keys are rejected with 400.
           uniqueItems: true
           items:
@@ -21957,6 +22110,7 @@ components:
       properties:
         policies:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LLMPolicy"
         resilience:
@@ -21988,6 +22142,7 @@ components:
                     enabled: true
         environmentVariables:
           type: array
+          maxItems: 1000
           description: >
             Optional updated environment variable names. Partial updates are supported: entries are merged by key, so
             only the keys included in the payload will be renamed and omitted keys retain their existing names.
@@ -22053,6 +22208,7 @@ components:
                 status: "active"
         environmentVariables:
           type: array
+          maxItems: 1000
           description: Environment variables configured for the agent
           items:
             $ref: "#/components/schemas/EnvironmentVariableConfig"
@@ -22127,11 +22283,13 @@ components:
           $ref: "#/components/schemas/AuthInfo"
         policies:
           type: array
+          maxItems: 1000
           description: Provider-specific policy configurations
           items:
             $ref: "#/components/schemas/LLMPolicy"
         providerPolicies:
           type: array
+          maxItems: 1000
           readOnly: true
           description: Guardrails configured on the org-level LLM provider this config is based on; applied in addition to the config's own policies
           items:
@@ -22217,6 +22375,7 @@ components:
       properties:
         configs:
           type: array
+          maxItems: 1000
           description: List of agent model configurations
           items:
             $ref: "#/components/schemas/AgentModelConfigListItem"
@@ -22340,6 +22499,7 @@ components:
       properties:
         entries:
           type: array
+          maxItems: 1000
           description: List of catalog entries
           items:
             oneOf:
@@ -22432,10 +22592,12 @@ components:
           example: "api.example.com"
         policies:
           type: array
+          maxItems: 1000
           items:
             type: string
         modelProviders:
           type: array
+          maxItems: 1000
           description: List of model providers and their models
           items:
             $ref: "#/components/schemas/LLMModelProvider"
@@ -22445,6 +22607,7 @@ components:
           $ref: "#/components/schemas/RateLimitingSummary"
         deployments:
           type: array
+          maxItems: 1000
           description: >-
             The provider's live deployments, one per gateway currently serving it. Gateways it is only owed a
             deploy to are not listed.
@@ -22711,6 +22874,7 @@ components:
       properties:
         secrets:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/GitSecretResponse"
           description: List of git secrets
@@ -22794,6 +22958,7 @@ components:
             - a2a-agent
         configSchema:
           type: array
+          maxItems: 1000
           description: Configuration schema defining the parameters users must supply when creating an agent from this kind
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
@@ -22841,6 +23006,7 @@ components:
           example: "v1.0.0"
         versions:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/AgentKindVersionResponse"
         createdAt:
@@ -22862,6 +23028,7 @@ components:
       properties:
         kinds:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/AgentKindResponse"
         total:
@@ -22917,6 +23084,7 @@ components:
           description: Project the source agent belongs to
         configSchema:
           type: array
+          maxItems: 1000
           description: Configuration schema for this version
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
@@ -22965,6 +23133,7 @@ components:
           example: "my-agent-1714123456789"
         configSchema:
           type: array
+          maxItems: 1000
           description: Configuration schema for this version
           items:
             $ref: "#/components/schemas/AgentKindConfigSchemaItem"
@@ -22997,6 +23166,7 @@ components:
           example: "3.11"
         supportedVersions:
           type: array
+          maxItems: 1000
           description: Bare-minor Python versions the buildpack provider can build.
           items:
             type: string
@@ -23014,6 +23184,7 @@ components:
           example: "0.2.1"
         versions:
           type: array
+          maxItems: 1000
           description: |
             Effective instrumentation catalog: embedded baseline merged with any
             operator-supplied extension entries, sorted newest-first by numeric
@@ -23040,6 +23211,7 @@ components:
           example: "0.61.0"
         pythonVersions:
           type: array
+          maxItems: 1000
           description: |
             Bare-minor Python versions this instrumentation version supports.
             The init-container image is ABI-locked to the Python runtime, so a
@@ -23114,6 +23286,7 @@ components:
       properties:
         users:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/UserResponse"
         total:
@@ -23188,6 +23361,7 @@ components:
       properties:
         groups:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/GroupResponse"
         total:
@@ -23231,6 +23405,7 @@ components:
           example: "ou-456"
         permissions:
           type: array
+          maxItems: 1000
           description: Role permissions
           items:
             type: object
@@ -23239,6 +23414,7 @@ components:
                 type: string
               permissions:
                 type: array
+                maxItems: 1000
                 items:
                   type: string
 
@@ -23278,6 +23454,7 @@ components:
       properties:
         roles:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/RoleResponse"
         total:
@@ -23329,6 +23506,7 @@ components:
       properties:
         consumers:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LLMProviderConsumerItem"
         total:
@@ -23484,6 +23662,7 @@ components:
       properties:
         eventTypes:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EventType"
 
@@ -23520,6 +23699,7 @@ components:
           description: The kind's settings include a credential that is never returned.
         services:
           type: array
+          maxItems: 1000
           description: The services the kind delivers to, if it has several.
           items:
             $ref: "#/components/schemas/EventDestinationKindService"
@@ -23530,6 +23710,7 @@ components:
       properties:
         kinds:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EventDestinationKind"
 
@@ -23563,6 +23744,7 @@ components:
             Organization subscriptions may use any destination.
         projects:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: The projects whose subscriptions may use it, for availability projects.
@@ -23591,6 +23773,7 @@ components:
           enum: [all, org, projects]
         projects:
           type: array
+          maxItems: 1000
           items:
             type: string
         usedBy:
@@ -23622,6 +23805,7 @@ components:
           description: The generated secret. Only in the response that creates it.
         subscriptions:
           type: array
+          maxItems: 1000
           description: The subscriptions that send to it. Only when getting one destination.
           items:
             $ref: "#/components/schemas/EventSubscriptionRef"
@@ -23632,6 +23816,7 @@ components:
       properties:
         destinations:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EventDestinationResponse"
 
@@ -23658,6 +23843,7 @@ components:
       properties:
         destinations:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EventDestinationSummary"
 
@@ -23711,6 +23897,7 @@ components:
           description: A destination available to the subscription's project.
         eventTypes:
           type: array
+          maxItems: 1000
           minItems: 1
           items:
             type: string
@@ -23719,6 +23906,7 @@ components:
             every one, including types added later.
         environments:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: |
@@ -23763,10 +23951,12 @@ components:
           $ref: "#/components/schemas/EventDestinationSummary"
         eventTypes:
           type: array
+          maxItems: 1000
           items:
             type: string
         environments:
           type: array
+          maxItems: 1000
           items:
             type: string
         enabled:
@@ -23789,11 +23979,13 @@ components:
       properties:
         subscriptions:
           type: array
+          maxItems: 1000
           description: The subscriptions this level owns.
           items:
             $ref: "#/components/schemas/EventSubscriptionResponse"
         inherited:
           type: array
+          maxItems: 1000
           description: |
             Wider levels' subscriptions that also send this level's events,
             read-only here. Their event types are narrowed to those that can
@@ -23823,6 +24015,7 @@ components:
           $ref: "#/components/schemas/EventDestinationSummary"
         subscriptions:
           type: array
+          maxItems: 1000
           description: The subscriptions that sent the event to the destination.
           items:
             $ref: "#/components/schemas/EventSubscriptionRef"
@@ -23853,6 +24046,7 @@ components:
       properties:
         deliveries:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/EventDeliveryResponse"
         total:
@@ -23928,10 +24122,12 @@ components:
           type: boolean
         thresholds:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MonitorScoreThreshold"
         breached:
           type: array
+          maxItems: 1000
           description: The thresholds the latest evaluated run breached.
           items:
             $ref: "#/components/schemas/MonitorScoreThreshold"

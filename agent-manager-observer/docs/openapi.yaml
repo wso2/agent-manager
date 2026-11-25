@@ -982,6 +982,7 @@ components:
               items: {}
         models:
           type: array
+          maxItems: 1000
           description: |
             Distinct model names across the trace's LLM spans, first-seen order.
             Only present when `include=models`, or when the LLM spans were
@@ -1008,6 +1009,7 @@ components:
           example: conv-42
         tools:
           type: array
+          maxItems: 1000
           description: |
             Distinct tools the trace called, in first-call order. Only present with
             `include=tools`, for traces of at most 200 spans, and when a tool span
@@ -1022,6 +1024,7 @@ components:
           example: ["search_issues", "check_system_status"]
         failedTools:
           type: array
+          maxItems: 1000
           description: |
             The entries of `tools` with at least one span whose OTel status is error.
             Failure attributes such as `error.type` aren't read, so a tool error that
@@ -1032,6 +1035,7 @@ components:
           example: ["search_issues"]
         mcpServers:
           type: array
+          maxItems: 1000
           description: |
             Distinct MCP servers the trace connected to, in handshake order. Only present
             with `include=mcpServers`, for traces of at most 200 spans, and when an
@@ -1060,6 +1064,7 @@ components:
       properties:
         traces:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/TraceOverview"
         totalCount:
@@ -1140,6 +1145,7 @@ components:
       properties:
         spans:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/SpanSummary"
         totalCount:
@@ -1179,6 +1185,7 @@ components:
             - type: string
             - type: object
             - type: array
+              maxItems: 1000
               items: {}
         output:
           description: Output data (type varies by kind)
@@ -1187,6 +1194,7 @@ components:
             - type: string
             - type: object
             - type: array
+              maxItems: 1000
               items: {}
         status:
           $ref: "#/components/schemas/SpanStatus"
@@ -1249,6 +1257,7 @@ components:
       properties:
         logs:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/LogEntry"
         totalCount:
@@ -1284,26 +1293,32 @@ components:
       properties:
         cpuUsage:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MetricDataPoint"
         cpuRequests:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MetricDataPoint"
         cpuLimits:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MetricDataPoint"
         memory:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MetricDataPoint"
         memoryRequests:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MetricDataPoint"
         memoryLimits:
           type: array
+          maxItems: 1000
           items:
             $ref: "#/components/schemas/MetricDataPoint"
 
