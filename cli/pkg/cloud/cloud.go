@@ -25,14 +25,79 @@ import (
 )
 
 const (
-	GatewayURLEnv     = "AMCTL_CLOUD_URL"
-	DefaultGatewayURL = "https://production-wso2cloud.gateway.cloud.wso2.com"
-	APIPath           = "/agent-manager-service-agent-manager-api"
-	Resource          = "urn:wso2:amp"
-	BaseDomain        = "cloud.wso2.com"
+	GatewayURLEnv = "AMCTL_CLOUD_URL"
+	// DefaultGatewayURL is production in the US (the prod-v2 environment), the region a cloud
+	// login uses when it can't ask. The gateway host, not its api.* alias, is what Agent Manager
+	// advertises as its resource.
+	DefaultGatewayURL = "https://prod-v2-wso2cloud.gateway.cloud.choreolabs.com"
+	// EUGatewayURL is production in the EU (the prod-v2-eu environment).
+	EUGatewayURL = "https://prod-v2-eu-wso2cloud.gateway.eu.cloud.choreolabs.com"
+	APIPath      = "/agent-manager-service-agent-manager-api"
+	// Resource is the RFC 8707 resource indicator for amp:* scopes: Agent Manager's permissions live
+	// in the IdP's shared WSO2 Cloud resource server, so it is also the token's audience.
+	Resource = "urn:wso2:cloud"
+	// legacyResource is the Agent Manager resource server the IdP had before it was folded into
+	// Resource; contexts saved back then still store it.
+	legacyResource = "urn:wso2:amp"
+	// InstanceName is the context cloud logins are saved as; --url logins may not use it.
+	InstanceName = "cloud"
 )
 
-// APIURL returns the API base URL for --cloud: the AMCTL_CLOUD_URL gateway (production by default) plus APIPath.
+// BaseDomains are the domains WSO2 Cloud gateways are served under: production and stage on
+// cloud.choreolabs.com (and its regional subdomains), dev on cloud.wso2.com.
+var BaseDomains = []string{"cloud.choreolabs.com", "cloud.wso2.com"}
+
+// Region is a WSO2 Cloud production region a cloud login can target with --region.
+type Region struct {
+	Name       string // the --region value
+	Label      string
+	GatewayURL string
+}
+
+// Regions are the production regions, the default first.
+var Regions = []Region{
+	{Name: "us", Label: "United States", GatewayURL: DefaultGatewayURL},
+	{Name: "eu", Label: "Europe", GatewayURL: EUGatewayURL},
+}
+
+// APIURL returns the region's Agent Manager API base URL.
+func (r Region) APIURL() string { return r.GatewayURL + APIPath }
+
+// RegionByName returns the region whose --region value is name, ignoring case.
+func RegionByName(name string) (Region, bool) {
+	for _, r := range Regions {
+		if strings.EqualFold(r.Name, strings.TrimSpace(name)) {
+			return r, true
+		}
+	}
+	return Region{}, false
+}
+
+// RegionOfAPIURL returns the region apiURL belongs to, so a stored cloud context keeps its region.
+func RegionOfAPIURL(apiURL string) (Region, bool) {
+	for _, r := range Regions {
+		if strings.TrimRight(apiURL, "/") == r.APIURL() {
+			return r, true
+		}
+	}
+	return Region{}, false
+}
+
+// RegionNames lists the --region values, for help and error text.
+func RegionNames() string {
+	names := make([]string, len(Regions))
+	for i, r := range Regions {
+		names[i] = r.Name
+	}
+	return strings.Join(names, ", ")
+}
+
+// GatewayOverride returns the AMCTL_CLOUD_URL gateway, or "" when it is unset.
+func GatewayOverride(getenv func(string) string) string {
+	return strings.TrimSpace(getenv(GatewayURLEnv))
+}
+
+// APIURL returns the API base URL for a cloud login: the AMCTL_CLOUD_URL gateway (US production by default) plus APIPath.
 func APIURL(getenv func(string) string) string {
 	gateway := strings.TrimSpace(getenv(GatewayURLEnv))
 	if gateway == "" {
@@ -47,15 +112,33 @@ func IsAPIURL(raw string) bool {
 	if err != nil {
 		return false
 	}
-	host := strings.ToLower(u.Hostname())
-	if host != BaseDomain && !strings.HasSuffix(host, "."+BaseDomain) {
+	if !isCloudHost(strings.ToLower(u.Hostname())) {
 		return false
 	}
 	path := strings.TrimRight(u.Path, "/")
 	return path == APIPath || strings.HasPrefix(path, APIPath+"/")
 }
 
-// tells a user who passed cloud URL raw to --url to use --cloud; releasesURL is where to get an amctl that has it.
+// UpdateResource replaces the retired Agent Manager resource indicator a context may have been saved
+// with by the current one, so signing in again to an old cloud context still gets amp:* scopes.
+func UpdateResource(resource string) string {
+	if resource == legacyResource {
+		return Resource
+	}
+	return resource
+}
+
+// isCloudHost reports whether host is one of BaseDomains or a subdomain of one.
+func isCloudHost(host string) bool {
+	for _, d := range BaseDomains {
+		if host == d || strings.HasSuffix(host, "."+d) {
+			return true
+		}
+	}
+	return false
+}
+
+// LoginHint tells a user who passed cloud URL raw to --url to use --cloud; releasesURL is where to get an amctl that has it.
 func LoginHint(raw, releasesURL string) string {
 	return fmt.Sprintf("%s is a WSO2 Cloud URL; log in with --cloud instead: export %s=%s && amctl login --cloud (if --cloud is unknown, download the latest amctl from %s)",
 		raw, GatewayURLEnv, gatewayOf(raw), releasesURL)

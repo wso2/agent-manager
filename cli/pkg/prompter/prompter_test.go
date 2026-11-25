@@ -62,3 +62,45 @@ func TestLinePrompter_ConfirmDeletion_StillWorks(t *testing.T) {
 		t.Fatalf("ConfirmDeletion: %v", err)
 	}
 }
+
+func TestLinePrompter_Select(t *testing.T) {
+	options := []string{"United States", "Europe"}
+	cases := []struct {
+		name    string
+		input   string
+		want    int
+		wantErr bool
+	}{
+		{name: "empty picks the default", input: "\n", want: 0},
+		{name: "no input at all picks the default", input: "", want: 0},
+		{name: "number", input: "2\n", want: 1},
+		{name: "number with whitespace", input: "  2 \n", want: 1},
+		{name: "asks again after a bad answer", input: "3\n2\n", want: 1},
+		{name: "last line without newline", input: "2", want: 1},
+		{name: "gives up after repeated bad answers", input: "x\n0\n9\n1\n", wantErr: true},
+		{name: "bad answer then end of input", input: "x\n", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			got, err := NewSelector(strings.NewReader(tc.input), &out).Select("Which region?", options, 0)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("Select = %d, want an error", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Select: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("Select = %d, want %d", got, tc.want)
+			}
+			for _, want := range []string{"Which region?", "1) United States", "2) Europe", "[1]"} {
+				if !strings.Contains(out.String(), want) {
+					t.Errorf("output %q missing %q", out.String(), want)
+				}
+			}
+		})
+	}
+}
