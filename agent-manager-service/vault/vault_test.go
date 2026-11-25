@@ -231,7 +231,7 @@ func (localOnly) Seal(context.Context, Ref, []byte, *Sealed) (Sealed, error) {
 	return Sealed{}, nil
 }
 func (localOnly) Open(context.Context, Ref, Sealed) ([]byte, error) { return nil, nil }
-func (localOnly) Destroy(context.Context, Ref, Sealed) error         { return nil }
+func (localOnly) Destroy(context.Context, Ref, Sealed) error        { return nil }
 
 func TestCheckReportsTheFirstFailingVault(t *testing.T) {
 	ok := checkingVault{memoryVault: &memoryVault{name: "a"}}
