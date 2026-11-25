@@ -52,11 +52,16 @@ type stubAgentThunderProvisioning struct {
 	AgentThunderProvisioningService
 	RegenerateFunc                       func(ctx context.Context, orgName, projectName, agentName, envName string) (models.AgentProvisioningType, string, string, error)
 	RevokeFunc                           func(ctx context.Context, orgName, projectName, agentName, envName string) (string, error)
+	RetryProvisioningFunc                func(ctx context.Context, ouID, projectName, agentName, envName string) (models.AgentIdentityEnvironmentView, error)
 	GetBindingStateFunc                  func(ctx context.Context, orgName, projectName, agentName, envName string) (*AgentThunderBindingState, error)
 	GetAgentRolesFunc                    func(ctx context.Context, orgName, projectName, agentName, envName string) ([]thundersvc.ThunderRole, error)
 	GetAgentGroupsFunc                   func(ctx context.Context, orgName, projectName, agentName, envName string) ([]thundersvc.ThunderGroup, error)
 	GetIdentityViewsFunc                 func(ctx context.Context, ouID, projectName, agentName string) ([]models.AgentIdentityEnvironmentView, error)
 	ProvisionForEnvironmentIfMissingFunc func(ctx context.Context, ouID, projectName, agentName, envName string, ownership models.AgentProvisioningType, requestedBy string) (bool, error)
+}
+
+func (s *stubAgentThunderProvisioning) RetryProvisioning(ctx context.Context, ouID, projectName, agentName, envName string) (models.AgentIdentityEnvironmentView, error) {
+	return s.RetryProvisioningFunc(ctx, ouID, projectName, agentName, envName)
 }
 
 func (s *stubAgentThunderProvisioning) GetBindingState(ctx context.Context, orgName, projectName, agentName, envName string) (*AgentThunderBindingState, error) {
@@ -115,6 +120,7 @@ func TestProvisionAgentIdentity_UsesAgentProvisioningType(t *testing.T) {
 					GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
 						return &models.EnvironmentResponse{}, nil
 					},
+					GetProjectDeploymentPipelineFunc: pipelineOCClient("development", "staging").GetProjectDeploymentPipelineFunc,
 				},
 				agentThunderProvisioning: provisioning,
 				logger:                   discardLogger(),
@@ -386,7 +392,7 @@ func TestRegenerateAgentIdentitySecret_ExternalAgent_ReturnsSecret(t *testing.T)
 			return models.AgentProvisioningTypeExternal, "client-abc", "fresh-secret-xyz", nil
 		},
 	}
-	s := &agentManagerService{agentThunderProvisioning: stub}
+	s := &agentManagerService{agentThunderProvisioning: stub, ocClient: pipelineOCClient("dev", "staging")}
 
 	resp, err := s.RegenerateAgentIdentitySecret(context.Background(), "acme", "proj1", "my-agent", "dev")
 
@@ -415,7 +421,7 @@ func TestRegenerateAgentIdentitySecret_InternalAgent_AlsoReturnsSecret(t *testin
 			return nil
 		},
 	}
-	s := &agentManagerService{agentThunderProvisioning: stub, agentIdentityInjection: injector, logger: discardLogger()}
+	s := &agentManagerService{agentThunderProvisioning: stub, agentIdentityInjection: injector, ocClient: pipelineOCClient("dev", "staging"), logger: discardLogger()}
 
 	resp, err := s.RegenerateAgentIdentitySecret(context.Background(), "acme", "proj1", "my-agent", "dev")
 
@@ -446,7 +452,7 @@ func TestRegenerateAgentIdentitySecret_InternalAgent_RefreshFailureDoesNotFailRo
 			return errors.New("workload refresh failed")
 		},
 	}
-	s := &agentManagerService{agentThunderProvisioning: stub, agentIdentityInjection: injector, logger: discardLogger()}
+	s := &agentManagerService{agentThunderProvisioning: stub, agentIdentityInjection: injector, ocClient: pipelineOCClient("dev", "staging"), logger: discardLogger()}
 
 	resp, err := s.RegenerateAgentIdentitySecret(context.Background(), "acme", "proj1", "my-agent", "dev")
 
@@ -519,8 +525,15 @@ func TestRevokeAgentIdentitySecret_PipelineLookupFails_StillRevokesConservativel
 	stub := &stubAgentThunderProvisioning{
 		RevokeFunc: func(_ context.Context, _, _, _, _ string) (string, error) { return "client-abc", nil },
 	}
+	// The visibility check before the revoke reads the pipeline once and must
+	// pass; the cleanup after the revoke reads it again and fails.
+	lookups := 0
 	ocClient := &clientmocks.OpenChoreoClientMock{
 		GetProjectDeploymentPipelineFunc: func(_ context.Context, _, _ string) (*models.DeploymentPipelineResponse, error) {
+			lookups++
+			if lookups == 1 {
+				return pipelineOCClient("dev", "staging").GetProjectDeploymentPipelineFunc(context.Background(), "", "")
+			}
 			return nil, errors.New("pipeline unavailable")
 		},
 	}
@@ -2783,4 +2796,125 @@ func TestPromoteAgent_DoesNotBlockOnMissingMCPConfigAlone(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, *promoteCalled)
+}
+
+// pipelineOCClient serves a project pipeline that runs through the given
+// environments, in order: the only environments the project can see.
+func pipelineOCClient(envs ...string) *clientmocks.OpenChoreoClientMock {
+	return &clientmocks.OpenChoreoClientMock{
+		GetProjectDeploymentPipelineFunc: func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
+			paths := make([]models.PromotionPath, 0, len(envs))
+			for i := 0; i+1 < len(envs); i++ {
+				paths = append(paths, models.PromotionPath{
+					SourceEnvironmentRef:  envs[i],
+					TargetEnvironmentRefs: []models.TargetEnvironmentRef{{Name: envs[i+1]}},
+				})
+			}
+			return &models.DeploymentPipelineResponse{PromotionPaths: paths}, nil
+		},
+	}
+}
+
+// Every identity operation that names an environment must refuse one outside
+// the project's pipeline before it touches the binding: AgentIDs are bound
+// across every org environment, so the binding existing is not proof the project
+// may act on it. Nothing may be rotated, revoked, provisioned or returned.
+func TestAgentIdentityOperationsRefuseEnvironmentOutsideThePipeline(t *testing.T) {
+	const outside = "prod"
+	for _, tc := range []struct {
+		name string
+		call func(s *agentManagerService) error
+	}{
+		{"regenerate", func(s *agentManagerService) error {
+			resp, err := s.RegenerateAgentIdentitySecret(context.Background(), "acme", "proj1", "my-agent", outside)
+			assert.Nil(t, resp, "no secret may be returned for an environment outside the pipeline")
+			return err
+		}},
+		{"revoke", func(s *agentManagerService) error {
+			_, err := s.RevokeAgentIdentitySecret(context.Background(), "acme", "proj1", "my-agent", outside)
+			return err
+		}},
+		{"provision", func(s *agentManagerService) error {
+			_, _, err := s.ProvisionAgentIdentity(context.Background(), "acme", "proj1", "my-agent", outside)
+			return err
+		}},
+		{"retry", func(s *agentManagerService) error {
+			_, err := s.RetryAgentIdentityProvisioning(context.Background(), "acme", "proj1", "my-agent", outside)
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			touched := false
+			mark := func() { touched = true }
+			stub := &stubAgentThunderProvisioning{
+				RegenerateFunc: func(context.Context, string, string, string, string) (models.AgentProvisioningType, string, string, error) {
+					mark()
+					return models.AgentProvisioningTypeExternal, "client", "secret", nil
+				},
+				RevokeFunc: func(context.Context, string, string, string, string) (string, error) {
+					mark()
+					return "client", nil
+				},
+				ProvisionForEnvironmentIfMissingFunc: func(context.Context, string, string, string, string, models.AgentProvisioningType, string) (bool, error) {
+					mark()
+					return false, nil
+				},
+				RetryProvisioningFunc: func(context.Context, string, string, string, string) (models.AgentIdentityEnvironmentView, error) {
+					mark()
+					return models.AgentIdentityEnvironmentView{}, nil
+				},
+			}
+			s := &agentManagerService{agentThunderProvisioning: stub, ocClient: pipelineOCClient("dev", "staging"), logger: discardLogger()}
+
+			err := tc.call(s)
+
+			require.ErrorIs(t, err, utils.ErrEnvironmentNotFound,
+				"an environment outside the pipeline must read as not found, as on the read paths")
+			assert.False(t, touched, "the binding must not be touched for an environment outside the pipeline")
+		})
+	}
+}
+
+// A pipeline that cannot be read must fail the call, not skip the check.
+func TestAgentIdentityRegenerateFailsClosedWhenPipelineUnreadable(t *testing.T) {
+	rotated := false
+	stub := &stubAgentThunderProvisioning{
+		RegenerateFunc: func(context.Context, string, string, string, string) (models.AgentProvisioningType, string, string, error) {
+			rotated = true
+			return models.AgentProvisioningTypeExternal, "client", "secret", nil
+		},
+	}
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetProjectDeploymentPipelineFunc: func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
+			return nil, errors.New("pipeline lookup failed")
+		},
+	}
+	s := &agentManagerService{agentThunderProvisioning: stub, ocClient: oc, logger: discardLogger()}
+
+	resp, err := s.RegenerateAgentIdentitySecret(context.Background(), "acme", "proj1", "my-agent", "dev")
+
+	require.Error(t, err)
+	assert.Nil(t, resp)
+	assert.False(t, rotated, "a secret must not be rotated when the pipeline cannot be checked")
+}
+
+func TestAgentIdentityRevokeFailsClosedWhenPipelineUnreadable(t *testing.T) {
+	revoked := false
+	stub := &stubAgentThunderProvisioning{
+		RevokeFunc: func(context.Context, string, string, string, string) (string, error) {
+			revoked = true
+			return "client", nil
+		},
+	}
+	oc := &clientmocks.OpenChoreoClientMock{
+		GetProjectDeploymentPipelineFunc: func(context.Context, string, string) (*models.DeploymentPipelineResponse, error) {
+			return nil, errors.New("pipeline lookup failed")
+		},
+	}
+	s := &agentManagerService{agentThunderProvisioning: stub, ocClient: oc, logger: discardLogger()}
+
+	_, err := s.RevokeAgentIdentitySecret(context.Background(), "acme", "proj1", "my-agent", "dev")
+
+	require.Error(t, err)
+	assert.False(t, revoked, "a secret must not be revoked when the pipeline cannot be checked")
 }

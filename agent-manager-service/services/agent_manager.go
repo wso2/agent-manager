@@ -4961,6 +4961,12 @@ func (s *agentManagerService) RegenerateAgentIdentitySecret(ctx context.Context,
 	if s.agentThunderProvisioning == nil {
 		return nil, utils.ErrAgentIdentityNotProvisioned
 	}
+	// AgentIDs are bound across every org environment, so the caller's project
+	// scope has to be enforced here: rotate and return a secret only for an
+	// environment the project's pipeline can see.
+	if err := s.requireVisibleEnvironment(ctx, ouID, projectName, environmentName); err != nil {
+		return nil, err
+	}
 	ownership, clientID, newSecret, err := s.agentThunderProvisioning.RegenerateSecret(ctx, ouID, projectName, agentName, environmentName)
 	if err != nil {
 		return nil, err
@@ -5001,6 +5007,9 @@ func (s *agentManagerService) RegenerateAgentIdentitySecret(ctx context.Context,
 func (s *agentManagerService) RevokeAgentIdentitySecret(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (models.AgentRevokeSecretResponse, error) {
 	if s.agentThunderProvisioning == nil {
 		return models.AgentRevokeSecretResponse{}, utils.ErrAgentIdentityNotProvisioned
+	}
+	if err := s.requireVisibleEnvironment(ctx, ouID, projectName, environmentName); err != nil {
+		return models.AgentRevokeSecretResponse{}, err
 	}
 	clientID, err := s.agentThunderProvisioning.RevokeSecret(ctx, ouID, projectName, agentName, environmentName)
 	if err != nil {
@@ -5076,6 +5085,9 @@ func (s *agentManagerService) ProvisionAgentIdentity(ctx context.Context, ouID s
 	if s.agentThunderProvisioning == nil {
 		return models.AgentIdentityEnvironmentView{}, false, utils.ErrAgentIdentityNotProvisioned
 	}
+	if err := s.requireVisibleEnvironment(ctx, ouID, projectName, environmentName); err != nil {
+		return models.AgentIdentityEnvironmentView{}, false, err
+	}
 	agent, err := s.ocClient.GetComponent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		s.logger.Error("Failed to fetch agent for identity provisioning", "agentName", agentName, "error", err)
@@ -5130,6 +5142,9 @@ func (s *agentManagerService) ProvisionAgentIdentity(ctx context.Context, ouID s
 func (s *agentManagerService) RetryAgentIdentityProvisioning(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (models.AgentIdentityEnvironmentView, error) {
 	if s.agentThunderProvisioning == nil {
 		return models.AgentIdentityEnvironmentView{}, utils.ErrAgentIdentityNotProvisioned
+	}
+	if err := s.requireVisibleEnvironment(ctx, ouID, projectName, environmentName); err != nil {
+		return models.AgentIdentityEnvironmentView{}, err
 	}
 	return s.agentThunderProvisioning.RetryProvisioning(ctx, ouID, projectName, agentName, environmentName)
 }
