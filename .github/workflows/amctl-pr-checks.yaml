@@ -93,7 +93,7 @@ jobs:
             --go-profile cli/coverage.out --require-profiles \
             --module github.com/wso2/agent-manager/cli --module-dir cli \
             --exclude-file cli/coverage-excludes.txt \
-            --base "origin/${{ github.base_ref }}" \
+            --base "origin/${{ github.base_ref }}" --require-base \
             ${{ steps.label.outputs.exempt == 'true' && '--exempt' || '' }}
 
       - name: Build CLI

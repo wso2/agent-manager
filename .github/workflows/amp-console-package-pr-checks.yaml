@@ -28,12 +28,11 @@ jobs:
       run:
         working-directory: console
     steps:
-      # The test leg takes the full history, so the coverage gate can diff
-      # against the base branch.
+      # The full history, so the coverage gate can diff against the base branch.
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          fetch-depth: ${{ matrix.task == 'test' && 0 || 1 }}
+          fetch-depth: 0
 
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-console-node
@@ -62,7 +61,7 @@ jobs:
           python3 ../scripts/coverage/gate.py "$RUNNER_TEMP/console-coverage.json" \
             coverage-gate.json --title "Console coverage" \
             --console-root . --repo-root .. \
-            --base "origin/${{ github.base_ref }}" \
+            --base "origin/${{ github.base_ref }}" --require-base \
             ${{ steps.label.outputs.exempt == 'true' && '--exempt' || '' }}
 
       - name: Upload coverage reports

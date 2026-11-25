@@ -29,7 +29,7 @@ Two rules, both from the config:
 
 Usage:
     gate.py SUMMARY.json CONFIG.json --title T [--base REF]
-        [--repo-root DIR] [--exempt] [--report-only]
+        [--repo-root DIR] [--require-base] [--exempt] [--report-only]
         (--go-profile P... --module M --module-dir D --exclude-file F
          [--require-profiles] | --console-root DIR)
 
@@ -147,6 +147,8 @@ def main(argv=None):
     parser.add_argument("--module-dir")
     parser.add_argument("--exclude-file")
     parser.add_argument("--require-profiles", action="store_true")
+    # CI always has the base; a skipped changed-line check there is a bug.
+    parser.add_argument("--require-base", action="store_true")
     parser.add_argument("--console-root")
     args = parser.parse_args(argv)
     go = bool(args.go_profile)
@@ -168,6 +170,8 @@ def main(argv=None):
     failures += min_failures
 
     changed = git_changed_lines(args.base, args.repo_root)
+    if changed is None and args.require_base:
+        failures.append(f"base `{args.base}` not found, so changed lines can't be checked")
     result = None
     if changed is not None and go:
         excludes = read_excludes(args.exclude_file) if args.exclude_file else []

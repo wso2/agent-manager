@@ -138,6 +138,7 @@ def _declares_func(path):
 def evaluate_go(changed, coverage, module_dir, excludes, repo_root="."):
     """Covered and total coverable changed lines of one Go module."""
     prefix = module_dir.rstrip("/") + "/"
+    profiled_dirs = {os.path.dirname(p) for p in coverage}
     per_file = {}
     for path, lines in changed.items():
         if not path.startswith(prefix) or not path.endswith(".go") or path.endswith("_test.go"):
@@ -146,10 +147,13 @@ def evaluate_go(changed, coverage, module_dir, excludes, repo_root="."):
             continue
         if path in coverage:
             per_file[path] = {n: coverage[path][n] for n in lines if n in coverage[path]}
-        elif _declares_func(os.path.join(repo_root, path)):
-            # No profile entry but the file has code: no test run compiled it,
-            # so every changed line is untested. A file of only types, vars
-            # and consts has no blocks and nothing coverable.
+        elif os.path.dirname(path) not in profiled_dirs and _declares_func(
+            os.path.join(repo_root, path)
+        ):
+            # No test run compiled the package, so every changed line of a
+            # file with code is untested. A file missing beside profiled ones
+            # was left out by a build constraint (wireinject, another OS),
+            # and a file of only types, vars and consts has nothing coverable.
             per_file[path] = {n: False for n in lines}
     return _tally(per_file)
 

@@ -245,7 +245,7 @@ jobs:
             --module github.com/wso2/agent-manager/agent-manager-service \
             --module-dir agent-manager-service \
             --exclude-file agent-manager-service/coverage-excludes.txt \
-            --base "origin/${{ github.base_ref }}" \
+            --base "origin/${{ github.base_ref }}" --require-base \
             ${{ steps.label.outputs.exempt == 'true' && '--exempt' || '' }}
 
       - name: Generate HTML report

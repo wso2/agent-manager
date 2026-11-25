@@ -16,7 +16,9 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
         PR_URL: ${{ github.api_url }}/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}
+      # A failed lookup means "no label": the gate then enforces the rule.
       run: |
-        curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$PR_URL" \
-          | python3 -c 'import json, sys; names = {l["name"] for l in json.load(sys.stdin)["labels"]}; print("exempt=" + str("coverage-exception" in names).lower())' \
-          >> "$GITHUB_OUTPUT"
+        exempt=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$PR_URL" \
+          | python3 -c 'import json, sys; names = {l["name"] for l in json.load(sys.stdin)["labels"]}; print(str("coverage-exception" in names).lower())') \
+          || { echo "::warning::could not read the pull request's labels"; exempt=false; }
+        echo "exempt=$exempt" >> "$GITHUB_OUTPUT"

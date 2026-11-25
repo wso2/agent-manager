@@ -155,6 +155,12 @@ class TestEvaluateGo(unittest.TestCase):
         res = self.evaluate({"svc/types.go": {3, 5}}, {})
         self.assertEqual(res, ChangedResult(covered=0, total=0, uncovered={}))
 
+    def test_missing_file_beside_profiled_files_not_coverable(self):
+        # wire.go is build-constrained out of `go test`; its package is profiled.
+        write(self.root, "svc/wire.go", "//go:build wireinject\n\npackage x\n\nfunc Build() {}\n")
+        res = self.evaluate({"svc/wire.go": {5}, "svc/a.go": {2}}, {"svc/a.go": {2: True}})
+        self.assertEqual(res, ChangedResult(covered=1, total=1, uncovered={}))
+
     def test_uncovered_lines_listed_sorted(self):
         cov = {"svc/a.go": {9: False, 3: False, 5: True}}
         res = self.evaluate({"svc/a.go": {9, 3, 5}}, cov)

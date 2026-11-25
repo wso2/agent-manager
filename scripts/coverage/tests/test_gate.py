@@ -165,6 +165,16 @@ class TestMain(unittest.TestCase):
         self.assertIn("changed-line check skipped (base not found)", out)
         self.assertIn("statements", out)
 
+    def test_require_base_fails_without_base(self):
+        summary = self.file("s.json", {"areas": {"a": area(90, 100)}})
+        cfg = self.file("c.json", CONFIG)
+        code, out = self.run_main(
+            summary, cfg, "--title", "svc", "--repo-root", self.tmp, "--base", "nope",
+            "--console-root", self.tmp, "--require-base",
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("base `nope` not found", out)
+
     def test_writes_step_summary(self):
         summary = self.file("s.json", {"areas": {"a": area(90, 100)}})
         cfg = self.file("c.json", CONFIG)
