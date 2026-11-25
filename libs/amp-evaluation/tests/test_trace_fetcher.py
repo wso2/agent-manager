@@ -254,6 +254,27 @@ class TestFetchTracesPagination:
         assert ids == ["t0", "t1", "t2", "t3", "t4"]
         assert fetcher.failed_trace_ids == set()
 
+    def test_trace_recovered_during_stall_probe_is_yielded(self):
+        """B is unreadable on a stalled page but reads in the stall probe: it is still fetched."""
+        fetcher = _make_fetcher()
+        ts = "2026-01-01T00:00:00Z"
+        a, b = _raw_trace("A", ts), _raw_trace("B", ts)
+        stalled = _mock_response([a], 2, failed_ids=["B"], last_start_time=ts)
+
+        with patch(
+            "requests.get",
+            side_effect=[
+                stalled,  # first page: A read, B unreadable
+                _mock_response([a], 2, failed_ids=["B"], last_start_time=ts),  # same page again: stalled
+                _mock_response([b], 1, last_start_time=ts),  # stall probe: B now readable
+                _mock_response([b], 1, last_start_time=ts),  # page from the stepped cursor
+            ],
+        ):
+            ids = [t.traceId for t in fetcher.fetch_traces(start_time=ts, end_time="2026-01-01T01:00:00Z", page_size=2)]
+
+        assert ids == ["A", "B"]
+        assert fetcher.failed_trace_ids == set()
+
     def test_page_of_only_unreadable_traces_does_not_end_pagination(self):
         """A, then unreadable B and C filling a page, then D: D is still fetched."""
         fetcher = _make_fetcher()

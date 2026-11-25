@@ -560,7 +560,7 @@ class TraceFetcher:
                 if not page_full or next_start is None:
                     return
 
-                stepped = self._step_past_stall(next_start, end_time, page_size, seen_ids | selected_ids)
+                stepped = self._step_past_stall(next_start, end_time, page_size, seen_ids, selected_ids)
                 if stepped is None:
                     return  # nothing resolvable after the stall — stop (never loop)
                 # Stepping forward skips any still-unseen traces sharing the stalled
@@ -597,7 +597,9 @@ class TraceFetcher:
 
             cursor_start = next_start
 
-    def _step_past_stall(self, stalled_ts: str, end_time: str, page_size: int, known_ids: set) -> Optional[str]:
+    def _step_past_stall(
+        self, stalled_ts: str, end_time: str, page_size: int, seen_ids: set, selected_ids: set
+    ) -> Optional[str]:
         """
         Return a cursor that advances past a stalled timestamp — the case where a full
         page is entirely already-seen traces because more traces share one stored time
@@ -611,6 +613,10 @@ class TraceFetcher:
         capped) so the caller stops rather than looping. Note: Python datetime is
         microsecond-resolution, so traces distinct only at sub-microsecond precision
         collapse into the stall and are skipped along with it.
+
+        A readable trace not yet yielded (`seen_ids`) counts as unseen, even one that
+        was unreadable earlier, so a trace that recovers is still fetched. An unreadable
+        trace counts only if no page has selected it before (`selected_ids`).
         """
         base = _parse_timestamp(stalled_ts)
         if base is None:
@@ -626,7 +632,9 @@ class TraceFetcher:
             page = self._fetch_page(candidate, end_time, limit=page_size, sort_order="asc")
             if not page.traces and not page.failed_ids:
                 return None
-            if any(t.traceId not in known_ids for t in page.traces) or any(i not in known_ids for i in page.failed_ids):
+            if any(t.traceId not in seen_ids for t in page.traces) or any(
+                i not in selected_ids and i not in seen_ids for i in page.failed_ids
+            ):
                 return candidate  # the cursor advanced far enough to surface new traces
             step_us *= 10  # store rounded the step away — grow it and retry
         return None
