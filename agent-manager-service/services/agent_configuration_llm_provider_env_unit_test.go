@@ -111,3 +111,53 @@ func TestBuildLLMEnvVarsOmitsProviderWhenNotApplicable(t *testing.T) {
 	withProvider := append(legacy, EnvConfigTemplate{Key: "provider", Name: "MY_LLM_PROVIDER"})
 	require.Len(t, buildLLMEnvVars(withProvider, "http://gw/llm", "secret-ref", ""), 2)
 }
+
+// The URL and API key names stay as persisted when a config is renamed, so a provider variable
+// added later (provider switch, new environment) must follow their prefix, not the config name.
+func TestBuildEnvironmentVariablesProviderFollowsExistingNamePrefix(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	templates, err := svc.buildEnvironmentVariables("anthropic-01", []models.EnvironmentVariableConfig{
+		{Key: "url", Name: "ANTHROPIC_URL"},
+		{Key: "apikey", Name: "ANTHROPIC_API_KEY"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "ANTHROPIC_PROVIDER", templates[2].Name)
+}
+
+func TestBuildEnvironmentVariablesProviderFollowsBareNames(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	templates, err := svc.buildEnvironmentVariables("my-llm", []models.EnvironmentVariableConfig{
+		{Key: "url", Name: "URL"},
+		{Key: "apikey", Name: "API_KEY"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "PROVIDER", templates[2].Name)
+}
+
+func TestBuildEnvironmentVariablesProviderFallsBackToConfigNameForCustomNames(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	templates, err := svc.buildEnvironmentVariables("my-llm", []models.EnvironmentVariableConfig{
+		{Key: "url", Name: "LLM_BASE"},
+		{Key: "apikey", Name: "LLM_TOKEN"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "MY_LLM_PROVIDER", templates[2].Name)
+}
+
+func TestBuildEnvironmentVariablesExplicitProviderNameBeatsSiblingPrefix(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	templates, err := svc.buildEnvironmentVariables("anthropic-01", []models.EnvironmentVariableConfig{
+		{Key: "url", Name: "ANTHROPIC_URL"},
+		{Key: "provider", Name: "LLM_VENDOR"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "LLM_VENDOR", templates[2].Name)
+}

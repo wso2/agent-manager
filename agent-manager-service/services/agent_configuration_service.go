@@ -5070,6 +5070,24 @@ func (s *agentConfigurationService) buildLLMProxyUpdateConfig(
 	return proxyConfig, providerUUID, nil
 }
 
+// siblingProviderVarName derives the provider variable name from the URL or API key name the
+// config already uses, so all three variables share one prefix. The URL and API key names are
+// kept as persisted when a config is renamed or its provider switched, while the config name
+// moves on; deriving from the config name alone would then give the provider variable a
+// different prefix than the other two. Returns false when neither name follows the default
+// <PREFIX>_URL / <PREFIX>_API_KEY pattern (for example a user-chosen name).
+func siblingProviderVarName(urlName, apiKeyName string) (string, bool) {
+	for _, c := range []struct{ name, suffix string }{{urlName, "URL"}, {apiKeyName, "API_KEY"}} {
+		switch {
+		case c.name == c.suffix:
+			return "PROVIDER", true
+		case strings.HasSuffix(c.name, "_"+c.suffix):
+			return strings.TrimSuffix(c.name, c.suffix) + "PROVIDER", true
+		}
+	}
+	return "", false
+}
+
 // buildEnvironmentVariables generates environment variable templates from config name.
 // If overrides are provided, user-supplied names take precedence over auto-generated ones.
 // Validates all names using ValidateEnvironmentVariableName.
@@ -5114,6 +5132,14 @@ func (s *agentConfigurationService) buildEnvironmentVariables(configName string,
 		}
 		seen[ov.Key] = true
 		overrideMap[ov.Key] = ov.Name
+	}
+
+	// With no explicit provider name, follow the prefix of the URL / API key names (see
+	// siblingProviderVarName) instead of the current config name.
+	if _, ok := overrideMap["provider"]; !ok {
+		if name, ok := siblingProviderVarName(overrideMap["url"], overrideMap["apikey"]); ok {
+			knownKeys["provider"] = keyMeta{isSecret: false, autoName: name}
+		}
 	}
 
 	// Determine final name for each key (override wins, then auto-generate).
