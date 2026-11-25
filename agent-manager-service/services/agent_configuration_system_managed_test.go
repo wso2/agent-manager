@@ -18,11 +18,14 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
@@ -208,8 +211,34 @@ func TestSystemManagedLLMURLFallsBackToVhostWhenEnabled(t *testing.T) {
 // to gateway, reusing gatewayFixtureRepo so gateway lookup behaves as the real SQL does.
 func callSystemManagedLLMURL(t *testing.T, gateway *models.Gateway, contextPath string) (string, error) {
 	t.Helper()
+	url, _, err := callSystemManagedLLM(t, gateway, contextPath, "", nil)
+	return url, err
+}
+
+// callSystemManagedLLM is callSystemManagedLLMURL plus the provider the proxy points at: it
+// returns the URL and the provider template handle systemManagedLLMURL resolved for it.
+func callSystemManagedLLM(
+	t *testing.T, gateway *models.Gateway, contextPath, providerUUID string, providerRepo *repomocks.LLMProviderRepositoryMock,
+) (string, string, error) {
+	t.Helper()
+	svc, configUUID, envUUID := newSystemManagedLLMService(t, gateway, contextPath, providerUUID, providerRepo)
+	return svc.systemManagedLLMURL(context.Background(), &models.AgentConfiguration{
+		UUID:        configUUID,
+		Name:        "model",
+		ProjectName: "project",
+		AgentID:     "agent",
+	}, "org", "dev", envUUID)
+}
+
+// newSystemManagedLLMService builds the service callSystemManagedLLM drives, and returns the
+// config and environment UUIDs its single mapping is keyed by.
+func newSystemManagedLLMService(
+	t *testing.T, gateway *models.Gateway, contextPath, providerUUID string, providerRepo *repomocks.LLMProviderRepositoryMock,
+) (*agentConfigurationService, uuid.UUID, uuid.UUID) {
+	t.Helper()
 	configUUID, envUUID, proxyUUID := uuid.New(), uuid.New(), uuid.New()
 	svc := &agentConfigurationService{
+		logger: discardLogger(),
 		envMappingRepo: &repomocks.EnvAgentModelMappingRepositoryMock{
 			GetByConfigAndEnvFunc: func(_ context.Context, gotConfigUUID, gotEnvUUID uuid.UUID) (*models.EnvAgentModelMapping, error) {
 				require.Equal(t, configUUID, gotConfigUUID)
@@ -221,7 +250,7 @@ func callSystemManagedLLMURL(t *testing.T, gateway *models.Gateway, contextPath 
 					LLMProxy: &models.LLMProxy{
 						UUID:          proxyUUID,
 						Handle:        "acme-openai-proxy",
-						Configuration: models.LLMProxyConfig{Context: &contextPath},
+						Configuration: models.LLMProxyConfig{Context: &contextPath, Provider: providerUUID},
 					},
 				}, nil
 			},
@@ -244,11 +273,101 @@ func callSystemManagedLLMURL(t *testing.T, gateway *models.Gateway, contextPath 
 		},
 		gatewayRepo: gatewayFixtureRepo(t, envUUID.String(), []*models.Gateway{gateway}),
 	}
+	if providerRepo != nil {
+		svc.llmProviderRepo = providerRepo
+	}
+	return svc, configUUID, envUUID
+}
 
-	return svc.systemManagedLLMURL(context.Background(), &models.AgentConfiguration{
-		UUID:        configUUID,
-		Name:        "model",
-		ProjectName: "project",
-		AgentID:     "agent",
-	}, "org", "dev", envUUID)
+// TestSystemManagedLLMURLResolvesProviderTemplateHandle pins what the promote path injects for the
+// provider env var: the template handle of the proxy's provider, not the org-level provider handle.
+func TestSystemManagedLLMURLResolvesProviderTemplateHandle(t *testing.T) {
+	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	gateway.RuntimeURL = "http://runtime.acme-dev:22893"
+	providerUUID := uuid.NewString()
+	repo := &repomocks.LLMProviderRepositoryMock{
+		GetByUUIDFunc: func(gotProviderID, gotOuID string) (*models.LLMProvider, error) {
+			require.Equal(t, providerUUID, gotProviderID)
+			require.Equal(t, "org", gotOuID)
+			return &models.LLMProvider{TemplateHandle: "anthropic"}, nil
+		},
+	}
+
+	url, provider, err := callSystemManagedLLM(t, gateway, "/llm/proxy", providerUUID, repo)
+
+	require.NoError(t, err)
+	require.Equal(t, "http://runtime.acme-dev:22893/llm/proxy", url)
+	require.Equal(t, "anthropic", provider)
+}
+
+// TestSystemManagedLLMURLOmitsProviderWhenLookupFails guards the best-effort contract: a provider
+// that cannot be read must not fail the URL resolution, it only leaves the provider value empty.
+func TestSystemManagedLLMURLOmitsProviderWhenLookupFails(t *testing.T) {
+	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	gateway.RuntimeURL = "http://runtime.acme-dev:22893"
+	repo := &repomocks.LLMProviderRepositoryMock{
+		GetByUUIDFunc: func(string, string) (*models.LLMProvider, error) { return nil, errors.New("boom") },
+	}
+
+	url, provider, err := callSystemManagedLLM(t, gateway, "/llm/proxy", uuid.NewString(), repo)
+
+	require.NoError(t, err)
+	require.NotEmpty(t, url)
+	require.Empty(t, provider)
+}
+
+// buildSystemManagedVars runs the promotion path (BuildSystemManagedEnvVarsFromConfig) for one
+// LLM config that stores the given variable rows, with the provider lookup answered by repo.
+func buildSystemManagedVars(t *testing.T, repo *repomocks.LLMProviderRepositoryMock) []client.EnvVar {
+	t.Helper()
+	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	gateway.RuntimeURL = "http://runtime.acme-dev:22893"
+	svc, configUUID, envUUID := newSystemManagedLLMService(t, gateway, "/llm/proxy", uuid.NewString(), repo)
+	svc.agentConfigRepo = &repomocks.AgentConfigurationRepositoryMock{
+		ListByAgentFunc: func(context.Context, string, string, string, int, int) ([]models.AgentConfiguration, error) {
+			return []models.AgentConfiguration{{UUID: configUUID, Name: "model", TypeID: models.AgentConfigTypeIDLLM}}, nil
+		},
+	}
+	svc.ocClient = &clientmocks.OpenChoreoClientMock{
+		GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
+			return &models.EnvironmentResponse{UUID: envUUID.String()}, nil
+		},
+	}
+	svc.envVariableRepo = &repomocks.AgentEnvConfigVariableRepositoryMock{
+		ListByConfigAndEnvFunc: func(context.Context, uuid.UUID, uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+			return []models.AgentEnvConfigVariable{
+				{VariableKey: "url", VariableName: "X_URL"},
+				{VariableKey: "apikey", VariableName: "X_API_KEY", SecretReference: "ref"},
+				{VariableKey: "provider", VariableName: "X_PROVIDER"},
+			}, nil
+		},
+	}
+
+	vars, err := svc.BuildSystemManagedEnvVarsFromConfig(context.Background(), "agent", "org", "project", "dev")
+	require.NoError(t, err)
+	return vars
+}
+
+func TestBuildSystemManagedEnvVarsInjectsProviderHandle(t *testing.T) {
+	vars := buildSystemManagedVars(t, &repomocks.LLMProviderRepositoryMock{
+		GetByUUIDFunc: func(string, string) (*models.LLMProvider, error) {
+			return &models.LLMProvider{TemplateHandle: "openai"}, nil
+		},
+	})
+
+	require.Len(t, vars, 3)
+	require.Equal(t, client.EnvVar{Key: "X_PROVIDER", Value: "openai"}, vars[2])
+}
+
+// An unresolved handle must leave the variable out, exactly as buildLLMEnvVars does, rather than
+// promote an empty X_PROVIDER="" into the target environment.
+func TestBuildSystemManagedEnvVarsOmitsProviderWhenHandleUnresolved(t *testing.T) {
+	vars := buildSystemManagedVars(t, &repomocks.LLMProviderRepositoryMock{
+		GetByUUIDFunc: func(string, string) (*models.LLMProvider, error) { return nil, errors.New("boom") },
+	})
+
+	require.Len(t, vars, 2)
+	for _, v := range vars {
+		require.NotEqual(t, "X_PROVIDER", v.Key)
+	}
 }

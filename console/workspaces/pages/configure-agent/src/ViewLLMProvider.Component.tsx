@@ -86,6 +86,8 @@ function generateDisplayName(key: string): string {
       return "API Key for authenticating with the LLM provider";
     case "url":
       return "Base URL of the LLM provider";
+    case "provider":
+      return "Name of the LLM provider";
     default:
       return key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase()); // Add space before capital letters and capitalize the first letter
 

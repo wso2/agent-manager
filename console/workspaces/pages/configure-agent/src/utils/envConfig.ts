@@ -25,14 +25,35 @@ export {
   type EnvVarKey,
 } from "@agent-management-platform/shared-component";
 
-export function generateEnvVarNames(prefix: string): Record<EnvVarKey, string> {
+function sanitizeEnvVarPrefix(prefix: string): string {
   let sanitized = prefix.replace(/[^A-Za-z0-9_]/g, "_").toUpperCase();
   if (sanitized.length > 0 && sanitized[0] >= "0" && sanitized[0] <= "9") {
     sanitized = "_" + sanitized;
   }
+  return sanitized;
+}
+
+export function generateEnvVarNames(prefix: string): Record<EnvVarKey, string> {
+  const sanitized = sanitizeEnvVarPrefix(prefix);
   return {
     url: sanitized ? `${sanitized}_URL` : "URL",
     apikey: sanitized ? `${sanitized}_API_KEY` : "API_KEY",
+  };
+}
+
+// An LLM configuration also gets the provider's template handle (openai, anthropic, ...).
+// MCP configurations have no LLM provider, so they keep using ENV_VAR_KEYS alone.
+export const LLM_ENV_VAR_KEYS = ["url", "apikey", "provider"] as const;
+
+export type LLMEnvVarKey = (typeof LLM_ENV_VAR_KEYS)[number];
+
+export function generateLLMEnvVarNames(
+  prefix: string,
+): Record<LLMEnvVarKey, string> {
+  const sanitized = sanitizeEnvVarPrefix(prefix);
+  return {
+    ...generateEnvVarNames(prefix),
+    provider: sanitized ? `${sanitized}_PROVIDER` : "PROVIDER",
   };
 }
 
