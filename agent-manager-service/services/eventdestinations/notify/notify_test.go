@@ -165,24 +165,24 @@ func TestDeliver(t *testing.T) {
 // PagerDuty rejects a "title" param, so the driver must not send one.
 func TestDeliver_PagerDuty(t *testing.T) {
 	var got string
-	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	d := New(true)
+	d.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		b, _ := io.ReadAll(r.Body)
 		got = string(b)
-		w.WriteHeader(http.StatusAccepted)
-	}))
-	t.Cleanup(srv.Close)
-
-	d := New(true)
-	d.client = srv.Client()
-	host := strings.TrimPrefix(srv.URL, "https://")
+		return &http.Response{StatusCode: http.StatusAccepted, Body: io.NopCloser(strings.NewReader("{}")), Header: http.Header{}}, nil
+	})}
 	dest := eventdestinations.Destination{
 		Config: json.RawMessage(`{"service":"pagerduty"}`),
-		Secret: "pagerduty://" + host + "/eb243592faa24ba2a5511afdf565c889",
+		Secret: "pagerduty:///eb243592faa24ba2a5511afdf565c889",
 	}
 	res := d.Deliver(context.Background(), dest, message(t))
 	require.NoError(t, res.Err)
 	assert.Contains(t, got, "Agent deployed")
 }
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 type failedNotifyTransport struct{}
 
