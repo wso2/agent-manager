@@ -81,17 +81,18 @@ import {
 import { ProviderSelectDrawer } from "./ProviderSelectDrawer";
 import { ConfigNameSection } from "./Configure/subComponents/ConfigNameSection";
 import {
-  ENV_VAR_KEYS,
-  generateEnvVarNames,
+  LLM_ENV_VAR_KEYS,
+  generateLLMEnvVarNames,
   generateUniqueConfigName,
-  type EnvVarKey,
+  type LLMEnvVarKey,
 } from "./utils/envConfig";
 
 type DeploymentSummary = { gatewayName?: string; deployedAt?: string };
 
-const ENV_VAR_DESCRIPTIONS: Record<EnvVarKey, string> = {
+const ENV_VAR_DESCRIPTIONS: Record<LLMEnvVarKey, string> = {
   url: "Base URL of the LLM provider",
   apikey: "API key for authenticating with the LLM provider",
+  provider: "Name of the LLM provider, for example openai or anthropic",
 };
 
 function getLatestDeployment(
@@ -388,7 +389,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     Record<string, GuardrailSelection[]>
   >({});
   const [envVarNames, setEnvVarNames] = useState<Record<string, string>>(() =>
-    generateEnvVarNames(""),
+    generateLLMEnvVarNames(""),
   );
   // Track whether the user has manually edited env var names
   const envVarNamesEditedRef = useRef(false);
@@ -484,6 +485,18 @@ export const AddLLMProviderComponent: React.FC = () => {
     configId: configId ?? undefined,
   });
 
+  // An existing config only has the variables the server created for it. One made before the
+  // provider variable existed has none, and a name typed for a missing variable would be ignored.
+  const configurableEnvVarKeys = useMemo(
+    () =>
+      isEditMode
+        ? LLM_ENV_VAR_KEYS.filter((key) =>
+            existingConfig?.environmentVariables?.some((ev) => ev.key === key),
+          )
+        : LLM_ENV_VAR_KEYS,
+    [isEditMode, existingConfig],
+  );
+
   useEffect(() => {
     if (!existingConfig || !isEditMode) return;
     const nextProviderByEnv: Record<string, SelectedProvider | null> = {};
@@ -551,7 +564,7 @@ export const AddLLMProviderComponent: React.FC = () => {
 
   useEffect(() => {
     if (isEditMode || envVarNamesEditedRef.current) return;
-    setEnvVarNames(generateEnvVarNames(primaryTemplate));
+    setEnvVarNames(generateLLMEnvVarNames(primaryTemplate));
   }, [primaryTemplate, isEditMode]);
 
   // Suggested config name: a unique name derived from the display name of the
@@ -672,7 +685,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     }
 
     const environmentVariables = !isExternal
-      ? ENV_VAR_KEYS.map((key) => ({
+      ? configurableEnvVarKeys.map((key) => ({
         key,
         name: (envVarNames[key] ?? "").trim(),
       })).filter((ev) => ev.name.length > 0)
@@ -754,6 +767,7 @@ export const AddLLMProviderComponent: React.FC = () => {
     environments,
     guardrailsByEnv,
     envVarNames,
+    configurableEnvVarKeys,
     configName,
     isExternal,
     orgId,
@@ -1070,8 +1084,9 @@ export const AddLLMProviderComponent: React.FC = () => {
             <Typography variant="subtitle1" sx={{ mb: 1 }}>Environment Variable Names</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               These names are shared across all environments. The platform
-              injects the actual URL and API key values at runtime per
-              environment. Edit only if your code uses different names.
+              injects the actual URL, API key and provider name values at
+              runtime per environment. Edit only if your code uses different
+              names.
             </Typography>
             <ListingTable.Container>
               <ListingTable density="compact">
@@ -1091,7 +1106,7 @@ export const AddLLMProviderComponent: React.FC = () => {
                   </ListingTable.Row>
                 </ListingTable.Head>
                 <ListingTable.Body>
-                  {ENV_VAR_KEYS.map((key) => (
+                  {configurableEnvVarKeys.map((key) => (
                     <ListingTable.Row key={key}>
                       <ListingTable.Cell>
                         <TextInput
