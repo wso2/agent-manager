@@ -65,6 +65,11 @@ func MakeHTTPHandlerWithMiddleware(params *wiring.AppParams, extraAPIRoutes func
 type Modules interface {
 	// ServeAPI serves /m/<module>/... on the API port, behind sign-in.
 	ServeAPI() http.Handler
+	// ServeAgentAPI serves the agent-key routes under /m/<module>/..., which
+	// verify the caller's agent key instead of a user's sign-in.
+	ServeAgentAPI() http.Handler
+	// AgentRequest reports whether a request goes to ServeAgentAPI.
+	AgentRequest(r *http.Request) bool
 	// ServeInternal serves /m/<module>/internal/... on the internal server,
 	// for module workloads.
 	ServeInternal() http.Handler
@@ -100,6 +105,10 @@ func ModuleInternalMounter(params *wiring.AppParams) func(*http.ServeMux, modhos
 
 func mountModuleRoute(rr *middleware.RouteRegistrar, r modhost.Route, lookup middleware.OUHandleLookup) {
 	policy := modulePolicy(r)
+	if r.AgentKey {
+		rr.HandleModuleAgentRoute(r.Pattern(), policy, r.Handler)
+		return
+	}
 	if r.AllowOrgOverride {
 		policy.OrgOverride = middleware.ApplyOrgOverride(lookup)
 	}
@@ -191,9 +200,19 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 		// Module APIs live beside the core's, at /m/<module>, behind the same
 		// chain. The module is looked up on every request, so enabling or
 		// disabling one changes these routes without a restart.
+		// Agent-key routes, and any request carrying an agent key, skip
+		// user sign-in: the module host verifies the key.
 		moduleMux := http.NewServeMux()
 		moduleMux.Handle("/m/", modules.ServeAPI())
-		mux.Handle("/m/", signedIn(params, moduleMux, apiMiddleware))
+		signed := signedIn(params, moduleMux, apiMiddleware)
+		agent := agentKeyChain(modules.ServeAgentAPI())
+		mux.Handle("/m/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if modules.AgentRequest(r) {
+				agent.ServeHTTP(w, r)
+				return
+			}
+			signed.ServeHTTP(w, r)
+		}))
 	}
 
 	// The console, at the root: its files, its runtime config and, for any
@@ -216,6 +235,14 @@ func signedIn(params *wiring.AppParams, apiMux *http.ServeMux, apiMiddleware fun
 	h = logger.RequestLogger()(h)
 	h = middleware.AddCorrelationID()(h)
 	h = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(h)
+	return middleware.RecovererOnPanic()(h)
+}
+
+// agentKeyChain wraps the module agent-key routes: no user sign-in and no
+// CORS, since agents are not browsers.
+func agentKeyChain(h http.Handler) http.Handler {
+	h = logger.RequestLogger()(h)
+	h = middleware.AddCorrelationID()(h)
 	return middleware.RecovererOnPanic()(h)
 }
 

@@ -299,11 +299,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /agent/ingest:
+    post:
+      operationId: agentIngest
+      summary: Receive data an agent sends with its agent key
+      security:
+        - AgentKey: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: What the module saw
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
+    AgentKey:
+      type: apiKey
+      in: header
+      name: X-Amp-Api-Key
   schemas:
     ErrorResponse:
       type: object

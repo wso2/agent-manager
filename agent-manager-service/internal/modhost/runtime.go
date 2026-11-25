@@ -55,6 +55,7 @@ type runtime struct {
 	errs []error
 	// What Activate registered, added to the snapshot only if it succeeds.
 	routes   []Route
+	agent    []Route
 	internal []Route
 	hooks    []hookEntry
 	subs     []subEntry
@@ -137,6 +138,9 @@ func (r *runtime) options(rt *Route, opts []modkit.RouteOption) error {
 	}
 	rt.AuditCoalesce = o.AuditCoalesce
 	rt.AuditFailClosed = o.AuditFailClosed
+	if rt.AgentKey && (o.Event != "" || len(o.AlsoRequires) > 0 || len(o.AnyPermission) > 0 || o.PlatformAdmin || o.AllowOrgOverride) {
+		return errors.New("an agent-key route takes no permission, org override or webhook event options")
+	}
 	if o.Event != "" {
 		e, ok := r.mf.Event(o.Event)
 		if !ok || e.Scope == "" {
@@ -208,6 +212,33 @@ func (r *runtime) Handle(method, path, perm string, h http.HandlerFunc, opts ...
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.routes = append(r.routes, route)
+}
+
+func (r *runtime) HandleAgent(method, path string, h http.HandlerFunc, opts ...modkit.RouteOption) {
+	if !r.registering("HandleAgent") {
+		return
+	}
+	if err := r.checkRoute("HandleAgent", method, path, h); err != nil {
+		r.fail(err)
+		return
+	}
+	if path == "/internal" || strings.HasPrefix(path, "/internal/") {
+		r.fail(fmt.Errorf("HandleAgent %s %s: /m/%s/internal belongs to the module's workload routes (HandleInternal)", method, path, r.name))
+		return
+	}
+	route := Route{Module: r.name, Method: method, Path: path, AgentKey: true, Handler: h}
+	if err := r.options(&route, opts); err != nil {
+		r.fail(fmt.Errorf("HandleAgent %s %s: %w", method, path, err))
+		return
+	}
+	if method != http.MethodGet && route.AuditAction == "" {
+		// No permission names its action, so the route names one.
+		r.fail(fmt.Errorf("HandleAgent %s %s: a %s route names its audit action with modkit.Audit", method, path, method))
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.agent = append(r.agent, route)
 }
 
 func (r *runtime) HandleInternal(method, path, scope string, h http.HandlerFunc, opts ...modkit.RouteOption) {
