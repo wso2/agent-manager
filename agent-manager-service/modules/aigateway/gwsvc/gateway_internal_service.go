@@ -122,7 +122,7 @@ func (s *GatewayInternalAPIService) getActiveArtifactDeploymentByGateway(
 		return nil, notFound
 	}
 
-	resolvedYaml, err := s.resolveSecretsFor(ctx, ouID, gatewayKind, string(deployment.Content))
+	resolvedYaml, err := s.resolveSecretsFor(ctx, ouID, gatewayID, gatewayKind, string(deployment.Content))
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in "+gatewayKind+" YAML",
 			"artifactID", artifactID, "error", err)
@@ -164,7 +164,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(ctx 
 	providerYaml := string(deployment.Content)
 
 	// Resolve secret references in the YAML
-	resolvedYaml, err := s.resolveSecretsFor(ctx, ouID, gwmodels.KindLLMProvider, providerYaml)
+	resolvedYaml, err := s.resolveSecretsFor(ctx, ouID, gatewayID, gwmodels.KindLLMProvider, providerYaml)
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in provider YAML",
 			"providerID", providerID, "error", err)
@@ -201,7 +201,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx con
 	proxyYaml := string(deployment.Content)
 
 	// Resolve secret references in the YAML
-	resolvedYaml, err := s.resolveSecretsFor(ctx, ouID, gwmodels.KindLLMProxy, proxyYaml)
+	resolvedYaml, err := s.resolveSecretsFor(ctx, ouID, gatewayID, gwmodels.KindLLMProxy, proxyYaml)
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in proxy YAML",
 			"proxyID", proxyID, "error", err)
@@ -214,11 +214,10 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx con
 	return proxyYamlMap, nil
 }
 
-// resolveSecretsInYAML parses YAML, finds auth.secretRef, reads the secret it names,
-// and replaces secretRef with the actual plaintext value.
+// resolveSecretsInYAML parses YAML, finds auth.secretRef, and replaces secretRef with `value: <replace(ref)>`.
 // authPath indicates where in the YAML structure the auth block lives
 // (e.g., "upstream.auth" for providers, "provider.auth" for proxies).
-func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, ouID, yamlContent, authPath string) (string, error) {
+func resolveSecretsInYAML(yamlContent, authPath string, replace secretReplacer) (string, error) {
 	var doc map[string]interface{}
 	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
 		return "", fmt.Errorf("failed to parse YAML: %w", err)
@@ -264,13 +263,13 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, ou
 		return yamlContent, nil // No secretRef, return as-is
 	}
 
-	plaintext, err := s.readSecretRef(ctx, ouID, secretRef)
+	value, err := replace(secretRef)
 	if err != nil {
 		return "", err
 	}
 
 	// Replace secretRef with the secret value
-	auth["value"] = plaintext
+	auth["value"] = value
 	delete(auth, "secretRef")
 
 	// Re-marshal to YAML
@@ -282,18 +281,18 @@ func (s *GatewayInternalAPIService) resolveSecretsInYAML(ctx context.Context, ou
 	return string(resolved), nil
 }
 
-// resolveAllSecretsInYAML walks the entire YAML and reads the secret of every `secretRef` field it
-// finds, replacing it with `value: <plaintext>`. Use this when secrets may appear at
+// resolveAllSecretsInYAML walks the entire YAML and replaces every `secretRef` field it finds with
+// `value: <replace(ref)>`. Use this when secrets may appear at
 // multiple or unknown locations in the doc (e.g. MCP proxy YAML, where the upstream auth
 // is re-expressed as headers inside a set-headers policy). For YAMLs with a single
 // known secret location, prefer resolveSecretsInYAML — it's targeted and won't touch
 // any field outside the specified path.
-func (s *GatewayInternalAPIService) resolveAllSecretsInYAML(ctx context.Context, ouID, yamlContent string) (string, error) {
+func resolveAllSecretsInYAML(yamlContent string, replace secretReplacer) (string, error) {
 	var doc interface{}
 	if err := yaml.Unmarshal([]byte(yamlContent), &doc); err != nil {
 		return "", fmt.Errorf("failed to parse YAML: %w", err)
 	}
-	changed, err := s.readSecretRefsIn(ctx, ouID, doc)
+	changed, err := replaceSecretRefsIn(doc, replace)
 	if err != nil {
 		return "", err
 	}
@@ -307,24 +306,24 @@ func (s *GatewayInternalAPIService) resolveAllSecretsInYAML(ctx context.Context,
 	return string(out), nil
 }
 
-// readSecretRefsIn recursively visits v. For every map that has a non-empty string
-// `secretRef`, it reads the secret and rewrites the map to carry `value: <plaintext>`
+// replaceSecretRefsIn recursively visits v. For every map that has a non-empty string
+// `secretRef`, it rewrites the map to carry `value: <replace(ref)>`
 // instead. Returns true if any rewrite happened.
-func (s *GatewayInternalAPIService) readSecretRefsIn(ctx context.Context, ouID string, v interface{}) (bool, error) {
+func replaceSecretRefsIn(v interface{}, replace secretReplacer) (bool, error) {
 	switch x := v.(type) {
 	case map[string]interface{}:
 		changed := false
 		if ref, ok := x["secretRef"].(string); ok && ref != "" {
-			plaintext, err := s.readSecretRef(ctx, ouID, ref)
+			value, err := replace(ref)
 			if err != nil {
 				return false, err
 			}
-			x["value"] = plaintext
+			x["value"] = value
 			delete(x, "secretRef")
 			changed = true
 		}
 		for _, child := range x {
-			c, err := s.readSecretRefsIn(ctx, ouID, child)
+			c, err := replaceSecretRefsIn(child, replace)
 			if err != nil {
 				return changed, err
 			}
@@ -334,7 +333,7 @@ func (s *GatewayInternalAPIService) readSecretRefsIn(ctx context.Context, ouID s
 	case []interface{}:
 		changed := false
 		for _, child := range x {
-			c, err := s.readSecretRefsIn(ctx, ouID, child)
+			c, err := replaceSecretRefsIn(child, replace)
 			if err != nil {
 				return changed, err
 			}

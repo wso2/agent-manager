@@ -52,6 +52,11 @@ func RegisterGatewayInternalRoutes(rr InternalRouter, ctrl gwctl.GatewayInternal
 	// Gateway manifest endpoint
 	rr.HandleFuncWithValidation("POST /gateways/{gatewayId}/manifest", ctrl.PushGatewayManifest)
 
+	// Secret endpoints. A gateway that takes secrets by reference fetches the values its artifacts' {{ secret }}
+	// placeholders name; both hand plaintext credentials to the gateway.
+	rr.HandleFuncWithValidation("GET /secrets", ctrl.GetSecrets)
+	rr.HandleFuncWithValidation("GET /secrets/{handle}/value", ctrl.GetSecretValue)
+
 	// LLM Provider endpoints
 	rr.HandleFuncWithValidation("GET /llm-providers/{providerId}", ctrl.GetLLMProvider)
 

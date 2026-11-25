@@ -92,3 +92,21 @@ Step 2 runs on every start and changes nothing that is already there:
 **In the Compose stack**, `amp-init` writes the token into the `gateway-config` volume, which `amp-api` mounts read-only and the gateway reads `config.toml` from, and `docker-compose.yml` sets `DEFAULT_GATEWAY_NAME=default`, the vhost from `GATEWAY_HOST` and `GATEWAY_PORT`, and `DEFAULT_GATEWAY_TOKEN_FILE=/amp/gw/registration-token`. Nothing needs setting.
 
 **A gateway you run yourself** registers the same way: set `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME`, a `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST` agents can reach, and the token (`MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN` or `_TOKEN_FILE`), and give the gateway controller the same token and Agent Manager's internal address. `amp init ai-gateway DIR` writes a `config.toml` with both. To register gateways in the console instead, leave the name empty.
+
+## How credentials reach the gateway
+
+An artifact that calls an upstream with a credential (an LLM provider or proxy key, an MCP endpoint's or A2A agent's upstream auth) stores only a `secretRef` in Agent Manager. The gateway gets the credential in one of two ways, chosen per gateway by its `secretDelivery` property:
+
+| `secretDelivery` | What the artifact carries | Where the gateway keeps the credential |
+|---|---|---|
+| `inline` (default) | The plaintext, in the upstream auth `value` | In the artifact's configuration, unencrypted |
+| `reference` | `{{ secret "amp-<id>-<version>" }}` | In the gateway's secret store, encrypted with its configured encryption provider |
+
+With `reference`, the gateway fetches values from two controller-facing routes, both authenticated with its registration token:
+
+- `GET /api/internal/v1/secrets[?includeValues=true]` lists the secrets its deployed artifacts refer to, with a hash per secret. The gateway calls it when it connects (with values) and on every reconnect (hashes only).
+- `GET /api/internal/v1/secrets/{handle}/value` returns one value. The gateway calls it when a deployed artifact names a handle it doesn't hold.
+
+A gateway is offered only the handles its own deployed artifacts name; any other handle is not found. The handle changes when the credential does, because the gateway never refetches a handle it already holds: a redeployed artifact names the new handle, and the gateway fetches it. Both routes are audited (`ai-gateway:secrets.sync`, `ai-gateway:secrets.read`).
+
+Set it on a self-hosted gateway through `properties.secretDelivery` when registering or updating it, and on the default gateway with `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_SECRET_DELIVERY` (`GATEWAY_SECRET_DELIVERY` in the Compose stack), applied on every start. Artifacts already on the gateway keep the form they were sent in until they are redeployed.

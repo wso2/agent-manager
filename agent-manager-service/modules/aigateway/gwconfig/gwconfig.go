@@ -59,6 +59,9 @@ type DefaultGateway struct {
 	// Token is the registration token the gateway connects with, read from TokenFile when empty.
 	Token     string
 	TokenFile string
+	// SecretDelivery is how the gateway receives credentials: "inline" in the artifacts it fetches, or "reference",
+	// as {{ secret }} placeholders it resolves from its own encrypted secret store. Applied at every start.
+	SecretDelivery string
 }
 
 // ManifestCache selects the gateway-manifest cache: "memory" (one replica only) or "redis" (required with
@@ -136,6 +139,7 @@ func Load(get func(key string) string) (Settings, error) {
 			OrgOUID:           r.str("DEFAULT_GATEWAY_ORG_OU_ID", "01900000-0000-7000-8000-000000000001"),
 			Token:             strings.TrimSpace(r.str("DEFAULT_GATEWAY_TOKEN", "")),
 			TokenFile:         r.str("DEFAULT_GATEWAY_TOKEN_FILE", ""),
+			SecretDelivery:    strings.TrimSpace(r.str("DEFAULT_GATEWAY_SECRET_DELIVERY", "inline")),
 		},
 		A2ACardFetchDialAddr: r.str("A2A_CARD_FETCH_DIAL_ADDR", ""),
 		ManifestCache: ManifestCache{
@@ -185,6 +189,9 @@ func (s Settings) check(r *reader) {
 	if g := s.DefaultGateway; g.Name != "" && (g.Vhost == "" || (g.Token == "" && g.TokenFile == "")) {
 		r.fail("%sDEFAULT_GATEWAY_NAME needs %sDEFAULT_GATEWAY_VHOST and %sDEFAULT_GATEWAY_TOKEN or %sDEFAULT_GATEWAY_TOKEN_FILE",
 			envPrefix, envPrefix, envPrefix, envPrefix)
+	}
+	if d := s.DefaultGateway.SecretDelivery; d != "inline" && d != "reference" {
+		r.fail("%sDEFAULT_GATEWAY_SECRET_DELIVERY %q is not valid (must be \"inline\" or \"reference\")", envPrefix, d)
 	}
 	if addr := s.A2ACardFetchDialAddr; addr != "" {
 		if host, port, err := net.SplitHostPort(addr); err != nil {

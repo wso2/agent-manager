@@ -54,6 +54,32 @@ const (
 	GatewayHostingSelfHosted = "self_hosted"
 )
 
+// Secret delivery: how a gateway receives the credentials its artifacts use. Stored in the gateway's properties
+// under SecretDeliveryProperty; absent means inline.
+const (
+	// SecretDeliveryProperty is the gateway property naming its secret delivery.
+	SecretDeliveryProperty = "secretDelivery"
+	// SecretDeliveryInline writes each credential's plaintext into the artifact the gateway fetches. The gateway
+	// stores it with the artifact, unencrypted. Every gateway version supports it.
+	SecretDeliveryInline = "inline"
+	// SecretDeliveryReference writes a {{ secret "handle" }} placeholder instead, and the gateway fetches the value
+	// from /api/internal/v1/secrets and keeps it encrypted in its secret store.
+	SecretDeliveryReference = "reference"
+)
+
+// SecretDelivery is the gateway's secret delivery, inline unless its properties say reference.
+func (g *Gateway) SecretDelivery() string {
+	if v, ok := g.Properties[SecretDeliveryProperty].(string); ok && v == SecretDeliveryReference {
+		return SecretDeliveryReference
+	}
+	return SecretDeliveryInline
+}
+
+// ValidSecretDelivery reports whether v names a secret delivery.
+func ValidSecretDelivery(v string) bool {
+	return v == SecretDeliveryInline || v == SecretDeliveryReference
+}
+
 // IsManaged reports whether the platform runs this gateway. A stored gateway is always managed or
 // self_hosted (migration 054: NOT NULL DEFAULT 'managed' with a CHECK). An empty Hosting only occurs
 // in structs built in memory without it, such as test fixtures, and counts as managed, the column

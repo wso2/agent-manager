@@ -342,6 +342,7 @@ The operations below emit a record describing what actually changed, not just th
 | Gateways | `ai-gateway:gateways.delete`, `ai-gateway:gateways.set-identity-provider`, `ai-gateway:gateways.remove-identity-provider` | Fail-closed |
 | Gateways | `ai-gateway:gateways.create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
 | Internal | `ai-gateway:gateways.push-manifest`, `ai-gateway:api-keys.sync` (bulk sync, coalesced per gateway) | Fail-open |
+| Internal | `ai-gateway:secrets.sync` (once per gateway connection), `ai-gateway:secrets.read` (one secret value fetched by handle) | Fail-open |
 | Agent config | `ai-gateway:agent-configs.update` / `:delete` | Fail-open |
 | A2A card source | `ai-gateway:agents.set-card-source` | Fail-open |
 | A2A card source | `ai-gateway:agents.remove-card-source` (it removes the proxy and its stored secret too) | Fail-closed |
@@ -477,6 +478,8 @@ AI Gateway actions (`modules/aigateway/gwaudit/gwaudit.go`), all 66 the module's
 | `ai-gateway:scopes.create` | identity | 4 critical | — |
 | `ai-gateway:scopes.delete` | identity | 4 critical | — |
 | `ai-gateway:scopes.update` | identity | 4 critical | — |
+| `ai-gateway:secrets.read` | read | 2 notice | `secretHandle` |
+| `ai-gateway:secrets.sync` | read | 2 notice | `includeValues`, `secretCount` |
 
 Core read actions (`agent:read`, `project:read`, `environment:read`) are declared so every MCP tool can name what it does; they are classified as reads and not recorded. An AI Gateway read action is recorded when a route names it with `modkit.Audit` — the API-key and gateway-token listings, the identity-provider listings, `gateways.read` on the platform failure summary and the gateway sync routes (`api-keys.sync`, `deployments.sync`, `artifacts.check-exists`). `deployments.read`, `llm-providers.read` and `mcp-servers.read` name MCP read tools and are not recorded.
 

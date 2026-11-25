@@ -251,6 +251,7 @@ modules:
 | `default_gateway_org_ou_id` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID` | `01900000-0000-7000-8000-000000000001` | The organization unit the registered gateway belongs to. |
 | `default_gateway_token` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN` |  | The registered gateway's registration token; generated and kept by amp init when unset. **Secret.** |
 | `default_gateway_token_file` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE` |  | A file holding the registration token, read when DEFAULT_GATEWAY_TOKEN is unset. |
+| `default_gateway_secret_delivery` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_SECRET_DELIVERY` | `inline` | How the registered gateway receives credentials: inline in its artifacts, or reference, fetched into its encrypted secret store. |
 | `a2a_card_fetch_dial_addr` | `MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR` |  | host:port every A2A agent card fetch dials instead of the card URL's host. |
 | `manifest_cache_backend` | `MODULE_AI_GATEWAY_MANIFEST_CACHE_BACKEND` | `memory` | Where deployment manifests are cached: memory or redis. |
 | `manifest_cache_redis_host` | `MODULE_AI_GATEWAY_MANIFEST_CACHE_REDIS_HOST` |  | Redis host for the manifest cache. |

@@ -53,6 +53,8 @@ type GatewayInternalController interface {
 	CheckArtifactsExist(w http.ResponseWriter, r *http.Request)
 	GetApplications(w http.ResponseWriter, r *http.Request)
 	PushGatewayManifest(w http.ResponseWriter, r *http.Request)
+	GetSecrets(w http.ResponseWriter, r *http.Request)
+	GetSecretValue(w http.ResponseWriter, r *http.Request)
 }
 
 type gatewayInternalController struct {

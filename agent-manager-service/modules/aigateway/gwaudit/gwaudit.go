@@ -114,6 +114,8 @@ var Actions = withDetails([]modkit.AuditAction{
 	{Name: "mcp-servers.read", Class: "read", Severity: "info", Description: "Read (mcp servers)"},
 	{Name: "mcp-servers.update", Class: "config", Severity: "info", Description: "Update (mcp servers)"},
 	{Name: "scopes.create", Class: "identity", Severity: "critical", Description: "Create (scopes)"},
+	{Name: "secrets.read", Class: "read", Severity: "notice", Description: "Read (secrets)"},
+	{Name: "secrets.sync", Class: "read", Severity: "notice", Description: "Sync (secrets)"},
 	{Name: "scopes.delete", Class: "identity", Severity: "critical", Description: "Delete (scopes)"},
 	{Name: "scopes.update", Class: "identity", Severity: "critical", Description: "Update (scopes)"},
 })
@@ -211,6 +213,9 @@ func withDetails(actions []modkit.AuditAction) []modkit.AuditAction {
 			"ownerType": "enum", "ownerName": "name", "keyName": "name", "expiresAt": "name", "rotated": "flag",
 		},
 		"api-keys.sync": {"keyCount": "count"},
+		// A handle names a secret version, never its value.
+		"secrets.sync": {"secretCount": "count", "includeValues": "flag"},
+		"secrets.read": {"secretHandle": "identifier"},
 		"gateway-tokens.rotate": {
 			"gatewayName": "name", "tokenId": "identifier", "expiresAt": "name", "requestedOrgId": "identifier",
 		},

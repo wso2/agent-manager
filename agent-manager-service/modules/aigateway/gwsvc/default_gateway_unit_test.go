@@ -159,3 +159,32 @@ func TestDefaultGatewaySeederRejectsMalformedToken(t *testing.T) {
 }
 
 func hexOf(b []byte) string { return hex.EncodeToString(b) }
+
+// Changing the setting takes effect on the next start; the gateway's other properties are kept.
+func TestDefaultGatewaySeederAppliesSecretDelivery(t *testing.T) {
+	cfg, token := seedConfig(t)
+	cfg.SecretDelivery = gwmodels.SecretDeliveryReference
+	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost,
+		Properties: map[string]interface{}{"region": "eu"}}
+	salt, _ := generateSalt()
+	existing := &gwmodels.GatewayToken{GatewayUUID: gw.UUID, TokenHash: hashToken(token, salt), Salt: hexOf(salt)}
+	var updated *gwmodels.Gateway
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByNameAndOrgIDFunc: func(name, ouID string) (*gwmodels.Gateway, error) { return gw, nil },
+		GetActiveTokenByPrefixFunc: func(ctx context.Context, prefix string) (*gwmodels.GatewayToken, error) {
+			return existing, nil
+		},
+		UpdateGatewayFunc: func(g *gwmodels.Gateway) error { updated = g; return nil },
+	}
+	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo), repo, seedPlatform(t), discardLogger())
+	require.NoError(t, s.Seed(context.Background()))
+
+	require.NotNil(t, updated)
+	assert.Equal(t, gwmodels.SecretDeliveryReference, updated.SecretDelivery())
+	assert.Equal(t, "eu", updated.Properties["region"])
+
+	// Already set: no write.
+	updated = nil
+	require.NoError(t, s.Seed(context.Background()))
+	assert.Nil(t, updated)
+}
