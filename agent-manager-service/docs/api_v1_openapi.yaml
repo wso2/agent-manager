@@ -8672,7 +8672,9 @@ paths:
               - ARCHIVED
       responses:
         "200":
-          description: Successfully retrieved deployments
+          description: >-
+            Successfully retrieved deployments. Each gateway contributes at most 20 deployments, so without a
+            gatewayId filter the list can hold up to 20 per gateway.
           content:
             application/json:
               schema:

@@ -228,12 +228,15 @@ paths:
           required: false
           schema:
             type: integer
+            minimum: 1
             default: 1
         - name: page_size
           in: query
           required: false
           schema:
             type: integer
+            minimum: 1
+            maximum: 100
             default: 10
       responses:
         "200":
@@ -242,6 +245,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HotelSearchResponse"
+        "422":
+          description: page is less than 1, or page_size is outside 1-100
   /hotels/resolve:
     get:
       summary: Resolve a hotel id by name
@@ -544,6 +549,7 @@ components:
       properties:
         hotels:
           type: array
+          maxItems: 100
           items:
             type: object
         metadata:

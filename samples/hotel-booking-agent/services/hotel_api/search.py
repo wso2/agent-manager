@@ -9,7 +9,7 @@ from math import ceil
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
@@ -86,11 +86,16 @@ def _sort_hotels_by_rating(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     )
 
 
+MAX_PAGE_SIZE = 100
+
+
 def _paginate(items: list[dict[str, Any]], page: int, page_size: int) -> list[dict[str, Any]]:
     if page <= 0:
         raise ValueError("page must be >= 1")
     if page_size <= 0:
         raise ValueError("page_size must be >= 1")
+    if page_size > MAX_PAGE_SIZE:
+        raise ValueError(f"page_size must be <= {MAX_PAGE_SIZE}")
     start = (page - 1) * page_size
     end = start + page_size
     return items[start:end]
@@ -317,8 +322,8 @@ def search_hotels_route(
     min_rating: float | None = None,
     amenities: str | None = None,
     sort_by: str | None = None,
-    page: int = 1,
-    page_size: int = 10,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=MAX_PAGE_SIZE),
 ):
     try:
         amenities_list = (
