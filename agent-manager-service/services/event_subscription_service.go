@@ -133,6 +133,8 @@ type EventSubscriptionService interface {
 	// Deliveries returns a page of the level's delivery log: the whole org's,
 	// a project's events, or an agent's.
 	Deliveries(ctx context.Context, target repositories.EventTarget, q DeliveryQuery) (*DeliveryLog, error)
+	// CheckTarget refuses a project or agent that does not exist.
+	CheckTarget(ctx context.Context, target repositories.EventTarget) error
 
 	EventsCleaner
 }
@@ -199,6 +201,9 @@ func levelLocation(t repositories.EventTarget) repositories.DeliveryLocation {
 }
 
 func (s *eventSubscriptionService) List(ctx context.Context, t repositories.EventTarget) (*SubscriptionList, error) {
+	if err := s.CheckTarget(ctx, t); err != nil {
+		return nil, err
+	}
 	own, err := s.repo.ListSubscriptions(ctx, t)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list event subscriptions: %w", err)
@@ -408,6 +413,9 @@ func (s *eventSubscriptionService) Delete(ctx context.Context, t repositories.Ev
 func (s *eventSubscriptionService) Deliveries(
 	ctx context.Context, t repositories.EventTarget, q DeliveryQuery,
 ) (*DeliveryLog, error) {
+	if err := s.CheckTarget(ctx, t); err != nil {
+		return nil, err
+	}
 	if q.Limit <= 0 {
 		q.Limit = defaultEventDeliveryLimit
 	}
@@ -532,6 +540,10 @@ func (s *eventSubscriptionService) validate(t repositories.EventTarget, in *Even
 	in.EventTypes = types
 	in.Environments = uniqueTrimmed(in.Environments)
 	return nil
+}
+
+func (s *eventSubscriptionService) CheckTarget(ctx context.Context, t repositories.EventTarget) error {
+	return s.checkTarget(ctx, t, nil)
 }
 
 // checkTarget refuses a subscription for a project or agent that does not

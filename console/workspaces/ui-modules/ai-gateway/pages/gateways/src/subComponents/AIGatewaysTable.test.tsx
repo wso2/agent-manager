@@ -108,7 +108,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
     featureFlags = { enableSelfHostedGateways: false };
     renderTable();
 
-    expect(screen.queryByText("Add Gateway")).not.toBeInTheDocument();
+    expect(screen.queryByText(/add gateway/i)).not.toBeInTheDocument();
     expect(screen.getByText("Hosting")).toBeInTheDocument();
     expect(screen.getByText("Self-hosted")).toBeInTheDocument();
     expect(screen.getByText("Managed")).toBeInTheDocument();
@@ -119,7 +119,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
     hoisted.gateways = [gateway("managed-1", "MANAGED"), gateway("managed-2", "MANAGED")];
     renderTable();
 
-    expect(screen.queryByText("Add Gateway")).not.toBeInTheDocument();
+    expect(screen.queryByText(/add gateway/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Hosting")).not.toBeInTheDocument();
     expect(screen.queryByText("Self-hosted")).not.toBeInTheDocument();
     expect(screen.queryByText("Managed")).not.toBeInTheDocument();
@@ -130,7 +130,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
     hoisted.gateways = [];
     renderTable();
 
-    expect(screen.getByText("Add Gateway")).toBeInTheDocument();
+    expect(screen.getByText(/add gateway/i)).toBeInTheDocument();
   });
 
   it("shows hosting chips when enabled", () => {

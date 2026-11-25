@@ -46,6 +46,10 @@ type Config struct {
 	// ConsoleEnabled serves the embedded console from the API port (CONSOLE_ENABLED).
 	ConsoleEnabled bool
 
+	// LogRouteHits logs the route pattern and status of every API request
+	// (LOG_ROUTE_HITS).
+	LogRouteHits bool
+
 	IsLocalDevEnv bool
 
 	// Default Chat API configuration

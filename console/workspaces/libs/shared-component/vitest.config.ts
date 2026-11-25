@@ -19,13 +19,17 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { coverage } from '../../../vitest.coverage';
 
 export default defineConfig({
   plugins: [react()],
   test: {
+    coverage,
     globals: true,
     environment: 'jsdom',
-    setupFiles: './setupTests.tsx',
+    setupFiles: ['./setupTests.tsx', '../../../vitest.jsdom-storage.ts'],
+    // First renders can pass Vitest's 5 s default on a loaded runner.
+    testTimeout: 30_000,
     server: {
       deps: {
         // oxygen-ui's dist imports prismjs subpaths without file extensions

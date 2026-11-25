@@ -209,7 +209,7 @@ export function AddSelfHostedGatewayDrawer({
                   <FormControl fullWidth error={Boolean(errors.displayName)}>
                     <FormLabel required>Display Name</FormLabel>
                     <TextField
-                      slotProps={{ htmlInput: { maxLength: GATEWAY_DISPLAY_NAME_MAX_LENGTH } }}
+                      slotProps={{ htmlInput: { maxLength: GATEWAY_DISPLAY_NAME_MAX_LENGTH, "aria-label": "Display Name" } }}
                       fullWidth
                       size="small"
                       value={values.displayName}
@@ -223,7 +223,7 @@ export function AddSelfHostedGatewayDrawer({
                   <FormControl fullWidth error={Boolean(errors.name)}>
                     <FormLabel required>Name</FormLabel>
                     <TextField
-                      slotProps={{ htmlInput: { maxLength: GATEWAY_NAME_MAX_LENGTH } }}
+                      slotProps={{ htmlInput: { maxLength: GATEWAY_NAME_MAX_LENGTH, "aria-label": "Name" } }}
                       fullWidth
                       size="small"
                       value={values.name}
@@ -264,6 +264,7 @@ export function AddSelfHostedGatewayDrawer({
                   <FormControl fullWidth error={Boolean(errors.publicUrl)}>
                     <FormLabel required>Public URL</FormLabel>
                     <TextField
+                      slotProps={{ htmlInput: { "aria-label": "Public URL" } }}
                       fullWidth
                       size="small"
                       value={values.publicUrl}
@@ -280,6 +281,7 @@ export function AddSelfHostedGatewayDrawer({
                   <FormControl fullWidth>
                     <FormLabel>Description</FormLabel>
                     <TextField
+                      slotProps={{ htmlInput: { "aria-label": "Description" } }}
                       fullWidth
                       size="small"
                       multiline

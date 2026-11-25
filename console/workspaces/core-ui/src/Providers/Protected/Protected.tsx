@@ -24,7 +24,6 @@ import { useEffect } from "react";
 import {
     orgRouteId,
     useListOrganizations,
-    useListProjects,
     setTelemetryTokenProvider,
     setTelemetrySubject,
     useSessionAnalytics,
@@ -67,17 +66,12 @@ export const Protected = ({ children }: { children: React.ReactNode }) => {
     } = useListOrganizations();
     const { orgId } = useParams();
 
-    // When authenticated without an org in the URL, land the user inside their
-    // first organization. We only resolve this once organizations have loaded;
-    // the project list query stays skipped (empty orgName) until then.
+    // When authenticated without an org in the URL, land the user on their
+    // first organization's overview once organizations have loaded.
     const firstOrg = organizations?.organizations?.[0];
-    const targetOrg = firstOrg?.name; // namespace, for API calls
     const targetOrgId = orgRouteId(firstOrg); // handle (or name), for URLs
     const shouldResolveLanding =
-        isAuthenticated && !isLoadingOrganizations && !!targetOrg && !!targetOrgId && !orgId;
-    const { data: projectList, isLoading: isLoadingProjects } = useListProjects({
-        orgName: shouldResolveLanding ? targetOrg : "",
-    });
+        isAuthenticated && !isLoadingOrganizations && !!targetOrgId && !orgId;
 
     // Preserve the full location so the login flow can restore the original
     // destination (Login reads state.from.pathname).
@@ -96,7 +90,7 @@ export const Protected = ({ children }: { children: React.ReactNode }) => {
         );
     }
 
-    if (isLoadingOrganizations || (shouldResolveLanding && isLoadingProjects)) {
+    if (isLoadingOrganizations) {
         return <FullPageLoader />;
     }
 
@@ -125,24 +119,12 @@ export const Protected = ({ children }: { children: React.ReactNode }) => {
         );
     }
 
-    // Authenticated without an org in the URL: wait for orgs (and the project
-    // list) to load, then redirect to the resolved landing location instead of
-    // rendering children prematurely.
+    // Authenticated without an org in the URL: land on the org overview, which
+    // reaches every project, including an empty one.
     if (!orgId && shouldResolveLanding) {
-        const projects = projectList?.projects ?? [];
-        // Prefer the default project, fall back to the first available
-        // project, and if the org has no projects yet, land on the
-        // project listing so the user can create one.
-        const landingProject = projects.find((p) => p.name === "default") ?? projects[0];
-        const landingPath = landingProject
-            ? generatePath(absoluteRouteMap.children.org.children.projects.path, {
-                orgId: targetOrgId,
-                projectId: landingProject.name,
-            })
-            : generatePath(
-                absoluteRouteMap.children.org.children.projectListing.path,
-                { orgId: targetOrgId },
-            );
+        const landingPath = generatePath(absoluteRouteMap.children.org.path, {
+            orgId: targetOrgId,
+        });
         return <Navigate to={landingPath} state={navigationState} />;
     }
 

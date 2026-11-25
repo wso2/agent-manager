@@ -29,15 +29,17 @@ type PlatformGateway = Gateway
 
 // GatewayResponse represents gateway response DTO (used in environment_service.go)
 type GatewayResponse struct {
-	UUID             string `json:"id"`
-	OrganizationName string `json:"organizationName"`
-	Name             string `json:"name"`
-	DisplayName      string `json:"displayName"`
-	GatewayType      string `json:"gatewayType"`
-	Hosting          string `json:"hosting"`
-	VHost            string `json:"vhost"`
-	IsCritical       bool   `json:"isCritical"`
-	Status           string `json:"status"`
+	UUID             string    `json:"id"`
+	OrganizationName string    `json:"organizationName"`
+	Name             string    `json:"name"`
+	DisplayName      string    `json:"displayName"`
+	GatewayType      string    `json:"gatewayType"`
+	Hosting          string    `json:"hosting"`
+	VHost            string    `json:"vhost"`
+	IsCritical       bool      `json:"isCritical"`
+	Status           string    `json:"status"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 // GatewayEnvironmentMapping represents the mapping between gateways and environments
@@ -50,10 +52,10 @@ type GatewayEnvironmentMapping struct {
 
 func (GatewayEnvironmentMapping) TableName() string { return "mod_ai_gateway_gateway_environments" }
 
-// Gateway status constants
+// Gateway status constants, as the API's GatewayStatus enum spells them.
 const (
-	GatewayStatusActive   = "active"
-	GatewayStatusInactive = "inactive"
+	GatewayStatusActive   = "ACTIVE"
+	GatewayStatusInactive = "INACTIVE"
 )
 
 // LLMProviderDeploymentEvent represents an LLM provider deployment event

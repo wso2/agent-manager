@@ -9,7 +9,10 @@
 #   COMPOSE_FILE=docker-compose.yml:ci-settings.yml docker compose up -d --wait
 #
 # With a sign-in mode, the overlay also sets AUTH_MODE; the environment wins
-# over amp.yaml.
+# over amp.yaml. LOG_ROUTE_HITS=true in the environment turns on amp-api's
+# route-hit log, which the e2e job reads to report route coverage.
+# PRIVATE_EVENTS=true lets amp-api deliver events to private addresses and
+# reach the host as host.docker.internal, for the e2e webhook sink.
 set -euo pipefail
 AUTH_MODE="${1:-}"
 cat <<YAML
@@ -23,6 +26,14 @@ cat <<YAML
       AMP_CONSOLE_CLIENT_SECRET: amp-console-client-secret
       THUNDER_CLIENT_SECRET: amp-system-client-secret
       AMP_ADMIN_PASSWORD: admin
-  amp-api:
-    environment: *ci
 YAML
+echo "  amp-api:"
+echo "    environment:"
+echo "      <<: *ci"
+[ "${LOG_ROUTE_HITS:-false}" = "true" ] && echo '      LOG_ROUTE_HITS: "true"'
+if [ "${PRIVATE_EVENTS:-false}" = "true" ]; then
+  echo '      EVENTS_ALLOW_PRIVATE_DESTINATIONS: "true"'
+  echo "    extra_hosts:"
+  echo '      - "host.docker.internal:host-gateway"'
+fi
+true

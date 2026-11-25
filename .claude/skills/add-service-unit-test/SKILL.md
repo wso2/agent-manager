@@ -5,7 +5,7 @@ description: Write a service-layer unit test in agent-manager-service (the Go co
 
 # Write a service unit test (agent-manager-service)
 
-Fast, DB-free tests of service logic with collaborators mocked.
+Fast, DB-free tests of service logic with collaborators mocked. To decide which tests a change needs (integration, e2e, security, smoke, CLI, console), use the `add-tests` skill.
 
 **Read first:** `agent-manager-service/AGENTS.md` → the "Testing" section (two tiers, what goes where, mocks, CI lint traps). This skill is the executable checklist.
 

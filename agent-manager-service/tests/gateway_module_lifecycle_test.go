@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
@@ -44,8 +45,14 @@ import (
 // tables would pull rows from under the other packages' tests (the module
 // host's own tests cover purge on a database of their own).
 func TestGatewayModuleSwitchesOffAndOn(t *testing.T) {
+	// The module's workers act on every organization. On PostgreSQL the
+	// packages share one database in parallel, so they would place and render
+	// other packages' rows mid-test; SQLite runs them serially.
+	if config.GetConfig().Database.Driver != "sqlite" {
+		t.Skip("runs the gateway's background workers; runs on SQLite, where packages run serially")
+	}
 	ctx := context.Background()
-	app, host := apitestutils.MakeAppClientWithHost(t, wiring.TestClients{
+	app, host := apitestutils.MakeAppClientWithWorkers(t, wiring.TestClients{
 		PlatformRepository: apitestutils.CreateMockPlatformRepository(),
 		SecretMgmtClient:   apitestutils.CreateMockSecretManagementClient(),
 	}, jwtassertion.NewMockMiddleware(t))

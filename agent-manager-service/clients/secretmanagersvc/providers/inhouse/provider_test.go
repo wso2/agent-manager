@@ -53,7 +53,8 @@ func newClient(t *testing.T) secretmanagersvc.SecretManagementClient {
 
 func TestProviderNeedsTheDatabase(t *testing.T) {
 	_, err := secretmanagersvc.NewSecretManagementClient(
-		&secretmanagersvc.StoreConfig{Provider: inhouse.ProviderName}, inhouse.NewProvider())
+		&secretmanagersvc.StoreConfig{Provider: inhouse.ProviderName}, inhouse.NewProvider(),
+	)
 	require.Error(t, err)
 }
 

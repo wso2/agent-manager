@@ -6,6 +6,8 @@ on:
     paths:
       - "console/**"
       - ".github/workflows/amp-console-package-pr-checks.yaml"
+      - "scripts/coverage/console_summary.py"
+      - "scripts/coverage/ratchet.py"
 
 permissions:
   contents: read
@@ -18,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        task: [lint, build]
+        task: [lint, build, test]
     defaults:
       run:
         working-directory: console
@@ -32,5 +34,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Tests import the other workspace packages from their built output.
+      - name: Build the workspace packages
+        if: matrix.task == 'test'
+        run: pnpm build
+
       - name: Run ${{ matrix.task }}
-        run: pnpm ${{ matrix.task }}
+        run: pnpm ${{ matrix.task == 'test' && 'test:coverage' || matrix.task }}
+
+      # Fails when a package's line coverage drops more than 0.5 points below
+      # console/coverage-baseline.json.
+      - name: Check coverage against the baseline
+        if: matrix.task == 'test'
+        run: |
+          python3 ../scripts/coverage/console_summary.py "$RUNNER_TEMP/console-coverage.json"
+          python3 ../scripts/coverage/ratchet.py "$RUNNER_TEMP/console-coverage.json" \
+            coverage-baseline.json --title "Console coverage"
+
+      - name: Upload coverage reports
+        if: ${{ !cancelled() && matrix.task == 'test' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: console-coverage
+          # Only the per-package summary: globbing the packages' coverage/
+          # directories walks pnpm's symlinked node_modules and stalls.
+          path: ${{ runner.temp }}/console-coverage.json
+          if-no-files-found: ignore

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
+import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 import type {
   ThunderGroup,
   ThunderRole,
@@ -37,8 +37,9 @@ import type {
   AgentIdentityListQuery,
 } from "@agent-management-platform/types";
 
-const envBase = (orgName: string, envName: string) =>
-  `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/environments/${encodeURIComponent(envName)}/agent-identities`;
+// A missing org is refused rather than sent as another org's ("default").
+const envBase = (orgName: string | undefined, envName: string) =>
+  `${GATEWAY_BASE}/orgs/${encodeRequired(orgName, "orgName")}/environments/${encodeURIComponent(envName)}/agent-identities`;
 
 const toSearch = (query?: AgentIdentityListQuery) =>
   query
@@ -52,7 +53,7 @@ export async function listAgentIdentityGroups(
   query?: AgentIdentityListQuery,
   getToken?: () => Promise<string>,
 ): Promise<AgentIdentityGroupListResponse> {
-  const { orgName = "default", envName } = params;
+  const { orgName, envName } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(`${envBase(orgName, envName)}/groups`, {
     searchParams: toSearch(query), token,
@@ -66,7 +67,7 @@ export async function createAgentIdentityGroup(
   body: AgentIdentityGroupRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderGroup> {
-  const { orgName = "default", envName } = params;
+  const { orgName, envName } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(`${envBase(orgName, envName)}/groups`, body, { token });
   if (!res.ok) throw await res.json();
@@ -77,7 +78,7 @@ export async function getAgentIdentityGroup(
   params: AgentIdentityGroupPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ThunderGroup> {
-  const { orgName = "default", envName, groupId } = params;
+  const { orgName, envName, groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
     `${envBase(orgName, envName)}/groups/${encodeURIComponent(groupId)}`, { token },
@@ -91,7 +92,7 @@ export async function updateAgentIdentityGroup(
   body: AgentIdentityGroupRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderGroup> {
-  const { orgName = "default", envName, groupId } = params;
+  const { orgName, envName, groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPUT(
     `${envBase(orgName, envName)}/groups/${encodeURIComponent(groupId)}`, body, { token },
@@ -104,7 +105,7 @@ export async function deleteAgentIdentityGroup(
   params: AgentIdentityGroupPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", envName, groupId } = params;
+  const { orgName, envName, groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpDELETE(
     `${envBase(orgName, envName)}/groups/${encodeURIComponent(groupId)}`, { token },
@@ -117,7 +118,7 @@ export async function getAgentIdentityGroupMembers(
   query?: AgentIdentityListQuery,
   getToken?: () => Promise<string>,
 ): Promise<AgentIdentityGroupMembersResponse> {
-  const { orgName = "default", envName, groupId } = params;
+  const { orgName, envName, groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
     `${envBase(orgName, envName)}/groups/${encodeURIComponent(groupId)}/members`,
@@ -132,7 +133,7 @@ export async function addAgentIdentityGroupMembers(
   body: AgentIdentityMembersRequest,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", envName, groupId } = params;
+  const { orgName, envName, groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
     `${envBase(orgName, envName)}/groups/${encodeURIComponent(groupId)}/members/add`, body, { token },
@@ -145,7 +146,7 @@ export async function removeAgentIdentityGroupMembers(
   body: AgentIdentityMembersRequest,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", envName, groupId } = params;
+  const { orgName, envName, groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
     `${envBase(orgName, envName)}/groups/${encodeURIComponent(groupId)}/members/remove`, body, { token },
@@ -157,7 +158,7 @@ export async function getAgentIdentityGroupRoles(
   params: AgentIdentityGroupPathParams,
   getToken?: () => Promise<string>,
 ): Promise<AgentIdentityGroupRolesResponse> {
-  const { orgName = "default", envName, groupId } = params;
+  const { orgName, envName, groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
     `${envBase(orgName, envName)}/groups/${encodeURIComponent(groupId)}/roles`, { token },
@@ -173,7 +174,7 @@ export async function listAgentIdentityRoles(
   query?: AgentIdentityListQuery,
   getToken?: () => Promise<string>,
 ): Promise<AgentIdentityRoleListResponse> {
-  const { orgName = "default", envName } = params;
+  const { orgName, envName } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(`${envBase(orgName, envName)}/roles`, {
     searchParams: toSearch(query), token,
@@ -187,7 +188,7 @@ export async function createAgentIdentityRole(
   body: AgentIdentityRoleRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderRole> {
-  const { orgName = "default", envName } = params;
+  const { orgName, envName } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(`${envBase(orgName, envName)}/roles`, body, { token });
   if (!res.ok) throw await res.json();
@@ -198,7 +199,7 @@ export async function getAgentIdentityRole(
   params: AgentIdentityRolePathParams,
   getToken?: () => Promise<string>,
 ): Promise<ThunderRole> {
-  const { orgName = "default", envName, roleId } = params;
+  const { orgName, envName, roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
     `${envBase(orgName, envName)}/roles/${encodeURIComponent(roleId)}`, { token },
@@ -212,7 +213,7 @@ export async function updateAgentIdentityRole(
   body: AgentIdentityRoleRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderRole> {
-  const { orgName = "default", envName, roleId } = params;
+  const { orgName, envName, roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPUT(
     `${envBase(orgName, envName)}/roles/${encodeURIComponent(roleId)}`, body, { token },
@@ -225,7 +226,7 @@ export async function deleteAgentIdentityRole(
   params: AgentIdentityRolePathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", envName, roleId } = params;
+  const { orgName, envName, roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpDELETE(
     `${envBase(orgName, envName)}/roles/${encodeURIComponent(roleId)}`, { token },
@@ -237,7 +238,7 @@ export async function getAgentIdentityRoleAssignments(
   params: AgentIdentityRolePathParams,
   getToken?: () => Promise<string>,
 ): Promise<AgentIdentityRoleAssignmentsResponse> {
-  const { orgName = "default", envName, roleId } = params;
+  const { orgName, envName, roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
     `${envBase(orgName, envName)}/roles/${encodeURIComponent(roleId)}/assignments`, { token },
@@ -251,7 +252,7 @@ export async function addAgentIdentityRoleAssignees(
   body: AgentIdentityAssignmentsRequest,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", envName, roleId } = params;
+  const { orgName, envName, roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
     `${envBase(orgName, envName)}/roles/${encodeURIComponent(roleId)}/assignments/add`, body, { token },
@@ -264,7 +265,7 @@ export async function removeAgentIdentityRoleAssignees(
   body: AgentIdentityAssignmentsRequest,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", envName, roleId } = params;
+  const { orgName, envName, roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
     `${envBase(orgName, envName)}/roles/${encodeURIComponent(roleId)}/assignments/remove`, body, { token },
@@ -278,7 +279,7 @@ export async function listAgentIdentityAgents(
   params: AgentIdentityEnvPathParams,
   getToken?: () => Promise<string>,
 ): Promise<AgentIdentityAgentListResponse> {
-  const { orgName = "default", envName } = params;
+  const { orgName, envName } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(`${envBase(orgName, envName)}/agents`, { token });
   if (!res.ok) throw await res.json();
@@ -291,7 +292,7 @@ export async function listAgentIdentityScopes(
   params: AgentIdentityEnvPathParams,
   getToken?: () => Promise<string>,
 ): Promise<AgentIdentityScopeListResponse> {
-  const { orgName = "default", envName } = params;
+  const { orgName, envName } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(`${envBase(orgName, envName)}/scopes`, { token });
   if (!res.ok) throw await res.json();

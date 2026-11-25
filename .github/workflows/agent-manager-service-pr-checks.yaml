@@ -77,6 +77,10 @@ jobs:
     name: Integration Tests (${{ matrix.name }})
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    env:
+      # The runner host's Docker daemon can outlive a run, so a fixed name
+      # collides with another run's container.
+      PG_CONTAINER: amp-it-postgres-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +102,7 @@ jobs:
       - name: Start PostgreSQL
         if: matrix.db == 'postgres'
         run: |
-          docker run -d --name postgres \
+          docker run -d --name "$PG_CONTAINER" \
             -e POSTGRES_USER=agentmanager \
             -e POSTGRES_PASSWORD=agentmanager \
             -e POSTGRES_DB=agentmanager \
@@ -108,7 +112,7 @@ jobs:
       - name: Wait for PostgreSQL
         if: matrix.db == 'postgres'
         run: |
-          until docker exec postgres pg_isready -U agentmanager; do
+          until docker exec "$PG_CONTAINER" pg_isready -U agentmanager; do
             echo "Waiting for postgres..."
             sleep 1
           done
@@ -118,7 +122,7 @@ jobs:
         if: matrix.db == 'postgres'
         id: postgres
         run: |
-          POSTGRES_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
+          POSTGRES_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$PG_CONTAINER")
           echo "host=${POSTGRES_IP}" >> "$GITHUB_OUTPUT"
           echo "PostgreSQL IP: ${POSTGRES_IP}"
 
@@ -183,6 +187,78 @@ jobs:
         with:
           name: integration-test-logs-${{ matrix.db }}
           path: agent-manager-service/localdata/test_output_isolated.log
+          retention-days: 7
+
+      - name: Remove PostgreSQL
+        if: always() && matrix.db == 'postgres'
+        run: docker rm -f "$PG_CONTAINER" || true
+
+  coverage:
+    name: Coverage
+    needs: [unit, integration]
+    if: ${{ !cancelled() }}
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      # A failed test job may not have uploaded its profile; the summary
+      # skips missing profiles.
+      - name: Download unit coverage
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-unit
+          path: coverage/unit
+
+      - name: Download SQLite integration coverage
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-integration-sqlite
+          path: coverage/sqlite
+
+      - name: Download PostgreSQL integration coverage
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-integration-postgres
+          path: coverage/postgres
+
+      - name: Summarise coverage
+        run: |
+          python3 scripts/coverage/go_summary.py \
+            coverage/unit/coverage-unit.out \
+            coverage/sqlite/coverage-integration.out \
+            coverage/postgres/coverage-integration.out \
+            --module github.com/wso2/agent-manager/agent-manager-service \
+            --exclude-file agent-manager-service/coverage-excludes.txt \
+            --out coverage/summary.json \
+            --profile-out coverage/merged.out
+
+      - name: Compare with baseline
+        run: |
+          python3 scripts/coverage/ratchet.py coverage/summary.json \
+            agent-manager-service/coverage-baseline.json \
+            --title "agent-manager-service coverage"
+
+      - name: Generate HTML report
+        if: ${{ !cancelled() }}
+        working-directory: ./agent-manager-service
+        run: go tool cover -html=../coverage/merged.out -o ../coverage/coverage.html
+
+      - name: Upload HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: coverage/coverage.html
           retention-days: 7
 
   build:

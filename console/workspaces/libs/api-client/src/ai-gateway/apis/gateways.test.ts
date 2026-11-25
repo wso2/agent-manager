@@ -18,7 +18,23 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { httpDELETE, httpGET, httpPOST, httpPUT } from "../../shared/utils";
+import { describeHttpCases, type HttpMocks } from "../../test-utils/http-cases";
 import {
+  assignGatewayToEnvironment,
+  createGateway,
+  deleteGateway,
+  deleteIdentityProvider,
+  discoverOidc,
+  getGateway,
+  listEnvironmentIdentityProviders,
+  listGateways,
+  listGatewayTokens,
+  listIdentityProviders,
+  removeGatewayFromEnvironment,
+  revokeGatewayToken,
+  rotateGatewayToken,
+  updateGateway,
+  upsertIdentityProvider,
   createSelfHostedGateway,
   createSelfHostedGatewayToken,
   deleteSelfHostedGateway,
@@ -87,5 +103,99 @@ describe("self-hosted gateway API", () => {
   it("throws the error body on failure", async () => {
     vi.mocked(httpDELETE).mockImplementation(async () => json({ message: "has deployments" }, 409));
     await expect(deleteSelfHostedGateway(params, getToken)).rejects.toEqual({ message: "has deployments" });
+  });
+});
+
+const ORG = "/m/ai-gateway/orgs/acme%20corp";
+const gw = { orgName: "acme corp", gatewayId: "gw/1" };
+const httpMocks = {
+  GET: vi.mocked(httpGET),
+  POST: vi.mocked(httpPOST),
+  PUT: vi.mocked(httpPUT),
+  DELETE: vi.mocked(httpDELETE),
+} as unknown as HttpMocks;
+
+describeHttpCases("managed gateway API", httpMocks, [
+  {
+    name: "listGateways forwards every filter",
+    call: () => listGateways({ orgName: "acme corp" }, {
+      limit: 10, offset: 0, type: "managed", status: "ACTIVE", environment: "dev",
+    } as never, getToken),
+    method: "GET", url: `${ORG}/gateways`,
+    searchParams: { limit: "10", offset: "0", type: "managed", status: "ACTIVE", environment: "dev" },
+  },
+  {
+    name: "listGateways without filters sends no search params",
+    call: () => listGateways({ orgName: "acme corp" }, {}, getToken),
+    method: "GET", url: `${ORG}/gateways`,
+  },
+  {
+    name: "createGateway",
+    call: () => createGateway({ orgName: "acme corp" }, { name: "edge" } as never, getToken),
+    method: "POST", url: `${ORG}/gateways`, body: { name: "edge" },
+  },
+  { name: "getGateway", call: () => getGateway(gw, getToken), method: "GET", url: `${ORG}/gateways/gw%2F1` },
+  {
+    name: "updateGateway",
+    call: () => updateGateway(gw, { displayName: "Edge" } as never, getToken),
+    method: "PUT", url: `${ORG}/gateways/gw%2F1`, body: { displayName: "Edge" },
+  },
+  {
+    name: "deleteGateway", call: () => deleteGateway(gw, getToken),
+    method: "DELETE", url: `${ORG}/gateways/gw%2F1`, returnsBody: false,
+  },
+  {
+    name: "assignGatewayToEnvironment",
+    call: () => assignGatewayToEnvironment({ ...gw, envId: "dev 1" }, getToken),
+    method: "POST", url: `${ORG}/gateways/gw%2F1/environments/dev%201`, body: {},
+  },
+  {
+    name: "removeGatewayFromEnvironment",
+    call: () => removeGatewayFromEnvironment({ ...gw, envId: "dev 1" }, getToken),
+    method: "DELETE", url: `${ORG}/gateways/gw%2F1/environments/dev%201`, returnsBody: false,
+  },
+  {
+    name: "listGatewayTokens", call: () => listGatewayTokens(gw, getToken),
+    method: "GET", url: `${ORG}/gateways/gw%2F1/tokens`,
+  },
+  {
+    name: "rotateGatewayToken", call: () => rotateGatewayToken(gw, getToken),
+    method: "POST", url: `${ORG}/gateways/gw%2F1/tokens`, body: {},
+  },
+  {
+    name: "revokeGatewayToken", call: () => revokeGatewayToken({ ...gw, tokenId: "t 1" }, getToken),
+    method: "DELETE", url: `${ORG}/gateways/gw%2F1/tokens/t%201`, returnsBody: false,
+  },
+  {
+    name: "listIdentityProviders", call: () => listIdentityProviders({ orgName: "acme corp" }, getToken),
+    method: "GET", url: `${ORG}/identity-providers`,
+  },
+  {
+    name: "discoverOidc passes the discovery URL as a query param",
+    call: () => discoverOidc({ orgName: "acme corp" }, { url: "https://idp.example/.well-known" }, getToken),
+    method: "GET", url: `${ORG}/identity-providers/discover`,
+    searchParams: { url: "https://idp.example/.well-known" },
+  },
+  {
+    name: "listEnvironmentIdentityProviders",
+    call: () => listEnvironmentIdentityProviders({ orgName: "acme corp", environmentId: "env/1" }, getToken),
+    method: "GET", url: `${ORG}/environments/env%2F1/identity-providers`,
+  },
+  {
+    name: "upsertIdentityProvider",
+    call: () => upsertIdentityProvider({ ...gw, name: "my idp" }, { issuer: "https://idp" } as never, getToken),
+    method: "PUT", url: `${ORG}/gateways/gw%2F1/identity-providers/my%20idp`, body: { issuer: "https://idp" },
+  },
+  {
+    name: "deleteIdentityProvider",
+    call: () => deleteIdentityProvider({ ...gw, name: "my idp" }, getToken),
+    method: "DELETE", url: `${ORG}/gateways/gw%2F1/identity-providers/my%20idp`, returnsBody: false,
+  },
+]);
+
+describe("gateway API required params", () => {
+  it("refuses a missing gateway id before any request", async () => {
+    await expect(getGateway({ orgName: "acme", gatewayId: "" }, getToken)).rejects.toThrow("gatewayId");
+    expect(httpGET).not.toHaveBeenCalled();
   });
 });

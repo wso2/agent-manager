@@ -18,13 +18,15 @@
 
 import { defineConfig } from "vitest/config";
 import react from '@vitejs/plugin-react';
+import { coverage } from '../../../../../vitest.coverage';
 
 export default defineConfig({
   plugins: [react()],
   test: {
+    coverage,
     globals: true,
     environment: 'jsdom',
-    setupFiles: './setupTests.tsx',
+    setupFiles: ['./setupTests.tsx', '../../../../../vitest.jsdom-storage.ts'],
     server: {
       deps: {
         // oxygen-ui's dist imports prismjs subpaths without file extensions

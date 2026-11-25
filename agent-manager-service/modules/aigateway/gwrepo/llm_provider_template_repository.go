@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
@@ -203,9 +204,10 @@ func (r *LLMProviderTemplateRepo) Update(t *gwmodels.LLMProviderTemplate) error 
 	result := r.db.Model(&gwmodels.LLMProviderTemplate{}).
 		Where("handle = ? AND org_id = ?", t.Handle, t.OUID).
 		Updates(map[string]interface{}{
-			"name":          t.Name,
-			"description":   t.Description,
-			"configuration": dbx.JSON(t.Configuration),
+			"name":        t.Name,
+			"description": t.Description,
+			// Already encoded above: wrapping it again would store a JSON string.
+			"configuration": t.Configuration,
 			"updated_at":    t.UpdatedAt,
 		})
 
@@ -218,17 +220,28 @@ func (r *LLMProviderTemplateRepo) Update(t *gwmodels.LLMProviderTemplate) error 
 	return nil
 }
 
-// Delete removes an LLM provider template
+// Delete removes an LLM provider template that no LLM provider of the org uses. A template still in use is
+// ErrLLMProviderTemplateInUse; the check and the delete are one statement.
 func (r *LLMProviderTemplateRepo) Delete(templateID, orgUUID string) error {
+	inUse := r.db.Model(&gwmodels.LLMProvider{}).Select("1").
+		Where("org_id = ? AND template_handle = ?", orgUUID, templateID)
 	result := r.db.Where("handle = ? AND org_id = ?", templateID, orgUUID).
+		Where("NOT EXISTS (?)", inUse).
 		Delete(&gwmodels.LLMProviderTemplate{})
 	if result.Error != nil {
 		return result.Error
 	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+	if result.RowsAffected > 0 {
+		return nil
 	}
-	return nil
+	exists, err := r.Exists(templateID, orgUUID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return gwerr.ErrLLMProviderTemplateInUse
+	}
+	return gorm.ErrRecordNotFound
 }
 
 // Exists checks if an LLM provider template exists

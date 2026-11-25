@@ -233,7 +233,7 @@ func (r *DeploymentRepo) GetWithState(deploymentID, artifactUUID, orgUUID string
 // GetWithStateCtx is GetWithState with context propagation — see the interface doc comment.
 func (r *DeploymentRepo) GetWithStateCtx(ctx context.Context, deploymentID, artifactUUID, orgUUID string) (*gwmodels.Deployment, error) {
 	var deployment gwmodels.Deployment
-	err := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_deployments d").
+	res := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_deployments d").
 		Select("d.id, d.name, d.artifact_id, d.org_id, d.gateway_id, "+
 			"d.base_deployment_id, d.metadata, d.created_at, "+
 			"s.status, s.updated_at AS status_updated_at, "+statusRowColumns).
@@ -242,12 +242,13 @@ func (r *DeploymentRepo) GetWithStateCtx(ctx context.Context, deploymentID, arti
 			"AND d.gateway_id = s.gateway_id").
 		Where("d.id = ? AND d.artifact_id = ? AND d.org_id = ?",
 			deploymentID, artifactUUID, orgUUID).
-		Scan(&deployment).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("deployment not found")
-		}
-		return nil, err
+		Scan(&deployment)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	// Scan leaves the struct empty rather than failing when no row matches.
+	if res.RowsAffected == 0 {
+		return nil, gwerr.ErrDeploymentNotFound
 	}
 
 	// If status is NULL, it's ARCHIVED

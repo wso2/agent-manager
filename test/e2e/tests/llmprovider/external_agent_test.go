@@ -32,6 +32,7 @@ import (
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 	agentops "github.com/wso2/agent-manager/test/e2e/operations/agent"
+	cliagent "github.com/wso2/agent-manager/test/e2e/operations/cli/agent"
 	"github.com/wso2/agent-manager/test/e2e/operations/configuration"
 	"github.com/wso2/agent-manager/test/e2e/operations/gateway"
 	llmproviderop "github.com/wso2/agent-manager/test/e2e/operations/llmprovider"
@@ -182,6 +183,9 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 	})
 
 	It("invokes the LLM proxy endpoint successfully", func() {
+		if Cfg.OpenAIAPIKey == "" {
+			Skip("OPENAI_API_KEY is not set (pull requests from forks get no secrets)")
+		}
 		Expect(proxyURL).NotTo(BeEmpty(), "proxy URL must be set")
 		Expect(proxyAPIKey).NotTo(BeEmpty(), "proxy API key must be set")
 
@@ -285,7 +289,8 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 			// Skip 404/200 — gateway still resyncing or guardrail not yet applied
 			if resp.StatusCode == http.StatusNotFound {
 				g.Expect(resp.StatusCode).NotTo(SatisfyAny(
-					Equal(http.StatusNotFound), Equal(http.StatusOK)),
+					Equal(http.StatusNotFound), Equal(http.StatusOK),
+				),
 					"waiting for guardrail to take effect")
 				return
 			}
@@ -295,6 +300,53 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 				"expected 422 from guardrail, got %d: %s", resp.StatusCode, string(body))
 			g.Expect(string(body)).To(ContainSubstring("GUARDRAIL_INTERVENED"),
 				"expected GUARDRAIL_INTERVENED in response")
+		}).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
+	})
+	It("refuses a call to the agent's proxy without its key", func() {
+		req, err := http.NewRequest(http.MethodPost, proxyURL+"/chat/completions", bytes.NewBufferString(`{"model":"gpt-5-mini","messages":[]}`))
+		Expect(err).NotTo(HaveOccurred())
+		req.Header.Set("Content-Type", "application/json")
+		Eventually(func(g Gomega) {
+			resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req.Clone(req.Context()))
+			g.Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+			g.Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized))
+		}).WithTimeout(time.Minute).WithPolling(5 * time.Second).Should(Succeed())
+	})
+
+	It("shows the agent's model config through amctl", func() {
+		Expect(cliagent.ListAgentLLM(Default, H, H.Org(), framework.E2ESharedProjectName, agentName).Names()).
+			To(ContainElement("e2e-test-llmprov-config-" + suffix))
+	})
+
+	It("keeps the agent working after the provider's upstream key is rotated", func() {
+		if Cfg.OpenAIAPIKey == "" {
+			Skip("OPENAI_API_KEY is not set (pull requests from forks get no secrets)")
+		}
+		By("Removing the guardrail")
+		configuration.UpdateAgentModelConfig(Default, Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, modelConfigID,
+			framework.UpdateAgentModelConfigRequest{EnvMappings: map[string]framework.EnvModelConfigRequest{
+				Cfg.DefaultEnv: {ProviderName: providerID},
+			}})
+
+		By("Rotating the upstream key on the provider")
+		doc := llmproviderop.GetLLMProvider(Default, Client, providerID)
+		rotated := "Bearer " + Cfg.OpenAIAPIKey
+		doc.Spec.Upstream.Main.Auth.Value = &rotated
+		framework.Call(Default, Client, http.MethodPut, "/m/ai-gateway/llm-providers/"+providerUUID, doc, http.StatusOK)
+
+		By("Calling the model through the agent's unchanged proxy key")
+		body := `{"model":"gpt-5-mini","messages":[{"role":"user","content":"Say hello in one word"}]}`
+		Eventually(func(g Gomega) {
+			req, err := http.NewRequest(http.MethodPost, proxyURL+"/chat/completions", bytes.NewBufferString(body))
+			g.Expect(err).NotTo(HaveOccurred())
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(proxyAuthName, proxyAPIKey)
+			resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+			g.Expect(err).NotTo(HaveOccurred())
+			defer resp.Body.Close()
+			out, _ := io.ReadAll(resp.Body)
+			g.Expect(resp.StatusCode).To(Equal(http.StatusOK), string(out))
 		}).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Succeed())
 	})
 })

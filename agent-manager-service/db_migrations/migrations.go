@@ -62,6 +62,10 @@ func waitFor(ctx context.Context, dbConn *gorm.DB, targetID string, interval tim
 	for {
 		applied, err := isApplied(ctx, dbConn, targetID)
 		if err != nil {
+			// The deadline can expire mid-query; report it as the timeout.
+			if ctx.Err() != nil {
+				return timeoutError(dbConn, targetID, ctx.Err())
+			}
 			return err
 		}
 		if applied {
@@ -71,11 +75,15 @@ func waitFor(ctx context.Context, dbConn *gorm.DB, targetID string, interval tim
 		slog.Info("dbmigrations:waiting for migrations", "latest", targetID)
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("waiting for migration %s (latest applied: %s): %w",
-				targetID, latestApplied(dbConn), ctx.Err())
+			return timeoutError(dbConn, targetID, ctx.Err())
 		case <-time.After(interval):
 		}
 	}
+}
+
+func timeoutError(dbConn *gorm.DB, targetID string, cause error) error {
+	return fmt.Errorf("waiting for migration %s (latest applied: %s): %w",
+		targetID, latestApplied(dbConn), cause)
 }
 
 // HasHistory reports whether dbConn holds a migrated install: its migration

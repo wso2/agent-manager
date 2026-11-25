@@ -17,10 +17,14 @@
  */
 
 import { defineConfig } from "vitest/config";
+import { coverage } from "../../../vitest.coverage";
 
 export default defineConfig({
   test: {
+    coverage,
     environment: "jsdom",
-    setupFiles: "./setupTests.ts",
+    setupFiles: ["./setupTests.ts", "../../../vitest.jsdom-storage.ts"],
+    // First renders can pass Vitest's 5 s default on a loaded runner.
+    testTimeout: 30_000,
   },
 });

@@ -62,9 +62,12 @@ func TestHealthReportsGatewayConnections(t *testing.T) {
 	down := gwtest.Gateway(t, tx, org, "ingress")
 	require.NoError(t, tx.Model(&gwmodels.Gateway{}).Where("id = ?", down.UUID).Update("is_active", false).Error)
 
+	// Other packages share the database and may add gateways between the
+	// two counts, so the totals only grow by at least ours; the per-gateway
+	// check below is exact.
 	detail = module{}.Health(context.Background(), rt)
-	assert.Equal(t, total+2, detail["gateways"])
-	assert.Equal(t, connected+1, detail["connected"])
+	assert.GreaterOrEqual(t, detail["gateways"].(int64), total+2)
+	assert.GreaterOrEqual(t, detail["connected"].(int64), connected+1)
 	assert.NotContains(t, detail, "status")
 	got := map[string]bool{}
 	for _, g := range detail["registered"].([]gatewayHealth) {
