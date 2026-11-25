@@ -189,9 +189,6 @@ services:
       postgres:
         condition: service_healthy
         required: false
-      observability-migrate:
-        condition: service_completed_successfully
-        required: false
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz >/dev/null"]
       interval: 3s
@@ -205,7 +202,8 @@ services:
   # With COMPOSE_PROFILES=observability (`make up-observability`): ClickHouse
   # and the OpenTelemetry collector on the internal observability network,
   # with no published ports, and a step that applies the trace schema with
-  # `amp migrate` before amp-api starts. ClickHouse creates no tables itself.
+  # `amp migrate` once amp-api is up, before the collector starts. ClickHouse
+  # creates no tables itself.
   clickhouse:
     image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:25.8.33.6}
     profiles: [observability]
@@ -237,7 +235,8 @@ services:
     restart: unless-stopped
 
   # Applies the trace schema as the migrator login, which amp-api never holds.
-  # Rerun it (`docker compose run --rm observability-migrate`) after an upgrade.
+  # It waits for amp-api, whose first start creates the encryption key on an
+  # empty database. Rerun it (`docker compose run --rm observability-migrate`) after an upgrade.
   observability-migrate:
     image: ${AMP_API_IMAGE:-amp-api:lite}
     profiles: [observability]
@@ -257,13 +256,10 @@ services:
       - amp-data:/var/lib/agent-manager
       - amp-secrets:/var/lib/agent-manager/secrets
     depends_on:
-      amp-init:
-        condition: service_completed_successfully
+      amp-api:
+        condition: service_healthy
       clickhouse:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-        required: false
     # amp for PostgreSQL, observability for ClickHouse.
     networks: [amp, observability]
 

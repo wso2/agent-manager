@@ -120,7 +120,7 @@ SQLite is the default database. To use PostgreSQL, run `make up DB=postgres`, or
 
 ### Observability (traces)
 
-The `observability` profile adds ClickHouse and the OpenTelemetry collector on an internal network that only `amp-api` joins, with no published ports. A one-shot `observability-migrate` step runs `amp migrate` with ClickHouse's migrator login, so the trace schema is in place before `amp-api` starts; ClickHouse creates no tables itself, and `amp-api` holds only the reading and cleaning logins.
+The `observability` profile adds ClickHouse and the OpenTelemetry collector on an internal network that only `amp-api` joins, with no published ports. A one-shot `observability-migrate` step runs `amp migrate` with ClickHouse's migrator login, once `amp-api` is up, so the trace schema is in place before the collector starts and before the module is installed; ClickHouse creates no tables itself, and `amp-api` holds only the reading and cleaning logins.
 
 ```bash
 make up-observability       # also installs the observability module
