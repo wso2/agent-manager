@@ -524,7 +524,9 @@ class TraceFetcher:
         yielded = 0
 
         while True:
-            page, _total_count, page_failed = self._fetch_page(cursor_start, end_time, limit=page_size, sort_order="asc")
+            page, _total_count, page_failed = self._fetch_page(
+                cursor_start, end_time, limit=page_size, sort_order="asc"
+            )
             failed_ids.update(i for i in page_failed if i not in seen_ids)
             # The API selected len(page) + len(page_failed) traces for this page;
             # only that full count says whether more remain after it.
