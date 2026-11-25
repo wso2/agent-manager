@@ -16986,9 +16986,8 @@ components:
         The agent's governance in one environment, read from existing config.
         Returned on the single-agent view (GET agent with `view=registry`) only.
       required:
-        - guardrails
+        - llmConfigurations
         - monitors
-        - inboundSecurity
       properties:
         agentIdStatus:
           type: string
@@ -16998,24 +16997,45 @@ components:
             - in_progress
             - completed
             - failed
-        guardrails:
+        llmConfigurations:
           type: array
-          description: >-
-            Names of the guardrail policies on the agent's LLM providers here:
-            those on its own provider configuration and those on the provider.
+          description: The agent's LLM configurations here, each with its provider and guardrails.
           items:
-            type: string
+            $ref: "#/components/schemas/AgentRegistryLLMConfiguration"
         monitors:
           type: array
           items:
             $ref: "#/components/schemas/AgentRegistryMonitor"
         inboundSecurity:
           $ref: "#/components/schemas/AgentRegistryInboundSecurity"
+          description: >-
+            Absent for an external agent, whose endpoint Agent Manager does not
+            serve, and when no endpoint security is saved for the environment.
         a2aSkills:
           type: array
           description: The skills on the agent's stored A2A card here; absent when there is no card.
           items:
             $ref: "#/components/schemas/AgentRegistryA2ASkill"
+    AgentRegistryLLMConfiguration:
+      type: object
+      description: One of the agent's LLM configurations in one environment.
+      required:
+        - name
+        - provider
+        - guardrails
+      properties:
+        name:
+          type: string
+          description: The configuration's name, as the agent's Configure page lists it.
+        provider:
+          $ref: "#/components/schemas/AgentRegistryResourceRef"
+        guardrails:
+          type: array
+          description: >-
+            Names of the guardrail policies that apply: those on this
+            configuration and those on its provider.
+          items:
+            type: string
     AgentRegistryMonitor:
       type: object
       required:

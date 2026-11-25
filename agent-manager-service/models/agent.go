@@ -103,10 +103,12 @@ type AgentRegistryEnvironment struct {
 // AgentRegistryGovernance is the agent's governance in one environment, read from existing config.
 type AgentRegistryGovernance struct {
 	// AgentIDStatus is empty when no AgentID was requested here.
-	AgentIDStatus   string
-	Guardrails      []string
-	Monitors        []AgentRegistryMonitor
-	InboundSecurity AgentRegistryInboundSecurity
+	AgentIDStatus     string
+	LLMConfigurations []AgentRegistryLLMConfiguration
+	Monitors          []AgentRegistryMonitor
+	// InboundSecurity is nil for an external agent, whose endpoint Agent Manager does not
+	// serve, and when no endpoint security is saved for the environment.
+	InboundSecurity *AgentRegistryInboundSecurity
 	// A2ASkills is nil when no A2A card is stored here.
 	A2ASkills []AgentRegistryA2ASkill
 }
@@ -132,12 +134,32 @@ type AgentRegistryA2ASkill struct {
 	Tags        []string `json:"tags,omitempty"`
 }
 
+// AgentRegistryLLMConfiguration is one of the agent's LLM configurations in one environment:
+// its name, its provider, and the guardrails on the configuration and on the provider.
+type AgentRegistryLLMConfiguration struct {
+	Name       string
+	Provider   AgentRegistryResourceRef
+	Guardrails []string
+}
+
 // AgentEnvironmentResources is what an agent is configured with in one environment: its LLM
-// providers and their guardrails, and its MCP servers and their tools.
+// configurations (each with its provider and guardrails), and its MCP servers and their tools.
 type AgentEnvironmentResources struct {
-	LLMProviders []AgentRegistryResourceRef
-	Guardrails   []string
-	MCPServers   []AgentRegistryResourceRef
+	LLMConfigurations []AgentRegistryLLMConfiguration
+	MCPServers        []AgentRegistryResourceRef
+}
+
+// LLMProviders returns the distinct providers of the LLM configurations, in order.
+func (r *AgentEnvironmentResources) LLMProviders() []AgentRegistryResourceRef {
+	providers := []AgentRegistryResourceRef{}
+	seen := make(map[string]bool)
+	for _, c := range r.LLMConfigurations {
+		if !seen[c.Provider.ID] {
+			seen[c.Provider.ID] = true
+			providers = append(providers, c.Provider)
+		}
+	}
+	return providers
 }
 
 // AgentDeploymentState is one agent's deployment in one environment, read from its

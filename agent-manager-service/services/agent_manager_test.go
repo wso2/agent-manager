@@ -2716,9 +2716,12 @@ func TestGetAgentWithRegistry_FillsGovernancePerEnvironment(t *testing.T) {
 	}
 	configs := &registryConfigStub{agentResources: map[string]*models.AgentEnvironmentResources{
 		"development": {
-			LLMProviders: []models.AgentRegistryResourceRef{{ID: "openai", DisplayName: "OpenAI"}},
-			Guardrails:   []string{"pii-masking"},
-			MCPServers:   []models.AgentRegistryResourceRef{{ID: "github-mcp", DisplayName: "GitHub MCP", Tools: []string{"search_issues"}}},
+			LLMConfigurations: []models.AgentRegistryLLMConfiguration{{
+				Name:       "openai-main",
+				Provider:   models.AgentRegistryResourceRef{ID: "openai", DisplayName: "OpenAI"},
+				Guardrails: []string{"pii-masking"},
+			}},
+			MCPServers: []models.AgentRegistryResourceRef{{ID: "github-mcp", DisplayName: "GitHub MCP", Tools: []string{"search_issues"}}},
 		},
 	}}
 	monitors := &registryMonitorStub{monitors: []models.MonitorResponse{
@@ -2758,10 +2761,14 @@ func TestGetAgentWithRegistry_FillsGovernancePerEnvironment(t *testing.T) {
 			LLMProviders:   []models.AgentRegistryResourceRef{{ID: "openai", DisplayName: "OpenAI"}},
 			MCPServers:     []models.AgentRegistryResourceRef{{ID: "github-mcp", DisplayName: "GitHub MCP", Tools: []string{"search_issues"}}},
 			Governance: &models.AgentRegistryGovernance{
-				AgentIDStatus:   string(models.AgentThunderStatusCompleted),
-				Guardrails:      []string{"pii-masking"},
+				AgentIDStatus: string(models.AgentThunderStatusCompleted),
+				LLMConfigurations: []models.AgentRegistryLLMConfiguration{{
+					Name:       "openai-main",
+					Provider:   models.AgentRegistryResourceRef{ID: "openai", DisplayName: "OpenAI"},
+					Guardrails: []string{"pii-masking"},
+				}},
 				Monitors:        []models.AgentRegistryMonitor{{Name: "quality", DisplayName: "Quality", Status: "Active"}},
-				InboundSecurity: models.AgentRegistryInboundSecurity{OAuth: true},
+				InboundSecurity: &models.AgentRegistryInboundSecurity{OAuth: true},
 				A2ASkills:       []models.AgentRegistryA2ASkill{{ID: "add-note", Name: "Add a note", Tags: []string{"notes"}}},
 			},
 		},
@@ -2771,13 +2778,51 @@ func TestGetAgentWithRegistry_FillsGovernancePerEnvironment(t *testing.T) {
 			LLMProviders:     []models.AgentRegistryResourceRef{},
 			MCPServers:       []models.AgentRegistryResourceRef{},
 			Governance: &models.AgentRegistryGovernance{
-				Guardrails: []string{},
-				Monitors:   []models.AgentRegistryMonitor{},
-				// No stored config: the defaults GetAgent shows.
-				InboundSecurity: models.AgentRegistryInboundSecurity{APIKey: true},
+				LLMConfigurations: []models.AgentRegistryLLMConfiguration{},
+				Monitors:          []models.AgentRegistryMonitor{},
+				// No endpoint security saved here: nothing is assumed.
+				InboundSecurity: nil,
 			},
 		},
 	}, agent.Registry.Environments)
+}
+
+func TestGetAgentWithRegistry_ExternalAgentHasNoEndpointSecurity(t *testing.T) {
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{}, nil
+		},
+		GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				Name: "outside", ProjectName: "proj1",
+				Provisioning: models.Provisioning{Type: string(utils.ExternalAgent)},
+			}, nil
+		},
+		GetProjectDeploymentPipelineFunc: func(_ context.Context, _, _ string) (*models.DeploymentPipelineResponse, error) {
+			return nil, errors.New("no pipeline needed for GetAgent's config in this test")
+		},
+		GetProjectFunc: func(_ context.Context, _, _ string) (*models.ProjectResponse, error) {
+			return &models.ProjectResponse{Name: "proj1", DeploymentPipeline: "default-pipeline"}, nil
+		},
+		ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{{Name: "development"}}, nil
+		},
+		GetDeploymentsFunc: func(_ context.Context, _, _, _, _ string) ([]*models.DeploymentResponse, error) {
+			return []*models.DeploymentResponse{
+				{Environment: "development", Status: client.DeploymentStatusNotDeployed},
+			}, nil
+		},
+	}
+	// Agent Manager does not serve an external agent's endpoint, so its saved config is not read.
+	envConfigs := &repomocks.AgentConfigRepositoryMock{}
+	s := &agentManagerService{ocClient: ocClient, agentConfigRepo: envConfigs, logger: discardLogger()}
+
+	agent, err := s.GetAgentWithRegistry(context.Background(), "acme", "proj1", "outside")
+
+	require.NoError(t, err)
+	require.Len(t, agent.Registry.Environments, 1)
+	assert.Nil(t, agent.Registry.Environments[0].Governance.InboundSecurity)
+	assert.Empty(t, envConfigs.GetCalls())
 }
 
 func TestListOrgAgentRegistry_CreatorLookupFailureKeepsID(t *testing.T) {

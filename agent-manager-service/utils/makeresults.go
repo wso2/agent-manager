@@ -140,12 +140,21 @@ func convertToAgentRegistryGovernance(governance *models.AgentRegistryGovernance
 		return nil
 	}
 	out := &spec.AgentRegistryGovernance{
-		Guardrails: governance.Guardrails,
-		Monitors:   make([]spec.AgentRegistryMonitor, len(governance.Monitors)),
-		InboundSecurity: spec.AgentRegistryInboundSecurity{
+		LlmConfigurations: make([]spec.AgentRegistryLLMConfiguration, len(governance.LLMConfigurations)),
+		Monitors:          make([]spec.AgentRegistryMonitor, len(governance.Monitors)),
+	}
+	if governance.InboundSecurity != nil {
+		out.InboundSecurity = &spec.AgentRegistryInboundSecurity{
 			ApiKey: governance.InboundSecurity.APIKey,
 			Oauth:  governance.InboundSecurity.OAuth,
-		},
+		}
+	}
+	for i, c := range governance.LLMConfigurations {
+		out.LlmConfigurations[i] = spec.AgentRegistryLLMConfiguration{
+			Name:       c.Name,
+			Provider:   spec.AgentRegistryResourceRef{Id: c.Provider.ID, DisplayName: c.Provider.DisplayName},
+			Guardrails: c.Guardrails,
+		}
 	}
 	if governance.AgentIDStatus != "" {
 		out.AgentIdStatus = &governance.AgentIDStatus

@@ -174,9 +174,9 @@ function environmentDetail(env: AgentRegistryApiEnvironment): AgentRegistryEnvir
     llmProviders: env.llmProviders,
     mcpServers: env.mcpServers.map((server) => ({ ...server, tools: server.tools ?? [] })),
     agentIdStatus: governance?.agentIdStatus ?? null,
-    guardrails: governance?.guardrails ?? [],
+    llmConfigurations: governance?.llmConfigurations ?? [],
     monitors: governance?.monitors ?? [],
-    inboundSecurity: governance?.inboundSecurity ?? { apiKey: false, oauth: false },
+    inboundSecurity: governance?.inboundSecurity ?? null,
     a2aCard: governance?.a2aSkills ? { skills: governance.a2aSkills } : undefined,
   };
 }

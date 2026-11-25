@@ -22,8 +22,6 @@ import {
   Box,
   Breadcrumbs,
   Button,
-  Card,
-  CardContent,
   Chip,
   Collapse,
   Divider,
@@ -40,18 +38,14 @@ import {
   ChevronDown,
   CircleCheck,
   Copy,
-  Eye,
-  EyeOff,
   ExternalLink,
-  Info,
   SearchX,
   TriangleAlert,
   UserPlus,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link as RouterLink, useParams } from "react-router-dom";
 import { PageLayout, StateNotice, useReturnTo } from "@agent-management-platform/views";
-import { formatRelativeTime } from "@agent-management-platform/shared-component";
-import { useSetShadowFindingHidden, useShadowFinding } from "@agent-management-platform/api-client";
+import { useShadowFinding } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
   type ShadowFindingDetail,
@@ -68,6 +62,14 @@ import {
   shortDate,
 } from "@agent-management-platform/shadow-agent-discovery";
 import { CodeAgentOnboardActions } from "./OnboardActions";
+import {
+  ClampedText,
+  Property,
+  PropertiesSidebar,
+  SectionCard,
+  SidebarHeading,
+  TimeAgo,
+} from "../AgentPage/AgentPageParts";
 
 /** A related agent's relation, as a short label. */
 export function relationLabel(relation: string): string {
@@ -229,13 +231,6 @@ function listingInSentence(provider: string): string {
     : `the ${providerLabel(provider)} API`;
 }
 
-function exactDate(iso: string | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
 /** Whether no connection's latest scan found the agent any more. */
 function isGone(f: ShadowFindingDetail): boolean {
   const sources = f.foundBy ?? [];
@@ -350,32 +345,6 @@ function HeaderLine({ f }: { f: ShadowFindingDetail }) {
         </>
       )}
     </Stack>
-  );
-}
-
-function SectionCard({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle1">{title}</Typography>
-          {hint && (
-            <Typography variant="caption" color="text.secondary" component="p">
-              {hint}
-            </Typography>
-          )}
-        </Box>
-        {children}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -634,7 +603,7 @@ function UsesCard({ f }: { f: ShadowFindingDetail }) {
       }
     >
       <Stack spacing={2.5}>
-        {description && <Typography variant="body2">{description}</Typography>}
+        {description && <ClampedText text={description} />}
         {facts.length > 0 && (
           <Grid container spacing={2.5}>
             {facts.map((k) => (
@@ -663,65 +632,6 @@ function UsesCard({ f }: { f: ShadowFindingDetail }) {
   );
 }
 
-/** A label on the left and its value on the right, for the sidebar. */
-function Property({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Stack
-      direction={{ xs: "column", sm: "row" }}
-      spacing={{ xs: 0.25, sm: 2 }}
-      justifyContent="space-between"
-      alignItems={{ xs: "flex-start", sm: "baseline" }}
-    >
-      <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>
-        {label}
-      </Typography>
-      <Box
-        sx={{
-          minWidth: 0,
-          textAlign: { xs: "left", sm: "right" },
-          wordBreak: "break-word",
-          typography: "body2",
-        }}
-      >
-        {children}
-      </Box>
-    </Stack>
-  );
-}
-
-/** A relative time; its exact date is in a tooltip that keyboard focus also opens. */
-function TimeAgo({ iso }: { iso: string | undefined }) {
-  const exact = exactDate(iso);
-  return (
-    <Tooltip title={exact}>
-      <Box component="span" tabIndex={exact ? 0 : undefined}>
-        {formatRelativeTime(iso)}
-      </Box>
-    </Tooltip>
-  );
-}
-
-function SidebarHeading({ title, hint }: { title: string; hint?: string }) {
-  return (
-    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 1.5 }}>
-      <Typography variant="subtitle2">{title}</Typography>
-      {hint && (
-        <Tooltip title={hint}>
-          <Box
-            component="span"
-            role="img"
-            tabIndex={0}
-            aria-label={hint}
-            sx={{ display: "inline-flex", color: "text.secondary", cursor: "help" }}
-          >
-            <Info size={14} />
-          </Box>
-        </Tooltip>
-      )}
-    </Stack>
-  );
-}
-
 function StatusSection({ f, agentPath }: { f: ShadowFindingDetail; agentPath: string }) {
   const isCode = f.kind === "code_agent";
   const owner = ownerLabel(f.ownerHint);
@@ -746,11 +656,6 @@ function StatusSection({ f, agentPath }: { f: ShadowFindingDetail; agentPath: st
               <Property label="Onboarded">
                 <TimeAgo iso={f.onboardedAt} />
               </Property>
-            )}
-            {f.hidden && (
-              <Typography variant="caption" color="text.secondary" component="p">
-                Removed from the Unregistered Agents list. Later scans keep it out.
-              </Typography>
             )}
           </>
         ) : (
@@ -904,26 +809,12 @@ function Sidebar({
   agentPath: string;
 }) {
   return (
-    <Card
-      component="aside"
-      variant="outlined"
-      aria-label="Properties"
-      sx={{
-        position: { lg: "sticky" },
-        top: { lg: 24 },
-        maxHeight: { lg: "calc(100vh - 48px)" },
-        overflowY: { lg: "auto" },
-      }}
-    >
-      <CardContent>
-        <Stack spacing={2.5} divider={<Divider flexItem />}>
-          <StatusSection f={f} agentPath={agentPath} />
-          <SourcesSection f={f} />
-          {f.related.length > 0 && <DuplicatesSection f={f} orgName={orgName} />}
-          <TechnicalIds f={f} />
-        </Stack>
-      </CardContent>
-    </Card>
+    <PropertiesSidebar>
+      <StatusSection f={f} agentPath={agentPath} />
+      <SourcesSection f={f} />
+      {f.related.length > 0 && <DuplicatesSection f={f} orgName={orgName} />}
+      <TechnicalIds f={f} />
+    </PropertiesSidebar>
   );
 }
 
@@ -944,7 +835,6 @@ export function FindingDetail({
   const { findingId } = useParams<{ findingId: string }>();
   const returnTo = useReturnTo(listPath);
   const { data: f, isLoading, error } = useShadowFinding(orgName, findingId);
-  const setHidden = useSetShadowFindingHidden(orgName, findingId);
   const back = { backHref: returnTo, backLabel: "Back" };
 
   if (isLoading) {
@@ -986,16 +876,6 @@ export function FindingDetail({
   const actions =
     agentPath || canManage ? (
       <Stack direction="row" spacing={1.5}>
-        {f.onboarded && canManage && (
-          <Button
-            variant="outlined"
-            startIcon={f.hidden ? <Eye size={16} /> : <EyeOff size={16} />}
-            disabled={setHidden.isPending}
-            onClick={() => setHidden.mutate(!f.hidden)}
-          >
-            {f.hidden ? "Show in list" : "Remove from list"}
-          </Button>
-        )}
         {agentPath ? (
           <Button
             component={RouterLink}

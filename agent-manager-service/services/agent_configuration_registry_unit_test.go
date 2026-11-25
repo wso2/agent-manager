@@ -29,10 +29,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
-func TestListAgentEnvironmentResources_ReadsProvidersGuardrailsAndTools(t *testing.T) {
+func TestListAgentEnvironmentResources_ReadsConfigurationsGuardrailsAndTools(t *testing.T) {
 	devUUID, goneEnvUUID := uuid.New(), uuid.New()
-	llmConfigUUID := uuid.New()
-	openaiUUID, deletedProviderUUID := uuid.New(), uuid.New()
+	openaiConfigUUID, claudeConfigUUID := uuid.New(), uuid.New()
+	openaiUUID, anthropicUUID, deletedProviderUUID := uuid.New(), uuid.New(), uuid.New()
 	endpointArtifact := uuid.New()
 	tools := []map[string]interface{}{{"name": "search_issues"}, {"name": "get_pull_request"}}
 	proxyTools := []map[string]interface{}{{"name": "only-on-the-proxy"}}
@@ -40,11 +40,17 @@ func TestListAgentEnvironmentResources_ReadsProvidersGuardrailsAndTools(t *testi
 	configRepo := &repomocks.AgentConfigurationRepositoryMock{
 		ListByAgentAndTypeFunc: func(_ context.Context, _, _, _ string, typeID uint, _, _ int) ([]models.AgentConfiguration, error) {
 			assert.Equal(t, models.AgentConfigTypeIDLLM, typeID)
-			return []models.AgentConfiguration{{UUID: llmConfigUUID}}, nil
+			return []models.AgentConfiguration{{UUID: openaiConfigUUID}, {UUID: claudeConfigUUID}}, nil
 		},
 		GetByUUIDFunc: func(_ context.Context, configUUID uuid.UUID, _ string) (*models.AgentConfiguration, error) {
-			require.Equal(t, llmConfigUUID, configUUID)
-			return &models.AgentConfiguration{EnvMappings: []models.EnvAgentModelMapping{
+			if configUUID == claudeConfigUUID {
+				// Another configuration with guardrails of its own: none here, and none on its provider.
+				return &models.AgentConfiguration{Name: "claude-main", EnvMappings: []models.EnvAgentModelMapping{
+					{EnvironmentUUID: devUUID, LLMProxy: &models.LLMProxy{ProviderUUID: anthropicUUID}},
+				}}, nil
+			}
+			require.Equal(t, openaiConfigUUID, configUUID)
+			return &models.AgentConfiguration{Name: "openai-main", EnvMappings: []models.EnvAgentModelMapping{
 				{
 					EnvironmentUUID:     devUUID,
 					LLMProxy:            &models.LLMProxy{ProviderUUID: openaiUUID},
@@ -76,6 +82,9 @@ func TestListAgentEnvironmentResources_ReadsProvidersGuardrailsAndTools(t *testi
 			if providerID == deletedProviderUUID.String() {
 				return nil, gorm.ErrRecordNotFound
 			}
+			if providerID == anthropicUUID.String() {
+				return &models.LLMProvider{Artifact: &models.Artifact{Handle: "anthropic", Name: "Anthropic"}}, nil
+			}
 			return &models.LLMProvider{
 				Artifact:      &models.Artifact{Handle: "openai", Name: "OpenAI"},
 				Configuration: models.LLMProviderConfig{Policies: []models.LLMPolicy{{Name: "pii-masking"}, {Name: "content-safety"}}},
@@ -95,9 +104,20 @@ func TestListAgentEnvironmentResources_ReadsProvidersGuardrailsAndTools(t *testi
 	require.NoError(t, err)
 	assert.Equal(t, map[string]*models.AgentEnvironmentResources{
 		"development": {
-			LLMProviders: []models.AgentRegistryResourceRef{{ID: "openai", DisplayName: "OpenAI"}},
-			// The agent's own guardrails, then the provider's, each once.
-			Guardrails: []string{"pii-masking", "word-count", "content-safety"},
+			// Each configuration with its own guardrails: the configuration's, then its
+			// provider's, each once.
+			LLMConfigurations: []models.AgentRegistryLLMConfiguration{
+				{
+					Name:       "openai-main",
+					Provider:   models.AgentRegistryResourceRef{ID: "openai", DisplayName: "OpenAI"},
+					Guardrails: []string{"pii-masking", "word-count", "content-safety"},
+				},
+				{
+					Name:       "claude-main",
+					Provider:   models.AgentRegistryResourceRef{ID: "anthropic", DisplayName: "Anthropic"},
+					Guardrails: []string{},
+				},
+			},
 			// The tools of the endpoint deployed as the agent's artifact, not the proxy's own.
 			MCPServers: []models.AgentRegistryResourceRef{
 				{ID: "github-mcp", DisplayName: "GitHub MCP", Tools: []string{"search_issues", "get_pull_request"}},

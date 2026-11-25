@@ -16,173 +16,366 @@
  * under the License.
  */
 
-import type { ReactNode } from "react";
-import { Box, Chip, Grid, Stack, Typography } from "@wso2/oxygen-ui";
+import { Fragment, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Box, Chip, Divider, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { CircleCheck, TriangleAlert } from "@wso2/oxygen-ui-icons-react";
 import type {
   AgentRegistryEnvironmentDetail,
+  AgentRegistryHosting,
   AgentThunderStatus,
   MonitorStatus,
 } from "@agent-management-platform/types";
-import { SectionCard } from "./SectionCard";
-import { ChipRow, Gap, Tile } from "./Tiles";
+import { SectionCard } from "../../AgentPage/AgentPageParts";
 
-const AGENT_ID_LABELS: Record<AgentThunderStatus, string> = {
-  completed: "Issued",
-  in_progress: "Being issued",
-  pending: "Pending",
-  failed: "Failed",
-};
+// The Governance card is one aligned list: a narrow label column (Identity, LLMs, MCP
+// servers, Monitors) and the values next to it. Each item takes a line, with a muted second
+// line for its guardrails or tools. A gap worth noticing (no guardrails, no monitors, an open
+// endpoint) carries a warning icon; a control in place carries a check.
 
-const AGENT_ID_COLORS: Record<AgentThunderStatus, "success" | "warning" | "error" | "default"> = {
-  completed: "success",
-  in_progress: "warning",
-  pending: "default",
-  failed: "error",
-};
-
-const MONITOR_COLORS: Record<MonitorStatus, "success" | "default" | "error"> = {
-  Active: "success",
-  Suspended: "default",
-  Failed: "error",
-  Unknown: "default",
-};
-
-function Caption({ children }: { children: ReactNode }) {
+/** One line of a value: text after an optional check or warning icon. */
+function Line({
+  tone,
+  muted,
+  children,
+}: {
+  tone?: "ok" | "gap";
+  muted?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
-      {children}
-    </Typography>
-  );
-}
-
-function AgentIdTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
-  const status = env.agentIdStatus;
-  return (
-    <Tile title="Agent ID">
-      {status ? (
-        <Chip
-          size="small"
-          variant="outlined"
-          color={AGENT_ID_COLORS[status]}
-          label={AGENT_ID_LABELS[status]}
-        />
-      ) : (
-        <Gap>No AgentID: it has no credentials of its own</Gap>
+    <Stack direction="row" spacing={0.75} alignItems="flex-start">
+      {tone && (
+        <Box
+          component="span"
+          aria-hidden
+          sx={{
+            display: "inline-flex",
+            pt: "3px",
+            color: tone === "ok" ? "success.main" : "warning.main",
+          }}
+        >
+          {tone === "ok" ? <CircleCheck size={14} /> : <TriangleAlert size={14} />}
+        </Box>
       )}
-    </Tile>
+      <Typography
+        variant="body2"
+        color={muted ? "text.secondary" : "text.primary"}
+        component="div"
+        sx={{ minWidth: 0, wordBreak: "break-word" }}
+      >
+        {children}
+      </Typography>
+    </Stack>
   );
 }
 
-function EndpointSecurityTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
-  const { apiKey, oauth } = env.inboundSecurity;
-  const methods = [apiKey && "API key", oauth && "OAuth"].filter(Boolean) as string[];
-  return (
-    <Tile title="Endpoint security">
-      {methods.length ? (
-        <ChipRow labels={methods} />
-      ) : (
-        <Gap>None</Gap>
-      )}
-    </Tile>
-  );
+/** Space between chips, in px (theme spacing 0.5). */
+const CHIP_GAP = 4;
+
+/**
+ * How many chips fit on one line of the given width, leaving room for the "+N" chip when
+ * some do not fit. At least one chip shows, so a single long name is cut, not hidden.
+ */
+export function chipsThatFit(
+  chipWidths: number[],
+  moreChipWidth: number,
+  available: number,
+): number {
+  const total = chipWidths.reduce((sum, w) => sum + w, 0) + CHIP_GAP * (chipWidths.length - 1);
+  if (total <= available) return chipWidths.length;
+  let used = moreChipWidth;
+  let fit = 0;
+  for (const width of chipWidths) {
+    if (used + CHIP_GAP + width > available) break;
+    used += CHIP_GAP + width;
+    fit += 1;
+  }
+  return Math.max(fit, 1);
 }
 
-function ModelAccessTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
-  return (
-    <Tile title="LLM providers">
-      {env.llmProviders.length ? (
-        <>
-          <ChipRow labels={env.llmProviders.map((p) => p.displayName)} />
-          {/* Guardrails sit on the agent's LLM provider config. */}
-          <Caption>
-            {env.guardrails.length
-              ? `Guardrails: ${env.guardrails.join(", ")}`
-              : "No guardrails"}
-          </Caption>
-        </>
-      ) : (
-        <Typography variant="body2" color="text.secondary">
-          None configured
-        </Typography>
-      )}
-    </Tile>
-  );
-}
+/**
+ * A label and its items as chips on one line: as many chips as the line has room for,
+ * then a "+N" chip for the rest. "+N" lists the rest in its tooltip and, when clicked,
+ * shows every chip, wrapping; "Show less" goes back.
+ */
+function ChipLine({ label, items }: { label: string; items: string[] }) {
+  const lineRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(items.length);
+  const [expanded, setExpanded] = useState(false);
 
-function ToolAccessTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
-  return (
-    <Tile title="MCP servers">
-      {env.mcpServers.length ? (
-        <Stack spacing={1}>
-          {env.mcpServers.map((server) => (
-            <Box key={server.id}>
-              <Typography variant="body2">{server.displayName}</Typography>
-              <Typography variant="caption" color="text.secondary" component="div">
-                {server.tools.length ? server.tools.join(", ") : "No tools discovered"}
-              </Typography>
-            </Box>
-          ))}
-        </Stack>
-      ) : (
-        <Typography variant="body2" color="text.secondary">
-          None configured
-        </Typography>
-      )}
-    </Tile>
-  );
-}
+  // Measure every chip off screen, then fit them to the line's width, again on resize.
+  useLayoutEffect(() => {
+    const line = lineRef.current;
+    const measure = measureRef.current;
+    if (!line || !measure) return undefined;
+    const fit = () => {
+      const chips = Array.from(measure.children) as HTMLElement[];
+      const moreChip = chips.pop();
+      setShown(
+        chipsThatFit(
+          chips.map((chip) => chip.offsetWidth),
+          moreChip?.offsetWidth ?? 0,
+          line.clientWidth,
+        ),
+      );
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(line);
+    return () => observer.disconnect();
+  }, [items]);
 
-function MonitorsTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
+  const hidden = items.slice(shown);
+  const visible = expanded ? items : items.slice(0, shown);
+  const chip = (text: string) => (
+    <Chip key={text} size="small" variant="outlined" label={text} sx={{ maxWidth: "100%" }} />
+  );
+
   return (
-    <Tile title="Evaluation monitors">
-      {env.monitors.length ? (
-        <Stack spacing={0.75}>
-          {env.monitors.map((monitor) => (
-            <Stack key={monitor.name} direction="row" spacing={1} alignItems="center">
-              <Typography variant="body2">{monitor.displayName}</Typography>
+    <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ minWidth: 0 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0, pt: "2px" }}>
+        {label}:
+      </Typography>
+      <Box ref={lineRef} sx={{ position: "relative", flex: 1, minWidth: 0 }}>
+        <Stack
+          direction="row"
+          spacing={0.5}
+          useFlexGap
+          flexWrap={expanded ? "wrap" : "nowrap"}
+          sx={{ overflow: "hidden" }}
+        >
+          {visible.map(chip)}
+          {!expanded && hidden.length > 0 && (
+            <Tooltip title={hidden.join(", ")}>
               <Chip
                 size="small"
-                variant="outlined"
-                color={MONITOR_COLORS[monitor.status]}
-                label={monitor.status}
+                label={`+${hidden.length}`}
+                onClick={() => setExpanded(true)}
+                aria-label={`Show ${hidden.length} more`}
               />
-            </Stack>
-          ))}
+            </Tooltip>
+          )}
+          {expanded && hidden.length > 0 && (
+            <Chip size="small" label="Show less" onClick={() => setExpanded(false)} />
+          )}
         </Stack>
+        {/* Every chip, and a "+N" sample, laid out unseen to measure their widths. */}
+        <Stack
+          ref={measureRef}
+          direction="row"
+          aria-hidden
+          sx={{ position: "absolute", top: 0, left: 0, visibility: "hidden", pointerEvents: "none" }}
+        >
+          {items.map(chip)}
+          <Chip size="small" label={`+${items.length}`} />
+        </Stack>
+      </Box>
+    </Stack>
+  );
+}
+
+/** One row of the list: its label in the narrow column, its lines next to it. */
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0.5, sm: 2 }}>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ width: { sm: 140 }, flexShrink: 0 }}
+      >
+        {label}
+      </Typography>
+      <Stack spacing={1} sx={{ minWidth: 0, flex: 1 }}>
+        {children}
+      </Stack>
+    </Stack>
+  );
+}
+
+const AGENT_ID_TEXT: Record<AgentThunderStatus, string> = {
+  completed: "Agent ID issued",
+  in_progress: "Agent ID being issued",
+  pending: "Agent ID pending",
+  failed: "Agent ID could not be issued",
+};
+
+/** The callers' credentials, as words: "an API key", "OAuth", "an API key or OAuth". */
+function callerCredentials(apiKey: boolean, oauth: boolean): string {
+  if (apiKey && oauth) return "an API key or OAuth";
+  return apiKey ? "an API key" : "OAuth";
+}
+
+/**
+ * How callers must authenticate to its endpoint here. Nothing for an external agent, whose
+ * endpoint Agent Manager does not serve; no endpoint where it is not deployed; and, like the
+ * agent's own overview, no assumption when no endpoint security is saved.
+ */
+function CallersLine({
+  hosting,
+  env,
+}: {
+  hosting: AgentRegistryHosting;
+  env: AgentRegistryEnvironmentDetail;
+}) {
+  if (hosting === "external") return null;
+  if (env.deploymentStatus === "not-deployed") {
+    return <Line muted>No endpoint: not deployed here</Line>;
+  }
+  if (!env.inboundSecurity) {
+    return <Line tone="gap">Endpoint security not set</Line>;
+  }
+  const { apiKey, oauth } = env.inboundSecurity;
+  return apiKey || oauth ? (
+    <Line tone="ok">Callers use {callerCredentials(apiKey, oauth)}</Line>
+  ) : (
+    <Line tone="gap">Endpoint open: callers need no credentials</Line>
+  );
+}
+
+/** Its AgentID, and how callers must authenticate to its endpoint. */
+function IdentityRow({
+  hosting,
+  env,
+}: {
+  hosting: AgentRegistryHosting;
+  env: AgentRegistryEnvironmentDetail;
+}) {
+  const status = env.agentIdStatus;
+  return (
+    <Row label="Identity">
+      {status ? (
+        <Line tone={status === "completed" ? "ok" : status === "failed" ? "gap" : undefined}>
+          {AGENT_ID_TEXT[status]}
+        </Line>
       ) : (
-        <Gap>None</Gap>
+        <Line tone="gap">No Agent ID</Line>
       )}
-    </Tile>
+      <CallersLine hosting={hosting} env={env} />
+    </Row>
+  );
+}
+
+/** Each LLM configuration, with its provider when named differently, and its guardrails. */
+function LlmsRow({ env }: { env: AgentRegistryEnvironmentDetail }) {
+  return (
+    <Row label="LLMs">
+      {env.llmConfigurations.length === 0 && <Line muted>None configured</Line>}
+      {env.llmConfigurations.map((config) => (
+        <Box key={config.name}>
+          <Line>
+            {config.name}
+            {config.provider.displayName !== config.name && (
+              <Typography component="span" variant="body2" color="text.secondary">
+                {` (${config.provider.displayName})`}
+              </Typography>
+            )}
+          </Line>
+          {config.guardrails.length ? (
+            <ChipLine label="Guardrails" items={config.guardrails} />
+          ) : (
+            <Line tone="gap" muted>
+              No guardrails
+            </Line>
+          )}
+        </Box>
+      ))}
+    </Row>
+  );
+}
+
+/** Each MCP server, with the tools discovered on it. */
+function McpServersRow({ env }: { env: AgentRegistryEnvironmentDetail }) {
+  return (
+    <Row label="MCP servers">
+      {env.mcpServers.length === 0 && <Line muted>None configured</Line>}
+      {env.mcpServers.map((server) => (
+        <Box key={server.id}>
+          <Line>{server.displayName}</Line>
+          {server.tools.length ? (
+            <ChipLine label="Tools" items={server.tools} />
+          ) : (
+            <Line muted>No tools discovered</Line>
+          )}
+        </Box>
+      ))}
+    </Row>
+  );
+}
+
+/** The colour of a monitor's status dot. */
+const MONITOR_DOT_COLORS: Record<MonitorStatus, string> = {
+  Active: "success.main",
+  Suspended: "text.disabled",
+  Failed: "error.main",
+  Unknown: "text.disabled",
+};
+
+/** The evaluation monitors on it, each with its status after a coloured dot. */
+function MonitorsRow({ env }: { env: AgentRegistryEnvironmentDetail }) {
+  return (
+    <Row label="Monitors">
+      {env.monitors.length === 0 ? (
+        <Line tone="gap">None</Line>
+      ) : (
+        // Two columns, names then statuses, so the statuses line up whatever the names' length.
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, max-content) max-content",
+            columnGap: 4,
+            rowGap: 1,
+            alignItems: "center",
+          }}
+        >
+          {env.monitors.map((monitor) => (
+            <Fragment key={monitor.name}>
+              <Typography variant="body2" sx={{ minWidth: 0, wordBreak: "break-word" }}>
+                {monitor.displayName}
+              </Typography>
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <Box
+                  component="span"
+                  aria-hidden
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    bgcolor: MONITOR_DOT_COLORS[monitor.status],
+                  }}
+                />
+                <Typography component="span" variant="body2" color="text.secondary">
+                  {monitor.status}
+                </Typography>
+              </Stack>
+            </Fragment>
+          ))}
+        </Box>
+      )}
+    </Row>
   );
 }
 
 /**
- * The controls Agent Manager puts around the agent in the environment chosen at the
- * top of the page, read from its existing configuration: its identity, who may call
- * it, which models and tools it may use, and who checks its output.
+ * The controls around the agent in the environment chosen at the top of the page, read
+ * from its existing configuration: its identity and who may call it, the LLMs and MCP
+ * servers it may use, and what evaluates its output.
  */
-export function Governance({ env }: { env: AgentRegistryEnvironmentDetail }) {
-  const half = { xs: 12, md: 6 };
-  const third = { xs: 12, md: 4 };
+export function GovernanceCard({
+  hosting,
+  env,
+}: {
+  hosting: AgentRegistryHosting;
+  env: AgentRegistryEnvironmentDetail;
+}) {
   return (
     <SectionCard title="Governance">
-      <Grid container spacing={2}>
-        <Grid size={third}>
-          <AgentIdTile env={env} />
-        </Grid>
-        <Grid size={third}>
-          <EndpointSecurityTile env={env} />
-        </Grid>
-        <Grid size={third}>
-          <MonitorsTile env={env} />
-        </Grid>
-        <Grid size={half}>
-          <ModelAccessTile env={env} />
-        </Grid>
-        <Grid size={half}>
-          <ToolAccessTile env={env} />
-        </Grid>
-      </Grid>
+      <Stack spacing={2} divider={<Divider flexItem />}>
+        <IdentityRow hosting={hosting} env={env} />
+        <LlmsRow env={env} />
+        <McpServersRow env={env} />
+        <MonitorsRow env={env} />
+      </Stack>
     </SectionCard>
   );
 }

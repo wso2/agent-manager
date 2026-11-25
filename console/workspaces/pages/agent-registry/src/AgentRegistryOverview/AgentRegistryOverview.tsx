@@ -16,23 +16,29 @@
  * under the License.
  */
 
-import { Button, Grid, MenuItem, Select, Skeleton, Stack } from "@wso2/oxygen-ui";
+import { Box, Button, MenuItem, Select, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import { Bot, ExternalLink } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout, StateNotice, useReturnTo } from "@agent-management-platform/views";
 import { useGetAgentRegistryEntry } from "@agent-management-platform/api-client";
-import { LabelChips, formatRelativeTime } from "@agent-management-platform/shared-component";
+import { LabelChips } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   type AgentRegistryEntryDetail,
   type AgentRegistryEnvironmentDetail,
 } from "@agent-management-platform/types";
 import { Link, generatePath, useLocation, useParams, useSearchParams } from "react-router-dom";
+import {
+  AgentPageColumns,
+  Property,
+  PropertiesSidebar,
+  SidebarHeading,
+  TimeAgo,
+} from "../AgentPage/AgentPageParts";
 import { agentTypeText } from "../AgentRegistry/subComponents/agentRow";
 import { DeploymentStatusChip } from "../AgentRegistry/subComponents/DeploymentStatusChip";
 import { UnknownOwnerLabel } from "../AgentRegistry/subComponents/UnknownOwnerLabel";
-import { Capabilities } from "./subComponents/Capabilities";
-import { Governance } from "./subComponents/Governance";
-import { Field, SectionCard, ValueText } from "./subComponents/SectionCard";
+import { AboutCard } from "./subComponents/AboutCard";
+import { GovernanceCard } from "./subComponents/Governance";
 
 const registryRoute = absoluteRouteMap.children.org.children.agentRegistry;
 
@@ -41,11 +47,6 @@ const ENV_PARAM = "env";
 /**
  * The environment the page shows: the one in the URL, else the first in the agent's
  * pipeline (the lowest, e.g. Development). Undefined when the agent has no environments.
- *
- * The agent's environments are its project's deployment pipeline, in order. In the real
- * API they come from the organization's environments ordered by that pipeline, as
- * usePipelineEnvironmentsState (shared-component) does for project pages; the sample
- * data hardcodes them.
  */
 function chosenEnvironment(
   agent: AgentRegistryEntryDetail,
@@ -54,7 +55,10 @@ function chosenEnvironment(
   return agent.environments.find((e) => e.name === fromUrl) ?? agent.environments[0];
 }
 
-/** The environment dropdown in the page header. */
+/**
+ * The environment dropdown in the page header. The chosen one reads "Development
+ * Environment", as the environment selectors on the project pages do.
+ */
 function EnvironmentSelect({
   environments,
   value,
@@ -64,14 +68,17 @@ function EnvironmentSelect({
   value: string;
   onChange: (name: string) => void;
 }) {
+  const displayName = (name: string) =>
+    environments.find((e) => e.name === name)?.displayName ?? name;
   return (
     <Select
       size="small"
       variant="outlined"
       value={value}
       onChange={(e) => onChange(e.target.value as string)}
+      renderValue={(name) => `${displayName(name as string)} Environment`}
       inputProps={{ "aria-label": "Environment" }}
-      sx={{ minWidth: 180 }}
+      sx={{ minWidth: 200 }}
     >
       {environments.map((env) => (
         <MenuItem key={env.name} value={env.name}>
@@ -83,10 +90,10 @@ function EnvironmentSelect({
 }
 
 /**
- * Four columns: what the agent is | when and by whom it was created | its deployment
- * in the environment chosen at the top | its tags. Columns stack on narrow screens.
+ * The sidebar: the agent's status in the environment chosen at the top, then what it is
+ * whatever the environment, and its tags.
  */
-function Summary({
+function Sidebar({
   agent,
   env,
 }: {
@@ -94,62 +101,59 @@ function Summary({
   env: AgentRegistryEnvironmentDetail | undefined;
 }) {
   const hasLabels = Object.keys(agent.labels).length > 0;
-  const column = { xs: 12, sm: 6, lg: 3 };
   return (
-    <SectionCard title="Summary">
-      <Grid container spacing={2.5}>
-        <Grid size={column}>
-          <Stack spacing={2}>
-            <Field label="Project">
-              <ValueText>{agent.projectDisplayName}</ValueText>
-            </Field>
-            <Field label="Type">
-              <ValueText>{agentTypeText(agent)}</ValueText>
-            </Field>
+    <PropertiesSidebar>
+      {env && (
+        <Box>
+          <SidebarHeading title="Status" />
+          <Stack spacing={1.25}>
+            <Property label="Deployment">
+              <DeploymentStatusChip status={env.deploymentStatus} />
+            </Property>
+            <Property label="Last deployed">
+              {env.lastDeployedAt ? (
+                <TimeAgo iso={env.lastDeployedAt} />
+              ) : (
+                // External agents are never deployed by Agent Manager.
+                <Typography variant="body2" color="text.secondary" component="span">
+                  {agent.hosting === "external" ? "Not deployed by Agent Manager" : "Never"}
+                </Typography>
+              )}
+            </Property>
           </Stack>
-        </Grid>
-        <Grid size={column}>
-          <Stack spacing={2}>
-            <Field label="Created on">
-              <ValueText>{formatRelativeTime(agent.createdAt)}</ValueText>
-            </Field>
-            <Field label="Created by">
-              <ValueText>
-                {agent.createdBy ? agent.createdBy.displayName : <UnknownOwnerLabel />}
-              </ValueText>
-            </Field>
-          </Stack>
-        </Grid>
-        <Grid size={column}>
-          <Stack spacing={2}>
-            <Field label="Status">
-              {env ? <DeploymentStatusChip status={env.deploymentStatus} /> : <ValueText />}
-            </Field>
-            <Field label="Last deployed">
-              {/* External agents are never deployed by Agent Manager. */}
-              <ValueText>
-                {env?.lastDeployedAt
-                  ? formatRelativeTime(env.lastDeployedAt)
-                  : agent.hosting === "external"
-                    ? "Not deployed by Agent Manager"
-                    : "Never"}
-              </ValueText>
-            </Field>
-          </Stack>
-        </Grid>
-        <Grid size={column}>
-          <Field label="Tags">
-            {hasLabels ? <LabelChips labels={agent.labels} /> : <ValueText />}
-          </Field>
-        </Grid>
-      </Grid>
-    </SectionCard>
+        </Box>
+      )}
+      <Box>
+        <SidebarHeading title="Details" />
+        <Stack spacing={1.25}>
+          <Property label="Project">{agent.projectDisplayName}</Property>
+          <Property label="Type">{agentTypeText(agent)}</Property>
+          <Property label="Created">
+            <TimeAgo iso={agent.createdAt} />
+          </Property>
+          <Property label="Created by">
+            {agent.createdBy ? agent.createdBy.displayName : <UnknownOwnerLabel />}
+          </Property>
+        </Stack>
+      </Box>
+      <Box>
+        <SidebarHeading title="Tags" />
+        {hasLabels ? (
+          <LabelChips labels={agent.labels} />
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            None
+          </Typography>
+        )}
+      </Box>
+    </PropertiesSidebar>
   );
 }
 
 /**
- * Org-level overview of one registered agent: a summary, what it declares it can do and
- * its governance, in the environment chosen in the header. Links on to its project page.
+ * Org-level overview of one registered agent, laid out like an unregistered agent's page:
+ * a main column with what changes per environment (chosen in the header) and a sidebar
+ * with what does not. Links on to its project page.
  */
 export function AgentRegistryOverview() {
   const {
@@ -215,7 +219,8 @@ export function AgentRegistryOverview() {
   return (
     <PageLayout
       title={agent.displayName}
-      description={agent.description}
+      // One line: what it is and where. The description, which can be long, is in About.
+      description={`${agentTypeText(agent)} agent in ${agent.projectDisplayName}`}
       {...pageProps}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -237,15 +242,15 @@ export function AgentRegistryOverview() {
         </Stack>
       }
     >
-      <Stack spacing={2}>
-        <Summary agent={agent} env={env} />
-        {env && (
+      <AgentPageColumns
+        main={
           <>
-            <Capabilities agent={agent} env={env} />
-            <Governance env={env} />
+            <AboutCard agent={agent} env={env} />
+            {env && <GovernanceCard hosting={agent.hosting} env={env} />}
           </>
-        )}
-      </Stack>
+        }
+        sidebar={<Sidebar agent={agent} env={env} />}
+      />
     </PageLayout>
   );
 }
