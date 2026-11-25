@@ -661,10 +661,15 @@ type MCPProxyListResponse struct {
 
 // MCPProxyScopeSpec is a scope's desired state. The action naming it is Metadata.Name, not a
 // spec field, because renaming a scope means deleting and recreating it.
+//
+// On update the server reads an absent key as "keep the stored value", so the write fields
+// must be able to say "absent" and "empty" apart: Description is a pointer (nil omits the
+// key, &"" clears it) and Tools carries no omitempty (nil marshals to null, which the server
+// also reads as absent, and []string{} to [], which unbinds every tool).
 type MCPProxyScopeSpec struct {
 	Scope       string   `json:"scope,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Tools       []string `json:"tools,omitempty"`
+	Description *string  `json:"description,omitempty"`
+	Tools       []string `json:"tools"`
 }
 
 type MCPProxyScopeDocument struct {

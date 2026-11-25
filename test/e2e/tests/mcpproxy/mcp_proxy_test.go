@@ -145,7 +145,7 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 				APIVersion: framework.MCPProxyAPIVersion,
 				Kind:       framework.MCPProxyScopeKind,
 				Metadata:   framework.DocumentMetadata{Name: action},
-				Spec:       framework.MCPProxyScopeSpec{Description: description, Tools: tools},
+				Spec:       framework.MCPProxyScopeSpec{Description: &description, Tools: tools},
 			}
 		}
 		actions := func(list framework.MCPProxyScopeListResponse) []string {
@@ -163,7 +163,11 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 		Expect(actions(listScopes())).To(ContainElement("e2e-read"))
 
 		framework.Call(Default, Client, http.MethodPut, scopes+"/e2e-read", scopeDoc("e2e-read", "renamed", []string{"echo", "add"}), http.StatusOK)
-		for _, sc := range listScopes().List {
+		// Read the list once: asserting presence on a second call would leave the loop below
+		// free to pass over a list that never contained the scope.
+		updated := listScopes()
+		Expect(actions(updated)).To(ContainElement("e2e-read"))
+		for _, sc := range updated.List {
 			if sc.Metadata.Name == "e2e-read" {
 				Expect(sc.Spec.Tools).To(ConsistOf("echo", "add"))
 			}
