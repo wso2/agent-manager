@@ -9,13 +9,13 @@ server:
   extraSecretEnvironmentVars:
     - envName: WORKLOAD_PUBLISHER_SECRET
       secretName: amp-platform-oauth
-      secretKey: WORKLOAD_PUBLISHER_SECRET
+      secretKey: WORKLOAD_PUBLISHER_SECRET # checkov:skip=CKV_SECRET_6:key name in the amp-platform-oauth Secret, not a secret value
     - envName: AMP_PUBLISHER_CLIENT_SECRET
       secretName: amp-platform-oauth
-      secretKey: AMP_PUBLISHER_CLIENT_SECRET
+      secretKey: AMP_PUBLISHER_CLIENT_SECRET # checkov:skip=CKV_SECRET_6:key name in the amp-platform-oauth Secret, not a secret value
     - envName: OBSERVER_RESOURCE_READER_SECRET
       secretName: amp-platform-oauth
-      secretKey: OBSERVER_RESOURCE_READER_SECRET
+      secretKey: OBSERVER_RESOURCE_READER_SECRET # checkov:skip=CKV_SECRET_6:key name in the amp-platform-oauth Secret, not a secret value
 
   postStart:
     - /bin/sh
