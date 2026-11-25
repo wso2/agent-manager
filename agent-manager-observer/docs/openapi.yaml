@@ -915,6 +915,7 @@ components:
             10 000 spans of that trace.
         failedTraceIds:
           type: array
+          maxItems: 1000
           items:
             type: string
           description: |

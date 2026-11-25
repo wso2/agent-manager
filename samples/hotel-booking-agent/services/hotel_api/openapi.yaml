@@ -234,6 +234,8 @@ paths:
           required: false
           schema:
             type: integer
+            minimum: 1
+            maximum: 100
             default: 10
       responses:
         "200":
@@ -544,6 +546,7 @@ components:
       properties:
         hotels:
           type: array
+          maxItems: 100
           items:
             type: object
         metadata:
