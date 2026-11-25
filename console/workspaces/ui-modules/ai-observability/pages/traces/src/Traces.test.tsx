@@ -655,7 +655,8 @@ describe("TracesComponent without trace filters", () => {
 
 describe("TracesComponent with only the observability module's trace fields", () => {
   it("leaves status, conversation, input, output, tokens and score empty", () => {
-    const { status: _status, ...bare } = makeTrace("t-bare");
+    const bare = makeTrace("t-bare");
+    delete bare.status;
     hookOverrides = {
       data: {
         traces: [bare, makeTrace("t-ok", 0)],
