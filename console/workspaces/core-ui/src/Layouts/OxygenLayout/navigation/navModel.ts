@@ -68,6 +68,16 @@ export interface NavEntry {
   unsupportedReason?: (agent: AgentResponse) => string | undefined;
   pinBottom?: boolean;
   dividerBefore?: boolean;
+  /**
+   * Shown only at the levels it has a route for, rather than everywhere with a
+   * gate. For listings the top bar already switches between (Projects, Agents).
+   */
+  ownLevelOnly?: boolean;
+}
+
+/** Whether the entry is listed in the menu at `level`. */
+export function isNavEntryShownAt(entry: NavEntry, level: NavLevel): boolean {
+  return !entry.ownLevelOnly || !!entry.routes[level];
 }
 
 export interface NavParams {
@@ -170,6 +180,24 @@ const isFromCatalog = (agent: AgentResponse) => !isExternal(agent) && !!agent.ki
 
 const EXTERNAL = "External agents run outside the platform, so this page doesn't apply to them.";
 const CATALOG = "Agents created from the catalog are built from their kind, so this page doesn't apply to them.";
+
+/** Who each agent page is for, as "{page} is only available for …". */
+export const AGENT_AVAILABLE_FOR: Record<string, string> = {
+  build: "agents created from source code",
+  publish: "agents created from source code",
+  deploy: "agents that run on the platform",
+  "try-it": "agents that run on the platform",
+  "runtime-logs": "agents that run on the platform",
+  "system-metrics": "agents that run on the platform",
+  credentials: "API agents and external agents",
+};
+
+/** Short kind shown next to an agent the page doesn't apply to. */
+export function agentKindLabel(agent: AgentResponse): string {
+  if (isExternal(agent)) return "External";
+  if (isFromCatalog(agent)) return "From catalog";
+  return agent.agentType?.type === "agent-api" ? "API agent" : "From source";
+}
 
 export const AGENT_SUPPORT: Record<
   string,

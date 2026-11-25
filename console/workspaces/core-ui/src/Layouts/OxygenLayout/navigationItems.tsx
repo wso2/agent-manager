@@ -24,6 +24,7 @@ import { NAV_SECTIONS, useNavEntries } from "./navigation/useNavEntries";
 import {
   currentNavLevel,
   isNavEntryActive,
+  isNavEntryShownAt,
   navEntryHref,
 } from "./navigation/navModel";
 
@@ -66,7 +67,8 @@ export function useNavigationItems(): Array<NavigationSection | NavigationItem> 
     dividerBefore: entry.dividerBefore,
   });
 
-  const items: NavigationItem[] = entries
+  const shown = entries.filter((entry) => isNavEntryShownAt(entry, level));
+  const items: NavigationItem[] = shown
     .filter((entry) => !entry.section)
     .map(toItem);
   const sections: NavigationSection[] = NAV_SECTIONS.map((section) => ({
@@ -74,7 +76,7 @@ export function useNavigationItems(): Array<NavigationSection | NavigationItem> 
     type: "section" as const,
     icon: section.icon,
     collapsible: true,
-    items: entries.filter((entry) => entry.section === section.id).map(toItem),
+    items: shown.filter((entry) => entry.section === section.id).map(toItem),
   })).filter((section) => section.items.length > 0);
 
   return [...items, ...sections];

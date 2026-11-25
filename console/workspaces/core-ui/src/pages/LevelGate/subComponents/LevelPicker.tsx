@@ -24,6 +24,7 @@ import {
   Grid,
   MenuItem,
   Stack,
+  Typography,
   readHeaderBreadcrumbsState,
 } from "@wso2/oxygen-ui";
 import { Bot, Box } from "@wso2/oxygen-ui-icons-react";
@@ -40,6 +41,8 @@ import {
 } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
+  AGENT_AVAILABLE_FOR,
+  agentKindLabel,
   gatePath,
   type NavEntry,
   type NavLevel,
@@ -143,37 +146,33 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
   }
 
   const agentsLoaded = !!projectId && !agentsQuery.isLoading && !agentsQuery.isError;
-  // No agent to pick: show why instead of an empty select. The project select
-  // stays (from org level) so the user can try another project.
-  const noAgents = needAgent && agentsLoaded && supportedAgents.length === 0;
-  const agentNotice =
-    noAgents ? (
-      <StateNotice
-        compact={needProject}
-        contained={!needProject}
-        icon={Bot}
-        title={agents.length === 0 ? "No agents in this project" : `No agent here supports ${entry.label}`}
-        description={
-          agents.length === 0
-            ? `Create an agent to open ${entry.label}.`
-            : (entry.unsupportedReason?.(agents[0]) ?? "Pick another project.")
-        }
-        actions={
-          agents.length === 0 && (
-            <Button
-              variant="contained"
-              component={Link}
-              to={generatePath(
-                absoluteRouteMap.children.org.children.projects.children.newAgent.path,
-                { orgId, projectId },
-              )}
-            >
-              Create agent
-            </Button>
-          )
-        }
-      />
-    ) : null;
+  // An empty project gets a create action instead of an empty select. The
+  // project select stays (from org level) so the user can try another project.
+  const noAgents = needAgent && agentsLoaded && agents.length === 0;
+  const noneSupported =
+    needAgent && agentsLoaded && agents.length > 0 && supportedAgents.length === 0;
+  const availableFor = AGENT_AVAILABLE_FOR[entry.id];
+  const agentNotice = noAgents ? (
+    <StateNotice
+      compact={needProject}
+      contained={!needProject}
+      icon={Bot}
+      title="No agents in this project"
+      description={`Create an agent to open ${entry.label}.`}
+      actions={
+        <Button
+          variant="contained"
+          component={Link}
+          to={generatePath(
+            absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+            { orgId, projectId },
+          )}
+        >
+          Create agent
+        </Button>
+      }
+    />
+  ) : null;
 
   if (noAgents && !needProject) {
     return <PageLayout {...header}>{agentNotice}</PageLayout>;
@@ -214,11 +213,28 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
                     disabled={!projectId || agentsQuery.isLoading}
                     onChange={(event) => setPickedAgent(event.target.value)}
                   >
-                    {supportedAgents.map((agent) => (
-                      <MenuItem key={agent.name} value={agent.name}>
-                        {agent.displayName || agent.name}
-                      </MenuItem>
-                    ))}
+                    {agents.map((agent) => {
+                      // Agents the page doesn't apply to stay listed, greyed
+                      // out with their kind, so the project doesn't look empty.
+                      const unsupported = !!entry.unsupportedReason?.(agent);
+                      return (
+                        <MenuItem key={agent.name} value={agent.name} disabled={unsupported}>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            justifyContent="space-between"
+                            sx={{ width: "100%" }}
+                          >
+                            <span>{agent.displayName || agent.name}</span>
+                            {unsupported && (
+                              <Typography variant="caption" color="text.secondary">
+                                {agentKindLabel(agent)}
+                              </Typography>
+                            )}
+                          </Stack>
+                        </MenuItem>
+                      );
+                    })}
                   </TextInput>
                 </Grid>
               )}
@@ -231,6 +247,15 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
               />
             )}
             {agentNotice}
+            {needAgent && agentsLoaded && agents.length > supportedAgents.length && (
+              <Typography variant="body2" color="text.secondary">
+                {availableFor
+                  ? `${entry.label} is only available for ${availableFor}.`
+                  : `Some agents don't support ${entry.label}.`}
+                {noneSupported &&
+                  ` None of the agents in this project are${needProject ? ", so pick another project" : ""}.`}
+              </Typography>
+            )}
             {!noAgents && (
               <Stack direction="row" justifyContent="flex-start">
                 <Button variant="contained" disabled={!ready} onClick={open}>

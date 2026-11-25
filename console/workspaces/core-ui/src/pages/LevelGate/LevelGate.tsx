@@ -30,6 +30,7 @@ import { useNavEntries } from "../../Layouts/OxygenLayout/navigation/useNavEntri
 import {
   AGENT_SUPPORT,
   currentNavLevel,
+  entryRoutePath,
   resolveNavTarget,
   routeNeedsEnv,
   type NavEntry,
@@ -53,8 +54,15 @@ export function LevelGate() {
   const entry = entries.find((candidate) => candidate.id === navKey);
   const target = entry && level ? resolveNavTarget(entry, level) : undefined;
 
-  if (!entry || !level || !target) {
+  if (!level) {
     return <ErrorPages.NotFound />;
+  }
+  if (!entry || !target) {
+    // An item this user can't see here (another org's permissions, a stale
+    // link): fall back to the level's overview rather than a dead end.
+    const overview = entries.find((candidate) => candidate.id === "overview");
+    const home = overview && entryRoutePath(overview, level, params);
+    return home ? <Navigate replace to={home} /> : <ErrorPages.NotFound />;
   }
   if (target.kind === "up") {
     return <UpLevelNotice entry={entry} from={level} to={target.level} params={params} />;

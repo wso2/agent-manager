@@ -68,12 +68,12 @@ import {
 } from "./navModel";
 
 export const NAV_SECTIONS: Array<{ id: NavSectionId; title: string; icon: ReactNode }> = [
+  { id: "resources", title: "Resources", icon: <Boxes size={20} /> },
+  { id: "infrastructure", title: "Infrastructure", icon: <Server /> },
   { id: "lifecycle", title: "Agent lifecycle", icon: <GitBranch /> },
   { id: "security", title: "Security", icon: <Lock /> },
   { id: "observability", title: "Observability", icon: <Activity /> },
   { id: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
-  { id: "resources", title: "Resources", icon: <Boxes size={20} /> },
-  { id: "infrastructure", title: "Infrastructure", icon: <Server /> },
   { id: "identities", title: "Agent identities", icon: <thunderInstancesMetadata.icon /> },
 ];
 
@@ -151,12 +151,14 @@ export function useNavEntries(): NavEntry[] {
       id: "projects",
       label: "Projects",
       icon: <Box size={20} />,
+      ownLevelOnly: true,
       routes: { org: route(org.children.projectListing.path, [org.children.projectListing.path]) },
     },
     {
       id: "agents",
       label: "Agents",
       icon: <Bot size={20} />,
+      ownLevelOnly: true,
       routes: {
         project: route(projects.children.agentListing.path, [
           projects.children.agentListing.path,
