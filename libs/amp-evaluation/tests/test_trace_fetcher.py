@@ -19,7 +19,7 @@ Unit tests for TraceFetcher pagination and sample_traces.
 """
 
 import json
-from typing import List
+from typing import List, Optional
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -62,14 +62,17 @@ class TestTraceLoaderEncoding:
         assert traces[0].rootSpanName == "ආයුබෝවන්"
 
 
-def _mock_response(traces: List[dict], total_count: int) -> MagicMock:
+def _mock_response(traces: List[dict], total_count: int, failed_ids: Optional[List[str]] = None) -> MagicMock:
     resp = MagicMock()
     resp.raise_for_status.return_value = None
-    resp.json.return_value = {"traces": traces, "totalCount": total_count, "truncated": False}
+    body = {"traces": traces, "totalCount": total_count, "truncated": False}
+    if failed_ids:
+        body["failedTraceIds"] = failed_ids
+    resp.json.return_value = body
     return resp
 
 
-def _api_simulator(all_traces: List[dict], resolution_us: int = 1):
+def _api_simulator(all_traces: List[dict], resolution_us: int = 1, unreadable: Optional[set] = None):
     """Faithfully simulate /traces/export as a `requests.get` side_effect.
 
     Filters `startTime` to [cursor, end] using parsed datetimes (like a real
@@ -90,7 +93,14 @@ def _api_simulator(all_traces: List[dict], resolution_us: int = 1):
         end = _bucket(_parse_timestamp(params["endTime"]))
         limit = int(params["limit"])
         matching = [t for t in ordered if cursor <= _bucket(_parse_timestamp(t["startTime"])) <= end]
-        return _mock_response(matching[:limit], total_count=len(matching))
+        selected = matching[:limit]
+        # Like the observer: unreadable traces are left out of the page and listed.
+        bad = unreadable or set()
+        return _mock_response(
+            [t for t in selected if t["traceId"] not in bad],
+            total_count=len(matching),
+            failed_ids=[t["traceId"] for t in selected if t["traceId"] in bad],
+        )
 
     return _get
 
@@ -196,6 +206,37 @@ class TestFetchTracesPagination:
         # a0,a1 seen (first page of the ms-tie); a2 is the dropped tail; b0 preserved.
         assert "b0" in ids  # did not silently truncate everything after the tie
         assert ids == ["a0", "a1", "b0"]
+
+    def test_unreadable_trace_does_not_end_pagination(self):
+        """An unreadable trace makes the returned page short, but the window isn't exhausted."""
+        fetcher = _make_fetcher()
+        traces = [_raw_trace(f"t{i:02d}", f"2026-01-01T00:00:{i:02d}Z") for i in range(20)]
+
+        with patch("requests.get", side_effect=_api_simulator(traces, unreadable={"t03"})):
+            ids = [
+                t.traceId
+                for t in fetcher.fetch_traces(
+                    start_time="2026-01-01T00:00:00Z", end_time="2026-01-01T01:00:00Z", page_size=10
+                )
+            ]
+
+        assert ids == [f"t{i:02d}" for i in range(20) if i != 3]
+        assert fetcher.failed_trace_ids == {"t03"}
+
+    def test_trace_readable_on_retry_is_not_reported_failed(self):
+        fetcher = _make_fetcher()
+        page1 = [_raw_trace(f"t{i}", f"2026-01-01T00:00:0{i}Z") for i in range(4)]
+        # t4 couldn't be read on the first page; the next page (from t3's time) reads it.
+        page2 = [_raw_trace("t3", "2026-01-01T00:00:03Z"), _raw_trace("t4", "2026-01-01T00:00:04Z")]
+
+        with patch(
+            "requests.get",
+            side_effect=[_mock_response(page1, 6, failed_ids=["t4"]), _mock_response(page2, 3)],
+        ):
+            ids = [t.traceId for t in fetcher.fetch_traces(start_time="s", end_time="e", page_size=5)]
+
+        assert ids == ["t0", "t1", "t2", "t3", "t4"]
+        assert fetcher.failed_trace_ids == set()
 
     def test_page_size_must_be_positive(self):
         fetcher = _make_fetcher()

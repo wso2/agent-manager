@@ -238,6 +238,7 @@ func TestSMTPMessageHTMLAndHeaderInjection(t *testing.T) {
 func TestSMTPDeliveryAcceptanceAndPermanentFailures(t *testing.T) {
 	for _, scenario := range []string{
 		"recipient rejected", "authentication rejected", "QUIT rejected", "recipient deferred", "authentication deferred",
+		"recipient disconnected", "authentication disconnected",
 	} {
 		t.Run(scenario, func(t *testing.T) {
 			listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -265,6 +266,9 @@ func TestSMTPDeliveryAcceptanceAndPermanentFailures(t *testing.T) {
 					case strings.HasPrefix(line, "EHLO"), strings.HasPrefix(line, "HELO"):
 						_, _ = fmt.Fprint(conn, "250-mock\r\n250 AUTH PLAIN\r\n")
 					case strings.HasPrefix(line, "AUTH"):
+						if scenario == "authentication disconnected" {
+							return
+						}
 						if scenario == "authentication deferred" {
 							_, _ = fmt.Fprint(conn, "454 try again later\r\n")
 						} else {
@@ -275,6 +279,8 @@ func TestSMTPDeliveryAcceptanceAndPermanentFailures(t *testing.T) {
 					case strings.HasPrefix(line, "RCPT TO"):
 						recipients++
 						switch {
+						case scenario == "recipient disconnected" && recipients == 2:
+							return
 						case scenario == "recipient rejected" && recipients == 2:
 							_, _ = fmt.Fprint(conn, "550 no such recipient\r\n")
 						case scenario == "recipient deferred" && recipients == 2:
@@ -313,8 +319,9 @@ func TestSMTPDeliveryAcceptanceAndPermanentFailures(t *testing.T) {
 				require.NoError(t, result.Err)
 			} else {
 				require.Error(t, result.Err)
-				// A 4xx reply is temporary; a 5xx reply is final.
-				assert.Equal(t, strings.HasSuffix(scenario, "deferred"), result.Retryable)
+				// A 4xx reply or a dropped connection is temporary; a 5xx reply is final.
+				retryable := strings.HasSuffix(scenario, "deferred") || strings.HasSuffix(scenario, "disconnected")
+				assert.Equal(t, retryable, result.Retryable)
 			}
 			select {
 			case count := <-delivered:

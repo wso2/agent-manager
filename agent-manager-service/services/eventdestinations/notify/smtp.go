@@ -256,15 +256,34 @@ func writeSMTPBody(w io.Writer, body string) error {
 	return nil
 }
 
-// smtpRejection reports a refused RCPT or AUTH under message, keeping the
-// server's reply text out of it. A 4xx reply is temporary (greylisting, a
-// full mailbox, a busy server) and is retried; anything else is final.
+// smtpRejection reports a failed RCPT or AUTH under message, keeping the
+// server's reply text out of it. Only a refusal the server meant as final is
+// permanent: a 5xx reply, or a local error such as an auth mechanism refusing
+// the connection. A 4xx reply is temporary (greylisting, a full mailbox, a
+// busy server), and a dropped or timed-out connection means the server never
+// answered; both are retried, since no message was accepted yet.
 func smtpRejection(err error, message string) error {
 	var reply *textproto.Error
-	if errors.As(err, &reply) && reply.Code >= 400 && reply.Code < 500 {
+	if errors.As(err, &reply) {
+		if reply.Code >= 400 && reply.Code < 500 {
+			return errors.New(message)
+		}
+		return permanentSMTPError{message}
+	}
+	if isSMTPTransportError(err) {
 		return errors.New(message)
 	}
 	return permanentSMTPError{message}
+}
+
+// isSMTPTransportError reports whether err came from the connection rather
+// than from the server's reply or the client's own configuration.
+func isSMTPTransportError(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) ||
+		errors.Is(err, net.ErrClosed)
 }
 
 // permanentSMTPError reports a rejection without exposing server replies.

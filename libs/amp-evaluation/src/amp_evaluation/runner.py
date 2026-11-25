@@ -831,4 +831,15 @@ class Monitor(BaseRunner):
         if end_time:
             run_result.metadata["end_time"] = end_time
 
+        if traces is None:
+            # Traces the trace service selected but could not read are not in the
+            # sample. Record them so the result is not mistaken for a complete one.
+            unreadable = getattr(self._get_fetcher(), "failed_trace_ids", None)
+            if unreadable:
+                run_result.metadata["unreadable_trace_count"] = len(unreadable)
+                logger.warning(
+                    "%d trace(s) in the window could not be read by the trace service and were not evaluated",
+                    len(unreadable),
+                )
+
         return run_result

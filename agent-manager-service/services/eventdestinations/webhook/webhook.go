@@ -85,6 +85,7 @@ func New(allowPrivate bool) *Driver {
 	} else {
 		client.CheckRedirect = httpsSameHostRedirect(client.CheckRedirect)
 	}
+	client.CheckRedirect = methodPreservingRedirect(client.CheckRedirect)
 	return &Driver{client: client, allowPrivate: allowPrivate, now: time.Now}
 }
 
@@ -173,7 +174,9 @@ func (d *Driver) Deliver(ctx context.Context, dest eventdestinations.Destination
 		if errors.As(err, &urlErr) {
 			err = urlErr.Err
 		}
-		return eventdestinations.Result{Err: fmt.Errorf("webhook request failed: %w", err), Retryable: true}
+		// The endpoint will answer the same redirect next time.
+		retryable := !errors.Is(err, errRedirectChangesMethod)
+		return eventdestinations.Result{Err: fmt.Errorf("webhook request failed: %w", err), Retryable: retryable}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
@@ -238,6 +241,31 @@ func parseConfig(raw json.RawMessage) (Config, error) {
 // refused and will be refused again.
 func retryableStatus(code int) bool {
 	return code >= 500 || code == 408 || code == 425 || code == 429
+}
+
+// errRedirectChangesMethod is returned for a redirect the HTTP client would
+// follow as a GET without the event body (301, 302 or 303).
+var errRedirectChangesMethod = errors.New(
+	"webhook endpoint redirected with a status that drops the request body; only 307 and 308 redirects are followed")
+
+// methodPreservingRedirect refuses a redirect that turns the POST into a GET.
+// Go follows a 301, 302 or 303 as a body-less GET, and a 2xx answer to that GET
+// would otherwise count as a delivery the receiver never got. 307 and 308 keep
+// the method and body, so they are still followed.
+func methodPreservingRedirect(next func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) > 0 && req.Method != via[0].Method {
+			return errRedirectChangesMethod
+		}
+		if next != nil {
+			return next(req, via)
+		}
+		// Keep net/http's default limit when there is no other policy.
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		return nil
+	}
 }
 
 // httpsSameHostRedirect refuses a redirect that leaves https or the original
