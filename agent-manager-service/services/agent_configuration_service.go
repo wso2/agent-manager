@@ -5063,20 +5063,32 @@ func (s *agentConfigurationService) buildLLMProxyUpdateConfig(
 	return proxyConfig, providerUUID, nil
 }
 
-// siblingProviderVarName derives the provider variable name from the URL or API key name the
-// config already uses, so all three variables share one prefix. The URL and API key names are
-// kept as persisted when a config is renamed or its provider switched, while the config name
-// moves on; deriving from the config name alone would then give the provider variable a
-// different prefix than the other two. Returns false when neither name follows the default
-// <PREFIX>_URL / <PREFIX>_API_KEY pattern (for example a user-chosen name).
+// siblingProviderVarName derives the provider variable name from the URL and API key names the
+// config already uses, so all three variables share one prefix. Those two names are kept as
+// persisted when a config is renamed or its provider switched, while the config name moves on;
+// deriving from the config name alone would then give the provider variable a different prefix.
+// It only applies while both names still follow the default <PREFIX>_URL / <PREFIX>_API_KEY pair
+// with the same prefix (or the bare URL / API_KEY). Any other name, for example a custom
+// OPENAI_BASE_URL, is the user's own choice and gives no prefix to infer, so it returns false
+// and the caller falls back to the config name.
 func siblingProviderVarName(urlName, apiKeyName string) (string, bool) {
-	for _, c := range []struct{ name, suffix string }{{urlName, "URL"}, {apiKeyName, "API_KEY"}} {
-		switch {
-		case c.name == c.suffix:
-			return "PROVIDER", true
-		case strings.HasSuffix(c.name, "_"+c.suffix):
-			return strings.TrimSuffix(c.name, c.suffix) + "PROVIDER", true
-		}
+	fromURL, okURL := providerNameFromDefault(urlName, "URL")
+	fromKey, okKey := providerNameFromDefault(apiKeyName, "API_KEY")
+	if !okURL || !okKey || fromURL != fromKey {
+		return "", false
+	}
+	return fromURL, true
+}
+
+// providerNameFromDefault returns the provider variable name that goes with name when name is the
+// default variable for suffix: "<PREFIX>_<suffix>" gives "<PREFIX>_PROVIDER" and the bare
+// "<suffix>" gives "PROVIDER".
+func providerNameFromDefault(name, suffix string) (string, bool) {
+	switch {
+	case name == suffix:
+		return "PROVIDER", true
+	case strings.HasSuffix(name, "_"+suffix):
+		return strings.TrimSuffix(name, suffix) + "PROVIDER", true
 	}
 	return "", false
 }

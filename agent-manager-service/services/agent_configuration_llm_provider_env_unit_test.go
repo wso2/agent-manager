@@ -202,3 +202,32 @@ func TestTemplatesTrackedInFollowsTheEnvironmentsOwnRows(t *testing.T) {
 	require.Len(t, templatesTrackedIn(templates, legacyEnv), 2)
 	require.Equal(t, templates, templatesTrackedIn(templates, newerEnv))
 }
+
+// A custom URL name that merely ends in _URL is the user's own choice: it must not set the prefix.
+func TestBuildEnvironmentVariablesProviderIgnoresCustomURLName(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	templates, err := svc.buildEnvironmentVariables("my-llm", []models.EnvironmentVariableConfig{
+		{Key: "url", Name: "OPENAI_BASE_URL"},
+		{Key: "apikey", Name: "OPENAI_API_KEY"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "MY_LLM_PROVIDER", templates[2].Name)
+}
+
+func TestBuildEnvironmentVariablesProviderNeedsBothNamesOnTheDefaultPair(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	for name, overrides := range map[string][]models.EnvironmentVariableConfig{
+		"only url":          {{Key: "url", Name: "ANTHROPIC_URL"}},
+		"only apikey":       {{Key: "apikey", Name: "ANTHROPIC_API_KEY"}},
+		"prefixes differ":   {{Key: "url", Name: "OPENAI_URL"}, {Key: "apikey", Name: "ANTHROPIC_API_KEY"}},
+		"custom apikey":     {{Key: "url", Name: "ANTHROPIC_URL"}, {Key: "apikey", Name: "ANTHROPIC_TOKEN"}},
+		"bare and prefixed": {{Key: "url", Name: "URL"}, {Key: "apikey", Name: "ANTHROPIC_API_KEY"}},
+	} {
+		templates, err := svc.buildEnvironmentVariables("anthropic-01", overrides)
+		require.NoError(t, err, name)
+		require.Equal(t, "ANTHROPIC_01_PROVIDER", templates[2].Name, name)
+	}
+}
