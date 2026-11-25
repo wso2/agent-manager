@@ -176,7 +176,7 @@ function environmentDetail(env: AgentRegistryApiEnvironment): AgentRegistryEnvir
     agentIdStatus: governance?.agentIdStatus ?? null,
     llmConfigurations: governance?.llmConfigurations ?? [],
     monitors: governance?.monitors ?? [],
-    inboundSecurity: governance?.inboundSecurity ?? { apiKey: false, oauth: false },
+    inboundSecurity: governance?.inboundSecurity ?? null,
     a2aCard: governance?.a2aSkills ? { skills: governance.a2aSkills } : undefined,
   };
 }

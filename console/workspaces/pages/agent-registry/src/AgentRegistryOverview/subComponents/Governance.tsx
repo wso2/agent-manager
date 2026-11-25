@@ -21,6 +21,7 @@ import { Box, Chip, Divider, Stack, Tooltip, Typography } from "@wso2/oxygen-ui"
 import { CircleCheck, TriangleAlert } from "@wso2/oxygen-ui-icons-react";
 import type {
   AgentRegistryEnvironmentDetail,
+  AgentRegistryHosting,
   AgentThunderStatus,
   MonitorStatus,
 } from "@agent-management-platform/types";
@@ -205,10 +206,42 @@ function callerCredentials(apiKey: boolean, oauth: boolean): string {
   return apiKey ? "an API key" : "OAuth";
 }
 
-/** Its AgentID, and how callers must authenticate to its endpoint. */
-function IdentityRow({ env }: { env: AgentRegistryEnvironmentDetail }) {
-  const status = env.agentIdStatus;
+/**
+ * How callers must authenticate to its endpoint here. Nothing for an external agent, whose
+ * endpoint Agent Manager does not serve; no endpoint where it is not deployed; and, like the
+ * agent's own overview, no assumption when no endpoint security is saved.
+ */
+function CallersLine({
+  hosting,
+  env,
+}: {
+  hosting: AgentRegistryHosting;
+  env: AgentRegistryEnvironmentDetail;
+}) {
+  if (hosting === "external") return null;
+  if (env.deploymentStatus === "not-deployed") {
+    return <Line muted>No endpoint: not deployed here</Line>;
+  }
+  if (!env.inboundSecurity) {
+    return <Line tone="gap">Endpoint security not set</Line>;
+  }
   const { apiKey, oauth } = env.inboundSecurity;
+  return apiKey || oauth ? (
+    <Line tone="ok">Callers use {callerCredentials(apiKey, oauth)}</Line>
+  ) : (
+    <Line tone="gap">Endpoint open: callers need no credentials</Line>
+  );
+}
+
+/** Its AgentID, and how callers must authenticate to its endpoint. */
+function IdentityRow({
+  hosting,
+  env,
+}: {
+  hosting: AgentRegistryHosting;
+  env: AgentRegistryEnvironmentDetail;
+}) {
+  const status = env.agentIdStatus;
   return (
     <Row label="Identity">
       {status ? (
@@ -218,11 +251,7 @@ function IdentityRow({ env }: { env: AgentRegistryEnvironmentDetail }) {
       ) : (
         <Line tone="gap">No Agent ID</Line>
       )}
-      {apiKey || oauth ? (
-        <Line tone="ok">Callers use {callerCredentials(apiKey, oauth)}</Line>
-      ) : (
-        <Line tone="gap">Endpoint open: callers need no credentials</Line>
-      )}
+      <CallersLine hosting={hosting} env={env} />
     </Row>
   );
 }
@@ -332,11 +361,17 @@ function MonitorsRow({ env }: { env: AgentRegistryEnvironmentDetail }) {
  * from its existing configuration: its identity and who may call it, the LLMs and MCP
  * servers it may use, and what evaluates its output.
  */
-export function GovernanceCard({ env }: { env: AgentRegistryEnvironmentDetail }) {
+export function GovernanceCard({
+  hosting,
+  env,
+}: {
+  hosting: AgentRegistryHosting;
+  env: AgentRegistryEnvironmentDetail;
+}) {
   return (
     <SectionCard title="Governance">
       <Stack spacing={2} divider={<Divider flexItem />}>
-        <IdentityRow env={env} />
+        <IdentityRow hosting={hosting} env={env} />
         <LlmsRow env={env} />
         <McpServersRow env={env} />
         <MonitorsRow env={env} />

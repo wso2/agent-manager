@@ -246,7 +246,7 @@ export function AgentRegistryOverview() {
         main={
           <>
             <AboutCard agent={agent} env={env} />
-            {env && <GovernanceCard env={env} />}
+            {env && <GovernanceCard hosting={agent.hosting} env={env} />}
           </>
         }
         sidebar={<Sidebar agent={agent} env={env} />}

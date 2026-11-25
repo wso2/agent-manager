@@ -24,7 +24,7 @@ type AgentRegistryGovernance struct {
 	// The agent's LLM configurations here, each with its provider and guardrails.
 	LlmConfigurations []AgentRegistryLLMConfiguration `json:"llmConfigurations"`
 	Monitors          []AgentRegistryMonitor          `json:"monitors"`
-	InboundSecurity   AgentRegistryInboundSecurity    `json:"inboundSecurity"`
+	InboundSecurity   *AgentRegistryInboundSecurity   `json:"inboundSecurity,omitempty"`
 	// The skills on the agent's stored A2A card here; absent when there is no card.
 	A2aSkills []AgentRegistryA2ASkill `json:"a2aSkills,omitempty"`
 }
@@ -33,11 +33,10 @@ type AgentRegistryGovernance struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewAgentRegistryGovernance(llmConfigurations []AgentRegistryLLMConfiguration, monitors []AgentRegistryMonitor, inboundSecurity AgentRegistryInboundSecurity) *AgentRegistryGovernance {
+func NewAgentRegistryGovernance(llmConfigurations []AgentRegistryLLMConfiguration, monitors []AgentRegistryMonitor) *AgentRegistryGovernance {
 	this := AgentRegistryGovernance{}
 	this.LlmConfigurations = llmConfigurations
 	this.Monitors = monitors
-	this.InboundSecurity = inboundSecurity
 	return &this
 }
 
@@ -129,28 +128,36 @@ func (o *AgentRegistryGovernance) SetMonitors(v []AgentRegistryMonitor) {
 	o.Monitors = v
 }
 
-// GetInboundSecurity returns the InboundSecurity field value
+// GetInboundSecurity returns the InboundSecurity field value if set, zero value otherwise.
 func (o *AgentRegistryGovernance) GetInboundSecurity() AgentRegistryInboundSecurity {
-	if o == nil {
+	if o == nil || IsNil(o.InboundSecurity) {
 		var ret AgentRegistryInboundSecurity
 		return ret
 	}
-
-	return o.InboundSecurity
+	return *o.InboundSecurity
 }
 
-// GetInboundSecurityOk returns a tuple with the InboundSecurity field value
+// GetInboundSecurityOk returns a tuple with the InboundSecurity field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *AgentRegistryGovernance) GetInboundSecurityOk() (*AgentRegistryInboundSecurity, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.InboundSecurity) {
 		return nil, false
 	}
-	return &o.InboundSecurity, true
+	return o.InboundSecurity, true
 }
 
-// SetInboundSecurity sets field value
+// HasInboundSecurity returns a boolean if a field has been set.
+func (o *AgentRegistryGovernance) HasInboundSecurity() bool {
+	if o != nil && !IsNil(o.InboundSecurity) {
+		return true
+	}
+
+	return false
+}
+
+// SetInboundSecurity gets a reference to the given AgentRegistryInboundSecurity and assigns it to the InboundSecurity field.
 func (o *AgentRegistryGovernance) SetInboundSecurity(v AgentRegistryInboundSecurity) {
-	o.InboundSecurity = v
+	o.InboundSecurity = &v
 }
 
 // GetA2aSkills returns the A2aSkills field value if set, zero value otherwise.
@@ -200,7 +207,9 @@ func (o AgentRegistryGovernance) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["llmConfigurations"] = o.LlmConfigurations
 	toSerialize["monitors"] = o.Monitors
-	toSerialize["inboundSecurity"] = o.InboundSecurity
+	if !IsNil(o.InboundSecurity) {
+		toSerialize["inboundSecurity"] = o.InboundSecurity
+	}
 	if !IsNil(o.A2aSkills) {
 		toSerialize["a2aSkills"] = o.A2aSkills
 	}

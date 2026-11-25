@@ -100,8 +100,11 @@ export interface AgentRegistryEnvironmentDetail extends AgentRegistryEnvironment
   llmConfigurations: AgentRegistryLLMConfiguration[];
   mcpServers: AgentRegistryMcpServerRef[];
   monitors: AgentRegistryMonitorRef[];
-  /** Who may call the agent here: the security on its endpoint (agent configurations). */
-  inboundSecurity: { apiKey: boolean; oauth: boolean };
+  /**
+   * Who may call the agent here: the security saved for its endpoint. Null for an external
+   * agent, whose endpoint Agent Manager does not serve, and when none is saved here.
+   */
+  inboundSecurity: { apiKey: boolean; oauth: boolean } | null;
   /** The A2A card stored for this environment (#65); A2A agents only, once fetched. */
   a2aCard?: { skills: AgentRegistryA2ASkill[] };
 }
@@ -223,7 +226,8 @@ export interface AgentRegistryApiGovernance {
   agentIdStatus?: AgentThunderStatus;
   llmConfigurations: AgentRegistryLLMConfiguration[];
   monitors: AgentRegistryMonitorRef[];
-  inboundSecurity: { apiKey: boolean; oauth: boolean };
+  /** Absent for an external agent, and when no endpoint security is saved here. */
+  inboundSecurity?: { apiKey: boolean; oauth: boolean };
   /** Absent when no A2A card is stored here. */
   a2aSkills?: AgentRegistryA2ASkill[];
 }

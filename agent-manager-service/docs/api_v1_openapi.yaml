@@ -16988,7 +16988,6 @@ components:
       required:
         - llmConfigurations
         - monitors
-        - inboundSecurity
       properties:
         agentIdStatus:
           type: string
@@ -17009,6 +17008,9 @@ components:
             $ref: "#/components/schemas/AgentRegistryMonitor"
         inboundSecurity:
           $ref: "#/components/schemas/AgentRegistryInboundSecurity"
+          description: >-
+            Absent for an external agent, whose endpoint Agent Manager does not
+            serve, and when no endpoint security is saved for the environment.
         a2aSkills:
           type: array
           description: The skills on the agent's stored A2A card here; absent when there is no card.

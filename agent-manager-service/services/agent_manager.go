@@ -1761,9 +1761,13 @@ func (s *agentManagerService) GetAgentWithRegistry(ctx context.Context, ouID, pr
 				llmConfigurations = r.LLMConfigurations
 			}
 		}
-		inbound, err := s.agentInboundSecurity(ctx, ouID, projectName, agentName, d.Environment)
-		if err != nil {
-			return nil, err
+		// Agent Manager does not serve an external agent's endpoint, so it has no security to show.
+		var inbound *models.AgentRegistryInboundSecurity
+		if record.Hosting != models.AgentRegistryHostingExternal {
+			inbound, err = s.agentInboundSecurity(ctx, ouID, projectName, agentName, d.Environment)
+			if err != nil {
+				return nil, err
+			}
 		}
 		envMonitors := monitorsByEnv[d.Environment]
 		if envMonitors == nil {
@@ -1783,22 +1787,23 @@ func (s *agentManagerService) GetAgentWithRegistry(ctx context.Context, ouID, pr
 	return agent, nil
 }
 
-// agentInboundSecurity returns the security on the agent's endpoint in one environment. With no
-// stored config, the defaults GetAgent shows apply: an API key, no OAuth.
+// agentInboundSecurity returns the security saved for the agent's endpoint in one environment,
+// as the agent's own overview reads it (GET configurations?environment=). It is nil when none
+// is saved there: like that page, it assumes nothing.
 func (s *agentManagerService) agentInboundSecurity(
 	ctx context.Context, ouID, projectName, agentName, environmentName string,
-) (models.AgentRegistryInboundSecurity, error) {
+) (*models.AgentRegistryInboundSecurity, error) {
 	if s.agentConfigRepo == nil {
-		return models.AgentRegistryInboundSecurity{APIKey: true}, nil
+		return nil, nil //nolint:nilnil // no config store: nothing is saved
 	}
 	cfg, err := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, environmentName)
 	if errors.Is(err, repositories.ErrAgentConfigNotFound) {
-		return models.AgentRegistryInboundSecurity{APIKey: true}, nil
+		return nil, nil //nolint:nilnil // nothing saved for this environment is a valid state, not an error
 	}
 	if err != nil {
-		return models.AgentRegistryInboundSecurity{}, fmt.Errorf("failed to read agent config for environment %q: %w", environmentName, err)
+		return nil, fmt.Errorf("failed to read agent config for environment %q: %w", environmentName, err)
 	}
-	return models.AgentRegistryInboundSecurity{APIKey: cfg.EnableApiKeySecurity, OAuth: cfg.EnableOAuthSecurity}, nil
+	return &models.AgentRegistryInboundSecurity{APIKey: cfg.EnableApiKeySecurity, OAuth: cfg.EnableOAuthSecurity}, nil
 }
 
 // a2aCardSkills returns the skills on a stored A2A card; false when no card is stored or it

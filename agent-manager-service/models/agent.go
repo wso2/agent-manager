@@ -106,7 +106,9 @@ type AgentRegistryGovernance struct {
 	AgentIDStatus     string
 	LLMConfigurations []AgentRegistryLLMConfiguration
 	Monitors          []AgentRegistryMonitor
-	InboundSecurity   AgentRegistryInboundSecurity
+	// InboundSecurity is nil for an external agent, whose endpoint Agent Manager does not
+	// serve, and when no endpoint security is saved for the environment.
+	InboundSecurity *AgentRegistryInboundSecurity
 	// A2ASkills is nil when no A2A card is stored here.
 	A2ASkills []AgentRegistryA2ASkill
 }
