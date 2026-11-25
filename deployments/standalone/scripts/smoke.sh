@@ -93,7 +93,7 @@ AG=ext-$RANDOM
 # Agents are documents at /api/v1/agents; the project is metadata.project, or ?project= on an agent's own path.
 AGS=$API/api/v1/agents
 EXT='"provisioning":{"type":"external"},"agentType":{"type":"external-agent-api","subType":"custom-api"}'
-agent_doc() { echo "{\"apiVersion\":\"ai-control-plane.choreolabs.com/v1\",\"kind\":\"Agent\",\"metadata\":{\"name\":\"$1\",\"project\":\"$P\"},\"spec\":{\"displayName\":\"$2\",$EXT$3}}"; }
+agent_doc() { echo "{\"apiVersion\":\"ai-control-plane.choreolabs.com/v1\",\"kind\":\"Agent\",\"metadata\":{\"name\":\"$1\",\"project\":\"$P\"},\"spec\":{\"displayName\":\"$2\",$EXT${3:-}}}"; }
 check project-create 202 "$(code "${A[@]}" -X POST "$B/projects" -d "{\"name\":\"$P\",\"displayName\":\"Smoke $P\"}")"
 check project-get 200 "$(code "${A[@]}" "$B/projects/$P")"
 check agent-create 202 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "$AG" "Ext $AG")")"
