@@ -62,17 +62,29 @@ class TestTraceLoaderEncoding:
         assert traces[0].rootSpanName == "ආයුබෝවන්"
 
 
-def _mock_response(traces: List[dict], total_count: int, failed_ids: Optional[List[str]] = None) -> MagicMock:
+def _mock_response(
+    traces: List[dict],
+    total_count: int,
+    failed_ids: Optional[List[str]] = None,
+    last_start_time: Optional[str] = None,
+) -> MagicMock:
     resp = MagicMock()
     resp.raise_for_status.return_value = None
     body = {"traces": traces, "totalCount": total_count, "truncated": False}
     if failed_ids:
         body["failedTraceIds"] = failed_ids
+    if last_start_time:
+        body["lastStartTime"] = last_start_time
     resp.json.return_value = body
     return resp
 
 
-def _api_simulator(all_traces: List[dict], resolution_us: int = 1, unreadable: Optional[set] = None):
+def _api_simulator(
+    all_traces: List[dict],
+    resolution_us: int = 1,
+    unreadable: Optional[set] = None,
+    report_last_start: bool = True,
+):
     """Faithfully simulate /traces/export as a `requests.get` side_effect.
 
     Filters `startTime` to [cursor, end] using parsed datetimes (like a real
@@ -94,12 +106,14 @@ def _api_simulator(all_traces: List[dict], resolution_us: int = 1, unreadable: O
         limit = int(params["limit"])
         matching = [t for t in ordered if cursor <= _bucket(_parse_timestamp(t["startTime"])) <= end]
         selected = matching[:limit]
-        # Like the observer: unreadable traces are left out of the page and listed.
+        # Like the observer: unreadable traces are left out of the page and listed,
+        # and lastStartTime names the last selected trace, readable or not.
         bad = unreadable or set()
         return _mock_response(
             [t for t in selected if t["traceId"] not in bad],
             total_count=len(matching),
             failed_ids=[t["traceId"] for t in selected if t["traceId"] in bad],
+            last_start_time=selected[-1]["startTime"] if selected and report_last_start else None,
         )
 
     return _get
@@ -207,12 +221,14 @@ class TestFetchTracesPagination:
         assert "b0" in ids  # did not silently truncate everything after the tie
         assert ids == ["a0", "a1", "b0"]
 
-    def test_unreadable_trace_does_not_end_pagination(self):
+    @pytest.mark.parametrize("report_last_start", [True, False], ids=["lastStartTime", "older-api"])
+    def test_unreadable_trace_does_not_end_pagination(self, report_last_start):
         """An unreadable trace makes the returned page short, but the window isn't exhausted."""
         fetcher = _make_fetcher()
         traces = [_raw_trace(f"t{i:02d}", f"2026-01-01T00:00:{i:02d}Z") for i in range(20)]
 
-        with patch("requests.get", side_effect=_api_simulator(traces, unreadable={"t03"})):
+        simulator = _api_simulator(traces, unreadable={"t03"}, report_last_start=report_last_start)
+        with patch("requests.get", side_effect=simulator):
             ids = [
                 t.traceId
                 for t in fetcher.fetch_traces(
@@ -237,6 +253,38 @@ class TestFetchTracesPagination:
 
         assert ids == ["t0", "t1", "t2", "t3", "t4"]
         assert fetcher.failed_trace_ids == set()
+
+    def test_page_of_only_unreadable_traces_does_not_end_pagination(self):
+        """A, then unreadable B and C filling a page, then D: D is still fetched."""
+        fetcher = _make_fetcher()
+        traces = [_raw_trace(tid, f"2026-01-01T00:00:0{i}Z") for i, tid in enumerate(["A", "B", "C", "D"])]
+
+        with patch("requests.get", side_effect=_api_simulator(traces, unreadable={"B", "C"})):
+            ids = [
+                t.traceId
+                for t in fetcher.fetch_traces(
+                    start_time="2026-01-01T00:00:00Z", end_time="2026-01-01T01:00:00Z", page_size=2
+                )
+            ]
+
+        assert ids == ["A", "D"]
+        assert fetcher.failed_trace_ids == {"B", "C"}
+
+    def test_long_run_of_unreadable_traces_is_crossed(self):
+        fetcher = _make_fetcher()
+        traces = [_raw_trace(f"t{i:02d}", f"2026-01-01T00:00:{i:02d}Z") for i in range(30)]
+        unreadable = {f"t{i:02d}" for i in range(5, 22)}  # more than a page in a row
+
+        with patch("requests.get", side_effect=_api_simulator(traces, unreadable=unreadable)):
+            ids = [
+                t.traceId
+                for t in fetcher.fetch_traces(
+                    start_time="2026-01-01T00:00:00Z", end_time="2026-01-01T01:00:00Z", page_size=10
+                )
+            ]
+
+        assert ids == [f"t{i:02d}" for i in range(30) if f"t{i:02d}" not in unreadable]
+        assert fetcher.failed_trace_ids == unreadable
 
     def test_page_size_must_be_positive(self):
         fetcher = _make_fetcher()

@@ -19,6 +19,7 @@ package controllers
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -1446,13 +1447,18 @@ func (c *TracingController) GetSpanDetail(ctx context.Context, traceID, spanID s
 	return &enriched, nil
 }
 
+// errNoRootSpan marks a trace whose spans include no root, so it can't be
+// exported however often it is read.
+var errNoRootSpan = errors.New("no root span found")
+
 // ExportTraces fetches complete traces with all spans fully enriched for export.
 // The traces come from selectExportTraces; each then costs one QueryTraceSpans
 // (spans carry attributes inline via includeAttributes). Concurrency is bounded
 // by maxConcurrentTraces outer goroutines. A failed QueryTraceSpans is retried
 // once; a trace that still can't be read, or has no root span, is left out and
 // listed in FailedTraceIDs. The export fails when ctx is done, it runs past
-// requestTimeout, or no selected trace could be read.
+// requestTimeout, or no selected trace could be read for a reason other than a
+// missing root span.
 func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryParams) (*opensearch.TraceExportResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
@@ -1552,7 +1558,7 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 			}
 			// A retry would return the same spans.
 			if rootSpan == nil {
-				results[idx] = traceResult{idx: idx, err: fmt.Errorf("trace %s: no root span found", traceInfo.TraceID)}
+				results[idx] = traceResult{idx: idx, err: fmt.Errorf("trace %s: %w", traceInfo.TraceID, errNoRootSpan)}
 				return
 			}
 
@@ -1611,13 +1617,15 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 	}
 
 	fullTraces := make([]opensearch.FullTrace, 0, len(results))
-	var firstErr error
+	// readErr is the first failure to read a trace, as opposed to a trace whose
+	// own data is unusable (no root span), which every retry would see again.
+	var readErr error
 	for i, r := range results {
 		if r.err != nil {
 			log.Warn("failed to read trace for export, leaving it out", "traceId", traces[i].TraceID, "err", r.err)
 			resp.FailedTraceIDs = append(resp.FailedTraceIDs, traces[i].TraceID)
-			if firstErr == nil {
-				firstErr = r.err
+			if readErr == nil && !errors.Is(r.err, errNoRootSpan) {
+				readErr = r.err
 			}
 			continue
 		}
@@ -1625,12 +1633,20 @@ func (c *TracingController) ExportTraces(ctx context.Context, params TraceQueryP
 			fullTraces = append(fullTraces, *r.fullTrace)
 		}
 	}
-	// Nothing could be read, which usually means the upstream is down.
-	if len(fullTraces) == 0 && firstErr != nil {
-		return nil, firstErr
+	// Nothing could be read, which usually means the upstream is down. A page
+	// made up only of traces without a root span is still answered, so a caller
+	// paging through the window can step past them.
+	if len(fullTraces) == 0 && readErr != nil {
+		return nil, readErr
 	}
 
 	resp.Traces = fullTraces
+	// An unfiltered export selects exactly the traces of one trace-list page, so
+	// the last selected start time is where the next page begins, whether or not
+	// that trace could be read.
+	if params.Filters.IsZero() {
+		resp.LastStartTime = traces[len(traces)-1].StartTime.UTC().Format(time.RFC3339Nano)
+	}
 	// A filtered export counts what it exported.
 	if !params.Filters.IsZero() {
 		resp.TotalCount = len(fullTraces)

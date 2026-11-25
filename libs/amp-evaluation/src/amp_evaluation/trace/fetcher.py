@@ -33,7 +33,7 @@ Named with OTEL prefix to avoid collision with evaluation models
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Dict, Any, Callable, Iterable, Iterator, Tuple
+from typing import List, Optional, Dict, Any, Callable, Iterable, Iterator
 
 from amp_evaluation.trace.models import ToolDefinition
 from pathlib import Path
@@ -360,6 +360,16 @@ def _parse_trace(data: Dict[str, Any]) -> OTELTrace:
 # ============================================================================
 
 
+@dataclass
+class _ExportPage:
+    """One /traces/export response, as the paging loop needs it."""
+
+    traces: List[OTELTrace]
+    total_count: int
+    failed_ids: List[str]
+    last_start_time: Optional[str]
+
+
 class TraceFetcher:
     """
     Fetches traces from the trace service API using the /traces/export endpoint.
@@ -437,16 +447,15 @@ class TraceFetcher:
         token = self.token_provider()
         return {"Authorization": f"Bearer {token}"}
 
-    def _fetch_page(
-        self, start_time: str, end_time: str, limit: int, sort_order: str = "asc"
-    ) -> Tuple[List[OTELTrace], int, List[str]]:
+    def _fetch_page(self, start_time: str, end_time: str, limit: int, sort_order: str = "asc") -> _ExportPage:
         """
         Fetch a single page from /traces/export.
 
         Returns:
-            Tuple of (traces in this page, totalCount reported by the API for the
-            full start_time..end_time range, IDs of traces the API selected for
-            this page but left out because it couldn't read them).
+            The page's readable traces, the totalCount the API reports for the full
+            start_time..end_time range, the IDs of traces it selected for this page
+            but left out because it couldn't read them, and the start time of the
+            last trace it selected (None when the API doesn't report one).
         """
         try:
             headers = self._get_auth_headers()
@@ -469,11 +478,11 @@ class TraceFetcher:
             data = response.json()
 
             traces_data = data.get("traces") or []
-            failed_ids = [str(i) for i in (data.get("failedTraceIds") or [])]
-            return (
-                [_parse_trace(t) for t in traces_data],
-                data.get("totalCount", len(traces_data)),
-                failed_ids,
+            return _ExportPage(
+                traces=[_parse_trace(t) for t in traces_data],
+                total_count=data.get("totalCount", len(traces_data)),
+                failed_ids=[str(i) for i in (data.get("failedTraceIds") or [])],
+                last_start_time=data.get("lastStartTime") or None,
             )
 
         except requests.exceptions.RequestException as e:
@@ -499,7 +508,9 @@ class TraceFetcher:
 
         Traces the API selected but could not read are listed in its failedTraceIds
         instead of being returned. They still count toward the page size when deciding
-        whether the window is exhausted, so an unreadable trace never ends pagination
+        whether the window is exhausted, and the next page starts from the API's
+        lastStartTime (the last trace it selected, readable or not) when it reports
+        one, so unreadable traces, even a whole page of them, never end pagination
         early. IDs that never came back readable are left in `self.failed_trace_ids`
         once the iterator is exhausted.
 
@@ -517,43 +528,40 @@ class TraceFetcher:
         if page_size <= 0:
             raise ValueError("page_size must be a positive integer")
 
-        seen_ids: set = set()
+        seen_ids: set = set()  # traces yielded
+        selected_ids: set = set()  # every trace a page selected, readable or not
         failed_ids: set = set()
         self.failed_trace_ids = failed_ids
         cursor_start = start_time
         yielded = 0
 
         while True:
-            page, _total_count, page_failed = self._fetch_page(
-                cursor_start, end_time, limit=page_size, sort_order="asc"
-            )
-            failed_ids.update(i for i in page_failed if i not in seen_ids)
-            # The API selected len(page) + len(page_failed) traces for this page;
-            # only that full count says whether more remain after it.
-            page_full = len(page) + len(page_failed) >= page_size
-            if not page:
-                if page_failed:
-                    # Without a readable trace there is no startTime to advance the
-                    # cursor from, so the rest of the window can't be reached.
-                    logger.warning(
-                        "Trace export returned only unreadable traces (%d) after %s; stopping before the window end.",
-                        len(page_failed),
-                        cursor_start,
-                    )
+            page = self._fetch_page(cursor_start, end_time, limit=page_size, sort_order="asc")
+            if not page.traces and not page.failed_ids:
                 return
 
-            new_traces = [t for t in page if t.traceId not in seen_ids]
+            new_traces = [t for t in page.traces if t.traceId not in seen_ids]
+            # A newly listed unreadable trace is progress too: the cursor moved onto it.
+            new_failed = [i for i in page.failed_ids if i not in selected_ids and i not in seen_ids]
+            failed_ids.update(i for i in page.failed_ids if i not in seen_ids)
+            selected_ids.update(page.failed_ids)
+            # The API selected len(traces) + len(failed_ids) traces for this page;
+            # only that full count says whether more remain after it.
+            page_full = len(page.traces) + len(page.failed_ids) >= page_size
+            # Continue from the last trace the API selected, readable or not. An older
+            # API that doesn't report it only ever answers with a readable trace.
+            next_start = page.last_start_time or (page.traces[-1].startTime if page.traces else None)
 
-            if not new_traces:
-                # No new traces at this cursor. A SHORT page means the window is
+            if not new_traces and not new_failed:
+                # Nothing new at this cursor. A SHORT page means the window is
                 # genuinely exhausted. A FULL page of entirely-already-seen traces
                 # means the cursor is stalled on a cluster of traces the store can't
                 # advance past (more traces share one stored time than fit in a page).
-                if not page_full:
+                if not page_full or next_start is None:
                     return
 
-                next_cursor = self._step_past_stall(page[-1].startTime, end_time, page_size, seen_ids)
-                if next_cursor is None:
+                stepped = self._step_past_stall(next_start, end_time, page_size, seen_ids | selected_ids)
+                if stepped is None:
                     return  # nothing resolvable after the stall — stop (never loop)
                 # Stepping forward skips any still-unseen traces sharing the stalled
                 # timestamp; surface it so the (intentional) loss is observable.
@@ -561,15 +569,16 @@ class TraceFetcher:
                     "More than page_size (%d) traces share the stored time around %s; "
                     "stepping the cursor past it — remaining traces at that time are skipped.",
                     page_size,
-                    page[-1].startTime,
+                    next_start,
                 )
-                cursor_start = next_cursor
+                cursor_start = stepped
                 continue
 
             for trace in new_traces:
                 if max_traces is not None and yielded >= max_traces:
                     return
                 seen_ids.add(trace.traceId)
+                selected_ids.add(trace.traceId)
                 # A trace that failed on an earlier page but read on a retry is fine.
                 failed_ids.discard(trace.traceId)
                 yield trace
@@ -577,10 +586,18 @@ class TraceFetcher:
 
             if not page_full:
                 return
+            if next_start is None:
+                logger.warning(
+                    "Trace export returned only unreadable traces (%d) after %s and no continuation "
+                    "point; stopping before the window end.",
+                    len(page.failed_ids),
+                    cursor_start,
+                )
+                return
 
-            cursor_start = page[-1].startTime
+            cursor_start = next_start
 
-    def _step_past_stall(self, stalled_ts: str, end_time: str, page_size: int, seen_ids: set) -> Optional[str]:
+    def _step_past_stall(self, stalled_ts: str, end_time: str, page_size: int, known_ids: set) -> Optional[str]:
         """
         Return a cursor that advances past a stalled timestamp — the case where a full
         page is entirely already-seen traces because more traces share one stored time
@@ -606,10 +623,10 @@ class TraceFetcher:
             if end_dt is not None and candidate_dt > end_dt:
                 return None
             candidate = _format_iso_z(candidate_dt)
-            page, _, _ = self._fetch_page(candidate, end_time, limit=page_size, sort_order="asc")
-            if not page:
+            page = self._fetch_page(candidate, end_time, limit=page_size, sort_order="asc")
+            if not page.traces and not page.failed_ids:
                 return None
-            if any(t.traceId not in seen_ids for t in page):
+            if any(t.traceId not in known_ids for t in page.traces) or any(i not in known_ids for i in page.failed_ids):
                 return candidate  # the cursor advanced far enough to surface new traces
             step_us *= 10  # store rounded the step away — grow it and retry
         return None

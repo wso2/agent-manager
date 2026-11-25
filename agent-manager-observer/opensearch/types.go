@@ -260,6 +260,10 @@ type TraceExportResponse struct {
 	SpansTruncated bool `json:"spansTruncated"`
 	// FailedTraceIDs lists traces left out because they couldn't be read, in selection or span fetch.
 	FailedTraceIDs []string `json:"failedTraceIds,omitempty"`
+	// LastStartTime is the start time (RFC3339Nano) of the last trace an unfiltered export
+	// selected, whether or not it could be read; a caller paging forward continues from it.
+	// Empty for a filtered or empty export.
+	LastStartTime string `json:"lastStartTime,omitempty"`
 }
 
 // SearchResponse represents OpenSearch search response

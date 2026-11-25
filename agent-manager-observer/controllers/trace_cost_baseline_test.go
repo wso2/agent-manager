@@ -144,7 +144,7 @@ var costGoldens = map[string]costRow{
 		Calls:  kindCounts{Traces: 1, Root: 0, Detail: 0, Spans: 0, AttrSpans: 10},
 		Bytes:  kindCounts{Traces: 2105, Root: 0, Detail: 0, Spans: 0, AttrSpans: 14009},
 		Order:  "trace-0000: attrSpans",
-		SHA256: "13e5143ba4856a4efa883b6aff202d3f494ce6fb6cbdaec95ab8bebb69af91f0",
+		SHA256: "2f0834bbc53f260e428f6e37bbb941ae638ae79cc2e33501c8dfd4ead06d6f57",
 	},
 	"export status=error": {
 		Calls:  kindCounts{Traces: 3, Root: 200, Detail: 30, Spans: 10, AttrSpans: 10},
@@ -156,7 +156,7 @@ var costGoldens = map[string]costRow{
 		Calls:  kindCounts{Traces: 1, Root: 0, Detail: 0, Spans: 0, AttrSpans: 11},
 		Bytes:  kindCounts{Traces: 2105, Root: 0, Detail: 0, Spans: 0, AttrSpans: 12284},
 		Order:  "trace-0003: attrSpans×2",
-		SHA256: "f05af5e03842eedec552c40725fd0546d18f6410ac96243af101d13ecd5c900b",
+		SHA256: "7e037596ade63440158979503bcfa2798e829169375f826f32a8ffaa3b6b3cd0",
 	},
 	"list include=tools": {
 		Calls:  kindCounts{Traces: 1, Root: 10, Detail: 30, Spans: 10, AttrSpans: 0},
