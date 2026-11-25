@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -208,8 +209,19 @@ func TestSystemManagedLLMURLFallsBackToVhostWhenEnabled(t *testing.T) {
 // to gateway, reusing gatewayFixtureRepo so gateway lookup behaves as the real SQL does.
 func callSystemManagedLLMURL(t *testing.T, gateway *models.Gateway, contextPath string) (string, error) {
 	t.Helper()
+	url, _, err := callSystemManagedLLM(t, gateway, contextPath, "", nil)
+	return url, err
+}
+
+// callSystemManagedLLM is callSystemManagedLLMURL plus the provider the proxy points at: it
+// returns the URL and the provider template handle systemManagedLLMURL resolved for it.
+func callSystemManagedLLM(
+	t *testing.T, gateway *models.Gateway, contextPath, providerUUID string, providerRepo *repomocks.LLMProviderRepositoryMock,
+) (string, string, error) {
+	t.Helper()
 	configUUID, envUUID, proxyUUID := uuid.New(), uuid.New(), uuid.New()
 	svc := &agentConfigurationService{
+		logger: discardLogger(),
 		envMappingRepo: &repomocks.EnvAgentModelMappingRepositoryMock{
 			GetByConfigAndEnvFunc: func(_ context.Context, gotConfigUUID, gotEnvUUID uuid.UUID) (*models.EnvAgentModelMapping, error) {
 				require.Equal(t, configUUID, gotConfigUUID)
@@ -221,7 +233,7 @@ func callSystemManagedLLMURL(t *testing.T, gateway *models.Gateway, contextPath 
 					LLMProxy: &models.LLMProxy{
 						UUID:          proxyUUID,
 						Handle:        "acme-openai-proxy",
-						Configuration: models.LLMProxyConfig{Context: &contextPath},
+						Configuration: models.LLMProxyConfig{Context: &contextPath, Provider: providerUUID},
 					},
 				}, nil
 			},
@@ -244,6 +256,9 @@ func callSystemManagedLLMURL(t *testing.T, gateway *models.Gateway, contextPath 
 		},
 		gatewayRepo: gatewayFixtureRepo(t, envUUID.String(), []*models.Gateway{gateway}),
 	}
+	if providerRepo != nil {
+		svc.llmProviderRepo = providerRepo
+	}
 
 	return svc.systemManagedLLMURL(context.Background(), &models.AgentConfiguration{
 		UUID:        configUUID,
@@ -251,4 +266,41 @@ func callSystemManagedLLMURL(t *testing.T, gateway *models.Gateway, contextPath 
 		ProjectName: "project",
 		AgentID:     "agent",
 	}, "org", "dev", envUUID)
+}
+
+// TestSystemManagedLLMURLResolvesProviderTemplateHandle pins what the promote path injects for the
+// provider env var: the template handle of the proxy's provider, not the org-level provider handle.
+func TestSystemManagedLLMURLResolvesProviderTemplateHandle(t *testing.T) {
+	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	gateway.RuntimeURL = "http://runtime.acme-dev:22893"
+	providerUUID := uuid.NewString()
+	repo := &repomocks.LLMProviderRepositoryMock{
+		GetByUUIDFunc: func(gotProviderID, gotOuID string) (*models.LLMProvider, error) {
+			require.Equal(t, providerUUID, gotProviderID)
+			require.Equal(t, "org", gotOuID)
+			return &models.LLMProvider{TemplateHandle: "anthropic"}, nil
+		},
+	}
+
+	url, provider, err := callSystemManagedLLM(t, gateway, "/llm/proxy", providerUUID, repo)
+
+	require.NoError(t, err)
+	require.Equal(t, "http://runtime.acme-dev:22893/llm/proxy", url)
+	require.Equal(t, "anthropic", provider)
+}
+
+// TestSystemManagedLLMURLOmitsProviderWhenLookupFails guards the best-effort contract: a provider
+// that cannot be read must not fail the URL resolution, it only leaves the provider value empty.
+func TestSystemManagedLLMURLOmitsProviderWhenLookupFails(t *testing.T) {
+	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	gateway.RuntimeURL = "http://runtime.acme-dev:22893"
+	repo := &repomocks.LLMProviderRepositoryMock{
+		GetByUUIDFunc: func(string, string) (*models.LLMProvider, error) { return nil, errors.New("boom") },
+	}
+
+	url, provider, err := callSystemManagedLLM(t, gateway, "/llm/proxy", uuid.NewString(), repo)
+
+	require.NoError(t, err)
+	require.NotEmpty(t, url)
+	require.Empty(t, provider)
 }

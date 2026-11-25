@@ -1,0 +1,113 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package services
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+)
+
+func llmEnvVarNamed(vars []client.EnvVar, key string) *client.EnvVar {
+	for i := range vars {
+		if vars[i].Key == key {
+			return &vars[i]
+		}
+	}
+	return nil
+}
+
+// A new LLM config gets a third, non-secret variable carrying the provider's template handle,
+// named after the config like the URL and API key variables.
+func TestBuildEnvironmentVariablesIncludesProviderKey(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	templates, err := svc.buildEnvironmentVariables("my-llm", nil)
+
+	require.NoError(t, err)
+	require.Equal(t, []EnvConfigTemplate{
+		{Key: "url", Name: "MY_LLM_URL"},
+		{Key: "apikey", Name: "MY_LLM_API_KEY", IsSecret: true},
+		{Key: "provider", Name: "MY_LLM_PROVIDER"},
+	}, templates)
+}
+
+func TestBuildEnvironmentVariablesProviderNameCanBeOverridden(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	templates, err := svc.buildEnvironmentVariables("my-llm", []models.EnvironmentVariableConfig{
+		{Key: "provider", Name: "LLM_VENDOR"},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "LLM_VENDOR", templates[2].Name)
+	require.Equal(t, "provider", templates[2].Key)
+}
+
+func TestBuildEnvironmentVariablesRejectsProviderNameClash(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	_, err := svc.buildEnvironmentVariables("my-llm", []models.EnvironmentVariableConfig{
+		{Key: "provider", Name: "MY_LLM_URL"},
+	})
+
+	require.ErrorContains(t, err, "duplicate environment variable name")
+}
+
+// MCP configs share the env var machinery but have no LLM provider: the key must stay LLM-only.
+func TestBuildMCPMappingEnvironmentVariablesRejectsProviderKey(t *testing.T) {
+	svc := &agentConfigurationService{}
+
+	_, err := svc.buildMCPMappingEnvironmentVariables("my-mcp", []models.EnvironmentVariableConfig{
+		{Key: "provider", Name: "MY_MCP_PROVIDER"},
+	})
+
+	require.ErrorContains(t, err, "unknown environment variable key")
+}
+
+func TestBuildLLMEnvVarsInjectsProviderHandle(t *testing.T) {
+	templates := []EnvConfigTemplate{
+		{Key: "url", Name: "MY_LLM_URL"},
+		{Key: "apikey", Name: "MY_LLM_API_KEY", IsSecret: true},
+		{Key: "provider", Name: "MY_LLM_PROVIDER"},
+	}
+
+	vars := buildLLMEnvVars(templates, "http://gw/llm", "secret-ref", "openai")
+
+	require.Len(t, vars, 3)
+	require.Equal(t, "http://gw/llm", llmEnvVarNamed(vars, "MY_LLM_URL").Value)
+	require.Equal(t, "secret-ref", llmEnvVarNamed(vars, "MY_LLM_API_KEY").ValueFrom.SecretKeyRef.Name)
+	provider := llmEnvVarNamed(vars, "MY_LLM_PROVIDER")
+	require.Equal(t, "openai", provider.Value)
+	require.Nil(t, provider.ValueFrom, "the provider handle is plain text, never a secret reference")
+}
+
+// A config created before the provider variable existed has no provider template, and an
+// unresolved handle must not produce an empty variable: both leave the output as it was.
+func TestBuildLLMEnvVarsOmitsProviderWhenNotApplicable(t *testing.T) {
+	legacy := []EnvConfigTemplate{
+		{Key: "url", Name: "MY_LLM_URL"},
+		{Key: "apikey", Name: "MY_LLM_API_KEY", IsSecret: true},
+	}
+	require.Len(t, buildLLMEnvVars(legacy, "http://gw/llm", "secret-ref", "openai"), 2)
+
+	withProvider := append(legacy, EnvConfigTemplate{Key: "provider", Name: "MY_LLM_PROVIDER"})
+	require.Len(t, buildLLMEnvVars(withProvider, "http://gw/llm", "secret-ref", ""), 2)
+}

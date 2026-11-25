@@ -375,18 +375,23 @@ func buildInternalProxyURL(gateway *models.Gateway, contextPath *string) (string
 	return base, nil
 }
 
-// buildLLMEnvVars constructs the two env vars (URL and API key) from the env config templates.
-func buildLLMEnvVars(templates []EnvConfigTemplate, proxyURL, secretRefName string) []client.EnvVar {
-	var urlTemplate, apiKeyTemplate EnvConfigTemplate
+// buildLLMEnvVars constructs the LLM env vars from the env config templates: the URL, the
+// API key and, when the config has a "provider" template and the handle is known, the LLM
+// provider's template handle (for example "openai" or "anthropic"). A config created before
+// the provider variable existed has no such template, so it gets none.
+func buildLLMEnvVars(templates []EnvConfigTemplate, proxyURL, secretRefName, providerHandle string) []client.EnvVar {
+	var urlTemplate, apiKeyTemplate, providerTemplate EnvConfigTemplate
 	for _, t := range templates {
 		switch t.Key {
 		case "url":
 			urlTemplate = t
 		case "apikey":
 			apiKeyTemplate = t
+		case "provider":
+			providerTemplate = t
 		}
 	}
-	return []client.EnvVar{
+	envVars := []client.EnvVar{
 		{Key: urlTemplate.Name, Value: proxyURL},
 		{
 			Key: apiKeyTemplate.Name,
@@ -398,6 +403,27 @@ func buildLLMEnvVars(templates []EnvConfigTemplate, proxyURL, secretRefName stri
 			},
 		},
 	}
+	if providerTemplate.Name != "" && providerHandle != "" {
+		envVars = append(envVars, client.EnvVar{Key: providerTemplate.Name, Value: providerHandle})
+	}
+	return envVars
+}
+
+// providerTemplateHandle returns the template handle (openai, anthropic, ...) of the LLM provider
+// with the given UUID. Best-effort: the handle only feeds an informational env var, so a failed
+// lookup is logged and yields "" (the variable is then left out) rather than failing the config
+// operation that is already under way.
+func (s *agentConfigurationService) providerTemplateHandle(providerUUID, ouID string) string {
+	if providerUUID == "" {
+		return ""
+	}
+	provider, err := s.llmProviderRepo.GetByUUID(providerUUID, ouID)
+	if err != nil || provider == nil {
+		s.logger.Warn("failed to resolve LLM provider template handle; omitting the provider env var",
+			"providerUUID", providerUUID, "err", err)
+		return ""
+	}
+	return strings.TrimSpace(provider.TemplateHandle)
 }
 
 // internalLLMEnvVars builds a platform-hosted agent's LLM env vars against the gateway's
@@ -406,13 +432,13 @@ func buildLLMEnvVars(templates []EnvConfigTemplate, proxyURL, secretRefName stri
 // Its sibling buildMCPEnvVars still takes a plain URL: an MCP proxy's address is
 // legitimately public, since it doubles as the OAuth resource identifier.
 func internalLLMEnvVars(
-	templates []EnvConfigTemplate, gateway *models.Gateway, contextPath *string, secretRefName string,
+	templates []EnvConfigTemplate, gateway *models.Gateway, contextPath *string, secretRefName, providerHandle string,
 ) ([]client.EnvVar, error) {
 	proxyURL, err := buildInternalProxyURL(gateway, contextPath)
 	if err != nil {
 		return nil, err
 	}
-	return buildLLMEnvVars(templates, proxyURL, secretRefName), nil
+	return buildLLMEnvVars(templates, proxyURL, secretRefName, providerHandle), nil
 }
 
 func buildMCPEnvVars(templates []EnvConfigTemplate, proxyURL, secretRefName string) []client.EnvVar {
@@ -1380,7 +1406,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		// first-environment's vars to avoid last-write-wins clobbering (HIGH-3).
 		if !policy.external() {
 			// Build the two env vars (URL plain, API key via secretKeyRef).
-			envVarsToInject, urlErr := internalLLMEnvVars(envConfigTemplates, gateway, proxyContext, secretRefName)
+			envVarsToInject, urlErr := internalLLMEnvVars(envConfigTemplates, gateway, proxyContext, secretRefName, s.providerTemplateHandle(providerUUID, ouID))
 			if urlErr != nil {
 				s.rollbackProxies(ctx, rollbackResources, ouID)
 				s.compensatingDeleteConfig(ctx, config.UUID, ouID)
@@ -2052,7 +2078,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	// but a bootstrap default is last-write-wins across environments. The Component CR write is
 	// therefore scoped to the first environment, matching every other injection site in this file.
 	if !policy.external() {
-		envVarsToInject, urlErr := internalLLMEnvVars(envConfigTemplates, gateway, proxy.Configuration.Context, secretRefName)
+		envVarsToInject, urlErr := internalLLMEnvVars(envConfigTemplates, gateway, proxy.Configuration.Context, secretRefName, s.providerTemplateHandle(providerUUID, ouID))
 		if urlErr != nil {
 			return "", rbRes, pendingAppBinding{}, fmt.Errorf("failed to resolve internal proxy URL for environment %s: %w", envName, urlErr)
 		}
@@ -2320,7 +2346,7 @@ func (s *agentConfigurationService) processNewEnv(
 	// last-write-wins clobbering across multiple environments (HIGH-3).
 	if !policy.external() {
 		// Reuse the gateway already resolved for deployment (resolveGatewayForProvider)
-		envVarsToInject, urlErr := internalLLMEnvVars(envConfigTemplates, gateway, proxy.Configuration.Context, secretRefName)
+		envVarsToInject, urlErr := internalLLMEnvVars(envConfigTemplates, gateway, proxy.Configuration.Context, secretRefName, s.providerTemplateHandle(providerUUID, ouID))
 		if urlErr != nil {
 			s.rollbackProxies(ctx, []rollbackResource{rbRes}, ouID)
 			return rollbackResource{}, pendingAppBinding{}, fmt.Errorf("failed to resolve internal proxy URL for environment %s: %w", envName, urlErr)
@@ -3769,6 +3795,18 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					if buildErr != nil {
 						s.logger.Warn("Phase 1b: failed to build new env var templates for re-injection after rename", "err", buildErr)
 					}
+					if existingConfig.TypeID != models.AgentConfigTypeIDMCP {
+						// A config created before the provider variable existed has no persisted row
+						// for it; buildEnvironmentVariables would still generate one, so drop any
+						// template whose key is not persisted rather than inject an untracked variable.
+						persistedTemplates := newEnvConfigTemplates[:0:0]
+						for _, t := range newEnvConfigTemplates {
+							if _, ok := oldVarNames[t.Key]; ok {
+								persistedTemplates = append(persistedTemplates, t)
+							}
+						}
+						newEnvConfigTemplates = persistedTemplates
+					}
 
 					// Determine first env for Component CR bootstrap update.
 					firstEnvName1b := ""
@@ -3857,7 +3895,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 								s.logger.Warn("Phase 1b: no persisted SecretReference found, skipping re-injection", "environment", envName)
 								continue
 							}
-							envVarsToInject, urlErr := internalLLMEnvVars(newEnvConfigTemplates, gateway, mapping.LLMProxy.Configuration.Context, secretRefName)
+							envVarsToInject, urlErr := internalLLMEnvVars(newEnvConfigTemplates, gateway, mapping.LLMProxy.Configuration.Context, secretRefName, s.providerTemplateHandle(mapping.LLMProxy.Configuration.Provider, ouID))
 							if urlErr != nil {
 								s.logger.Warn("Phase 1b: failed to resolve internal proxy URL for re-injection", "environment", envName, "err", urlErr)
 								continue
@@ -5060,6 +5098,8 @@ func (s *agentConfigurationService) buildEnvironmentVariables(configName string,
 	knownKeys := map[string]keyMeta{
 		"url":    {isSecret: false, autoName: fmt.Sprintf("%s_URL", prefix)},
 		"apikey": {isSecret: true, autoName: fmt.Sprintf("%s_API_KEY", prefix)},
+		// The LLM provider's template handle (openai, anthropic, ...). Plain value, never a secret.
+		"provider": {isSecret: false, autoName: fmt.Sprintf("%s_PROVIDER", prefix)},
 	}
 
 	// Build override map from user input; reject unknown keys
@@ -5067,7 +5107,7 @@ func (s *agentConfigurationService) buildEnvironmentVariables(configName string,
 	seen := make(map[string]bool)
 	for _, ov := range overrides {
 		if _, known := knownKeys[ov.Key]; !known {
-			return nil, fmt.Errorf("unknown environment variable key %q: must be one of url, apikey", ov.Key)
+			return nil, fmt.Errorf("unknown environment variable key %q: must be one of url, apikey, provider", ov.Key)
 		}
 		if seen[ov.Key] {
 			return nil, fmt.Errorf("duplicate environment variable key %q", ov.Key)
@@ -5078,7 +5118,7 @@ func (s *agentConfigurationService) buildEnvironmentVariables(configName string,
 
 	// Determine final name for each key (override wins, then auto-generate).
 	// Iterate in a fixed order so the returned slice is deterministic.
-	keyOrder := []string{"url", "apikey"}
+	keyOrder := []string{"url", "apikey", "provider"}
 	envConfigTemplates := make([]EnvConfigTemplate, 0, len(knownKeys))
 	usedNames := make(map[string]string) // name -> key, for duplicate detection
 	for _, key := range keyOrder {
@@ -6318,9 +6358,10 @@ func (s *agentConfigurationService) BuildSystemManagedEnvVarsFromConfig(
 		}
 
 		urlValue := ""
+		providerValue := ""
 		switch config.TypeID {
 		case models.AgentConfigTypeIDLLM:
-			urlValue, err = s.systemManagedLLMURL(ctx, config, ouID, environmentName, envUUID)
+			urlValue, providerValue, err = s.systemManagedLLMURL(ctx, config, ouID, environmentName, envUUID)
 		case models.AgentConfigTypeIDMCP:
 			urlValue, err = s.systemManagedMCPURL(ctx, config, ouID, environmentName, envUUID)
 		default:
@@ -6342,6 +6383,8 @@ func (s *agentConfigurationService) BuildSystemManagedEnvVarsFromConfig(
 				}
 			case v.VariableKey == "url":
 				envVar.Value = urlValue
+			case v.VariableKey == "provider":
+				envVar.Value = providerValue
 			default:
 				envVar.Value = ""
 			}
@@ -6355,15 +6398,17 @@ func (s *agentConfigurationService) BuildSystemManagedEnvVarsFromConfig(
 // systemManagedLLMURL returns the gateway's IN-CLUSTER address for the config's LLM proxy.
 // Its only consumer builds Workload/ReleaseBinding CRs, i.e. addresses read by an agent pod.
 // Do not reuse it for an API response — see systemManagedMCPURL for the public counterpart.
+// It also returns the LLM provider's template handle ("" when it cannot be resolved) for the
+// optional provider env var.
 func (s *agentConfigurationService) systemManagedLLMURL(
 	ctx context.Context, config *models.AgentConfiguration, ouID, environmentName string, envUUID uuid.UUID,
-) (string, error) {
+) (string, string, error) {
 	mapping, err := s.envMappingRepo.GetByConfigAndEnv(ctx, config.UUID, envUUID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get LLM env mapping for %s: %w", environmentName, err)
+		return "", "", fmt.Errorf("failed to get LLM env mapping for %s: %w", environmentName, err)
 	}
 	if mapping.LLMProxy == nil {
-		return "", fmt.Errorf("LLM proxy not found for mapping in environment %s", environmentName)
+		return "", "", fmt.Errorf("LLM proxy not found for mapping in environment %s", environmentName)
 	}
 
 	proxyHandle := strings.TrimSpace(mapping.LLMProxy.Handle)
@@ -6371,14 +6416,18 @@ func (s *agentConfigurationService) systemManagedLLMURL(
 		proxyHandle = strings.TrimSpace(mapping.LLMProxy.Configuration.Name)
 	}
 	if proxyHandle == "" {
-		return "", fmt.Errorf("LLM proxy handle not found for mapping in environment %s", environmentName)
+		return "", "", fmt.Errorf("LLM proxy handle not found for mapping in environment %s", environmentName)
 	}
 
 	gateway, err := s.llmProxyGateway(ctx, platformAgentPolicy, proxyHandle, ouID, envUUID)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve gateway for LLM proxy in %s: %w", environmentName, err)
+		return "", "", fmt.Errorf("failed to resolve gateway for LLM proxy in %s: %w", environmentName, err)
 	}
-	return buildInternalProxyURL(gateway, mapping.LLMProxy.Configuration.Context)
+	proxyURL, err := buildInternalProxyURL(gateway, mapping.LLMProxy.Configuration.Context)
+	if err != nil {
+		return "", "", err
+	}
+	return proxyURL, s.providerTemplateHandle(mapping.LLMProxy.Configuration.Provider, ouID), nil
 }
 
 // systemManagedMCPURL returns the PUBLIC address for the config's MCP proxy. Unlike its LLM
