@@ -109,12 +109,12 @@ window.__RUNTIME_CONFIG__ = {
     name: ('$PRODUCT_NAME'.trim() || 'AI & Agent Management'),
   },
   footerLinks: {
-    privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
-    termsOfUseUrl: 'https://wso2.com/agent-platform/agent-manager/',
-    supportUrl: 'https://discord.com/invite/wso2',
+    privacyPolicyUrl: 'https://choreolabs.com/privacy-policy',
+    termsOfUseUrl: 'https://choreolabs.com/privacy-policy',
+    supportUrl: 'https://choreolabs.com/subscription',
   },
   instrumentationDocLinks: {
-    manualInstrumentation: '/guides/amp-instrumentation/#manual-instrumentation',
-    versionMapping: '/guides/amp-instrumentation/#amp-instrumentation-version-mapping',
+    manualInstrumentation: '/guides/platform-administration/amp-instrumentation/#manual-instrumentation',
+    versionMapping: '/guides/platform-administration/amp-instrumentation/#amp-instrumentation-version-mapping',
   },
 };
