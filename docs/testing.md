@@ -133,7 +133,31 @@ Generated code (OpenAPI types, moq mocks, wire, generated clients) is left out; 
 | CLI | `cli/coverage-gate.json` | `make amctl-coverage-check` at the repository root (a report only) |
 | Console, lines per package | `console/coverage-gate.json` | `pnpm build && pnpm test:coverage` in `console`, then `python3 ../scripts/coverage/console_summary.py /tmp/console.json && python3 ../scripts/coverage/gate.py /tmp/console.json coverage-gate.json --console-root . --repo-root .. --report-only` |
 
-Changed lines are counted against `upstream/amp-2.x` by default; set `BASE=` for the Make targets, or `--base` for `gate.py`, when your branch targets something else. Without a reachable base the changed-line check is skipped.
+Changed lines are counted against `upstream/amp-2.x` by default; set `BASE=` for the Make targets, or `--base` for `gate.py`, when your branch targets something else. Locally, without a reachable base the changed-line check is skipped; in CI a missing base fails the job.
+
+### How the check runs
+
+Each part's CI job runs its tests with coverage, then two scripts from `scripts/coverage/`:
+
+1. A summary script turns the raw coverage into one number per area: `go_summary.py` reads the Go cover profiles (for the API, the unit, SQLite and PostgreSQL runs merged, a block counting as covered if any run hit it), `console_summary.py` reads each console package's `coverage/coverage-summary.json`.
+2. `gate.py` checks that summary against `coverage-gate.json`, then finds the lines your pull request adds or changes (`git diff` against the merge base with the target branch) and looks each one up in the line-level report: the Go cover profiles, or each console package's `coverage/lcov.info` (`changed_lines.py` does the mapping). A line the report doesn't list, such as a comment or a declaration, isn't counted.
+
+| Part | CI job | Workflow |
+|---|---|---|
+| API | `Coverage`, after the unit and both integration jobs | `agent-manager-service-pr-checks.yaml` |
+| CLI | `PR Checks` | `amctl-pr-checks.yaml` |
+| Console | `test` | `amp-console-package-pr-checks.yaml` |
+
+A change under `scripts/coverage/` runs all three, and the scripts' own unit tests run in `coverage-scripts-checks.yaml` (`python3 -m unittest discover -s scripts/coverage/tests`).
+
+### When the check fails
+
+Open the failed job's summary: it lists the areas below their minimum and, per file, the uncovered changed lines (for example `gwsvc/llm.go: 40-52`).
+
+- **Changed lines below 80%:** add tests that run those lines. If they can't be reached from a unit or integration test, say why in the pull request and ask a maintainer for the `coverage-exception` label.
+- **An area below its minimum:** add tests to that package. A new package starts at `area_min` like any other.
+- **An intended drop** (code removed or moved to another package): lower the minimum or the area's exception in `coverage-gate.json` in the same pull request, and say why.
+- **An exception warning:** the area is now at or above `area_min`, or no longer exists; remove its entry from `area_exceptions`.
 
 The e2e job also reports which API routes the e2e and live security suites called. The API logs each request's matched route when `LOG_ROUTE_HITS` is on, and `scripts/coverage/route_coverage.py` compares the hits with every registered route. Routes no user calls are listed with a reason in `test/e2e/route-exemptions.yaml`. The report doesn't fail the job yet.
 
