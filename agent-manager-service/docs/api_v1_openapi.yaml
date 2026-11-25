@@ -1322,7 +1322,8 @@ paths:
         "409":
           description: >-
             The agent is an API agent and the target environment has no ingress gateway to serve it (code
-            `ENVIRONMENT_HAS_NO_GATEWAY`)
+            `ENVIRONMENT_HAS_NO_GATEWAY`), or the deployment pipeline's first environment is not
+            `expectedEnvironment` (code `DEPLOY_ENVIRONMENT_MISMATCH`)
           content:
             application/json:
               schema:
@@ -16232,6 +16233,12 @@ components:
         imageId:
           type: string
           description: Container image ID to deploy
+        expectedEnvironment:
+          type: string
+          description: >-
+            The environment the caller expects the deploy to land in, the deployment pipeline's first.
+            If the pipeline's first environment is another, the deploy is refused with 409 before
+            anything is written.
         env:
           type: array
           description: Environment variables

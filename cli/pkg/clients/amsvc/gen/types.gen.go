@@ -3457,6 +3457,9 @@ type DeployAgentRequest struct {
 	// Env Environment variables
 	Env *[]EnvironmentVariable `json:"env,omitempty"`
 
+	// ExpectedEnvironment The environment the caller expects the deploy to land in, the deployment pipeline's first. If the pipeline's first environment is another, the deploy is refused with 409 before anything is written.
+	ExpectedEnvironment *string `json:"expectedEnvironment,omitempty"`
+
 	// Files File mounts
 	Files *[]FileMount `json:"files,omitempty"`
 

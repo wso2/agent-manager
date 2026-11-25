@@ -51,6 +51,8 @@ const (
 	ErrCodeCapabilitiesGivenByCaller = "CAPABILITIES_GIVEN_BY_CALLER"
 	// ErrCodeEntitlementDenied: the organization's subscription does not allow the create (402).
 	ErrCodeEntitlementDenied = "ENTITLEMENT_DENIED"
+	// ErrCodeDeployEnvironmentMismatch: a deploy expected another environment than the deployment pipeline's first.
+	ErrCodeDeployEnvironmentMismatch = "DEPLOY_ENVIRONMENT_MISMATCH"
 
 	// Server error codes (5xx)
 	ErrCodeInternalError      = "INTERNAL_ERROR"

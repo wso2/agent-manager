@@ -66,6 +66,17 @@ func TestHandleCommonErrors_AgentIdentityRequiresPromotion_Is409(t *testing.T) {
 	assert.Equal(t, utils.ErrCodeConflict, body.Code)
 }
 
+func TestHandleCommonErrors_DeployEnvironmentMismatch_Is409WithItsCode(t *testing.T) {
+	rr := httptest.NewRecorder()
+
+	handleCommonErrors(rr, fmt.Errorf("%w: expected \"staging\"", utils.ErrDeployEnvironmentMismatch), "Failed to deploy agent")
+
+	assert.Equal(t, http.StatusConflict, rr.Code)
+	var body spec.ErrorResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, utils.ErrCodeDeployEnvironmentMismatch, body.Code)
+}
+
 func TestHandleCommonErrors_PromotionNeedsRedeploy_Is409WithInstructions(t *testing.T) {
 	rr := httptest.NewRecorder()
 

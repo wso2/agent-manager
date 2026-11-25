@@ -260,6 +260,9 @@ func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	case errors.Is(err, utils.ErrEnvironmentHasNoGateway):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Environment has no ingress gateway", err.Error(), utils.ErrCodeEnvironmentHasNoGateway)
+	case errors.Is(err, utils.ErrDeployEnvironmentMismatch):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"The agent would deploy to another environment than expected", err.Error(), utils.ErrCodeDeployEnvironmentMismatch)
 
 	// Authorization errors
 	case errors.Is(err, utils.ErrUnauthorized):

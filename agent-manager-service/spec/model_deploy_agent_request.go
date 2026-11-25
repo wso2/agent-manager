@@ -21,6 +21,8 @@ var _ MappedNullable = &DeployAgentRequest{}
 type DeployAgentRequest struct {
 	// Container image ID to deploy
 	ImageId string `json:"imageId"`
+	// The environment the caller expects the deploy to land in, the deployment pipeline's first. If the pipeline's first environment is another, the deploy is refused with 409 before anything is written.
+	ExpectedEnvironment *string `json:"expectedEnvironment,omitempty"`
 	// Environment variables
 	Env []EnvironmentVariable `json:"env,omitempty"`
 	// File mounts
@@ -88,6 +90,38 @@ func (o *DeployAgentRequest) GetImageIdOk() (*string, bool) {
 // SetImageId sets field value
 func (o *DeployAgentRequest) SetImageId(v string) {
 	o.ImageId = v
+}
+
+// GetExpectedEnvironment returns the ExpectedEnvironment field value if set, zero value otherwise.
+func (o *DeployAgentRequest) GetExpectedEnvironment() string {
+	if o == nil || IsNil(o.ExpectedEnvironment) {
+		var ret string
+		return ret
+	}
+	return *o.ExpectedEnvironment
+}
+
+// GetExpectedEnvironmentOk returns a tuple with the ExpectedEnvironment field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *DeployAgentRequest) GetExpectedEnvironmentOk() (*string, bool) {
+	if o == nil || IsNil(o.ExpectedEnvironment) {
+		return nil, false
+	}
+	return o.ExpectedEnvironment, true
+}
+
+// HasExpectedEnvironment returns a boolean if a field has been set.
+func (o *DeployAgentRequest) HasExpectedEnvironment() bool {
+	if o != nil && !IsNil(o.ExpectedEnvironment) {
+		return true
+	}
+
+	return false
+}
+
+// SetExpectedEnvironment gets a reference to the given string and assigns it to the ExpectedEnvironment field.
+func (o *DeployAgentRequest) SetExpectedEnvironment(v string) {
+	o.ExpectedEnvironment = &v
 }
 
 // GetEnv returns the Env field value if set, zero value otherwise.
@@ -357,6 +391,9 @@ func (o DeployAgentRequest) MarshalJSON() ([]byte, error) {
 func (o DeployAgentRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["imageId"] = o.ImageId
+	if !IsNil(o.ExpectedEnvironment) {
+		toSerialize["expectedEnvironment"] = o.ExpectedEnvironment
+	}
 	if !IsNil(o.Env) {
 		toSerialize["env"] = o.Env
 	}

@@ -242,6 +242,10 @@ var (
 	// promoted into an environment with no ingress gateway. Maps to 409.
 	ErrEnvironmentHasNoGateway = errors.New("environment has no ingress gateway")
 
+	// ErrDeployEnvironmentMismatch is returned when a deploy expects another environment than the
+	// deployment pipeline's first, the one it would land in. Maps to 409.
+	ErrDeployEnvironmentMismatch = errors.New("the deployment pipeline's first environment is not the one expected")
+
 	// ErrGatewayServesEnvironment is returned when unmapping a gateway from an environment whose
 	// agents, MCP proxies or LLM proxies are still placed on it. Maps to 409.
 	ErrGatewayServesEnvironment = errors.New("gateway still serves the environment's artifacts")
