@@ -200,7 +200,7 @@ func TestAGRoutesMCPProxyDeleteRefusedWhileBound(t *testing.T) {
 	assert.Contains(t, errorMessage(t, rec), "associated MCP proxy mappings")
 	expect(t, a.do(http.MethodGet, "/mcp-proxies/bound", nil), http.StatusOK)
 
-	rec = a.do(http.MethodDelete, agAgentPath("/mcp-configs/"+cfg["uuid"].(string)), nil)
+	rec = a.do(http.MethodDelete, agAgentPath("/mcp-configs/"+agUID(t, cfg)), nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 	rec = a.do(http.MethodDelete, "/mcp-proxies/bound", nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())

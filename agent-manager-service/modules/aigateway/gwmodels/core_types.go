@@ -25,6 +25,14 @@ import (
 // environment.
 const DefaultEnvironmentName = "default"
 
+// EnvironmentOrDefault returns name, or the default environment when it is empty (e.g. omitted from a request body).
+func EnvironmentOrDefault(name string) string {
+	if strings.TrimSpace(name) == "" {
+		return DefaultEnvironmentName
+	}
+	return name
+}
+
 // Default OAuth header values used when a config omits them. They mirror the
 // gateway jwt-auth policy defaults so callers send a standard
 // `Authorization: Bearer <token>` header.

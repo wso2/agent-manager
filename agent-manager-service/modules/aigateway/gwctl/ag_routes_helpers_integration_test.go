@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,13 +42,17 @@ const (
 	agPublicURL = "https://1.1.1.1/mcp"
 )
 
-// agAgentPath is path under the test agent's routes.
-func agAgentPath(path string) string {
-	return "/orgs/{org}/projects/" + agProject + "/agents/" + agAgent + path
-}
+// agAgentPath is path under the test agent's routes, in its project.
+func agAgentPath(path string) string { return agentPathIn(agProject, agAgent, path) }
 
-// agEnvPath is path under the test agent's routes for the default environment.
-func agEnvPath(path string) string { return agAgentPath("/environments/default" + path) }
+// agentPathIn is path under agent's routes with the project in the query.
+func agentPathIn(project, agent, path string) string {
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	return "/agents/" + agent + path + sep + "project=" + project
+}
 
 // agSetup serves the gateway for a fresh organization with the test agent and
 // one gateway in the default environment, and returns the gateway.
