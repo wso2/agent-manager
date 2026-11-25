@@ -19,6 +19,7 @@ package observability
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -31,6 +32,10 @@ import (
 
 // defaultTTLDays is how long ClickHouse keeps spans when ttl-days is unset.
 const defaultTTLDays = 30
+
+// errNoReader refuses a ClickHouse URL without the reader login, which
+// ClickHouse would otherwise take as its default user.
+var errNoReader = errors.New("observability: clickhouse.url is set but clickhouse.user is not (MODULE_OBSERVABILITY_CLICKHOUSE_USER)")
 
 // agentCleaner deletes an agent's spans.
 type agentCleaner interface {
@@ -50,6 +55,9 @@ func openStores(rt modkit.Runtime) (store.TraceStore, agentCleaner, error) {
 	cfg := clickhouse.Config{URL: url, Database: rt.Config("clickhouse.database")}
 	reader := cfg
 	reader.User, reader.Password = rt.Config("clickhouse.user"), rt.Config("clickhouse.password")
+	if reader.User == "" {
+		return nil, nil, errNoReader
+	}
 	traces, err := clickhouse.New(reader)
 	if err != nil {
 		return nil, nil, err
@@ -67,6 +75,20 @@ func openStores(rt modkit.Runtime) (store.TraceStore, agentCleaner, error) {
 		return nil, nil, err
 	}
 	return traces, cleaner, nil
+}
+
+var _ modkit.HealthReporter = module{}
+
+// Health reports the trace store. Nothing writes to the in-memory one, so
+// without ClickHouse the traces page stays empty.
+func (module) Health(_ context.Context, rt modkit.Runtime) map[string]any {
+	if rt.Config("clickhouse.url") == "" {
+		return map[string]any{
+			"store":  "memory",
+			"status": "degraded, no ClickHouse configured (MODULE_OBSERVABILITY_CLICKHOUSE_URL), so no traces are stored",
+		}
+	}
+	return map[string]any{"store": "clickhouse"}
 }
 
 // ExternalSchema is the ClickHouse schema: applied by `amp migrate` as the
@@ -90,6 +112,9 @@ func (module) ExternalSchema(config func(string) string, apply bool) (modkit.Ext
 		cfg.TTLDays = days
 	} else {
 		cfg.User, cfg.Password = config("clickhouse.user"), config("clickhouse.password")
+		if cfg.User == "" {
+			return nil, errNoReader
+		}
 	}
 	s, err := clickhouse.NewSchema(cfg, clickhouse.Migrations())
 	if err != nil {

@@ -152,7 +152,9 @@ func (s *Schema) Apply(ctx context.Context, version, checksum string, body []byt
 		map[string]string{"version": version, "checksum": checksum})
 }
 
-// Settle sets the span table's TTL from config when it differs.
+// Settle sets the span table's TTL from config when it differs. Existing
+// parts are not rewritten: a changed TTL applies to parts written or merged
+// after it.
 func (s *Schema) Settle(ctx context.Context) error {
 	if s.cfg.TTLDays == 0 {
 		return nil
@@ -177,5 +179,5 @@ func (s *Schema) Settle(ctx context.Context) error {
 	if strings.Contains(engine, "TTL "+ttl+" ") || strings.HasSuffix(engine, "TTL "+ttl) {
 		return nil
 	}
-	return s.c.exec(ctx, "ALTER TABLE "+Table+" MODIFY TTL "+ttl, nil)
+	return s.c.exec(ctx, "ALTER TABLE "+Table+" MODIFY TTL "+ttl+" SETTINGS materialize_ttl_after_modify = 0", nil)
 }
