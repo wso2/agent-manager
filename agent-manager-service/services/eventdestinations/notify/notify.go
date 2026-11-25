@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -65,6 +66,13 @@ type service struct {
 	// use the driver's SSRF-safe client; their host is checked again before
 	// every send.
 	http bool
+	// noTitle is set for services that reject a "title" param (PagerDuty);
+	// the title is still the first line of the body.
+	noTitle bool
+	// statusOnly is set for services whose errors quote the response body
+	// (PagerDuty), which can echo the credential. Their failed responses reach
+	// Shoutrrr with an empty body, so the error names only the HTTP status.
+	statusOnly bool
 }
 
 // offered lists the services destinations can use. A service is offered only if
@@ -81,7 +89,7 @@ var offered = []service{
 	svc("rocketchat", "Rocket.Chat", "Chat", "rocketchat://[username@]rocketchat-host/token[/channel]", "rocketchat", true, true),
 	svc("zulip", "Zulip", "Chat", "zulip://bot-mail:bot-key@zulip-domain/?stream=name&topic=name", "zulip", true, true),
 	svc("smtp", "Email (SMTP)", "Email", "smtp://username:password@host:port/?fromaddress=from@example.com&toaddresses=to@example.com", "smtp", true, false),
-	svc("pagerduty", "PagerDuty", "Incident", "pagerduty://[host[:port]]/integration-key", "pagerduty", false, true),
+	statusOnly(withoutTitle(svc("pagerduty", "PagerDuty", "Incident", "pagerduty://[host[:port]]/integration-key", "pagerduty", false, true))),
 	svc("opsgenie", "Opsgenie", "Incident", "opsgenie://api.opsgenie.com/token?responders=team:ops", "opsgenie", false, true),
 	svc("ntfy", "ntfy", "Push", "ntfy://[username:password@]ntfy.sh/topic", "ntfy", true, true),
 	svc("gotify", "Gotify", "Push", "gotify://gotify-host/token", "gotify", true, true),
@@ -97,6 +105,16 @@ func svc(id, label, category, format, docs string, networkHost, overHTTP bool) s
 		networkHost: networkHost,
 		http:        overHTTP,
 	}
+}
+
+func withoutTitle(s service) service {
+	s.noTitle = true
+	return s
+}
+
+func statusOnly(s service) service {
+	s.statusOnly = true
+	return s
 }
 
 func lookup(id string) (service, bool) {
@@ -222,13 +240,15 @@ func (d *Driver) Deliver(ctx context.Context, dest eventdestinations.Destination
 			return eventdestinations.Result{Err: err}
 		}
 	}
-	sender, err := d.locate(dest.Secret)
+	sender, err := d.locateFor(s, dest.Secret)
 	if err != nil {
 		return eventdestinations.Result{Err: fmt.Errorf("invalid %s URL: %s", s.ID, scrub(err, dest.Secret))}
 	}
 	text := eventdestinations.Render(msg)
 	params := types.Params{}
-	params.SetTitle(text.Title)
+	if !s.noTitle {
+		params.SetTitle(text.Title)
+	}
 	body := text.Title + "\n" + text.Body
 
 	ctx, cancel := context.WithTimeout(ctx, sendTimeout)
@@ -261,7 +281,20 @@ func (d *Driver) Deliver(ctx context.Context, dest eventdestinations.Destination
 
 // locate builds the Shoutrrr service for rawURL with the driver's client.
 func (d *Driver) locate(rawURL string) (types.Service, error) {
-	r, err := router.NewWithOptions(nil, types.SenderOptions{HTTPClient: d.client, Timeout: sendTimeout})
+	return d.locateWith(d.client, rawURL)
+}
+
+// locateFor builds the Shoutrrr service for rawURL with the client s sends
+// through.
+func (d *Driver) locateFor(s service, rawURL string) (types.Service, error) {
+	if s.statusOnly {
+		return d.locateWith(statusOnlyClient{next: d.client}, rawURL)
+	}
+	return d.locate(rawURL)
+}
+
+func (d *Driver) locateWith(client types.HTTPClient, rawURL string) (types.Service, error) {
+	r, err := router.NewWithOptions(nil, types.SenderOptions{HTTPClient: client, Timeout: sendTimeout})
 	if err != nil {
 		return nil, err
 	}
@@ -367,4 +400,22 @@ func parseConfig(raw json.RawMessage) (Config, error) {
 		return cfg, err
 	}
 	return cfg, nil
+}
+
+// statusOnlyClient empties the body of a failed response, so a service that
+// quotes it in its error reports only the HTTP status.
+type statusOnlyClient struct {
+	next types.HTTPClient
+}
+
+func (c statusOnlyClient) Do(req *http.Request) (*http.Response, error) {
+	resp, err := c.next.Do(req)
+	if err != nil || resp.StatusCode/100 == 2 {
+		return resp, err
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	_ = resp.Body.Close()
+	resp.Body = http.NoBody
+	resp.ContentLength = 0
+	return resp, nil
 }

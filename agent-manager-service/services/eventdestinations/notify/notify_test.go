@@ -162,6 +162,69 @@ func TestDeliver(t *testing.T) {
 	assert.Error(t, res.Err, "a destination without a URL cannot send")
 }
 
+// PagerDuty rejects a "title" param, so the driver must not send one; the
+// title leads the summary instead.
+func TestDeliver_PagerDuty(t *testing.T) {
+	reqs := make(chan *http.Request, 1)
+	bodies := make(chan []byte, 1)
+	d := New(true)
+	d.client = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			return nil, err
+		}
+		reqs <- r
+		bodies <- b
+		return &http.Response{StatusCode: http.StatusAccepted, Body: io.NopCloser(strings.NewReader("{}")), Header: http.Header{}}, nil
+	})}
+	msg := message(t)
+	res := d.Deliver(context.Background(), pagerDutyDest(), msg)
+	require.NoError(t, res.Err)
+
+	r := <-reqs
+	assert.Equal(t, http.MethodPost, r.Method)
+	assert.Equal(t, "/v2/enqueue", r.URL.Path)
+	var sent struct {
+		Payload struct {
+			Summary string `json:"summary"`
+		} `json:"payload"`
+	}
+	require.NoError(t, json.Unmarshal(<-bodies, &sent))
+	assert.True(t, strings.HasPrefix(sent.Payload.Summary, eventdestinations.Render(msg).Title+"\n"), sent.Payload.Summary)
+}
+
+// A failed PagerDuty response can echo the routing key; the delivery error
+// names only the status.
+func TestDeliver_PagerDutyErrorOmitsResponseBody(t *testing.T) {
+	for name, body := range map[string]string{
+		"json message": `{"status":"invalid event","message":"eb243592faa24ba2a5511afdf565c889 is not valid"}`,
+		"raw text":     `routing key eb243592faa24ba2a5511afdf565c889 rejected`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			d := New(true)
+			d.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: http.StatusBadRequest, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}}, nil
+			})}
+			res := d.Deliver(context.Background(), pagerDutyDest(), message(t))
+			require.Error(t, res.Err)
+			assert.Contains(t, res.Err.Error(), "HTTP 400")
+			assert.NotContains(t, res.Err.Error(), "eb243592faa24ba2a5511afdf565c889")
+			assert.NotContains(t, res.Err.Error(), "rejected")
+		})
+	}
+}
+
+func pagerDutyDest() eventdestinations.Destination {
+	return eventdestinations.Destination{
+		Config: json.RawMessage(`{"service":"pagerduty"}`),
+		Secret: "pagerduty:///eb243592faa24ba2a5511afdf565c889",
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
 type failedNotifyTransport struct{}
 
 func (failedNotifyTransport) RoundTrip(*http.Request) (*http.Response, error) {
