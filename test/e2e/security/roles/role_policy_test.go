@@ -121,7 +121,7 @@ func roleProbes() []roleProbe {
 
 		// Platform Engineer: owns infrastructure and production delivery, not agent authoring or IAM.
 		{"platform-engineer", "amp:ai-gateway:gateways.create", true, http.MethodPost, gwOrgPath("/gateways")},
-		{"platform-engineer", "amp:agent:create", false, http.MethodPost, orgPath("/projects/" + absentResourceName + "/agents")},
+		{"platform-engineer", "amp:agent:create", false, http.MethodPost, func(*framework.Config) string { return "/api/v1/agents" }},
 		{"platform-engineer", "amp:role:update", false, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
 
 		// Admin positive controls cover the privilege-granting IAM boundary.
