@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { ENV_VAR_KEYS, type EnvVarKey } from "@agent-management-platform/shared-component";
+import type { EnvVarKey } from "@agent-management-platform/shared-component";
 
 // The key list itself now lives in shared-component alongside resolveMCPEnvVarSpec,
 // which decides which of these keys a given endpoint's security actually needs.
@@ -43,7 +43,7 @@ export function generateEnvVarNames(prefix: string): Record<EnvVarKey, string> {
 
 // An LLM configuration also gets the provider's template handle (openai, anthropic, ...).
 // MCP configurations have no LLM provider, so they keep using ENV_VAR_KEYS alone.
-export const LLM_ENV_VAR_KEYS = [...ENV_VAR_KEYS, "provider"] as const;
+export const LLM_ENV_VAR_KEYS = ["url", "apikey", "provider"] as const;
 
 export type LLMEnvVarKey = (typeof LLM_ENV_VAR_KEYS)[number];
 

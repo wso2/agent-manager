@@ -17,8 +17,8 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-// envConfig only needs the key list; mocking shared-component avoids loading the whole
-// component library (and its API client) for a pure-function test.
+// envConfig re-exports from shared-component; mocking it avoids loading the whole component
+// library (and its API client) for a pure-function test.
 vi.mock("@agent-management-platform/shared-component", () => ({
   ENV_VAR_KEYS: ["url", "apikey"],
 }));
