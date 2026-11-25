@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { httpGET, httpPUT, SERVICE_BASE, GATEWAY_BASE } from '../../shared/utils';
+import { agentGatewayPath, agentProjectQuery, httpGET, httpPUT, SERVICE_BASE } from '../../shared/utils';
 import type {
   UpdateAgentDeploySettingsPathParams,
   UpdateAgentDeploySettingsRequest,
@@ -34,17 +34,20 @@ import type {
 export async function updateAgentDeploySettings(params: UpdateAgentDeploySettingsPathParams,
      body: UpdateAgentDeploySettingsRequest, getToken?: () => Promise<string>)
 : Promise<void> {
-    const { orgName = "default", projName = "default", agentName } = params;
+    const { projName = "default", agentName } = params;
 
     if (!agentName) {
         throw new Error("agentName is required");
     }
 
     const token = getToken ? await getToken() : undefined;
+    // The settings apply to the default environment, so the body names none.
+    const settings: Partial<UpdateAgentDeploySettingsRequest> = { ...body };
+    delete settings.environmentName;
     const res = await httpPUT(
-        `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/deploy-settings`,
-        body,
-        { token },
+        agentGatewayPath({ agentName }, "/deploy-settings"),
+        settings,
+        { token, searchParams: agentProjectQuery({ projName }) },
     );
     if (!res.ok) throw await res.json();
 }
@@ -52,7 +55,7 @@ export async function updateAgentDeploySettings(params: UpdateAgentDeploySetting
 // eslint-disable-next-line max-len
 export async function listAgentDeployments(params: ListAgentDeploymentsPathParams, getToken?: () => Promise<string>)
 : Promise<DeploymentListResponse> {
-    const { orgName = "default", projName = "default", agentName } = params;
+    const { projName = "default", agentName } = params;
     
     if (!agentName) {
         throw new Error("agentName is required");
@@ -60,8 +63,8 @@ export async function listAgentDeployments(params: ListAgentDeploymentsPathParam
     
     const token = getToken ? await getToken() : undefined;
     const res = await httpGET(
-        `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/deployments`,
-        { token },
+        agentGatewayPath({ agentName }, "/deployments"),
+        { token, searchParams: agentProjectQuery({ projName }) },
     );
     if (!res.ok) throw await res.json();
     return res.json();
@@ -70,17 +73,18 @@ export async function listAgentDeployments(params: ListAgentDeploymentsPathParam
 // eslint-disable-next-line max-len
 export async function getAgentConfigurations(params: GetAgentConfigurationsPathParams, query: EnvironmentQuery, getToken?: () => Promise<string>)
 : Promise<ConfigurationResponse> {
-    const { orgName = "default", projName = "default", agentName } = params;
+    const { projName = "default", agentName } = params;
     
     if (!agentName) {
         throw new Error("agentName is required");
     }
     
     const token = getToken ? await getToken() : undefined;
-    const search = { environment: query.environment };
+    // The configurations are always the default environment's.
+    void query;
     const res = await httpGET(
-        `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/configurations`,
-        { searchParams: search, token },
+        agentGatewayPath({ agentName }, "/configurations"),
+        { searchParams: agentProjectQuery({ projName }), token },
     );
     if (!res.ok) throw await res.json();
     return res.json();

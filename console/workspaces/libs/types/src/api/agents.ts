@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { type AgentPathParams, type Build, type ListQuery, type OrgPathParams, type OrgProjPathParams, type PaginationMeta, type RepositoryConfig } from './common';
+import { type AgentPathParams, type Build, type ListQuery, type OrgPathParams, type OrgProjPathParams, type PaginationMeta, type ProjectScopedDocumentMetadata, type RepositoryConfig } from './common';
 import type { EnvProviderConfiguration, EnvironmentVariableConfig } from './agent-model-configs';
 import type { ThunderGroup, ThunderRole } from './identities';
 
@@ -171,6 +171,40 @@ export interface AgentListResponse extends PaginationMeta {
   agents: AgentResponse[];
 }
 
+// --- Agent documents, as the API serves them ---
+
+export interface AgentSpec {
+  displayName: string;
+  description?: string;
+  /** Fixed at creation. */
+  provisioning: { type: ProvisioningType };
+  /** Fixed at creation. */
+  agentType: AgentType;
+  labels?: Record<string, string>;
+  extensions?: AgentExtensions;
+}
+
+/** A PUT may leave out the fields fixed at creation; an absent field keeps its stored value. */
+export type AgentUpdateSpec = Omit<AgentSpec, 'provisioning' | 'agentType'> &
+  Partial<Pick<AgentSpec, 'provisioning' | 'agentType'>>;
+
+export interface AgentDocument<S = AgentSpec> {
+  apiVersion: string;
+  kind: 'Agent';
+  metadata: ProjectScopedDocumentMetadata;
+  spec: S;
+  status?: { state?: string };
+}
+
+export interface AgentDocumentList {
+  count?: number;
+  list: AgentDocument[];
+  pagination?: { limit?: number; offset?: number; total?: number };
+}
+
+/** Lists one project's agents, or every project's when project is omitted. */
+export type ListAgentDocumentsQuery = ListAgentsQuery & { project?: string };
+
 // Lightweight org-wide listing: every agent across all projects, unpaginated.
 // Includes the owning project's name/displayName so consumers can resolve
 // both without a separate project lookup.
@@ -253,7 +287,8 @@ export interface AgentIdentityEnvironmentView {
 }
 
 export interface AgentIdentityActionRequest {
-  environment: string;
+  /** Omitted means the organization's only environment. */
+  environment?: string;
 }
 
 export interface AgentRegenerateSecretResponse {

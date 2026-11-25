@@ -216,3 +216,9 @@ export interface DocumentMetadata {
   updateTimestamp?: string;
   createdBy?: string;
 }
+
+/** Metadata of a kind that lives inside a project. */
+export interface ProjectScopedDocumentMetadata extends DocumentMetadata {
+  /** Handle of the project the resource belongs to. */
+  project: string;
+}

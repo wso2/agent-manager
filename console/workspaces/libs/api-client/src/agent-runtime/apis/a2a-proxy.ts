@@ -21,14 +21,17 @@ import type {
   A2AProxyResponse,
   SetA2AProxyRequest,
 } from "@agent-management-platform/types";
-import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
+import {
+  agentGatewayPath,
+  agentRequestOptions,
+  httpDELETE,
+  httpGET,
+  httpPOST,
+  httpPUT,
+} from "../../shared/utils";
 
-function a2aProxyPath(params: A2AProxyPathParams): string {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const agent = encodeRequired(params.agentName, "agentName");
-  const env = encodeRequired(params.envId, "envId");
-  return `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/a2a-proxy`;
+function a2aProxyPath(params: A2AProxyPathParams, suffix = ""): string {
+  return agentGatewayPath(params, `/a2a-proxy${suffix}`);
 }
 
 // A direct environment answers 404, which the http helpers throw with status 404.
@@ -37,7 +40,7 @@ export async function getA2AProxy(
   getToken?: () => Promise<string>,
 ): Promise<A2AProxyResponse> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(a2aProxyPath(params), { token });
+  const res = await httpGET(a2aProxyPath(params), agentRequestOptions(params, token));
   return res.json();
 }
 
@@ -47,7 +50,7 @@ export async function setA2AProxy(
   getToken?: () => Promise<string>,
 ): Promise<void> {
   const token = getToken ? await getToken() : undefined;
-  await httpPUT(a2aProxyPath(params), body, { token });
+  await httpPUT(a2aProxyPath(params), body, agentRequestOptions(params, token));
 }
 
 export async function deleteA2AProxy(
@@ -55,7 +58,7 @@ export async function deleteA2AProxy(
   getToken?: () => Promise<string>,
 ): Promise<void> {
   const token = getToken ? await getToken() : undefined;
-  await httpDELETE(a2aProxyPath(params), { token });
+  await httpDELETE(a2aProxyPath(params), agentRequestOptions(params, token));
 }
 
 export async function refreshA2AProxy(
@@ -63,5 +66,5 @@ export async function refreshA2AProxy(
   getToken?: () => Promise<string>,
 ): Promise<void> {
   const token = getToken ? await getToken() : undefined;
-  await httpPOST(`${a2aProxyPath(params)}/refresh`, {}, { token });
+  await httpPOST(a2aProxyPath(params, "/refresh"), {}, agentRequestOptions(params, token));
 }

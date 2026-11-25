@@ -34,6 +34,10 @@ import {
   regenerateAgentIdentitySecret,
   retryAgentIdentityProvisioning,
   revokeAgentIdentitySecret,
+  agentFromDocument,
+  agentListFromDocuments,
+  agentDocumentFromCreateRequest,
+  agentDocumentFromUpdateRequest,
 } from "../apis/agents";
 import { SLOW_POLL_INTERVAL } from "../../shared/utils";
 import type {
@@ -84,7 +88,7 @@ export function useListAgents(
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentListResponse>({
     queryKey: ['agents', params, query],
-    queryFn: () => listAgents(params, query, getToken),
+    queryFn: async () => agentListFromDocuments(await listAgents(params, query, getToken)),
     enabled: !!params.orgName && !!params.projName,
   });
 }
@@ -142,7 +146,7 @@ export function useGetAgent(params: GetAgentPathParams) {
     const { getToken } = useAuthHooks();
     return useApiQuery<AgentResponse>({
         queryKey: ['agent', params],
-        queryFn: () => getAgent(params, getToken),
+        queryFn: async () => agentFromDocument(await getAgent(params, getToken)),
         enabled: !!params.orgName && !!params.projName && !!params.agentName,
     });
 }
@@ -167,7 +171,10 @@ export function useCreateAgent() {
     { params: CreateAgentPathParams; body: CreateAgentRequest }
   >({
     action: { verb: 'create', target: 'agent' },
-    mutationFn: ({ params, body }) => createAgent(params, body, getToken),
+    mutationFn: async ({ params, body }) =>
+      agentFromDocument(
+        await createAgent(params, agentDocumentFromCreateRequest(params.projName ?? "", body), getToken),
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['org-agents'] });
@@ -184,7 +191,14 @@ export function useUpdateAgent() {
     { params: UpdateAgentPathParams; body: UpdateAgentRequest }
   >({
     action: { verb: 'update', target: 'agent' },
-    mutationFn: ({ params, body }) => updateAgent(params, body, getToken),
+    mutationFn: async ({ params, body }) =>
+      agentFromDocument(
+        await updateAgent(
+          params,
+          agentDocumentFromUpdateRequest(params.projName ?? "", params.agentName ?? "", body),
+          getToken,
+        ),
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['agent'] });
