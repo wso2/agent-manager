@@ -65,8 +65,8 @@ type AgentConfigurationService interface {
 	// ListOrgAgentMCPServers returns the MCP proxies every agent in the organization is
 	// configured with, per environment.
 	ListOrgAgentMCPServers(ctx context.Context, ouID string) ([]repositories.AgentEnvironmentResource, error)
-	// ListAgentEnvironmentResources returns, keyed by environment name, the LLM providers (with
-	// their guardrails) and MCP servers (with their tools) one agent is configured with.
+	// ListAgentEnvironmentResources returns, keyed by environment name, the LLM configurations
+	// (each with its provider and guardrails) and MCP servers (with their tools) of one agent.
 	ListAgentEnvironmentResources(ctx context.Context, ouID, projectName, agentName string) (map[string]*models.AgentEnvironmentResources, error)
 	// ProviderEnvironments returns, in org order, the environments where the agent can use the LLM
 	// provider: those where the provider is placed on a gateway this kind of agent may use. It is the
@@ -1041,7 +1041,8 @@ func (s *agentConfigurationService) ListAgentEnvironmentResources(
 		return byEnv[name]
 	}
 
-	// Step 1: LLM providers, and the guardrails on the agent's provider config and on the provider.
+	// Step 1: each LLM configuration, with its provider and the guardrails on the configuration
+	// and on the provider.
 	llmConfigs, err := s.agentConfigRepo.ListByAgentAndType(ctx, ouID, projectName, agentName, models.AgentConfigTypeIDLLM, maxAgentConfigsPerType, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list LLM configurations: %w", err)
@@ -1069,14 +1070,18 @@ func (s *agentConfigurationService) ListAgentEnvironmentResources(
 			if provider == nil || provider.Artifact == nil {
 				continue // the provider was deleted
 			}
-			resources.LLMProviders = appendResourceRef(resources.LLMProviders,
-				models.AgentRegistryResourceRef{ID: provider.Artifact.Handle, DisplayName: provider.Artifact.Name})
+			guardrails := []string{}
 			for _, policy := range mapping.PolicyConfiguration {
-				resources.Guardrails = appendUnique(resources.Guardrails, policy.Name)
+				guardrails = appendUnique(guardrails, policy.Name)
 			}
 			for _, policy := range provider.Configuration.Policies {
-				resources.Guardrails = appendUnique(resources.Guardrails, policy.Name)
+				guardrails = appendUnique(guardrails, policy.Name)
 			}
+			resources.LLMConfigurations = append(resources.LLMConfigurations, models.AgentRegistryLLMConfiguration{
+				Name:       config.Name,
+				Provider:   models.AgentRegistryResourceRef{ID: provider.Artifact.Handle, DisplayName: provider.Artifact.Name},
+				Guardrails: guardrails,
+			})
 		}
 	}
 

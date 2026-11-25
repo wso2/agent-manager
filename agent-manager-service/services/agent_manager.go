@@ -1751,16 +1751,14 @@ func (s *agentManagerService) GetAgentWithRegistry(ctx context.Context, ouID, pr
 		if env, ok := environmentByName[d.Environment]; ok {
 			entry.IsProduction = env.IsProduction
 		}
-		guardrails := []string{}
+		llmConfigurations := []models.AgentRegistryLLMConfiguration{}
 		if r, ok := resources[d.Environment]; ok {
-			if r.LLMProviders != nil {
-				entry.LLMProviders = r.LLMProviders
-			}
+			entry.LLMProviders = r.LLMProviders()
 			if r.MCPServers != nil {
 				entry.MCPServers = r.MCPServers
 			}
-			if r.Guardrails != nil {
-				guardrails = r.Guardrails
+			if r.LLMConfigurations != nil {
+				llmConfigurations = r.LLMConfigurations
 			}
 		}
 		inbound, err := s.agentInboundSecurity(ctx, ouID, projectName, agentName, d.Environment)
@@ -1772,11 +1770,11 @@ func (s *agentManagerService) GetAgentWithRegistry(ctx context.Context, ouID, pr
 			envMonitors = []models.AgentRegistryMonitor{}
 		}
 		entry.Governance = &models.AgentRegistryGovernance{
-			AgentIDStatus:   identityStatusByEnv[d.Environment],
-			Guardrails:      guardrails,
-			Monitors:        envMonitors,
-			InboundSecurity: inbound,
-			A2ASkills:       skillsByEnv[d.Environment],
+			AgentIDStatus:     identityStatusByEnv[d.Environment],
+			LLMConfigurations: llmConfigurations,
+			Monitors:          envMonitors,
+			InboundSecurity:   inbound,
+			A2ASkills:         skillsByEnv[d.Environment],
 		}
 		record.Environments = append(record.Environments, entry)
 	}

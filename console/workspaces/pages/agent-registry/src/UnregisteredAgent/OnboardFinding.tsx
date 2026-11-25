@@ -36,10 +36,8 @@ import {
   useCreateAgent,
   useListProjects,
   useOnboardShadowFinding,
-  useSetShadowFindingHidden,
   useShadowFinding,
 } from "@agent-management-platform/api-client";
-import { useConfirmationDialog } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   INPUT_LIMITS,
@@ -130,8 +128,6 @@ export function OnboardFinding({
   const projects = useListProjects({ orgName });
   const createAgent = useCreateAgent();
   const onboard = useOnboardShadowFinding(orgName, findingId);
-  const setHidden = useSetShadowFindingHidden(orgName, findingId);
-  const { addConfirmation } = useConfirmationDialog();
   const [project, setProject] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [agentName, setAgentName] = useState("");
@@ -203,22 +199,9 @@ export function OnboardFinding({
           onboard.mutate(
             { projectName: project, agentName },
             {
-              onSuccess: () => {
-                setDone({ project, agent: agentName });
-                // The agent is registered now: ask whether it stays in the
-                // Unregistered Agents list. Later scans keep the choice, and
-                // the agent's page can change it.
-                addConfirmation({
-                  title: `Remove ${f.displayName} from Unregistered Agents?`,
-                  description:
-                    `${f.displayName} is onboarded as ${project} / ${agentName}. Remove it from the ` +
-                    "Unregistered Agents list, or keep it there marked as Onboarded. Later scans keep " +
-                    "your choice, and you can change it on the agent's page.",
-                  confirmButtonText: "Remove from list",
-                  cancelButtonText: "Keep in list",
-                  onConfirm: () => setHidden.mutate(true),
-                });
-              },
+              // The agent is registered now, so the registry lists it as registered,
+              // not as unregistered.
+              onSuccess: () => setDone({ project, agent: agentName }),
               onError: () =>
                 setFormError(
                   "The agent was registered, but it could not be linked. Try Register again.",

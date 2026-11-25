@@ -2716,9 +2716,12 @@ func TestGetAgentWithRegistry_FillsGovernancePerEnvironment(t *testing.T) {
 	}
 	configs := &registryConfigStub{agentResources: map[string]*models.AgentEnvironmentResources{
 		"development": {
-			LLMProviders: []models.AgentRegistryResourceRef{{ID: "openai", DisplayName: "OpenAI"}},
-			Guardrails:   []string{"pii-masking"},
-			MCPServers:   []models.AgentRegistryResourceRef{{ID: "github-mcp", DisplayName: "GitHub MCP", Tools: []string{"search_issues"}}},
+			LLMConfigurations: []models.AgentRegistryLLMConfiguration{{
+				Name:       "openai-main",
+				Provider:   models.AgentRegistryResourceRef{ID: "openai", DisplayName: "OpenAI"},
+				Guardrails: []string{"pii-masking"},
+			}},
+			MCPServers: []models.AgentRegistryResourceRef{{ID: "github-mcp", DisplayName: "GitHub MCP", Tools: []string{"search_issues"}}},
 		},
 	}}
 	monitors := &registryMonitorStub{monitors: []models.MonitorResponse{
@@ -2758,8 +2761,12 @@ func TestGetAgentWithRegistry_FillsGovernancePerEnvironment(t *testing.T) {
 			LLMProviders:   []models.AgentRegistryResourceRef{{ID: "openai", DisplayName: "OpenAI"}},
 			MCPServers:     []models.AgentRegistryResourceRef{{ID: "github-mcp", DisplayName: "GitHub MCP", Tools: []string{"search_issues"}}},
 			Governance: &models.AgentRegistryGovernance{
-				AgentIDStatus:   string(models.AgentThunderStatusCompleted),
-				Guardrails:      []string{"pii-masking"},
+				AgentIDStatus: string(models.AgentThunderStatusCompleted),
+				LLMConfigurations: []models.AgentRegistryLLMConfiguration{{
+					Name:       "openai-main",
+					Provider:   models.AgentRegistryResourceRef{ID: "openai", DisplayName: "OpenAI"},
+					Guardrails: []string{"pii-masking"},
+				}},
 				Monitors:        []models.AgentRegistryMonitor{{Name: "quality", DisplayName: "Quality", Status: "Active"}},
 				InboundSecurity: models.AgentRegistryInboundSecurity{OAuth: true},
 				A2ASkills:       []models.AgentRegistryA2ASkill{{ID: "add-note", Name: "Add a note", Tags: []string{"notes"}}},
@@ -2771,8 +2778,8 @@ func TestGetAgentWithRegistry_FillsGovernancePerEnvironment(t *testing.T) {
 			LLMProviders:     []models.AgentRegistryResourceRef{},
 			MCPServers:       []models.AgentRegistryResourceRef{},
 			Governance: &models.AgentRegistryGovernance{
-				Guardrails: []string{},
-				Monitors:   []models.AgentRegistryMonitor{},
+				LLMConfigurations: []models.AgentRegistryLLMConfiguration{},
+				Monitors:          []models.AgentRegistryMonitor{},
 				// No stored config: the defaults GetAgent shows.
 				InboundSecurity: models.AgentRegistryInboundSecurity{APIKey: true},
 			},

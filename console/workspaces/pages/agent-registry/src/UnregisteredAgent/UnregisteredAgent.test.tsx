@@ -854,17 +854,10 @@ describe("OnboardFinding", () => {
       { projectName: "default", agentName: "support-bot" },
       expect.anything(),
     );
-    // Once linked, it asks whether the agent stays in the Unregistered Agents list.
-    expect(hoisted.addConfirmation).not.toHaveBeenCalled();
+    // Once linked, it asks nothing more: the registry lists it as registered now.
     act(() => hoisted.onboard.mock.calls[0][1].onSuccess());
-    const prompt = hoisted.addConfirmation.mock.calls[0][0];
-    expect(prompt.title).toBe("Remove Support Bot from Unregistered Agents?");
-    expect(prompt.description).toContain("onboarded as default / support-bot");
-    expect(prompt.confirmButtonText).toBe("Remove from list");
-    expect(prompt.cancelButtonText).toBe("Keep in list");
+    expect(hoisted.addConfirmation).not.toHaveBeenCalled();
     expect(hoisted.setHidden).not.toHaveBeenCalled();
-    prompt.onConfirm();
-    expect(hoisted.setHidden).toHaveBeenCalledWith(true);
   });
 
   it("refuses an invalid agent name before calling anything", () => {
@@ -896,19 +889,13 @@ describe("FindingDetail (listing and identifiers)", () => {
   const onboarded = (hidden: boolean) =>
     detail({ onboarded: true, linkedProject: "default", linkedAgent: "support-bot", hidden });
 
-  it("removes an onboarded agent from the list", () => {
-    hoisted.detail = onboarded(false);
-    renderDetail();
-    fireEvent.click(screen.getByRole("button", { name: "Remove from list" }));
-    expect(hoisted.setHidden).toHaveBeenCalledWith(true);
-  });
-
-  it("puts a removed agent back in the list, and says it was removed", () => {
+  it("has no list controls for an onboarded agent, which the registry lists as registered", () => {
     hoisted.detail = onboarded(true);
     renderDetail();
-    expect(screen.getByText(/Removed from the Unregistered Agents list/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Show in list" }));
-    expect(hoisted.setHidden).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole("button", { name: "Remove from list" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show in list" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Removed from the Unregistered Agents list/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open registered agent/ })).toBeInTheDocument();
   });
 
   it("shows long identifiers with a copy button, and Your inventory's labels", () => {

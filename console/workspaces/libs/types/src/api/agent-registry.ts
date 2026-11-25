@@ -59,6 +59,14 @@ export interface AgentRegistryMcpServerRef extends AgentRegistryResourceRef {
   tools: string[];
 }
 
+/** One of the agent's LLM configurations, as its Configure page lists them. */
+export interface AgentRegistryLLMConfiguration {
+  name: string;
+  provider: AgentRegistryResourceRef;
+  /** The guardrails that apply: those on the configuration and those on its provider. */
+  guardrails: string[];
+}
+
 /** An evaluation monitor on the agent in one environment (MonitorResponse). */
 export interface AgentRegistryMonitorRef {
   name: string;
@@ -88,8 +96,8 @@ export interface AgentRegistryEnvironment {
 export interface AgentRegistryEnvironmentDetail extends AgentRegistryEnvironment {
   /** The agent's AgentID in this environment; null when none was requested. */
   agentIdStatus: AgentThunderStatus | null;
-  /** Names of the guardrail policies on the agent's LLM provider config here. */
-  guardrails: string[];
+  /** The agent's LLM configurations here, each with its provider and guardrails. */
+  llmConfigurations: AgentRegistryLLMConfiguration[];
   mcpServers: AgentRegistryMcpServerRef[];
   monitors: AgentRegistryMonitorRef[];
   /** Who may call the agent here: the security on its endpoint (agent configurations). */
@@ -213,7 +221,7 @@ export interface AgentRegistryApiResourceRef extends AgentRegistryResourceRef {
 export interface AgentRegistryApiGovernance {
   /** Absent when no AgentID was requested here. */
   agentIdStatus?: AgentThunderStatus;
-  guardrails: string[];
+  llmConfigurations: AgentRegistryLLMConfiguration[];
   monitors: AgentRegistryMonitorRef[];
   inboundSecurity: { apiKey: boolean; oauth: boolean };
   /** Absent when no A2A card is stored here. */
