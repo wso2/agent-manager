@@ -27,9 +27,12 @@ import {
   GitBranch,
   Hammer,
 } from "@wso2/oxygen-ui-icons-react";
+import { globalConfig } from "@agent-management-platform/types";
 
-const DOCS_URL =
-  "https://wso2.com/agent-platform/docs/v1.0.0/concepts/agent-kind-and-catalog/";
+// On the configured docs site; without a docs site there is no link.
+const DOCS_URL = globalConfig.docsUrl
+  ? `${globalConfig.docsUrl.replace(/\/+$/, "")}/concepts/agent-kind-and-catalog/`
+  : undefined;
 const STEP_INTERVAL_MS = 3500;
 const SLIDE = "500ms cubic-bezier(0.65, 0, 0.35, 1)";
 const POP = "600ms cubic-bezier(0.34, 1.56, 0.64, 1)";
@@ -280,17 +283,19 @@ export const CatalogEmptyIntro: React.FC = () => {
           shows up here for everyone in the organization.
         </Typography>
 
-        <Button
-          variant="outlined"
-          size="small"
-          component="a"
-          href={DOCS_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          endIcon={<ExternalLink size={14} />}
-        >
-          How agent kinds work
-        </Button>
+        {DOCS_URL && (
+          <Button
+            variant="outlined"
+            size="small"
+            component="a"
+            href={DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            endIcon={<ExternalLink size={14} />}
+          >
+            How agent kinds work
+          </Button>
+        )}
       </Stack>
     </ListingTable.Container>
   );

@@ -85,14 +85,14 @@ const layerSx = (shown: boolean) =>
     [REDUCED]: { transition: "none", transform: "none", filter: "none" },
   }) as const;
 
-// Paths on the docs site (globalConfig.docsUrl), grouped as the user's next steps.
+// Paths on the docs site (globalConfig.docsUrl, e.g.
+// https://choreolabs.com/documentation/agent-management/cloud), grouped as the user's next steps.
 const EXPLORE = [
   {
     icon: <BookOpenText size={22} />,
     title: "Get Started",
     links: [
-      { label: `What is ${getProductName()}?`, path: "/get-started/what-is-amp/" },
-      { label: "Quick start", path: "/get-started/quick-start/" },
+      { label: `What is ${getProductName()}?`, path: "/" },
       { label: "Create your first agent", path: "/tutorials/create-your-first-agent/" },
     ],
   },
@@ -100,18 +100,34 @@ const EXPLORE = [
     icon: <Rocket size={22} />,
     title: "Connect and Deploy",
     links: [
-      { label: "Register an LLM service provider", path: "/guides/register-llm-service-provider/" },
-      { label: "Register an MCP proxy", path: "/guides/register-mcp-proxy/" },
-      { label: "Configure an agent's LLM", path: "/guides/configure-agent-llm-configuration/" },
+      {
+        label: "Register an LLM service provider",
+        path: "/guides/platform-administration/register-llm-service-provider/",
+      },
+      {
+        label: "Register an MCP proxy",
+        path: "/guides/platform-administration/register-mcp-proxy/",
+      },
+      {
+        label: "Configure an agent's LLM",
+        path: "/guides/platform-administration/configure-agent-llm-configuration/",
+      },
     ],
   },
   {
     icon: <ChartLine size={22} />,
     title: "Observe and Evaluate",
     links: [
-      { label: "Instrument your agent", path: "/guides/amp-instrumentation/" },
-      { label: "Evaluation monitors", path: "/guides/evaluation-monitors/" },
-      { label: "Guardrails and policies", path: "/concepts/guardrails-and-policies/" },
+      { label: "Observability", path: "/concepts/observability/" },
+      {
+        label: "Instrument your agent",
+        path: "/guides/platform-administration/amp-instrumentation/",
+      },
+      { label: "Evaluation", path: "/concepts/evaluation/" },
+      {
+        label: "Evaluation monitors",
+        path: "/guides/evaluation-and-observability/evaluation-monitors/",
+      },
     ],
   },
 ];
@@ -285,11 +301,10 @@ export function ProjectLanding({
                 Start here
               </Typography>
               <Typography variant="h3" component="h2" sx={{ fontWeight: 600 }}>
-                Build and run AI agents
+                Govern and manage agents
               </Typography>
               <Typography variant="body1" color="text.secondary">
-                Deploy an agent on the platform or register one you host elsewhere. Connect it to
-                models and tools, then trace and evaluate every run.
+                Secure, operate, and manage AI agents across any framework and any deployment.
               </Typography>
               {/* The types wrap as one group, so neither is left alone on a line. */}
               <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap gap={1.5}>
