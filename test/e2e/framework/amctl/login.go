@@ -22,9 +22,11 @@ import (
 
 // Login runs the real `amctl login` with the client_credentials grant, using
 // the same IDP client the HTTP suite uses. Scopes come from OIDC discovery.
+// --url requires a context name; without --url amctl would log in to WSO2 Cloud.
 func (h *Harness) Login(g Gomega) {
 	res := h.Run("login",
 		"--url", h.cfg.AMPBaseURL,
+		"--name", "e2e",
 		"--client-id", h.cfg.IDPClientID,
 		"--client-secret", h.cfg.IDPClientSecret,
 		"--json",

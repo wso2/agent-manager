@@ -137,7 +137,7 @@ var _ = Describe("amctl widget CRUD", Label("cli", "widget"), Ordered, func() {
   builds `./cmd/amctl` from the `cli/` module once per run.
 - **Isolation**: each Ginkgo process gets its own temp `$HOME`, so
   `~/.amctl/config` cannot collide.
-- **Auth**: real `amctl login --client-id <IDP_CLIENT_ID> --client-secret ...`
+- **Auth**: real `amctl login --url <AMP_BASE_URL> --name e2e --client-id <IDP_CLIENT_ID> --client-secret ...`
   using the same credentials as the HTTP stack. If a command 403s because OIDC
   discovery scopes are too narrow, surface it; do not work around it.
 - **Envelope**: every command appends `--json`. Success writes

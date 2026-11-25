@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
+	"github.com/wso2/agent-manager/cli/pkg/prompter"
 	"github.com/wso2/agent-manager/cli/pkg/render"
 	"github.com/wso2/agent-manager/cli/pkg/update"
 	"github.com/wso2/agent-manager/cli/pkg/version"
@@ -65,11 +66,15 @@ type LoginOptions struct {
 	AuthServer   string
 	OpenBrowser  func(string) error
 
-	// Cloud targets Agent Manager on WSO2 Cloud instead of URL; Getenv is consulted for
-	// the gateway override (see the cloud package).
+	// Cloud targets Agent Manager on WSO2 Cloud whatever the current context is; Getenv is
+	// consulted for the gateway override (see the cloud package).
 	Cloud    bool
 	Getenv   func(string) string
 	Resource string
+	// Region picks the WSO2 Cloud production region; empty means the stored cloud context's, or
+	// ask via Selector when the terminal can prompt, else the US.
+	Region   string
+	Selector prompter.Selector
 	// HTTPClient checks for a newer amctl release on cloud logins.
 	HTTPClient func() *http.Client
 }
@@ -82,22 +87,41 @@ func NewLoginCmd(f *cmdutil.Factory) *cobra.Command {
 		AgentManager: f.AgentManager,
 		Getenv:       os.Getenv,
 		HTTPClient:   f.HTTPClient,
+		Selector:     prompter.NewSelector(f.IOStreams.In, f.IOStreams.ErrOut),
 	}
 
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "Login to an instance",
+		Long: fmt.Sprintf(`Login to Agent Manager.
+
+Without flags, signs in again to the current context, or on first use logs in to
+Agent Manager on WSO2 Cloud. --cloud always logs in to WSO2 Cloud. Cloud logins are
+saved as the '%[1]s' context.
+
+The first cloud login asks which production region to use (--region picks it without
+asking, and changes it later); signing in again keeps the region. Without a terminal
+to ask on, it is the US. $%[2]s overrides the gateway, e.g. for dev or stage.
+
+To log in to another instance, pass --url with a --name for the context; sign in
+to it again later with --name alone.`, cloud.InstanceName, cloud.GatewayURLEnv),
+		Example: `  amctl login
+  amctl login --cloud
+  amctl login --region eu
+  amctl login --url https://amp.example.com --name work
+  amctl login --name work`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLogin(cmd.Context(), opts)
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.URL, "url", "", "Agent Manager instance URL (omit to sign in again to a stored instance)")
-	cmd.Flags().StringVar(&opts.Name, "name", "", "Agent Manager instance name (default: the current instance without --url, \"default\" with it)")
+	cmd.Flags().StringVar(&opts.URL, "url", "", "Agent Manager instance URL; requires --name (omit to sign in again to a stored context)")
+	cmd.Flags().StringVar(&opts.Name, "name", "", "Context to save the instance as, or the stored context to sign in to again (default: the current context)")
 	cmd.Flags().StringVar(&opts.ClientID, "client-id", "", "OAuth client ID (default \"amctl\" for interactive login)")
 	cmd.Flags().StringVar(&opts.ClientSecret, "client-secret", "", "OAuth client secret; when set, uses client_credentials grant instead of browser login")
 	cmd.Flags().StringVar(&opts.AuthServer, "auth-server", "", "Authorization server base URL; skips OAuth metadata discovery")
-	cmd.Flags().BoolVar(&opts.Cloud, "cloud", false, fmt.Sprintf("Log in to Agent Manager on WSO2 Cloud (production, or the gateway in $%s)", cloud.GatewayURLEnv))
+	cmd.Flags().BoolVar(&opts.Cloud, "cloud", false, fmt.Sprintf("Log in to Agent Manager on WSO2 Cloud as the %q context", cloud.InstanceName))
+	cmd.Flags().StringVar(&opts.Region, "region", "", fmt.Sprintf("WSO2 Cloud region to log in to: %s (implies --cloud)", cloud.RegionNames()))
 
 	return cmd
 }
@@ -106,27 +130,51 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 	if opts.ClientSecret != "" && opts.ClientID == "" {
 		return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--client-id is required when --client-secret is set"))
 	}
-	if !opts.Cloud && cloud.IsAPIURL(opts.URL) {
-		return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("%s", cloud.LoginHint(opts.URL, update.ReleasesPageURL)))
+	if opts.Region != "" {
+		if _, ok := cloud.RegionByName(opts.Region); !ok {
+			return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("unknown --region %q: use one of %s", opts.Region, cloud.RegionNames()))
+		}
+		opts.Cloud = true
 	}
 	if opts.Cloud {
 		if opts.URL != "" {
-			return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--url cannot be used with --cloud"))
+			return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--url cannot be used with --cloud or --region"))
 		}
-		opts.URL = cloud.APIURL(opts.Getenv)
-		opts.Resource = cloud.Resource
+		if opts.Name != "" && opts.Name != cloud.InstanceName {
+			return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--name cannot be used with --cloud or --region: WSO2 Cloud is always saved as '%s'", cloud.InstanceName))
+		}
+	}
+	if opts.URL != "" {
+		if cloud.IsAPIURL(opts.URL) {
+			return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("%s", cloud.LoginHint(opts.URL, update.ReleasesPageURL)))
+		}
+		if opts.Name == "" {
+			return render.Error(opts.IO, render.Scope{}, cmdutil.FlagErrorf("--name is required with --url: the context to save this instance as"))
+		}
+		if opts.Name == cloud.InstanceName {
+			return render.Error(opts.IO, render.Scope{Instance: opts.Name}, cmdutil.FlagErrorf("context name '%s' is reserved for WSO2 Cloud; pick another --name", cloud.InstanceName))
+		}
 	}
 	cfg, err := opts.Config()
 	if err != nil {
 		return render.Error(opts.IO, render.Scope{Instance: opts.Name}, clierr.Newf(clierr.ConfigNotLoaded, "%v", err))
 	}
+	// A bare login on a self-hosted context stays there; tell the user how to reach cloud instead.
+	cloudTip := false
 	if opts.URL == "" {
-		if err := fillFromStoredInstance(opts, cfg); err != nil {
+		if !opts.Cloud && opts.Name == "" {
+			if cur, ok := cfg.Instances[cfg.CurrentInstance]; ok && cfg.CurrentInstance != cloud.InstanceName {
+				opts.Name = cfg.CurrentInstance
+				cloudTip = !cloud.IsAPIURL(cur.URL)
+			}
+		}
+		if opts.Cloud || opts.Name == "" || opts.Name == cloud.InstanceName {
+			if err := fillCloud(opts, cfg); err != nil {
+				return render.Error(opts.IO, render.Scope{Instance: cloud.InstanceName}, err)
+			}
+		} else if err := fillFromStoredInstance(opts, cfg); err != nil {
 			return render.Error(opts.IO, render.Scope{Instance: opts.Name}, err)
 		}
-	}
-	if opts.Name == "" {
-		opts.Name = "default"
 	}
 	scope := render.Scope{Instance: opts.Name}
 	outdated := startUpdateCheck(ctx, opts)
@@ -204,27 +252,76 @@ func runLogin(ctx context.Context, opts *LoginOptions) error {
 	if cleared > 0 {
 		fmt.Fprintf(opts.IO.ErrOut, "%s Cleared %d linked project(s). Run 'amctl link' to re-link.\n", cs.SuccessIcon(), cleared)
 	}
+	if cloudTip {
+		fmt.Fprintf(opts.IO.ErrOut, "To log in to Agent Manager on WSO2 Cloud instead, run 'amctl login --cloud'.\n")
+	}
 	return nil
 }
 
-// fillFromStoredInstance re-logs into a known instance (default: the current one) with its stored URL and client.
-func fillFromStoredInstance(opts *LoginOptions, cfg *config.Config) error {
-	if opts.Name == "" {
-		opts.Name = cfg.CurrentInstance
+// fillCloud points a login at WSO2 Cloud, saved as the cloud context. A stored cloud
+// login on the same gateway keeps its client, so a client_credentials login stays one on re-login.
+func fillCloud(opts *LoginOptions, cfg *config.Config) error {
+	stored, hasStored := cfg.Instances[cloud.InstanceName]
+	url, err := cloudAPIURL(opts, stored, hasStored)
+	if err != nil {
+		return err
 	}
+	opts.Name = cloud.InstanceName
+	opts.URL = url
+	opts.Resource = cloud.Resource
+	if hasStored && stored.URL == opts.URL {
+		reuseStoredClient(opts, stored)
+	}
+	return nil
+}
+
+// cloudAPIURL picks the cloud API URL: --region, then the AMCTL_CLOUD_URL gateway, then the stored
+// cloud context's region, then the user's choice when the terminal can ask, else the US.
+func cloudAPIURL(opts *LoginOptions, stored config.Instance, hasStored bool) (string, error) {
+	if opts.Region != "" {
+		r, _ := cloud.RegionByName(opts.Region)
+		return r.APIURL(), nil
+	}
+	if cloud.GatewayOverride(opts.Getenv) != "" {
+		return cloud.APIURL(opts.Getenv), nil
+	}
+	if hasStored {
+		if r, ok := cloud.RegionOfAPIURL(stored.URL); ok {
+			return r.APIURL(), nil
+		}
+	}
+	if opts.Selector == nil || opts.IO.JSON || !opts.IO.CanPrompt() {
+		return cloud.Regions[0].APIURL(), nil
+	}
+	labels := make([]string, len(cloud.Regions))
+	for i, r := range cloud.Regions {
+		labels[i] = fmt.Sprintf("%s (--region %s)", r.Label, r.Name)
+	}
+	i, err := opts.Selector.Select("Which WSO2 Cloud region do you want to log in to?", labels, 0)
+	if err != nil {
+		return "", cmdutil.FlagErrorf("choose a region: %v; or pass --region %s", err, cloud.RegionNames())
+	}
+	return cloud.Regions[i].APIURL(), nil
+}
+
+// fillFromStoredInstance re-logs into the named instance with its stored URL and client.
+func fillFromStoredInstance(opts *LoginOptions, cfg *config.Config) error {
 	stored, ok := cfg.Instances[opts.Name]
 	if !ok || stored.URL == "" {
-		if opts.Name == "" {
-			return cmdutil.FlagErrorf("--url or --cloud is required for the first login")
-		}
 		return cmdutil.FlagErrorf("--url is required to log in to new instance '%s'", opts.Name)
 	}
 	opts.URL = stored.URL
+	if opts.Resource == "" {
+		opts.Resource = cloud.UpdateResource(stored.Auth.Resource)
+	}
+	reuseStoredClient(opts, stored)
+	return nil
+}
+
+// reuseStoredClient fills the auth server and client the user did not pass from a stored instance.
+func reuseStoredClient(opts *LoginOptions, stored config.Instance) {
 	if opts.AuthServer == "" {
 		opts.AuthServer = stored.AuthServer
-	}
-	if opts.Resource == "" {
-		opts.Resource = stored.Auth.Resource
 	}
 	if opts.ClientID == "" {
 		opts.ClientID = stored.Auth.ClientID
@@ -232,7 +329,6 @@ func fillFromStoredInstance(opts *LoginOptions, cfg *config.Config) error {
 			opts.ClientSecret = stored.Auth.ClientSecret
 		}
 	}
-	return nil
 }
 
 // startUpdateCheck looks for a newer amctl in the background so it never delays login.
