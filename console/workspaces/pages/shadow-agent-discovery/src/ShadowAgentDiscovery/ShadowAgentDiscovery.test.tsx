@@ -759,11 +759,26 @@ describe("ScansTab", () => {
   it("opens the unregistered agents in the agent registry, even without the manage permission", () => {
     hoisted.scans = [scan()];
     router(<ScansTab orgName="acme" canManage={false} />);
+    expect(screen.queryByRole("button", { name: "Upload results" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear scans" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "View unregistered agents" }));
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/organizations/acme/agent-registry?registration=unregistered",
     );
+  });
+
+  it("puts its actions in the slot the page gives, and no search above the table", () => {
+    hoisted.scans = [scan()];
+    const slot = document.createElement("div");
+    document.body.appendChild(slot);
+    router(<ScansTab orgName="acme" canManage actionsSlot={slot} />);
+    const inSlot = within(slot);
+    expect(inSlot.getByRole("button", { name: "View unregistered agents" })).toBeInTheDocument();
+    expect(inSlot.getByRole("button", { name: "Upload results" })).toBeInTheDocument();
+    expect(inSlot.getByRole("button", { name: "Clear scans" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Upload results" })).toHaveLength(1);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    slot.remove();
   });
 
   it("clears the finished scans after saying the agents are kept", () => {

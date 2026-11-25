@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { useState } from "react";
 import { Box, Divider, ListingTable, Skeleton, Stack, Tab, Tabs } from "@wso2/oxygen-ui";
 import { Lock } from "@wso2/oxygen-ui-icons-react";
 import {
@@ -60,6 +61,7 @@ function ShadowOverview({
   const requested = searchParams.get("tab") as ShadowTab | null;
   const tab: ShadowTab = requested && TABS.includes(requested) ? requested : "overview";
   const setTab = (t: ShadowTab) => setSearchParams({ tab: t }, { replace: true });
+  const [tabActions, setTabActions] = useState<HTMLElement | null>(null);
   const openAgents = (provider?: string) =>
     navigate(unregisteredAgentsPath(orgName ?? "", provider));
   const newConnection = () =>
@@ -83,16 +85,21 @@ function ShadowOverview({
       <ListingTable.Container>
         <Stack spacing={2.5}>
           <Box>
-            <Tabs
-              value={tab}
-              onChange={(_, v: ShadowTab) => setTab(v)}
-              variant="scrollable"
-              allowScrollButtonsMobile
-            >
-              <Tab value="overview" label="Overview" />
-              <Tab value="scans" label="Scans" />
-              <Tab value="platforms" label="Platforms" />
-            </Tabs>
+            <Stack direction="row" alignItems="center" spacing={2} sx={{ pr: 2 }}>
+              <Tabs
+                value={tab}
+                onChange={(_, v: ShadowTab) => setTab(v)}
+                variant="scrollable"
+                allowScrollButtonsMobile
+                sx={{ flex: 1, minWidth: 0 }}
+              >
+                <Tab value="overview" label="Overview" />
+                <Tab value="scans" label="Scans" />
+                <Tab value="platforms" label="Platforms" />
+              </Tabs>
+              {/* The open tab's actions, in line with the tabs (the Scans tab fills it). */}
+              <Box ref={setTabActions} sx={{ flexShrink: 0 }} />
+            </Stack>
             <Divider />
           </Box>
           <Box sx={{ px: 2, pb: 2 }}>
@@ -106,7 +113,9 @@ function ShadowOverview({
                 onOpenAgents={openAgents}
               />
             )}
-            {tab === "scans" && <ScansTab orgName={orgName} canManage={canManage} />}
+            {tab === "scans" && (
+              <ScansTab orgName={orgName} canManage={canManage} actionsSlot={tabActions} />
+            )}
             {tab === "platforms" && (
               <ConnectionsTab
                 orgName={orgName}

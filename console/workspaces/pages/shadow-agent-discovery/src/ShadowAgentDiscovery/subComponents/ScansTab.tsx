@@ -17,6 +17,7 @@
  */
 
 import { useId, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Box,
   Button,
@@ -329,9 +330,12 @@ function scannedLabel(s: ShadowScanResponse): string {
 export function ScansTab({
   orgName,
   canManage,
+  actionsSlot,
 }: {
   orgName: string | undefined;
   canManage: boolean;
+  /** Where the tab's actions go (the page's tab row); without it they sit above the table. */
+  actionsSlot?: HTMLElement | null;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -372,11 +376,14 @@ export function ScansTab({
       },
     });
 
-  const toolbar = (
-    <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ width: "100%" }}>
+  // Small actions; Clear scans is quiet (its dialog carries the warning). They sit in the
+  // page's tab row when the page gives a slot for them, else above the table.
+  const actions = (
+    <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
       {/* The agents the scans found are listed in the agent registry. */}
       <Button
-        variant="outlined"
+        variant="text"
+        size="small"
         startIcon={<Library size={16} />}
         onClick={() => navigate(unregisteredAgentsPath(orgName ?? ""))}
       >
@@ -386,17 +393,19 @@ export function ScansTab({
         <>
           <Button
             variant="outlined"
+            size="small"
             startIcon={<Upload size={16} />}
             onClick={() => setUpload({ scan: null })}
           >
             Upload results
           </Button>
           <Button
-            variant="outlined"
-            color="error"
+            variant="text"
+            size="small"
             startIcon={<Trash2 size={16} />}
             disabled={finished === 0 || clear.isPending}
             onClick={handleClear}
+            sx={{ color: "text.secondary" }}
           >
             Clear scans
           </Button>
@@ -404,9 +413,12 @@ export function ScansTab({
       )}
     </Stack>
   );
+  // Not undefined when the actions are in the slot: the list shell would show its search bar.
+  const toolbar = actionsSlot ? <></> : actions;
 
   return (
     <>
+      {actionsSlot && createPortal(actions, actionsSlot)}
       <ResourceListShell
         resourceName="shadow-agent-scans"
         disablePaper
