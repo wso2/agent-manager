@@ -41,6 +41,12 @@ export interface ExternalNavItem extends ExternalModuleCore {
   route: string;
   moduleName: string;
   level: 'project' | 'org' | 'component';
+  /**
+   * Route per level, for a page that exists at more than one. Overrides
+   * `level` + `route`. The item shows at every level either way; at a level
+   * without a route, the console asks for the project/agent or points upwards.
+   */
+  levels?: Partial<Record<'project' | 'org' | 'component', string>>;
   kind: 'nav-item';
 }
 

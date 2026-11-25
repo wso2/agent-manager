@@ -3,9 +3,18 @@ import { useMemo } from "react";
 import { useMatch } from "react-router-dom";
 import { absoluteRouteMap, relativeRouteMap } from "@agent-management-platform/types";
 
+// The menu's level gate (`go/:navKey`) is one page: keep its key, so switching
+// project or agent keeps the same gate open instead of landing on `go`.
+const LEVEL_GATE_SEGMENT = relativeRouteMap.children.org.children.levelGate.path.split("/")[0];
+
 export function usePagePath(path: string) {
     const match = useMatch(path + "/:page/*");
-    return { page: match?.params.page ?? null };
+    const page = match?.params.page ?? null;
+    const navKey = match?.params["*"]?.split("/")[0];
+    if (page === LEVEL_GATE_SEGMENT) {
+        return { page: navKey ? `${page}/${navKey}` : null };
+    }
+    return { page };
 }
 
 export function useActiveOrgPage() {

@@ -104,6 +104,7 @@ import {
   usePageViewTracking,
 } from "@agent-management-platform/api-client";
 import { MountPoints } from "../types";
+import { AgentPageGuard, LevelGate } from "../pages/LevelGate/LevelGate";
 
 // Back-compat redirect: routes moved from /org/:orgId/project/:projectId/* to
 // /organizations/:orgId/projects/:projectId/*. Keeps the sub-path, query and
@@ -300,6 +301,10 @@ export function RootRouter() {
           >
             <Route index element={<LazyOverviewOrg />} />
             <Route
+              path={relativeRouteMap.children.org.children.levelGate.path}
+              element={<LevelGate />}
+            />
+            <Route
               path={relativeRouteMap.children.org.children.projectListing.path}
               element={
                 <Suspense fallback={<LoadingFallback />}>
@@ -451,6 +456,13 @@ export function RootRouter() {
               <Route
                 path={
                   relativeRouteMap.children.org.children.projects.children
+                    .levelGate.path
+                }
+                element={<LevelGate />}
+              />
+              <Route
+                path={
+                  relativeRouteMap.children.org.children.projects.children
                     .agentListing.path
                 }
                 element={
@@ -522,6 +534,13 @@ export function RootRouter() {
                 element={<AgentGuard />}
               >
                 <Route index element={<LazyOverviewComponent />} />
+                <Route
+                  path={
+                    relativeRouteMap.children.org.children.projects.children
+                      .agents.children.levelGate.path
+                  }
+                  element={<LevelGate />}
+                />
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
@@ -655,14 +674,22 @@ export function RootRouter() {
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.build.path
                   }
-                  element={<LazyBuildComponent />}
+                  element={
+                    <AgentPageGuard navKey="build">
+                      <LazyBuildComponent />
+                    </AgentPageGuard>
+                  }
                 />
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.deployment.path
                   }
-                  element={<LazyDeploymentComponent />}
+                  element={
+                    <AgentPageGuard navKey="deploy">
+                      <LazyDeploymentComponent />
+                    </AgentPageGuard>
+                  }
                 />
                 <Route
                   path={
@@ -672,14 +699,22 @@ export function RootRouter() {
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.environment.children.security.path
                   }
-                  element={<SecurityRouteElement />}
+                  element={
+                    <AgentPageGuard navKey="credentials">
+                      <SecurityRouteElement />
+                    </AgentPageGuard>
+                  }
                 />
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.publish.path + "/*"
                   }
-                  element={<LazyPublishOrg />}
+                  element={
+                    <AgentPageGuard navKey="publish">
+                      <LazyPublishOrg />
+                    </AgentPageGuard>
+                  }
                 />
                 <Route
                   path={
@@ -703,7 +738,11 @@ export function RootRouter() {
                       relativeRouteMap.children.org.children.projects.children
                         .agents.children.environment.children.tryOut.path + "/*"
                     }
-                    element={<LazyTestComponent />}
+                    element={
+                    <AgentPageGuard navKey="try-it">
+                      <LazyTestComponent />
+                    </AgentPageGuard>
+                  }
                   />
                   <Route
                     path={
@@ -727,7 +766,11 @@ export function RootRouter() {
                         .agents.children.environment.children.observability
                         .children.logs.path
                     }
-                    element={<LazyLogsComponent />}
+                    element={
+                    <AgentPageGuard navKey="runtime-logs">
+                      <LazyLogsComponent />
+                    </AgentPageGuard>
+                  }
                   />
                   <Route
                     path={
@@ -739,7 +782,11 @@ export function RootRouter() {
                         .agents.children.environment.children.observability
                         .children.metrics.path
                     }
-                    element={<LazyMetricsComponent />}
+                    element={
+                    <AgentPageGuard navKey="system-metrics">
+                      <LazyMetricsComponent />
+                    </AgentPageGuard>
+                  }
                   />
                   <Route
                     path={monitorBase}
