@@ -35,10 +35,14 @@ import type {
 import {
   createMCPProxy,
   deleteMCPProxy,
+  documentFromProxy,
   fetchMCPProxyServerInfo,
   getMCPProxy,
   getProjectMCPProxy,
   listMCPProxies,
+  proxyFromDocument,
+  proxyListFromDocuments,
+  updateDocumentFromProxy,
   updateMCPProxy,
 } from "../apis/mcp-proxies";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
@@ -52,7 +56,7 @@ export function useListMCPProxies(
   const { getToken } = useAuthHooks();
   return useApiQuery<MCPProxyListResponse>({
     queryKey: ["mcp-proxies", params, query],
-    queryFn: () => listMCPProxies(params, query, getToken),
+    queryFn: () => listMCPProxies(params, query, getToken).then(proxyListFromDocuments),
     enabled: gatewayPresent && !!params.orgName,
   });
 }
@@ -66,7 +70,8 @@ export function useCreateMCPProxy() {
     { params: CreateMCPProxyPathParams; body: MCPProxy }
   >({
     action: { verb: "create", target: "mcp server" },
-    mutationFn: ({ params, body }) => createMCPProxy(params, body, getToken),
+    mutationFn: ({ params, body }) =>
+      createMCPProxy(params, documentFromProxy(body), getToken).then(proxyFromDocument),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
     },
@@ -78,7 +83,7 @@ export function useGetMCPProxy(params: GetMCPProxyPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<MCPProxy>({
     queryKey: ["mcp-proxy", params],
-    queryFn: () => getMCPProxy(params, getToken),
+    queryFn: () => getMCPProxy(params, getToken).then(proxyFromDocument),
     enabled: gatewayPresent && !!params.orgName && !!params.proxyId,
   });
 }
@@ -103,7 +108,9 @@ export function useUpdateMCPProxy() {
     { params: UpdateMCPProxyPathParams; body: MCPProxy }
   >({
     action: { verb: "update", target: "mcp server" },
-    mutationFn: ({ params, body }) => updateMCPProxy(params, body, getToken),
+    mutationFn: ({ params, body }) =>
+      updateMCPProxy(params, updateDocumentFromProxy(params.proxyId, body), getToken)
+        .then(proxyFromDocument),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp-proxies"] });
       queryClient.invalidateQueries({ queryKey: ["mcp-proxy"] });

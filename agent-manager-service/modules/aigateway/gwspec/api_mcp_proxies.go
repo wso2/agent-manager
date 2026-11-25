@@ -23,47 +23,44 @@ import (
 type MCPProxiesAPIService service
 
 type ApiCreateMCPProxyRequest struct {
-	ctx             context.Context
-	ApiService      *MCPProxiesAPIService
-	orgName         string
-	mCPProxyRequest *MCPProxyRequest
+	ctx              context.Context
+	ApiService       *MCPProxiesAPIService
+	mcpProxyDocument *McpProxyDocument
 }
 
-func (r ApiCreateMCPProxyRequest) MCPProxyRequest(mCPProxyRequest MCPProxyRequest) ApiCreateMCPProxyRequest {
-	r.mCPProxyRequest = &mCPProxyRequest
+func (r ApiCreateMCPProxyRequest) McpProxyDocument(mcpProxyDocument McpProxyDocument) ApiCreateMCPProxyRequest {
+	r.mcpProxyDocument = &mcpProxyDocument
 	return r
 }
 
-func (r ApiCreateMCPProxyRequest) Execute() (*MCPProxyResponse, *http.Response, error) {
+func (r ApiCreateMCPProxyRequest) Execute() (*McpProxyDocument, *http.Response, error) {
 	return r.ApiService.CreateMCPProxyExecute(r)
 }
 
 /*
 CreateMCPProxy Create an MCP proxy
 
-Creates an MCP proxy and optionally deploys it to selected gateways.
+Creates an MCP proxy and optionally deploys its endpoints to the environments they declare.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiCreateMCPProxyRequest
 */
-func (a *MCPProxiesAPIService) CreateMCPProxy(ctx context.Context, orgName string) ApiCreateMCPProxyRequest {
+func (a *MCPProxiesAPIService) CreateMCPProxy(ctx context.Context) ApiCreateMCPProxyRequest {
 	return ApiCreateMCPProxyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return MCPProxyResponse
-func (a *MCPProxiesAPIService) CreateMCPProxyExecute(r ApiCreateMCPProxyRequest) (*MCPProxyResponse, *http.Response, error) {
+//	@return McpProxyDocument
+func (a *MCPProxiesAPIService) CreateMCPProxyExecute(r ApiCreateMCPProxyRequest) (*McpProxyDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *MCPProxyResponse
+		localVarReturnValue *McpProxyDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "MCPProxiesAPIService.CreateMCPProxy")
@@ -71,14 +68,13 @@ func (a *MCPProxiesAPIService) CreateMCPProxyExecute(r ApiCreateMCPProxyRequest)
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/mcp-proxies"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/mcp-proxies"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.mCPProxyRequest == nil {
-		return localVarReturnValue, nil, reportError("mCPProxyRequest is required and must be specified")
+	if r.mcpProxyDocument == nil {
+		return localVarReturnValue, nil, reportError("mcpProxyDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -99,7 +95,7 @@ func (a *MCPProxiesAPIService) CreateMCPProxyExecute(r ApiCreateMCPProxyRequest)
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.mCPProxyRequest
+	localVarPostBody = r.mcpProxyDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -183,7 +179,6 @@ func (a *MCPProxiesAPIService) CreateMCPProxyExecute(r ApiCreateMCPProxyRequest)
 type ApiDeleteMCPProxyRequest struct {
 	ctx        context.Context
 	ApiService *MCPProxiesAPIService
-	orgName    string
 	proxyId    string
 }
 
@@ -197,15 +192,13 @@ DeleteMCPProxy Delete MCP proxy
 Deletes an MCP proxy if no agent mappings still reference it. A project proxy is refused with 409 PROJECT_OWNED while its project exists; once the project is gone (looked up by the project name stored on the proxy), this route deletes it with the same teardown.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param proxyId MCP proxy UUID or handle
 	@return ApiDeleteMCPProxyRequest
 */
-func (a *MCPProxiesAPIService) DeleteMCPProxy(ctx context.Context, orgName string, proxyId string) ApiDeleteMCPProxyRequest {
+func (a *MCPProxiesAPIService) DeleteMCPProxy(ctx context.Context, proxyId string) ApiDeleteMCPProxyRequest {
 	return ApiDeleteMCPProxyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		proxyId:    proxyId,
 	}
 }
@@ -223,8 +216,7 @@ func (a *MCPProxiesAPIService) DeleteMCPProxyExecute(r ApiDeleteMCPProxyRequest)
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/mcp-proxies/{proxyId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/mcp-proxies/{proxyId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"proxyId"+"}", url.PathEscape(parameterValueToString(r.proxyId, "proxyId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -333,7 +325,6 @@ func (a *MCPProxiesAPIService) DeleteMCPProxyExecute(r ApiDeleteMCPProxyRequest)
 type ApiFetchMCPProxyServerInfoRequest struct {
 	ctx                       context.Context
 	ApiService                *MCPProxiesAPIService
-	orgName                   string
 	mCPServerInfoFetchRequest *MCPServerInfoFetchRequest
 }
 
@@ -352,14 +343,12 @@ FetchMCPProxyServerInfo Fetch MCP server information
 Connects to an MCP server and returns discovered server metadata and capabilities.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiFetchMCPProxyServerInfoRequest
 */
-func (a *MCPProxiesAPIService) FetchMCPProxyServerInfo(ctx context.Context, orgName string) ApiFetchMCPProxyServerInfoRequest {
+func (a *MCPProxiesAPIService) FetchMCPProxyServerInfo(ctx context.Context) ApiFetchMCPProxyServerInfoRequest {
 	return ApiFetchMCPProxyServerInfoRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -379,8 +368,7 @@ func (a *MCPProxiesAPIService) FetchMCPProxyServerInfoExecute(r ApiFetchMCPProxy
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/mcp-proxies/fetch-server-info"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/mcp-proxies/fetch-server-info"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -491,42 +479,39 @@ func (a *MCPProxiesAPIService) FetchMCPProxyServerInfoExecute(r ApiFetchMCPProxy
 type ApiGetMCPProxyRequest struct {
 	ctx        context.Context
 	ApiService *MCPProxiesAPIService
-	orgName    string
 	proxyId    string
 }
 
-func (r ApiGetMCPProxyRequest) Execute() (*MCPProxyResponse, *http.Response, error) {
+func (r ApiGetMCPProxyRequest) Execute() (*McpProxyDocument, *http.Response, error) {
 	return r.ApiService.GetMCPProxyExecute(r)
 }
 
 /*
 GetMCPProxy Get MCP proxy details
 
-Retrieve detailed information about an MCP proxy. Also returns a project's proxy (read only), with projectName set and no endpoints; its per-environment data (security, deployment status) is on GET /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}.
+Retrieve detailed information about an MCP proxy. Also returns a project's proxy (read only), with spec.projectName set and no endpoints; its per-environment data (security, deployment status) is on the project's own route.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param proxyId MCP proxy UUID or handle
 	@return ApiGetMCPProxyRequest
 */
-func (a *MCPProxiesAPIService) GetMCPProxy(ctx context.Context, orgName string, proxyId string) ApiGetMCPProxyRequest {
+func (a *MCPProxiesAPIService) GetMCPProxy(ctx context.Context, proxyId string) ApiGetMCPProxyRequest {
 	return ApiGetMCPProxyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		proxyId:    proxyId,
 	}
 }
 
 // Execute executes the request
 //
-//	@return MCPProxyResponse
-func (a *MCPProxiesAPIService) GetMCPProxyExecute(r ApiGetMCPProxyRequest) (*MCPProxyResponse, *http.Response, error) {
+//	@return McpProxyDocument
+func (a *MCPProxiesAPIService) GetMCPProxyExecute(r ApiGetMCPProxyRequest) (*McpProxyDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *MCPProxyResponse
+		localVarReturnValue *McpProxyDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "MCPProxiesAPIService.GetMCPProxy")
@@ -534,8 +519,7 @@ func (a *MCPProxiesAPIService) GetMCPProxyExecute(r ApiGetMCPProxyRequest) (*MCP
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/mcp-proxies/{proxyId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/mcp-proxies/{proxyId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"proxyId"+"}", url.PathEscape(parameterValueToString(r.proxyId, "proxyId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -642,7 +626,6 @@ func (a *MCPProxiesAPIService) GetMCPProxyExecute(r ApiGetMCPProxyRequest) (*MCP
 type ApiListAvailableMCPPoliciesRequest struct {
 	ctx        context.Context
 	ApiService *MCPProxiesAPIService
-	orgName    string
 }
 
 func (r ApiListAvailableMCPPoliciesRequest) Execute() (*MCPPolicyAvailabilityResponse, *http.Response, error) {
@@ -655,14 +638,12 @@ ListAvailableMCPPolicies List available MCP policies
 Returns MCP policy names and versions reported by active gateways.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiListAvailableMCPPoliciesRequest
 */
-func (a *MCPProxiesAPIService) ListAvailableMCPPolicies(ctx context.Context, orgName string) ApiListAvailableMCPPoliciesRequest {
+func (a *MCPProxiesAPIService) ListAvailableMCPPolicies(ctx context.Context) ApiListAvailableMCPPoliciesRequest {
 	return ApiListAvailableMCPPoliciesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -682,8 +663,7 @@ func (a *MCPProxiesAPIService) ListAvailableMCPPoliciesExecute(r ApiListAvailabl
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/mcp-proxies/policies"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/mcp-proxies/policies"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -767,7 +747,6 @@ func (a *MCPProxiesAPIService) ListAvailableMCPPoliciesExecute(r ApiListAvailabl
 type ApiListMCPProxiesRequest struct {
 	ctx        context.Context
 	ApiService *MCPProxiesAPIService
-	orgName    string
 	project    *string
 	limit      *int32
 	offset     *int32
@@ -800,15 +779,15 @@ ListMCPProxies List MCP proxies
 
 Retrieve a paginated list of MCP proxies in an organization.
 
+Each item is an McpProxy document, populated for list use: every required field is present, but heavy optional blocks - spec.endpoints above all - are omitted. A list item is a valid document, not necessarily a complete one; read the item itself for the full spec.
+
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiListMCPProxiesRequest
 */
-func (a *MCPProxiesAPIService) ListMCPProxies(ctx context.Context, orgName string) ApiListMCPProxiesRequest {
+func (a *MCPProxiesAPIService) ListMCPProxies(ctx context.Context) ApiListMCPProxiesRequest {
 	return ApiListMCPProxiesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -828,8 +807,7 @@ func (a *MCPProxiesAPIService) ListMCPProxiesExecute(r ApiListMCPProxiesRequest)
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/mcp-proxies"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/mcp-proxies"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -942,50 +920,47 @@ func (a *MCPProxiesAPIService) ListMCPProxiesExecute(r ApiListMCPProxiesRequest)
 }
 
 type ApiUpdateMCPProxyRequest struct {
-	ctx             context.Context
-	ApiService      *MCPProxiesAPIService
-	orgName         string
-	proxyId         string
-	mCPProxyRequest *MCPProxyRequest
+	ctx              context.Context
+	ApiService       *MCPProxiesAPIService
+	proxyId          string
+	mcpProxyDocument *McpProxyDocument
 }
 
-func (r ApiUpdateMCPProxyRequest) MCPProxyRequest(mCPProxyRequest MCPProxyRequest) ApiUpdateMCPProxyRequest {
-	r.mCPProxyRequest = &mCPProxyRequest
+func (r ApiUpdateMCPProxyRequest) McpProxyDocument(mcpProxyDocument McpProxyDocument) ApiUpdateMCPProxyRequest {
+	r.mcpProxyDocument = &mcpProxyDocument
 	return r
 }
 
-func (r ApiUpdateMCPProxyRequest) Execute() (*MCPProxyResponse, *http.Response, error) {
+func (r ApiUpdateMCPProxyRequest) Execute() (*McpProxyDocument, *http.Response, error) {
 	return r.ApiService.UpdateMCPProxyExecute(r)
 }
 
 /*
 UpdateMCPProxy Update MCP proxy
 
-Updates an MCP proxy and redeploys dependent MCP mapping artifacts.
+Updates an MCP proxy and redeploys dependent MCP mapping artifacts. metadata.name must name the proxy in the path. The spec replaces the stored one, so it must carry every field to keep, including at least one endpoint; an endpoint's upstream credentials are the exception and survive being omitted.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param proxyId MCP proxy UUID or handle
 	@return ApiUpdateMCPProxyRequest
 */
-func (a *MCPProxiesAPIService) UpdateMCPProxy(ctx context.Context, orgName string, proxyId string) ApiUpdateMCPProxyRequest {
+func (a *MCPProxiesAPIService) UpdateMCPProxy(ctx context.Context, proxyId string) ApiUpdateMCPProxyRequest {
 	return ApiUpdateMCPProxyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		proxyId:    proxyId,
 	}
 }
 
 // Execute executes the request
 //
-//	@return MCPProxyResponse
-func (a *MCPProxiesAPIService) UpdateMCPProxyExecute(r ApiUpdateMCPProxyRequest) (*MCPProxyResponse, *http.Response, error) {
+//	@return McpProxyDocument
+func (a *MCPProxiesAPIService) UpdateMCPProxyExecute(r ApiUpdateMCPProxyRequest) (*McpProxyDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPut
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *MCPProxyResponse
+		localVarReturnValue *McpProxyDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "MCPProxiesAPIService.UpdateMCPProxy")
@@ -993,15 +968,14 @@ func (a *MCPProxiesAPIService) UpdateMCPProxyExecute(r ApiUpdateMCPProxyRequest)
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/mcp-proxies/{proxyId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/mcp-proxies/{proxyId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"proxyId"+"}", url.PathEscape(parameterValueToString(r.proxyId, "proxyId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.mCPProxyRequest == nil {
-		return localVarReturnValue, nil, reportError("mCPProxyRequest is required and must be specified")
+	if r.mcpProxyDocument == nil {
+		return localVarReturnValue, nil, reportError("mcpProxyDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -1022,7 +996,7 @@ func (a *MCPProxiesAPIService) UpdateMCPProxyExecute(r ApiUpdateMCPProxyRequest)
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.mCPProxyRequest
+	localVarPostBody = r.mcpProxyDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err

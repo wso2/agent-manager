@@ -25,8 +25,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 )
 
 // TestAGRoutesMCPProxyLifecycle creates, reads, lists, updates and deletes an
@@ -35,40 +35,46 @@ func TestAGRoutesMCPProxyLifecycle(t *testing.T) {
 	a, gw := agSetup(t)
 	env := a.defaultEnv().String()
 
-	created := expectInto[gwmodels.MCPProxyDTO](t,
-		a.do(http.MethodPost, "/orgs/{org}/mcp-proxies", agMCPProxyBody("weather", env)), http.StatusCreated)
-	assert.Equal(t, "weather", created.ID)
-	assert.Equal(t, "MCP weather", created.Name)
-	assert.True(t, created.InCatalog)
-	require.Len(t, created.Endpoints, 1)
-	assert.Equal(t, agPublicURL, created.Endpoints[0].Upstream.Main.URL)
-	require.NotNil(t, created.Endpoints[0].Security, "the default security is applied")
-	assert.True(t, *created.Endpoints[0].Security.APIKey.Enabled)
+	created := expectInto[gwspec.McpProxyDocument](t,
+		a.do(http.MethodPost, "/mcp-proxies", agMCPProxyBody("weather", env)), http.StatusCreated)
+	assert.Equal(t, "ai-control-plane.choreolabs.com/v1", created.ApiVersion)
+	assert.Equal(t, "McpProxy", created.Kind)
+	assert.Equal(t, "weather", created.Metadata.Name)
+	assert.Equal(t, "MCP weather", created.Spec.DisplayName)
+	require.NotNil(t, created.Spec.InCatalog)
+	assert.True(t, *created.Spec.InCatalog)
+	require.Len(t, created.Spec.Endpoints, 1)
+	assert.Equal(t, agPublicURL, *created.Spec.Endpoints[0].Upstream.Main.Url)
+	require.NotNil(t, created.Spec.Endpoints[0].Security, "the default security is applied")
+	assert.True(t, *created.Spec.Endpoints[0].Security.ApiKey.Enabled)
 
-	got := expectInto[gwmodels.MCPProxyDTO](t, a.do(http.MethodGet, "/orgs/{org}/mcp-proxies/weather", nil), http.StatusOK)
-	assert.Equal(t, []string{gw.UUID.String()}, got.Gateways, "the endpoint is placed on the environment's gateway")
-	require.Len(t, got.Endpoints[0].Environments, 1)
-	assert.Equal(t, env, got.Endpoints[0].Environments[0].EnvironmentUUID)
-	assert.Equal(t, gw.UUID.String(), *got.Endpoints[0].Environments[0].GatewayID)
+	got := expectInto[gwspec.McpProxyDocument](t, a.do(http.MethodGet, "/mcp-proxies/weather", nil), http.StatusOK)
+	require.Len(t, got.Spec.Endpoints[0].Environments, 1)
+	assert.Equal(t, env, got.Spec.Endpoints[0].Environments[0].EnvironmentUuid)
+	assert.Equal(t, gw.UUID.String(), *got.Spec.Endpoints[0].Environments[0].GatewayId,
+		"the endpoint is placed on the environment's gateway")
 
-	list := expect(t, a.do(http.MethodGet, "/orgs/{org}/mcp-proxies?limit=500&offset=-1", nil), http.StatusOK)
+	list := expect(t, a.do(http.MethodGet, "/mcp-proxies?limit=500&offset=-1", nil), http.StatusOK)
 	assert.EqualValues(t, 1, list["count"])
 	items := list["list"].([]any)
 	require.Len(t, items, 1)
-	assert.Equal(t, "weather", items[0].(map[string]any)["id"])
+	row := items[0].(map[string]any)
+	assert.Equal(t, "weather", row["metadata"].(map[string]any)["name"])
+	assert.Equal(t, "MCP weather", row["spec"].(map[string]any)["displayName"])
+	assert.NotContains(t, row["spec"], "endpoints", "a list row leaves the heavy block out")
 
 	update := agMCPProxyBody("weather", env)
-	update["name"] = "Weather v2"
-	update["description"] = "renamed"
-	updated := expectInto[gwmodels.MCPProxyDTO](t, a.do(http.MethodPut, "/orgs/{org}/mcp-proxies/weather", update), http.StatusOK)
-	assert.Equal(t, "Weather v2", updated.Name)
-	got = expectInto[gwmodels.MCPProxyDTO](t, a.do(http.MethodGet, "/orgs/{org}/mcp-proxies/weather", nil), http.StatusOK)
-	assert.Equal(t, "Weather v2", got.Name)
-	assert.Equal(t, "renamed", *got.Description)
+	update["spec"].(map[string]any)["displayName"] = "Weather v2"
+	update["spec"].(map[string]any)["description"] = "renamed"
+	updated := expectInto[gwspec.McpProxyDocument](t, a.do(http.MethodPut, "/mcp-proxies/weather", update), http.StatusOK)
+	assert.Equal(t, "Weather v2", updated.Spec.DisplayName)
+	got = expectInto[gwspec.McpProxyDocument](t, a.do(http.MethodGet, "/mcp-proxies/weather", nil), http.StatusOK)
+	assert.Equal(t, "Weather v2", got.Spec.DisplayName)
+	assert.Equal(t, "renamed", *got.Spec.Description)
 
-	rec := a.do(http.MethodDelete, "/orgs/{org}/mcp-proxies/weather", nil)
+	rec := a.do(http.MethodDelete, "/mcp-proxies/weather", nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
-	rec = a.do(http.MethodGet, "/orgs/{org}/mcp-proxies/weather", nil)
+	rec = a.do(http.MethodGet, "/mcp-proxies/weather", nil)
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	assert.Equal(t, "MCP proxy not found", errorMessage(t, rec))
 }
@@ -82,7 +88,7 @@ func TestAGRoutesMCPProxyCreateRejectsBadRequests(t *testing.T) {
 
 	withEndpoint := func(mutate func(ep map[string]any)) map[string]any {
 		body := agMCPProxyBody("fresh", env)
-		mutate(body["endpoints"].([]any)[0].(map[string]any))
+		mutate(body["spec"].(map[string]any)["endpoints"].([]any)[0].(map[string]any))
 		return body
 	}
 	tests := []struct {
@@ -94,7 +100,11 @@ func TestAGRoutesMCPProxyCreateRejectsBadRequests(t *testing.T) {
 	}{
 		{"malformed json", "{", http.StatusBadRequest, "Invalid request body", ""},
 		{"handle not kebab-case", agMCPProxyBody("Not_Kebab", env), http.StatusBadRequest, "Bad request", "kebab-case"},
-		{"no endpoints", map[string]any{"id": "fresh", "name": "n", "version": "v1"}, http.StatusBadRequest, "Bad request", "at least one endpoint"},
+		{"no endpoints", map[string]any{
+			"apiVersion": "ai-control-plane.choreolabs.com/v1", "kind": "McpProxy",
+			"metadata": map[string]any{"name": "fresh"},
+			"spec":     map[string]any{"displayName": "n", "version": "v1"},
+		}, http.StatusBadRequest, "Bad request", "at least one endpoint"},
 		{"no upstream url", withEndpoint(func(ep map[string]any) { ep["upstream"] = map[string]any{} }), http.StatusBadRequest, "Bad request", "missing an upstream url"},
 		{"no environments", withEndpoint(func(ep map[string]any) { delete(ep, "environments") }), http.StatusBadRequest, "Bad request", "at least one environment"},
 		{"invalid environment id", withEndpoint(func(ep map[string]any) {
@@ -104,7 +114,7 @@ func TestAGRoutesMCPProxyCreateRejectsBadRequests(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := a.do(http.MethodPost, "/orgs/{org}/mcp-proxies", tc.body)
+			rec := a.do(http.MethodPost, "/mcp-proxies", tc.body)
 			require.Equal(t, tc.status, rec.Code, rec.Body.String())
 			assert.Equal(t, tc.message, errorMessage(t, rec))
 			if tc.reason != "" {
@@ -112,7 +122,7 @@ func TestAGRoutesMCPProxyCreateRejectsBadRequests(t *testing.T) {
 			}
 		})
 	}
-	list := expect(t, a.do(http.MethodGet, "/orgs/{org}/mcp-proxies", nil), http.StatusOK)
+	list := expect(t, a.do(http.MethodGet, "/mcp-proxies", nil), http.StatusOK)
 	assert.EqualValues(t, 1, list["count"], "no rejected create left a proxy")
 }
 
@@ -122,29 +132,29 @@ func TestAGRoutesMCPProxyMissingAndForbidden(t *testing.T) {
 	a, _ := agSetup(t)
 	env := a.defaultEnv().String()
 
-	rec := a.do(http.MethodPut, "/orgs/{org}/mcp-proxies/ghost", agMCPProxyBody("ghost", env))
+	rec := a.do(http.MethodPut, "/mcp-proxies/ghost", agMCPProxyBody("ghost", env))
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	assert.Equal(t, "MCP proxy not found", errorMessage(t, rec))
-	rec = a.do(http.MethodDelete, "/orgs/{org}/mcp-proxies/ghost", nil)
+	rec = a.do(http.MethodDelete, "/mcp-proxies/ghost", nil)
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
-	rec = a.do(http.MethodPut, "/orgs/{org}/mcp-proxies/ghost", "{")
+	rec = a.do(http.MethodPut, "/mcp-proxies/ghost", "{")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Equal(t, "Invalid request body", errorMessage(t, rec))
-	rec = a.do(http.MethodGet, "/orgs/{org}/mcp-proxies?project=no-such-project", nil)
+	rec = a.do(http.MethodGet, "/mcp-proxies?project=no-such-project", nil)
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	assert.Equal(t, "Project not found", errorMessage(t, rec))
 
 	readOnly := withScopes(scope(gwperm.MCPServerRead))
 	for _, r := range []struct{ method, path string }{
-		{http.MethodPost, "/orgs/{org}/mcp-proxies"},
-		{http.MethodPut, "/orgs/{org}/mcp-proxies/ghost"},
-		{http.MethodDelete, "/orgs/{org}/mcp-proxies/ghost"},
-		{http.MethodPost, "/orgs/{org}/mcp-proxies/fetch-server-info"},
+		{http.MethodPost, "/mcp-proxies"},
+		{http.MethodPut, "/mcp-proxies/ghost"},
+		{http.MethodDelete, "/mcp-proxies/ghost"},
+		{http.MethodPost, "/mcp-proxies/fetch-server-info"},
 	} {
 		rec := a.do(r.method, r.path, agMCPProxyBody("ghost", env), readOnly)
 		assert.Equal(t, http.StatusForbidden, rec.Code, "%s %s: %s", r.method, r.path, rec.Body.String())
 	}
-	rec = a.do(http.MethodGet, "/orgs/{org}/mcp-proxies", nil, withScopes(scope(gwperm.MCPServerCreate)))
+	rec = a.do(http.MethodGet, "/mcp-proxies", nil, withScopes(scope(gwperm.MCPServerCreate)))
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }
 
@@ -162,18 +172,18 @@ func TestAGRoutesMCPProxyProjectFilterAndOwnership(t *testing.T) {
 		WHERE id = (SELECT id FROM mod_ai_gateway_artifacts WHERE handle = ? AND org_id = ?)`,
 		projectID, "proj-proxy", a.org).Error)
 
-	orgOnly := expect(t, a.do(http.MethodGet, "/orgs/{org}/mcp-proxies", nil), http.StatusOK)
+	orgOnly := expect(t, a.do(http.MethodGet, "/mcp-proxies", nil), http.StatusOK)
 	assert.EqualValues(t, 1, orgOnly["count"], "the org listing leaves out project proxies")
-	withProject := expect(t, a.do(http.MethodGet, "/orgs/{org}/mcp-proxies?project="+agProject, nil), http.StatusOK)
+	withProject := expect(t, a.do(http.MethodGet, "/mcp-proxies?project="+agProject, nil), http.StatusOK)
 	assert.EqualValues(t, 2, withProject["count"])
 
-	rec := a.do(http.MethodPut, "/orgs/{org}/mcp-proxies/proj-proxy", agMCPProxyBody("proj-proxy", env))
+	rec := a.do(http.MethodPut, "/mcp-proxies/proj-proxy", agMCPProxyBody("proj-proxy", env))
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Equal(t, "MCP proxy belongs to a project", errorMessage(t, rec))
-	rec = a.do(http.MethodDelete, "/orgs/{org}/mcp-proxies/proj-proxy", nil)
+	rec = a.do(http.MethodDelete, "/mcp-proxies/proj-proxy", nil)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Equal(t, "MCP proxy belongs to a project", errorMessage(t, rec))
-	rec = a.do(http.MethodPost, "/orgs/{org}/mcp-proxies/proj-proxy/scopes", map[string]any{"action": "read"})
+	rec = a.do(http.MethodPost, "/mcp-proxies/proj-proxy/scopes", agScopeDoc("read", nil))
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Equal(t, "MCP proxy belongs to a project", errorMessage(t, rec))
 }
@@ -185,14 +195,14 @@ func TestAGRoutesMCPProxyDeleteRefusedWhileBound(t *testing.T) {
 	agCreateMCPProxy(t, a, "bound")
 	cfg := expect(t, a.do(http.MethodPost, agAgentPath("/mcp-configs"), agMCPConfigBody("tools", "bound")), http.StatusCreated)
 
-	rec := a.do(http.MethodDelete, "/orgs/{org}/mcp-proxies/bound", nil)
+	rec := a.do(http.MethodDelete, "/mcp-proxies/bound", nil)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, errorMessage(t, rec), "associated MCP proxy mappings")
-	expect(t, a.do(http.MethodGet, "/orgs/{org}/mcp-proxies/bound", nil), http.StatusOK)
+	expect(t, a.do(http.MethodGet, "/mcp-proxies/bound", nil), http.StatusOK)
 
 	rec = a.do(http.MethodDelete, agAgentPath("/mcp-configs/"+cfg["uuid"].(string)), nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
-	rec = a.do(http.MethodDelete, "/orgs/{org}/mcp-proxies/bound", nil)
+	rec = a.do(http.MethodDelete, "/mcp-proxies/bound", nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 }
 
@@ -202,7 +212,7 @@ func TestAGRoutesMCPProxyDeleteRefusedWhileBound(t *testing.T) {
 func TestAGRoutesMCPProxyPoliciesAndProbe(t *testing.T) {
 	a, _ := agSetup(t)
 
-	policies := expect(t, a.do(http.MethodGet, "/orgs/{org}/mcp-proxies/policies", nil), http.StatusOK)
+	policies := expect(t, a.do(http.MethodGet, "/mcp-proxies/policies", nil), http.StatusOK)
 	assert.EqualValues(t, 0, policies["count"])
 
 	tests := []struct {
@@ -218,7 +228,7 @@ func TestAGRoutesMCPProxyPoliciesAndProbe(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			rec := a.do(http.MethodPost, "/orgs/{org}/mcp-proxies/fetch-server-info", tc.body)
+			rec := a.do(http.MethodPost, "/mcp-proxies/fetch-server-info", tc.body)
 			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 			assert.Equal(t, tc.message, errorMessage(t, rec))
 		})

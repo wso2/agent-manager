@@ -420,7 +420,7 @@ func TestAGRoutesAgentIdentityRoles(t *testing.T) {
 	a, _ := agSetup(t)
 	agCreateToolProxy(t, a, "secured", true, "get_forecast")
 	for _, action := range []string{"read", "write"} {
-		expect(t, a.do(http.MethodPost, "/orgs/{org}/mcp-proxies/secured/scopes", map[string]any{"action": action}), http.StatusCreated)
+		expect(t, a.do(http.MethodPost, "/mcp-proxies/secured/scopes", agScopeDoc(action, nil)), http.StatusCreated)
 	}
 	d := agUseDirectory(t)
 	roles := agIdentityBase + "/roles"
@@ -483,12 +483,12 @@ func TestAGRoutesAgentIdentityRoles(t *testing.T) {
 func TestAGRoutesAgentIdentityRoleRejections(t *testing.T) {
 	a, _ := agSetup(t)
 	agCreateToolProxy(t, a, "secured", true, "get_forecast")
-	expect(t, a.do(http.MethodPost, "/orgs/{org}/mcp-proxies/secured/scopes", map[string]any{"action": "read"}), http.StatusCreated)
+	expect(t, a.do(http.MethodPost, "/mcp-proxies/secured/scopes", agScopeDoc("read", nil)), http.StatusCreated)
 	// A proxy bound only to another environment is not deployed to this one.
 	other := uuid.New()
 	dbtest.EnvironmentWithID(t, a.db, a.org, other)
-	expect(t, a.do(http.MethodPost, "/orgs/{org}/mcp-proxies", agMCPProxyBody("undeployed", other.String())), http.StatusCreated)
-	expect(t, a.do(http.MethodPost, "/orgs/{org}/mcp-proxies/undeployed/scopes", map[string]any{"action": "read"}), http.StatusCreated)
+	expect(t, a.do(http.MethodPost, "/mcp-proxies", agMCPProxyBody("undeployed", other.String())), http.StatusCreated)
+	expect(t, a.do(http.MethodPost, "/mcp-proxies/undeployed/scopes", agScopeDoc("read", nil)), http.StatusCreated)
 	d := agUseDirectory(t)
 	roles := agIdentityBase + "/roles"
 	ghost := roles + "/" + uuid.NewString()

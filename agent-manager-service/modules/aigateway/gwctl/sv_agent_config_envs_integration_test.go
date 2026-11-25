@@ -141,12 +141,12 @@ func TestSVMCPConfigAcrossEnvironments(t *testing.T) {
 	s := svSetup(t, true)
 	proxy := unique("svmcp")
 	body := agMCPProxyBody(proxy, s.a.defaultEnv().String())
-	endpoint := body["endpoints"].([]any)[0].(map[string]any)
+	endpoint := body["spec"].(map[string]any)["endpoints"].([]any)[0].(map[string]any)
 	endpoint["environments"] = []any{
 		map[string]any{"environmentUuid": s.a.defaultEnv().String()},
 		map[string]any{"environmentUuid": s.staging.String()},
 	}
-	expect(t, s.a.do(http.MethodPost, "/orgs/{org}/mcp-proxies", body), http.StatusCreated)
+	expect(t, s.a.do(http.MethodPost, "/mcp-proxies", body), http.StatusCreated)
 
 	created, err := s.svc.Create(s.ctx, s.a.org, agProject, agAgent, gwmodels.CreateAgentModelConfigRequest{
 		Name: "tools", Type: gwmodels.AgentConfigTypeMCP,
@@ -178,7 +178,7 @@ func TestSVMCPConfigAcrossEnvironments(t *testing.T) {
 	readBack, err := s.svc.GetMCP(s.ctx, id, s.a.org, agProject, agAgent)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"default"}, svEnvNames(readBack), "the removed environment's mapping is gone")
-	proxyDoc := expect(t, s.a.do(http.MethodGet, "/orgs/{org}/mcp-proxies/"+proxy, nil), http.StatusOK)
+	proxyDoc := expect(t, s.a.do(http.MethodGet, "/mcp-proxies/"+proxy, nil), http.StatusOK)
 	assert.NotContains(t, fmt.Sprint(proxyDoc), s.staging.String(), "the proxy no longer names the removed environment")
 	assert.Contains(t, fmt.Sprint(proxyDoc), s.a.defaultEnv().String())
 

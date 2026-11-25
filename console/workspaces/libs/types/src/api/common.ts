@@ -204,3 +204,15 @@ export interface GenerateResourceNamePathParams {
   orgName: string | undefined;
 }
 
+/**
+ * Record fields every document carries. metadata.name is the resource's handle (the flat
+ * body's `id`); the rest are server-owned and ignored on input.
+ */
+export interface DocumentMetadata {
+  /** The resource's handle. */
+  name: string;
+  uid?: string;
+  creationTimestamp?: string;
+  updateTimestamp?: string;
+  createdBy?: string;
+}

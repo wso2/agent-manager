@@ -19,16 +19,18 @@ var _ MappedNullable = &MCPProxyScopeListResponse{}
 
 // MCPProxyScopeListResponse struct for MCPProxyScopeListResponse
 type MCPProxyScopeListResponse struct {
-	Scopes []MCPProxyScopeResponse `json:"scopes"`
+	// Number of items in this page.
+	Count *int32                  `json:"count,omitempty"`
+	List  []McpProxyScopeDocument `json:"list"`
 }
 
 // NewMCPProxyScopeListResponse instantiates a new MCPProxyScopeListResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMCPProxyScopeListResponse(scopes []MCPProxyScopeResponse) *MCPProxyScopeListResponse {
+func NewMCPProxyScopeListResponse(list []McpProxyScopeDocument) *MCPProxyScopeListResponse {
 	this := MCPProxyScopeListResponse{}
-	this.Scopes = scopes
+	this.List = list
 	return &this
 }
 
@@ -40,28 +42,60 @@ func NewMCPProxyScopeListResponseWithDefaults() *MCPProxyScopeListResponse {
 	return &this
 }
 
-// GetScopes returns the Scopes field value
-func (o *MCPProxyScopeListResponse) GetScopes() []MCPProxyScopeResponse {
+// GetCount returns the Count field value if set, zero value otherwise.
+func (o *MCPProxyScopeListResponse) GetCount() int32 {
+	if o == nil || IsNil(o.Count) {
+		var ret int32
+		return ret
+	}
+	return *o.Count
+}
+
+// GetCountOk returns a tuple with the Count field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyScopeListResponse) GetCountOk() (*int32, bool) {
+	if o == nil || IsNil(o.Count) {
+		return nil, false
+	}
+	return o.Count, true
+}
+
+// HasCount returns a boolean if a field has been set.
+func (o *MCPProxyScopeListResponse) HasCount() bool {
+	if o != nil && !IsNil(o.Count) {
+		return true
+	}
+
+	return false
+}
+
+// SetCount gets a reference to the given int32 and assigns it to the Count field.
+func (o *MCPProxyScopeListResponse) SetCount(v int32) {
+	o.Count = &v
+}
+
+// GetList returns the List field value
+func (o *MCPProxyScopeListResponse) GetList() []McpProxyScopeDocument {
 	if o == nil {
-		var ret []MCPProxyScopeResponse
+		var ret []McpProxyScopeDocument
 		return ret
 	}
 
-	return o.Scopes
+	return o.List
 }
 
-// GetScopesOk returns a tuple with the Scopes field value
+// GetListOk returns a tuple with the List field value
 // and a boolean to check if the value has been set.
-func (o *MCPProxyScopeListResponse) GetScopesOk() ([]MCPProxyScopeResponse, bool) {
+func (o *MCPProxyScopeListResponse) GetListOk() ([]McpProxyScopeDocument, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return o.Scopes, true
+	return o.List, true
 }
 
-// SetScopes sets field value
-func (o *MCPProxyScopeListResponse) SetScopes(v []MCPProxyScopeResponse) {
-	o.Scopes = v
+// SetList sets field value
+func (o *MCPProxyScopeListResponse) SetList(v []McpProxyScopeDocument) {
+	o.List = v
 }
 
 func (o MCPProxyScopeListResponse) MarshalJSON() ([]byte, error) {
@@ -74,7 +108,10 @@ func (o MCPProxyScopeListResponse) MarshalJSON() ([]byte, error) {
 
 func (o MCPProxyScopeListResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["scopes"] = o.Scopes
+	if !IsNil(o.Count) {
+		toSerialize["count"] = o.Count
+	}
+	toSerialize["list"] = o.List
 	return toSerialize, nil
 }
 

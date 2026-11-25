@@ -3503,15 +3503,7 @@ paths:
   # MCP PROXY ENDPOINTS
   # ============================================
 
-  /orgs/{orgName}/mcp-proxies/fetch-server-info:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-
+  /mcp-proxies/fetch-server-info:
     post:
       tags:
         - MCP Proxies
@@ -3556,15 +3548,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/mcp-proxies/policies:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-
+  /mcp-proxies/policies:
     get:
       tags:
         - MCP Proxies
@@ -3591,34 +3575,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/mcp-proxies:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-
+  /mcp-proxies:
     post:
       tags:
         - MCP Proxies
       summary: Create an MCP proxy
-      description: Creates an MCP proxy and optionally deploys it to selected gateways.
+      description: Creates an MCP proxy and optionally deploys its endpoints to the environments they declare.
       operationId: createMCPProxy
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MCPProxyRequest"
+              $ref: "#/components/schemas/McpProxyDocument"
       responses:
         "201":
           description: MCP proxy created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyResponse"
+                $ref: "#/components/schemas/McpProxyDocument"
         "400":
           description: Invalid request
           content:
@@ -3648,7 +3624,14 @@ paths:
       tags:
         - MCP Proxies
       summary: List MCP proxies
-      description: Retrieve a paginated list of MCP proxies in an organization.
+      description: >-
+        Retrieve a paginated list of MCP proxies in an organization.
+
+
+        Each item is an McpProxy document, populated for list use: every required field
+        is present, but heavy optional blocks - spec.endpoints above all - are omitted.
+        A list item is a valid document, not necessarily a complete one; read the item
+        itself for the full spec.
       operationId: listMCPProxies
       parameters:
         - name: project
@@ -3708,14 +3691,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/mcp-proxies/{proxyId}:
+  /mcp-proxies/{proxyId}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
       - name: proxyId
         in: path
         required: true
@@ -3729,8 +3706,8 @@ paths:
       summary: Get MCP proxy details
       description: >-
         Retrieve detailed information about an MCP proxy. Also returns a project's proxy (read only),
-        with projectName set and no endpoints; its per-environment data (security, deployment status)
-        is on GET /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}.
+        with spec.projectName set and no endpoints; its per-environment data (security, deployment
+        status) is on the project's own route.
       operationId: getMCPProxy
       responses:
         "200":
@@ -3738,7 +3715,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyResponse"
+                $ref: "#/components/schemas/McpProxyDocument"
         "400":
           description: Invalid MCP proxy ID
           content:
@@ -3768,21 +3745,25 @@ paths:
       tags:
         - MCP Proxies
       summary: Update MCP proxy
-      description: Updates an MCP proxy and redeploys dependent MCP mapping artifacts.
+      description: >-
+        Updates an MCP proxy and redeploys dependent MCP mapping artifacts. metadata.name must
+        name the proxy in the path. The spec replaces the stored one, so it must carry every
+        field to keep, including at least one endpoint; an endpoint's upstream credentials are
+        the exception and survive being omitted.
       operationId: updateMCPProxy
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MCPProxyRequest"
+              $ref: "#/components/schemas/McpProxyDocument"
       responses:
         "200":
           description: MCP proxy updated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyResponse"
+                $ref: "#/components/schemas/McpProxyDocument"
         "400":
           description: Invalid request
           content:
@@ -3857,23 +3838,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
+  /mcp-proxies/{proxyId}/scopes:
+    parameters:
+      - name: proxyId
+        in: path
+        required: true
+        description: MCP proxy UUID or handle
+        schema:
+          type: string
+
     get:
+      tags:
+        - MCPProxyScopes
       summary: List MCP proxy scopes
-      description: Lists the proxy's scopes. Each scope is an action on the resource server this proxy is; the token scope string is "<proxy-handle>:<action>".
+      description: >-
+        Lists the proxy's scopes. Each scope is an action on the resource server this proxy is;
+        metadata.name is the action and spec.scope the token scope string "<proxy-handle>:<action>".
       operationId: listMCPProxyScopes
-      tags: [MCPProxyScopes]
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: proxyId
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "200":
           description: Scope list
@@ -3883,103 +3864,114 @@ paths:
                 $ref: "#/components/schemas/MCPProxyScopeListResponse"
         "404":
           description: MCP proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     post:
+      tags:
+        - MCPProxyScopes
       summary: Create MCP proxy scope
+      description: metadata.name is the scope's action.
       operationId: createMCPProxyScope
-      tags: [MCPProxyScopes]
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: proxyId
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MCPProxyScopeRequest"
+              $ref: "#/components/schemas/McpProxyScopeDocument"
       responses:
         "201":
           description: Scope created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyScopeResponse"
+                $ref: "#/components/schemas/McpProxyScopeDocument"
         "400":
           description: Invalid action, tools, or unknown tool name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: MCP proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: A scope with this action already exists on the proxy
-  /orgs/{orgName}/mcp-proxies/{proxyId}/scopes/{scopeAction}:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mcp-proxies/{proxyId}/scopes/{scopeAction}:
+    parameters:
+      - name: proxyId
+        in: path
+        required: true
+        description: MCP proxy UUID or handle
+        schema:
+          type: string
+      - name: scopeAction
+        in: path
+        required: true
+        description: The scope's action
+        schema:
+          type: string
+
     put:
+      tags:
+        - MCPProxyScopes
       summary: Update MCP proxy scope
-      description: Updates description and/or tools. The action itself is immutable (rename = delete + create).
+      description: >-
+        Updates description and/or tools. The action itself is immutable (rename = delete +
+        create), so metadata.name must match the action in the path. An absent spec.tools
+        leaves the tool list unchanged; an empty one unbinds the scope from every tool.
       operationId: updateMCPProxyScope
-      tags: [MCPProxyScopes]
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: proxyId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: scopeAction
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MCPProxyScopeUpdateRequest"
+              $ref: "#/components/schemas/McpProxyScopeDocument"
       responses:
         "200":
           description: Scope updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyScopeResponse"
+                $ref: "#/components/schemas/McpProxyScopeDocument"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: MCP proxy or scope not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     delete:
+      tags:
+        - MCPProxyScopes
       summary: Delete MCP proxy scope
       description: Deletes the scope. Best-effort removal of the corresponding Thunder action and role permissions, then gateway re-emission; tools the scope covered become authenticated-only unless another scope covers them.
       operationId: deleteMCPProxyScope
-      tags: [MCPProxyScopes]
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: proxyId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: scopeAction
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "204":
           description: Scope deleted
         "404":
           description: MCP proxy or scope not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ============================================
   # LLM DEPLOYMENT ENDPOINTS
@@ -6908,15 +6900,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgentBinding"
-    MCPProxyScopeRequest:
+    McpProxyScopeSpec:
       type: object
-      required: [action]
+      description: >-
+        Desired state of one scope on an MCP proxy. The action is metadata.name; renaming
+        it means delete + create.
       properties:
-        action:
+        scope:
           type: string
-          pattern: '^[A-Za-z0-9._\-]{1,100}$'
-          description: Action name on the proxy's resource server; the token scope is "<proxy-handle>:<action>".
-          example: "read"
+          description: Derived token scope string ("<proxy-handle>:<action>").
+          example: "gh-proxy:read"
+          readOnly: true
         description:
           type: string
           example: Read access to repository tools
@@ -6925,51 +6919,48 @@ components:
           items:
             type: string
           description: >-
-            MCP tool names this scope authorizes. May be omitted or empty to declare a
-            scope before binding it to any tool; such a scope is grantable to roles but
-            enforced on no tool.
-    MCPProxyScopeUpdateRequest:
+            MCP tool names this scope authorizes. On create it may be omitted or empty to
+            declare a scope before binding it to any tool; such a scope is grantable to
+            roles but enforced on no tool. On update it replaces the list, and omitting it
+            leaves the list unchanged.
+
+    McpProxyScopeDocument:
       type: object
+      description: An MCP proxy scope as a document; metadata.name is its action.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
       properties:
-        description:
+        apiVersion:
           type: string
-        tools:
-          type: array
-          items:
-            type: string
-          description: >-
-            Replaces the scope's tool list. Omit to leave it unchanged; send an empty
-            array to unbind the scope from every tool.
-    MCPProxyScopeResponse:
-      type: object
-      required: [action, scope, tools]
-      properties:
-        action:
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
           type: string
-        scope:
-          type: string
-          description: Derived token scope string ("<proxy-handle>:<action>").
-          example: "gh-proxy:read"
-        description:
-          type: string
-        tools:
-          type: array
-          items:
-            type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
+          description: Must match the route; never ignored.
+          enum:
+            - McpProxyScope
+        metadata:
+          $ref: "#/components/schemas/DocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/McpProxyScopeSpec"
+
     MCPProxyScopeListResponse:
       type: object
-      required: [scopes]
+      required:
+        - list
       properties:
-        scopes:
+        count:
+          type: integer
+          format: int32
+          description: Number of items in this page.
+        list:
           type: array
           items:
-            $ref: "#/components/schemas/MCPProxyScopeResponse"
+            $ref: "#/components/schemas/McpProxyScopeDocument"
+
     AgentIdentityGroupRequest:
       type: object
       required:
@@ -8850,20 +8841,17 @@ components:
     # MCP PROXY SCHEMAS
     # ============================================
 
-    MCPProxyRequest:
+    McpProxySpec:
       type: object
+      description: >-
+        Desired state of an MCP proxy. displayName, version, context, vhost and
+        mcpSpecVersion are shared metadata; the deployable configuration lives on each
+        endpoint, and the proxy itself deploys nothing to any gateway.
       required:
-        - id
-        - name
+        - displayName
         - version
       properties:
-        id:
-          type: string
-          description: Unique handle for the MCP proxy
-          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-          maxLength: 100
-          example: github-mcp
-        name:
+        displayName:
           type: string
           description: Human-readable name of the MCP proxy
           example: GitHub MCP
@@ -8886,156 +8874,68 @@ components:
           type: string
           description: MCP specification version implemented by the upstream server
           example: "2025-03-26"
-        endpoints:
-          type: array
-          minItems: 1
-          description: >-
-            Deployable endpoint definitions of the MCP proxy. Each endpoint is
-            deployed to one or more environments; within a proxy an environment
-            maps to at most one endpoint. At least one endpoint is required.
-          items:
-            $ref: "#/components/schemas/MCPProxyEndpoint"
         inCatalog:
           type: boolean
           description: Whether the MCP proxy is available in the catalog
           example: true
-        gateways:
-          type: array
-          deprecated: true
-          description: |
-            Deprecated and never implemented. Deployment is per (endpoint, environment),
-            so this proxy-wide field is at the wrong granularity — use
-            MCPEndpointEnvironment.gatewayId. Populated on read only.
-          items:
-            type: string
-            format: uuid
-
-    MCPProxyResponse:
-      type: object
-      required:
-        - id
-        - name
-        - version
-      properties:
-        id:
-          type: string
-          description: Unique handle for the MCP proxy
-          example: github-mcp
-        name:
-          type: string
-          description: Human-readable name of the MCP proxy
-          example: GitHub MCP
-        description:
-          type: string
-          description: Description of the MCP proxy
-        version:
-          type: string
-          description: Version of the MCP proxy
-          example: v1.0
-        context:
-          type: string
-          description: MCP proxy context path
-        vhost:
-          type: string
-          description: Virtual host assigned to the MCP proxy
-        mcpSpecVersion:
-          type: string
-          description: MCP specification version implemented by the upstream server
         endpoints:
           type: array
           minItems: 1
           description: >-
-            Deployable endpoint definitions of the MCP proxy. Each endpoint
-            reports its per-environment deployment status. Absent for a project-owned proxy.
+            Deployable endpoint definitions of the MCP proxy. Each endpoint is deployed
+            to one or more environments; within a proxy an environment maps to at most
+            one endpoint. On read each entry reports its per-environment deployment
+            status. Omitted from list rows, and absent for a project-owned proxy.
           items:
             $ref: "#/components/schemas/MCPProxyEndpoint"
-        inCatalog:
-          type: boolean
-          description: Whether the MCP proxy is available in the catalog
-        gateways:
-          type: array
-          description: Gateway UUIDs associated with the MCP proxy
-          items:
-            type: string
-            format: uuid
         projectName:
           type: string
-          description: Set for a project-owned proxy; absent for an org-level one
-          readOnly: true
-        createdBy:
-          type: string
-          description: User who created the MCP proxy
-          readOnly: true
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was created
-          readOnly: true
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was last updated
+          description: >-
+            Set for a project-owned proxy, which these routes serve read only; absent for
+            an org-level one.
           readOnly: true
 
-    MCPProxyListItem:
+    McpProxyDocument:
       type: object
+      description: >-
+        An MCP proxy as a document; metadata.name is its handle, spec.displayName its
+        label. There is no status block: a proxy is placed per (endpoint, environment),
+        and each binding reports its own state under spec.endpoints.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
       properties:
-        id:
+        apiVersion:
           type: string
-          description: Unique handle for the MCP proxy
-        name:
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
           type: string
-          description: Human-readable name of the MCP proxy
-        description:
-          type: string
-          description: Description of the MCP proxy
-        version:
-          type: string
-          description: Version of the MCP proxy
-        context:
-          type: string
-          description: MCP proxy context path
-        mcpSpecVersion:
-          type: string
-          description: MCP specification version implemented by the upstream server
-        projectName:
-          type: string
-          description: Set for a project-owned proxy; absent for an org-level one
-          readOnly: true
-        status:
-          type: string
-          description: MCP proxy status
-        createdBy:
-          type: string
-          description: User who created the MCP proxy
-          readOnly: true
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was created
-          readOnly: true
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was last updated
-          readOnly: true
+          description: Must match the route; never ignored.
+          enum:
+            - McpProxy
+        metadata:
+          $ref: "#/components/schemas/DocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/McpProxySpec"
 
     MCPProxyListResponse:
       type: object
       required:
-        - count
         - list
-        - pagination
       properties:
         count:
           type: integer
           format: int32
+          description: Number of items in this page.
         list:
           type: array
           items:
-            $ref: "#/components/schemas/MCPProxyListItem"
+            $ref: "#/components/schemas/McpProxyDocument"
         pagination:
-          $ref: "#/components/schemas/PaginationInfo"
+          $ref: "#/components/schemas/Pagination"
 
     MCPProxyEndpoint:
       type: object
