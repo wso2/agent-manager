@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	neturl "net/url"
 	"strconv"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -62,7 +63,7 @@ func openStores(rt modkit.Runtime) (store.TraceStore, agentCleaner, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	rt.Logger().Info("observability: reading traces from ClickHouse", "url", url)
+	rt.Logger().Info("observability: reading traces from ClickHouse", "host", hostOf(url))
 	user := rt.Config("clickhouse.cleaner-user")
 	if user == "" {
 		rt.Logger().Warn("observability: no ClickHouse cleaner login (MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER); a deleted agent's spans stay until they expire")
@@ -75,6 +76,15 @@ func openStores(rt modkit.Runtime) (store.TraceStore, agentCleaner, error) {
 		return nil, nil, err
 	}
 	return traces, cleaner, nil
+}
+
+// hostOf is a URL's host, logged without its login or query.
+func hostOf(raw string) string {
+	u, err := neturl.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
 
 var _ modkit.HealthReporter = module{}

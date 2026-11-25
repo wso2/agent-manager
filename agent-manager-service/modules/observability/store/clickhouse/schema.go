@@ -115,6 +115,28 @@ func (s *Schema) exists(ctx context.Context, table string) (bool, error) {
 	return n > 0, err
 }
 
+// checkTable refuses a span table without the scope columns, such as one the
+// collector's exporter created before amp migrate ran: IF NOT EXISTS keeps it.
+func (s *Schema) checkTable(ctx context.Context) error {
+	n := 0
+	err := s.server.query(ctx, "SELECT count() AS n FROM system.columns WHERE database = {db:String} AND table = {t:String} AND name IN ('org_id', 'project_id', 'agent_id')",
+		map[string]string{"db": s.cfg.Database, "t": Table}, func(line []byte) error {
+			var r struct {
+				N int `json:"n"`
+			}
+			err := json.Unmarshal(line, &r)
+			n = r.N
+			return err
+		})
+	if err != nil {
+		return err
+	}
+	if n < 3 {
+		return fmt.Errorf("clickhouse: table %s.%s has no org_id, project_id and agent_id columns, so another writer created it; set clickhouse.database to a database of its own", s.cfg.Database, Table)
+	}
+	return nil
+}
+
 // Applied returns the version and checksum of every recorded file.
 func (s *Schema) Applied(ctx context.Context) (map[string]string, error) {
 	out := map[string]string{}
@@ -146,6 +168,9 @@ func (s *Schema) Apply(ctx context.Context, version, checksum string, body []byt
 		return err
 	}
 	if err := s.c.exec(ctx, string(body), nil); err != nil {
+		return err
+	}
+	if err := s.checkTable(ctx); err != nil {
 		return err
 	}
 	return s.c.exec(ctx, "INSERT INTO "+HistoryTable+" (version, checksum) SELECT {version:String}, {checksum:String}",

@@ -340,6 +340,43 @@ func TestSchemaHistory(t *testing.T) {
 	}
 }
 
+// A span table another writer created without the scope columns is refused,
+// not recorded as migrated.
+func TestApplyRefusesAForeignSpanTable(t *testing.T) {
+	e := clickhouseEnv(t)
+	ctx := context.Background()
+	t.Cleanup(func() {
+		if err := e.admin.exec(ctx, "DROP TABLE IF EXISTS "+Table, nil); err != nil {
+			t.Fatal(err)
+		}
+		e.applySchema(t)
+	})
+	for _, q := range []string{
+		"DROP TABLE " + Table,
+		"CREATE TABLE " + Table + " (Timestamp DateTime64(9), TraceId String) ENGINE = MergeTree ORDER BY Timestamp",
+		"DELETE FROM " + HistoryTable + " WHERE version = '001_otel_traces'",
+	} {
+		if err := e.admin.exec(ctx, q, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body, err := fs.ReadFile(Migrations(), "001_otel_traces.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = e.migratorSchema(t, 0).Apply(ctx, "001_otel_traces", "sum", body)
+	if err == nil || !strings.Contains(err.Error(), "clickhouse.database") {
+		t.Fatalf("Apply over a foreign table = %v, want a refusal naming clickhouse.database", err)
+	}
+	applied, err := e.migratorSchema(t, 0).Applied(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := applied["001_otel_traces"]; ok {
+		t.Errorf("Applied = %v, want 001_otel_traces not recorded", applied)
+	}
+}
+
 func TestSettleSetsTheTTL(t *testing.T) {
 	e := clickhouseEnv(t)
 	ctx := context.Background()

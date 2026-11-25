@@ -83,6 +83,7 @@ jobs:
       # The runner host's Docker daemon can outlive a run, so a fixed name
       # collides with another run's container.
       PG_CONTAINER: amp-it-postgres-${{ github.run_id }}-${{ github.run_attempt }}
+      CH_CONTAINER: amp-it-clickhouse-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.db }}
     strategy:
       fail-fast: false
       matrix:
@@ -132,7 +133,7 @@ jobs:
       # server with the module's users file mounted, as the install runs it.
       - name: Start ClickHouse
         run: |
-          docker run -d --name clickhouse \
+          docker run -d --name "$CH_CONTAINER" \
             -e CLICKHOUSE_USER=admin \
             -e CLICKHOUSE_PASSWORD=admin \
             -e AMP_CLICKHOUSE_MIGRATOR_PASSWORD=migrator \
@@ -145,7 +146,7 @@ jobs:
       - name: Wait for ClickHouse
         id: clickhouse
         run: |
-          CLICKHOUSE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' clickhouse)
+          CLICKHOUSE_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$CH_CONTAINER")
           until curl -sf "http://${CLICKHOUSE_IP}:8123/ping"; do
             echo "Waiting for ClickHouse..."
             sleep 1
@@ -206,6 +207,10 @@ jobs:
       - name: Remove PostgreSQL
         if: always() && matrix.db == 'postgres'
         run: docker rm -f "$PG_CONTAINER" || true
+
+      - name: Remove ClickHouse
+        if: always()
+        run: docker rm -f "$CH_CONTAINER" || true
 
   coverage:
     name: Coverage
