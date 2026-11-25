@@ -24,6 +24,7 @@ import "context"
 type AuditScope interface {
 	AuditDetail(key string, value any)
 	AuditResource(kind, id, name string)
+	AuditProject(name string)
 	AuditInternalCaller(ctx context.Context, c InternalCaller)
 }
 
@@ -56,6 +57,15 @@ func AuditDetail(ctx context.Context, key string, value any) {
 func AuditResource(ctx context.Context, kind, id, name string) {
 	if s := auditScope(ctx); s != nil {
 		s.AuditResource(kind, id, name)
+	}
+}
+
+// AuditProject names the project the current request or tool call acted on,
+// when neither its path nor its project query parameter names it. Outside a
+// request it does nothing.
+func AuditProject(ctx context.Context, name string) {
+	if s := auditScope(ctx); s != nil {
+		s.AuditProject(name)
 	}
 }
 

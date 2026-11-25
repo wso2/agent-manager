@@ -102,11 +102,15 @@ func TestObservabilityModule(t *testing.T) {
 		code, body := moduleWorld{}.call(t, o.full, http.MethodPost, "/api/v1/orgs/"+o.handle+"/projects",
 			map[string]any{"name": project, "displayName": project})
 		require.Equal(t, http.StatusAccepted, code, string(body))
-		code, body = moduleWorld{}.call(t, o.full, http.MethodPost, "/api/v1/orgs/"+o.handle+"/projects/"+project+"/agents",
+		code, body = moduleWorld{}.call(t, o.full, http.MethodPost, "/api/v1/agents",
 			map[string]any{
-				"name": agent, "displayName": agent,
-				"provisioning": map[string]any{"type": "external"},
-				"agentType":    map[string]any{"type": "external-agent-api"},
+				"apiVersion": "ai-control-plane.choreolabs.com/v1", "kind": "Agent",
+				"metadata": map[string]any{"name": agent, "project": project},
+				"spec": map[string]any{
+					"displayName":  agent,
+					"provisioning": map[string]any{"type": "external"},
+					"agentType":    map[string]any{"type": "external-agent-api"},
+				},
 			})
 		require.Equal(t, http.StatusAccepted, code, string(body))
 		o.projectID, o.agentID = resolveIDs(t, database, o.id, project, agent)

@@ -221,9 +221,9 @@ The API is documented using OpenAPI 3.0 specification in `docs/api_v1_openapi.ya
 
 The service provides JWT-based authentication for external agents:
 
-- **Token Generation**: `POST /api/v1/orgs/{orgName}/projects/{projName}/agents/{agentName}/token`
+- **Token Generation**: `POST /api/v1/agents/{agentName}/token?project={projName}`
   - Generate a signed JWT token for an agent
-  - Optional parameters: `environment` (query), `expires_in` (body)
+  - Required parameter: `project` (query). Optional parameters: `environment` (query), `expires_in` (body)
   - Returns a Bearer token with configurable expiry
 
 - **JWKS Endpoint**: `GET /auth/external/jwks.json`

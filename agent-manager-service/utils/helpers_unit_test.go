@@ -56,15 +56,6 @@ func TestConvertAgents(t *testing.T) {
 	assert.Nil(t, bare.CreatedBy.Display, "an unresolved creator has only an id")
 	assert.Nil(t, ConvertToAgentResponse(&models.AgentResponse{}).CreatedBy)
 	assert.Equal(t, spec.AgentResponse{}, ConvertToAgentResponse(nil))
-
-	list := ConvertToAgentListResponse([]*models.AgentResponse{agent, {Name: "b"}})
-	require.Len(t, list, 2)
-	assert.Equal(t, "b", list[1].Name)
-	assert.Equal(t, []spec.AgentResponse{}, ConvertToAgentListResponse(nil), "an empty list is [] on the wire, never null")
-
-	summaries := ConvertToAgentSummaryListResponse([]*models.AgentSummary{{Name: "a", DisplayName: "A", ProjectName: "p", ProjectDisplayName: "P"}})
-	assert.Equal(t, []spec.AgentSummary{{Name: "a", DisplayName: "A", ProjectName: "p", ProjectDisplayName: "P"}}, summaries)
-	assert.Empty(t, ConvertToAgentSummaryListResponse(nil))
 }
 
 func TestConvertEnvironments(t *testing.T) {

@@ -42,18 +42,18 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		perms   []rbac.Permission
 		action  Action
 	}{
-		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token", nil, ActionAgentTokenMint},
-		{"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", nil, ActionAgentIdentityProvision},
+		{"POST /agents/{agentName}/token", nil, ActionAgentTokenMint},
+		{"PUT /agents/{agentName}/identities", nil, ActionAgentIdentityProvision},
 		{
-			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities",
+			"POST /agents/{agentName}/identities",
 			nil, ActionAgentIdentityRegenerateSecret,
 		},
 		{
-			"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities",
+			"DELETE /agents/{agentName}/identities",
 			nil, ActionAgentIdentityRevokeSecret,
 		},
 		{
-			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities/retry",
+			"POST /agents/{agentName}/identities/retry",
 			nil, ActionAgentIdentityRetryProvisioning,
 		},
 		{"POST /orgs/{orgName}/events/destinations", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationCreate},
@@ -73,7 +73,7 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		{"POST /orgs/{orgName}/identities/users", nil, ActionUserCreate},
 		{"POST /orgs/{orgName}/identities/users/invite", nil, ActionUserInvite},
 		{"DELETE /orgs/{orgName}/identities/users/{userID}", nil, ActionUserDelete},
-		{"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}", []rbac.Permission{rbac.AgentDelete}, ActionAgentDelete},
+		{"DELETE /agents/{agentName}", []rbac.Permission{rbac.AgentDelete}, ActionAgentDelete},
 		{"DELETE /orgs/{orgName}/projects/{projName}", []rbac.Permission{rbac.ProjectDelete}, ActionProjectDelete},
 	}
 

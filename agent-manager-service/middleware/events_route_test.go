@@ -60,8 +60,8 @@ func serveEvent(t *testing.T, pattern string, pathValues map[string]string, hand
 }
 
 func TestWithEvents_PublishesAgentEvent(t *testing.T) {
-	pub := serveEvent(t, "PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}",
-		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1"},
+	pub := serveEvent(t, "PUT /agents/{agentName}?project=p1",
+		map[string]string{"agentName": "a1"},
 		func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"name":"a1","environment":"dev","imageId":"img","apiKey":"sk-1"}`))
@@ -154,8 +154,8 @@ func TestWithEvents_HandlerAnnotations(t *testing.T) {
 }
 
 func TestWithEvents_CreateEventsNameTheCreatedResource(t *testing.T) {
-	pub := serveEvent(t, "POST /orgs/{orgName}/projects/{projName}/agents",
-		map[string]string{"orgName": "acme", "projName": "p1"},
+	pub := serveEvent(t, "POST /agents?project=p1",
+		map[string]string{},
 		func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusAccepted)
 			_, _ = w.Write([]byte(`{"name":"a1","projectName":"p1"}`))
@@ -182,8 +182,8 @@ func TestWithEvents_CreateEventsNameTheCreatedResource(t *testing.T) {
 }
 
 func TestWithEventsIgnoresEnvironmentQuery(t *testing.T) {
-	pub := serveEvent(t, "PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}?environment=spoofed",
-		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1"},
+	pub := serveEvent(t, "PUT /agents/{agentName}?project=p1&environment=spoofed",
+		map[string]string{"agentName": "a1"},
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	require.Len(t, pub.got, 1)
 	assert.Empty(t, pub.got[0].Environment)
@@ -217,4 +217,55 @@ func TestWithEvents_SendsResponseBeforePersistingEvent(t *testing.T) {
 	req = req.WithContext(orgctx.WithResolvedOrg(req.Context(), orgctx.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"}))
 	h(w, req)
 	assert.True(t, pub.flushed, "the client must not wait on the outbox insert")
+}
+
+// serveRouteEventAt is serveRouteEvent requested at target, so a test can add a query.
+func serveRouteEventAt(t *testing.T, pattern, target string, pathValues map[string]string, handler http.HandlerFunc) *capturePublisher {
+	t.Helper()
+	pub := &capturePublisher{}
+	method, path, _ := strings.Cut(pattern, " ")
+	meta := audit.RouteMeta{Pattern: pattern, Method: method, Path: path, Params: extractPathParams(pattern)}
+	h := withRouteEvent(pub, meta, "testmod.widget_updated", events.ScopeAgent, false)(handler)
+	req := httptest.NewRequest(method, target, nil)
+	for k, v := range pathValues {
+		req.SetPathValue(k, v)
+	}
+	req = req.WithContext(orgctx.WithResolvedOrg(req.Context(), orgctx.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"}))
+	h(httptest.NewRecorder(), req)
+	return pub
+}
+
+func TestWithEvents_ProjectFromQueryOrAnnotation(t *testing.T) {
+	ok := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }
+
+	pub := serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x?project=p1",
+		map[string]string{"agentName": "a1"}, ok)
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, "p1", pub.got[0].Project, "a route without {projName} takes the project from the query")
+	assert.Equal(t, "/agent-manager/orgs/ou-1/projects/p1/agents/a1", pub.got[0].Source)
+
+	pub = serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x",
+		map[string]string{"agentName": "a1"}, func(w http.ResponseWriter, r *http.Request) {
+			modkit.EventProject(r.Context(), "p2")
+			w.WriteHeader(http.StatusOK)
+		})
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, "p2", pub.got[0].Project, "a project read from the body is annotated by the handler")
+
+	pub = serveRouteEventAt(t, "PUT /m/testmod/projects/{projName}/agents/{agentName}", "/x?project=other",
+		map[string]string{"projName": "p1", "agentName": "a1"}, ok)
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, "p1", pub.got[0].Project, "the path wins over the query")
+}
+
+func TestWithEvents_CreateEventsNameADocumentByMetadataName(t *testing.T) {
+	pub := serveEvent(t, "POST /agents?project=p1",
+		map[string]string{},
+		func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"kind":"Agent","metadata":{"name":"a1"},"spec":{"displayName":"Agent One"}}`))
+		})
+	require.Len(t, pub.got, 1)
+	assert.Equal(t, "a1", pub.got[0].Subject)
+	assert.Equal(t, "a1", pub.got[0].Agent)
 }

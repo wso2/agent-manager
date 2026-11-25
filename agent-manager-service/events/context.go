@@ -28,6 +28,7 @@ import (
 // environment when it arrives in the request body, or extra details.
 type annotations struct {
 	environment string
+	project     string
 	data        map[string]any
 }
 
@@ -55,6 +56,14 @@ func SetEnvironment(ctx context.Context, env string) {
 	}
 }
 
+// SetProject records the project the request acted on, when its path and query do not name it. A
+// no-op outside an event-emitting route.
+func SetProject(ctx context.Context, project string) {
+	if a := annotationsFrom(ctx); a != nil {
+		a.EventProject(project)
+	}
+}
+
 // AddData adds a field to the event's data. A no-op outside an
 // event-emitting route.
 func AddData(ctx context.Context, key string, value any) {
@@ -66,6 +75,11 @@ func AddData(ctx context.Context, key string, value any) {
 // EventEnvironment implements modkit.EventScope.
 func (a *annotations) EventEnvironment(name string) {
 	a.environment = name
+}
+
+// EventProject implements modkit.EventScope.
+func (a *annotations) EventProject(name string) {
+	a.project = name
 }
 
 // EventData implements modkit.EventScope.
@@ -82,6 +96,14 @@ func (a *annotations) Environment() string {
 		return ""
 	}
 	return a.environment
+}
+
+// Project returns the annotated project.
+func (a *annotations) Project() string {
+	if a == nil {
+		return ""
+	}
+	return a.project
 }
 
 // Data returns the annotated data.

@@ -23,6 +23,7 @@ import "context"
 // and EventData.
 type EventScope interface {
 	EventEnvironment(name string)
+	EventProject(name string)
 	EventData(key string, value any)
 }
 
@@ -39,6 +40,15 @@ func WithEventScope(ctx context.Context, s EventScope) context.Context {
 func EventEnvironment(ctx context.Context, name string) {
 	if s, _ := ctx.Value(eventScopeKey{}).(EventScope); s != nil {
 		s.EventEnvironment(name)
+	}
+}
+
+// EventProject records the project the current request acted on, for the
+// event its route emits, when neither its path nor its project query parameter
+// names it. Outside an event-emitting route it does nothing.
+func EventProject(ctx context.Context, name string) {
+	if s, _ := ctx.Value(eventScopeKey{}).(EventScope); s != nil {
+		s.EventProject(name)
 	}
 }
 

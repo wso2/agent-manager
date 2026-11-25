@@ -81,7 +81,6 @@ func createMockPlatformRepositoryForToken(agentName string, componentUid string,
 
 func TestGenerateAgentToken(t *testing.T) {
 	// Create unique test data for this test suite
-	tokenOrgName := fmt.Sprintf("token-org-%s", uuid.New().String()[:5])
 	tokenProjName := fmt.Sprintf("token-project-%s", uuid.New().String()[:5])
 	tokenAgentName := fmt.Sprintf("token-agent-%s", uuid.New().String()[:5])
 	tokenComponentUid := uuid.New().String()
@@ -106,8 +105,8 @@ func TestGenerateAgentToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
-			tokenOrgName, tokenProjName, tokenAgentName)
+		tokenURL := fmt.Sprintf("/api/v1/agents/%s/token?project=%s&environment=default",
+			tokenAgentName, tokenProjName)
 		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
 		tokenReq.Header.Set("Content-Type", "application/json")
 
@@ -169,8 +168,8 @@ func TestGenerateAgentToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
-			tokenOrgName, tokenProjName, tokenAgentName)
+		tokenURL := fmt.Sprintf("/api/v1/agents/%s/token?project=%s&environment=default",
+			tokenAgentName, tokenProjName)
 		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
 		tokenReq.Header.Set("Content-Type", "application/json")
 
@@ -194,8 +193,8 @@ func TestGenerateAgentToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
-			tokenOrgName, tokenProjName, tokenAgentName)
+		tokenURL := fmt.Sprintf("/api/v1/agents/%s/token?project=%s&environment=default",
+			tokenAgentName, tokenProjName)
 		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
 		tokenReq.Header.Set("Content-Type", "application/json")
 
@@ -217,8 +216,8 @@ func TestGenerateAgentToken(t *testing.T) {
 		err := json.NewEncoder(tokenReqBody).Encode(map[string]interface{}{})
 		require.NoError(t, err)
 
-		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
-			tokenOrgName, tokenProjName, tokenAgentName)
+		tokenURL := fmt.Sprintf("/api/v1/agents/%s/token?project=%s&environment=default",
+			tokenAgentName, tokenProjName)
 		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
 		tokenReq.Header.Set("Content-Type", "application/json")
 
@@ -271,8 +270,8 @@ func TestGenerateAgentToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
-			tokenOrgName, tokenProjName, nonExistentAgent)
+		tokenURL := fmt.Sprintf("/api/v1/agents/%s/token?project=%s&environment=default",
+			nonExistentAgent, tokenProjName)
 		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
 		tokenReq.Header.Set("Content-Type", "application/json")
 
@@ -321,8 +320,8 @@ func TestGenerateAgentToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=NonExistent",
-			tokenOrgName, tokenProjName, tokenAgentName)
+		tokenURL := fmt.Sprintf("/api/v1/agents/%s/token?project=%s&environment=NonExistent",
+			tokenAgentName, tokenProjName)
 		tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
 		tokenReq.Header.Set("Content-Type", "application/json")
 
@@ -335,7 +334,6 @@ func TestGenerateAgentToken(t *testing.T) {
 
 func TestConcurrentTokenGeneration(t *testing.T) {
 	// Create unique test data for concurrent tests
-	concurrentOrgName := fmt.Sprintf("concurrent-org-%s", uuid.New().String()[:5])
 	concurrentProjName := fmt.Sprintf("concurrent-project-%s", uuid.New().String()[:5])
 	concurrentAgentName := fmt.Sprintf("concurrent-agent-%s", uuid.New().String()[:5])
 	concurrentComponentUid := uuid.New().String()
@@ -373,8 +371,8 @@ func TestConcurrentTokenGeneration(t *testing.T) {
 					return
 				}
 
-				tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
-					concurrentOrgName, concurrentProjName, concurrentAgentName)
+				tokenURL := fmt.Sprintf("/api/v1/agents/%s/token?project=%s&environment=default",
+					concurrentAgentName, concurrentProjName)
 				tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
 				tokenReq.Header.Set("Content-Type", "application/json")
 
@@ -418,7 +416,6 @@ func TestConcurrentTokenGeneration(t *testing.T) {
 
 func TestTokenExpiry(t *testing.T) {
 	// Create unique test data for expiry tests
-	expiryOrgName := fmt.Sprintf("expiry-org-%s", uuid.New().String()[:5])
 	expiryProjName := fmt.Sprintf("expiry-project-%s", uuid.New().String()[:5])
 	expiryAgentName := fmt.Sprintf("expiry-agent-%s", uuid.New().String()[:5])
 	expiryComponentUid := uuid.New().String()
@@ -452,8 +449,8 @@ func TestTokenExpiry(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				tokenURL := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/token?environment=default",
-					expiryOrgName, expiryProjName, expiryAgentName)
+				tokenURL := fmt.Sprintf("/api/v1/agents/%s/token?project=%s&environment=default",
+					expiryAgentName, expiryProjName)
 				tokenReq := httptest.NewRequest(http.MethodPost, tokenURL, tokenReqBody)
 				tokenReq.Header.Set("Content-Type", "application/json")
 

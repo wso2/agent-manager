@@ -355,34 +355,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents:
+  /agents:
     post:
       summary: Create a new agent
+      description: The project is metadata.project.
       operationId: createAgent
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateAgentRequest"
+              $ref: "#/components/schemas/AgentDocument"
       responses:
         "202":
           description: Agent creation initiated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentResponse"
+                $ref: "#/components/schemas/AgentDocument"
         "400":
           description: Invalid request
           content:
@@ -396,7 +386,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Referenced LLM provider not found
+          description: Project not found
           content:
             application/json:
               schema:
@@ -409,17 +399,16 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     get:
-      summary: List all agents in a project of an organization
+      summary: List agents
+      description: >-
+        Lists the agents of one project, or of every project in the organization
+        when project is omitted. Each item is a full Agent document.
       operationId: listAgents
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
+        - name: project
+          in: query
+          description: Project handle. Omit it to list every project's agents.
+          required: false
           schema:
             type: string
         - name: limit
@@ -430,7 +419,7 @@ paths:
             type: integer
             default: 10
             minimum: 1
-            maximum: 50
+            maximum: 500
         - name: offset
           in: query
           description: Number of results to skip
@@ -467,37 +456,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/agents:
-    get:
-      summary: List all agents in an organization
-      description: >-
-        Returns a lightweight, unpaginated list of every agent in the
-        organization across all projects, containing each agent's name,
-        display name, and the name and display name of the project it
-        belongs to.
-      operationId: listOrgAgents
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: List of agents in the organization
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AgentSummaryListResponse"
         "404":
-          description: Organization not found
+          description: Project not found
           content:
             application/json:
               schema:
@@ -509,33 +469,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}:
+  /agents/{agentName}:
+    parameters:
+      - name: agentName
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: project
+        in: query
+        required: true
+        description: Project handle.
+        schema:
+          type: string
     get:
       summary: Get agent details
       operationId: getAgent
-      parameters:
-        - name: agentName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "200":
           description: Agent details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentResponse"
+                $ref: "#/components/schemas/AgentDocument"
         "404":
           description: Agent not found
           content:
@@ -549,37 +505,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
-      summary: Update agent basic information
+      summary: Update an agent
+      description: >-
+        Changes spec.displayName, spec.description, spec.labels and spec.extensions.
+        metadata.name and metadata.project must name the agent addressed; a changed
+        agentType or provisioning is rejected with 400. An absent labels or
+        extensions keeps its stored value.
       operationId: updateAgent
-      parameters:
-        - name: agentName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateAgentBasicInfoRequest"
+              $ref: "#/components/schemas/AgentDocument"
       responses:
         "200":
           description: Agent updated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentResponse"
+                $ref: "#/components/schemas/AgentDocument"
         "400":
           description: Invalid request
           content:
@@ -601,22 +546,6 @@ paths:
     delete:
       summary: Delete agent
       operationId: deleteAgent
-      parameters:
-        - name: agentName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "204":
           description: Agent deleted successfully
@@ -856,7 +785,7 @@ paths:
   # AI GATEWAY ENDPOINTS
   # ============================================
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/token:
+  /agents/{agentName}/token:
     post:
       summary: Generate authentication token for an agent
       description: |
@@ -864,24 +793,18 @@ paths:
         The token includes claims for component, environment, organization, and project identifiers.
       operationId: generateAgentToken
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Project handle.
+          schema:
+            type: string
         - name: environment
           in: query
           required: false
@@ -920,24 +843,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities:
+  /agents/{agentName}/identities:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
-      - name: projName
-        in: path
-        required: true
-        description: Project name
-        schema:
-          type: string
       - name: agentName
         in: path
         required: true
         description: Agent name
+        schema:
+          type: string
+      - name: project
+        in: query
+        required: true
+        description: Project handle.
         schema:
           type: string
 
@@ -1006,7 +923,7 @@ paths:
       parameters:
         - name: environment
           in: query
-          required: true
+          required: false
           description: Environment name to provision the AgentID in
           schema:
             type: string
@@ -1117,7 +1034,7 @@ paths:
       parameters:
         - name: environment
           in: query
-          required: true
+          required: false
           description: Environment name to revoke the AgentID secret in
           schema:
             type: string
@@ -1153,7 +1070,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities/retry:
+  /agents/{agentName}/identities/retry:
     post:
       tags:
         - Agent Identity
@@ -1170,22 +1087,16 @@ paths:
         are rejected with `409`.
       operationId: retryAgentIdentityProvisioning
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          description: Project name
-          schema:
-            type: string
         - name: agentName
           in: path
           required: true
           description: Agent name
+          schema:
+            type: string
+        - name: project
+          in: query
+          required: true
+          description: Project handle.
           schema:
             type: string
       requestBody:
@@ -1232,24 +1143,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/roles:
+  /agents/{agentName}/roles:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
-      - name: projName
-        in: path
-        required: true
-        description: Project name
-        schema:
-          type: string
       - name: agentName
         in: path
         required: true
         description: Agent name
+        schema:
+          type: string
+      - name: project
+        in: query
+        required: true
+        description: Project handle.
         schema:
           type: string
 
@@ -1267,7 +1172,7 @@ paths:
       parameters:
         - name: environment
           in: query
-          required: true
+          required: false
           description: Environment name to read the agent's roles for
           schema:
             type: string
@@ -1303,24 +1208,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/groups:
+  /agents/{agentName}/groups:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
-      - name: projName
-        in: path
-        required: true
-        description: Project name
-        schema:
-          type: string
       - name: agentName
         in: path
         required: true
         description: Agent name
+        schema:
+          type: string
+      - name: project
+        in: query
+        required: true
+        description: Project handle.
         schema:
           type: string
 
@@ -1337,7 +1236,7 @@ paths:
       parameters:
         - name: environment
           in: query
-          required: true
+          required: false
           description: Environment name to read the agent's groups for
           schema:
             type: string
@@ -3274,6 +3173,135 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
+    AgentDocument:
+      type: object
+      description: An agent as a document; metadata.name is its handle, spec.displayName its label.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+      properties:
+        apiVersion:
+          type: string
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
+          type: string
+          description: Must match the route; never ignored.
+          enum:
+            - Agent
+        metadata:
+          $ref: "#/components/schemas/ProjectScopedDocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/AgentSpec"
+        status:
+          $ref: "#/components/schemas/AgentStatus"
+    AgentSpec:
+      type: object
+      required:
+        - displayName
+        - provisioning
+        - agentType
+      properties:
+        displayName:
+          type: string
+          description: Display name of the agent
+        description:
+          type: string
+          description: Description of the agent
+        provisioning:
+          $ref: "#/components/schemas/AgentProvisioning"
+        agentType:
+          $ref: "#/components/schemas/AgentType"
+        labels:
+          $ref: "#/components/schemas/Labels"
+        extensions:
+          $ref: "#/components/schemas/Extensions"
+    AgentProvisioning:
+      type: object
+      description: How the agent runs. Fixed at creation.
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [external]
+          x-go-type-name: AgentProvisioningKind
+          description: Type of provisioning; only externally hosted agents are supported.
+    AgentStatus:
+      type: object
+      readOnly: true
+      properties:
+        state:
+          type: string
+          description: Current status of the agent
+    ProjectScopedDocumentMetadata:
+      type: object
+      description: Metadata of a kind that lives inside a project.
+      required:
+        - name
+        - project
+      properties:
+        name:
+          type: string
+          description: The resource's handle.
+        project:
+          type: string
+          description: Handle of the project the resource belongs to.
+          example: my-project
+        uid:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Server-assigned UUID.
+        creationTimestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When the resource was created.
+        updateTimestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When the resource last changed.
+        createdBy:
+          type: string
+          readOnly: true
+          description: User ID of the creator, when known.
+    Pagination:
+      type: object
+      description: Where this page sits in the collection.
+      properties:
+        limit:
+          type: integer
+          format: int32
+          description: Maximum items requested for this page.
+        offset:
+          type: integer
+          format: int32
+          description: Items skipped before this page.
+        total:
+          type: integer
+          format: int32
+          description: Total items in the collection, across all pages.
+    AgentListResponse:
+      type: object
+      required:
+        - count
+        - list
+        - pagination
+      properties:
+        count:
+          type: integer
+          format: int32
+          description: Number of items in this page.
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentDocument"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
     UIManifestResponse:
       type: object
       required:
@@ -3786,50 +3814,6 @@ components:
         - name
         - displayName
         - resourceType
-    AgentListResponse:
-      type: object
-      properties:
-        agents:
-          type: array
-          items:
-            $ref: "#/components/schemas/AgentResponse"
-        total:
-          type: integer
-          description: Total number of agents matching the query
-        limit:
-          type: integer
-        offset:
-          type: integer
-      required:
-        - agents
-        - total
-        - limit
-        - offset
-    AgentSummary:
-      type: object
-      properties:
-        name:
-          type: string
-        displayName:
-          type: string
-        projectName:
-          type: string
-        projectDisplayName:
-          type: string
-      required:
-        - name
-        - displayName
-        - projectName
-        - projectDisplayName
-    AgentSummaryListResponse:
-      type: object
-      properties:
-        agents:
-          type: array
-          items:
-            $ref: "#/components/schemas/AgentSummary"
-      required:
-        - agents
     RepositoryConfig:
       type: object
       description: Git repository configuration
@@ -4596,12 +4580,10 @@ components:
     AgentIdentityActionRequest:
       type: object
       description: Request body for regenerating an AgentID secret
-      required:
-        - environment
       properties:
         environment:
           type: string
-          description: Environment name to regenerate the AgentID secret in
+          description: Environment name; omitted means the organization's only environment
           example: production
 
     AgentRegenerateSecretResponse:

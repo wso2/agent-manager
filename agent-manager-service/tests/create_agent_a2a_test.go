@@ -49,14 +49,13 @@ func TestCreateExternalAgentWithA2ASubTypeGetsNoGatewayPublication(t *testing.T)
 	agentName := fmt.Sprintf("ext-a2a-%s", uuid.New().String()[:5])
 
 	reqBody := new(bytes.Buffer)
-	require.NoError(t, json.NewEncoder(reqBody).Encode(map[string]interface{}{
+	require.NoError(t, json.NewEncoder(reqBody).Encode(agentDocument(testProjName, map[string]interface{}{
 		"name":         agentName,
 		"displayName":  "External A2A",
 		"provisioning": map[string]interface{}{"type": "external"},
 		"agentType":    map[string]interface{}{"type": "external-agent-api", "subType": "a2a-agent"},
-	}))
-	req := httptest.NewRequest(http.MethodPost,
-		fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName), reqBody)
+	})))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/agents", reqBody)
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	app.ServeHTTP(rr, req)
