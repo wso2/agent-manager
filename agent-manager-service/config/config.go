@@ -704,6 +704,12 @@ type ShadowRunnerConfig struct {
 	Enabled bool
 	// Image is the scan command's container image (AMP_SHADOW_RUNNER_IMAGE).
 	Image string
+	// AMPURL is the Agent Manager address the scan command publishes its
+	// results to (AMP_SHADOW_RUNNER_AMP_URL). Empty uses SERVER_PUBLIC_URL. Set
+	// it only where the command's container reaches this service at another
+	// address, such as local development, where localhost inside the container
+	// is not this machine (http://host.docker.internal:9000).
+	AMPURL string
 	// Resource is the RFC 8707 resource indicator the scan token is requested
 	// for (AMP_SHADOW_RUNNER_RESOURCE): the identifier of the resource server
 	// that defines amp:shadow-agent:publish, for an identity provider whose

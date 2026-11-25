@@ -321,6 +321,11 @@ func TestNewShadowScanRunner(t *testing.T) {
 	assert.True(t, runner.Issuer.(*shadowScanTokenIssuer).minter.orgTokenEndpoint)
 	assert.Equal(t, "amp-api-client", runner.ClientID)
 	assert.Empty(t, runner.unavailable)
+
+	// AMP_SHADOW_RUNNER_AMP_URL, when set, is the address the command publishes to.
+	cfg.ShadowRunner.AMPURL = " http://host.docker.internal:9000/ "
+	runner = NewShadowScanRunner(cfg, discardLogger())
+	assert.Equal(t, "http://host.docker.internal:9000", runner.AMPURL)
 }
 
 // shadowScanIssuer is the real issuer against a fake identity provider.

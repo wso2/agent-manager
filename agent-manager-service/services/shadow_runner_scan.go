@@ -102,7 +102,7 @@ func NewShadowScanRunner(cfg config.Config, logger *slog.Logger) ShadowScanRunne
 		Enabled:     cfg.ShadowRunner.Enabled,
 		Issuer:      nil,
 		ClientID:    strings.TrimSpace(cfg.IDP.ClientID),
-		AMPURL:      strings.TrimRight(strings.TrimSpace(cfg.ServerPublicURL), "/"),
+		AMPURL:      shadowRunnerAMPURL(cfg),
 		Image:       cfg.ShadowRunner.Image,
 		unavailable: "",
 	}
@@ -130,6 +130,16 @@ func NewShadowScanRunner(cfg config.Config, logger *slog.Logger) ShadowScanRunne
 		logger.Info("Source code scan commands are off", "reason", runner.unavailable)
 	}
 	return runner
+}
+
+// shadowRunnerAMPURL is the address the scan command publishes to:
+// AMP_SHADOW_RUNNER_AMP_URL when set, else SERVER_PUBLIC_URL.
+func shadowRunnerAMPURL(cfg config.Config) string {
+	u := strings.TrimSpace(cfg.ShadowRunner.AMPURL)
+	if u == "" {
+		u = strings.TrimSpace(cfg.ServerPublicURL)
+	}
+	return strings.TrimRight(u, "/")
 }
 
 type shadowScanTokenIssuer struct {
