@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -281,8 +282,7 @@ func cleanupStaleMCPProxies(client *framework.AMPClient) {
 
 // deleteAgentsInProject deletes all agents within a project.
 func deleteAgentsInProject(client *framework.AMPClient, orgName, projName string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", orgName, projName)
-	resp, err := client.Get(path)
+	resp, err := client.Get("/api/v1/agents?" + url.Values{"project": {projName}, "limit": {"500"}}.Encode())
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list agents in %s: %v\n", projName, err)
 		return
@@ -303,15 +303,15 @@ func deleteAgentsInProject(client *framework.AMPClient, orgName, projName string
 		return
 	}
 
-	for _, ag := range agents.Agents {
-		agentPath := fmt.Sprintf("%s/%s", path, ag.Name)
-		delResp, err := client.Delete(agentPath)
+	for _, ag := range agents.List {
+		name := ag.Metadata.Name
+		delResp, err := client.Delete(fmt.Sprintf("/api/v1/agents/%s?%s", url.PathEscape(name), url.Values{"project": {projName}}.Encode()))
 		if err != nil {
-			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete agent %s: %v\n", ag.Name, err)
+			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete agent %s: %v\n", name, err)
 			continue
 		}
 		delResp.Body.Close()
 		ginkgo.GinkgoWriter.Printf("stale cleanup: deleted agent %s/%s (status %d)\n",
-			projName, ag.Name, delResp.StatusCode)
+			projName, name, delResp.StatusCode)
 	}
 }

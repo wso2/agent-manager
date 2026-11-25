@@ -121,33 +121,11 @@ type RuntimeConfigs struct {
 	RunCommand      string                `json:"runCommand,omitempty"`
 }
 
-type EnvModelConfigRequest struct {
-	// ProviderName references an LLM provider (type "llm"); MCPProxyName references
-	// an MCP proxy (type "mcp"). Exactly one is set depending on the config type.
-	ProviderName  string                 `json:"providerName,omitempty"`
-	MCPProxyName  string                 `json:"mcpProxyName,omitempty"`
-	Configuration map[string]interface{} `json:"configuration,omitempty"`
-}
-
 type AuthInfo struct {
 	Type  string  `json:"type"`
 	In    string  `json:"in"`
 	Name  string  `json:"name"`
 	Value *string `json:"value,omitempty"`
-}
-
-type ProviderConfig struct {
-	ProviderName string      `json:"providerName"`
-	ProxyUuid    string      `json:"proxyUuid"`
-	URL          string      `json:"url"`
-	AuthInfo     *AuthInfo   `json:"authInfo,omitempty"`
-	Policies     []LLMPolicy `json:"policies,omitempty"`
-	Status       *string     `json:"status,omitempty"`
-}
-
-type EnvProviderConfigMapping struct {
-	EnvironmentName string          `json:"environmentName"`
-	Configuration   *ProviderConfig `json:"configuration,omitempty"`
 }
 
 type EnvironmentVariableConfig struct {
@@ -174,23 +152,62 @@ type UpdateAgentRequest struct {
 	Description string `json:"description"`
 }
 
-type AgentResponse struct {
-	UUID         string       `json:"uuid"`
-	Name         string       `json:"name"`
-	DisplayName  string       `json:"displayName"`
-	Description  string       `json:"description"`
-	ProjectName  string       `json:"projectName"`
-	Status       string       `json:"status"`
-	Provisioning Provisioning `json:"provisioning"`
-	AgentType    AgentType    `json:"agentType"`
-	CreatedAt    time.Time    `json:"createdAt"`
+// AgentDocumentAPIVersion is the apiVersion of every resource document.
+const AgentDocumentAPIVersion = "ai-control-plane.choreolabs.com/v1"
+
+// AgentDocument is an agent as the API reads and writes it.
+type AgentDocument struct {
+	APIVersion string        `json:"apiVersion"`
+	Kind       string        `json:"kind"`
+	Metadata   AgentMetadata `json:"metadata"`
+	Spec       AgentSpec     `json:"spec"`
+	Status     *AgentStatus  `json:"status,omitempty"`
+}
+
+type AgentMetadata struct {
+	Name              string     `json:"name"`
+	Project           string     `json:"project"`
+	UID               string     `json:"uid,omitempty"`
+	CreationTimestamp *time.Time `json:"creationTimestamp,omitempty"`
+}
+
+type AgentSpec struct {
+	DisplayName  string                    `json:"displayName"`
+	Description  string                    `json:"description,omitempty"`
+	Provisioning Provisioning              `json:"provisioning"`
+	AgentType    AgentType                 `json:"agentType"`
+	Labels       map[string]string         `json:"labels,omitempty"`
+	Extensions   map[string]map[string]any `json:"extensions,omitempty"`
+}
+
+type AgentStatus struct {
+	State string `json:"state,omitempty"`
 }
 
 type AgentListResponse struct {
-	Agents []AgentResponse `json:"agents"`
-	Total  int             `json:"total"`
-	Limit  int             `json:"limit"`
-	Offset int             `json:"offset"`
+	Count      int             `json:"count"`
+	List       []AgentDocument `json:"list"`
+	Pagination struct {
+		Limit  int `json:"limit"`
+		Offset int `json:"offset"`
+		Total  int `json:"total"`
+	} `json:"pagination"`
+}
+
+// Document wraps the request in the Agent document the API takes for the given project.
+func (r CreateAgentRequest) Document(project string) AgentDocument {
+	return AgentDocument{
+		APIVersion: AgentDocumentAPIVersion,
+		Kind:       "Agent",
+		Metadata:   AgentMetadata{Name: r.Name, Project: project},
+		Spec: AgentSpec{
+			DisplayName:  r.DisplayName,
+			Description:  r.Description,
+			Provisioning: r.Provisioning,
+			AgentType:    r.AgentType,
+			Extensions:   r.Extensions,
+		},
+	}
 }
 
 type AgentIdentityEnvironmentView struct {
@@ -866,37 +883,53 @@ type AgentResourceConfigsResponse struct {
 // Agent Model Configuration
 // ---------------------------------------------------------------------------
 
-type CreateAgentModelConfigRequest struct {
-	Name                 string                           `json:"name"`
-	Description          string                           `json:"description,omitempty"`
-	Type                 string                           `json:"type"`
-	EnvMappings          map[string]EnvModelConfigRequest `json:"envMappings"`
-	EnvironmentVariables []EnvironmentVariableConfig      `json:"environmentVariables,omitempty"`
+// AgentConfigDocument is an agent's model configuration (kind AgentModelConfig) or MCP configuration (kind AgentMcpConfig).
+type AgentConfigDocument struct {
+	APIVersion string             `json:"apiVersion"`
+	Kind       string             `json:"kind"`
+	Metadata   AgentMetadata      `json:"metadata"`
+	Spec       AgentConfigSpec    `json:"spec"`
+	Status     *AgentConfigStatus `json:"status,omitempty"`
 }
 
-type UpdateAgentModelConfigRequest struct {
-	Name                 string                           `json:"name,omitempty"`
-	Description          string                           `json:"description,omitempty"`
-	EnvMappings          map[string]EnvModelConfigRequest `json:"envMappings,omitempty"`
-	EnvironmentVariables []EnvironmentVariableConfig      `json:"environmentVariables,omitempty"`
+type AgentConfigSpec struct {
+	Description          string                      `json:"description,omitempty"`
+	ProviderName         string                      `json:"providerName,omitempty"`
+	ProxyName            string                      `json:"proxyName,omitempty"`
+	Configuration        map[string]any              `json:"configuration,omitempty"`
+	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
 }
 
-type AgentModelConfigResponse struct {
-	UUID                 string                              `json:"uuid"`
-	Name                 string                              `json:"name"`
-	Description          string                              `json:"description"`
-	AgentID              string                              `json:"agentId"`
-	Type                 string                              `json:"type"`
-	OrganizationName     string                              `json:"organizationName"`
-	ProjectName          string                              `json:"projectName"`
-	EnvMappings          map[string]EnvProviderConfigMapping `json:"envMappings"`
-	EnvironmentVariables []EnvironmentVariableConfig         `json:"environmentVariables"`
-	CreatedAt            time.Time                           `json:"createdAt"`
-	UpdatedAt            time.Time                           `json:"updatedAt"`
+type AgentConfigStatus struct {
+	URL              string      `json:"url,omitempty"`
+	AuthInfo         *AuthInfo   `json:"authInfo,omitempty"`
+	ProxyUuid        string      `json:"proxyUuid,omitempty"`
+	ProxyName        string      `json:"proxyName,omitempty"`
+	ProviderUuid     string      `json:"providerUuid,omitempty"`
+	ProviderPolicies []LLMPolicy `json:"providerPolicies,omitempty"`
 }
 
-type AgentModelConfigListResponse struct {
-	Configs []AgentModelConfigResponse `json:"configs"`
+type AgentConfigListResponse struct {
+	Count int                   `json:"count"`
+	List  []AgentConfigDocument `json:"list"`
+}
+
+// NewModelConfigDocument returns a model configuration binding the agent to an LLM provider.
+func NewModelConfigDocument(project, name, provider string) AgentConfigDocument {
+	return AgentConfigDocument{
+		APIVersion: AgentDocumentAPIVersion, Kind: "AgentModelConfig",
+		Metadata: AgentMetadata{Name: name, Project: project},
+		Spec:     AgentConfigSpec{ProviderName: provider},
+	}
+}
+
+// NewMCPConfigDocument returns an MCP configuration binding the agent to an MCP proxy.
+func NewMCPConfigDocument(project, name, proxy string) AgentConfigDocument {
+	return AgentConfigDocument{
+		APIVersion: AgentDocumentAPIVersion, Kind: "AgentMcpConfig",
+		Metadata: AgentMetadata{Name: name, Project: project},
+		Spec:     AgentConfigSpec{ProxyName: proxy},
+	}
 }
 
 // ---------------------------------------------------------------------------

@@ -119,24 +119,24 @@ func (r guardedRoute) allowCases() []scopeCase {
 // checks the complementary property that the wiring actually behaves at
 // runtime, on the routes where being wrong is most expensive.
 func guardedRoutes(org string) []guardedRoute {
-	agentBase := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", org, absentName)
+	agentBase := "/api/v1/agents"
+	inProject := "?project=" + absentName
 	orgBase := fmt.Sprintf("/api/v1/orgs/%s", org)
 	identityBase := orgBase + "/identities"
 	// The AI Gateway module's API. Migrated resources take the org from the token, so
 	// their routes hang off the module base with no org segment.
 	gwBase := "/m/ai-gateway"
 	gwOrgBase := fmt.Sprintf("/m/ai-gateway/orgs/%s", org)
-	gwAgentBase := gwOrgBase + "/projects/" + absentName + "/agents"
 
 	return []guardedRoute{
 		// --- Agent lifecycle -------------------------------------------------
-		{http.MethodGet, agentBase, []string{"amp:agent:read"}},
+		{http.MethodGet, agentBase + inProject, []string{"amp:agent:read"}},
 		{http.MethodPost, agentBase, []string{"amp:agent:create"}},
-		{http.MethodGet, agentBase + "/" + absentName, []string{"amp:agent:read"}},
-		{http.MethodPut, agentBase + "/" + absentName, []string{"amp:agent:update"}},
-		{http.MethodDelete, agentBase + "/" + absentName, []string{"amp:agent:delete"}},
+		{http.MethodGet, agentBase + "/" + absentName + inProject, []string{"amp:agent:read"}},
+		{http.MethodPut, agentBase + "/" + absentName + inProject, []string{"amp:agent:update"}},
+		{http.MethodDelete, agentBase + "/" + absentName + inProject, []string{"amp:agent:delete"}},
 		{
-			http.MethodPost, gwAgentBase + "/" + absentName + "/environments/" + absentName + "/api-keys",
+			http.MethodPost, gwBase + "/agents/" + absentName + "/api-keys" + inProject,
 			[]string{"amp:ai-gateway:agent-api-keys.manage"},
 		},
 

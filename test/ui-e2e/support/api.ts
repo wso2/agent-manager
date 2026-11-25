@@ -25,6 +25,11 @@ export class AmpApi {
     return `/api/v1/orgs/${orgName}`;
   }
 
+  /** Path of one agent, its project in the query. */
+  agentPath(project: string, name: string): string {
+    return `/api/v1/agents/${encodeURIComponent(name)}?project=${encodeURIComponent(project)}`;
+  }
+
   get gw(): string {
     return `/m/ai-gateway/orgs/${orgName}`;
   }
@@ -41,11 +46,11 @@ export class AmpApi {
 
   async deleteProject(name: string): Promise<void> {
     // Agents first: a project with agents may refuse to go.
-    const agents = await this.ctx.get(`${this.org}/projects/${name}/agents`);
+    const agents = await this.ctx.get('/api/v1/agents', { params: { project: name, limit: 500 } });
     if (agents.ok()) {
       const body = await agents.json();
-      for (const a of body.agents ?? []) {
-        await this.ctx.delete(`${this.org}/projects/${name}/agents/${a.name}`);
+      for (const a of body.list ?? []) {
+        await this.ctx.delete(this.agentPath(name, a.metadata.name));
       }
     }
     // Agent deletion finishes in the background, and a project with agents
@@ -70,19 +75,23 @@ export class AmpApi {
   }
 
   async createExternalAgent(project: string, name: string, displayName = name): Promise<void> {
-    const res = await this.ctx.post(`${this.org}/projects/${project}/agents`, {
+    const res = await this.ctx.post('/api/v1/agents', {
       data: {
-        name,
-        displayName,
-        provisioning: { type: 'external' },
-        agentType: { type: 'external-agent-api', subType: 'custom-api' },
+        apiVersion: 'ai-control-plane.choreolabs.com/v1',
+        kind: 'Agent',
+        metadata: { name, project },
+        spec: {
+          displayName,
+          provisioning: { type: 'external' },
+          agentType: { type: 'external-agent-api', subType: 'custom-api' },
+        },
       },
     });
     expect(res.status(), await res.text()).toBe(202);
   }
 
   async getAgent(project: string, name: string): Promise<{ status: number; body: any }> {
-    const res = await this.ctx.get(`${this.org}/projects/${project}/agents/${name}`);
+    const res = await this.ctx.get(this.agentPath(project, name));
     return { status: res.status(), body: res.ok() ? await res.json() : undefined };
   }
 

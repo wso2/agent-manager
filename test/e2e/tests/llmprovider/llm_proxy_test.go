@@ -44,7 +44,7 @@ var _ = Describe("Project LLM proxies:", Label("llm-provider", "llm-proxy"), Ord
 		return framework.GW(Cfg, "/projects/%s/llm-proxies"+f, append([]any{proj}, a...)...)
 	}
 	mc := func(f string, a ...any) string {
-		return framework.GW(Cfg, "/projects/%s/agents/%s/model-configs"+f, append([]any{proj, agentName}, a...)...)
+		return framework.GWAgent(proj, agentName, "/model-configs"+f, a...)
 	}
 
 	BeforeAll(func() {
@@ -163,32 +163,29 @@ var _ = Describe("Project LLM proxies:", Label("llm-provider", "llm-proxy"), Ord
 		agentops.CreateAgent(Default, Client, &agentops.CreateAgentParams{
 			OrgName: Cfg.DefaultOrg, ProjectName: proj, Request: framework.NewExternalAgentRequest(agentName, "llm proxy consumer"),
 		})
-		cfg := configuration.CreateAgentModelConfig(Default, Client, Cfg.DefaultOrg, proj, agentName, framework.CreateAgentModelConfigRequest{
-			Name: configName, Type: "llm",
-			EnvMappings: map[string]framework.EnvModelConfigRequest{Cfg.DefaultEnv: {ProviderName: providerName}},
-		})
-		configID = cfg.UUID
-		agentProxy := cfg.EnvMappings[Cfg.DefaultEnv].Configuration.ProxyUuid
+		cfg := configuration.CreateAgentModelConfig(Default, Client, proj, agentName, framework.NewModelConfigDocument(proj, configName, providerName))
+		configID = cfg.Metadata.UID
+		Expect(cfg.Status).NotTo(BeNil())
+		agentProxy := cfg.Status.ProxyUuid
 		Expect(agentProxy).NotTo(BeEmpty())
 
 		consumers := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/llm-providers/%s/consumers", providerID), nil, http.StatusOK)
 		Expect(consumers["total"]).To(BeNumerically(">=", 1))
 		Expect(cliagent.ListAgentLLM(Default, H, H.Org(), proj, agentName).Names()).To(ContainElement(configName))
 
-		got := configuration.GetAgentModelConfig(Default, Client, Cfg.DefaultOrg, proj, agentName, configID)
-		Expect(got.Name).To(Equal(configName))
-		list := configuration.ListAgentModelConfigs(Default, Client, Cfg.DefaultOrg, proj, agentName)
-		Expect(list.Configs).NotTo(BeEmpty())
+		got := configuration.GetAgentModelConfig(Default, Client, proj, agentName, configID)
+		Expect(got.Metadata.Name).To(Equal(configName))
+		list := configuration.ListAgentModelConfigs(Default, Client, proj, agentName)
+		Expect(list.List).NotTo(BeEmpty())
 
-		keys := mc("/%s/environments/%s/api-keys", configID, Cfg.DefaultEnv)
-		k := framework.CallObj(Default, Client, http.MethodPost, keys, framework.Obj{"name": "e2e-mc-key", "displayName": "e2e-mc-key"}, http.StatusCreated)
+		k := framework.CallObj(Default, Client, http.MethodPost, mc("/%s/api-keys", configID), framework.Obj{"name": "e2e-mc-key", "displayName": "e2e-mc-key"}, http.StatusCreated)
 		Expect(framework.Str(k, "apiKey")).NotTo(BeEmpty())
-		Expect(framework.Field(framework.Items(framework.CallObj(Default, Client, http.MethodGet, keys, nil, http.StatusOK), "keys"), "name")).To(ContainElement("e2e-mc-key"))
-		framework.Call(Default, Client, http.MethodPut, keys+"/e2e-mc-key", framework.Obj{}, http.StatusOK)
-		framework.Call(Default, Client, http.MethodDelete, keys+"/e2e-mc-key", nil, http.StatusNoContent)
+		Expect(framework.Field(framework.Items(framework.CallObj(Default, Client, http.MethodGet, mc("/%s/api-keys", configID), nil, http.StatusOK), "keys"), "name")).To(ContainElement("e2e-mc-key"))
+		framework.Call(Default, Client, http.MethodPut, mc("/%s/api-keys/e2e-mc-key", configID), framework.Obj{}, http.StatusOK)
+		framework.Call(Default, Client, http.MethodDelete, mc("/%s/api-keys/e2e-mc-key", configID), nil, http.StatusNoContent)
 
 		// The agent reaches the provider through its own proxy's gateway URL.
-		Expect(cfg.EnvMappings[Cfg.DefaultEnv].Configuration.URL).To(HavePrefix("http"))
+		Expect(cfg.Status.URL).To(HavePrefix("http"))
 	})
 
 	It("refuses to delete the provider while it has consumers, and keeps it", func() {
@@ -197,7 +194,7 @@ var _ = Describe("Project LLM proxies:", Label("llm-provider", "llm-proxy"), Ord
 	})
 
 	It("deletes the provider once its consumers are gone", func() {
-		configuration.DeleteAgentModelConfig(Default, Client, Cfg.DefaultOrg, proj, agentName, configID)
+		configuration.DeleteAgentModelConfig(Default, Client, proj, agentName, configID)
 		Expect(cliagent.ListAgentLLM(Default, H, H.Org(), proj, agentName).Names()).NotTo(ContainElement(configName))
 		configID = ""
 		llmproxy.DeleteLLMProxy(Default, Client, Cfg.DefaultOrg, proj, proxyID)

@@ -1,8 +1,6 @@
 package agent
 
 import (
-	"fmt"
-
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -11,7 +9,7 @@ import (
 
 // DeleteAgent deletes an agent by name.
 func DeleteAgent(g Gomega, client *framework.AMPClient, orgName, projName, agentName string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", orgName, projName, agentName)
+	path := AgentPath(projName, agentName)
 
 	resp, err := client.Delete(path)
 	g.Expect(err).NotTo(HaveOccurred(), "delete agent request failed")
@@ -24,7 +22,7 @@ func DeleteAgent(g Gomega, client *framework.AMPClient, orgName, projName, agent
 // never fails the spec, since a wedged deployment can make the delete return a
 // non-204 status.
 func DeleteAgentBestEffort(client *framework.AMPClient, orgName, projName, agentName string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", orgName, projName, agentName)
+	path := AgentPath(projName, agentName)
 	resp, err := client.Delete(path)
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("teardown: delete agent %q failed: %v\n", agentName, err)
