@@ -161,3 +161,44 @@ func TestBuildEnvironmentVariablesExplicitProviderNameBeatsSiblingPrefix(t *test
 	require.NoError(t, err)
 	require.Equal(t, "LLM_VENDOR", templates[2].Name)
 }
+
+// A legacy config (no provider variable) whose URL is named like the provider's default name must
+// still be able to rename another variable: only the variables it has are validated.
+func TestBuildEnvironmentVariablesForKeysIgnoresAbsentProviderOnRename(t *testing.T) {
+	svc := &agentConfigurationService{}
+	overrides := []models.EnvironmentVariableConfig{
+		{Key: "url", Name: "MY_LLM_PROVIDER"},
+		{Key: "apikey", Name: "NEW_TOKEN"},
+	}
+
+	_, err := svc.buildEnvironmentVariables("my-llm", overrides)
+	require.ErrorContains(t, err, "duplicate environment variable name", "all three keys still clash")
+
+	templates, err := svc.buildEnvironmentVariablesForKeys("my-llm", overrides, persistedLLMEnvVarKeys(map[string]string{
+		"url": "MY_LLM_PROVIDER", "apikey": "TOKEN",
+	}))
+	require.NoError(t, err)
+	require.Len(t, templates, 2)
+	require.Equal(t, "NEW_TOKEN", templates[1].Name)
+}
+
+func TestPersistedLLMEnvVarKeys(t *testing.T) {
+	require.Equal(t, []string{"url", "apikey"}, persistedLLMEnvVarKeys(map[string]string{"apikey": "A", "url": "U"}))
+	require.Equal(t, []string{"url", "apikey", "provider"}, persistedLLMEnvVarKeys(map[string]string{"provider": "P", "apikey": "A", "url": "U"}))
+	require.Equal(t, []string{"url", "apikey", "provider"}, persistedLLMEnvVarKeys(nil), "no rows falls back to every key")
+}
+
+// One config can have the provider row in a newer environment and not in an older one; the older
+// one must not be handed a variable its table does not track.
+func TestTemplatesTrackedInFollowsTheEnvironmentsOwnRows(t *testing.T) {
+	templates := []EnvConfigTemplate{
+		{Key: "url", Name: "X_URL"},
+		{Key: "apikey", Name: "X_API_KEY"},
+		{Key: "provider", Name: "X_PROVIDER"},
+	}
+	legacyEnv := []models.AgentEnvConfigVariable{{VariableKey: "url"}, {VariableKey: "apikey"}}
+	newerEnv := append(legacyEnv, models.AgentEnvConfigVariable{VariableKey: "provider"})
+
+	require.Len(t, templatesTrackedIn(templates, legacyEnv), 2)
+	require.Equal(t, templates, templatesTrackedIn(templates, newerEnv))
+}

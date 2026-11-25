@@ -3736,7 +3736,9 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			if existingConfig.TypeID == models.AgentConfigTypeIDMCP {
 				_, validateErr = s.buildMCPMappingEnvironmentVariables(existingConfig.Name, mergedOverrides)
 			} else {
-				_, validateErr = s.buildEnvironmentVariables(existingConfig.Name, mergedOverrides)
+				// Only the variables this config actually has: a legacy config has no provider
+				// variable, and its would-be default name must not reject a valid rename.
+				_, validateErr = s.buildEnvironmentVariablesForKeys(existingConfig.Name, mergedOverrides, persistedLLMEnvVarKeys(persistedVarNames))
 			}
 			if validateErr != nil {
 				return errors.Join(utils.ErrInvalidInput, validateErr)
@@ -3790,24 +3792,11 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 					if existingConfig.TypeID == models.AgentConfigTypeIDMCP {
 						newEnvConfigTemplates, buildErr = s.buildMCPMappingEnvironmentVariables(existingConfig.Name, newOverrides)
 					} else {
-						newEnvConfigTemplates, buildErr = s.buildEnvironmentVariables(existingConfig.Name, newOverrides)
+						newEnvConfigTemplates, buildErr = s.buildEnvironmentVariablesForKeys(existingConfig.Name, newOverrides, persistedLLMEnvVarKeys(oldVarNames))
 					}
 					if buildErr != nil {
 						s.logger.Warn("Phase 1b: failed to build new env var templates for re-injection after rename", "err", buildErr)
 					}
-					if existingConfig.TypeID != models.AgentConfigTypeIDMCP {
-						// A config created before the provider variable existed has no persisted row
-						// for it; buildEnvironmentVariables would still generate one, so drop any
-						// template whose key is not persisted rather than inject an untracked variable.
-						persistedTemplates := newEnvConfigTemplates[:0:0]
-						for _, t := range newEnvConfigTemplates {
-							if _, ok := oldVarNames[t.Key]; ok {
-								persistedTemplates = append(persistedTemplates, t)
-							}
-						}
-						newEnvConfigTemplates = persistedTemplates
-					}
-
 					// Determine first env for Component CR bootstrap update.
 					firstEnvName1b := ""
 					if pipeline, pipelineErr := s.ocClient.GetProjectDeploymentPipeline(ctx, ouID, projectName); pipelineErr == nil && pipeline != nil {
@@ -3895,7 +3884,11 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 								s.logger.Warn("Phase 1b: no persisted SecretReference found, skipping re-injection", "environment", envName)
 								continue
 							}
-							envVarsToInject, urlErr := internalLLMEnvVars(newEnvConfigTemplates, gateway, mapping.LLMProxy.Configuration.Context, secretRefName, s.providerTemplateHandle(mapping.LLMProxy.Configuration.Provider, ouID))
+							// Templates are config-wide, but the rows are per environment: an environment
+							// added after the provider variable shipped has the row, an older one does not.
+							// Inject only what this environment tracks so later renames can manage it.
+							envTemplates := templatesTrackedIn(newEnvConfigTemplates, envVars1b)
+							envVarsToInject, urlErr := internalLLMEnvVars(envTemplates, gateway, mapping.LLMProxy.Configuration.Context, secretRefName, s.providerTemplateHandle(mapping.LLMProxy.Configuration.Provider, ouID))
 							if urlErr != nil {
 								s.logger.Warn("Phase 1b: failed to resolve internal proxy URL for re-injection", "environment", envName, "err", urlErr)
 								continue
@@ -5092,6 +5085,49 @@ func siblingProviderVarName(urlName, apiKeyName string) (string, bool) {
 // If overrides are provided, user-supplied names take precedence over auto-generated ones.
 // Validates all names using ValidateEnvironmentVariableName.
 func (s *agentConfigurationService) buildEnvironmentVariables(configName string, overrides []models.EnvironmentVariableConfig) ([]EnvConfigTemplate, error) {
+	return s.buildEnvironmentVariablesForKeys(configName, overrides, llmEnvVarKeyOrder)
+}
+
+// templatesTrackedIn keeps the templates whose key has a row in rows (one environment's stored
+// variables). A config's templates are built once for all environments, but a variable can exist
+// in some environments only, so injection must follow each environment's own rows.
+func templatesTrackedIn(templates []EnvConfigTemplate, rows []models.AgentEnvConfigVariable) []EnvConfigTemplate {
+	tracked := make(map[string]bool, len(rows))
+	for _, v := range rows {
+		tracked[v.VariableKey] = true
+	}
+	kept := make([]EnvConfigTemplate, 0, len(templates))
+	for _, t := range templates {
+		if tracked[t.Key] {
+			kept = append(kept, t)
+		}
+	}
+	return kept
+}
+
+// llmEnvVarKeyOrder is the fixed order of an LLM configuration's env var keys.
+var llmEnvVarKeyOrder = []string{"url", "apikey", "provider"}
+
+// persistedLLMEnvVarKeys returns the LLM env var keys present in names (key -> variable name),
+// in the fixed order. A config created before the provider variable existed has no "provider"
+// entry; a rename of its other variables must neither validate nor re-inject one. Falls back to
+// every key when names holds none of them, so a config with no stored rows behaves as before.
+func persistedLLMEnvVarKeys(names map[string]string) []string {
+	keys := make([]string, 0, len(llmEnvVarKeyOrder))
+	for _, k := range llmEnvVarKeyOrder {
+		if _, ok := names[k]; ok {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return llmEnvVarKeyOrder
+	}
+	return keys
+}
+
+// buildEnvironmentVariablesForKeys is buildEnvironmentVariables restricted to the given keys:
+// only those are generated, and only their names are checked for duplicates.
+func (s *agentConfigurationService) buildEnvironmentVariablesForKeys(configName string, overrides []models.EnvironmentVariableConfig, keyOrder []string) ([]EnvConfigTemplate, error) {
 	// Sanitize: Replace any character not in A-Za-z0-9_ with '_'
 	prefix := strings.Map(func(r rune) rune {
 		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
@@ -5144,8 +5180,7 @@ func (s *agentConfigurationService) buildEnvironmentVariables(configName string,
 
 	// Determine final name for each key (override wins, then auto-generate).
 	// Iterate in a fixed order so the returned slice is deterministic.
-	keyOrder := []string{"url", "apikey", "provider"}
-	envConfigTemplates := make([]EnvConfigTemplate, 0, len(knownKeys))
+	envConfigTemplates := make([]EnvConfigTemplate, 0, len(keyOrder))
 	usedNames := make(map[string]string) // name -> key, for duplicate detection
 	for _, key := range keyOrder {
 		meta := knownKeys[key]
@@ -6410,6 +6445,10 @@ func (s *agentConfigurationService) BuildSystemManagedEnvVarsFromConfig(
 			case v.VariableKey == "url":
 				envVar.Value = urlValue
 			case v.VariableKey == "provider":
+				if providerValue == "" {
+					// Unresolved handle: leave the variable out, as buildLLMEnvVars does.
+					continue
+				}
 				envVar.Value = providerValue
 			default:
 				envVar.Value = ""
