@@ -32,6 +32,10 @@ import re
 import subprocess
 
 FUNC = re.compile(r"^func\b", re.M)
+# Files vitest.coverage.ts excludes, for packages that have no report.
+CONSOLE_EXCLUDED = re.compile(
+    r"\.(stories|test|spec)\.|\.d\.ts$|/(test-utils|__test__|__tests__|generated)/|\.generated\.|/generated-"
+)
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 
@@ -146,5 +150,70 @@ def evaluate_go(changed, coverage, module_dir, excludes, repo_root="."):
             # No profile entry but the file has code: no test run compiled it,
             # so every changed line is untested. A file of only types, vars
             # and consts has no blocks and nothing coverable.
+            per_file[path] = {n: False for n in lines}
+    return _tally(per_file)
+
+
+def console_line_coverage(console_root, repo_root):
+    """Repo path -> line -> covered from every package's coverage/lcov.info.
+
+    Also returns the package dirs (repo-relative) that have a report.
+    node_modules is never walked: pnpm symlinks packages into it, and
+    following those links stalls the walk.
+    """
+    repo_root = os.path.abspath(repo_root)
+    coverage, reported = {}, set()
+    for dirpath, dirnames, filenames in os.walk(os.path.abspath(console_root)):
+        dirnames[:] = [d for d in dirnames if d != "node_modules"]
+        if os.path.basename(dirpath) != "coverage":
+            continue
+        dirnames[:] = []
+        if "lcov.info" not in filenames:
+            continue
+        package = os.path.dirname(dirpath)
+        reported.add(os.path.relpath(package, repo_root).replace(os.sep, "/"))
+        lines = None
+        with open(os.path.join(dirpath, "lcov.info")) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("SF:"):
+                    src = os.path.join(package, line[3:])  # absolute SF wins
+                    rel = os.path.relpath(os.path.normpath(src), repo_root)
+                    lines = coverage.setdefault(rel.replace(os.sep, "/"), {})
+                elif line.startswith("DA:") and lines is not None:
+                    n, hits = line[3:].split(",")[:2]
+                    lines[int(n)] = lines.get(int(n), False) or int(hits) > 0
+                elif line == "end_of_record":
+                    lines = None
+    return coverage, reported
+
+
+def _console_package(path, repo_root):
+    """The nearest ancestor dir of a repo path that has a package.json."""
+    d = os.path.dirname(path)
+    while d.startswith("console"):
+        if os.path.isfile(os.path.join(repo_root, d, "package.json")):
+            return d
+        d = os.path.dirname(d)
+    return None
+
+
+def evaluate_console(changed, coverage, reported_packages, no_coverage_packages, repo_root):
+    """Covered and total coverable changed lines under console/."""
+    skip = {"console/" + p.strip("/") for p in no_coverage_packages}
+    per_file = {}
+    for path, lines in changed.items():
+        if not path.startswith("console/") or not path.endswith((".ts", ".tsx")):
+            continue
+        package = _console_package(path, repo_root)
+        if package is None or not path.startswith(package + "/src/"):
+            continue
+        if package in reported_packages:
+            # Vitest includes every src file, so one missing from the report
+            # was excluded on purpose (stories, tests, pure barrels).
+            if path in coverage:
+                per_file[path] = {n: coverage[path][n] for n in lines if n in coverage[path]}
+        elif package not in skip and not CONSOLE_EXCLUDED.search(path):
+            # A package that runs no coverage at all: nothing here is tested.
             per_file[path] = {n: False for n in lines}
     return _tally(per_file)

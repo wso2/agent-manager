@@ -24,6 +24,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from changed_lines import (  # noqa: E402
     ChangedResult,
+    console_line_coverage,
+    evaluate_console,
     evaluate_go,
     go_line_coverage,
     parse_diff,
@@ -157,6 +159,91 @@ class TestEvaluateGo(unittest.TestCase):
         cov = {"svc/a.go": {9: False, 3: False, 5: True}}
         res = self.evaluate({"svc/a.go": {9, 3, 5}}, cov)
         self.assertEqual(res, ChangedResult(covered=1, total=3, uncovered={"svc/a.go": [3, 9]}))
+
+
+class ConsoleTree(unittest.TestCase):
+    """A repo with console/ packages: views (reported), fresh (no report), types."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.console = os.path.join(self.root, "console")
+        for pkg in ("workspaces/libs/views", "workspaces/libs/fresh", "workspaces/libs/types"):
+            write(self.console, f"{pkg}/package.json", "{}")
+        views = os.path.join(self.console, "workspaces/libs/views")
+        write(
+            views,
+            "coverage/lcov.info",
+            "TN:\nSF:src/a.ts\nDA:1,1\nDA:2,0\nend_of_record\n"
+            f"SF:{views}/src/b.tsx\nDA:5,3\nend_of_record\n",
+        )
+        # A report inside node_modules is a symlinked copy and is never read.
+        write(
+            self.console,
+            "node_modules/views/coverage/lcov.info",
+            "SF:src/z.ts\nDA:1,0\nend_of_record\n",
+        )
+
+
+class TestConsoleLineCoverage(ConsoleTree):
+    def test_relative_and_absolute_sf_resolve_alike(self):
+        cov, _ = console_line_coverage(self.console, self.root)
+        self.assertEqual(cov["console/workspaces/libs/views/src/a.ts"], {1: True, 2: False})
+        self.assertEqual(cov["console/workspaces/libs/views/src/b.tsx"], {5: True})
+
+    def test_node_modules_skipped(self):
+        cov, _ = console_line_coverage(self.console, self.root)
+        self.assertFalse(any("node_modules" in p for p in cov))
+        self.assertNotIn("console/node_modules/views/src/z.ts", cov)
+
+    def test_reported_packages_listed(self):
+        _, reported = console_line_coverage(self.console, self.root)
+        self.assertEqual(reported, {"console/workspaces/libs/views"})
+
+
+class TestEvaluateConsole(ConsoleTree):
+    def evaluate(self, changed, no_coverage=()):
+        cov, reported = console_line_coverage(self.console, self.root)
+        return evaluate_console(changed, cov, reported, list(no_coverage), self.root)
+
+    def test_file_absent_from_report_not_coverable(self):
+        changed = {
+            "console/workspaces/libs/views/src/a.ts": {1, 2, 9},
+            "console/workspaces/libs/views/src/a.stories.tsx": {1},
+        }
+        res = self.evaluate(changed)
+        self.assertEqual(
+            res,
+            ChangedResult(covered=1, total=2, uncovered={"console/workspaces/libs/views/src/a.ts": [2]}),
+        )
+
+    def test_package_without_report_is_uncovered(self):
+        res = self.evaluate({"console/workspaces/libs/fresh/src/x.tsx": {3, 1}})
+        self.assertEqual(
+            res,
+            ChangedResult(covered=0, total=2, uncovered={"console/workspaces/libs/fresh/src/x.tsx": [1, 3]}),
+        )
+
+    def test_package_without_report_skips_tests_and_stories(self):
+        changed = {
+            "console/workspaces/libs/fresh/src/x.test.tsx": {1},
+            "console/workspaces/libs/fresh/src/x.stories.tsx": {1},
+            "console/workspaces/libs/fresh/src/env.d.ts": {1},
+            "console/workspaces/libs/fresh/src/__tests__/h.ts": {1},
+        }
+        self.assertEqual(self.evaluate(changed), ChangedResult(covered=0, total=0, uncovered={}))
+
+    def test_no_coverage_package_ignored(self):
+        res = self.evaluate({"console/workspaces/libs/types/src/t.ts": {1}}, ["workspaces/libs/types"])
+        self.assertEqual(res, ChangedResult(covered=0, total=0, uncovered={}))
+
+    def test_files_outside_src_ignored(self):
+        changed = {
+            "console/workspaces/libs/fresh/vite.config.ts": {1},
+            "console/workspaces/libs/fresh/src/styles.css": {1},
+            "console/scripts/build.ts": {1},
+            "agent-manager-service/a.go": {1},
+        }
+        self.assertEqual(self.evaluate(changed), ChangedResult(covered=0, total=0, uncovered={}))
 
 
 if __name__ == "__main__":
