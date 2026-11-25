@@ -31,7 +31,14 @@ import os
 import re
 import subprocess
 
-FUNC = re.compile(r"^func\b", re.M)
+# A function body: a declaration, or a literal assigned or passed somewhere.
+FUNC = re.compile(r"^func\b|[=(,:]\s*func\s*\(", re.M)
+BUILD_TAG = re.compile(r"^//go:build ", re.M)
+# file_GOOS.go, file_GOARCH.go, file_GOOS_GOARCH.go: built on that platform only.
+PLATFORM_FILE = re.compile(
+    r"_(aix|android|darwin|dragonfly|freebsd|illumos|ios|js|netbsd|openbsd|plan9|solaris|wasip1|windows"
+    r"|386|amd64|arm|arm64|loong64|mips\w*|ppc64\w*|riscv64|s390x|wasm)\.go$"
+)
 # Files vitest.coverage.ts excludes, for packages that have no report.
 CONSOLE_EXCLUDED = re.compile(
     r"\.(stories|test|spec)\.|\.d\.ts$|/(test-utils|__test__|__tests__|generated)/|\.generated\.|/generated-"
@@ -52,7 +59,7 @@ def parse_diff(diff_text):
     path = None
     for line in diff_text.splitlines():
         if line.startswith("+++ "):
-            target = line[4:].strip()
+            target = _unquote(line[4:].strip())
             path = target[2:] if target.startswith("b/") else None
             continue
         m = HUNK.match(line)
@@ -62,6 +69,14 @@ def parse_diff(diff_text):
             if count:
                 changed.setdefault(path, set()).update(range(start, start + count))
     return changed
+
+
+def _unquote(path):
+    """Decode a path git quoted ("b/caf\\303\\251.ts") for unusual characters."""
+    if not (path.startswith('"') and path.endswith('"')):
+        return path
+    raw = path[1:-1].encode("latin-1", "backslashreplace").decode("unicode_escape")
+    return raw.encode("latin-1").decode("utf-8", "replace")
 
 
 def git_changed_lines(base, repo_root):
@@ -75,7 +90,7 @@ def git_changed_lines(base, repo_root):
     mb = git("merge-base", base, "HEAD")
     if mb.returncode != 0 or not mb.stdout.strip():
         return None
-    diff = git("diff", "-U0", "--no-color", f"{mb.stdout.strip()}...HEAD")
+    diff = git("-c", "core.quotePath=false", "diff", "-U0", "--no-color", f"{mb.stdout.strip()}...HEAD")
     if diff.returncode != 0:
         return None
     return parse_diff(diff.stdout)
@@ -127,12 +142,45 @@ def _tally(per_file):
     return ChangedResult(covered, total, {p: sorted(ls) for p, ls in uncovered.items()})
 
 
-def _declares_func(path):
+def _read_source(path):
+    """The file's text, or None when it doesn't exist; other read errors raise."""
     try:
-        with open(path) as f:
-            return bool(FUNC.search(f.read()))
-    except OSError:
-        return False
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+
+def _code_lines(text, lines, import_word):
+    """The given line numbers that hold code: not blank, a comment or an import."""
+    code, in_block, in_import = set(), False, False
+    for n, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        skip = in_block or in_import or not line or line.startswith(("//", "/*", "package "))
+        if line.startswith("/*") and "*/" not in line:
+            in_block = True
+        elif in_block and "*/" in line:
+            in_block = False
+        if line.startswith(import_word):
+            skip = True
+            in_import = line.rstrip().endswith(("(", "{"))
+        elif in_import and (line.startswith(")") or line.startswith("}")):
+            in_import = False
+        if not skip and n in lines:
+            code.add(n)
+    return code
+
+
+def _untested_go_lines(path, lines):
+    """Changed code lines of a Go file in a package no test run compiled.
+
+    None when the file has nothing a test could cover: it is gone, built
+    for another platform or tag, or holds only types, vars and consts.
+    """
+    text = _read_source(path)
+    if text is None or PLATFORM_FILE.search(path) or BUILD_TAG.search(text) or not FUNC.search(text):
+        return None
+    return {n: False for n in _code_lines(text, lines, "import")}
 
 
 def evaluate_go(changed, coverage, module_dir, excludes, repo_root="."):
@@ -147,14 +195,13 @@ def evaluate_go(changed, coverage, module_dir, excludes, repo_root="."):
             continue
         if path in coverage:
             per_file[path] = {n: coverage[path][n] for n in lines if n in coverage[path]}
-        elif os.path.dirname(path) not in profiled_dirs and _declares_func(
-            os.path.join(repo_root, path)
-        ):
-            # No test run compiled the package, so every changed line of a
-            # file with code is untested. A file missing beside profiled ones
-            # was left out by a build constraint (wireinject, another OS),
-            # and a file of only types, vars and consts has nothing coverable.
-            per_file[path] = {n: False for n in lines}
+        elif os.path.dirname(path) not in profiled_dirs:
+            # No test run compiled the package, so its changed code is untested.
+            # A file missing beside profiled ones was left out by a build
+            # constraint (wireinject, another OS) and is not counted.
+            untested = _untested_go_lines(os.path.join(repo_root, path), lines)
+            if untested is not None:
+                per_file[path] = untested
     return _tally(per_file)
 
 
@@ -218,6 +265,8 @@ def evaluate_console(changed, coverage, reported_packages, no_coverage_packages,
             if path in coverage:
                 per_file[path] = {n: coverage[path][n] for n in lines if n in coverage[path]}
         elif package not in skip and not CONSOLE_EXCLUDED.search(path):
-            # A package that runs no coverage at all: nothing here is tested.
-            per_file[path] = {n: False for n in lines}
+            # A package that runs no coverage at all: its changed code is untested.
+            text = _read_source(os.path.join(repo_root, path))
+            if text is not None:
+                per_file[path] = {n: False for n in _code_lines(text, lines, "import ")}
     return _tally(per_file)
