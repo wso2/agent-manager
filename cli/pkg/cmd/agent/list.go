@@ -95,9 +95,10 @@ func runList(ctx context.Context, o *ListOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.ListAgentsWithResponse(ctx, o.Org, o.Proj, &amsvc.ListAgentsParams{
-		Limit:  o.Limit,
-		Offset: o.Offset,
+	resp, err := client.ListAgentsWithResponse(ctx, &amsvc.ListAgentsParams{
+		Project: &o.Proj,
+		Limit:   o.Limit,
+		Offset:  o.Offset,
 	})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
@@ -112,10 +113,14 @@ func runList(ctx context.Context, o *ListOptions) error {
 
 	tp := tableprinter.New(o.IO, "name", "display name", "created")
 	cs := o.IO.ColorScheme()
-	for _, a := range resp.JSON200.Agents {
-		tp.AddField(a.Name, tableprinter.WithColor(cs.Bold))
-		tp.AddField(a.DisplayName)
-		tp.AddField(a.CreatedAt.Format("2006-01-02"), tableprinter.WithColor(cs.Gray))
+	for _, a := range resp.JSON200.List {
+		created := "-"
+		if a.Metadata.CreationTimestamp != nil {
+			created = a.Metadata.CreationTimestamp.Format("2006-01-02")
+		}
+		tp.AddField(a.Metadata.Name, tableprinter.WithColor(cs.Bold))
+		tp.AddField(a.Spec.DisplayName)
+		tp.AddField(created, tableprinter.WithColor(cs.Gray))
 		tp.EndRow()
 	}
 	return tp.Render()

@@ -27,16 +27,14 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
-func mixedListResponse() aigateway.AgentModelConfigListResponse {
+func mixedListResponse() aigateway.AgentMcpConfigListResponse {
+	primary := mcpItem("primary", "11111111-1111-1111-1111-111111111111")
 	desc := "primary github binding"
-	return aigateway.AgentModelConfigListResponse{Configs: []aigateway.AgentModelConfigListItem{
-		{Name: "primary", Type: "mcp", Description: &desc, Uuid: mustUUID("11111111-1111-1111-1111-111111111111")},
-		{Name: "secondary", Type: "mcp", Uuid: mustUUID("22222222-2222-2222-2222-222222222222")},
-		{Name: "model-binding", Type: "llm", Uuid: mustUUID("33333333-3333-3333-3333-333333333333")},
-	}}
+	primary.Spec.Description = &desc
+	return listResponse(primary, mcpItem("secondary", "22222222-2222-2222-2222-222222222222"))
 }
 
-func Test_runList_humanTable_mcpOnly(t *testing.T) {
+func Test_runList_humanTable(t *testing.T) {
 	io, out, _ := newTestIO(false)
 	io.SetTerminal(true, true, true)
 	client, cleanup := newClient(t, map[string]route{listPath: okJSON(mixedListResponse())})
@@ -52,12 +50,9 @@ func Test_runList_humanTable_mcpOnly(t *testing.T) {
 			t.Errorf("output missing %q in:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "model-binding") {
-		t.Errorf("llm config must be filtered out of mcp list, got:\n%s", got)
-	}
 }
 
-func Test_runList_json_onlyMCP(t *testing.T) {
+func Test_runList_json(t *testing.T) {
 	io, out, _ := newTestIO(true)
 	client, cleanup := newClient(t, map[string]route{listPath: okJSON(mixedListResponse())})
 	defer cleanup()
@@ -67,17 +62,15 @@ func Test_runList_json_onlyMCP(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	data := decodeEnvelope(t, out.String())["data"].(map[string]any)
-	configs, ok := data["configs"].([]any)
+	list, ok := data["list"].([]any)
 	if !ok {
-		t.Fatalf("data.configs not an array: %v", data["configs"])
+		t.Fatalf("data.list not an array: %v", data["list"])
 	}
-	if len(configs) != 2 {
-		t.Fatalf("len(configs) = %d, want 2 (mcp only)", len(configs))
+	if len(list) != 2 {
+		t.Fatalf("len(list) = %d, want 2", len(list))
 	}
-	for _, c := range configs {
-		if c.(map[string]any)["type"] != "mcp" {
-			t.Errorf("non-mcp config leaked into list: %v", c)
-		}
+	if data["count"].(float64) != 2 {
+		t.Errorf("count = %v, want 2", data["count"])
 	}
 }
 

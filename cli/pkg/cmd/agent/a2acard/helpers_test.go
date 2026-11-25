@@ -39,6 +39,11 @@ func newClient(t *testing.T, routes map[string]route) *aigateway.ClientWithRespo
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Method + " " + r.URL.Path
+		if got := r.URL.Query().Get("project"); got != "triage" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "NO_PROJECT", "message": "project = " + got})
+			return
+		}
 		rt, ok := routes[key]
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -65,6 +70,7 @@ func newClient(t *testing.T, routes map[string]route) *aigateway.ClientWithRespo
 	return client
 }
 
-func envPath(env, suffix string) string {
-	return "/orgs/acme/projects/triage/agents/order-bot/environments/" + env + "/" + suffix
+// agentGWPath is suffix under the test agent's gateway routes.
+func agentGWPath(suffix string) string {
+	return "/agents/order-bot/" + suffix
 }

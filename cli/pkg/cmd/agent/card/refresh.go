@@ -86,7 +86,7 @@ func runRefresh(ctx context.Context, o *RefreshOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.RefreshAgentCardWithResponse(ctx, o.Org, o.Proj, o.AgentName, cmdutil.DefaultEnvironment)
+	resp, err := client.RefreshAgentCardWithResponse(ctx, o.AgentName, &aigateway.RefreshAgentCardParams{Project: o.Proj})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

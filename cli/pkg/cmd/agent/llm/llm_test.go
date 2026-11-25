@@ -21,72 +21,25 @@ import (
 	"testing"
 
 	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
-	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 )
 
-func Test_toEnvModelConfigRequest_mergesEveryEnv(t *testing.T) {
-	policies := []aigateway.LLMPolicy{{Name: "rate-limit", Version: "v1"}}
-	resp := &aigateway.AgentModelConfigResponse{
-		EnvMappings: map[string]aigateway.EnvProviderConfigMappings{
-			"dev": {
-				EnvironmentName: "dev",
-				Configuration: &aigateway.ProviderConfig{
-					ProviderName: "openai",
-					Url:          "https://server-managed.example.com",
-					Policies:     &policies,
-				},
-			},
-			"prod": {
-				EnvironmentName: "prod",
-				Configuration:   &aigateway.ProviderConfig{ProviderName: "anthropic"},
-			},
-		},
-	}
-
-	got := modelconfig.MergeExistingEnvMappings(resp, toEnvModelConfigRequest)
-
-	if len(got) != 2 {
-		t.Fatalf("len(got) = %d, want 2", len(got))
-	}
-	if got["dev"].ProviderName == nil || *got["dev"].ProviderName != "openai" {
-		t.Errorf("dev provider = %v, want openai", got["dev"].ProviderName)
-	}
-	if got["prod"].ProviderName == nil || *got["prod"].ProviderName != "anthropic" {
-		t.Errorf("prod provider = %v, want anthropic", got["prod"].ProviderName)
-	}
-	// Policies must survive the round-trip translation.
-	dp := got["dev"].Configuration.Policies
-	if dp == nil || len(*dp) != 1 || (*dp)[0].Name != "rate-limit" {
-		t.Errorf("dev policies not carried over: %#v", got["dev"].Configuration.Policies)
-	}
+func listResponse(items ...aigateway.AgentModelConfigDocument) aigateway.AgentModelConfigListResponse {
+	return aigateway.AgentModelConfigListResponse{Count: int32(len(items)), List: items}
 }
 
-func Test_toEnvModelConfigRequest_nilConfiguration(t *testing.T) {
-	got := toEnvModelConfigRequest(aigateway.EnvProviderConfigMappings{EnvironmentName: "dev"})
-	if got.ProviderName != nil {
-		t.Errorf("ProviderName = %q, want nil", *got.ProviderName)
+func llmItem(name, id string) aigateway.AgentModelConfigDocument {
+	uid := mustUUID(id)
+	return aigateway.AgentModelConfigDocument{
+		Metadata: aigateway.ProjectScopedDocumentMetadata{Name: name, Project: "triage", Uid: &uid},
+		Spec:     aigateway.AgentModelConfigSpec{ProviderName: "bound"},
 	}
-	if got.Configuration.Policies != nil {
-		t.Errorf("Policies = %#v, want nil", got.Configuration.Policies)
-	}
-}
-
-func listResponse(items ...aigateway.AgentModelConfigListItem) aigateway.AgentModelConfigListResponse {
-	return aigateway.AgentModelConfigListResponse{Configs: items}
-}
-
-func llmItem(name, uuid string) aigateway.AgentModelConfigListItem {
-	return aigateway.AgentModelConfigListItem{Name: name, Type: "llm", Uuid: mustUUID(uuid)}
 }
 
 func Test_findLLMConfigByName(t *testing.T) {
 	const uuidA = "11111111-1111-1111-1111-111111111111"
 	t.Run("found", func(t *testing.T) {
 		client, cleanup := newClient(t, map[string]route{
-			listPath: okJSON(listResponse(
-				aigateway.AgentModelConfigListItem{Name: "shared", Type: "mcp", Uuid: mustUUID("22222222-2222-2222-2222-222222222222")},
-				llmItem("primary", uuidA),
-			)),
+			listPath: okJSON(listResponse(llmItem("shared", "22222222-2222-2222-2222-222222222222"), llmItem("primary", uuidA))),
 		})
 		defer cleanup()
 		c, _ := client(context.Background())
@@ -99,23 +52,6 @@ func Test_findLLMConfigByName(t *testing.T) {
 		}
 		if id != mustUUID(uuidA) {
 			t.Errorf("uuid = %v, want %s", id, uuidA)
-		}
-	})
-
-	t.Run("ignores same name with non-llm type", func(t *testing.T) {
-		client, cleanup := newClient(t, map[string]route{
-			listPath: okJSON(listResponse(
-				aigateway.AgentModelConfigListItem{Name: "primary", Type: "mcp", Uuid: mustUUID(uuidA)},
-			)),
-		})
-		defer cleanup()
-		c, _ := client(context.Background())
-		_, found, err := findLLMConfigByName(context.Background(), c, "acme", "triage", "order-bot", "primary")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if found {
-			t.Fatal("found = true, want false (mcp type must be ignored)")
 		}
 	})
 
