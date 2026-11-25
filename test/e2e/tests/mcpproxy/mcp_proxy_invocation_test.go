@@ -90,12 +90,11 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 		upstreamURL := framework.TestMCPServerURL
 		ctx := "/" + proxyID
 
-		proxy := mcpproxyop.CreateMCPProxy(Default, Client, Cfg.DefaultOrg,
-			framework.CreateMCPProxyRequest{
-				ID:      proxyID,
-				Name:    "E2E MCP Inv Proxy " + suffix,
-				Version: "v1.0",
-				Context: &ctx,
+		proxy := mcpproxyop.CreateMCPProxy(Default, Client, proxyID,
+			framework.MCPProxySpec{
+				DisplayName: "E2E MCP Inv Proxy " + suffix,
+				Version:     "v1.0",
+				Context:     &ctx,
 				// The api-key security policy lives on the endpoint; the proxy deploys the
 				// endpoint's artifact to the env's gateway, and per-agent inbound keys are
 				// minted against it.
@@ -117,7 +116,7 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 					},
 				},
 			})
-		Expect(proxy.ID).To(Equal(proxyID))
+		Expect(proxy.Metadata.Name).To(Equal(proxyID))
 	})
 
 	It("should create an external agent", func() {

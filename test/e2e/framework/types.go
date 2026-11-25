@@ -622,59 +622,61 @@ type MCPProxyEndpoint struct {
 	Environments []MCPEndpointEnvironment `json:"environments,omitempty"`
 }
 
-type CreateMCPProxyRequest struct {
-	ID             string  `json:"id"`
-	Name           string  `json:"name"`
-	Version        string  `json:"version"`
+// MCPProxyAPIVersion, MCPProxyKind and MCPProxyScopeKind identify MCP proxy documents.
+const (
+	MCPProxyAPIVersion = "ai-control-plane.choreolabs.com/v1"
+	MCPProxyKind       = "McpProxy"
+	MCPProxyScopeKind  = "McpProxyScope"
+)
+
+// MCPProxySpec is the desired state of an MCP proxy. The deployable configuration lives on
+// each endpoint; the proxy itself deploys nothing, so there is no status block.
+type MCPProxySpec struct {
+	DisplayName    string  `json:"displayName"`
 	Description    *string `json:"description,omitempty"`
+	Version        string  `json:"version"`
 	Context        *string `json:"context,omitempty"`
 	Vhost          *string `json:"vhost,omitempty"`
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
+	InCatalog      bool    `json:"inCatalog,omitempty"`
 	// Endpoints are the deployable endpoint definitions. Each endpoint is deployed to the
 	// environments listed in its Environments block on create/update.
-	Endpoints []MCPProxyEndpoint `json:"endpoints,omitempty"`
+	Endpoints   []MCPProxyEndpoint `json:"endpoints,omitempty"`
+	ProjectName *string            `json:"projectName,omitempty"`
 }
 
-type MCPProxyResponse struct {
-	ID             string  `json:"id"`
-	Name           string  `json:"name"`
-	Version        string  `json:"version"`
-	Description    *string `json:"description,omitempty"`
-	Context        *string `json:"context,omitempty"`
-	Vhost          *string `json:"vhost,omitempty"`
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-	InCatalog      bool    `json:"inCatalog"`
-	// Gateways aggregates the gateways across all per-endpoint/per-environment artifacts deployed.
-	Gateways  []string           `json:"gateways,omitempty"`
-	Endpoints []MCPProxyEndpoint `json:"endpoints,omitempty"`
-	CreatedBy *string            `json:"createdBy,omitempty"`
-	CreatedAt *time.Time         `json:"createdAt,omitempty"`
+type MCPProxyDocument struct {
+	APIVersion string           `json:"apiVersion"`
+	Kind       string           `json:"kind"`
+	Metadata   DocumentMetadata `json:"metadata"`
+	Spec       MCPProxySpec     `json:"spec"`
 }
 
-type MCPProxyListItem struct {
-	ID      *string `json:"id,omitempty"`
-	Name    *string `json:"name,omitempty"`
-	Version *string `json:"version,omitempty"`
-	Status  *string `json:"status,omitempty"`
-}
-
-// MCPProxyListResponse mirrors the org-scoped list payload ({count, list}).
+// MCPProxyListResponse is the collection payload. List rows are sparsely populated: they
+// carry the shared metadata but no endpoints.
 type MCPProxyListResponse struct {
 	Count int                `json:"count"`
-	List  []MCPProxyListItem `json:"list"`
+	List  []MCPProxyDocument `json:"list"`
 }
 
-type MCPProxyScopeRequest struct {
-	Action      string   `json:"action"`
+// MCPProxyScopeSpec is a scope's desired state. The action naming it is Metadata.Name, not a
+// spec field, because renaming a scope means deleting and recreating it.
+type MCPProxyScopeSpec struct {
+	Scope       string   `json:"scope,omitempty"`
 	Description string   `json:"description,omitempty"`
-	Tools       []string `json:"tools"`
+	Tools       []string `json:"tools,omitempty"`
 }
 
-type MCPProxyScopeResponse struct {
-	Action      string   `json:"action"`
-	Scope       string   `json:"scope"`
-	Description string   `json:"description,omitempty"`
-	Tools       []string `json:"tools"`
+type MCPProxyScopeDocument struct {
+	APIVersion string            `json:"apiVersion"`
+	Kind       string            `json:"kind"`
+	Metadata   DocumentMetadata  `json:"metadata"`
+	Spec       MCPProxyScopeSpec `json:"spec"`
+}
+
+type MCPProxyScopeListResponse struct {
+	Count int                     `json:"count"`
+	List  []MCPProxyScopeDocument `json:"list"`
 }
 
 type AgentIdentityRoleRequest struct {

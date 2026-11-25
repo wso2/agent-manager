@@ -122,7 +122,9 @@ func guardedRoutes(org string) []guardedRoute {
 	agentBase := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", org, absentName)
 	orgBase := fmt.Sprintf("/api/v1/orgs/%s", org)
 	identityBase := orgBase + "/identities"
-	// The AI Gateway module's API.
+	// The AI Gateway module's API. Migrated resources take the org from the token, so
+	// their routes hang off the module base with no org segment.
+	gwBase := "/m/ai-gateway"
 	gwOrgBase := fmt.Sprintf("/m/ai-gateway/orgs/%s", org)
 	gwAgentBase := gwOrgBase + "/projects/" + absentName + "/agents"
 
@@ -170,7 +172,7 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodDelete, gwOrgBase + "/llm-provider-templates/" + absentName, []string{"amp:ai-gateway:llm-provider-templates.delete"}},
 		{http.MethodDelete, gwOrgBase + "/llm-providers/" + absentName + "/api-keys/" + absentName, []string{"amp:ai-gateway:llm-providers.api-key-manage"}},
 		{http.MethodDelete, gwOrgBase + "/projects/" + absentName + "/llm-proxies/" + absentName, []string{"amp:ai-gateway:llm-proxies.delete"}},
-		{http.MethodDelete, gwOrgBase + "/mcp-proxies/" + absentName, []string{"amp:ai-gateway:mcp-servers.delete"}},
+		{http.MethodDelete, gwBase + "/mcp-proxies/" + absentName, []string{"amp:ai-gateway:mcp-servers.delete"}},
 
 		// --- Agent identity roles ---------------------------------------------
 		{http.MethodDelete, gwOrgBase + "/environments/" + absentName + "/agent-identities/roles/" + absentName, []string{"amp:ai-gateway:agent-identities.delete"}},

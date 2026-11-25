@@ -21,6 +21,7 @@
 package mcpproxy
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -53,7 +54,7 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 	})
 
 	It("should discover the upstream MCP server", func() {
-		info := mcpproxyop.FetchServerInfo(Default, Client, Cfg.DefaultOrg,
+		info := mcpproxyop.FetchServerInfo(Default, Client,
 			framework.MCPServerInfoFetchRequest{
 				URL: framework.TestMCPServerURL,
 			})
@@ -66,12 +67,11 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 		upstreamURL := framework.TestMCPServerURL
 		ctx := "/" + proxyID
 
-		proxy := mcpproxyop.CreateMCPProxy(Default, Client, Cfg.DefaultOrg,
-			framework.CreateMCPProxyRequest{
-				ID:      proxyID,
-				Name:    "E2E MCP Proxy " + suffix,
-				Version: "v1.0",
-				Context: &ctx,
+		proxy := mcpproxyop.CreateMCPProxy(Default, Client, proxyID,
+			framework.MCPProxySpec{
+				DisplayName: "E2E MCP Proxy " + suffix,
+				Version:     "v1.0",
+				Context:     &ctx,
 				// The proxy carries a single endpoint whose upstream + security define the
 				// deployable definition; it is deployed to DefaultEnv's gateway.
 				Endpoints: []framework.MCPProxyEndpoint{
@@ -92,16 +92,16 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 					},
 				},
 			})
-		Expect(proxy.ID).To(Equal(proxyID))
-		GinkgoWriter.Printf("Created MCP proxy %s (env %s deployed to gateway %s)\n", proxy.ID, envUUID, gatewayUUID)
+		Expect(proxy.Metadata.Name).To(Equal(proxyID))
+		GinkgoWriter.Printf("Created MCP proxy %s (env %s deployed to gateway %s)\n", proxy.Metadata.Name, envUUID, gatewayUUID)
 	})
 
 	It("should get the MCP proxy by handle", func() {
-		proxy := mcpproxyop.GetMCPProxy(Default, Client, Cfg.DefaultOrg, proxyID)
-		Expect(proxy.ID).To(Equal(proxyID))
-		Expect(proxy.Name).To(Equal("E2E MCP Proxy " + suffix))
-		Expect(proxy.Endpoints).To(HaveLen(1), "expected a single endpoint")
-		endpoint := proxy.Endpoints[0]
+		proxy := mcpproxyop.GetMCPProxy(Default, Client, proxyID)
+		Expect(proxy.Metadata.Name).To(Equal(proxyID))
+		Expect(proxy.Spec.DisplayName).To(Equal("E2E MCP Proxy " + suffix))
+		Expect(proxy.Spec.Endpoints).To(HaveLen(1), "expected a single endpoint")
+		endpoint := proxy.Spec.Endpoints[0]
 		Expect(endpoint.ID).To(Equal("primary"))
 		Expect(endpoint.Upstream.Main).NotTo(BeNil(), "expected an upstream in the endpoint")
 		Expect(endpoint.Upstream.Main.URL).NotTo(BeNil())
@@ -115,10 +115,10 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 	})
 
 	It("should list the MCP proxy", func() {
-		list := mcpproxyop.ListMCPProxies(Default, Client, Cfg.DefaultOrg)
+		list := mcpproxyop.ListMCPProxies(Default, Client)
 		found := false
 		for _, p := range list.List {
-			if p.ID != nil && *p.ID == proxyID {
+			if p.Metadata.Name == proxyID {
 				found = true
 				break
 			}
@@ -127,43 +127,64 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 	})
 
 	It("should update the MCP proxy's description", func() {
-		proxy := mcpproxyop.GetMCPProxy(Default, Client, Cfg.DefaultOrg, proxyID)
+		// The spec replaces the stored one, so the update carries the spec just read back.
+		proxy := mcpproxyop.GetMCPProxy(Default, Client, proxyID)
 		desc := "updated by e2e"
-		proxy.Description = &desc
-		framework.Call(Default, Client, http.MethodPut, framework.GW(Cfg, "/mcp-proxies/%s", proxyID), proxy, http.StatusOK)
-		got := mcpproxyop.GetMCPProxy(Default, Client, Cfg.DefaultOrg, proxyID)
-		Expect(got.Description).NotTo(BeNil())
-		Expect(*got.Description).To(Equal(desc))
+		proxy.Spec.Description = &desc
+		mcpproxyop.UpdateMCPProxy(Default, Client, proxyID, proxy.Spec)
+		got := mcpproxyop.GetMCPProxy(Default, Client, proxyID)
+		Expect(got.Spec.Description).NotTo(BeNil())
+		Expect(*got.Spec.Description).To(Equal(desc))
 	})
 
 	It("should manage the proxy's tool scopes", func() {
-		scopes := framework.GW(Cfg, "/mcp-proxies/%s/scopes", proxyID)
-		framework.CallObj(Default, Client, http.MethodPost, scopes, framework.Obj{"action": "e2e-read", "description": "read", "tools": []string{"echo"}}, http.StatusCreated)
-		list := framework.CallObj(Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(list, "scopes"), "action")).To(ContainElement("e2e-read"))
-		framework.CallObj(Default, Client, http.MethodPut, scopes+"/e2e-read", framework.Obj{"description": "renamed", "tools": []string{"echo", "add"}}, http.StatusOK)
-		list = framework.CallObj(Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
-		for _, sc := range framework.Items(list, "scopes") {
-			if framework.Str(sc, "action") == "e2e-read" {
-				Expect(sc["tools"]).To(ConsistOf("echo", "add"))
+		scopes := fmt.Sprintf("/m/ai-gateway/mcp-proxies/%s/scopes", proxyID)
+		// A scope is named by metadata.name: the action. Renaming one means delete + create.
+		scopeDoc := func(action, description string, tools []string) framework.MCPProxyScopeDocument {
+			return framework.MCPProxyScopeDocument{
+				APIVersion: framework.MCPProxyAPIVersion,
+				Kind:       framework.MCPProxyScopeKind,
+				Metadata:   framework.DocumentMetadata{Name: action},
+				Spec:       framework.MCPProxyScopeSpec{Description: description, Tools: tools},
 			}
 		}
+		actions := func(list framework.MCPProxyScopeListResponse) []string {
+			out := make([]string, 0, len(list.List))
+			for _, sc := range list.List {
+				out = append(out, sc.Metadata.Name)
+			}
+			return out
+		}
+		listScopes := func() framework.MCPProxyScopeListResponse {
+			return framework.CallJSON[framework.MCPProxyScopeListResponse](Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
+		}
+
+		framework.Call(Default, Client, http.MethodPost, scopes, scopeDoc("e2e-read", "read", []string{"echo"}), http.StatusCreated)
+		Expect(actions(listScopes())).To(ContainElement("e2e-read"))
+
+		framework.Call(Default, Client, http.MethodPut, scopes+"/e2e-read", scopeDoc("e2e-read", "renamed", []string{"echo", "add"}), http.StatusOK)
+		for _, sc := range listScopes().List {
+			if sc.Metadata.Name == "e2e-read" {
+				Expect(sc.Spec.Tools).To(ConsistOf("echo", "add"))
+			}
+		}
+
 		// The scope is offered to agent identity roles in the proxy's environments.
 		agentScopes := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/environments/%s/agent-identities/scopes", Cfg.DefaultEnv), nil, http.StatusOK)
 		Expect(agentScopes).To(HaveKey("scopes"))
+
 		framework.Call(Default, Client, http.MethodDelete, scopes+"/e2e-read", nil, http.StatusNoContent)
-		list = framework.CallObj(Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(list, "scopes"), "action")).NotTo(ContainElement("e2e-read"))
+		Expect(actions(listScopes())).NotTo(ContainElement("e2e-read"))
 		framework.CallError(Default, Client, http.MethodDelete, scopes+"/e2e-read", nil, http.StatusNotFound)
 	})
 
 	It("should list the policies an MCP proxy can use", func() {
-		policies := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/mcp-proxies/policies"), nil, http.StatusOK)
+		policies := framework.CallObj(Default, Client, http.MethodGet, "/m/ai-gateway/mcp-proxies/policies", nil, http.StatusOK)
 		Expect(policies["count"]).To(BeNumerically(">", 0))
 	})
 
 	It("should delete the MCP proxy and then return 404", func() {
-		mcpproxyop.DeleteMCPProxy(Default, Client, Cfg.DefaultOrg, proxyID)
-		mcpproxyop.GetMCPProxyExpectStatus(Default, Client, Cfg.DefaultOrg, proxyID, 404)
+		mcpproxyop.DeleteMCPProxy(Default, Client, proxyID)
+		mcpproxyop.GetMCPProxyExpectStatus(Default, Client, proxyID, 404)
 	})
 })
