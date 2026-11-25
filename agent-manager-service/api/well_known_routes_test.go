@@ -241,3 +241,29 @@ func TestWellKnownMCPMetadataAddsModuleToolScopes(t *testing.T) {
 		t.Errorf("expected MCP scopes %v, got %v", want, body.ScopesSupported)
 	}
 }
+
+// With OAUTH_SCOPES_SUPPORTED unset, the API advertises every scope of the
+// permission catalog, so a CLI that asks for them gets a token its role
+// allows without a deployment file listing them.
+func TestWellKnownOAuthProtectedResource_DefaultsToCatalogScopes(t *testing.T) {
+	withWellKnownConfig(t, "https://am.example.com", []string{"https://idp.example.com"}, nil)
+
+	mux := setupWellKnownMux()
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var body protectedResourceMetadata
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	var want []string
+	for _, p := range rbac.Current().Permissions() {
+		want = append(want, p.Scope())
+	}
+	if len(want) == 0 || !reflect.DeepEqual(body.ScopesSupported, want) {
+		t.Errorf("expected the catalog's %d scopes, got %v", len(want), body.ScopesSupported)
+	}
+}

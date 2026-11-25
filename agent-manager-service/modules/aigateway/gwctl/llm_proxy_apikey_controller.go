@@ -213,6 +213,9 @@ func (c *llmProxyAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.R
 			log.Warn("RotateLLMProxyAPIKey: proxy not found", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
+		case errors.Is(err, gwerr.ErrAPIKeyNotFound):
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "API key not found")
+			return
 		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("RotateLLMProxyAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")

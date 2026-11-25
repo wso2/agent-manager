@@ -273,6 +273,10 @@ func (c *identityController) UpdateUser(w http.ResponseWriter, r *http.Request) 
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
+		if thundersvc.IsBadRequest(err) {
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, thundersvc.BadRequestDescription(err, "Invalid user attributes"))
+			return
+		}
 		log.Error("UpdateUser failed", "userID", userID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user")
 		return

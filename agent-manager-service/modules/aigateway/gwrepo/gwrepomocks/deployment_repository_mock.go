@@ -107,6 +107,9 @@ import (
 //			StatusRecordsFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
 //				panic("mock out the StatusRecords method")
 //			},
+//			StatusRecordsForFunc: func(ctx context.Context, ouID string, artifactUUIDs []uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
+//				panic("mock out the StatusRecordsFor method")
+//			},
 //			WithTxFunc: func(tx *gorm.DB) gwrepo.DeploymentRepository {
 //				panic("mock out the WithTx method")
 //			},
@@ -203,6 +206,9 @@ type DeploymentRepositoryMock struct {
 
 	// StatusRecordsFunc mocks the StatusRecords method.
 	StatusRecordsFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error)
+
+	// StatusRecordsForFunc mocks the StatusRecordsFor method.
+	StatusRecordsForFunc func(ctx context.Context, ouID string, artifactUUIDs []uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error)
 
 	// WithTxFunc mocks the WithTx method.
 	WithTxFunc func(tx *gorm.DB) gwrepo.DeploymentRepository
@@ -506,6 +512,15 @@ type DeploymentRepositoryMock struct {
 			// ArtifactUUID is the artifactUUID argument value.
 			ArtifactUUID uuid.UUID
 		}
+		// StatusRecordsFor holds details about calls to the StatusRecordsFor method.
+		StatusRecordsFor []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ArtifactUUIDs is the artifactUUIDs argument value.
+			ArtifactUUIDs []uuid.UUID
+		}
 		// WithTx holds details about calls to the WithTx method.
 		WithTx []struct {
 			// Tx is the tx argument value.
@@ -541,6 +556,7 @@ type DeploymentRepositoryMock struct {
 	lockStartDeploy                sync.RWMutex
 	lockStartRestore               sync.RWMutex
 	lockStatusRecords              sync.RWMutex
+	lockStatusRecordsFor           sync.RWMutex
 	lockWithTx                     sync.RWMutex
 }
 
@@ -1773,6 +1789,46 @@ func (mock *DeploymentRepositoryMock) StatusRecordsCalls() []struct {
 	mock.lockStatusRecords.RLock()
 	calls = mock.calls.StatusRecords
 	mock.lockStatusRecords.RUnlock()
+	return calls
+}
+
+// StatusRecordsFor calls StatusRecordsForFunc.
+func (mock *DeploymentRepositoryMock) StatusRecordsFor(ctx context.Context, ouID string, artifactUUIDs []uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
+	if mock.StatusRecordsForFunc == nil {
+		panic("DeploymentRepositoryMock.StatusRecordsForFunc: method is nil but DeploymentRepository.StatusRecordsFor was just called")
+	}
+	callInfo := struct {
+		Ctx           context.Context
+		OuID          string
+		ArtifactUUIDs []uuid.UUID
+	}{
+		Ctx:           ctx,
+		OuID:          ouID,
+		ArtifactUUIDs: artifactUUIDs,
+	}
+	mock.lockStatusRecordsFor.Lock()
+	mock.calls.StatusRecordsFor = append(mock.calls.StatusRecordsFor, callInfo)
+	mock.lockStatusRecordsFor.Unlock()
+	return mock.StatusRecordsForFunc(ctx, ouID, artifactUUIDs)
+}
+
+// StatusRecordsForCalls gets all the calls that were made to StatusRecordsFor.
+// Check the length with:
+//
+//	len(mockedDeploymentRepository.StatusRecordsForCalls())
+func (mock *DeploymentRepositoryMock) StatusRecordsForCalls() []struct {
+	Ctx           context.Context
+	OuID          string
+	ArtifactUUIDs []uuid.UUID
+} {
+	var calls []struct {
+		Ctx           context.Context
+		OuID          string
+		ArtifactUUIDs []uuid.UUID
+	}
+	mock.lockStatusRecordsFor.RLock()
+	calls = mock.calls.StatusRecordsFor
+	mock.lockStatusRecordsFor.RUnlock()
 	return calls
 }
 

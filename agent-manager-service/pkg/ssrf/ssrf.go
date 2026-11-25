@@ -115,6 +115,9 @@ func hostNotPublic(format string, a ...any) error {
 	return &hostNotPublicError{err: fmt.Errorf(format, a...)}
 }
 
+// lookupNetIP resolves a host name; a variable so tests can resolve without DNS.
+var lookupNetIP = net.DefaultResolver.LookupNetIP
+
 // ValidateHost validates that host resolves only to public IP addresses.
 func ValidateHost(ctx context.Context, host string) error {
 	_, err := ResolvePublicIPs(ctx, host)
@@ -144,7 +147,7 @@ func ResolvePublicIPs(ctx context.Context, host string) ([]netip.Addr, error) {
 		return []netip.Addr{ip}, nil
 	}
 
-	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+	ips, err := lookupNetIP(ctx, "ip", host)
 	if err != nil {
 		return nil, hostNotPublic("url host could not be resolved: %w", err)
 	}

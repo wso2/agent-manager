@@ -84,6 +84,16 @@ func RenderModule(module string, files []ModuleFile) ([]ModuleMigration, error) 
 		if s.Module != module {
 			return nil, fmt.Errorf("%s: names module %q, want %q", f.Path, s.Module, module)
 		}
+		// A module file is one migration, versioned by its file name: it cannot split its tables across numbered
+		// migrations, which Render would silently leave out.
+		if len(s.Migrations) > 0 {
+			return nil, fmt.Errorf("%s: module schema files cannot list migrations; add a new NNN_description.yaml instead", f.Path)
+		}
+		for _, t := range s.Tables {
+			if t.Migration != "" {
+				return nil, fmt.Errorf("%s: table %s names migration %q; a module table belongs to the file that declares it", f.Path, t.Name, t.Migration)
+			}
+		}
 		s.source, s.prior = f.Path, prior
 		if err := s.validate(); err != nil {
 			return nil, fmt.Errorf("%s: %w", f.Path, err)

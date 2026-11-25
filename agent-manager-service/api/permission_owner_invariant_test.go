@@ -22,7 +22,8 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // declares ai-gateway:*
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"     // declares ai-gateway:*
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/observability" // declares observability:*
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 

@@ -26,17 +26,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The committed baselines must match lite.yaml. On failure, run `make schema`.
+// The committed migrations must match lite.yaml, and be the only ones. On failure, run `make schema`.
 func TestBaselinesAreGenerated(t *testing.T) {
 	s, err := Lite()
 	require.NoError(t, err)
 	for _, dialect := range Dialects {
-		want, err := s.Render(dialect)
+		var want []string
+		for _, m := range s.Files() {
+			ddl, err := s.RenderMigration(dialect, m.ID)
+			require.NoError(t, err)
+			path := MigrationPath(dialect, m)
+			got, err := os.ReadFile(filepath.Join("..", "..", path))
+			require.NoError(t, err)
+			assert.Equal(t, ddl, string(got), "%s is stale: run `make schema`", path)
+			want = append(want, filepath.Base(path))
+		}
+		files, err := filepath.Glob(filepath.Join("..", "sql", dialect, "*.sql"))
 		require.NoError(t, err)
-		got, err := os.ReadFile(filepath.Join("..", "..", BaselinePath(dialect)))
-		require.NoError(t, err)
-		assert.Equal(t, want, string(got), "%s baseline is stale: run `make schema`", dialect)
+		var have []string
+		for _, f := range files {
+			have = append(have, filepath.Base(f))
+		}
+		assert.Equal(t, want, have, "%s has a migration lite.yaml does not render", dialect)
 	}
+}
+
+// A table a later migration adds is left out of the baseline and rendered in that migration alone.
+func TestLaterMigrationsHoldTheirTables(t *testing.T) {
+	s, err := Parse([]byte(`
+migrations:
+  - {id: "002", name: later}
+tables:
+  - name: first
+    columns: [{name: id, type: id}]
+    primary_key: [id]
+  - name: second
+    migration: "002"
+    columns: [{name: id, type: id}, {name: first_id, type: id}]
+    primary_key: [id]
+    foreign_keys: [{columns: [first_id], references: first, ref_columns: [id]}]`))
+	require.NoError(t, err)
+	baseline, err := s.Render(DialectSQLite)
+	require.NoError(t, err)
+	assert.Contains(t, baseline, "CREATE TABLE first")
+	assert.NotContains(t, baseline, "CREATE TABLE second")
+	later, err := s.RenderMigration(DialectSQLite, "002")
+	require.NoError(t, err)
+	assert.Contains(t, later, "CREATE TABLE second")
+	assert.NotContains(t, later, "CREATE TABLE first")
+	assert.Equal(t, "db_migrations/sql/sqlite/002_later.sql", MigrationPath(DialectSQLite, s.Files()[1]))
 }
 
 func TestValidateRejectsRuleBreaks(t *testing.T) {
@@ -73,6 +111,32 @@ tables:
     columns: [{name: id, type: id}, {name: body, type: longtext}]
     primary_key: [id]
     indexes: [[body]]`,
+		"undeclared migration": `
+tables:
+  - name: t
+    migration: "002"
+    columns: [{name: id, type: id}]
+    primary_key: [id]`,
+		"migration ids out of order": `
+migrations:
+  - {id: "003", name: a}
+  - {id: "002", name: b}
+tables:
+  - name: t
+    columns: [{name: id, type: id}]
+    primary_key: [id]`,
+		"foreign key to a table a later migration creates": `
+migrations:
+  - {id: "002", name: later}
+tables:
+  - name: p
+    migration: "002"
+    columns: [{name: id, type: id}]
+    primary_key: [id]
+  - name: c
+    columns: [{name: id, type: id}, {name: p_id, type: id}]
+    primary_key: [id]
+    foreign_keys: [{columns: [p_id], references: p, ref_columns: [id]}]`,
 		"unknown field": `
 tables:
   - name: t
@@ -169,6 +233,14 @@ tables: [{name: mod_ai_gateway_items, columns: [{name: id, type: id}], primary_k
 		"file name without a version": file("items.yaml", `
 module: ai-gateway
 tables: [{name: mod_ai_gateway_more, columns: [{name: id, type: id}], primary_key: [id]}]`),
+		"a migrations list": file("002_x.yaml", `
+module: ai-gateway
+migrations: [{id: "002", name: later}]
+tables: [{name: mod_ai_gateway_more, columns: [{name: id, type: id}], primary_key: [id]}]`),
+		"a table assigned to a later migration": file("002_x.yaml", `
+module: ai-gateway
+migrations: []
+tables: [{name: mod_ai_gateway_more, migration: "002", columns: [{name: id, type: id}], primary_key: [id]}]`),
 		"non-integer seed for an int column": file("002_x.yaml", `
 module: ai-gateway
 tables: [{name: mod_ai_gateway_more, columns: [{name: n, type: int}], primary_key: [n], seed: [{n: "1; DROP TABLE agents"}]}]`),

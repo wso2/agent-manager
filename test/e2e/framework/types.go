@@ -501,9 +501,20 @@ type LLMAccessControl struct {
 	Exceptions []string `json:"exceptions,omitempty"`
 }
 
-type CreateLLMProviderRequest struct {
-	ID            string            `json:"id"`
-	Name          string            `json:"name"`
+// LLMProviderAPIVersion and LLMProviderKind identify an LLM provider document.
+const (
+	LLMProviderAPIVersion = "ai-control-plane.choreolabs.com/v1"
+	LLMProviderKind       = "LlmProvider"
+)
+
+type DocumentMetadata struct {
+	Name              string     `json:"name"`
+	UID               string     `json:"uid,omitempty"`
+	CreationTimestamp *time.Time `json:"creationTimestamp,omitempty"`
+}
+
+type LLMProviderSpec struct {
+	DisplayName   string            `json:"displayName"`
 	Description   *string           `json:"description,omitempty"`
 	Version       string            `json:"version"`
 	Context       string            `json:"context"`
@@ -515,25 +526,16 @@ type CreateLLMProviderRequest struct {
 	Gateways      []string          `json:"gateways,omitempty"`
 }
 
-type LLMProviderResponse struct {
-	UUID      string         `json:"uuid"`
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Version   string         `json:"version"`
-	Context   string         `json:"context"`
-	Template  string         `json:"template"`
-	Upstream  UpstreamConfig `json:"upstream"`
-	Policies  []LLMPolicy    `json:"policies,omitempty"`
-	Status    string         `json:"status"`
-	Gateways  []string       `json:"gateways,omitempty"`
-	CreatedAt *time.Time     `json:"createdAt,omitempty"`
+type LLMProviderDocument struct {
+	APIVersion string           `json:"apiVersion"`
+	Kind       string           `json:"kind"`
+	Metadata   DocumentMetadata `json:"metadata"`
+	Spec       LLMProviderSpec  `json:"spec"`
 }
 
 type LLMProviderListResponse struct {
-	Providers []LLMProviderResponse `json:"llmProviders"`
-	Total     int                   `json:"total"`
-	Limit     int                   `json:"limit"`
-	Offset    int                   `json:"offset"`
+	List  []LLMProviderDocument `json:"list"`
+	Count int                   `json:"count"`
 }
 
 // ---------------------------------------------------------------------------
@@ -571,7 +573,7 @@ type LLMProxyResponse struct {
 }
 
 type LLMProxyListResponse struct {
-	Proxies []LLMProxyResponse `json:"llmProxies"`
+	Proxies []LLMProxyResponse `json:"proxies"`
 	Total   int                `json:"total"`
 	Limit   int                `json:"limit"`
 	Offset  int                `json:"offset"`

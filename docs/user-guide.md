@@ -147,7 +147,7 @@ Add LLM providers and MCP servers in the console, then attach them to an agent. 
 
 Providers and servers you pick while registering an agent are attached in the background, so the agent appears before they are ready. The agent's **Configure** page says while they are being set up, and shows the error if setting one up fails; the gateway keeps retrying. Over the API, send them in the agent create body as `extensions.ai-gateway.modelConfig` and `extensions.ai-gateway.mcpConfig`, and read each one's state (`pending`, `ready` or `failed`) from `GET /m/ai-gateway/orgs/{org}/projects/{project}/agents/{agent}/configurations`. Deleting an agent also removes its gateway keys and routes in the background; until that is done, a new agent with the same name in the project is refused.
 
-The gateway is the `ai-gateway` module. Its API is at `/m/ai-gateway/orgs/{org}/...` (for example `GET /m/ai-gateway/orgs/{org}/llm-providers`), beside the core's `/api/v1`, and its permissions are the `amp:ai-gateway:<resource>.<action>` scopes, such as `amp:ai-gateway:llm-providers.read`.
+The gateway is the `ai-gateway` module. Its API is at `/m/ai-gateway/...` (for example `GET /m/ai-gateway/llm-providers`, which takes the org from the token), beside the core's `/api/v1`, and its permissions are the `amp:ai-gateway:<resource>.<action>` scopes, such as `amp:ai-gateway:llm-providers.read`.
 
 ### Turn the gateway off
 
@@ -184,6 +184,14 @@ Download and unpack the new bundle in a new folder, then copy your `.env` into i
 Releases that stored traces also ran OpenSearch. Its data volume, `<COMPOSE_PROJECT_NAME>_opensearch-data` (by default `amp-lite_opensearch-data`), is no longer part of the stack, so `docker compose down -v` leaves it behind. Back it up if you want the old traces, then remove it with `docker volume rm amp-lite_opensearch-data`.
 
 When the generated ThunderID settings change, ThunderID's setup runs again. It keeps your users and data, but it resets the admin password to `AMP_ADMIN_PASSWORD`.
+
+### Rotate the encryption key
+
+1. Generate a new key with `openssl rand -hex 32`.
+2. In `.env`, move the current `AMP_ENCRYPTION_KEY` value into `AMP_ENCRYPTION_KEY_PREVIOUS` (comma-separate it from any older keys already there), and set `AMP_ENCRYPTION_KEY` to the new key.
+3. Restart the stack with `docker compose up -d`.
+
+New secrets are sealed with the new key, and each existing one is resealed the next time it is updated. Keep the old keys in `AMP_ENCRYPTION_KEY_PREVIOUS`: a secret sealed with a key that is no longer listed can't be read.
 
 ### Back up
 

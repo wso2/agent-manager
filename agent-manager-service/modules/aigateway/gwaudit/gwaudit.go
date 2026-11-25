@@ -99,6 +99,7 @@ var Actions = withDetails([]modkit.AuditAction{
 	{Name: "llm-providers.restore", Class: "deployment", Severity: "notice", Description: "Restore (llm providers)"},
 	{Name: "llm-providers.undeploy", Class: "deployment", Severity: "notice", Description: "Undeploy (llm providers)"},
 	{Name: "llm-providers.update", Class: "config", Severity: "info", Description: "Update (llm providers)"},
+	// No route records this since catalog membership moved to spec.inCatalog; kept to classify older records.
 	{Name: "llm-providers.update-catalog", Class: "config", Severity: "info", Description: "Update catalog (llm providers)"},
 	{Name: "llm-proxies.create", Class: "config", Severity: "info", Description: "Create (llm proxies)"},
 	{Name: "llm-proxies.delete", Class: "config", Severity: "notice", Description: "Delete (llm proxies)"},
@@ -230,6 +231,10 @@ func withDetails(actions []modkit.AuditAction) []modkit.AuditAction {
 		"agent-configs.delete": {
 			"configName": "name", "configType": "enum", "agentName": "name", "environmentCount": "count",
 		},
+		// Set when a write changes catalog membership, which v1 audited as llm-providers.update-catalog.
+		"llm-providers.create": {"inCatalog": "flag"},
+		"llm-providers.update": {"inCatalog": "flag"},
+
 		"agents.set-card-source": {"agentName": "name", "sourceUrl": "url"},
 		// Removing the source of a proxied environment removes the proxy too.
 		"agents.remove-card-source": a2aProxyFields,

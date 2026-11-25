@@ -123,10 +123,10 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *gwmodels
 
 	// Validate gateway exists
 	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: validating gateway", "proxyID", proxyID, "gatewayID", req.GatewayID)
-	gateway, err := s.gatewayRepo.GetByUUID(req.GatewayID)
-	if err != nil {
+	gateway, err := normalizeGatewayLookup(s.gatewayRepo.GetByUUID(req.GatewayID))
+	if err != nil && !errors.Is(err, gwerr.ErrGatewayNotFound) {
 		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: failed to get gateway", "proxyID", proxyID, "gatewayID", req.GatewayID, "error", err)
-		return nil, fmt.Errorf("failed to get gateway: %w", err)
+		return nil, err
 	}
 	if gateway == nil || gateway.OUID != ouID {
 		slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: gateway not found or org mismatch", "proxyID", proxyID, "gatewayID", req.GatewayID, "ouID", ouID)

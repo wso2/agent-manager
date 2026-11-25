@@ -14,14 +14,14 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) and `ai-hub` (the AI Hub) are two; only `ai-gateway` is a default. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
+- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, `observability` (traces) another, and `ai-hub` (the AI Hub) a third; only `ai-gateway` is a default. The `observability` store is in memory and per replica, and nothing writes to it yet, so it serves no traces until a real backend replaces it. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
 - **Distribution defaults.** A distribution's `main` passes its default modules to `cli.Main` (`cmd/amp`: `cli.Main("amp", "ai-gateway")`; `cmd/amp-core` none). With no modules list declared, the server installs each default at boot, with its providers, only if it was never installed (or was purged), and changes nothing else, so a default an operator disabled or uninstalled stays that way across restarts. A declared list replaces the defaults.
 
 A distribution is a `main` package that chooses its modules with blank imports:
 
 | Distribution | `main` | Modules |
 |---|---|---|
-| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway` (installed by default) and `ai-hub` (installed with `amp module install ai-hub`) |
+| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway` (installed by default), `observability`, and `ai-hub` (installed with `amp module install ai-hub`) |
 | `amp-core` | `cmd/amp-core/main.go` imports nothing | none |
 
 Both call `cli.Main`, so they share every command. The Dockerfile builds one or the other with `--build-arg DISTRIBUTION=amp|amp-core`.
@@ -33,9 +33,9 @@ Both call `cli.Main`, so they share every command. The Dockerfile builds one or 
 | Core | Modules |
 |---|---|
 | Organizations (including the default org created at startup), projects, environments, the agent registry | The AI Gateway (`ai-gateway`): gateways, LLM and MCP proxies, A2A, agent API keys, agent identity pages |
-| Users, roles and RBAC, the permission registry | The AI Hub (`ai-hub`, optional): subscription plans, copied in from a developer portal and synced to the gateways |
-| Audit log, settings, secrets, agent tokens and JWKS | Later: observability, evaluation, agent identity, A2A and other product areas as they are split out |
-| HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | |
+| Users, roles and RBAC, the permission registry | `observability`: traces, and the `traces.query/v1` capability (no trace data yet, see above) |
+| Audit log, settings, secrets, agent tokens and JWKS | The AI Hub (`ai-hub`, optional): subscription plans and subscriptions, copied in from a developer portal and synced to the gateways |
+| HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | Later: evaluation, agent identity, A2A and other product areas as they are split out |
 
 Before putting something in the core, ask:
 
@@ -119,6 +119,7 @@ return modkit.Manifest{
 - **Events:** the event types the module publishes, named `<module>.<event>`, each with a description. An event with a `Scope` (`org`, `project` or `agent`, the narrowest resource it is about) is also a webhook event: while the module is active it is listed in the event catalog (`GET /api/v1/orgs/{org}/events/event-types`) and organizations can subscribe to it. Routes raise it with `modkit.Emits` (see [Route options](#route-options)). An event without a scope only reaches module subscribers.
 - **AuditActions:** the audit actions the module's routes and tools name with `modkit.Audit`, each recorded as `<module>:<name>`, with a class (`credential`, `identity`, `deployment`, `config` or `read`; `config` when empty) and a severity (`info`, `notice`, `warning` or `critical`; `critical` for credential and identity actions and `info` otherwise when empty). An entry named after one of the module's permissions classifies the action that permission names. `Details` lists the detail keys the action's records may carry, each with its kind (see [Audit records](#audit-records)).
 - **Workloads:** the parts of the module that run outside the binary. See [Workloads](#workloads).
+- **Settings:** the settings the module reads with `rt.Config` (and `InitRequest.Config`): key, default, description, and whether it is a secret. They go into the [configuration reference](configuration.md) (`make config-docs`); a test in the module should check them against what it reads, as `modules/aigateway/settings_test.go` does.
 - **UI:** console pages the module turns on, listed by `GET /api/v1/ui-manifest`. From the gateway:
 
   ```go
@@ -174,8 +175,8 @@ The core's default organization (`DEFAULT_ORG_OU_ID`) and its default environmen
 - `rt.Core()` reads the core: `GetOrg`, `GetOrgByHandle` (for a caller that knows only the handle, such as a signed webhook delivery), `ListProjects`, `GetProject`, `ListAgents`, `GetAgent`, `ListEnvironments`, and by the names the API uses, `GetProjectByName`, `GetAgentByName` (project and agent name) and `GetEnvironmentByName`. Called with the ctx of a request, hook or event, it answers only for that ctx's organization. It also offers two calls that are not reads:
   - `LockAgent(ctx, tx, orgID, agentID)` locks the agent's row inside `tx` (a hook's `req.Tx` or your own transaction) until it ends, so changes to that agent made meanwhile wait;
   - `EnsureOrg(ctx, orgID)` creates the caller's organization, with its default environment, if no core route has created it yet; call it before a route writes the first rows of an organization.
-- `rt.Secrets()` keeps secret values in the core's `secrets` table, encrypted with the core's key: `Put(ctx, orgID, path, value)`, `Get` (`modkit.ErrNotFound` when there is none) and `Delete`. Paths are the module's own (`providers/<id>/api-key`: segments of letters, digits, `.`, `_` and `-`), so a module never reaches another module's secrets or the core's. With a hook's `ctx` they go through the hook's transaction; `rt.Secrets().In(tx)` writes through your own.
-- `rt.Config(key)` returns the module's own setting: `MODULE_<NAME>_<KEY>` from the environment, else the `config:` block of its `modules:` entry in `amp.yaml`.
+- `rt.Secrets()` keeps secret values in the core's `secrets` table, sealed by the core's configured vault (see [Modules and vaults](#modules-and-vaults)): `Put(ctx, orgID, path, value)`, `Get` (`modkit.ErrNotFound` when there is none) and `Delete`. Paths are the module's own (`providers/<id>/api-key`: segments of letters, digits, `.`, `_` and `-`), so a module never reaches another module's secrets or the core's. With a hook's `ctx` they go through the hook's transaction; `rt.Secrets().In(tx)` writes through your own.
+- `rt.Config(key)` returns the module's own setting: `MODULE_<NAME>_<KEY>` from the environment, else the `config:` block of its `modules:` entry in `amp.yaml`, where a value may be an `${env:...}` or `${file:...}` reference.
 - `rt.Logger()` is a logger tagged with the module.
 
 ### Routes
@@ -328,7 +329,7 @@ type Proxy interface {
 - The provider calls `rt.Provide(llmv1.ID, impl)` for each id in its `Provides`.
 - A consuming module lists the id in `Requires` or `Optional` and resolves it at call time with `modkit.Lookup[llmv1.Proxy](rt, llmv1.ID)`. The core does the same with `coreext.Lookup[llmv1.Proxy](llmv1.ID)`.
 - Lookups always see the current set of active modules. `ok` is false when no active module provides it, so handle that, typically with a 400 naming the capability.
-- A capability is a call between modules, not a way for the core to drive one. The core never calls `llm.proxy/v1` or `mcp.proxy/v1`; agent bindings reach the gateway through its extension block and hooks (see [Where the gateway stands](#where-the-gateway-stands)).
+- A capability is a call between modules, not a way for the core to drive one. The core never calls `llm.proxy/v1` or `mcp.proxy/v1`; agent bindings reach the gateway through its extension block and hooks (see [Where the gateway stands](ai-gateway.md#where-the-gateway-stands)).
 - A new major version is a new id (`llm.proxy/v2`) and package; providers can offer both while consumers move.
 - **Core capabilities.** The core provides a few capabilities itself, listed in `modhost.CoreCapabilities` (today `identity.directory/v1`). A module lists one in `Requires` like any other; it is always satisfied, and no module may provide it (a manifest that does is refused at startup). The server supplies the implementations when it attaches the host; a CLI host has none, so a lookup there returns `ok` false.
 
@@ -440,42 +441,13 @@ A module must not:
 - be named after a core permission resource, or declare permissions outside its own namespace;
 - do work in `Activate` beyond registering: it runs on every replica on every module change.
 
-### Where the gateway stands
+### The AI Gateway
 
-The `ai-gateway` module (`modules/aigateway`) runs on the contract alone; its non-test packages import no core package. Where it still differs (its controllers' fixed internal paths, its first activation) is noted below.
+The `ai-gateway` module runs on this contract alone. What it does as a module, its settings, and how the gateway that ships with Agent Manager registers itself are in [The AI Gateway module](ai-gateway.md).
 
-What it already does as a module:
+### Modules and vaults
 
-- **Permissions:** its 42 permissions are its own (`ai-gateway:<resource>.<action>`, such as `ai-gateway:llm-providers.read` and `ai-gateway:deploy.production`), declared in its manifest and rendered into ThunderID as the `ai-gateway` resource.
-- **API:** `Activate` mounts its public API with `rt.Handle` at `/m/ai-gateway/orgs/{orgName}/...` (the paths keep the organization, which the core resolves from them), described by its own document, `modules/aigateway/api/openapi.yaml`, with Go types in `gwspec` and an amctl client in `cli/pkg/clients/aigateway`. The console calls it through `GATEWAY_BASE` in `libs/api-client`.
-- **Controller API:** the routes its gateway controllers call, and their WebSocket, stay at `/api/internal/v1/...` with the controllers' `api-key` header, mounted with `rt.HandleInternalAt` until the controllers can register as workloads ([#2493](https://github.com/wso2/agent-manager/issues/2493)).
-- **Tables:** its 33 tables are `mod_ai_gateway_*`, created by its own migrations, with no foreign keys into core; its finalize hooks clean up after agents, projects and environments ([database-schema.md](database-schema.md#gateway-module-tables)).
-- **Credentials:** the upstream credentials it keeps (LLM provider and proxy upstream auth, including the key minted on a provider for a proxy, MCP proxy endpoint auth and A2A proxy auth) are in `rt.Secrets()`, not in its rows and not under the core's `ENCRYPTION_KEY`. A row's configuration carries the path as its `secretRef`; the value is written and deleted in the row's own transaction with `Secrets().In(tx)`, so a rolled-back create leaves no secret, and responses never carry it. Paths (`gwsecret`) are named after the owning row: `llm-providers/<id>/upstream-auth`, `llm-proxies/<id>/upstream-auth`, `a2a-proxies/<id>/upstream-auth` and `mcp-proxies/<proxy id>/endpoints/<handle hash>/upstream-auth` (an update re-creates a proxy's endpoints, so the endpoint's handle names it). A row's credential goes with the row, including in the agent teardown, the environment finalize hook and an agent artifact's delete. The controller-facing routes read them with the organization of the artifact they serve, since those requests carry no caller organization.
-- **Agent bindings:** an agent create or update carries the agent's LLM providers and MCP proxies as `extensions.ai-gateway` (`{modelConfig, mcpConfig, settings}`). The validate hook checks them, and the apply hook stores them as `pending` bindings in the agent's transaction. The `agent.created` event (and, on update, the module's own `ai-gateway.agent.bindings_changed`) then provisions each binding in the background: a retried, idempotent handler creates its LLM or MCP configuration, adopting one an earlier attempt already made, and marks it `ready`, or `failed` with the last error while it keeps retrying. `GET /m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations` returns the settings and each binding's state. Deleting the agent records a teardown in its transaction; the `agent.deleted` handler revokes and undeploys whatever was provisioned, pending bindings included, and retries until it is done. Until then a new agent with the same name is refused with 409.
-- **Audit and webhooks:** its routes declare their audit actions (`ai-gateway:<resource>.<verb>`, such as `ai-gateway:api-keys.rotate`) and webhook events (`ai-gateway.<type>`, such as `ai-gateway.llm_provider.created`) with `modkit.Audit`, `AuditCoalesce`, `AuditFailClosed` and `Emits`; the manifest declares them with their detail keys (`gwaudit`). Key, token, trust and A2A-proxy routes are fail-closed, and its handlers name what they acted on with `AuditResource` and `AuditDetail`.
-
-- **Lifecycle:** `Activate` builds the gateway on `rt.DB()`, `rt.Logger()`, `rt.Core()` and its settings the first time it runs on a replica, and reuses that gateway on later activations while the module stays active, so a change to another module keeps its controller connections. Building writes nothing. One worker, `gateway`, first registers the default gateway (idempotent, so it runs on every start), then runs its A2A card reconciler, deployment timeout sweeper and reconcile worker; when the module is disabled or the server stops, it stops them, closes the controllers' WebSockets and its event hub, and the next activation builds a new gateway. A controller that connects before the default gateway is registered is refused and retries. This first activation does more than register, against the rule above: building the gateway's services is not cheap, though it has no side effects.
-- **Switching it off:** `amp` installs it by default; `amp module disable ai-gateway` turns it off at runtime on every replica. Its routes (public and the controllers' fixed internal paths) answer 404, its hooks, capabilities, MCP tools, permissions and pages go, its workers stop, and every replica closes its controllers' WebSockets; its data stays. `enable` brings it back, and controllers reconnect and resync. An agent create carrying `extensions.ai-gateway` while it is off is a 400. Known limitation until controllers register as workloads ([#2493](https://github.com/wso2/agent-manager/issues/2493)): a released controller treats the 404 as permanent, exits, and Docker restarts it in a loop while it is off, and the gateway runtime keeps serving its last configuration; after `enable`, its next restart connects and resyncs.
-- **No environment attach offer:** the proposal's one-click "attach a gateway" offer on `environment.created` is not built. In Lite an organization has one environment, created with the organization, and a gateway serves exactly one environment; the default gateway is attached to the default organization's environment, and other organizations add a gateway for theirs. Revisit if Lite gains more environments per organization.
-- **Workloads and health:** its manifest declares the `gateway-controller` workload (a trusted service, not required, protocol `amp-gateway/v1`). Released controllers send no heartbeat yet ([#2493](https://github.com/wso2/agent-manager/issues/2493)), so no instance is listed, and the module is never degraded for lack of one. Its `Health` reports each registered gateway's connection from the gateway table (connected, and since when), which the replica holding the gateway's WebSocket keeps current, so every replica and `amp module health ai-gateway` give the same answer; it adds the platform gateway failure summary. "ok, no gateway connected" is a healthy state. Revoking a gateway token publishes `gateway_token.revoked` on that gateway's event stream (the gateway's own event hub, which reaches whichever replica holds its WebSocket, unlike a module event, which one replica claims); that replica closes the socket if it authenticated with the token, and the controller's reconnect is then refused. The event is never sent to the controller.
-- **MCP tools:** its 11 tools are registered with `rt.MCPTool` from `Activate` (`gwmcp`), so they leave `/mcp` with the module, and the MCP endpoint's protected-resource metadata lists their scopes only while it is active.
-- **Agent identity:** its agent-identity pages and MCP proxy scopes reach the environment's directory through the core's `identity.directory/v1`, not a ThunderID client of their own.
-- **Settings:** its settings are module settings, `MODULE_AI_GATEWAY_<KEY>` (or the `config:` block of its `modules:` entry), loaded and checked by `gwconfig`:
-
-  | Keys | What they set |
-  |---|---|
-  | `DEFAULT_GATEWAY_NAME`, `_DISPLAY_NAME`, `_VHOST`, `_TYPE`, `_ORG_OU_ID`, `_TOKEN`, `_TOKEN_FILE` | The gateway registered when the module activates (Compose sets the bundled one), in the core's default organization unless `_ORG_OU_ID` names another. An empty name registers none. |
-  | `A2A_CARD_FETCH_DIAL_ADDR` | The `host:port` platform agent-card fetches dial instead of the card URL's host. |
-  | `MANIFEST_CACHE_BACKEND` (`memory` or `redis`), `MANIFEST_CACHE_REDIS_HOST`, `_PORT`, `_PASSWORD`, `_DB`, `_TLS_ENABLED` | Where gateway-reported policy manifests are cached; use `redis` with more than one replica. |
-  | `WEBSOCKET_MAX_CONNECTIONS`, `WEBSOCKET_CONNECTION_TIMEOUT`, `WEBSOCKET_RATE_LIMIT_PER_MIN` | Limits on gateway controller connections. |
-  | `DEPLOYMENT_TIMEOUT_SECONDS`, `DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS` | When an unacknowledged deploy or undeploy fails. |
-  | `RECONCILE_RENDER_INTERVAL_SECONDS`, `_PLACE_INTERVAL_SECONDS`, `_DRIFT_INTERVAL_SECONDS`, `_RENDER_LEASE_SECONDS`, `_RENDER_ATTEMPT_BUDGET` | The reconcile worker. |
-  | `FAILURE_THRESHOLD_SECONDS`, `FAILURE_MAX_AGE_SECONDS`, `FAILURE_PERCENTAGE_THRESHOLD` | The platform gateway failure summary. |
-  | `AGENT_CORS_ALLOWED_ORIGIN`, `_METHODS`, `_HEADERS`, `AGENT_CORS_ALLOW_CREDENTIALS` | The CORS policy agents' gateway routes get by default. |
-
-  `amp init ai-gateway DIR` reads its own keys from the same place: `CONTROLPLANE_HOST`, `ADMIN_PASSWORD`, `AMP_JWKS_URL`, `THUNDER_ISSUER`, `THUNDER_JWKS_URL`, `HOST`, `LISTENER_PORT` and `FILE_OWNER` for the controller's `config.toml`, and `DEFAULT_GATEWAY_TOKEN` as the registration token it writes (it generates and keeps one when unset).
-
-Its write routes call `rt.Core().EnsureOrg` before the handler, so an organization's first gateway rows never precede the organization. Its test helpers (`gwtest`) use the core's test database, as module tests may.
+Modules and vaults are separate extension points. A module is a feature: it is installed, activated and uninstalled at run time through `modkit.Register`, and it reaches secrets only through `rt.Secrets()`. A vault is infrastructure: it decides where secret values are stored for the core and every module, is compiled in with `vault.Register`, and is chosen once at boot by `SECRET_VAULT_PROVIDER` (readers by `SECRET_VAULT_READERS`), reading its own settings from the environment. A module never picks or implements a vault, and switching vaults needs no module change.
 
 ## Module boundaries
 
@@ -535,6 +507,7 @@ Capabilities today:
 | `llm.proxy/v1` (`modkit/contracts/llmv1`) | 1 | `ai-gateway` | `ValidateProviders` | none in this repository |
 | `mcp.proxy/v1` (`modkit/contracts/mcpv1`) | 1 | `ai-gateway` | `ValidateProxies` | none in this repository |
 | `subscription.plans/v1` (`modkit/contracts/subplanv1`) | 1 | `ai-hub` | `ListPlans(org)`: every plan of an organization, with its conditions and the single throttle limit older gateways read. `ChangeEvent()`: the event the provider publishes with a `PlanChange` when a plan changes (`ai-hub.plan_changed`) | `ai-gateway`: the plans its controllers pull on connect, and, on the change event it subscribes to, the plan it pushes to the organization's gateways. The dependency runs one way (the gateway lists it as `Optional`); AI Hub depends on no gateway, since two modules that list each other's capabilities form a cycle the host refuses. |
+| `traces.query/v1` (`modkit/contracts/tracesv1`) | 1 | `observability` | `QueryTraces`, `QueryTraceSpans` and `GetSpanDetails`, for a `Scope` of IDs (organization required; project, agent and environment optional). Each refuses a `Scope` of another organization than the ctx's with `ErrForeignOrg`, and answers an unknown project, agent or environment with `ErrNotFound`. | none in this repository |
 
 ## Testing
 
@@ -629,7 +602,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | Route option [`AllowOrgOverride`](#route-options) | A deployment's control plane lists gateways and sets gateway identity providers on a tenant's behalf. The core already lets its own routes opt into the org override; the gateway did the same inside its handlers, which bypassed the core's checks (path must name the target, a refused override is a 403) and its audit record. |
 | [`Runtime.Go`](#background-workers) | Modules need workers (reconcilers, sweepers) that start and stop with the module on every replica. |
 | [`Runtime.MCPTool`](#mcp-tools) | Modules contribute tools to the core's `/mcp` server, authorized and audited like core tools. |
-| [`Runtime.Secrets`](#data) | Modules keep secret values encrypted with the core's key without their own key handling; `uninstall --purge` deletes them with the module's tables. |
+| [`Runtime.Secrets`](#data) | Modules keep secret values sealed by the core's vault without their own key handling; `uninstall --purge` deletes them with the module's tables. |
 | [`Runtime.Config`](#data) | A module reads its own settings (`MODULE_<NAME>_<KEY>`, or its entry in `amp.yaml`) instead of the core's configuration. |
 | [`modkit.EventEnvironment`, `EventData`](#events) | A route's webhook event takes its environment from the path; a module route that names it by id or in the body sets it, and adds fields the response does not carry (an API key's name, never the key), as core handlers do. |
 | [`Runtime.PublishTx`](#events) | An event written in the module's own transaction is delivered only if that transaction commits. |
@@ -664,7 +637,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [Workload tokens](#heartbeat) are RS256 with the core's agent-token key, not EdDSA | The runtimes already trust that key. |
 | [Modules may import `pkg/`](#leaf-libraries-pkg) as well as `modkit` | `pkg/` holds domain-free libraries with no core imports and no state, so they cannot bypass the contract; copying them into every module would let them drift. |
 | [The import rule](#what-a-module-may-import) applies to non-test files only | Module tests may use the core's test harnesses (`db/dbtest`, `internal/modhost`). |
-| [The AI Gateway offers no environment attach](#where-the-gateway-stands) on `environment.created` | Lite has one environment per organization, created with it, and a gateway serves one environment, so there is nothing to offer; revisit with more environments. |
+| [The AI Gateway offers no environment attach](ai-gateway.md#where-the-gateway-stands) on `environment.created` | Lite has one environment per organization, created with it, and a gateway serves one environment, so there is nothing to offer; revisit with more environments. |
 | Module permissions and audit actions may be `<resource>.<action>` (`ai-gateway:llm-providers.read`) | A module with many resources groups its permissions by resource; ThunderID accepts the dots. |
 | [A refusal only the module can check](#audit-records) (the gateway's environment tier) is recorded on the route's own record, as a denial with `reason` and `missingScope`, not as a separate `authz:deny` record | The route's record already carries the caller and the outcome; a second record would need the core's audit package in the module. |
 | [Module records take the project and environment from the path](#audit-records) | Handlers name only what they acted on; the path already says where. |

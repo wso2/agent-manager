@@ -42,8 +42,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-var testEventKey = []byte("0123456789abcdef0123456789abcdef")
-
 // fakeDestinationDriver is a "fake" kind: settings {"dest": "..."} and an
 // optional generated secret.
 type fakeDestinationDriver struct {
@@ -405,7 +403,7 @@ func (m *memEventStore) mock() *repomocks.EventRepositoryMock {
 func newTestDestinationService(drivers ...eventdestinations.Driver) (EventDestinationService, *memEventStore, *repomocks.EventRepositoryMock) {
 	store := newMemEventStore()
 	repo := store.mock()
-	svc := NewEventDestinationService(repo, eventdestinations.NewRegistry(drivers...), testEventKey, slog.New(slog.DiscardHandler))
+	svc := NewEventDestinationService(repo, eventdestinations.NewRegistry(drivers...), slog.New(slog.DiscardHandler))
 	return svc, store, repo
 }
 
@@ -443,7 +441,7 @@ func TestEventDestinationService_CreateNormalisesAndAudits(t *testing.T) {
 	assert.JSONEq(t, `{"dest":"somewhere"}`, string(d.Config), "the driver normalises the config")
 	assert.Equal(t, []string{"payments", "claims"}, d.Projects, "projects are trimmed and deduplicated")
 	assert.NotEmpty(t, secret)
-	assert.NotContains(t, string(d.SecretEncrypted), secret, "the secret is stored encrypted")
+	assert.Equal(t, secret, d.Secret, "the generated secret is handed to the secret store")
 	assert.Equal(t, []audit.Action{audit.ActionEventDestinationCreate, audit.ActionEventDestinationCreate}, rec.actions(),
 		"intent and outcome are recorded")
 }
@@ -496,7 +494,7 @@ func TestEventDestinationService_KindWithoutSecret(t *testing.T) {
 	d, secret, err := svc.Create(ctx, "ou-1", validDestinationInput())
 	require.NoError(t, err)
 	assert.Empty(t, secret)
-	assert.Empty(t, d.SecretEncrypted)
+	assert.Empty(t, d.Secret)
 
 	_, err = svc.RotateSecret(ctx, "ou-1", d.ID)
 	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "nothing to rotate")

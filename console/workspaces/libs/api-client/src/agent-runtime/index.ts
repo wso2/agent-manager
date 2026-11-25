@@ -17,23 +17,12 @@
  */
 
 export * from "./apis/deployments";
-export * from "./apis/builds";
-export * from "./apis/agent-build-options";
 export * from "./apis/agent-card";
 export * from "./apis/a2a-proxy";
 export * from "./apis/agent-mcp-configs";
 export * from "./apis/agent-model-configs";
-export * from "./apis/git-secrets";
-export * from "./apis/repositories";
-export * from "./apis/resource-configs";
 export * from "./hooks/deployments";
-export * from "./hooks/environment-mode";
-export * from "./hooks/builds";
-export * from "./hooks/agent-build-options";
 export * from "./hooks/agent-card";
 export * from "./hooks/a2a-proxy";
 export * from "./hooks/agent-mcp-configs";
 export * from "./hooks/agent-model-configs";
-export * from "./hooks/git-secrets";
-export * from "./hooks/repositories";
-export * from "./hooks/resource-configs";

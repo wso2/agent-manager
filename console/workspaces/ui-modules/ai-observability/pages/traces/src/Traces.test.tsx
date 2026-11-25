@@ -29,7 +29,12 @@ import type {
 
 // api-client crashes at import time outside a configured app shell, and
 // EnvironmentSelector pulls it in; stub both at the module boundary.
+// Whether the mocked trace routes serve filters; one test turns it off.
+const api = vi.hoisted(() => ({ filtersSupported: true }));
 vi.mock("@agent-management-platform/api-client", () => ({
+  get TRACE_FILTERS_SUPPORTED() {
+    return api.filtersSupported;
+  },
   useTraceList: vi.fn(),
   useExportTraces: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   useGetOrganization: vi.fn(() => ({
@@ -630,6 +635,22 @@ describe("tool and MCP server filter URL parsing", () => {
         alsoClears: ["toolError"],
       },
     ]);
+  });
+});
+
+describe("TracesComponent without trace filters", () => {
+  afterEach(() => {
+    api.filtersSupported = true;
+  });
+
+  it("sends no filters and shows no filter controls", () => {
+    api.filtersSupported = false;
+    renderPage("?timeRange=1h&status=error&model=gpt-4o");
+
+    expect(lastFilters()).toEqual({});
+    expect(screen.queryByRole("group", { name: "Status" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Advanced filters" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
   });
 });
 

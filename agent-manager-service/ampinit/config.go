@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -86,12 +88,11 @@ type ThunderConfig struct {
 func init() {
 	config.RegisterKeys(
 		"AMCTL_CLIENT_ID", "AMCTL_REDIRECT_URIS", "AMP_ADMIN_PASSWORD", "AMP_ADMIN_USERNAME",
-		"AMP_API_CLIENT_ID", "AMP_API_CLIENT_SECRET", "AMP_CONSOLE_CLIENT_ID", "AMP_CONSOLE_CLIENT_SECRET",
-		"AMP_DEFAULT_ORG_HANDLE", "AMP_DEFAULT_USERS", "AMP_FILE_OWNER", "AMP_PUBLIC_URL",
-		"AMP_SYSTEM_CLIENT_ID", "AMP_SYSTEM_CLIENT_SECRET",
+		"AMP_CONSOLE_CLIENT_ID", "AMP_CONSOLE_CLIENT_SECRET",
+		"AMP_DEFAULT_ORG_HANDLE", "AMP_DEFAULT_USERS", "AMP_FILE_OWNER",
 		"CONSOLE_URL", "PLATFORM_ADMIN_OU_ID",
 		"THUNDER_ADMIN_EMAIL", "THUNDER_ADMIN_FAMILY_NAME", "THUNDER_ADMIN_GIVEN_NAME", "THUNDER_ADMIN_USERNAME",
-		"THUNDER_CORS_ORIGINS", "THUNDER_FILE_OWNER", "THUNDER_PORT", "THUNDER_PUBLIC_URL",
+		"THUNDER_CORS_ORIGINS", "THUNDER_FILE_OWNER", "THUNDER_PORT", "AMP_SHARED_SECRETS_DIR",
 	)
 }
 
@@ -124,6 +125,14 @@ func (r *envReader) list(key string, def []string) []string {
 		}
 	}
 	return out
+}
+
+// withFirst is list with first in front, unless list already holds it.
+func withFirst(first string, list []string) []string {
+	if slices.Contains(list, first) {
+		return list
+	}
+	return append([]string{first}, list...)
 }
 
 func (r *envReader) port(key string, def int) int {
@@ -168,18 +177,20 @@ func defaultPort(u *url.URL) int {
 // LoadThunderConfig reads the ThunderID inputs from the environment.
 func LoadThunderConfig() (*ThunderConfig, error) {
 	r := &envReader{}
+	publicURL := strings.TrimRight(r.required("SERVER_PUBLIC_URL"), "/")
 	cfg := &ThunderConfig{
 		Modules:      compiledModules(),
-		AMPPublicURL: strings.TrimRight(r.required("AMP_PUBLIC_URL"), "/"),
-		ConsoleURL:   strings.TrimRight(r.required("CONSOLE_URL"), "/"),
+		AMPPublicURL: publicURL,
+		// The console is served by the API unless it runs elsewhere.
+		ConsoleURL: strings.TrimRight(r.str("CONSOLE_URL", publicURL), "/"),
 		APIClient: Client{
-			ID: r.str("AMP_API_CLIENT_ID", "amp-api-client"), Secret: r.required("AMP_API_CLIENT_SECRET"),
+			ID: r.str("IDP_CLIENT_ID", "amp-api-client"), Secret: r.required("IDP_CLIENT_SECRET"),
 		},
 		ConsoleClient: Client{
 			ID: r.str("AMP_CONSOLE_CLIENT_ID", "amp-console-client"), Secret: r.required("AMP_CONSOLE_CLIENT_SECRET"),
 		},
 		SystemClient: Client{
-			ID: r.str("AMP_SYSTEM_CLIENT_ID", "amp-system-client"), Secret: r.required("AMP_SYSTEM_CLIENT_SECRET"),
+			ID: r.str("THUNDER_CLIENT_ID", "amp-system-client"), Secret: r.required("THUNDER_CLIENT_SECRET"),
 		},
 		CLIClient: Client{
 			ID:           r.str("AMCTL_CLIENT_ID", "amctl"),
@@ -192,15 +203,15 @@ func LoadThunderConfig() (*ThunderConfig, error) {
 			FamilyName: r.str("THUNDER_ADMIN_FAMILY_NAME", "User"),
 		},
 	}
-	if u := r.url("THUNDER_PUBLIC_URL"); u != nil {
+	if u := r.url("THUNDER_BASE_URL"); u != nil {
 		cfg.ThunderPublicURL = u.String()
 		cfg.ThunderScheme = u.Scheme
 		cfg.ThunderHost = u.Hostname()
 		cfg.ThunderPort = defaultPort(u)
 		cfg.ThunderListenPort = r.port("THUNDER_PORT", cfg.ThunderPort)
 	}
-	cfg.ConsoleRedirectURIs = r.list("CONSOLE_REDIRECT_URIS", []string{cfg.ConsoleURL + "/login"})
-	cfg.CORSOrigins = r.list("THUNDER_CORS_ORIGINS", []string{cfg.ConsoleURL})
+	cfg.ConsoleRedirectURIs = withFirst(cfg.ConsoleURL+"/login", r.list("CONSOLE_REDIRECT_URIS", nil))
+	cfg.CORSOrigins = withFirst(cfg.ConsoleURL, r.list("THUNDER_CORS_ORIGINS", nil))
 	users, err := parseUsers(r.str("AMP_DEFAULT_USERS", ""))
 	if err != nil {
 		r.errs = append(r.errs, err)
@@ -246,7 +257,7 @@ func LoadFileAuthConfig() (*FileAuthConfig, error) {
 		// The same id the API is given as PLATFORM_ADMIN_OU_ID, so the
 		// organization a file-mode token names is the platform admin one
 		// rather than a second organization beside it.
-		OrgUUID:   r.str("PLATFORM_ADMIN_OU_ID", "01900000-0000-7000-8000-000000000001"),
+		OrgUUID:   r.str("PLATFORM_ADMIN_OU_ID", config.DefaultPlatformAdminOUID),
 		OrgHandle: normaliseHandle(r.str("AMP_DEFAULT_ORG_HANDLE", defaultOrgHandle)),
 	}
 	extra, err := parseUsers(r.str("AMP_DEFAULT_USERS", ""))
@@ -306,11 +317,30 @@ func SampleThunderConfig() *ThunderConfig {
 // Run writes the ThunderID files into thunderDir, the file-based sign-in user
 // file into fileAuthDir, and each module's files into the directory others
 // names for it, skipping an empty directory.
-func Run(thunderDir, fileAuthDir string, others map[string]string) error {
+func Run(secretsDir, thunderDir, fileAuthDir string, others map[string]string) error {
 	for name := range others {
 		if _, ok := initComponent(name); !ok {
 			return fmt.Errorf("unknown component %q", name)
 		}
+	}
+	// ThunderID's clients and the sign-in accounts need the secrets, so
+	// writing either generates them where the server reads them.
+	if secretsDir == "" && (thunderDir != "" || fileAuthDir != "") {
+		secretsDir = config.SecretsDir()
+	}
+	if secretsDir != "" {
+		// Settings read below find the generated secrets here.
+		if err := os.Setenv("AMP_SECRETS_DIR", secretsDir); err != nil {
+			return err
+		}
+		owner, err := parseOwner("AMP_FILE_OWNER")
+		if err != nil {
+			return err
+		}
+		if err := EnsureSecrets(secretsDir, owner); err != nil {
+			return fmt.Errorf("generated secrets: %w", err)
+		}
+		slog.Info("Wrote the generated secrets", "dir", secretsDir)
 	}
 	if thunderDir != "" {
 		cfg, err := LoadThunderConfig()

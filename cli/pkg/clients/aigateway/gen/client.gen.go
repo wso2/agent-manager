@@ -90,6 +90,25 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// ListLLMProviders request
+	ListLLMProviders(ctx context.Context, params *ListLLMProvidersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateLLMProviderWithBody request with any body
+	CreateLLMProviderWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateLLMProvider(ctx context.Context, body CreateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteLLMProvider request
+	DeleteLLMProvider(ctx context.Context, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetLLMProvider request
+	GetLLMProvider(ctx context.Context, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateLLMProviderWithBody request with any body
+	UpdateLLMProviderWithBody(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateLLMProvider(ctx context.Context, providerId string, body UpdateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListCatalogResources request
 	ListCatalogResources(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -253,14 +272,6 @@ type ClientInterface interface {
 
 	UpdateLLMProviderTemplate(ctx context.Context, orgName string, templateId string, body UpdateLLMProviderTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListLLMProviders request
-	ListLLMProviders(ctx context.Context, orgName string, params *ListLLMProvidersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateLLMProviderWithBody request with any body
-	CreateLLMProviderWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateLLMProvider(ctx context.Context, orgName string, body CreateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListAvailableLLMPolicies request
 	ListAvailableLLMPolicies(ctx context.Context, orgName string, params *ListAvailableLLMPoliciesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -279,22 +290,6 @@ type ClientInterface interface {
 	RotateLLMProviderAPIKeyWithBody(ctx context.Context, orgName string, id string, keyName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	RotateLLMProviderAPIKey(ctx context.Context, orgName string, id string, keyName string, body RotateLLMProviderAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteLLMProvider request
-	DeleteLLMProvider(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetLLMProvider request
-	GetLLMProvider(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateLLMProviderWithBody request with any body
-	UpdateLLMProviderWithBody(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateLLMProvider(ctx context.Context, orgName string, providerId string, body UpdateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateLLMProviderCatalogStatusWithBody request with any body
-	UpdateLLMProviderCatalogStatusWithBody(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateLLMProviderCatalogStatus(ctx context.Context, orgName string, providerId string, body UpdateLLMProviderCatalogStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListLLMProviderConsumers request
 	ListLLMProviderConsumers(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -578,6 +573,90 @@ type ClientInterface interface {
 
 	// GetPlatformGatewayFailureSummary request
 	GetPlatformGatewayFailureSummary(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) ListLLMProviders(ctx context.Context, params *ListLLMProvidersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListLLMProvidersRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateLLMProviderWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateLLMProviderRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateLLMProvider(ctx context.Context, body CreateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateLLMProviderRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteLLMProvider(ctx context.Context, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteLLMProviderRequest(c.Server, providerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetLLMProvider(ctx context.Context, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetLLMProviderRequest(c.Server, providerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateLLMProviderWithBody(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLLMProviderRequestWithBody(c.Server, providerId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateLLMProvider(ctx context.Context, providerId string, body UpdateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateLLMProviderRequest(c.Server, providerId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListCatalogResources(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1288,42 +1367,6 @@ func (c *Client) UpdateLLMProviderTemplate(ctx context.Context, orgName string, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListLLMProviders(ctx context.Context, orgName string, params *ListLLMProvidersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListLLMProvidersRequest(c.Server, orgName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateLLMProviderWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateLLMProviderRequestWithBody(c.Server, orgName, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateLLMProvider(ctx context.Context, orgName string, body CreateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateLLMProviderRequest(c.Server, orgName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) ListAvailableLLMPolicies(ctx context.Context, orgName string, params *ListAvailableLLMPoliciesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAvailableLLMPoliciesRequest(c.Server, orgName, params)
 	if err != nil {
@@ -1398,78 +1441,6 @@ func (c *Client) RotateLLMProviderAPIKeyWithBody(ctx context.Context, orgName st
 
 func (c *Client) RotateLLMProviderAPIKey(ctx context.Context, orgName string, id string, keyName string, body RotateLLMProviderAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRotateLLMProviderAPIKeyRequest(c.Server, orgName, id, keyName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteLLMProvider(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteLLMProviderRequest(c.Server, orgName, providerId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetLLMProvider(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetLLMProviderRequest(c.Server, orgName, providerId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateLLMProviderWithBody(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateLLMProviderRequestWithBody(c.Server, orgName, providerId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateLLMProvider(ctx context.Context, orgName string, providerId string, body UpdateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateLLMProviderRequest(c.Server, orgName, providerId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateLLMProviderCatalogStatusWithBody(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateLLMProviderCatalogStatusRequestWithBody(c.Server, orgName, providerId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateLLMProviderCatalogStatus(ctx context.Context, orgName string, providerId string, body UpdateLLMProviderCatalogStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateLLMProviderCatalogStatusRequest(c.Server, orgName, providerId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2714,6 +2685,226 @@ func (c *Client) GetPlatformGatewayFailureSummary(ctx context.Context, reqEditor
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewListLLMProvidersRequest generates requests for ListLLMProviders
+func NewListLLMProvidersRequest(server string, params *ListLLMProvidersParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/llm-providers")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateLLMProviderRequest calls the generic CreateLLMProvider builder with application/json body
+func NewCreateLLMProviderRequest(server string, body CreateLLMProviderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateLLMProviderRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateLLMProviderRequestWithBody generates requests for CreateLLMProvider with any type of body
+func NewCreateLLMProviderRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/llm-providers")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteLLMProviderRequest generates requests for DeleteLLMProvider
+func NewDeleteLLMProviderRequest(server string, providerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/llm-providers/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetLLMProviderRequest generates requests for GetLLMProvider
+func NewGetLLMProviderRequest(server string, providerId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/llm-providers/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateLLMProviderRequest calls the generic UpdateLLMProvider builder with application/json body
+func NewUpdateLLMProviderRequest(server string, providerId string, body UpdateLLMProviderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateLLMProviderRequestWithBody(server, providerId, "application/json", bodyReader)
+}
+
+// NewUpdateLLMProviderRequestWithBody generates requests for UpdateLLMProvider with any type of body
+func NewUpdateLLMProviderRequestWithBody(server string, providerId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/llm-providers/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewListCatalogResourcesRequest generates requests for ListCatalogResources
@@ -5177,125 +5368,6 @@ func NewUpdateLLMProviderTemplateRequestWithBody(server string, orgName string, 
 	return req, nil
 }
 
-// NewListLLMProvidersRequest generates requests for ListLLMProviders
-func NewListLLMProvidersRequest(server string, orgName string, params *ListLLMProvidersParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/llm-providers", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Offset != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateLLMProviderRequest calls the generic CreateLLMProvider builder with application/json body
-func NewCreateLLMProviderRequest(server string, orgName string, body CreateLLMProviderJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateLLMProviderRequestWithBody(server, orgName, "application/json", bodyReader)
-}
-
-// NewCreateLLMProviderRequestWithBody generates requests for CreateLLMProvider with any type of body
-func NewCreateLLMProviderRequestWithBody(server string, orgName string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/llm-providers", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewListAvailableLLMPoliciesRequest generates requests for ListAvailableLLMPolicies
 func NewListAvailableLLMPoliciesRequest(server string, orgName string, params *ListAvailableLLMPoliciesParams) (*http.Request, error) {
 	var err error
@@ -5537,196 +5609,6 @@ func NewRotateLLMProviderAPIKeyRequestWithBody(server string, orgName string, id
 	}
 
 	operationPath := fmt.Sprintf("/orgs/%s/llm-providers/%s/api-keys/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteLLMProviderRequest generates requests for DeleteLLMProvider
-func NewDeleteLLMProviderRequest(server string, orgName string, providerId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/llm-providers/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetLLMProviderRequest generates requests for GetLLMProvider
-func NewGetLLMProviderRequest(server string, orgName string, providerId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/llm-providers/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateLLMProviderRequest calls the generic UpdateLLMProvider builder with application/json body
-func NewUpdateLLMProviderRequest(server string, orgName string, providerId string, body UpdateLLMProviderJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateLLMProviderRequestWithBody(server, orgName, providerId, "application/json", bodyReader)
-}
-
-// NewUpdateLLMProviderRequestWithBody generates requests for UpdateLLMProvider with any type of body
-func NewUpdateLLMProviderRequestWithBody(server string, orgName string, providerId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/llm-providers/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewUpdateLLMProviderCatalogStatusRequest calls the generic UpdateLLMProviderCatalogStatus builder with application/json body
-func NewUpdateLLMProviderCatalogStatusRequest(server string, orgName string, providerId string, body UpdateLLMProviderCatalogStatusJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateLLMProviderCatalogStatusRequestWithBody(server, orgName, providerId, "application/json", bodyReader)
-}
-
-// NewUpdateLLMProviderCatalogStatusRequestWithBody generates requests for UpdateLLMProviderCatalogStatus with any type of body
-func NewUpdateLLMProviderCatalogStatusRequestWithBody(server string, orgName string, providerId string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/llm-providers/%s/catalog", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -10365,6 +10247,25 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// ListLLMProvidersWithResponse request
+	ListLLMProvidersWithResponse(ctx context.Context, params *ListLLMProvidersParams, reqEditors ...RequestEditorFn) (*ListLLMProvidersResp, error)
+
+	// CreateLLMProviderWithBodyWithResponse request with any body
+	CreateLLMProviderWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateLLMProviderResp, error)
+
+	CreateLLMProviderWithResponse(ctx context.Context, body CreateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateLLMProviderResp, error)
+
+	// DeleteLLMProviderWithResponse request
+	DeleteLLMProviderWithResponse(ctx context.Context, providerId string, reqEditors ...RequestEditorFn) (*DeleteLLMProviderResp, error)
+
+	// GetLLMProviderWithResponse request
+	GetLLMProviderWithResponse(ctx context.Context, providerId string, reqEditors ...RequestEditorFn) (*GetLLMProviderResp, error)
+
+	// UpdateLLMProviderWithBodyWithResponse request with any body
+	UpdateLLMProviderWithBodyWithResponse(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLLMProviderResp, error)
+
+	UpdateLLMProviderWithResponse(ctx context.Context, providerId string, body UpdateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLLMProviderResp, error)
+
 	// ListCatalogResourcesWithResponse request
 	ListCatalogResourcesWithResponse(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*ListCatalogResourcesResp, error)
 
@@ -10528,14 +10429,6 @@ type ClientWithResponsesInterface interface {
 
 	UpdateLLMProviderTemplateWithResponse(ctx context.Context, orgName string, templateId string, body UpdateLLMProviderTemplateJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLLMProviderTemplateResp, error)
 
-	// ListLLMProvidersWithResponse request
-	ListLLMProvidersWithResponse(ctx context.Context, orgName string, params *ListLLMProvidersParams, reqEditors ...RequestEditorFn) (*ListLLMProvidersResp, error)
-
-	// CreateLLMProviderWithBodyWithResponse request with any body
-	CreateLLMProviderWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateLLMProviderResp, error)
-
-	CreateLLMProviderWithResponse(ctx context.Context, orgName string, body CreateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateLLMProviderResp, error)
-
 	// ListAvailableLLMPoliciesWithResponse request
 	ListAvailableLLMPoliciesWithResponse(ctx context.Context, orgName string, params *ListAvailableLLMPoliciesParams, reqEditors ...RequestEditorFn) (*ListAvailableLLMPoliciesResp, error)
 
@@ -10554,22 +10447,6 @@ type ClientWithResponsesInterface interface {
 	RotateLLMProviderAPIKeyWithBodyWithResponse(ctx context.Context, orgName string, id string, keyName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateLLMProviderAPIKeyResp, error)
 
 	RotateLLMProviderAPIKeyWithResponse(ctx context.Context, orgName string, id string, keyName string, body RotateLLMProviderAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateLLMProviderAPIKeyResp, error)
-
-	// DeleteLLMProviderWithResponse request
-	DeleteLLMProviderWithResponse(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*DeleteLLMProviderResp, error)
-
-	// GetLLMProviderWithResponse request
-	GetLLMProviderWithResponse(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*GetLLMProviderResp, error)
-
-	// UpdateLLMProviderWithBodyWithResponse request with any body
-	UpdateLLMProviderWithBodyWithResponse(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLLMProviderResp, error)
-
-	UpdateLLMProviderWithResponse(ctx context.Context, orgName string, providerId string, body UpdateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLLMProviderResp, error)
-
-	// UpdateLLMProviderCatalogStatusWithBodyWithResponse request with any body
-	UpdateLLMProviderCatalogStatusWithBodyWithResponse(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLLMProviderCatalogStatusResp, error)
-
-	UpdateLLMProviderCatalogStatusWithResponse(ctx context.Context, orgName string, providerId string, body UpdateLLMProviderCatalogStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLLMProviderCatalogStatusResp, error)
 
 	// ListLLMProviderConsumersWithResponse request
 	ListLLMProviderConsumersWithResponse(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*ListLLMProviderConsumersResp, error)
@@ -10853,6 +10730,137 @@ type ClientWithResponsesInterface interface {
 
 	// GetPlatformGatewayFailureSummaryWithResponse request
 	GetPlatformGatewayFailureSummaryWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPlatformGatewayFailureSummaryResp, error)
+}
+
+type ListLLMProvidersResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LLMProviderListResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListLLMProvidersResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListLLMProvidersResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateLLMProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *LlmProviderDocument
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateLLMProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateLLMProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteLLMProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteLLMProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteLLMProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetLLMProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LlmProviderDocument
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetLLMProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetLLMProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateLLMProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *LlmProviderDocument
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateLLMProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateLLMProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type ListCatalogResourcesResp struct {
@@ -11903,6 +11911,7 @@ type DeleteLLMProviderTemplateResp struct {
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
@@ -11968,57 +11977,6 @@ func (r UpdateLLMProviderTemplateResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateLLMProviderTemplateResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListLLMProvidersResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *LLMProviderListResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r ListLLMProvidersResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListLLMProvidersResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateLLMProviderResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *LLMProviderResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateLLMProviderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateLLMProviderResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12148,112 +12106,6 @@ func (r RotateLLMProviderAPIKeyResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r RotateLLMProviderAPIKeyResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteLLMProviderResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteLLMProviderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteLLMProviderResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetLLMProviderResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *LLMProviderResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetLLMProviderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetLLMProviderResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateLLMProviderResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *LLMProviderResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateLLMProviderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateLLMProviderResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateLLMProviderCatalogStatusResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *LLMProviderResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateLLMProviderCatalogStatusResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateLLMProviderCatalogStatusResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14219,6 +14071,67 @@ func (r GetPlatformGatewayFailureSummaryResp) StatusCode() int {
 	return 0
 }
 
+// ListLLMProvidersWithResponse request returning *ListLLMProvidersResp
+func (c *ClientWithResponses) ListLLMProvidersWithResponse(ctx context.Context, params *ListLLMProvidersParams, reqEditors ...RequestEditorFn) (*ListLLMProvidersResp, error) {
+	rsp, err := c.ListLLMProviders(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListLLMProvidersResp(rsp)
+}
+
+// CreateLLMProviderWithBodyWithResponse request with arbitrary body returning *CreateLLMProviderResp
+func (c *ClientWithResponses) CreateLLMProviderWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateLLMProviderResp, error) {
+	rsp, err := c.CreateLLMProviderWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateLLMProviderResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateLLMProviderWithResponse(ctx context.Context, body CreateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateLLMProviderResp, error) {
+	rsp, err := c.CreateLLMProvider(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateLLMProviderResp(rsp)
+}
+
+// DeleteLLMProviderWithResponse request returning *DeleteLLMProviderResp
+func (c *ClientWithResponses) DeleteLLMProviderWithResponse(ctx context.Context, providerId string, reqEditors ...RequestEditorFn) (*DeleteLLMProviderResp, error) {
+	rsp, err := c.DeleteLLMProvider(ctx, providerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteLLMProviderResp(rsp)
+}
+
+// GetLLMProviderWithResponse request returning *GetLLMProviderResp
+func (c *ClientWithResponses) GetLLMProviderWithResponse(ctx context.Context, providerId string, reqEditors ...RequestEditorFn) (*GetLLMProviderResp, error) {
+	rsp, err := c.GetLLMProvider(ctx, providerId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetLLMProviderResp(rsp)
+}
+
+// UpdateLLMProviderWithBodyWithResponse request with arbitrary body returning *UpdateLLMProviderResp
+func (c *ClientWithResponses) UpdateLLMProviderWithBodyWithResponse(ctx context.Context, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLLMProviderResp, error) {
+	rsp, err := c.UpdateLLMProviderWithBody(ctx, providerId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLLMProviderResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateLLMProviderWithResponse(ctx context.Context, providerId string, body UpdateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLLMProviderResp, error) {
+	rsp, err := c.UpdateLLMProvider(ctx, providerId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateLLMProviderResp(rsp)
+}
+
 // ListCatalogResourcesWithResponse request returning *ListCatalogResourcesResp
 func (c *ClientWithResponses) ListCatalogResourcesWithResponse(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*ListCatalogResourcesResp, error) {
 	rsp, err := c.ListCatalogResources(ctx, orgName, params, reqEditors...)
@@ -14736,32 +14649,6 @@ func (c *ClientWithResponses) UpdateLLMProviderTemplateWithResponse(ctx context.
 	return ParseUpdateLLMProviderTemplateResp(rsp)
 }
 
-// ListLLMProvidersWithResponse request returning *ListLLMProvidersResp
-func (c *ClientWithResponses) ListLLMProvidersWithResponse(ctx context.Context, orgName string, params *ListLLMProvidersParams, reqEditors ...RequestEditorFn) (*ListLLMProvidersResp, error) {
-	rsp, err := c.ListLLMProviders(ctx, orgName, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListLLMProvidersResp(rsp)
-}
-
-// CreateLLMProviderWithBodyWithResponse request with arbitrary body returning *CreateLLMProviderResp
-func (c *ClientWithResponses) CreateLLMProviderWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateLLMProviderResp, error) {
-	rsp, err := c.CreateLLMProviderWithBody(ctx, orgName, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateLLMProviderResp(rsp)
-}
-
-func (c *ClientWithResponses) CreateLLMProviderWithResponse(ctx context.Context, orgName string, body CreateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateLLMProviderResp, error) {
-	rsp, err := c.CreateLLMProvider(ctx, orgName, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateLLMProviderResp(rsp)
-}
-
 // ListAvailableLLMPoliciesWithResponse request returning *ListAvailableLLMPoliciesResp
 func (c *ClientWithResponses) ListAvailableLLMPoliciesWithResponse(ctx context.Context, orgName string, params *ListAvailableLLMPoliciesParams, reqEditors ...RequestEditorFn) (*ListAvailableLLMPoliciesResp, error) {
 	rsp, err := c.ListAvailableLLMPolicies(ctx, orgName, params, reqEditors...)
@@ -14821,58 +14708,6 @@ func (c *ClientWithResponses) RotateLLMProviderAPIKeyWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseRotateLLMProviderAPIKeyResp(rsp)
-}
-
-// DeleteLLMProviderWithResponse request returning *DeleteLLMProviderResp
-func (c *ClientWithResponses) DeleteLLMProviderWithResponse(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*DeleteLLMProviderResp, error) {
-	rsp, err := c.DeleteLLMProvider(ctx, orgName, providerId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteLLMProviderResp(rsp)
-}
-
-// GetLLMProviderWithResponse request returning *GetLLMProviderResp
-func (c *ClientWithResponses) GetLLMProviderWithResponse(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*GetLLMProviderResp, error) {
-	rsp, err := c.GetLLMProvider(ctx, orgName, providerId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetLLMProviderResp(rsp)
-}
-
-// UpdateLLMProviderWithBodyWithResponse request with arbitrary body returning *UpdateLLMProviderResp
-func (c *ClientWithResponses) UpdateLLMProviderWithBodyWithResponse(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLLMProviderResp, error) {
-	rsp, err := c.UpdateLLMProviderWithBody(ctx, orgName, providerId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateLLMProviderResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateLLMProviderWithResponse(ctx context.Context, orgName string, providerId string, body UpdateLLMProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLLMProviderResp, error) {
-	rsp, err := c.UpdateLLMProvider(ctx, orgName, providerId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateLLMProviderResp(rsp)
-}
-
-// UpdateLLMProviderCatalogStatusWithBodyWithResponse request with arbitrary body returning *UpdateLLMProviderCatalogStatusResp
-func (c *ClientWithResponses) UpdateLLMProviderCatalogStatusWithBodyWithResponse(ctx context.Context, orgName string, providerId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLLMProviderCatalogStatusResp, error) {
-	rsp, err := c.UpdateLLMProviderCatalogStatusWithBody(ctx, orgName, providerId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateLLMProviderCatalogStatusResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateLLMProviderCatalogStatusWithResponse(ctx context.Context, orgName string, providerId string, body UpdateLLMProviderCatalogStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLLMProviderCatalogStatusResp, error) {
-	rsp, err := c.UpdateLLMProviderCatalogStatus(ctx, orgName, providerId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateLLMProviderCatalogStatusResp(rsp)
 }
 
 // ListLLMProviderConsumersWithResponse request returning *ListLLMProviderConsumersResp
@@ -15774,6 +15609,283 @@ func (c *ClientWithResponses) GetPlatformGatewayFailureSummaryWithResponse(ctx c
 		return nil, err
 	}
 	return ParseGetPlatformGatewayFailureSummaryResp(rsp)
+}
+
+// ParseListLLMProvidersResp parses an HTTP response from a ListLLMProvidersWithResponse call
+func ParseListLLMProvidersResp(rsp *http.Response) (*ListLLMProvidersResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListLLMProvidersResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LLMProviderListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateLLMProviderResp parses an HTTP response from a CreateLLMProviderWithResponse call
+func ParseCreateLLMProviderResp(rsp *http.Response) (*CreateLLMProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateLLMProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest LlmProviderDocument
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteLLMProviderResp parses an HTTP response from a DeleteLLMProviderWithResponse call
+func ParseDeleteLLMProviderResp(rsp *http.Response) (*DeleteLLMProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteLLMProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetLLMProviderResp parses an HTTP response from a GetLLMProviderWithResponse call
+func ParseGetLLMProviderResp(rsp *http.Response) (*GetLLMProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetLLMProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LlmProviderDocument
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateLLMProviderResp parses an HTTP response from a UpdateLLMProviderWithResponse call
+func ParseUpdateLLMProviderResp(rsp *http.Response) (*UpdateLLMProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateLLMProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LlmProviderDocument
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseListCatalogResourcesResp parses an HTTP response from a ListCatalogResourcesWithResponse call
@@ -17705,6 +17817,13 @@ func ParseDeleteLLMProviderTemplateResp(rsp *http.Response) (*DeleteLLMProviderT
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -17812,107 +17931,6 @@ func ParseUpdateLLMProviderTemplateResp(rsp *http.Response) (*UpdateLLMProviderT
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListLLMProvidersResp parses an HTTP response from a ListLLMProvidersWithResponse call
-func ParseListLLMProvidersResp(rsp *http.Response) (*ListLLMProvidersResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListLLMProvidersResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest LLMProviderListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateLLMProviderResp parses an HTTP response from a CreateLLMProviderWithResponse call
-func ParseCreateLLMProviderResp(rsp *http.Response) (*CreateLLMProviderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateLLMProviderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest LLMProviderResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse
@@ -18183,236 +18201,6 @@ func ParseRotateLLMProviderAPIKeyResp(rsp *http.Response) (*RotateLLMProviderAPI
 			return nil, err
 		}
 		response.JSON503 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteLLMProviderResp parses an HTTP response from a DeleteLLMProviderWithResponse call
-func ParseDeleteLLMProviderResp(rsp *http.Response) (*DeleteLLMProviderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteLLMProviderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetLLMProviderResp parses an HTTP response from a GetLLMProviderWithResponse call
-func ParseGetLLMProviderResp(rsp *http.Response) (*GetLLMProviderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetLLMProviderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest LLMProviderResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateLLMProviderResp parses an HTTP response from a UpdateLLMProviderWithResponse call
-func ParseUpdateLLMProviderResp(rsp *http.Response) (*UpdateLLMProviderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateLLMProviderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest LLMProviderResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateLLMProviderCatalogStatusResp parses an HTTP response from a UpdateLLMProviderCatalogStatusWithResponse call
-func ParseUpdateLLMProviderCatalogStatusResp(rsp *http.Response) (*UpdateLLMProviderCatalogStatusResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateLLMProviderCatalogStatusResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest LLMProviderResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
 
 	}
 

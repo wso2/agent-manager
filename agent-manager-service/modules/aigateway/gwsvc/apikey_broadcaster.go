@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -256,6 +257,15 @@ func (b *apiKeyBroadcaster) broadcastRotate(ctx context.Context, orgID, apiID, a
 func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*gwmodels.Gateway, orgID, apiID, artifactUUID, keyName string, req *gwmodels.RotateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
+	}
+	// Rotating replaces a key's value; it must not create a key under a new name.
+	if b.apiKeyRepo != nil {
+		if _, err := b.apiKeyRepo.GetByArtifactAndName(artifactUUID, keyName); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, gwerr.ErrAPIKeyNotFound
+			}
+			return nil, fmt.Errorf("failed to read API key: %w", err)
+		}
 	}
 	newAPIKey, err := gwutil.GenerateAPIKey()
 	if err != nil {

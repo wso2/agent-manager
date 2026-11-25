@@ -93,6 +93,19 @@ type Manifest struct {
 	// module only over its internal routes (HandleInternal), with tokens
 	// the core issues.
 	Workloads []WorkloadSpec `json:"workloads,omitempty"`
+	// Settings document the settings the module reads with Runtime.Config
+	// (and InitRequest.Config), for the configuration reference.
+	Settings []Setting `json:"settings,omitempty"`
+}
+
+// Setting documents one module setting: Key as the module reads it
+// ("DEFAULT_GATEWAY_NAME"), set as MODULE_<NAME>_<KEY> or in the config:
+// block of the module's modules: entry in amp.yaml.
+type Setting struct {
+	Key         string `json:"key"`
+	Default     string `json:"default,omitempty"`
+	Description string `json:"description"`
+	Secret      bool   `json:"secret,omitempty"`
 }
 
 // WorkloadKind says how a workload runs.

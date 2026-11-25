@@ -21,6 +21,7 @@ package gwrepo
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -217,4 +218,17 @@ func TestHasGatewayDeploymentsCountsOnlyWhatTheGatewayHolds(t *testing.T) {
 			assert.True(t, hasDeployments(p))
 		})
 	}
+
+	// An undeploy the gateway never confirmed, as on a gateway that never connected, times out to FAILED. The user
+	// asked for the artifact to go, so it no longer keeps the gateway from being deleted.
+	unacked := seedPlacement(t, gwmodels.KindLLMProvider)
+	startDeploy(t, unacked)
+	_, err = beginUndeploy(t, unacked)
+	require.NoError(t, err)
+	assert.True(t, hasDeployments(unacked), "the gateway gets its timeout to confirm the undeploy")
+	backdate(t, unacked, 10*time.Minute)
+	_, err = NewDeploymentRepo(db.GetDB()).FailStaleTransitional(context.Background(), time.Now().Add(-5*time.Minute))
+	require.NoError(t, err)
+	require.Equal(t, gwmodels.DeploymentStatusFailed, statusRow(t, unacked).Status)
+	assert.False(t, hasDeployments(unacked), "a timed-out undeploy does not hold the gateway")
 }

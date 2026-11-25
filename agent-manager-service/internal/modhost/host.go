@@ -40,6 +40,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // DefaultPollInterval is how often a replica checks the module generation for
@@ -81,6 +82,12 @@ type Host struct {
 	// commands that change module state on behalf of running servers.
 	// Install and Enable still trial-activate the module set they produce.
 	Passive bool
+
+	// NoWorkers activates modules without starting their background workers.
+	// For tests: a module's workers act on every organization in the database,
+	// so on a database shared by tests running in parallel they would change
+	// other tests' rows mid-test. Set it before Boot.
+	NoWorkers bool
 
 	// warned holds modules already reported as active but not compiled in.
 	warned sync.Map
@@ -755,7 +762,9 @@ func (h *Host) purge(tx *gorm.DB, name string) ([]string, error) {
 			}
 		}
 	}
-	if err := tx.Exec(`DELETE FROM secrets WHERE owner_kind = ?`, "mod:"+name).Error; err != nil {
+	// Releasing needs no vault: external values are destroyed by the secret job runner after tx commits, so the
+	// CLI and the server purge the same way.
+	if err := repositories.ReleaseSecretsOfKind(tx, "mod:"+name); err != nil {
 		return nil, fmt.Errorf("deleting %s's secrets: %w", name, err)
 	}
 	return revokeAllTx(tx, name)

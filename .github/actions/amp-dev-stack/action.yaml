@@ -27,6 +27,19 @@ inputs:
       file; a job that wants to exercise that passes it here.
     required: false
     default: "idp"
+  log_route_hits:
+    description: >
+      Log the route pattern and status of every amp-api request
+      (LOG_ROUTE_HITS), for scripts/coverage/route_coverage.py.
+    required: false
+    default: "false"
+  private_events:
+    description: >
+      Let amp-api deliver events to private addresses and reach the host as
+      host.docker.internal (EVENTS_ALLOW_PRIVATE_DESTINATIONS), for the e2e
+      webhook journey.
+    required: false
+    default: "false"
 runs:
   using: composite
   steps:
@@ -42,22 +55,20 @@ runs:
         WITH_CONSOLE: ${{ inputs.console }}
         DISTRIBUTION: ${{ inputs.distribution }}
         AUTH_MODE: ${{ inputs.auth_mode }}
+        LOG_ROUTE_HITS: ${{ inputs.log_route_hits }}
+        PRIVATE_EVENTS: ${{ inputs.private_events }}
       run: |
         set -euo pipefail
         cd deployments/standalone
-        cp .env.example .env
         # Most jobs authenticate as a machine client, with client_credentials
         # against ThunderID (test/instrumentation-matrix/heavy/amp_client.py),
         # so they run in identity-provider mode: file mode mints and validates
-        # its own tokens and would refuse ThunderID's.
-        #
-        # Switching the mode takes both values, because the JWKS default
-        # follows AUTH_MODE's default rather than AUTH_MODE itself.
-        echo "AUTH_MODE=${AUTH_MODE}" >> .env
-        if [ "$AUTH_MODE" = "idp" ]; then
-          echo "KEY_MANAGER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks" >> .env
-        fi
-        export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
+        # its own tokens and would refuse ThunderID's. The jobs and the e2e
+        # suite also know the test stack's client secrets and admin password,
+        # so they are fixed here instead of generated. The environment wins
+        # over amp.yaml.
+        bash ../../.github/scripts/standalone-ci-settings.sh "$AUTH_MODE" > ci-settings.yml
+        export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml:ci-settings.yml
         case "$DISTRIBUTION" in
           amp) ;;
           amp-core) COMPOSE_FILE="$COMPOSE_FILE:docker-compose.core.yml" ;;

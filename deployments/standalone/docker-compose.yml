@@ -1,66 +1,65 @@
 # AMP Lite without Kubernetes: `docker compose up` from this directory.
-# Copy .env.example to .env first. Each service publishes its own port; there
-# is no ingress controller or reverse proxy. Browsers use the public names
-# (*.localhost resolves to 127.0.0.1); containers dial the service names, and
-# ThunderID's public URL stays the token issuer everywhere. Clients such as
-# curl pin *.localhost to loopback, so service-to-service URLs never use it.
+# Agent Manager's settings are in amp.yaml; .env is optional and only changes
+# images, host ports and ThunderID's network name. Secrets are generated on
+# first start and kept in the amp-secrets volume; the two other containers
+# read (the admin and PostgreSQL passwords) are copied to amp-shared-secrets,
+# the only secrets volume those containers mount. Each service publishes its
+# own port; there is no ingress controller or reverse proxy. Browsers use the
+# public names (*.localhost resolves to 127.0.0.1); containers dial the
+# service names, and ThunderID's public URL stays the token issuer everywhere.
+# Clients such as curl pin *.localhost to loopback, so service-to-service URLs
+# never use it.
 #
-# Startup order: amp-init writes the ThunderID and gateway configuration,
-# thunder-setup applies ThunderID's bootstrap, amp-api registers the default
-# gateway, and the gateway connects and receives its APIs from amp-api.
+# Startup order: amp-init generates the secrets and writes the ThunderID and
+# gateway configuration, thunder-setup applies ThunderID's bootstrap, amp-api
+# registers the default gateway, and the gateway connects and receives its
+# APIs from amp-api.
+
+name: amp-lite
 
 x-thunder: &thunder
-  image: ${THUNDER_IMAGE:?copy .env.example to .env first}
+  image: ${THUNDER_IMAGE:-ghcr.io/thunder-id/thunderid:1.0.2}
   environment: &thunder-env
-    THUNDER_PORT: ${THUNDER_PORT}
+    THUNDER_PORT: ${THUNDER_PORT:-8080}
   entrypoint: ["/bin/sh", "/amp/thunder/entrypoint.sh"]
   networks: [amp]
 
 services:
   # --- Generated configuration --------------------------------------------------
-  # Writes ThunderID's configuration and bootstrap resources, and the AI
-  # Gateway's config.toml, keys and registration token, from the settings
-  # below. Reruns regenerate the configuration and keep generated keys and
-  # tokens.
+  # Generates the secrets nothing sets, and writes ThunderID's configuration
+  # and bootstrap resources and the AI Gateway's config.toml, keys and
+  # registration token, from amp.yaml. Reruns regenerate the configuration and
+  # keep generated secrets, keys and tokens.
   # The same image and binary as amp-api, run as `amp init`.
   amp-init:
-    image: ${AMP_API_IMAGE:?copy .env.example to .env first}
+    image: ${AMP_API_IMAGE:-amp-api:lite}
     # Writes into fresh named volumes and hands each file to the uid that reads it.
     user: "0:0"
     entrypoint: ["/go/bin/amp"]
     command: ["init", "thunder", "/out/thunder", "ai-gateway", "/out/gateway", "fileauth", "/out/fileauth"]
     environment:
-      THUNDER_PUBLIC_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
-      THUNDER_PORT: ${THUNDER_PORT}
-      AMP_PUBLIC_URL: http://localhost:${AMP_API_PORT}
-      # The console is served by amp-api. The dev console (`make console`,
-      # Vite on CONSOLE_PORT) may sign in too.
-      CONSOLE_URL: http://localhost:${AMP_API_PORT}
-      CONSOLE_REDIRECT_URIS: http://localhost:${AMP_API_PORT}/login,http://localhost:${CONSOLE_PORT}/login
-      THUNDER_CORS_ORIGINS: http://localhost:${AMP_API_PORT},http://localhost:${CONSOLE_PORT}
-      AMP_API_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
-      AMP_CONSOLE_CLIENT_SECRET: ${AMP_CONSOLE_CLIENT_SECRET}
-      AMP_SYSTEM_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
-      AMP_DEFAULT_USERS: ${AMP_DEFAULT_USERS:-}
-      # The admin account. Agent Manager owns it; ThunderID's setup is given
-      # the same value below, so the credentials work whichever AUTH_MODE is in
-      # use and the account outlives ThunderID if the stack ever drops it.
-      AMP_ADMIN_USERNAME: admin
-      AMP_ADMIN_PASSWORD: ${AMP_ADMIN_PASSWORD}
-      # The organization a file-mode token names. Matches amp-api's
-      # PLATFORM_ADMIN_OU_ID so both describe the same organization.
-      PLATFORM_ADMIN_OU_ID: 01900000-0000-7000-8000-000000000001
+      AMP_CONFIG: /etc/amp/amp.yaml
+      AMP_DATA_DIR: /var/lib/agent-manager
+      # The admin and PostgreSQL passwords, for the containers that read them.
+      AMP_SHARED_SECRETS_DIR: /out/shared-secrets
+      # What only Compose knows: ports and service names.
+      THUNDER_PORT: ${THUNDER_PORT:-8080}
+      # The console amp-api serves (server.public_url) may always sign in; the
+      # dev console (`make console`, Vite on CONSOLE_PORT) may too.
+      CONSOLE_REDIRECT_URIS: http://localhost:${CONSOLE_PORT:-3000}/login
+      THUNDER_CORS_ORIGINS: http://localhost:${CONSOLE_PORT:-3000}
       MODULE_AI_GATEWAY_CONTROLPLANE_HOST: amp-api:9243
-      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN: ${DEFAULT_GATEWAY_TOKEN:-}
-      MODULE_AI_GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD}
       MODULE_AI_GATEWAY_AMP_JWKS_URL: http://amp-api:8080/auth/external/jwks.json
-      MODULE_AI_GATEWAY_THUNDER_ISSUER: http://${THUNDER_HOST}:${THUNDER_PORT}
-      MODULE_AI_GATEWAY_THUNDER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
-      MODULE_AI_GATEWAY_HOST: ${GATEWAY_HOST}
+      MODULE_AI_GATEWAY_THUNDER_ISSUER: http://${THUNDER_HOST:-thunder.amp.localhost}:${THUNDER_PORT:-8080}
+      MODULE_AI_GATEWAY_THUNDER_JWKS_URL: http://thunder:${THUNDER_PORT:-8080}/oauth2/jwks
+      MODULE_AI_GATEWAY_HOST: ${GATEWAY_HOST:-default-default.gateway.localhost}
       MODULE_AI_GATEWAY_FILE_OWNER: "10001:10001"
       THUNDER_FILE_OWNER: "10001:10001"
       AMP_FILE_OWNER: "1000:1000"
     volumes:
+      - ./amp.yaml:/etc/amp/amp.yaml:ro
+      - amp-secrets:/var/lib/agent-manager/secrets
+      - amp-shared-secrets:/out/shared-secrets
       - thunder-config:/out/thunder
       - gateway-config:/out/gateway
       - fileauth-config:/out/fileauth
@@ -75,10 +74,11 @@ services:
       ADMIN_USERNAME: admin
       # Agent Manager's admin password, not one of ThunderID's own: the same
       # account signs in whichever mode is configured.
-      ADMIN_PASSWORD: ${AMP_ADMIN_PASSWORD}
+      ADMIN_PASSWORD_FILE: /amp/secrets/admin-password
     volumes:
       - ./thunder:/amp/thunder:ro
       - thunder-config:/amp/thunder-config:ro
+      - amp-shared-secrets:/amp/secrets:ro
       - thunder-db:/opt/thunderid/database
       - thunder-certs:/opt/thunderid/config/certs
       - thunder-secrets:/opt/thunderid/config/secrets
@@ -89,7 +89,7 @@ services:
   thunder:
     <<: *thunder
     ports:
-      - "${THUNDER_PORT}:${THUNDER_PORT}"
+      - "${THUNDER_PORT:-8080}:${THUNDER_PORT:-8080}"
     volumes:
       - ./thunder:/amp/thunder:ro
       - thunder-config:/amp/thunder-config:ro
@@ -100,118 +100,77 @@ services:
       thunder-setup:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost ${THUNDER_PORT}"]
+      test: ["CMD-SHELL", "nc -z localhost ${THUNDER_PORT:-8080}"]
       interval: 3s
       retries: 40
     networks:
       amp:
-        aliases: ["${THUNDER_HOST}"]
+        aliases: ["${THUNDER_HOST:-thunder.amp.localhost}"]
     restart: unless-stopped
 
   # --- Database (optional) ------------------------------------------------------
-  # SQLite is the default. With COMPOSE_PROFILES=postgres and AMP_DB_DRIVER=postgres
-  # in .env, amp-api uses this PostgreSQL instead.
+  # SQLite is the default. With COMPOSE_PROFILES=postgres in .env and the db:
+  # block in amp.yaml set to postgres, amp-api uses this PostgreSQL instead;
+  # its password is generated with the other secrets.
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:18-alpine}
     profiles: ["postgres"]
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-amp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-amp}
-      POSTGRES_DB: ${POSTGRES_DB:-agent_manager}
+      POSTGRES_USER: amp
+      POSTGRES_PASSWORD_FILE: /amp/secrets/db-password
+      POSTGRES_DB: agent_manager
     volumes:
+      - amp-shared-secrets:/amp/secrets:ro
       - postgres-data:/var/lib/postgresql
+    depends_on:
+      amp-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-amp} -d ${POSTGRES_DB:-agent_manager}"]
+      test: ["CMD-SHELL", "pg_isready -U amp -d agent_manager"]
       interval: 3s
       retries: 40
     networks: [amp]
     restart: unless-stopped
 
   # --- Agent Manager ------------------------------------------------------------
-  # The API, and the console on the same port.
+  # The API, and the console on the same port. Its settings are in amp.yaml;
+  # what remains here is what only Compose knows.
   amp-api:
-    image: ${AMP_API_IMAGE:?copy .env.example to .env first}
+    image: ${AMP_API_IMAGE:-amp-api:lite}
     command: ["serve", "--migrate"]
     ports:
-      - "${AMP_API_PORT}:8080"
-      - "${AMP_INTERNAL_PORT}:9243"
+      - "${AMP_API_PORT:-9000}:8080"
+      - "${AMP_INTERNAL_PORT:-9243}:9243"
     environment:
-      DB_DRIVER: ${AMP_DB_DRIVER:-sqlite}
-      DB_PATH: /var/lib/agent-manager/agent-manager.db
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: ${POSTGRES_USER:-amp}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-amp}
-      DB_NAME: ${POSTGRES_DB:-agent_manager}
+      AMP_CONFIG: /etc/amp/amp.yaml
+      AMP_DATA_DIR: /var/lib/agent-manager
       DB_SSL_MODE: disable
-      SERVER_PORT: "8080"
-      SERVER_PUBLIC_URL: http://localhost:${AMP_API_PORT}
       # The console is same-origin; this lets the dev console (Vite) call in.
-      CORS_ALLOWED_ORIGIN: http://localhost:${CONSOLE_PORT}
-      OAUTH_AUTHORIZATION_SERVERS: http://${THUNDER_HOST}:${THUNDER_PORT}
-      OAUTH_SCOPES_SUPPORTED: "amp:org:invite-member,amp:role:delete,amp:group:delete,amp:agent:build,amp:agent:token-manage,amp:agent:suspend,amp:group:create,amp:org:remove-member,amp:group:read,amp:project:delete,amp:agent:create,amp:org:modify-settings,amp:environment:update,amp:group:update,amp:project:read,amp:agent:read,amp:environment:read,amp:org:assign-role,amp:project:update,amp:environment:delete,amp:agent:update,amp:org:view,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:org:manage-service-account,amp:role:create,amp:project:create,amp:environment:create,amp:profile:read,amp:profile:update-attributes,amp:events:read,amp:events:manage,amp:ai-gateway:gateways.create,amp:ai-gateway:gateways.read,amp:ai-gateway:gateways.update,amp:ai-gateway:gateways.delete,amp:ai-gateway:gateways.token-manage,amp:ai-gateway:llm-providers.create,amp:ai-gateway:llm-providers.read,amp:ai-gateway:llm-providers.update,amp:ai-gateway:llm-providers.delete,amp:ai-gateway:llm-providers.configure-guardrail,amp:ai-gateway:llm-providers.connect,amp:ai-gateway:llm-providers.deploy,amp:ai-gateway:llm-providers.api-key-manage,amp:ai-gateway:llm-provider-templates.create,amp:ai-gateway:llm-provider-templates.read,amp:ai-gateway:llm-provider-templates.update,amp:ai-gateway:llm-provider-templates.delete,amp:ai-gateway:llm-proxies.create,amp:ai-gateway:llm-proxies.read,amp:ai-gateway:llm-proxies.update,amp:ai-gateway:llm-proxies.delete,amp:ai-gateway:llm-proxies.deploy,amp:ai-gateway:llm-proxies.api-key-manage,amp:ai-gateway:mcp-servers.create,amp:ai-gateway:mcp-servers.read,amp:ai-gateway:mcp-servers.update,amp:ai-gateway:mcp-servers.delete,amp:ai-gateway:mcp-servers.configure-guardrail,amp:ai-gateway:mcp-servers.connect,amp:ai-gateway:mcp-servers.api-key-manage,amp:ai-gateway:scopes.create,amp:ai-gateway:scopes.read,amp:ai-gateway:scopes.update,amp:ai-gateway:scopes.delete,amp:ai-gateway:catalog.read,amp:ai-gateway:agent-identities.create,amp:ai-gateway:agent-identities.read,amp:ai-gateway:agent-identities.update,amp:ai-gateway:agent-identities.delete,amp:ai-gateway:agent-api-keys.manage,amp:ai-gateway:deploy.non-production,amp:ai-gateway:deploy.production"
-      IS_ON_PREM_DEPLOYMENT: "true"
-      AMP_DEPLOYMENT_MODEL: on-prem
-      JWT_SIGNING_PRIVATE_KEY_PATH: /app/keys/private.pem
-      JWT_SIGNING_PUBLIC_KEYS_CONFIG: /app/keys/public-keys-config.json
-      JWT_SIGNING_ACTIVE_KEY_ID: key-1
-      JWT_SIGNING_DEFAULT_EXPIRY: 2160h
-      JWT_SIGNING_ISSUER: agent-manager-service
-      JWT_SIGNING_DEFAULT_ENVIRONMENT: default
-      IDP_TOKEN_URL: http://thunder:${THUNDER_PORT}/oauth2/token
-      IDP_CLIENT_ID: amp-api-client
-      IDP_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
-      # Sign-in mode. "file" authenticates against the user file amp-init
-      # generates from AMP_DEFAULT_USERS and mints its own tokens; "idp" hands
-      # sign-in to ThunderID. ThunderID keeps running either way — agent
-      # identity still uses it.
-      #
-      # Switching to idp means two values: AUTH_MODE=idp, plus
-      # KEY_MANAGER_JWKS_URL here pointed back at ThunderID (named inline).
-      #
-      # Known limitation in file mode: OAUTH_AUTHORIZATION_SERVERS above still
-      # advertises ThunderID, so amctl's discovery sends it to ThunderID's
-      # token endpoint and the token it gets back is signed by keys this API
-      # does not hold. Browser sign-in is unaffected. How non-human clients
-      # obtain a file-mode token is still an open question.
-      AUTH_MODE: ${AUTH_MODE:-file}
+      CORS_ALLOWED_ORIGIN: http://localhost:${CONSOLE_PORT:-3000}
+      # ThunderID is dialled by its service name; its public URL (amp.yaml)
+      # stays the token issuer.
+      THUNDER_RESOLVE_TO_HOST: thunder:${THUNDER_PORT:-8080}
       FILE_AUTH_USERS_PATH: /amp/fileauth/users.yaml
-      # In file mode the API validates the tokens it issued itself, so the key
-      # set is its own. Switching AUTH_MODE to idp wants this pointed back at
-      # http://thunder:${THUNDER_PORT}/oauth2/jwks.
-      KEY_MANAGER_JWKS_URL: ${KEY_MANAGER_JWKS_URL:-http://amp-api:8080/auth/external/jwks.json}
-      KEY_MANAGER_ISSUER: Agent Management Platform Local,http://${THUNDER_HOST}:${THUNDER_PORT}
-      KEY_MANAGER_AUDIENCE: urn:wso2:amp,localhost,amp-api-client,amp-console-client,amctl,am-mcp,http://localhost:${AMP_API_PORT}/mcp
-      THUNDER_BASE_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
-      THUNDER_RESOLVE_TO_HOST: thunder:${THUNDER_PORT}
-      THUNDER_CLIENT_ID: amp-system-client
-      THUNDER_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
+      # Lite answers 501 for internal agents, the only writers of agent
+      # credentials, so no secret manager provider is wired here.
       SECRET_MANAGER_PROVIDER: unsupported
-      ENCRYPTION_KEY: ${AMP_ENCRYPTION_KEY}
-      INTERNAL_SERVER_CERT_DIR: /var/lib/agent-manager/certs
-      EVENTS_MODE: embedded
       MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR: gateway-runtime:19080
-      PLATFORM_ADMIN_OU_ID: 01900000-0000-7000-8000-000000000001
       # The bundled gateway, registered at startup with the token amp-init wrote.
       MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME: default
-      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST: http://${GATEWAY_HOST}:${GATEWAY_PORT}
+      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST: http://${GATEWAY_HOST:-default-default.gateway.localhost}:${GATEWAY_PORT:-19080}
       MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE: /amp/gw/registration-token
       # The console's settings (CONSOLE_<NAME> fills $NAME in its config.js).
       # The API base URL, ThunderID URL, sign-in redirects, AUTH_MODE and the
-      # sign-in scopes default from the settings above.
-      CONSOLE_GATEWAY_CONTROL_PLANE_URL: https://localhost:${AMP_INTERNAL_PORT}
+      # sign-in scopes default from amp.yaml.
+      CONSOLE_GATEWAY_CONTROL_PLANE_URL: https://localhost:${AMP_INTERNAL_PORT:-9243}
       CONSOLE_GATEWAY_VERSION: v2026.09.24
-      CONSOLE_DOCS_URL: https://wso2.com/agent-platform/docs/${DOCS_VERSION:-next}
-      CONSOLE_FILE_MOUNT_MAX_FILE_BYTES: "1000000"
       CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: "true"
       CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT: "true"
       CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
-      # Console UI modules to turn on besides the ones the API's modules
-      # offer, e.g. "agent-runtime agent-portal".
-      CONSOLE_UI_MODULES_ENABLE: ${CONSOLE_UI_MODULES_ENABLE:-}
     volumes:
+      - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-data:/var/lib/agent-manager
-      - amp-keys:/app/keys
+      - amp-secrets:/var/lib/agent-manager/secrets
       - gateway-config:/amp/gw:ro
       - fileauth-config:/amp/fileauth:ro
     depends_on:
@@ -232,7 +191,7 @@ services:
   # token amp-api registered at startup; amp-api pushes its APIs over that
   # connection.
   gateway-controller:
-    image: ${GATEWAY_CONTROLLER_IMAGE:?copy .env.example to .env first}
+    image: ${GATEWAY_CONTROLLER_IMAGE:-ghcr.io/wso2/api-platform/gateway-controller:2026.09.24}
     command: ["-config", "/amp/gw/config.toml"]
     environment:
       GATEWAY_CONTROLLER_HOST: gateway-controller
@@ -250,10 +209,10 @@ services:
     restart: unless-stopped
 
   gateway-runtime:
-    image: ${GATEWAY_RUNTIME_IMAGE:?copy .env.example to .env first}
+    image: ${GATEWAY_RUNTIME_IMAGE:-ghcr.io/wso2/api-platform/gateway-runtime:2026.09.24}
     command: ["--pol.config", "/amp/gw/config.toml"]
     ports:
-      - "${GATEWAY_PORT}:19080"
+      - "${GATEWAY_PORT:-19080}:19080"
     environment:
       GATEWAY_CONTROLLER_HOST: gateway-controller
       ROUTER_ADMIN_ENABLED: "false"
@@ -269,7 +228,7 @@ services:
       retries: 40
     networks:
       amp:
-        aliases: ["${GATEWAY_HOST}"]
+        aliases: ["${GATEWAY_HOST:-default-default.gateway.localhost}"]
     restart: unless-stopped
 
 volumes:
@@ -279,7 +238,8 @@ volumes:
   thunder-secrets:
   postgres-data:
   amp-data:
-  amp-keys:
+  amp-secrets:
+  amp-shared-secrets:
   gateway-config:
   gateway-data:
   fileauth-config:

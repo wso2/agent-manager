@@ -21,25 +21,22 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
 func sampleListResponse() aigateway.LLMProviderListResponse {
-	return aigateway.LLMProviderListResponse{
-		Providers: []aigateway.LLMProviderListItem{
-			{
-				Uuid:     "11111111-1111-1111-1111-111111111111",
-				Id:       "openai",
-				Name:     "OpenAI",
-				Template: "openai",
-				Status:   aigateway.LLMProviderListItemStatus("deployed"),
-			},
-		},
-		Total:  1,
-		Limit:  20,
-		Offset: 0,
+	created := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+	gateways := []aigateway.DeploymentSummary{{GatewayName: "edge", Status: "DEPLOYED"}}
+	doc := aigateway.LlmProviderDocument{
+		ApiVersion: aigateway.LlmProviderDocumentApiVersion("ai-control-plane.choreolabs.com/v1"),
+		Kind:       aigateway.LlmProviderDocumentKindLlmProvider,
+		Metadata:   aigateway.DocumentMetadata{Name: "openai", CreationTimestamp: &created},
+		Spec:       aigateway.LlmProviderSpec{DisplayName: "OpenAI", Template: "openai"},
+		Status:     &aigateway.ResourceStatus{Gateways: &gateways},
 	}
+	return aigateway.LLMProviderListResponse{List: []aigateway.LlmProviderDocument{doc}}
 }
 
 func TestList_SuccessJSON(t *testing.T) {
@@ -48,7 +45,7 @@ func TestList_SuccessJSON(t *testing.T) {
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: clientFn, Scope: baseScope(),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -56,18 +53,18 @@ func TestList_SuccessJSON(t *testing.T) {
 	if captured.method != "GET" {
 		t.Errorf("method = %q, want GET", captured.method)
 	}
-	if captured.path != "/orgs/acme/llm-providers" {
-		t.Errorf("path = %q, want /orgs/acme/llm-providers", captured.path)
+	if captured.path != "/llm-providers" {
+		t.Errorf("path = %q, want /llm-providers", captured.path)
 	}
 	env := decodeEnvelope(t, out.String())
 	data := env["data"].(map[string]any)
-	providers := data["providers"].([]any)
+	providers := data["list"].([]any)
 	if len(providers) != 1 {
-		t.Fatalf("providers len = %d, want 1", len(providers))
+		t.Fatalf("list len = %d, want 1", len(providers))
 	}
 	first := providers[0].(map[string]any)
-	if first["id"] != "openai" {
-		t.Errorf("id = %v, want openai", first["id"])
+	if name := first["metadata"].(map[string]any)["name"]; name != "openai" {
+		t.Errorf("metadata.name = %v, want openai", name)
 	}
 }
 
@@ -77,7 +74,7 @@ func TestList_RequestsPageSize50(t *testing.T) {
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: clientFn, Scope: baseScope(),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -94,13 +91,13 @@ func TestList_Table(t *testing.T) {
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: clientFn, Scope: baseScope(),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{"openai", "OpenAI", "deployed"} {
+	for _, want := range []string{"openai", "OpenAI", "edge (DEPLOYED)", "2026-11-01"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("table output missing %q; got:\n%s", want, got)
 		}
@@ -116,7 +113,7 @@ func TestList_ServerError(t *testing.T) {
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
-		IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: io, Client: clientFn, Scope: baseScope(),
 	})
 	if err == nil {
 		t.Fatal("expected error for 500")

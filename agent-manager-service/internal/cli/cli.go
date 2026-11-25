@@ -24,6 +24,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -34,9 +35,12 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/app"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/unsupported"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -52,8 +56,8 @@ const usage = `Usage: %[1]s [--config amp.yaml] <command>
   %[1]s migrate                                      apply the core's and every compiled-in module's migrations
   %[1]s init <component> <dir> [<component> <dir>...]
                                                      write a component's configuration into dir and exit;
-                                                     components: thunder, fileauth, and those of the
-                                                     compiled-in modules (ai-gateway)
+                                                     components: secrets, thunder, fileauth, and those
+                                                     of the compiled-in modules (ai-gateway)
   %[1]s module list                                  list the modules compiled into this binary
   %[1]s module install <name> [--with-deps]          install a module (and the providers it needs)
   %[1]s module enable <name>
@@ -64,6 +68,8 @@ const usage = `Usage: %[1]s [--config amp.yaml] <command>
                                                      mint a credential for a module's service workload; it is
                                                      printed once, or written to FILE (kept if FILE exists)
   %[1]s module health [<name>]                       report ok, degraded or inactive, with connected workloads
+  %[1]s secret list                                  list the generated secrets (names only)
+  %[1]s secret show <name>                           print a generated secret, such as admin-password
   %[1]s version
 
 Module changes take effect on running servers within seconds, without a restart.
@@ -95,15 +101,21 @@ func run(distribution string, args []string) error {
 		return err
 	}
 	// Settings: the environment, then the configuration file, then defaults.
-	if err := config.Load(path); err != nil {
+	// amp init runs before the server's settings are complete.
+	// So does amp serve, which generates what is missing before checking.
+	loadConfig := config.Load
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") || args[0] == "init" || args[0] == "serve" || args[0] == "secret" {
+		loadConfig = config.LoadUnchecked
+	}
+	if err := loadConfig(path); err != nil {
 		return err
 	}
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
-		return legacy(args)
+		return legacy(args, path)
 	}
 	switch args[0] {
 	case "serve":
-		return serve(args[1:])
+		return serve(args[1:], path)
 	case "migrate":
 		if len(args) > 1 {
 			return errUsage
@@ -114,6 +126,8 @@ func run(distribution string, args []string) error {
 		return initCmd(args[1:])
 	case "module", "modules":
 		return moduleCmd(args[1:])
+	case "secret", "secrets":
+		return secretCmd(args[1:], os.Stdout)
 	case "version":
 		fmt.Printf("%s %s, core API v%d, modules:", distribution, config.Version, modkit.CoreAPIVersion)
 		for _, m := range modkit.Registered() {
@@ -148,7 +162,7 @@ func configFlag(args []string) ([]string, string, error) {
 }
 
 // legacy keeps the flags of earlier releases working: no subcommand serves.
-func legacy(args []string) error {
+func legacy(args []string, configPath string) error {
 	fs := flag.NewFlagSet("amp", flag.ContinueOnError)
 	serverFlag := fs.Bool("server", true, "start the http Server")
 	migrateFlag := fs.Bool("migrate", false, "migrate the database")
@@ -164,21 +178,55 @@ func legacy(args []string) error {
 		if *initGatewayDir != "" {
 			others["ai-gateway"] = *initGatewayDir
 		}
-		return writeConfig(*initThunderDir, *initFileAuthDir, others)
+		return writeConfig("", *initThunderDir, *initFileAuthDir, others)
+	}
+	if err := prepareServer(configPath); err != nil {
+		return err
 	}
 	runApp(app.Options{Server: *serverFlag, Migrate: *migrateFlag, WaitForMigrations: *waitFlag})
 	return nil
 }
 
-func serve(args []string) error {
+func serve(args []string, configPath string) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	migrate := fs.Bool("migrate", false, "apply pending core and module migrations before serving")
 	wait := fs.Bool("wait-for-migrations", false, "wait until another process has applied this build's migrations")
 	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
 		return errUsage
 	}
+	if err := prepareServer(configPath); err != nil {
+		return err
+	}
 	runApp(app.Options{Server: true, Migrate: *migrate, WaitForMigrations: *wait})
 	return nil
+}
+
+// prepareServer generates what the server needs and nothing set, then loads
+// the settings again, now checked.
+func prepareServer(configPath string) error {
+	if err := firstRun(context.Background(), databaseHasData); err != nil {
+		return err
+	}
+	return config.Load(configPath)
+}
+
+// databaseHasData reports whether the configured database already holds an
+// install. A SQLite file that does not exist yet holds none.
+func databaseHasData(ctx context.Context) (bool, error) {
+	cfg := config.Unchecked()
+	if cfg.Database.Driver == config.DBDriverSQLite {
+		if _, err := os.Stat(cfg.Database.SQLitePath); errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+	}
+	conn, err := db.Open(cfg.Database, cfg.POSTGRESQL)
+	if err != nil {
+		return false, err
+	}
+	if sqlDB, err := conn.DB(); err == nil {
+		defer func() { _ = sqlDB.Close() }()
+	}
+	return dbmigrations.HasHistory(ctx, conn)
 }
 
 // defaults are the distribution's default modules.
@@ -186,12 +234,29 @@ var defaults []string
 
 func runApp(opts app.Options) {
 	opts.DefaultModules = defaults
-	// No secret store is bundled yet; secret writes report ErrNotSupported.
-	secretProvider := unsupported.NewProvider()
+	secretProvider, err := secretProviderFor(config.GetConfig().SecretManager.Provider)
+	if err != nil {
+		slog.Error("invalid secret store configuration", "error", err)
+		os.Exit(1)
+	}
 	// DB-backed AgentID provisioning: the environment Thunder credential is
 	// read from the database, not a key vault.
 	opts.AgentThunderProvisioning = services.DBBackedAgentThunderProvisioning()
 	app.Run(secretProvider, opts)
+}
+
+// secretProviderFor is the secret store SECRET_MANAGER_PROVIDER names: "inhouse" keeps secrets in the agent manager
+// database behind the secret vault, and "unsupported" refuses every secret write. Any other name is refused, so a
+// typo never silently changes where secrets go.
+func secretProviderFor(name string) (secretmanagersvc.Provider, error) {
+	switch strings.TrimSpace(name) {
+	case inhouse.ProviderName:
+		return inhouse.NewProvider(), nil
+	case unsupported.ProviderName:
+		return unsupported.NewProvider(), nil
+	default:
+		return nil, fmt.Errorf("SECRET_MANAGER_PROVIDER %q is not one of %q and %q", name, inhouse.ProviderName, unsupported.ProviderName)
+	}
 }
 
 func initCmd(args []string) error {
@@ -206,14 +271,15 @@ func initCmd(args []string) error {
 		}
 		dirs[args[i]] = args[i+1]
 	}
-	thunder, fileAuth := dirs["thunder"], dirs["fileauth"]
+	secrets, thunder, fileAuth := dirs["secrets"], dirs["thunder"], dirs["fileauth"]
+	delete(dirs, "secrets")
 	delete(dirs, "thunder")
 	delete(dirs, "fileauth")
-	return writeConfig(thunder, fileAuth, dirs)
+	return writeConfig(secrets, thunder, fileAuth, dirs)
 }
 
-func writeConfig(thunderDir, fileAuthDir string, others map[string]string) error {
-	if err := ampinit.Run(thunderDir, fileAuthDir, others); err != nil {
+func writeConfig(secretsDir, thunderDir, fileAuthDir string, others map[string]string) error {
+	if err := ampinit.Run(secretsDir, thunderDir, fileAuthDir, others); err != nil {
 		return fmt.Errorf("writing component configuration failed: %w", err)
 	}
 	return nil
@@ -459,4 +525,40 @@ func dash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+// secretCmd lists the generated secrets in the secrets directory, or prints
+// one of them.
+func secretCmd(args []string, w io.Writer) error {
+	dir := config.SecretsDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			names = append(names, e.Name())
+		}
+	}
+	switch {
+	case len(args) == 1 && args[0] == "list":
+		for _, n := range names {
+			if _, err := fmt.Fprintln(w, n); err != nil {
+				return err
+			}
+		}
+		return nil
+	case len(args) == 2 && args[0] == "show":
+		if !slices.Contains(names, args[1]) {
+			return fmt.Errorf("no generated secret %q in %s (have: %s)", args[1], dir, strings.Join(names, ", "))
+		}
+		data, err := os.ReadFile(filepath.Join(dir, args[1]))
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(w, strings.TrimRight(string(data), "\r\n"))
+		return err
+	}
+	return errUsage
 }

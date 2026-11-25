@@ -84,3 +84,21 @@ func TestPostgresBaselineAppliesAndEnforcesKeys(t *testing.T) {
 
 	assertBaselineKeys(t, scratch)
 }
+
+// The history table is found through search_path, as the history queries find
+// it, not only in the current schema.
+func TestPostgresHasHistoryFollowsSearchPath(t *testing.T) {
+	scratch := scratchDatabase(t)
+	sqlDB, err := scratch.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, scratch.Exec(`CREATE SCHEMA first_schema`).Error)
+	require.NoError(t, scratch.Exec(`CREATE SCHEMA history_schema`).Error)
+	require.NoError(t, scratch.Exec(`CREATE TABLE history_schema.migration_history (id TEXT)`).Error)
+	require.NoError(t, scratch.Exec(`INSERT INTO history_schema.migration_history (id) VALUES ('001')`).Error)
+	require.NoError(t, scratch.Exec(`SET search_path = first_schema, history_schema`).Error)
+
+	has, err := HasHistory(context.Background(), scratch)
+	require.NoError(t, err)
+	require.True(t, has)
+}

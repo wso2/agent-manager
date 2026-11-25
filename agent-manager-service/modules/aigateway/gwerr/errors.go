@@ -53,6 +53,8 @@ var (
 	// ErrA2AProxyUpstreamAuthNeedsHTTPS keeps a stored upstream credential off an origin that would receive it in cleartext. Maps to 400.
 	ErrA2AProxyUpstreamAuthNeedsHTTPS = errors.New("the card URL must use https before an upstream credential can be stored, as the gateway would otherwise send it in cleartext")
 	ErrScopeNotFound                  = errors.New("scope not found")
+	// ErrAPIKeyNotFound means the owner has no API key of that name. Maps to 404.
+	ErrAPIKeyNotFound = errors.New("API key not found")
 	// ErrA2AProxyOriginChangeNeedsAuthReset keeps a stored upstream secret from following the card URL to another origin. Maps to 409.
 	ErrA2AProxyOriginChangeNeedsAuthReset = errors.New(
 		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again",
@@ -79,6 +81,7 @@ var (
 	ErrDeploymentNotActive         = errors.New("deployment not active")
 	ErrLLMProviderTemplateNotFound = errors.New("LLM provider template not found")
 	ErrLLMProviderTemplateExists   = errors.New("LLM provider template already exists")
+	ErrLLMProviderTemplateInUse    = errors.New("cannot delete LLM provider template: LLM providers use it. Switch those providers to another template or delete them first")
 	ErrLLMProviderNotFound         = errors.New("LLM provider not found")
 	ErrLLMProviderExists           = errors.New("LLM provider already exists")
 	ErrLLMProviderHasProxies       = errors.New("cannot delete LLM provider: it has associated LLM proxies. Please delete all proxies before deleting the provider")

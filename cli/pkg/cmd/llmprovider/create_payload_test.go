@@ -34,11 +34,7 @@ import (
 // accessControlMode digs out accessControl.mode from a captured create body.
 func accessControlMode(t *testing.T, raw []byte) (string, bool) {
 	t.Helper()
-	var body map[string]any
-	if err := json.Unmarshal(raw, &body); err != nil {
-		t.Fatalf("unmarshal body: %v\nbody=%s", err, raw)
-	}
-	ac, ok := body["accessControl"].(map[string]any)
+	ac, ok := specOf(t, raw)["accessControl"].(map[string]any)
 	if !ok {
 		return "", false
 	}
@@ -55,7 +51,7 @@ func TestCreate_SendsAllowAllAccessControlByDefault(t *testing.T) {
 	defer closeFn()
 
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: ios, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: ios, Client: unreachableClient, ProviderClient: clientFn, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: defaultVersion, Context: "/",
 		Template: "openai", AuthType: "api-key",
 	})
@@ -77,7 +73,7 @@ func TestCreate_HonoursExplicitAccessMode(t *testing.T) {
 	defer closeFn()
 
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: ios, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: ios, Client: unreachableClient, ProviderClient: clientFn, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: defaultVersion, Context: "/",
 		Template: "openai", AuthType: "api-key", AccessMode: "deny_all",
 	})
@@ -161,11 +157,15 @@ func TestParseGateways_DropsDuplicatesKeepingFirstOccurrence(t *testing.T) {
 }
 
 // newRoutingTestClient answers each path with its own body, so a test can exercise
-// the gateway lookup followed by the create call. Any request to an undeclared path
-// fails the test, which is how the "no extra round trip" case is asserted.
+// the gateway lookup (v1) followed by the create call (v2). Any request to an
+// undeclared path fails the test, which is how the "no extra round trip" case is asserted.
 func newRoutingTestClient(
 	t *testing.T, routes map[string]any,
-) (func(context.Context) (*aigateway.ClientWithResponses, error), *capturedRequest, func()) {
+) (
+	func(context.Context) (*aigateway.ClientWithResponses, error),
+	func(context.Context) (*aigateway.ClientWithResponses, error),
+	*capturedRequest, func(),
+) {
 	t.Helper()
 	captured := &capturedRequest{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -193,28 +193,35 @@ func newRoutingTestClient(
 			t.Errorf("encode response: %v", err)
 		}
 	}))
-	client, err := aigateway.NewClientWithResponses(server.URL)
+	v1, err := aigateway.NewClientWithResponses(server.URL)
 	if err != nil {
 		server.Close()
 		t.Fatalf("new client: %v", err)
 	}
-	return func(context.Context) (*aigateway.ClientWithResponses, error) { return client, nil }, captured, server.Close
+	v2, err := aigateway.NewClientWithResponses(server.URL)
+	if err != nil {
+		server.Close()
+		t.Fatalf("new client: %v", err)
+	}
+	return func(context.Context) (*aigateway.ClientWithResponses, error) { return v1, nil },
+		func(context.Context) (*aigateway.ClientWithResponses, error) { return v2, nil },
+		captured, server.Close
 }
 
 func TestCreate_ResolvesGatewayNameToUUID(t *testing.T) {
 	ios, _, _ := newTestIO(true)
 	const edgeUUID = "22222222-2222-2222-2222-222222222222"
-	clientFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
+	clientFn, providerFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
 		"/orgs/acme/gateways": aigateway.GatewayListResponse{
 			Gateways: []aigateway.GatewayResponse{{Name: "edge", Uuid: edgeUUID}},
 			Total:    1,
 		},
-		"/orgs/acme/llm-providers": sampleProviderResponse(),
+		"/llm-providers": sampleProviderResponse(),
 	})
 	defer closeFn()
 
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: ios, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: ios, Client: clientFn, ProviderClient: providerFn, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: defaultVersion, Context: "/",
 		Template: "openai", AuthType: "api-key", Gateways: []string{"edge"},
 	})
@@ -228,13 +235,13 @@ func TestCreate_ResolvesGatewayNameToUUID(t *testing.T) {
 
 func TestCreate_UnknownGatewayNameFailsBeforeCreating(t *testing.T) {
 	ios, _, _ := newTestIO(true)
-	clientFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
+	clientFn, providerFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
 		"/orgs/acme/gateways": aigateway.GatewayListResponse{Gateways: []aigateway.GatewayResponse{}},
 	})
 	defer closeFn()
 
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: ios, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: ios, Client: clientFn, ProviderClient: providerFn, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: defaultVersion, Context: "/",
 		Template: "openai", AuthType: "api-key", Gateways: []string{"ghost"},
 	})
@@ -246,18 +253,18 @@ func TestCreate_UnknownGatewayNameFailsBeforeCreating(t *testing.T) {
 	}
 }
 
-// A UUID-only --gateways must not cost an extra round trip: the gateway list route
-// is absent here, so reaching it fails the test.
+// A UUID-only --gateways must not cost an extra round trip, nor build the gateway
+// client at all: that client is unreachable here and the gateway route is absent.
 func TestCreate_UUIDGatewaysSkipTheLookup(t *testing.T) {
 	ios, _, _ := newTestIO(true)
 	const explicit = "11111111-1111-1111-1111-111111111111"
-	clientFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
-		"/orgs/acme/llm-providers": sampleProviderResponse(),
+	_, providerFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
+		"/llm-providers": sampleProviderResponse(),
 	})
 	defer closeFn()
 
 	err := runCreate(context.Background(), &CreateOptions{
-		IO: ios, Client: clientFn, Org: "acme", Scope: baseScope(),
+		IO: ios, Client: unreachableClient, ProviderClient: providerFn, Org: "acme", Scope: baseScope(),
 		ID: "openai", DisplayName: "OpenAI", Version: defaultVersion, Context: "/",
 		Template: "openai", AuthType: "api-key", Gateways: []string{explicit},
 	})

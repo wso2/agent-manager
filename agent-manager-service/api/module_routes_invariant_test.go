@@ -26,6 +26,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,6 +47,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aihub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/memory"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/sqlitedialect"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/modules/testmod"
@@ -69,12 +72,16 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 	require.NoError(t, dbmigrations.MigrateBaseline(g, "sqlite"))
 	host := modhost.NewWith(g, "sqlite", slog.New(slog.DiscardHandler), []modkit.Module{m})
 	// Every activation (the trial one included) mounts afresh, as the host
-	// does; the ledgers keep each pattern's last registration.
+	// does; the ledgers keep each pattern's last registration. The host's
+	// follow loop can re-mount while Install does, so the ledgers are locked.
+	var mu sync.Mutex
 	public, internal := map[string]audit.RouteMeta{}, map[string]audit.RouteMeta{}
 	host.Attach(modhost.Deps{
 		Mount: func(mux *http.ServeMux, r modhost.Route) {
 			rr := middleware.NewRouteRegistrar(mux, nil, nil)
 			mountModuleRoute(rr, r, func(context.Context, string) (string, error) { return "", nil })
+			mu.Lock()
+			defer mu.Unlock()
 			for _, meta := range rr.Routes() {
 				public[meta.Pattern] = meta
 			}
@@ -82,6 +89,8 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 		MountInternal: func(mux *http.ServeMux, r modhost.Route) {
 			rr := middleware.NewInternalRouteRegistrar(mux, nil)
 			rr.HandleModuleInternalRoute(r.Pattern(), modulePolicy(r), r.Handler)
+			mu.Lock()
+			defer mu.Unlock()
 			for _, meta := range rr.Routes() {
 				internal[meta.Pattern] = meta
 			}
@@ -94,6 +103,8 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 	require.NoError(t, err)
 	require.Equal(t, []string{m.Manifest().Name}, host.Active())
 	values := func(m map[string]audit.RouteMeta) []audit.RouteMeta {
+		mu.Lock()
+		defer mu.Unlock()
 		out := make([]audit.RouteMeta, 0, len(m))
 		for _, v := range m {
 			out = append(out, v)
@@ -260,6 +271,26 @@ func TestGatewaySpecMatchesRoutes(t *testing.T) {
 			checkModuleSpec(t, m, host.Routes(gwperm.Module))
 		}
 	}
+}
+
+// TestObservabilityRoutesAreAuthorized checks that every observability route
+// is a read under /m/observability that requires traces-read.
+func TestObservabilityRoutesAreAuthorized(t *testing.T) {
+	host, public, internal := mountedModule(t, observability.New(memory.New()))
+	require.NotEmpty(t, host.Routes(observability.Name))
+	require.NotEmpty(t, public)
+	assert.Empty(t, internal)
+	for _, meta := range public {
+		assert.Equal(t, http.MethodGet, meta.Method, meta.Pattern)
+		assert.True(t, strings.HasPrefix(meta.Path, "/m/observability/"), "%s is outside /m/observability", meta.Pattern)
+		assert.Equal(t, []rbac.Permission{observability.TracesRead}, meta.Perms, meta.Pattern)
+	}
+}
+
+func TestObservabilitySpecMatchesRoutes(t *testing.T) {
+	m := observability.New(memory.New())
+	host, _, _ := mountedModule(t, m)
+	checkModuleSpec(t, m, host.Routes(observability.Name))
 }
 
 // TestCoreSpecHasNoModulePaths keeps module APIs out of the core's document:

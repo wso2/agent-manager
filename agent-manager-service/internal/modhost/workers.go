@@ -63,7 +63,7 @@ func (h *Host) syncWorkers(v *view) {
 		}
 	}
 	h.drainWorkers(stopping)
-	if h.runCtx == nil || h.runCtx.Err() != nil {
+	if h.NoWorkers || h.runCtx == nil || h.runCtx.Err() != nil {
 		return
 	}
 	for _, name := range v.active {

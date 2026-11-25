@@ -42,7 +42,7 @@ func TestDelete_ConflictSurfacesServerMessage(t *testing.T) {
 
 	err := runDelete(context.Background(), &DeleteOptions{
 		IO: ios, Prompter: &fakePrompter{}, Client: clientFn, Scope: baseScope(),
-		Org: "acme", Provider: "openai", Yes: true,
+		Provider: "openai", Yes: true,
 	})
 	if err == nil {
 		t.Fatal("expected an error for 409")
@@ -73,7 +73,7 @@ func TestDelete_ForbiddenSurfacesServerMessage(t *testing.T) {
 
 	err := runDelete(context.Background(), &DeleteOptions{
 		IO: ios, Prompter: &fakePrompter{}, Client: clientFn, Scope: baseScope(),
-		Org: "acme", Provider: "openai", Yes: true,
+		Provider: "openai", Yes: true,
 	})
 	if err == nil {
 		t.Fatal("expected an error for 403")

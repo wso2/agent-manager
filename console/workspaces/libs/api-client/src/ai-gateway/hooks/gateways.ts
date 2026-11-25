@@ -193,6 +193,7 @@ export function useDeleteGateway() {
     mutationFn: (params) => deleteGateway(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gateways"] });
+      queryClient.invalidateQueries({ queryKey: ["gateway"] });
     },
   });
 }

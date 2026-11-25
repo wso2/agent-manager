@@ -83,6 +83,7 @@ func ModuleMounter(params *wiring.AppParams) func(*http.ServeMux, modhost.Route)
 	return func(mux *http.ServeMux, r modhost.Route) {
 		rr := middleware.NewRouteRegistrar(mux, params.OrgResolver, params.AuditRecorder)
 		rr.SetEventPublisher(params.EventPublisher)
+		rr.SetModule(r.Module)
 		mountModuleRoute(rr, r, params.OUHandleLookup)
 	}
 }
@@ -93,6 +94,7 @@ func ModuleMounter(params *wiring.AppParams) func(*http.ServeMux, modhost.Route)
 func ModuleInternalMounter(params *wiring.AppParams) func(*http.ServeMux, modhost.Route) {
 	return func(mux *http.ServeMux, r modhost.Route) {
 		rr := middleware.NewInternalRouteRegistrar(mux, params.AuditRecorder)
+		rr.SetModule(r.Module)
 		rr.HandleModuleInternalRoute(r.Pattern(), modulePolicy(r), r.Handler)
 	}
 }

@@ -16,5 +16,4 @@
  * under the License.
  */
 
-export * from './health-checks';
 export * from './input-limits';

@@ -19,19 +19,22 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { coverage } from '../../../../../vitest.coverage';
 
 export default defineConfig({
   plugins: [react()],
   test: {
+    coverage,
     globals: true,
     environment: 'jsdom',
-    setupFiles: './setupTests.tsx',
+    setupFiles: ['./setupTests.tsx', '../../../../../vitest.jsdom-storage.ts'],
     server: {
       deps: {
         // oxygen-ui's dist imports prismjs subpaths without file extensions
-        // and @mui/x-data-grid imports raw .css, neither of which Node's
-        // native ESM loader accepts; route them through Vite's resolver.
-        inline: ['@wso2/oxygen-ui', '@mui/x-data-grid'],
+        // and oxygen-ui-icons-react and @mui/x-data-grid import raw .css,
+        // neither of which Node's native ESM loader accepts; route them
+        // through Vite's resolver.
+        inline: ['@wso2/oxygen-ui', '@wso2/oxygen-ui-icons-react', '@mui/x-data-grid'],
       },
     },
   },

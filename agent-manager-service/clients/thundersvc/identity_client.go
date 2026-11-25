@@ -1851,6 +1851,9 @@ func (c *thunderClient) doRequest(ctx context.Context, method, url, token string
 	if resp.StatusCode == http.StatusConflict {
 		return nil, &ConflictError{Message: string(body)}
 	}
+	if resp.StatusCode == http.StatusBadRequest {
+		return nil, newBadRequestError(body)
+	}
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}
@@ -1888,6 +1891,48 @@ func (e *ConflictError) Error() string {
 func IsConflict(err error) bool {
 	var ce *ConflictError
 	return errors.As(err, &ce)
+}
+
+// BadRequestError is returned when Thunder responds with 400, e.g. user
+// attributes that fail the user type's schema (USR-1019) or a group member that
+// does not exist.
+type BadRequestError struct {
+	Message string
+	// Description is Thunder's own explanation, when the body carries one.
+	Description string
+}
+
+func (e *BadRequestError) Error() string {
+	return "bad request: " + e.Message
+}
+
+func newBadRequestError(body []byte) *BadRequestError {
+	var parsed struct {
+		Message     string `json:"message"`
+		Description string `json:"description"`
+	}
+	_ = json.Unmarshal(body, &parsed)
+	desc := parsed.Description
+	if desc == "" {
+		desc = parsed.Message
+	}
+	return &BadRequestError{Message: string(body), Description: desc}
+}
+
+// IsBadRequest returns true if the error is a Thunder 400.
+func IsBadRequest(err error) bool {
+	var bre *BadRequestError
+	return errors.As(err, &bre)
+}
+
+// BadRequestDescription is Thunder's explanation of a 400, or fallback when it
+// gave none.
+func BadRequestDescription(err error, fallback string) string {
+	var bre *BadRequestError
+	if errors.As(err, &bre) && bre.Description != "" {
+		return bre.Description
+	}
+	return fallback
 }
 
 // ListChildOUs returns the direct child OUs of the given parent OU ID.

@@ -61,12 +61,6 @@ export function useActiveAgentPage() {
             page !== "environment" &&
             page !==
                 relativeRouteMap.children.org.children.projects.children.agents
-                    .children.build.path &&
-            page !==
-                relativeRouteMap.children.org.children.projects.children.agents
-                    .children.deployment.path &&
-            page !==
-                relativeRouteMap.children.org.children.projects.children.agents
                     .children.edit.path
         ) {
             return page;

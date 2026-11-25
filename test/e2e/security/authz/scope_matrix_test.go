@@ -133,11 +133,6 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodGet, agentBase + "/" + absentName, []string{"amp:agent:read"}},
 		{http.MethodPut, agentBase + "/" + absentName, []string{"amp:agent:update"}},
 		{http.MethodDelete, agentBase + "/" + absentName, []string{"amp:agent:delete"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/builds", []string{"amp:agent:build"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/deployments", []string{"amp:agent:update"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/promote", []string{"amp:agent:update"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/deployments/state", []string{"amp:agent:suspend"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/publish-kind", []string{"amp:agent-kind:create"}},
 		{
 			http.MethodPost, gwAgentBase + "/" + absentName + "/environments/" + absentName + "/api-keys",
 			[]string{"amp:ai-gateway:agent-api-keys.manage"},
@@ -163,6 +158,22 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodPost, gwOrgBase + "/gateways", []string{"amp:ai-gateway:gateways.create"}},
 		{http.MethodDelete, gwOrgBase + "/gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
 		{http.MethodPost, gwOrgBase + "/gateways/" + absentName + "/tokens", []string{"amp:ai-gateway:gateways.token-manage"}},
+
+		{http.MethodDelete, gwOrgBase + "/self-hosted-gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
+
+		// --- Events: delivery to external endpoints and their secrets ---------
+		{http.MethodDelete, orgBase + "/events/destinations/" + absentName, []string{"amp:events:manage"}},
+		{http.MethodPost, orgBase + "/events/destinations/" + absentName + "/rotate-secret", []string{"amp:events:manage"}},
+		{http.MethodDelete, orgBase + "/events/subscriptions/" + absentName, []string{"amp:events:manage"}},
+
+		// --- LLM and MCP catalog: removal and key revocation ------------------
+		{http.MethodDelete, gwOrgBase + "/llm-provider-templates/" + absentName, []string{"amp:ai-gateway:llm-provider-templates.delete"}},
+		{http.MethodDelete, gwOrgBase + "/llm-providers/" + absentName + "/api-keys/" + absentName, []string{"amp:ai-gateway:llm-providers.api-key-manage"}},
+		{http.MethodDelete, gwOrgBase + "/projects/" + absentName + "/llm-proxies/" + absentName, []string{"amp:ai-gateway:llm-proxies.delete"}},
+		{http.MethodDelete, gwOrgBase + "/mcp-proxies/" + absentName, []string{"amp:ai-gateway:mcp-servers.delete"}},
+
+		// --- Agent identity roles ---------------------------------------------
+		{http.MethodDelete, gwOrgBase + "/environments/" + absentName + "/agent-identities/roles/" + absentName, []string{"amp:ai-gateway:agent-identities.delete"}},
 
 		// --- Catalog ----------------------------------------------------------
 		{http.MethodGet, gwOrgBase + "/catalog", []string{"amp:ai-gateway:catalog.read"}},

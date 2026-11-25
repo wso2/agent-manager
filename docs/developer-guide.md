@@ -39,7 +39,7 @@ make dev-up    # every day after that
 - The console runs as a Vite dev server on http://localhost:3000.
 - Everything else (ThunderID, gateway) runs from images.
 
-Sign in at http://localhost:3000 as `admin`. The password is `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`, which is created from `.env.example` on the first run.
+Sign in at http://localhost:3000 as `admin`. The password is generated on the first start; `docker compose -f deployments/standalone/docker-compose.yml exec amp-api cat /var/lib/agent-manager/secrets/admin-password` prints it (`make dev-up` shows the command too). Settings are in `deployments/standalone/amp.yaml`; `.env` there is optional.
 
 Other ways to run it:
 
@@ -87,7 +87,7 @@ CI fails if generated code is out of date (`make codegenfmt-check`). Commit the 
 
 Every route needs an RBAC permission, and operations on credentials, permissions or deletions need an audit event. The [database schema](amp-lite/database-schema.md) explains the tables and the rules they follow.
 
-Settings come from the environment, with an optional `amp.yaml` for the rest; [`amp.example.yaml`](../agent-manager-service/amp.example.yaml) lists the common ones.
+Settings come from the environment, with an optional `amp.yaml` for the rest; [`amp.example.yaml`](../agent-manager-service/amp.example.yaml) lists the common ones and the [configuration reference](amp-lite/configuration.md) all of them. The Compose stack reads [`deployments/standalone/amp.yaml`](../deployments/standalone/amp.yaml) and generates its secrets into the `amp-secrets` volume; `docker compose -f deployments/standalone/docker-compose.yml exec amp-api amp secret show admin-password` prints the console password. A stack created before secrets were generated needs `make reset` once.
 
 ### Modules
 
@@ -115,16 +115,19 @@ The architecture and data-model diagrams are generated. Edit the generators in [
 
 ## Tests
 
+[The testing guide](testing.md) lists every kind of test in the repository, which tests a change needs, where their files go, how to run them and which of them CI runs. The ones you will run most:
+
 | Tests | Command | Needs |
 |---|---|---|
 | API unit tests | `make test-unit` in `agent-manager-service` | Nothing |
 | API integration tests | `make test-integration` in `agent-manager-service` | Nothing; they run on a throwaway SQLite database |
 | One test | `make test-run RUN=<pattern> PKG=./services/` | Nothing |
 | Route authorization checks | `make security-test-static` | Nothing |
-| End-to-end tests | `make e2e-test` (`SUITE=<name>` or `FOCUS=<regex>` to narrow) | A running stack; copy `test/e2e/.env.example` to `test/e2e/.env` first |
-| Live security tests | `make security-test-live` | A running stack |
+| End-to-end tests | `make e2e-test` (`SUITE=<name>` or `FOCUS=<regex>` to narrow) | A running stack with ThunderID sign-in ([how](testing.md#running-the-suites-that-need-a-stack)); copy `test/e2e/.env.example` to `test/e2e/.env` first |
+| Live security tests | `make security-test-live` | A running stack with ThunderID sign-in |
+| Console tests | `pnpm build`, then `pnpm test` in `console` | Nothing |
 
-Tests that call real model providers need provider keys in `test/e2e/.env`. Without them those specs are skipped or fail at the first model call.
+Tests that call real model providers need provider keys in `test/e2e/.env`. Without them those specs skip.
 
 To try a change the way a user would, register one of the [samples](../samples) as an external agent, attach an LLM provider to it in the console, and run the sample with that provider's connection settings, so its model calls go through the AI Gateway. For the IT Helpdesk sample that is `USE_LLM_PROVIDER=true` with `LLM_PROVIDER_URL` and `LLM_PROVIDER_KEY` from the agent's LLM configuration.
 

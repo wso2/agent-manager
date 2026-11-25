@@ -190,16 +190,41 @@ One row per agent per environment, in the `ai-gateway` module (`mod_ai_gateway_a
 |---|---|---|---|
 | id | ID | no | PK |
 | org_id | ID | no | FK → organizations, no cascade |
-| owner_kind | short text (32) | no | What uses it: a core kind (`event_destination`, ...), or `mod:<module>` for a module's secrets (`mod:ai-gateway`). For cleanup; not an FK. |
+| owner_kind | short text (32) | no | What uses it: a core kind (`event_destination`, ...), or `mod:<module>` for a module's secrets (`mod:ai-gateway`). For cleanup; not an FK. `named_secret` rows are addressed by name through the secret management client and are their own owner. |
 | owner_id | ID | no | For a module secret, derived from the module and its path (`llm-providers/<id>/upstream-auth`), so a module only reaches its own. |
-| provider | short text (16) | no | `db`, or an external vault's name |
-| ciphertext | binary | yes | `db` only. AES-256-GCM, nonce stored with it. |
-| key_id | short text (64) | yes | Master key that encrypted it, for rotation. |
+| provider | short text (16) | no | The vault that protects the value: `local`, or an external vault's name |
+| ciphertext | binary | yes | `local` only. AES-256-GCM, nonce stored with it, bound to (org_id, id) so it does not open in another row. |
+| key_id | short text (64) | yes | Master key that encrypted it, for rotation. NULL on rows written before the vault. |
 | external_ref | short text (512) | yes | Path in the external vault. |
 | version | whole number | no | |
 | created_at, updated_at | time | no | |
 
-Index (org_id, owner_kind, owner_id). Core tables reference a secret by `secret_id` (FK, no action) and the service deletes it after the owner (event destination secrets). Modules reach theirs only through `rt.Secrets()` by path: the AI Gateway keeps its LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth and A2A upstream auth there, each written and deleted in its row's transaction, and the row's configuration carries the path as its `secretRef`; its rows hold no secret columns. `amp module uninstall --purge` deletes a module's secrets.
+Index (org_id, owner_kind, owner_id). Core tables reference a secret by `secret_id` (FK, no action) and the service deletes it after the owner (event destination secrets). Modules reach theirs only through `rt.Secrets()` by path: the AI Gateway keeps its LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth and A2A upstream auth there, each written and deleted in its row's transaction, and the row's configuration carries the path as its `secretRef`; its rows hold no secret columns. `amp module uninstall --purge` deletes a module's secrets. Module secrets go through the same vault and jobs as core ones.
+
+Values go through a vault (`agent-manager-service/vault`), selected by `SECRET_VAULT_PROVIDER`. The built-in `local` vault encrypts into the row. An external vault is a Go package that implements `vault.ExternalVault` and registers itself with `vault.Register`. It reserves a version-specific reference from the promotion job ID before writing. Retrying the job writes the same value under the same reference. Destroying the reference prevents an interrupted attempt from recreating it. Rows are opened by the vault named in `provider`. The local vault stays loaded, and `SECRET_VAULT_READERS` lists previous external providers still needed for reads and cleanup. `ENCRYPTION_KEY_PREVIOUS` keeps values sealed before a key rotation readable. The standalone Compose file sets it from `AMP_ENCRYPTION_KEY_PREVIOUS`.
+
+During an upgrade or rollback involving a pre-vault binary, keep the local vault, use the same `ENCRYPTION_KEY` on all replicas, and leave `SECRET_VAULT_BIND_LOCAL_ROWS=false` (the default). The local vault writes the legacy AES-GCM format in this mode. After all replicas support the vault and the rollback window has closed, set `SECRET_VAULT_BIND_LOCAL_ROWS=true` to bind newly written local ciphertext to its organization and secret ID. Existing values remain readable and are resealed on update. Enabling row binding, switching to an external vault, or rotating the encryption key can make newly written credentials unreadable by pre-vault replicas. Turning row binding off changes future writes only.
+
+An external vault is never written inside a request's transaction. A write seals the value into the row with `local`, so it is readable at once, and queues a `promote` job; a delete, or a write that replaces an external value, queues a `destroy` job for it. Both commit or roll back with the change. After the commit a worker writes the value to the external vault as a new entry or version, points the row at it, and removes the value it replaced. A rolled-back change has therefore written nothing to the external vault, and the value a committed row points to stays readable until a later commit replaces it.
+
+### secret_jobs
+
+Created by migration `002_secret_jobs`, not the baseline, so a database the baseline already ran on gets it too.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK |
+| org_id, secret_id, owner_kind | ID, ID, short text (32) | no | The secret the job is for, kept so the job outlives it. No foreign keys. |
+| action | short text (16) | no | `promote` or `destroy` |
+| provider, external_ref | short text (16), short text (512) | yes | `destroy`: the value to remove. `promote`: the external value the promoted version replaces, removed once the row points at the new one. Cleared on a promotion a later write or delete took over. |
+| staged_provider, staged_ref | short text (16), short text (512) | yes | `promote`: reserved provider and reference persisted before the external write. Retries reuse the reference. A superseded promotion queues it for cleanup. |
+| version | whole number | yes | `promote`: the secrets.version it promotes. NULL once superseded. |
+| attempts, last_error | whole number, long text | no, yes | Failures so far; the job is retried with backoff (15 s doubling to an hour) until it succeeds. |
+| available_at | time | no | Not run before this. |
+| claimed_by, claimed_until | short text (255), time | yes | Renewed during vault calls. Publication and cleanup handoff verify the current claim in the same transaction. |
+| created_at | time | no | |
+
+Indexes (available_at, id), (secret_id), (provider, external_ref). A `destroy` job removes nothing a committed row, or a pending promotion, still refers to; it is dropped instead. Every step is safe to repeat.
 
 ## Gateways, LLM, MCP and A2A
 
@@ -227,7 +252,7 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 ### LLM
 
 - `llm_provider_templates`: org templates only (built-ins ship in code, `modules/aigateway/resources/builtin_llm_templates.go`). org_id NOT NULL, unique (org_id, handle). `is_system` dropped.
-- `llm_providers`: id = artifact id. The upstream API key is in the module's secret store; `configuration` carries its path as `secretRef` ([modules.md](modules.md#where-the-gateway-stands)).
+- `llm_providers`: id = artifact id. The upstream API key is in the module's secret store; `configuration` carries its path as `secretRef` ([modules.md](ai-gateway.md#where-the-gateway-stands)).
 - `llm_proxies`: id = artifact id. project_id (no key into `projects`). provider_id → llm_providers, restrict (a provider in use can't be deleted). Upstream auth, including the key minted on the provider for a proxy, is in the module's secret store; `configuration` carries its path as `secretRef`.
 
 ### Agent model and MCP configs

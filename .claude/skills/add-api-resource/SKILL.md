@@ -13,7 +13,7 @@ Spec-first, layered, per-route-authz workflow for the Go control plane. The requ
 
 1. **Edit the OpenAPI spec** — `agent-manager-service/docs/api_v1_openapi.yaml`. Add/modify the path, operation, and schemas. This is the source of truth for request/response shapes.
 2. **`make spec`** (needs Docker) — regenerates `spec/` from the YAML. The whole `spec/` dir is deleted and rebuilt, so **never** hand-edit a struct there; your edits would be lost.
-3. **Add permission(s)** in `rbac/permissions.go` — name them `resource:verb` (`:create`/`:read`/`:update`/`:delete`, or `:manage` only where peers already do).
+3. **Add permission(s)** in `rbac/permissions.go` — name them `resource:verb` (`:create`/`:read`/`:update`/`:delete`, or `:manage` only where peers already do). Its scope also goes in the ThunderID bootstrap (`ampinit/templates/thunder/bootstrap/50-amp-api-client.yaml`, `60-amp-resource-server.yaml`) and in `ampScopes` in `test/e2e/framework/auth.go`; `make test-unit` fails until all of them agree.
 4. **Implement controller → service → repository** (`controllers/` → `services/` → `repositories/`):
    - Controller: HTTP only — parse/validate, map result→status, translate sentinel errors→HTTP.
    - Service: business logic; depend on repo/client **interfaces**, never concrete types.
@@ -21,7 +21,7 @@ Spec-first, layered, per-route-authz workflow for the Go control plane. The requ
 5. **Register the route with authz** in `api/<resource>_routes.go` using `HandleFuncWithValidationAndAuthz(pattern, rbac.<Perm>, ctrl.<Handler>)`. Every route declares its own permission.
 6. **Grant the permission to at least one role** in `rbac/predefined_roles.go` (`PredefinedRolePermissions`). An ungranted permission is unreachable.
 7. **`make codegen`** — only if you added/changed an interface (regenerates wire DI + mocks; needs `moq` on PATH). A new repo interface needs a `//go:generate moq ...` directive above its declaration — copy an existing one.
-8. **Write a service unit test** — use the `add-service-unit-test` skill.
+8. **Add the tests** — use the `add-tests` skill: a service unit test (`add-service-unit-test`), an API-level integration test, and an e2e or scope-matrix spec where the route changes a user flow or guards something destructive.
 
 ## Audit logging
 
@@ -45,7 +45,7 @@ Never read a request or response body into a record; pass named fields via `audi
 - [ ] New permission exists in `rbac/permissions.go` **and** is granted in `rbac/predefined_roles.go`.
 - [ ] Route registered with an authz registrar (not plain `HandleFuncWithValidation` unless deliberate).
 - [ ] `make codegen` run + mocks committed if an interface changed.
-- [ ] Service unit test added; `make test-unit` passes (includes `TestEveryMutatingRouteIsAudited`).
+- [ ] Tests added per the `add-tests` skill; `make test-unit` passes (includes `TestEveryMutatingRouteIsAudited` and the `TestSecurityInvariant*` checks).
 - [ ] Semantic audit event added if the operation is security-critical (`add-audit-event` skill).
 - [ ] `go build -tags=integration ./...` compiles.
 - [ ] CI lint clean: `golangci-lint run --config .github/linters/.golangci.yaml ./...`

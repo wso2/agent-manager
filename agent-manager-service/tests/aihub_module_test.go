@@ -195,13 +195,6 @@ type errBody struct {
 	Message string `json:"message"`
 }
 
-func decodeAs[T any](t *testing.T, body []byte) T {
-	t.Helper()
-	var v T
-	require.NoError(t, json.Unmarshal(body, &v), string(body))
-	return v
-}
-
 // TestSubscriptionPlansModule drives the subscription plans module's API
 // (/subscription-plans) through the core's module host, sign-in, permission checks and audit. The
 // module is built in, so it is active without an install.

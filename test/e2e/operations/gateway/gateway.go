@@ -67,28 +67,26 @@ func WaitForActiveGatewayForEnvWithEnvUUID(client *framework.AMPClient, orgName,
 
 		gateways := framework.ExpectStatusAndDecode[framework.GatewayListResponse](g, resp, 200)
 
+		// Other gateways (a self-hosted one a spec registered, say) may be mapped
+		// to the same environment and not be connected; any active one will do.
 		var found bool
+		var seen []string
 		for _, gw := range gateways.Gateways {
 			for _, env := range gw.Environments {
-				if env.Name == envName {
-					lastDiag = fmt.Sprintf("%s | gateway=%s status=%s", scope, gw.Name, gw.Status)
-					ginkgo.GinkgoWriter.Printf("Gateway for env %q: %s (UUID: %s, status: %s)\n",
-						envName, gw.Name, gw.UUID, gw.Status)
-					g.Expect(gw.Status).To(Equal("ACTIVE"), "gateway %q for env %q exists but is not ACTIVE yet (status=%s)", gw.Name, envName, gw.Status)
+				if env.Name != envName {
+					continue
+				}
+				seen = append(seen, gw.Name+"="+gw.Status)
+				if gw.Status == "ACTIVE" && !found {
+					ginkgo.GinkgoWriter.Printf("Gateway for env %q: %s (UUID: %s)\n", envName, gw.Name, gw.UUID)
 					gatewayUUID = gw.UUID
 					envUUID = env.ID
 					found = true
-					break
 				}
 			}
-			if found {
-				break
-			}
 		}
-		if !found {
-			lastDiag = fmt.Sprintf("%s | no gateway mapped to env among %d gateway(s)", scope, len(gateways.Gateways))
-		}
-		g.Expect(found).To(BeTrue(), "no gateway found for environment %q among %d gateway(s)", envName, len(gateways.Gateways))
+		lastDiag = fmt.Sprintf("%s | gateways mapped to env: %v", scope, seen)
+		g.Expect(found).To(BeTrue(), "no ACTIVE gateway for environment %q (mapped: %v)", envName, seen)
 	}).WithTimeout(timeout).WithPolling(10 * time.Second).Should(Succeed())
 
 	return gatewayUUID, envUUID

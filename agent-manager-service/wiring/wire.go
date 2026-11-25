@@ -47,6 +47,10 @@ import (
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 	ProvideEncryptionKey,
+	ProvideSecretRefKeys,
+	ProvideSecretVaults,
+	repositories.NewSecretStore,
+	repositories.NewSecretJobRunner,
 )
 
 var clientProviderSet = wire.NewSet(
@@ -73,6 +77,7 @@ var serviceProviderSet = wire.NewSet(
 	// Provisioning service is injected (see InitializeAppParams); only the
 	// reconciler that consumes it is wired here.
 	services.NewAgentThunderReconcilerService,
+	services.NewSecretJobWorker,
 	services.NewEnvironmentService,
 	ProvideEventBus,
 	ProvideEventPublisher,
@@ -136,13 +141,11 @@ func ProvideAuditRecorder(cfg config.Config, logger *slog.Logger) audit.Recorder
 }
 
 // ProvideSecretManagementClient creates the secret management service client.
-// If the provider implements secretmanagersvc.SecretReferenceManager and
-// reports that it manages SecretReferences itself, no SecretReference client is
-// forwarded — preventing the high-level client from making redundant
-// SecretReference CRUD calls.
-func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
+// The database and its secret store are handed to the provider for the
+// in-house store; a provider with its own backend ignores them.
+func ProvideSecretManagementClient(cfg config.Config, db *gorm.DB, secrets *repositories.SecretStore, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
 	return secretmanagersvc.NewSecretManagementClientWithConfig(secretmanagersvc.SecretManagementClientConfig{
-		StoreConfig: &secretmanagersvc.StoreConfig{Provider: cfg.SecretManager.Provider},
+		StoreConfig: &secretmanagersvc.StoreConfig{Provider: cfg.SecretManager.Provider, DB: db, Secrets: secrets},
 		Provider:    secretProvider,
 	})
 }

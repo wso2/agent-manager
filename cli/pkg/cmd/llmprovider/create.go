@@ -61,11 +61,14 @@ var validAccessModes = []string{"allow_all", "deny_all"}
 var versionRegex = regexp.MustCompile(`^v\d+\.\d+$`)
 
 type CreateOptions struct {
-	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
-	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
-	MakeScope    func(org, proj string) render.Scope
+	IO *iostreams.IOStreams
+	// Client resolves --gateways names; gateways are still a v1 resource.
+	Client         func(context.Context) (*aigateway.ClientWithResponses, error)
+	ProviderClient func(context.Context) (*aigateway.ClientWithResponses, error)
+	ResolveScope   func(*cobra.Command, bool, bool) (string, string, error)
+	MakeScope      func(org, proj string) render.Scope
 
+	// Org is resolved only to look up --gateways names; providers take the org from the token.
 	Org   string
 	Scope render.Scope
 
@@ -281,15 +284,16 @@ func parseGateways(raw []string, nameToUUID map[string]openapi_types.UUID) ([]op
 
 func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &CreateOptions{
-		IO:           f.IOStreams,
-		Client:       f.AIGateway,
-		ResolveScope: f.ResolveOrgProject,
-		MakeScope:    f.Scope,
+		IO:             f.IOStreams,
+		Client:         f.AIGateway,
+		ProviderClient: f.AIGateway,
+		ResolveScope:   f.ResolveOrgProject,
+		MakeScope:      f.Scope,
 	}
 	cmd := &cobra.Command{
 		Use:   "create <id>",
 		Short: "Create a new LLM provider",
-		Long: "Create a new LLM provider in an organization.\n\n" +
+		Long: "Create a new LLM provider in your organization.\n\n" +
 			"The endpoint URL and auth scheme are inherited from the chosen --template; " +
 			"override them with --upstream-url/--auth-type/--auth-header only when needed. " +
 			"Supply the provider credential with --api-key-stdin (recommended) or --api-key.\n\n" +
@@ -307,12 +311,14 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 			if err := validateCreate(opts); err != nil {
 				return render.Error(opts.IO, render.Scope{}, err)
 			}
-			org, _, err := opts.ResolveScope(cmd, true, false)
-			scope := opts.MakeScope(org, "")
-			if err != nil {
-				return render.Error(opts.IO, scope, err)
+			opts.Scope = opts.MakeScope("", "")
+			if len(gatewayNames(opts.Gateways)) > 0 {
+				org, _, err := opts.ResolveScope(cmd, true, false)
+				if err != nil {
+					return render.Error(opts.IO, opts.Scope, err)
+				}
+				opts.Org = org
 			}
-			opts.Org, opts.Scope = org, scope
 			return runCreate(cmd.Context(), opts)
 		},
 	}
@@ -360,12 +366,7 @@ func runCreate(ctx context.Context, o *CreateOptions) error {
 		}
 	}
 
-	client, err := o.Client(ctx)
-	if err != nil {
-		return render.Error(o.IO, o.Scope, err)
-	}
-
-	gatewayUUIDs, err := resolveGatewayNames(ctx, client, o.Org, o.Gateways)
+	gatewayUUIDs, err := resolveGatewayNames(ctx, o.Client, o.Org, o.Gateways)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
@@ -375,7 +376,11 @@ func runCreate(ctx context.Context, o *CreateOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	resp, err := client.CreateLLMProviderWithResponse(ctx, o.Org, req)
+	providers, err := o.ProviderClient(ctx)
+	if err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
+	resp, err := providers.CreateLLMProviderWithResponse(ctx, req)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -392,14 +397,19 @@ func runCreate(ctx context.Context, o *CreateOptions) error {
 }
 
 // resolveGatewayNames maps any non-UUID --gateways values to their UUIDs by listing
-// the org's gateways. Returns nil without calling the server when every value is
+// the org's gateways. Returns nil without building a client when every value is
 // already a UUID, so the common scripted case costs no extra request.
 func resolveGatewayNames(
-	ctx context.Context, client *aigateway.ClientWithResponses, org string, raw []string,
+	ctx context.Context, newClient func(context.Context) (*aigateway.ClientWithResponses, error),
+	org string, raw []string,
 ) (map[string]openapi_types.UUID, error) {
 	names := gatewayNames(raw)
 	if len(names) == 0 {
 		return nil, nil
+	}
+	client, err := newClient(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	gateways, err := cmdutil.ListAllGateways(ctx, client, org)
@@ -421,19 +431,22 @@ func resolveGatewayNames(
 	return byName, nil
 }
 
-// buildCreateRequest maps the resolved options into the create payload. The
+// buildCreateRequest maps the resolved options into the provider document. The
 // upstream block is attached only when the user supplies a URL or an auth input,
 // so a bare `create <id> --display-name --template` defers entirely to the template.
 func buildCreateRequest(
 	o *CreateOptions, key string, gatewayUUIDs map[string]openapi_types.UUID,
-) (aigateway.CreateLLMProviderRequest, error) {
-	req := aigateway.CreateLLMProviderRequest{
-		Id:       o.ID,
-		Name:     o.DisplayName,
-		Version:  o.Version,
-		Context:  o.Context,
-		Template: o.Template,
+) (aigateway.LlmProviderDocument, error) {
+	doc := aigateway.LlmProviderDocument{
+		ApiVersion: aigateway.LlmProviderDocumentApiVersion("ai-control-plane.choreolabs.com/v1"),
+		Kind:       aigateway.LlmProviderDocumentKindLlmProvider,
+		Metadata:   aigateway.DocumentMetadata{Name: o.ID},
 	}
+	req := &doc.Spec
+	req.DisplayName = o.DisplayName
+	req.Version = o.Version
+	req.Context = o.Context
+	req.Template = o.Template
 	if o.Description != "" {
 		req.Description = &o.Description
 	}
@@ -460,7 +473,7 @@ func buildCreateRequest(
 
 	gws, err := parseGateways(o.Gateways, gatewayUUIDs)
 	if err != nil {
-		return req, cmdutil.FlagErrors([]string{err.Error()})
+		return doc, cmdutil.FlagErrors([]string{err.Error()})
 	}
 	if len(gws) > 0 {
 		req.Gateways = &gws
@@ -473,13 +486,13 @@ func buildCreateRequest(
 		Exceptions: &[]aigateway.RouteException{},
 	}
 
-	return req, nil
+	return doc, nil
 }
 
-func printProviderSummary(ios *iostreams.IOStreams, p *aigateway.LLMProviderResponse) {
+func printProviderSummary(ios *iostreams.IOStreams, p *aigateway.LlmProviderDocument) {
 	cs := ios.StderrColorScheme()
-	fmt.Fprintf(ios.ErrOut, "%s Created LLM provider %s\n\n", cs.SuccessIcon(), p.Id)
-	fmt.Fprintf(ios.ErrOut, "  Name:     %s\n", p.Name)
-	fmt.Fprintf(ios.ErrOut, "  Template: %s\n", p.Template)
-	fmt.Fprintf(ios.ErrOut, "  Status:   %s\n", string(p.Status))
+	fmt.Fprintf(ios.ErrOut, "%s Created LLM provider %s\n\n", cs.SuccessIcon(), p.Metadata.Name)
+	fmt.Fprintf(ios.ErrOut, "  Name:     %s\n", p.Spec.DisplayName)
+	fmt.Fprintf(ios.ErrOut, "  Template: %s\n", p.Spec.Template)
+	fmt.Fprintf(ios.ErrOut, "  Gateways: %s\n", placement(p.Status))
 }

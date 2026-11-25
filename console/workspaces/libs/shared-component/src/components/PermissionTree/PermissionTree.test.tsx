@@ -82,8 +82,10 @@ describe("PermissionTree", () => {
         initialSelected={["amp:catalog:read"]}
       />,
     );
+    // MUI's own marker, and the native property assistive technology reads.
     const catalogCheckbox = getCheckbox("Catalog") as HTMLInputElement;
     expect(catalogCheckbox.checked).toBe(false);
+    expect(catalogCheckbox).toHaveAttribute("data-indeterminate", "true");
     expect(catalogCheckbox.indeterminate).toBe(true);
   });
 
@@ -96,6 +98,7 @@ describe("PermissionTree", () => {
     );
     const catalogCheckbox = getCheckbox("Catalog") as HTMLInputElement;
     expect(catalogCheckbox.checked).toBe(true);
+    expect(catalogCheckbox).toHaveAttribute("data-indeterminate", "false");
     expect(catalogCheckbox.indeterminate).toBe(false);
   });
 

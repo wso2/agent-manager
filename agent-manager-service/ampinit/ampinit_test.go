@@ -71,12 +71,12 @@ func TestLoadThunderConfigDerivesFromURLs(t *testing.T) {
 }
 
 func TestLoadThunderConfigReportsEveryMissingValue(t *testing.T) {
-	t.Setenv("THUNDER_PUBLIC_URL", "not a url")
+	t.Setenv("THUNDER_BASE_URL", "not a url")
 	_, err := LoadThunderConfig()
 	if err == nil {
 		t.Fatal("want an error")
 	}
-	for _, want := range []string{"THUNDER_PUBLIC_URL", "AMP_PUBLIC_URL", "CONSOLE_URL", "AMP_SYSTEM_CLIENT_SECRET"} {
+	for _, want := range []string{"THUNDER_BASE_URL", "SERVER_PUBLIC_URL", "THUNDER_CLIENT_SECRET"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not name %s", err, want)
 		}
@@ -373,5 +373,80 @@ func TestRenderThunderRefusesAModuleNamedAfterACoreResource(t *testing.T) {
 	cfg.Modules = append(cfg.Modules, modkit.Manifest{Name: "events", Permissions: []modkit.Permission{{Name: "manage"}}})
 	if _, err := RenderThunder(cfg); err == nil || !strings.Contains(err.Error(), "events") {
 		t.Fatalf("RenderThunder = %v, want a refusal naming the module", err)
+	}
+}
+
+// TestLoadThunderConfigReadsCanonicalNames reads the names amp serve reads, so
+// one amp.yaml configures both.
+func TestLoadThunderConfigReadsCanonicalNames(t *testing.T) {
+	for k, v := range map[string]string{
+		"THUNDER_BASE_URL":          "https://id.example.com",
+		"SERVER_PUBLIC_URL":         "https://api.example.com",
+		"CONSOLE_URL":               "https://console.example.com",
+		"IDP_CLIENT_ID":             "my-api",
+		"IDP_CLIENT_SECRET":         "s1",
+		"AMP_CONSOLE_CLIENT_SECRET": "s2",
+		"THUNDER_CLIENT_SECRET":     "s4",
+	} {
+		t.Setenv(k, v)
+	}
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ThunderPublicURL != "https://id.example.com" || cfg.AMPPublicURL != "https://api.example.com" {
+		t.Errorf("URLs = %q, %q", cfg.ThunderPublicURL, cfg.AMPPublicURL)
+	}
+	if cfg.APIClient.ID != "my-api" || cfg.APIClient.Secret != "s1" || cfg.SystemClient.Secret != "s4" {
+		t.Errorf("clients = %+v, %+v", cfg.APIClient, cfg.SystemClient)
+	}
+}
+
+// TestConsoleURLDefaultsToServer: the console is served by the API.
+func TestConsoleURLDefaultsToServer(t *testing.T) {
+	setThunderEnv(t)
+	t.Setenv("CONSOLE_URL", "")
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ConsoleURL != "https://api.example.com" {
+		t.Errorf("ConsoleURL = %q", cfg.ConsoleURL)
+	}
+}
+
+// Configured redirects and origins add to the console's own, so a changed
+// public URL keeps working alongside extra development entries.
+func TestConsoleRedirectsKeepThePublicConsole(t *testing.T) {
+	setThunderEnv(t)
+	t.Setenv("CONSOLE_URL", "")
+	t.Setenv("CONSOLE_REDIRECT_URIS", "http://localhost:3000/login")
+	t.Setenv("THUNDER_CORS_ORIGINS", "http://localhost:3000")
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Join(cfg.ConsoleRedirectURIs, ","), "https://api.example.com/login,http://localhost:3000/login"; got != want {
+		t.Errorf("ConsoleRedirectURIs = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(cfg.CORSOrigins, ","), "https://api.example.com,http://localhost:3000"; got != want {
+		t.Errorf("CORSOrigins = %q, want %q", got, want)
+	}
+}
+
+func TestConsoleURLDefaultIsTrimmed(t *testing.T) {
+	setThunderEnv(t)
+	t.Setenv("CONSOLE_URL", "")
+	t.Setenv("AMP_PUBLIC_URL", "")
+	t.Setenv("SERVER_PUBLIC_URL", " https://api.example.com/ ")
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ConsoleURL != "https://api.example.com" {
+		t.Errorf("ConsoleURL = %q", cfg.ConsoleURL)
+	}
+	if cfg.ConsoleRedirectURIs[0] != "https://api.example.com/login" {
+		t.Errorf("ConsoleRedirectURIs = %q", cfg.ConsoleRedirectURIs)
 	}
 }

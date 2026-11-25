@@ -18,20 +18,12 @@
 
 // Building blocks for the create-agent forms. The "Add a New Agent" page lives
 // in acp-core, but each agent type's form is contributed by the module that
-// owns that type (external: ai-gateway, platform-hosted: agent-runtime, from
-// catalog: agent-portal); what those forms share lives here.
+// owns that type (externally hosted: acp-core's external-agent page); what
+// those forms share lives here.
 export * from "./schema";
-export * from "./sampleAgents";
 export * from "./buildAgentPayload";
-export * from "./mcpEnvVarNames";
-export * from "./useInitialEnvironment";
 export * from "./useAgentWizardReturn";
 export * from "./useAgentTypePicker";
 export * from "./RequireAgentCreateAccess";
 export * from "./components/CreateButtons";
 export * from "./components/AgentHandleField";
-export * from "./components/AgentCreateEnvironmentVariables";
-export * from "./components/FileMount";
-export * from "./components/LLMProviderSection";
-export * from "./components/MCPProxySection";
-export * from "./components/OptionalSection";

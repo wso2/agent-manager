@@ -1,0 +1,85 @@
+# Runs the Playwright browser journeys in test/ui-e2e against the Docker
+# Compose stack built from the pull request, with the console built into
+# amp-api and file sign-in (the stack's default).
+name: UI E2E
+
+on:
+  pull_request:
+    branches:
+      - amp-2.x
+    paths:
+      - 'console/**'
+      - 'agent-manager-service/**'
+      - 'test/ui-e2e/**'
+      - 'deployments/standalone/**'
+      - '.github/workflows/ui-e2e.yaml'
+      - '.github/actions/amp-dev-stack/**'
+      - '!**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-e2e:
+    name: UI E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install platform
+        uses: ./.github/actions/amp-dev-stack
+        with:
+          console: "true"
+          auth_mode: file
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: test/ui-e2e/package-lock.json
+
+      # The browser is cached per Playwright version. No --with-deps: the
+      # runner image ships Chrome and its libraries, and the apt-get update it
+      # runs has hung on a mirror until the job timed out.
+      - name: Cache the Playwright browser
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('test/ui-e2e/package-lock.json') }}
+
+      - name: Install Playwright
+        working-directory: test/ui-e2e
+        timeout-minutes: 10
+        run: |
+          npm ci
+          npx playwright install chromium
+
+      # amp-dev-stack fixes the admin password (standalone-ci-settings.sh).
+      - name: Run the journeys
+        working-directory: test/ui-e2e
+        env:
+          AMP_ADMIN_PASSWORD: admin
+        run: npx playwright test
+
+      - name: Stack logs on failure
+        if: failure()
+        working-directory: deployments/standalone
+        run: docker compose logs --no-color --tail 300 amp-api
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: playwright-report
+          path: |
+            test/ui-e2e/playwright-report
+            test/ui-e2e/test-results
+          retention-days: 7

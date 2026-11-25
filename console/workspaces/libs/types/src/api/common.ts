@@ -172,7 +172,6 @@ export interface ListAPIKeysResponse {
   keys: APIKeyInfo[];
 }
 
-
 // Common path parameters
 export interface OrgPathParams {
   orgName: string | undefined;
@@ -184,10 +183,6 @@ export interface OrgProjPathParams extends OrgPathParams {
 
 export interface AgentPathParams extends OrgProjPathParams {
   agentName: string | undefined;
-}
-
-export interface BuildPathParams extends AgentPathParams {
-  buildName: string | undefined;
 }
 
 // Resource name generation
@@ -208,5 +203,4 @@ export interface ResourceNameResponse {
 export interface GenerateResourceNamePathParams {
   orgName: string | undefined;
 }
-
 

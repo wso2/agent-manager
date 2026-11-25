@@ -21,6 +21,7 @@
 package mcpproxy
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -123,6 +124,42 @@ var _ = Describe("MCP Proxy Lifecycle", Label("mcp-proxy"), Ordered, func() {
 			}
 		}
 		Expect(found).To(BeTrue(), "expected created proxy %s in the list", proxyID)
+	})
+
+	It("should update the MCP proxy's description", func() {
+		proxy := mcpproxyop.GetMCPProxy(Default, Client, Cfg.DefaultOrg, proxyID)
+		desc := "updated by e2e"
+		proxy.Description = &desc
+		framework.Call(Default, Client, http.MethodPut, framework.GW(Cfg, "/mcp-proxies/%s", proxyID), proxy, http.StatusOK)
+		got := mcpproxyop.GetMCPProxy(Default, Client, Cfg.DefaultOrg, proxyID)
+		Expect(got.Description).NotTo(BeNil())
+		Expect(*got.Description).To(Equal(desc))
+	})
+
+	It("should manage the proxy's tool scopes", func() {
+		scopes := framework.GW(Cfg, "/mcp-proxies/%s/scopes", proxyID)
+		framework.CallObj(Default, Client, http.MethodPost, scopes, framework.Obj{"action": "e2e-read", "description": "read", "tools": []string{"echo"}}, http.StatusCreated)
+		list := framework.CallObj(Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(list, "scopes"), "action")).To(ContainElement("e2e-read"))
+		framework.CallObj(Default, Client, http.MethodPut, scopes+"/e2e-read", framework.Obj{"description": "renamed", "tools": []string{"echo", "add"}}, http.StatusOK)
+		list = framework.CallObj(Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
+		for _, sc := range framework.Items(list, "scopes") {
+			if framework.Str(sc, "action") == "e2e-read" {
+				Expect(sc["tools"]).To(ConsistOf("echo", "add"))
+			}
+		}
+		// The scope is offered to agent identity roles in the proxy's environments.
+		agentScopes := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/environments/%s/agent-identities/scopes", Cfg.DefaultEnv), nil, http.StatusOK)
+		Expect(agentScopes).To(HaveKey("scopes"))
+		framework.Call(Default, Client, http.MethodDelete, scopes+"/e2e-read", nil, http.StatusNoContent)
+		list = framework.CallObj(Default, Client, http.MethodGet, scopes, nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(list, "scopes"), "action")).NotTo(ContainElement("e2e-read"))
+		framework.CallError(Default, Client, http.MethodDelete, scopes+"/e2e-read", nil, http.StatusNotFound)
+	})
+
+	It("should list the policies an MCP proxy can use", func() {
+		policies := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/mcp-proxies/policies"), nil, http.StatusOK)
+		Expect(policies["count"]).To(BeNumerically(">", 0))
 	})
 
 	It("should delete the MCP proxy and then return 404", func() {

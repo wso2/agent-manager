@@ -54,6 +54,18 @@ func mcpScopes(modules Modules) []string {
 	return scopes
 }
 
+// catalogScopes are the scopes of every permission the core and its active
+// modules declare: what the API and CLI advertise unless
+// OAUTH_SCOPES_SUPPORTED narrows it.
+func catalogScopes() []string {
+	perms := rbac.Current().Permissions()
+	scopes := make([]string, 0, len(perms))
+	for _, p := range perms {
+		scopes = append(scopes, p.Scope())
+	}
+	return scopes
+}
+
 func protectedResourceMetadataHandler(mcpResource bool, modules Modules) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cfg := config.GetConfig()
@@ -71,6 +83,9 @@ func protectedResourceMetadataHandler(mcpResource bool, modules Modules) http.Ha
 
 		resource := strings.TrimSuffix(cfg.ServerPublicURL, "/")
 		scopes := cfg.OAuthScopesSupported
+		if len(scopes) == 0 {
+			scopes = catalogScopes()
+		}
 		if mcpResource {
 			resource += "/mcp"
 			scopes = mcpScopes(modules)

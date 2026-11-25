@@ -19,12 +19,14 @@ package app
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -79,5 +81,52 @@ func TestEventsStartupCancellationStopsRetry(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("startup ignored cancellation")
+	}
+}
+
+type closingBus struct {
+	events.Bus
+	closed *atomic.Bool
+}
+
+func (b closingBus) Close() { b.closed.Store(true) }
+
+type stoppingDispatcher struct {
+	startupComponent
+	stopped *atomic.Bool
+	err     error
+}
+
+func (d stoppingDispatcher) Stop() error { d.stopped.Store(true); return d.err }
+
+// Shutdown stops the dispatcher and closes the bus, even when the dispatcher
+// reports an error stopping; with events off there is nothing to stop.
+func TestStopEvents(t *testing.T) {
+	stopEvents(&wiring.AppParams{})
+
+	for _, stopErr := range []error{nil, errors.New("stuck")} {
+		var stopped, closed atomic.Bool
+		stopEvents(&wiring.AppParams{
+			EventBus:        closingBus{closed: &closed},
+			EventDispatcher: stoppingDispatcher{stopped: &stopped, err: stopErr},
+			EventPublisher:  events.NoopPublisher{},
+		})
+		assert.True(t, stopped.Load())
+		assert.True(t, closed.Load(), "the bus is closed even if the dispatcher failed to stop")
+	}
+}
+
+// The configured log level decides what is written; an unknown one falls back
+// to INFO rather than silencing or flooding the log.
+func TestSetupLoggerLevels(t *testing.T) {
+	previous := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	ctx := context.Background()
+	for level, want := range map[string]slog.Level{
+		"DEBUG": slog.LevelDebug, "INFO": slog.LevelInfo, "WARN": slog.LevelWarn, "ERROR": slog.LevelError, "loud": slog.LevelInfo,
+	} {
+		setupLogger(&config.Config{LogLevel: level})
+		assert.True(t, slog.Default().Enabled(ctx, want), level)
+		assert.False(t, slog.Default().Enabled(ctx, want-1), level)
 	}
 }

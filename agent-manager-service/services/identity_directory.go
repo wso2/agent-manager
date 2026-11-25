@@ -75,6 +75,8 @@ func directoryError(err error) error {
 		return classified{kind: identityv1.ErrNotProvisioned, err: err}
 	case thundersvc.IsNotFound(err):
 		return classified{kind: identityv1.ErrNotFound, err: err}
+	case thundersvc.IsBadRequest(err):
+		return classified{kind: identityv1.ErrInvalid, err: err}
 	}
 	return err
 }

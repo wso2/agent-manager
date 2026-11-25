@@ -61,6 +61,9 @@ func sanitizeSegment(s string) (string, error) {
 	return s, nil
 }
 
+// SanitizeSegment validates one segment of a KV path the way KVPath does, and returns it trimmed.
+func SanitizeSegment(s string) (string, error) { return sanitizeSegment(s) }
+
 // KVPath constructs the path from non-empty segments.
 // Returns an error if the required fields OrgName or ComponentName are empty,
 // or if any segment contains invalid characters (e.g., '/').

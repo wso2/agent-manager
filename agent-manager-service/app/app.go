@@ -115,6 +115,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	cfg := config.GetConfig()
 	// Installed before the HTTP server starts, so no request sees it change.
 	middleware.SetOrgOverrideResolver(opts.OrgOverrideResolver)
+	middleware.SetRouteHitLog(cfg.LogRouteHits)
 
 	setupLogger(cfg)
 
@@ -174,14 +175,24 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// Deployment-specific AgentID provisioning; nil disables it.
 	var agentThunderProvisioning services.AgentThunderProvisioningService
 	if opts.AgentThunderProvisioning != nil {
-		secretMgmtClientForProvisioning, err := wiring.ProvideSecretManagementClient(*cfg, secretProvider)
-		if err != nil {
-			slog.Error("failed to create secret management client for AgentID provisioning", "error", err)
-			os.Exit(1)
-		}
 		encryptionKey, err := wiring.ProvideEncryptionKey(*cfg)
 		if err != nil {
 			slog.Error("failed to load encryption key for AgentID provisioning", "error", err)
+			os.Exit(1)
+		}
+		secretRefKeys, err := wiring.ProvideSecretRefKeys(*cfg, encryptionKey)
+		if err != nil {
+			slog.Error("failed to load retained encryption keys for AgentID provisioning", "error", err)
+			os.Exit(1)
+		}
+		secretVaults, err := wiring.ProvideSecretVaults(*cfg, secretRefKeys)
+		if err != nil {
+			slog.Error("failed to open the secret vault for AgentID provisioning", "error", err)
+			os.Exit(1)
+		}
+		secretMgmtClientForProvisioning, err := wiring.ProvideSecretManagementClient(*cfg, database, repositories.NewSecretStore(secretVaults), secretProvider)
+		if err != nil {
+			slog.Error("failed to create secret management client for AgentID provisioning", "error", err)
 			os.Exit(1)
 		}
 		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, encryptionKey)
@@ -246,6 +257,13 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
+	// Promotes secret values to an external vault and removes replaced ones, once the change needing it commits.
+	secretJobWorkerCtx, secretJobWorkerCancel := context.WithCancel(backgroundCtx)
+	if err := dependencies.SecretJobWorker.Start(secretJobWorkerCtx); err != nil {
+		slog.Error("failed to start secret vault job worker", "error", err)
+		os.Exit(1)
+	}
+
 	// Start publishing events. The bus is set up in the background, so a NATS
 	// server that is still starting does not hold up the API; events raised
 	// meanwhile wait in the durable outbox.
@@ -303,6 +321,11 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 			}
 		}
 
+		secretJobWorkerCancel()
+		if err := dependencies.SecretJobWorker.Stop(); err != nil {
+			slog.Error("error stopping secret vault job worker", "error", err)
+		}
+
 		eventsCancel()
 		<-eventsStarted
 		stopEvents(dependencies)
@@ -356,7 +379,7 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 		Mount:         api.ModuleMounter(deps),
 		MountInternal: api.ModuleInternalMounter(deps),
 		Core:          repositories.NewCoreReadAPI(database),
-		Secrets:       repositories.NewModuleSecretStore(database, deps.EncryptionKey),
+		Secrets:       repositories.NewModuleSecretStore(database, deps.SecretStore),
 		InternalURL:   config.GetConfig().InternalServerPublicURL,
 		Capabilities:  map[string]any{identityv1.ID: services.NewIdentityDirectory(deps.EnvThunderResolver, deps.AgentThunderClientRepository)},
 	}

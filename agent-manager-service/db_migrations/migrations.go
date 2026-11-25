@@ -62,6 +62,10 @@ func waitFor(ctx context.Context, dbConn *gorm.DB, targetID string, interval tim
 	for {
 		applied, err := isApplied(ctx, dbConn, targetID)
 		if err != nil {
+			// The deadline can expire mid-query; report it as the timeout.
+			if ctx.Err() != nil {
+				return timeoutError(dbConn, targetID, ctx.Err())
+			}
 			return err
 		}
 		if applied {
@@ -71,11 +75,30 @@ func waitFor(ctx context.Context, dbConn *gorm.DB, targetID string, interval tim
 		slog.Info("dbmigrations:waiting for migrations", "latest", targetID)
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("waiting for migration %s (latest applied: %s): %w",
-				targetID, latestApplied(dbConn), ctx.Err())
+			return timeoutError(dbConn, targetID, ctx.Err())
 		case <-time.After(interval):
 		}
 	}
+}
+
+func timeoutError(dbConn *gorm.DB, targetID string, cause error) error {
+	return fmt.Errorf("waiting for migration %s (latest applied: %s): %w",
+		targetID, latestApplied(dbConn), cause)
+}
+
+// HasHistory reports whether dbConn holds a migrated install: its migration
+// history table exists and records at least one migration.
+func HasHistory(ctx context.Context, dbConn *gorm.DB) (bool, error) {
+	conn := dbConn.WithContext(ctx)
+	exists, err := historyTableExists(conn)
+	if err != nil || !exists {
+		return false, err
+	}
+	var count int64
+	if err := conn.Table(migrateOptions.TableName).Count(&count).Error; err != nil {
+		return false, fmt.Errorf("reading migration history: %w", err)
+	}
+	return count > 0, nil
 }
 
 // isApplied checks the history table first, so the wait before the first
@@ -96,20 +119,19 @@ func isApplied(ctx context.Context, dbConn *gorm.DB, id string) (bool, error) {
 	return count > 0, nil
 }
 
-// historyTableExists reports query errors: Migrator().HasTable returns false for them, so a false answer is checked
-// with a ping, which would otherwise make a database error look like a schema that has not been migrated yet.
+// historyTableExists asks the catalog directly: Migrator().HasTable returns false for a failed query, which would make
+// a database error look like a schema that has not been migrated yet.
 func historyTableExists(conn *gorm.DB) (bool, error) {
-	if conn.Migrator().HasTable(migrateOptions.TableName) {
-		return true, nil
+	// to_regclass resolves the name through search_path, as the history queries do.
+	query := "SELECT CASE WHEN to_regclass(?) IS NULL THEN 0 ELSE 1 END"
+	if conn.Name() == "sqlite" {
+		query = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?"
 	}
-	sqlDB, err := conn.DB()
-	if err == nil {
-		err = sqlDB.PingContext(conn.Statement.Context)
-	}
-	if err != nil {
+	var count int64
+	if err := conn.Raw(query, migrateOptions.TableName).Scan(&count).Error; err != nil {
 		return false, fmt.Errorf("checking for migration history: %w", err)
 	}
-	return false, nil
+	return count > 0, nil
 }
 
 // latestApplied describes the newest recorded migration for a timeout message,

@@ -84,18 +84,18 @@ Forms use Oxygen `Grid` with `size={{ ... }}`:
 
 ## 6. Empty, error and "not ready" states
 
-Use `StateNotice` (`@agent-management-platform/views`) for any state that blocks a page: not deployed, no successful build, OAuth-only security, missing config, load errors.
+Use `StateNotice` (`@agent-management-platform/views`) for any state that blocks a page: not routed through the gateway, OAuth-only security, missing config, load errors.
 
-- Give a title that names the state ("Build your agent first"), one sentence of explanation, and **one** action that fixes it ("Go to Build").
+- Give a title that names the state ("This agent is not routed through the gateway"), one sentence of explanation, and **one** action that fixes it ("Go to A2A settings").
 - Don't repeat the same action in two places on one page. If two cards are both empty for the same reason, only one carries the button.
-- Avoid step indicators ("1 Build, 2 Deploy, 3 Try it") in small cards; they crowd the layout.
+- Avoid step indicators ("1 Register, 2 Configure, 3 Generate a token") in small cards; they crowd the layout.
 - Use `compact` inside cards and `contained` when the notice needs its own panel.
 - Errors say what failed and what to do next; they don't apologise.
 
 ## 7. Links and routes
 
 - Build every link with `generatePath(absoluteRouteMap...path, params)`. Don't hand-write URLs.
-- Use the route the page actually lives at. For example, an agent's Deploy page is `agents.children.deployment`, not `environment.children.deploy`. Check `libs/types/src/routes/routes.map.ts` before adding a link.
+- Use the route the page actually lives at. For example, an agent's Security page is `agents.children.environment.children.security`, not a top-level agent route. Check `libs/types/src/routes/routes.map.ts` before adding a link.
 - Keep navigation client-side with router `Link` / `navigate`. Avoid plain `href` anchors to app pages.
 
 ## 8. Layout and responsiveness

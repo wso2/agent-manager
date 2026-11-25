@@ -19,13 +19,15 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { coverage } from '../../../../../vitest.coverage';
 
 export default defineConfig({
   plugins: [react()],
   test: {
+    coverage,
     globals: true,
     environment: 'jsdom',
-    setupFiles: './setupTests.tsx',
+    setupFiles: ['./setupTests.tsx', '../../../../../vitest.jsdom-storage.ts'],
     // Oxygen UI and MUI X import raw .css, which Node cannot load; inlining
     // them lets Vite handle those imports (same as the traces package).
     server: {

@@ -971,6 +971,8 @@ func (c *agentConfigurationController) writeConfigAPIKeyError(w http.ResponseWri
 		httpx.WriteErrorResponse(w, http.StatusForbidden, "API key management is only available for external agents")
 	case errors.Is(err, gwerr.ErrGatewayNotFound):
 		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
+	case errors.Is(err, gwerr.ErrAPIKeyNotFound):
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "API key not found")
 	default:
 		log.Error(operation+": failed", "error", err)
 		if writeIfNotImplemented(w, err) {

@@ -7,6 +7,7 @@ Key routing rules:
 - Strategy/scope → invoke /plan-ceo-review
 - Architecture → invoke /plan-eng-review
 - REST endpoint/resource/operation changes in agent-manager-service → invoke /add-api-resource
+- Choosing or writing tests for a change → invoke /add-tests
 - Design system/plan review → invoke /design-consultation or /plan-design-review
 - Full review pipeline → invoke /autoplan
 - Bugs/errors → invoke /investigate
