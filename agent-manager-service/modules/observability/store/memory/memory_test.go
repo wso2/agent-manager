@@ -57,6 +57,21 @@ func TestEmptyOrgRunsNoQuery(t *testing.T) {
 	}
 }
 
+func TestDeleteAgentWithNoOrgDeletesNothing(t *testing.T) {
+	ctx := context.Background()
+	m := memory.New()
+	sc := store.Scope{OrgID: "org-a", AgentID: "agent-1", Names: store.Names{Org: "acme"}}
+	m.Add(sc, store.Trace{TraceID: "trace-a"})
+
+	if err := m.DeleteAgent(ctx, "", "agent-1"); !errors.Is(err, store.ErrMissingOrg) {
+		t.Fatalf("DeleteAgent with no org error = %v, want ErrMissingOrg", err)
+	}
+	page, err := m.QueryTraces(ctx, sc, store.TraceQuery{})
+	if err != nil || page.Total != 1 {
+		t.Errorf("after DeleteAgent with no org: %v, %v; want the trace kept", page, err)
+	}
+}
+
 func TestQueryTraceSpans_WindowAndOrder(t *testing.T) {
 	base := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
 	sc := store.Scope{OrgID: "org-a", Names: store.Names{Org: "acme"}}
