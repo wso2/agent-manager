@@ -196,3 +196,55 @@ func TestBudgetUsageRepository_ABatchKeepsTheHighestUnderConcurrentWriters(t *te
 	require.NoError(t, err)
 	assert.Equal(t, "9.50", rows[0].Spent)
 }
+
+func TestBudgetUsageRepository_DeletePeriodsBeforeKeepsTheCurrentPeriod(t *testing.T) {
+	gdb := db.GetDB()
+	ctx := context.Background()
+	ou := dbtest.Org(t, gdb)
+	budgetID := createBudget(t, gdb, ou, "per-agent-daily")
+	otherID := createBudget(t, gdb, ou, "org-daily")
+	repo := NewBudgetUsageRepository(gdb)
+
+	allowance := uuid.New()
+	nov22 := time.Date(2026, 11, 22, 0, 0, 0, 0, time.UTC)
+	nov23 := nov22.AddDate(0, 0, 1)
+	nov24 := nov23.AddDate(0, 0, 1)
+	row := func(budget uuid.UUID, period time.Time) gwmodels.BudgetUsage {
+		return gwmodels.BudgetUsage{
+			BudgetID: budget, AllowanceID: allowance, OUID: ou,
+			Allowance: map[string]string{"agent": "support-agent"}, PeriodStart: period, Spent: "9.00",
+		}
+	}
+	warn := func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning {
+		return []gwmodels.BudgetWarning{{
+			BudgetID: stored.BudgetID, AllowanceID: allowance, PeriodStart: stored.PeriodStart,
+			Amount: "8.00", OUID: ou, Threshold: 80,
+		}}
+	}
+	publish := func(context.Context, *gorm.DB, gwmodels.BudgetWarning) error { return nil }
+	require.NoError(t, repo.Record(ctx, []gwmodels.BudgetUsage{
+		row(budgetID, nov22), row(budgetID, nov23), row(budgetID, nov24), row(otherID, nov22),
+	}, warn, publish))
+
+	deleted, err := repo.DeletePeriodsBefore(ctx, budgetID, nov24)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, deleted, "the two past periods go")
+
+	rows, err := repo.ForBudget(ctx, budgetID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.True(t, rows[0].PeriodStart.Equal(nov24), "the current period is kept")
+
+	var warnings []gwmodels.BudgetWarning
+	require.NoError(t, gdb.Where("budget_id = ?", budgetID).Find(&warnings).Error)
+	require.Len(t, warnings, 1, "the past periods' warnings go with them")
+	assert.True(t, warnings[0].PeriodStart.Equal(nov24))
+
+	other, err := repo.ForBudget(ctx, otherID)
+	require.NoError(t, err)
+	assert.Len(t, other, 1, "other budgets keep their periods")
+
+	deleted, err = repo.DeletePeriodsBefore(ctx, budgetID, nov24)
+	require.NoError(t, err)
+	assert.Zero(t, deleted, "nothing left to delete")
+}

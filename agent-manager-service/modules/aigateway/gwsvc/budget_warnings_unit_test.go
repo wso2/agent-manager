@@ -128,6 +128,9 @@ func newWarningsEnv(t *testing.T) *warningsEnv {
 			return out, nil
 		},
 		RecordWarningsFunc: record,
+		DeletePeriodsBeforeFunc: func(context.Context, uuid.UUID, time.Time) (int64, error) {
+			return 0, nil
+		},
 	}
 	gateways := &gwrepomocks.GatewayRepositoryMock{
 		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return &gwmodels.Gateway{OUID: budgetTestOrg}, nil },
@@ -382,4 +385,46 @@ func TestBudgetWarnings_TotalsAFailedWriteLostAreWrittenByTheNextFlush(t *testin
 	row, ok := env.rows[uuid.MustParse("5d6e2c1a-8f3b-5c47-a1d9-7e2b4c6f0a83")]
 	require.True(t, ok, "the kept total is written by the next flush")
 	assert.Equal(t, "80.14", row.Spent)
+}
+
+func TestBudgetWarnings_ANewPeriodDeletesThePastOnes(t *testing.T) {
+	env := newWarningsEnv(t)
+	type call struct {
+		budget uuid.UUID
+		before time.Time
+	}
+	var calls []call
+	fail := true
+	env.usage.DeletePeriodsBeforeFunc = func(_ context.Context, budgetID uuid.UUID, before time.Time) (int64, error) {
+		calls = append(calls, call{budgetID, before})
+		if fail {
+			return 0, errors.New("database unavailable")
+		}
+		return 1, nil
+	}
+	report := func(period, spent string) {
+		u := supportAgentUsage(spent)
+		u.PeriodStart = period
+		env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, u))
+	}
+	nov := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	dec := time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)
+
+	report("2026-11-01", "10.00")
+	require.Len(t, calls, 1, "the first write of a period deletes the earlier ones")
+	assert.Equal(t, call{env.budget.ID, nov}, calls[0])
+
+	fail = false
+	report("2026-11-01", "11.00")
+	require.Len(t, calls, 2, "a failed delete is tried again with the next write")
+
+	report("2026-11-01", "12.00")
+	assert.Len(t, calls, 2, "once per period")
+
+	report("2026-12-01", "1.00")
+	require.Len(t, calls, 3, "the next period deletes again")
+	assert.Equal(t, call{env.budget.ID, dec}, calls[2])
+
+	report("2026-11-01", "13.00")
+	assert.Len(t, calls, 3, "a late report of a past period deletes nothing")
 }

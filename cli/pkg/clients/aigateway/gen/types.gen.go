@@ -1577,7 +1577,7 @@ type AuthInfo struct {
 	Value *string `json:"value,omitempty"`
 }
 
-// Budget A spend limit on LLM traffic, as the Budget kind: the same kind the gateway's API accepts and pipelines keep in files. status is set by the server and ignored in requests.
+// Budget A spend limit on LLM traffic. The body is the gateway's Budget kind, the same document its API accepts and pipelines keep in files. spec.displayName, spec.description and spec.warnings are control-plane fields: they are not sent to gateways, and a gateway ignores them if given. status is set by the server and ignored in requests.
 type Budget struct {
 	ApiVersion BudgetApiVersion `json:"apiVersion"`
 	Kind       BudgetKind       `json:"kind"`
@@ -1761,9 +1761,10 @@ type BudgetServerStatusOrigin string
 
 // BudgetSpec defines model for BudgetSpec.
 type BudgetSpec struct {
+	// Description Control plane only; not sent to gateways
 	Description *string `json:"description,omitempty"`
 
-	// DisplayName Defaults to the name
+	// DisplayName Defaults to the name. Control plane only; not sent to gateways
 	DisplayName *string `json:"displayName,omitempty"`
 
 	// Exemptions Traffic not counted or blocked by this budget
@@ -1774,8 +1775,10 @@ type BudgetSpec struct {
 	Limit   BudgetLimit     `json:"limit"`
 
 	// Status An inactive budget is stored and listed but not enforced
-	Status   *BudgetSpecStatus `json:"status,omitempty"`
-	Warnings *BudgetWarnings   `json:"warnings,omitempty"`
+	Status *BudgetSpecStatus `json:"status,omitempty"`
+
+	// Warnings Warnings the control plane sends to the named notification channels. Control plane only; not sent to gateways.
+	Warnings *BudgetWarnings `json:"warnings,omitempty"`
 }
 
 // BudgetSpecStatus An inactive budget is stored and listed but not enforced
@@ -1800,7 +1803,7 @@ type BudgetUsageListResponse struct {
 	Total       int                    `json:"total"`
 }
 
-// BudgetWarnings defines model for BudgetWarnings.
+// BudgetWarnings Warnings the control plane sends to the named notification channels. Control plane only; not sent to gateways.
 type BudgetWarnings struct {
 	// Channels Names of notification channels (event destinations, unique in the organization) available to the budget
 	Channels []string `json:"channels"`

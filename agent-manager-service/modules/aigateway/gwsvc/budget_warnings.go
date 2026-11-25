@@ -95,6 +95,12 @@ type BudgetWarningService struct {
 	stopCh   chan struct{}
 	stopOnce sync.Once
 	done     sync.WaitGroup
+
+	// keptFrom is, per budget, the period this replica has already deleted the earlier
+	// ones before: when a budget's new period starts, its first write there deletes the
+	// past periods' allowances and warnings, not a schedule.
+	periodMu sync.Mutex
+	keptFrom map[uuid.UUID]time.Time
 }
 
 // pendingUsage is one organization's totals waiting to be written: the highest total
@@ -128,6 +134,7 @@ func NewBudgetWarningService(
 	return &BudgetWarningService{
 		budgets: budgets, usage: usage, gateways: gateways, costs: costs, notifier: notifier,
 		pending: map[string]*pendingUsage{}, flush: flush, stopCh: make(chan struct{}),
+		keptFrom: map[uuid.UUID]time.Time{},
 	}
 }
 
@@ -403,7 +410,44 @@ func (s *BudgetWarningService) record(ctx context.Context, budgets map[uuid.UUID
 		log.Error("Failed to record budget usage", "allowances", len(rows), "error", err)
 		return false
 	}
+	s.dropPastPeriods(ctx, rows, log)
 	return true
+}
+
+// dropPastPeriods deletes, for each budget written, the allowances and warnings of the
+// periods before the latest one written, once per budget and period on this replica: a
+// period's spend no longer counts once the next one starts. A failure is tried again with
+// the budget's next write.
+func (s *BudgetWarningService) dropPastPeriods(ctx context.Context, rows []gwmodels.BudgetUsage,
+	log *slog.Logger,
+) {
+	latest := map[uuid.UUID]time.Time{}
+	for _, r := range rows {
+		if r.PeriodStart.After(latest[r.BudgetID]) {
+			latest[r.BudgetID] = r.PeriodStart
+		}
+	}
+	for budgetID, start := range latest {
+		s.periodMu.Lock()
+		done := !start.After(s.keptFrom[budgetID])
+		s.periodMu.Unlock()
+		if done {
+			continue
+		}
+		deleted, err := s.usage.DeletePeriodsBefore(ctx, budgetID, start)
+		if err != nil {
+			log.Error("Failed to delete a budget's past periods", "budgetId", budgetID, "error", err)
+			continue
+		}
+		s.periodMu.Lock()
+		if start.After(s.keptFrom[budgetID]) {
+			s.keptFrom[budgetID] = start
+		}
+		s.periodMu.Unlock()
+		if deleted > 0 {
+			log.Info("Deleted a budget's past periods", "budgetId", budgetID, "allowances", deleted)
+		}
+	}
 }
 
 // CheckBudget raises the warnings a budget's stored spend already crosses: after an

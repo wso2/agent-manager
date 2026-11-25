@@ -29,8 +29,8 @@ tables:
     indexes: [[gateway_id], [org_id, project_id]]
 
   # One row per budget allowance and period: its spend, as gateways report it.
-  # Spend is a decimal string in USD, compared in code. A crossed warning
-  # threshold is recorded in warned, so each one is sent once per period.
+  # Spend is a decimal string in USD, compared in code. Crossed warning
+  # thresholds are recorded in mod_ai_gateway_budget_warnings.
   - name: mod_ai_gateway_budget_usage
     columns:
       - {name: budget_id, type: id}

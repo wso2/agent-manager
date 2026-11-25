@@ -7421,10 +7421,11 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-          description: Defaults to the name
+          description: Defaults to the name. Control plane only; not sent to gateways
         description:
           type: string
           maxLength: 1023
+          description: Control plane only; not sent to gateways
         status:
           type: string
           enum: [active, inactive]
@@ -7685,8 +7686,10 @@ components:
     Budget:
       type: object
       description: >-
-        A spend limit on LLM traffic, as the Budget kind: the same kind the gateway's API accepts and
-        pipelines keep in files. status is set by the server and ignored in requests.
+        A spend limit on LLM traffic. The body is the gateway's Budget kind, the same document
+        its API accepts and pipelines keep in files. spec.displayName, spec.description and
+        spec.warnings are control-plane fields: they are not sent to gateways, and a gateway
+        ignores them if given. status is set by the server and ignored in requests.
       required: [apiVersion, kind, metadata, spec]
       properties:
         apiVersion:
@@ -7773,6 +7776,9 @@ components:
           format: int64
     BudgetWarnings:
       type: object
+      description: >-
+        Warnings the control plane sends to the named notification channels. Control plane
+        only; not sent to gateways.
       required: [thresholds, channels]
       properties:
         thresholds:

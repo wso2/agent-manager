@@ -50,6 +50,9 @@ type BudgetUsageRepository interface {
 	// RecordWarnings records warnings and publishes those not recorded before, in one
 	// transaction.
 	RecordWarnings(ctx context.Context, warnings []gwmodels.BudgetWarning, publish WarningPublisher) error
+	// DeletePeriodsBefore deletes the budget's allowances of periods that started before
+	// before, with their warnings, in one transaction, and returns how many allowances went.
+	DeletePeriodsBefore(ctx context.Context, budgetID uuid.UUID, before time.Time) (int64, error)
 }
 
 // WarningPublisher publishes a newly recorded warning's event inside tx.
@@ -62,6 +65,25 @@ type budgetUsageRepository struct {
 // NewBudgetUsageRepository creates a BudgetUsageRepository.
 func NewBudgetUsageRepository(db *gorm.DB) BudgetUsageRepository {
 	return &budgetUsageRepository{db: db}
+}
+
+func (r *budgetUsageRepository) DeletePeriodsBefore(ctx context.Context, budgetID uuid.UUID,
+	before time.Time,
+) (int64, error) {
+	var deleted int64
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Warnings first: their rows reference the allowances', and not every database
+		// enforces the cascade.
+		if err := tx.Where("budget_id = ? AND period_start < ?", budgetID, before.UTC()).
+			Delete(&gwmodels.BudgetWarning{}).Error; err != nil {
+			return err
+		}
+		res := tx.Where("budget_id = ? AND period_start < ?", budgetID, before.UTC()).
+			Delete(&gwmodels.BudgetUsage{})
+		deleted = res.RowsAffected
+		return res.Error
+	})
+	return deleted, err
 }
 
 func (r *budgetUsageRepository) Record(ctx context.Context, rows []gwmodels.BudgetUsage,

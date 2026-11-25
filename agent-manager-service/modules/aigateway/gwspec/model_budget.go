@@ -17,7 +17,7 @@ import (
 // checks if the Budget type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &Budget{}
 
-// Budget A spend limit on LLM traffic, as the Budget kind: the same kind the gateway's API accepts and pipelines keep in files. status is set by the server and ignored in requests.
+// Budget A spend limit on LLM traffic. The body is the gateway's Budget kind, the same document its API accepts and pipelines keep in files. spec.displayName, spec.description and spec.warnings are control-plane fields: they are not sent to gateways, and a gateway ignores them if given. status is set by the server and ignored in requests.
 type Budget struct {
 	ApiVersion string              `json:"apiVersion"`
 	Kind       string              `json:"kind"`

@@ -6,6 +6,7 @@ package gwrepomocks
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -18,6 +19,9 @@ import (
 //
 //		// make and configure a mocked gwrepo.BudgetUsageRepository
 //		mockedBudgetUsageRepository := &BudgetUsageRepositoryMock{
+//			DeletePeriodsBeforeFunc: func(ctx context.Context, budgetID uuid.UUID, before time.Time) (int64, error) {
+//				panic("mock out the DeletePeriodsBefore method")
+//			},
 //			ForBudgetFunc: func(ctx context.Context, budgetID uuid.UUID) ([]gwmodels.BudgetUsage, error) {
 //				panic("mock out the ForBudget method")
 //			},
@@ -37,6 +41,9 @@ import (
 //
 //	}
 type BudgetUsageRepositoryMock struct {
+	// DeletePeriodsBeforeFunc mocks the DeletePeriodsBefore method.
+	DeletePeriodsBeforeFunc func(ctx context.Context, budgetID uuid.UUID, before time.Time) (int64, error)
+
 	// ForBudgetFunc mocks the ForBudget method.
 	ForBudgetFunc func(ctx context.Context, budgetID uuid.UUID) ([]gwmodels.BudgetUsage, error)
 
@@ -51,6 +58,15 @@ type BudgetUsageRepositoryMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// DeletePeriodsBefore holds details about calls to the DeletePeriodsBefore method.
+		DeletePeriodsBefore []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// BudgetID is the budgetID argument value.
+			BudgetID uuid.UUID
+			// Before is the before argument value.
+			Before time.Time
+		}
 		// ForBudget holds details about calls to the ForBudget method.
 		ForBudget []struct {
 			// Ctx is the ctx argument value.
@@ -88,10 +104,51 @@ type BudgetUsageRepositoryMock struct {
 			Publish gwrepo.WarningPublisher
 		}
 	}
-	lockForBudget      sync.RWMutex
-	lockForBudgets     sync.RWMutex
-	lockRecord         sync.RWMutex
-	lockRecordWarnings sync.RWMutex
+	lockDeletePeriodsBefore sync.RWMutex
+	lockForBudget           sync.RWMutex
+	lockForBudgets          sync.RWMutex
+	lockRecord              sync.RWMutex
+	lockRecordWarnings      sync.RWMutex
+}
+
+// DeletePeriodsBefore calls DeletePeriodsBeforeFunc.
+func (mock *BudgetUsageRepositoryMock) DeletePeriodsBefore(ctx context.Context, budgetID uuid.UUID, before time.Time) (int64, error) {
+	if mock.DeletePeriodsBeforeFunc == nil {
+		panic("BudgetUsageRepositoryMock.DeletePeriodsBeforeFunc: method is nil but BudgetUsageRepository.DeletePeriodsBefore was just called")
+	}
+	callInfo := struct {
+		Ctx      context.Context
+		BudgetID uuid.UUID
+		Before   time.Time
+	}{
+		Ctx:      ctx,
+		BudgetID: budgetID,
+		Before:   before,
+	}
+	mock.lockDeletePeriodsBefore.Lock()
+	mock.calls.DeletePeriodsBefore = append(mock.calls.DeletePeriodsBefore, callInfo)
+	mock.lockDeletePeriodsBefore.Unlock()
+	return mock.DeletePeriodsBeforeFunc(ctx, budgetID, before)
+}
+
+// DeletePeriodsBeforeCalls gets all the calls that were made to DeletePeriodsBefore.
+// Check the length with:
+//
+//	len(mockedBudgetUsageRepository.DeletePeriodsBeforeCalls())
+func (mock *BudgetUsageRepositoryMock) DeletePeriodsBeforeCalls() []struct {
+	Ctx      context.Context
+	BudgetID uuid.UUID
+	Before   time.Time
+} {
+	var calls []struct {
+		Ctx      context.Context
+		BudgetID uuid.UUID
+		Before   time.Time
+	}
+	mock.lockDeletePeriodsBefore.RLock()
+	calls = mock.calls.DeletePeriodsBefore
+	mock.lockDeletePeriodsBefore.RUnlock()
+	return calls
 }
 
 // ForBudget calls ForBudgetFunc.

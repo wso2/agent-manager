@@ -17,7 +17,7 @@ import (
 // checks if the BudgetWarnings type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &BudgetWarnings{}
 
-// BudgetWarnings struct for BudgetWarnings
+// BudgetWarnings Warnings the control plane sends to the named notification channels. Control plane only; not sent to gateways.
 type BudgetWarnings struct {
 	// Whole percentages of the amount, 1-1000; each once per allowance per period
 	Thresholds []int32 `json:"thresholds"`

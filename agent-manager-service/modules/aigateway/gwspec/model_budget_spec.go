@@ -19,8 +19,9 @@ var _ MappedNullable = &BudgetSpec{}
 
 // BudgetSpec struct for BudgetSpec
 type BudgetSpec struct {
-	// Defaults to the name
+	// Defaults to the name. Control plane only; not sent to gateways
 	DisplayName *string `json:"displayName,omitempty"`
+	// Control plane only; not sent to gateways
 	Description *string `json:"description,omitempty"`
 	// An inactive budget is stored and listed but not enforced
 	Status *string     `json:"status,omitempty"`
