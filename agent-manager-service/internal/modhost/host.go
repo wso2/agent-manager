@@ -619,9 +619,13 @@ func setState(tx *gorm.DB, name, version, state string) (bool, error) {
 // committed unless every installed module activates. A failed catch-up
 // (OnInstall) is returned with the steps: the modules stay installed.
 func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step, error) {
+	checked, err := h.externalPlanReady(ctx, name, withDeps)
+	if err != nil {
+		return nil, err
+	}
 	var steps []Step
 	var trial *view
-	err := h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
+	err = h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
 		if states[name] == StateActive {
 			return &ResolveError{Msg: name + " is already installed and active"}
 		}
@@ -630,7 +634,10 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 			return err
 		}
 		for _, s := range steps {
-			if err := h.schemaReady(ctx, tx, s.Module); err != nil {
+			if !checked[s.Module] {
+				return &ResolveError{Msg: "the modules to install changed while " + name + " was being checked", Hint: "try again"}
+			}
+			if err := h.schemaReady(tx, s.Module); err != nil {
 				return err
 			}
 			if _, err := setState(tx, s.Module, h.manifests[s.Module].Version, StateActive); err != nil {
@@ -665,6 +672,9 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 
 // Enable re-activates a disabled module.
 func (h *Host) Enable(ctx context.Context, name string) error {
+	if err := h.externalReady(ctx, name); err != nil {
+		return err
+	}
 	return h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
 		if states[name] != StateDisabled {
 			return &ResolveError{Msg: fmt.Sprintf("%s is %s, not disabled", name, stateOf(name, states))}
@@ -672,7 +682,7 @@ func (h *Host) Enable(ctx context.Context, name string) error {
 		if _, err := Plan(name, h.manifests, states, false); err != nil {
 			return err
 		}
-		if err := h.schemaReady(ctx, tx, name); err != nil {
+		if err := h.schemaReady(tx, name); err != nil {
 			return err
 		}
 		if err := dropDeliveries(tx, name, dbx.Now().Add(-EventRetention)); err != nil {

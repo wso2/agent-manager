@@ -209,7 +209,11 @@ func (h handlers) exportTraces(w http.ResponseWriter, r *http.Request) {
 
 // listSpans serves GET /api/v1/traces/{traceId}/spans.
 func (h handlers) listSpans(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		h.fail(w, r, badRequest("invalid query: %v", err))
+		return
+	}
 	window, err := parseWindow(query, "asc", defaultLimit)
 	if err != nil {
 		h.fail(w, r, err)

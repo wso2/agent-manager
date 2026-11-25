@@ -317,10 +317,10 @@ func (h *Host) checkCoreTables() error {
 	return nil
 }
 
-// schemaReady is the install/enable precondition: the module's migrations,
-// and its external schema when its store is configured, must already have
-// been applied by Migrate.
-func (h *Host) schemaReady(ctx context.Context, tx *gorm.DB, name string) error {
+// schemaReady is the install/enable precondition: the module's migrations
+// must already have been applied by Migrate. The external schema is checked
+// by externalReady, before the lifecycle transaction.
+func (h *Host) schemaReady(tx *gorm.DB, name string) error {
 	ms, err := loadMigrations(name, h.driver, h.mods[name].Migrations())
 	if err != nil {
 		return err
@@ -335,5 +335,5 @@ func (h *Host) schemaReady(ctx context.Context, tx *gorm.DB, name string) error 
 			Hint: "run `amp migrate` with this binary first; module tables are created at migrate time, not at install",
 		}
 	}
-	return h.externalReady(ctx, name)
+	return nil
 }

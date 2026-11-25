@@ -43,6 +43,10 @@ var externalFile = regexp.MustCompile(`^[0-9]{3}_[a-z0-9_]+\.[a-z0-9]+$`)
 // externalCheckTimeout bounds the install and enable check of an external store.
 const externalCheckTimeout = 10 * time.Second
 
+// externalMigrateTimeout bounds one module's external schema migration, which
+// runs while the generation lock is held.
+const externalMigrateTimeout = 5 * time.Minute
+
 // moduleConfig reads a module's settings, as Runtime.Config does.
 func moduleConfig(name string) func(key string) string {
 	return func(key string) string { return config.Value(config.ModuleConfigKey(name, key)) }
@@ -117,8 +121,12 @@ func (h *Host) migrateExternal(ctx context.Context, name string) (*ExternalResul
 	}
 	res := &ExternalResult{Store: s.Store(), Total: len(ms)}
 	what := fmt.Sprintf("module %s %s schema", name, s.Store())
+	ctx, cancel := context.WithTimeout(ctx, externalMigrateTimeout)
+	defer cancel()
 	err = h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Serialise with other migrators, as the SQL migrations do.
+		// Serialise with other migrators, as the SQL migrations do. The lock
+		// is held across the store's calls, so the history read and the
+		// files applied stay one step; externalMigrateTimeout bounds it.
 		if err := dbx.LockRow(tx, "module_generation", "value", "id = ?", 1); err != nil {
 			return err
 		}
@@ -145,9 +153,36 @@ func (h *Host) migrateExternal(ctx context.Context, name string) (*ExternalResul
 	return res, err
 }
 
+// externalPlanReady runs externalReady for each module installing name would
+// activate, before the lifecycle transaction, so a slow store never holds the
+// generation lock. It returns the modules it checked.
+func (h *Host) externalPlanReady(ctx context.Context, name string, withDeps bool) (map[string]bool, error) {
+	rows, err := loadRows(h.db.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	states := h.effectiveStates(rows)
+	if states[name] == StateActive {
+		// The transaction refuses it.
+		return map[string]bool{}, nil
+	}
+	steps, err := Plan(name, h.manifests, states, withDeps)
+	if err != nil {
+		return nil, err
+	}
+	checked := make(map[string]bool, len(steps))
+	for _, s := range steps {
+		if err := h.externalReady(ctx, s.Module); err != nil {
+			return nil, err
+		}
+		checked[s.Module] = true
+	}
+	return checked, nil
+}
+
 // externalReady refuses a module whose external store is configured but does
 // not hold every schema file of this binary. With no store configured there
-// is nothing to check.
+// is nothing to check. It runs outside the lifecycle transaction.
 func (h *Host) externalReady(ctx context.Context, name string) error {
 	s, _, err := h.externalSchema(name, false)
 	if err != nil || s == nil {

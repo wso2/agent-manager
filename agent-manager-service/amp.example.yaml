@@ -49,3 +49,17 @@ modules:
   #   enabled: true
   #   config:                     # MODULE_WIDGETS_<KEY>, read with Runtime.Config
   #     color: blue
+  # Traces, read from ClickHouse. Without clickhouse.url they come from an empty
+  # in-memory store. The logins are the users in the module's users.xml.
+  # - name: observability
+  #   config:
+  #     clickhouse:
+  #       url: http://clickhouse:8123  # MODULE_OBSERVABILITY_CLICKHOUSE_URL
+  #       database: otel             # MODULE_OBSERVABILITY_CLICKHOUSE_DATABASE
+  #       user: amp_reader           # MODULE_OBSERVABILITY_CLICKHOUSE_USER; required with url
+  #       password: ${file:/run/secrets/clickhouse-reader-password}
+  #       cleaner-user: amp_cleaner  # deletes a deleted agent's spans; unset keeps them until the TTL
+  #       cleaner-password: ${file:/run/secrets/clickhouse-cleaner-password}
+  #       migrator-user: amp_migrator  # applies the schema in `amp migrate`
+  #       migrator-password: ${file:/run/secrets/clickhouse-migrator-password}
+  #       ttl-days: 30               # MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS; set by `amp migrate`

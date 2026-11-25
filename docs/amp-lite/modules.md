@@ -175,7 +175,7 @@ func (module) ExternalSchema(config func(string) string, apply bool) (modkit.Ext
 - The core applies the same rules as for SQL migrations: files in order, each recorded with a sha256 checksum, and a refusal for an edited applied file, an applied version the binary doesn't have, and a new file that sorts before an applied one. Running `amp migrate` again applies nothing.
 - The store keeps the record of what it applied, next to its data (the observability module's is `otel.amp_schema_migrations`), so a store that is recreated is migrated again from scratch.
 - An error wrapping `modkit.ErrNotConfigured` means there is no store, or no login, to migrate: `amp migrate` logs the reason and carries on. This is how `amp serve --migrate` behaves on a server that has only the store's reading login.
-- Installing or enabling a module whose store is configured but missing files is refused with a hint to run `amp migrate`; a store it can't reach is refused too.
+- Installing or enabling a module whose store is configured but missing files is refused with a hint to run `amp migrate`; a store it can't reach is refused too. The check runs before the lifecycle transaction, so a slow store holds no lock.
 - Apply never runs at install or enable, and `amp-core` has no modules, so neither changes for it.
 
 ## Activate and the Runtime
@@ -592,7 +592,7 @@ When a module is disabled:
 - its pages leave the UI manifest, and its permissions leave file sign-in roles and the console's sign-in scopes;
 - its tables and data stay, and events queued for it wait up to 7 days. Uninstall keeps the data too, but drops queued events. Installing or enabling again picks up where it left off.
 
-`amp module uninstall <name> --purge` (also on a module already uninstalled) empties its `mod_<name>_*` tables, deletes its secrets, revokes its workload credentials and forgets it, in one transaction. The tables themselves stay, as in the proof of concept, so installing it again runs no migration; reference data a migration seeded is restored by the module's `OnInstall` (the gateway re-creates its drift scan lease row).
+`amp module uninstall <name> --purge` (also on a module already uninstalled) empties its `mod_<name>_*` tables, deletes its secrets, revokes its workload credentials and forgets it, in one transaction. The tables themselves stay, as in the proof of concept, so installing it again runs no migration; reference data a migration seeded is restored by the module's `OnInstall` (the gateway re-creates its drift scan lease row). Purge does not touch a store outside the core database: the observability module's spans stay in ClickHouse until its TTL removes them.
 
 ## Beyond the proof of concept
 

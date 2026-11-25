@@ -73,6 +73,7 @@ func (m *Store) DeleteAgent(_ context.Context, orgID, agentID string) error {
 			kept = append(kept, e)
 		}
 	}
+	clear(m.entries[len(kept):])
 	m.entries = kept
 	return nil
 }
