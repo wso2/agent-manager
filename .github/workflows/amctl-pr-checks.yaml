@@ -6,6 +6,8 @@ on:
     paths:
       - "cli/**"
       - "scripts/build-amctl.sh"
+      - "scripts/coverage/**"
+      - ".github/actions/coverage-exception-label/**"
       - ".github/workflows/amctl-pr-checks.yaml"
 
 permissions:
@@ -15,15 +17,20 @@ jobs:
   checks:
     name: PR Checks
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read # the coverage-exception label
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     defaults:
       run:
         working-directory: cli
     steps:
+      # The full history, so the coverage gate can diff against the base branch.
       - name: Checkout code
         uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Go
@@ -68,6 +75,11 @@ jobs:
         if: ${{ !cancelled() }}
         run: go test -mod=readonly -race -coverprofile=coverage.out ./...
 
+      - name: Read the coverage-exception label
+        id: label
+        if: ${{ !cancelled() }}
+        uses: ./.github/actions/coverage-exception-label
+
       - name: Check coverage
         if: ${{ !cancelled() }}
         working-directory: .
@@ -76,8 +88,13 @@ jobs:
             --module github.com/wso2/agent-manager/cli \
             --exclude-file cli/coverage-excludes.txt \
             --out cli/coverage-summary.json
-          python3 scripts/coverage/ratchet.py cli/coverage-summary.json \
-            cli/coverage-baseline.json --title "amctl coverage"
+          python3 scripts/coverage/gate.py cli/coverage-summary.json \
+            cli/coverage-gate.json --title "amctl coverage" \
+            --go-profile cli/coverage.out --require-profiles \
+            --module github.com/wso2/agent-manager/cli --module-dir cli \
+            --exclude-file cli/coverage-excludes.txt \
+            --base "origin/${{ github.base_ref }}" \
+            ${{ steps.label.outputs.exempt == 'true' && '--exempt' || '' }}
 
       - name: Build CLI
         if: ${{ !cancelled() }}

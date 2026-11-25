@@ -1,0 +1,25 @@
+name: Coverage scripts
+
+on:
+  pull_request:
+    branches: ["main", "amp-2.x"]
+    paths:
+      - "scripts/coverage/**"
+      - ".github/workflows/coverage-scripts-checks.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Run the coverage script tests
+        run: python3 -m unittest discover -s scripts/coverage/tests -v

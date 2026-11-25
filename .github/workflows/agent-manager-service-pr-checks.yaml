@@ -5,6 +5,8 @@ on:
     branches: ["main", "amp-2.x"]
     paths:
       - "agent-manager-service/**"
+      - "scripts/coverage/**"
+      - ".github/actions/coverage-exception-label/**"
       - ".github/workflows/agent-manager-service-pr-checks.yaml"
 
 # Default token scope is read-only; jobs that publish, push or deploy
@@ -177,19 +179,24 @@ jobs:
     name: Coverage
     needs: [unit, integration]
     if: ${{ !cancelled() }}
+    permissions:
+      contents: read
+      pull-requests: read # the coverage-exception label
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
+      # The full history, so the gate can diff against the base branch.
       - name: Checkout code
         uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
       # A failed test job may not have uploaded its profile; the summary
-      # skips missing profiles.
+      # skips missing profiles and the gate then fails on them.
       - name: Download unit coverage
         continue-on-error: true
         uses: actions/download-artifact@v8
@@ -222,11 +229,24 @@ jobs:
             --out coverage/summary.json \
             --profile-out coverage/merged.out
 
-      - name: Compare with baseline
+      - name: Read the coverage-exception label
+        id: label
+        uses: ./.github/actions/coverage-exception-label
+
+      - name: Check coverage
         run: |
-          python3 scripts/coverage/ratchet.py coverage/summary.json \
-            agent-manager-service/coverage-baseline.json \
-            --title "agent-manager-service coverage"
+          python3 scripts/coverage/gate.py coverage/summary.json \
+            agent-manager-service/coverage-gate.json \
+            --title "agent-manager-service coverage" \
+            --go-profile coverage/unit/coverage-unit.out \
+            --go-profile coverage/sqlite/coverage-integration.out \
+            --go-profile coverage/postgres/coverage-integration.out \
+            --require-profiles \
+            --module github.com/wso2/agent-manager/agent-manager-service \
+            --module-dir agent-manager-service \
+            --exclude-file agent-manager-service/coverage-excludes.txt \
+            --base "origin/${{ github.base_ref }}" \
+            ${{ steps.label.outputs.exempt == 'true' && '--exempt' || '' }}
 
       - name: Generate HTML report
         if: ${{ !cancelled() }}

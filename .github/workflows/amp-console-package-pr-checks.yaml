@@ -6,8 +6,8 @@ on:
     paths:
       - "console/**"
       - ".github/workflows/amp-console-package-pr-checks.yaml"
-      - "scripts/coverage/console_summary.py"
-      - "scripts/coverage/ratchet.py"
+      - "scripts/coverage/**"
+      - ".github/actions/coverage-exception-label/**"
 
 permissions:
   contents: read
@@ -15,6 +15,9 @@ permissions:
 jobs:
   check:
     name: ${{ matrix.task }}
+    permissions:
+      contents: read
+      pull-requests: read # the coverage-exception label
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     strategy:
@@ -25,8 +28,12 @@ jobs:
       run:
         working-directory: console
     steps:
+      # The test leg takes the full history, so the coverage gate can diff
+      # against the base branch.
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: ${{ matrix.task == 'test' && 0 || 1 }}
 
       - name: Setup Node.js and pnpm
         uses: ./.github/actions/setup-console-node
@@ -42,14 +49,21 @@ jobs:
       - name: Run ${{ matrix.task }}
         run: pnpm ${{ matrix.task == 'test' && 'test:coverage' || matrix.task }}
 
-      # Fails when a package's line coverage drops more than 0.5 points below
-      # console/coverage-baseline.json.
-      - name: Check coverage against the baseline
+      - name: Read the coverage-exception label
+        id: label
+        if: matrix.task == 'test'
+        uses: ./.github/actions/coverage-exception-label
+
+      # Minimums and changed-line coverage from console/coverage-gate.json.
+      - name: Check coverage
         if: matrix.task == 'test'
         run: |
           python3 ../scripts/coverage/console_summary.py "$RUNNER_TEMP/console-coverage.json"
-          python3 ../scripts/coverage/ratchet.py "$RUNNER_TEMP/console-coverage.json" \
-            coverage-baseline.json --title "Console coverage"
+          python3 ../scripts/coverage/gate.py "$RUNNER_TEMP/console-coverage.json" \
+            coverage-gate.json --title "Console coverage" \
+            --console-root . --repo-root .. \
+            --base "origin/${{ github.base_ref }}" \
+            ${{ steps.label.outputs.exempt == 'true' && '--exempt' || '' }}
 
       - name: Upload coverage reports
         if: ${{ !cancelled() && matrix.task == 'test' }}
