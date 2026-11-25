@@ -467,7 +467,7 @@ Organizations are not deleted in Lite.
 
 ### AI Hub module tables
 
-The `ai-hub` module (`modules/aihub`) creates its three tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
+The `ai-hub` module (`modules/aihub`) creates its four tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` and `002_subscriptions.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
 
 **mod_ai_hub_subscription_plans**: one row per plan of an organization.
 
@@ -509,6 +509,23 @@ PK (plan_id, condition_id).
 | recorded_at | time | no | When the deletion was recorded here; rows older than 30 days are pruned |
 
 PK (org_id, handle).
+
+**mod_ai_hub_subscriptions**: subscriptions to an MCP proxy on a plan, copied in from the developer portal where the subscriber subscribed. One per subscriber and MCP proxy. The subscription key is not in this table: it is in the core's `secrets` table at `subscriptions/<id>/token`, encrypted with the core's key, and gateways get it to hash.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK. Gateways know the subscription by it |
+| org_id | ID | no | The organization's id (no foreign key) |
+| source_id | short text (64) | no | The subscription's id at the portal. Unique per organization |
+| artifact_kind | short text (32) | no | `Mcp` |
+| artifact_handle | short text (255) | no | The MCP proxy's handle (the portal's `referenceId`) |
+| plan_id | ID | no | The plan's id |
+| subscriber_id | short text (255) | no | The subscriber at the portal. Unique per organization, artifact kind and handle |
+| status | short text (16) | no | `ACTIVE` or `INACTIVE` |
+| created_at, updated_at | time | no | |
+| source_changed_at | time | no | When the subscription last changed at the portal, by its clock; an older event changes nothing |
+
+Unique (org_id, source_id), (org_id, artifact_kind, artifact_handle, subscriber_id) and (org_id, id).
 
 ## Known differences from the code
 

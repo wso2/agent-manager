@@ -90,23 +90,14 @@ func PlanChangeHandler(plans func() (subplanv1.Source, bool), gateways PlanGatew
 // maxPlanResends bounds how often one delivery sends a plan again because a newer state was claimed meanwhile.
 const maxPlanResends = 3
 
-// currentPlan reads the plan from the module that owns plans. found is false while that module is inactive or
-// when the plan is gone.
+// currentPlan reads the plan from the module that owns plans: that plan alone (GetPlan). found is false
+// while that module is inactive or when the plan is gone.
 func currentPlan(ctx context.Context, plans func() (subplanv1.Source, bool), orgID, planID string) (subplanv1.Plan, bool, error) {
 	source, ok := plans()
 	if !ok {
 		return subplanv1.Plan{}, false, nil
 	}
-	list, err := source.ListPlans(ctx, orgID)
-	if err != nil {
-		return subplanv1.Plan{}, false, err
-	}
-	for _, p := range list {
-		if p.ID == planID {
-			return p, true, nil
-		}
-	}
-	return subplanv1.Plan{}, false, nil
+	return source.GetPlan(ctx, orgID, planID)
 }
 
 // sentVersions remembers, per plan, the newest state this replica has sent (its updatedAt).

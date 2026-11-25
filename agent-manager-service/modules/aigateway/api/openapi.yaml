@@ -8857,6 +8857,17 @@ components:
         - name
         - version
       properties:
+        subscriptionPlans:
+          type: array
+          description: |
+            Handles of the subscription plans the MCP proxy offers, for every endpoint. Each added plan must be an
+            active plan of the organization; a plan the proxy already offers can stay after it is deactivated. On
+            update, leaving it out keeps the offered plans and an empty list offers none. Needs the ai-hub module.
+            A plan is enforced only where subscription-validation v2 (and subscription-tool-ratelimit for tool-call
+            limits) are attached to the endpoint; once they are, calls without an active subscription get 403.
+          items:
+            type: string
+          example: ["gold", "silver"]
         id:
           type: string
           description: Unique handle for the MCP proxy
@@ -8917,6 +8928,12 @@ components:
         - name
         - version
       properties:
+        subscriptionPlans:
+          type: array
+          description: Handles of the subscription plans the MCP proxy offers; empty when it offers none.
+          items:
+            type: string
+          example: ["gold", "silver"]
         id:
           type: string
           description: Unique handle for the MCP proxy

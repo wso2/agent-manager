@@ -633,6 +633,8 @@ type CreateMCPProxyRequest struct {
 	// Endpoints are the deployable endpoint definitions. Each endpoint is deployed to the
 	// environments listed in its Environments block on create/update.
 	Endpoints []MCPProxyEndpoint `json:"endpoints,omitempty"`
+	// SubscriptionPlans are the handles of the plans the proxy offers (needs the ai-hub module).
+	SubscriptionPlans []string `json:"subscriptionPlans,omitempty"`
 }
 
 type MCPProxyResponse struct {
@@ -645,10 +647,11 @@ type MCPProxyResponse struct {
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
 	InCatalog      bool    `json:"inCatalog"`
 	// Gateways aggregates the gateways across all per-endpoint/per-environment artifacts deployed.
-	Gateways  []string           `json:"gateways,omitempty"`
-	Endpoints []MCPProxyEndpoint `json:"endpoints,omitempty"`
-	CreatedBy *string            `json:"createdBy,omitempty"`
-	CreatedAt *time.Time         `json:"createdAt,omitempty"`
+	Gateways          []string           `json:"gateways,omitempty"`
+	Endpoints         []MCPProxyEndpoint `json:"endpoints,omitempty"`
+	SubscriptionPlans []string           `json:"subscriptionPlans,omitempty"`
+	CreatedBy         *string            `json:"createdBy,omitempty"`
+	CreatedAt         *time.Time         `json:"createdAt,omitempty"`
 }
 
 type MCPProxyListItem struct {
@@ -1123,8 +1126,18 @@ type SubscriptionPlanResponse struct {
 	Description string          `json:"description"`
 	Status      string          `json:"status"`
 	Conditions  []PlanCondition `json:"conditions"`
-	CreatedAt   string          `json:"createdAt"`
-	UpdatedAt   string          `json:"updatedAt"`
+	// Usage is what offers or uses the plan; the plan read returns it, the list doesn't.
+	Usage     *SubscriptionPlanUsage `json:"usage,omitempty"`
+	CreatedAt string                 `json:"createdAt"`
+	UpdatedAt string                 `json:"updatedAt"`
+}
+
+// SubscriptionPlanUsage is what offers or uses a plan. A plan in use can't be deleted, renamed or have its
+// conditions changed.
+type SubscriptionPlanUsage struct {
+	InUse         bool `json:"inUse"`
+	MCPProxies    int  `json:"mcpProxies"`
+	Subscriptions int  `json:"subscriptions"`
 }
 
 // SubscriptionPlanListResponse is a page of subscription plans.

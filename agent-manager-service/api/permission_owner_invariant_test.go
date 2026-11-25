@@ -33,6 +33,21 @@ import (
 // mounted routes.
 var manifestOnlyModules = map[string]bool{"ai-hub": true}
 
+// manifestOnlyScopes are the scopes of the manifest-only modules' permissions ("amp:ai-hub:plan-read").
+func manifestOnlyScopes() map[string]bool {
+	scopes := map[string]bool{}
+	for _, m := range modkit.Registered() {
+		mf := m.Manifest()
+		if !manifestOnlyModules[mf.Name] {
+			continue
+		}
+		for _, p := range mf.Permissions {
+			scopes["amp:"+mf.PermissionName(p.Name)] = true
+		}
+	}
+	return scopes
+}
+
 // manifestRegistry is the permission registry of the core plus the linked
 // modules, which together declare every permission of the full distribution.
 func manifestRegistry(t *testing.T) *rbac.Registry {

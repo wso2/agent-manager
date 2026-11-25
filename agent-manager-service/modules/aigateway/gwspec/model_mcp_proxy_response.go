@@ -20,6 +20,8 @@ var _ MappedNullable = &MCPProxyResponse{}
 
 // MCPProxyResponse struct for MCPProxyResponse
 type MCPProxyResponse struct {
+	// Handles of the subscription plans the MCP proxy offers; empty when it offers none.
+	SubscriptionPlans []string `json:"subscriptionPlans,omitempty"`
 	// Unique handle for the MCP proxy
 	Id string `json:"id"`
 	// Human-readable name of the MCP proxy
@@ -68,6 +70,38 @@ func NewMCPProxyResponse(id string, name string, version string) *MCPProxyRespon
 func NewMCPProxyResponseWithDefaults() *MCPProxyResponse {
 	this := MCPProxyResponse{}
 	return &this
+}
+
+// GetSubscriptionPlans returns the SubscriptionPlans field value if set, zero value otherwise.
+func (o *MCPProxyResponse) GetSubscriptionPlans() []string {
+	if o == nil || IsNil(o.SubscriptionPlans) {
+		var ret []string
+		return ret
+	}
+	return o.SubscriptionPlans
+}
+
+// GetSubscriptionPlansOk returns a tuple with the SubscriptionPlans field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyResponse) GetSubscriptionPlansOk() ([]string, bool) {
+	if o == nil || IsNil(o.SubscriptionPlans) {
+		return nil, false
+	}
+	return o.SubscriptionPlans, true
+}
+
+// HasSubscriptionPlans returns a boolean if a field has been set.
+func (o *MCPProxyResponse) HasSubscriptionPlans() bool {
+	if o != nil && !IsNil(o.SubscriptionPlans) {
+		return true
+	}
+
+	return false
+}
+
+// SetSubscriptionPlans gets a reference to the given []string and assigns it to the SubscriptionPlans field.
+func (o *MCPProxyResponse) SetSubscriptionPlans(v []string) {
+	o.SubscriptionPlans = v
 }
 
 // GetId returns the Id field value
@@ -504,6 +538,9 @@ func (o MCPProxyResponse) MarshalJSON() ([]byte, error) {
 
 func (o MCPProxyResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	if !IsNil(o.SubscriptionPlans) {
+		toSerialize["subscriptionPlans"] = o.SubscriptionPlans
+	}
 	toSerialize["id"] = o.Id
 	toSerialize["name"] = o.Name
 	if !IsNil(o.Description) {

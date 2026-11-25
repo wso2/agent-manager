@@ -77,6 +77,7 @@ import {
 import {
   CreatedMetadata,
   PageLayout,
+  useIsUIModuleInstalled,
 } from "@agent-management-platform/views";
 import { MCPProxyManageToolsTab } from "./MCPProxyManageToolsTab";
 import { MCPProxyConnectionTab } from "./MCPProxyConnectionTab";
@@ -84,33 +85,41 @@ import { MCPProxyOverviewTab } from "./MCPProxyOverviewTab";
 import { MCPProxyPoliciesTab } from "./MCPProxyPoliciesTab";
 import { MCPProxyRewriteTab } from "./MCPProxyRewriteTab";
 import { MCPProxySecurityTab } from "./MCPProxySecurityTab";
+import { MCPProxySubscriptionPlansTab } from "./MCPProxySubscriptionPlansTab";
 import { getCapabilityId } from "./mcpEndpoints";
 import { useCopyWithFeedback } from "./useCopyWithFeedback";
 
 // slug is a URL-safe stand-in for each tab, so the selected tab (and
 // environment, below) are shareable/deep-linkable and survive a page reload
 // instead of resetting to Overview/first-environment.
-const TAB_DEFS = [
+const BASE_TABS = [
   { label: "Overview", slug: "overview" },
   { label: "Connection", slug: "connection" },
   { label: "Manage Tools", slug: "manage-tools" },
   { label: "Security", slug: "security" },
   { label: "Rewrite", slug: "rewrite" },
   { label: "Policies", slug: "policies" },
-] as const;
+];
+// Plans belong to the AI Hub module: the tab is there only while it is.
+const PLANS_TAB = { label: "Subscription Plans", slug: "subscription-plans" };
 
 export function ViewMCPProxy() {
   const { orgId, proxyId } = useParams<{ orgId: string; proxyId: string }>();
   const routeProxyId = proxyId ?? "";
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const aihubPresent = useIsUIModuleInstalled("ai-hub") === true;
+  const tabDefs = useMemo(
+    () => (aihubPresent ? [...BASE_TABS, PLANS_TAB] : BASE_TABS),
+    [aihubPresent],
+  );
   const tabSlug = searchParams.get("tab");
   const tabIndex = tabSlug
-    ? Math.max(0, TAB_DEFS.findIndex((tab) => tab.slug === tabSlug))
+    ? Math.max(0, tabDefs.findIndex((tab) => tab.slug === tabSlug))
     : 0;
   // Render blocks below key off the slug, not the raw index, so reordering or
-  // removing a tab in TAB_DEFS doesn't require manually renumbering every block.
-  const activeTabSlug = TAB_DEFS[tabIndex]?.slug;
+  // removing a tab in tabDefs doesn't require manually renumbering every block.
+  const activeTabSlug = tabDefs[tabIndex]?.slug;
   const selectedEndpointId = searchParams.get("endpoint") ?? "";
 
   const navigate = useNavigate();
@@ -235,14 +244,14 @@ export function ViewMCPProxy() {
         setSearchParams(
           (prev) => {
             const next = new URLSearchParams(prev);
-            next.set("tab", TAB_DEFS[value].slug);
+            next.set("tab", tabDefs[value].slug);
             return next;
           },
           { replace: true },
         ),
       );
     },
-    [guardUnsaved, setSearchParams],
+    [guardUnsaved, setSearchParams, tabDefs],
   );
 
   const handleCopy = useCopyWithFeedback();
@@ -381,6 +390,20 @@ export function ViewMCPProxy() {
       });
     },
     [orgId, proxy, selectedEndpointId, updateMCPProxy],
+  );
+
+  // Saves the plans the proxy offers; they belong to the whole proxy, not to one endpoint.
+  const saveSubscriptionPlans = useCallback(
+    async (subscriptionPlans: string[], nextEndpoints?: MCPProxyEndpoint[]) => {
+      if (!orgId || !proxy?.id) {
+        throw new Error("MCP proxy is not loaded.");
+      }
+      return updateMCPProxy.mutateAsync({
+        params: { orgName: orgId, proxyId: proxy.id },
+        body: { ...proxy, subscriptionPlans, ...(nextEndpoints && { endpoints: nextEndpoints }) },
+      });
+    },
+    [orgId, proxy, updateMCPProxy],
   );
 
   const displayName = proxy?.name ?? proxy?.id ?? proxyId ?? "MCP Server";
@@ -567,7 +590,7 @@ export function ViewMCPProxy() {
                   sx={{ pr: 2 }}
                 >
                   <Tabs value={tabIndex} onChange={handleTabChange}>
-                    {TAB_DEFS.map((tab) => (
+                    {tabDefs.map((tab) => (
                       <Tab key={tab.slug} label={tab.label} />
                     ))}
                   </Tabs>
@@ -638,6 +661,14 @@ export function ViewMCPProxy() {
                       isLoading={isTabContentLoading}
                       onUpdate={updateSelectedEndpointConfig}
                       isUpdating={updateMCPProxy.isPending}
+                    />
+                  )}
+                  {activeTabSlug === "subscription-plans" && proxy && (
+                    <MCPProxySubscriptionPlansTab
+                      proxy={proxy}
+                      orgName={orgId}
+                      onSave={saveSubscriptionPlans}
+                      isSaving={updateMCPProxy.isPending}
                     />
                   )}
                   {activeTabSlug === "policies" && (

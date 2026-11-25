@@ -35,25 +35,7 @@ var _ = Describe("Subscription Plans", Label("ai-hub", "subscription-plans"), Or
 	var planID string
 
 	BeforeAll(func() {
-		// The AI Hub is an optional module: an operator installs it with `amp module install ai-hub`. On a stack
-		// without it these specs have nothing to test.
-		resp, err := Client.Get("/api/v1/ui-manifest")
-		Expect(err).NotTo(HaveOccurred())
-		defer resp.Body.Close()
-		manifest := framework.ExpectStatusAndDecode[struct {
-			Modules []struct {
-				Name string `json:"name"`
-			} `json:"modules"`
-			Pages []string `json:"pages"`
-		}](Default, resp, http.StatusOK)
-		installed := false
-		for _, m := range manifest.Modules {
-			installed = installed || m.Name == "ai-hub"
-		}
-		if !installed {
-			Skip("the AI Hub module is not installed (amp module install ai-hub)")
-		}
-		Expect(manifest.Pages).To(ContainElement("ai-hub/subscription-plans"))
+		skipWithoutAIHub()
 		planID = "e2e-test-plan-" + uuid.New().String()[:8]
 	})
 

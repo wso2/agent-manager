@@ -19,6 +19,7 @@ package aihub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
@@ -33,10 +34,41 @@ import (
 var gatewayUnits = map[string]bool{"MINUTE": true, "HOUR": true, "DAY": true, "MONTH": true}
 
 // planSource lists an organization's plans for its gateways.
-type planSource struct{ plans *planService }
+type planSource struct {
+	plans         *planService
+	subscriptions *subscriptionService
+}
 
 // ChangeEvent is the event the module publishes when a plan changes.
 func (planSource) ChangeEvent() string { return EventPlanChanged }
+
+// CountOffersWith takes the AI Gateway's count of the MCP proxies that offer a plan.
+func (s planSource) CountOffersWith(count subplanv1.OfferCounter) { s.plans.offers.Store(&count) }
+
+// GetPlan reads one plan by its ID, for a gateway push of that plan alone.
+func (s planSource) GetPlan(ctx context.Context, orgID, planID string) (subplanv1.Plan, bool, error) {
+	p, err := s.plans.getByID(ctx, orgID, planID)
+	if errors.Is(err, errPlanNotFound) {
+		return subplanv1.Plan{}, false, nil
+	}
+	if err != nil {
+		return subplanv1.Plan{}, false, err
+	}
+	return gatewayPlan(p.UUID, p.Handle, p.Name, p.Status, p.Conditions, p), true, nil
+}
+
+// ListSubscriptions lists the subscriptions to an artifact, with their keys, for gateways.
+func (s planSource) ListSubscriptions(ctx context.Context, orgID, kind, handle string) ([]subplanv1.Subscription, error) {
+	return s.subscriptions.list(ctx, orgID, kind, handle)
+}
+
+// GetSubscription reads one subscription, with its key.
+func (s planSource) GetSubscription(ctx context.Context, orgID, id string) (subplanv1.Subscription, bool, error) {
+	return s.subscriptions.get(ctx, orgID, id)
+}
+
+// SubscriptionChangeEvent is the event the module publishes when a subscription changes.
+func (planSource) SubscriptionChangeEvent() string { return EventSubscriptionChanged }
 
 // pageSize bounds one read of the plans; ListPlans reads them all, page by page.
 const pageSize = 500

@@ -1,0 +1,114 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwsvc
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+)
+
+const planStatusActive = "ACTIVE"
+
+// offeredPlans checks the subscription plans an MCP proxy is asked to offer and returns the handles to store:
+// trimmed, without repeats, in the order given. A nil request is returned as nil, which on update keeps the
+// stored list; an empty list offers none. Each added plan must exist in the organization and be active; one
+// the proxy already offers stays, even after the plan is deactivated. Plans come from the module that owns
+// them (subscription.plans/v1), so without it no plan can be added.
+func (s *MCPProxyService) offeredPlans(ctx context.Context, orgUUID string, requested *[]string, current []string) ([]string, error) {
+	if requested == nil {
+		return nil, nil
+	}
+	handles := make([]string, 0, len(*requested))
+	for _, h := range *requested {
+		if h = strings.TrimSpace(h); h != "" && !slices.Contains(handles, h) {
+			handles = append(handles, h)
+		}
+	}
+	if len(handles) == 0 {
+		if len(*requested) > 0 {
+			return nil, fmt.Errorf("%w: subscriptionPlans must name a plan; send an empty list to offer none",
+				httpx.ErrInvalidInput)
+		}
+		return handles, nil
+	}
+	// Plans the proxy already offers are kept as they are, so saving another part of the proxy works even
+	// while the plans module is off. Only added plans are checked.
+	added := slices.DeleteFunc(slices.Clone(handles), func(h string) bool { return slices.Contains(current, h) })
+	if len(added) == 0 {
+		return handles, nil
+	}
+	if s.plans == nil {
+		return nil, fmt.Errorf("%w: subscription plans are not available, as the AI Hub module is not installed",
+			httpx.ErrInvalidInput)
+	}
+	source, ok := s.plans.Source()
+	if !ok {
+		return nil, fmt.Errorf("%w: subscription plans are not available, as the AI Hub module is not installed",
+			httpx.ErrInvalidInput)
+	}
+	plans, err := source.ListPlans(ctx, orgUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list subscription plans: %w", err)
+	}
+	status := make(map[string]string, len(plans))
+	for _, p := range plans {
+		status[p.Handle] = p.Status
+	}
+	for _, h := range added {
+		if st, found := status[h]; !found || st != planStatusActive {
+			return nil, fmt.Errorf("%w: subscription plan %q was not found or is not active", httpx.ErrInvalidInput, h)
+		}
+	}
+	return handles, nil
+}
+
+// offeredPlansDTO is the list a response shows: never nil, so a proxy that offers no plan shows [].
+func offeredPlansDTO(handles []string) *[]string {
+	out := append([]string{}, handles...)
+	return &out
+}
+
+// PlanOffers counts the MCP proxies that offer a plan. The AI Gateway hands it to the module that owns plans
+// (subplanv1.Source.CountOffersWith), which keeps a plan in use while a proxy offers it.
+type PlanOffers struct{ db *gorm.DB }
+
+// NewPlanOffers returns the counter over the module's MCP proxy table.
+func NewPlanOffers(db *gorm.DB) PlanOffers { return PlanOffers{db: db} }
+
+// ProxiesOffering counts the organization's MCP proxies whose configuration lists the plan. The list is in a
+// JSON column, read the same way on every database.
+func (o PlanOffers) ProxiesOffering(ctx context.Context, orgID, handle string) (int, error) {
+	var proxies []gwmodels.MCPProxy
+	if err := o.db.WithContext(ctx).Select("id", "configuration").
+		Where("org_id = ?", orgID).Find(&proxies).Error; err != nil {
+		return 0, fmt.Errorf("failed to read MCP proxy plans: %w", err)
+	}
+	n := 0
+	for _, p := range proxies {
+		if slices.Contains(p.Configuration.SubscriptionPlans, handle) {
+			n++
+		}
+	}
+	return n, nil
+}

@@ -75,10 +75,62 @@ type Plan struct {
 	UpdatedAt          time.Time
 }
 
-// Source lists an organization's subscription plans.
+// Source lists an organization's subscription plans, and the subscriptions to them.
 type Source interface {
 	ListPlans(ctx context.Context, orgID string) ([]Plan, error)
+	// GetPlan reads one plan by its ID. found is false when the organization has no such plan.
+	GetPlan(ctx context.Context, orgID, planID string) (plan Plan, found bool, err error)
 	// ChangeEvent is the event type, declared in the provider's manifest as <module>.<event>, that the
 	// provider publishes with a PlanChange whenever a plan is created, changed or deleted.
 	ChangeEvent() string
+	// CountOffersWith hands the provider a count of what offers a plan (the MCP proxies of a gateway), so a
+	// plan in use keeps its name and conditions and can't be deleted. The consumer calls it on every
+	// activation; nil stops counting.
+	CountOffersWith(count OfferCounter)
+
+	// ListSubscriptions lists the subscriptions to one artifact (an MCP proxy: kind ArtifactKindMCP and its
+	// handle), with their tokens, for gateways to pull.
+	ListSubscriptions(ctx context.Context, orgID, artifactKind, artifactHandle string) ([]Subscription, error)
+	// GetSubscription reads one subscription by its ID. found is false when it is gone.
+	GetSubscription(ctx context.Context, orgID, subscriptionID string) (sub Subscription, found bool, err error)
+	// SubscriptionChangeEvent is the event the provider publishes, with a SubscriptionChange, whenever a
+	// subscription is created, changed or deleted.
+	SubscriptionChangeEvent() string
 }
+
+// ArtifactKindMCP is the kind of an MCP proxy in a subscription, as developer portals and gateways name it.
+const ArtifactKindMCP = "Mcp"
+
+// Subscription statuses.
+const (
+	SubscriptionActive   = "ACTIVE"
+	SubscriptionInactive = "INACTIVE"
+)
+
+// Subscription is a subscriber's subscription to an artifact on a plan. Token is the subscription key the
+// subscriber sends (the Subscription-Key header); gateways keep only its hash.
+type Subscription struct {
+	ID             string
+	ArtifactKind   string // ArtifactKindMCP
+	ArtifactHandle string // the MCP proxy's handle
+	PlanID         string // the plan's ID, as gateways know it
+	PlanHandle     string
+	SubscriberID   string
+	Token          string
+	Status         string // SubscriptionActive or SubscriptionInactive
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// SubscriptionChange is what the provider's subscription event carries. A deleted subscription is named
+// by its ID and artifact only; read the others back with GetSubscription.
+type SubscriptionChange struct {
+	OrgID          string `json:"orgId"`
+	SubscriptionID string `json:"subscriptionId"`
+	ArtifactKind   string `json:"artifactKind"`
+	ArtifactHandle string `json:"artifactHandle"`
+	Action         Action `json:"action"`
+}
+
+// OfferCounter counts what in an organization offers the plan with this handle.
+type OfferCounter func(ctx context.Context, orgID, handle string) (int, error)

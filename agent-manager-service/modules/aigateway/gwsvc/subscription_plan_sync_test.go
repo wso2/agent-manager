@@ -35,6 +35,27 @@ func (l planList) ListPlans(context.Context, string) ([]subplanv1.Plan, error) {
 
 func (planList) ChangeEvent() string { return "ai-hub.plan_changed" }
 
+func (planList) CountOffersWith(subplanv1.OfferCounter) {}
+
+func (l planList) GetPlan(_ context.Context, _ string, id string) (subplanv1.Plan, bool, error) {
+	for _, p := range l {
+		if p.ID == id {
+			return p, true, nil
+		}
+	}
+	return subplanv1.Plan{}, false, nil
+}
+
+func (planList) ListSubscriptions(context.Context, string, string, string) ([]subplanv1.Subscription, error) {
+	return nil, nil
+}
+
+func (planList) GetSubscription(context.Context, string, string) (subplanv1.Subscription, bool, error) {
+	return subplanv1.Subscription{}, false, nil
+}
+
+func (planList) SubscriptionChangeEvent() string { return "ai-hub.subscription_changed" }
+
 type sentChange struct {
 	org    string
 	action subplanv1.Action

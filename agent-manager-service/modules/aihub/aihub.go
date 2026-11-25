@@ -47,6 +47,10 @@ const Name = "ai-hub"
 // and pushes the change to the organization's gateways.
 const EventPlanChanged = Name + ".plan_changed"
 
+// EventSubscriptionChanged is published, in the same transaction, when a subscription is created, changed or
+// deleted, with a subplanv1.SubscriptionChange. The AI Gateway sends the change to the organization's gateways.
+const EventSubscriptionChanged = Name + ".subscription_changed"
+
 // Permissions, by their short names: the host names them ai-hub:<name>, and each action
 // has its own, so the audit trail names it.
 const (
@@ -56,8 +60,9 @@ const (
 	PermPlanDelete = "plan-delete"
 )
 
-// ActionPlanSync is the audit action of a webhook delivery that creates, changes or deletes a plan.
-const ActionPlanSync = "plan-sync"
+// ActionPortalSync is the audit action of a developer portal's webhook delivery, which creates, changes or
+// deletes a plan or a subscription.
+const ActionPortalSync = "portal-sync"
 
 func init() { modkit.Register(Module()) }
 
@@ -90,11 +95,12 @@ func (module) Manifest() modkit.Manifest {
 		},
 		Events: []modkit.EventType{
 			{Name: EventPlanChanged, Description: "A subscription plan was created, changed or deleted."},
+			{Name: EventSubscriptionChanged, Description: "A subscription was created, changed or deleted."},
 		},
 		AuditActions: []modkit.AuditAction{
 			// A plan made in a developer portal, copied in by a signed webhook delivery: a change to the
 			// organization's configuration, made on the internal server.
-			{Name: ActionPlanSync, Description: "Copy in a subscription plan from a developer portal"},
+			{Name: ActionPortalSync, Description: "Copy in a subscription plan or a subscription from a developer portal"},
 		},
 		// The console's Organization > Manage > Subscription Plans page (UI module "ai-hub").
 		UI: &modkit.UI{Pages: []modkit.Page{{ID: "ai-hub/subscription-plans", Permission: PermPlanRead}}},
@@ -130,19 +136,27 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		publish: func(ctx context.Context, tx *gorm.DB, data planChanged) error {
 			return rt.PublishTx(ctx, tx, EventPlanChanged, data)
 		},
-		usage: noUsage,
-		log:   log,
-		now:   time.Now,
+		log: log,
+		now: time.Now,
+	}
+	plans.usage = plans.proxyUsage
+	subs := &subscriptionService{
+		db: rt.DB, secrets: rt.Secrets, plans: plans,
+		publish: func(ctx context.Context, tx *gorm.DB, data subplanv1.SubscriptionChange) error {
+			return rt.PublishTx(ctx, tx, EventSubscriptionChanged, data)
+		},
+		log: log.With("component", "subscriptions"), now: time.Now,
 	}
 	a := &planController{plans: plans, core: rt.Core, log: log}
 	// The webhook a developer portal delivers plans to, on the internal server at /m/ai-hub/webhooks/events. It
 	// has no user sign-in: the receiver authenticates each delivery by its signature.
 	rt.HandleWebhook(http.MethodPost, webhookPath, (&webhookReceiver{
-		cfg: webhookConfigFrom(rt.Config, log), plans: plans, core: rt.Core(),
+		cfg: webhookConfigFrom(rt.Config, log), plans: plans, subscriptions: subs, core: rt.Core(),
 		log: log.With("component", "plan-webhook"), now: time.Now,
-	}).ServeHTTP, modkit.Audit(ActionPlanSync))
-	// Gateways pull the plans when they connect; the AI Gateway pushes each change on EventPlanChanged.
-	rt.Provide(subplanv1.ID, planSource{plans: plans})
+	}).ServeHTTP, modkit.Audit(ActionPortalSync))
+	// Gateways pull the plans and subscriptions when they connect; the AI Gateway pushes each change on
+	// EventPlanChanged and EventSubscriptionChanged.
+	rt.Provide(subplanv1.ID, planSource{plans: plans, subscriptions: subs})
 	// The subscription plans API, under /m/ai-hub.
 	rt.Handle(http.MethodPost, "/subscription-plans", PermPlanCreate, a.createPlan)
 	rt.Handle(http.MethodGet, "/subscription-plans", PermPlanRead, a.listPlans)

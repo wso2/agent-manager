@@ -66,6 +66,7 @@ var serviceProviderSet = wire.NewSet(
 	gwsvc.NewMCPProxyService,
 	gwsvc.NewIdentityDirectory,
 	gwsvc.NewSubscriptionPlans,
+	gwsvc.NewSubscriptionArtifacts,
 	gwsvc.NewPermissions,
 	gwsecret.NewStore,
 	wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)),

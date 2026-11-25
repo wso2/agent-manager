@@ -42,6 +42,11 @@ export interface ConfirmationEvent {
   /** The label above the type-to-confirm field. Default: `Type "<text>" to confirm`. */
   confirmationInputLabel?: string;
   /**
+   * Shows Confirm disabled: the action can't be taken (for example, a resource in use can't be
+   * deleted) and the description says why.
+   */
+  confirmDisabled?: boolean;
+  /**
    * Optional analytics labels for this confirmation. Without them the
    * cancellation is still counted, just labelled from confirmButtonText — the
    * dialog's title and description are never reported, since they interpolate
@@ -90,7 +95,8 @@ export function ConfirmationDialogProvider({
   });
   const typedValue = typed.for === currentConfirmation ? typed.value : "";
   const confirmationText = currentConfirmation?.confirmationText;
-  const canConfirm = !confirmationText || typedValue === confirmationText;
+  const canConfirm =
+    !currentConfirmation?.confirmDisabled && (!confirmationText || typedValue === confirmationText);
   const confirmationFieldId = useId();
 
   const handleConfirm = useCallback(() => {
@@ -144,7 +150,7 @@ export function ConfirmationDialogProvider({
               <DialogContentText>
                 {currentConfirmation?.description}
               </DialogContentText>
-              {confirmationText && (
+              {confirmationText && !currentConfirmation?.confirmDisabled && (
                 <Form.ElementWrapper
                   label={
                     currentConfirmation?.confirmationInputLabel ??

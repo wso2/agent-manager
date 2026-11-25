@@ -61,10 +61,54 @@ type plansWorld struct {
 	gateways    *planGateways // what the stand-in gateway module was sent, once installed
 }
 
-// planGateways records the plan changes the gateway handler would send to the organization's gateways.
+// planGateways records the plan changes the gateway handler would send to the organization's gateways, and
+// the subscription changes the plans module published.
 type planGateways struct {
 	mu   sync.Mutex
 	sent []sentPlan
+	subs []subplanv1.SubscriptionChange
+	// offers is how many MCP proxies offer each plan handle, as the stand-in gateway reports it.
+	offers map[string]int
+}
+
+// offering is the stand-in gateway's count of the MCP proxies offering a plan (subplanv1.OfferCounter).
+func (g *planGateways) offering(_ context.Context, _, handle string) (int, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.offers[handle], nil
+}
+
+func (g *planGateways) setOffers(handle string, n int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.offers == nil {
+		g.offers = map[string]int{}
+	}
+	g.offers[handle] = n
+}
+
+// subscriptionChanged records a published subscription change.
+func (g *planGateways) subscriptionChanged(_ context.Context, e modkit.Event) error {
+	var ch subplanv1.SubscriptionChange
+	if err := json.Unmarshal(e.Data, &ch); err != nil {
+		return err
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.subs = append(g.subs, ch)
+	return nil
+}
+
+// subscriptionChange returns the last change published for the subscription with the action, if any.
+func (g *planGateways) subscriptionChange(id string, action subplanv1.Action) (subplanv1.SubscriptionChange, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for i := len(g.subs) - 1; i >= 0; i-- {
+		if g.subs[i].SubscriptionID == id && g.subs[i].Action == action {
+			return g.subs[i], true
+		}
+	}
+	return subplanv1.SubscriptionChange{}, false
 }
 
 type sentPlan struct {
@@ -117,6 +161,8 @@ func (m planGatewayModule) Activate(_ context.Context, rt modkit.Runtime) error 
 	// As the AI Gateway does: subscribe to the event the plans module names, while it is active.
 	if source, ok := plans(); ok {
 		rt.Subscribe(source.ChangeEvent(), gwsvc.PlanChangeHandler(plans, m.gateways))
+		rt.Subscribe(source.SubscriptionChangeEvent(), m.gateways.subscriptionChanged)
+		source.CountOffersWith(m.gateways.offering)
 	}
 	return nil
 }
@@ -713,5 +759,192 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 		_, ok := w.gateways.find(lone, subplanv1.Created)
 		assert.False(t, ok, "nothing to send it to")
+	})
+}
+
+// subscriptionDelivery is a signed subscription event for the MCP proxy docs-mcp, as the portal sends it. A
+// token, when given, is sealed with the webhook secret.
+func subscriptionDelivery(t *testing.T, org, eventType string, data map[string]any, token string, occurredAt time.Time) *http.Request {
+	t.Helper()
+	d := map[string]any{
+		"subscription_id": "portal-sub-1", "subscriber_id": "alice", "status": "ACTIVE",
+		"api": map[string]any{"ref_id": "docs-mcp", "type": "Mcp", "name": "Docs MCP", "version": "v1.0"},
+	}
+	for k, v := range data {
+		d[k] = v
+	}
+	if token != "" {
+		sealed, err := aihub.SealField(webhookSecret, token, []byte(uuid.NewString()[:12]))
+		require.NoError(t, err)
+		d["token"] = sealed
+	}
+	return delivery(t, org, eventType, d, occurredAt, time.Now())
+}
+
+// TestSubscriptionsFromThePortal copies subscriptions in from signed portal deliveries, and checks what gateways
+// would get: the subscription with its key, through subscription.plans/v1, and an event on every change.
+func TestSubscriptionsFromThePortal(t *testing.T) {
+	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", webhookSecret)
+	w := newPlansWorld(t)
+	ctx := context.Background()
+	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
+		map[string]any{"name": "subs", "displayName": "Subscriptions"})
+	require.Equal(t, http.StatusAccepted, code, string(body))
+	deactivatePlans(ctx, t, w)
+	installPlans(ctx, t, w)
+	_, err := w.host.Install(ctx, planGatewayModuleName, false)
+	require.NoError(t, err)
+	eventually(t, "the stand-in gateway", func() bool { _, ok := coreext.Capability(planGatewayReady); return ok })
+
+	gold, silver := "sub-gold-"+uuid.NewString()[:6], "sub-silver-"+uuid.NewString()[:6]
+	for _, id := range []string{gold, silver} {
+		code, body := w.call(t, w.full, http.MethodPost, plansPath, map[string]any{
+			"id": id, "displayName": id,
+			"conditions": []any{map[string]any{"type": "tool-call-count", "params": map[string]any{"limits": []any{
+				map[string]any{"count": 3, "timeAmount": 1, "timeUnit": "MINUTE"},
+			}}}},
+		})
+		require.Equal(t, http.StatusCreated, code, string(body))
+	}
+	planRef := func(h string) map[string]any { return map[string]any{"subscription_plan": map[string]any{"ref_id": h}} }
+	list := func(t *testing.T) []subplanv1.Subscription {
+		t.Helper()
+		source, ok := coreext.Lookup[subplanv1.Source](subplanv1.ID)
+		require.True(t, ok)
+		subs, err := source.ListSubscriptions(ctx, w.org, subplanv1.ArtifactKindMCP, "docs-mcp")
+		require.NoError(t, err)
+		return subs
+	}
+	usageOf := func(t *testing.T, h string) planBody {
+		t.Helper()
+		code, body := w.call(t, w.full, http.MethodGet, plansPath+"/"+h, nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		return decodeAs[planBody](t, body)
+	}
+	now := time.Now()
+	var subID string
+
+	t.Run("created: stored with its key, published, and its plan in use", func(t *testing.T) {
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.created", planRef(gold), "key-1", now))
+		require.Equal(t, http.StatusOK, code, body)
+		subs := list(t)
+		require.Len(t, subs, 1)
+		subID = subs[0].ID
+		assert.Equal(t, "key-1", subs[0].Token)
+		assert.Equal(t, gold, subs[0].PlanHandle)
+		assert.Equal(t, subplanv1.SubscriptionActive, subs[0].Status)
+		assert.Equal(t, "alice", subs[0].SubscriberID)
+		eventually(t, "the created change", func() bool { _, ok := w.gateways.subscriptionChange(subID, subplanv1.Created); return ok })
+
+		p := usageOf(t, gold)
+		require.NotNil(t, p.Usage)
+		assert.True(t, p.Usage.InUse)
+		code, resp := w.call(t, w.full, http.MethodDelete, plansPath+"/"+gold, nil)
+		assert.Equal(t, http.StatusConflict, code, "a subscribed plan can't be deleted: "+string(resp))
+	})
+
+	t.Run("a repeated creation changes nothing", func(t *testing.T) {
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.created", planRef(gold), "key-1", now))
+		require.Equal(t, http.StatusOK, code, body)
+		assert.Len(t, list(t), 1)
+	})
+
+	t.Run("token regenerated, plan changed and deactivated follow; each is published", func(t *testing.T) {
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.token_regenerated", nil, "key-2", now.Add(time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.plan_changed", planRef(silver), "", now.Add(2*time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.updated", map[string]any{"status": "INACTIVE"}, "", now.Add(3*time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		subs := list(t)
+		require.Len(t, subs, 1)
+		assert.Equal(t, "key-2", subs[0].Token)
+		assert.Equal(t, silver, subs[0].PlanHandle)
+		assert.Equal(t, subplanv1.SubscriptionInactive, subs[0].Status)
+		eventually(t, "an updated change", func() bool { _, ok := w.gateways.subscriptionChange(subID, subplanv1.Updated); return ok })
+	})
+
+	t.Run("an older event changes nothing", func(t *testing.T) {
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.updated", map[string]any{"status": "ACTIVE"}, "", now.Add(time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		assert.Equal(t, subplanv1.SubscriptionInactive, list(t)[0].Status)
+	})
+
+	t.Run("a subscription on a plan that is not here, or to a REST API, is refused", func(t *testing.T) {
+		other := subscriptionDelivery(t, w.handle, "subscription.created", map[string]any{
+			"subscription_id": "portal-sub-2", "subscriber_id": "bob", "subscription_plan": map[string]any{"ref_id": "no-such-plan"},
+		}, "key-3", now)
+		code, _ := send(t, w.internal, other)
+		assert.Equal(t, http.StatusUnauthorized, code)
+		rest := subscriptionDelivery(t, w.handle, "subscription.created", map[string]any{
+			"subscription_id": "portal-sub-3", "subscriber_id": "bob", "subscription_plan": map[string]any{"ref_id": gold},
+			"api": map[string]any{"ref_id": "orders", "type": "RestApi"},
+		}, "key-4", now)
+		code, _ = send(t, w.internal, rest)
+		assert.Equal(t, http.StatusUnauthorized, code)
+		assert.Len(t, list(t), 1)
+	})
+
+	t.Run("deleted: gone with its key, published, and its plan free again", func(t *testing.T) {
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.deleted", nil, "", now.Add(4*time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		assert.Empty(t, list(t))
+		eventually(t, "the deleted change", func() bool { _, ok := w.gateways.subscriptionChange(subID, subplanv1.Deleted); return ok })
+		assert.False(t, usageOf(t, silver).Usage.InUse)
+		code, resp := w.call(t, w.full, http.MethodDelete, plansPath+"/"+silver, nil)
+		assert.Equal(t, http.StatusNoContent, code, string(resp))
+	})
+}
+
+// TestPlanOfferedByMCPProxies holds a plan the gateway reports as offered (subplanv1.Source.CountOffersWith) to
+// the in-use rule: it keeps its name and conditions and can't be deleted until no MCP proxy offers it.
+func TestPlanOfferedByMCPProxies(t *testing.T) {
+	w := newPlansWorld(t)
+	ctx := context.Background()
+	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
+		map[string]any{"name": "offers", "displayName": "Offers"})
+	require.Equal(t, http.StatusAccepted, code, string(body))
+	deactivatePlans(ctx, t, w)
+	installPlans(ctx, t, w)
+	_ = w.host.Disable(ctx, planGatewayModuleName) // an earlier test may have left the stand-in gateway on
+	eventually(t, "the stand-in gateway to go", func() bool { _, ok := coreext.Capability(planGatewayReady); return !ok })
+	handle := "offered-" + uuid.NewString()[:6]
+	code, body = w.call(t, w.full, http.MethodPost, plansPath, map[string]any{"id": handle, "displayName": "Offered"})
+	require.Equal(t, http.StatusCreated, code, string(body))
+	usageOf := func(t *testing.T) planBody {
+		t.Helper()
+		code, body := w.call(t, w.full, http.MethodGet, plansPath+"/"+handle, nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		return decodeAs[planBody](t, body)
+	}
+
+	t.Run("without the gateway nothing offers it", func(t *testing.T) {
+		w.gateways.setOffers(handle, 2)
+		assert.False(t, usageOf(t).Usage.InUse)
+	})
+
+	if _, err := w.host.Install(ctx, planGatewayModuleName, false); err != nil {
+		require.NoError(t, w.host.Enable(ctx, planGatewayModuleName))
+	}
+	eventually(t, "the stand-in gateway", func() bool { _, ok := coreext.Capability(planGatewayReady); return ok })
+
+	t.Run("offered by MCP proxies, the plan is in use and locked", func(t *testing.T) {
+		p := usageOf(t)
+		assert.True(t, p.Usage.InUse)
+		assert.Equal(t, 2, p.Usage.MCPProxies)
+		code, body := w.call(t, w.full, http.MethodPut, plansPath+"/"+handle, map[string]any{"displayName": "Renamed"})
+		assert.Equal(t, http.StatusConflict, code, string(body))
+		code, body = w.call(t, w.full, http.MethodPut, plansPath+"/"+handle,
+			map[string]any{"displayName": "Offered", "description": "Still offered"})
+		assert.Equal(t, http.StatusOK, code, "the description can always change: "+string(body))
+		code, body = w.call(t, w.full, http.MethodDelete, plansPath+"/"+handle, nil)
+		assert.Equal(t, http.StatusConflict, code, string(body))
+	})
+
+	t.Run("once no proxy offers it, it can be deleted", func(t *testing.T) {
+		w.gateways.setOffers(handle, 0)
+		assert.False(t, usageOf(t).Usage.InUse)
+		code, body := w.call(t, w.full, http.MethodDelete, plansPath+"/"+handle, nil)
+		assert.Equal(t, http.StatusNoContent, code, string(body))
 	})
 }

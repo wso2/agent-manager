@@ -37,8 +37,8 @@
       "total": 10
     },
     "clients/thundersvc": {
-      "covered": 1174,
-      "total": 1402
+      "covered": 1189,
+      "total": 1417
     },
     "config": {
       "covered": 563,
@@ -49,8 +49,8 @@
       "total": 1
     },
     "controllers": {
-      "covered": 1817,
-      "total": 1841
+      "covered": 1827,
+      "total": 1847
     },
     "coreext": {
       "covered": 37,
@@ -93,8 +93,8 @@
       "total": 42
     },
     "internal/modhost": {
-      "covered": 1578,
-      "total": 1801
+      "covered": 1600,
+      "total": 1823
     },
     "internal/reqorigin": {
       "covered": 11,
@@ -121,7 +121,7 @@
       "total": 201
     },
     "middleware/jwtassertion": {
-      "covered": 213,
+      "covered": 215,
       "total": 302
     },
     "models": {
@@ -129,7 +129,7 @@
       "total": 72
     },
     "modkit": {
-      "covered": 85,
+      "covered": 86,
       "total": 87
     },
     "modkit/contracts/tracesv1": {
@@ -137,8 +137,8 @@
       "total": 3
     },
     "modules/aigateway": {
-      "covered": 116,
-      "total": 147
+      "covered": 122,
+      "total": 153
     },
     "modules/aigateway/eventhub": {
       "covered": 301,
@@ -149,8 +149,8 @@
       "total": 12
     },
     "modules/aigateway/gwapi": {
-      "covered": 204,
-      "total": 210
+      "covered": 205,
+      "total": 211
     },
     "modules/aigateway/gwaudit": {
       "covered": 9,
@@ -165,8 +165,8 @@
       "total": 413
     },
     "modules/aigateway/gwctl": {
-      "covered": 3414,
-      "total": 4404
+      "covered": 3502,
+      "total": 4445
     },
     "modules/aigateway/gwinit": {
       "covered": 60,
@@ -177,7 +177,7 @@
       "total": 639
     },
     "modules/aigateway/gwmodels": {
-      "covered": 268,
+      "covered": 269,
       "total": 308
     },
     "modules/aigateway/gwperm": {
@@ -193,12 +193,12 @@
       "total": 44
     },
     "modules/aigateway/gwsvc": {
-      "covered": 7478,
-      "total": 9452
+      "covered": 7689,
+      "total": 9671
     },
     "modules/aigateway/gwtest": {
-      "covered": 75,
-      "total": 82
+      "covered": 77,
+      "total": 83
     },
     "modules/aigateway/gwtrack": {
       "covered": 12,
@@ -217,12 +217,16 @@
       "total": 10
     },
     "modules/aigateway/reconcile": {
-      "covered": 418,
+      "covered": 420,
       "total": 468
     },
     "modules/aigateway/websocket": {
       "covered": 199,
       "total": 209
+    },
+    "modules/aihub": {
+      "covered": 928,
+      "total": 1126
     },
     "modules/observability": {
       "covered": 208,
@@ -253,7 +257,7 @@
       "total": 22
     },
     "pkg/dbx": {
-      "covered": 86,
+      "covered": 87,
       "total": 97
     },
     "pkg/httpx": {
@@ -273,7 +277,7 @@
       "total": 85
     },
     "pkg/ssrf": {
-      "covered": 84,
+      "covered": 86,
       "total": 87
     },
     "rbac": {

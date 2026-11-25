@@ -173,7 +173,13 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	// whenever the set of active modules changes (providers first), so enabling that module later subscribes
 	// then; meanwhile gateways pull every plan when they reconnect.
 	if source, ok := gw.SubscriptionPlans.Source(); ok {
+		// A plan an MCP proxy offers is in use: the plans module asks this module how many offer it.
+		source.CountOffersWith(gwsvc.NewPlanOffers(rt.DB()).ProxiesOffering)
 		rt.Subscribe(source.ChangeEvent(), gwsvc.PlanChangeHandler(gw.SubscriptionPlans.Source,
+			gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()), gwsvc.NewGatewayEventsService(gw.EventHub))))
+		// Subscriptions too: each change is pushed to the organization's gateways, for the MCP proxy it is to.
+		rt.Subscribe(source.SubscriptionChangeEvent(), gwsvc.SubscriptionChangeHandler(gw.SubscriptionPlans.Source,
+			gwsvc.NewSubscriptionArtifacts(rt.DB()),
 			gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()), gwsvc.NewGatewayEventsService(gw.EventHub))))
 	}
 	registerHooks(rt, gw.AgentGateway)

@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -32,6 +33,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
@@ -136,9 +138,12 @@ type planService struct {
 	publish func(ctx context.Context, tx *gorm.DB, data planChanged) error
 	// usage counts what offers or uses a plan. Offering plans on MCP proxies and subscriptions come in later
 	// parts of the module; until then nothing uses a plan.
-	usage func(ctx context.Context, tx *gorm.DB, orgID, planUUID string) (usage, error)
-	log   *slog.Logger
-	now   func() time.Time
+	usage func(ctx context.Context, tx *gorm.DB, orgID, handle string) (usage, error)
+	// offers counts the MCP proxies that offer a plan, as the AI Gateway reports them
+	// (subplanv1.Source.CountOffersWith); nil without a gateway.
+	offers atomic.Pointer[subplanv1.OfferCounter]
+	log    *slog.Logger
+	now    func() time.Time
 }
 
 type planRow struct {
@@ -262,6 +267,31 @@ func (s *planService) get(ctx context.Context, orgID, handle string) (*plan, err
 	return p, err
 }
 
+// getByID reads a plan by its ID.
+func (s *planService) getByID(ctx context.Context, orgID, id string) (*plan, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, errPlanNotFound
+	}
+	var p *plan
+	err := s.read(ctx, func(tx *gorm.DB) error {
+		var rows []planRow
+		if err := tx.Raw(`SELECT `+planColumns+` FROM mod_ai_hub_subscription_plans WHERE org_id = ? AND id = ?`,
+			orgID, id).Scan(&rows).Error; err != nil {
+			return fmt.Errorf("get plan %s: %w", id, err)
+		}
+		if len(rows) == 0 {
+			return errPlanNotFound
+		}
+		plans, err := s.withConditions(tx, orgID, rows)
+		if err != nil {
+			return err
+		}
+		p = plans[0]
+		return nil
+	})
+	return p, err
+}
+
 func (s *planService) getTx(tx *gorm.DB, orgID, handle string) (*plan, error) {
 	var rows []planRow
 	if err := tx.Raw(`SELECT `+planColumns+` FROM mod_ai_hub_subscription_plans WHERE org_id = ? AND handle = ?`,
@@ -343,7 +373,7 @@ func (s *planService) planFrom(r planRow, raw []Condition) *plan {
 }
 
 func (s *planService) getUsage(ctx context.Context, p *plan) (usage, error) {
-	return s.usage(ctx, s.db().WithContext(ctx), p.OrgID, p.UUID)
+	return s.usage(ctx, s.db().WithContext(ctx), p.OrgID, p.Handle)
 }
 
 // create stores a new plan. The handler has checked the id, name and status.
@@ -432,7 +462,7 @@ func (s *planService) update(ctx context.Context, orgID, handle, actor string, u
 			return err
 		}
 		if !u.FromWebhook && changesLockedValues(existing, u, conditions) {
-			use, err := s.usage(ctx, tx, orgID, existing.UUID)
+			use, err := s.usage(ctx, tx, orgID, existing.Handle)
 			if err != nil {
 				return err
 			}
@@ -508,7 +538,7 @@ func (s *planService) delete(ctx context.Context, orgID, handle, actor string) e
 		if err != nil {
 			return err
 		}
-		use, err := s.usage(ctx, tx, orgID, existing.UUID)
+		use, err := s.usage(ctx, tx, orgID, existing.Handle)
 		if err != nil {
 			return err
 		}
@@ -626,5 +656,23 @@ func nullable(s string) *string {
 	return &s
 }
 
-// noUsage is the usage counter until MCP proxies can offer plans and agents can subscribe.
+// noUsage is the usage counter where nothing counts offers.
 func noUsage(context.Context, *gorm.DB, string, string) (usage, error) { return usage{}, nil }
+
+// proxyUsage counts what uses a plan: the subscriptions on it, and the MCP proxies that offer it, with the
+// counter the AI Gateway handed over (without one, nothing offers plans).
+func (s *planService) proxyUsage(ctx context.Context, tx *gorm.DB, orgID, handle string) (usage, error) {
+	subs, err := countOnPlan(tx, orgID, handle)
+	if err != nil {
+		return usage{}, err
+	}
+	count := s.offers.Load()
+	if count == nil || *count == nil {
+		return usage{Subscriptions: subs}, nil
+	}
+	n, err := (*count)(ctx, orgID, handle)
+	if err != nil {
+		return usage{}, fmt.Errorf("count MCP proxies offering plan %s: %w", handle, err)
+	}
+	return usage{MCPProxies: n, Subscriptions: subs}, nil
+}

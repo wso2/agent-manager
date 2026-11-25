@@ -18,6 +18,7 @@ package aihub
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -28,9 +29,6 @@ import (
 
 // Client is the shared API client used by all aihub tests.
 var Client *framework.AMPClient
-
-// aihubScopes are the AI Hub module's subscription plan scopes.
-var aihubScopes = []string{"amp:ai-hub:plan-read", "amp:ai-hub:plan-create", "amp:ai-hub:plan-update", "amp:ai-hub:plan-delete"}
 
 // Cfg is the shared test configuration.
 var Cfg *framework.Config
@@ -47,12 +45,33 @@ var _ = BeforeSuite(func() {
 	framework.WaitForAPIReady(Cfg)
 
 	By("Creating API client with the AI Hub module's scopes")
-	// A module's scopes are not in the core catalog the shared client requests (the route invariants keep
-	// that catalog to core permissions), so this suite asks for them on top.
-	token, err := framework.FetchTokenWithScopes(context.Background(), Cfg, append(framework.AllScopes(), aihubScopes...))
+	// The shared scope catalog carries the AI Hub's scopes, as it does every linked module's.
+	token, err := framework.FetchTokenWithScopes(context.Background(), Cfg, framework.AllScopes())
 	Expect(err).NotTo(HaveOccurred(), "failed to fetch a token with the AI Hub scopes")
 	Client = framework.NewAMPClientWithToken(Cfg, token)
 
 	By("Verifying default organization")
 	framework.VerifyDefaultOrg(Client, Cfg.DefaultOrg)
 })
+
+// skipWithoutAIHub skips the calling container's specs on a stack without the AI Hub, an optional module an
+// operator installs with `amp module install ai-hub`.
+func skipWithoutAIHub() {
+	resp, err := Client.Get("/api/v1/ui-manifest")
+	Expect(err).NotTo(HaveOccurred())
+	defer resp.Body.Close()
+	manifest := framework.ExpectStatusAndDecode[struct {
+		Modules []struct {
+			Name string `json:"name"`
+		} `json:"modules"`
+		Pages []string `json:"pages"`
+	}](Default, resp, http.StatusOK)
+	installed := false
+	for _, m := range manifest.Modules {
+		installed = installed || m.Name == "ai-hub"
+	}
+	if !installed {
+		Skip("the AI Hub module is not installed (amp module install ai-hub)")
+	}
+	Expect(manifest.Pages).To(ContainElement("ai-hub/subscription-plans"))
+}

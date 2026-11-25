@@ -1,12 +1,12 @@
 {
   "areas": {
     "workspaces/core-ui": {
-      "covered": 2448,
-      "total": 2492
+      "covered": 2463,
+      "total": 2501
     },
     "workspaces/libs/api-client": {
-      "covered": 7258,
-      "total": 8597
+      "covered": 7450,
+      "total": 8789
     },
     "workspaces/libs/auth": {
       "covered": 807,
@@ -53,8 +53,8 @@
       "total": 2894
     },
     "workspaces/ui-modules/agent-identity/pages/env-thunders": {
-      "covered": 3334,
-      "total": 3402
+      "covered": 3336,
+      "total": 3404
     },
     "workspaces/ui-modules/ai-gateway/pages/agent-security": {
       "covered": 219,
@@ -75,6 +75,10 @@
     "workspaces/ui-modules/ai-gateway/pages/mcp-proxies": {
       "covered": 5028,
       "total": 5211
+    },
+    "workspaces/ui-modules/ai-hub/pages/subscription-plans": {
+      "covered": 828,
+      "total": 1923
     },
     "workspaces/ui-modules/ai-observability/pages/eval": {
       "covered": 0,

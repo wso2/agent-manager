@@ -34,6 +34,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
 )
 
 // The webhook receiver for subscription plans made, changed or deleted elsewhere (including an MCP
@@ -46,7 +47,10 @@ import (
 //   - the envelope's secret_hash, the hex SHA3-256 of "<label>:<secret>", names the secret that signed
 //     the delivery; it is only trusted once the signature verifies;
 //   - org.ref_id is the organization's handle;
-//   - events subscription_plan.created / .updated (both upsert) and subscription_plan.deleted.
+//   - events subscription_plan.created / .updated (both upsert) and subscription_plan.deleted;
+//   - events subscription.created / .updated / .plan_changed / .token_regenerated / .deleted, for
+//     subscriptions to MCP servers (subscription_service.go); subscription.billing_updated is accepted
+//     and changes nothing.
 //
 // A delivery the sender got wrong (signature, envelope, organization, event) is answered alike (401), so a
 // caller learns nothing from the response; a failure on this side (the database, publishing the change, a
@@ -64,6 +68,17 @@ const (
 	EventSubscriptionPlanCreated = "subscription_plan.created"
 	EventSubscriptionPlanUpdated = "subscription_plan.updated"
 	EventSubscriptionPlanDeleted = "subscription_plan.deleted"
+)
+
+// Subscription event types. The event's data names the subscription, its artifact (api) and plan, and
+// carries the subscription key sealed in its token field (encrypted_fields).
+const (
+	EventSubscriptionCreated          = "subscription.created"
+	EventSubscriptionUpdated          = "subscription.updated"
+	EventSubscriptionPlanChanged      = "subscription.plan_changed"
+	EventSubscriptionTokenRegenerated = "subscription.token_regenerated"
+	EventSubscriptionDeleted          = "subscription.deleted"
+	EventSubscriptionBillingUpdated   = "subscription.billing_updated"
 )
 
 const (
@@ -309,9 +324,11 @@ func (d *planEventData) requireHandle() error {
 type webhookReceiver struct {
 	cfg   webhookConfig
 	plans *planService
-	core  modkit.CoreAPI
-	log   *slog.Logger
-	now   func() time.Time
+	// subscriptions copies in the subscriptions made at the portal.
+	subscriptions *subscriptionService
+	core          modkit.CoreAPI
+	log           *slog.Logger
+	now           func() time.Time
 }
 
 // webhookCaller is how the audit record names the sender: no user signs in, the signature authenticates it.
@@ -417,6 +434,16 @@ func (r *webhookReceiver) orgIDByHandle(ctx context.Context, handle string) (str
 
 func (r *webhookReceiver) dispatch(ctx context.Context, orgID string, env *envelope) error {
 	switch env.EventType {
+	case EventSubscriptionCreated, EventSubscriptionUpdated, EventSubscriptionPlanChanged,
+		EventSubscriptionTokenRegenerated, EventSubscriptionDeleted:
+		ch, err := r.subscriptionChange(env)
+		if err != nil {
+			return err
+		}
+		return r.subscriptions.applyFromWebhook(ctx, orgID, ch)
+	case EventSubscriptionBillingUpdated:
+		// Plans here are free: billing doesn't change a subscription.
+		return nil
 	case EventSubscriptionPlanCreated, EventSubscriptionPlanUpdated:
 		d, err := planData(env)
 		if err != nil {
@@ -440,6 +467,63 @@ func (r *webhookReceiver) dispatch(ctx context.Context, orgID string, env *envel
 	}
 }
 
+// subscriptionEventData is the data of subscription.* events.
+type subscriptionEventData struct {
+	SubscriptionID string `json:"subscription_id"`
+	SubscriberID   string `json:"subscriber_id"`
+	Status         string `json:"status"`
+	Plan           struct {
+		RefID string `json:"ref_id"`
+	} `json:"subscription_plan"`
+	API struct {
+		RefID string `json:"ref_id"`
+		Type  string `json:"type"`
+	} `json:"api"`
+	Token json.RawMessage `json:"token"`
+}
+
+// subscriptionChange reads a subscription event: its artifact must be an MCP server (api.type Mcp, api.ref_id
+// its handle here), its plan a plan handle (subscription_plan.ref_id), and a token, when present, sealed.
+func (r *webhookReceiver) subscriptionChange(env *envelope) (subscriptionChange, error) {
+	if len(env.Data) == 0 {
+		return subscriptionChange{}, fmt.Errorf("%w: data is required for event %s", errInvalidEnvelope, env.EventType)
+	}
+	var d subscriptionEventData
+	if err := json.Unmarshal(env.Data, &d); err != nil {
+		return subscriptionChange{}, fmt.Errorf("%w: invalid data for event %s: %w", errInvalidEnvelope, env.EventType, err)
+	}
+	ch := subscriptionChange{
+		Event:          strings.TrimPrefix(env.EventType, "subscription."),
+		At:             env.occurredAt(),
+		SourceID:       strings.TrimSpace(d.SubscriptionID),
+		SubscriberID:   strings.TrimSpace(d.SubscriberID),
+		ArtifactKind:   strings.TrimSpace(d.API.Type),
+		ArtifactHandle: strings.TrimSpace(d.API.RefID),
+		PlanHandle:     strings.TrimSpace(d.Plan.RefID),
+		Status:         strings.TrimSpace(d.Status),
+	}
+	switch {
+	case ch.SourceID == "":
+		return ch, fmt.Errorf("%w: data.subscription_id is required", errInvalidEnvelope)
+	case ch.Event == "deleted":
+		return ch, nil
+	case ch.ArtifactKind != subplanv1.ArtifactKindMCP:
+		return ch, fmt.Errorf("%w: only MCP servers take subscriptions here, not %q", errUnsupportedEvent, ch.ArtifactKind)
+	case ch.ArtifactHandle == "":
+		return ch, fmt.Errorf("%w: data.api.ref_id is required", errInvalidEnvelope)
+	case ch.PlanHandle == "" && (ch.Event == "created" || ch.Event == "plan_changed"):
+		return ch, fmt.Errorf("%w: data.subscription_plan.ref_id is required", errInvalidEnvelope)
+	}
+	if len(d.Token) > 0 && string(d.Token) != "null" {
+		token, err := decryptField(r.cfg.Secret, d.Token)
+		if err != nil {
+			return ch, err
+		}
+		ch.Token = &token
+	}
+	return ch, nil
+}
+
 func planData(env *envelope) (*planEventData, error) {
 	if len(env.Data) == 0 {
 		return nil, fmt.Errorf("%w: data is required for event %s", errInvalidEnvelope, env.EventType)
@@ -458,7 +542,7 @@ func isClientFault(err error) bool {
 	return errors.Is(err, errSignatureMissing) || errors.Is(err, errSignatureInvalid) ||
 		errors.Is(err, errTimestampOutOfTolerance) || errors.Is(err, errInvalidEnvelope) ||
 		errors.Is(err, errUnsupportedEvent) || errors.Is(err, errOrganizationNotFound) ||
-		errors.Is(err, errWebhookDisabled) || errors.As(err, &v)
+		errors.Is(err, errWebhookDisabled) || errors.Is(err, errSubscriptionPlanUnknown) || errors.As(err, &v)
 }
 
 // reject answers a refused delivery: always 401, with nothing about why.

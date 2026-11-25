@@ -19,6 +19,8 @@ var _ MappedNullable = &MCPProxyRequest{}
 
 // MCPProxyRequest struct for MCPProxyRequest
 type MCPProxyRequest struct {
+	// Handles of the subscription plans the MCP proxy offers, for every endpoint. Each added plan must be an active plan of the organization; a plan the proxy already offers can stay after it is deactivated. On update, leaving it out keeps the offered plans and an empty list offers none. Needs the ai-hub module. A plan is enforced only where subscription-validation v2 (and subscription-tool-ratelimit for tool-call limits) are attached to the endpoint; once they are, calls without an active subscription get 403.
+	SubscriptionPlans []string `json:"subscriptionPlans,omitempty"`
 	// Unique handle for the MCP proxy
 	Id string `json:"id"`
 	// Human-readable name of the MCP proxy
@@ -60,6 +62,38 @@ func NewMCPProxyRequest(id string, name string, version string) *MCPProxyRequest
 func NewMCPProxyRequestWithDefaults() *MCPProxyRequest {
 	this := MCPProxyRequest{}
 	return &this
+}
+
+// GetSubscriptionPlans returns the SubscriptionPlans field value if set, zero value otherwise.
+func (o *MCPProxyRequest) GetSubscriptionPlans() []string {
+	if o == nil || IsNil(o.SubscriptionPlans) {
+		var ret []string
+		return ret
+	}
+	return o.SubscriptionPlans
+}
+
+// GetSubscriptionPlansOk returns a tuple with the SubscriptionPlans field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *MCPProxyRequest) GetSubscriptionPlansOk() ([]string, bool) {
+	if o == nil || IsNil(o.SubscriptionPlans) {
+		return nil, false
+	}
+	return o.SubscriptionPlans, true
+}
+
+// HasSubscriptionPlans returns a boolean if a field has been set.
+func (o *MCPProxyRequest) HasSubscriptionPlans() bool {
+	if o != nil && !IsNil(o.SubscriptionPlans) {
+		return true
+	}
+
+	return false
+}
+
+// SetSubscriptionPlans gets a reference to the given []string and assigns it to the SubscriptionPlans field.
+func (o *MCPProxyRequest) SetSubscriptionPlans(v []string) {
+	o.SubscriptionPlans = v
 }
 
 // GetId returns the Id field value
@@ -371,6 +405,9 @@ func (o MCPProxyRequest) MarshalJSON() ([]byte, error) {
 
 func (o MCPProxyRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	if !IsNil(o.SubscriptionPlans) {
+		toSerialize["subscriptionPlans"] = o.SubscriptionPlans
+	}
 	toSerialize["id"] = o.Id
 	toSerialize["name"] = o.Name
 	if !IsNil(o.Description) {

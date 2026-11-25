@@ -32,6 +32,7 @@ import { Pencil, ReceiptText, SearchX, Trash2 } from "@wso2/oxygen-ui-icons-reac
 import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteSubscriptionPlan,
+  useGetSubscriptionPlan,
   useListSubscriptionPlans,
   useUpdateSubscriptionPlan,
 } from "@agent-management-platform/api-client";
@@ -138,9 +139,25 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
       .finally(done);
   };
 
-  // The name must be typed to confirm. A plan in use can't be deleted: the server refuses it and
-  // the hook shows its reason.
-  const confirmDelete = (plan: SubscriptionPlan) =>
+  // A plan in use can't be deleted: its usage is read first, and the dialog says so with Delete
+  // disabled. Otherwise the name must be typed to confirm.
+  const [deleteTarget, setDeleteTarget] = useState<SubscriptionPlan | null>(null);
+  const usage = useGetSubscriptionPlan({ orgName: orgId, planId: deleteTarget?.id });
+  useEffect(() => {
+    if (!deleteTarget || usage.isPending || usage.isFetching) return;
+    const plan = deleteTarget;
+    setDeleteTarget(null);
+    if (usage.data?.usage?.inUse) {
+      addConfirmation({
+        confirmButtonColor: "error",
+        confirmButtonText: "Delete",
+        confirmDisabled: true,
+        description: `"${plan.displayName}" is in use and can’t be deleted.`,
+        onConfirm: () => undefined,
+        title: "Delete plan",
+      });
+      return;
+    }
     addConfirmation({
       analytics: { action: "delete", entity: "subscription-plan" },
       confirmButtonColor: "error",
@@ -152,6 +169,16 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
         deletePlan.mutate({ displayName: plan.displayName, orgName: orgId, planId: plan.id }),
       title: "Delete plan",
     });
+  }, [
+    addConfirmation,
+    deletePlan,
+    deleteTarget,
+    orgId,
+    usage.data,
+    usage.isFetching,
+    usage.isPending,
+  ]);
+  const confirmDelete = (plan: SubscriptionPlan) => setDeleteTarget(plan);
 
   const editPath = (plan: SubscriptionPlan) =>
     generatePath(absoluteRouteMap.children.org.children.subscriptionPlans.children.edit.path, {

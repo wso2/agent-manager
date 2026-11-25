@@ -2617,6 +2617,13 @@ type MCPProxyRequest struct {
 	// Name Human-readable name of the MCP proxy
 	Name string `json:"name"`
 
+	// SubscriptionPlans Handles of the subscription plans the MCP proxy offers, for every endpoint. Each added plan must be an
+	// active plan of the organization; a plan the proxy already offers can stay after it is deactivated. On
+	// update, leaving it out keeps the offered plans and an empty list offers none. Needs the ai-hub module.
+	// A plan is enforced only where subscription-validation v2 (and subscription-tool-ratelimit for tool-call
+	// limits) are attached to the endpoint; once they are, calls without an active subscription get 403.
+	SubscriptionPlans *[]string `json:"subscriptionPlans,omitempty"`
+
 	// Version Version of the MCP proxy
 	Version string `json:"version"`
 
@@ -2658,6 +2665,9 @@ type MCPProxyResponse struct {
 
 	// ProjectName Set for a project-owned proxy; absent for an org-level one
 	ProjectName *string `json:"projectName,omitempty"`
+
+	// SubscriptionPlans Handles of the subscription plans the MCP proxy offers; empty when it offers none.
+	SubscriptionPlans *[]string `json:"subscriptionPlans,omitempty"`
 
 	// UpdatedAt Timestamp when the resource was last updated
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`

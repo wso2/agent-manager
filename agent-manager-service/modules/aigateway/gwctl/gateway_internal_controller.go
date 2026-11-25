@@ -49,6 +49,7 @@ type GatewayInternalController interface {
 	GetLLMProxyAPIKeys(w http.ResponseWriter, r *http.Request)
 	GetAPIKeys(w http.ResponseWriter, r *http.Request)
 	GetSubscriptionPlans(w http.ResponseWriter, r *http.Request)
+	GetAPISubscriptions(w http.ResponseWriter, r *http.Request)
 	GetDeployments(w http.ResponseWriter, r *http.Request)
 	FetchDeploymentBatch(w http.ResponseWriter, r *http.Request)
 	CheckArtifactsExist(w http.ResponseWriter, r *http.Request)
@@ -62,6 +63,7 @@ type gatewayInternalController struct {
 	apiKeyRepo             gwrepo.APIKeyRepository
 	aiApplicationRepo      gwrepo.AIApplicationRepository
 	plans                  *gwsvc.SubscriptionPlans
+	subscriptionArtifacts  gwsvc.SubscriptionArtifacts
 }
 
 // NewGatewayInternalController creates a new gateway internal controller
@@ -71,6 +73,7 @@ func NewGatewayInternalController(
 	apiKeyRepo gwrepo.APIKeyRepository,
 	aiApplicationRepo gwrepo.AIApplicationRepository,
 	plans *gwsvc.SubscriptionPlans,
+	subscriptionArtifacts gwsvc.SubscriptionArtifacts,
 ) GatewayInternalController {
 	return &gatewayInternalController{
 		gatewayService:         gatewayService,
@@ -78,6 +81,7 @@ func NewGatewayInternalController(
 		apiKeyRepo:             apiKeyRepo,
 		aiApplicationRepo:      aiApplicationRepo,
 		plans:                  plans,
+		subscriptionArtifacts:  subscriptionArtifacts,
 	}
 }
 
@@ -485,6 +489,39 @@ func (c *gatewayInternalController) GetSubscriptionPlans(w http.ResponseWriter, 
 				ThrottleLimitUnit: p.ThrottleLimitUnit, ExpiryTime: p.ExpiryTime, Status: p.Status,
 				Conditions: p.Conditions, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 			})
+		}
+	}
+	httpx.WriteSuccessResponse(w, http.StatusOK, out)
+}
+
+// GetAPISubscriptions handles GET /api/internal/v1/apis/{apiId}/subscriptions: the subscriptions to one artifact
+// (an MCP proxy), with their keys, which the gateway syncs for each MCP proxy it holds when it connects (it
+// removes the ones not listed). Subscriptions come from the module that owns plans ("subscription.plans/v1");
+// without it, or for an artifact that takes no subscriptions, the list is empty.
+func (c *gatewayInternalController) GetAPISubscriptions(w http.ResponseWriter, r *http.Request) {
+	identity, ok := c.authenticateGateway(w, r, "internal-read")
+	if !ok {
+		return
+	}
+	log := logger.GetLogger(r.Context())
+	apiID := r.PathValue("apiId")
+	out := []gwsvc.GatewaySubscription{}
+	kind, handle, found, err := c.subscriptionArtifacts.ProxyOf(r.Context(), identity.OUID, apiID)
+	if err != nil {
+		log.Error("Failed to find the MCP proxy of an artifact", "apiId", apiID, "error", err)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get subscriptions")
+		return
+	}
+	source, ok := c.plans.Source()
+	if ok && found {
+		subs, err := source.ListSubscriptions(r.Context(), identity.OUID, kind, handle)
+		if err != nil {
+			log.Error("Failed to list subscriptions for a gateway", "apiId", apiID, "error", err)
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get subscriptions")
+			return
+		}
+		for _, s := range subs {
+			out = append(out, gwsvc.ToGatewaySubscription(apiID, s))
 		}
 	}
 	httpx.WriteSuccessResponse(w, http.StatusOK, out)
