@@ -118,15 +118,22 @@ CI starts the same stack with `.github/actions/amp-dev-stack`, which fixes the c
 
 ## Coverage
 
-CI reports coverage on every pull request and fails when a package's coverage drops more than 0.5 points below its committed baseline. Generated code (OpenAPI types, moq mocks, wire, generated clients) is left out; each module's exclusions are in its `coverage-excludes.txt`.
+CI checks coverage on every pull request for the API, the CLI and the console, with two rules from each part's `coverage-gate.json`. Nothing needs updating after a normal change.
 
-| Area | Baseline | Check locally | Update the baseline |
-|---|---|---|---|
-| API (`agent-manager-service`), unit and integration tests merged | `agent-manager-service/coverage-baseline.json` | `make test-coverage && make coverage-check` in `agent-manager-service`: a report only, because CI also runs the PostgreSQL integration tests, so packages with PostgreSQL-only code (such as `db`) read lower on SQLite | `make coverage-baseline`; it only raises areas, so a SQLite run can't lower a floor CI set |
-| CLI | `cli/coverage-baseline.json` | `make amctl-coverage-check` at the repository root | `make amctl-coverage-baseline` |
-| Console, lines per package | `console/coverage-baseline.json` | `pnpm build && pnpm test:coverage` in `console`, then `python3 ../scripts/coverage/console_summary.py /tmp/console.json && python3 ../scripts/coverage/ratchet.py /tmp/console.json coverage-baseline.json` | the same with `--update` |
+- **Minimums.** The part's overall coverage must stay at or above `overall_min`, and every area (a Go package, a console package) at or above `area_min`, new areas included. Areas below `area_min` today are listed in `area_exceptions` with their own floor; when you raise one past `area_min`, remove its entry (the job summary warns about entries that no longer apply). Go areas count statements, console areas lines. Lowering a minimum means changing `coverage-gate.json` in the pull request, where reviewers see it.
+- **Changed lines.** Of the lines your pull request adds or changes that coverage counts, at least `changed_min` percent (80) must be covered by tests. Comments, blank lines, imports, test files and excluded files don't count. Below `changed_min_lines` (10) such lines, the result is reported but doesn't fail. A changed Go file that no test run compiled, or a changed file in a console package that has no coverage run, counts as uncovered; console packages that deliberately run no coverage are listed in `no_coverage_packages`.
 
-When your change raises coverage, update the baseline in the same pull request so the higher number becomes the floor. When a drop is intended (code moved to another package, a feature removed), update it with `ratchet.py ... --update --allow-lower` and say why in the pull request. The job summary lists every package with its current and baseline numbers, and the CI run uploads the full report.
+When the changed-line rule fails for a good reason (code only an end-to-end test can reach, for example), a maintainer adds the `coverage-exception` label and re-runs the failed coverage job; the rule is then reported, not enforced. The label never relaxes the minimums.
+
+Generated code (OpenAPI types, moq mocks, wire, generated clients) is left out; each Go module's exclusions are in its `coverage-excludes.txt`, the console's in `console/vitest.coverage.ts`. The job summary lists every area against its minimum and the uncovered changed lines per file.
+
+| Area | Config | Check locally |
+|---|---|---|
+| API (`agent-manager-service`), unit and integration tests merged | `agent-manager-service/coverage-gate.json` | `make test-coverage && make coverage-check` in `agent-manager-service`: a report only, because CI also runs the PostgreSQL integration tests, so packages with PostgreSQL-only code (such as `db`) read lower on SQLite |
+| CLI | `cli/coverage-gate.json` | `make amctl-coverage-check` at the repository root (a report only) |
+| Console, lines per package | `console/coverage-gate.json` | `pnpm build && pnpm test:coverage` in `console`, then `python3 ../scripts/coverage/console_summary.py /tmp/console.json && python3 ../scripts/coverage/gate.py /tmp/console.json coverage-gate.json --console-root . --repo-root .. --report-only` |
+
+Changed lines are counted against `upstream/amp-2.x` by default; set `BASE=` for the Make targets, or `--base` for `gate.py`, when your branch targets something else. Without a reachable base the changed-line check is skipped.
 
 The e2e job also reports which API routes the e2e and live security suites called. The API logs each request's matched route when `LOG_ROUTE_HITS` is on, and `scripts/coverage/route_coverage.py` compares the hits with every registered route. Routes no user calls are listed with a reason in `test/e2e/route-exemptions.yaml`. The report doesn't fail the job yet.
 
