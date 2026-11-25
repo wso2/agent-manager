@@ -354,3 +354,45 @@ func TestBudgetRepository_StoredKindAndBudgetsUsing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, names)
 }
+
+func TestBudgetRepository_ChannelBudgetsNamesTheBudgetsThatUseAChannel(t *testing.T) {
+	gdb := db.GetDB()
+	ou := dbtest.Org(t, gdb)
+	repo := newBudgetRepo(gdb)
+	add := func(name string, channels ...string) {
+		cfg := budgetConfig(name, "50")
+		if channels != nil {
+			cfg.Warnings = &gwmodels.BudgetWarnings{Thresholds: []int32{80}, Channels: channels}
+		}
+		b := gwmodels.Budget{OrgID: ou, Origin: gwmodels.BudgetOriginControlPlane, Configuration: cfg}
+		require.NoError(t, repo.CreateForControlPlane(context.Background(), &b, name))
+	}
+	add("org-daily", "finance-webhook", "pasan-email")
+	add("openai-monthly", "finance-webhook")
+	add("returns-bot-weekly", "support-email")
+	add("no-warnings")
+
+	names, err := ChannelBudgets(gdb, ou, "finance-webhook")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"openai-monthly", "org-daily"}, names, "sorted by name")
+
+	names, err = ChannelBudgets(gdb, ou, "unused-channel")
+	require.NoError(t, err)
+	assert.Empty(t, names)
+
+	names, err = ChannelBudgets(gdb, dbtest.Org(t, gdb), "finance-webhook")
+	require.NoError(t, err)
+	assert.Empty(t, names, "another organization's budgets are not counted")
+}
+
+func TestBudgetRepository_ATakenNameIsRefused(t *testing.T) {
+	gdb := db.GetDB()
+	ou := dbtest.Org(t, gdb)
+	createBudget(t, gdb, ou, "org-daily")
+	b := gwmodels.Budget{OrgID: ou, Origin: gwmodels.BudgetOriginControlPlane, Configuration: budgetConfig("org-daily", "10")}
+	err := newBudgetRepo(gdb).CreateForControlPlane(context.Background(), &b, "org-daily")
+	require.ErrorIs(t, err, gwerr.ErrBudgetAlreadyExists)
+	var taken *BudgetNameTakenError
+	require.ErrorAs(t, err, &taken)
+	assert.Equal(t, `budget name "org-daily" is taken`, taken.Error())
+}
