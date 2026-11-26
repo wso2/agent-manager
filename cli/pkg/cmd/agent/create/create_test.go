@@ -977,7 +977,7 @@ func TestCreate_External_CardURL_TokenFailure_JSON(t *testing.T) {
 func testAgentDoc(name, displayName, description string, agentType amsvc.AgentType, provisioning amsvc.ProvisioningType) amsvc.AgentDocument {
 	created := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
 	doc := amsvc.AgentDocument{
-		ApiVersion: amsvc.AiControlPlaneChoreolabsComv1,
+		ApiVersion: amsvc.AgentDocumentApiVersionAiControlPlaneChoreolabsComv1,
 		Kind:       amsvc.AgentDocumentKindAgent,
 		Metadata:   amsvc.ProjectScopedDocumentMetadata{Name: name, Project: "triage", CreationTimestamp: &created},
 		Spec: amsvc.AgentSpec{

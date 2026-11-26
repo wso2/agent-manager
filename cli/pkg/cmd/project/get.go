@@ -81,7 +81,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	resp, err := client.GetProjectWithResponse(ctx, o.Org, o.ProjectName)
+	resp, err := client.GetProjectWithResponse(ctx, o.ProjectName)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -96,11 +96,10 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	p := resp.JSON200
 	w := o.IO.Out
 	cs := o.IO.ColorScheme()
-	fmt.Fprintf(w, "name:          %s\n", cs.Bold(p.Name))
-	fmt.Fprintf(w, "display name:  %s\n", p.DisplayName)
-	fmt.Fprintf(w, "description:   %s\n", p.Description)
-	fmt.Fprintf(w, "pipeline:      %s\n", p.DeploymentPipeline)
+	fmt.Fprintf(w, "name:          %s\n", cs.Bold(p.Metadata.Name))
+	fmt.Fprintf(w, "display name:  %s\n", p.Spec.DisplayName)
+	fmt.Fprintf(w, "description:   %s\n", deref(p.Spec.Description))
 	fmt.Fprintf(w, "org:           %s\n", o.Org)
-	fmt.Fprintf(w, "created:       %s\n", cs.Gray(p.CreatedAt.Format("2006-01-02T15:04:05Z07:00")))
+	fmt.Fprintf(w, "created:       %s\n", cs.Gray(formatCreated(p.Metadata.CreationTimestamp, "2006-01-02T15:04:05Z07:00")))
 	return nil
 }

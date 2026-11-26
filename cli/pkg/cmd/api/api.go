@@ -77,12 +77,12 @@ func NewAPICmd(f *cmdutil.Factory) *cobra.Command {
 			given: "amctl api /m/ai-gateway/llm-providers". The current
 			instance's access token is attached automatically.
 
-			Resources are scoped under /orgs/{org}/projects/{project}/...; there are no
-			flat top-level resources. The {org} and {project} placeholders are filled from
-			the current context (--org/--project, then the linked project, then the active
-			org), so "amctl api /orgs/{org}/projects/{project}/agents" works from a linked
-			directory without spelling out names. An unknown placeholder, or one that
-			cannot be resolved, is reported as an error.
+			The organization comes from the access token, so most paths carry no org:
+			"/projects", "/agents?project={project}". The {org} and {project}
+			placeholders are filled from the current context (--org/--project, then the
+			linked project, then the active org), so "amctl api /agents?project={project}"
+			works from a linked directory without spelling out names. An unknown
+			placeholder, or one that cannot be resolved, is reported as an error.
 
 			The HTTP method defaults to GET, switching to POST when fields (-f/-F) or a
 			request body (--input) are supplied; override it with -X/--method.
@@ -99,27 +99,27 @@ func NewAPICmd(f *cmdutil.Factory) *cobra.Command {
 			# List organizations
 			$ amctl api /orgs
 
-			# List agents, filling {org}/{project} from the current context
-			$ amctl api /orgs/{org}/projects/{project}/agents
+			# List projects
+			$ amctl api /projects
 
-			# Get one agent (org/project spelled out explicitly)
-			$ amctl api /orgs/default/projects/default/agents/it-helpdesk-agent
+			# List agents, filling {project} from the current context
+			$ amctl api "/agents?project={project}"
+
+			# Get one agent (project spelled out explicitly)
+			$ amctl api "/agents/it-helpdesk-agent?project=default"
 
 			# List LLM providers, from the AI Gateway module's API
 			$ amctl api /m/ai-gateway/llm-providers
 
 			# Filter with query parameters (explicit GET keeps fields in the query)
-			$ amctl api -X GET /orgs/{org}/projects/{project}/agents -f limit=10
+			$ amctl api -X GET "/agents?project={project}" -f limit=10
 
-			# Create a project from typed fields (inferred POST + JSON body)
-			$ amctl api /orgs/{org}/projects -f name=triage -F retain=true
-
-			# Send a raw JSON body from a file or stdin
-			$ amctl api -X POST /orgs/{org}/projects --input ./project.json
-			$ cat project.json | amctl api -X POST /orgs/{org}/projects --input -
+			# Create a project from a Project document in a file or stdin
+			$ amctl api -X POST /projects --input ./project.json
+			$ cat project.json | amctl api -X POST /projects --input -
 
 			# Inspect response headers
-			$ amctl api -i /orgs/{org}/projects/{project}/agents`),
+			$ amctl api -i /projects/{project}`),
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.RequestPath = args[0]
