@@ -27,6 +27,17 @@ auth:
 #   base_url: http://thunder.amp.localhost:8080  # THUNDER_BASE_URL
 #   client_id: amp-system-client                 # THUNDER_CLIENT_ID
 
+# Where stored secrets are kept: sealed into the database with ENCRYPTION_KEY
+# (local), or in a standalone OpenBao KV v2 server. The token needs the
+# policy in vault/openbao/policy.hcl.
+# secret:
+#   vault_provider: openbao       # SECRET_VAULT_PROVIDER: local or openbao
+# openbao:
+#   addr: https://openbao.example.com:8200  # OPENBAO_ADDR; http:// only on loopback
+#   token: ${file:/run/secrets/openbao-token}  # OPENBAO_TOKEN
+#   kv_mount: secret              # OPENBAO_KV_MOUNT; one per deployment
+#   # allow_insecure_http: true   # OPENBAO_ALLOW_INSECURE_HTTP; disposable dev servers only
+
 # The console served on the API port. Each key fills the $NAME of the same
 # name in the console's config.js (CONSOLE_<NAME>). Unset keys default from
 # the settings above where the service can work them out.
