@@ -70,7 +70,7 @@ func (c *thunderClient) CreateAgentIdentity(ctx context.Context, ouID, name, own
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doAuthorized(req)
 	if err != nil {
 		return "", "", "", false, fmt.Errorf("thunder create agent: %w", err)
 	}
