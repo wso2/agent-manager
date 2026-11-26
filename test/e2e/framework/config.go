@@ -43,6 +43,9 @@ type Config struct {
 	ReadinessTimeout          time.Duration
 	TavilyAPIKey              string
 	OpenAIAPIKey              string
+	// OpenAIBaseURL, when set, replaces the OpenAI template's endpoint for LLM providers
+	// the tests create, e.g. the mock LLM (test/e2e/mockllm): http://mock-llm:8000/v1.
+	OpenAIBaseURL string
 }
 
 // LoadConfig reads configuration from environment variables with sensible defaults
@@ -75,6 +78,7 @@ func LoadConfig() *Config {
 		ReadinessTimeout:        envDurationOrDefault("READINESS_TIMEOUT", 5*time.Minute),
 		TavilyAPIKey:            envOrDefault("TAVILY_API_KEY", ""),
 		OpenAIAPIKey:            envOrDefault("OPENAI_API_KEY", ""),
+		OpenAIBaseURL:           envOrDefault("OPENAI_BASE_URL", ""),
 	}
 }
 

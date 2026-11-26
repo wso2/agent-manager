@@ -160,6 +160,7 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `CONSOLE_SIGN_OUT_REDIRECT_URL` | `console.sign_out_redirect_url` | `SERVER_PUBLIC_URL/login` | Where sign-out returns. |
 | `CONSOLE_BASE_PATH` | `console.base_path` | `/` | Path the console is served under. |
 | `CONSOLE_DOCS_URL` | `console.docs_url` | `https://wso2.com/agent-platform/docs/next` | Documentation the console links to. |
+| `CONSOLE_ANALYTICS_DASHBOARD_URL` | `console.analytics_dashboard_url` |  | Analytics dashboard the Cost Management "Advanced analytics" link opens; unset hides the link. |
 | `CONSOLE_UI_MODULES_ENABLE` | `console.ui_modules_enable` |  | Console UI modules to turn on besides those the API's modules offer, space-separated. |
 | `CONSOLE_GATEWAY_CONTROL_PLANE_URL` | `console.gateway_control_plane_url` |  | The internal server URL a gateway is told to connect to. |
 | `CONSOLE_GATEWAY_VERSION` | `console.gateway_version` |  | Gateway version shown in setup instructions. |
@@ -271,6 +272,7 @@ modules:
 | `agent_cors_allowed_methods` | `MODULE_AI_GATEWAY_AGENT_CORS_ALLOWED_METHODS` | `GET,POST,PUT,DELETE,PATCH,OPTIONS` | CORS methods an agent's gateway route allows. |
 | `agent_cors_allowed_headers` | `MODULE_AI_GATEWAY_AGENT_CORS_ALLOWED_HEADERS` | `authorization,Content-Type,Origin,X-API-Key` | CORS headers an agent's gateway route allows. |
 | `agent_cors_allow_credentials` | `MODULE_AI_GATEWAY_AGENT_CORS_ALLOW_CREDENTIALS` | `false` | Whether an agent's gateway route allows credentials. |
+| `budget_usage_flush_seconds` | `MODULE_AI_GATEWAY_BUDGET_USAGE_FLUSH_SECONDS` | `2` | How often gateways' budget and cost totals are written to the database. |
 | `controlplane_host` | `MODULE_AI_GATEWAY_CONTROLPLANE_HOST` |  | amp init: host:port of Agent Manager's gateway listener, written into the gateway's config.toml. |
 | `admin_password` | `MODULE_AI_GATEWAY_ADMIN_PASSWORD` |  | amp init: the gateway's admin password; generated and kept when unset. **Secret.** |
 | `amp_jwks_url` | `MODULE_AI_GATEWAY_AMP_JWKS_URL` |  | amp init: Agent Manager's key set, which the gateway validates agent tokens with. |

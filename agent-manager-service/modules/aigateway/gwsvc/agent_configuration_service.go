@@ -3447,13 +3447,14 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 		Description: fmt.Sprintf("LLM proxy for agent %s", config.AgentID),
 		ProjectUUID: projectUUID,
 		Configuration: gwmodels.LLMProxyConfig{
-			Name:       proxyName,
-			Version:    gwmodels.DefaultProxyVersion,
-			Context:    &contextPath,
-			Provider:   provider.UUID.String(),
-			Security:   newProxyIngressSecurity(provider),
-			Policies:   envMapping.Configuration.Policies,
-			Resilience: envMapping.Configuration.Resilience,
+			Name:        proxyName,
+			Version:     gwmodels.DefaultProxyVersion,
+			Context:     &contextPath,
+			Provider:    provider.UUID.String(),
+			Security:    newProxyIngressSecurity(provider),
+			Policies:    envMapping.Configuration.Policies,
+			Resilience:  envMapping.Configuration.Resilience,
+			Annotations: agentProxyAnnotations(config.ProjectName, config.AgentID),
 		},
 	}
 
@@ -3522,10 +3523,20 @@ func (s *agentConfigurationService) buildLLMProxyUpdateConfig(
 			Policies:     envMapping.Configuration.Policies,
 			UpstreamAuth: existingProxy.Configuration.UpstreamAuth,
 			Resilience:   envMapping.Configuration.Resilience,
+			Annotations:  agentProxyAnnotations(config.ProjectName, config.AgentID),
 		},
 	}
 
 	return proxyConfig, providerUUID, nil
+}
+
+// agentProxyAnnotations names an agent's hidden LLM proxy's project and agent for the
+// gateway's budget policy.
+func agentProxyAnnotations(projectName, agentName string) map[string]string {
+	if projectName == "" || agentName == "" {
+		return nil
+	}
+	return map[string]string{AnnotationProjectID: projectName, AnnotationAgentID: agentName}
 }
 
 // buildEnvironmentVariables generates environment variable templates from config name.

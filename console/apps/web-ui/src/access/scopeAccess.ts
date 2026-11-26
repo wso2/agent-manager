@@ -76,6 +76,12 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   monitor_read: monitor.read,
   monitor_write: monitor.write,
   monitor_execute: { anyOf: ['amp:monitor:execute'] },
+
+  // Cost management: read opens the dashboard, cost panels and budgets; write
+  // creates, updates and imports budgets; delete deletes them.
+  cost_read: { anyOf: [gatewayScope('costs', 'read')] },
+  cost_write: { anyOf: [gatewayScope('costs', 'write')] },
+  cost_delete: { anyOf: [gatewayScope('costs', 'delete')] },
   // The Users page has no read scope of its own; either member scope opens it.
   member_read: { anyOf: members },
   member_invite: { anyOf: ['amp:org:invite-member'] },

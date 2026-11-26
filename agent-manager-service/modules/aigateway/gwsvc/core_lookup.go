@@ -25,6 +25,18 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
+// LookupOrg returns the organization, or gwerr.ErrOrganizationNotFound.
+func LookupOrg(ctx context.Context, core modkit.CoreAPI, orgID string) (*modkit.Org, error) {
+	org, err := core.GetOrg(ctx, orgID)
+	if errors.Is(err, modkit.ErrNotFound) {
+		return nil, gwerr.ErrOrganizationNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &org, nil
+}
+
 // LookupProject returns the organization's project by name, or
 // gwerr.ErrProjectNotFound.
 func LookupProject(ctx context.Context, core modkit.CoreAPI, orgID, projectName string) (*modkit.Project, error) {

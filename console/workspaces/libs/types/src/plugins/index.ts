@@ -126,8 +126,11 @@ export interface PluginNavItemContribution extends PluginContributionBase {
   /**
    * Shell-defined slot to place the item in. Each level has flat slots ("main"
    * at the top, "footer" after the sections) and collapsible sections:
-   * - org: "resources", "evaluation", "infrastructure", "agent-identities"
-   * - agent: "lifecycle", "security", "observability", "evaluation"
+   * - org: "resources", "evaluation", "infrastructure", "agent-identities",
+   *   "cost-management"
+   * - project: "cost-management"
+   * - agent: "lifecycle", "security", "observability", "evaluation",
+   *   "cost-management"
    * Items without a section are appended after everything else.
    */
   section?: string;

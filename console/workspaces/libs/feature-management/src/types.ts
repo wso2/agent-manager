@@ -89,6 +89,12 @@ export interface FeatureAccessConfig {
   agent_api_key_manage: boolean;
   /** Generate agent access tokens. */
   agent_token_manage: boolean;
+  /** View cost management: the cost dashboard and panels, and budgets. */
+  cost_read: boolean;
+  /** Create, edit, disable, enable and import budgets. */
+  cost_write: boolean;
+  /** Delete a budget. */
+  cost_delete: boolean;
 }
 
 export type FeatureFlagKey = keyof FeatureFlags;

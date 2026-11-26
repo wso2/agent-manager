@@ -35,6 +35,11 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useRotateLLMProviderAPIKey: () => hoisted.rotateKey,
 }));
 
+// The provider's cost section belongs to the cost management page; show where it goes.
+vi.mock("@agent-management-platform/ai-cost-management", () => ({
+  LLMProviderCostSection: (props: { providerId: string }) => <div>cost of {props.providerId}</div>,
+}));
+
 // The real viewer lazy-loads swagger-ui; show what it was asked to render instead.
 vi.mock("@agent-management-platform/shared-component", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -143,6 +148,16 @@ describe("LLMProviderOverviewTab", () => {
     renderTab(makeProvider({ gateways: ["gw-1"] }));
     expect(screen.queryByText("Unmapped")).not.toBeInTheDocument();
     expect(screen.queryByText("Not deployed")).not.toBeInTheDocument();
+  });
+
+  it("shows the provider's cost, by its handle, to users who may read cost", () => {
+    renderTab(makeProvider());
+    expect(screen.getByText("cost of openai-prod")).toBeInTheDocument();
+  });
+
+  it("hides the provider's cost from users who may not read cost", () => {
+    renderTab(makeProvider(), {}, { cost_read: false });
+    expect(screen.queryByText(/^cost of/)).not.toBeInTheDocument();
   });
 
   describe("API key generation", () => {

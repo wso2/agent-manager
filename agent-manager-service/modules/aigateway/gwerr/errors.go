@@ -29,6 +29,26 @@ const (
 	ErrCodeProjectNotFound         = "PROJECT_NOT_FOUND"
 	ErrCodeAgentNotFound           = "AGENT_NOT_FOUND"
 	ErrCodeEnvironmentNotFound     = "ENVIRONMENT_NOT_FOUND"
+
+	// Budget errors
+	ErrCodeReferenceNotFound   = "REFERENCE_NOT_FOUND"
+	ErrCodeUnsupportedConsumer = "UNSUPPORTED_CONSUMER"
+	ErrCodeInvalidExpression   = "INVALID_EXPRESSION"
+	ErrCodeBudgetAlreadyExists = "BUDGET_ALREADY_EXISTS"
+	ErrCodeBudgetNotFound      = "BUDGET_NOT_FOUND"
+	ErrCodeBudgetReadOnly      = "BUDGET_READ_ONLY"
+	ErrCodeInvalidCSV          = "INVALID_CSV"
+	ErrCodeInvalidPricing      = "INVALID_PRICING"
+	ErrCodeChannelNotAvailable = "CHANNEL_NOT_AVAILABLE"
+)
+
+// Budget errors. A refused budget request wraps one of them, which sets its status: 409
+// for ErrBudgetConflict, 404 for ErrBudgetNotFound, 400 for ErrBudgetInvalid.
+var (
+	ErrBudgetAlreadyExists = errors.New("budget already exists")
+	ErrBudgetNotFound      = errors.New("budget not found")
+	ErrBudgetConflict      = errors.New("budget conflict")
+	ErrBudgetInvalid       = errors.New("invalid budget")
 )
 
 // The core resources a gateway route addresses by name, when they do not
@@ -84,6 +104,7 @@ var (
 	ErrLLMProviderTemplateInUse    = errors.New("cannot delete LLM provider template: LLM providers use it. Switch those providers to another template or delete them first")
 	ErrLLMProviderNotFound         = errors.New("LLM provider not found")
 	ErrLLMProviderExists           = errors.New("LLM provider already exists")
+	ErrLLMProviderUsedByBudgets    = errors.New("cannot delete LLM provider: budgets limit spend on it")
 	ErrLLMProviderHasProxies       = errors.New("cannot delete LLM provider: it has associated LLM proxies. Please delete all proxies before deleting the provider")
 	ErrLLMProviderUndeployFailed   = errors.New("cannot delete LLM provider: undeploying it from its gateways failed. Retry, or undeploy manually before deleting")
 	ErrLLMProviderDeleteInProgress = errors.New("cannot delete LLM provider: a delete is already in progress for it")

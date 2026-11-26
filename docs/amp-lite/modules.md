@@ -272,7 +272,7 @@ rt.MCPTool(modkit.MCPTool{
 
 ### Hooks
 
-Hooks run synchronously inside the core's create, update or delete of an agent or environment, and the delete of a project:
+Hooks run synchronously inside the core's create, update or delete of an agent or environment, the delete of a project, and the rename or delete of an event destination (a notification channel):
 
 ```go
 rt.Hook(modkit.ResourceAgent, modkit.Apply, func(ctx context.Context, req modkit.HookRequest) error {
@@ -293,6 +293,7 @@ rt.Hook(modkit.ResourceAgent, modkit.Apply, func(ctx context.Context, req modkit
 - Each hook gets its own deep copy of `req.Object`; changing it affects nobody else.
 - Each hook has 5 seconds (`modkit.HookTimeout`) and all hooks of one operation share 10 (`modkit.OperationTimeout`).
 - Environments are only created with an organization, so today they get `Apply` hooks once, when an org is created; a failure there is logged and the org is still created.
+- Event destinations (`modkit.ResourceEventDestination`) take only `Validate`, before the core renames (update with a new name: `req.Object` has `name` and `newName`) or deletes one, outside any transaction (`req.Tx` is nil), read only. A module that sends to channels by name (`notifications/v1`) refuses with `&modkit.Error{Status: http.StatusConflict, ...}` while it uses one; the core answers it as its own in-use 409. Other changes to a destination run no hook.
 - Projects take only `Finalize`, when a project is deleted, after the core has checked that no agent is left. It is how a module keeps a project its rows still belong to, as a foreign key would: return `&modkit.Error{Status: http.StatusConflict, ...}` while they exist, and delete what the project takes with it otherwise.
 
 ### Events
@@ -328,7 +329,7 @@ type Proxy interface {
 - Lookups always see the current set of active modules. `ok` is false when no active module provides it, so handle that, typically with a 400 naming the capability.
 - A capability is a call between modules, not a way for the core to drive one. The core never calls `llm.proxy/v1` or `mcp.proxy/v1`; agent bindings reach the gateway through its extension block and hooks (see [Where the gateway stands](ai-gateway.md#where-the-gateway-stands)).
 - A new major version is a new id (`llm.proxy/v2`) and package; providers can offer both while consumers move.
-- **Core capabilities.** The core provides a few capabilities itself, listed in `modhost.CoreCapabilities` (today `identity.directory/v1`). A module lists one in `Requires` like any other; it is always satisfied, and no module may provide it (a manifest that does is refused at startup). The server supplies the implementations when it attaches the host; a CLI host has none, so a lookup there returns `ok` false.
+- **Core capabilities.** The core provides a few capabilities itself, listed in `modhost.CoreCapabilities` (today `identity.directory/v1` and `notifications/v1`). A module lists one in `Requires` like any other; it is always satisfied, and no module may provide it (a manifest that does is refused at startup). The server supplies the implementations when it attaches the host; a CLI host has none, so a lookup there returns `ok` false.
 
 ### Optional interfaces
 
@@ -500,6 +501,7 @@ Capabilities today:
 | Capability | Version | Provider | Methods | Consumers |
 |---|---|---|---|---|
 | `identity.directory/v1` (`modkit/contracts/identityv1`) | 1 | the core | `For(org, environment)` opens an environment's directory; the client lists, gets, creates, updates and deletes groups and roles, changes group members, role permissions and role assignments, and ensures or removes MCP resource servers. `ListProvisionedAgents(org, environment)` lists the agents the core provisions identities for there, from the core's own records. In Lite only the default environment has one (the platform ThunderID); any other answers `ErrNotProvisioned`. | `ai-gateway` (agent-identity pages, MCP proxy scopes) |
+| `notifications/v1` (`modkit/contracts/notifyv1`) | 1 | the core | `Notify(ctx, tx, n)` sends a module's event to the organization's notification channels it names (event destinations, by name), through the core's outbox and event dispatcher, in the caller's transaction; names that don't exist or aren't available to the project are skipped. `Unusable(ctx, org, project, names)` lists the names that are missing or not available to the project, for a module to refuse them. The event goes only to those channels, not to webhook subscriptions. | `ai-gateway` (budget warnings) |
 | `llm.proxy/v1` (`modkit/contracts/llmv1`) | 1 | `ai-gateway` | `ValidateProviders` | none in this repository |
 | `mcp.proxy/v1` (`modkit/contracts/mcpv1`) | 1 | `ai-gateway` | `ValidateProxies` | none in this repository |
 | `traces.query/v1` (`modkit/contracts/tracesv1`) | 1 | `observability` | `QueryTraces`, `QueryTraceSpans` and `GetSpanDetails`, for a `Scope` of IDs (organization required; project, agent and environment optional). Each refuses a `Scope` of another organization than the ctx's with `ErrForeignOrg`, and answers an unknown project, agent or environment with `ErrNotFound`. | none in this repository |
@@ -617,7 +619,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [`modkit.InitComponent`](#optional-interfaces) | A module writes its own `amp init` files (the gateway's controller configuration). |
 | [The default organization exists at `Activate`](#activate-and-the-runtime) | Lite is multi-organization and creates organizations on first use; a module that seeds rows for the default organization (the gateway's bundled gateway) needs it to exist before its routes are mounted. |
 | [Distribution default modules](#what-a-module-is) | A full install should run the AI Gateway without an operator step, as before it was a module, while `amp module disable` or `uninstall` still sticks across restarts; a reconciled default list would undo those on every boot. |
-| [Core capabilities](#capabilities) (`identity.directory/v1`) | A module reaches a core service through a versioned contract instead of a core import. The proof of concept has only module-to-module capabilities. |
+| [Core capabilities](#capabilities) (`identity.directory/v1`, `notifications/v1`) | A module reaches a core service through a versioned contract instead of a core import. The proof of concept has only module-to-module capabilities. |
 
 ### Differences in shape or rules
 

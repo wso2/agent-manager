@@ -341,7 +341,7 @@ The operations below emit a record describing what actually changed, not just th
 | Event subscriptions | `event-subscription:create` / `:update` / `:delete` (organization, project and agent scope) | Fail-closed |
 | Gateways | `ai-gateway:gateways.delete`, `ai-gateway:gateways.set-identity-provider`, `ai-gateway:gateways.remove-identity-provider` | Fail-closed |
 | Gateways | `ai-gateway:gateways.create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
-| Internal | `ai-gateway:gateways.push-manifest`, `ai-gateway:api-keys.sync` (bulk sync, coalesced per gateway) | Fail-open |
+| Internal | `ai-gateway:gateways.push-manifest`, `ai-gateway:gateways.push-pricing`, `ai-gateway:api-keys.sync` (bulk sync, coalesced per gateway) | Fail-open |
 | Agent config | `ai-gateway:agent-configs.update` / `:delete` | Fail-open |
 | A2A card source | `ai-gateway:agents.set-card-source` | Fail-open |
 | A2A card source | `ai-gateway:agents.remove-card-source` (it removes the proxy and its stored secret too) | Fail-closed |
@@ -445,6 +445,7 @@ AI Gateway actions (`modules/aigateway/gwaudit/gwaudit.go`), all 66 the module's
 | `ai-gateway:gateways.delete` | config | 3 warning | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
 | `ai-gateway:gateways.list-identity-providers` | read | 1 info | — |
 | `ai-gateway:gateways.push-manifest` | config | 1 info | `policyCount` |
+| `ai-gateway:gateways.push-pricing` | config | 1 info | `addedCount`, `modelCount` |
 | `ai-gateway:gateways.read` | read | 1 info | — |
 | `ai-gateway:gateways.remove-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
 | `ai-gateway:gateways.set-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |

@@ -20,6 +20,7 @@ import type { ReactNode } from "react";
 import {
   Activity,
   Boxes,
+  Wallet,
   ClipboardCheck as EvaluationOutline,
   GitBranch,
   IdCard,
@@ -59,14 +60,20 @@ const NAV_LAYOUT: Record<PluginLevel, NavSlot[]> = {
     { key: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
     { key: "infrastructure", title: "Infrastructure", icon: <Server /> },
     { key: "agent-identities", title: "Agent identities", icon: <IdCard /> },
+    { key: "cost-management", title: "Cost management", icon: <Wallet /> },
   ],
-  project: [{ key: "main" }, { key: "footer" }],
+  project: [
+    { key: "main" },
+    { key: "footer" },
+    { key: "cost-management", title: "Cost management", icon: <Wallet /> },
+  ],
   agent: [
     { key: "main" },
     { key: "lifecycle", title: "Agent lifecycle", icon: <GitBranch /> },
     { key: "security", title: "Security", icon: <Lock /> },
     { key: "observability", title: "Observability", icon: <Activity /> },
     { key: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
+    { key: "cost-management", title: "Cost management", icon: <Wallet /> },
     { key: "footer" },
   ],
 };

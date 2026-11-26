@@ -175,6 +175,7 @@ var Settings = []Setting{
 	{Key: "CONSOLE_SIGN_OUT_REDIRECT_URL", Group: "Console", Default: "SERVER_PUBLIC_URL/login", Description: "Where sign-out returns."},
 	{Key: "CONSOLE_BASE_PATH", Group: "Console", Default: "/", Description: "Path the console is served under."},
 	{Key: "CONSOLE_DOCS_URL", Group: "Console", Default: "https://wso2.com/agent-platform/docs/next", Description: "Documentation the console links to."},
+	{Key: "CONSOLE_ANALYTICS_DASHBOARD_URL", Group: "Console", Default: "", Description: "Analytics dashboard the Cost Management \"Advanced analytics\" link opens; unset hides the link."},
 	{Key: "CONSOLE_UI_MODULES_ENABLE", Group: "Console", Default: "", Description: "Console UI modules to turn on besides those the API's modules offer, space-separated."},
 	{Key: "CONSOLE_GATEWAY_CONTROL_PLANE_URL", Group: "Console", Default: "", Description: "The internal server URL a gateway is told to connect to."},
 	{Key: "CONSOLE_GATEWAY_VERSION", Group: "Console", Default: "", Description: "Gateway version shown in setup instructions."},

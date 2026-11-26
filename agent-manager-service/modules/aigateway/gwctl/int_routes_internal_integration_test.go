@@ -187,6 +187,7 @@ func intAllRoutes(gateway uuid.UUID) []intRoute {
 		{http.MethodPost, "/artifacts/exists", map[string]any{"artifactIds": []string{id}}},
 		{http.MethodGet, "/applications", nil},
 		{http.MethodPost, "/gateways/" + gateway.String() + "/manifest", map[string]any{}},
+		{http.MethodPost, "/gateways/" + gateway.String() + "/pricing", map[string]any{"gpt-4o": map[string]any{}}},
 		{http.MethodGet, "/llm-providers/" + id, nil},
 		{http.MethodGet, "/llm-proxies/" + id, nil},
 		{http.MethodGet, "/mcp-proxies/" + id, nil},

@@ -48,7 +48,10 @@ func TestWriteGatewayKeepsGeneratedMaterial(t *testing.T) {
 		t.Fatalf("key length %d, cert %q", len(key), cert)
 	}
 	conf := readFile(t, filepath.Join(dir, GatewayConfigFile))
-	for _, want := range []string{`token = "` + token + `"`, `host = "amp-api:9243"`, "listener_port = 19080", `gatewayhost = "default-default.gateway.localhost"`} {
+	for _, want := range []string{
+		`token = "` + token + `"`, `host = "amp-api:9243"`, "listener_port = 19080", `gatewayhost = "default-default.gateway.localhost"`,
+		"[ai_cost_management.tracking]\nenabled = true", "[ai_cost_management.budgets]\nenabled = true",
+	} {
 		if !strings.Contains(conf, want) {
 			t.Errorf("config.toml lacks %q", want)
 		}

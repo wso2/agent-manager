@@ -40,6 +40,9 @@ events:
 
 console:
   docs_url: https://wso2.com/agent-platform/docs/next
+  # The analytics dashboard (Moesif or any other tool) that Cost Management's
+  # "Advanced analytics" link opens; unset hides the link.
+  # analytics_dashboard_url: ""
   # Console UI modules to turn on besides those the API's modules offer,
   # e.g. "agent-runtime agent-portal".
   ui_modules_enable: ""

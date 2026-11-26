@@ -50,11 +50,15 @@ type Gateway struct {
 	AgentIdentityController      gwctl.AgentIdentityController
 	AgentGatewayController       *gwctl.AgentGatewayController
 	EnvironmentGatewayController *gwctl.EnvironmentGatewayController
+	BudgetController             gwctl.BudgetController
+	CostController               gwctl.CostController
+	PricingController            gwctl.PricingController
 
 	A2ACardReconciler        gwsvc.A2ACardReconcilerService
 	DeploymentTimeoutSweeper gwsvc.DeploymentTimeoutSweeper
 	ReconcileWorker          *reconcile.Worker
 	DefaultGatewaySeeder     *gwsvc.DefaultGatewaySeeder
+	BudgetWarnings           *gwsvc.BudgetWarningService
 	LLMTemplateStore         *gwsvc.LLMTemplateStore
 	WebSocketManager         *websocket.Manager
 	EventHub                 eventhub.EventHub
@@ -66,6 +70,7 @@ type Gateway struct {
 	AgentConfigurationService    gwsvc.AgentConfigurationService
 	AgentGateway                 *gwsvc.AgentGatewayService
 	IdentityDirectory            *gwsvc.IdentityDirectory
+	Notifications                *gwsvc.Notifications
 	Permissions                  *gwsvc.Permissions
 	Secrets                      *gwsecret.Store
 }

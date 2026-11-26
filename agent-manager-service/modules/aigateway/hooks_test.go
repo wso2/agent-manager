@@ -66,7 +66,7 @@ func TestFinalizeHooksCoverEveryReference(t *testing.T) {
 	g := migrated(t)
 	var tables []string
 	require.NoError(t, g.Raw(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'mod_ai_gateway_%'`).Scan(&tables).Error)
-	require.Len(t, tables, 33)
+	require.Len(t, tables, 37)
 	cascadesFrom := func(table string) []string {
 		var fks []struct {
 			Table    string `gorm:"column:table"`
@@ -100,7 +100,8 @@ func TestFinalizeHooksCoverEveryReference(t *testing.T) {
 			assert.True(t, covered(table, environmentTables), "%s names an environment but the environment finalize hook leaves its rows", table)
 		}
 		if slices.Contains(columns, "project_id") {
-			assert.True(t, slices.ContainsFunc(projectTables, func(p struct{ table, what string }) bool { return p.table == table }),
+			assert.True(t,
+				slices.ContainsFunc(projectTables, func(p struct{ table, what string }) bool { return p.table == table }),
 				"%s names a project but the project finalize hook does not guard it", table)
 		}
 	}

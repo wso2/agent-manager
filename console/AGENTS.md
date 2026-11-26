@@ -116,7 +116,7 @@ The console is split into four **UI modules** under `workspaces/ui-modules/`, ea
 | Module | Pages |
 |---|---|
 | `acp-core` | overview, level-resource-listing, add-new-project, add-new-agent (the agent-type picker only), external-agent (Externally-Hosted agent type and its register form), settings (+ events), identities |
-| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too) |
+| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too), ai-cost-management (Cost Management: cost overview and budgets, organization and project) |
 | `ai-observability` | traces, logs, metrics, eval |
 | `agent-identity` | env-thunders (Agent ID, groups, roles) |
 

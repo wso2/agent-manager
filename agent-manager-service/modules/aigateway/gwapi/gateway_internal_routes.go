@@ -39,6 +39,7 @@ func RegisterGatewayInternalRoutes(rr InternalRouter, ctrl gwctl.GatewayInternal
 
 	// Subscription plans endpoint
 	rr.HandleFuncWithValidation("GET /subscription-plans", ctrl.GetSubscriptionPlans)
+	rr.HandleFuncWithValidation("GET /budgets", ctrl.GetBudgets)
 
 	// Startup sync: the gateway lists what it should hold, fetches what it is
 	// missing, and checks which artifacts it would delete still exist.
@@ -51,6 +52,13 @@ func RegisterGatewayInternalRoutes(rr InternalRouter, ctrl gwctl.GatewayInternal
 
 	// Gateway manifest endpoint
 	rr.HandleFuncWithValidation("POST /gateways/{gatewayId}/manifest", ctrl.PushGatewayManifest)
+
+	// Gateway model price file: after it connects, the gateway sends the prices its cost policy uses.
+	rr.HandleFuncWithValidation("POST /gateways/{gatewayId}/pricing", ctrl.PushPricing)
+
+	// Gateway resource sync: per kind, the complete set of resources the gateway
+	// created through its own API (budgets), mirrored read-only here.
+	rr.HandleFuncWithValidation("POST /gateways/{gatewayId}/resources", ctrl.SyncGatewayResources)
 
 	// LLM Provider endpoints
 	rr.HandleFuncWithValidation("GET /llm-providers/{providerId}", ctrl.GetLLMProvider)

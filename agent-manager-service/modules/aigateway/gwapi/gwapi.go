@@ -41,6 +41,9 @@ func RegisterRoutes(rr Router, gw *gwwire.Gateway) {
 	RegisterLLMProxyDeploymentRoutes(rr, gw.LLMProxyDeploymentController)
 	RegisterMCPProxyRoutes(rr, gw.MCPProxyController)
 	RegisterAgentConfigRoutes(rr, gw.AgentConfigurationController)
+	RegisterBudgetRoutes(rr, gw.BudgetController)
+	RegisterCostRoutes(rr, gw.CostController)
+	RegisterPricingRoutes(rr, gw.PricingController)
 	registerMCPProxyScopeRoutes(rr, gw.MCPProxyScopeController)
 	registerAgentIdentityRoutes(rr, gw.AgentIdentityController)
 }

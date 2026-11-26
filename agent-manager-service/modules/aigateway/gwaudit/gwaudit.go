@@ -34,6 +34,7 @@ const (
 	ResourceAPIKey  = "api-key"
 	ResourceGateway = "gateway"
 	ResourceAgent   = "agent"
+	ResourceBudget  = "budget"
 )
 
 // APIKeyOwner names the kind of resource an API key belongs to. Every API-key
@@ -72,6 +73,10 @@ var Actions = withDetails([]modkit.AuditAction{
 	{Name: "api-keys.rotate", Class: "credential", Severity: "critical", Description: "Rotate (api keys)"},
 	{Name: "api-keys.sync", Class: "read", Severity: "notice", Description: "Sync (api keys)"},
 	{Name: "artifacts.check-exists", Class: "read", Severity: "info", Description: "Check exists (artifacts)"},
+	{Name: "budgets.create", Class: "config", Severity: "info", Description: "Create (budgets)"},
+	{Name: "budgets.delete", Class: "config", Severity: "notice", Description: "Delete (budgets)"},
+	{Name: "budgets.import", Class: "config", Severity: "notice", Description: "Import (budgets)"},
+	{Name: "budgets.update", Class: "config", Severity: "info", Description: "Update (budgets)"},
 	{Name: "deployments.read", Class: "read", Severity: "info", Description: "Read (deployments)"},
 	{Name: "deployments.sync", Class: "read", Severity: "notice", Description: "Sync (deployments)"},
 	{Name: "environments.list-identity-providers", Class: "read", Severity: "info", Description: "List identity providers (environments)"},
@@ -83,6 +88,8 @@ var Actions = withDetails([]modkit.AuditAction{
 	{Name: "gateways.delete", Class: "config", Severity: "warning", Description: "Delete (gateways)"},
 	{Name: "gateways.list-identity-providers", Class: "read", Severity: "info", Description: "List identity providers (gateways)"},
 	{Name: "gateways.push-manifest", Class: "config", Severity: "info", Description: "Push manifest (gateways)"},
+	{Name: "gateways.push-pricing", Class: "config", Severity: "info", Description: "Push pricing (gateways)"},
+	{Name: "gateways.sync-resources", Class: "config", Severity: "info", Description: "Sync resources (gateways)"},
 	{Name: "gateways.read", Class: "read", Severity: "info", Description: "Read (gateways)"},
 	{Name: "gateways.remove-identity-provider", Class: "credential", Severity: "critical", Description: "Remove identity provider (gateways)"},
 	{Name: "gateways.set-identity-provider", Class: "credential", Severity: "critical", Description: "Set identity provider (gateways)"},
@@ -157,6 +164,9 @@ const (
 	AgentAPIKeyCreated    = "ai-gateway.agent.api_key_created"
 	AgentAPIKeyRotated    = "ai-gateway.agent.api_key_rotated"
 	AgentAPIKeyRevoked    = "ai-gateway.agent.api_key_revoked"
+	BudgetCreated         = "ai-gateway.budget.created"
+	BudgetUpdated         = "ai-gateway.budget.updated"
+	BudgetDeleted         = "ai-gateway.budget.deleted"
 )
 
 // AgentBindingsChanged is published when an agent update changes its
@@ -182,6 +192,9 @@ var Events = []modkit.EventType{
 	{Name: AgentAPIKeyCreated, Scope: "agent", Description: "An API key was created for the agent."},
 	{Name: AgentAPIKeyRotated, Scope: "agent", Description: "An API key was rotated."},
 	{Name: AgentAPIKeyRevoked, Scope: "agent", Description: "An API key was revoked."},
+	{Name: BudgetCreated, Scope: "org", Description: "A budget was created."},
+	{Name: BudgetUpdated, Scope: "org", Description: "A budget was updated."},
+	{Name: BudgetDeleted, Scope: "org", Description: "A budget was deleted."},
 }
 
 // withDetails gives each action the detail keys its records may carry.
@@ -224,6 +237,11 @@ func withDetails(actions []modkit.AuditAction) []modkit.AuditAction {
 		"gateways.set-identity-provider":    idpFields,
 		"gateways.remove-identity-provider": idpFields,
 		"gateways.push-manifest":            {"policyCount": "count"},
+		// A gateway sending its model price file: the models it listed and the ones added.
+		"gateways.push-pricing": {"modelCount": "count", "addedCount": "count"},
+		// A gateway mirroring the budgets it created through its own API.
+		"gateways.sync-resources": {"resourceCount": "count", "failedCount": "count"},
+		"budgets.delete":          {"budgetName": "name"},
 
 		"agent-configs.update": {
 			"configName": "name", "configType": "enum", "agentName": "name", "updatedFields": "name-list",

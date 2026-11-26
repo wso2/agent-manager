@@ -6545,6 +6545,675 @@ paths:
       tags:
         - LLM Providers
       x-amp-replace: document PUT replaces the fields it supplies; omitted optional fields keep their stored values
+  /orgs/{orgName}/budgets:
+    get:
+      summary: List budgets
+      description: Lists the organization's budgets, active and inactive, ordered by display name.
+      operationId: listBudgets
+      tags:
+        - Budgets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: filter
+          in: query
+          required: false
+          description: >-
+            type:id, with type project, agent, apiKey or llmProvider: budgets whose filters
+            or exemptions name it (project also matches an agent filter or exemption of that
+            project). agent:<project>/<agent> lists the budgets that count that agent: those
+            naming it, and those naming its project and no agent. Repeat for AND.
+          style: form
+          explode: true
+          schema:
+            type: array
+            maxItems: 10
+            items:
+              type: string
+        - name: search
+          in: query
+          required: false
+          description: >-
+            Budgets whose name, display name or a label contains this text, ignoring case.
+          schema:
+            type: string
+            maxLength: 100
+        - name: label
+          in: query
+          description: >-
+            A label word. Repeat the parameter to require several (a budget must have all of them).
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            # A budget carries at most 10 labels, so more than that can never match.
+            maxItems: 10
+            items:
+              type: string
+        - name: status
+          in: query
+          required: false
+          description: >-
+            active or inactive; or limitReached, budgets with one shared limit whose spend this
+            period has reached the point they act at (blockAt for Block, the amount for Allow).
+          schema:
+            type: string
+            enum: [active, inactive, limitReached]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: A page of budgets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetListResponse"
+        "400":
+          description: Invalid filter, limit or offset (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create a budget
+      description: |
+        Creates a spend limit on LLM traffic in the organization from a Budget kind (JSON or YAML),
+        the same kind the gateway's API accepts. A new budget is active unless spec.status says otherwise.
+      operationId: createBudget
+      tags:
+        - Budgets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Budget"
+          application/yaml:
+            schema:
+              $ref: "#/components/schemas/Budget"
+      responses:
+        "201":
+          description: The budget, with defaults filled in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+        "400":
+          description: >-
+            Invalid payload (VALIDATION_ERROR), or a named provider, project, agent,
+            LLM proxy or environment that does not exist (REFERENCE_NOT_FOUND), or a
+            notification channel not available to the budget (CHANNEL_NOT_AVAILABLE)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The name is already used in the organization (BUDGET_ALREADY_EXISTS)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/budgets/import:
+    post:
+      summary: Import budgets from CSV
+      description: |
+        Creates many budgets from a CSV file, one budget per row. Each row is
+        checked like a created budget; if any row fails, nothing is saved. With dryRun, every
+        row is checked and nothing is saved. Needs costs.write, also with onExisting=update.
+
+        Columns (name, amount, period and action required):
+        name,displayName,description,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels,labels
+
+        - splitBy: llmProvider, project, agent, apiKey or attribute; blank is one shared
+          limit. splitByExpression: the attribute's CEL expression.
+        - llmProvider, project, apiKey: a filter's id. agent: <project>/<agent>. '*' in
+          project, agent or apiKey is the filter without an id (any project, agent or API key).
+          Each of these columns takes several values separated by ';': the budget counts any of
+          them (OR), e.g. project `api-platform;billing`. '*' cannot be listed with other values.
+        - attributes: JSON array of CEL expressions (strings), each an attribute filter.
+        - exemptions: JSON array of exemptions. thresholds and channels: ';' lists.
+        - labels: one-word labels, a ';' list (metadata.labels).
+
+        Example rows:
+
+        org-monthly-ceiling,Organization monthly ceiling,All LLM spend,5000.00,month,block,95,,,,,,,,,80;100,finance-webhook,finance
+        online-shop-each-agent,Each Online Shop agent,,50.00,week,block,,agent,,mock-openai,online-shop,,,,,100,finance-webhook,shop;agents
+      operationId: importBudgets
+      tags:
+        - Budgets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: dryRun
+          in: query
+          required: false
+          description: Check every row and save nothing.
+          schema:
+            type: boolean
+            default: false
+        - name: onExisting
+          in: query
+          required: false
+          description: >-
+            What a row naming an existing budget does: fail (the row fails and nothing is
+            saved), skip (the budget is left as it is) or update (its editable fields are
+            replaced; fixed fields must match, and a gateway's budget cannot be updated).
+          schema:
+            type: string
+            enum: [fail, skip, update]
+            default: fail
+      requestBody:
+        required: true
+        description: UTF-8 CSV with a header row; at most 500 rows and 1 MB.
+        content:
+          text/csv:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Every row passed; the budgets were saved unless dryRun
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetImportResult"
+        "400":
+          description: >-
+            Nothing saved. A row failed: the import result, applied false. The file cannot be
+            read (INVALID_CSV): an ErrorResponse.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/BudgetImportResult"
+                  - $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/budgets/{budgetName}:
+    get:
+      summary: Get a budget
+      operationId: getBudget
+      tags:
+        - Budgets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: budgetName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Budget name
+      responses:
+        "200":
+          description: The budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such budget in the organization (BUDGET_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      summary: Update a budget
+      description: |
+        Replaces the budget with the Budget kind sent (JSON or YAML); also disables and enables it
+        (spec.status). metadata.name must be the path's budget. The period, limit.splitBy and
+        filters are fixed after creation and must be sent unchanged
+        (VALIDATION_ERROR otherwise): create a new budget instead. A budget created on a gateway
+        takes only displayName, description and warnings, which gateways never get; its status,
+        limit and exemptions must be sent unchanged (BUDGET_READ_ONLY otherwise).
+      operationId: updateBudget
+      tags:
+        - Budgets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: budgetName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Budget name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Budget"
+          application/yaml:
+            schema:
+              $ref: "#/components/schemas/Budget"
+      responses:
+        "200":
+          description: The updated budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+        "400":
+          description: Invalid payload (VALIDATION_ERROR), a missing reference (REFERENCE_NOT_FOUND) or channel (CHANNEL_NOT_AVAILABLE)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such budget in the organization (BUDGET_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The budget was created on a gateway and that change belongs there (BUDGET_READ_ONLY)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete a budget
+      operationId: deleteBudget
+      tags:
+        - Budgets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: budgetName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Budget name
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such budget in the organization (BUDGET_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The budget was created on a gateway (BUDGET_READ_ONLY)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/budgets/{budgetName}/usage:
+    get:
+      summary: Budget usage
+      description: >-
+        Each usage's spend in the budget's current period, highest spend first. An
+        usage whose last report was in an earlier period has spent nothing this period.
+      operationId: listBudgetUsage
+      tags:
+        - Budgets
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: budgetName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Budget name
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        "200":
+          description: A page of the budget's usage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetUsageListResponse"
+        "400":
+          description: Invalid query (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such budget (BUDGET_NOT_FOUND)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/costs:
+    get:
+      summary: Costs
+      description: >-
+        What LLM traffic cost in the last 3 months, the current one so far, grouped by one
+        value. Counted by gateways with cost tracking on, with or without
+        budgets. Every group, highest cost first; no paging. Needs costs.read.
+      operationId: getCosts
+      tags:
+        - Costs
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: groupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [organization, project, agent, apiKey, user, llmProvider, model]
+            default: organization
+        - name: filter
+          in: query
+          required: false
+          description: >-
+            type:value with type project, agent (project/agent), apiKey, user, llmProvider or
+            model; a comma list matches any of the values; repeat for AND.
+          style: form
+          explode: true
+          schema:
+            type: array
+            maxItems: 10
+            items:
+              type: string
+      responses:
+        "200":
+          description: The costs, grouped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostReport"
+        "400":
+          description: Invalid groupBy or filter (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/pricing:
+    get:
+      summary: Model prices
+      description: >-
+        The model prices the gateways use, USD per 1M tokens, read-only. One catalog shared by
+        every organization: gateways send their price file after they connect, and a model
+        already stored is kept as it is. Needs costs.read.
+      operationId: getModelPrices
+      tags:
+        - Costs
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: search
+          in: query
+          required: false
+          description: Part of the model name, any case
+          schema:
+            type: string
+            maxLength: 255
+        - name: provider
+          in: query
+          required: false
+          description: Only this provider's models
+          schema:
+            type: string
+            maxLength: 64
+        - name: sort
+          in: query
+          required: false
+          description: The order of the catalog. By model name by default; "provider" lists providers A to Z, models without a provider last, then by model name.
+          schema:
+            type: string
+            enum: [model, provider]
+            default: model
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: A page of the catalog, by model name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelPriceList"
+        "400":
+          description: Invalid limit or offset (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -6600,6 +7269,480 @@ components:
         minimum: 1
         maximum: 100
   schemas:
+    BudgetCurrentPeriod:
+      type: object
+      description: Spend in the current period
+      required: [periodStart, spent, unpricedRequests]
+      properties:
+        periodStart:
+          type: string
+          format: date
+        spent:
+          type: string
+          description: Total across the budget's usages
+          example: "312.40"
+        unpricedRequests:
+          type: integer
+    BudgetMetadata:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Handle, unique in the organization; cannot change
+          pattern: ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$
+          maxLength: 63
+        annotations:
+          type: object
+          description: >-
+            gateway.api-platform.wso2.com/org-id is the handle of the organization that owns the budget:
+            it must be the organization in the path, and is added when left out, so every returned budget
+            has it. A budget belongs to the organization: gateway.api-platform.wso2.com/project-id is refused
+            (VALIDATION_ERROR); to limit a project, list a project filter. Other annotations are ignored.
+          additionalProperties:
+            type: string
+        labels:
+          type: array
+          maxItems: 10
+          description: >-
+            One-word labels to organize and find budgets: each 1-63 characters of letters,
+            digits, '.', '_' or '-', starting and ending with a letter or digit (no spaces);
+            no repeats. Can change. Not sent to gateways.
+          items:
+            type: string
+            maxLength: 63
+            pattern: "^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$"
+    BudgetSpec:
+      type: object
+      required: [limit]
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Defaults to the name. Control plane only; not sent to gateways
+        description:
+          type: string
+          maxLength: 1023
+          description: Control plane only; not sent to gateways
+        status:
+          type: string
+          enum: [active, inactive]
+          default: active
+          description: An inactive budget is stored and listed but not enforced
+        limit:
+          $ref: "#/components/schemas/BudgetLimit"
+        filters:
+          type: array
+          maxItems: 20
+          description: >-
+            Which LLM usage the budget counts. Filters of different types must all match (AND);
+            filters of the same type are alternatives (OR): list the type again for each value, e.g. two
+            project filters count either project. An llmProvider, project, agent or apiKey filter
+            without an id (any value) is its type's only filter, and no entry is listed twice. attribute
+            filters all must match (write an OR inside the expression). Omitted or empty: all LLM usage.
+            At most 20 entries in all. Fixed after creation.
+          items:
+            $ref: "#/components/schemas/BudgetFilter"
+        exemptions:
+          type: array
+          maxItems: 100
+          description: Traffic not counted or blocked by this budget
+          items:
+            $ref: "#/components/schemas/BudgetExemption"
+        warnings:
+          $ref: "#/components/schemas/BudgetWarnings"
+    UnpricedRequests:
+      type: object
+      description: Requests left out of cost over the kept months, by reason
+      required: [missingPrice, usageUnavailable]
+      properties:
+        missingPrice:
+          type: integer
+          format: int64
+          description: No price for the model
+        usageUnavailable:
+          type: integer
+          format: int64
+          description: The provider reported no token usage
+    BudgetImportRowResult:
+      type: object
+      required: [row]
+      properties:
+        row:
+          type: integer
+          description: CSV row number; the header is row 1
+        name:
+          type: string
+        action:
+          type: string
+          enum: [create, update, skip]
+          description: What a valid row does, or did when applied
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/BudgetImportRowError"
+    CostByGroup:
+      type: object
+      description: >-
+        What one value of groupBy cost. Amounts are decimal strings; a month without
+        traffic is "0.00".
+      required: [id, cost, unpricedRequests, monthly]
+      properties:
+        id:
+          type: string
+          nullable: true
+          description: >-
+            The groupBy value (a project, agent, LLM provider or organization handle, an API
+            key name, a user id or a model); null when requests carried none (e.g. no user).
+          example: support-prod
+        project:
+          type: string
+          description: The agent's project; set only when groupBy is agent
+          example: customer-support
+        cost:
+          type: string
+          description: Total over the kept months
+          example: "10048.98"
+        unpricedRequests:
+          $ref: "#/components/schemas/UnpricedRequests"
+        monthly:
+          type: array
+          description: The 3 kept months, oldest first; the last is the current month so far
+          items:
+            $ref: "#/components/schemas/MonthlyCost"
+    ModelPriceList:
+      type: object
+      description: A page of the model price catalog
+      required: [providers, total, limit, offset, models]
+      properties:
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the newest model was added; null with no prices
+        providers:
+          type: array
+          description: Every provider in the catalog, sorted
+          items:
+            type: string
+        total:
+          type: integer
+          description: Models matching the search and provider
+        limit:
+          type: integer
+        offset:
+          type: integer
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelPrice"
+    ModelPrice:
+      type: object
+      description: One model's price. Prices are USD per 1M tokens as exact decimal strings; null where the price file had none.
+      required: [model]
+      properties:
+        model:
+          type: string
+          example: gpt-4o
+        provider:
+          type: string
+          nullable: true
+          example: openai
+        inputPer1M:
+          type: string
+          nullable: true
+          example: "2.50"
+        outputPer1M:
+          type: string
+          nullable: true
+          example: "10.00"
+        cachedInputPer1M:
+          type: string
+          nullable: true
+          example: "1.25"
+    CostReport:
+      type: object
+      description: Costs in USD per month for each value of the requested groupBy
+      required: [costByGroup]
+      properties:
+        costByGroup:
+          type: array
+          description: One entry per value of groupBy, highest cost first
+          items:
+            $ref: "#/components/schemas/CostByGroup"
+    BudgetSplit:
+      type: object
+      description: >-
+        Gives each value of this type its own limit of the full amount. Omitted: one shared
+        limit for all matching usage. Cannot be a filter's type, except attribute. Fixed after
+        creation.
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [llmProvider, project, agent, apiKey, attribute]
+        expression:
+          type: string
+          description: "attribute only, required: CEL returning a string or list(string)"
+          maxLength: 1024
+    BudgetServerStatus:
+      type: object
+      readOnly: true
+      description: Set by the server on responses
+      required: [origin, createdAt, updatedAt]
+      properties:
+        origin:
+          type: string
+          enum: [controlPlane, gatewayApi]
+          description: "gatewayApi: created on a gateway; only displayName, description and warnings change here"
+        currentPeriod:
+          allOf:
+            - $ref: "#/components/schemas/BudgetCurrentPeriod"
+          description: Spend this period; always returned, zero before any usage.
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BudgetExemption:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [llmProvider, project, agent, apiKey, attribute]
+        id:
+          type: string
+          description: LLM provider, project or agent handle, or API key name
+        project:
+          type: string
+          description: The agent's project; agent only
+        expression:
+          type: string
+          description: "attribute only: CEL returning bool"
+          maxLength: 1024
+    BudgetImportRowError:
+      type: object
+      required: [code, message]
+      properties:
+        column:
+          type: string
+          description: The CSV column the error is about; absent when it is about the whole row
+        code:
+          type: string
+          example: BUDGET_ALREADY_EXISTS
+        message:
+          type: string
+    BudgetImportResult:
+      type: object
+      description: The outcome of a CSV import
+      required: [dryRun, applied, summary, results]
+      properties:
+        dryRun:
+          type: boolean
+        applied:
+          type: boolean
+          description: True when the budgets were saved
+        summary:
+          $ref: "#/components/schemas/BudgetImportSummary"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/BudgetImportRowResult"
+    MonthlyCost:
+      type: object
+      required: [month, cost]
+      properties:
+        month:
+          type: string
+          description: UTC calendar month, YYYY-MM
+          example: "2026-11"
+        cost:
+          type: string
+          example: "1591.78"
+    BudgetImportSummary:
+      type: object
+      required: [valid, error, created, updated, skipped]
+      properties:
+        valid:
+          type: integer
+          description: Rows that pass every check
+        error:
+          type: integer
+          description: Rows with errors
+        created:
+          type: integer
+          description: Valid rows that create a budget
+        updated:
+          type: integer
+          description: Valid rows that update an existing budget (onExisting=update)
+        skipped:
+          type: integer
+          description: Valid rows naming an existing budget that is left as it is (onExisting=skip)
+    BudgetFilter:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [llmProvider, project, agent, apiKey, attribute]
+        id:
+          type: string
+          description: "Handle, or API key name. Required for llmProvider; omitted for project, agent or apiKey = any (usage carrying one); not for attribute"
+        project:
+          type: string
+          description: "agent only: the agent's project (agent names are unique only per project); given with id, or both omitted (any agent)"
+        expression:
+          type: string
+          description: "attribute only, required: CEL returning bool"
+          maxLength: 1024
+    BudgetUsageListResponse:
+      type: object
+      description: A page of a budget's usage, one row per usage, in the current period
+      required: [periodStart, usages, total, limit, offset]
+      properties:
+        periodStart:
+          type: string
+          format: date
+        usages:
+          type: array
+          items:
+            $ref: "#/components/schemas/BudgetUsageEntry"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+    BudgetListResponse:
+      type: object
+      required: [budgets, total, limit, offset]
+      properties:
+        budgets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Budget"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+    Budget:
+      type: object
+      description: >-
+        A spend limit on LLM traffic. The body is the gateway's Budget kind, the same document
+        its API accepts and pipelines keep in files. spec.displayName, spec.description and
+        spec.warnings are control-plane fields: they are not sent to gateways, and a gateway
+        ignores them if given. status is set by the server and ignored in requests.
+      required: [apiVersion, kind, metadata, spec]
+      properties:
+        apiVersion:
+          type: string
+          enum: [gateway.api-platform.wso2.com/v1]
+        kind:
+          type: string
+          enum: [Budget]
+        metadata:
+          $ref: "#/components/schemas/BudgetMetadata"
+        spec:
+          $ref: "#/components/schemas/BudgetSpec"
+        status:
+          $ref: "#/components/schemas/BudgetServerStatus"
+      example:
+        apiVersion: gateway.api-platform.wso2.com/v1
+        kind: Budget
+        metadata:
+          name: api-platform-per-agent-openai
+          annotations:
+            gateway.api-platform.wso2.com/org-id: wso2
+        spec:
+          displayName: API Platform, per agent on OpenAI
+          limit:
+            amount: "100.00"
+            period: month
+            action: block
+            splitBy:
+              type: agent
+          filters:
+            - type: llmProvider
+              id: openai
+            - type: project
+              id: api-platform
+          warnings:
+            thresholds: [80, 100]
+            channels: [platform-slack]
+    BudgetLimit:
+      type: object
+      required: [amount, period, action]
+      properties:
+        amount:
+          type: string
+          pattern: '^([1-9][0-9]{0,11}(\.[0-9]{1,2})?|0\.([1-9][0-9]?|0[1-9]))$'
+          description: In USD; above zero; at most 12 whole digits and 2 decimals, no leading zeros; never rounded
+          example: "100.00"
+        period:
+          type: string
+          enum: [day, week, month]
+          description: UTC calendar periods; a week starts on Monday
+        action:
+          type: string
+          enum: [block, allow]
+          description: "block: refuses when used up; allow: only counts"
+        blockAt:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 100
+          description: "Block only: refuses once spend reaches this share of the amount"
+        splitBy:
+          $ref: "#/components/schemas/BudgetSplit"
+    BudgetUsageEntry:
+      type: object
+      description: One usage's spend this period
+      required: [usage, spent, unpricedRequests]
+      properties:
+        usage:
+          type: object
+          description: The allocated values, e.g. {"project":"api-platform","agent":"support-agent"}; empty when shared
+          additionalProperties:
+            type: string
+        spent:
+          type: string
+          description: USD
+          example: "104.21"
+        unpricedRequests:
+          type: integer
+          format: int64
+    BudgetWarnings:
+      type: object
+      description: >-
+        Warnings the control plane sends to the named notification channels. Control plane
+        only; not sent to gateways.
+      required: [thresholds, channels]
+      properties:
+        thresholds:
+          type: array
+          minItems: 1
+          maxItems: 10
+          description: Whole percentages of the amount, 1-1000; each once per usage per period
+          items:
+            type: integer
+            minimum: 1
+            maximum: 1000
+        channels:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: >-
+            Names of notification channels (event destinations, unique in the organization)
+            available to the budget
+          items:
+            type: string
     ProjectScopedDocumentMetadata:
       type: object
       description: Metadata of a kind that lives inside a project.

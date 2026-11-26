@@ -220,6 +220,44 @@ export const rootRouteMap: AppRoute = {
                     index: true,
                     children: {},
                 },
+                costManagement: {
+                    path: 'cost-management',
+                    index: true,
+                    children: {
+                        unpricedRequests: {
+                            path: 'unpriced-requests',
+                            index: true,
+                            children: {},
+                        },
+                        pricing: {
+                            path: 'pricing',
+                            index: true,
+                            children: {},
+                        },
+                        budgets: {
+                            path: 'budgets',
+                            index: true,
+                            children: {
+                                create: {
+                                    path: 'create',
+                                    index: true,
+                                    children: {},
+                                },
+                                view: {
+                                    path: 'view/:budgetName',
+                                    index: true,
+                                    children: {
+                                        edit: {
+                                            path: 'edit',
+                                            index: true,
+                                            children: {},
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
                 newProject: {
                     path: 'newProject',
                     index: true,
@@ -238,6 +276,39 @@ export const rootRouteMap: AppRoute = {
                             path: 'events',
                             index: true,
                             children: {},
+                        },
+                        costManagement: {
+                            path: 'cost-management',
+                            index: true,
+                            children: {
+                                unpricedRequests: {
+                                    path: 'unpriced-requests',
+                                    index: true,
+                                    children: {},
+                                },
+                                budgets: {
+                                    path: 'budgets',
+                                    index: true,
+                                    children: {
+                                        create: {
+                                            path: 'create',
+                                            index: true,
+                                            children: {},
+                                        },
+                                        view: {
+                                            path: 'view/:budgetName',
+                                            index: true,
+                                            children: {
+                                                edit: {
+                                                    path: 'edit',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
                         },
                         agentListing: {
                             path: 'agents',
@@ -264,6 +335,28 @@ export const rootRouteMap: AppRoute = {
                             path: 'agents/:agentId',
                             index: true,
                             children: {
+                                costManagement: {
+                                    path: 'cost-management',
+                                    index: true,
+                                    children: {
+                                        unpricedRequests: {
+                                            path: 'unpriced-requests',
+                                            index: true,
+                                            children: {},
+                                        },
+                                        budgets: {
+                                            path: 'budgets',
+                                            index: true,
+                                            children: {
+                                                view: {
+                                                    path: 'view/:budgetName',
+                                                    index: true,
+                                                    children: {},
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
                                 edit: {
                                     path: 'edit',
                                     index: true,

@@ -46,7 +46,7 @@ func TestDeploymentAckHandlerRecordsAgentAcksUnderEitherResourceType(t *testing.
 			msg := `{"type":"deployment.ack","payload":{"deploymentId":"d-1","artifactId":"a-1","resourceType":"` +
 				resourceType + `","action":"deploy","status":"success"}}`
 
-			assert.True(t, NewDeploymentAckHandler(repo, nil).HandleMessage("gw-1", []byte(msg)))
+			assert.True(t, NewDeploymentAckHandler(repo, nil, nil).HandleMessage("gw-1", []byte(msg)))
 
 			calls := repo.ApplyAckCalls()
 			require.Len(t, calls, 1)
@@ -67,7 +67,7 @@ func TestDeploymentAckHandlerAppliesAnUndeployAckWithNoDeploymentID(t *testing.T
 			msg := `{"type":"deployment.ack","payload":{"deploymentId":"","artifactId":"a-1","resourceType":"` +
 				resourceType + `","action":"undeploy","status":"success"}}`
 
-			assert.True(t, NewDeploymentAckHandler(repo, nil).HandleMessage("gw-1", []byte(msg)))
+			assert.True(t, NewDeploymentAckHandler(repo, nil, nil).HandleMessage("gw-1", []byte(msg)))
 
 			calls := repo.ApplyAckCalls()
 			require.Len(t, calls, 1)
@@ -83,7 +83,7 @@ func TestDeploymentAckHandlerSkipsUnsupportedResourceTypes(t *testing.T) {
 	msg := `{"type":"deployment.ack","payload":{"deploymentId":"d-1","artifactId":"a-1","resourceType":"websubapi",` +
 		`"action":"deploy","status":"success"}}`
 
-	assert.True(t, NewDeploymentAckHandler(repo, nil).HandleMessage("gw-1", []byte(msg)))
+	assert.True(t, NewDeploymentAckHandler(repo, nil, nil).HandleMessage("gw-1", []byte(msg)))
 	assert.Empty(t, repo.ApplyAckCalls())
 }
 
@@ -92,7 +92,7 @@ func TestAckAcceptsAPIResourceType(t *testing.T) {
 	msg := `{"type":"deployment.ack","payload":{"deploymentId":"d-1","artifactId":"a-1","resourceType":"api",` +
 		`"action":"deploy","status":"success"}}`
 
-	assert.True(t, NewDeploymentAckHandler(repo, nil).HandleMessage("gw-1", []byte(msg)))
+	assert.True(t, NewDeploymentAckHandler(repo, nil, nil).HandleMessage("gw-1", []byte(msg)))
 	assert.Len(t, repo.ApplyAckCalls(), 1)
 }
 
@@ -106,7 +106,7 @@ func TestDeploymentAckHandlerPassesItsAfterLiveHook(t *testing.T) {
 	msg := `{"type":"deployment.ack","payload":{"deploymentId":"d-1","artifactId":"a-1","resourceType":"Agent",` +
 		`"action":"deploy","status":"success"}}`
 
-	assert.True(t, NewDeploymentAckHandler(repo, afterLive).HandleMessage("gw-1", []byte(msg)))
+	assert.True(t, NewDeploymentAckHandler(repo, afterLive, nil).HandleMessage("gw-1", []byte(msg)))
 
 	calls := repo.ApplyAckCalls()
 	require.Len(t, calls, 1)

@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwapi"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
@@ -64,7 +65,7 @@ func (module) Manifest() modkit.Manifest {
 		Description:  "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
 		CoreAPI:      modkit.CoreAPIVersion,
 		Provides:     []string{llmv1.ID, mcpv1.ID},
-		Requires:     []string{identityv1.ID},
+		Requires:     []string{identityv1.ID, notifyv1.ID},
 		Permissions:  perms,
 		RoleGrants:   gwperm.RoleGrants,
 		Events:       gwaudit.Events,
@@ -96,6 +97,7 @@ var ui = modkit.UI{Pages: []modkit.Page{
 	{ID: "ai-gateway/agent-security", Permission: gwperm.AgentRead},
 	{ID: "ai-gateway/configure-agent", Permission: gwperm.AgentRead},
 	{ID: "agent-identity/agent-identity", Permission: "agent-identities.read"},
+	{ID: "ai-gateway/ai-cost-management", Permission: "costs.read"},
 }}
 
 //go:embed api/openapi.yaml
@@ -159,6 +161,11 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	})
 	gw.Permissions.Use(rt.Can)
 	gw.Secrets.Use(rt.Secrets())
+	if gw.Notifications != nil {
+		gw.Notifications.Use(func() (notifyv1.Notifier, bool) {
+			return modkit.Lookup[notifyv1.Notifier](rt, notifyv1.ID)
+		})
+	}
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
 	registerHooks(rt, gw.AgentGateway)
@@ -219,14 +226,19 @@ func run(ctx context.Context, gw *gwwire.Gateway) error {
 	if err != nil {
 		return fmt.Errorf("failed to register the default gateway: %w", err)
 	}
-	workers := []struct {
+	type worker struct {
 		name  string
 		start func(context.Context) error
 		stop  func() error
-	}{
+	}
+	workers := []worker{
 		{"A2A card reconciler", gw.A2ACardReconciler.Start, gw.A2ACardReconciler.Stop},
 		{"deployment timeout sweeper", gw.DeploymentTimeoutSweeper.Start, gw.DeploymentTimeoutSweeper.Stop},
 		{"reconcile worker", gw.ReconcileWorker.Start, gw.ReconcileWorker.Stop},
+	}
+	if gw.BudgetWarnings != nil {
+		// Records the usage gateways report, off their connections.
+		workers = append(workers, worker{"budget usage recording", gw.BudgetWarnings.Start, gw.BudgetWarnings.Stop})
 	}
 	for i, w := range workers {
 		if err := w.start(ctx); err != nil {

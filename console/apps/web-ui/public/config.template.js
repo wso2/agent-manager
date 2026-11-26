@@ -112,6 +112,8 @@ window.__RUNTIME_CONFIG__ = {
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
   docsUrl: '$DOCS_URL',
+  // Cost Management's "Advanced analytics" link (Moesif or any analytics tool); empty means none.
+  analyticsDashboardUrl: '$ANALYTICS_DASHBOARD_URL',
   footerLinks: {
     privacyPolicyUrl: 'https://wso2.com/agent-platform/agent-manager/',
     termsOfUseUrl: 'https://wso2.com/agent-platform/agent-manager/',

@@ -116,6 +116,8 @@ check events-types 200 "$(code "${A[@]}" "$B/events/event-types")"
 check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
 check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GWR/llm-providers")"
 check llm-providers-old-path 404 "$(code "${A[@]}" "$GW/llm-providers")"
+check budgets "$(pick 200 404)" "$(code "${A[@]}" "$GW/budgets")"
+check costs "$(pick 200 404)" "$(code "${A[@]}" "$GW/costs")"
 check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/environments/default/gateways")"
 check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GWR/agents/$AG/deployments?project=$P")"
 check agent-config "$(pick 200 404)" "$(code "${A[@]}" "$GWR/agents/$AG/configurations?project=$P")"
@@ -181,7 +183,7 @@ fi
 check ui-manifest-needs-token 401 "$(code "$API/api/v1/ui-manifest")"
 check ui-manifest 200 "$(code "${A[@]}" "$API/api/v1/ui-manifest")"
 CORE_PAGES=acp-core/external-agent
-GW_PAGES=ai-gateway/gateways,ai-gateway/llm-providers,ai-gateway/mcp-proxies,ai-gateway/agent-security,ai-gateway/configure-agent,agent-identity/agent-identity
+GW_PAGES=ai-gateway/gateways,ai-gateway/llm-providers,ai-gateway/mcp-proxies,ai-gateway/agent-security,ai-gateway/configure-agent,agent-identity/agent-identity,ai-gateway/ai-cost-management
 check ui-manifest-pages "$(pick "$CORE_PAGES,$GW_PAGES" "$CORE_PAGES")" "$(jq -r '.pages | join(",")' "$BODY")"
 check ui-manifest-modules "$(pick core,ai-gateway core)" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
 

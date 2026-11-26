@@ -23,6 +23,8 @@ import (
 	"net/http"
 	"strings"
 
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -61,6 +63,7 @@ func registerHooks(rt modkit.Runtime, agents *gwsvc.AgentGatewayService) {
 		return gwsvc.RecordAgentTeardown(req.Tx, req)
 	})
 	rt.Hook(modkit.ResourceProject, modkit.Finalize, finalizeProject)
+	rt.Hook(modkit.ResourceEventDestination, modkit.Validate, channelInUse(rt.DB))
 	rt.Hook(modkit.ResourceEnvironment, modkit.Finalize, finalizeEnvironment(rt.Secrets()))
 
 	reconcile := func(ctx context.Context, e modkit.Event) error {
@@ -93,6 +96,26 @@ func registerHooks(rt modkit.Runtime, agents *gwsvc.AgentGatewayService) {
 var projectTables = []struct{ table, what string }{
 	{"mod_ai_gateway_llm_proxies", "LLM proxy(ies)"},
 	{"mod_ai_gateway_mcp_proxies", "MCP server(s)"},
+}
+
+// channelInUse refuses to rename or delete a notification channel that budgets send
+// warnings to by name.
+func channelInUse(db func() *gorm.DB) modkit.HookFunc {
+	return func(ctx context.Context, req modkit.HookRequest) error {
+		name, _ := req.Object["name"].(string)
+		budgets, err := gwrepo.ChannelBudgets(db().WithContext(ctx), req.OrgID, name)
+		if err != nil || len(budgets) == 0 {
+			return err
+		}
+		what := "remove it from them first"
+		if req.Action == modkit.ActionUpdate {
+			what = "remove it from them before renaming it"
+		}
+		return &modkit.Error{
+			Status:  http.StatusConflict,
+			Message: fmt.Sprintf("budget(s) %s send warnings to it; %s", strings.Join(budgets, ", "), what),
+		}
+	}
 }
 
 func finalizeProject(_ context.Context, req modkit.HookRequest) error {

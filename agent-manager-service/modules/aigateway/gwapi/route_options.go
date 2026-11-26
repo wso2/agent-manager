@@ -85,6 +85,10 @@ var routeOptions = map[string][]modkit.RouteOption{
 	"POST /orgs/{orgName}/environments/{envName}/agent-identities/roles":                             {modkit.Audit("agent-identities.create")},
 	"POST /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}/assignments/add":    {modkit.Audit("agent-identities.assign-role")},
 	"POST /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}/assignments/remove": {modkit.Audit("agent-identities.unassign-role")},
+	"POST /orgs/{orgName}/budgets/import":                                                            {modkit.Audit("budgets.import")},
+	"PUT /orgs/{orgName}/budgets/{budgetName}":                                                       {modkit.Audit("budgets.update"), modkit.Emits(gwaudit.BudgetUpdated)},
+	"POST /orgs/{orgName}/budgets":                                                                   {modkit.Audit("budgets.create"), modkit.Emits(gwaudit.BudgetCreated)},
+	"DELETE /orgs/{orgName}/budgets/{budgetName}":                                                    {modkit.Audit("budgets.delete"), modkit.Emits(gwaudit.BudgetDeleted)},
 	"POST /orgs/{orgName}/gateways":                                                                  {modkit.Audit("gateways.create"), modkit.EmitsWithoutData(gwaudit.GatewayCreated)},
 	"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}":                                 {modkit.Audit("gateways.assign-environment")},
 	"POST /orgs/{orgName}/gateways/{gatewayID}/tokens":                                               {modkit.Audit("gateway-tokens.rotate"), modkit.AuditFailClosed()},
@@ -136,10 +140,12 @@ const syncWindow = 5 * time.Minute
 // internalRouteOptions are the audit actions of the controller-facing routes
 // below /api/internal/v1. Reads not listed are not recorded.
 var internalRouteOptions = map[string][]modkit.RouteOption{
-	"GET /llm-providers/api-keys":         {modkit.Audit("api-keys.sync"), modkit.AuditCoalesce(syncWindow)},
-	"GET /llm-proxies/api-keys":           {modkit.Audit("api-keys.sync"), modkit.AuditCoalesce(syncWindow)},
-	"GET /apis/api-keys":                  {modkit.Audit("api-keys.sync"), modkit.AuditCoalesce(syncWindow)},
-	"POST /deployments/fetch-batch":       {modkit.Audit("deployments.sync")},
-	"POST /artifacts/exists":              {modkit.Audit("artifacts.check-exists")},
-	"POST /gateways/{gatewayId}/manifest": {modkit.Audit("gateways.push-manifest")},
+	"GET /llm-providers/api-keys":          {modkit.Audit("api-keys.sync"), modkit.AuditCoalesce(syncWindow)},
+	"GET /llm-proxies/api-keys":            {modkit.Audit("api-keys.sync"), modkit.AuditCoalesce(syncWindow)},
+	"GET /apis/api-keys":                   {modkit.Audit("api-keys.sync"), modkit.AuditCoalesce(syncWindow)},
+	"POST /deployments/fetch-batch":        {modkit.Audit("deployments.sync")},
+	"POST /artifacts/exists":               {modkit.Audit("artifacts.check-exists")},
+	"POST /gateways/{gatewayId}/manifest":  {modkit.Audit("gateways.push-manifest")},
+	"POST /gateways/{gatewayId}/resources": {modkit.Audit("gateways.sync-resources")},
+	"POST /gateways/{gatewayId}/pricing":   {modkit.Audit("gateways.push-pricing")},
 }

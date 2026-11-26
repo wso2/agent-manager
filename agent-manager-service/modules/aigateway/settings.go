@@ -51,6 +51,7 @@ var settings = []modkit.Setting{
 	{Key: "AGENT_CORS_ALLOWED_METHODS", Default: "GET,POST,PUT,DELETE,PATCH,OPTIONS", Description: "CORS methods an agent's gateway route allows."},
 	{Key: "AGENT_CORS_ALLOWED_HEADERS", Default: "authorization,Content-Type,Origin,X-API-Key", Description: "CORS headers an agent's gateway route allows."},
 	{Key: "AGENT_CORS_ALLOW_CREDENTIALS", Default: "false", Description: "Whether an agent's gateway route allows credentials."},
+	{Key: "BUDGET_USAGE_FLUSH_SECONDS", Default: "2", Description: "How often gateways' budget and cost totals are written to the database."},
 	{Key: "CONTROLPLANE_HOST", Description: "amp init: host:port of Agent Manager's gateway listener, written into the gateway's config.toml."},
 	{Key: "ADMIN_PASSWORD", Description: "amp init: the gateway's admin password; generated and kept when unset.", Secret: true},
 	{Key: "AMP_JWKS_URL", Description: "amp init: Agent Manager's key set, which the gateway validates agent tokens with."},

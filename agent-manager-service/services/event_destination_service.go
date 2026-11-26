@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"reflect"
 	"slices"
 	"strings"
@@ -31,8 +32,10 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
@@ -315,6 +318,11 @@ func (s *eventDestinationService) Update(
 		// service's URL), so it cannot be kept.
 		return nil, fmt.Errorf("%w: enter the url again when changing the service", httpx.ErrInvalidInput)
 	}
+	if in.Name != d.Name {
+		if err := destinationHooks(ctx, modkit.ActionUpdate, ouID, d, in.Name); err != nil {
+			return nil, err
+		}
+	}
 	d.Name, d.Description, d.Config = in.Name, in.Description, in.Config
 	d.Availability, d.Projects = in.Availability, in.Projects
 	attempt, err := audit.Begin(ctx, audit.ActionEventDestinationUpdate, s.auditOpts(ouID, d, driver)...)
@@ -361,6 +369,9 @@ func (s *eventDestinationService) Delete(ctx context.Context, ouID string, id uu
 	if len(using) > 0 {
 		return fmt.Errorf("%w: delete or move %s first", utils.ErrEventDestinationInUse, describeSubscriptions(using))
 	}
+	if err := destinationHooks(ctx, modkit.ActionDelete, ouID, d, ""); err != nil {
+		return err
+	}
 	driver, _ := s.drivers.Get(d.Kind)
 	attempt, err := audit.Begin(ctx, audit.ActionEventDestinationDelete, s.auditOpts(ouID, d, driver)...)
 	if err != nil {
@@ -378,6 +389,31 @@ func (s *eventDestinationService) Delete(ctx context.Context, ouID string, id uu
 	attempt.Complete(ctx, err)
 	return err
 }
+
+// destinationHooks asks the active modules whether a destination may be renamed (to
+// newName) or deleted: modules that name channels, such as budgets naming their warning
+// channels, refuse while they use it. With no module hooked it allows everything.
+func destinationHooks(ctx context.Context, action, ouID string, d *models.EventDestination, newName string) error {
+	object := map[string]any{"id": d.ID.String(), "orgId": ouID, "name": d.Name}
+	if newName != "" {
+		object["newName"] = newName
+	}
+	err := coreext.Begin(ctx, modkit.ResourceEventDestination).Run(ctx, nil, modkit.Validate,
+		modkit.HookRequest{Action: action, OrgID: ouID, ID: d.ID.String(), Object: object}, nil)
+	var rejected *modkit.Error
+	if errors.As(err, &rejected) && rejected.Status == http.StatusConflict {
+		return destinationInUseError{message: rejected.Message}
+	}
+	return err
+}
+
+// destinationInUseError is a module's refusal to let a destination go: a 409 like
+// utils.ErrEventDestinationInUse, but worded by the module, since what uses the
+// destination is not a subscription.
+type destinationInUseError struct{ message string }
+
+func (e destinationInUseError) Error() string { return e.message }
+func (e destinationInUseError) Unwrap() error { return utils.ErrEventDestinationInUse }
 
 func (s *eventDestinationService) RotateSecret(ctx context.Context, ouID string, id uuid.UUID) (string, error) {
 	d, err := s.Get(ctx, ouID, id)

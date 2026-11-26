@@ -11,6 +11,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
@@ -42,6 +43,10 @@ var repositoryProviderSet = wire.NewSet(
 	gwrepo.NewAgentEnvConfigVariableRepository,
 	ProvideAIApplicationRepository,
 	gwrepo.NewMCPProxyScopeRepository,
+	ProvideBudgetRepository,
+	gwrepo.NewBudgetUsageRepository,
+	gwrepo.NewCostUsageRepository,
+	gwrepo.NewModelPriceRepository,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -68,6 +73,8 @@ var serviceProviderSet = wire.NewSet(
 	gwsvc.NewPermissions,
 	gwsecret.NewStore,
 	wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)),
+	gwsvc.NewNotifications,
+	wire.Bind(new(notifyv1.Notifier), new(*gwsvc.Notifications)),
 	wire.Bind(new(modkit.Secrets), new(*gwsecret.Store)),
 	gwsvc.NewMCPProxyScopeService,
 	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to
@@ -82,6 +89,14 @@ var serviceProviderSet = wire.NewSet(
 	gwsvc.NewAIApplicationService,
 	gwsvc.NewAgentGatewayService,
 	gwsvc.NewEnvironmentGatewayService,
+	gwsvc.NewGatewayResourceSyncService,
+	gwsvc.NewBudgetService,
+	gwsvc.NewBudgetGateways,
+	wire.Bind(new(gwsvc.BudgetGatewaySender), new(*gwsvc.BudgetGateways)),
+	gwsvc.NewBudgetWarningService,
+	gwsvc.NewCostService,
+	wire.Bind(new(gwsvc.CostRecorder), new(gwsvc.CostService)),
+	gwsvc.NewPricingService,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -103,6 +118,9 @@ var controllerProviderSet = wire.NewSet(
 	gwctl.NewAgentIdentityController,
 	gwctl.NewAgentGatewayController,
 	gwctl.NewEnvironmentGatewayController,
+	gwctl.NewBudgetController,
+	gwctl.NewCostController,
+	gwctl.NewPricingController,
 )
 
 // Initialize builds the gateway on the module's database handle and logger,
@@ -198,8 +216,16 @@ func ProvideDefaultGatewaySeeder(
 }
 
 // ProvideDeploymentAckHandler creates a new deployment ack handler that runs the reconcile kinds' after-live hooks.
-func ProvideDeploymentAckHandler(deploymentRepo gwrepo.DeploymentRepository, core *reconcile.Core) *gwsvc.DeploymentAckHandler {
-	return gwsvc.NewDeploymentAckHandler(deploymentRepo, core.AfterLive())
+// Usage messages go to the budget warning service.
+func ProvideDeploymentAckHandler(
+	deploymentRepo gwrepo.DeploymentRepository, core *reconcile.Core, warnings *gwsvc.BudgetWarningService,
+) *gwsvc.DeploymentAckHandler {
+	return gwsvc.NewDeploymentAckHandler(deploymentRepo, core.AfterLive(), warnings)
+}
+
+// ProvideBudgetRepository stores budgets, with their owners' handles from the core.
+func ProvideBudgetRepository(db *gorm.DB, core modkit.CoreAPI) gwrepo.BudgetRepository {
+	return gwrepo.NewBudgetRepository(db, core)
 }
 
 // ProvideReconcileKinds lists the gateway artifact kinds the reconcile core deploys.

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
 import { useUIModulePresent } from "../../shared/useUIModulePresent";
@@ -482,6 +482,30 @@ export function useListLLMProviderAPIKeys(params: ListLLMProviderAPIKeysPathPara
     queryFn: () => listLLMProviderAPIKeys(params, getToken),
     enabled: gatewayPresent && !!(params.orgName && params.providerId),
   });
+}
+
+/**
+ * The API keys of several LLM providers at once, by provider UUID, for pickers that span
+ * providers (a budget's API key consumer). A provider whose keys can't be listed (no API
+ * key auth, or an error) contributes none.
+ */
+export function useListLLMProvidersAPIKeys(orgName: string | undefined, providerUuids: string[]) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
+  const { getToken } = useAuthHooks();
+  const results = useQueries({
+    queries: providerUuids.map((providerId) => ({
+      queryKey: ["llm-provider-api-keys", orgName, providerId],
+      queryFn: () => listLLMProviderAPIKeys({ orgName, providerId }, getToken),
+      enabled: gatewayPresent && !!orgName && !!providerId,
+      retry: false,
+    })),
+  });
+  return {
+    keys: results.flatMap((r, i) =>
+      (r.data?.keys ?? []).map((key) => ({ providerId: providerUuids[i], key })),
+    ),
+    isLoading: results.some((r) => r.isLoading),
+  };
 }
 
 export function useCreateLLMProviderAPIKey() {

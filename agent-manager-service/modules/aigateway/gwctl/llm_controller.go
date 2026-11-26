@@ -805,6 +805,9 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 		case errors.Is(err, gwerr.ErrLLMProviderHasProxies):
 			log.Warn("DeleteLLMProvider: provider has associated proxies", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrLLMProviderHasProxies.Error())
+		case errors.Is(err, gwerr.ErrLLMProviderUsedByBudgets):
+			log.Warn("DeleteLLMProvider: budgets use the provider", "ouID", ouID, "providerID", providerID)
+			httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 		case errors.Is(err, gwerr.ErrLLMProviderUndeployFailed):
 			log.Error("DeleteLLMProvider: undeployment failed", "ouID", ouID, "providerID", providerID, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrLLMProviderUndeployFailed.Error())

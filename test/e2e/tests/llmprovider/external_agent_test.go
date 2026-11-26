@@ -91,8 +91,16 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 
 		By("Creating the LLM provider")
 		upstreamURL := openaiTpl.Metadata.EndpointURL
+		apiKey := Cfg.OpenAIAPIKey
+		if Cfg.OpenAIBaseURL != "" {
+			// The mock LLM accepts any key.
+			upstreamURL = Cfg.OpenAIBaseURL
+			if apiKey == "" {
+				apiKey = "mock-key"
+			}
+		}
 		authHeader := openaiTpl.Metadata.Auth.Header
-		authValue := openaiTpl.Metadata.Auth.ValuePrefix + Cfg.OpenAIAPIKey
+		authValue := openaiTpl.Metadata.Auth.ValuePrefix + apiKey
 
 		prov := llmproviderop.CreateLLMProvider(Default, Client, providerID,
 			framework.LLMProviderSpec{

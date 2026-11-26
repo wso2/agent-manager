@@ -93,6 +93,13 @@ const (
 
 	AgentAPIKeyManage = "ai-gateway:agent-api-keys.manage"
 
+	// Cost management: costs.read views costs and budgets, costs.write creates,
+	// updates and imports budgets, costs.delete deletes them.
+	CostWrite  = "ai-gateway:costs.write"
+	CostDelete = "ai-gateway:costs.delete"
+
+	CostRead = "ai-gateway:costs.read"
+
 	// The environment tier is an authorization axis of its own, about where
 	// an action lands rather than what it is. DeployNonProduction is the
 	// floor ("may act on environments at all") and DeployProduction is held
@@ -116,7 +123,7 @@ var Actions = []Action{
 	{"llm-providers.read", "Read LLM Providers", "View LLM providers and deployments"},
 	{"llm-providers.update", "Update LLM Providers", "Update an LLM provider"},
 	{"llm-providers.delete", "Delete LLM Providers", "Delete an LLM provider"},
-	{"llm-providers.configure-guardrail", "Configure LLM Provider Guardrails", "Configure guardrails, rate limits, and budgets"},
+	{"llm-providers.configure-guardrail", "Configure LLM Provider Guardrails", "Configure guardrails and rate limits"},
 	{"llm-providers.connect", "Connect LLM Providers", "Connect an agent to an LLM provider"},
 	{"llm-providers.deploy", "Deploy LLM Providers", "Deploy, undeploy, and restore an LLM provider"},
 	{"llm-providers.api-key-manage", "Manage LLM Provider API Keys", "Create, update, and delete LLM provider API keys"},
@@ -147,6 +154,9 @@ var Actions = []Action{
 	{"agent-identities.update", "Update Agent Identities", "Update an agent identity"},
 	{"agent-identities.delete", "Delete Agent Identities", "Delete an agent identity"},
 	{"agent-api-keys.manage", "Manage Agent API Keys", "Create, update, and delete agent API keys"},
+	{"costs.read", "Read AI Costs and Budgets", "View costs, and budgets with their spend"},
+	{"costs.write", "Manage Budgets", "Create, update, enable, disable and import budgets"},
+	{"costs.delete", "Delete Budgets", "Delete a budget"},
 	{"deploy.non-production", "Deploy to Non-Production Environments", "Deploy, promote, or suspend an agent in a non-production environment"},
 	{"deploy.production", "Deploy to Production Environments", "Deploy, promote, or suspend an agent in an environment flagged isProduction (with deploy.non-production)"},
 }
@@ -165,6 +175,7 @@ var (
 	proxyAll    = []string{"llm-proxies.create", "llm-proxies.read", "llm-proxies.update", "llm-proxies.delete", "llm-proxies.deploy", "llm-proxies.api-key-manage"}
 	identityAll = []string{"agent-identities.create", "agent-identities.read", "agent-identities.update", "agent-identities.delete"}
 	gatewayAll  = []string{"gateways.create", "gateways.read", "gateways.update", "gateways.delete", "gateways.token-manage"}
+	budgetAll   = []string{"costs.read", "costs.write", "costs.delete"}
 )
 
 func join(lists ...[]string) []string {
@@ -178,16 +189,16 @@ func join(lists ...[]string) []string {
 // RoleGrants is what each predefined role holds, by action name: what the
 // roles held of these permissions under their former names.
 var RoleGrants = map[string][]string{
-	RoleAdmin: join(gatewayAll, providerAll, templateAll, proxyAll, mcpAll, scopeAll, identityAll,
+	RoleAdmin: join(gatewayAll, providerAll, templateAll, proxyAll, mcpAll, scopeAll, identityAll, budgetAll,
 		[]string{"catalog.read", "agent-api-keys.manage", "deploy.non-production", "deploy.production"}),
 	RoleDeveloper: join([]string{
 		"gateways.read", "llm-provider-templates.read",
 		"llm-providers.read", "llm-providers.configure-guardrail", "llm-providers.connect",
 		"mcp-servers.read", "mcp-servers.configure-guardrail", "mcp-servers.connect", "mcp-servers.api-key-manage",
 		"scopes.read",
-	}, proxyAll, []string{"agent-identities.read", "catalog.read", "agent-api-keys.manage", "deploy.non-production"}),
-	RoleAILead: join(providerAll, templateAll, mcpAll, scopeAll,
+	}, proxyAll, []string{"agent-identities.read", "catalog.read", "agent-api-keys.manage", "deploy.non-production", "costs.read"}),
+	RoleAILead: join(providerAll, templateAll, mcpAll, scopeAll, budgetAll,
 		[]string{"catalog.read", "agent-api-keys.manage", "deploy.non-production"}),
-	RolePlatformEngineer: join(gatewayAll, providerAll, templateAll, mcpAll, scopeAll, identityAll,
+	RolePlatformEngineer: join(gatewayAll, providerAll, templateAll, mcpAll, scopeAll, identityAll, budgetAll,
 		[]string{"catalog.read", "agent-api-keys.manage", "deploy.non-production", "deploy.production"}),
 }

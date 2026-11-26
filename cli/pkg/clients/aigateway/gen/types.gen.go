@@ -257,6 +257,213 @@ func (e AgentModelConfigDocumentKind) Valid() bool {
 	}
 }
 
+// Defines values for BudgetApiVersion.
+const (
+	GatewayApiPlatformWso2Comv1 BudgetApiVersion = "gateway.api-platform.wso2.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the BudgetApiVersion enum.
+func (e BudgetApiVersion) Valid() bool {
+	switch e {
+	case GatewayApiPlatformWso2Comv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BudgetKind.
+const (
+	BudgetKindBudget BudgetKind = "Budget"
+)
+
+// Valid indicates whether the value is a known member of the BudgetKind enum.
+func (e BudgetKind) Valid() bool {
+	switch e {
+	case BudgetKindBudget:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BudgetExemptionType.
+const (
+	BudgetExemptionTypeAgent       BudgetExemptionType = "agent"
+	BudgetExemptionTypeApiKey      BudgetExemptionType = "apiKey"
+	BudgetExemptionTypeAttribute   BudgetExemptionType = "attribute"
+	BudgetExemptionTypeLlmProvider BudgetExemptionType = "llmProvider"
+	BudgetExemptionTypeProject     BudgetExemptionType = "project"
+)
+
+// Valid indicates whether the value is a known member of the BudgetExemptionType enum.
+func (e BudgetExemptionType) Valid() bool {
+	switch e {
+	case BudgetExemptionTypeAgent:
+		return true
+	case BudgetExemptionTypeApiKey:
+		return true
+	case BudgetExemptionTypeAttribute:
+		return true
+	case BudgetExemptionTypeLlmProvider:
+		return true
+	case BudgetExemptionTypeProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BudgetFilterType.
+const (
+	BudgetFilterTypeAgent       BudgetFilterType = "agent"
+	BudgetFilterTypeApiKey      BudgetFilterType = "apiKey"
+	BudgetFilterTypeAttribute   BudgetFilterType = "attribute"
+	BudgetFilterTypeLlmProvider BudgetFilterType = "llmProvider"
+	BudgetFilterTypeProject     BudgetFilterType = "project"
+)
+
+// Valid indicates whether the value is a known member of the BudgetFilterType enum.
+func (e BudgetFilterType) Valid() bool {
+	switch e {
+	case BudgetFilterTypeAgent:
+		return true
+	case BudgetFilterTypeApiKey:
+		return true
+	case BudgetFilterTypeAttribute:
+		return true
+	case BudgetFilterTypeLlmProvider:
+		return true
+	case BudgetFilterTypeProject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BudgetImportRowResultAction.
+const (
+	BudgetImportRowResultActionCreate BudgetImportRowResultAction = "create"
+	BudgetImportRowResultActionSkip   BudgetImportRowResultAction = "skip"
+	BudgetImportRowResultActionUpdate BudgetImportRowResultAction = "update"
+)
+
+// Valid indicates whether the value is a known member of the BudgetImportRowResultAction enum.
+func (e BudgetImportRowResultAction) Valid() bool {
+	switch e {
+	case BudgetImportRowResultActionCreate:
+		return true
+	case BudgetImportRowResultActionSkip:
+		return true
+	case BudgetImportRowResultActionUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BudgetLimitAction.
+const (
+	Allow BudgetLimitAction = "allow"
+	Block BudgetLimitAction = "block"
+)
+
+// Valid indicates whether the value is a known member of the BudgetLimitAction enum.
+func (e BudgetLimitAction) Valid() bool {
+	switch e {
+	case Allow:
+		return true
+	case Block:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BudgetLimitPeriod.
+const (
+	BudgetLimitPeriodDay   BudgetLimitPeriod = "day"
+	BudgetLimitPeriodMonth BudgetLimitPeriod = "month"
+	BudgetLimitPeriodWeek  BudgetLimitPeriod = "week"
+)
+
+// Valid indicates whether the value is a known member of the BudgetLimitPeriod enum.
+func (e BudgetLimitPeriod) Valid() bool {
+	switch e {
+	case BudgetLimitPeriodDay:
+		return true
+	case BudgetLimitPeriodMonth:
+		return true
+	case BudgetLimitPeriodWeek:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BudgetServerStatusOrigin.
+const (
+	ControlPlane BudgetServerStatusOrigin = "controlPlane"
+	GatewayApi   BudgetServerStatusOrigin = "gatewayApi"
+)
+
+// Valid indicates whether the value is a known member of the BudgetServerStatusOrigin enum.
+func (e BudgetServerStatusOrigin) Valid() bool {
+	switch e {
+	case ControlPlane:
+		return true
+	case GatewayApi:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BudgetSpecStatus.
+const (
+	BudgetSpecStatusActive   BudgetSpecStatus = "active"
+	BudgetSpecStatusInactive BudgetSpecStatus = "inactive"
+)
+
+// Valid indicates whether the value is a known member of the BudgetSpecStatus enum.
+func (e BudgetSpecStatus) Valid() bool {
+	switch e {
+	case BudgetSpecStatusActive:
+		return true
+	case BudgetSpecStatusInactive:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BudgetSplitType.
+const (
+	BudgetSplitTypeAgent       BudgetSplitType = "agent"
+	BudgetSplitTypeApiKey      BudgetSplitType = "apiKey"
+	BudgetSplitTypeAttribute   BudgetSplitType = "attribute"
+	BudgetSplitTypeLlmProvider BudgetSplitType = "llmProvider"
+	BudgetSplitTypeProject     BudgetSplitType = "project"
+)
+
+// Valid indicates whether the value is a known member of the BudgetSplitType enum.
+func (e BudgetSplitType) Valid() bool {
+	switch e {
+	case BudgetSplitTypeAgent:
+		return true
+	case BudgetSplitTypeApiKey:
+		return true
+	case BudgetSplitTypeAttribute:
+		return true
+	case BudgetSplitTypeLlmProvider:
+		return true
+	case BudgetSplitTypeProject:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CatalogDeploymentSummaryStatus.
 const (
 	CatalogDeploymentSummaryStatusDEPLOYED    CatalogDeploymentSummaryStatus = "DEPLOYED"
@@ -481,16 +688,16 @@ func (e GatewayStatus) Valid() bool {
 
 // Defines values for GatewayTokenInfoStatus.
 const (
-	Active  GatewayTokenInfoStatus = "active"
-	Revoked GatewayTokenInfoStatus = "revoked"
+	GatewayTokenInfoStatusActive  GatewayTokenInfoStatus = "active"
+	GatewayTokenInfoStatusRevoked GatewayTokenInfoStatus = "revoked"
 )
 
 // Valid indicates whether the value is a known member of the GatewayTokenInfoStatus enum.
 func (e GatewayTokenInfoStatus) Valid() bool {
 	switch e {
-	case Active:
+	case GatewayTokenInfoStatusActive:
 		return true
-	case Revoked:
+	case GatewayTokenInfoStatusRevoked:
 		return true
 	default:
 		return false
@@ -838,22 +1045,22 @@ func (e RateLimitEntryResetUnit) Valid() bool {
 
 // Defines values for RateLimitResetWindowUnit.
 const (
-	RateLimitResetWindowUnitDay    RateLimitResetWindowUnit = "day"
-	RateLimitResetWindowUnitHour   RateLimitResetWindowUnit = "hour"
-	RateLimitResetWindowUnitMinute RateLimitResetWindowUnit = "minute"
-	RateLimitResetWindowUnitSecond RateLimitResetWindowUnit = "second"
+	Day    RateLimitResetWindowUnit = "day"
+	Hour   RateLimitResetWindowUnit = "hour"
+	Minute RateLimitResetWindowUnit = "minute"
+	Second RateLimitResetWindowUnit = "second"
 )
 
 // Valid indicates whether the value is a known member of the RateLimitResetWindowUnit enum.
 func (e RateLimitResetWindowUnit) Valid() bool {
 	switch e {
-	case RateLimitResetWindowUnitDay:
+	case Day:
 		return true
-	case RateLimitResetWindowUnitHour:
+	case Hour:
 		return true
-	case RateLimitResetWindowUnitMinute:
+	case Minute:
 		return true
-	case RateLimitResetWindowUnitSecond:
+	case Second:
 		return true
 	default:
 		return false
@@ -893,6 +1100,48 @@ func (e UpstreamAuthType) Valid() bool {
 	}
 }
 
+// Defines values for ListBudgetsParamsStatus.
+const (
+	Active       ListBudgetsParamsStatus = "active"
+	Inactive     ListBudgetsParamsStatus = "inactive"
+	LimitReached ListBudgetsParamsStatus = "limitReached"
+)
+
+// Valid indicates whether the value is a known member of the ListBudgetsParamsStatus enum.
+func (e ListBudgetsParamsStatus) Valid() bool {
+	switch e {
+	case Active:
+		return true
+	case Inactive:
+		return true
+	case LimitReached:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportBudgetsParamsOnExisting.
+const (
+	ImportBudgetsParamsOnExistingFail   ImportBudgetsParamsOnExisting = "fail"
+	ImportBudgetsParamsOnExistingSkip   ImportBudgetsParamsOnExisting = "skip"
+	ImportBudgetsParamsOnExistingUpdate ImportBudgetsParamsOnExisting = "update"
+)
+
+// Valid indicates whether the value is a known member of the ImportBudgetsParamsOnExisting enum.
+func (e ImportBudgetsParamsOnExisting) Valid() bool {
+	switch e {
+	case ImportBudgetsParamsOnExistingFail:
+		return true
+	case ImportBudgetsParamsOnExistingSkip:
+		return true
+	case ImportBudgetsParamsOnExistingUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListCatalogResourcesParamsKind.
 const (
 	ListCatalogResourcesParamsKindAgent       ListCatalogResourcesParamsKind = "agent"
@@ -911,6 +1160,39 @@ func (e ListCatalogResourcesParamsKind) Valid() bool {
 	case ListCatalogResourcesParamsKindLlmProvider:
 		return true
 	case ListCatalogResourcesParamsKindMcp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetCostsParamsGroupBy.
+const (
+	GetCostsParamsGroupByAgent        GetCostsParamsGroupBy = "agent"
+	GetCostsParamsGroupByApiKey       GetCostsParamsGroupBy = "apiKey"
+	GetCostsParamsGroupByLlmProvider  GetCostsParamsGroupBy = "llmProvider"
+	GetCostsParamsGroupByModel        GetCostsParamsGroupBy = "model"
+	GetCostsParamsGroupByOrganization GetCostsParamsGroupBy = "organization"
+	GetCostsParamsGroupByProject      GetCostsParamsGroupBy = "project"
+	GetCostsParamsGroupByUser         GetCostsParamsGroupBy = "user"
+)
+
+// Valid indicates whether the value is a known member of the GetCostsParamsGroupBy enum.
+func (e GetCostsParamsGroupBy) Valid() bool {
+	switch e {
+	case GetCostsParamsGroupByAgent:
+		return true
+	case GetCostsParamsGroupByApiKey:
+		return true
+	case GetCostsParamsGroupByLlmProvider:
+		return true
+	case GetCostsParamsGroupByModel:
+		return true
+	case GetCostsParamsGroupByOrganization:
+		return true
+	case GetCostsParamsGroupByProject:
+		return true
+	case GetCostsParamsGroupByUser:
 		return true
 	default:
 		return false
@@ -965,6 +1247,24 @@ func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
 	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYED:
 		return true
 	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYING:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetModelPricesParamsSort.
+const (
+	Model    GetModelPricesParamsSort = "model"
+	Provider GetModelPricesParamsSort = "provider"
+)
+
+// Valid indicates whether the value is a known member of the GetModelPricesParamsSort enum.
+func (e GetModelPricesParamsSort) Valid() bool {
+	switch e {
+	case Model:
+		return true
+	case Provider:
 		return true
 	default:
 		return false
@@ -1430,6 +1730,237 @@ type AuthInfo struct {
 	Value *string `json:"value,omitempty"`
 }
 
+// Budget A spend limit on LLM traffic. The body is the gateway's Budget kind, the same document its API accepts and pipelines keep in files. spec.displayName, spec.description and spec.warnings are control-plane fields: they are not sent to gateways, and a gateway ignores them if given. status is set by the server and ignored in requests.
+type Budget struct {
+	ApiVersion BudgetApiVersion `json:"apiVersion"`
+	Kind       BudgetKind       `json:"kind"`
+	Metadata   BudgetMetadata   `json:"metadata"`
+	Spec       BudgetSpec       `json:"spec"`
+
+	// Status Set by the server on responses
+	Status *BudgetServerStatus `json:"status,omitempty"`
+}
+
+// BudgetApiVersion defines model for Budget.ApiVersion.
+type BudgetApiVersion string
+
+// BudgetKind defines model for Budget.Kind.
+type BudgetKind string
+
+// BudgetCurrentPeriod Spend in the current period
+type BudgetCurrentPeriod struct {
+	PeriodStart openapi_types.Date `json:"periodStart"`
+
+	// Spent Total across the budget's usages
+	Spent            string `json:"spent"`
+	UnpricedRequests int    `json:"unpricedRequests"`
+}
+
+// BudgetExemption defines model for BudgetExemption.
+type BudgetExemption struct {
+	// Expression attribute only: CEL returning bool
+	Expression *string `json:"expression,omitempty"`
+
+	// Id LLM provider, project or agent handle, or API key name
+	Id *string `json:"id,omitempty"`
+
+	// Project The agent's project; agent only
+	Project *string             `json:"project,omitempty"`
+	Type    BudgetExemptionType `json:"type"`
+}
+
+// BudgetExemptionType defines model for BudgetExemption.Type.
+type BudgetExemptionType string
+
+// BudgetFilter defines model for BudgetFilter.
+type BudgetFilter struct {
+	// Expression attribute only, required: CEL returning bool
+	Expression *string `json:"expression,omitempty"`
+
+	// Id Handle, or API key name. Required for llmProvider; omitted for project, agent or apiKey = any (usage carrying one); not for attribute
+	Id *string `json:"id,omitempty"`
+
+	// Project agent only: the agent's project (agent names are unique only per project); given with id, or both omitted (any agent)
+	Project *string          `json:"project,omitempty"`
+	Type    BudgetFilterType `json:"type"`
+}
+
+// BudgetFilterType defines model for BudgetFilter.Type.
+type BudgetFilterType string
+
+// BudgetImportResult The outcome of a CSV import
+type BudgetImportResult struct {
+	// Applied True when the budgets were saved
+	Applied bool                    `json:"applied"`
+	DryRun  bool                    `json:"dryRun"`
+	Results []BudgetImportRowResult `json:"results"`
+	Summary BudgetImportSummary     `json:"summary"`
+}
+
+// BudgetImportRowError defines model for BudgetImportRowError.
+type BudgetImportRowError struct {
+	Code string `json:"code"`
+
+	// Column The CSV column the error is about; absent when it is about the whole row
+	Column  *string `json:"column,omitempty"`
+	Message string  `json:"message"`
+}
+
+// BudgetImportRowResult defines model for BudgetImportRowResult.
+type BudgetImportRowResult struct {
+	// Action What a valid row does, or did when applied
+	Action *BudgetImportRowResultAction `json:"action,omitempty"`
+	Errors *[]BudgetImportRowError      `json:"errors,omitempty"`
+	Name   *string                      `json:"name,omitempty"`
+
+	// Row CSV row number; the header is row 1
+	Row int `json:"row"`
+}
+
+// BudgetImportRowResultAction What a valid row does, or did when applied
+type BudgetImportRowResultAction string
+
+// BudgetImportSummary defines model for BudgetImportSummary.
+type BudgetImportSummary struct {
+	// Created Valid rows that create a budget
+	Created int `json:"created"`
+
+	// Error Rows with errors
+	Error int `json:"error"`
+
+	// Skipped Valid rows naming an existing budget that is left as it is (onExisting=skip)
+	Skipped int `json:"skipped"`
+
+	// Updated Valid rows that update an existing budget (onExisting=update)
+	Updated int `json:"updated"`
+
+	// Valid Rows that pass every check
+	Valid int `json:"valid"`
+}
+
+// BudgetLimit defines model for BudgetLimit.
+type BudgetLimit struct {
+	// Action block: refuses when used up; allow: only counts
+	Action BudgetLimitAction `json:"action"`
+
+	// Amount In USD; above zero; at most 12 whole digits and 2 decimals, no leading zeros; never rounded
+	Amount string `json:"amount"`
+
+	// BlockAt Block only: refuses once spend reaches this share of the amount
+	BlockAt *int `json:"blockAt,omitempty"`
+
+	// Period UTC calendar periods; a week starts on Monday
+	Period BudgetLimitPeriod `json:"period"`
+
+	// SplitBy Gives each value of this type its own limit of the full amount. Omitted: one shared limit for all matching usage. Cannot be a filter's type, except attribute. Fixed after creation.
+	SplitBy *BudgetSplit `json:"splitBy,omitempty"`
+}
+
+// BudgetLimitAction block: refuses when used up; allow: only counts
+type BudgetLimitAction string
+
+// BudgetLimitPeriod UTC calendar periods; a week starts on Monday
+type BudgetLimitPeriod string
+
+// BudgetListResponse defines model for BudgetListResponse.
+type BudgetListResponse struct {
+	Budgets []Budget `json:"budgets"`
+	Limit   int      `json:"limit"`
+	Offset  int      `json:"offset"`
+	Total   int      `json:"total"`
+}
+
+// BudgetMetadata defines model for BudgetMetadata.
+type BudgetMetadata struct {
+	// Annotations gateway.api-platform.wso2.com/org-id is the handle of the organization that owns the budget: it must be the organization in the path, and is added when left out, so every returned budget has it. A budget belongs to the organization: gateway.api-platform.wso2.com/project-id is refused (VALIDATION_ERROR); to limit a project, list a project filter. Other annotations are ignored.
+	Annotations *map[string]string `json:"annotations,omitempty"`
+
+	// Labels One-word labels to organize and find budgets: each 1-63 characters of letters, digits, '.', '_' or '-', starting and ending with a letter or digit (no spaces); no repeats. Can change. Not sent to gateways.
+	Labels *[]string `json:"labels,omitempty"`
+
+	// Name Handle, unique in the organization; cannot change
+	Name string `json:"name"`
+}
+
+// BudgetServerStatus Set by the server on responses
+type BudgetServerStatus struct {
+	CreatedAt time.Time `json:"createdAt"`
+	CreatedBy *string   `json:"createdBy,omitempty"`
+
+	// CurrentPeriod Spend this period; always returned, zero before any usage.
+	CurrentPeriod *BudgetCurrentPeriod `json:"currentPeriod,omitempty"`
+
+	// Origin gatewayApi: created on a gateway; only displayName, description and warnings change here
+	Origin    BudgetServerStatusOrigin `json:"origin"`
+	UpdatedAt time.Time                `json:"updatedAt"`
+}
+
+// BudgetServerStatusOrigin gatewayApi: created on a gateway; only displayName, description and warnings change here
+type BudgetServerStatusOrigin string
+
+// BudgetSpec defines model for BudgetSpec.
+type BudgetSpec struct {
+	// Description Control plane only; not sent to gateways
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Defaults to the name. Control plane only; not sent to gateways
+	DisplayName *string `json:"displayName,omitempty"`
+
+	// Exemptions Traffic not counted or blocked by this budget
+	Exemptions *[]BudgetExemption `json:"exemptions,omitempty"`
+
+	// Filters Which LLM usage the budget counts. Filters of different types must all match (AND); filters of the same type are alternatives (OR): list the type again for each value, e.g. two project filters count either project. An llmProvider, project, agent or apiKey filter without an id (any value) is its type's only filter, and no entry is listed twice. attribute filters all must match (write an OR inside the expression). Omitted or empty: all LLM usage. At most 20 entries in all. Fixed after creation.
+	Filters *[]BudgetFilter `json:"filters,omitempty"`
+	Limit   BudgetLimit     `json:"limit"`
+
+	// Status An inactive budget is stored and listed but not enforced
+	Status *BudgetSpecStatus `json:"status,omitempty"`
+
+	// Warnings Warnings the control plane sends to the named notification channels. Control plane only; not sent to gateways.
+	Warnings *BudgetWarnings `json:"warnings,omitempty"`
+}
+
+// BudgetSpecStatus An inactive budget is stored and listed but not enforced
+type BudgetSpecStatus string
+
+// BudgetSplit Gives each value of this type its own limit of the full amount. Omitted: one shared limit for all matching usage. Cannot be a filter's type, except attribute. Fixed after creation.
+type BudgetSplit struct {
+	// Expression attribute only, required: CEL returning a string or list(string)
+	Expression *string         `json:"expression,omitempty"`
+	Type       BudgetSplitType `json:"type"`
+}
+
+// BudgetSplitType defines model for BudgetSplit.Type.
+type BudgetSplitType string
+
+// BudgetUsageEntry One usage's spend this period
+type BudgetUsageEntry struct {
+	// Spent USD
+	Spent            string `json:"spent"`
+	UnpricedRequests int64  `json:"unpricedRequests"`
+
+	// Usage The allocated values, e.g. {"project":"api-platform","agent":"support-agent"}; empty when shared
+	Usage map[string]string `json:"usage"`
+}
+
+// BudgetUsageListResponse A page of a budget's usage, one row per usage, in the current period
+type BudgetUsageListResponse struct {
+	Limit       int                `json:"limit"`
+	Offset      int                `json:"offset"`
+	PeriodStart openapi_types.Date `json:"periodStart"`
+	Total       int                `json:"total"`
+	Usages      []BudgetUsageEntry `json:"usages"`
+}
+
+// BudgetWarnings Warnings the control plane sends to the named notification channels. Control plane only; not sent to gateways.
+type BudgetWarnings struct {
+	// Channels Names of notification channels (event destinations, unique in the organization) available to the budget
+	Channels []string `json:"channels"`
+
+	// Thresholds Whole percentages of the amount, 1-1000; each once per usage per period
+	Thresholds []int `json:"thresholds"`
+}
+
 // CORSConfig defines model for CORSConfig.
 type CORSConfig struct {
 	// AllowCredentials Whether credentials are allowed. Cannot be true when allowOrigin contains "*"
@@ -1577,6 +2108,24 @@ type CatalogListResponse_Entries_Item struct {
 	union json.RawMessage
 }
 
+// CostByGroup What one value of groupBy cost. Amounts are decimal strings; a month without traffic is "0.00".
+type CostByGroup struct {
+	// Cost Total over the kept months
+	Cost string `json:"cost"`
+
+	// Id The groupBy value (a project, agent, LLM provider or organization handle, an API key name, a user id or a model); null when requests carried none (e.g. no user).
+	Id *string `json:"id"`
+
+	// Monthly The 3 kept months, oldest first; the last is the current month so far
+	Monthly []MonthlyCost `json:"monthly"`
+
+	// Project The agent's project; set only when groupBy is agent
+	Project *string `json:"project,omitempty"`
+
+	// UnpricedRequests Requests left out of cost over the kept months, by reason
+	UnpricedRequests UnpricedRequests `json:"unpricedRequests"`
+}
+
 // CostRateLimit defines model for CostRateLimit.
 type CostRateLimit struct {
 	// Amount Maximum cost amount
@@ -1585,6 +2134,12 @@ type CostRateLimit struct {
 	// Enabled Whether cost rate limiting is enabled
 	Enabled bool                 `json:"enabled"`
 	Reset   RateLimitResetWindow `json:"reset"`
+}
+
+// CostReport Costs in USD per month for each value of the requested groupBy
+type CostReport struct {
+	// CostByGroup One entry per value of groupBy, highest cost first
+	CostByGroup []CostByGroup `json:"costByGroup"`
 }
 
 // CreateGatewayRequest defines model for CreateGatewayRequest.
@@ -2758,6 +3313,39 @@ type McpProxySpec struct {
 	Vhost *string `json:"vhost,omitempty"`
 }
 
+// ModelPrice One model's price. Prices are USD per 1M tokens as exact decimal strings; null where the price file had none.
+type ModelPrice struct {
+	CachedInputPer1M *string `json:"cachedInputPer1M,omitempty"`
+	InputPer1M       *string `json:"inputPer1M,omitempty"`
+	Model            string  `json:"model"`
+	OutputPer1M      *string `json:"outputPer1M,omitempty"`
+	Provider         *string `json:"provider,omitempty"`
+}
+
+// ModelPriceList A page of the model price catalog
+type ModelPriceList struct {
+	Limit  int          `json:"limit"`
+	Models []ModelPrice `json:"models"`
+	Offset int          `json:"offset"`
+
+	// Providers Every provider in the catalog, sorted
+	Providers []string `json:"providers"`
+
+	// Total Models matching the search and provider
+	Total int `json:"total"`
+
+	// UpdatedAt When the newest model was added; null with no prices
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+// MonthlyCost defines model for MonthlyCost.
+type MonthlyCost struct {
+	Cost string `json:"cost"`
+
+	// Month UTC calendar month, YYYY-MM
+	Month string `json:"month"`
+}
+
 // OAuthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
 type OAuthConfig struct {
 	// Audiences Accepted token audiences (aud claim). Validation succeeds only when at least one configured audience is present in the token. Empty disables audience validation.
@@ -3092,6 +3680,15 @@ type TokenRateLimit struct {
 	// Enabled Whether token rate limiting is enabled
 	Enabled bool                 `json:"enabled"`
 	Reset   RateLimitResetWindow `json:"reset"`
+}
+
+// UnpricedRequests Requests left out of cost over the kept months, by reason
+type UnpricedRequests struct {
+	// MissingPrice No price for the model
+	MissingPrice int64 `json:"missingPrice"`
+
+	// UsageUnavailable The provider reported no token usage
+	UsageUnavailable int64 `json:"usageUnavailable"`
 }
 
 // UpdateAgentDeploySettingsRequest Deploy settings of the agent in the default environment.
@@ -3477,6 +4074,44 @@ type ListMCPProxiesParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListBudgetsParams defines parameters for ListBudgets.
+type ListBudgetsParams struct {
+	// Filter type:id, with type project, agent, apiKey or llmProvider: budgets whose filters or exemptions name it (project also matches an agent filter or exemption of that project). agent:<project>/<agent> lists the budgets that count that agent: those naming it, and those naming its project and no agent. Repeat for AND.
+	Filter *[]string `form:"filter,omitempty" json:"filter,omitempty"`
+
+	// Search Budgets whose name, display name or a label contains this text, ignoring case.
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Label A label word. Repeat the parameter to require several (a budget must have all of them).
+	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
+
+	// Status active or inactive; or limitReached, budgets with one shared limit whose spend this period has reached the point they act at (blockAt for Block, the amount for Allow).
+	Status *ListBudgetsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Limit  *int                     `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int                     `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListBudgetsParamsStatus defines parameters for ListBudgets.
+type ListBudgetsParamsStatus string
+
+// ImportBudgetsParams defines parameters for ImportBudgets.
+type ImportBudgetsParams struct {
+	// DryRun Check every row and save nothing.
+	DryRun *bool `form:"dryRun,omitempty" json:"dryRun,omitempty"`
+
+	// OnExisting What a row naming an existing budget does: fail (the row fails and nothing is saved), skip (the budget is left as it is) or update (its editable fields are replaced; fixed fields must match, and a gateway's budget cannot be updated).
+	OnExisting *ImportBudgetsParamsOnExisting `form:"onExisting,omitempty" json:"onExisting,omitempty"`
+}
+
+// ImportBudgetsParamsOnExisting defines parameters for ImportBudgets.
+type ImportBudgetsParamsOnExisting string
+
+// ListBudgetUsageParams defines parameters for ListBudgetUsage.
+type ListBudgetUsageParams struct {
+	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListCatalogResourcesParams defines parameters for ListCatalogResources.
 type ListCatalogResourcesParams struct {
 	// Kind Filter by resource type
@@ -3498,6 +4133,17 @@ type ListCatalogResourcesParams struct {
 
 // ListCatalogResourcesParamsKind defines parameters for ListCatalogResources.
 type ListCatalogResourcesParamsKind string
+
+// GetCostsParams defines parameters for GetCosts.
+type GetCostsParams struct {
+	GroupBy *GetCostsParamsGroupBy `form:"groupBy,omitempty" json:"groupBy,omitempty"`
+
+	// Filter type:value with type project, agent (project/agent), apiKey, user, llmProvider or model; a comma list matches any of the values; repeat for AND.
+	Filter *[]string `form:"filter,omitempty" json:"filter,omitempty"`
+}
+
+// GetCostsParamsGroupBy defines parameters for GetCosts.
+type GetCostsParamsGroupBy string
 
 // ListAgentIdentityGroupsParams defines parameters for ListAgentIdentityGroups.
 type ListAgentIdentityGroupsParams struct {
@@ -3614,6 +4260,23 @@ type ListLLMProxiesByProviderParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// GetModelPricesParams defines parameters for GetModelPrices.
+type GetModelPricesParams struct {
+	// Search Part of the model name, any case
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Provider Only this provider's models
+	Provider *string `form:"provider,omitempty" json:"provider,omitempty"`
+
+	// Sort The order of the catalog. By model name by default; "provider" lists providers A to Z, models without a provider last, then by model name.
+	Sort   *GetModelPricesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+	Limit  *int                      `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int                      `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// GetModelPricesParamsSort defines parameters for GetModelPrices.
+type GetModelPricesParamsSort string
+
 // ListLLMProxiesParams defines parameters for ListLLMProxies.
 type ListLLMProxiesParams struct {
 	// Limit Maximum number of results to return
@@ -3721,6 +4384,12 @@ type CreateMCPProxyScopeJSONRequestBody = McpProxyScopeDocument
 
 // UpdateMCPProxyScopeJSONRequestBody defines body for UpdateMCPProxyScope for application/json ContentType.
 type UpdateMCPProxyScopeJSONRequestBody = McpProxyScopeDocument
+
+// CreateBudgetJSONRequestBody defines body for CreateBudget for application/json ContentType.
+type CreateBudgetJSONRequestBody = Budget
+
+// UpdateBudgetJSONRequestBody defines body for UpdateBudget for application/json ContentType.
+type UpdateBudgetJSONRequestBody = Budget
 
 // CreateAgentIdentityGroupJSONRequestBody defines body for CreateAgentIdentityGroup for application/json ContentType.
 type CreateAgentIdentityGroupJSONRequestBody = AgentIdentityGroupRequest
