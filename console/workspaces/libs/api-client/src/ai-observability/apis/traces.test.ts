@@ -254,16 +254,18 @@ describe("module list responses", () => {
     [true, false, true],
     [false, true, true],
   ])("marks an export truncated=%s, spansTruncated=%s as %s", (truncated, spansTruncated, want) => {
+    // An untruncated search sends neither truncated nor lookedBackTo.
+    const lookedBackTo = truncated ? "2026-10-02T09:00:00Z" : undefined;
     const got = toTraceExport({
       traces: [],
-      pagination: { limit: 100, total: 3, lookedBackTo: "2026-10-02T09:00:00Z", truncated },
+      pagination: { limit: 100, total: 3, ...(truncated ? { lookedBackTo, truncated } : {}) },
       spansTruncated,
       failedTraceIds: ["x"],
     });
     expect(got).toEqual({
       traces: [],
       totalCount: 3,
-      lookedBackTo: "2026-10-02T09:00:00Z",
+      lookedBackTo,
       truncated: want,
       spansTruncated,
       failedTraceIds: ["x"],
