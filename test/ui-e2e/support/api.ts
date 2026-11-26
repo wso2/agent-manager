@@ -21,8 +21,9 @@ export class AmpApi {
     return new AmpApi(ctx, token);
   }
 
-  get org(): string {
-    return `/api/v1/orgs/${orgName}`;
+  /** Path of the identities API; the organization comes from the token. */
+  get identities(): string {
+    return '/api/v1/identities';
   }
 
   /** Path of the projects collection, or of one project. */
@@ -80,10 +81,10 @@ export class AmpApi {
 
   /** Removes a user found by username, if it exists. */
   async deleteUser(username: string): Promise<void> {
-    const res = await this.ctx.get(`${this.org}/identities/users`, { params: { limit: 200 } });
+    const res = await this.ctx.get(`${this.identities}/users`, { params: { limit: 200 } });
     const users: any[] = res.ok() ? (await res.json()).users ?? [] : [];
     const user = users.find((u) => u.attributes?.username === username);
-    if (user) await this.ctx.delete(`${this.org}/identities/users/${user.id}`);
+    if (user) await this.ctx.delete(`${this.identities}/users/${user.id}`);
   }
 
   async createExternalAgent(project: string, name: string, displayName = name): Promise<void> {

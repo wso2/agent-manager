@@ -33,21 +33,21 @@ import (
 
 var _ = Describe("Sign-in and first-org bootstrap", Label("onboarding"), func() {
 	It("refuses the API without a token, and with a token it didn't issue", func() {
-		resp, err := Client.GetUnauthenticated("/api/v1/orgs")
+		resp, err := Client.GetUnauthenticated("/api/v1/organizations")
 		Expect(err).NotTo(HaveOccurred())
-		framework.ExpectUnauthorized(Default, resp, "GET /orgs without a token")
+		framework.ExpectUnauthorized(Default, resp, "GET /organizations without a token")
 		resp.Body.Close()
 
 		forged, err := framework.HS256Token(framework.PlausibleClaims(Cfg, nil), "not-the-signing-key")
 		Expect(err).NotTo(HaveOccurred())
-		resp, err = framework.NewAMPClientWithToken(Cfg, forged).Get("/api/v1/orgs")
+		resp, err = framework.NewAMPClientWithToken(Cfg, forged).Get("/api/v1/organizations")
 		Expect(err).NotTo(HaveOccurred())
-		framework.ExpectUnauthorized(Default, resp, "GET /orgs with a forged token")
+		framework.ExpectUnauthorized(Default, resp, "GET /organizations with a forged token")
 		resp.Body.Close()
 	})
 
 	It("lists the bootstrapped organization to the signed-in client", func() {
-		orgs := framework.CallJSON[framework.OrganizationListResponse](Default, Client, http.MethodGet, "/api/v1/orgs", nil, http.StatusOK)
+		orgs := framework.CallJSON[framework.OrganizationListResponse](Default, Client, http.MethodGet, "/api/v1/organizations", nil, http.StatusOK)
 		Expect(orgs.Total).To(BeNumerically(">=", 1))
 		names := make([]string, 0, len(orgs.Organizations))
 		for _, o := range orgs.Organizations {
@@ -55,7 +55,7 @@ var _ = Describe("Sign-in and first-org bootstrap", Label("onboarding"), func() 
 		}
 		Expect(names).To(ContainElement(Cfg.DefaultOrg))
 
-		org := framework.CallObj(Default, Client, http.MethodGet, "/api/v1/orgs/"+Cfg.DefaultOrg, nil, http.StatusOK)
+		org := framework.CallObj(Default, Client, http.MethodGet, "/api/v1/organizations/current", nil, http.StatusOK)
 		Expect(org["name"]).To(Equal(Cfg.DefaultOrg))
 		Expect(org["createdAt"]).NotTo(BeEmpty())
 	})

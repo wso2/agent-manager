@@ -66,7 +66,7 @@ func (c *AMPClient) Token() string {
 }
 
 // Do sends an HTTP request to the AMP API. If body is non-nil it is marshaled to JSON.
-// The path is appended to the base URL (e.g., "/api/v1/orgs").
+// The path is appended to the base URL (e.g., "/api/v1/projects").
 func (c *AMPClient) Do(method, path string, body any) (*http.Response, error) {
 	return c.DoWithContext(context.Background(), method, path, body)
 }

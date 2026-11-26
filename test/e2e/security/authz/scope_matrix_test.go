@@ -121,8 +121,8 @@ func (r guardedRoute) allowCases() []scopeCase {
 func guardedRoutes(org string) []guardedRoute {
 	agentBase := "/api/v1/agents"
 	inProject := "?project=" + absentName
-	orgBase := fmt.Sprintf("/api/v1/orgs/%s", org)
-	identityBase := orgBase + "/identities"
+	identityBase := "/api/v1/identities"
+	eventsBase := "/api/v1/events"
 	// The AI Gateway module's API. Migrated resources take the org from the token, so
 	// their routes hang off the module base with no org segment.
 	gwBase := "/m/ai-gateway"
@@ -164,9 +164,9 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodDelete, gwOrgBase + "/self-hosted-gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
 
 		// --- Events: delivery to external endpoints and their secrets ---------
-		{http.MethodDelete, orgBase + "/events/destinations/" + absentName, []string{"amp:events:manage"}},
-		{http.MethodPost, orgBase + "/events/destinations/" + absentName + "/rotate-secret", []string{"amp:events:manage"}},
-		{http.MethodDelete, orgBase + "/events/subscriptions/" + absentName, []string{"amp:events:manage"}},
+		{http.MethodDelete, eventsBase + "/destinations/" + absentName, []string{"amp:events:manage"}},
+		{http.MethodPost, eventsBase + "/destinations/" + absentName + "/rotate-secret", []string{"amp:events:manage"}},
+		{http.MethodDelete, eventsBase + "/subscriptions/" + absentName, []string{"amp:events:manage"}},
 
 		// --- LLM and MCP catalog: removal and key revocation ------------------
 		{http.MethodDelete, gwBase + "/llm-provider-templates/" + absentName, []string{"amp:ai-gateway:llm-provider-templates.delete"}},
