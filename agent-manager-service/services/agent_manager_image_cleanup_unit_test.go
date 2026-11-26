@@ -34,10 +34,13 @@ type imageCleanupCall struct {
 }
 
 // recordingImageCleaner reports each DeleteComponentImages call on a channel, since the
-// agent delete makes it in the background.
+// agent delete makes it in the background. When entered and release are set, a call signals
+// entered and waits for release before it reads its context, so a test can act in between.
 type recordingImageCleaner struct {
-	calls chan imageCleanupCall
-	err   error
+	calls   chan imageCleanupCall
+	err     error
+	entered chan struct{}
+	release chan struct{}
 }
 
 func newRecordingImageCleaner(err error) *recordingImageCleaner {
@@ -45,6 +48,10 @@ func newRecordingImageCleaner(err error) *recordingImageCleaner {
 }
 
 func (c *recordingImageCleaner) DeleteComponentImages(ctx context.Context, ouID, projectName, componentName string) error {
+	if c.entered != nil {
+		c.entered <- struct{}{}
+		<-c.release
+	}
 	c.calls <- imageCleanupCall{ouID: ouID, projectName: projectName, componentName: componentName, ctxErr: ctx.Err()}
 	return c.err
 }
@@ -71,14 +78,24 @@ func (c *recordingImageCleaner) requireNoCall(t *testing.T) {
 
 func TestDeleteAgentCleansUpBuildImages(t *testing.T) {
 	cleaner := newRecordingImageCleaner(nil)
+	cleaner.entered = make(chan struct{}, 1)
+	cleaner.release = make(chan struct{})
 	manager := deletionManager(deletableAgentOC(func(context.Context) error { return nil }), nil)
 	manager.SetComponentImageCleaner(cleaner)
 
 	callerCtx, cancelCaller := context.WithCancel(auditableCtx(t))
+	defer cancelCaller()
 	_, err := manager.DeleteAgent(callerCtx, "org-a", "project-a", "agent-a")
 	require.NoError(t, err)
-	// The caller leaving once the delete returns must not cancel the cleanup.
+
+	// The caller leaves while the cleanup is running; that must not cancel the cleanup.
+	select {
+	case <-cleaner.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the agent's build images were not cleaned up")
+	}
 	cancelCaller()
+	close(cleaner.release)
 
 	call := cleaner.requireCall(t)
 	require.Equal(t, imageCleanupCall{ouID: "org-a", projectName: "project-a", componentName: "agent-a"}, call)

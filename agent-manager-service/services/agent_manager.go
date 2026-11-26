@@ -1859,7 +1859,12 @@ func (s *agentManagerService) SetComponentImageCleaner(cleaner ComponentImageCle
 // delete is accepted: a registry cleanup that finds images through the component's Workload
 // can still see it while OpenChoreo is removing the component.
 //
-// External agents are not built by Agent Manager, so they have no images to delete.
+// External agents are not built by Agent Manager, so they have no images to delete. An agent
+// whose type could not be read before the delete (the component was already gone on a retried
+// delete, or the read failed) is cleaned up as an internal agent on purpose: for an external
+// agent the cleaner finds nothing and returns nil, while skipping would leave an internal
+// agent's images behind. Failing the delete on that read instead would block every agent
+// delete on a transient OpenChoreo error, for nothing more than this optional cleanup.
 func (s *agentManagerService) cleanupAgentImagesAsync(ctx context.Context, ouID, projectName, agentName string, isExternalAgent bool) {
 	if s.imageCleaner == nil || isExternalAgent {
 		return
