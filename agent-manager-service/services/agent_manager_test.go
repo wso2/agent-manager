@@ -541,7 +541,7 @@ func TestPopulateCreatedBy_NilUserWithoutError_KeepsIDOnly(t *testing.T) {
 	assert.Empty(t, agent.CreatedBy.Display)
 }
 
-func TestListOrgAgents_AggregatesAcrossProjects(t *testing.T) {
+func TestListAgents_WithoutProjectAggregatesAcrossProjects(t *testing.T) {
 	platform := &repomocks.PlatformRepositoryMock{
 		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
 			return &models.OrganizationResponse{}, nil
@@ -565,20 +565,26 @@ func TestListOrgAgents_AggregatesAcrossProjects(t *testing.T) {
 	}
 	s := &agentManagerService{platform: platform, logger: discardLogger()}
 
-	agents, err := s.ListOrgAgents(context.Background(), "acme")
+	agents, total, err := s.ListAgents(context.Background(), "acme", "", nil, 10, 0)
 
 	require.NoError(t, err)
-	byName := make(map[string]*models.AgentSummary, len(agents))
+	assert.EqualValues(t, 2, total)
+	byName := make(map[string]*models.AgentResponse, len(agents))
 	for _, a := range agents {
 		byName[a.Name] = a
 	}
 	require.Contains(t, byName, "agent-a")
 	require.Contains(t, byName, "agent-b")
-	assert.Equal(t, "Project One", byName["agent-a"].ProjectDisplayName)
-	assert.Equal(t, "Project Two", byName["agent-b"].ProjectDisplayName)
+	assert.Equal(t, "proj1", byName["agent-a"].ProjectName)
+	assert.Equal(t, "proj2", byName["agent-b"].ProjectName)
+
+	page, total, err := s.ListAgents(context.Background(), "acme", "", nil, 1, 1)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, total, "the total counts every project's agents")
+	assert.Len(t, page, 1)
 }
 
-func TestListOrgAgents_OrganizationNotFound(t *testing.T) {
+func TestListAgents_WithoutProjectOrganizationNotFound(t *testing.T) {
 	platform := &repomocks.PlatformRepositoryMock{
 		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
 			return nil, utils.ErrOrganizationNotFound
@@ -586,12 +592,12 @@ func TestListOrgAgents_OrganizationNotFound(t *testing.T) {
 	}
 	s := &agentManagerService{platform: platform, logger: discardLogger()}
 
-	_, err := s.ListOrgAgents(context.Background(), "acme")
+	_, _, err := s.ListAgents(context.Background(), "acme", "", nil, 10, 0)
 
 	assert.ErrorIs(t, err, utils.ErrOrganizationNotFound)
 }
 
-func TestListOrgAgents_ProjectListFailurePropagates(t *testing.T) {
+func TestListAgents_WithoutProjectProjectListFailurePropagates(t *testing.T) {
 	platform := &repomocks.PlatformRepositoryMock{
 		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
 			return &models.OrganizationResponse{}, nil
@@ -602,7 +608,7 @@ func TestListOrgAgents_ProjectListFailurePropagates(t *testing.T) {
 	}
 	s := &agentManagerService{platform: platform, logger: discardLogger()}
 
-	_, err := s.ListOrgAgents(context.Background(), "acme")
+	_, _, err := s.ListAgents(context.Background(), "acme", "", nil, 10, 0)
 
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, utils.ErrOrganizationNotFound, "an unrelated openchoreo failure must not be masked as not-found")

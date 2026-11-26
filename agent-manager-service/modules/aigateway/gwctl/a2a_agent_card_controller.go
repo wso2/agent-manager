@@ -102,9 +102,9 @@ func (c *a2aAgentCardController) DeleteAgentCardSource(w http.ResponseWriter, r 
 
 func agentCardPath(r *http.Request) (ouID, projName, agentName, envName string) {
 	return modkit.OrgID(r.Context()),
-		r.PathValue(gwutil.PathParamProjName),
+		gwutil.Project(r),
 		r.PathValue(gwutil.PathParamAgentName),
-		r.PathValue(gwutil.PathParamEnvID)
+		gwmodels.DefaultEnvironmentName
 }
 
 // writeAgentCardError maps the card sentinels, then defers to handleCommonErrors.

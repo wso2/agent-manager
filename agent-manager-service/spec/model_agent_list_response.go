@@ -19,23 +19,21 @@ var _ MappedNullable = &AgentListResponse{}
 
 // AgentListResponse struct for AgentListResponse
 type AgentListResponse struct {
-	Agents []AgentResponse `json:"agents"`
-	// Total number of agents matching the query
-	Total  int32 `json:"total"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	// Number of items in this page.
+	Count      int32           `json:"count"`
+	List       []AgentDocument `json:"list"`
+	Pagination Pagination      `json:"pagination"`
 }
 
 // NewAgentListResponse instantiates a new AgentListResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewAgentListResponse(agents []AgentResponse, total int32, limit int32, offset int32) *AgentListResponse {
+func NewAgentListResponse(count int32, list []AgentDocument, pagination Pagination) *AgentListResponse {
 	this := AgentListResponse{}
-	this.Agents = agents
-	this.Total = total
-	this.Limit = limit
-	this.Offset = offset
+	this.Count = count
+	this.List = list
+	this.Pagination = pagination
 	return &this
 }
 
@@ -47,100 +45,76 @@ func NewAgentListResponseWithDefaults() *AgentListResponse {
 	return &this
 }
 
-// GetAgents returns the Agents field value
-func (o *AgentListResponse) GetAgents() []AgentResponse {
-	if o == nil {
-		var ret []AgentResponse
-		return ret
-	}
-
-	return o.Agents
-}
-
-// GetAgentsOk returns a tuple with the Agents field value
-// and a boolean to check if the value has been set.
-func (o *AgentListResponse) GetAgentsOk() ([]AgentResponse, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return o.Agents, true
-}
-
-// SetAgents sets field value
-func (o *AgentListResponse) SetAgents(v []AgentResponse) {
-	o.Agents = v
-}
-
-// GetTotal returns the Total field value
-func (o *AgentListResponse) GetTotal() int32 {
+// GetCount returns the Count field value
+func (o *AgentListResponse) GetCount() int32 {
 	if o == nil {
 		var ret int32
 		return ret
 	}
 
-	return o.Total
+	return o.Count
 }
 
-// GetTotalOk returns a tuple with the Total field value
+// GetCountOk returns a tuple with the Count field value
 // and a boolean to check if the value has been set.
-func (o *AgentListResponse) GetTotalOk() (*int32, bool) {
+func (o *AgentListResponse) GetCountOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Total, true
+	return &o.Count, true
 }
 
-// SetTotal sets field value
-func (o *AgentListResponse) SetTotal(v int32) {
-	o.Total = v
+// SetCount sets field value
+func (o *AgentListResponse) SetCount(v int32) {
+	o.Count = v
 }
 
-// GetLimit returns the Limit field value
-func (o *AgentListResponse) GetLimit() int32 {
+// GetList returns the List field value
+func (o *AgentListResponse) GetList() []AgentDocument {
 	if o == nil {
-		var ret int32
+		var ret []AgentDocument
 		return ret
 	}
 
-	return o.Limit
+	return o.List
 }
 
-// GetLimitOk returns a tuple with the Limit field value
+// GetListOk returns a tuple with the List field value
 // and a boolean to check if the value has been set.
-func (o *AgentListResponse) GetLimitOk() (*int32, bool) {
+func (o *AgentListResponse) GetListOk() ([]AgentDocument, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Limit, true
+	return o.List, true
 }
 
-// SetLimit sets field value
-func (o *AgentListResponse) SetLimit(v int32) {
-	o.Limit = v
+// SetList sets field value
+func (o *AgentListResponse) SetList(v []AgentDocument) {
+	o.List = v
 }
 
-// GetOffset returns the Offset field value
-func (o *AgentListResponse) GetOffset() int32 {
+// GetPagination returns the Pagination field value
+func (o *AgentListResponse) GetPagination() Pagination {
 	if o == nil {
-		var ret int32
+		var ret Pagination
 		return ret
 	}
 
-	return o.Offset
+	return o.Pagination
 }
 
-// GetOffsetOk returns a tuple with the Offset field value
+// GetPaginationOk returns a tuple with the Pagination field value
 // and a boolean to check if the value has been set.
-func (o *AgentListResponse) GetOffsetOk() (*int32, bool) {
+func (o *AgentListResponse) GetPaginationOk() (*Pagination, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Offset, true
+	return &o.Pagination, true
 }
 
-// SetOffset sets field value
-func (o *AgentListResponse) SetOffset(v int32) {
-	o.Offset = v
+// SetPagination sets field value
+func (o *AgentListResponse) SetPagination(v Pagination) {
+	o.Pagination = v
 }
 
 func (o AgentListResponse) MarshalJSON() ([]byte, error) {
@@ -153,10 +127,9 @@ func (o AgentListResponse) MarshalJSON() ([]byte, error) {
 
 func (o AgentListResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["agents"] = o.Agents
-	toSerialize["total"] = o.Total
-	toSerialize["limit"] = o.Limit
-	toSerialize["offset"] = o.Offset
+	toSerialize["count"] = o.Count
+	toSerialize["list"] = o.List
+	toSerialize["pagination"] = o.Pagination
 	return toSerialize, nil
 }
 

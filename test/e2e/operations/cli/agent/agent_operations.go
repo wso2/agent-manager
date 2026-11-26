@@ -25,26 +25,12 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/wso2/agent-manager/test/e2e/framework"
 	"github.com/wso2/agent-manager/test/e2e/framework/amctl"
 )
 
-// Agent is the subset of the CLI's agent envelope data we assert on
-// (matches the server's AgentResponse shape).
-type Agent struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Description string `json:"description"`
-	AgentType   struct {
-		Type    string `json:"type"`
-		SubType string `json:"subType"`
-	} `json:"agentType"`
-	Provisioning struct {
-		Type string `json:"type"`
-	} `json:"provisioning"`
-	Status      string `json:"status"`
-	ProjectName string `json:"projectName"`
-	UUID        string `json:"uuid"`
-}
+// Agent is the agent document the CLI prints with --json.
+type Agent = framework.AgentDocument
 
 // CreateExternalResult is the data shape of `amctl agent create --provisioning
 // external --json`: {agent, token, ...}. token is empty if the post-create
@@ -56,17 +42,15 @@ type CreateExternalResult struct {
 
 // AgentList is the data shape of `amctl agent list --json`.
 type AgentList struct {
-	Agents []Agent `json:"agents"`
-	Limit  int     `json:"limit"`
-	Offset int     `json:"offset"`
-	Total  int     `json:"total"`
+	Count int     `json:"count"`
+	List  []Agent `json:"list"`
 }
 
 // Names returns the agent names in the list, for membership assertions.
 func (l AgentList) Names() []string {
-	names := make([]string, 0, len(l.Agents))
-	for _, a := range l.Agents {
-		names = append(names, a.Name)
+	names := make([]string, 0, len(l.List))
+	for _, a := range l.List {
+		names = append(names, a.Metadata.Name)
 	}
 	return names
 }

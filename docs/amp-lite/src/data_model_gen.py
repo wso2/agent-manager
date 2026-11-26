@@ -29,6 +29,19 @@ CHIPS = {
     "gwmod": ("gateway module", "#f5f3ff", "#6d28d9"),
 }
 
+# How each core card's tables carry org_id; cards not listed have none.
+# Module cards get theirs in Card.
+ORG_ID = {
+    "project": "FK → organizations", "env": "FK → organizations", "secret": "FK → organizations",
+    "dest": "FK → organizations", "outbox": "FK → organizations", "modev": "FK → organizations",
+    "wlcred": "FK → organizations, optional",
+    "agent": "same org as its parent", "labels": "same org as its parent",
+    "identity": "same org as its parent", "sub": "same org as its parent",
+    "subfilt": "same org as its parent", "destproj": "same org as its parent",
+    "delivery": "same org as its parent",
+    "audit": "no FK, empty if none", "usage": "no FK, empty if none",
+}
+
 PURPOSE_CW = 6.25
 FIELD_KCW = 6.75
 FIELD_NCW = 5.9
@@ -58,6 +71,12 @@ class Card:
         self.key, self.area, self.x, self.y, self.w = key, area, x, y, w
         self.title, self.table, self.purpose = title, table, purpose
         self.fields, self.chips, self.rel = list(fields), list(chips), rel
+        org = ORG_ID.get(key)
+        if org is None and (area == "gateway" or "gwmod" in self.chips):
+            # Module tables hold the org's id with no foreign key to it.
+            org = "org's id, no FK"
+        if org is not None:
+            self.fields.insert(0, ("org_id", org))
         self.hidden, self.deferred = hidden, deferred
         self.layout()
 
@@ -657,12 +676,10 @@ def render_svg(viewbox=None, width=None):
                    f'stroke="{a["color"]}" stroke-opacity="0.45" stroke-width="1.5"{dash}/>')
         out.append(f'<text x="{x0 + 18}" y="{y0 + 30}" class="aname" fill="{a["color"]}">{esc(a["name"].upper())}</text>')
     tb = area_boxes["tenancy"]
-    tnotes = ["Every table carries org_id, and children point at parents through (org_id, parent id),",
-              "so no row can reach another org's data.",
-              "Core creates the default org and its default environment at startup; the gateway",
+    tnotes = ["Core creates the default org and its default environment at startup; the gateway",
               "module seeds the bundled gateway and its token."]
     for i, ln in enumerate(tnotes):
-        out.append(f'<text x="{tb[0] + 290}" y="{tb[3] - 84 + i * 18 + (8 if i >= 2 else 0)}" class="anote">{esc(ln)}</text>')
+        out.append(f'<text x="{tb[0] + 290}" y="{tb[3] - 40 + i * 18}" class="anote">{esc(ln)}</text>')
     gb = area_boxes["gateway"]
     for i, ln in enumerate(["amp installs the gateway module by default; amp-core lacks it.",
                             "Its tables are named mod_ai_gateway_<table>."]):

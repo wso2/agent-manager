@@ -24,48 +24,44 @@ import (
 type DefaultAPIService service
 
 type ApiCreateAgentRequest struct {
-	ctx                context.Context
-	ApiService         *DefaultAPIService
-	orgName            string
-	projName           string
-	createAgentRequest *CreateAgentRequest
+	ctx           context.Context
+	ApiService    *DefaultAPIService
+	agentDocument *AgentDocument
 }
 
-func (r ApiCreateAgentRequest) CreateAgentRequest(createAgentRequest CreateAgentRequest) ApiCreateAgentRequest {
-	r.createAgentRequest = &createAgentRequest
+func (r ApiCreateAgentRequest) AgentDocument(agentDocument AgentDocument) ApiCreateAgentRequest {
+	r.agentDocument = &agentDocument
 	return r
 }
 
-func (r ApiCreateAgentRequest) Execute() (*AgentResponse, *http.Response, error) {
+func (r ApiCreateAgentRequest) Execute() (*AgentDocument, *http.Response, error) {
 	return r.ApiService.CreateAgentExecute(r)
 }
 
 /*
 CreateAgent Create a new agent
 
+The project is metadata.project.
+
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName
-	@param projName
 	@return ApiCreateAgentRequest
 */
-func (a *DefaultAPIService) CreateAgent(ctx context.Context, orgName string, projName string) ApiCreateAgentRequest {
+func (a *DefaultAPIService) CreateAgent(ctx context.Context) ApiCreateAgentRequest {
 	return ApiCreateAgentRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return AgentResponse
-func (a *DefaultAPIService) CreateAgentExecute(r ApiCreateAgentRequest) (*AgentResponse, *http.Response, error) {
+//	@return AgentDocument
+func (a *DefaultAPIService) CreateAgentExecute(r ApiCreateAgentRequest) (*AgentDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentResponse
+		localVarReturnValue *AgentDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.CreateAgent")
@@ -73,15 +69,13 @@ func (a *DefaultAPIService) CreateAgentExecute(r ApiCreateAgentRequest) (*AgentR
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.createAgentRequest == nil {
-		return localVarReturnValue, nil, reportError("createAgentRequest is required and must be specified")
+	if r.agentDocument == nil {
+		return localVarReturnValue, nil, reportError("agentDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -102,7 +96,7 @@ func (a *DefaultAPIService) CreateAgentExecute(r ApiCreateAgentRequest) (*AgentR
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.createAgentRequest
+	localVarPostBody = r.agentDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -473,8 +467,13 @@ type ApiDeleteAgentRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
 	agentName  string
-	orgName    string
-	projName   string
+	project    *string
+}
+
+// Project handle.
+func (r ApiDeleteAgentRequest) Project(project string) ApiDeleteAgentRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiDeleteAgentRequest) Execute() (*http.Response, error) {
@@ -486,17 +485,13 @@ DeleteAgent Delete agent
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName
-	@param orgName
-	@param projName
 	@return ApiDeleteAgentRequest
 */
-func (a *DefaultAPIService) DeleteAgent(ctx context.Context, agentName string, orgName string, projName string) ApiDeleteAgentRequest {
+func (a *DefaultAPIService) DeleteAgent(ctx context.Context, agentName string) ApiDeleteAgentRequest {
 	return ApiDeleteAgentRequest{
 		ApiService: a,
 		ctx:        ctx,
 		agentName:  agentName,
-		orgName:    orgName,
-		projName:   projName,
 	}
 }
 
@@ -513,15 +508,17 @@ func (a *DefaultAPIService) DeleteAgentExecute(r ApiDeleteAgentRequest) (*http.R
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}"
+	localVarPath := localBasePath + "/agents/{agentName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -706,11 +703,16 @@ func (a *DefaultAPIService) DeleteProjectExecute(r ApiDeleteProjectRequest) (*ht
 type ApiGenerateAgentTokenRequest struct {
 	ctx          context.Context
 	ApiService   *DefaultAPIService
-	orgName      string
-	projName     string
 	agentName    string
+	project      *string
 	environment  *string
 	tokenRequest *TokenRequest
+}
+
+// Project handle.
+func (r ApiGenerateAgentTokenRequest) Project(project string) ApiGenerateAgentTokenRequest {
+	r.project = &project
+	return r
 }
 
 // Environment name (defaults to configured default if not provided)
@@ -735,17 +737,13 @@ Generates a signed JWT token for an external agent to authenticate API requests.
 The token includes claims for component, environment, organization, and project identifiers.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiGenerateAgentTokenRequest
 */
-func (a *DefaultAPIService) GenerateAgentToken(ctx context.Context, orgName string, projName string, agentName string) ApiGenerateAgentTokenRequest {
+func (a *DefaultAPIService) GenerateAgentToken(ctx context.Context, agentName string) ApiGenerateAgentTokenRequest {
 	return ApiGenerateAgentTokenRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
@@ -766,15 +764,17 @@ func (a *DefaultAPIService) GenerateAgentTokenExecute(r ApiGenerateAgentTokenReq
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/token"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/token"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	if r.environment != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
 	}
@@ -870,11 +870,16 @@ type ApiGetAgentRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
 	agentName  string
-	orgName    string
-	projName   string
+	project    *string
 }
 
-func (r ApiGetAgentRequest) Execute() (*AgentResponse, *http.Response, error) {
+// Project handle.
+func (r ApiGetAgentRequest) Project(project string) ApiGetAgentRequest {
+	r.project = &project
+	return r
+}
+
+func (r ApiGetAgentRequest) Execute() (*AgentDocument, *http.Response, error) {
 	return r.ApiService.GetAgentExecute(r)
 }
 
@@ -883,29 +888,25 @@ GetAgent Get agent details
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName
-	@param orgName
-	@param projName
 	@return ApiGetAgentRequest
 */
-func (a *DefaultAPIService) GetAgent(ctx context.Context, agentName string, orgName string, projName string) ApiGetAgentRequest {
+func (a *DefaultAPIService) GetAgent(ctx context.Context, agentName string) ApiGetAgentRequest {
 	return ApiGetAgentRequest{
 		ApiService: a,
 		ctx:        ctx,
 		agentName:  agentName,
-		orgName:    orgName,
-		projName:   projName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return AgentResponse
-func (a *DefaultAPIService) GetAgentExecute(r ApiGetAgentRequest) (*AgentResponse, *http.Response, error) {
+//	@return AgentDocument
+func (a *DefaultAPIService) GetAgentExecute(r ApiGetAgentRequest) (*AgentDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentResponse
+		localVarReturnValue *AgentDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.GetAgent")
@@ -913,15 +914,17 @@ func (a *DefaultAPIService) GetAgentExecute(r ApiGetAgentRequest) (*AgentRespons
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}"
+	localVarPath := localBasePath + "/agents/{agentName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -1498,11 +1501,16 @@ func (a *DefaultAPIService) GetProjectExecute(r ApiGetProjectRequest) (*ProjectR
 type ApiListAgentsRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
-	orgName    string
-	projName   string
+	project    *string
 	limit      *int32
 	offset     *int32
 	label      *[]string
+}
+
+// Project handle. Omit it to list every project&#39;s agents.
+func (r ApiListAgentsRequest) Project(project string) ApiListAgentsRequest {
+	r.project = &project
+	return r
 }
 
 // Maximum number of results to return
@@ -1528,19 +1536,17 @@ func (r ApiListAgentsRequest) Execute() (*AgentListResponse, *http.Response, err
 }
 
 /*
-ListAgents List all agents in a project of an organization
+ListAgents List agents
+
+Lists the agents of one project, or of every project in the organization when project is omitted. Each item is a full Agent document.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName
-	@param projName
 	@return ApiListAgentsRequest
 */
-func (a *DefaultAPIService) ListAgents(ctx context.Context, orgName string, projName string) ApiListAgentsRequest {
+func (a *DefaultAPIService) ListAgents(ctx context.Context) ApiListAgentsRequest {
 	return ApiListAgentsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 	}
 }
 
@@ -1560,14 +1566,15 @@ func (a *DefaultAPIService) ListAgentsExecute(r ApiListAgentsRequest) (*AgentLis
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
+	if r.project != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
+	}
 	if r.limit != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
 	}
@@ -1634,120 +1641,6 @@ func (a *DefaultAPIService) ListAgentsExecute(r ApiListAgentsRequest) (*AgentLis
 			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
 			newErr.model = v
 			return localVarReturnValue, localVarHTTPResponse, newErr
-		}
-		if localVarHTTPResponse.StatusCode == 500 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-	if err != nil {
-		newErr := &GenericOpenAPIError{
-			body:  localVarBody,
-			error: err.Error(),
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type ApiListOrgAgentsRequest struct {
-	ctx        context.Context
-	ApiService *DefaultAPIService
-	orgName    string
-}
-
-func (r ApiListOrgAgentsRequest) Execute() (*AgentSummaryListResponse, *http.Response, error) {
-	return r.ApiService.ListOrgAgentsExecute(r)
-}
-
-/*
-ListOrgAgents List all agents in an organization
-
-Returns a lightweight, unpaginated list of every agent in the organization across all projects, containing each agent's name, display name, and the name and display name of the project it belongs to.
-
-	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName
-	@return ApiListOrgAgentsRequest
-*/
-func (a *DefaultAPIService) ListOrgAgents(ctx context.Context, orgName string) ApiListOrgAgentsRequest {
-	return ApiListOrgAgentsRequest{
-		ApiService: a,
-		ctx:        ctx,
-		orgName:    orgName,
-	}
-}
-
-// Execute executes the request
-//
-//	@return AgentSummaryListResponse
-func (a *DefaultAPIService) ListOrgAgentsExecute(r ApiListOrgAgentsRequest) (*AgentSummaryListResponse, *http.Response, error) {
-	var (
-		localVarHTTPMethod  = http.MethodGet
-		localVarPostBody    interface{}
-		formFiles           []formFile
-		localVarReturnValue *AgentSummaryListResponse
-	)
-
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ListOrgAgents")
-	if err != nil {
-		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
-	}
-
-	localVarPath := localBasePath + "/orgs/{orgName}/agents"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-
-	localVarHeaderParams := make(map[string]string)
-	localVarQueryParams := url.Values{}
-	localVarFormParams := url.Values{}
-
-	// to determine the Content-Type header
-	localVarHTTPContentTypes := []string{}
-
-	// set Content-Type header
-	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
-	if localVarHTTPContentType != "" {
-		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
-	}
-
-	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
-
-	// set Accept header
-	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
-	if localVarHTTPHeaderAccept != "" {
-		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
-	}
-	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
-	if err != nil {
-		return localVarReturnValue, nil, err
-	}
-
-	localVarHTTPResponse, err := a.client.callAPI(req)
-	if err != nil || localVarHTTPResponse == nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
-	localVarHTTPResponse.Body.Close()
-	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
-	if err != nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	if localVarHTTPResponse.StatusCode >= 300 {
-		newErr := &GenericOpenAPIError{
-			body:  localVarBody,
-			error: localVarHTTPResponse.Status,
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
@@ -2079,51 +1972,54 @@ func (a *DefaultAPIService) ListProjectsExecute(r ApiListProjectsRequest) (*Proj
 }
 
 type ApiUpdateAgentRequest struct {
-	ctx                         context.Context
-	ApiService                  *DefaultAPIService
-	agentName                   string
-	orgName                     string
-	projName                    string
-	updateAgentBasicInfoRequest *UpdateAgentBasicInfoRequest
+	ctx           context.Context
+	ApiService    *DefaultAPIService
+	agentName     string
+	project       *string
+	agentDocument *AgentDocument
 }
 
-func (r ApiUpdateAgentRequest) UpdateAgentBasicInfoRequest(updateAgentBasicInfoRequest UpdateAgentBasicInfoRequest) ApiUpdateAgentRequest {
-	r.updateAgentBasicInfoRequest = &updateAgentBasicInfoRequest
+// Project handle.
+func (r ApiUpdateAgentRequest) Project(project string) ApiUpdateAgentRequest {
+	r.project = &project
 	return r
 }
 
-func (r ApiUpdateAgentRequest) Execute() (*AgentResponse, *http.Response, error) {
+func (r ApiUpdateAgentRequest) AgentDocument(agentDocument AgentDocument) ApiUpdateAgentRequest {
+	r.agentDocument = &agentDocument
+	return r
+}
+
+func (r ApiUpdateAgentRequest) Execute() (*AgentDocument, *http.Response, error) {
 	return r.ApiService.UpdateAgentExecute(r)
 }
 
 /*
-UpdateAgent Update agent basic information
+UpdateAgent Update an agent
+
+Changes spec.displayName, spec.description, spec.labels and spec.extensions. metadata.name and metadata.project must name the agent addressed; a changed agentType or provisioning is rejected with 400. An absent labels or extensions keeps its stored value.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName
-	@param orgName
-	@param projName
 	@return ApiUpdateAgentRequest
 */
-func (a *DefaultAPIService) UpdateAgent(ctx context.Context, agentName string, orgName string, projName string) ApiUpdateAgentRequest {
+func (a *DefaultAPIService) UpdateAgent(ctx context.Context, agentName string) ApiUpdateAgentRequest {
 	return ApiUpdateAgentRequest{
 		ApiService: a,
 		ctx:        ctx,
 		agentName:  agentName,
-		orgName:    orgName,
-		projName:   projName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return AgentResponse
-func (a *DefaultAPIService) UpdateAgentExecute(r ApiUpdateAgentRequest) (*AgentResponse, *http.Response, error) {
+//	@return AgentDocument
+func (a *DefaultAPIService) UpdateAgentExecute(r ApiUpdateAgentRequest) (*AgentDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPut
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentResponse
+		localVarReturnValue *AgentDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.UpdateAgent")
@@ -2131,18 +2027,20 @@ func (a *DefaultAPIService) UpdateAgentExecute(r ApiUpdateAgentRequest) (*AgentR
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}"
+	localVarPath := localBasePath + "/agents/{agentName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.updateAgentBasicInfoRequest == nil {
-		return localVarReturnValue, nil, reportError("updateAgentBasicInfoRequest is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
+	if r.agentDocument == nil {
+		return localVarReturnValue, nil, reportError("agentDocument is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -2161,7 +2059,7 @@ func (a *DefaultAPIService) UpdateAgentExecute(r ApiUpdateAgentRequest) (*AgentR
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.updateAgentBasicInfoRequest
+	localVarPostBody = r.agentDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err

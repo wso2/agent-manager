@@ -5,3 +5,6 @@ generate:
   models: true
   client: false
   embedded-spec: false
+output-options:
+  # Keep schemas no operation references: amctl builds agent manifests from the flat create body.
+  skip-prune: true

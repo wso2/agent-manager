@@ -97,3 +97,6 @@ samples/insurance-support-agent/web/dist/
 samples/insurance-support-agent/web/*.tsbuildinfo
 samples/insurance-support-agent/agent/.venv/
 samples/insurance-support-agent/**/__pycache__/
+
+# External API-readiness tool output; re-assessed on every spec change.
+agent-manager-service/modules/aigateway/api/api-reports/

@@ -25,10 +25,15 @@ type AgentIdentityAPIService service
 type ApiGetAgentGroupsRequest struct {
 	ctx         context.Context
 	ApiService  *AgentIdentityAPIService
-	orgName     string
-	projName    string
 	agentName   string
+	project     *string
 	environment *string
+}
+
+// Project handle.
+func (r ApiGetAgentGroupsRequest) Project(project string) ApiGetAgentGroupsRequest {
+	r.project = &project
+	return r
 }
 
 // Environment name to read the agent&#39;s groups for
@@ -50,17 +55,13 @@ given environment. `environment` is required — an agent's AgentID
 answer across every environment it is deployed to.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiGetAgentGroupsRequest
 */
-func (a *AgentIdentityAPIService) GetAgentGroups(ctx context.Context, orgName string, projName string, agentName string) ApiGetAgentGroupsRequest {
+func (a *AgentIdentityAPIService) GetAgentGroups(ctx context.Context, agentName string) ApiGetAgentGroupsRequest {
 	return ApiGetAgentGroupsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
@@ -81,19 +82,20 @@ func (a *AgentIdentityAPIService) GetAgentGroupsExecute(r ApiGetAgentGroupsReque
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/groups"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/groups"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.environment == nil {
-		return localVarReturnValue, nil, reportError("environment is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
 	}
 
-	parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
+	if r.environment != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -194,10 +196,15 @@ func (a *AgentIdentityAPIService) GetAgentGroupsExecute(r ApiGetAgentGroupsReque
 type ApiGetAgentIdentityRequest struct {
 	ctx         context.Context
 	ApiService  *AgentIdentityAPIService
-	orgName     string
-	projName    string
 	agentName   string
+	project     *string
 	environment *string
+}
+
+// Project handle.
+func (r ApiGetAgentIdentityRequest) Project(project string) ApiGetAgentIdentityRequest {
+	r.project = &project
+	return r
 }
 
 // Environment name to filter the result to a single binding
@@ -221,17 +228,13 @@ removes a secret. For an externally hosted agent, use
 Pass `environment` to narrow the result to one environment.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiGetAgentIdentityRequest
 */
-func (a *AgentIdentityAPIService) GetAgentIdentity(ctx context.Context, orgName string, projName string, agentName string) ApiGetAgentIdentityRequest {
+func (a *AgentIdentityAPIService) GetAgentIdentity(ctx context.Context, agentName string) ApiGetAgentIdentityRequest {
 	return ApiGetAgentIdentityRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
@@ -252,15 +255,17 @@ func (a *AgentIdentityAPIService) GetAgentIdentityExecute(r ApiGetAgentIdentityR
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/identities"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	if r.environment != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
 	}
@@ -353,10 +358,15 @@ func (a *AgentIdentityAPIService) GetAgentIdentityExecute(r ApiGetAgentIdentityR
 type ApiGetAgentRolesRequest struct {
 	ctx         context.Context
 	ApiService  *AgentIdentityAPIService
-	orgName     string
-	projName    string
 	agentName   string
+	project     *string
 	environment *string
+}
+
+// Project handle.
+func (r ApiGetAgentRolesRequest) Project(project string) ApiGetAgentRolesRequest {
+	r.project = &project
+	return r
 }
 
 // Environment name to read the agent&#39;s roles for
@@ -379,17 +389,13 @@ per-environment, so there is no single answer across every
 environment it is deployed to.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiGetAgentRolesRequest
 */
-func (a *AgentIdentityAPIService) GetAgentRoles(ctx context.Context, orgName string, projName string, agentName string) ApiGetAgentRolesRequest {
+func (a *AgentIdentityAPIService) GetAgentRoles(ctx context.Context, agentName string) ApiGetAgentRolesRequest {
 	return ApiGetAgentRolesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
@@ -410,19 +416,20 @@ func (a *AgentIdentityAPIService) GetAgentRolesExecute(r ApiGetAgentRolesRequest
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/roles"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/roles"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.environment == nil {
-		return localVarReturnValue, nil, reportError("environment is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
 	}
 
-	parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
+	if r.environment != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -523,10 +530,15 @@ func (a *AgentIdentityAPIService) GetAgentRolesExecute(r ApiGetAgentRolesRequest
 type ApiProvisionAgentIdentityRequest struct {
 	ctx         context.Context
 	ApiService  *AgentIdentityAPIService
-	orgName     string
-	projName    string
 	agentName   string
+	project     *string
 	environment *string
+}
+
+// Project handle.
+func (r ApiProvisionAgentIdentityRequest) Project(project string) ApiProvisionAgentIdentityRequest {
+	r.project = &project
+	return r
 }
 
 // Environment name to provision the AgentID in
@@ -553,17 +565,13 @@ as is and returned with `200`. A genuinely missing binding is
 created and provisioned in the background, returning `202`.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiProvisionAgentIdentityRequest
 */
-func (a *AgentIdentityAPIService) ProvisionAgentIdentity(ctx context.Context, orgName string, projName string, agentName string) ApiProvisionAgentIdentityRequest {
+func (a *AgentIdentityAPIService) ProvisionAgentIdentity(ctx context.Context, agentName string) ApiProvisionAgentIdentityRequest {
 	return ApiProvisionAgentIdentityRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
@@ -584,19 +592,20 @@ func (a *AgentIdentityAPIService) ProvisionAgentIdentityExecute(r ApiProvisionAg
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/identities"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.environment == nil {
-		return localVarReturnValue, nil, reportError("environment is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
 	}
 
-	parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
+	if r.environment != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -697,10 +706,15 @@ func (a *AgentIdentityAPIService) ProvisionAgentIdentityExecute(r ApiProvisionAg
 type ApiRegenerateAgentIdentitySecretRequest struct {
 	ctx                        context.Context
 	ApiService                 *AgentIdentityAPIService
-	orgName                    string
-	projName                   string
 	agentName                  string
+	project                    *string
 	agentIdentityActionRequest *AgentIdentityActionRequest
+}
+
+// Project handle.
+func (r ApiRegenerateAgentIdentitySecretRequest) Project(project string) ApiRegenerateAgentIdentitySecretRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRegenerateAgentIdentitySecretRequest) AgentIdentityActionRequest(agentIdentityActionRequest AgentIdentityActionRequest) ApiRegenerateAgentIdentitySecretRequest {
@@ -728,17 +742,13 @@ A token minted from the old secret keeps working until it expires
 naturally.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiRegenerateAgentIdentitySecretRequest
 */
-func (a *AgentIdentityAPIService) RegenerateAgentIdentitySecret(ctx context.Context, orgName string, projName string, agentName string) ApiRegenerateAgentIdentitySecretRequest {
+func (a *AgentIdentityAPIService) RegenerateAgentIdentitySecret(ctx context.Context, agentName string) ApiRegenerateAgentIdentitySecretRequest {
 	return ApiRegenerateAgentIdentitySecretRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
@@ -759,18 +769,20 @@ func (a *AgentIdentityAPIService) RegenerateAgentIdentitySecretExecute(r ApiRege
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/identities"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 	if r.agentIdentityActionRequest == nil {
 		return localVarReturnValue, nil, reportError("agentIdentityActionRequest is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -873,10 +885,15 @@ func (a *AgentIdentityAPIService) RegenerateAgentIdentitySecretExecute(r ApiRege
 type ApiRetryAgentIdentityProvisioningRequest struct {
 	ctx                        context.Context
 	ApiService                 *AgentIdentityAPIService
-	orgName                    string
-	projName                   string
 	agentName                  string
+	project                    *string
 	agentIdentityActionRequest *AgentIdentityActionRequest
+}
+
+// Project handle.
+func (r ApiRetryAgentIdentityProvisioningRequest) Project(project string) ApiRetryAgentIdentityProvisioningRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRetryAgentIdentityProvisioningRequest) AgentIdentityActionRequest(agentIdentityActionRequest AgentIdentityActionRequest) ApiRetryAgentIdentityProvisioningRequest {
@@ -902,17 +919,13 @@ their own path forward (nothing to reset, or already retrying) and
 are rejected with `409`.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiRetryAgentIdentityProvisioningRequest
 */
-func (a *AgentIdentityAPIService) RetryAgentIdentityProvisioning(ctx context.Context, orgName string, projName string, agentName string) ApiRetryAgentIdentityProvisioningRequest {
+func (a *AgentIdentityAPIService) RetryAgentIdentityProvisioning(ctx context.Context, agentName string) ApiRetryAgentIdentityProvisioningRequest {
 	return ApiRetryAgentIdentityProvisioningRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
@@ -933,18 +946,20 @@ func (a *AgentIdentityAPIService) RetryAgentIdentityProvisioningExecute(r ApiRet
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities/retry"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/identities/retry"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 	if r.agentIdentityActionRequest == nil {
 		return localVarReturnValue, nil, reportError("agentIdentityActionRequest is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -1058,10 +1073,15 @@ func (a *AgentIdentityAPIService) RetryAgentIdentityProvisioningExecute(r ApiRet
 type ApiRevokeAgentIdentitySecretRequest struct {
 	ctx         context.Context
 	ApiService  *AgentIdentityAPIService
-	orgName     string
-	projName    string
 	agentName   string
+	project     *string
 	environment *string
+}
+
+// Project handle.
+func (r ApiRevokeAgentIdentitySecretRequest) Project(project string) ApiRevokeAgentIdentitySecretRequest {
+	r.project = &project
+	return r
 }
 
 // Environment name to revoke the AgentID secret in
@@ -1084,17 +1104,13 @@ This only stops new tokens from being minted. A token issued before
 the revoke stays valid until it expires naturally.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiRevokeAgentIdentitySecretRequest
 */
-func (a *AgentIdentityAPIService) RevokeAgentIdentitySecret(ctx context.Context, orgName string, projName string, agentName string) ApiRevokeAgentIdentitySecretRequest {
+func (a *AgentIdentityAPIService) RevokeAgentIdentitySecret(ctx context.Context, agentName string) ApiRevokeAgentIdentitySecretRequest {
 	return ApiRevokeAgentIdentitySecretRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
@@ -1115,19 +1131,20 @@ func (a *AgentIdentityAPIService) RevokeAgentIdentitySecretExecute(r ApiRevokeAg
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/identities"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.environment == nil {
-		return localVarReturnValue, nil, reportError("environment is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
 	}
 
-	parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
+	if r.environment != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 

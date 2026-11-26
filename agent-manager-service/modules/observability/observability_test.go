@@ -152,6 +152,46 @@ func TestListTracesRequests(t *testing.T) {
 	}
 }
 
+func TestListTracesPage(t *testing.T) {
+	traces := memory.New()
+	scope := store.Scope{
+		OrgID: "org-a", ProjectID: "p1", AgentID: "a1",
+		Names: store.Names{Org: "acme", Project: "shop", Agent: "bot"},
+	}
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	for i := range 3 {
+		traces.Add(scope, tracesv1.Trace{TraceID: fmt.Sprint(i), StartTime: at.Add(time.Duration(i) * time.Second)})
+	}
+	h := handlers{core: fakeCore{}, traces: guarded{traces: traces}, log: slog.New(slog.DiscardHandler)}
+
+	r := httptest.NewRequest(http.MethodGet, "/?project=shop&agent=bot&limit=2&"+testWindow, nil)
+	w := httptest.NewRecorder()
+	h.listTraces(w, r.WithContext(modkit.WithOrgID(r.Context(), "org-a")))
+	if w.Code != http.StatusOK {
+		t.Fatalf("listTraces = %d %s, want 200", w.Code, w.Body.String())
+	}
+	var got TraceListResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Traces) != 2 || got.Traces[0].TraceID != "2" {
+		t.Fatalf("listed %+v, want the 2 newest", got.Traces)
+	}
+	if got, want := rawPagination(t, w.Body.Bytes()), `{"limit":2,"total":3}`; got != want {
+		t.Errorf("pagination = %s, want %s: no cursor, not truncated", got, want)
+	}
+}
+
+// rawPagination is a response body's pagination as sent.
+func rawPagination(t *testing.T, body []byte) string {
+	t.Helper()
+	var raw struct{ Pagination json.RawMessage }
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatal(err)
+	}
+	return string(raw.Pagination)
+}
+
 func TestExportTraces(t *testing.T) {
 	traces := memory.New()
 	scope := store.Scope{
@@ -178,14 +218,17 @@ func TestExportTraces(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Traces) != 2 || got.TotalCount != 2 || got.Traces[0].TraceID != "small" {
+	if len(got.Traces) != 2 || got.Pagination.Total == nil || *got.Pagination.Total != 2 || got.Traces[0].TraceID != "small" {
 		t.Fatalf("exported %+v, want small then big", got)
 	}
 	if n := len(got.Traces[1].Spans); n != maxExportSpans {
 		t.Errorf("big trace has %d spans, want the cap %d", n, maxExportSpans)
 	}
-	if !got.SpansTruncated || !got.Truncated {
-		t.Errorf("spansTruncated = %v, truncated = %v; want both true", got.SpansTruncated, got.Truncated)
+	if p, want := rawPagination(t, w.Body.Bytes()), `{"limit":100,"total":2}`; p != want {
+		t.Errorf("pagination = %s, want %s: no cursor, not truncated", p, want)
+	}
+	if !got.SpansTruncated {
+		t.Error("spansTruncated = false, want true")
 	}
 	if n := len(got.Traces[0].Spans); n != 2 {
 		t.Errorf("small trace has %d spans, want 2, the one after the window included", n)

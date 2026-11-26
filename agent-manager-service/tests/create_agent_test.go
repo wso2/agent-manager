@@ -80,7 +80,7 @@ func TestCreateAgent(t *testing.T) {
 				"inputInterface": map[string]interface{}{"type": "HTTP"},
 			},
 			wantStatus: http.StatusNotImplemented,
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
+			url:        "/api/v1/agents",
 		},
 		{
 			name: "return 401 on missing authentication",
@@ -119,7 +119,7 @@ func TestCreateAgent(t *testing.T) {
 			},
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testOrgName, testProjName),
+			url:        "/api/v1/agents",
 		},
 	}
 
@@ -133,7 +133,7 @@ func TestCreateAgent(t *testing.T) {
 			app := apitestutils.MakeAppClientWithDeps(t, testClients, tt.authMiddleware)
 
 			reqBody := new(bytes.Buffer)
-			err := json.NewEncoder(reqBody).Encode(tt.payload)
+			err := json.NewEncoder(reqBody).Encode(agentDocument(testProjName, tt.payload))
 			require.NoError(t, err)
 
 			// Send the request

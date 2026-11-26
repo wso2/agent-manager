@@ -31,7 +31,7 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
-const depsPath = "GET /orgs/acme/projects/triage/agents/order-bot/deployments"
+const depsPath = "GET /agents/order-bot/deployments"
 
 type statusRoute struct {
 	status       int
@@ -43,6 +43,11 @@ func newStatusClient(t *testing.T, routes map[string]statusRoute) (func(context.
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Method + " " + r.URL.Path
+		if got := r.URL.Query().Get("project"); got != "triage" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "NO_PROJECT", "message": "project = " + got})
+			return
+		}
 		route, ok := routes[key]
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)

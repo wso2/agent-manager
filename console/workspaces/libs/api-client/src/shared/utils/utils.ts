@@ -325,3 +325,26 @@ export async function httpPATCH(
     });
     return finalizeHttpWriteResponse(response);
 }
+
+// agentGatewayPath is a path under one agent's AI Gateway routes.
+export function agentGatewayPath(params: { agentName?: string }, suffix = ""): string {
+    return `${GATEWAY_BASE}/agents/${encodeRequired(params.agentName, "agentName")}${suffix}`;
+}
+
+// agentProjectQuery names the agent's project, which every agent gateway route requires.
+export function agentProjectQuery(
+    params: { projName?: string },
+    extra: Record<string, string | undefined> = {},
+): Record<string, string> {
+    if (!params.projName) throw new Error("Missing required parameter: projName");
+    const out: Record<string, string> = { project: params.projName };
+    for (const [k, v] of Object.entries(extra)) {
+        if (v !== undefined) out[k] = v;
+    }
+    return out;
+}
+
+// agentRequestOptions carries the token and the agent's project on an agent gateway call.
+export function agentRequestOptions(params: { projName?: string }, token: string | undefined) {
+    return { token, searchParams: agentProjectQuery(params) };
+}

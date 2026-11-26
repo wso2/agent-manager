@@ -19,8 +19,9 @@ var _ MappedNullable = &AgentModelConfigListResponse{}
 
 // AgentModelConfigListResponse struct for AgentModelConfigListResponse
 type AgentModelConfigListResponse struct {
-	// List of agent model configurations
-	Configs    []AgentModelConfigListItem `json:"configs"`
+	// Number of items in this page.
+	Count      int32                      `json:"count"`
+	List       []AgentModelConfigDocument `json:"list"`
 	Pagination PaginationInfo             `json:"pagination"`
 }
 
@@ -28,9 +29,10 @@ type AgentModelConfigListResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewAgentModelConfigListResponse(configs []AgentModelConfigListItem, pagination PaginationInfo) *AgentModelConfigListResponse {
+func NewAgentModelConfigListResponse(count int32, list []AgentModelConfigDocument, pagination PaginationInfo) *AgentModelConfigListResponse {
 	this := AgentModelConfigListResponse{}
-	this.Configs = configs
+	this.Count = count
+	this.List = list
 	this.Pagination = pagination
 	return &this
 }
@@ -43,28 +45,52 @@ func NewAgentModelConfigListResponseWithDefaults() *AgentModelConfigListResponse
 	return &this
 }
 
-// GetConfigs returns the Configs field value
-func (o *AgentModelConfigListResponse) GetConfigs() []AgentModelConfigListItem {
+// GetCount returns the Count field value
+func (o *AgentModelConfigListResponse) GetCount() int32 {
 	if o == nil {
-		var ret []AgentModelConfigListItem
+		var ret int32
 		return ret
 	}
 
-	return o.Configs
+	return o.Count
 }
 
-// GetConfigsOk returns a tuple with the Configs field value
+// GetCountOk returns a tuple with the Count field value
 // and a boolean to check if the value has been set.
-func (o *AgentModelConfigListResponse) GetConfigsOk() ([]AgentModelConfigListItem, bool) {
+func (o *AgentModelConfigListResponse) GetCountOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return o.Configs, true
+	return &o.Count, true
 }
 
-// SetConfigs sets field value
-func (o *AgentModelConfigListResponse) SetConfigs(v []AgentModelConfigListItem) {
-	o.Configs = v
+// SetCount sets field value
+func (o *AgentModelConfigListResponse) SetCount(v int32) {
+	o.Count = v
+}
+
+// GetList returns the List field value
+func (o *AgentModelConfigListResponse) GetList() []AgentModelConfigDocument {
+	if o == nil {
+		var ret []AgentModelConfigDocument
+		return ret
+	}
+
+	return o.List
+}
+
+// GetListOk returns a tuple with the List field value
+// and a boolean to check if the value has been set.
+func (o *AgentModelConfigListResponse) GetListOk() ([]AgentModelConfigDocument, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return o.List, true
+}
+
+// SetList sets field value
+func (o *AgentModelConfigListResponse) SetList(v []AgentModelConfigDocument) {
+	o.List = v
 }
 
 // GetPagination returns the Pagination field value
@@ -101,7 +127,8 @@ func (o AgentModelConfigListResponse) MarshalJSON() ([]byte, error) {
 
 func (o AgentModelConfigListResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["configs"] = o.Configs
+	toSerialize["count"] = o.Count
+	toSerialize["list"] = o.List
 	toSerialize["pagination"] = o.Pagination
 	return toSerialize, nil
 }

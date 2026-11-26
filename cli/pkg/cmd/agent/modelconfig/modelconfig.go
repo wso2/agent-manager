@@ -21,11 +21,6 @@ import (
 	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
-// StringPtr returns a pointer to v.
-func StringPtr(v string) *string {
-	return &v
-}
-
 // OptionalString returns a pointer to s, or nil when s is empty.
 func OptionalString(s string) *string {
 	if s == "" {
@@ -47,16 +42,4 @@ func BuildEnvVars(urlEnv, apiKeyEnv string) *[]aigateway.EnvironmentVariableConf
 		return nil
 	}
 	return &evs
-}
-
-// MergeExistingEnvMappings translates every env mapping of an existing config into request shape.
-func MergeExistingEnvMappings(
-	resp *aigateway.AgentModelConfigResponse,
-	toRequest func(aigateway.EnvProviderConfigMappings) aigateway.EnvModelConfigRequest,
-) map[string]aigateway.EnvModelConfigRequest {
-	out := make(map[string]aigateway.EnvModelConfigRequest, len(resp.EnvMappings))
-	for env, m := range resp.EnvMappings {
-		out[env] = toRequest(m)
-	}
-	return out
 }

@@ -44,7 +44,7 @@ func validInternalReq(t *testing.T) amsvc.CreateAgentRequest {
 		DisplayName: "My Agent",
 		AgentType:   &amsvc.AgentType{Type: "agent-api", SubType: &subType},
 		Provisioning: amsvc.Provisioning{
-			Type: amsvc.Internal,
+			Type: amsvc.ProvisioningTypeInternal,
 			Repository: &amsvc.RepositoryConfig{
 				Url:     "https://github.com/example/repo",
 				Branch:  "main",
@@ -64,7 +64,7 @@ func validExternalReq() amsvc.CreateAgentRequest {
 		Name:         "my-agent",
 		DisplayName:  "My Agent",
 		AgentType:    &amsvc.AgentType{Type: "external-agent-api"},
-		Provisioning: amsvc.Provisioning{Type: amsvc.External},
+		Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
 	}
 }
 
@@ -97,7 +97,7 @@ func TestValidateRequest_ValidAgentKind(t *testing.T) {
 	req := validExternalReq()
 	req.AgentType = nil
 	req.Provisioning = amsvc.Provisioning{
-		Type: amsvc.Internal,
+		Type: amsvc.ProvisioningTypeInternal,
 		AgentKind: &struct {
 			Name    string `json:"name"`
 			Version string `json:"version"`
@@ -162,7 +162,7 @@ func TestValidateRequest_AgentKindRequiredFields(t *testing.T) {
 	req := validExternalReq()
 	req.AgentType = nil
 	req.Provisioning = amsvc.Provisioning{
-		Type: amsvc.Internal,
+		Type: amsvc.ProvisioningTypeInternal,
 		AgentKind: &struct {
 			Name    string `json:"name"`
 			Version string `json:"version"`
@@ -389,7 +389,7 @@ func TestValidateRequest_PortRange(t *testing.T) {
 
 func TestValidateRequest_ExternalRejectsInternalSections(t *testing.T) {
 	req := validInternalReq(t)
-	req.Provisioning.Type = amsvc.External
+	req.Provisioning.Type = amsvc.ProvisioningTypeExternal
 	req.AgentType.Type = "external-agent-api"
 	req.AgentType.SubType = nil
 	v := validateRequest(req)
@@ -412,7 +412,7 @@ func TestValidateRequest_ExternalRejectsAgentKind(t *testing.T) {
 func TestValidateRequest_Aggregates(t *testing.T) {
 	req := amsvc.CreateAgentRequest{
 		Provisioning: amsvc.Provisioning{
-			Type:       amsvc.Internal,
+			Type:       amsvc.ProvisioningTypeInternal,
 			Repository: &amsvc.RepositoryConfig{},
 		},
 	}

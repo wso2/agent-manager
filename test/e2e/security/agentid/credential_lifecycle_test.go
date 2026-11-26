@@ -56,9 +56,9 @@ var _ = Describe("SEC-AGENTID-001: external AgentID credential lifecycle", Label
 			Request: framework.NewExternalAgentRequest(agentName,
 				"Disposable external agent for AgentID credential security tests"),
 		})
-		Expect(agent.Name).To(Equal(agentName))
-		Expect(agent.Provisioning.Type).To(Equal("external"))
-		Expect(agent.AgentType.Type).To(Equal("external-agent-api"))
+		Expect(agent.Metadata.Name).To(Equal(agentName))
+		Expect(agent.Spec.Provisioning.Type).To(Equal("external"))
+		Expect(agent.Spec.AgentType.Type).To(Equal("external-agent-api"))
 	})
 
 	It("provisions the environment identity without exposing a secret in safe reads", func(ctx SpecContext) {
@@ -85,7 +85,7 @@ var _ = Describe("SEC-AGENTID-001: external AgentID credential lifecycle", Label
 	})
 
 	It("rejects an unauthenticated identity read with 401", func(ctx SpecContext) {
-		resp, err := adminClient.GetUnauthenticatedWithContext(ctx, identityPath+"?"+
+		resp, err := adminClient.GetUnauthenticatedWithContext(ctx, identityPath+"&"+
 			url.Values{"environment": {cfg.DefaultEnv}}.Encode())
 		Expect(err).NotTo(HaveOccurred())
 		defer resp.Body.Close()
@@ -93,7 +93,7 @@ var _ = Describe("SEC-AGENTID-001: external AgentID credential lifecycle", Label
 	})
 
 	It("denies AgentID read, rotation, and revocation without amp:agent:update", func(ctx SpecContext) {
-		query := "?" + url.Values{"environment": {cfg.DefaultEnv}}.Encode()
+		query := "&" + url.Values{"environment": {cfg.DefaultEnv}}.Encode()
 
 		resp, err := reducedClient.GetWithContext(ctx, identityPath+query)
 		Expect(err).NotTo(HaveOccurred())

@@ -25,12 +25,16 @@ type MCPAPIKeysAPIService service
 type ApiCreateMCPConfigAPIKeyRequest struct {
 	ctx                    context.Context
 	ApiService             *MCPAPIKeysAPIService
-	orgName                string
-	projName               string
 	agentName              string
+	project                *string
 	configId               string
-	envName                string
 	createLLMAPIKeyRequest *CreateLLMAPIKeyRequest
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiCreateMCPConfigAPIKeyRequest) Project(project string) ApiCreateMCPConfigAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiCreateMCPConfigAPIKeyRequest) CreateLLMAPIKeyRequest(createLLMAPIKeyRequest CreateLLMAPIKeyRequest) ApiCreateMCPConfigAPIKeyRequest {
@@ -48,22 +52,16 @@ CreateMCPConfigAPIKey Generate an API key for an external agent's MCP configurat
 Generates a new API key for an external agent's MCP configuration and broadcasts it to all connected gateways. The key is returned only once.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId MCP configuration UUID
-	@param envName Environment name
 	@return ApiCreateMCPConfigAPIKeyRequest
 */
-func (a *MCPAPIKeysAPIService) CreateMCPConfigAPIKey(ctx context.Context, orgName string, projName string, agentName string, configId string, envName string) ApiCreateMCPConfigAPIKeyRequest {
+func (a *MCPAPIKeysAPIService) CreateMCPConfigAPIKey(ctx context.Context, agentName string, configId string) ApiCreateMCPConfigAPIKeyRequest {
 	return ApiCreateMCPConfigAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
-		envName:    envName,
 	}
 }
 
@@ -83,20 +81,21 @@ func (a *MCPAPIKeysAPIService) CreateMCPConfigAPIKeyExecute(r ApiCreateMCPConfig
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/mcp-configs/{configId}/api-keys"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envName"+"}", url.PathEscape(parameterValueToString(r.envName, "envName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 	if r.createLLMAPIKeyRequest == nil {
 		return localVarReturnValue, nil, reportError("createLLMAPIKeyRequest is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -210,11 +209,15 @@ func (a *MCPAPIKeysAPIService) CreateMCPConfigAPIKeyExecute(r ApiCreateMCPConfig
 type ApiListMCPConfigAPIKeysRequest struct {
 	ctx        context.Context
 	ApiService *MCPAPIKeysAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	configId   string
-	envName    string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiListMCPConfigAPIKeysRequest) Project(project string) ApiListMCPConfigAPIKeysRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiListMCPConfigAPIKeysRequest) Execute() (*ListAPIKeysResponse, *http.Response, error) {
@@ -224,25 +227,19 @@ func (r ApiListMCPConfigAPIKeysRequest) Execute() (*ListAPIKeysResponse, *http.R
 /*
 ListMCPConfigAPIKeys List API keys for an external agent's MCP configuration
 
-Returns the API key(s) for an external agent's MCP configuration in the given environment (masked values only).
+Returns the API key(s) for an external agent's MCP configuration (masked values only).
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId MCP configuration UUID
-	@param envName Environment name
 	@return ApiListMCPConfigAPIKeysRequest
 */
-func (a *MCPAPIKeysAPIService) ListMCPConfigAPIKeys(ctx context.Context, orgName string, projName string, agentName string, configId string, envName string) ApiListMCPConfigAPIKeysRequest {
+func (a *MCPAPIKeysAPIService) ListMCPConfigAPIKeys(ctx context.Context, agentName string, configId string) ApiListMCPConfigAPIKeysRequest {
 	return ApiListMCPConfigAPIKeysRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
-		envName:    envName,
 	}
 }
 
@@ -262,17 +259,18 @@ func (a *MCPAPIKeysAPIService) ListMCPConfigAPIKeysExecute(r ApiListMCPConfigAPI
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/mcp-configs/{configId}/api-keys"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envName"+"}", url.PathEscape(parameterValueToString(r.envName, "envName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -351,12 +349,16 @@ func (a *MCPAPIKeysAPIService) ListMCPConfigAPIKeysExecute(r ApiListMCPConfigAPI
 type ApiRevokeMCPConfigAPIKeyRequest struct {
 	ctx        context.Context
 	ApiService *MCPAPIKeysAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	configId   string
-	envName    string
 	keyName    string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiRevokeMCPConfigAPIKeyRequest) Project(project string) ApiRevokeMCPConfigAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRevokeMCPConfigAPIKeyRequest) Execute() (*http.Response, error) {
@@ -369,23 +371,17 @@ RevokeMCPConfigAPIKey Delete an external agent's MCP configuration API key
 Revokes and removes the API key for an external agent's MCP configuration and broadcasts the revocation to all connected gateways.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId MCP configuration UUID
-	@param envName Environment name
 	@param keyName API key name/identifier
 	@return ApiRevokeMCPConfigAPIKeyRequest
 */
-func (a *MCPAPIKeysAPIService) RevokeMCPConfigAPIKey(ctx context.Context, orgName string, projName string, agentName string, configId string, envName string, keyName string) ApiRevokeMCPConfigAPIKeyRequest {
+func (a *MCPAPIKeysAPIService) RevokeMCPConfigAPIKey(ctx context.Context, agentName string, configId string, keyName string) ApiRevokeMCPConfigAPIKeyRequest {
 	return ApiRevokeMCPConfigAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
-		envName:    envName,
 		keyName:    keyName,
 	}
 }
@@ -403,18 +399,19 @@ func (a *MCPAPIKeysAPIService) RevokeMCPConfigAPIKeyExecute(r ApiRevokeMCPConfig
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/mcp-configs/{configId}/api-keys/{keyName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envName"+"}", url.PathEscape(parameterValueToString(r.envName, "envName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -495,13 +492,17 @@ func (a *MCPAPIKeysAPIService) RevokeMCPConfigAPIKeyExecute(r ApiRevokeMCPConfig
 type ApiRotateMCPConfigAPIKeyRequest struct {
 	ctx                    context.Context
 	ApiService             *MCPAPIKeysAPIService
-	orgName                string
-	projName               string
 	agentName              string
+	project                *string
 	configId               string
-	envName                string
 	keyName                string
 	rotateLLMAPIKeyRequest *RotateLLMAPIKeyRequest
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiRotateMCPConfigAPIKeyRequest) Project(project string) ApiRotateMCPConfigAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRotateMCPConfigAPIKeyRequest) RotateLLMAPIKeyRequest(rotateLLMAPIKeyRequest RotateLLMAPIKeyRequest) ApiRotateMCPConfigAPIKeyRequest {
@@ -519,23 +520,17 @@ RotateMCPConfigAPIKey Regenerate an external agent's MCP configuration API key
 Revokes the current API key and generates a new value under the same key name, broadcasting the update to all connected gateways. The new key is returned only once.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId MCP configuration UUID
-	@param envName Environment name
 	@param keyName API key name/identifier
 	@return ApiRotateMCPConfigAPIKeyRequest
 */
-func (a *MCPAPIKeysAPIService) RotateMCPConfigAPIKey(ctx context.Context, orgName string, projName string, agentName string, configId string, envName string, keyName string) ApiRotateMCPConfigAPIKeyRequest {
+func (a *MCPAPIKeysAPIService) RotateMCPConfigAPIKey(ctx context.Context, agentName string, configId string, keyName string) ApiRotateMCPConfigAPIKeyRequest {
 	return ApiRotateMCPConfigAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
-		envName:    envName,
 		keyName:    keyName,
 	}
 }
@@ -556,18 +551,19 @@ func (a *MCPAPIKeysAPIService) RotateMCPConfigAPIKeyExecute(r ApiRotateMCPConfig
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/mcp-configs/{configId}/api-keys/{keyName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envName"+"}", url.PathEscape(parameterValueToString(r.envName, "envName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 

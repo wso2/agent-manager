@@ -42,11 +42,6 @@ type ListOptions struct {
 	AgentName string
 }
 
-// ListResult is the JSON envelope payload for `llm list`.
-type ListResult struct {
-	Configs []aigateway.AgentModelConfigListItem `json:"configs"`
-}
-
 func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ListOptions{
 		IO:           f.IOStreams,
@@ -86,7 +81,7 @@ func runList(ctx context.Context, o *ListOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.ListAgentModelConfigsWithResponse(ctx, o.Org, o.Proj, o.AgentName, &aigateway.ListAgentModelConfigsParams{})
+	resp, err := client.ListAgentModelConfigsWithResponse(ctx, o.AgentName, &aigateway.ListAgentModelConfigsParams{Project: o.Proj})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -94,24 +89,17 @@ func runList(ctx context.Context, o *ListOptions) error {
 		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, resp.JSON500))
 	}
 
-	configs := make([]aigateway.AgentModelConfigListItem, 0, len(resp.JSON200.Configs))
-	for _, c := range resp.JSON200.Configs {
-		if c.Type == configType {
-			configs = append(configs, c)
-		}
-	}
-
 	if o.IO.JSON {
-		return render.JSONSuccess(o.IO, o.Scope, ListResult{Configs: configs})
+		return render.JSONSuccess(o.IO, o.Scope, resp.JSON200)
 	}
 
 	tp := tableprinter.New(o.IO, "name", "description")
 	cs := o.IO.ColorScheme()
-	for _, c := range configs {
-		tp.AddField(c.Name, tableprinter.WithColor(cs.Bold))
+	for _, c := range resp.JSON200.List {
+		tp.AddField(c.Metadata.Name, tableprinter.WithColor(cs.Bold))
 		desc := "-"
-		if c.Description != nil && *c.Description != "" {
-			desc = *c.Description
+		if c.Spec.Description != nil && *c.Spec.Description != "" {
+			desc = *c.Spec.Description
 		}
 		tp.AddField(desc)
 		tp.EndRow()

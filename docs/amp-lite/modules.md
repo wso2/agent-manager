@@ -222,7 +222,7 @@ A route naming an action or event its manifest doesn't declare keeps the module 
 
 #### Audit records
 
-Every route that changes state gets one audit record, written by the core after the handler returns, with the caller, the outcome from the status code, and the project and environment from the path (`{projName}`, `{envName}`, `{envID}` or `{environmentId}`, else the `environment` query parameter). A handler, or a service it calls, adds to that record:
+Every route that changes state gets one audit record, written by the core after the handler returns, with the caller, the outcome from the status code, the project from `{projName}`, else the `project` query parameter, and the environment from `{envName}`, `{envID}` or `{environmentId}`, else the `environment` query parameter. A handler, or a service it calls, adds to that record:
 
 ```go
 modkit.AuditResource(ctx, "widget", w.ID, w.Name)
@@ -230,6 +230,7 @@ modkit.AuditDetail(ctx, "colour", w.Colour)
 ```
 
 - `modkit.AuditResource(ctx, kind, id, name)` names what the request acted on.
+- `modkit.AuditEnvironment(ctx, name)` names the environment when the path does not, such as a route that always acts on the default environment. An environment in the path wins.
 - `modkit.AuditDetail(ctx, key, value)` adds a field. The key must be one the action declares in its manifest `Details`, with a kind: `identifier`, `name`, `email`, `name-list`, `count`, `flag`, `enum`, `fingerprint` or `url`. Undeclared keys are dropped when the record is written, a `url` loses its credentials and query, and values are strings, booleans, numbers or string lists, so a request payload cannot reach the trail. An unknown kind keeps the module from activating.
 - A handler that refuses a request for a reason only the module can check answers 403 and sets `reason` (and `missingScope` for a missing scope); every action may carry those two. The record's outcome is then a denial.
 
@@ -589,6 +590,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [`Manifest.DisplayName`, `Permission.DisplayName`](#the-manifest) | ThunderID shows permissions to administrators, and a readable name is needed there. |
 | [`Manifest.AuditActions`](#route-options) and the route options `modkit.Audit`, `AuditCoalesce` | Every core route is audited under a declared action; module routes keep that rule, and machine-polled routes need coalescing. |
 | [`AuditAction.Details`, `modkit.AuditResource`, `AuditDetail`](#audit-records) | A module's records say what was acted on and how, as the core's do; declaring each key with its kind keeps redaction working for module records. |
+| [`modkit.AuditEnvironment`](#audit-records) | The gateway's agent routes carry no environment in the path and act on the default one; without it their records name no environment, and reports filtered by environment miss them. |
 | [Route option `modkit.AuditFailClosed`](#route-options) | Routes that mint or revoke credentials a runtime receives must not run unrecorded; the core writes the intent record because only it holds the recorder. |
 | [`modkit.AuditInternalCaller`](#fixed-internal-paths-temporary) | Time-boxed, with `HandleInternalAt`: those routes authenticate their callers themselves, so only the handler can name the caller or report a refused credential. |
 | [Scoped `Manifest.Events`](#events) and the route options `modkit.Emits`, `EmitsWithoutData` | Module events can be offered as webhooks, which needs a scope and a description per event. |
@@ -633,7 +635,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [The AI Gateway offers no environment attach](ai-gateway.md#where-the-gateway-stands) on `environment.created` | Lite has one environment per organization, created with it, and a gateway serves one environment, so there is nothing to offer; revisit with more environments. |
 | Module permissions and audit actions may be `<resource>.<action>` (`ai-gateway:llm-providers.read`) | A module with many resources groups its permissions by resource; ThunderID accepts the dots. |
 | [A refusal only the module can check](#audit-records) (the gateway's environment tier) is recorded on the route's own record, as a denial with `reason` and `missingScope`, not as a separate `authz:deny` record | The route's record already carries the caller and the outcome; a second record would need the core's audit package in the module. |
-| [Module records take the project and environment from the path](#audit-records) | Handlers name only what they acted on; the path already says where. |
+| [Module records take the project from the path or the `project` query parameter, and the environment from the path or the `environment` query parameter](#audit-records) | Handlers name only what they acted on; the request already says where. Migrated routes name the project in the query parameter instead of `{projName}`, so the core reads both. |
 | Module routes never treat a permission as an "axis": the route's own permission names its action, and `AlsoRequires` permissions never do | The core's axis-permission registry existed only for the gateway's environment tier, which `AlsoRequires` now expresses. |
 | Module secrets use owner kind `mod:<module>` in the core's `secrets` table | No schema change is needed. |
 | Internal routes answer 404 for a wrong method, not 405 | Module internal routes are mounted per path and method, and only while the module is active. |

@@ -28,6 +28,7 @@ import (
 // environment when it arrives in the request body, or extra details.
 type annotations struct {
 	environment string
+	project     string
 	data        map[string]any
 }
 
@@ -52,6 +53,14 @@ func annotationsFrom(ctx context.Context) *annotations {
 func SetEnvironment(ctx context.Context, env string) {
 	if a := annotationsFrom(ctx); a != nil {
 		a.EventEnvironment(env)
+	}
+}
+
+// SetProject records the project the request acted on, when its path and query do not name it. A
+// no-op outside an event-emitting route.
+func SetProject(ctx context.Context, project string) {
+	if a := annotationsFrom(ctx); a != nil {
+		a.project = project
 	}
 }
 
@@ -82,6 +91,14 @@ func (a *annotations) Environment() string {
 		return ""
 	}
 	return a.environment
+}
+
+// Project returns the annotated project.
+func (a *annotations) Project() string {
+	if a == nil {
+		return ""
+	}
+	return a.project
 }
 
 // Data returns the annotated data.
