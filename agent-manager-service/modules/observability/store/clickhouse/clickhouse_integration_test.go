@@ -533,15 +533,34 @@ FROM numbers(1000000)`
 	s := e.readerStore(b)
 	sc := seed("org-a", "agent-1", "").Scope
 	q := store.TraceQuery{StartTime: day, EndTime: day.Add(24 * time.Hour), Limit: 20, SortOrder: "desc"}
-	b.ResetTimer()
-	for range b.N {
-		page, err := s.QueryTraces(ctx, sc, q)
-		if err != nil {
-			b.Fatal(err)
+	b.Run("unfiltered", func(b *testing.B) {
+		for range b.N {
+			page, err := s.QueryTraces(ctx, sc, q)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if totalOf(page) != 100000 || len(page.Traces) != 20 {
+				b.Fatalf("got %d of %d traces, want 20 of 100000", len(page.Traces), totalOf(page))
+			}
 		}
-		if totalOf(page) != 100000 || len(page.Traces) != 20 {
-			b.Fatalf("got %d of %d traces, want 20 of 100000", len(page.Traces), totalOf(page))
-		}
+	})
+	minTokens := int64(1)
+	for name, f := range map[string]store.TraceFilters{
+		"status":       {Status: "error"},
+		"minTokens":    {MinTokens: &minTokens},
+		"conversation": {ConversationID: "c-1"},
+		"toolError":    {ToolError: true},
+		"every filter": {Status: "ok", MinTokens: &minTokens, Model: "gpt", ConversationID: "c-1", Tool: "search", ToolError: true, MCPServer: "github"},
+	} {
+		b.Run(name, func(b *testing.B) {
+			fq := q
+			fq.Filters = f
+			for range b.N {
+				if _, err := s.QueryTraces(ctx, sc, fq); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }
 

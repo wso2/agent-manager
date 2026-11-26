@@ -43,6 +43,10 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Run("ScopeIDsFilterWithoutNames", func(t *testing.T) { testScopeIDsFilter(t, newStore) })
 	t.Run("ListAndSpansAgreeOnATrace", func(t *testing.T) { testListAndSpansAgree(t, newStore) })
 	t.Run("SpansByTrace", func(t *testing.T) { testSpansByTrace(t, newStore) })
+	t.Run("Filters", func(t *testing.T) { testFilters(t, newStore) })
+	t.Run("PagingListsEveryTraceOnce", func(t *testing.T) { testPaging(t, newStore) })
+	t.Run("RareFilterFillsTheFirstPage", func(t *testing.T) { testRareFilter(t, newStore) })
+	t.Run("InvalidCursor", func(t *testing.T) { testInvalidCursor(t, newStore) })
 }
 
 // span is a span of the given name starting at at.
