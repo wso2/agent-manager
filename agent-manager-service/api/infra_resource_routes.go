@@ -24,10 +24,9 @@ import (
 )
 
 func registerInfraRoutes(rr *middleware.RouteRegistrar, ctrl controllers.InfraResourceController) {
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs", rbac.OrgView, ctrl.ListOrganizations)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}", rbac.OrgView, ctrl.GetOrganization)
+	rr.HandleFuncWithValidationAndAuthz("GET /organizations", rbac.OrgView, ctrl.ListOrganizations)
+	rr.HandleFuncWithValidationAndAuthz("GET /organizations/current", rbac.OrgView, ctrl.GetOrganization)
 
-	// NOTE: /orgs/{orgName}/environments routes are now registered in environment_routes.go
 	rr.HandleFuncWithValidationAndAuthz("GET /projects", rbac.ProjectRead, ctrl.ListProjects)
 	rr.HandleFuncWithValidationAndAuthz("POST /projects", rbac.ProjectCreate,
 		growthanalytics.Track("amp.deployment-ops.create-project", actionDims("created-project"), ctrl.CreateProject))

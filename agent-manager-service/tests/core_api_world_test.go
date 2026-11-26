@@ -104,8 +104,13 @@ func newCoreWorld(t *testing.T) coreWorld {
 	}
 }
 
-// path is an API path under the world's organization.
+// path is an API path; the organization comes from the caller's token.
 func (w coreWorld) path(format string, a ...any) string {
+	return "/api/v1" + fmt.Sprintf(format, a...)
+}
+
+// orgPath is a retired API path under the world's organization.
+func (w coreWorld) orgPath(format string, a ...any) string {
 	return "/api/v1/orgs/" + w.handle + fmt.Sprintf(format, a...)
 }
 

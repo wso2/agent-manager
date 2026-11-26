@@ -59,17 +59,17 @@ type routeEvent struct {
 // environment, such as agent.updated, reaches them whatever their filter.
 var routeEvents = map[string]routeEvent{
 	// --- Org ------------------------------------------------------------
-	"POST /projects":                                     {Type: "project.created"},
-	"DELETE /projects/{projName}":                        {Type: "project.deleted"},
-	"POST /orgs/{orgName}/identities/users/invite":       {Type: "user.invited", OmitData: true},
-	"POST /orgs/{orgName}/identities/users":              {Type: "user.created", OmitData: true},
-	"DELETE /orgs/{orgName}/identities/users/{userID}":   {Type: "user.deleted"},
-	"POST /orgs/{orgName}/identities/roles":              {Type: "role.created"},
-	"PUT /orgs/{orgName}/identities/roles/{roleID}":      {Type: "role.updated"},
-	"DELETE /orgs/{orgName}/identities/roles/{roleID}":   {Type: "role.deleted"},
-	"POST /orgs/{orgName}/identities/groups":             {Type: "group.created"},
-	"PUT /orgs/{orgName}/identities/groups/{groupID}":    {Type: "group.updated"},
-	"DELETE /orgs/{orgName}/identities/groups/{groupID}": {Type: "group.deleted"},
+	"POST /projects":                      {Type: "project.created"},
+	"DELETE /projects/{projName}":         {Type: "project.deleted"},
+	"POST /identities/users/invite":       {Type: "user.invited", OmitData: true},
+	"POST /identities/users":              {Type: "user.created", OmitData: true},
+	"DELETE /identities/users/{userID}":   {Type: "user.deleted"},
+	"POST /identities/roles":              {Type: "role.created"},
+	"PUT /identities/roles/{roleID}":      {Type: "role.updated"},
+	"DELETE /identities/roles/{roleID}":   {Type: "role.deleted"},
+	"POST /identities/groups":             {Type: "group.created"},
+	"PUT /identities/groups/{groupID}":    {Type: "group.updated"},
+	"DELETE /identities/groups/{groupID}": {Type: "group.deleted"},
 
 	// --- Project --------------------------------------------------------
 	"PUT /projects/{projName}":   {Type: "project.updated"},

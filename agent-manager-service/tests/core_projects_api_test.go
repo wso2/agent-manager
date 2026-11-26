@@ -203,18 +203,23 @@ func TestCoreOrganizationsAPI(t *testing.T) {
 	// The organization exists once something has been written to it.
 	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, projectsPath(""), projectDocument("seed", "Seed", nil))
 
-	org := decodeAs[spec.OrganizationResponse](t, mustCall(t, w.reader, http.StatusOK, http.MethodGet, w.path(""), nil))
+	org := decodeAs[spec.OrganizationResponse](t, mustCall(t, w.reader, http.StatusOK, http.MethodGet, w.path("/organizations/current"), nil))
 	require.NotNil(t, org.Handle)
 	assert.Equal(t, w.handle, *org.Handle)
 
-	page := decodeAs[spec.OrganizationListResponse](t, mustCall(t, w.reader, http.StatusOK, http.MethodGet, "/api/v1/orgs?limit=1", nil))
+	page := decodeAs[spec.OrganizationListResponse](t, mustCall(t, w.reader, http.StatusOK, http.MethodGet, "/api/v1/organizations?limit=1", nil))
 	assert.Len(t, page.Organizations, 1)
 	assert.GreaterOrEqual(t, page.Total, int32(1))
 	assert.Equal(t, int32(1), page.Limit)
 
 	for _, q := range []string{"limit=0", "limit=500", "offset=-2", "offset=abc"} {
-		status, _ := call(t, w.reader, http.MethodGet, "/api/v1/orgs?"+q, nil)
+		status, _ := call(t, w.reader, http.MethodGet, "/api/v1/organizations?"+q, nil)
 		assert.Equal(t, http.StatusBadRequest, status, q)
+	}
+
+	for _, old := range []string{"/api/v1/orgs", w.orgPath(""), w.orgPath("/identities/roles"), w.orgPath("/events/event-types"), w.orgPath("/thunder-instances"), w.orgPath("/environments")} {
+		status, _ := call(t, w.reader, http.MethodGet, old, nil)
+		assert.Equal(t, http.StatusNotFound, status, "%s is no longer served", old)
 	}
 }
 

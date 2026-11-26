@@ -355,7 +355,7 @@ func TestModuleContract(t *testing.T) {
 	t.Run("route options name the audit action and the webhook event", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/widgets/w1/archive", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
-		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/orgs/"+w.handle+"/events/event-types", nil)
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/events/event-types", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.Contains(t, string(body), testmod.WidgetArchived, "a module's webhook event is in the catalog while it is active")
 		assert.NotContains(t, string(body), testmod.WidgetCreated, "an event without a scope is not")
@@ -615,7 +615,7 @@ func TestModuleContract(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, code, "a disabled module's fixed internal routes are gone")
 		assert.Zero(t, testmod.WorkerRunning.Load(), "and its workers stopped")
 		assert.Empty(t, w.host.MCPTools(), "and its MCP tools")
-		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/orgs/"+w.handle+"/events/event-types", nil)
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/events/event-types", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.NotContains(t, string(body), testmod.WidgetArchived, "and its webhook events")
 		code, body = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workloads/heartbeat",
