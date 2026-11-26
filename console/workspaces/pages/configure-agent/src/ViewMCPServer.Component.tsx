@@ -812,10 +812,13 @@ export const ViewMCPServerComponent = () => {
               authInfoByEnv?.[selectedEnvName] ?? providerConfig.authInfo;
             const headerName = apiKeyHeaderName || authEntry?.name || "api-key";
             const headerValue = authEntry?.value || "<api-key>";
-            const curlCode = [
-              `curl -N ${providerConfig.url || "<endpoint-url>"}`,
-              `  --header "${headerName}: ${headerValue}"`,
-            ].join(" \\\n");
+            const curlCode = buildMCPInitializeCurl(
+              providerConfig.url,
+              {
+                name: headerName,
+                value: headerValue,
+              },
+            );
             return (
               <Stack spacing={3}>
                 {authEntry?.value ? (
@@ -875,7 +878,7 @@ export const ViewMCPServerComponent = () => {
                   )}
                 </Form.Section>
                 <Form.Section>
-                  <Form.Subheader>Example cURL</Form.Subheader>
+                  <Form.Subheader>Example cURL (Connectivity Check)</Form.Subheader>
                   <CodeBlock
                     code={curlCode}
                     language="bash"
@@ -891,8 +894,8 @@ export const ViewMCPServerComponent = () => {
             <Stack spacing={3}>
               <Alert severity="info">
                 <Typography variant="body2">
-                  This tool has no security configured. Call the endpoint
-                  directly — no header or API key is required.
+                  This tool has no security configured. No authentication
+                  header or API key is required.
                 </Typography>
               </Alert>
               <Form.Section>
@@ -909,9 +912,9 @@ export const ViewMCPServerComponent = () => {
                 )}
               </Form.Section>
               <Form.Section>
-                <Form.Subheader>Example cURL</Form.Subheader>
+                <Form.Subheader>Example cURL (Connectivity Check)</Form.Subheader>
                 <CodeBlock
-                  code={`curl -N ${providerConfig.url || "<endpoint-url>"}`}
+                  code={buildMCPInitializeCurl(providerConfig.url)}
                   language="bash"
                   fieldId="mcp-curl"
                 />
@@ -1200,6 +1203,38 @@ export const ViewMCPServerComponent = () => {
     </PageLayout>
   );
 };
+
+function buildMCPInitializeCurl(
+  url?: string,
+  authHeader?: { name: string; value: string },
+): string {
+  const payload = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: {
+        name: "curl",
+        version: "1.0.0",
+      },
+    },
+  };
+
+  const quote = (value: string) =>
+    "'" + value.replace(/'/g, "'\\''") + "'";
+
+  return [
+    `curl -N -X POST ${quote(url || "<endpoint-url>")}`,
+    '  --header "Content-Type: application/json"',
+    '  --header "Accept: application/json, text/event-stream"',
+    ...(authHeader
+      ? [`  --header ${quote(`${authHeader.name}: ${authHeader.value}`)}`]
+      : []),
+    `  --data ${quote(JSON.stringify(payload))}`,
+  ].join(" \\\n");
+}
 
 function decodeRouteParam(value?: string) {
   if (!value) return "";
