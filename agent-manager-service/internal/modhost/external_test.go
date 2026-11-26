@@ -411,8 +411,15 @@ func TestReloadLeavesOutAnUnreadableStore(t *testing.T) {
 	h2.PollInterval = 20 * time.Millisecond
 	require.NoError(t, h2.Boot(ctx))
 	assert.NotContains(t, h2.Active(), "t-ext")
+	// Its events still queue on that replica, and are delivered once the store is back.
+	require.NoError(t, h2.Begin(ctx, modkit.ResourceAgent).Emit(ctx, nil,
+		modkit.Event{Type: modkit.EventAgentDeleted, OrgID: org, Subject: "a2", Data: []byte(`{}`)}))
+	held := `SELECT count(*) FROM module_event_deliveries d JOIN module_events e ON e.id = d.event_id
+		WHERE d.module = 't-ext' AND e.subject = 'a2'`
+	assert.EqualValues(t, 1, count(t, g, held))
 	setDown(false)
 	waitFor(t, "t-ext to load once its store is back", func() bool { return slices.Contains(h2.Active(), "t-ext") })
+	waitFor(t, "the queued delivery to be made", func() bool { return count(t, g, held) == 0 })
 }
 
 func TestCheckExternalSchemaWaitsForPendingFiles(t *testing.T) {
