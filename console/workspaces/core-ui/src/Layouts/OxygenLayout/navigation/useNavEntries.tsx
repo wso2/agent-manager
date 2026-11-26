@@ -69,12 +69,13 @@ import {
 
 export const NAV_SECTIONS: Array<{ id: NavSectionId; title: string; icon: ReactNode }> = [
   { id: "resources", title: "Resources", icon: <Boxes size={20} /> },
-  { id: "infrastructure", title: "Infrastructure", icon: <Server /> },
   { id: "lifecycle", title: "Agent lifecycle", icon: <GitBranch /> },
   { id: "security", title: "Security", icon: <Lock /> },
+  { id: "identities", title: "Agent identities", icon: <thunderInstancesMetadata.icon /> },
   { id: "observability", title: "Observability", icon: <Activity /> },
   { id: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
-  { id: "identities", title: "Agent identities", icon: <thunderInstancesMetadata.icon /> },
+  // Last section, so it sits just above Events (which follows the sections).
+  { id: "infrastructure", title: "Infrastructure", icon: <Server /> },
 ];
 
 const org = absoluteRouteMap.children.org;

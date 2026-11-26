@@ -30,7 +30,7 @@ export const rootRouteMap: AppRoute = {
             path: '/organizations/:orgId',
             index: true,
             children: {
-                // Shown when a left-menu item is opened at a level it does not live at.
+                // Left-menu item opened at a level it does not live at.
                 levelGate: {
                     path: 'go/:navKey',
                     index: true,
@@ -284,7 +284,7 @@ export const rootRouteMap: AppRoute = {
                     path: 'projects/:projectId',
                     index: true,
                     children: {
-                        // Shown when a left-menu item is opened at a level it does not live at.
+                        // Left-menu item opened at a level it does not live at.
                         levelGate: {
                             path: 'go/:navKey',
                             index: true,
@@ -364,7 +364,7 @@ export const rootRouteMap: AppRoute = {
                             path: 'agents/:agentId',
                             index: true,
                             children: {
-                                // Shown when a left-menu item is opened at a level it does not live at.
+                                // Left-menu item opened at a level it does not live at.
                                 levelGate: {
                                     path: 'go/:navKey',
                                     index: true,
