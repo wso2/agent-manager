@@ -165,7 +165,7 @@ tables:
 
 ### Stores outside the core database
 
-A module that keeps data in its own store, such as ClickHouse, implements `modkit.ExternalMigrator`. `amp migrate` applies that store's schema files after the module's SQL migrations; install and enable only check that they were applied.
+A module that keeps data in its own store, such as ClickHouse, implements `modkit.ExternalMigrator`. `amp migrate` applies that store's schema files after the module's SQL migrations, and prints how many of each module's files it applied, or why it skipped the store; install and enable only check that they were applied.
 
 ```go
 func (module) ExternalSchema(config func(string) string, apply bool) (modkit.ExternalSchema, error)
