@@ -57,7 +57,8 @@ var _ = Describe("Sign-in and first-org bootstrap", Label("onboarding"), func() 
 
 		org := framework.CallObj(Default, Client, http.MethodGet, "/api/v1/organizations/current", nil, http.StatusOK)
 		Expect(org["name"]).To(Equal(Cfg.DefaultOrg))
-		Expect(org["createdAt"]).NotTo(BeEmpty())
+		// The organization is the token's; nothing records when it was created.
+		Expect(org).NotTo(HaveKey("createdAt"))
 	})
 
 	It("has a default environment, readable by list and by id", func() {

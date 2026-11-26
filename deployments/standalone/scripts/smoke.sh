@@ -113,7 +113,9 @@ check unknown-extension 400 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "x$
 check agent-with-llm-config-refused 400 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "llm$AG" "L" ',"extensions":{"ai-gateway":{"modelConfig":[{"providerName":"nosuch-provider"}]}}')")"
 check agent-llm-not-created 404 "$(code "${A[@]}" "$AGS/llm$AG?project=$P")"
 check environments 200 "$(code "${A[@]}" "$API/api/v1/environments")"
-check identity-roles 200 "$(code "${A[@]}" "$API/api/v1/identities/roles")"
+# Smoke signs in from a file, which has no identity provider: users, groups
+# and roles answer 409 IDENTITY_PROVIDER_REQUIRED.
+check identity-roles 409 "$(code "${A[@]}" "$API/api/v1/identities/roles")"
 check events-types 200 "$(code "${A[@]}" "$API/api/v1/events/event-types")"
 check events-old-path 404 "$(code "${A[@]}" "$B/events/event-types")"
 

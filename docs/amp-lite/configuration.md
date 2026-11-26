@@ -68,7 +68,7 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 
 | Setting | amp.yaml | Default | Description |
 |---|---|---|---|
-| `AUTH_MODE` | `auth.mode` | `idp` | How operators sign in: file (accounts in FILE_AUTH_USERS_PATH, the API issues tokens) or idp (ThunderID). |
+| `AUTH_MODE` | `auth.mode` | `idp` | How operators sign in: file (accounts in FILE_AUTH_USERS_PATH, the API issues tokens; no identity provider, so no users, groups, roles or agent identities) or idp (ThunderID). |
 | `FILE_AUTH_USERS_PATH` | `file.auth_users_path` | `<data dir>/fileauth/users.yaml` | The file sign-in accounts; written on first start from the admin password and AMP_DEFAULT_USERS. |
 | `FILE_AUTH_ISSUER` | `file.auth_issuer` | `amp-file-auth` | Issuer of file sign-in tokens. |
 | `FILE_AUTH_AUDIENCE` | `file.auth_audience` | `urn:wso2:amp` | Audience of file sign-in tokens. |

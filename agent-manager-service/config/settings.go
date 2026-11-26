@@ -80,7 +80,7 @@ var Settings = []Setting{
 	{Key: "DB_OPERATION_TIMEOUT_SECONDS", Group: "Database", Default: "10", Description: "Timeout of one database operation."},
 	{Key: "GORM_SKIP_DEFAULT_TRANSACTION", Group: "Database", Default: "true", Description: "Skip the transaction GORM wraps single writes in."},
 	{Key: "GORM_SLOW_THRESHOLD_MILLISECONDS", Group: "Database", Default: "200", Description: "Queries slower than this are logged."},
-	{Key: "AUTH_MODE", Group: "Sign-in and tokens", Default: "idp", Description: "How operators sign in: file (accounts in FILE_AUTH_USERS_PATH, the API issues tokens) or idp (ThunderID)."},
+	{Key: "AUTH_MODE", Group: "Sign-in and tokens", Default: "idp", Description: "How operators sign in: file (accounts in FILE_AUTH_USERS_PATH, the API issues tokens; no identity provider, so no users, groups, roles or agent identities) or idp (ThunderID)."},
 	{Key: "FILE_AUTH_USERS_PATH", Group: "Sign-in and tokens", Default: "<data dir>/fileauth/users.yaml", Description: "The file sign-in accounts; written on first start from the admin password and AMP_DEFAULT_USERS."},
 	{Key: "FILE_AUTH_ISSUER", Group: "Sign-in and tokens", Default: "amp-file-auth", Description: "Issuer of file sign-in tokens."},
 	{Key: "FILE_AUTH_AUDIENCE", Group: "Sign-in and tokens", Default: "urn:wso2:amp", Description: "Audience of file sign-in tokens."},

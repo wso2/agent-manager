@@ -6,6 +6,10 @@ export const baseURL =
   process.env.AMP_BASE_URL ?? `http://localhost:${process.env.AMP_API_PORT ?? '9000'}`;
 
 export const orgName = process.env.AMP_ORG ?? 'default';
+
+// How the stack signs people in: file (the standalone default) or idp. Users,
+// groups and roles live in the identity provider, so their journeys need idp.
+export const authMode = process.env.AMP_AUTH_MODE ?? 'file';
 export const adminUser = process.env.AMP_ADMIN_USER ?? 'admin';
 
 // The admin password: AMP_ADMIN_PASSWORD if set, else the one amp-init
