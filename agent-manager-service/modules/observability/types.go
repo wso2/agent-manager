@@ -66,6 +66,7 @@ type TraceOverview struct {
 	Status          *TraceStatus `json:"status,omitempty"`
 	Input           any          `json:"input,omitempty"`
 	Output          any          `json:"output,omitempty"`
+	ConversationID  string       `json:"conversationId,omitempty"`
 }
 
 // TraceExportResponse is the body of the trace export.
@@ -90,7 +91,7 @@ type TokenUsage struct {
 	Partial      bool `json:"partial,omitempty"`
 }
 
-// TraceStatus is a trace's error count.
+// TraceStatus is a trace's error count: 1 when its root span failed, else 0.
 type TraceStatus struct {
 	ErrorCount int `json:"errorCount"`
 }

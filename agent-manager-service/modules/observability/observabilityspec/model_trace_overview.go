@@ -24,11 +24,19 @@ type TraceOverview struct {
 	RootSpanId   string `json:"rootSpanId"`
 	RootSpanName string `json:"rootSpanName"`
 	// Semantic span type, from the root span's name
-	RootSpanKind    string    `json:"rootSpanKind"`
-	StartTime       time.Time `json:"startTime"`
-	EndTime         time.Time `json:"endTime"`
-	DurationInNanos int64     `json:"durationInNanos"`
-	SpanCount       int32     `json:"spanCount"`
+	RootSpanKind    string       `json:"rootSpanKind"`
+	StartTime       time.Time    `json:"startTime"`
+	EndTime         time.Time    `json:"endTime"`
+	DurationInNanos int64        `json:"durationInNanos"`
+	SpanCount       int32        `json:"spanCount"`
+	Status          *TraceStatus `json:"status,omitempty"`
+	TokenUsage      *TokenUsage  `json:"tokenUsage,omitempty"`
+	// The root span's conversation ID, else its first non-LLM child's, else the first LLM span's; the ID the conversationId filter matches. Absent when the trace has none.
+	ConversationId *string `json:"conversationId,omitempty"`
+	// The root span's input, else its first non-LLM child's, else the first LLM span's user message. Absent when the trace has none.
+	Input *string `json:"input,omitempty"`
+	// The root span's output, else its first non-LLM child's, else the last LLM span's answer. Absent when the trace has none.
+	Output *string `json:"output,omitempty"`
 }
 
 // NewTraceOverview instantiates a new TraceOverview object
@@ -248,6 +256,166 @@ func (o *TraceOverview) SetSpanCount(v int32) {
 	o.SpanCount = v
 }
 
+// GetStatus returns the Status field value if set, zero value otherwise.
+func (o *TraceOverview) GetStatus() TraceStatus {
+	if o == nil || IsNil(o.Status) {
+		var ret TraceStatus
+		return ret
+	}
+	return *o.Status
+}
+
+// GetStatusOk returns a tuple with the Status field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *TraceOverview) GetStatusOk() (*TraceStatus, bool) {
+	if o == nil || IsNil(o.Status) {
+		return nil, false
+	}
+	return o.Status, true
+}
+
+// HasStatus returns a boolean if a field has been set.
+func (o *TraceOverview) HasStatus() bool {
+	if o != nil && !IsNil(o.Status) {
+		return true
+	}
+
+	return false
+}
+
+// SetStatus gets a reference to the given TraceStatus and assigns it to the Status field.
+func (o *TraceOverview) SetStatus(v TraceStatus) {
+	o.Status = &v
+}
+
+// GetTokenUsage returns the TokenUsage field value if set, zero value otherwise.
+func (o *TraceOverview) GetTokenUsage() TokenUsage {
+	if o == nil || IsNil(o.TokenUsage) {
+		var ret TokenUsage
+		return ret
+	}
+	return *o.TokenUsage
+}
+
+// GetTokenUsageOk returns a tuple with the TokenUsage field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *TraceOverview) GetTokenUsageOk() (*TokenUsage, bool) {
+	if o == nil || IsNil(o.TokenUsage) {
+		return nil, false
+	}
+	return o.TokenUsage, true
+}
+
+// HasTokenUsage returns a boolean if a field has been set.
+func (o *TraceOverview) HasTokenUsage() bool {
+	if o != nil && !IsNil(o.TokenUsage) {
+		return true
+	}
+
+	return false
+}
+
+// SetTokenUsage gets a reference to the given TokenUsage and assigns it to the TokenUsage field.
+func (o *TraceOverview) SetTokenUsage(v TokenUsage) {
+	o.TokenUsage = &v
+}
+
+// GetConversationId returns the ConversationId field value if set, zero value otherwise.
+func (o *TraceOverview) GetConversationId() string {
+	if o == nil || IsNil(o.ConversationId) {
+		var ret string
+		return ret
+	}
+	return *o.ConversationId
+}
+
+// GetConversationIdOk returns a tuple with the ConversationId field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *TraceOverview) GetConversationIdOk() (*string, bool) {
+	if o == nil || IsNil(o.ConversationId) {
+		return nil, false
+	}
+	return o.ConversationId, true
+}
+
+// HasConversationId returns a boolean if a field has been set.
+func (o *TraceOverview) HasConversationId() bool {
+	if o != nil && !IsNil(o.ConversationId) {
+		return true
+	}
+
+	return false
+}
+
+// SetConversationId gets a reference to the given string and assigns it to the ConversationId field.
+func (o *TraceOverview) SetConversationId(v string) {
+	o.ConversationId = &v
+}
+
+// GetInput returns the Input field value if set, zero value otherwise.
+func (o *TraceOverview) GetInput() string {
+	if o == nil || IsNil(o.Input) {
+		var ret string
+		return ret
+	}
+	return *o.Input
+}
+
+// GetInputOk returns a tuple with the Input field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *TraceOverview) GetInputOk() (*string, bool) {
+	if o == nil || IsNil(o.Input) {
+		return nil, false
+	}
+	return o.Input, true
+}
+
+// HasInput returns a boolean if a field has been set.
+func (o *TraceOverview) HasInput() bool {
+	if o != nil && !IsNil(o.Input) {
+		return true
+	}
+
+	return false
+}
+
+// SetInput gets a reference to the given string and assigns it to the Input field.
+func (o *TraceOverview) SetInput(v string) {
+	o.Input = &v
+}
+
+// GetOutput returns the Output field value if set, zero value otherwise.
+func (o *TraceOverview) GetOutput() string {
+	if o == nil || IsNil(o.Output) {
+		var ret string
+		return ret
+	}
+	return *o.Output
+}
+
+// GetOutputOk returns a tuple with the Output field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *TraceOverview) GetOutputOk() (*string, bool) {
+	if o == nil || IsNil(o.Output) {
+		return nil, false
+	}
+	return o.Output, true
+}
+
+// HasOutput returns a boolean if a field has been set.
+func (o *TraceOverview) HasOutput() bool {
+	if o != nil && !IsNil(o.Output) {
+		return true
+	}
+
+	return false
+}
+
+// SetOutput gets a reference to the given string and assigns it to the Output field.
+func (o *TraceOverview) SetOutput(v string) {
+	o.Output = &v
+}
+
 func (o TraceOverview) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -266,6 +434,21 @@ func (o TraceOverview) ToMap() (map[string]interface{}, error) {
 	toSerialize["endTime"] = o.EndTime
 	toSerialize["durationInNanos"] = o.DurationInNanos
 	toSerialize["spanCount"] = o.SpanCount
+	if !IsNil(o.Status) {
+		toSerialize["status"] = o.Status
+	}
+	if !IsNil(o.TokenUsage) {
+		toSerialize["tokenUsage"] = o.TokenUsage
+	}
+	if !IsNil(o.ConversationId) {
+		toSerialize["conversationId"] = o.ConversationId
+	}
+	if !IsNil(o.Input) {
+		toSerialize["input"] = o.Input
+	}
+	if !IsNil(o.Output) {
+		toSerialize["output"] = o.Output
+	}
 	return toSerialize, nil
 }
 

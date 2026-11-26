@@ -358,6 +358,84 @@ func TestExportTraces(t *testing.T) {
 	}
 }
 
+// overviewKeys are the overview fields a trace sends only when it has them.
+var overviewKeys = []string{"status", "tokenUsage", "conversationId", "input", "output"}
+
+// rawTraces is each listed or exported trace's overview fields, as sent.
+func rawTraces(t *testing.T, body []byte) map[string]map[string]json.RawMessage {
+	t.Helper()
+	var raw struct{ Traces []map[string]json.RawMessage }
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]map[string]json.RawMessage{}
+	for _, tr := range raw.Traces {
+		var id string
+		if err := json.Unmarshal(tr["traceId"], &id); err != nil {
+			t.Fatal(err)
+		}
+		fields := map[string]json.RawMessage{}
+		for _, k := range overviewKeys {
+			if v, ok := tr[k]; ok {
+				fields[k] = v
+			}
+		}
+		out[id] = fields
+	}
+	return out
+}
+
+// The list and the export send each trace's status, tokens, conversation,
+// input and output, and leave out what a trace doesn't have.
+func TestTraceOverviewJSON(t *testing.T) {
+	traces := memory.New()
+	scope := store.Scope{
+		OrgID: "org-a", ProjectID: "p1", AgentID: "a1",
+		Names: store.Names{Org: "acme", Project: "shop", Agent: "bot"},
+	}
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	traces.Add(scope, tracesv1.Trace{TraceID: "full", StartTime: at, SpanCount: 2},
+		tracesv1.SpanDetails{
+			SpanID: "r", SpanName: "invoke_agent bot", StartTime: at, Status: &tracesv1.SpanStatus{Code: "Error"},
+			Attributes: map[string]any{"gen_ai.conversation.id": "conv-1", "traceloop.entity.input": "hi", "traceloop.entity.output": "hello"},
+		},
+		tracesv1.SpanDetails{
+			SpanID: "c", ParentSpanID: "r", SpanName: "chat gpt-4o", StartTime: at,
+			Attributes: map[string]any{"gen_ai.usage.input_tokens": 10, "gen_ai.usage.output_tokens": 5},
+		})
+	traces.Add(scope, tracesv1.Trace{TraceID: "bare", StartTime: at.Add(time.Second), SpanCount: 1},
+		tracesv1.SpanDetails{SpanID: "r", SpanName: "invoke_agent bot", StartTime: at.Add(time.Second)})
+	traces.Add(scope, tracesv1.Trace{TraceID: "no-spans", StartTime: at.Add(2 * time.Second)})
+	h := handlers{core: fakeCore{}, traces: guarded{traces: traces}, log: slog.New(slog.DiscardHandler)}
+
+	want := map[string]map[string]string{
+		"full": {
+			"status": `{"errorCount":1}`, "tokenUsage": `{"inputTokens":10,"outputTokens":5,"totalTokens":15}`,
+			"conversationId": `"conv-1"`, "input": `"hi"`, "output": `"hello"`,
+		},
+		"bare":     {"status": `{"errorCount":0}`},
+		"no-spans": {},
+	}
+	for name, serve := range map[string]http.HandlerFunc{"list": h.listTraces, "export": h.exportTraces} {
+		r := httptest.NewRequest(http.MethodGet, "/?project=shop&agent=bot&"+testWindow, nil)
+		w := httptest.NewRecorder()
+		serve(w, r.WithContext(modkit.WithOrgID(r.Context(), "org-a")))
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s = %d %s, want 200", name, w.Code, w.Body.String())
+		}
+		got := rawTraces(t, w.Body.Bytes())
+		for id, fields := range want {
+			sent := map[string]string{}
+			for k, v := range got[id] {
+				sent[k] = string(v)
+			}
+			if !reflect.DeepEqual(sent, fields) {
+				t.Errorf("%s: %s sent %v, want %v", name, id, sent, fields)
+			}
+		}
+	}
+}
+
 func TestUnencodableSpanIsA500(t *testing.T) {
 	traces := memory.New()
 	traces.Add(store.Scope{OrgID: "org-a", Names: store.Names{Org: "acme"}},

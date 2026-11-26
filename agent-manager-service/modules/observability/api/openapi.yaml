@@ -482,6 +482,48 @@ components:
           format: int64
         spanCount:
           type: integer
+        status:
+          $ref: "#/components/schemas/TraceStatus"
+        tokenUsage:
+          $ref: "#/components/schemas/TokenUsage"
+        conversationId:
+          type: string
+          description: |
+            The root span's conversation ID, else its first non-LLM child's, else the first
+            LLM span's; the ID the conversationId filter matches. Absent when the trace has none.
+        input:
+          type: string
+          description: |
+            The root span's input, else its first non-LLM child's, else the first LLM span's
+            user message. Absent when the trace has none.
+        output:
+          type: string
+          description: |
+            The root span's output, else its first non-LLM child's, else the last LLM span's
+            answer. Absent when the trace has none.
+
+    TraceStatus:
+      type: object
+      description: The trace's error state, from its root span, as the status filter reads it
+      required: [errorCount]
+      properties:
+        errorCount:
+          type: integer
+          description: 1 when the root span failed, else 0
+
+    TokenUsage:
+      type: object
+      description: |
+        The tokens of the trace's LLM spans, a span repeating its parent's usage counted once,
+        else the root span's; the total the minTokens filter compares. Absent when no span reports usage.
+      required: [inputTokens, outputTokens, totalTokens]
+      properties:
+        inputTokens:
+          type: integer
+        outputTokens:
+          type: integer
+        totalTokens:
+          type: integer
 
     TraceExportResponse:
       type: object

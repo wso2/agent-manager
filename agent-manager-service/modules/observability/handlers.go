@@ -286,14 +286,31 @@ func tracePagination(w window, page *tracesv1.TracePage) TracePagination {
 	return p
 }
 
-// overview is a trace's list entry.
+// overview is a trace's list entry; a value the trace doesn't have is left out.
 func overview(t tracesv1.Trace) TraceOverview {
-	return TraceOverview{
+	o := TraceOverview{
 		TraceID: t.TraceID, RootSpanID: t.RootSpanID, RootSpanName: t.RootSpanName,
 		RootSpanKind: store.SpanKind(t.RootSpanName),
 		StartTime:    formatTime(t.StartTime), EndTime: formatTime(t.EndTime),
 		DurationInNanos: t.DurationNs, SpanCount: t.SpanCount,
+		ConversationID: t.ConversationID,
 	}
+	if t.Status != nil {
+		o.Status = &TraceStatus{ErrorCount: t.Status.ErrorCount}
+	}
+	if t.Tokens != nil {
+		o.TokenUsage = &TokenUsage{
+			InputTokens: int(t.Tokens.InputTokens), OutputTokens: int(t.Tokens.OutputTokens),
+			TotalTokens: int(t.Tokens.TotalTokens),
+		}
+	}
+	if t.Input != "" {
+		o.Input = t.Input
+	}
+	if t.Output != "" {
+		o.Output = t.Output
+	}
+	return o
 }
 
 // toSpan is a span with its attributes, in the observer's shape.
