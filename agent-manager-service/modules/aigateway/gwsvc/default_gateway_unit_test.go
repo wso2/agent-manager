@@ -164,8 +164,10 @@ func hexOf(b []byte) string { return hex.EncodeToString(b) }
 func TestDefaultGatewaySeederAppliesSecretDelivery(t *testing.T) {
 	cfg, token := seedConfig(t)
 	cfg.SecretDelivery = gwmodels.SecretDeliveryReference
-	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost,
-		Properties: map[string]interface{}{"region": "eu"}}
+	gw := &gwmodels.Gateway{
+		UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost,
+		Properties: map[string]interface{}{"region": "eu"},
+	}
 	salt, _ := generateSalt()
 	existing := &gwmodels.GatewayToken{GatewayUUID: gw.UUID, TokenHash: hashToken(token, salt), Salt: hexOf(salt)}
 	var updated *gwmodels.Gateway
