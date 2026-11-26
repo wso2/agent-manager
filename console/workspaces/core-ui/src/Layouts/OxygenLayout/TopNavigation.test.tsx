@@ -124,7 +124,7 @@ describe("TopNavigation", () => {
   });
 
   it("offers to select or create a project when none is selected", () => {
-    mocks.projects = { projects: [{ name: "p1", displayName: "Project One" }] };
+    mocks.projects = { list: [{ metadata: { name: "p1" }, spec: { displayName: "Project One" } }] };
     renderAt("/org/acme/projects");
     fireEvent.click(screen.getByRole("button", { name: "Select or create a project", hidden: true }));
     const menu = screen.getByRole("menu", { hidden: true });
@@ -140,9 +140,9 @@ describe("TopNavigation", () => {
 
   it("shows the selected project and closes it back to the listing", () => {
     mocks.projects = {
-      projects: [
-        { name: "p1", displayName: "Project One" },
-        { name: "p2", displayName: "Project Two" },
+      list: [
+        { metadata: { name: "p1" }, spec: { displayName: "Project One" } },
+        { metadata: { name: "p2" }, spec: { displayName: "Project Two" } },
       ],
     };
     renderAt("/org/acme/project/p1/settings");
@@ -162,9 +162,9 @@ describe("TopNavigation", () => {
 
   it("keeps the agent listing when switching projects from it", () => {
     mocks.projects = {
-      projects: [
-        { name: "p1", displayName: "Project One" },
-        { name: "p2", displayName: "Project Two" },
+      list: [
+        { metadata: { name: "p1" }, spec: { displayName: "Project One" } },
+        { metadata: { name: "p2" }, spec: { displayName: "Project Two" } },
       ],
     };
     mocks.agents = { agents: [] };
@@ -176,7 +176,7 @@ describe("TopNavigation", () => {
   });
 
   it("shows the selected agent, switches agents on the same page, and closes it", () => {
-    mocks.projects = { projects: [{ name: "p1", displayName: "Project One" }] };
+    mocks.projects = { list: [{ metadata: { name: "p1" }, spec: { displayName: "Project One" } }] };
     mocks.agents = {
       agents: [
         { name: "a1", displayName: "Agent One" },
@@ -209,7 +209,7 @@ describe("TopNavigation", () => {
   });
 
   it("does not carry environment pages over when switching agents", () => {
-    mocks.projects = { projects: [{ name: "p1", displayName: "Project One" }] };
+    mocks.projects = { list: [{ metadata: { name: "p1" }, spec: { displayName: "Project One" } }] };
     mocks.agents = { agents: [{ name: "a1", displayName: "Agent One" }] };
     renderAt("/org/acme/project/p1/agents/a1/environment/dev");
     expect(screen.getByRole("link", { name: "Go to Agent One", hidden: true })).toHaveAttribute(
@@ -219,7 +219,7 @@ describe("TopNavigation", () => {
   });
 
   it("offers to select or create an agent when none is selected", () => {
-    mocks.projects = { projects: [{ name: "p1", displayName: "Project One" }] };
+    mocks.projects = { list: [{ metadata: { name: "p1" }, spec: { displayName: "Project One" } }] };
     mocks.agents = { agents: [{ name: "a1", displayName: "Agent One" }] };
     renderAt("/org/acme/project/p1");
     expect(screen.getByRole("button", { name: "Select or create an agent", hidden: true })).toBeInTheDocument();

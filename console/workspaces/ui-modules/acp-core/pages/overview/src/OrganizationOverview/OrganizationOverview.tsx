@@ -63,7 +63,8 @@ export const OrganizationOverview: React.FC = () => {
 
   const { data: projects, isLoading: isLoadingProjects } = useListProjects(params);
 
-  const projectList = projects?.projects ?? [];
+  const projectList = projects?.list ?? [];
+  const projectTotal = projects?.pagination?.total ?? projectList.length;
 
   // A card joins once its hook has reported; until then it holds rotation like
   // a loading count.
@@ -176,7 +177,7 @@ export const OrganizationOverview: React.FC = () => {
               </Typography>
               <Divider orientation="vertical" flexItem />
               <ResourceCount
-                count={isLoadingProjects ? undefined : (projects?.total ?? projectList.length)}
+                count={isLoadingProjects ? undefined : projectTotal}
               />
             </Stack>
             {projectList.length > 0 && createProjectButton}
@@ -200,7 +201,7 @@ export const OrganizationOverview: React.FC = () => {
           ) : (
             <>
               {projectList.slice(0, PROJECTS_SHOWN).map((project) => (
-                <ProjectRow key={project.name} project={project} orgId={orgId} />
+                <ProjectRow key={project.metadata.name} project={project} orgId={orgId} />
               ))}
               {/* Pinned to the card's bottom edge however few projects there are. */}
               <Box sx={{ mt: "auto" }}>
