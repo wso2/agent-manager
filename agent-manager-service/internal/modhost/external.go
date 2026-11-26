@@ -27,6 +27,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -239,12 +240,12 @@ func (h *Host) externalPlanReady(ctx context.Context, name string, withDeps bool
 	return checked, nil
 }
 
-// externalUnready runs externalReady for each active module with a configured
-// external store, and returns those that failed it.
-func (h *Host) externalUnready(ctx context.Context, states map[string]string) map[string]error {
+// externalUnready runs externalReady for each active module not in loaded
+// with a configured external store, and returns those that failed it.
+func (h *Host) externalUnready(ctx context.Context, states map[string]string, loaded []string) map[string]error {
 	out := map[string]error{}
 	for name, st := range states {
-		if st != StateActive {
+		if st != StateActive || slices.Contains(loaded, name) {
 			continue
 		}
 		if s, _, err := h.externalSchema(name, false); err == nil && s == nil {

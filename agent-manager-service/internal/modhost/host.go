@@ -373,10 +373,9 @@ func (h *Host) Reload(ctx context.Context) error {
 	states := h.effectiveStates(rows)
 	v, failed := newView(), map[string]error{}
 	if !h.Passive {
-		// A module whose external store is unusable is left out, so it never
-		// serves routes that fail on first use, and is retried as one that
-		// failed to activate.
-		unready := h.externalUnready(ctx, states)
+		// A module not yet loaded whose external store is unusable is left
+		// out and retried; a loaded one stays, so its events keep queuing.
+		unready := h.externalUnready(ctx, states, h.current().active)
 		v, failed = h.buildView(ctx, without(states, unready))
 		for name, err := range unready {
 			failed[name] = err

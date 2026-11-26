@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"slices"
 	"sync"
 	"testing"
 	"testing/fstest"
@@ -373,21 +374,43 @@ func TestReloadLeavesOutAnUnreadableStore(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	store := &fakeStore{records: map[string]string{}}
+	setDown := func(down bool) {
+		store.mu.Lock()
+		store.down = down
+		store.mu.Unlock()
+	}
 	m := newExternal(store, externalFiles("001_spans.sql"), true, true)
-	h, _ := replica(t, ctx, databases(t)[0], []modkit.Module{m})
+	// The handler fails while the store is down, as a span delete would.
+	m.activate = func(rt modkit.Runtime) error {
+		rt.Subscribe(modkit.EventAgentDeleted, func(context.Context, modkit.Event) error {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			if store.down {
+				return errors.New("connection refused")
+			}
+			return nil
+		})
+		return nil
+	}
+	d := databases(t)[0]
+	h, g := replica(t, ctx, d, []modkit.Module{m})
 	_, err := h.Install(ctx, "t-ext", false)
 	require.NoError(t, err)
 	assert.Contains(t, h.Active(), "t-ext")
 
-	store.mu.Lock()
-	store.down = true
-	store.mu.Unlock()
+	setDown(true)
 	require.NoError(t, h.Reload(ctx))
-	assert.NotContains(t, h.Active(), "t-ext")
+	assert.Contains(t, h.Active(), "t-ext", "a loaded module stays loaded while its store is down")
+	org := newOrg(t, g)
+	require.NoError(t, h.Begin(ctx, modkit.ResourceAgent).Emit(ctx, nil,
+		modkit.Event{Type: modkit.EventAgentDeleted, OrgID: org, Subject: "a1", Data: []byte(`{}`)}))
+	assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM module_event_deliveries WHERE module = 't-ext'`))
 
-	store.mu.Lock()
-	store.down = false
-	store.mu.Unlock()
-	require.NoError(t, h.Reload(ctx))
-	assert.Contains(t, h.Active(), "t-ext")
+	// A replica that boots while the store is down leaves the module out and retries it.
+	h2 := modhost.NewWith(g, d.driver, quiet, []modkit.Module{m})
+	h2.PollInterval = 20 * time.Millisecond
+	require.NoError(t, h2.Boot(ctx))
+	assert.NotContains(t, h2.Active(), "t-ext")
+	setDown(false)
+	waitFor(t, "t-ext to load once its store is back", func() bool { return slices.Contains(h2.Active(), "t-ext") })
 }
