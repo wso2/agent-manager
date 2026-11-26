@@ -1884,7 +1884,7 @@ func (c *thunderClient) doRequest(ctx context.Context, method, url, token string
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doAuthorized(req)
 	if err != nil {
 		return nil, err
 	}

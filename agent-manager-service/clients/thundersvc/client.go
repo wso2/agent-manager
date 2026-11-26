@@ -308,6 +308,56 @@ func (c *thunderClient) getSystemToken(ctx context.Context) (string, error) {
 	return result.(string), nil
 }
 
+// doAuthorized sends req, which carries the system token as its bearer header.
+// Thunder can stop accepting a token before the expiry cached from its
+// response (shorter real lifetime, restart, key rotation). On a 401 the cached
+// token is dropped and the request is retried once with a fresh one. If a new
+// token cannot be obtained, the original 401 response is returned.
+func (c *thunderClient) doAuthorized(req *http.Request) (*http.Response, error) {
+	resp, err := c.httpClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusUnauthorized || c.cpManaged {
+		return resp, err
+	}
+	if req.Body != nil && req.GetBody == nil {
+		return resp, nil // the body cannot be replayed
+	}
+
+	rejected := strings.TrimPrefix(req.Header.Get("Authorization"), "Bearer ")
+	c.dropSystemToken(rejected)
+	fresh, err := c.getSystemToken(req.Context())
+	if err != nil || fresh == rejected {
+		slog.Warn("Thunder rejected the system token and a new one could not be used",
+			"method", req.Method, "path", req.URL.Path, "error", err)
+		return resp, nil
+	}
+
+	retry := req.Clone(req.Context())
+	if req.GetBody != nil {
+		body, bodyErr := req.GetBody()
+		if bodyErr != nil {
+			_ = resp.Body.Close()
+			return nil, fmt.Errorf("replay request body for retry: %w", bodyErr)
+		}
+		retry.Body = body
+	}
+	retry.Header.Set("Authorization", "Bearer "+fresh)
+	_ = resp.Body.Close()
+	slog.Info("Thunder rejected the cached system token, retrying with a new one",
+		"method", req.Method, "path", req.URL.Path)
+	return c.httpClient.Do(retry)
+}
+
+// dropSystemToken clears the cached token if it is the one Thunder rejected. A
+// different cached token means another request already refreshed it.
+func (c *thunderClient) dropSystemToken(rejected string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cachedToken == rejected {
+		c.cachedToken = ""
+		c.tokenExpiry = time.Time{}
+	}
+}
+
 // fetchSystemToken obtains a management token from the configured OAuth2 token
 // endpoint using client_credentials and the deployment's system scope/resource.
 func (c *thunderClient) fetchSystemToken(ctx context.Context) (string, int, error) {
@@ -364,7 +414,7 @@ func (c *thunderClient) getDefaultOUID(ctx context.Context, token string) (strin
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doAuthorized(req)
 	if err != nil {
 		return "", fmt.Errorf("thunder get default OU: %w", err)
 	}
@@ -717,7 +767,7 @@ func (c *thunderClient) createApp(ctx context.Context, token, appName, ouID stri
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.doAuthorized(req)
 	if err != nil {
 		return "", "", fmt.Errorf("thunder create app: %w", err)
 	}
