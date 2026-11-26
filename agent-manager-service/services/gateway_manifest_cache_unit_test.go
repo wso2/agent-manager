@@ -322,7 +322,7 @@ func TestGetGatewayPolicyManifest(t *testing.T) {
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 
-	manifest, known, err := svc.GetGatewayPolicyManifest(gateway.UUID.String(), "org-a")
+	manifest, known, err := svc.GetGatewayPolicyManifest(ctx, gateway.UUID.String(), "org-a")
 	require.NoError(t, err)
 	require.False(t, known, "a gateway that has not reported has no known manifest")
 	require.Empty(t, manifest)
@@ -330,11 +330,47 @@ func TestGetGatewayPolicyManifest(t *testing.T) {
 	pushed := policyManifest("nvidia-nemoguard-content-safety", "v0.10.0")
 	require.NoError(t, gatewayManifestCache.Set(ctx, gateway.UUID.String(), pushed))
 
-	manifest, known, err = svc.GetGatewayPolicyManifest(gateway.UUID.String(), "org-a")
+	manifest, known, err = svc.GetGatewayPolicyManifest(ctx, gateway.UUID.String(), "org-a")
 	require.NoError(t, err)
 	require.True(t, known)
 	require.Equal(t, pushed, manifest)
 
-	_, _, err = svc.GetGatewayPolicyManifest(gateway.UUID.String(), "org-b")
+	_, _, err = svc.GetGatewayPolicyManifest(ctx, gateway.UUID.String(), "org-b")
 	require.ErrorIs(t, err, utils.ErrGatewayNotFound)
+}
+
+// TestGetGatewayPolicyManifestReportsACacheReadError: unlike the policy listings, which
+// degrade to the row, a caller acting on one gateway must see the failure rather than
+// a stale manifest or a gateway that seems never to have reported.
+func TestGetGatewayPolicyManifestReportsACacheReadError(t *testing.T) {
+	clearGatewayManifestCache(t)
+	gatewayManifestCache = &failingManifestCacheBackend{}
+
+	gateway := newGateway(t, models.GatewayRoleBoth, true)
+	gateway.OUID = "org-a"
+	gateway.Manifest = policyManifest("stale-policy", "v1")
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+	}
+
+	_, _, err := NewPlatformGatewayService(repo, nil).GetGatewayPolicyManifest(context.Background(), gateway.UUID.String(), "org-a")
+	require.ErrorIs(t, err, errCacheUnavailable)
+}
+
+// TestGetGatewayPolicyManifestFallsBackToTheRowOnAMiss keeps rows written before
+// manifests moved out of the database readable.
+func TestGetGatewayPolicyManifestFallsBackToTheRowOnAMiss(t *testing.T) {
+	clearGatewayManifestCache(t)
+
+	gateway := newGateway(t, models.GatewayRoleBoth, true)
+	gateway.OUID = "org-a"
+	gateway.Manifest = policyManifest("row-policy", "v1")
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+	}
+
+	manifest, known, err := NewPlatformGatewayService(repo, nil).GetGatewayPolicyManifest(context.Background(), gateway.UUID.String(), "org-a")
+	require.NoError(t, err)
+	require.True(t, known)
+	require.Equal(t, gateway.Manifest, manifest)
 }

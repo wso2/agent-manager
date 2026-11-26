@@ -439,11 +439,16 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 }
 
 // GetGatewayPolicyManifest returns the policy manifest the gateway last reported, and
-// whether it has reported one at all (see gatewayManifest). The gateway must belong to
-// ouID. Deployment-specific code uses it to read one gateway's policy definitions,
-// including their systemParameters schemas, which the policy catalog only exposes
-// merged across gateways.
-func (s *PlatformGatewayService) GetGatewayPolicyManifest(gatewayID, ouID string) (map[string]interface{}, bool, error) {
+// whether it has reported one at all. The gateway must belong to ouID.
+// Deployment-specific code uses it to read one gateway's policy definitions, including
+// their systemParameters schemas, which the policy catalog only exposes merged across
+// gateways.
+//
+// Unlike gatewayManifest, a failed cache read is returned rather than answered from the
+// row: a caller acting on one gateway's policies must not mistake an unreachable cache
+// for a gateway that has not reported, or act on the stale row. A cache miss still falls
+// back to the row, as for rows written before manifests moved out of the database.
+func (s *PlatformGatewayService) GetGatewayPolicyManifest(ctx context.Context, gatewayID, ouID string) (map[string]interface{}, bool, error) {
 	gateway, err := s.resolveGateway(gatewayID, ouID)
 	if err != nil {
 		return nil, false, err
@@ -451,8 +456,14 @@ func (s *PlatformGatewayService) GetGatewayPolicyManifest(gatewayID, ouID string
 	if gateway.OUID != ouID {
 		return nil, false, utils.ErrGatewayNotFound
 	}
-	manifest, known := gatewayManifest(gateway)
-	return manifest, known, nil
+	cached, ok, err := gatewayManifestCache.Get(ctx, gateway.UUID.String())
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to read gateway manifest cache: %w", err)
+	}
+	if ok {
+		return cached, true, nil
+	}
+	return gateway.Manifest, len(gateway.Manifest) > 0, nil
 }
 
 // SaveGatewayPolicyManifest stores the policy manifest a gateway pushed in the manifest
