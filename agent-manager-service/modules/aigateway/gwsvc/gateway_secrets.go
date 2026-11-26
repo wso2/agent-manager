@@ -18,13 +18,17 @@ package gwsvc
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/google/uuid"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -62,15 +66,54 @@ func validateSecretDeliveryProperty(properties map[string]interface{}) error {
 		"invalid secretDelivery property")
 }
 
-// gatewaySecretHandle names the secret at path in the organization ouID, holding value, as the gateway stores it.
-// The handle changes with the value, so a gateway that cached the old one fetches the new one when the artifact is
-// redeployed; the gateway never refetches a handle it already holds. hash is what the gateway compares on its
-// reconnect sync. Only the gateway, which receives the value anyway, sees either.
-func gatewaySecretHandle(ouID, path, value string) (handle, hash string) {
-	id := sha256.Sum256([]byte("amp-gateway-secret\x00" + ouID + "\x00" + path))
-	version := sha256.Sum256([]byte("amp-gateway-secret-value\x00" + ouID + "\x00" + path + "\x00" + value))
-	versionHex := hex.EncodeToString(version[:])
-	return "amp-" + hex.EncodeToString(id[:12]) + "-" + versionHex[:16], versionHex
+// gatewaySecretHandleKeyPath is where each organization's secret store keeps the key its handles are derived with.
+const gatewaySecretHandleKeyPath = "gateway/secret-handle-key"
+
+// gatewaySecretHandleKeyBytes is the length of a handle key.
+const gatewaySecretHandleKeyBytes = 32
+
+// gatewaySecretHandle names the secret at path, holding value, as the gateway stores it, under the organization's
+// handle key. The handle changes with the value, so a gateway that cached the old one fetches the new one when the
+// artifact is redeployed; the gateway never refetches a handle it already holds. hash is what the gateway compares
+// on its reconnect sync. Both are keyed, so a handle seen in an artifact or a gateway log can't be used to check a
+// guess at the value.
+func gatewaySecretHandle(key []byte, path, value string) (handle, hash string) {
+	id := keyedDigest(key, "amp-gateway-secret-id\x00"+path)
+	version := keyedDigest(key, "amp-gateway-secret-value\x00"+path+"\x00"+value)
+	return "amp-" + id[:24] + "-" + version[:16], version
+}
+
+func keyedDigest(key []byte, message string) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(message))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// gatewaySecretHandleKey returns the organization's handle key, creating it the first time one of its secrets is
+// sent by reference. It is kept in the organization's secret store, with its credentials, and read once per request
+// rather than cached, so replicas agree on it. Two replicas creating it at the same moment can briefly disagree; a
+// gateway then fails to fetch a handle and the deployment is retried.
+func (s *GatewayInternalAPIService) gatewaySecretHandleKey(ctx context.Context, ouID string) ([]byte, error) {
+	stored, err := s.secrets.Get(ctx, ouID, gatewaySecretHandleKeyPath)
+	if errors.Is(err, modkit.ErrNotFound) {
+		fresh := make([]byte, gatewaySecretHandleKeyBytes)
+		if _, err := rand.Read(fresh); err != nil {
+			return nil, fmt.Errorf("failed to generate the gateway secret handle key: %w", err)
+		}
+		if err := s.secrets.Put(ctx, ouID, gatewaySecretHandleKeyPath, hex.EncodeToString(fresh)); err != nil {
+			return nil, fmt.Errorf("failed to store the gateway secret handle key: %w", err)
+		}
+		// Use what the store holds, which is the last key written if another replica created one too.
+		stored, err = s.secrets.Get(ctx, ouID, gatewaySecretHandleKeyPath)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the gateway secret handle key: %w", err)
+	}
+	key, err := hex.DecodeString(stored)
+	if err != nil || len(key) != gatewaySecretHandleKeyBytes {
+		return nil, errors.New("the gateway secret handle key is malformed")
+	}
+	return key, nil
 }
 
 // secretPlaceholder is the template the gateway resolves from its secret store.
@@ -79,10 +122,11 @@ func secretPlaceholder(handle string) string {
 }
 
 // secretReplacerFor returns what replaces a secretRef in the deployments the gateway fetches: the plaintext, or a
-// {{ secret }} placeholder for a gateway that takes secrets by reference. The gateway is looked up on the first
-// secretRef only, so a deployment without one costs no query.
+// {{ secret }} placeholder for a gateway that takes secrets by reference. The gateway and the handle key are looked
+// up on the first secretRef only, so a deployment without one costs no query.
 func (s *GatewayInternalAPIService) secretReplacerFor(ctx context.Context, ouID, gatewayID string) secretReplacer {
 	delivery := ""
+	var key []byte
 	return func(ref string) (string, error) {
 		if delivery == "" {
 			d, err := s.gatewaySecretDelivery(gatewayID)
@@ -98,7 +142,12 @@ func (s *GatewayInternalAPIService) secretReplacerFor(ctx context.Context, ouID,
 		if delivery != gwmodels.SecretDeliveryReference {
 			return plaintext, nil
 		}
-		handle, _ := gatewaySecretHandle(ouID, ref, plaintext)
+		if key == nil {
+			if key, err = s.gatewaySecretHandleKey(ctx, ouID); err != nil {
+				return "", err
+			}
+		}
+		handle, _ := gatewaySecretHandle(key, ref, plaintext)
 		return secretPlaceholder(handle), nil
 	}
 }
@@ -204,13 +253,20 @@ func (s *GatewayInternalAPIService) gatewaySecrets(ctx context.Context, ouID, ga
 		}
 	}
 
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	key, err := s.gatewaySecretHandleKey(ctx, ouID)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]gatewaySecret, 0, len(refs))
 	for ref := range refs {
 		value, err := s.readSecretRef(ctx, ouID, ref)
 		if err != nil {
 			return nil, err
 		}
-		handle, hash := gatewaySecretHandle(ouID, ref, value)
+		handle, hash := gatewaySecretHandle(key, ref, value)
 		out = append(out, gatewaySecret{handle: handle, hash: hash, value: value})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].handle < out[j].handle })

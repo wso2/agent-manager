@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
@@ -142,7 +143,9 @@ func TestInlineDeliveryOffersNoSecrets(t *testing.T) {
 	listed, err := f.svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", true)
 	require.NoError(t, err)
 	assert.Empty(t, listed)
-	handle, _ := gatewaySecretHandle("ou-1", f.ref, "s3cret")
+	_, err = f.secrets.Get(ctx, "ou-1", gatewaySecretHandleKeyPath)
+	assert.ErrorIs(t, err, modkit.ErrNotFound, "an inline gateway needs no handle key")
+	handle, _ := gatewaySecretHandle(make([]byte, gatewaySecretHandleKeyBytes), f.ref, "s3cret")
 	_, err = f.svc.GetGatewaySecretValue(ctx, "ou-1", "gw-1", handle)
 	assert.ErrorIs(t, err, gwerr.ErrGatewaySecretNotFound)
 }
@@ -169,11 +172,52 @@ func TestRotatedSecretGetsANewHandle(t *testing.T) {
 }
 
 func TestGatewaySecretHandleIsSafeForTheGateway(t *testing.T) {
-	handle, hash := gatewaySecretHandle("ou-1", "mcp-proxies/x/endpoints/y/upstream-auth", "v")
+	key := make([]byte, gatewaySecretHandleKeyBytes)
+	handle, hash := gatewaySecretHandle(key, "mcp-proxies/x/endpoints/y/upstream-auth", "v")
 	// The gateway puts the handle in a URL path and matches it with [^"\\]+.
 	assert.Regexp(t, `^amp-[0-9a-f]{24}-[0-9a-f]{16}$`, handle)
 	assert.Len(t, hash, 64)
 	assert.NotContains(t, handle, "v")
+}
+
+// The handle is keyed: without the organization's key, it can't be recomputed from a guessed value.
+func TestGatewaySecretHandleDependsOnTheKey(t *testing.T) {
+	path := "llm-providers/x/upstream-auth"
+	keyA := make([]byte, gatewaySecretHandleKeyBytes)
+	keyB := make([]byte, gatewaySecretHandleKeyBytes)
+	keyB[0] = 1
+	handleA, hashA := gatewaySecretHandle(keyA, path, "v")
+	handleB, hashB := gatewaySecretHandle(keyB, path, "v")
+	assert.NotEqual(t, handleA, handleB)
+	assert.NotEqual(t, hashA, hashB)
+	again, _ := gatewaySecretHandle(keyA, path, "v")
+	assert.Equal(t, handleA, again)
+}
+
+// The organization's handle key is created once, in its secret store, and reused.
+func TestGatewaySecretHandleKeyIsCreatedOnceAndKept(t *testing.T) {
+	f := newSecretFixture(t, gwmodels.SecretDeliveryReference)
+	ctx := context.Background()
+	first, err := f.svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", false)
+	require.NoError(t, err)
+	stored, err := f.secrets.Get(ctx, "ou-1", gatewaySecretHandleKeyPath)
+	require.NoError(t, err)
+	assert.Len(t, stored, 2*gatewaySecretHandleKeyBytes)
+
+	second, err := f.svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", false)
+	require.NoError(t, err)
+	assert.Equal(t, first[0].Handle, second[0].Handle)
+	kept, err := f.secrets.Get(ctx, "ou-1", gatewaySecretHandleKeyPath)
+	require.NoError(t, err)
+	assert.Equal(t, stored, kept)
+}
+
+func TestMalformedGatewaySecretHandleKeyIsRefused(t *testing.T) {
+	f := newSecretFixture(t, gwmodels.SecretDeliveryReference)
+	ctx := context.Background()
+	require.NoError(t, f.secrets.Put(ctx, "ou-1", gatewaySecretHandleKeyPath, "not-hex"))
+	_, err := f.svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", false)
+	assert.ErrorContains(t, err, "malformed")
 }
 
 func TestValidateSecretDeliveryProperty(t *testing.T) {
