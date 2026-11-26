@@ -34,7 +34,7 @@ export interface LLMProviderCardProvider {
 export interface LLMProviderCardProps {
   provider: LLMProviderCardProvider | null;
   templateInfo?: { displayName: string; logoUrl?: string } | null;
-  /** In a list: the card is a radio option that calls this when picked. */
+  /** In a list: the whole card is a button that picks this provider. */
   onSelect?: () => void;
   selected?: boolean;
   /**
@@ -106,7 +106,8 @@ export function LLMProviderCard({
             sx={{ mt: 0.5 }}
           >
             <RateLimitDisplay rateLimiting={provider.rateLimiting} />
-            <GuardrailsLine policies={provider.policies} />
+            {/* Inside the list's button card a focusable child isn't allowed. */}
+            <GuardrailsLine policies={provider.policies} focusable={!onSelect || !!onChange} />
           </Stack>
         )}
       </Box>
@@ -128,7 +129,8 @@ export function LLMProviderCard({
   );
 
   // A Change button can't sit inside a button, so the chosen-provider card is a
-  // plain card; list options are whole-card radio buttons like SelectionCard.
+  // plain card. List options pick and close the drawer at once, so they are
+  // plain buttons (not radios); the mark only shows which one is current.
   if (onChange || !onSelect) {
     return (
       <Card variant="outlined" sx={highlighted ? { borderColor: "primary.main" } : undefined}>
@@ -138,9 +140,7 @@ export function LLMProviderCard({
   }
   return (
     <Form.CardButton
-      role="radio"
-      aria-checked={selected}
-      aria-label={`${provider?.name ?? "Select provider"}${selected ? ", selected" : ""}`}
+      aria-label={`${provider?.name ?? "Select provider"}${selected ? ", current provider" : ""}`}
       selected={selected}
       onClick={onSelect}
     >
@@ -164,12 +164,18 @@ function DetailLine({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-function GuardrailsLine({ policies }: { policies?: string[] }) {
+function GuardrailsLine({ policies, focusable }: { policies?: string[]; focusable: boolean }) {
   return (
     <DetailLine label="Guardrails">
       {policies?.length ? (
         <Tooltip title={policies.join(", ")} placement="top" arrow>
-          <Typography component="span" variant="caption" color="text.primary">
+          {/* Focusable so keyboard users can open the full list, as hover does. */}
+          <Typography
+            component="span"
+            variant="caption"
+            color="text.primary"
+            tabIndex={focusable && policies.length > 3 ? 0 : undefined}
+          >
             {policies.slice(0, 3).join(", ")}
             {policies.length > 3 && ` +${policies.length - 3} more`}
           </Typography>
@@ -196,7 +202,16 @@ function formatResetWindow(duration?: number, unit?: string): string {
 
 type Limit = { limit: number; resetDuration?: number; resetUnit?: string } | undefined;
 
-/** The consumer's quota: its own limits when set, otherwise the org-wide provider limits. */
+const METRICS = [
+  ["Requests", "request", (n: number) => n.toLocaleString()],
+  ["Tokens", "token", (n: number) => n.toLocaleString()],
+  ["Budget", "cost", formatCost],
+] as const;
+
+/**
+ * The consumer's quota. Both scopes are enforced, so each metric shows the
+ * consumer's own limit when set, otherwise the enabled org-wide provider limit.
+ */
 function RateLimitDisplay({ rateLimiting }: { rateLimiting?: CatalogRateLimitingSummary }) {
   if (!rateLimiting) {
     return (
@@ -207,13 +222,10 @@ function RateLimitDisplay({ rateLimiting }: { rateLimiting?: CatalogRateLimiting
       </DetailLine>
     );
   }
-  const cl = rateLimiting.consumerLevel;
-  const pl = rateLimiting.providerLevel;
-  const consumerEnabled = cl?.globalEnabled ?? false;
-  const consumerHasLimits =
-    consumerEnabled && (cl?.request != null || cl?.token != null || cl?.cost != null);
+  const cl = rateLimiting.consumerLevel?.globalEnabled ? rateLimiting.consumerLevel : undefined;
+  const pl = rateLimiting.providerLevel?.globalEnabled ? rateLimiting.providerLevel : undefined;
 
-  if (!consumerEnabled && !pl?.globalEnabled) {
+  if (!cl && !pl) {
     return (
       <DetailLine label="Rate limiting">
         <Typography component="span" variant="caption" color="text.disabled">
@@ -223,27 +235,33 @@ function RateLimitDisplay({ rateLimiting }: { rateLimiting?: CatalogRateLimiting
     );
   }
 
-  const scope = consumerHasLimits ? cl : pl;
-  const isOrgWide = !consumerHasLimits;
-  const fmt = (l: Limit, value: (n: number) => string) => {
-    if (!l) return undefined;
+  const fmt = (l: NonNullable<Limit>, value: (n: number) => string) => {
     const w = formatResetWindow(l.resetDuration, l.resetUnit);
     return `${value(l.limit)}${w ? `/${w}` : ""}`;
   };
-  const limits = [
-    ["Requests", fmt(scope?.request, (n) => n.toLocaleString())],
-    ["Tokens", fmt(scope?.token, (n) => n.toLocaleString())],
-    ["Budget", fmt(scope?.cost, formatCost)],
-  ].filter(([, v]) => v) as Array<[string, string]>;
+  const limits = METRICS.flatMap(([label, key, value]) => {
+    const own: Limit = cl?.[key];
+    const orgWide: Limit = pl?.[key];
+    if (own) return [{ label, text: fmt(own, value), orgWide: false }];
+    if (orgWide) return [{ label, text: fmt(orgWide, value), orgWide: true }];
+    return [];
+  });
+  // All shown limits org-wide (or none set with only the provider scope on): say so once.
+  const isOrgWide = limits.length ? limits.every((l) => l.orgWide) : !cl;
+  const mixed = !isOrgWide && limits.some((l) => l.orgWide);
 
   return (
     <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap" useFlexGap>
       <Typography variant="caption" color="text.secondary">
         {isOrgWide ? "Your quota (org-wide limit):" : "Your quota:"}
       </Typography>
-      {isOrgWide && (
+      {(isOrgWide || mixed) && (
         <Tooltip
-          title="No per-consumer limit is configured. The org-wide provider limit applies to all consumers."
+          title={
+            isOrgWide
+              ? "No per-consumer limit is configured. The org-wide provider limit applies to all consumers."
+              : "Limits marked org-wide come from the provider and apply to all consumers."
+          }
           placement="top"
           arrow
         >
@@ -258,7 +276,9 @@ function RateLimitDisplay({ rateLimiting }: { rateLimiting?: CatalogRateLimiting
         sx={{ fontVariantNumeric: "tabular-nums" }}
       >
         {limits.length
-          ? limits.map(([label, value]) => `${label}: ${value}`).join(" · ")
+          ? limits
+            .map((l) => `${l.label}: ${l.text}${mixed && l.orgWide ? " (org-wide)" : ""}`)
+            .join(" · ")
           : "Enabled (no numeric limits set)"}
       </Typography>
     </Stack>

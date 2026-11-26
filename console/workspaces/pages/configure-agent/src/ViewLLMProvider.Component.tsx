@@ -1292,7 +1292,13 @@ export const ViewLLMProviderComponent: React.FC = () => {
                         (name) => guardrailDisplayNames.get(name) ?? name,
                       ),
                     }
-                    : { name: providerConfig?.providerName ?? "" }
+                    : {
+                      name: providerConfig?.providerName ?? "",
+                      // Saved guardrails while the catalog loads, so it doesn't say "None".
+                      policies: providerConfig?.providerPolicies?.map(
+                        (policy) => guardrailDisplayNames.get(policy.name) ?? policy.name,
+                      ),
+                    }
                 }
                 templateInfo={displayTemplate ?? null}
                 onChange={canWrite ? () => setProviderDrawerOpen(true) : undefined}
