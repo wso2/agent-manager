@@ -1,0 +1,5 @@
+.state/
+.promptfoo/
+results/
+node_modules/
+suite.local.json
