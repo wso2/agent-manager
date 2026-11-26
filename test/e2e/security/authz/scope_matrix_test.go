@@ -169,8 +169,8 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodDelete, orgBase + "/events/subscriptions/" + absentName, []string{"amp:events:manage"}},
 
 		// --- LLM and MCP catalog: removal and key revocation ------------------
-		{http.MethodDelete, gwOrgBase + "/llm-provider-templates/" + absentName, []string{"amp:ai-gateway:llm-provider-templates.delete"}},
-		{http.MethodDelete, gwOrgBase + "/llm-providers/" + absentName + "/api-keys/" + absentName, []string{"amp:ai-gateway:llm-providers.api-key-manage"}},
+		{http.MethodDelete, gwBase + "/llm-provider-templates/" + absentName, []string{"amp:ai-gateway:llm-provider-templates.delete"}},
+		{http.MethodDelete, gwBase + "/llm-providers/" + absentName + "/api-keys/" + absentName, []string{"amp:ai-gateway:llm-providers.api-key-manage"}},
 		{http.MethodDelete, gwOrgBase + "/projects/" + absentName + "/llm-proxies/" + absentName, []string{"amp:ai-gateway:llm-proxies.delete"}},
 		{http.MethodDelete, gwBase + "/mcp-proxies/" + absentName, []string{"amp:ai-gateway:mcp-servers.delete"}},
 

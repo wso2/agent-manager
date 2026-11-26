@@ -1353,7 +1353,7 @@ func (s *LLMProviderService) syncProxyAuthHeader(
 	return true, nil
 }
 
-// uniqueGatewayIDs drops repeated gateways, compared as UUIDs, so each gateway is placed at most once.
+// uniqueGatewayIDs canonicalizes valid UUIDs and drops repeats, so each gateway is placed at most once.
 func uniqueGatewayIDs(ids []string) []string {
 	if ids == nil {
 		return nil
@@ -1361,14 +1361,13 @@ func uniqueGatewayIDs(ids []string) []string {
 	seen := make(map[string]bool, len(ids))
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
-		key := id
 		if u, err := uuid.Parse(id); err == nil {
-			key = u.String()
+			id = u.String()
 		}
-		if seen[key] {
+		if seen[id] {
 			continue
 		}
-		seen[key] = true
+		seen[id] = true
 		out = append(out, id)
 	}
 	return out

@@ -169,7 +169,7 @@ func TestLLMProviderSyncMarksNewPlacements(t *testing.T) {
 		return resp
 	}
 
-	first := sync(gwID, strings.ToUpper(gwID), gwID)
+	first := sync(strings.ToUpper(gwID), gwID)
 	require.Len(t, first.Deployments, 1, "a gateway named more than once is placed once")
 	require.True(t, first.Deployments[0].Success)
 	require.True(t, first.Deployments[0].Placed, "the provider was on no gateway")

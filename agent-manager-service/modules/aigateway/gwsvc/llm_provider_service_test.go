@@ -354,6 +354,6 @@ func TestUniqueGatewayIDs(t *testing.T) {
 	assert.Nil(t, uniqueGatewayIDs(nil), "an omitted list stays omitted")
 	assert.Equal(t, []string{}, uniqueGatewayIDs([]string{}))
 	assert.Equal(t, []string{id, other, "not-a-uuid"},
-		uniqueGatewayIDs([]string{id, other, strings.ToUpper(id), "not-a-uuid", id, "not-a-uuid"}),
-		"repeats are dropped, compared as UUIDs, keeping the first spelling and order")
+		uniqueGatewayIDs([]string{strings.ToUpper(id), other, id, "not-a-uuid", id, "not-a-uuid"}),
+		"valid UUIDs are kept in canonical form and repeats dropped, in first-seen order")
 }
