@@ -246,7 +246,7 @@ func TestWithEvents_ProjectFromQueryOrAnnotation(t *testing.T) {
 
 	pub = serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x",
 		map[string]string{"agentName": "a1"}, func(w http.ResponseWriter, r *http.Request) {
-			modkit.EventProject(r.Context(), "p2")
+			events.SetProject(r.Context(), "p2")
 			w.WriteHeader(http.StatusOK)
 		})
 	require.Len(t, pub.got, 1)

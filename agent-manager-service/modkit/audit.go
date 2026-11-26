@@ -20,11 +20,12 @@ import "context"
 
 // AuditScope is the audit record of one API request, MCP tool call or
 // internal-route request. The core puts it on the request's context; a module
-// adds to it with AuditDetail, AuditResource and AuditInternalCaller.
+// adds to it with AuditDetail, AuditResource, AuditEnvironment and
+// AuditInternalCaller.
 type AuditScope interface {
 	AuditDetail(key string, value any)
 	AuditResource(kind, id, name string)
-	AuditProject(name string)
+	AuditEnvironment(name string)
 	AuditInternalCaller(ctx context.Context, c InternalCaller)
 }
 
@@ -60,12 +61,11 @@ func AuditResource(ctx context.Context, kind, id, name string) {
 	}
 }
 
-// AuditProject names the project the current request or tool call acted on,
-// when neither its path nor its project query parameter names it. Outside a
-// request it does nothing.
-func AuditProject(ctx context.Context, name string) {
+// AuditEnvironment names the environment the current request or tool call
+// acted on, when its path does not name it. Outside a request it does nothing.
+func AuditEnvironment(ctx context.Context, name string) {
 	if s := auditScope(ctx); s != nil {
-		s.AuditProject(name)
+		s.AuditEnvironment(name)
 	}
 }
 

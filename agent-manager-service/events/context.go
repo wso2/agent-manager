@@ -60,7 +60,7 @@ func SetEnvironment(ctx context.Context, env string) {
 // no-op outside an event-emitting route.
 func SetProject(ctx context.Context, project string) {
 	if a := annotationsFrom(ctx); a != nil {
-		a.EventProject(project)
+		a.project = project
 	}
 }
 
@@ -75,11 +75,6 @@ func AddData(ctx context.Context, key string, value any) {
 // EventEnvironment implements modkit.EventScope.
 func (a *annotations) EventEnvironment(name string) {
 	a.environment = name
-}
-
-// EventProject implements modkit.EventScope.
-func (a *annotations) EventProject(name string) {
-	a.project = name
 }
 
 // EventData implements modkit.EventScope.

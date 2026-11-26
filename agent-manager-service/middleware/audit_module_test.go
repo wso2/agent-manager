@@ -151,21 +151,21 @@ func TestModuleRouteRecordTakesProjectFromQuery(t *testing.T) {
 	}
 }
 
-// A module names a project the request carries in its body with modkit.AuditProject; a query parameter still wins.
-func TestModuleRouteRecordCarriesAuditProject(t *testing.T) {
+// A module names the environment a route acts on with modkit.AuditEnvironment; an environment in the path still wins.
+func TestModuleRouteRecordCarriesAuditEnvironment(t *testing.T) {
 	handler := func(w http.ResponseWriter, r *http.Request) {
-		modkit.AuditProject(r.Context(), "from-body")
+		modkit.AuditEnvironment(r.Context(), "default")
 		w.WriteHeader(http.StatusCreated)
 	}
 	rec := &captureRecorder{}
 	serveModuleRoute(t, rec, "POST /widgets", "/widgets", audit.RoutePolicy{}, handler)
-	if len(rec.events) != 1 || rec.events[0].ProjectName != "from-body" {
-		t.Fatalf("events = %+v, want one naming project from-body", rec.events)
+	if len(rec.events) != 1 || rec.events[0].Environment != "default" {
+		t.Fatalf("events = %+v, want one naming environment default", rec.events)
 	}
 
 	rec = &captureRecorder{}
-	serveModuleRoute(t, rec, "POST /widgets", "/widgets?project=shop", audit.RoutePolicy{}, handler)
-	if len(rec.events) != 1 || rec.events[0].ProjectName != "shop" {
-		t.Fatalf("events = %+v, want one naming project shop", rec.events)
+	serveModuleRoute(t, rec, "POST /environments/{envName}/widgets", "/environments/prod/widgets", audit.RoutePolicy{}, handler)
+	if len(rec.events) != 1 || rec.events[0].Environment != "prod" {
+		t.Fatalf("events = %+v, want one naming environment prod", rec.events)
 	}
 }

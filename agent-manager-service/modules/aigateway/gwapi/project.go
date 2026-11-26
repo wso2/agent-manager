@@ -19,17 +19,21 @@ package gwapi
 import (
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // inProject guards an agent route: the agent's project comes from the project query parameter, and a request without one is refused.
+// Agent routes act on the default environment, so their audit records name it.
 func inProject(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if gwutil.Project(r) == "" {
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "project query parameter is required")
 			return
 		}
+		modkit.AuditEnvironment(r.Context(), gwmodels.DefaultEnvironmentName)
 		next(w, r)
 	}
 }
