@@ -169,10 +169,26 @@ class TestEvaluateGo(unittest.TestCase):
         res = self.evaluate({"svc/c.go": {4, 5, 6, 7}}, cov)
         self.assertEqual(res, ChangedResult(covered=0, total=1, uncovered={"svc/c.go": [7]}))
 
+    def test_comment_markers_inside_go_strings_are_code(self):
+        write(self.root, "svc/s.go", 'package x\n\nfunc f() {\n\tr := "/api/*"\n\tu := `http://x/*`\n\tg(r, u)\n}\n')
+        cov = {"svc/s.go": {n: False for n in range(3, 8)}}
+        res = self.evaluate({"svc/s.go": {4, 5, 6}}, cov)
+        self.assertEqual(res, ChangedResult(covered=0, total=3, uncovered={"svc/s.go": [4, 5, 6]}))
+
     def test_matching_build_tag_file_in_profile_is_counted(self):
         write(self.root, "svc/l.go", "//go:build linux\n\npackage x\n\nfunc L() {\n\tg()\n}\n")
         res = self.evaluate({"svc/l.go": {6}}, {"svc/l.go": {5: False, 6: False, 7: False}})
         self.assertEqual(res, ChangedResult(covered=0, total=1, uncovered={"svc/l.go": [6]}))
+
+    def test_read_error_names_the_file(self):
+        class Broken(io.StringIO):
+            def read(self, *args):
+                raise OSError(5, "Input/output error")
+
+        with mock.patch("changed_lines.open", return_value=Broken(), create=True):
+            with self.assertRaises(OSError) as ctx:
+                self.evaluate({"svc/a.go": {2}}, {"svc/a.go": {2: True}})
+        self.assertIn("a.go", str(ctx.exception))
 
     def test_uncovered_lines_listed_sorted(self):
         cov = {"svc/a.go": {9: False, 3: False, 5: True}}
@@ -235,56 +251,15 @@ class TestEvaluateConsole(ConsoleTree):
             ChangedResult(covered=1, total=2, uncovered={"console/workspaces/libs/views/src/a.ts": [2]}),
         )
 
-    def test_package_without_report_is_uncovered(self):
-        write(self.root, "console/workspaces/libs/fresh/src/x.tsx", "export const a = 1;\n\nexport const b = 2;\n")
-        res = self.evaluate({"console/workspaces/libs/fresh/src/x.tsx": {3, 1}})
+    def test_package_without_report_is_reported(self):
+        changed = {
+            "console/workspaces/libs/fresh/src/x.tsx": {1, 3},
+            "console/workspaces/libs/fresh/src/y.ts": {2},
+        }
         self.assertEqual(
-            res,
-            ChangedResult(covered=0, total=2, uncovered={"console/workspaces/libs/fresh/src/x.tsx": [1, 3]}),
+            self.evaluate(changed),
+            ChangedResult(covered=0, total=0, uncovered={}, unreported=["console/workspaces/libs/fresh"]),
         )
-
-    def test_package_without_report_counts_only_code_lines(self):
-        write(self.root, "console/workspaces/libs/fresh/src/y.ts",
-              "/**\n * Doc.\n */\nimport { a } from \"a\";\n\n// note\nexport const y = a + 1;\n")
-        res = self.evaluate({"console/workspaces/libs/fresh/src/y.ts": set(range(1, 8))})
-        self.assertEqual(res.uncovered, {"console/workspaces/libs/fresh/src/y.ts": [7]})
-
-    def test_package_without_report_skips_block_comment_after_code(self):
-        write(self.root, "console/workspaces/libs/fresh/src/z.ts",
-              "export const a = 1; /* note\n * more\n */\nexport const b = 2;\n")
-        res = self.evaluate({"console/workspaces/libs/fresh/src/z.ts": {1, 2, 3, 4}})
-        self.assertEqual(res.uncovered, {"console/workspaces/libs/fresh/src/z.ts": [1, 4]})
-
-    def test_package_without_report_skips_import_with_trailing_comment(self):
-        write(self.root, "console/workspaces/libs/fresh/src/w.ts",
-              "import { // shared\n  a,\n  b,\n} from \"x\";\nexport const w = a + b;\n")
-        res = self.evaluate({"console/workspaces/libs/fresh/src/w.ts": {1, 2, 3, 4, 5}})
-        self.assertEqual(res.uncovered, {"console/workspaces/libs/fresh/src/w.ts": [5]})
-
-    def test_comment_markers_inside_strings_are_code(self):
-        path = "console/workspaces/libs/fresh/src/s.ts"
-        write(self.root, path,
-              'export const route = "/api/*";\n'
-              'export const url = "https://example.com"; /* note\n'
-              ' * more */ export const x = 1;\n'
-              'export const t = `a /* b`;\n'
-              'export const y = 2;\n')
-        res = self.evaluate({path: {1, 2, 3, 4, 5}})
-        self.assertEqual(res.uncovered, {path: [1, 2, 3, 4, 5]})
-
-    def test_read_error_names_the_file(self):
-        path = "console/workspaces/libs/fresh/src/r.ts"
-        write(self.root, path, "export const r = 1;\n")
-
-        class Broken(io.StringIO):
-            def read(self, *args):
-                raise OSError(5, "Input/output error")
-
-        cov, reported = console_line_coverage(self.console, self.root)
-        with mock.patch("changed_lines.open", return_value=Broken(), create=True):
-            with self.assertRaises(OSError) as ctx:
-                evaluate_console({path: {1}}, cov, reported, [], self.root)
-        self.assertIn("r.ts", str(ctx.exception))
 
     def test_package_without_report_skips_tests_and_stories(self):
         changed = {

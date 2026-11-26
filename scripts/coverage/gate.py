@@ -106,12 +106,22 @@ def check_changed(result, config, exempt):
     """Return (failures, report lines) for the changed-line rule."""
     if result is None:
         return [], ["changed-line check skipped (base not found)"]
+    failures, report = [], []
+    for package in result.unreported:
+        report.append(
+            f"Console package `{package}` has changed source but no coverage report: add tests "
+            "so `pnpm test:coverage` reports it, or list it in `no_coverage_packages`."
+        )
+        if exempt:
+            report.append("Not enforced: coverage-exception label set.")
+        else:
+            failures.append(f"console package `{package}` has no coverage report")
     if not result.total:
-        return [], ["No coverable changed lines."]
+        return failures, report + ["No coverable changed lines."]
     now = 100.0 * result.covered / result.total
-    head = f"{result.covered}/{result.total} coverable changed lines covered ({now:.1f}%, minimum {config['changed_min']}%)"
-    report = [head]
-    failures = []
+    report.append(
+        f"{result.covered}/{result.total} coverable changed lines covered ({now:.1f}%, minimum {config['changed_min']}%)"
+    )
     if now < config["changed_min"]:
         if exempt:
             report.append("Not enforced: coverage-exception label set.")

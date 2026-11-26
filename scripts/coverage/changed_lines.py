@@ -43,6 +43,8 @@ class ChangedResult:
     covered: int
     total: int
     uncovered: dict  # repo path -> sorted uncovered line numbers
+    # Console packages with changed source but no coverage report.
+    unreported: list = dataclasses.field(default_factory=list)
 
 
 def parse_diff(diff_text):
@@ -145,79 +147,40 @@ def _read_source(path):
         raise OSError(f"cannot read {path}: {e}") from e
 
 
-def _code_text(text, backtick_escapes):
-    """Line number -> the line's text with comments removed (strings kept).
+def _go_code_lines(text):
+    """Line numbers of a Go file that hold code, not only comments or blanks.
 
-    A small scanner that knows strings ("", '', and `` raw or template
-    strings) so comment markers inside them, like "/api/*" or a URL, are
-    not taken for comments. backtick_escapes: True for TypeScript
-    template strings, False for Go raw strings.
+    A small scanner that knows Go strings ("", '' and `` raw strings), so
+    comment markers inside them are not taken for comments.
     """
-    out = {}
-    mode, quote, buf, n = "code", "", [], 1
-    i = 0
+    code, mode, quote, n, i = set(), "code", "", 1, 0
     while i < len(text):
         c = text[i]
         nxt = text[i + 1] if i + 1 < len(text) else ""
         if c == "\n":
-            out[n] = "".join(buf).strip()
-            buf, n = [], n + 1
+            n += 1
             if mode == "line":
                 mode = "code"
-            elif mode == "str" and quote != "`":
-                mode = "code"  # an unterminated one-line string ends here
-            i += 1
-            continue
-        if mode == "line":
+        elif mode == "line":
             pass
         elif mode == "block":
             if c == "*" and nxt == "/":
-                mode = "code"
-                i += 1
+                mode, i = "code", i + 1
         elif mode == "str":
-            buf.append(c)
-            if c == "\\" and (quote != "`" or backtick_escapes):
-                if nxt and nxt != "\n":
-                    buf.append(nxt)
+            code.add(n)
+            if c == "\\" and quote != "`":
                 i += 1
             elif c == quote:
                 mode = "code"
         elif c == "/" and nxt == "/":
             mode = "line"
         elif c == "/" and nxt == "*":
-            mode = "block"
-            i += 1
-        else:
-            buf.append(c)
+            mode, i = "block", i + 1
+        elif not c.isspace():
+            code.add(n)
             if c in "\"'`":
                 mode, quote = "str", c
         i += 1
-    out[n] = "".join(buf).strip()
-    return out
-
-
-def _go_code_lines(text):
-    """Line numbers of a Go file that hold code, not only comments or blanks."""
-    return {n for n, t in _code_text(text, False).items() if t}
-
-
-def _ts_code_lines(text, lines):
-    """The given line numbers of a TypeScript file that hold code.
-
-    Blank lines, comments and import statements are not code: enough to
-    keep comment and import edits in a package with no coverage run from
-    counting as untested.
-    """
-    code, in_import = set(), False
-    for n, bare in sorted(_code_text(text, True).items()):
-        if in_import:
-            in_import = not bare.startswith("}")
-            continue
-        if bare.startswith("import "):
-            in_import = bare.endswith("{")
-            continue
-        if bare and n in lines:
-            code.add(n)
     return code
 
 
@@ -294,7 +257,7 @@ def _console_package(path, repo_root):
 def evaluate_console(changed, coverage, reported_packages, no_coverage_packages, repo_root):
     """Covered and total coverable changed lines under console/."""
     skip = {"console/" + p.strip("/") for p in no_coverage_packages}
-    per_file = {}
+    per_file, unreported = {}, set()
     for path, lines in changed.items():
         if not path.startswith("console/") or not path.endswith((".ts", ".tsx")):
             continue
@@ -307,8 +270,8 @@ def evaluate_console(changed, coverage, reported_packages, no_coverage_packages,
             if path in coverage:
                 per_file[path] = {n: coverage[path][n] for n in lines if n in coverage[path]}
         elif package not in skip and not CONSOLE_EXCLUDED.search(path):
-            # A package that runs no coverage at all: its changed code is untested.
-            text = _read_source(os.path.join(repo_root, path))
-            if text is not None:
-                per_file[path] = {n: False for n in _ts_code_lines(text, lines)}
-    return _tally(per_file)
+            # A package that runs no coverage at all: nothing in it is tested.
+            unreported.add(package)
+    result = _tally(per_file)
+    result.unreported = sorted(unreported)
+    return result

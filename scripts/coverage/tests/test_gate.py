@@ -103,6 +103,21 @@ class TestCheckChanged(unittest.TestCase):
         self.assertEqual(failures, [])
         self.assertTrue(any("changed-line check skipped (base not found)" in l for l in report))
 
+    def test_unreported_package_fails(self):
+        res = ChangedResult(0, 0, {}, unreported=["console/workspaces/libs/fresh"])
+        failures, report = check_changed(res, CONFIG, exempt=False)
+        self.assertEqual(
+            failures,
+            ["console package `console/workspaces/libs/fresh` has no coverage report"],
+        )
+        self.assertTrue(any("no_coverage_packages" in l for l in report))
+
+    def test_unreported_package_exempt_reports_only(self):
+        res = ChangedResult(0, 0, {}, unreported=["console/workspaces/libs/fresh"])
+        failures, report = check_changed(res, CONFIG, exempt=True)
+        self.assertEqual(failures, [])
+        self.assertTrue(any("coverage-exception label set" in l for l in report))
+
     def test_no_coverable_changes_passes(self):
         failures, _ = check_changed(ChangedResult(0, 0, {}), CONFIG, exempt=False)
         self.assertEqual(failures, [])
