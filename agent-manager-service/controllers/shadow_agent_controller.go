@@ -44,7 +44,7 @@ const (
 )
 
 // ShadowAgentController serves Shadow Agent Discovery: platform connections,
-// scans, and the unregistered agents they found.
+// scans, and the unmanaged agents they found.
 type ShadowAgentController interface {
 	ListProviders(w http.ResponseWriter, r *http.Request)
 	GetSummary(w http.ResponseWriter, r *http.Request)
@@ -594,7 +594,7 @@ func (c *shadowAgentController) OnboardFinding(w http.ResponseWriter, r *http.Re
 	utils.WriteSuccessResponse(w, http.StatusOK, toShadowFindingDetail(v))
 }
 
-// SetFindingHidden removes an onboarded agent from the Unregistered Agents
+// SetFindingHidden removes an onboarded agent from the unmanaged agents
 // list, or puts it back.
 func (c *shadowAgentController) SetFindingHidden(w http.ResponseWriter, r *http.Request) {
 	id, ok := shadowFindingID(w, r)

@@ -67,7 +67,7 @@ export const LLM_GATEWAY_SHELL = [
   'export LLM_PROVIDER_KEY="<API key from the same panel; it is shown once>"',
 ].join("\n");
 
-/** The description a registered agent starts with: where it was found. */
+/** The description a managed agent starts with: where it was found. */
 export function discoveredDescription(f: ShadowFindingDetail): string {
   return `Discovered by Shadow Agent Discovery: ${providerInSentence(f.provider)} ${kindLabel(
     f.kind,
@@ -105,10 +105,10 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 }
 
 /**
- * Onboards an unregistered agent as an external agent: the page says what it
+ * Onboards an unmanaged agent as an external agent: the page says what it
  * does and what follows, then registers the agent where it runs today (the
  * same request as the console's Register an agent page) and links the
- * unregistered agent to it.
+ * unmanaged agent to it.
  */
 export function OnboardFinding({
   orgName,
@@ -120,7 +120,7 @@ export function OnboardFinding({
   const { findingId } = useParams<{ findingId: string }>();
   const navigate = useNavigate();
   const findingPath = generatePath(
-    absoluteRouteMap.children.org.children.agentRegistry.children.unregisteredAgent.path,
+    absoluteRouteMap.children.org.children.agentRegistry.children.unmanagedAgent.path,
     { orgId: orgName ?? "", findingId: findingId ?? "" },
   );
   const returnTo = useReturnTo(findingPath || listPath);
@@ -199,8 +199,8 @@ export function OnboardFinding({
           onboard.mutate(
             { projectName: project, agentName },
             {
-              // The agent is registered now, so the registry lists it as registered,
-              // not as unregistered.
+              // The agent is registered now, so the registry lists it as managed,
+              // not as unmanaged.
               onSuccess: () => setDone({ project, agent: agentName }),
               onError: () =>
                 setFormError(
@@ -218,7 +218,7 @@ export function OnboardFinding({
     <Stack spacing={2.5}>
       <Step n={1} title="Set up the agent">
         <Typography variant="body2" color="text.secondary">
-          In the registered agent&apos;s Setup Agent panel, generate the agent key (it is shown
+          In the managed agent&apos;s Setup Agent panel, generate the agent key (it is shown
           once). Where the workload runs, set these variables and start it with amp-instrument. No
           code changes are needed.
         </Typography>
@@ -272,7 +272,7 @@ export function OnboardFinding({
               variant="contained"
               endIcon={<ExternalLink size={16} />}
             >
-              Open registered agent
+              Open managed agent
             </Button>
             <Button variant="outlined" onClick={() => navigate(findingPath)}>
               Back to the agent

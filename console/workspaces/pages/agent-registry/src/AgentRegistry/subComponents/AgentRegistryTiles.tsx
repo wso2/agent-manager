@@ -50,8 +50,8 @@ function TileLines({ first, second }: { first: React.ReactNode; second: string }
   );
 }
 
-/** A registered agent: project and owner, its type, and when it was last deployed. */
-function RegisteredTile({ orgId, agent }: { orgId: string; agent: AgentRegistryEntry }) {
+/** A managed agent: project and owner, its type, and when it was last deployed. */
+function ManagedTile({ orgId, agent }: { orgId: string; agent: AgentRegistryEntry }) {
   const openAgent = useOpenAgent(orgId);
   const deployedAt = lastDeployedAt(agent);
   return (
@@ -84,8 +84,8 @@ function RegisteredTile({ orgId, agent }: { orgId: string; agent: AgentRegistryE
   );
 }
 
-/** An unregistered (shadow) agent: its platform and source, its scope, when last seen. */
-function UnregisteredTile({ orgId, agent }: { orgId: string; agent: AgentRegistryEntry }) {
+/** An unmanaged (shadow) agent: its platform and source, its scope, when last seen. */
+function UnmanagedTile({ orgId, agent }: { orgId: string; agent: AgentRegistryEntry }) {
   const openAgent = useOpenAgent(orgId);
   const discovery = agent.discovery;
   return (
@@ -113,7 +113,7 @@ export interface AgentRegistryTilesProps {
   agents: AgentRegistryEntry[];
 }
 
-/** The registry's agents as a grid of tiles. A registered agent's tile opens its overview. */
+/** The registry's agents as a grid of tiles. A managed agent's tile opens its overview. */
 export function AgentRegistryTiles({ orgId, agents }: AgentRegistryTilesProps) {
   const [page, setPage] = useState(0);
   const [tilesPerPage, setTilesPerPage] = useState(TILES_PER_PAGE_OPTIONS[0]);
@@ -132,10 +132,10 @@ export function AgentRegistryTiles({ orgId, agents }: AgentRegistryTilesProps) {
     <Box>
       <Box sx={{ display: "grid", gridTemplateColumns: GRID_TEMPLATE, gap: 2 }}>
         {pageOfAgents.map((agent) =>
-          agent.registration === "registered" ? (
-            <RegisteredTile key={`${agent.projectName}/${agent.name}`} orgId={orgId} agent={agent} />
+          agent.management === "managed" ? (
+            <ManagedTile key={`${agent.projectName}/${agent.name}`} orgId={orgId} agent={agent} />
           ) : (
-            <UnregisteredTile
+            <UnmanagedTile
               key={agent.discovery?.findingId ?? agent.name}
               orgId={orgId}
               agent={agent}

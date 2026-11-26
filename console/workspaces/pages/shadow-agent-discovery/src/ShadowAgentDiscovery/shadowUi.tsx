@@ -38,20 +38,20 @@ import {
   type ShadowScanStatus,
 } from "@agent-management-platform/types";
 
-// The unregistered agents are listed and opened in the agent registry; Shadow Agent Discovery
+// The unmanaged agents are listed and opened in the agent registry; Shadow Agent Discovery
 // only finds them.
 const registryRoutes = absoluteRouteMap.children.org.children.agentRegistry;
 
-/** The agent registry's Unregistered tab, filtered to one platform when given. */
-export function unregisteredAgentsPath(orgId: string, platform?: string): string {
-  const params = new URLSearchParams({ registration: "unregistered" });
+/** The agent registry's Unmanaged tab, filtered to one platform when given. */
+export function unmanagedAgentsPath(orgId: string, platform?: string): string {
+  const params = new URLSearchParams({ management: "unmanaged" });
   if (platform) params.set("foundOn", platform);
   return `${generatePath(registryRoutes.path, { orgId })}?${params.toString()}`;
 }
 
-/** An unregistered agent's page in the agent registry. */
-export function unregisteredAgentPath(orgId: string, findingId: string): string {
-  return generatePath(registryRoutes.children.unregisteredAgent.path, { orgId, findingId });
+/** An unmanaged agent's page in the agent registry. */
+export function unmanagedAgentPath(orgId: string, findingId: string): string {
+  return generatePath(registryRoutes.children.unmanagedAgent.path, { orgId, findingId });
 }
 
 export const PROVIDER_LABELS: Record<ShadowProvider, string> = {

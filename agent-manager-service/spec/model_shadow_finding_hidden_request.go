@@ -19,7 +19,7 @@ var _ MappedNullable = &ShadowFindingHiddenRequest{}
 
 // ShadowFindingHiddenRequest struct for ShadowFindingHiddenRequest
 type ShadowFindingHiddenRequest struct {
-	// true removes the onboarded agent from the Unregistered Agents list; false puts it back.
+	// true removes the onboarded agent from the unmanaged agents list; false puts it back.
 	Hidden bool `json:"hidden"`
 }
 

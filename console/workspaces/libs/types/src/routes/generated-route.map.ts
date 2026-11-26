@@ -275,13 +275,13 @@ export const generatedRouteMap =  {
               "wildPath": "/organizations/:orgId/agent-registry/projects/:registryProjectId/agents/:registryAgentId/*",
               "children": {}
             },
-            "unregisteredAgent": {
-              "path": "/organizations/:orgId/agent-registry/unregistered/:findingId",
-              "wildPath": "/organizations/:orgId/agent-registry/unregistered/:findingId/*",
+            "unmanagedAgent": {
+              "path": "/organizations/:orgId/agent-registry/unmanaged/:findingId",
+              "wildPath": "/organizations/:orgId/agent-registry/unmanaged/:findingId/*",
               "children": {
                 "onboard": {
-                  "path": "/organizations/:orgId/agent-registry/unregistered/:findingId/onboard",
-                  "wildPath": "/organizations/:orgId/agent-registry/unregistered/:findingId/onboard/*",
+                  "path": "/organizations/:orgId/agent-registry/unmanaged/:findingId/onboard",
+                  "wildPath": "/organizations/:orgId/agent-registry/unmanaged/:findingId/onboard/*",
                   "children": {}
                 }
               }

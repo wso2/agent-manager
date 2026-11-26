@@ -552,7 +552,7 @@ var customPlatformSpec = ProviderSpec{
 		"Enter the Agents URL (for example https://agents.example.com/v1/agents) and the API key below, and add " +
 			"the platform.",
 		"Test the connection (Agent Manager reads one agent), then run a scan: the agents your service returns " +
-			"show up under Unregistered Agents.",
+			"show up as unmanaged agents in the agent registry.",
 	},
 	APIContract: CustomPlatformOpenAPI,
 }

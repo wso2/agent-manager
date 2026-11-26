@@ -21,9 +21,9 @@ import type { AgentPathParams, OrgPathParams } from './common';
 import type { MonitorStatus } from './monitors';
 
 // Org-level agent registry (product-management issue #78). The list reads
-// GET /orgs/{org}/agents?view=registry (registered agents) and the Shadow Agent Discovery
-// findings (unregistered agents). A registered agent's overview reads GET agent with
-// ?view=registry; an unregistered agent's reads its finding.
+// GET /orgs/{org}/agents?view=registry (managed agents) and the Shadow Agent Discovery
+// findings (unmanaged agents). A managed agent's overview reads GET agent with
+// ?view=registry; an unmanaged agent's reads its finding.
 
 /** Where the agent runs: built and deployed by the platform, or registered from outside. */
 export type AgentRegistryHosting = 'platform' | 'external';
@@ -118,11 +118,11 @@ export interface AgentRegistryA2ASkill {
 }
 
 /**
- * Registered: created or registered in a project of Agent Manager.
- * Unregistered: a shadow agent, found by Shadow Agent Discovery (issue #71) on a
+ * Managed: created or registered in a project of Agent Manager.
+ * Unmanaged: a shadow agent, found by Shadow Agent Discovery (issue #71) on a
  * platform outside Agent Manager and not onboarded yet.
  */
-export type AgentRegistryRegistration = 'registered' | 'unregistered';
+export type AgentRegistryManagement = 'managed' | 'unmanaged';
 
 /** Who created a shadow agent, as its platform's listing reports it. Same as ShadowOwnerHint. */
 export interface AgentRegistryOwnerHint {
@@ -166,7 +166,7 @@ export interface AgentRegistryDiscovery {
   lastSeenAt: string;
   /** False once a complete listing of its connection no longer returns the agent. */
   present: boolean;
-  /** True once it is onboarded as an external agent, which then lists it as registered. */
+  /** True once it is onboarded as an external agent, which then lists it as managed. */
   onboarded: boolean;
   /** The connection that saw it last. */
   connectionName: string;
@@ -184,21 +184,21 @@ export interface AgentRegistryEntry {
   name: string;
   displayName: string;
   description?: string;
-  registration: AgentRegistryRegistration;
-  /** Set for unregistered agents only. */
+  management: AgentRegistryManagement;
+  /** Set for unmanaged agents only. */
   discovery?: AgentRegistryDiscovery;
-  /** Empty for unregistered agents, which belong to no project. */
+  /** Empty for unmanaged agents, which belong to no project. */
   projectName: string;
   projectDisplayName: string;
   hosting: AgentRegistryHosting;
-  /** Null for unregistered agents: how callers reach them is not known. */
+  /** Null for unmanaged agents: how callers reach them is not known. */
   interface: AgentRegistryInterface | null;
   kindName?: string;
   kindVersion?: string;
-  /** Null when it could not be resolved (older agents). Always null for unregistered agents. */
+  /** Null when it could not be resolved (older agents). Always null for unmanaged agents. */
   createdBy: AgentRegistryCreatedBy | null;
   labels: Record<string, string>;
-  /** Empty for unregistered agents. */
+  /** Empty for unmanaged agents. */
   environments: AgentRegistryEnvironment[];
   createdAt: string;
 }
@@ -274,5 +274,5 @@ export interface AgentRegistryApiListResponse {
 
 export type ListAgentRegistryPathParams = OrgPathParams;
 
-/** One registered agent's registry record, for the org-level agent overview page. */
+/** One managed agent's registry record, for the org-level agent overview page. */
 export type GetAgentRegistryEntryPathParams = AgentPathParams;
