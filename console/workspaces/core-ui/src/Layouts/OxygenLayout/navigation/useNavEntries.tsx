@@ -35,7 +35,6 @@ import {
   BrainCircuit,
   Server,
   ShieldCheck,
-  Boxes,
   Bot,
   Network,
   GitBranch,
@@ -75,16 +74,25 @@ import {
   type NavSectionId,
 } from "./navModel";
 
-export const NAV_SECTIONS: Array<{ id: NavSectionId; title: string; icon: ReactNode }> = [
-  { id: "resources", title: "Resources", icon: <Boxes size={20} /> },
-  { id: "lifecycle", title: "Agent lifecycle", icon: <GitBranch /> },
-  { id: "security", title: "Security", icon: <Lock /> },
-  { id: "identities", title: "Agent identities", icon: <thunderInstancesMetadata.icon /> },
+export const NAV_SECTIONS: Array<{
+  id: NavSectionId;
+  title: string;
+  icon: ReactNode;
+  /** Its pages are all agent pages, so it's shown only at agent level. */
+  agentOnly?: boolean;
+}> = [
+  { id: "lifecycle", title: "Agent lifecycle", icon: <GitBranch />, agentOnly: true },
+  { id: "security", title: "Security", icon: <Lock />, agentOnly: true },
   { id: "observability", title: "Observability", icon: <Activity /> },
   { id: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
+  { id: "identities", title: "Agent identities", icon: <thunderInstancesMetadata.icon /> },
   // Last section, so it sits just above Events (which follows the sections).
   { id: "infrastructure", title: "Infrastructure", icon: <Server /> },
 ];
+
+const AGENT_ONLY_SECTIONS = new Set<NavSectionId | undefined>(
+  NAV_SECTIONS.filter((section) => section.agentOnly).map((section) => section.id),
+);
 
 const org = absoluteRouteMap.children.org;
 const projects = org.children.projects;
@@ -181,12 +189,6 @@ function useBuildNavEntries(): NavEntry[] {
           ]),
         },
       },
-      {
-        id: "agent-catalog",
-        label: "Agent catalog",
-        icon: <BookOpenText size={20} />,
-        routes: { org: route(org.children.catalog.path) },
-      },
       ...pluginEntries,
       {
         id: "configure",
@@ -282,14 +284,12 @@ function useBuildNavEntries(): NavEntry[] {
         id: "llm-providers",
         label: "LLM service providers",
         icon: <BrainCircuit size={20} />,
-        section: "resources",
         routes: when(canSeeResources, "org", route(org.children.llmProviders.path)),
       },
       {
         id: "mcp-servers",
         label: "MCP servers",
         icon: <MCPLogo size={20} />,
-        section: "resources",
         routes: {
           ...when(canSeeMcpServers, "org", route(org.children.mcpProxies.path)),
           ...when(
@@ -298,6 +298,13 @@ function useBuildNavEntries(): NavEntry[] {
             route(projects.children.mcpProxies.path),
           ),
         },
+      },
+      {
+        id: "agent-catalog",
+        label: "Agent catalog",
+        icon: <BookOpenText size={20} />,
+        dividerBefore: true,
+        routes: { org: route(org.children.catalog.path) },
       },
       {
         id: "gateways",
@@ -338,7 +345,7 @@ function useBuildNavEntries(): NavEntry[] {
         id: "events",
         label: "Events",
         icon: <RadioTower size={20} />,
-        dividerBefore: true,
+        afterSections: true,
         routes: eventsEnabled
           ? {
               ...when(canSeeOrgEvents, "org", route(org.children.events.path)),
@@ -356,7 +363,11 @@ function useBuildNavEntries(): NavEntry[] {
       },
     ];
 
-    return entries.filter((entry) => Object.keys(entry.routes).length > 0);
+    return entries
+      .filter((entry) => Object.keys(entry.routes).length > 0)
+      .map((entry) =>
+        AGENT_ONLY_SECTIONS.has(entry.section) ? { ...entry, ownLevelOnly: true } : entry,
+      );
   }, [
     agentIdEnabled,
     canSeeAgentIdentities,

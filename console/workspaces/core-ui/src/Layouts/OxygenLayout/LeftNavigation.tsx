@@ -19,6 +19,7 @@
 import { Box, Divider, Sidebar, Tooltip } from "@wso2/oxygen-ui";
 import { PanelLeftClose, PanelLeftOpen } from "@wso2/oxygen-ui-icons-react";
 import {
+  Fragment,
   cloneElement,
   isValidElement,
   useEffect,
@@ -36,7 +37,9 @@ export interface NavigationItem {
   href?: string;
   isActive?: boolean;
   pinBottom?: boolean;
-  /** Show after the regular navigation groups, separated by a divider. */
+  /** Show after the regular navigation groups rather than above them. */
+  afterSections?: boolean;
+  /** Draw a divider above this item, starting a new group of top items. */
   dividerBefore?: boolean;
   /** A short label shown next to the item, such as "NEW". */
   badge?: string;
@@ -179,8 +182,17 @@ export function LeftNavigation({
   mainItems,
   groupedItems,
 }: LeftNavigationProps) {
-  const topItems = mainItems.filter((item) => !item.pinBottom && !item.dividerBefore);
-  const separatedItems = mainItems.filter((item) => !item.pinBottom && item.dividerBefore);
+  const topItems = mainItems.filter((item) => !item.pinBottom && !item.afterSections);
+  const separatedItems = mainItems.filter((item) => !item.pinBottom && item.afterSections);
+  // Top items split into groups at each item that asks for a divider above it.
+  const topGroups = topItems.reduce<NavigationItem[][]>(
+    (groups, item) => {
+      if (item.dividerBefore && groups[groups.length - 1].length > 0) groups.push([]);
+      groups[groups.length - 1].push(item);
+      return groups;
+    },
+    [[]],
+  );
   const bottomItems = mainItems.filter((item) => item.pinBottom);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const navigate = useNavigate();
@@ -191,8 +203,8 @@ export function LeftNavigation({
   );
   const flatItems = useMemo(() => flattenWithChildren(allItems), [allItems]);
 
-  // Only force-expand when activeItem itself changes, not on every allItems
-  // reference change 
+  // Sections start collapsed; the one holding the active item opens. Only when
+  // activeItem itself changes, not on every allItems reference change.
   const lastExpandedForRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (lastExpandedForRef.current === activeItem) {
@@ -204,21 +216,6 @@ export function LeftNavigation({
       setExpandedMenus((prev) => (prev[parentLabel] ? prev : { ...prev, [parentLabel]: true }));
     }
   }, [activeItem, allItems]);
-
-  // Collapsible groups start expanded, without resetting a group the user already toggled.
-  useEffect(() => {
-    setExpandedMenus((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const group of groupedItems) {
-        if (group.collapsible && !(group.title in next)) {
-          next[group.title] = true;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [groupedItems]);
 
   const handleToggleExpand = (id: string) => {
     setExpandedMenus((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -248,7 +245,9 @@ export function LeftNavigation({
       onToggleExpand={handleToggleExpand}
       width={280}
     >
+      {/* Dividers only where an item asks for one, not between every section. */}
       <Sidebar.Nav
+        showDividers={false}
         sx={{
           "& .MuiButtonBase-root": {
             animation: "leftNavFadeIn 320ms ease-out",
@@ -265,7 +264,14 @@ export function LeftNavigation({
           },
         }}
       >
-        <Sidebar.Category>{topItems.map((item) => renderItem(item, collapsed))}</Sidebar.Category>
+        {topGroups.map((items, index) => (
+          <Fragment key={items[0]?.label ?? index}>
+            {index > 0 && !collapsed && <Divider sx={{ my: 1, mx: 2 }} />}
+            <Sidebar.Category>{items.map((item) => renderItem(item, collapsed))}</Sidebar.Category>
+          </Fragment>
+        ))}
+        {/* Sets the sections apart from the top items. */}
+        {groupedItems.length > 0 && !collapsed && <Divider sx={{ my: 1, mx: 2 }} />}
         {groupedItems.map((group) =>
           group.collapsible ? (
             renderItem(sectionToItem(group), collapsed)

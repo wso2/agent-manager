@@ -18,6 +18,7 @@
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
+import { useListAllMCPProxies } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
@@ -37,6 +38,10 @@ import { ViewProjectMCPProxy } from "./subComponents/ViewProjectMCPProxy";
 export const MCPProxiesProject = () => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
   const { canWrite } = useResourceAccess("mcp_server");
+  // Same query as the table (deduped); the header CTA only shows once the list has items,
+  // so an empty list shows just the empty state's button.
+  const { data } = useListAllMCPProxies({ orgName: orgId }, { project: projectId });
+  const hasItems = (data?.list?.length ?? 0) > 0;
 
   // Registers a project server by its public URL; component servers come from their publisher.
   const registerButton = canWrite ? (
@@ -60,7 +65,11 @@ export const MCPProxiesProject = () => {
       <Route
         index
         element={
-          <PageLayout title="MCP Servers" disableIcon actions={registerButton}>
+          <PageLayout
+            title="MCP Servers"
+            disableIcon
+            actions={hasItems ? registerButton : undefined}
+          >
             <ProjectMCPProxyTable createAction={registerButton} />
           </PageLayout>
         }

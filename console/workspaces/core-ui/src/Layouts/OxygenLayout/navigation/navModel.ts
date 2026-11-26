@@ -46,7 +46,6 @@ export type NavSectionId =
   | "security"
   | "observability"
   | "evaluation"
-  | "resources"
   | "infrastructure"
   | "identities";
 
@@ -64,17 +63,28 @@ export interface NavEntry {
   /** Who the page is for, as "{label} is only available for …". */
   availableFor?: string;
   pinBottom?: boolean;
+  afterSections?: boolean;
   dividerBefore?: boolean;
   /**
    * Shown only at the levels it has a route for, rather than everywhere with a
-   * gate. For listings the top bar already switches between (Projects, Agents).
+   * gate. For listings the top bar already switches between (Projects, Agents)
+   * and for agent-only sections (lifecycle, security).
    */
   ownLevelOnly?: boolean;
 }
 
-/** Whether the entry is listed in the menu at `level`. */
-export function isNavEntryShownAt(entry: NavEntry, level: NavLevel): boolean {
-  return !entry.ownLevelOnly || !!entry.routes[level];
+/**
+ * Whether the entry is listed in the menu at `level`. Given the current agent,
+ * own-level entries that agent can't use are left out too.
+ */
+export function isNavEntryShownAt(
+  entry: NavEntry,
+  level: NavLevel,
+  agent?: AgentResponse,
+): boolean {
+  if (!entry.ownLevelOnly) return true;
+  if (!entry.routes[level]) return false;
+  return !(level === "agent" && agent && entry.unsupportedReason?.(agent));
 }
 
 export interface NavParams {

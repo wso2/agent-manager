@@ -62,10 +62,11 @@ export function useNavigationItems(): Array<NavigationSection | NavigationItem> 
     href: navEntryHref(entry, level, params, agent),
     isActive: entry.id === active?.id,
     pinBottom: entry.pinBottom,
+    afterSections: entry.afterSections,
     dividerBefore: entry.dividerBefore,
   });
 
-  const shown = entries.filter((entry) => isNavEntryShownAt(entry, level));
+  const shown = entries.filter((entry) => isNavEntryShownAt(entry, level, agent));
   const items: NavigationItem[] = shown
     .filter((entry) => !entry.section)
     .map(toItem);
