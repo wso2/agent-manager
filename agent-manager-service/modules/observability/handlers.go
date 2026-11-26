@@ -261,14 +261,10 @@ func (h handlers) getSpan(w http.ResponseWriter, r *http.Request) {
 	h.ok(w, r, toSpan(traceID, *d))
 }
 
-// tracePagination is where a trace page stopped in its window.
+// tracePagination is a trace page's size and total; this module never stops a search early.
 func tracePagination(w window, page *tracesv1.TracePage) TracePagination {
 	total := page.Total
-	p := TracePagination{Limit: w.limit, Total: &total, LookedBackTo: formatTime(w.edge())}
-	if n := len(page.Traces); n > 0 && n < page.Total {
-		p.LookedBackTo = formatTime(page.Traces[n-1].StartTime)
-	}
-	return p
+	return TracePagination{Limit: w.limit, Total: &total}
 }
 
 // overview is a trace's list entry.
@@ -321,14 +317,6 @@ type window struct {
 	start, end time.Time
 	limit      int
 	sort       string
-}
-
-// edge is where a walk in the window's order ends.
-func (w window) edge() time.Time {
-	if w.sort == "asc" {
-		return w.end
-	}
-	return w.start
 }
 
 func parseWindow(query url.Values, defaultSort string, defaultLimit int) (window, error) {

@@ -40,10 +40,11 @@ type Pagination struct {
 type TracePagination struct {
 	Limit int `json:"limit"`
 	// Total is absent when the server doesn't know it exactly.
-	Total        *int   `json:"total,omitempty"`
-	NextCursor   string `json:"nextCursor,omitempty"`
-	LookedBackTo string `json:"lookedBackTo"`
-	Truncated    bool   `json:"truncated"`
+	Total      *int   `json:"total,omitempty"`
+	NextCursor string `json:"nextCursor,omitempty"`
+	// LookedBackTo and Truncated are sent only when a search stopped early.
+	LookedBackTo string `json:"lookedBackTo,omitempty"`
+	Truncated    bool   `json:"truncated,omitempty"`
 }
 
 // TraceListResponse is the body of the trace list.

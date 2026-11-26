@@ -24,23 +24,21 @@ type TracePagination struct {
 	Limit int32 `json:"limit"`
 	// Matching traces in the window; absent when the server doesn't know it exactly
 	Total *int32 `json:"total,omitempty"`
-	// Opaque cursor for the next page, sent back as `cursor`. Absent when the window ran out. Not set yet: `cursor` is refused until the trace stores support it.
+	// Opaque cursor for the next page, sent back as `cursor`. Absent when the window ran out. Not set yet: `cursor` is refused until the trace stores support it. Never set on an export, which takes no cursor.
 	NextCursor *string `json:"nextCursor,omitempty"`
-	// How far the server searched: the start time of the page's last trace when the window holds more, else the window edge (`startTime` for `desc`, `endTime` for `asc`). For display; page with `nextCursor`.
-	LookedBackTo time.Time `json:"lookedBackTo"`
-	// True when the server stopped before filling the page and before the window ran out. Always false while trace filters are refused.
-	Truncated bool `json:"truncated"`
+	// How far the search got. Sent only with `truncated`.
+	LookedBackTo *time.Time `json:"lookedBackTo,omitempty"`
+	// Sent only as true, when the search stopped before the page filled and before the window ran out. Absent means not truncated.
+	Truncated *bool `json:"truncated,omitempty"`
 }
 
 // NewTracePagination instantiates a new TracePagination object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewTracePagination(limit int32, lookedBackTo time.Time, truncated bool) *TracePagination {
+func NewTracePagination(limit int32) *TracePagination {
 	this := TracePagination{}
 	this.Limit = limit
-	this.LookedBackTo = lookedBackTo
-	this.Truncated = truncated
 	return &this
 }
 
@@ -140,52 +138,68 @@ func (o *TracePagination) SetNextCursor(v string) {
 	o.NextCursor = &v
 }
 
-// GetLookedBackTo returns the LookedBackTo field value
+// GetLookedBackTo returns the LookedBackTo field value if set, zero value otherwise.
 func (o *TracePagination) GetLookedBackTo() time.Time {
-	if o == nil {
+	if o == nil || IsNil(o.LookedBackTo) {
 		var ret time.Time
 		return ret
 	}
-
-	return o.LookedBackTo
+	return *o.LookedBackTo
 }
 
-// GetLookedBackToOk returns a tuple with the LookedBackTo field value
+// GetLookedBackToOk returns a tuple with the LookedBackTo field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *TracePagination) GetLookedBackToOk() (*time.Time, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.LookedBackTo) {
 		return nil, false
 	}
-	return &o.LookedBackTo, true
+	return o.LookedBackTo, true
 }
 
-// SetLookedBackTo sets field value
+// HasLookedBackTo returns a boolean if a field has been set.
+func (o *TracePagination) HasLookedBackTo() bool {
+	if o != nil && !IsNil(o.LookedBackTo) {
+		return true
+	}
+
+	return false
+}
+
+// SetLookedBackTo gets a reference to the given time.Time and assigns it to the LookedBackTo field.
 func (o *TracePagination) SetLookedBackTo(v time.Time) {
-	o.LookedBackTo = v
+	o.LookedBackTo = &v
 }
 
-// GetTruncated returns the Truncated field value
+// GetTruncated returns the Truncated field value if set, zero value otherwise.
 func (o *TracePagination) GetTruncated() bool {
-	if o == nil {
+	if o == nil || IsNil(o.Truncated) {
 		var ret bool
 		return ret
 	}
-
-	return o.Truncated
+	return *o.Truncated
 }
 
-// GetTruncatedOk returns a tuple with the Truncated field value
+// GetTruncatedOk returns a tuple with the Truncated field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *TracePagination) GetTruncatedOk() (*bool, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Truncated) {
 		return nil, false
 	}
-	return &o.Truncated, true
+	return o.Truncated, true
 }
 
-// SetTruncated sets field value
+// HasTruncated returns a boolean if a field has been set.
+func (o *TracePagination) HasTruncated() bool {
+	if o != nil && !IsNil(o.Truncated) {
+		return true
+	}
+
+	return false
+}
+
+// SetTruncated gets a reference to the given bool and assigns it to the Truncated field.
 func (o *TracePagination) SetTruncated(v bool) {
-	o.Truncated = v
+	o.Truncated = &v
 }
 
 func (o TracePagination) MarshalJSON() ([]byte, error) {
@@ -205,8 +219,12 @@ func (o TracePagination) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.NextCursor) {
 		toSerialize["nextCursor"] = o.NextCursor
 	}
-	toSerialize["lookedBackTo"] = o.LookedBackTo
-	toSerialize["truncated"] = o.Truncated
+	if !IsNil(o.LookedBackTo) {
+		toSerialize["lookedBackTo"] = o.LookedBackTo
+	}
+	if !IsNil(o.Truncated) {
+		toSerialize["truncated"] = o.Truncated
+	}
 	return toSerialize, nil
 }
 

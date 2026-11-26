@@ -312,7 +312,7 @@ components:
 
     TracePagination:
       type: object
-      required: [limit, lookedBackTo, truncated]
+      required: [limit]
       description: Where a trace search stopped. Pages follow `nextCursor`, not an offset.
       properties:
         limit:
@@ -325,19 +325,17 @@ components:
           type: string
           description: |
             Opaque cursor for the next page, sent back as `cursor`. Absent when the window ran
-            out. Not set yet: `cursor` is refused until the trace stores support it.
+            out. Not set yet: `cursor` is refused until the trace stores support it. Never set
+            on an export, which takes no cursor.
         lookedBackTo:
           type: string
           format: date-time
-          description: |
-            How far the server searched: the start time of the page's last trace when the
-            window holds more, else the window edge (`startTime` for `desc`, `endTime` for `asc`).
-            For display; page with `nextCursor`.
+          description: How far the search got. Sent only with `truncated`.
         truncated:
           type: boolean
           description: |
-            True when the server stopped before filling the page and before the window ran
-            out. Always false while trace filters are refused.
+            Sent only as true, when the search stopped before the page filled and before the
+            window ran out. Absent means not truncated.
 
     TraceListResponse:
       type: object

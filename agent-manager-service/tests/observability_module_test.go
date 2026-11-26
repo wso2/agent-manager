@@ -167,11 +167,7 @@ func TestObservabilityModule(t *testing.T) {
 		var list observability.TraceListResponse
 		require.NoError(t, json.Unmarshal(body, &list))
 		require.Len(t, list.Traces, 1)
-		assert.Equal(t, 10, list.Pagination.Limit)
-		require.NotNil(t, list.Pagination.Total)
-		assert.Equal(t, 1, *list.Pagination.Total)
-		assert.Equal(t, window.Get("startTime"), list.Pagination.LookedBackTo)
-		assert.False(t, list.Pagination.Truncated)
+		assert.JSONEq(t, `{"limit":10,"total":1}`, string(mustField(t, body, "pagination")))
 		assert.Equal(t, "trace-a", list.Traces[0].TraceID)
 		assert.Equal(t, "agent", list.Traces[0].RootSpanKind)
 
@@ -199,8 +195,7 @@ func TestObservabilityModule(t *testing.T) {
 		var export observability.TraceExportResponse
 		require.NoError(t, json.Unmarshal(body, &export))
 		require.Len(t, export.Traces, 1)
-		require.NotNil(t, export.Pagination.Total)
-		assert.Equal(t, 1, *export.Pagination.Total)
+		assert.JSONEq(t, `{"limit":100,"total":1}`, string(mustField(t, body, "pagination")))
 		assert.Equal(t, "trace-a", export.Traces[0].TraceID)
 		require.Len(t, export.Traces[0].Spans, 2)
 		assert.Equal(t, "gpt-4o", export.Traces[0].Spans[1].Attributes["gen_ai.request.model"])

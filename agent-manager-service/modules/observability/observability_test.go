@@ -177,13 +177,19 @@ func TestListTracesPage(t *testing.T) {
 	if len(got.Traces) != 2 || got.Traces[0].TraceID != "2" {
 		t.Fatalf("listed %+v, want the 2 newest", got.Traces)
 	}
-	p := got.Pagination
-	if p.Limit != 2 || p.Total == nil || *p.Total != 3 || p.Truncated || p.NextCursor != "" {
-		t.Errorf("pagination = %+v, want limit 2, total 3, not truncated, no cursor", p)
+	if got, want := rawPagination(t, w.Body.Bytes()), `{"limit":2,"total":3}`; got != want {
+		t.Errorf("pagination = %s, want %s: no cursor, not truncated", got, want)
 	}
-	if want := "2026-11-01T12:00:01Z"; p.LookedBackTo != want {
-		t.Errorf("lookedBackTo = %s, want the last listed trace's start %s", p.LookedBackTo, want)
+}
+
+// rawPagination is a response body's pagination as sent.
+func rawPagination(t *testing.T, body []byte) string {
+	t.Helper()
+	var raw struct{ Pagination json.RawMessage }
+	if err := json.Unmarshal(body, &raw); err != nil {
+		t.Fatal(err)
 	}
+	return string(raw.Pagination)
 }
 
 func TestExportTraces(t *testing.T) {
@@ -218,8 +224,8 @@ func TestExportTraces(t *testing.T) {
 	if n := len(got.Traces[1].Spans); n != maxExportSpans {
 		t.Errorf("big trace has %d spans, want the cap %d", n, maxExportSpans)
 	}
-	if got.Pagination.Truncated {
-		t.Error("pagination.truncated = true, want false: the search wasn't cut")
+	if p, want := rawPagination(t, w.Body.Bytes()), `{"limit":100,"total":2}`; p != want {
+		t.Errorf("pagination = %s, want %s: no cursor, not truncated", p, want)
 	}
 	if !got.SpansTruncated {
 		t.Error("spansTruncated = false, want true")
