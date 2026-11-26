@@ -78,11 +78,12 @@ if [ -n "$TOKEN" ]; then check login ok ok; else check login ok "no token (is AU
 A=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
 
 # --- Core API ------------------------------------------------------------------------
-check orgs 200 "$(code "${A[@]}" "$API/api/v1/orgs")"
+check organizations 200 "$(code "${A[@]}" "$API/api/v1/organizations")"
 # A fresh install lists its default organization before anything is written to it.
 ORG=$(jq -r '.organizations[0].name // empty' "$BODY" 2>/dev/null)
 if [ -n "$ORG" ]; then check orgs-listed ok ok; else check orgs-listed ok "none"; fi
 ORG=${ORG:-default}
+check organization-current 200 "$(code "${A[@]}" "$API/api/v1/organizations/current")"
 B=$API/api/v1/orgs/$ORG
 # The AI Gateway module's API.
 GW=$API/m/ai-gateway/orgs/$ORG
@@ -111,9 +112,10 @@ check unknown-extension 400 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "x$
 # that name, and amp-core no ai-gateway module.
 check agent-with-llm-config-refused 400 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "llm$AG" "L" ',"extensions":{"ai-gateway":{"modelConfig":[{"providerName":"nosuch-provider"}]}}')")"
 check agent-llm-not-created 404 "$(code "${A[@]}" "$AGS/llm$AG?project=$P")"
-check environments 200 "$(code "${A[@]}" "$B/environments")"
-check identity-roles 200 "$(code "${A[@]}" "$B/identities/roles")"
-check events-types 200 "$(code "${A[@]}" "$B/events/event-types")"
+check environments 200 "$(code "${A[@]}" "$API/api/v1/environments")"
+check identity-roles 200 "$(code "${A[@]}" "$API/api/v1/identities/roles")"
+check events-types 200 "$(code "${A[@]}" "$API/api/v1/events/event-types")"
+check events-old-path 404 "$(code "${A[@]}" "$B/events/event-types")"
 
 # --- Gateway routes: served by amp, absent from amp-core -----------------------------------
 check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
