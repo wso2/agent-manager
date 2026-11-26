@@ -460,12 +460,6 @@ type LLMPolicy struct {
 // LLM Provider Template
 // ---------------------------------------------------------------------------
 
-type CreateLLMProviderTemplateRequest struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-}
-
 type LLMProviderTemplateMetadataAuth struct {
 	Type        string `json:"type"`
 	Header      string `json:"header"`
@@ -477,20 +471,25 @@ type LLMProviderTemplateMetadata struct {
 	Auth        *LLMProviderTemplateMetadataAuth `json:"auth,omitempty"`
 }
 
-type LLMProviderTemplateResponse struct {
-	UUID        string                       `json:"uuid"`
-	ID          string                       `json:"id"`
-	Name        string                       `json:"name"`
-	Description string                       `json:"description"`
+// LLMProviderTemplateSpec is the spec of an LlmProviderTemplate document.
+type LLMProviderTemplateSpec struct {
+	DisplayName string                       `json:"displayName"`
+	Description string                       `json:"description,omitempty"`
 	Metadata    *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-	CreatedAt   time.Time                    `json:"createdAt,omitempty"`
 }
 
-type LLMProviderTemplateListResponse struct {
-	Templates []LLMProviderTemplateResponse `json:"templates"`
-	Total     int                           `json:"total"`
-	Limit     int                           `json:"limit"`
-	Offset    int                           `json:"offset"`
+// LLMProviderTemplateDocument is an LLM provider template as a document.
+type LLMProviderTemplateDocument struct {
+	APIVersion string                  `json:"apiVersion"`
+	Kind       string                  `json:"kind"`
+	Metadata   DocumentMetadata        `json:"metadata"`
+	Spec       LLMProviderTemplateSpec `json:"spec"`
+}
+
+// LLMProviderTemplateList is the list envelope of templates.
+type LLMProviderTemplateList struct {
+	Count int                           `json:"count"`
+	List  []LLMProviderTemplateDocument `json:"list"`
 }
 
 // ---------------------------------------------------------------------------

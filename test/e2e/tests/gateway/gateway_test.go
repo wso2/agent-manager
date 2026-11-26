@@ -213,7 +213,7 @@ var _ = Describe("Platform gateway", Label("gateway"), Ordered, func() {
 		})
 		deps := func() []framework.Obj {
 			return framework.CallJSON[[]framework.Obj](Default, Client, http.MethodGet,
-				framework.GW(Cfg, "/llm-providers/%s/deployments", prov.Metadata.UID), nil, http.StatusOK)
+				"/m/ai-gateway/llm-providers/"+prov.Metadata.UID+"/deployments", nil, http.StatusOK)
 		}
 		var depID string
 		for _, d := range deps() {
