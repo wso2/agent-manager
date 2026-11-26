@@ -44,7 +44,7 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 3. "Not set" is always NULL. No empty-string defaults (Oracle stores `''` as NULL).
 4. Hard deletes. No soft-delete columns. The audit log keeps history.
 5. Names of tables, columns, indexes and constraints: lowercase snake_case, at most 63 characters. Text that is unique or indexed stays within 4,000 bytes; long text and JSON are never unique or indexed.
-6. Every tenant-owned table has `org_id`. A child points at its parent through a composite key that includes `org_id` (for example (`org_id`, `project_id`) → `projects(org_id, id)`), so a row can never point at another org's data.
+6. Every tenant-owned table has `org_id`. A child points at its parent through a composite key that includes `org_id` (for example (`org_id`, `project_id`) → `projects(org_id, id)`), so a row can never point at another org's data. A module's tenant-owned tables carry `org_id` too, holding the organization's id with no foreign key to `organizations`, since module tables never reference core tables. Foreign keys between a module's own tables stay; most include `org_id`, as (`org_id`, `gateway_id`) → `gateways` does, and only those make the database check that a child is in its parent's organization. A few use the parent's key alone (for example (`gateway_id`, `environment_id`) → `gateway_environments` from `environment_default_gateways`), so the service keeps those in one organization.
 7. One cascade path per table (SQL Server rejects more). Cascades follow org › project › agent; anything else is deleted by the service.
 8. No unique keys on nullable columns (SQL Server allows only one NULL in a unique key).
 9. Comparisons are case-sensitive on all four databases. On SQL Server, key text columns use a case-sensitive collation.
@@ -273,7 +273,7 @@ Indexes (available_at, id), (secret_id), (provider, external_ref). A `destroy` j
 
 Everything in this section, and `agent_gateway_settings` above, belongs to the `ai-gateway` module: each table is created by the module's migrations as `mod_ai_gateway_<name>` (see [Gateway module tables](#gateway-module-tables)), and its references to core rows (organizations, projects, agents, environments, secrets) have no foreign keys. The descriptions below use the short names.
 
-Common changes to every existing table here: `ou_id` becomes `org_id` (FK); leftover `organization_name` / `org_name` / `project_name` / `agent_name` columns and `deleted_at` go (rows point at the owner's id instead); `environment_name` + `environment_uuid` become one `environment_id` FK. Columns not mentioned keep today's meaning and get the portable types.
+Common changes to every existing table here: `ou_id` becomes `org_id`, the organization's id with no foreign key; leftover `organization_name` / `org_name` / `project_name` / `agent_name` columns and `deleted_at` go (rows point at the owner's id instead); `environment_name` + `environment_uuid` become one `environment_id`, likewise with no foreign key. Columns not mentioned keep today's meaning and get the portable types.
 
 ### Gateways
 

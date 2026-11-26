@@ -34,7 +34,7 @@ import (
 func agCreateToolProxy(t *testing.T, a *routeAPI, handle string, identity bool, tools ...string) {
 	t.Helper()
 	body := agMCPProxyBody(handle, a.defaultEnv().String())
-	ep := body["endpoints"].([]any)[0].(map[string]any)
+	ep := body["spec"].(map[string]any)["endpoints"].([]any)[0].(map[string]any)
 	discovered := make([]any, 0, len(tools))
 	for _, tl := range tools {
 		discovered = append(discovered, map[string]any{"name": tl})
@@ -43,7 +43,20 @@ func agCreateToolProxy(t *testing.T, a *routeAPI, handle string, identity bool, 
 	if identity {
 		ep["security"] = map[string]any{"enabled": true, "identity": map[string]any{"enabled": true}}
 	}
-	expect(t, a.do(http.MethodPost, "/orgs/{org}/mcp-proxies", body), http.StatusCreated)
+	expect(t, a.do(http.MethodPost, "/mcp-proxies", body), http.StatusCreated)
+}
+
+// agScopeDoc is an MCP proxy scope document; metadata.name is the action.
+func agScopeDoc(action string, spec map[string]any) map[string]any {
+	if spec == nil {
+		spec = map[string]any{}
+	}
+	return map[string]any{
+		"apiVersion": "ai-control-plane.choreolabs.com/v1",
+		"kind":       "McpProxyScope",
+		"metadata":   map[string]any{"name": action},
+		"spec":       spec,
+	}
 }
 
 // TestAGRoutesMCPProxyScopeLifecycle creates, lists, updates and deletes a
@@ -51,34 +64,41 @@ func agCreateToolProxy(t *testing.T, a *routeAPI, handle string, identity bool, 
 func TestAGRoutesMCPProxyScopeLifecycle(t *testing.T) {
 	a, _ := agSetup(t)
 	agCreateToolProxy(t, a, "forecast", false, "get_forecast", "get_alerts")
-	base := "/orgs/{org}/mcp-proxies/forecast/scopes"
+	base := "/mcp-proxies/forecast/scopes"
 
 	empty := expectInto[gwspec.MCPProxyScopeListResponse](t, a.do(http.MethodGet, base, nil), http.StatusOK)
-	assert.Empty(t, empty.Scopes)
+	assert.Empty(t, empty.List)
 
-	created := expectInto[gwspec.MCPProxyScopeResponse](t, a.do(http.MethodPost, base, map[string]any{
-		"action": "read", "description": "read the forecast", "tools": []string{"get_forecast"},
-	}), http.StatusCreated)
-	assert.Equal(t, "read", created.Action)
-	assert.Equal(t, "forecast:read", created.Scope)
-	assert.Equal(t, "read the forecast", *created.Description)
-	assert.Equal(t, []string{"get_forecast"}, created.Tools)
+	created := expectInto[gwspec.McpProxyScopeDocument](t, a.do(http.MethodPost, base, agScopeDoc("read", map[string]any{
+		"description": "read the forecast", "tools": []string{"get_forecast"},
+	})), http.StatusCreated)
+	assert.Equal(t, "ai-control-plane.choreolabs.com/v1", created.ApiVersion)
+	assert.Equal(t, "McpProxyScope", created.Kind)
+	assert.Equal(t, "read", created.Metadata.Name)
+	assert.Equal(t, "forecast:read", *created.Spec.Scope)
+	assert.Equal(t, "read the forecast", *created.Spec.Description)
+	assert.Equal(t, []string{"get_forecast"}, created.Spec.Tools)
 
-	updated := expectInto[gwspec.MCPProxyScopeResponse](t, a.do(http.MethodPut, base+"/read", map[string]any{
+	updated := expectInto[gwspec.McpProxyScopeDocument](t, a.do(http.MethodPut, base+"/read", agScopeDoc("read", map[string]any{
 		"description": "read everything", "tools": []string{"get_forecast", "get_alerts"},
-	}), http.StatusOK)
-	assert.Equal(t, "read everything", *updated.Description)
-	assert.Equal(t, []string{"get_alerts", "get_forecast"}, updated.Tools, "tools are stored sorted")
+	})), http.StatusOK)
+	assert.Equal(t, "read everything", *updated.Spec.Description)
+	assert.Equal(t, []string{"get_alerts", "get_forecast"}, updated.Spec.Tools, "tools are stored sorted")
 
 	list := expectInto[gwspec.MCPProxyScopeListResponse](t, a.do(http.MethodGet, base, nil), http.StatusOK)
-	require.Len(t, list.Scopes, 1)
-	assert.Equal(t, "forecast:read", list.Scopes[0].Scope)
-	assert.Equal(t, "read everything", *list.Scopes[0].Description)
+	require.Len(t, list.List, 1)
+	assert.Equal(t, "forecast:read", *list.List[0].Spec.Scope)
+	assert.Equal(t, "read everything", *list.List[0].Spec.Description)
 
-	rec := a.do(http.MethodDelete, base+"/read", nil)
+	// The action is immutable, so a document that renames it is refused.
+	rec := a.do(http.MethodPut, base+"/read", agScopeDoc("write", map[string]any{"description": "d"}))
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Equal(t, "metadata.name does not match the scope action in the path", errorMessage(t, rec))
+
+	rec = a.do(http.MethodDelete, base+"/read", nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 	list = expectInto[gwspec.MCPProxyScopeListResponse](t, a.do(http.MethodGet, base, nil), http.StatusOK)
-	assert.Empty(t, list.Scopes)
+	assert.Empty(t, list.List)
 }
 
 // TestAGRoutesMCPProxyScopeRejections pins the 400, 404, 409 and 403 answers of
@@ -86,8 +106,8 @@ func TestAGRoutesMCPProxyScopeLifecycle(t *testing.T) {
 func TestAGRoutesMCPProxyScopeRejections(t *testing.T) {
 	a, _ := agSetup(t)
 	agCreateToolProxy(t, a, "forecast", false, "get_forecast")
-	base := "/orgs/{org}/mcp-proxies/forecast/scopes"
-	expect(t, a.do(http.MethodPost, base, map[string]any{"action": "read"}), http.StatusCreated)
+	base := "/mcp-proxies/forecast/scopes"
+	expect(t, a.do(http.MethodPost, base, agScopeDoc("read", nil)), http.StatusCreated)
 
 	tests := []struct {
 		name    string
@@ -98,17 +118,19 @@ func TestAGRoutesMCPProxyScopeRejections(t *testing.T) {
 		message string
 	}{
 		{"create malformed json", http.MethodPost, base, "{", http.StatusBadRequest, "Invalid request body"},
-		{"create bad action", http.MethodPost, base, map[string]any{"action": "no spaces"}, http.StatusBadRequest, "action must match"},
-		{"create undiscovered tool", http.MethodPost, base, map[string]any{"action": "write", "tools": []string{"drop_db"}}, http.StatusBadRequest, `tool "drop_db" is not among`},
-		{"create duplicate tool", http.MethodPost, base, map[string]any{"action": "write", "tools": []string{"get_forecast", "get_forecast"}}, http.StatusBadRequest, "duplicate tool"},
-		{"create existing action", http.MethodPost, base, map[string]any{"action": "read"}, http.StatusConflict, `scope action "read" already exists`},
-		{"create on unknown proxy", http.MethodPost, "/orgs/{org}/mcp-proxies/ghost/scopes", map[string]any{"action": "read"}, http.StatusNotFound, "MCP proxy not found"},
-		{"list unknown proxy", http.MethodGet, "/orgs/{org}/mcp-proxies/ghost/scopes", nil, http.StatusNotFound, "MCP proxy not found"},
+		{"create bad action", http.MethodPost, base, agScopeDoc("no spaces", nil), http.StatusBadRequest, "action must match"},
+		{"create wrong kind", http.MethodPost, base, agMCPProxyBody("read", a.defaultEnv().String()), http.StatusBadRequest, `kind must be "McpProxyScope"`},
+		{"create no action", http.MethodPost, base, agScopeDoc("", nil), http.StatusBadRequest, "metadata.name is required"},
+		{"create undiscovered tool", http.MethodPost, base, agScopeDoc("write", map[string]any{"tools": []string{"drop_db"}}), http.StatusBadRequest, `tool "drop_db" is not among`},
+		{"create duplicate tool", http.MethodPost, base, agScopeDoc("write", map[string]any{"tools": []string{"get_forecast", "get_forecast"}}), http.StatusBadRequest, "duplicate tool"},
+		{"create existing action", http.MethodPost, base, agScopeDoc("read", nil), http.StatusConflict, `scope action "read" already exists`},
+		{"create on unknown proxy", http.MethodPost, "/mcp-proxies/ghost/scopes", agScopeDoc("read", nil), http.StatusNotFound, "MCP proxy not found"},
+		{"list unknown proxy", http.MethodGet, "/mcp-proxies/ghost/scopes", nil, http.StatusNotFound, "MCP proxy not found"},
 		{"update malformed json", http.MethodPut, base + "/read", "{", http.StatusBadRequest, "Invalid request body"},
-		{"update undiscovered tool", http.MethodPut, base + "/read", map[string]any{"tools": []string{"drop_db"}}, http.StatusBadRequest, "not among the proxy's discovered tools"},
-		{"update unknown action", http.MethodPut, base + "/write", map[string]any{"description": "d"}, http.StatusNotFound, "MCP proxy or scope not found"},
+		{"update undiscovered tool", http.MethodPut, base + "/read", agScopeDoc("read", map[string]any{"tools": []string{"drop_db"}}), http.StatusBadRequest, "not among the proxy's discovered tools"},
+		{"update unknown action", http.MethodPut, base + "/write", agScopeDoc("write", map[string]any{"description": "d"}), http.StatusNotFound, "MCP proxy or scope not found"},
 		{"delete unknown action", http.MethodDelete, base + "/write", nil, http.StatusNotFound, "MCP proxy or scope not found"},
-		{"delete on unknown proxy", http.MethodDelete, "/orgs/{org}/mcp-proxies/ghost/scopes/read", nil, http.StatusNotFound, "MCP proxy or scope not found"},
+		{"delete on unknown proxy", http.MethodDelete, "/mcp-proxies/ghost/scopes/read", nil, http.StatusNotFound, "MCP proxy or scope not found"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -124,11 +146,11 @@ func TestAGRoutesMCPProxyScopeRejections(t *testing.T) {
 		{http.MethodPut, base + "/read", gwperm.ScopeRead},
 		{http.MethodDelete, base + "/read", gwperm.ScopeRead},
 	} {
-		rec := a.do(r.method, r.path, map[string]any{"action": "x"}, withScopes(scope(r.perm)))
+		rec := a.do(r.method, r.path, agScopeDoc("x", nil), withScopes(scope(r.perm)))
 		assert.Equal(t, http.StatusForbidden, rec.Code, "%s %s: %s", r.method, r.path, rec.Body.String())
 	}
 	list := expectInto[gwspec.MCPProxyScopeListResponse](t, a.do(http.MethodGet, base, nil), http.StatusOK)
-	require.Len(t, list.Scopes, 1, "the refused calls changed nothing")
+	require.Len(t, list.List, 1, "the refused calls changed nothing")
 }
 
 // TestAGRoutesAgentIdentityScopes pins the environment's grantable scopes: only
@@ -137,9 +159,9 @@ func TestAGRoutesAgentIdentityScopes(t *testing.T) {
 	a, _ := agSetup(t)
 	agCreateToolProxy(t, a, "secured", true, "get_forecast")
 	agCreateToolProxy(t, a, "keyed", false, "get_forecast")
-	expect(t, a.do(http.MethodPost, "/orgs/{org}/mcp-proxies/secured/scopes",
-		map[string]any{"action": "read", "description": "read it"}), http.StatusCreated)
-	expect(t, a.do(http.MethodPost, "/orgs/{org}/mcp-proxies/keyed/scopes", map[string]any{"action": "read"}), http.StatusCreated)
+	expect(t, a.do(http.MethodPost, "/mcp-proxies/secured/scopes",
+		agScopeDoc("read", map[string]any{"description": "read it"})), http.StatusCreated)
+	expect(t, a.do(http.MethodPost, "/mcp-proxies/keyed/scopes", agScopeDoc("read", nil)), http.StatusCreated)
 
 	got := expectInto[gwspec.AgentIdentityScopeListResponse](t,
 		a.do(http.MethodGet, "/orgs/{org}/environments/default/agent-identities/scopes", nil), http.StatusOK)

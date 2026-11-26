@@ -47,7 +47,6 @@ type stubAgentService struct {
 	services.AgentManagerService
 	get        func(ouID, proj, agent string) (*models.AgentResponse, error)
 	list       func(ouID, proj string, labels map[string]string, limit, offset int32) ([]*models.AgentResponse, int32, error)
-	listOrg    func(ouID string) ([]*models.AgentSummary, error)
 	create     func(ouID, proj string, req *spec.CreateAgentRequest) error
 	update     func(ouID, proj, agent string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error)
 	del        func(ouID, proj, agent string) error
@@ -67,10 +66,6 @@ func (s *stubAgentService) GetAgent(_ context.Context, ouID, proj, agent string)
 
 func (s *stubAgentService) ListAgents(_ context.Context, ouID, proj string, labels map[string]string, limit, offset int32) ([]*models.AgentResponse, int32, error) {
 	return s.list(ouID, proj, labels, limit, offset)
-}
-
-func (s *stubAgentService) ListOrgAgents(_ context.Context, ouID string) ([]*models.AgentSummary, error) {
-	return s.listOrg(ouID)
 }
 
 func (s *stubAgentService) CreateAgent(_ context.Context, ouID, proj string, req *spec.CreateAgentRequest) error {
@@ -130,12 +125,21 @@ func (c *recordingCleaner) RemoveForAgent(_ context.Context, ouID, proj, agent s
 type agentCall struct {
 	method, url, body string
 	rec               audit.Recorder
+	// noProject leaves out the project query parameter every other call carries.
+	noProject bool
 }
 
 func serveAgent(t *testing.T, svc services.AgentManagerService, cleaner services.EventsCleaner, h func(AgentController) http.HandlerFunc, c agentCall) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(c.method, c.url, strings.NewReader(c.body))
-	req.SetPathValue(utils.PathParamProjName, "proj")
+	url := c.url
+	if !c.noProject && !strings.Contains(url, "project=") {
+		sep := "?"
+		if strings.Contains(url, "?") {
+			sep = "&"
+		}
+		url += sep + "project=proj"
+	}
+	req := httptest.NewRequest(c.method, url, strings.NewReader(c.body))
 	req.SetPathValue(utils.PathParamAgentName, "agent")
 	ctx := middleware.WithResolvedOrg(req.Context(), orgctx.ResolvedOrg{OUID: callerOU, OuHandle: "acme"})
 	if c.rec == nil {
@@ -217,8 +221,15 @@ func agentModel(name string) *models.AgentResponse {
 		UUID: "uuid-" + name, Name: name, DisplayName: "Agent " + name, ProjectName: "proj",
 		CreatedAt:    time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
 		Provisioning: models.Provisioning{Type: string(utils.ExternalAgent)},
+		Type:         models.AgentType{Type: "external-agent-api"},
 		Labels:       map[string]string{"team": "a"},
 	}
+}
+
+// agentDoc is an Agent document body for agent in project proj with the given spec.
+func agentDoc(name, spec string) string {
+	return `{"apiVersion":"ai-control-plane.choreolabs.com/v1","kind":"Agent","metadata":{"name":"` + name +
+		`","project":"proj"},"spec":` + spec + `}`
 }
 
 func TestAgentController_GetAgent(t *testing.T) {
@@ -231,10 +242,20 @@ func TestAgentController_GetAgent(t *testing.T) {
 	}}
 	w := serveAgent(t, svc, nil, get, agentCall{method: http.MethodGet, url: "/x"})
 	require.Equal(t, http.StatusOK, w.Code)
-	var resp spec.AgentResponse
+	var resp spec.AgentDocument
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "agent", resp.Name)
-	assert.Equal(t, "Agent agent", resp.DisplayName)
+	assert.Equal(t, "ai-control-plane.choreolabs.com/v1", resp.ApiVersion)
+	assert.Equal(t, "Agent", resp.Kind)
+	assert.Equal(t, "agent", resp.Metadata.Name)
+	assert.Equal(t, "proj", resp.Metadata.Project)
+	assert.Equal(t, "uuid-agent", resp.Metadata.GetUid())
+	assert.Equal(t, "Agent agent", resp.Spec.DisplayName)
+	assert.Equal(t, "external", resp.Spec.Provisioning.Type)
+	assert.Equal(t, map[string]string{"team": "a"}, resp.Spec.GetLabels())
+
+	w = serveAgent(t, svc, nil, get, agentCall{method: http.MethodGet, url: "/x", noProject: true})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Equal(t, "project query parameter is required", decodeError(t, w).Message)
 
 	svc.get = func(string, string, string) (*models.AgentResponse, error) { return nil, utils.ErrAgentNotFound }
 	w = serveAgent(t, svc, nil, get, agentCall{method: http.MethodGet, url: "/x"})
@@ -246,9 +267,9 @@ func TestAgentController_ListAgents(t *testing.T) {
 	list := func(c AgentController) http.HandlerFunc { return c.ListAgents }
 
 	for _, tc := range []struct{ query, msg string }{
-		{"limit=0", "Invalid limit parameter: must be between 1 and 100"},
-		{"limit=101", "Invalid limit parameter: must be between 1 and 100"},
-		{"limit=abc", "Invalid limit parameter: must be between 1 and 100"},
+		{"limit=0", "Invalid limit parameter: must be between 1 and 500"},
+		{"limit=501", "Invalid limit parameter: must be between 1 and 500"},
+		{"limit=abc", "Invalid limit parameter: must be between 1 and 500"},
 		{"offset=-1", "Invalid offset parameter: must be 0 or greater"},
 		{"offset=x", "Invalid offset parameter: must be 0 or greater"},
 	} {
@@ -277,10 +298,22 @@ func TestAgentController_ListAgents(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code)
 		var resp spec.AgentListResponse
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-		assert.Equal(t, int32(7), resp.Total)
-		assert.Equal(t, int32(utils.DefaultLimit), resp.Limit)
-		require.Len(t, resp.Agents, 2)
-		assert.Equal(t, "a2", resp.Agents[1].Name)
+		assert.Equal(t, int32(2), resp.Count)
+		assert.Equal(t, int32(7), resp.Pagination.GetTotal())
+		assert.Equal(t, int32(utils.DefaultLimit), resp.Pagination.GetLimit())
+		require.Len(t, resp.List, 2)
+		assert.Equal(t, "a2", resp.List[1].Metadata.Name)
+	})
+
+	t.Run("without a project the list spans the org", func(t *testing.T) {
+		svc := &stubAgentService{list: func(_, proj string, _ map[string]string, _, _ int32) ([]*models.AgentResponse, int32, error) {
+			assert.Empty(t, proj, "no project means every project")
+			return nil, 0, nil
+		}}
+		w := serveAgent(t, svc, nil, list, agentCall{method: http.MethodGet, url: "/x?limit=500", noProject: true})
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `{"count":0,"list":[],"pagination":{"limit":500,"offset":0,"total":0}}`, w.Body.String(),
+			"an empty page is [] on the wire, never null")
 	})
 
 	t.Run("an explicit page is passed through", func(t *testing.T) {
@@ -294,28 +327,10 @@ func TestAgentController_ListAgents(t *testing.T) {
 	})
 }
 
-func TestAgentController_ListOrgAgents(t *testing.T) {
-	listOrg := func(c AgentController) http.HandlerFunc { return c.ListOrgAgents }
-	svc := &stubAgentService{listOrg: func(ouID string) ([]*models.AgentSummary, error) {
-		assert.Equal(t, callerOU, ouID)
-		return []*models.AgentSummary{{Name: "a1", DisplayName: "A1", ProjectName: "p", ProjectDisplayName: "P"}}, nil
-	}}
-	w := serveAgent(t, svc, nil, listOrg, agentCall{method: http.MethodGet, url: "/x"})
-	require.Equal(t, http.StatusOK, w.Code)
-	var resp spec.AgentSummaryListResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	require.Len(t, resp.Agents, 1)
-	assert.Equal(t, "P", resp.Agents[0].ProjectDisplayName)
-
-	svc.listOrg = func(string) ([]*models.AgentSummary, error) { return nil, errThunder }
-	w = serveAgent(t, svc, nil, listOrg, agentCall{method: http.MethodGet, url: "/x"})
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.Equal(t, "Failed to list agents", decodeError(t, w).Message)
-}
-
 func TestAgentController_CreateAgent(t *testing.T) {
 	create := func(c AgentController) http.HandlerFunc { return c.CreateAgent }
-	valid := `{"name":"my-agent","displayName":"My Agent","description":"d","provisioning":{"type":"external"},"agentType":{"type":"external-agent-api"}}`
+	validSpec := `{"displayName":"My Agent","description":"d","provisioning":{"type":"external"},"agentType":{"type":"external-agent-api"},"labels":{"team":"a"}}`
+	valid := agentDoc("my-agent", validSpec)
 
 	for _, tc := range []struct {
 		name, body string
@@ -323,38 +338,45 @@ func TestAgentController_CreateAgent(t *testing.T) {
 		msg        string
 	}{
 		{"malformed body", "{", http.StatusBadRequest, "Invalid request body"},
-		{"hosted agents are refused", `{"name":"a","provisioning":{"type":"internal"}}`, http.StatusNotImplemented, "Only external agents can be created in this deployment"},
-		{"invalid name", `{"name":"Bad_Name","displayName":"x","provisioning":{"type":"external"},"agentType":{"type":"external-agent-api"}}`, http.StatusBadRequest, "Agent name must contain only lowercase alphanumeric characters or '-'"},
-		{"missing agent type", `{"name":"a","displayName":"x","provisioning":{"type":"external"}}`, http.StatusBadRequest, "Agent type is required"},
+		{"wrong kind", strings.Replace(valid, `"kind":"Agent"`, `"kind":"LlmProvider"`, 1), http.StatusBadRequest, `kind must be "Agent" on this route, got "LlmProvider"`},
+		{"wrong apiVersion", strings.Replace(valid, "choreolabs.com/v1", "choreolabs.com/v2", 1), http.StatusBadRequest, `apiVersion must be "ai-control-plane.choreolabs.com/v1", got "ai-control-plane.choreolabs.com/v2"`},
+		{"missing project", strings.Replace(valid, `,"project":"proj"`, "", 1), http.StatusBadRequest, "metadata.project is required"},
+		{"missing spec", `{"apiVersion":"ai-control-plane.choreolabs.com/v1","kind":"Agent","metadata":{"name":"a","project":"proj"}}`, http.StatusBadRequest, "spec is required"},
+		{"hosted agents are refused", agentDoc("a", `{"displayName":"x","provisioning":{"type":"internal"}}`), http.StatusNotImplemented, "Only external agents can be created in this deployment"},
+		{"invalid name", agentDoc("Bad_Name", `{"displayName":"x","provisioning":{"type":"external"},"agentType":{"type":"external-agent-api"}}`), http.StatusBadRequest, "Agent name must contain only lowercase alphanumeric characters or '-'"},
+		{"missing agent type", agentDoc("a", `{"displayName":"x","provisioning":{"type":"external"}}`), http.StatusBadRequest, "Agent type is required"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			w := serveAgent(t, &stubAgentService{}, nil, create, agentCall{method: http.MethodPost, url: "/x", body: tc.body})
+			w := serveAgent(t, &stubAgentService{}, nil, create, agentCall{method: http.MethodPost, url: "/x", body: tc.body, noProject: true})
 			assert.Equal(t, tc.status, w.Code)
 			assert.Equal(t, tc.msg, decodeError(t, w).Message)
 		})
 	}
 
-	t.Run("accepted with the request echoed", func(t *testing.T) {
+	t.Run("accepted with the document echoed", func(t *testing.T) {
 		svc := &stubAgentService{create: func(ouID, proj string, req *spec.CreateAgentRequest) error {
 			assert.Equal(t, callerOU, ouID)
-			assert.Equal(t, "proj", proj)
+			assert.Equal(t, "proj", proj, "the project comes from metadata.project")
 			assert.Equal(t, "my-agent", req.Name)
+			assert.Equal(t, "My Agent", req.DisplayName)
+			assert.Equal(t, map[string]string{"team": "a"}, req.GetLabels())
 			return nil
 		}}
-		w := serveAgent(t, svc, nil, create, agentCall{method: http.MethodPost, url: "/x", body: valid})
+		w := serveAgent(t, svc, nil, create, agentCall{method: http.MethodPost, url: "/x", body: valid, noProject: true})
 		require.Equal(t, http.StatusAccepted, w.Code)
-		var resp spec.AgentResponse
+		var resp spec.AgentDocument
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-		assert.Equal(t, "my-agent", resp.Name)
-		assert.Equal(t, "d", resp.Description)
-		assert.Equal(t, "proj", resp.ProjectName)
-		assert.Equal(t, "external-agent-api", resp.AgentType.Type)
-		assert.False(t, resp.CreatedAt.IsZero())
+		assert.Equal(t, "my-agent", resp.Metadata.Name)
+		assert.Equal(t, "proj", resp.Metadata.Project)
+		assert.Equal(t, "d", resp.Spec.GetDescription())
+		assert.Equal(t, "external-agent-api", resp.Spec.AgentType.Type)
+		assert.Equal(t, map[string]string{"team": "a"}, resp.Spec.GetLabels())
+		assert.False(t, resp.Metadata.GetCreationTimestamp().IsZero())
 	})
 
 	t.Run("an existing agent is a conflict", func(t *testing.T) {
 		svc := &stubAgentService{create: func(string, string, *spec.CreateAgentRequest) error { return utils.ErrAgentAlreadyExists }}
-		w := serveAgent(t, svc, nil, create, agentCall{method: http.MethodPost, url: "/x", body: valid})
+		w := serveAgent(t, svc, nil, create, agentCall{method: http.MethodPost, url: "/x", body: valid, noProject: true})
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Equal(t, utils.ErrCodeAgentAlreadyExists, decodeError(t, w).Code)
 	})
@@ -362,30 +384,85 @@ func TestAgentController_CreateAgent(t *testing.T) {
 
 func TestAgentController_UpdateAgentBasicInfo(t *testing.T) {
 	update := func(c AgentController) http.HandlerFunc { return c.UpdateAgentBasicInfo }
-
-	w := serveAgent(t, &stubAgentService{}, nil, update, agentCall{method: http.MethodPut, url: "/x", body: "nope"})
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	w = serveAgent(t, &stubAgentService{}, nil, update, agentCall{method: http.MethodPut, url: "/x", body: `{"displayName":""}`})
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Equal(t, "Agent display name cannot be empty", decodeError(t, w).Message)
-
-	svc := &stubAgentService{update: func(_, _, agent string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error) {
-		a := agentModel(agent)
-		a.DisplayName = req.DisplayName
-		return a, nil
-	}}
-	w = serveAgent(t, svc, nil, update, agentCall{method: http.MethodPut, url: "/x", body: `{"displayName":"Renamed","description":""}`})
-	require.Equal(t, http.StatusOK, w.Code)
-	var resp spec.AgentResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "Renamed", resp.DisplayName)
-
-	svc.update = func(string, string, string, *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error) {
-		return nil, utils.ErrImmutableFieldChange
+	stored := func() *models.AgentResponse {
+		a := agentModel("agent")
+		a.Description = "kept"
+		return a
 	}
-	w = serveAgent(t, svc, nil, update, agentCall{method: http.MethodPut, url: "/x", body: `{"displayName":"x"}`})
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Equal(t, utils.ErrCodeImmutableField, decodeError(t, w).Code)
+	put := func(svc *stubAgentService, body string) *httptest.ResponseRecorder {
+		return serveAgent(t, svc, nil, update, agentCall{method: http.MethodPut, url: "/x", body: body})
+	}
+	newSvc := func(check func(req *spec.UpdateAgentBasicInfoRequest)) *stubAgentService {
+		return &stubAgentService{
+			get: func(string, string, string) (*models.AgentResponse, error) { return stored(), nil },
+			update: func(_, _, agent string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error) {
+				if check != nil {
+					check(req)
+				}
+				a := stored()
+				a.DisplayName = req.DisplayName
+				return a, nil
+			},
+		}
+	}
+	never := func(*spec.UpdateAgentBasicInfoRequest) { t.Error("the service must not be called") }
+
+	for _, tc := range []struct{ name, body, msg string }{
+		{"malformed body", "nope", "Invalid request body"},
+		{"empty display name", agentDoc("agent", `{"displayName":""}`), "Agent display name cannot be empty"},
+		{"another agent's name", agentDoc("other", `{"displayName":"x"}`), "metadata.name does not match the agent in the path"},
+		{"another project", strings.Replace(agentDoc("agent", `{"displayName":"x"}`), `"project":"proj"`, `"project":"p2"`, 1), "metadata.project does not match the project of the agent"},
+		{"changed provisioning", agentDoc("agent", `{"displayName":"x","provisioning":{"type":"internal"}}`), "spec.provisioning cannot be changed"},
+		{"changed agent type", agentDoc("agent", `{"displayName":"x","agentType":{"type":"chat-api"}}`), "spec.agentType cannot be changed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := put(newSvc(never), tc.body)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Equal(t, tc.msg, decodeError(t, w).Message)
+		})
+	}
+
+	t.Run("a read-edit-write round trip is accepted", func(t *testing.T) {
+		svc := newSvc(func(req *spec.UpdateAgentBasicInfoRequest) {
+			assert.Equal(t, "Renamed", req.DisplayName)
+			assert.Equal(t, "", req.Description, "a declared description is applied, empty included")
+			assert.Equal(t, map[string]string{}, req.GetLabels(), "declared empty labels clear them")
+		})
+		w := put(svc, agentDoc("agent", `{"displayName":"Renamed","description":"","provisioning":{"type":"external"},"agentType":{"type":"external-agent-api"},"labels":{}}`))
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp spec.AgentDocument
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		assert.Equal(t, "Renamed", resp.Spec.DisplayName)
+	})
+
+	t.Run("a create body's subtype is not a change", func(t *testing.T) {
+		body := agentDoc("agent", `{"displayName":"x","agentType":{"type":"external-agent-api","subType":"a2a-agent"}}`)
+		assert.Equal(t, http.StatusOK, put(newSvc(nil), body).Code, "no subtype is stored, so none can differ")
+	})
+
+	t.Run("an omitted field keeps its stored value", func(t *testing.T) {
+		svc := newSvc(func(req *spec.UpdateAgentBasicInfoRequest) {
+			assert.Equal(t, "kept", req.Description)
+			assert.Nil(t, req.Labels, "absent labels are left alone")
+			assert.Nil(t, req.Extensions, "absent extensions are left alone")
+		})
+		assert.Equal(t, http.StatusOK, put(svc, agentDoc("agent", `{"displayName":"Renamed"}`)).Code)
+	})
+
+	t.Run("a missing agent is 404", func(t *testing.T) {
+		svc := &stubAgentService{get: func(string, string, string) (*models.AgentResponse, error) { return nil, utils.ErrAgentNotFound }}
+		assert.Equal(t, http.StatusNotFound, put(svc, agentDoc("agent", `{"displayName":"x"}`)).Code)
+	})
+
+	t.Run("an immutable-field error from the service keeps its code", func(t *testing.T) {
+		svc := newSvc(nil)
+		svc.update = func(string, string, string, *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error) {
+			return nil, utils.ErrImmutableFieldChange
+		}
+		w := put(svc, agentDoc("agent", `{"displayName":"x"}`))
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, utils.ErrCodeImmutableField, decodeError(t, w).Code)
+	})
 }
 
 func TestAgentController_DeleteAgent(t *testing.T) {
@@ -474,9 +551,11 @@ func TestAgentController_RegenerateAgentIdentitySecret(t *testing.T) {
 	}
 
 	assert.Equal(t, http.StatusBadRequest, serveAgent(t, &stubAgentService{}, nil, regen, post("{", nil)).Code)
-	w := serveAgent(t, &stubAgentService{}, nil, regen, post(`{}`, nil))
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Equal(t, "environment is required in the request body", decodeError(t, w).Message)
+	defaulted := &stubAgentService{regenerate: func(env string) (*models.AgentRegenerateSecretResponse, error) {
+		assert.Equal(t, models.DefaultEnvironmentName, env, "an absent environment is the default one")
+		return &models.AgentRegenerateSecretResponse{EnvironmentName: env}, nil
+	}}
+	assert.Equal(t, http.StatusOK, serveAgent(t, defaulted, nil, regen, post(`{}`, &captureRecorder{})).Code)
 	assert.Equal(t, http.StatusServiceUnavailable,
 		serveAgent(t, &stubAgentService{}, nil, regen, post(`{"environment":"dev"}`, &captureRecorder{failSync: true})).Code,
 		"a secret is never rotated unrecorded")
@@ -486,7 +565,7 @@ func TestAgentController_RegenerateAgentIdentitySecret(t *testing.T) {
 		assert.Equal(t, "dev", env)
 		return &models.AgentRegenerateSecretResponse{EnvironmentName: env, ClientID: "cid", ClientSecret: "fresh-secret"}, nil
 	}}
-	w = serveAgent(t, svc, nil, regen, post(`{"environment":"dev"}`, rec))
+	w := serveAgent(t, svc, nil, regen, post(`{"environment":"dev"}`, rec))
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "fresh-secret", decodeMap(t, w)["clientSecret"])
 	done := rec.completed(audit.ActionAgentIdentityRegenerateSecret)
@@ -513,16 +592,19 @@ func TestAgentController_RegenerateAgentIdentitySecret(t *testing.T) {
 func TestAgentController_RevokeAgentIdentitySecret(t *testing.T) {
 	revoke := func(c AgentController) http.HandlerFunc { return c.RevokeAgentIdentitySecret }
 
-	w := serveAgent(t, &stubAgentService{}, nil, revoke, agentCall{method: http.MethodDelete, url: "/x"})
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Equal(t, "environment query parameter is required", decodeError(t, w).Message)
+	defaulted := &stubAgentService{revoke: func(env string) (models.AgentRevokeSecretResponse, error) {
+		assert.Equal(t, models.DefaultEnvironmentName, env, "an absent environment is the default one")
+		return models.AgentRevokeSecretResponse{EnvironmentName: env, Status: "revoked"}, nil
+	}}
+	assert.Equal(t, http.StatusOK, serveAgent(t, defaulted, nil, revoke,
+		agentCall{method: http.MethodDelete, url: "/x", rec: &captureRecorder{}}).Code)
 	assert.Equal(t, http.StatusServiceUnavailable, serveAgent(t, &stubAgentService{}, nil, revoke,
 		agentCall{method: http.MethodDelete, url: "/x?environment=dev", rec: &captureRecorder{failSync: true}}).Code)
 
 	svc := &stubAgentService{revoke: func(env string) (models.AgentRevokeSecretResponse, error) {
 		return models.AgentRevokeSecretResponse{EnvironmentName: env, Status: "revoked"}, nil
 	}}
-	w = serveAgent(t, svc, nil, revoke, agentCall{method: http.MethodDelete, url: "/x?environment=dev"})
+	w := serveAgent(t, svc, nil, revoke, agentCall{method: http.MethodDelete, url: "/x?environment=dev"})
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "revoked", decodeMap(t, w)["status"])
 
@@ -538,7 +620,12 @@ func TestAgentController_RevokeAgentIdentitySecret(t *testing.T) {
 func TestAgentController_ProvisionAgentIdentity(t *testing.T) {
 	provision := func(c AgentController) http.HandlerFunc { return c.ProvisionAgentIdentity }
 
-	assert.Equal(t, http.StatusBadRequest, serveAgent(t, &stubAgentService{}, nil, provision, agentCall{method: http.MethodPut, url: "/x"}).Code)
+	defaulted := &stubAgentService{provision: func(env string) (models.AgentIdentityEnvironmentView, bool, error) {
+		assert.Equal(t, models.DefaultEnvironmentName, env, "an absent environment is the default one")
+		return models.AgentIdentityEnvironmentView{EnvironmentName: env}, false, nil
+	}}
+	assert.Equal(t, http.StatusAccepted, serveAgent(t, defaulted, nil, provision,
+		agentCall{method: http.MethodPut, url: "/x", rec: &captureRecorder{}}).Code)
 	assert.Equal(t, http.StatusServiceUnavailable, serveAgent(t, &stubAgentService{}, nil, provision,
 		agentCall{method: http.MethodPut, url: "/x?environment=dev", rec: &captureRecorder{failSync: true}}).Code)
 
@@ -583,7 +670,12 @@ func TestAgentController_RetryAgentIdentityProvisioning(t *testing.T) {
 	post := func(body string) agentCall { return agentCall{method: http.MethodPost, url: "/x", body: body} }
 
 	assert.Equal(t, http.StatusBadRequest, serveAgent(t, &stubAgentService{}, nil, retry, post("{")).Code)
-	assert.Equal(t, http.StatusBadRequest, serveAgent(t, &stubAgentService{}, nil, retry, post(`{"environment":""}`)).Code)
+	defaulted := &stubAgentService{retry: func(env string) (models.AgentIdentityEnvironmentView, error) {
+		assert.Equal(t, models.DefaultEnvironmentName, env, "an absent environment is the default one")
+		return models.AgentIdentityEnvironmentView{EnvironmentName: env}, nil
+	}}
+	assert.Equal(t, http.StatusAccepted, serveAgent(t, defaulted, nil, retry,
+		agentCall{method: http.MethodPost, url: "/x", body: `{"environment":""}`, rec: &captureRecorder{}}).Code)
 	assert.Equal(t, http.StatusServiceUnavailable, serveAgent(t, &stubAgentService{}, nil, retry,
 		agentCall{method: http.MethodPost, url: "/x", body: `{"environment":"dev"}`, rec: &captureRecorder{failSync: true}}).Code)
 
@@ -636,8 +728,18 @@ func TestAgentController_RolesAndGroups(t *testing.T) {
 	}
 	for name, o := range ops {
 		t.Run(name, func(t *testing.T) {
-			w := serveAgent(t, &stubAgentService{}, nil, o.h, agentCall{method: http.MethodGet, url: "/x"})
-			assert.Equal(t, http.StatusBadRequest, w.Code)
+			defaulted := &stubAgentService{
+				roles: func(env string) ([]thundersvc.ThunderRole, error) {
+					assert.Equal(t, models.DefaultEnvironmentName, env)
+					return nil, nil
+				},
+				groups: func(env string) ([]thundersvc.ThunderGroup, error) {
+					assert.Equal(t, models.DefaultEnvironmentName, env)
+					return nil, nil
+				},
+			}
+			w := serveAgent(t, defaulted, nil, o.h, agentCall{method: http.MethodGet, url: "/x"})
+			assert.Equal(t, http.StatusOK, w.Code, "an absent environment is the default one")
 
 			svc := &stubAgentService{}
 			o.set(svc, nil)

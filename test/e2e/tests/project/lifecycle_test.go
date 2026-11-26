@@ -92,9 +92,13 @@ var _ = Describe("Project lifecycle", Label("project", "lifecycle"), Ordered, fu
 
 		Expect(cliproject.GetProject(Default, H, H.Org(), name).Name).To(Equal(name))
 		Expect(cliagent.ListAgents(Default, H, H.Org(), name).Names()).To(ContainElement(agentName))
-		framework.Call(Default, Client, http.MethodGet, proj("/agents/%s", agentName), nil, http.StatusOK)
-		org := framework.CallObj(Default, Client, http.MethodGet, framework.API(Cfg, "/agents"), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(org, "agents"), "name")).To(ContainElement(agentName))
+		framework.Call(Default, Client, http.MethodGet, agentops.AgentPath(name, agentName), nil, http.StatusOK)
+		org := framework.CallJSON[framework.AgentListResponse](Default, Client, http.MethodGet, "/api/v1/agents?limit=100", nil, http.StatusOK)
+		names := []string{}
+		for _, a := range org.List {
+			names = append(names, a.Metadata.Name)
+		}
+		Expect(names).To(ContainElement(agentName))
 	})
 
 	It("deletes the project once its agent is gone, which amctl then can't find", func() {

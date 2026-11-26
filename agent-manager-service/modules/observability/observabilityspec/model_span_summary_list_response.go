@@ -1,7 +1,7 @@
 /*
 Observability module API
 
-The observability module's trace routes, under `/m/observability`. They take the Agent Manager Observer's trace paths and response shapes, but serve a subset: the observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
+The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
 
 API version: 1.0.0
 */
@@ -20,17 +20,17 @@ var _ MappedNullable = &SpanSummaryListResponse{}
 // SpanSummaryListResponse struct for SpanSummaryListResponse
 type SpanSummaryListResponse struct {
 	Spans      []SpanSummary `json:"spans"`
-	TotalCount int32         `json:"totalCount"`
+	Pagination Pagination    `json:"pagination"`
 }
 
 // NewSpanSummaryListResponse instantiates a new SpanSummaryListResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewSpanSummaryListResponse(spans []SpanSummary, totalCount int32) *SpanSummaryListResponse {
+func NewSpanSummaryListResponse(spans []SpanSummary, pagination Pagination) *SpanSummaryListResponse {
 	this := SpanSummaryListResponse{}
 	this.Spans = spans
-	this.TotalCount = totalCount
+	this.Pagination = pagination
 	return &this
 }
 
@@ -66,28 +66,28 @@ func (o *SpanSummaryListResponse) SetSpans(v []SpanSummary) {
 	o.Spans = v
 }
 
-// GetTotalCount returns the TotalCount field value
-func (o *SpanSummaryListResponse) GetTotalCount() int32 {
+// GetPagination returns the Pagination field value
+func (o *SpanSummaryListResponse) GetPagination() Pagination {
 	if o == nil {
-		var ret int32
+		var ret Pagination
 		return ret
 	}
 
-	return o.TotalCount
+	return o.Pagination
 }
 
-// GetTotalCountOk returns a tuple with the TotalCount field value
+// GetPaginationOk returns a tuple with the Pagination field value
 // and a boolean to check if the value has been set.
-func (o *SpanSummaryListResponse) GetTotalCountOk() (*int32, bool) {
+func (o *SpanSummaryListResponse) GetPaginationOk() (*Pagination, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.TotalCount, true
+	return &o.Pagination, true
 }
 
-// SetTotalCount sets field value
-func (o *SpanSummaryListResponse) SetTotalCount(v int32) {
-	o.TotalCount = v
+// SetPagination sets field value
+func (o *SpanSummaryListResponse) SetPagination(v Pagination) {
+	o.Pagination = v
 }
 
 func (o SpanSummaryListResponse) MarshalJSON() ([]byte, error) {
@@ -101,7 +101,7 @@ func (o SpanSummaryListResponse) MarshalJSON() ([]byte, error) {
 func (o SpanSummaryListResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["spans"] = o.Spans
-	toSerialize["totalCount"] = o.TotalCount
+	toSerialize["pagination"] = o.Pagination
 	return toSerialize, nil
 }
 

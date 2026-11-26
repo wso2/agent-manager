@@ -39,7 +39,7 @@ description: Use when adding, writing or choosing tests for a change in this rep
 - **A spec that needs a model provider key** skips itself when the key is empty: pull requests from forks get no secrets.
 - **Service unit tests** go in the service's existing unit test file when it has one, else `services/<service>_unit_test.go`.
 - **e2e runs on PRs to `amp-2.x` only.** A PR to `main` gets none, so run the affected suites locally there.
-- **Coverage is ratcheted.** CI fails when a package drops more than 0.5 points below its baseline. After adding tests, update the baseline in the same change (`make coverage-baseline` in `agent-manager-service`, `make amctl-coverage-baseline`, or the console command in `docs/testing.md#coverage`).
+- **Coverage has minimums and a changed-line rule.** CI fails when a part or package drops below the minimum in its `coverage-gate.json`, or when under 80% of the lines your change adds or edits are covered. There is no baseline to update; if you raise a package listed in `area_exceptions` past `area_min`, remove its entry. See `docs/testing.md#coverage`.
 - **Console tests import built workspace packages.** Run `pnpm build` in `console` once before `pnpm test`.
 
 ## Run

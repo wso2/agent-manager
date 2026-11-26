@@ -1,7 +1,7 @@
 /*
 Observability module API
 
-The observability module's trace routes, under `/m/observability`. They take the Agent Manager Observer's trace paths and response shapes, but serve a subset: the observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
+The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
 
 API version: 1.0.0
 */
@@ -19,11 +19,8 @@ var _ MappedNullable = &TraceExportResponse{}
 
 // TraceExportResponse struct for TraceExportResponse
 type TraceExportResponse struct {
-	Traces []FullTrace `json:"traces"`
-	// Traces in the window
-	TotalCount int32 `json:"totalCount"`
-	// True when `spansTruncated` is
-	Truncated bool `json:"truncated"`
+	Traces     []FullTrace     `json:"traces"`
+	Pagination TracePagination `json:"pagination"`
 	// True when an exported trace has more than 1000 spans and its spans were cut
 	SpansTruncated bool `json:"spansTruncated"`
 	// Traces left out because their spans couldn't be read
@@ -34,11 +31,10 @@ type TraceExportResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewTraceExportResponse(traces []FullTrace, totalCount int32, truncated bool, spansTruncated bool) *TraceExportResponse {
+func NewTraceExportResponse(traces []FullTrace, pagination TracePagination, spansTruncated bool) *TraceExportResponse {
 	this := TraceExportResponse{}
 	this.Traces = traces
-	this.TotalCount = totalCount
-	this.Truncated = truncated
+	this.Pagination = pagination
 	this.SpansTruncated = spansTruncated
 	return &this
 }
@@ -75,52 +71,28 @@ func (o *TraceExportResponse) SetTraces(v []FullTrace) {
 	o.Traces = v
 }
 
-// GetTotalCount returns the TotalCount field value
-func (o *TraceExportResponse) GetTotalCount() int32 {
+// GetPagination returns the Pagination field value
+func (o *TraceExportResponse) GetPagination() TracePagination {
 	if o == nil {
-		var ret int32
+		var ret TracePagination
 		return ret
 	}
 
-	return o.TotalCount
+	return o.Pagination
 }
 
-// GetTotalCountOk returns a tuple with the TotalCount field value
+// GetPaginationOk returns a tuple with the Pagination field value
 // and a boolean to check if the value has been set.
-func (o *TraceExportResponse) GetTotalCountOk() (*int32, bool) {
+func (o *TraceExportResponse) GetPaginationOk() (*TracePagination, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.TotalCount, true
+	return &o.Pagination, true
 }
 
-// SetTotalCount sets field value
-func (o *TraceExportResponse) SetTotalCount(v int32) {
-	o.TotalCount = v
-}
-
-// GetTruncated returns the Truncated field value
-func (o *TraceExportResponse) GetTruncated() bool {
-	if o == nil {
-		var ret bool
-		return ret
-	}
-
-	return o.Truncated
-}
-
-// GetTruncatedOk returns a tuple with the Truncated field value
-// and a boolean to check if the value has been set.
-func (o *TraceExportResponse) GetTruncatedOk() (*bool, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Truncated, true
-}
-
-// SetTruncated sets field value
-func (o *TraceExportResponse) SetTruncated(v bool) {
-	o.Truncated = v
+// SetPagination sets field value
+func (o *TraceExportResponse) SetPagination(v TracePagination) {
+	o.Pagination = v
 }
 
 // GetSpansTruncated returns the SpansTruncated field value
@@ -190,8 +162,7 @@ func (o TraceExportResponse) MarshalJSON() ([]byte, error) {
 func (o TraceExportResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["traces"] = o.Traces
-	toSerialize["totalCount"] = o.TotalCount
-	toSerialize["truncated"] = o.Truncated
+	toSerialize["pagination"] = o.Pagination
 	toSerialize["spansTruncated"] = o.SpansTruncated
 	if !IsNil(o.FailedTraceIds) {
 		toSerialize["failedTraceIds"] = o.FailedTraceIds

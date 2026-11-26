@@ -565,15 +565,15 @@ func buildPolicies(cfg resolvedCORSConfig) []map[string]interface{} {
 	return policies
 }
 
-// UpdateAgentDeploySettings updates per-environment deploy settings (CORS, API key security,
+// UpdateAgentDeploySettings updates an environment's deploy settings (CORS, API key security,
 // auto instrumentation) on an existing release binding without redeploying or promoting the
 // agent. Triggers a pod rollout so policy changes take effect immediately. Any field omitted
 // from the request keeps its current DB value.
-func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouID, projectName, agentName string, req *gwspec.UpdateAgentDeploySettingsRequest) error {
-	s.logger.Info("Updating agent deploy settings", "agentName", agentName, "ouID", ouID, "projectName", projectName, "environment", req.EnvironmentName)
+func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouID, projectName, agentName, envName string, req *gwspec.UpdateAgentDeploySettingsRequest) error {
+	s.logger.Info("Updating agent deploy settings", "agentName", agentName, "ouID", ouID, "projectName", projectName, "environment", envName)
 
-	if req.EnvironmentName == "" {
-		return fmt.Errorf("%w: environmentName is required", httpx.ErrInvalidInput)
+	if envName == "" {
+		return fmt.Errorf("%w: environment is required", httpx.ErrInvalidInput)
 	}
 
 	agent, err := LookupAgent(ctx, s.platform, ouID, projectName, agentName)
@@ -589,12 +589,12 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	// translates the same not-found error. The route's agent:update is the
 	// capability; this is the environment axis, and holding one does not imply
 	// the other.
-	targetEnv, err := s.requireEnvTier(ctx, ouID, req.EnvironmentName)
+	targetEnv, err := s.requireEnvTier(ctx, ouID, envName)
 	if err != nil {
 		return err
 	}
-	req.EnvironmentName = targetEnv.Name
-	pubKey, publishes, err := s.agentExposureKeyFor(ctx, agent, ouID, projectName, agentName, req.EnvironmentName, targetEnv.ID)
+	envName = targetEnv.Name
+	pubKey, publishes, err := s.agentExposureKeyFor(ctx, agent, ouID, projectName, agentName, envName, targetEnv.ID)
 	if err != nil {
 		return err
 	}
@@ -606,11 +606,11 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 
 	// Resolve final settings: precedence is request → existing DB
 	var existingConfig *gwmodels.AgentConfig
-	switch cfg, getErr := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, req.EnvironmentName); {
+	switch cfg, getErr := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, envName); {
 	case errors.Is(getErr, gwrepo.ErrAgentConfigNotFound):
 		// No existing config for this env — request values / defaults apply.
 	case getErr != nil:
-		return fmt.Errorf("failed to read agent config for environment %q: %w", req.EnvironmentName, getErr)
+		return fmt.Errorf("failed to read agent config for environment %q: %w", envName, getErr)
 	default:
 		existingConfig = cfg
 	}
@@ -648,18 +648,18 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 		settingsResilienceTimeoutSeconds = &resilienceTimeoutSeconds
 	}
 	// Persist resolved config so subsequent deploy/promote calls see the current values.
-	agentConfig := agentConfigFromAPIConfig(ouID, projectName, agentName, req.EnvironmentName, apiCfg)
+	agentConfig := agentConfigFromAPIConfig(ouID, projectName, agentName, envName, apiCfg)
 	agentConfig.EnableAutoInstrumentation = tracingCfg.EnableAutoInstrumentation
 	agentConfig.InstrumentationVersion = resolvedInstrumentationVersion
 	agentConfig.ResilienceTimeoutSeconds = settingsResilienceTimeoutSeconds
 	agentConfig.SetCardCORSOverride(cardCORSOverride)
 	artifact := s.agentEnvArtifactFunc(agent, ouID, projectName, agentName, targetEnv.ID)
 	if err := s.saveDeploySettings(ctx, agent, pubKey, artifact, agentConfig); err != nil {
-		s.logger.Error("Failed to persist agent deploy settings", "agentName", agentName, "environment", req.EnvironmentName, "error", err)
+		s.logger.Error("Failed to persist agent deploy settings", "agentName", agentName, "environment", envName, "error", err)
 		return fmt.Errorf("failed to persist agent deploy settings: %w", err)
 	}
 
-	s.logger.Info("Agent deploy settings updated successfully", "agentName", agentName, "environment", req.EnvironmentName)
+	s.logger.Info("Agent deploy settings updated successfully", "agentName", agentName, "environment", envName)
 	return nil
 }
 

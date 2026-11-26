@@ -49,9 +49,7 @@ func (s lookupAgentService) GetAgentGroups(context.Context, string, string, stri
 }
 
 func agentLookupRequest(path string) *http.Request {
-	req := httptest.NewRequest(http.MethodGet, path+"?environment=qa", nil)
-	req.SetPathValue("orgName", "o1")
-	req.SetPathValue("projName", "default")
+	req := httptest.NewRequest(http.MethodGet, path+"?project=default&environment=qa", nil)
 	req.SetPathValue("agentName", "scout-agent")
 	return req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 }
@@ -70,7 +68,7 @@ func TestAgentRolesInAnEnvironmentWithoutAnIdentityProvider(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := controllers.NewAgentController(lookupAgentService{err: test.err}, nil)
 			w := httptest.NewRecorder()
-			ctrl.GetAgentRoles(w, agentLookupRequest("/orgs/o1/projects/default/agents/scout-agent/roles"))
+			ctrl.GetAgentRoles(w, agentLookupRequest("/agents/scout-agent/roles"))
 			assert.Equal(t, test.want, w.Code)
 			assert.NotContains(t, w.Body.String(), "boom")
 		})
@@ -89,7 +87,7 @@ func TestAgentGroupsInAnEnvironmentWithoutAnIdentityProvider(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := controllers.NewAgentController(lookupAgentService{err: test.err}, nil)
 			w := httptest.NewRecorder()
-			ctrl.GetAgentGroups(w, agentLookupRequest("/orgs/o1/projects/default/agents/scout-agent/groups"))
+			ctrl.GetAgentGroups(w, agentLookupRequest("/agents/scout-agent/groups"))
 			assert.Equal(t, test.want, w.Code)
 			assert.NotContains(t, w.Body.String(), "boom")
 		})

@@ -19,20 +19,19 @@ var _ MappedNullable = &MCPProxyListResponse{}
 
 // MCPProxyListResponse struct for MCPProxyListResponse
 type MCPProxyListResponse struct {
-	Count      int32              `json:"count"`
-	List       []MCPProxyListItem `json:"list"`
-	Pagination PaginationInfo     `json:"pagination"`
+	// Number of items in this page.
+	Count      *int32             `json:"count,omitempty"`
+	List       []McpProxyDocument `json:"list"`
+	Pagination *Pagination        `json:"pagination,omitempty"`
 }
 
 // NewMCPProxyListResponse instantiates a new MCPProxyListResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewMCPProxyListResponse(count int32, list []MCPProxyListItem, pagination PaginationInfo) *MCPProxyListResponse {
+func NewMCPProxyListResponse(list []McpProxyDocument) *MCPProxyListResponse {
 	this := MCPProxyListResponse{}
-	this.Count = count
 	this.List = list
-	this.Pagination = pagination
 	return &this
 }
 
@@ -44,34 +43,42 @@ func NewMCPProxyListResponseWithDefaults() *MCPProxyListResponse {
 	return &this
 }
 
-// GetCount returns the Count field value
+// GetCount returns the Count field value if set, zero value otherwise.
 func (o *MCPProxyListResponse) GetCount() int32 {
-	if o == nil {
+	if o == nil || IsNil(o.Count) {
 		var ret int32
 		return ret
 	}
-
-	return o.Count
+	return *o.Count
 }
 
-// GetCountOk returns a tuple with the Count field value
+// GetCountOk returns a tuple with the Count field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *MCPProxyListResponse) GetCountOk() (*int32, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Count) {
 		return nil, false
 	}
-	return &o.Count, true
+	return o.Count, true
 }
 
-// SetCount sets field value
+// HasCount returns a boolean if a field has been set.
+func (o *MCPProxyListResponse) HasCount() bool {
+	if o != nil && !IsNil(o.Count) {
+		return true
+	}
+
+	return false
+}
+
+// SetCount gets a reference to the given int32 and assigns it to the Count field.
 func (o *MCPProxyListResponse) SetCount(v int32) {
-	o.Count = v
+	o.Count = &v
 }
 
 // GetList returns the List field value
-func (o *MCPProxyListResponse) GetList() []MCPProxyListItem {
+func (o *MCPProxyListResponse) GetList() []McpProxyDocument {
 	if o == nil {
-		var ret []MCPProxyListItem
+		var ret []McpProxyDocument
 		return ret
 	}
 
@@ -80,7 +87,7 @@ func (o *MCPProxyListResponse) GetList() []MCPProxyListItem {
 
 // GetListOk returns a tuple with the List field value
 // and a boolean to check if the value has been set.
-func (o *MCPProxyListResponse) GetListOk() ([]MCPProxyListItem, bool) {
+func (o *MCPProxyListResponse) GetListOk() ([]McpProxyDocument, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -88,32 +95,40 @@ func (o *MCPProxyListResponse) GetListOk() ([]MCPProxyListItem, bool) {
 }
 
 // SetList sets field value
-func (o *MCPProxyListResponse) SetList(v []MCPProxyListItem) {
+func (o *MCPProxyListResponse) SetList(v []McpProxyDocument) {
 	o.List = v
 }
 
-// GetPagination returns the Pagination field value
-func (o *MCPProxyListResponse) GetPagination() PaginationInfo {
-	if o == nil {
-		var ret PaginationInfo
+// GetPagination returns the Pagination field value if set, zero value otherwise.
+func (o *MCPProxyListResponse) GetPagination() Pagination {
+	if o == nil || IsNil(o.Pagination) {
+		var ret Pagination
 		return ret
 	}
-
-	return o.Pagination
+	return *o.Pagination
 }
 
-// GetPaginationOk returns a tuple with the Pagination field value
+// GetPaginationOk returns a tuple with the Pagination field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *MCPProxyListResponse) GetPaginationOk() (*PaginationInfo, bool) {
-	if o == nil {
+func (o *MCPProxyListResponse) GetPaginationOk() (*Pagination, bool) {
+	if o == nil || IsNil(o.Pagination) {
 		return nil, false
 	}
-	return &o.Pagination, true
+	return o.Pagination, true
 }
 
-// SetPagination sets field value
-func (o *MCPProxyListResponse) SetPagination(v PaginationInfo) {
-	o.Pagination = v
+// HasPagination returns a boolean if a field has been set.
+func (o *MCPProxyListResponse) HasPagination() bool {
+	if o != nil && !IsNil(o.Pagination) {
+		return true
+	}
+
+	return false
+}
+
+// SetPagination gets a reference to the given Pagination and assigns it to the Pagination field.
+func (o *MCPProxyListResponse) SetPagination(v Pagination) {
+	o.Pagination = &v
 }
 
 func (o MCPProxyListResponse) MarshalJSON() ([]byte, error) {
@@ -126,9 +141,13 @@ func (o MCPProxyListResponse) MarshalJSON() ([]byte, error) {
 
 func (o MCPProxyListResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["count"] = o.Count
+	if !IsNil(o.Count) {
+		toSerialize["count"] = o.Count
+	}
 	toSerialize["list"] = o.List
-	toSerialize["pagination"] = o.Pagination
+	if !IsNil(o.Pagination) {
+		toSerialize["pagination"] = o.Pagination
+	}
 	return toSerialize, nil
 }
 

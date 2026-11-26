@@ -19,7 +19,6 @@ package llm
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -95,7 +94,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.NotFound, "no LLM configuration named %q for agent %q", o.Name, o.AgentName))
 	}
 
-	resp, err := client.GetAgentModelConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, id)
+	resp, err := client.GetAgentModelConfigWithResponse(ctx, o.AgentName, id, &aigateway.GetAgentModelConfigParams{Project: o.Proj})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -110,52 +109,31 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	return printConfig(o.IO, resp.JSON200)
 }
 
-func printConfig(io *iostreams.IOStreams, c *aigateway.AgentModelConfigResponse) error {
+func printConfig(io *iostreams.IOStreams, c *aigateway.AgentModelConfigDocument) error {
 	cs := io.ColorScheme()
 	desc := "-"
-	if c.Description != nil && *c.Description != "" {
-		desc = *c.Description
+	if c.Spec.Description != nil && *c.Spec.Description != "" {
+		desc = *c.Spec.Description
 	}
-	fmt.Fprintf(io.Out, "name:         %s\n", cs.Bold(c.Name))
-	fmt.Fprintf(io.Out, "type:         %s\n", c.Type)
+	fmt.Fprintf(io.Out, "name:         %s\n", cs.Bold(c.Metadata.Name))
 	fmt.Fprintf(io.Out, "description:  %s\n", desc)
 
-	if len(c.EnvMappings) > 0 {
-		envs := make([]string, 0, len(c.EnvMappings))
-		for env := range c.EnvMappings {
-			envs = append(envs, env)
-		}
-		sort.Strings(envs)
-
-		fmt.Fprintf(io.Out, "\nbinding:\n")
-		tp := tableprinter.New(io, "provider", "url", "status")
-		for _, env := range envs {
-			m := c.EnvMappings[env]
-			provider, url, status := "-", "-", "-"
-			if m.Configuration != nil {
-				if m.Configuration.ProviderName != "" {
-					provider = m.Configuration.ProviderName
-				}
-				if m.Configuration.Url != "" {
-					url = m.Configuration.Url
-				}
-				if m.Configuration.Status != nil && *m.Configuration.Status != "" {
-					status = *m.Configuration.Status
-				}
-			}
-			tp.AddField(provider)
-			tp.AddField(url, tableprinter.WithColor(cs.Gray))
-			tp.AddField(status)
-			tp.EndRow()
-		}
-		if err := tp.Render(); err != nil {
-			return err
-		}
+	url := "-"
+	if c.Status != nil && c.Status.Url != nil && *c.Status.Url != "" {
+		url = *c.Status.Url
+	}
+	fmt.Fprintf(io.Out, "\nbinding:\n")
+	tp := tableprinter.New(io, "provider", "url")
+	tp.AddField(c.Spec.ProviderName)
+	tp.AddField(url, tableprinter.WithColor(cs.Gray))
+	tp.EndRow()
+	if err := tp.Render(); err != nil {
+		return err
 	}
 
-	if len(c.EnvironmentVariables) > 0 {
+	if c.Spec.EnvironmentVariables != nil && len(*c.Spec.EnvironmentVariables) > 0 {
 		fmt.Fprintf(io.Out, "\nenvironment variables:\n")
-		for _, ev := range c.EnvironmentVariables {
+		for _, ev := range *c.Spec.EnvironmentVariables {
 			fmt.Fprintf(io.Out, "  %-8s %s\n", ev.Key, ev.Name)
 		}
 	}

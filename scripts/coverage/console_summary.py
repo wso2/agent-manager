@@ -18,7 +18,7 @@
 """Collect the console's per-package Vitest coverage into one summary.
 
 Reads every console/**/coverage/coverage-summary.json written by
-`pnpm test:coverage` and writes the ratchet.py format, one area per
+`pnpm test:coverage` and writes the gate.py summary format, one area per
 package keyed by its path under console/, counting lines.
 
 Usage:

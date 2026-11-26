@@ -96,7 +96,7 @@ func TestCoreEventsAPI(t *testing.T) {
 
 	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, w.path("/projects"), spec.CreateProjectRequest{Name: "shop", DisplayName: "Shop"})
 	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, w.path("/projects"), spec.CreateProjectRequest{Name: "lab", DisplayName: "Lab"})
-	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, w.path("/projects/shop/agents"), externalA2A("cashier", "Cashier", nil))
+	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, agentsPath(""), agentDocument("shop", externalA2A("cashier", "Cashier", nil)))
 
 	t.Run("catalog", func(t *testing.T) {
 		types := decodeAs[spec.EventTypeListResponse](t, mustCall(t, w.reader, http.StatusOK, http.MethodGet, w.path("/events/event-types"), nil))

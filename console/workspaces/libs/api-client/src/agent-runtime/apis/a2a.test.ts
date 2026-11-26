@@ -40,7 +40,8 @@ const mocks = {
 } as unknown as HttpMocks;
 
 const params = { orgName: "acme corp", projName: "p/1", agentName: "bot", envId: "dev" };
-const ENV = "/m/ai-gateway/orgs/acme%20corp/projects/p%2F1/agents/bot/environments/dev";
+const ENV = "/m/ai-gateway/agents/bot";
+const IN_PROJECT = { project: "p/1" };
 const proxy = { status: "DEPLOYED", gatewayUrl: "https://gw.example/a2a" };
 const card = { source: "external", status: "fetched", sourceUrl: "https://a.example/card" };
 
@@ -48,45 +49,45 @@ const card = { source: "external", status: "fetched", sourceUrl: "https://a.exam
 describeHttpCases("A2A proxy API", mocks, [
   {
     name: "getA2AProxy", call: () => getA2AProxy(params, getToken),
-    method: "GET", url: `${ENV}/a2a-proxy`, response: proxy, checksOk: false,
+    method: "GET", url: `${ENV}/a2a-proxy`, searchParams: IN_PROJECT, response: proxy, checksOk: false,
   },
   {
     name: "setA2AProxy", call: () => setA2AProxy(params, { mode: "gateway" } as never, getToken),
-    method: "PUT", url: `${ENV}/a2a-proxy`, body: { mode: "gateway" }, returnsBody: false, checksOk: false,
+    method: "PUT", url: `${ENV}/a2a-proxy`, searchParams: IN_PROJECT, body: { mode: "gateway" }, returnsBody: false, checksOk: false,
   },
   {
     name: "deleteA2AProxy", call: () => deleteA2AProxy(params, getToken),
-    method: "DELETE", url: `${ENV}/a2a-proxy`, returnsBody: false, checksOk: false,
+    method: "DELETE", url: `${ENV}/a2a-proxy`, searchParams: IN_PROJECT, returnsBody: false, checksOk: false,
   },
   {
     name: "refreshA2AProxy", call: () => refreshA2AProxy(params, getToken),
-    method: "POST", url: `${ENV}/a2a-proxy/refresh`, body: {}, returnsBody: false, checksOk: false,
+    method: "POST", url: `${ENV}/a2a-proxy/refresh`, searchParams: IN_PROJECT, body: {}, returnsBody: false, checksOk: false,
   },
 ]);
 
 describeHttpCases("agent card API", mocks, [
   {
     name: "getAgentCard", call: () => getAgentCard(params, getToken),
-    method: "GET", url: `${ENV}/agent-card`, response: card, checksOk: false,
+    method: "GET", url: `${ENV}/agent-card`, searchParams: IN_PROJECT, response: card, checksOk: false,
   },
   {
     name: "refreshAgentCard", call: () => refreshAgentCard(params, getToken),
-    method: "POST", url: `${ENV}/agent-card/refresh`, body: {}, returnsBody: false, checksOk: false,
+    method: "POST", url: `${ENV}/agent-card/refresh`, searchParams: IN_PROJECT, body: {}, returnsBody: false, checksOk: false,
   },
   {
     name: "setAgentCardSource",
     call: () => setAgentCardSource(params, { url: "https://a.example/card" }, getToken),
-    method: "PUT", url: `${ENV}/agent-card/source`, body: { url: "https://a.example/card" },
+    method: "PUT", url: `${ENV}/agent-card/source`, searchParams: IN_PROJECT, body: { url: "https://a.example/card" },
     returnsBody: false, checksOk: false,
   },
   {
     name: "deleteAgentCardSource", call: () => deleteAgentCardSource(params, getToken),
-    method: "DELETE", url: `${ENV}/agent-card/source`, returnsBody: false, checksOk: false,
+    method: "DELETE", url: `${ENV}/agent-card/source`, searchParams: IN_PROJECT, returnsBody: false, checksOk: false,
   },
 ]);
 
 describe("A2A path params", () => {
-  it.each(["orgName", "projName", "agentName", "envId"] as const)(
+  it.each(["projName", "agentName"] as const)(
     "refuses a missing %s before any request",
     async (missing) => {
       vi.mocked(httpGET).mockClear();

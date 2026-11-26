@@ -72,12 +72,12 @@ var routeEvents = map[string]routeEvent{
 	"DELETE /orgs/{orgName}/identities/groups/{groupID}": {Type: "group.deleted"},
 
 	// --- Project --------------------------------------------------------
-	"PUT /orgs/{orgName}/projects/{projName}":                       {Type: "project.updated"},
-	"POST /orgs/{orgName}/projects/{projName}/agents":               {Type: "agent.created"},
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}": {Type: "agent.deleted"},
+	"PUT /orgs/{orgName}/projects/{projName}": {Type: "project.updated"},
+	"POST /agents":               {Type: "agent.created"},
+	"DELETE /agents/{agentName}": {Type: "agent.deleted"},
 
 	// --- Agent ----------------------------------------------------------
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}": {Type: "agent.updated"},
+	"PUT /agents/{agentName}": {Type: "agent.updated"},
 }
 
 // types is the catalog of every event subscriptions can name.

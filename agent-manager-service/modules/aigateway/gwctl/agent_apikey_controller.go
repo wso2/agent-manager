@@ -63,15 +63,15 @@ func NewAgentAPIKeyController(
 	}
 }
 
-// CreateAPIKey handles POST /api/v1/orgs/{ouID}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys
+// CreateAPIKey handles POST /agents/{agentName}/api-keys
 func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	projName := r.PathValue(gwutil.PathParamProjName)
+	projName := gwutil.Project(r)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
-	envID := r.PathValue(gwutil.PathParamEnvID)
+	envID := gwmodels.DefaultEnvironmentName
 
 	log.Info("CreateAgentAPIKey: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
 
@@ -137,15 +137,15 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
-// ListAPIKeys handles GET /api/v1/orgs/{ouID}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys
+// ListAPIKeys handles GET /agents/{agentName}/api-keys
 func (c *agentAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	projName := r.PathValue(gwutil.PathParamProjName)
+	projName := gwutil.Project(r)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
-	envID := r.PathValue(gwutil.PathParamEnvID)
+	envID := gwmodels.DefaultEnvironmentName
 
 	log.Info("ListAgentAPIKeys: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
 
@@ -173,15 +173,15 @@ func (c *agentAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Reque
 	httpx.WriteSuccessResponse(w, http.StatusOK, keys)
 }
 
-// RevokeAPIKey handles DELETE /api/v1/orgs/{ouID}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}
+// RevokeAPIKey handles DELETE /agents/{agentName}/api-keys/{keyName}
 func (c *agentAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	projName := r.PathValue(gwutil.PathParamProjName)
+	projName := gwutil.Project(r)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
-	envID := r.PathValue(gwutil.PathParamEnvID)
+	envID := gwmodels.DefaultEnvironmentName
 	keyName := r.PathValue("keyName")
 
 	log.Info("RevokeAgentAPIKey: starting", "ouID", ouID, "agentName", agentName, "envID", envID, "keyName", keyName)
@@ -211,15 +211,15 @@ func (c *agentAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// RotateAPIKey handles PUT /api/v1/orgs/{ouID}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}
+// RotateAPIKey handles PUT /agents/{agentName}/api-keys/{keyName}
 func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	projName := r.PathValue(gwutil.PathParamProjName)
+	projName := gwutil.Project(r)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
-	envID := r.PathValue(gwutil.PathParamEnvID)
+	envID := gwmodels.DefaultEnvironmentName
 	keyName := r.PathValue("keyName")
 
 	log.Info("RotateAgentAPIKey: starting", "ouID", ouID, "agentName", agentName, "envID", envID, "keyName", keyName)
@@ -263,7 +263,7 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
-// IssueTestAPIKey handles POST /api/v1/orgs/{ouID}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test
+// IssueTestAPIKey handles POST /agents/{agentName}/api-keys/test
 //
 // Issues (or rotates) a short-lived test API key scoped to the calling user
 // (derived from the JWT subject). Used by the console Try-It flow; test keys
@@ -273,9 +273,9 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	projName := r.PathValue(gwutil.PathParamProjName)
+	projName := gwutil.Project(r)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
-	envID := r.PathValue(gwutil.PathParamEnvID)
+	envID := gwmodels.DefaultEnvironmentName
 
 	log.Info("IssueTestAPIKey: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
 

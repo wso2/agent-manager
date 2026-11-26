@@ -9,11 +9,57 @@ import (
 	"time"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
+
+// Defines values for AgentDocumentApiVersion.
+const (
+	AiControlPlaneChoreolabsComv1 AgentDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the AgentDocumentApiVersion enum.
+func (e AgentDocumentApiVersion) Valid() bool {
+	switch e {
+	case AiControlPlaneChoreolabsComv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentDocumentKind.
+const (
+	AgentDocumentKindAgent AgentDocumentKind = "Agent"
+)
+
+// Valid indicates whether the value is a known member of the AgentDocumentKind enum.
+func (e AgentDocumentKind) Valid() bool {
+	switch e {
+	case AgentDocumentKindAgent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentProvisioningKind.
+const (
+	AgentProvisioningKindExternal AgentProvisioningKind = "external"
+)
+
+// Valid indicates whether the value is a known member of the AgentProvisioningKind enum.
+func (e AgentProvisioningKind) Valid() bool {
+	switch e {
+	case AgentProvisioningKindExternal:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for AgentThunderStatus.
 const (
@@ -278,16 +324,16 @@ func (e HealthCheckType) Valid() bool {
 
 // Defines values for ProvisioningType.
 const (
-	External ProvisioningType = "external"
-	Internal ProvisioningType = "internal"
+	ProvisioningTypeExternal ProvisioningType = "external"
+	ProvisioningTypeInternal ProvisioningType = "internal"
 )
 
 // Valid indicates whether the value is a known member of the ProvisioningType enum.
 func (e ProvisioningType) Valid() bool {
 	switch e {
-	case External:
+	case ProvisioningTypeExternal:
 		return true
-	case Internal:
+	case ProvisioningTypeInternal:
 		return true
 	default:
 		return false
@@ -320,19 +366,19 @@ func (e ListOrgEventDeliveriesParamsStatus) Valid() bool {
 
 // Defines values for ListEventTypesParamsScope.
 const (
-	ListEventTypesParamsScopeAgent   ListEventTypesParamsScope = "agent"
-	ListEventTypesParamsScopeOrg     ListEventTypesParamsScope = "org"
-	ListEventTypesParamsScopeProject ListEventTypesParamsScope = "project"
+	Agent   ListEventTypesParamsScope = "agent"
+	Org     ListEventTypesParamsScope = "org"
+	Project ListEventTypesParamsScope = "project"
 )
 
 // Valid indicates whether the value is a known member of the ListEventTypesParamsScope enum.
 func (e ListEventTypesParamsScope) Valid() bool {
 	switch e {
-	case ListEventTypesParamsScopeAgent:
+	case Agent:
 		return true
-	case ListEventTypesParamsScopeOrg:
+	case Org:
 		return true
-	case ListEventTypesParamsScopeProject:
+	case Project:
 		return true
 	default:
 		return false
@@ -400,10 +446,29 @@ type AgentCreatedBy struct {
 	Id string `json:"id"`
 }
 
+// AgentDocument An agent as a document; metadata.name is its handle, spec.displayName its label.
+type AgentDocument struct {
+	ApiVersion AgentDocumentApiVersion `json:"apiVersion"`
+
+	// Kind Must match the route; never ignored.
+	Kind AgentDocumentKind `json:"kind"`
+
+	// Metadata Metadata of a kind that lives inside a project.
+	Metadata ProjectScopedDocumentMetadata `json:"metadata"`
+	Spec     AgentSpec                     `json:"spec"`
+	Status   *AgentStatus                  `json:"status,omitempty"`
+}
+
+// AgentDocumentApiVersion defines model for AgentDocument.ApiVersion.
+type AgentDocumentApiVersion string
+
+// AgentDocumentKind Must match the route; never ignored.
+type AgentDocumentKind string
+
 // AgentIdentityActionRequest Request body for regenerating an AgentID secret
 type AgentIdentityActionRequest struct {
-	// Environment Environment name to regenerate the AgentID secret in
-	Environment string `json:"environment"`
+	// Environment Environment name; omitted means the organization's only environment
+	Environment *string `json:"environment,omitempty"`
 }
 
 // AgentIdentityEnvironmentView One environment's AgentID binding. This is a safe view that never
@@ -438,13 +503,22 @@ type AgentIdentityEnvironmentView struct {
 
 // AgentListResponse defines model for AgentListResponse.
 type AgentListResponse struct {
-	Agents []AgentResponse `json:"agents"`
-	Limit  int             `json:"limit"`
-	Offset int             `json:"offset"`
+	// Count Number of items in this page.
+	Count int32           `json:"count"`
+	List  []AgentDocument `json:"list"`
 
-	// Total Total number of agents matching the query
-	Total int `json:"total"`
+	// Pagination Where this page sits in the collection.
+	Pagination Pagination `json:"pagination"`
 }
+
+// AgentProvisioning How the agent runs. Fixed at creation.
+type AgentProvisioning struct {
+	// Type Type of provisioning; only externally hosted agents are supported.
+	Type AgentProvisioningKind `json:"type"`
+}
+
+// AgentProvisioningKind Type of provisioning; only externally hosted agents are supported.
+type AgentProvisioningKind string
 
 // AgentProvisioningType Whether the agent runs on the platform (`internal`) or outside it (`external`)
 type AgentProvisioningType = string
@@ -518,17 +592,30 @@ type AgentRevokeSecretResponse struct {
 	WorkloadRefreshWarning *string `json:"workloadRefreshWarning,omitempty"`
 }
 
-// AgentSummary defines model for AgentSummary.
-type AgentSummary struct {
-	DisplayName        string `json:"displayName"`
-	Name               string `json:"name"`
-	ProjectDisplayName string `json:"projectDisplayName"`
-	ProjectName        string `json:"projectName"`
+// AgentSpec defines model for AgentSpec.
+type AgentSpec struct {
+	AgentType AgentType `json:"agentType"`
+
+	// Description Description of the agent
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Display name of the agent
+	DisplayName string `json:"displayName"`
+
+	// Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
+	Extensions *Extensions `json:"extensions,omitempty"`
+
+	// Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
+	Labels *Labels `json:"labels,omitempty"`
+
+	// Provisioning How the agent runs. Fixed at creation.
+	Provisioning AgentProvisioning `json:"provisioning"`
 }
 
-// AgentSummaryListResponse defines model for AgentSummaryListResponse.
-type AgentSummaryListResponse struct {
-	Agents []AgentSummary `json:"agents"`
+// AgentStatus defines model for AgentStatus.
+type AgentStatus struct {
+	// State Current status of the agent
+	State *string `json:"state,omitempty"`
 }
 
 // AgentThunderStatus Provisioning status of one AgentID binding. Goes from `pending` to
@@ -1274,6 +1361,18 @@ type OrganizationResponse struct {
 	Name string `json:"name"`
 }
 
+// Pagination Where this page sits in the collection.
+type Pagination struct {
+	// Limit Maximum items requested for this page.
+	Limit *int32 `json:"limit,omitempty"`
+
+	// Offset Items skipped before this page.
+	Offset *int32 `json:"offset,omitempty"`
+
+	// Total Total items in the collection, across all pages.
+	Total *int32 `json:"total,omitempty"`
+}
+
 // ProjectListItem defines model for ProjectListItem.
 type ProjectListItem struct {
 	// CreatedAt Timestamp when the project was created
@@ -1320,6 +1419,27 @@ type ProjectResponse struct {
 	// Name Name of the project
 	Name string `json:"name"`
 	Uuid string `json:"uuid"`
+}
+
+// ProjectScopedDocumentMetadata Metadata of a kind that lives inside a project.
+type ProjectScopedDocumentMetadata struct {
+	// CreatedBy User ID of the creator, when known.
+	CreatedBy *string `json:"createdBy,omitempty"`
+
+	// CreationTimestamp When the resource was created.
+	CreationTimestamp *time.Time `json:"creationTimestamp,omitempty"`
+
+	// Name The resource's handle.
+	Name string `json:"name"`
+
+	// Project Handle of the project the resource belongs to.
+	Project string `json:"project"`
+
+	// Uid Server-assigned UUID.
+	Uid *openapi_types.UUID `json:"uid,omitempty"`
+
+	// UpdateTimestamp When the resource last changed.
+	UpdateTimestamp *time.Time `json:"updateTimestamp,omitempty"`
 }
 
 // Provisioning defines model for Provisioning.
@@ -1551,6 +1671,105 @@ type UserResponse struct {
 	OuId *string `json:"ouId,omitempty"`
 }
 
+// ListAgentsParams defines parameters for ListAgents.
+type ListAgentsParams struct {
+	// Project Project handle. Omit it to list every project's agents.
+	Project *string `form:"project,omitempty" json:"project,omitempty"`
+
+	// Limit Maximum number of results to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Label Filter by label as key:value. Repeat the parameter to require multiple labels (AND semantics).
+	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
+}
+
+// DeleteAgentParams defines parameters for DeleteAgent.
+type DeleteAgentParams struct {
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// GetAgentParams defines parameters for GetAgent.
+type GetAgentParams struct {
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// UpdateAgentParams defines parameters for UpdateAgent.
+type UpdateAgentParams struct {
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// GetAgentGroupsParams defines parameters for GetAgentGroups.
+type GetAgentGroupsParams struct {
+	// Environment Environment name to read the agent's groups for
+	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
+
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// RevokeAgentIdentitySecretParams defines parameters for RevokeAgentIdentitySecret.
+type RevokeAgentIdentitySecretParams struct {
+	// Environment Environment name to revoke the AgentID secret in
+	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
+
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// GetAgentIdentityParams defines parameters for GetAgentIdentity.
+type GetAgentIdentityParams struct {
+	// Environment Environment name to filter the result to a single binding
+	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
+
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// RegenerateAgentIdentitySecretParams defines parameters for RegenerateAgentIdentitySecret.
+type RegenerateAgentIdentitySecretParams struct {
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// ProvisionAgentIdentityParams defines parameters for ProvisionAgentIdentity.
+type ProvisionAgentIdentityParams struct {
+	// Environment Environment name to provision the AgentID in
+	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
+
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// RetryAgentIdentityProvisioningParams defines parameters for RetryAgentIdentityProvisioning.
+type RetryAgentIdentityProvisioningParams struct {
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// GetAgentRolesParams defines parameters for GetAgentRoles.
+type GetAgentRolesParams struct {
+	// Environment Environment name to read the agent's roles for
+	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
+
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+}
+
+// GenerateAgentTokenParams defines parameters for GenerateAgentToken.
+type GenerateAgentTokenParams struct {
+	// Project Project handle.
+	Project string `form:"project" json:"project"`
+
+	// Environment Environment name (defaults to configured default if not provided)
+	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
+}
+
 // ListOrganizationsParams defines parameters for ListOrganizations.
 type ListOrganizationsParams struct {
 	// Limit Maximum number of results to return
@@ -1637,18 +1856,6 @@ type ListProjectsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
-// ListAgentsParams defines parameters for ListAgents.
-type ListAgentsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Label Filter by label as key:value. Repeat the parameter to require multiple labels (AND semantics).
-	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
-}
-
 // ListAgentEventDeliveriesParams defines parameters for ListAgentEventDeliveries.
 type ListAgentEventDeliveriesParams struct {
 	// DestinationId Only deliveries to this destination.
@@ -1670,42 +1877,6 @@ type ListAgentEventDeliveriesParams struct {
 // ListAgentEventDeliveriesParamsStatus defines parameters for ListAgentEventDeliveries.
 type ListAgentEventDeliveriesParamsStatus string
 
-// GetAgentGroupsParams defines parameters for GetAgentGroups.
-type GetAgentGroupsParams struct {
-	// Environment Environment name to read the agent's groups for
-	Environment string `form:"environment" json:"environment"`
-}
-
-// RevokeAgentIdentitySecretParams defines parameters for RevokeAgentIdentitySecret.
-type RevokeAgentIdentitySecretParams struct {
-	// Environment Environment name to revoke the AgentID secret in
-	Environment string `form:"environment" json:"environment"`
-}
-
-// GetAgentIdentityParams defines parameters for GetAgentIdentity.
-type GetAgentIdentityParams struct {
-	// Environment Environment name to filter the result to a single binding
-	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
-}
-
-// ProvisionAgentIdentityParams defines parameters for ProvisionAgentIdentity.
-type ProvisionAgentIdentityParams struct {
-	// Environment Environment name to provision the AgentID in
-	Environment string `form:"environment" json:"environment"`
-}
-
-// GetAgentRolesParams defines parameters for GetAgentRoles.
-type GetAgentRolesParams struct {
-	// Environment Environment name to read the agent's roles for
-	Environment string `form:"environment" json:"environment"`
-}
-
-// GenerateAgentTokenParams defines parameters for GenerateAgentToken.
-type GenerateAgentTokenParams struct {
-	// Environment Environment name (defaults to configured default if not provided)
-	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
-}
-
 // ListProjectEventDeliveriesParams defines parameters for ListProjectEventDeliveries.
 type ListProjectEventDeliveriesParams struct {
 	// DestinationId Only deliveries to this destination.
@@ -1726,6 +1897,21 @@ type ListProjectEventDeliveriesParams struct {
 
 // ListProjectEventDeliveriesParamsStatus defines parameters for ListProjectEventDeliveries.
 type ListProjectEventDeliveriesParamsStatus string
+
+// CreateAgentJSONRequestBody defines body for CreateAgent for application/json ContentType.
+type CreateAgentJSONRequestBody = AgentDocument
+
+// UpdateAgentJSONRequestBody defines body for UpdateAgent for application/json ContentType.
+type UpdateAgentJSONRequestBody = AgentDocument
+
+// RegenerateAgentIdentitySecretJSONRequestBody defines body for RegenerateAgentIdentitySecret for application/json ContentType.
+type RegenerateAgentIdentitySecretJSONRequestBody = AgentIdentityActionRequest
+
+// RetryAgentIdentityProvisioningJSONRequestBody defines body for RetryAgentIdentityProvisioning for application/json ContentType.
+type RetryAgentIdentityProvisioningJSONRequestBody = AgentIdentityActionRequest
+
+// GenerateAgentTokenJSONRequestBody defines body for GenerateAgentToken for application/json ContentType.
+type GenerateAgentTokenJSONRequestBody = TokenRequest
 
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
 type CreateOrganizationJSONRequestBody = CreateOrganizationRequest
@@ -1769,26 +1955,11 @@ type CreateProjectJSONRequestBody = CreateProjectRequest
 // UpdateProjectJSONRequestBody defines body for UpdateProject for application/json ContentType.
 type UpdateProjectJSONRequestBody = UpdateProjectRequest
 
-// CreateAgentJSONRequestBody defines body for CreateAgent for application/json ContentType.
-type CreateAgentJSONRequestBody = CreateAgentRequest
-
-// UpdateAgentJSONRequestBody defines body for UpdateAgent for application/json ContentType.
-type UpdateAgentJSONRequestBody = UpdateAgentBasicInfoRequest
-
 // CreateAgentEventSubscriptionJSONRequestBody defines body for CreateAgentEventSubscription for application/json ContentType.
 type CreateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
 // UpdateAgentEventSubscriptionJSONRequestBody defines body for UpdateAgentEventSubscription for application/json ContentType.
 type UpdateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
-
-// RegenerateAgentIdentitySecretJSONRequestBody defines body for RegenerateAgentIdentitySecret for application/json ContentType.
-type RegenerateAgentIdentitySecretJSONRequestBody = AgentIdentityActionRequest
-
-// RetryAgentIdentityProvisioningJSONRequestBody defines body for RetryAgentIdentityProvisioning for application/json ContentType.
-type RetryAgentIdentityProvisioningJSONRequestBody = AgentIdentityActionRequest
-
-// GenerateAgentTokenJSONRequestBody defines body for GenerateAgentToken for application/json ContentType.
-type GenerateAgentTokenJSONRequestBody = TokenRequest
 
 // CreateProjectEventSubscriptionJSONRequestBody defines body for CreateProjectEventSubscription for application/json ContentType.
 type CreateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest

@@ -119,22 +119,24 @@ func (r guardedRoute) allowCases() []scopeCase {
 // checks the complementary property that the wiring actually behaves at
 // runtime, on the routes where being wrong is most expensive.
 func guardedRoutes(org string) []guardedRoute {
-	agentBase := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", org, absentName)
+	agentBase := "/api/v1/agents"
+	inProject := "?project=" + absentName
 	orgBase := fmt.Sprintf("/api/v1/orgs/%s", org)
 	identityBase := orgBase + "/identities"
-	// The AI Gateway module's API.
+	// The AI Gateway module's API. Migrated resources take the org from the token, so
+	// their routes hang off the module base with no org segment.
+	gwBase := "/m/ai-gateway"
 	gwOrgBase := fmt.Sprintf("/m/ai-gateway/orgs/%s", org)
-	gwAgentBase := gwOrgBase + "/projects/" + absentName + "/agents"
 
 	return []guardedRoute{
 		// --- Agent lifecycle -------------------------------------------------
-		{http.MethodGet, agentBase, []string{"amp:agent:read"}},
+		{http.MethodGet, agentBase + inProject, []string{"amp:agent:read"}},
 		{http.MethodPost, agentBase, []string{"amp:agent:create"}},
-		{http.MethodGet, agentBase + "/" + absentName, []string{"amp:agent:read"}},
-		{http.MethodPut, agentBase + "/" + absentName, []string{"amp:agent:update"}},
-		{http.MethodDelete, agentBase + "/" + absentName, []string{"amp:agent:delete"}},
+		{http.MethodGet, agentBase + "/" + absentName + inProject, []string{"amp:agent:read"}},
+		{http.MethodPut, agentBase + "/" + absentName + inProject, []string{"amp:agent:update"}},
+		{http.MethodDelete, agentBase + "/" + absentName + inProject, []string{"amp:agent:delete"}},
 		{
-			http.MethodPost, gwAgentBase + "/" + absentName + "/environments/" + absentName + "/api-keys",
+			http.MethodPost, gwBase + "/agents/" + absentName + "/api-keys" + inProject,
 			[]string{"amp:ai-gateway:agent-api-keys.manage"},
 		},
 
@@ -170,7 +172,7 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodDelete, gwOrgBase + "/llm-provider-templates/" + absentName, []string{"amp:ai-gateway:llm-provider-templates.delete"}},
 		{http.MethodDelete, gwOrgBase + "/llm-providers/" + absentName + "/api-keys/" + absentName, []string{"amp:ai-gateway:llm-providers.api-key-manage"}},
 		{http.MethodDelete, gwOrgBase + "/projects/" + absentName + "/llm-proxies/" + absentName, []string{"amp:ai-gateway:llm-proxies.delete"}},
-		{http.MethodDelete, gwOrgBase + "/mcp-proxies/" + absentName, []string{"amp:ai-gateway:mcp-servers.delete"}},
+		{http.MethodDelete, gwBase + "/mcp-proxies/" + absentName, []string{"amp:ai-gateway:mcp-servers.delete"}},
 
 		// --- Agent identity roles ---------------------------------------------
 		{http.MethodDelete, gwOrgBase + "/environments/" + absentName + "/agent-identities/roles/" + absentName, []string{"amp:ai-gateway:agent-identities.delete"}},

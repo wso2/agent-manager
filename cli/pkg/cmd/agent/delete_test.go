@@ -49,11 +49,12 @@ func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*
 		if name, ok := agentNameIfBasePath(r.Method, r.URL.Path); ok {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(amsvc.AgentResponse{
-				Name:         name,
-				DisplayName:  "Stub Agent",
-				ProjectName:  "triage",
-				Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
+			_ = json.NewEncoder(w).Encode(amsvc.AgentDocument{
+				Metadata: amsvc.ProjectScopedDocumentMetadata{Name: name, Project: "triage"},
+				Spec: amsvc.AgentSpec{
+					DisplayName:  "Stub Agent",
+					Provisioning: amsvc.AgentProvisioning{Type: amsvc.AgentProvisioningKind(amsvc.ProvisioningTypeInternal)},
+				},
 			})
 			return
 		}
@@ -77,16 +78,16 @@ func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*
 }
 
 // agentNameIfBasePath returns the agent name if (method, path) matches
-// GET /orgs/{org}/projects/{project}/agents/{agent} exactly (no further segments).
+// GET /agents/{agent} exactly (no further segments).
 func agentNameIfBasePath(method, path string) (string, bool) {
 	if method != http.MethodGet {
 		return "", false
 	}
 	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) != 6 || parts[0] != "orgs" || parts[2] != "projects" || parts[4] != "agents" {
+	if len(parts) != 2 || parts[0] != "agents" {
 		return "", false
 	}
-	return parts[5], true
+	return parts[1], true
 }
 
 // newExternalAgentClient returns a client that reports the agent as externally
@@ -99,11 +100,12 @@ func newExternalAgentClient(t *testing.T) (func(context.Context) (*amsvc.ClientW
 		if name, ok := agentNameIfBasePath(r.Method, r.URL.Path); ok {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(amsvc.AgentResponse{
-				Name:         name,
-				DisplayName:  "Ext Agent",
-				ProjectName:  "triage",
-				Provisioning: amsvc.Provisioning{Type: "external"},
+			_ = json.NewEncoder(w).Encode(amsvc.AgentDocument{
+				Metadata: amsvc.ProjectScopedDocumentMetadata{Name: name, Project: "triage"},
+				Spec: amsvc.AgentSpec{
+					DisplayName:  "Ext Agent",
+					Provisioning: amsvc.AgentProvisioning{Type: amsvc.AgentProvisioningKind("external")},
+				},
 			})
 			return
 		}
@@ -245,8 +247,8 @@ func TestDelete_Success204(t *testing.T) {
 	if captured.method != "DELETE" {
 		t.Errorf("method = %q, want DELETE", captured.method)
 	}
-	if captured.path != "/orgs/acme/projects/triage/agents/order-triage" {
-		t.Errorf("path = %q, want /orgs/acme/projects/triage/agents/order-triage", captured.path)
+	if captured.path != "/agents/order-triage" {
+		t.Errorf("path = %q, want /agents/order-triage", captured.path)
 	}
 	if prompter.calls != 1 {
 		t.Errorf("prompter calls = %d, want 1", prompter.calls)

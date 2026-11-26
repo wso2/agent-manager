@@ -1,0 +1,14 @@
+{
+  "overall_min": 78,
+  "area_min": 70,
+  "area_exceptions": {
+    "pkg/browser": 40.0,
+    "pkg/clients": 69.2,
+    "pkg/cmd/agent": 38.9,
+    "pkg/cmd/context/instance": 53.1,
+    "pkg/cmd/context/org": 52.8,
+    "pkg/cmd/skills": 68.0
+  },
+  "changed_min": 80,
+  "changed_min_lines": 10
+}

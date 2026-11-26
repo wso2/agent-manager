@@ -27,6 +27,10 @@ import {
   getProjectMCPProxy,
   listAvailableMCPPolicies,
   listMCPProxies,
+  proxyFromDocument,
+  proxyListFromDocuments,
+  documentFromProxy,
+  updateDocumentFromProxy,
   updateMCPProxy,
 } from "./mcp-proxies";
 
@@ -78,8 +82,10 @@ describe("getProjectMCPProxy", () => {
 });
 
 const ORG = "/m/ai-gateway/orgs/acme%20corp";
+const PROXIES = "/m/ai-gateway/mcp-proxies";
 const proxy = { orgName: "acme corp", proxyId: "orders/v1" };
-const body = { name: "orders", upstream: { url: "https://mcp.example" } };
+const body = { id: "orders", name: "Orders MCP", version: "v1.0" };
+const doc = documentFromProxy(body as never);
 const httpMocks = {
   GET: vi.mocked(httpGET),
   POST: vi.mocked(httpPOST),
@@ -91,37 +97,37 @@ describeHttpCases("MCP proxy API", httpMocks, [
   {
     name: "listMCPProxies without a query",
     call: () => listMCPProxies({ orgName: "acme corp" }, undefined, getToken),
-    method: "GET", url: `${ORG}/mcp-proxies`,
+    method: "GET", url: PROXIES,
   },
   {
     name: "listAvailableMCPPolicies",
     call: () => listAvailableMCPPolicies({ orgName: "acme corp" }, getToken),
-    method: "GET", url: `${ORG}/mcp-proxies/policies`,
+    method: "GET", url: `${PROXIES}/policies`,
   },
   {
-    name: "createMCPProxy",
-    call: () => createMCPProxy({ orgName: "acme corp" }, body as never, getToken),
-    method: "POST", url: `${ORG}/mcp-proxies`, body,
+    name: "createMCPProxy posts a document",
+    call: () => createMCPProxy({ orgName: "acme corp" }, doc, getToken),
+    method: "POST", url: PROXIES, body: doc,
   },
-  { name: "getMCPProxy", call: () => getMCPProxy(proxy, getToken), method: "GET", url: `${ORG}/mcp-proxies/orders%2Fv1` },
+  { name: "getMCPProxy", call: () => getMCPProxy(proxy, getToken), method: "GET", url: `${PROXIES}/orders%2Fv1` },
   {
     name: "getProjectMCPProxy",
     call: () => getProjectMCPProxy({ ...proxy, projName: "p 1" }, getToken),
     method: "GET", url: `${ORG}/projects/p%201/mcp-proxies/orders%2Fv1`,
   },
   {
-    name: "updateMCPProxy",
-    call: () => updateMCPProxy(proxy, body as never, getToken),
-    method: "PUT", url: `${ORG}/mcp-proxies/orders%2Fv1`, body,
+    name: "updateMCPProxy puts a document",
+    call: () => updateMCPProxy(proxy, doc, getToken),
+    method: "PUT", url: `${PROXIES}/orders%2Fv1`, body: doc,
   },
   {
     name: "deleteMCPProxy", call: () => deleteMCPProxy(proxy, getToken),
-    method: "DELETE", url: `${ORG}/mcp-proxies/orders%2Fv1`, returnsBody: false,
+    method: "DELETE", url: `${PROXIES}/orders%2Fv1`, returnsBody: false,
   },
   {
     name: "fetchMCPProxyServerInfo",
     call: () => fetchMCPProxyServerInfo({ orgName: "acme corp" }, { url: "https://mcp.example" } as never, getToken),
-    method: "POST", url: `${ORG}/mcp-proxies/fetch-server-info`, body: { url: "https://mcp.example" },
+    method: "POST", url: `${PROXIES}/fetch-server-info`, body: { url: "https://mcp.example" },
   },
 ]);
 
@@ -131,5 +137,78 @@ describe("fetchMCPProxyServerInfo", () => {
     const controller = new AbortController();
     await fetchMCPProxyServerInfo({ orgName: "o" }, { url: "u" } as never, getToken, controller.signal);
     expect(vi.mocked(httpPOST).mock.calls[0][2]).toEqual({ token: "jwt", signal: controller.signal });
+  });
+});
+
+// The UI still works on the flat proxy, so the conversions must carry every field across.
+describe("MCP proxy document conversions", () => {
+  const full = {
+    id: "orders",
+    name: "Orders MCP",
+    version: "v1.0",
+    description: "order tools",
+    context: "/orders",
+    vhost: "api.example.com",
+    mcpSpecVersion: "2025-03-26",
+    inCatalog: true,
+    endpoints: [
+      {
+        id: "primary",
+        upstream: { main: { url: "https://mcp.example" } },
+        environments: [{ environmentUuid: "env-1", deploymentStatus: "Deployed" as const }],
+      },
+    ],
+  };
+
+  it("maps the handle to metadata.name and the label to spec.displayName", () => {
+    const document = documentFromProxy(full as never);
+    expect(document.apiVersion).toBe("ai-control-plane.choreolabs.com/v1");
+    expect(document.kind).toBe("McpProxy");
+    expect(document.metadata.name).toBe("orders");
+    expect(document.spec.displayName).toBe("Orders MCP");
+    expect(document.spec).not.toHaveProperty("id");
+    expect(document.spec).not.toHaveProperty("name");
+  });
+
+  it("carries every spec key back through a round trip", () => {
+    expect(proxyFromDocument(documentFromProxy(full as never))).toEqual(full);
+  });
+
+  it("names the update document after the path's proxy, not the body", () => {
+    const document = updateDocumentFromProxy("orders-v2", full as never);
+    expect(document.metadata.name).toBe("orders-v2");
+    expect(document.spec.displayName).toBe("Orders MCP");
+  });
+
+  it("keeps an absent endpoints key absent rather than sending an empty list", () => {
+    const withoutEndpoints = { ...full, endpoints: undefined };
+    const document = documentFromProxy(withoutEndpoints as never);
+    expect(document.spec).not.toHaveProperty("endpoints");
+    expect(JSON.stringify(document)).not.toContain("endpoints");
+
+    const cleared = documentFromProxy({ ...full, endpoints: [] } as never);
+    expect(cleared.spec.endpoints).toEqual([]);
+  });
+
+  it("reads a page of sparse documents as the flat list the table renders", () => {
+    const list = proxyListFromDocuments({
+      count: 1,
+      list: [documentFromProxy(full as never)],
+      pagination: { limit: 20, offset: 0, total: 7 },
+    });
+    expect(list.count).toBe(1);
+    expect(list.pagination).toEqual({ count: 7, limit: 20, offset: 0 });
+    expect(list.list[0]).toEqual({
+      id: "orders",
+      name: "Orders MCP",
+      version: "v1.0",
+      description: "order tools",
+      context: "/orders",
+      mcpSpecVersion: "2025-03-26",
+      projectName: undefined,
+      createdBy: undefined,
+      createdAt: undefined,
+      updatedAt: undefined,
+    });
   });
 });

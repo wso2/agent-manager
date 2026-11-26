@@ -173,17 +173,24 @@ func TestModuleContract(t *testing.T) {
 	w := newModuleWorld(t)
 	ctx := context.Background()
 	project := "modproj"
-	agentsPath := "/api/v1/orgs/" + w.handle + "/projects/" + project + "/agents"
+	agentsPath := "/api/v1/agents"
+	agentPath := func(name, suffix string) string { return agentsPath + "/" + name + suffix + "?project=" + project }
+	agentDoc := func(name string, spec map[string]any) map[string]any {
+		return map[string]any{
+			"apiVersion": "ai-control-plane.choreolabs.com/v1", "kind": "Agent",
+			"metadata": map[string]any{"name": name, "project": project}, "spec": spec,
+		}
+	}
 	agentBody := func(name string, ext map[string]any) map[string]any {
 		b := map[string]any{
-			"name": name, "displayName": name,
+			"displayName":  name,
 			"provisioning": map[string]any{"type": "external"},
 			"agentType":    map[string]any{"type": "external-agent-api"},
 		}
 		if ext != nil {
 			b["extensions"] = ext
 		}
-		return b
+		return agentDoc(name, b)
 	}
 
 	t.Run("routes of an uninstalled module are not found", func(t *testing.T) {
@@ -257,7 +264,7 @@ func TestModuleContract(t *testing.T) {
 		assert.Contains(t, string(body), "rejected on request")
 		code, _ = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("bad", map[string]any{"testmod": map[string]any{"tag": 7}}))
 		assert.Equal(t, http.StatusBadRequest, code)
-		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/bad", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, agentPath("bad", ""), nil)
 		assert.Equal(t, http.StatusNotFound, code, "a rejected create leaves no agent")
 
 		// The apply hook also publishes from inside the transaction and
@@ -288,7 +295,7 @@ func TestModuleContract(t *testing.T) {
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.NotContains(t, string(body), `"project"`)
 		assert.NotContains(t, string(body), `"agent"`)
-		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/locked", nil)
+		code, body = w.call(t, w.full, http.MethodDelete, agentPath("locked", ""), nil)
 		require.Equal(t, http.StatusNoContent, code, string(body))
 	})
 
@@ -373,12 +380,12 @@ func TestModuleContract(t *testing.T) {
 	})
 
 	t.Run("a module refuses a delete before anything is torn down", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPut, agentsPath+"/tagged",
-			map[string]any{"displayName": "Tagged", "description": "", "extensions": map[string]any{"testmod": map[string]any{"tag": "undeletable"}}})
+		code, body := w.call(t, w.full, http.MethodPut, agentPath("tagged", ""),
+			agentDoc("tagged", map[string]any{"displayName": "Tagged", "description": "", "extensions": map[string]any{"testmod": map[string]any{"tag": "undeletable"}}}))
 		require.Equal(t, http.StatusOK, code, string(body))
-		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/tagged", nil)
+		code, body = w.call(t, w.full, http.MethodDelete, agentPath("tagged", ""), nil)
 		assert.Equal(t, http.StatusConflict, code, string(body))
-		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/tagged", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, agentPath("tagged", ""), nil)
 		assert.Equal(t, http.StatusOK, code, "a refused delete keeps the agent")
 		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/tags", nil)
 		require.Equal(t, http.StatusOK, code)
@@ -386,12 +393,12 @@ func TestModuleContract(t *testing.T) {
 	})
 
 	t.Run("a failing finalize hook cannot block a delete", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPut, agentsPath+"/tagged",
-			map[string]any{"displayName": "Tagged", "description": "", "extensions": map[string]any{"testmod": map[string]any{"tag": "finalize-fails"}}})
+		code, body := w.call(t, w.full, http.MethodPut, agentPath("tagged", ""),
+			agentDoc("tagged", map[string]any{"displayName": "Tagged", "description": "", "extensions": map[string]any{"testmod": map[string]any{"tag": "finalize-fails"}}}))
 		require.Equal(t, http.StatusOK, code, string(body))
-		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/tagged", nil)
+		code, body = w.call(t, w.full, http.MethodDelete, agentPath("tagged", ""), nil)
 		require.Equal(t, http.StatusNoContent, code, string(body))
-		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/tagged", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, agentPath("tagged", ""), nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		var n int64
 		require.NoError(t, db.DB(ctx).Raw(`SELECT count(*) FROM mod_testmod_agent_tags WHERE tag = ? AND org_id = ?`, "finalize-fails", w.org).Scan(&n).Error)
@@ -402,17 +409,17 @@ func TestModuleContract(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPost, agentsPath, agentBody("hangs", map[string]any{"testmod": map[string]any{"tag": "finalize-hangs"}}))
 		require.Equal(t, http.StatusAccepted, code, string(body))
 		start := time.Now()
-		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/hangs", nil)
+		code, body = w.call(t, w.full, http.MethodDelete, agentPath("hangs", ""), nil)
 		require.Equal(t, http.StatusNoContent, code, string(body))
 		assert.Less(t, time.Since(start), modkit.OperationTimeout+2*time.Second)
-		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/hangs", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, agentPath("hangs", ""), nil)
 		assert.Equal(t, http.StatusNotFound, code)
 	})
 
 	t.Run("a delete's validate hook cannot publish", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPost, agentsPath, agentBody("quiet", map[string]any{"testmod": map[string]any{"tag": "publish-on-delete"}}))
 		require.Equal(t, http.StatusAccepted, code, string(body))
-		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/quiet", nil)
+		code, body = w.call(t, w.full, http.MethodDelete, agentPath("quiet", ""), nil)
 		require.Equal(t, http.StatusNoContent, code, string(body))
 		perr := testmod.DeletePublishErr.Load()
 		require.NotNil(t, perr, "the validate hook ran")
@@ -425,7 +432,7 @@ func TestModuleContract(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPost, agentsPath, agentBody("stalled", map[string]any{"testmod": map[string]any{"stall": true}}))
 		assert.Equal(t, http.StatusInternalServerError, code, string(body))
 		assert.Less(t, time.Since(start), modkit.OperationTimeout+2*time.Second)
-		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/stalled", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, agentPath("stalled", ""), nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		time.Sleep(500 * time.Millisecond) // let the stalled hook try its late write
 		var n int64
@@ -540,7 +547,7 @@ func TestModuleContract(t *testing.T) {
 		// An agent token is signed with the same key, but is no workload token.
 		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("tokened", nil))
 		require.Equal(t, http.StatusAccepted, code, string(body))
-		code, body = w.call(t, w.full, http.MethodPost, agentsPath+"/tokened/token", map[string]any{})
+		code, body = w.call(t, w.full, http.MethodPost, agentPath("tokened", "/token"), map[string]any{})
 		require.Equal(t, http.StatusOK, code, string(body))
 		var agentToken struct {
 			Token string `json:"token"`

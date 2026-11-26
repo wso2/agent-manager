@@ -48,7 +48,7 @@ func (c *AgentGatewayController) UpdateAgentDeploySettings(w http.ResponseWriter
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	projName := r.PathValue(gwutil.PathParamProjName)
+	projName := gwutil.Project(r)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 
 	var payload gwspec.UpdateAgentDeploySettingsRequest
@@ -57,13 +57,9 @@ func (c *AgentGatewayController) UpdateAgentDeploySettings(w http.ResponseWriter
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	if payload.EnvironmentName == "" {
-		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environmentName is required")
-		return
-	}
-	modkit.EventEnvironment(ctx, payload.EnvironmentName)
+	modkit.EventEnvironment(ctx, gwmodels.DefaultEnvironmentName)
 
-	if err := c.agentService.UpdateAgentDeploySettings(ctx, ouID, projName, agentName, &payload); err != nil {
+	if err := c.agentService.UpdateAgentDeploySettings(ctx, ouID, projName, agentName, gwmodels.DefaultEnvironmentName, &payload); err != nil {
 		log.Error("UpdateAgentDeploySettings: failed to update deploy settings", "error", err)
 		handleCommonErrors(w, err, "Failed to update deploy settings")
 		return
@@ -77,7 +73,7 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 
 	// Extract path parameters
 	ouID := modkit.OrgID(r.Context())
-	projName := r.PathValue(gwutil.PathParamProjName)
+	projName := gwutil.Project(r)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 
 	deployments, err := c.agentService.GetAgentDeployments(ctx, ouID, projName, agentName)
@@ -96,12 +92,9 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 func (c *AgentGatewayController) GetAgentConfigurations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	ouID := modkit.OrgID(r.Context())
-	projName := r.PathValue(gwutil.PathParamProjName)
+	projName := gwutil.Project(r)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
-	environment := r.URL.Query().Get("environment")
-	if environment == "" {
-		environment = gwmodels.DefaultEnvironmentName
-	}
+	environment := gwmodels.DefaultEnvironmentName
 	cfg, bindings, err := c.agentService.AgentConfigurations(ctx, ouID, projName, agentName, environment)
 	if err != nil {
 		logger.GetLogger(ctx).Error("GetAgentConfigurations: failed to read configurations", "error", err)

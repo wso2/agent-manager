@@ -28,22 +28,26 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
-func a2aAgent(provisioning amsvc.ProvisioningType) amsvc.AgentResponse {
+func a2aAgent(provisioning amsvc.ProvisioningType) amsvc.AgentDocument {
 	sub := "a2a-agent"
-	return amsvc.AgentResponse{
-		AgentType:    amsvc.AgentType{Type: "agent-api", SubType: &sub},
-		Provisioning: amsvc.Provisioning{Type: provisioning},
+	return agentDoc(amsvc.AgentType{Type: "agent-api", SubType: &sub}, provisioning)
+}
+
+func agentDoc(agentType amsvc.AgentType, provisioning amsvc.ProvisioningType) amsvc.AgentDocument {
+	return amsvc.AgentDocument{
+		Metadata: amsvc.ProjectScopedDocumentMetadata{Name: "order-bot", Project: "triage"},
+		Spec: amsvc.AgentSpec{
+			AgentType:    agentType,
+			Provisioning: amsvc.AgentProvisioning{Type: amsvc.AgentProvisioningKind(provisioning)},
+		},
 	}
 }
 
 // a2aExternal carries no subtype: an external agent is A2A wherever it registers a card URL.
-func a2aExternal() amsvc.AgentResponse {
-	return amsvc.AgentResponse{
-		AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-		Provisioning: amsvc.Provisioning{Type: amsvc.External},
-	}
+func a2aExternal() amsvc.AgentDocument {
+	return agentDoc(amsvc.AgentType{Type: "external-agent-api"}, amsvc.ProvisioningTypeExternal)
 }
-func a2aInternal() amsvc.AgentResponse { return a2aAgent(amsvc.Internal) }
+func a2aInternal() amsvc.AgentDocument { return a2aAgent(amsvc.ProvisioningTypeInternal) }
 
 func getOpts(client func(context.Context) (*aigateway.ClientWithResponses, error), jsonMode bool) (*GetOptions, func() string) {
 	ios, out, _ := newTestIO(jsonMode)
@@ -55,9 +59,9 @@ func getOpts(client func(context.Context) (*aigateway.ClientWithResponses, error
 }
 
 var (
-	agentKey = "GET " + agentPath
-	proxyKey = "GET " + envPath("default", "a2a-proxy")
-	cardKey  = "GET " + envPath("default", "agent-card")
+	agentKey = "GET /agents/order-bot"
+	proxyKey = "GET " + agentGWPath("a2a-proxy")
+	cardKey  = "GET " + agentGWPath("agent-card")
 
 	notFound = route{status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "nope"}}
 )
@@ -225,10 +229,7 @@ func Test_runGet_noCardJSON(t *testing.T) {
 
 func Test_runGet_notA2A(t *testing.T) {
 	sub := "chat-api"
-	agent := amsvc.AgentResponse{
-		AgentType:    amsvc.AgentType{Type: "agent-api", SubType: &sub},
-		Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
-	}
+	agent := agentDoc(amsvc.AgentType{Type: "agent-api", SubType: &sub}, amsvc.ProvisioningTypeInternal)
 	o, _ := getOpts(newClient(t, map[string]route{agentKey: okJSON(agent)}), true)
 	err := runGet(context.Background(), o)
 	if err == nil {

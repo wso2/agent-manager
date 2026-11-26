@@ -108,7 +108,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	agentResp, err := core.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
+	agentResp, err := core.GetAgentWithResponse(ctx, o.AgentName, &amsvc.GetAgentParams{Project: o.Proj})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -118,8 +118,8 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	}
 	agent := agentResp.JSON200
 	// An external agent is A2A wherever it registers a card URL; an internal one only when built as a2a-agent.
-	external := agent.Provisioning.Type == amsvc.External
-	if !external && (agent.AgentType.SubType == nil || *agent.AgentType.SubType != a2aSubType) {
+	external := agent.Spec.Provisioning.Type == amsvc.AgentProvisioningKindExternal
+	if !external && (agent.Spec.AgentType.SubType == nil || *agent.Spec.AgentType.SubType != a2aSubType) {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Validation, "agent %q is not an A2A agent", o.AgentName))
 	}
 
@@ -142,7 +142,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 
 // fetchProxy returns nil when the card is direct, and unknown when the caller may not read the routing.
 func fetchProxy(ctx context.Context, client *aigateway.ClientWithResponses, o *GetOptions) (proxy *aigateway.A2AProxyResponse, unknown bool, err error) {
-	resp, err := client.GetA2AProxyWithResponse(ctx, o.Org, o.Proj, o.AgentName, cmdutil.DefaultEnvironment)
+	resp, err := client.GetA2AProxyWithResponse(ctx, o.AgentName, &aigateway.GetA2AProxyParams{Project: o.Proj})
 	if err != nil {
 		return nil, false, clierr.Newf(clierr.Transport, "%v", err)
 	}
@@ -160,7 +160,7 @@ func fetchProxy(ctx context.Context, client *aigateway.ClientWithResponses, o *G
 
 // fetchCard returns nil when no card row exists.
 func fetchCard(ctx context.Context, client *aigateway.ClientWithResponses, o *GetOptions) (*aigateway.AgentCardResponse, error) {
-	resp, err := client.GetAgentCardWithResponse(ctx, o.Org, o.Proj, o.AgentName, cmdutil.DefaultEnvironment)
+	resp, err := client.GetAgentCardWithResponse(ctx, o.AgentName, &aigateway.GetAgentCardParams{Project: o.Proj})
 	if err != nil {
 		return nil, clierr.Newf(clierr.Transport, "%v", err)
 	}

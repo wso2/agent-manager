@@ -1,0 +1,11 @@
+{
+  "overall_min": 80,
+  "area_min": 70,
+  "area_exceptions": {
+    "internal/cli": 47.4,
+    "modkit/contracts/tracesv1": 66.6,
+    "server": 12.7
+  },
+  "changed_min": 80,
+  "changed_min_lines": 10
+}

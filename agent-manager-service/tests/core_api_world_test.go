@@ -108,6 +108,11 @@ func (w coreWorld) path(format string, a ...any) string {
 	return "/api/v1/orgs/" + w.handle + fmt.Sprintf(format, a...)
 }
 
+// agentsPath is an agent API path; the organization comes from the caller's token.
+func agentsPath(format string, a ...any) string {
+	return "/api/v1/agents" + fmt.Sprintf(format, a...)
+}
+
 // call sends body (marshalled unless it is a string) and returns the status
 // and the response body.
 func call(t *testing.T, h http.Handler, method, path string, body any) (int, []byte) {

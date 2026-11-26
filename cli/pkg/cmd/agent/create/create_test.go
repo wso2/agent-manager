@@ -178,20 +178,8 @@ func decodeEnvelope(t *testing.T, raw string) map[string]any {
 	return m
 }
 
-func agentResponse() amsvc.AgentResponse {
-	now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
-	return amsvc.AgentResponse{
-		Name:        "my-agent",
-		DisplayName: "My Agent",
-		Description: "test",
-		AgentType:   amsvc.AgentType{Type: "agent-api"},
-		Provisioning: amsvc.Provisioning{
-			Type: "internal",
-		},
-		ProjectName: "triage",
-		Uuid:        "uuid-123",
-		CreatedAt:   now,
-	}
+func agentResponse() amsvc.AgentDocument {
+	return testAgentDoc("my-agent", "My Agent", "test", amsvc.AgentType{Type: "agent-api"}, amsvc.ProvisioningTypeInternal)
 }
 
 func buildpackArgs() []string {
@@ -244,15 +232,15 @@ func TestCreate_Buildpack_JSON(t *testing.T) {
 		t.Errorf("path = %q, want suffix /agents", captured.path)
 	}
 
-	var reqBody amsvc.CreateAgentRequest
+	var reqBody amsvc.AgentDocument
 	if err := json.Unmarshal(captured.body, &reqBody); err != nil {
 		t.Fatalf("decode request: %v", err)
 	}
-	if reqBody.Name != "my-agent" {
-		t.Errorf("request Name = %q", reqBody.Name)
+	if reqBody.Kind != amsvc.AgentDocumentKindAgent || reqBody.Metadata.Name != "my-agent" || reqBody.Metadata.Project != "triage" {
+		t.Errorf("request envelope = %s/%s/%s", reqBody.Kind, reqBody.Metadata.Name, reqBody.Metadata.Project)
 	}
-	if reqBody.AgentType.Type != "agent-api" {
-		t.Errorf("request AgentType.Type = %q, want agent-api (derived from internal provisioning)", reqBody.AgentType.Type)
+	if reqBody.Spec.AgentType.Type != "agent-api" {
+		t.Errorf("request spec.agentType.type = %q, want agent-api (derived from internal provisioning)", reqBody.Spec.AgentType.Type)
 	}
 
 	env := decodeEnvelope(t, out.String())
@@ -263,8 +251,8 @@ func TestCreate_Buildpack_JSON(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing data key, got %v", env)
 	}
-	if data["name"] != "my-agent" {
-		t.Errorf("data.name = %v", data["name"])
+	if meta, _ := data["metadata"].(map[string]any); meta["name"] != "my-agent" {
+		t.Errorf("data.metadata.name = %v", data["metadata"])
 	}
 }
 
@@ -279,16 +267,8 @@ func TestCreate_Docker_JSON(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var reqBody map[string]any
-	if err := json.Unmarshal(captured.body, &reqBody); err != nil {
-		t.Fatalf("decode request: %v", err)
-	}
-	build, ok := reqBody["build"].(map[string]any)
-	if !ok {
-		t.Fatalf("request missing build object: %v", reqBody)
-	}
-	if build["type"] != "docker" {
-		t.Errorf("build.type = %v", build["type"])
+	if captured.path != "/agents" {
+		t.Errorf("path = %q, want /agents", captured.path)
 	}
 
 	env := decodeEnvelope(t, out.String())
@@ -340,31 +320,19 @@ func TestCreate_ChatAPI_RequestBody(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	var reqBody map[string]any
+	var reqBody struct {
+		Spec map[string]any `json:"spec"`
+	}
 	if err := json.Unmarshal(captured.body, &reqBody); err != nil {
 		t.Fatalf("decode request: %v", err)
 	}
 
-	at := reqBody["agentType"].(map[string]any)
+	at := reqBody.Spec["agentType"].(map[string]any)
 	if at["type"] != "agent-api" {
 		t.Errorf("agentType.type = %v, want agent-api (derived from internal provisioning)", at["type"])
 	}
 	if at["subType"] != "chat-api" {
 		t.Errorf("agentType.subType = %v, want chat-api", at["subType"])
-	}
-
-	iface := reqBody["inputInterface"].(map[string]any)
-	if iface["type"] != "HTTP" {
-		t.Errorf("inputInterface.type = %v, want HTTP", iface["type"])
-	}
-	if iface["port"].(float64) != 8000 {
-		t.Errorf("inputInterface.port = %v, want 8000", iface["port"])
-	}
-	if _, ok := iface["basePath"]; ok {
-		t.Errorf("inputInterface.basePath should be absent for chat-api, got %v", iface["basePath"])
-	}
-	if _, ok := iface["schema"]; ok {
-		t.Errorf("inputInterface.schema should be absent for chat-api, got %v", iface["schema"])
 	}
 }
 
@@ -549,7 +517,7 @@ func TestCreate_MissingName_BatchedError(t *testing.T) {
 func TestCreate_External_Text(t *testing.T) {
 	ios, _, errOut := newTestIO(false)
 	routes := map[string]routeResponse{
-		"/orgs/acme/projects/triage/agents/testing/token": {
+		"/agents/testing/token": {
 			Status: 200,
 			Body: amsvc.TokenResponse{
 				Token:     "tok-abc",
@@ -558,18 +526,9 @@ func TestCreate_External_Text(t *testing.T) {
 				TokenType: "Bearer",
 			},
 		},
-		"/orgs/acme/projects/triage/agents": {
+		"/agents": {
 			Status: 202,
-			Body: amsvc.AgentResponse{
-				Name:         "testing",
-				DisplayName:  "Testing",
-				Description:  "dssdf",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.External},
-				ProjectName:  "triage",
-				Uuid:         "uuid-ext",
-				CreatedAt:    time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC),
-			},
+			Body:   testAgentDoc("testing", "Testing", "dssdf", amsvc.AgentType{Type: "external-agent-api"}, amsvc.ProvisioningTypeExternal),
 		},
 	}
 	clientFn, captured, cleanup := newTestRouter(t, routes)
@@ -587,7 +546,7 @@ func TestCreate_External_Text(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	createReq, ok := captured["/orgs/acme/projects/triage/agents"]
+	createReq, ok := captured["/agents"]
 	if !ok {
 		t.Fatal("no create request captured")
 	}
@@ -595,7 +554,8 @@ func TestCreate_External_Text(t *testing.T) {
 	if err := json.Unmarshal(createReq.body, &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	prov := body["provisioning"].(map[string]any)
+	spec := body["spec"].(map[string]any)
+	prov := spec["provisioning"].(map[string]any)
 	if prov["type"] != "external" {
 		t.Errorf("provisioning.type = %v, want external", prov["type"])
 	}
@@ -603,12 +563,12 @@ func TestCreate_External_Text(t *testing.T) {
 		t.Errorf("provisioning.repository should be absent, got %v", prov["repository"])
 	}
 	for _, k := range []string{"build", "inputInterface", "configurations"} {
-		if _, ok := body[k]; ok {
-			t.Errorf("body.%s should be absent for external, got %v", k, body[k])
+		if _, ok := spec[k]; ok {
+			t.Errorf("spec.%s should be absent for external, got %v", k, spec[k])
 		}
 	}
 
-	if _, ok := captured["/orgs/acme/projects/triage/agents/testing/token"]; !ok {
+	if _, ok := captured["/agents/testing/token"]; !ok {
 		t.Error("no token request captured")
 	}
 
@@ -629,20 +589,13 @@ func TestCreate_External_Text(t *testing.T) {
 func TestCreate_External_JSON(t *testing.T) {
 	ios, out, _ := newTestIO(true)
 	routes := map[string]routeResponse{
-		"/orgs/acme/projects/triage/agents/testing/token": {
+		"/agents/testing/token": {
 			Status: 200,
 			Body:   amsvc.TokenResponse{Token: "tok-abc", ExpiresAt: 1700000000, IssuedAt: 1690000000, TokenType: "Bearer"},
 		},
-		"/orgs/acme/projects/triage/agents": {
+		"/agents": {
 			Status: 202,
-			Body: amsvc.AgentResponse{
-				Name:         "testing",
-				DisplayName:  "Testing",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.External},
-				ProjectName:  "triage",
-				Uuid:         "u",
-			},
+			Body:   testAgentDoc("testing", "Testing", "", amsvc.AgentType{Type: "external-agent-api"}, amsvc.ProvisioningTypeExternal),
 		},
 	}
 	clientFn, _, cleanup := newTestRouter(t, routes)
@@ -679,20 +632,13 @@ func TestCreate_External_JSON(t *testing.T) {
 // tracing setup is left out.
 func TestCreate_External_NoTraceService(t *testing.T) {
 	routes := map[string]routeResponse{
-		"/orgs/acme/projects/triage/agents/testing/token": {
+		"/agents/testing/token": {
 			Status: 200,
 			Body:   amsvc.TokenResponse{Token: "tok-abc", ExpiresAt: 1700000000, IssuedAt: 1690000000, TokenType: "Bearer"},
 		},
-		"/orgs/acme/projects/triage/agents": {
+		"/agents": {
 			Status: 202,
-			Body: amsvc.AgentResponse{
-				Name:         "testing",
-				DisplayName:  "Testing",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.External},
-				ProjectName:  "triage",
-				Uuid:         "u",
-			},
+			Body:   testAgentDoc("testing", "Testing", "", amsvc.AgentType{Type: "external-agent-api"}, amsvc.ProvisioningTypeExternal),
 		},
 	}
 	args := []string{
@@ -748,20 +694,13 @@ func TestCreate_External_NoTraceService(t *testing.T) {
 func TestCreate_External_TokenWithoutEnvironment(t *testing.T) {
 	ios, _, _ := newTestIO(false)
 	routes := map[string]routeResponse{
-		"/orgs/acme/projects/triage/agents/testing/token": {
+		"/agents/testing/token": {
 			Status: 200,
 			Body:   amsvc.TokenResponse{Token: "tok-abc", ExpiresAt: 1700000000, IssuedAt: 1690000000, TokenType: "Bearer"},
 		},
-		"/orgs/acme/projects/triage/agents": {
+		"/agents": {
 			Status: 202,
-			Body: amsvc.AgentResponse{
-				Name:         "testing",
-				DisplayName:  "Testing",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.External},
-				ProjectName:  "triage",
-				Uuid:         "u",
-			},
+			Body:   testAgentDoc("testing", "Testing", "", amsvc.AgentType{Type: "external-agent-api"}, amsvc.ProvisioningTypeExternal),
 		},
 	}
 	clientFn, captured, cleanup := newTestRouter(t, routes)
@@ -778,12 +717,12 @@ func TestCreate_External_TokenWithoutEnvironment(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	tokenReq, ok := captured["/orgs/acme/projects/triage/agents/testing/token"]
+	tokenReq, ok := captured["/agents/testing/token"]
 	if !ok {
 		t.Fatal("no token request captured")
 	}
-	if got := tokenReq.query; got != "" {
-		t.Errorf("token request query = %q, want none", got)
+	if got := tokenReq.query; got != "project=triage" {
+		t.Errorf("token request query = %q, want project=triage only", got)
 	}
 }
 
@@ -792,20 +731,13 @@ func TestCreate_External_TokenWithoutEnvironment(t *testing.T) {
 func TestCreate_External_TokenFailure_WarnsAndSucceeds(t *testing.T) {
 	ios, out, errOut := newTestIO(true)
 	routes := map[string]routeResponse{
-		"/orgs/acme/projects/triage/agents/testing/token": {
+		"/agents/testing/token": {
 			Status: 500,
 			Body:   amsvc.ErrorResponse{Code: "INTERNAL", Message: "boom"},
 		},
-		"/orgs/acme/projects/triage/agents": {
+		"/agents": {
 			Status: 202,
-			Body: amsvc.AgentResponse{
-				Name:         "testing",
-				DisplayName:  "Testing",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.External},
-				ProjectName:  "triage",
-				Uuid:         "u",
-			},
+			Body:   testAgentDoc("testing", "Testing", "", amsvc.AgentType{Type: "external-agent-api"}, amsvc.ProvisioningTypeExternal),
 		},
 	}
 	clientFn, _, cleanup := newTestRouter(t, routes)
@@ -835,8 +767,8 @@ func TestCreate_External_TokenFailure_WarnsAndSucceeds(t *testing.T) {
 	if !ok {
 		t.Fatalf("data.agent missing or wrong shape (success and failure envelopes must share the .data.agent selector): %v", data)
 	}
-	if agent["name"] != "testing" {
-		t.Errorf("data.agent.name = %v, want testing", agent["name"])
+	if meta, _ := agent["metadata"].(map[string]any); meta["name"] != "testing" {
+		t.Errorf("data.agent.metadata.name = %v, want testing", agent["metadata"])
 	}
 	if _, hasToken := data["token"]; hasToken {
 		t.Errorf("data.token should be absent on failure fallback: %v", data["token"])
@@ -846,20 +778,13 @@ func TestCreate_External_TokenFailure_WarnsAndSucceeds(t *testing.T) {
 func TestCreate_External_TokenFailure_TextMode(t *testing.T) {
 	ios, _, errOut := newTestIO(false)
 	routes := map[string]routeResponse{
-		"/orgs/acme/projects/triage/agents/testing/token": {
+		"/agents/testing/token": {
 			Status: 500,
 			Body:   amsvc.ErrorResponse{Code: "INTERNAL", Message: "boom"},
 		},
-		"/orgs/acme/projects/triage/agents": {
+		"/agents": {
 			Status: 202,
-			Body: amsvc.AgentResponse{
-				Name:         "testing",
-				DisplayName:  "Testing",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.External},
-				ProjectName:  "triage",
-				Uuid:         "u",
-			},
+			Body:   testAgentDoc("testing", "Testing", "", amsvc.AgentType{Type: "external-agent-api"}, amsvc.ProvisioningTypeExternal),
 		},
 	}
 	clientFn, _, cleanup := newTestRouter(t, routes)
@@ -890,20 +815,13 @@ func TestCreate_External_TokenFailure_TextMode(t *testing.T) {
 
 func externalA2AAgentRoutes() map[string]routeResponse {
 	return map[string]routeResponse{
-		"/orgs/acme/projects/triage/agents/testing/token": {
+		"/agents/testing/token": {
 			Status: 200,
 			Body:   amsvc.TokenResponse{Token: "tok-abc", ExpiresAt: 1700000000, IssuedAt: 1690000000, TokenType: "Bearer"},
 		},
-		"/orgs/acme/projects/triage/agents": {
+		"/agents": {
 			Status: 202,
-			Body: amsvc.AgentResponse{
-				Name:         "testing",
-				DisplayName:  "Testing",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.External},
-				ProjectName:  "triage",
-				Uuid:         "u",
-			},
+			Body:   testAgentDoc("testing", "Testing", "", amsvc.AgentType{Type: "external-agent-api"}, amsvc.ProvisioningTypeExternal),
 		},
 	}
 }
@@ -925,21 +843,23 @@ func TestCreate_External_SendsNoSubtype(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var body struct {
-		AgentType map[string]any `json:"agentType"`
+		Spec struct {
+			AgentType map[string]any `json:"agentType"`
+		} `json:"spec"`
 	}
-	if err := json.Unmarshal(captured["/orgs/acme/projects/triage/agents"].body, &body); err != nil {
+	if err := json.Unmarshal(captured["/agents"].body, &body); err != nil {
 		t.Fatal(err)
 	}
-	if _, has := body.AgentType["subType"]; has {
-		t.Errorf("agentType = %v, want no subType", body.AgentType)
+	if _, has := body.Spec.AgentType["subType"]; has {
+		t.Errorf("agentType = %v, want no subType", body.Spec.AgentType)
 	}
 }
 
 func TestCreate_External_CardURL_JSON(t *testing.T) {
 	ios, out, _ := newTestIO(true)
 	routes := externalA2AAgentRoutes()
-	routes["/orgs/acme/projects/triage/agents/testing/environments/default/agent-card/source"] = routeResponse{Status: 202, Body: map[string]string{}}
-	routes["/orgs/acme/projects/triage/agents/testing/environments/default/a2a-proxy"] = routeResponse{Status: 404, Body: amsvc.ErrorResponse{Code: "NOT_FOUND", Message: "none"}}
+	routes["/agents/testing/agent-card/source"] = routeResponse{Status: 202, Body: map[string]string{}}
+	routes["/agents/testing/a2a-proxy"] = routeResponse{Status: 404, Body: amsvc.ErrorResponse{Code: "NOT_FOUND", Message: "none"}}
 	clientFn, captured, cleanup := newTestRouter(t, routes)
 	defer cleanup()
 
@@ -952,7 +872,7 @@ func TestCreate_External_CardURL_JSON(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	src := captured["/orgs/acme/projects/triage/agents/testing/environments/default/agent-card/source"]
+	src := captured["/agents/testing/agent-card/source"]
 	if src == nil {
 		t.Fatal("card source was not set")
 	}
@@ -968,7 +888,7 @@ func TestCreate_External_CardURL_JSON(t *testing.T) {
 
 func cardFailureRoutes() map[string]routeResponse {
 	routes := externalA2AAgentRoutes()
-	routes["/orgs/acme/projects/triage/agents/testing/environments/default/agent-card/source"] = routeResponse{
+	routes["/agents/testing/agent-card/source"] = routeResponse{
 		Status: 400,
 		Body:   map[string]string{"message": "invalid URL: url host must be publicly reachable"},
 	}
@@ -1030,9 +950,9 @@ func TestCreate_FileMode_RejectsCardURL(t *testing.T) {
 func TestCreate_External_CardURL_TokenFailure_JSON(t *testing.T) {
 	ios, out, _ := newTestIO(true)
 	routes := externalA2AAgentRoutes()
-	routes["/orgs/acme/projects/triage/agents/testing/token"] = routeResponse{Status: 500, Body: amsvc.ErrorResponse{Code: "INTERNAL", Message: "boom"}}
-	routes["/orgs/acme/projects/triage/agents/testing/environments/default/agent-card/source"] = routeResponse{Status: 202, Body: map[string]string{}}
-	routes["/orgs/acme/projects/triage/agents/testing/environments/default/a2a-proxy"] = routeResponse{Status: 404, Body: amsvc.ErrorResponse{Code: "NOT_FOUND", Message: "none"}}
+	routes["/agents/testing/token"] = routeResponse{Status: 500, Body: amsvc.ErrorResponse{Code: "INTERNAL", Message: "boom"}}
+	routes["/agents/testing/agent-card/source"] = routeResponse{Status: 202, Body: map[string]string{}}
+	routes["/agents/testing/a2a-proxy"] = routeResponse{Status: 404, Body: amsvc.ErrorResponse{Code: "NOT_FOUND", Message: "none"}}
 	clientFn, _, cleanup := newTestRouter(t, routes)
 	defer cleanup()
 
@@ -1052,4 +972,22 @@ func TestCreate_External_CardURL_TokenFailure_JSON(t *testing.T) {
 	if card["routing"] != "direct" {
 		t.Errorf("data.card.routing = %v, want direct", card["routing"])
 	}
+}
+
+func testAgentDoc(name, displayName, description string, agentType amsvc.AgentType, provisioning amsvc.ProvisioningType) amsvc.AgentDocument {
+	created := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+	doc := amsvc.AgentDocument{
+		ApiVersion: amsvc.AiControlPlaneChoreolabsComv1,
+		Kind:       amsvc.AgentDocumentKindAgent,
+		Metadata:   amsvc.ProjectScopedDocumentMetadata{Name: name, Project: "triage", CreationTimestamp: &created},
+		Spec: amsvc.AgentSpec{
+			DisplayName:  displayName,
+			AgentType:    agentType,
+			Provisioning: amsvc.AgentProvisioning{Type: amsvc.AgentProvisioningKind(provisioning)},
+		},
+	}
+	if description != "" {
+		doc.Spec.Description = &description
+	}
+	return doc
 }

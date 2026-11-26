@@ -42,7 +42,7 @@ function pureBarrels(root: string): string[] {
 export const coverage = {
   enabled: false,
   provider: "v8" as const,
-  reporter: ["json-summary", "text-summary"],
+  reporter: ["json-summary", "text-summary", "lcov"],
   include: ["src/**/*.{ts,tsx}"],
   exclude: [
     "src/**/*.stories.*",

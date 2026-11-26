@@ -29,10 +29,10 @@ func newSetOpts(io *iostreams.IOStreams, client clientFn) *SetOptions {
 	return &SetOptions{IO: io, Client: client, Scope: baseScope(), Org: "acme", Proj: "triage", AgentName: "order-bot", Name: "primary"}
 }
 
-// envMapKeys returns the env names present in a captured request body's envMappings.
-func envMapKeys(body map[string]any) map[string]any {
-	em, _ := body["envMappings"].(map[string]any)
-	return em
+// specOf returns the spec of a captured request document.
+func specOf(body map[string]any) map[string]any {
+	spec, _ := body["spec"].(map[string]any)
+	return spec
 }
 
 func Test_runSet_createsWhenAbsent(t *testing.T) {
@@ -50,34 +50,28 @@ func Test_runSet_createsWhenAbsent(t *testing.T) {
 	if err := runSet(context.Background(), opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if posted["name"] != "primary" {
-		t.Errorf("posted name = %v, want primary", posted["name"])
+	if meta, _ := posted["metadata"].(map[string]any); meta["name"] != "primary" || meta["project"] != "triage" {
+		t.Errorf("posted metadata = %v, want primary in triage", posted["metadata"])
 	}
-	if posted["type"] != "llm" {
-		t.Errorf("posted type = %v, want llm", posted["type"])
+	if posted["kind"] != "AgentModelConfig" {
+		t.Errorf("posted kind = %v", posted["kind"])
 	}
-	em := envMapKeys(posted)
-	dev, ok := em["default"].(map[string]any)
-	if !ok {
-		t.Fatalf("envMappings.default missing: %v", em)
-	}
-	if dev["providerName"] != "openai" {
-		t.Errorf("dev providerName = %v, want openai", dev["providerName"])
+	if spec := specOf(posted); spec["providerName"] != "openai" {
+		t.Errorf("spec.providerName = %v, want openai", spec["providerName"])
 	}
 	if !strings.Contains(errOut.String(), "created") {
 		t.Errorf("expected 'created' confirmation, got %q", errOut.String())
 	}
 }
 
-// The critical read-merge-write guarantee: updating one env must NOT drop the
-// others, since PUT replaces the entire envMappings set.
-func Test_runSet_updatePreservesSiblingEnvs(t *testing.T) {
+// An update PUTs the stored document back: the new binding replaces the old one, and what the command does not set is kept.
+func Test_runSet_updateKeepsStoredFields(t *testing.T) {
 	io, _, _ := newTestIO(false)
 	io.SetTerminal(true, true, true)
 	var put map[string]any
 	client, cleanup := newClient(t, map[string]route{
 		listPath:                   okJSON(listResponse(llmItem("primary", getUUID))),
-		configPath("GET", getUUID): okJSON(getResponseFixture()), // has dev + prod
+		configPath("GET", getUUID): okJSON(getResponseFixture()),
 		configPath("PUT", getUUID): {status: http.StatusOK, body: getResponseFixture(), capture: &put},
 	})
 	defer cleanup()
@@ -87,18 +81,18 @@ func Test_runSet_updatePreservesSiblingEnvs(t *testing.T) {
 	if err := runSet(context.Background(), opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	em := envMapKeys(put)
-	for _, env := range []string{"dev", "prod", "default"} {
-		if _, ok := em[env]; !ok {
-			t.Errorf("PUT envMappings missing %q (read-merge-write dropped a sibling): %v", env, em)
-		}
+	spec := specOf(put)
+	if spec["providerName"] != "cohere" {
+		t.Errorf("spec.providerName = %v, want cohere", spec["providerName"])
 	}
-	if staging := em["default"].(map[string]any); staging["providerName"] != "cohere" {
-		t.Errorf("staging providerName = %v, want cohere", staging["providerName"])
+	if spec["description"] != "primary openai binding" {
+		t.Errorf("description = %v, want the stored one", spec["description"])
 	}
-	// Sibling provider must be carried over from the GET response untouched.
-	if dev := em["dev"].(map[string]any); dev["providerName"] != "openai" {
-		t.Errorf("dev providerName = %v, want openai (preserved)", dev["providerName"])
+	if cfg, _ := spec["configuration"].(map[string]any); cfg == nil || len(cfg["policies"].([]any)) != 1 {
+		t.Errorf("configuration = %v, want the stored policies", spec["configuration"])
+	}
+	if _, ok := put["status"]; ok {
+		t.Errorf("status was sent back: %v", put["status"])
 	}
 }
 
@@ -118,9 +112,9 @@ func Test_runSet_createCarriesEnvVars(t *testing.T) {
 	if err := runSet(context.Background(), opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	evs, ok := posted["environmentVariables"].([]any)
+	evs, ok := specOf(posted)["environmentVariables"].([]any)
 	if !ok || len(evs) != 2 {
-		t.Fatalf("environmentVariables = %v, want 2 entries", posted["environmentVariables"])
+		t.Fatalf("environmentVariables = %v, want 2 entries", specOf(posted)["environmentVariables"])
 	}
 	byKey := map[string]string{}
 	for _, e := range evs {

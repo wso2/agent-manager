@@ -25,10 +25,14 @@ type A2AProxyAPIService service
 type ApiDeleteA2AProxyRequest struct {
 	ctx        context.Context
 	ApiService *A2AProxyAPIService
-	orgName    string
-	projName   string
 	agentName  string
-	envID      string
+	project    *string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiDeleteA2AProxyRequest) Project(project string) ApiDeleteA2AProxyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiDeleteA2AProxyRequest) Execute() (*http.Response, error) {
@@ -41,20 +45,14 @@ DeleteA2AProxy Stop routing an external agent through the environment's gateway
 Removes the agent from the gateway, discards the stored upstream secret and fetches the agent's own card again. The environment's API keys are kept.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name
 	@return ApiDeleteA2AProxyRequest
 */
-func (a *A2AProxyAPIService) DeleteA2AProxy(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiDeleteA2AProxyRequest {
+func (a *A2AProxyAPIService) DeleteA2AProxy(ctx context.Context, agentName string) ApiDeleteA2AProxyRequest {
 	return ApiDeleteA2AProxyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -71,16 +69,17 @@ func (a *A2AProxyAPIService) DeleteA2AProxyExecute(r ApiDeleteA2AProxyRequest) (
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/a2a-proxy"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -183,10 +182,14 @@ func (a *A2AProxyAPIService) DeleteA2AProxyExecute(r ApiDeleteA2AProxyRequest) (
 type ApiGetA2AProxyRequest struct {
 	ctx        context.Context
 	ApiService *A2AProxyAPIService
-	orgName    string
-	projName   string
 	agentName  string
-	envID      string
+	project    *string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiGetA2AProxyRequest) Project(project string) ApiGetA2AProxyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiGetA2AProxyRequest) Execute() (*A2AProxyResponse, *http.Response, error) {
@@ -199,20 +202,14 @@ GetA2AProxy Get how an external agent is routed through the environment's gatewa
 Reports the gateway publication of a proxied environment. The upstream secret is never returned; a non-empty upstreamAuthHeader means one is stored.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name
 	@return ApiGetA2AProxyRequest
 */
-func (a *A2AProxyAPIService) GetA2AProxy(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiGetA2AProxyRequest {
+func (a *A2AProxyAPIService) GetA2AProxy(ctx context.Context, agentName string) ApiGetA2AProxyRequest {
 	return ApiGetA2AProxyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -232,16 +229,17 @@ func (a *A2AProxyAPIService) GetA2AProxyExecute(r ApiGetA2AProxyRequest) (*A2APr
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/a2a-proxy"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -331,10 +329,14 @@ func (a *A2AProxyAPIService) GetA2AProxyExecute(r ApiGetA2AProxyRequest) (*A2APr
 type ApiRefreshA2AProxyRequest struct {
 	ctx        context.Context
 	ApiService *A2AProxyAPIService
-	orgName    string
-	projName   string
 	agentName  string
-	envID      string
+	project    *string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiRefreshA2AProxyRequest) Project(project string) ApiRefreshA2AProxyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRefreshA2AProxyRequest) Execute() (*http.Response, error) {
@@ -345,20 +347,14 @@ func (r ApiRefreshA2AProxyRequest) Execute() (*http.Response, error) {
 RefreshA2AProxy Re-derive a proxied agent's routes from its card and republish it
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name
 	@return ApiRefreshA2AProxyRequest
 */
-func (a *A2AProxyAPIService) RefreshA2AProxy(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiRefreshA2AProxyRequest {
+func (a *A2AProxyAPIService) RefreshA2AProxy(ctx context.Context, agentName string) ApiRefreshA2AProxyRequest {
 	return ApiRefreshA2AProxyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -375,16 +371,17 @@ func (a *A2AProxyAPIService) RefreshA2AProxyExecute(r ApiRefreshA2AProxyRequest)
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy/refresh"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/a2a-proxy/refresh"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -476,11 +473,15 @@ func (a *A2AProxyAPIService) RefreshA2AProxyExecute(r ApiRefreshA2AProxyRequest)
 type ApiSetA2AProxyRequest struct {
 	ctx                context.Context
 	ApiService         *A2AProxyAPIService
-	orgName            string
-	projName           string
 	agentName          string
-	envID              string
+	project            *string
 	setA2AProxyRequest *SetA2AProxyRequest
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiSetA2AProxyRequest) Project(project string) ApiSetA2AProxyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiSetA2AProxyRequest) SetA2AProxyRequest(setA2AProxyRequest SetA2AProxyRequest) ApiSetA2AProxyRequest {
@@ -498,20 +499,14 @@ SetA2AProxy Route an external agent through the environment's gateway, or change
 Publishes the agent through the environment's ingress gateway, with routes derived from its registered card URL. Omitting upstreamAuth clears the stored credential; upstreamAuth without a value keeps the stored secret; a value replaces it. External agents only.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name
 	@return ApiSetA2AProxyRequest
 */
-func (a *A2AProxyAPIService) SetA2AProxy(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiSetA2AProxyRequest {
+func (a *A2AProxyAPIService) SetA2AProxy(ctx context.Context, agentName string) ApiSetA2AProxyRequest {
 	return ApiSetA2AProxyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -528,19 +523,20 @@ func (a *A2AProxyAPIService) SetA2AProxyExecute(r ApiSetA2AProxyRequest) (*http.
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/a2a-proxy"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 	if r.setA2AProxyRequest == nil {
 		return nil, reportError("setA2AProxyRequest is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 

@@ -40,6 +40,12 @@ vi.mock("../apis/agent-mcp-configs", () => ({
 import * as api from "../apis/agent-mcp-configs";
 import { describeMutationHooks, describeQueryHooks } from "../../test-utils/hook-cases";
 import {
+  agentConfigDocumentFromCreateRequest,
+  agentConfigDocumentFromUpdateRequest,
+  agentConfigFromDocument,
+  agentConfigListFromDocuments,
+} from "../apis/agent-config-documents";
+import {
   useCreateAgentMCPConfig,
   useCreateMCPConfigAPIKey,
   useDeleteAgentMCPConfig,
@@ -52,6 +58,17 @@ import {
 } from "./agent-mcp-configs";
 
 const m = vi.mocked(api);
+const doc = {
+  apiVersion: "ai-control-plane.choreolabs.com/v1", kind: "AgentMcpConfig" as const,
+  metadata: { name: "cfg", project: "p", uid: "c1" }, spec: { description: "d" },
+};
+const docPage = { count: 1, list: [doc], pagination: { count: 1, offset: 0, limit: 20 } };
+
+// useUpdating reads the current document first, so the update case serves it.
+function useUpdating() {
+  m.getAgentMCPConfig.mockResolvedValue(doc as never);
+  return useUpdateAgentMCPConfig();
+}
 const agent = { orgName: "o", projName: "p", agentName: "a" };
 const otherAgent = { ...agent, agentName: "b" };
 const config = { ...agent, configId: "c1" };
@@ -62,12 +79,14 @@ describeQueryHooks("agent MCP config queries", [
     name: "useListAgentMCPConfigs",
     use: () => useListAgentMCPConfigs(agent),
     api: m.listAgentMCPConfigs, args: [agent, undefined], key: ["agent-mcp-configs", "list", agent, undefined],
+    data: docPage, expected: agentConfigListFromDocuments(docPage, "a"),
     idle: [() => useListAgentMCPConfigs({ ...agent, projName: "" })],
   },
   {
     name: "useGetAgentMCPConfig",
     use: () => useGetAgentMCPConfig(config),
     api: m.getAgentMCPConfig, args: [config], key: ["agent-mcp-configs", config],
+    data: doc, expected: agentConfigFromDocument(doc, "a"),
     idle: [() => useGetAgentMCPConfig({ ...agent, configId: undefined } as never)],
   },
   {
@@ -94,11 +113,15 @@ const keyParams = { ...keys, keyName: "k" };
 describeMutationHooks("agent MCP config mutations", SEEDED, [
   {
     name: "useCreateAgentMCPConfig", use: useCreateAgentMCPConfig, api: m.createAgentMCPConfig,
-    variables: { params: agent, body }, args: [agent, body], invalidates: ["configs", "proxies", "configurations"],
+    variables: { params: agent, body },
+    args: [agent, agentConfigDocumentFromCreateRequest("AgentMcpConfig", "p", body as never)],
+    response: doc, expected: agentConfigFromDocument(doc, "a"), invalidates: ["configs", "proxies", "configurations"],
   },
   {
-    name: "useUpdateAgentMCPConfig", use: useUpdateAgentMCPConfig, api: m.updateAgentMCPConfig,
-    variables: { params: config, body }, args: [config, body], invalidates: ["configs", "proxies", "configurations"],
+    name: "useUpdateAgentMCPConfig", use: useUpdating, api: m.updateAgentMCPConfig,
+    variables: { params: config, body },
+    args: [config, agentConfigDocumentFromUpdateRequest("AgentMcpConfig", "p", body, doc)],
+    response: doc, expected: agentConfigFromDocument(doc, "a"), invalidates: ["configs", "proxies", "configurations"],
   },
   {
     name: "useDeleteAgentMCPConfig", use: useDeleteAgentMCPConfig, api: m.deleteAgentMCPConfig,

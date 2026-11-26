@@ -1,0 +1,24 @@
+name: Read the coverage-exception label
+description: >
+  Reports whether the pull request has the coverage-exception label. It
+  reads the labels live, so a maintainer can add the label and re-run
+  only the failed coverage job; a re-run reuses the original event
+  payload, which would not have the label. Needs pull-requests: read.
+outputs:
+  exempt:
+    description: "'true' when the label is set, otherwise 'false'"
+    value: ${{ steps.read.outputs.exempt }}
+runs:
+  using: "composite"
+  steps:
+    - id: read
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_URL: ${{ github.api_url }}/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}
+      # A failed lookup means "no label": the gate then enforces the rule.
+      run: |
+        exempt=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$PR_URL" \
+          | python3 -c 'import json, sys; names = {l["name"] for l in json.load(sys.stdin)["labels"]}; print(str("coverage-exception" in names).lower())') \
+          || { echo "::warning::could not read the pull request's labels"; exempt=false; }
+        echo "exempt=$exempt" >> "$GITHUB_OUTPUT"

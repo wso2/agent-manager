@@ -43,29 +43,31 @@ const mocks = {
 } as unknown as HttpMocks;
 
 const agent = { orgName: "acme corp", projName: "p/1", agentName: "my bot" };
-const AGENT = "/m/ai-gateway/orgs/acme%20corp/projects/p%2F1/agents/my%20bot";
+const AGENT = "/m/ai-gateway/agents/my%20bot";
+const IN_PROJECT = { project: "p/1" };
 const settings = { environmentName: "dev", enableAutoDeploy: true };
 
 describeHttpCases("deployments API", mocks, [
   {
     name: "updateAgentDeploySettings",
     call: () => updateAgentDeploySettings(agent, settings as never, getToken),
-    method: "PUT", url: `${AGENT}/deploy-settings`, body: settings, returnsBody: false,
+    method: "PUT", url: `${AGENT}/deploy-settings`, searchParams: IN_PROJECT,
+    body: { enableAutoDeploy: true }, returnsBody: false,
   },
   {
     name: "listAgentDeployments",
     call: () => listAgentDeployments(agent, getToken),
-    method: "GET", url: `${AGENT}/deployments`,
+    method: "GET", url: `${AGENT}/deployments`, searchParams: IN_PROJECT,
   },
   {
-    name: "listAgentDeployments uses the default org and project",
+    name: "listAgentDeployments uses the default project",
     call: () => listAgentDeployments({ agentName: "a" } as never, getToken),
-    method: "GET", url: "/m/ai-gateway/orgs/default/projects/default/agents/a/deployments",
+    method: "GET", url: "/m/ai-gateway/agents/a/deployments", searchParams: { project: "default" },
   },
   {
-    name: "getAgentConfigurations filters by environment",
+    name: "getAgentConfigurations reads the default environment whatever is asked",
     call: () => getAgentConfigurations(agent, { environment: "prod" }, getToken),
-    method: "GET", url: `${AGENT}/configurations`, searchParams: { environment: "prod" },
+    method: "GET", url: `${AGENT}/configurations`, searchParams: IN_PROJECT,
   },
   {
     name: "listEnvironments reads from the core API",

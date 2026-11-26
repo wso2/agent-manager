@@ -16,38 +16,23 @@
 
 // amctl agent llm commands as thin, assertion-backed operations over the amctl
 // harness. Lives in package cliagent alongside agent_operations.go and reuses
-// its DeleteResult. Decode structs mirror amsvc.AgentModelConfigResponse /
-// AgentModelConfigListItem (only the fields specs assert on).
+// its DeleteResult.
 package cliagent
 
 import (
 	. "github.com/onsi/gomega"
 
+	"github.com/wso2/agent-manager/test/e2e/framework"
 	"github.com/wso2/agent-manager/test/e2e/framework/amctl"
 )
 
-// AgentLLMConfig is the data shape of `agent llm set`/`get` (AgentModelConfigResponse).
-type AgentLLMConfig struct {
-	Name        string                        `json:"name"`
-	Type        string                        `json:"type"`
-	Description string                        `json:"description"`
-	EnvMappings map[string]AgentLLMEnvMapping `json:"envMappings"`
-}
+// AgentLLMConfig is the configuration document `agent llm set`/`get --json` prints.
+type AgentLLMConfig = framework.AgentConfigDocument
 
-// AgentLLMEnvMapping is one entry of AgentModelConfigResponse.EnvMappings.
-// Configuration is server-managed and may be nil for an undeployed provider.
-type AgentLLMEnvMapping struct {
-	Configuration *AgentLLMProviderRef `json:"configuration,omitempty"`
-}
-
-// AgentLLMProviderRef is the subset of ProviderConfig we assert on.
-type AgentLLMProviderRef struct {
-	ProviderName string `json:"providerName"`
-}
-
-// AgentLLMConfigList is the data shape of `agent llm list --json` (CLI's ListResult).
+// AgentLLMConfigList is the list response `agent llm list --json` prints.
 type AgentLLMConfigList struct {
-	Configs []AgentLLMConfig `json:"configs"`
+	Count int              `json:"count"`
+	List  []AgentLLMConfig `json:"list"`
 }
 
 // SetAgentLLMParams are the inputs to `agent llm set`.
@@ -109,9 +94,9 @@ func UnsetAgentLLM(g Gomega, h *amctl.Harness, org, project, agent, name string)
 
 // Names returns the config names in the list, for membership assertions.
 func (l AgentLLMConfigList) Names() []string {
-	names := make([]string, 0, len(l.Configs))
-	for _, c := range l.Configs {
-		names = append(names, c.Name)
+	names := make([]string, 0, len(l.List))
+	for _, c := range l.List {
+		names = append(names, c.Metadata.Name)
 	}
 	return names
 }

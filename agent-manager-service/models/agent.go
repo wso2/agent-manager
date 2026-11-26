@@ -40,15 +40,6 @@ type AgentResponse struct {
 	CreatedBy *AgentCreatedBy `json:"createdBy,omitempty"`
 }
 
-// AgentSummary is the lightweight, org-wide agent listing shape: just enough
-// to render a name and resolve which project an agent belongs to.
-type AgentSummary struct {
-	Name               string `json:"name"`
-	DisplayName        string `json:"displayName"`
-	ProjectName        string `json:"projectName"`
-	ProjectDisplayName string `json:"projectDisplayName"`
-}
-
 // AgentCreatedBy identifies the user who created an agent, resolved
 // best-effort from the platform Thunder identity store.
 type AgentCreatedBy struct {

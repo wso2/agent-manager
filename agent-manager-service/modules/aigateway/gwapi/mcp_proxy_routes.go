@@ -21,17 +21,17 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
-// RegisterMCPProxyRoutes registers MCP proxy routes.
+// RegisterMCPProxyRoutes mounts the MCP proxy documents.
 func RegisterMCPProxyRoutes(rr Router, ctrl gwctl.MCPProxyController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/mcp-proxies/fetch-server-info", gwperm.MCPServerConnect,
+	rr.HandleFuncWithValidationAndAuthz("POST /mcp-proxies/fetch-server-info", gwperm.MCPServerConnect,
 		rr.Track("amp.connections.create-mcp-proxy", actionDims("probed-mcp-server"), ctrl.FetchServerInfo))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/mcp-proxies/policies", gwperm.MCPServerRead, ctrl.ListAvailableMCPPolicies)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/mcp-proxies", gwperm.MCPServerCreate,
+	rr.HandleFuncWithValidationAndAuthz("GET /mcp-proxies/policies", gwperm.MCPServerRead, ctrl.ListAvailableMCPPolicies)
+	rr.HandleFuncWithValidationAndAuthz("POST /mcp-proxies", gwperm.MCPServerCreate,
 		rr.Track("amp.connections.create-mcp-proxy", actionDims("created-mcp-proxy"), ctrl.CreateMCPProxy))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/mcp-proxies", gwperm.MCPServerRead, ctrl.ListMCPProxies)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/mcp-proxies/{proxyId}", gwperm.MCPServerRead, ctrl.GetMCPProxy)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/mcp-proxies/{proxyId}", gwperm.MCPServerUpdate,
+	rr.HandleFuncWithValidationAndAuthz("GET /mcp-proxies", gwperm.MCPServerRead, ctrl.ListMCPProxies)
+	rr.HandleFuncWithValidationAndAuthz("GET /mcp-proxies/{proxyId}", gwperm.MCPServerRead, ctrl.GetMCPProxy)
+	rr.HandleFuncWithValidationAndAuthz("PUT /mcp-proxies/{proxyId}", gwperm.MCPServerUpdate,
 		rr.Track("amp.connections.create-mcp-proxy", actionDims("updated-mcp-proxy"), ctrl.UpdateMCPProxy))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/mcp-proxies/{proxyId}", gwperm.MCPServerDelete,
+	rr.HandleFuncWithValidationAndAuthz("DELETE /mcp-proxies/{proxyId}", gwperm.MCPServerDelete,
 		rr.Track("amp.connections.create-mcp-proxy", actionDims("deleted-mcp-proxy"), ctrl.DeleteMCPProxy))
 }

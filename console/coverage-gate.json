@@ -1,0 +1,20 @@
+{
+  "overall_min": 75,
+  "area_min": 70,
+  "area_exceptions": {
+    "workspaces/ui-modules/ai-observability/pages/eval": 0.0,
+    "workspaces/ui-modules/ai-observability/pages/metrics": 49.1,
+    "workspaces/ui-modules/ai-observability/pages/traces": 52.1
+  },
+  "changed_min": 80,
+  "changed_min_lines": 10,
+  "no_coverage_packages": [
+    "apps/web-ui",
+    "workspaces/libs/eslint-config",
+    "workspaces/libs/types",
+    "workspaces/ui-modules/acp-core",
+    "workspaces/ui-modules/agent-identity",
+    "workspaces/ui-modules/ai-gateway",
+    "workspaces/ui-modules/ai-observability"
+  ]
+}

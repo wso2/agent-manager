@@ -62,7 +62,7 @@ func TestDeriveAction(t *testing.T) {
 		{
 			name:   "single permission is used verbatim",
 			method: http.MethodPost,
-			path:   "/orgs/{orgName}/projects/{projName}/agents",
+			path:   "/agents",
 			perms:  []rbac.Permission{rbac.AgentCreate},
 			want:   "agent:create",
 		},
@@ -76,7 +76,7 @@ func TestDeriveAction(t *testing.T) {
 		{
 			name:   "same path under a different method gets its own action",
 			method: http.MethodDelete,
-			path:   "/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities",
+			path:   "/agents/{agentName}/identities",
 			perms:  []rbac.Permission{rbac.AgentUpdate},
 			want:   "agent-identity:revoke-secret",
 		},

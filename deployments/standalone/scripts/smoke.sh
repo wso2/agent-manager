@@ -90,21 +90,24 @@ GW=$API/m/ai-gateway/orgs/$ORG
 GWR=$API/m/ai-gateway
 P=smoke-$RANDOM
 AG=ext-$RANDOM
+# Agents are documents at /api/v1/agents; the project is metadata.project, or ?project= on an agent's own path.
+AGS=$API/api/v1/agents
 EXT='"provisioning":{"type":"external"},"agentType":{"type":"external-agent-api","subType":"custom-api"}'
+agent_doc() { echo "{\"apiVersion\":\"ai-control-plane.choreolabs.com/v1\",\"kind\":\"Agent\",\"metadata\":{\"name\":\"$1\",\"project\":\"$P\"},\"spec\":{\"displayName\":\"$2\",$EXT${3:-}}}"; }
 check project-create 202 "$(code "${A[@]}" -X POST "$B/projects" -d "{\"name\":\"$P\",\"displayName\":\"Smoke $P\"}")"
 check project-get 200 "$(code "${A[@]}" "$B/projects/$P")"
-check agent-create 202 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"$AG\",\"displayName\":\"Ext $AG\",$EXT}")"
-check agent-get 200 "$(code "${A[@]}" "$B/projects/$P/agents/$AG")"
-check agent-list 200 "$(code "${A[@]}" "$B/projects/$P/agents")"
-check agent-update 200 "$(code "${A[@]}" -X PUT "$B/projects/$P/agents/$AG" -d '{"displayName":"Renamed","description":"smoke"}')"
-check agent-token 200 "$(code "${A[@]}" -X POST "$B/projects/$P/agents/$AG/token" -d '{}')"
+check agent-create 202 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "$AG" "Ext $AG")")"
+check agent-get 200 "$(code "${A[@]}" "$AGS/$AG?project=$P")"
+check agent-list 200 "$(code "${A[@]}" "$AGS?project=$P")"
+check agent-update 200 "$(code "${A[@]}" -X PUT "$AGS/$AG?project=$P" -d "$(agent_doc "$AG" "Renamed" ',"description":"smoke"')")"
+check agent-token 200 "$(code "${A[@]}" -X POST "$AGS/$AG/token?project=$P" -d '{}')"
 if jq -e '.token | type == "string" and length > 0' "$BODY" >/dev/null 2>&1; then check agent-token-issued yes yes
 else check agent-token-issued yes no; fi
-check unknown-extension 400 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"x$AG\",\"displayName\":\"X\",$EXT,\"extensions\":{\"nosuch\":{}}}")"
+check unknown-extension 400 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "x$AG" "X" ',"extensions":{"nosuch":{}}')")"
 # An LLM binding goes in the AI Gateway's extension block: amp has no provider by
 # that name, and amp-core no ai-gateway module.
-check agent-with-llm-config-refused 400 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"llm$AG\",\"displayName\":\"L\",$EXT,\"extensions\":{\"ai-gateway\":{\"modelConfig\":[{\"providerName\":\"nosuch-provider\"}]}}}")"
-check agent-llm-not-created 404 "$(code "${A[@]}" "$B/projects/$P/agents/llm$AG")"
+check agent-with-llm-config-refused 400 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "llm$AG" "L" ',"extensions":{"ai-gateway":{"modelConfig":[{"providerName":"nosuch-provider"}]}}')")"
+check agent-llm-not-created 404 "$(code "${A[@]}" "$AGS/llm$AG?project=$P")"
 check environments 200 "$(code "${A[@]}" "$B/environments")"
 check identity-roles 200 "$(code "${A[@]}" "$B/identities/roles")"
 check events-types 200 "$(code "${A[@]}" "$B/events/event-types")"
@@ -114,8 +117,9 @@ check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
 check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GWR/llm-providers")"
 check llm-providers-old-path 404 "$(code "${A[@]}" "$GW/llm-providers")"
 check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/environments/default/gateways")"
-check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/deployments")"
-check agent-config "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/configurations?environment=default")"
+check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GWR/agents/$AG/deployments?project=$P")"
+check agent-config "$(pick 200 404)" "$(code "${A[@]}" "$GWR/agents/$AG/configurations?project=$P")"
+check agent-config-old-path 404 "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/configurations")"
 check catalog "$(pick 200 404)" "$(code "${A[@]}" "$GW/catalog")"
 # The bundled gateway's controller connects over the internal WebSocket.
 if [ "$DIST" = amp ]; then
@@ -140,7 +144,7 @@ check evaluators 404 "$(code "${A[@]}" "$B/evaluators")"
 check module-route-404 404 "$(code "${A[@]}" "$API/m/testmod/whoami")"
 # The observability module is installable, not on by default: its trace routes
 # are absent until `amp module install observability`.
-OBS=$API/m/observability/api/v1/traces
+OBS=$API/m/observability/traces
 WINDOW="startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z"
 check traces-not-installed 404 "$(code "${A[@]}" "$OBS?project=$P&agent=$AG&$WINDOW")"
 check traces-export-not-installed 404 "$(code "${A[@]}" "$OBS/export?project=$P&agent=$AG&$WINDOW")"
@@ -148,8 +152,8 @@ check trace-spans-not-installed 404 "$(code "${A[@]}" "$OBS/t/spans?$WINDOW")"
 check trace-span-not-installed 404 "$(code "${A[@]}" "$OBS/t/spans/s")"
 check workload-heartbeat-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workloads/heartbeat" -d '{"credential":"x.y","protocol":"p/v1"}')"
 
-check agent-delete 204 "$(code "${A[@]}" -X DELETE "$B/projects/$P/agents/$AG")"
-check agent-gone 404 "$(code "${A[@]}" "$B/projects/$P/agents/$AG")"
+check agent-delete 204 "$(code "${A[@]}" -X DELETE "$AGS/$AG?project=$P")"
+check agent-gone 404 "$(code "${A[@]}" "$AGS/$AG?project=$P")"
 check project-delete 204 "$(code "${A[@]}" -X DELETE "$B/projects/$P")"
 
 # --- Console, served by the API ---------------------------------------------------------

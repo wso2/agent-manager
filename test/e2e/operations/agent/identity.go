@@ -29,8 +29,9 @@ import (
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
 
+// AgentIdentityPath is the identities path of an agent, its project in the query; append further parameters with "&".
 func AgentIdentityPath(orgName, projName, agentName string) string {
-	return fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/identities", orgName, projName, agentName)
+	return fmt.Sprintf("/api/v1/agents/%s/identities?%s", url.PathEscape(agentName), url.Values{"project": {projName}}.Encode())
 }
 
 // ListAgentIdentities returns both the decoded safe views and the original
@@ -38,7 +39,7 @@ func AgentIdentityPath(orgName, projName, agentName string) string {
 func ListAgentIdentities(ctx context.Context, g Gomega, client *framework.AMPClient, orgName, projName, agentName, environment string) ([]framework.AgentIdentityEnvironmentView, string) {
 	path := AgentIdentityPath(orgName, projName, agentName)
 	if environment != "" {
-		path += "?" + url.Values{"environment": {environment}}.Encode()
+		path += "&" + url.Values{"environment": {environment}}.Encode()
 	}
 	resp, err := client.GetWithContext(ctx, path)
 	g.Expect(err).NotTo(HaveOccurred(), "list agent identities request failed")
@@ -61,7 +62,7 @@ func RegenerateAgentIdentitySecret(ctx context.Context, g Gomega, client *framew
 // RevokeAgentIdentitySecret also returns the raw body so the suite can assert
 // that a revoke response never echoes the credential it just invalidated.
 func RevokeAgentIdentitySecret(ctx context.Context, g Gomega, client *framework.AMPClient, orgName, projName, agentName, environment string) (framework.AgentRevokeSecretResponse, string) {
-	path := AgentIdentityPath(orgName, projName, agentName) + "?" + url.Values{"environment": {environment}}.Encode()
+	path := AgentIdentityPath(orgName, projName, agentName) + "&" + url.Values{"environment": {environment}}.Encode()
 	resp, err := client.DeleteWithContext(ctx, path)
 	g.Expect(err).NotTo(HaveOccurred(), "revoke AgentID secret request failed")
 	defer resp.Body.Close()

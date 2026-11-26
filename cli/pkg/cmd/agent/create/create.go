@@ -192,7 +192,7 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 		return render.Error(opts.IO, opts.Scope, err)
 	}
 
-	resp, err := client.CreateAgentWithResponse(ctx, opts.Org, opts.Proj, req)
+	resp, err := client.CreateAgentWithResponse(ctx, agentDocument(opts.Proj, req))
 	if err != nil {
 		return render.Error(opts.IO, opts.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -206,7 +206,7 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 
 	// Branch on the request body, not the --provisioning flag — in file mode
 	// the manifest is the only source of truth.
-	if req.Provisioning.Type != amsvc.External {
+	if req.Provisioning.Type != amsvc.ProvisioningTypeExternal {
 		if opts.IO.JSON {
 			return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
 		}
@@ -215,7 +215,7 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 
 	var card *cardOutcome
 	if opts.CardURL != "" {
-		card = applyCardURL(ctx, opts, resp.JSON202.Name)
+		card = applyCardURL(ctx, opts, resp.JSON202.Metadata.Name)
 	}
 
 	// The agent is already created server-side, so a post-create failure (token
@@ -229,7 +229,7 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 }
 
 // renderAgentWithCard emits the JSON envelope for a create that stopped before the token was minted.
-func renderAgentWithCard(opts *CreateOptions, agent *amsvc.AgentResponse, card *cardOutcome) error {
+func renderAgentWithCard(opts *CreateOptions, agent *amsvc.AgentDocument, card *cardOutcome) error {
 	if !opts.IO.JSON {
 		return nil
 	}
@@ -271,14 +271,14 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func printAgentSummary(io *iostreams.IOStreams, a *amsvc.AgentResponse) {
+func printAgentSummary(io *iostreams.IOStreams, a *amsvc.AgentDocument) {
 	cs := io.StderrColorScheme()
-	fmt.Fprintf(io.ErrOut, "%s Created agent %s\n\n", cs.SuccessIcon(), a.Name)
-	fmt.Fprintf(io.ErrOut, "  Name:         %s\n", a.Name)
-	fmt.Fprintf(io.ErrOut, "  Display Name: %s\n", a.DisplayName)
-	fmt.Fprintf(io.ErrOut, "  Type:         %s\n", a.AgentType.Type)
-	if a.AgentType.SubType != nil {
-		fmt.Fprintf(io.ErrOut, "  Sub-Type:     %s\n", *a.AgentType.SubType)
+	fmt.Fprintf(io.ErrOut, "%s Created agent %s\n\n", cs.SuccessIcon(), a.Metadata.Name)
+	fmt.Fprintf(io.ErrOut, "  Name:         %s\n", a.Metadata.Name)
+	fmt.Fprintf(io.ErrOut, "  Display Name: %s\n", a.Spec.DisplayName)
+	fmt.Fprintf(io.ErrOut, "  Type:         %s\n", a.Spec.AgentType.Type)
+	if a.Spec.AgentType.SubType != nil {
+		fmt.Fprintf(io.ErrOut, "  Sub-Type:     %s\n", *a.Spec.AgentType.SubType)
 	}
-	fmt.Fprintf(io.ErrOut, "  Provisioning: %s\n", a.Provisioning.Type)
+	fmt.Fprintf(io.ErrOut, "  Provisioning: %s\n", a.Spec.Provisioning.Type)
 }

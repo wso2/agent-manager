@@ -70,9 +70,9 @@ Permissions are typed OAuth2 scopes in `rbac/permissions.go` (e.g. `agent:create
 ```go
 // api/<resource>_routes.go
 rr.HandleFuncWithValidationAndAuthz(
-    "POST /orgs/{orgName}/projects/{projName}/agents", rbac.AgentCreate, ctrl.CreateAgent)
+    "POST /agents", rbac.AgentCreate, ctrl.CreateAgent)
 rr.HandleFuncWithValidationAndAuthz(
-    "GET /orgs/{orgName}/projects/{projName}/agents", rbac.AgentRead, ctrl.ListAgents)
+    "GET /agents", rbac.AgentRead, ctrl.ListAgents)
 ```
 
 `HandleFuncWithValidationAndAuthz` composes: path-param validation → `RequirePermission` (token scope via `jwtassertion.HasAllScopes`) → `RequireOrgMatch` (when the path has `{orgName}`). Variants: `...AndAnyAuthz` (any-of), `RequireDynamicPermission` (permission depends on the request), `...AndPlatformAdminAuthz` (see below). `...AndAuthzAndOrgOverride` composes `middleware.ApplyOrgOverride` between `RequireOrgMatch` and the permission check, so a caller the deployment's `OrgOverrideResolver` trusts can act on the org named in `X-Impersonate-Org`; no core route uses it now. Module routes opt in with `modkit.AllowOrgOverride()` (the AI Gateway's gateway list and gateway identity-provider routes).

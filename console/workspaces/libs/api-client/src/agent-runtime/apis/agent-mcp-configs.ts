@@ -16,214 +16,107 @@
  * under the License.
  */
 
-import { cloneDeep } from "lodash";
-import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
-import { normalizeAgentModelConfigResponse } from "./agent-model-configs";
 import type {
-  AgentMCPConfigListResponse,
-  AgentMCPConfigResponse,
-  CreateAgentMCPConfigPathParams,
-  CreateAgentMCPConfigRequest,
+  AgentConfigDocument,
+  AgentConfigDocumentList,
   CreateMCPConfigAPIKeyPathParams,
   CreateMCPConfigAPIKeyRequest,
   CreateMCPConfigAPIKeyResponse,
   DeleteAgentMCPConfigPathParams,
-  EnvMCPProxyConfigRequest,
-  EnvProviderConfigMappings,
   GetAgentMCPConfigPathParams,
   ListAgentMCPConfigsPathParams,
   ListAgentMCPConfigsQuery,
   ListAPIKeysResponse,
   ListMCPConfigAPIKeysPathParams,
-  ProviderConfig,
   RevokeMCPConfigAPIKeyPathParams,
   RotateMCPConfigAPIKeyPathParams,
   RotateMCPConfigAPIKeyRequest,
   RotateMCPConfigAPIKeyResponse,
   UpdateAgentMCPConfigPathParams,
-  UpdateAgentMCPConfigRequest,
 } from "@agent-management-platform/types";
+import {
+  agentGatewayPath,
+  agentProjectQuery,
+  agentRequestOptions,
+  encodeRequired,
+  httpDELETE,
+  httpGET,
+  httpPOST,
+  httpPUT,
+} from "../../shared/utils";
 
-function buildBaseUrl(params: {
-  orgName?: string;
-  projName?: string;
-  agentName?: string;
-}): string {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const agent = encodeRequired(params.agentName, "agentName");
-  return `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/mcp-configs`;
+function configsPath(params: { agentName?: string }, suffix = ""): string {
+  return agentGatewayPath(params, `/mcp-configs${suffix}`);
 }
 
-function getMCPProxyName(mapping: EnvMCPProxyConfigRequest): string | undefined {
-  return (
-    mapping.proxyName ??
-    mapping.proxyId ??
-    mapping.mcpProxyName ??
-    mapping.mcpProxyId ??
-    mapping.providerName
-  );
-}
-
-function toModelConfigRequest<T extends CreateAgentMCPConfigRequest | UpdateAgentMCPConfigRequest>(
-  body: T,
-): T {
-  const next = cloneDeep(body);
-  if (!next.envMappings) {
-    return next;
-  }
-
-  next.envMappings = Object.fromEntries(
-    Object.entries(next.envMappings).map(([envName, mapping]) => [
-      envName,
-      {
-        ...mapping,
-        providerName: getMCPProxyName(mapping),
-      },
-    ]),
-  ) as T["envMappings"];
-  return next;
-}
-
-function normalizeAgentMCPConfigResponse(raw: AgentMCPConfigResponse): AgentMCPConfigResponse {
-  const response = normalizeAgentModelConfigResponse(raw) as AgentMCPConfigResponse;
-  const envMappings = response.envMappings ?? {};
-
-  return {
-    ...response,
-    envMappings: Object.fromEntries(
-      Object.entries(envMappings).map(([envName, mapping]) => {
-        const config = mapping.configuration;
-        const proxyName =
-          config?.proxyName ??
-          config?.proxyId ??
-          config?.mcpProxyName ??
-          config?.mcpProxyId ??
-          config?.providerName;
-        return [
-          envName,
-          {
-            ...mapping,
-            configuration: config
-              ? ({
-                  ...config,
-                  proxyName,
-                  proxyId: proxyName,
-                  mcpProxyName: proxyName,
-                  mcpProxyId: proxyName,
-                } as ProviderConfig)
-              : undefined,
-          },
-        ];
-      }),
-    ) as Record<string, EnvProviderConfigMappings>,
-  };
+function configPath(params: { agentName?: string; configId?: string }, suffix = ""): string {
+  return configsPath(params, `/${encodeRequired(params.configId, "configId")}${suffix}`);
 }
 
 export async function listAgentMCPConfigs(
   params: ListAgentMCPConfigsPathParams,
   query?: ListAgentMCPConfigsQuery,
   getToken?: () => Promise<string>,
-): Promise<AgentMCPConfigListResponse> {
-  const baseUrl = buildBaseUrl(params);
+): Promise<AgentConfigDocumentList> {
   const token = getToken ? await getToken() : undefined;
-
-  const searchParams: Record<string, string> = {};
-  if (query?.limit !== undefined) {
-    searchParams.limit = String(query.limit);
-  }
-  if (query?.offset !== undefined) {
-    searchParams.offset = String(query.offset);
-  }
-
-  const res = await httpGET(baseUrl, { token, searchParams });
+  const searchParams = agentProjectQuery(params, {
+    limit: query?.limit !== undefined ? String(query.limit) : undefined,
+    offset: query?.offset !== undefined ? String(query.offset) : undefined,
+  });
+  const res = await httpGET(configsPath(params), { token, searchParams });
   if (!res.ok) throw await res.json();
-  const list = (await res.json()) as AgentMCPConfigListResponse;
-  return {
-    ...list,
-    configs: list.configs.map((config) => ({
-      ...config,
-      type: "mcp",
-    })),
-  };
+  return res.json();
 }
 
 export async function createAgentMCPConfig(
-  params: CreateAgentMCPConfigPathParams,
-  body: CreateAgentMCPConfigRequest,
+  params: ListAgentMCPConfigsPathParams,
+  body: AgentConfigDocument,
   getToken?: () => Promise<string>,
-): Promise<AgentMCPConfigResponse> {
-  const baseUrl = buildBaseUrl(params);
+): Promise<AgentConfigDocument> {
   const token = getToken ? await getToken() : undefined;
-
-  const res = await httpPOST(baseUrl, toModelConfigRequest({ ...body, type: "mcp" }), {
-    token,
-  });
+  const res = await httpPOST(configsPath(params), body, agentRequestOptions(params, token));
   if (!res.ok) throw await res.json();
-  return normalizeAgentMCPConfigResponse(await res.json());
+  return res.json();
 }
 
 export async function getAgentMCPConfig(
   params: GetAgentMCPConfigPathParams,
   getToken?: () => Promise<string>,
-): Promise<AgentMCPConfigResponse> {
-  const configId = encodeRequired(params.configId, "configId");
-  const baseUrl = `${buildBaseUrl(params)}/${configId}`;
+): Promise<AgentConfigDocument> {
   const token = getToken ? await getToken() : undefined;
-
-  const res = await httpGET(baseUrl, { token });
+  const res = await httpGET(configPath(params), agentRequestOptions(params, token));
   if (!res.ok) throw await res.json();
-  return normalizeAgentMCPConfigResponse(await res.json());
+  return res.json();
 }
 
 export async function updateAgentMCPConfig(
   params: UpdateAgentMCPConfigPathParams,
-  body: UpdateAgentMCPConfigRequest,
+  body: AgentConfigDocument,
   getToken?: () => Promise<string>,
-): Promise<AgentMCPConfigResponse> {
-  const configId = encodeRequired(params.configId, "configId");
-  const baseUrl = `${buildBaseUrl(params)}/${configId}`;
+): Promise<AgentConfigDocument> {
   const token = getToken ? await getToken() : undefined;
-
-  const res = await httpPUT(baseUrl, toModelConfigRequest(body), { token });
+  const res = await httpPUT(configPath(params), body, agentRequestOptions(params, token));
   if (!res.ok) throw await res.json();
-  return normalizeAgentMCPConfigResponse(await res.json());
+  return res.json();
 }
 
 export async function deleteAgentMCPConfig(
   params: DeleteAgentMCPConfigPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const configId = encodeRequired(params.configId, "configId");
-  const baseUrl = `${buildBaseUrl(params)}/${configId}`;
   const token = getToken ? await getToken() : undefined;
-
-  const res = await httpDELETE(baseUrl, { token });
+  const res = await httpDELETE(configPath(params), agentRequestOptions(params, token));
   if (!res.ok) throw await res.json();
 }
 
-// -----------------------------------------------------------------------------
-// Per-config MCP API keys (external agents)
-// -----------------------------------------------------------------------------
-
-function mcpConfigAPIKeysUrl(params: {
-  orgName?: string;
-  projName?: string;
-  agentName?: string;
-  configId?: string;
-  envName?: string;
-}): string {
-  const configId = encodeRequired(params.configId, "configId");
-  const envName = encodeRequired(params.envName, "envName");
-  return `${buildBaseUrl(params)}/${configId}/environments/${envName}/api-keys`;
-}
+// Per-config API keys (external agents), in the default environment.
 
 export async function listMCPConfigAPIKeys(
   params: ListMCPConfigAPIKeysPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ListAPIKeysResponse> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(mcpConfigAPIKeysUrl(params), { token });
+  const res = await httpGET(configPath(params, "/api-keys"), agentRequestOptions(params, token));
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -234,7 +127,7 @@ export async function createMCPConfigAPIKey(
   getToken?: () => Promise<string>,
 ): Promise<CreateMCPConfigAPIKeyResponse> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(mcpConfigAPIKeysUrl(params), body, { token });
+  const res = await httpPOST(configPath(params, "/api-keys"), body, agentRequestOptions(params, token));
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -246,11 +139,7 @@ export async function rotateMCPConfigAPIKey(
 ): Promise<RotateMCPConfigAPIKeyResponse> {
   const keyName = encodeRequired(params.keyName, "keyName");
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPUT(
-    `${mcpConfigAPIKeysUrl(params)}/${keyName}`,
-    body,
-    { token },
-  );
+  const res = await httpPUT(configPath(params, `/api-keys/${keyName}`), body, agentRequestOptions(params, token));
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -261,9 +150,6 @@ export async function revokeMCPConfigAPIKey(
 ): Promise<void> {
   const keyName = encodeRequired(params.keyName, "keyName");
   const token = getToken ? await getToken() : undefined;
-  const res = await httpDELETE(
-    `${mcpConfigAPIKeysUrl(params)}/${keyName}`,
-    { token },
-  );
+  const res = await httpDELETE(configPath(params, `/api-keys/${keyName}`), agentRequestOptions(params, token));
   if (!res.ok) throw await res.json();
 }

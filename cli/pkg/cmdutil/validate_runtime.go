@@ -27,7 +27,7 @@ import (
 // by this platform (i.e., it is internally provisioned). Externally-provisioned
 // agents run outside the platform and produce no runtime logs or metrics here.
 func ValidateRuntimeManaged(ctx context.Context, client *amsvc.ClientWithResponses, org, proj, agentName string) error {
-	resp, err := client.GetAgentWithResponse(ctx, org, proj, agentName)
+	resp, err := client.GetAgentWithResponse(ctx, agentName, &amsvc.GetAgentParams{Project: proj})
 	if err != nil {
 		return clierr.Newf(clierr.Transport, "%v", err)
 	}
