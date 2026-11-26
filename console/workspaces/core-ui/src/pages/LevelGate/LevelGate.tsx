@@ -16,12 +16,11 @@
  * under the License.
  */
 
-import type { ReactNode } from "react";
 import { Link, Navigate, generatePath, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@wso2/oxygen-ui";
 import { AlertTriangle, Layers } from "@wso2/oxygen-ui-icons-react";
-import { useGetAgent, useRuntimeConfig } from "@agent-management-platform/api-client";
+import { useRuntimeConfig } from "@agent-management-platform/api-client";
 import {
   ErrorPages,
   usePipelineEnvironmentsState,
@@ -32,16 +31,14 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 import { LoadingFallback } from "../../components/LoadingFallback";
 import { useNavEntries } from "../../Layouts/OxygenLayout/navigation/useNavEntries";
 import {
-  AGENT_SUPPORT,
   currentNavLevel,
-  entryRoutePath,
+  levelHomePath,
   resolveNavTarget,
   routeNeedsEnv,
   type NavEntry,
   type NavLevel,
   type NavParams,
 } from "../../Layouts/OxygenLayout/navigation/navModel";
-import { AgentUnsupportedNotice } from "./subComponents/AgentUnsupportedNotice";
 import { LevelPicker } from "./subComponents/LevelPicker";
 import { UpLevelNotice } from "./subComponents/UpLevelNotice";
 
@@ -89,9 +86,7 @@ export function LevelGate() {
   if (!entry || !target) {
     // An item this user can't see here (another org's permissions, a stale
     // link): fall back to the level's overview rather than a dead end.
-    const overview = entries.find((candidate) => candidate.id === "overview");
-    const home = overview && entryRoutePath(overview, level, params);
-    return home ? <Navigate replace to={home} /> : <ErrorPages.NotFound />;
+    return <Navigate replace to={levelHomePath(level, params)} />;
   }
   if (target.kind === "up") {
     return <UpLevelNotice entry={entry} from={level} to={target.level} params={params} />;
@@ -111,7 +106,10 @@ export function LevelGate() {
   return <OpenHere entry={entry} level={level} params={params} />;
 }
 
-/** The page lives here: check the agent supports it, pick the environment, go. */
+/**
+ * The page lives here: pick the environment and go. Whether the agent supports
+ * the page is AgentGuard's job, for gates and direct URLs alike.
+ */
 function OpenHere({
   entry,
   level,
@@ -123,11 +121,6 @@ function OpenHere({
 }) {
   const route = entry.routes[level]!;
   const needsEnv = routeNeedsEnv(route);
-  const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
-    orgName: params.orgId,
-    projName: params.projectId,
-    agentName: params.agentId,
-  });
   const {
     environments,
     isLoading: isLoadingEnvironments,
@@ -136,12 +129,8 @@ function OpenHere({
   const queryClient = useQueryClient();
   const { canWrite: canEditPipelines } = usePipelineFeatures();
 
-  if ((level === "agent" && isLoadingAgent) || (needsEnv && isLoadingEnvironments)) {
+  if (needsEnv && isLoadingEnvironments) {
     return <LoadingFallback />;
-  }
-  const reason = agent && level === "agent" ? entry.unsupportedReason?.(agent) : undefined;
-  if (reason) {
-    return <AgentUnsupportedNotice label={entry.label} reason={reason} params={params} />;
   }
   if (needsEnv && isEnvironmentsError) {
     return (
@@ -181,37 +170,4 @@ function OpenHere({
     );
   }
   return <Navigate replace to={generatePath(route.path, { ...params, envId })} />;
-}
-
-/**
- * Wraps an agent page so a direct URL to a page that doesn't apply to this
- * agent (Build on an external agent, …) explains why instead of misbehaving.
- */
-export function AgentPageGuard({
-  navKey,
-  children,
-}: {
-  navKey: keyof typeof AGENT_SUPPORT;
-  children: ReactNode;
-}) {
-  const { orgId, projectId, agentId } = useParams();
-  const entries = useNavEntries();
-  // AgentGuard above has already loaded the agent, so this reads the cache.
-  const { data: agent } = useGetAgent({
-    orgName: orgId,
-    projName: projectId,
-    agentName: agentId,
-  });
-  const reason = agent ? AGENT_SUPPORT[navKey]?.(agent) : undefined;
-  if (reason) {
-    const label = entries.find((entry) => entry.id === navKey)?.label ?? "This page";
-    return (
-      <AgentUnsupportedNotice
-        label={label}
-        reason={reason}
-        params={{ orgId, projectId, agentId }}
-      />
-    );
-  }
-  return <>{children}</>;
 }

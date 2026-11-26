@@ -16,7 +16,13 @@
  * under the License.
  */
 
-import { useMemo, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  type ReactNode,
+} from "react";
+import { useLocation } from "react-router-dom";
 import {
   ClipboardCheck as EvaluationOutline,
   Settings,
@@ -60,7 +66,9 @@ import { thunderInstancesMetadata } from "@agent-management-platform/env-thunder
 import { useExternalNavItems } from "@agent-management-platform/views";
 import { MCPLogo } from "./MCPLogo";
 import {
-  AGENT_SUPPORT,
+  PLATFORM_AGENTS_ONLY,
+  SOURCE_AGENTS_ONLY,
+  findActiveEntry,
   type NavEntry,
   type NavLevel,
   type NavRoute,
@@ -95,7 +103,7 @@ const PLUGIN_LEVELS: Record<"org" | "project" | "component", NavLevel> = {
 };
 
 /** Every menu entry this user can see, in menu order. Same list at every level. */
-export function useNavEntries(): NavEntry[] {
+function useBuildNavEntries(): NavEntry[] {
   const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
   const profileManagementEnabled = useFeatureFlag("enableProfileManagement");
   const { canView: canViewEnvironments } = useEnvironmentFeatures();
@@ -193,7 +201,7 @@ export function useNavEntries(): NavEntry[] {
         icon: <Hammer size={20} />,
         section: "lifecycle",
         routes: { agent: route(agents.children.build.path) },
-        unsupportedReason: AGENT_SUPPORT.build,
+        ...SOURCE_AGENTS_ONLY,
       },
       {
         id: "deploy",
@@ -201,7 +209,7 @@ export function useNavEntries(): NavEntry[] {
         icon: <Rocket size={20} />,
         section: "lifecycle",
         routes: { agent: route(agents.children.deployment.path) },
-        unsupportedReason: AGENT_SUPPORT.deploy,
+        ...PLATFORM_AGENTS_ONLY,
       },
       {
         id: "try-it",
@@ -209,7 +217,7 @@ export function useNavEntries(): NavEntry[] {
         icon: <FlaskConical size={20} />,
         section: "lifecycle",
         routes: { agent: route(agentEnv.tryOut.path) },
-        unsupportedReason: AGENT_SUPPORT["try-it"],
+        ...PLATFORM_AGENTS_ONLY,
       },
       {
         id: "publish",
@@ -217,7 +225,7 @@ export function useNavEntries(): NavEntry[] {
         icon: <Megaphone size={20} />,
         section: "lifecycle",
         routes: { agent: route(agents.children.publish.path) },
-        unsupportedReason: AGENT_SUPPORT.publish,
+        ...SOURCE_AGENTS_ONLY,
       },
       {
         id: "agent-id",
@@ -246,7 +254,7 @@ export function useNavEntries(): NavEntry[] {
         icon: <Logs size={20} />,
         section: "observability",
         routes: { agent: route(agentEnv.observability.children.logs.path) },
-        unsupportedReason: AGENT_SUPPORT["runtime-logs"],
+        ...PLATFORM_AGENTS_ONLY,
       },
       {
         id: "system-metrics",
@@ -254,7 +262,7 @@ export function useNavEntries(): NavEntry[] {
         icon: <Gauge size={20} />,
         section: "observability",
         routes: { agent: route(agentEnv.observability.children.metrics.path) },
-        unsupportedReason: AGENT_SUPPORT["system-metrics"],
+        ...PLATFORM_AGENTS_ONLY,
       },
       {
         id: "monitors",
@@ -364,3 +372,35 @@ export function useNavEntries(): NavEntry[] {
     externalNavItems,
   ]);
 }
+
+interface NavEntriesValue {
+  entries: NavEntry[];
+  /** The entry the current URL belongs to, if any. */
+  active?: NavEntry;
+}
+
+const NavEntriesContext = createContext<NavEntriesValue | null>(null);
+
+/**
+ * Builds the menu entries and the active one once for the whole layout, so the
+ * menu, the top bar, the gate and AgentGuard share them instead of each
+ * subscribing to every access hook and re-matching the URL.
+ */
+export function NavEntriesProvider({ children }: { children: ReactNode }) {
+  const entries = useBuildNavEntries();
+  const { pathname } = useLocation();
+  const value = useMemo(
+    () => ({ entries, active: findActiveEntry(entries, pathname) }),
+    [entries, pathname],
+  );
+  return <NavEntriesContext.Provider value={value}>{children}</NavEntriesContext.Provider>;
+}
+
+function useNavEntriesContext(): NavEntriesValue {
+  const value = useContext(NavEntriesContext);
+  if (!value) throw new Error("Navigation entries are only available inside NavEntriesProvider");
+  return value;
+}
+
+export const useNavEntries = () => useNavEntriesContext().entries;
+export const useActiveNavEntry = () => useNavEntriesContext().active;

@@ -22,6 +22,7 @@ import {
   absoluteRouteMap,
   type AgentResponse,
 } from "@agent-management-platform/types";
+import { isExternalAgent } from "@agent-management-platform/views";
 
 /**
  * The left menu is the same at every level. Each entry says which levels its
@@ -32,12 +33,6 @@ export type NavLevel = "org" | "project" | "agent";
 
 /** Broadest first. */
 export const NAV_LEVELS: readonly NavLevel[] = ["org", "project", "agent"];
-
-export const NAV_LEVEL_NAMES: Record<NavLevel, string> = {
-  org: "organization",
-  project: "project",
-  agent: "agent",
-};
 
 export interface NavRoute {
   /** Absolute route pattern, from `absoluteRouteMap`. */
@@ -66,6 +61,8 @@ export interface NavEntry {
   routes: Partial<Record<NavLevel, NavRoute>>;
   /** Why the given agent can't use this page; undefined when it can. */
   unsupportedReason?: (agent: AgentResponse) => string | undefined;
+  /** Who the page is for, as "{label} is only available for …". */
+  availableFor?: string;
   pinBottom?: boolean;
   dividerBefore?: boolean;
   /**
@@ -139,6 +136,17 @@ export function gatePath(level: NavLevel, params: NavParams, navKey: string) {
   return generatePath(GATE_PATHS[level], { ...params, navKey });
 }
 
+const LEVEL_HOME_PATHS: Record<NavLevel, string> = {
+  org: absoluteRouteMap.children.org.path,
+  project: absoluteRouteMap.children.org.children.projects.path,
+  agent: absoluteRouteMap.children.org.children.projects.children.agents.path,
+};
+
+/** The level's own home page (its overview). */
+export function levelHomePath(level: NavLevel, params: NavParams) {
+  return generatePath(LEVEL_HOME_PATHS[level], params);
+}
+
 /** The page's own URL at `level`; undefined if it lives elsewhere or still needs an environment. */
 export function entryRoutePath(
   entry: NavEntry,
@@ -166,54 +174,53 @@ export function navEntryHref(
   return direct ?? gatePath(level, params, entry.id);
 }
 
-export function isNavEntryActive(entry: NavEntry, pathname: string): boolean {
-  const onPage = Object.values(entry.routes).some((route) =>
-    (route?.activePaths ?? [`${route?.path}/*`]).some(
-      (pattern) => !!matchPath(pattern, pathname),
+/**
+ * The menu entry the user is on: the one a gate URL names, or the one whose
+ * route matches. The gate is matched once, not once per entry.
+ */
+export function findActiveEntry(
+  entries: NavEntry[],
+  pathname: string,
+): NavEntry | undefined {
+  const gateKey = NAV_LEVELS.map(
+    (level) => matchPath(GATE_PATHS[level], pathname)?.params.navKey,
+  ).find(Boolean);
+  if (gateKey) return entries.find((entry) => entry.id === gateKey);
+  return entries.find((entry) =>
+    Object.values(entry.routes).some((route) =>
+      (route?.activePaths ?? [`${route?.path}/*`]).some(
+        (pattern) => !!matchPath(pattern, pathname),
+      ),
     ),
-  );
-  if (onPage) return true;
-  return NAV_LEVELS.some(
-    (level) => matchPath(GATE_PATHS[level], pathname)?.params.navKey === entry.id,
   );
 }
 
-// Which agents each agent-level page applies to. Shared by the menu, the gate
-// page and the route guard, so a direct URL gets the same answer as a click.
-const isExternal = (agent: AgentResponse) =>
-  agent.provisioning?.type === "external";
-const isFromCatalog = (agent: AgentResponse) => !isExternal(agent) && !!agent.kindName;
+// Which agents an agent-level page applies to. Attached to entries in
+// useNavEntries and read by the menu, the gate and AgentGuard alike.
+const isFromCatalog = (agent: AgentResponse) =>
+  !isExternalAgent(agent) && !!agent.kindName;
 
 const EXTERNAL = "External agents run outside the platform, so this page doesn't apply to them.";
 const CATALOG = "Agents created from the catalog are built from their kind, so this page doesn't apply to them.";
 
-/** Who each agent page is for, as "{page} is only available for …". */
-export const AGENT_AVAILABLE_FOR: Record<string, string> = {
-  build: "agents created from source code",
-  publish: "agents created from source code",
-  deploy: "agents that run on the platform",
-  "try-it": "agents that run on the platform",
-  "runtime-logs": "agents that run on the platform",
-  "system-metrics": "agents that run on the platform",
+type AgentRule = Pick<NavEntry, "unsupportedReason" | "availableFor">;
+
+/** Pages for agents the platform runs (Deploy, Try it, logs, metrics). */
+export const PLATFORM_AGENTS_ONLY: AgentRule = {
+  unsupportedReason: (agent) => (isExternalAgent(agent) ? EXTERNAL : undefined),
+  availableFor: "agents that run on the platform",
 };
 
-/** Short kind shown next to an agent the page doesn't apply to. */
+/** Pages for agents built from their own source (Build, Publish). */
+export const SOURCE_AGENTS_ONLY: AgentRule = {
+  unsupportedReason: (agent) =>
+    isExternalAgent(agent) ? EXTERNAL : isFromCatalog(agent) ? CATALOG : undefined,
+  availableFor: "agents created from source code",
+};
+
+/** Short kind shown next to an agent a page doesn't apply to. */
 export function agentKindLabel(agent: AgentResponse): string {
-  if (isExternal(agent)) return "External";
+  if (isExternalAgent(agent)) return "External";
   if (isFromCatalog(agent)) return "From catalog";
   return agent.agentType?.type === "agent-api" ? "API agent" : "From source";
 }
-
-export const AGENT_SUPPORT: Record<
-  string,
-  (agent: AgentResponse) => string | undefined
-> = {
-  build: (agent) =>
-    isExternal(agent) ? EXTERNAL : isFromCatalog(agent) ? CATALOG : undefined,
-  publish: (agent) =>
-    isExternal(agent) ? EXTERNAL : isFromCatalog(agent) ? CATALOG : undefined,
-  deploy: (agent) => (isExternal(agent) ? EXTERNAL : undefined),
-  "try-it": (agent) => (isExternal(agent) ? EXTERNAL : undefined),
-  "runtime-logs": (agent) => (isExternal(agent) ? EXTERNAL : undefined),
-  "system-metrics": (agent) => (isExternal(agent) ? EXTERNAL : undefined),
-};

@@ -27,7 +27,6 @@ import {
   MenuItem,
   Stack,
   Typography,
-  readHeaderBreadcrumbsState,
 } from "@wso2/oxygen-ui";
 import { Bot, Box } from "@wso2/oxygen-ui-icons-react";
 import { Link, generatePath, useLocation, useNavigate } from "react-router-dom";
@@ -44,7 +43,6 @@ import {
 } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
-  AGENT_AVAILABLE_FOR,
   agentKindLabel,
   gatePath,
   type LevelGateFrom,
@@ -52,22 +50,13 @@ import {
   type NavLevel,
   type NavParams,
 } from "../../../Layouts/OxygenLayout/navigation/navModel";
+import { readRememberedProject } from "../../../Layouts/OxygenLayout/navigation/breadcrumbLevels";
 
 interface LevelPickerProps {
   entry: NavEntry;
   from: NavLevel;
   to: NavLevel;
   params: NavParams;
-}
-
-/** The project the top bar last remembered for this org, if any. */
-function rememberedProject(orgId?: string): string | undefined {
-  try {
-    const stored = readHeaderBreadcrumbsState()?.value;
-    return stored?.organization === orgId ? (stored?.project ?? undefined) : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /**
@@ -92,7 +81,7 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
   // Preselect the project the user came from, the remembered one, or the only one.
   const fallbackProject =
     projects.find((p) => p.name === origin?.projectId)?.name ??
-    projects.find((p) => p.name === rememberedProject(orgId))?.name ??
+    projects.find((p) => p.name === readRememberedProject(orgId))?.name ??
     (projects.length === 1 ? projects[0].name : "");
   // An explicit choice wins over the default, but only while it is still listed.
   const validPick = projects.some((p) => p.name === pickedProject) ? pickedProject : "";
@@ -171,7 +160,7 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
   const noAgents = needAgent && agentsLoaded && agents.length === 0;
   const noneSupported =
     needAgent && agentsLoaded && agents.length > 0 && supportedAgents.length === 0;
-  const availableFor = AGENT_AVAILABLE_FOR[entry.id];
+  const { availableFor } = entry;
   // Nothing to pick: explain why and offer a way forward, instead of an empty
   // select and a disabled button.
   const blocked = noAgents || noneSupported;
@@ -183,9 +172,19 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
     ? `Create an agent to open ${entry.label}${orAnotherProject}.`
     : `${entry.label} is only available for ${availableFor ?? "some kinds of agents"}. ` +
       `Create one to use it here${orAnotherProject}.`;
-  const createAgentPath = generatePath(
-    absoluteRouteMap.children.org.children.projects.children.newAgent.path,
-    { orgId, projectId },
+  const createAgentButton = (variant: "contained" | "outlined") => (
+    <Button
+      size={variant === "outlined" ? "small" : "medium"}
+      variant={variant}
+      component={Link}
+      to={generatePath(absoluteRouteMap.children.org.children.projects.children.newAgent.path, {
+        orgId,
+        projectId,
+      })}
+      state={returnToState(location)}
+    >
+      Create agent
+    </Button>
   );
   // Inside the form (org level) the message stays in the form's flow, under the
   // project select; on its own (project level) it is the page's empty state.
@@ -196,17 +195,7 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
       // otherwise top-aligned with its own top padding.
       sx={{ alignItems: "center" }}
       slotProps={{ action: { sx: { alignItems: "center", pt: 0, mr: 0 } } }}
-      action={
-        <Button
-          size="small"
-          variant="outlined"
-          component={Link}
-          to={createAgentPath}
-          state={returnToState(location)}
-        >
-          Create agent
-        </Button>
-      }
+      action={createAgentButton("outlined")}
     >
       <AlertTitle>{blockedTitle}</AlertTitle>
       {blockedText}
@@ -216,16 +205,7 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
       icon={Bot}
       title={blockedTitle}
       description={blockedText}
-      actions={
-        <Button
-          variant="contained"
-          component={Link}
-          to={createAgentPath}
-          state={returnToState(location)}
-        >
-          Create agent
-        </Button>
-      }
+      actions={createAgentButton("contained")}
     />
   );
 
@@ -300,7 +280,7 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
                   sx={{
                     display: "flex",
                     alignItems: "flex-end",
-                    justifyContent: { xs: "flex-start" },
+                    justifyContent: "flex-start",
                   }}
                 >
                   <Button variant="contained" disabled={!ready} onClick={open}>

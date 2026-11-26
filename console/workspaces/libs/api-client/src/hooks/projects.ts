@@ -32,6 +32,7 @@ import type {
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "./react-query-notifications";
+import { listAllPages } from "../utils";
 
 export function useListProjects(
   params: ListProjectsPathParams,
@@ -45,27 +46,16 @@ export function useListProjects(
   });
 }
 
-// The most projects one list request returns.
-const PROJECT_PAGE_SIZE = 100;
-
-/** Lists every project in an org, page by page. */
+/** Lists every project in an org, across all pages. */
 export async function listAllProjects(
   params: ListProjectsPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ProjectListResponse> {
-  const first = await listProjects(params, { limit: PROJECT_PAGE_SIZE, offset: 0 }, getToken);
-  const projects = [...first.projects];
-  while (projects.length < first.total) {
-    const page = await listProjects(
-      params,
-      { limit: PROJECT_PAGE_SIZE, offset: projects.length },
-      getToken,
-    );
-    // Projects deleted meanwhile can leave total short of what is there.
-    if (page.projects.length === 0) break;
-    projects.push(...page.projects);
-  }
-  return { ...first, projects, limit: projects.length };
+  const { first, all } = await listAllPages(
+    (query) => listProjects(params, query, getToken),
+    (page) => page.projects,
+  );
+  return { ...first, projects: all, limit: all.length };
 }
 
 /**

@@ -24,7 +24,7 @@ import {
   provisionAgentIdentity, regenerateAgentIdentitySecret, retryAgentIdentityProvisioning,
   revokeAgentIdentitySecret,
 } from "../apis";
-import { SLOW_POLL_INTERVAL } from "../utils";
+import { SLOW_POLL_INTERVAL, listAllPages } from "../utils";
 import type {
   AgentListResponse,
   AgentResponse,
@@ -80,26 +80,16 @@ export function useListAgents(
   });
 }
 
-const AGENT_PAGE_SIZE = 100;
-
 /** Every agent in a project, across all pages. */
 export async function listAllAgents(
   params: ListAgentsPathParams,
   getToken?: () => Promise<string>,
 ): Promise<AgentListResponse> {
-  const first = await listAgents(params, { limit: AGENT_PAGE_SIZE, offset: 0 }, getToken);
-  const agents = [...first.agents];
-  while (agents.length < first.total) {
-    const page = await listAgents(
-      params,
-      { limit: AGENT_PAGE_SIZE, offset: agents.length },
-      getToken,
-    );
-    // Agents deleted meanwhile can leave total short of what is there.
-    if (page.agents.length === 0) break;
-    agents.push(...page.agents);
-  }
-  return { ...first, agents, limit: agents.length };
+  const { first, all } = await listAllPages(
+    (query) => listAgents(params, query, getToken),
+    (page) => page.agents,
+  );
+  return { ...first, agents: all, limit: all.length };
 }
 
 /**

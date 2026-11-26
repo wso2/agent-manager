@@ -39,6 +39,7 @@ import {
   type LinkProps,
 } from "react-router-dom";
 import { useLevelSwitchHref } from "./navigation/useLevelSwitchHref";
+import { AGENT_LEVEL, ORG_LEVEL, PROJECT_LEVEL } from "./navigation/breadcrumbLevels";
 import type { LevelGateFrom } from "./navigation/navModel";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
@@ -107,9 +108,6 @@ const RouterLink = forwardRef<
 ));
 RouterLink.displayName = "RouterLink";
 
-const ORG_LEVEL = "organization";
-const PROJECT_LEVEL = "project";
-const AGENT_LEVEL = "agent";
 
 const orgLabel = (
   org?: { name: string; displayName: string },
@@ -216,11 +214,7 @@ export function TopNavigation() {
       return [];
     }
 
-    const orgHome = (id: string) =>
-      switchHref(
-        { orgId: id },
-        generatePath(absoluteRouteMap.children.org.path, { orgId: id }),
-      );
+    const orgHome = (id: string) => switchHref({ orgId: id });
     // The console's own org, even when the org list failed or does not include
     // it, so the project and agent levels still render.
     const currentOrgItem: HeaderBreadcrumbsItem = {
@@ -279,13 +273,7 @@ export function TopNavigation() {
         items: (projects?.projects ?? []).map((project) => ({
           id: project.name,
           name: project.displayName,
-          href: switchHref(
-            { orgId, projectId: project.name },
-            generatePath(absoluteRouteMap.children.org.children.projects.path, {
-              orgId,
-              projectId: project.name,
-            }),
-          ),
+          href: switchHref({ orgId, projectId: project.name }),
         })),
         selectedId: projectId ?? null,
         createAction: {
@@ -307,14 +295,7 @@ export function TopNavigation() {
         items: (agents?.agents ?? []).map((agent) => ({
           id: agent.name,
           name: agent.displayName,
-          href: switchHref(
-            { orgId, projectId, agentId: agent.name },
-            generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .path,
-              { orgId, projectId, agentId: agent.name },
-            ),
-          ),
+          href: switchHref({ orgId, projectId, agentId: agent.name }),
         })),
         selectedId: agentId ?? null,
         createAction: {

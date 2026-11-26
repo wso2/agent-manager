@@ -17,12 +17,12 @@
  */
 
 import { useCallback } from "react";
-import { useLocation, useParams } from "react-router-dom";
-import { useNavEntries } from "./useNavEntries";
+import { useParams } from "react-router-dom";
+import { useActiveNavEntry } from "./useNavEntries";
 import {
   currentNavLevel,
-  isNavEntryActive,
   isNavEntryShownAt,
+  levelHomePath,
   navEntryHref,
   type NavParams,
 } from "./navModel";
@@ -31,21 +31,20 @@ import {
  * Where to go when the top bar moves to another org, project or agent: the
  * same menu item at the new level (its page, or its gate there), so the
  * selection in the left menu doesn't change. Pages outside the menu (wizards,
- * profile) fall back to the given level home.
+ * profile) go to the new level's home.
  */
 export function useLevelSwitchHref() {
-  const entries = useNavEntries();
-  const { pathname } = useLocation();
+  const active = useActiveNavEntry();
   const { projectId, envId } = useParams();
-  const active = entries.find((entry) => isNavEntryActive(entry, pathname));
 
   return useCallback(
-    (target: NavParams, fallback: string) => {
+    (target: NavParams) => {
       const level = currentNavLevel(target);
+      if (!level) return "";
       // Not a menu page, or an item the new level doesn't list (picking a
       // project from the Projects list): go to the level's home.
-      if (!active || !level || !isNavEntryShownAt(active, level)) {
-        return fallback;
+      if (!active || !isNavEntryShownAt(active, level)) {
+        return levelHomePath(level, target);
       }
       // Environments belong to the project: keep the one in view only within it.
       const keepEnv = !!target.projectId && target.projectId === projectId;

@@ -104,7 +104,9 @@ import {
   usePageViewTracking,
 } from "@agent-management-platform/api-client";
 import { MountPoints } from "../types";
-import { AgentPageGuard, LevelGate } from "../pages/LevelGate/LevelGate";
+import { LevelGate } from "../pages/LevelGate/LevelGate";
+import { AgentUnsupportedNotice } from "../pages/LevelGate/subComponents/AgentUnsupportedNotice";
+import { useActiveNavEntry } from "../Layouts/OxygenLayout/navigation/useNavEntries";
 
 // Back-compat redirect: routes moved from /org/:orgId/project/:projectId/* to
 // /organizations/:orgId/projects/:projectId/*. Keeps the sub-path, query and
@@ -224,11 +226,24 @@ function ProjectGuard() {
 
 function AgentGuard() {
   const { orgId, projectId, agentId } = useParams();
-  const { isLoading, isError } = useGetAgent({
+  const { data: agent, isLoading, isError } = useGetAgent({
     orgName: orgId,
     projName: projectId,
     agentName: agentId,
   });
+  // Pages that don't apply to this kind of agent (Build on an external agent,
+  // …) explain why, whether reached from the menu, a gate or a direct URL.
+  const active = useActiveNavEntry();
+  const reason = agent && active?.unsupportedReason?.(agent);
+  if (reason && active) {
+    return (
+      <AgentUnsupportedNotice
+        label={active.label}
+        reason={reason}
+        params={{ orgId, projectId, agentId }}
+      />
+    );
+  }
   return (
     <GuardedOutlet
       isLoading={isLoading}
@@ -674,22 +689,14 @@ export function RootRouter() {
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.build.path
                   }
-                  element={
-                    <AgentPageGuard navKey="build">
-                      <LazyBuildComponent />
-                    </AgentPageGuard>
-                  }
+                  element={<LazyBuildComponent />}
                 />
                 <Route
                   path={
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.deployment.path
                   }
-                  element={
-                    <AgentPageGuard navKey="deploy">
-                      <LazyDeploymentComponent />
-                    </AgentPageGuard>
-                  }
+                  element={<LazyDeploymentComponent />}
                 />
                 <Route
                   path={
@@ -706,11 +713,7 @@ export function RootRouter() {
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.publish.path + "/*"
                   }
-                  element={
-                    <AgentPageGuard navKey="publish">
-                      <LazyPublishOrg />
-                    </AgentPageGuard>
-                  }
+                  element={<LazyPublishOrg />}
                 />
                 <Route
                   path={
@@ -734,11 +737,7 @@ export function RootRouter() {
                       relativeRouteMap.children.org.children.projects.children
                         .agents.children.environment.children.tryOut.path + "/*"
                     }
-                    element={
-                    <AgentPageGuard navKey="try-it">
-                      <LazyTestComponent />
-                    </AgentPageGuard>
-                  }
+                    element={<LazyTestComponent />}
                   />
                   <Route
                     path={
@@ -762,11 +761,7 @@ export function RootRouter() {
                         .agents.children.environment.children.observability
                         .children.logs.path
                     }
-                    element={
-                    <AgentPageGuard navKey="runtime-logs">
-                      <LazyLogsComponent />
-                    </AgentPageGuard>
-                  }
+                    element={<LazyLogsComponent />}
                   />
                   <Route
                     path={
@@ -778,11 +773,7 @@ export function RootRouter() {
                         .agents.children.environment.children.observability
                         .children.metrics.path
                     }
-                    element={
-                    <AgentPageGuard navKey="system-metrics">
-                      <LazyMetricsComponent />
-                    </AgentPageGuard>
-                  }
+                    element={<LazyMetricsComponent />}
                   />
                   <Route
                     path={monitorBase}

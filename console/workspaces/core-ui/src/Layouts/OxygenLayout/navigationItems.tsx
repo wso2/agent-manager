@@ -16,14 +16,13 @@
  * under the License.
  */
 
-import { useLocation, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useGetAgent } from "@agent-management-platform/api-client";
 import { usePipelineEnvironmentsState } from "@agent-management-platform/shared-component";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
-import { NAV_SECTIONS, useNavEntries } from "./navigation/useNavEntries";
+import { NAV_SECTIONS, useActiveNavEntry, useNavEntries } from "./navigation/useNavEntries";
 import {
   currentNavLevel,
-  isNavEntryActive,
   isNavEntryShownAt,
   navEntryHref,
 } from "./navigation/navModel";
@@ -35,8 +34,8 @@ import {
  */
 export function useNavigationItems(): Array<NavigationSection | NavigationItem> {
   const { orgId, projectId, agentId, envId } = useParams();
-  const { pathname } = useLocation();
   const entries = useNavEntries();
+  const active = useActiveNavEntry();
   const { data: agent } = useGetAgent({
     agentName: agentId,
     orgName: orgId,
@@ -61,7 +60,7 @@ export function useNavigationItems(): Array<NavigationSection | NavigationItem> 
     type: "item",
     icon: entry.icon,
     href: navEntryHref(entry, level, params, agent),
-    isActive: isNavEntryActive(entry, pathname),
+    isActive: entry.id === active?.id,
     pinBottom: entry.pinBottom,
     dividerBefore: entry.dividerBefore,
   });

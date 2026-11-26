@@ -21,7 +21,6 @@ import { CornerLeftUp } from "@wso2/oxygen-ui-icons-react";
 import { Link } from "react-router-dom";
 import { PageLayout, StateNotice } from "@agent-management-platform/views";
 import {
-  NAV_LEVEL_NAMES,
   entryRoutePath,
   type NavEntry,
   type NavLevel,
@@ -37,7 +36,7 @@ interface UpLevelNoticeProps {
 
 /** Shown when a menu item that lives at a higher level is opened deeper down. */
 export function UpLevelNotice({ entry, from, to, params }: UpLevelNoticeProps) {
-  const target = NAV_LEVEL_NAMES[to];
+  const target = to === "org" ? "organization" : to;
   const href = entryRoutePath(entry, to, params);
   return (
     <PageLayout title={entry.label} avatar={null}>
