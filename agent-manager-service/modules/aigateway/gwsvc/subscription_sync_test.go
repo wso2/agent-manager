@@ -266,8 +266,10 @@ func TestSubscriptionBroadcastPayloads(t *testing.T) {
 func TestReplaySubscriptionsAfterADeployment(t *testing.T) {
 	ctx := context.Background()
 	gold := subplanv1.Plan{ID: "p-1", Handle: "gold", Name: "Gold", Status: "ACTIVE"}
-	sub := subplanv1.Subscription{ID: uuid.NewString(), ArtifactHandle: "docs-mcp", PlanID: "p-1", Token: "key-1",
-		Status: subplanv1.SubscriptionActive}
+	sub := subplanv1.Subscription{
+		ID: uuid.NewString(), ArtifactHandle: "docs-mcp", PlanID: "p-1", Token: "key-1",
+		Status: subplanv1.SubscriptionActive,
+	}
 	source := subscriptionSource{planList: planList{gold}, sub: &sub}
 	artifact, gateway := uuid.New(), uuid.New()
 	p := gwmodels.Placement{GatewayUUID: gateway}
