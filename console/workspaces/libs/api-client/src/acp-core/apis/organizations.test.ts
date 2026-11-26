@@ -31,7 +31,6 @@ vi.mock("../../shared/utils", async (importOriginal) => ({
 }));
 
 import {
-  createOrganization,
   generateResourceName,
   getOrganization,
   listOrganizations,
@@ -50,7 +49,7 @@ describe("listOrganizations", () => {
       listOrganizations({ limit: 10, offset: undefined } as never, getToken),
     ).resolves.toEqual({ organizations: [{ name: "acme" }] });
 
-    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/orgs", {
+    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/organizations", {
       searchParams: { limit: "10" },
       token: "tok",
     });
@@ -59,7 +58,7 @@ describe("listOrganizations", () => {
   it("sends no query or token when given none", async () => {
     http.httpGET.mockResolvedValue(json({}));
     await listOrganizations();
-    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/orgs", { searchParams: undefined, token: undefined });
+    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/organizations", { searchParams: undefined, token: undefined });
   });
 
   it("throws the server's error body on a non-OK response", async () => {
@@ -68,49 +67,32 @@ describe("listOrganizations", () => {
   });
 });
 
-describe("createOrganization", () => {
-  it("posts the body and returns the new org", async () => {
-    http.httpPOST.mockResolvedValue(json({ name: "acme" }));
-    const body = { name: "acme" } as never;
-    await expect(createOrganization(body, getToken)).resolves.toEqual({ name: "acme" });
-    expect(http.httpPOST).toHaveBeenCalledWith("/api/v1/orgs", body, { token: "tok" });
-  });
-
-  it("throws the server's error body on a non-OK response", async () => {
-    http.httpPOST.mockResolvedValue(json({ code: "CONFLICT" }, 409));
-    await expect(createOrganization({} as never)).rejects.toEqual({ code: "CONFLICT" });
-  });
-});
-
 describe("getOrganization", () => {
-  it("gets the encoded org", async () => {
+  it("gets the caller's org", async () => {
     http.httpGET.mockResolvedValue(json({ name: "a b" }));
     await expect(getOrganization({ orgName: "a b" }, getToken)).resolves.toEqual({ name: "a b" });
-    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/orgs/a%20b", { token: "tok" });
+    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/organizations/current", { token: "tok" });
   });
 
-  it("refuses without an org name, and throws a non-OK body", async () => {
-    await expect(getOrganization({} as never)).rejects.toThrow("orgName is required");
-    expect(http.httpGET).not.toHaveBeenCalled();
+  it("throws a non-OK body", async () => {
     http.httpGET.mockResolvedValue(json({ code: "NOT_FOUND" }, 404));
     await expect(getOrganization({ orgName: "x" })).rejects.toEqual({ code: "NOT_FOUND" });
   });
 });
 
 describe("generateResourceName", () => {
-  it("posts the display name to the org's name generator", async () => {
+  it("posts the display name to the name generator", async () => {
     http.httpPOST.mockResolvedValue(json({ name: "my-agent" }));
     const body = { displayName: "My Agent", resourceType: "agent" } as never;
     await expect(generateResourceName({ orgName: "a/b" }, body, getToken)).resolves.toEqual({
       name: "my-agent",
     });
-    expect(http.httpPOST).toHaveBeenCalledWith("/api/v1/orgs/a%2Fb/utils/generate-name", body, {
+    expect(http.httpPOST).toHaveBeenCalledWith("/api/v1/utils/generate-name", body, {
       token: "tok",
     });
   });
 
-  it("refuses without an org name, and throws a non-OK body", async () => {
-    await expect(generateResourceName({} as never, {} as never)).rejects.toThrow("orgName is required");
+  it("throws a non-OK body", async () => {
     http.httpPOST.mockResolvedValue(json({ code: "BAD" }, 400));
     await expect(generateResourceName({ orgName: "o" }, {} as never)).rejects.toEqual({ code: "BAD" });
   });

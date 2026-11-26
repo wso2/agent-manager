@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { vi } from "vitest";
 import { httpDELETE, httpGET, httpPOST, httpPUT } from "../../shared/utils";
 import { describeHttpCases, getToken, type HttpMocks } from "../../test-utils/http-cases";
 import { listThunderInstances } from "./thunder-instances";
@@ -41,17 +41,7 @@ describeHttpCases("thunder instances API", mocks, [
     name: "listThunderInstances",
     call: () => listThunderInstances({ orgName: "acme corp" }, getToken),
     method: "GET",
-    url: "/api/v1/orgs/acme%20corp/thunder-instances",
+    url: "/api/v1/thunder-instances",
     response: { thunderInstances: [{ envName: "dev", displayName: "Dev" }] },
   },
 ]);
-
-describe("listThunderInstances", () => {
-  it("refuses to call the API without an org", async () => {
-    vi.mocked(httpGET).mockClear();
-    await expect(listThunderInstances({ orgName: "" }, getToken)).rejects.toThrow(
-      "Missing required parameter: orgName",
-    );
-    expect(httpGET).not.toHaveBeenCalled();
-  });
-});

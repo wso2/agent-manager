@@ -16,20 +16,19 @@
  * under the License.
  */
 
-import { encodeRequired, httpGET, SERVICE_BASE } from "../../shared/utils";
+import { httpGET, SERVICE_BASE } from "../../shared/utils";
 import type {
   ListThunderInstancesPathParams,
   ThunderInstanceListResponse,
 } from "@agent-management-platform/types";
 
 export async function listThunderInstances(
-  params: ListThunderInstancesPathParams,
+  _params: ListThunderInstancesPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ThunderInstanceListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
-
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/thunder-instances`, { token });
+  // The organization comes from the token.
+  const res = await httpGET(`${SERVICE_BASE}/thunder-instances`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
