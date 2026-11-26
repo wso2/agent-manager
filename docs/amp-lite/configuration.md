@@ -278,3 +278,25 @@ modules:
 | `host` | `MODULE_AI_GATEWAY_HOST` |  | amp init: the gateway's public host name, for MCP auth metadata and its listener certificate. |
 | `listener_port` | `MODULE_AI_GATEWAY_LISTENER_PORT` | `19080` | amp init: the gateway's listener port. |
 | `file_owner` | `MODULE_AI_GATEWAY_FILE_OWNER` |  | amp init: uid:gid the gateway's files are given. |
+
+## Module: observability
+
+Set as `MODULE_OBSERVABILITY_<KEY>`, or under `config:` in the module's `modules:` entry in `amp.yaml`:
+
+```yaml
+modules:
+  - name: observability
+    config:
+      clickhouse.url: ...
+```
+
+| Key | Variable | Default | Description |
+|---|---|---|---|
+| `clickhouse.url` | `MODULE_OBSERVABILITY_CLICKHOUSE_URL` |  | ClickHouse HTTP URL traces are read from; unset, traces come from an empty in-memory store. |
+| `clickhouse.user` | `MODULE_OBSERVABILITY_CLICKHOUSE_USER` |  | The reader login; required with url. |
+| `clickhouse.password` | `MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD` |  | The reader login's password. **Secret.** |
+| `clickhouse.cleaner-user` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER` |  | The login that deletes a deleted agent's spans; unset, they are kept until the TTL. |
+| `clickhouse.cleaner-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD` |  | The cleaner login's password. **Secret.** |
+| `clickhouse.migrator-user` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER` |  | The login that applies the schema; used only by `amp migrate`. |
+| `clickhouse.migrator-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD` |  | The migrator login's password. **Secret.** |
+| `clickhouse.ttl-days` | `MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS` | `30` | Days ClickHouse keeps spans; applied by `amp migrate`. |

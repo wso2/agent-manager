@@ -14,7 +14,7 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, `observability` (traces, from ClickHouse, or from an in-memory store per replica when none is configured) another, and `ai-hub` (the AI Hub) a third; only `ai-gateway` is a default. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
+- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, `observability` (traces, from ClickHouse, or from an in-memory store per replica when none is [configured](configuration.md#module-observability)) another, and `ai-hub` (the AI Hub) a third; only `ai-gateway` is a default. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
 - **Distribution defaults.** A distribution's `main` passes its default modules to `cli.Main` (`cmd/amp`: `cli.Main("amp", "ai-gateway")`; `cmd/amp-core` none). With no modules list declared, the server installs each default at boot, with its providers, only if it was never installed (or was purged), and changes nothing else, so a default an operator disabled or uninstalled stays that way across restarts. A declared list replaces the defaults.
 
 A distribution is a `main` package that chooses its modules with blank imports:
@@ -179,7 +179,7 @@ func (module) ExternalSchema(config func(string) string, apply bool) (modkit.Ext
 - Installing or enabling a module whose store is configured but missing files is refused with a hint to run `amp migrate`; a store it can't reach is refused too. The check runs before the lifecycle transaction, so a slow store holds no lock. A replica also checks each module it is about to load, at boot or after a change elsewhere, leaves out one that fails and retries it; a module already loaded is not checked again, so it stays loaded and keeps getting its events while the store is down. `amp serve --wait-for-migrations` also waits until each active module's store holds every file; a store it can't reach is logged and not waited for.
 - Apply never runs at install or enable, and `amp-core` has no modules, so neither changes for it.
 - The observability module scopes spans by the resource attributes `agent-manager/org-id`, `agent-manager/project-uid`, `agent-manager/agent-uid` and `agent-manager/environment-uid`, which the span table reads as written. The collector or gateway in front of ClickHouse must overwrite these four from the sender's authenticated identity and drop any values the sender supplied.
-- The observability module's ClickHouse users are defined in `modules/observability/store/clickhouse/users.xml` and log in only from loopback or a private network. An unset or empty `AMP_CLICKHOUSE_*_PASSWORD` leaves that user with no password, so the install must refuse to start when any of them is empty.
+- The observability module's ClickHouse users are defined in `modules/observability/store/clickhouse/users.xml` and log in only from loopback or a private network. An unset or empty `AMP_CLICKHOUSE_*_PASSWORD` leaves that user with no password, so the install must refuse to start when any of them is empty. The module's logins for them are in its [settings](configuration.md#module-observability).
 
 ## Activate and the Runtime
 
@@ -602,7 +602,7 @@ When a module is disabled:
 - its pages leave the UI manifest, and its permissions leave file sign-in roles and the console's sign-in scopes;
 - its tables and data stay, and events queued for it wait up to 7 days. Uninstall keeps the data too, but drops queued events. Installing or enabling again picks up where it left off.
 
-`amp module uninstall <name> --purge` (also on a module already uninstalled) empties its `mod_<name>_*` tables, deletes its secrets, revokes its workload credentials and forgets it, in one transaction. The tables themselves stay, as in the proof of concept, so installing it again runs no migration; reference data a migration seeded is restored by the module's `OnInstall` (the gateway re-creates its drift scan lease row). Purge does not touch a store outside the core database: the observability module's spans stay in ClickHouse until its TTL removes them.
+`amp module uninstall <name> --purge` (also on a module already uninstalled) empties its `mod_<name>_*` tables, deletes its secrets, revokes its workload credentials and forgets it, in one transaction. The tables themselves stay, as in the proof of concept, so installing it again runs no migration; reference data a migration seeded is restored by the module's `OnInstall` (the gateway re-creates its drift scan lease row). Purge does not touch a store outside the core database: the observability module's spans stay in ClickHouse until its [TTL](configuration.md#module-observability) removes them.
 
 ## Beyond the proof of concept
 
