@@ -90,7 +90,7 @@ import {
   describeHealthChecksInEffect,
   healthChecksInEffect,
 } from "@agent-management-platform/types";
-import { extractBuildIdFromImageId } from "../utils/extractBuildIdFromImageId";
+import { resolveDeployedBuildName } from "../utils/resolveDeployedBuildName";
 import {
   buildpackLanguage,
   isInstrumentableLanguage,
@@ -479,7 +479,10 @@ export function DeployCard(props: DeployCardProps) {
   // kind version. Absent when the image matches no published version.
   const deployedKindVersion = currentDeployment?.kindVersion;
 
-  const selectedBuildId = extractBuildIdFromImageId(currentDeployment?.imageId);
+  const selectedBuildName = resolveDeployedBuildName(
+    currentDeployment?.imageId,
+    allBuilds?.builds,
+  );
   const lastDeployedText = currentDeployment?.lastDeployed
     ? formatRelativeTime(currentDeployment.lastDeployed)
     : "Unknown";
@@ -621,8 +624,10 @@ export function DeployCard(props: DeployCardProps) {
                           .agents.children.build.path,
                         { orgId, projectId, agentId },
                       ) +
-                      "?panel=logs&selectedBuild=" +
-                      selectedBuildId
+                      (selectedBuildName
+                        ? "?panel=logs&selectedBuild=" +
+                          encodeURIComponent(selectedBuildName)
+                        : "")
                     }
                   >
                     <ExternalLink size={16} />

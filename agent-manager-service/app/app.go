@@ -148,6 +148,10 @@ type Options struct {
 	// deployments inject a check against their billing system. See
 	// services.EntitlementChecker.
 	EntitlementChecker services.EntitlementChecker
+	// ComponentImageCleaner deletes a deleted agent's build images from the image
+	// registry. nil (the open-source default) leaves them in the registry. See
+	// services.ComponentImageCleaner.
+	ComponentImageCleaner services.ComponentImageCleaner
 	// ResourceLabels are stamped on every Component and ReleaseBinding Agent
 	// Manager writes to OpenChoreo. nil (the open-source default) stamps none;
 	// cloud deployments inject their own, e.g. the product label WSO2 Cloud's
@@ -296,6 +300,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	}
 	dependencies.RepositoryService.SetCommitProvider(opts.RepositoryCommitProvider)
 	dependencies.AgentManagerService.SetEntitlementChecker(opts.EntitlementChecker)
+	dependencies.AgentManagerService.SetComponentImageCleaner(opts.ComponentImageCleaner)
 
 	// Background workers have no request behind them, so nothing installs a
 	// recorder on their contexts the way the HTTP middleware does. Install one

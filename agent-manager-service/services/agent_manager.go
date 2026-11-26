@@ -55,6 +55,9 @@ type AgentManagerService interface {
 	// SetEntitlementChecker installs an optional subscription check for agent
 	// creates. It is called once during startup, before the HTTP server begins serving.
 	SetEntitlementChecker(checker EntitlementChecker)
+	// SetComponentImageCleaner installs an optional cleanup of a deleted agent's build
+	// images. It is called once during startup, before the HTTP server begins serving.
+	SetComponentImageCleaner(cleaner ComponentImageCleaner)
 	UpdateAgentBasicInfo(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error)
 	UpdateAgentBuildParameters(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBuildParametersRequest) (*models.AgentResponse, error)
 	BuildAgent(ctx context.Context, ouID string, projectName string, agentName string, commitId string) (*models.BuildResponse, error)
@@ -104,6 +107,7 @@ type agentManagerService struct {
 	identityClient            thundersvc.IdentityClient
 	buildSecretProvisioner    BuildSecretProvisioner
 	entitlementChecker        EntitlementChecker
+	imageCleaner              ComponentImageCleaner
 	buildTokens               BuildTokenIssuer
 	a2aPublisher              *A2APublisher
 	a2aCardRepo               repositories.A2AAgentCardRepository
@@ -1845,6 +1849,33 @@ func (s *agentManagerService) SetEntitlementChecker(checker EntitlementChecker) 
 	s.entitlementChecker = checker
 }
 
+func (s *agentManagerService) SetComponentImageCleaner(cleaner ComponentImageCleaner) {
+	s.imageCleaner = cleaner
+}
+
+// cleanupAgentImagesAsync asks the installed ComponentImageCleaner to delete a deleted agent's
+// build images. It runs in the background on a context detached from the request, so the
+// agent delete neither waits for it nor fails with it. It starts right after the component
+// delete is accepted: a registry cleanup that finds images through the component's Workload
+// can still see it while OpenChoreo is removing the component.
+//
+// External agents are not built by Agent Manager, so they have no images to delete.
+func (s *agentManagerService) cleanupAgentImagesAsync(ctx context.Context, ouID, projectName, agentName string, isExternalAgent bool) {
+	if s.imageCleaner == nil || isExternalAgent {
+		return
+	}
+	go func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), componentImageCleanupTimeout)
+		defer cancel()
+		if err := s.imageCleaner.DeleteComponentImages(cleanupCtx, ouID, projectName, agentName); err != nil {
+			s.logger.Warn("Failed to delete agent build images; they stay in the registry",
+				"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
+			return
+		}
+		s.logger.Info("Deleted agent build images", "ouID", ouID, "projectName", projectName, "agentName", agentName)
+	}()
+}
+
 // checkAgentEntitlement asks the installed EntitlementChecker whether the
 // organization may create one more agent of the requested kind. Internal and
 // external agents are separate component types, so each is limited on its own.
@@ -3441,6 +3472,8 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 		translatedErr := translateAgentError(err)
 		if errors.Is(translatedErr, utils.ErrAgentNotFound) {
 			s.logger.Warn("Agent not found during deletion, delete is idempotent", "agentName", agentName, "ouID", ouID, "projectName", projectName)
+			// A previous delete may have removed the component before its images.
+			s.cleanupAgentImagesAsync(ctx, ouID, projectName, agentName, isExternalAgent)
 			s.cleanupGitHubAppSource(ctx, ouID, projectName, agentName)
 			// A previous delete, or a create rollback, may have removed the component
 			// without its secrets.
@@ -3466,6 +3499,9 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 		s.logger.Error("Failed to delete oc agent", "agentName", agentName, "error", err)
 		return translatedErr
 	}
+
+	// First, while OpenChoreo may still hold the component's Workload.
+	s.cleanupAgentImagesAsync(ctx, ouID, projectName, agentName, isExternalAgent)
 
 	// Component confirmed deleted — clean up LLM proxy resources and DB records in the
 	// background, on a context that outlives the request but is still bounded
