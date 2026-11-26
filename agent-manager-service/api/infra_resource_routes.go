@@ -28,12 +28,12 @@ func registerInfraRoutes(rr *middleware.RouteRegistrar, ctrl controllers.InfraRe
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}", rbac.OrgView, ctrl.GetOrganization)
 
 	// NOTE: /orgs/{orgName}/environments routes are now registered in environment_routes.go
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects", rbac.ProjectRead, ctrl.ListProjects)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects", rbac.ProjectCreate,
+	rr.HandleFuncWithValidationAndAuthz("GET /projects", rbac.ProjectRead, ctrl.ListProjects)
+	rr.HandleFuncWithValidationAndAuthz("POST /projects", rbac.ProjectCreate,
 		growthanalytics.Track("amp.deployment-ops.create-project", actionDims("created-project"), ctrl.CreateProject))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}", rbac.ProjectRead, ctrl.GetProject)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}", rbac.ProjectUpdate,
+	rr.HandleFuncWithValidationAndAuthz("GET /projects/{projName}", rbac.ProjectRead, ctrl.GetProject)
+	rr.HandleFuncWithValidationAndAuthz("PUT /projects/{projName}", rbac.ProjectUpdate,
 		growthanalytics.Track("amp.deployment-ops.create-project", actionDims("updated-project"), ctrl.UpdateProject))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}", rbac.ProjectDelete,
+	rr.HandleFuncWithValidationAndAuthz("DELETE /projects/{projName}", rbac.ProjectDelete,
 		growthanalytics.Track("amp.deployment-ops.create-project", actionDims("deleted-project"), ctrl.DeleteProject))
 }

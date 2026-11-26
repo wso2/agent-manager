@@ -1769,7 +1769,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/projects/{projName}",
+    "requestPath": "/projects/{projName}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "project",

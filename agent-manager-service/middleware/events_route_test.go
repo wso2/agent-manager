@@ -86,7 +86,7 @@ func TestWithEvents_PublishesAgentEvent(t *testing.T) {
 }
 
 func TestWithEvents_SkipsFailuresAndUncataloguedRoutes(t *testing.T) {
-	pub := serveEvent(t, "POST /orgs/{orgName}/projects", map[string]string{"orgName": "acme"},
+	pub := serveEvent(t, "POST /projects", map[string]string{},
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadRequest) })
 	assert.Empty(t, pub.got, "a failed request emits nothing")
 
@@ -143,7 +143,7 @@ func TestWithEvents_APIKeyEventNamesKeyAndEnvironment(t *testing.T) {
 }
 
 func TestWithEvents_HandlerAnnotations(t *testing.T) {
-	pub := serveEvent(t, "PUT /orgs/{orgName}/projects/{projName}", map[string]string{"orgName": "acme", "projName": "p1"},
+	pub := serveEvent(t, "PUT /projects/{projName}", map[string]string{"projName": "p1"},
 		func(w http.ResponseWriter, r *http.Request) {
 			events.AddData(r.Context(), "changed", []string{"description"})
 			w.WriteHeader(http.StatusNoContent)
@@ -168,10 +168,10 @@ func TestWithEvents_CreateEventsNameTheCreatedResource(t *testing.T) {
 	assert.Equal(t, "a1", e.Agent)
 	assert.Equal(t, "/agent-manager/orgs/ou-1/projects/p1/agents/a1", e.Source)
 
-	pub = serveEvent(t, "POST /orgs/{orgName}/projects", map[string]string{"orgName": "acme"},
+	pub = serveEvent(t, "POST /projects", map[string]string{},
 		func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusAccepted)
-			_, _ = w.Write([]byte(`{"name":"p2"}`))
+			_, _ = w.Write([]byte(`{"kind":"Project","metadata":{"name":"p2"}}`))
 		})
 	require.Len(t, pub.got, 1)
 	e = pub.got[0]
@@ -205,15 +205,14 @@ func TestWithEvents_SendsResponseBeforePersistingEvent(t *testing.T) {
 	w := httptest.NewRecorder()
 	pub := &flushCheckPublisher{w: w}
 	meta := audit.RouteMeta{
-		Pattern: "POST /orgs/{orgName}/projects", Method: http.MethodPost,
-		Path: "/orgs/{orgName}/projects", Params: []string{"orgName"},
+		Pattern: "POST /projects", Method: http.MethodPost,
+		Path: "/projects",
 	}
 	h := WithEvents(pub, meta)(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"name":"p1"}`))
 	})
 	req := httptest.NewRequest(http.MethodPost, "/x", nil)
-	req.SetPathValue("orgName", "acme")
 	req = req.WithContext(orgctx.WithResolvedOrg(req.Context(), orgctx.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"}))
 	h(w, req)
 	assert.True(t, pub.flushed, "the client must not wait on the outbox insert")

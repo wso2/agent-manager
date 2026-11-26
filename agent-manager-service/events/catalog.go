@@ -59,8 +59,8 @@ type routeEvent struct {
 // environment, such as agent.updated, reaches them whatever their filter.
 var routeEvents = map[string]routeEvent{
 	// --- Org ------------------------------------------------------------
-	"POST /orgs/{orgName}/projects":                      {Type: "project.created"},
-	"DELETE /orgs/{orgName}/projects/{projName}":         {Type: "project.deleted"},
+	"POST /projects":                                     {Type: "project.created"},
+	"DELETE /projects/{projName}":                        {Type: "project.deleted"},
 	"POST /orgs/{orgName}/identities/users/invite":       {Type: "user.invited", OmitData: true},
 	"POST /orgs/{orgName}/identities/users":              {Type: "user.created", OmitData: true},
 	"DELETE /orgs/{orgName}/identities/users/{userID}":   {Type: "user.deleted"},
@@ -72,7 +72,7 @@ var routeEvents = map[string]routeEvent{
 	"DELETE /orgs/{orgName}/identities/groups/{groupID}": {Type: "group.deleted"},
 
 	// --- Project --------------------------------------------------------
-	"PUT /orgs/{orgName}/projects/{projName}": {Type: "project.updated"},
+	"PUT /projects/{projName}":   {Type: "project.updated"},
 	"POST /agents":               {Type: "agent.created"},
 	"DELETE /agents/{agentName}": {Type: "agent.deleted"},
 

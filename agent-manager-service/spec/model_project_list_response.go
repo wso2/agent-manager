@@ -19,23 +19,21 @@ var _ MappedNullable = &ProjectListResponse{}
 
 // ProjectListResponse struct for ProjectListResponse
 type ProjectListResponse struct {
-	Projects []ProjectListItem `json:"projects"`
-	// Total number of projects matching the query
-	Total  int32 `json:"total"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	// Number of items in this page.
+	Count      int32             `json:"count"`
+	List       []ProjectDocument `json:"list"`
+	Pagination Pagination        `json:"pagination"`
 }
 
 // NewProjectListResponse instantiates a new ProjectListResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewProjectListResponse(projects []ProjectListItem, total int32, limit int32, offset int32) *ProjectListResponse {
+func NewProjectListResponse(count int32, list []ProjectDocument, pagination Pagination) *ProjectListResponse {
 	this := ProjectListResponse{}
-	this.Projects = projects
-	this.Total = total
-	this.Limit = limit
-	this.Offset = offset
+	this.Count = count
+	this.List = list
+	this.Pagination = pagination
 	return &this
 }
 
@@ -47,100 +45,76 @@ func NewProjectListResponseWithDefaults() *ProjectListResponse {
 	return &this
 }
 
-// GetProjects returns the Projects field value
-func (o *ProjectListResponse) GetProjects() []ProjectListItem {
-	if o == nil {
-		var ret []ProjectListItem
-		return ret
-	}
-
-	return o.Projects
-}
-
-// GetProjectsOk returns a tuple with the Projects field value
-// and a boolean to check if the value has been set.
-func (o *ProjectListResponse) GetProjectsOk() ([]ProjectListItem, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return o.Projects, true
-}
-
-// SetProjects sets field value
-func (o *ProjectListResponse) SetProjects(v []ProjectListItem) {
-	o.Projects = v
-}
-
-// GetTotal returns the Total field value
-func (o *ProjectListResponse) GetTotal() int32 {
+// GetCount returns the Count field value
+func (o *ProjectListResponse) GetCount() int32 {
 	if o == nil {
 		var ret int32
 		return ret
 	}
 
-	return o.Total
+	return o.Count
 }
 
-// GetTotalOk returns a tuple with the Total field value
+// GetCountOk returns a tuple with the Count field value
 // and a boolean to check if the value has been set.
-func (o *ProjectListResponse) GetTotalOk() (*int32, bool) {
+func (o *ProjectListResponse) GetCountOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Total, true
+	return &o.Count, true
 }
 
-// SetTotal sets field value
-func (o *ProjectListResponse) SetTotal(v int32) {
-	o.Total = v
+// SetCount sets field value
+func (o *ProjectListResponse) SetCount(v int32) {
+	o.Count = v
 }
 
-// GetLimit returns the Limit field value
-func (o *ProjectListResponse) GetLimit() int32 {
+// GetList returns the List field value
+func (o *ProjectListResponse) GetList() []ProjectDocument {
 	if o == nil {
-		var ret int32
+		var ret []ProjectDocument
 		return ret
 	}
 
-	return o.Limit
+	return o.List
 }
 
-// GetLimitOk returns a tuple with the Limit field value
+// GetListOk returns a tuple with the List field value
 // and a boolean to check if the value has been set.
-func (o *ProjectListResponse) GetLimitOk() (*int32, bool) {
+func (o *ProjectListResponse) GetListOk() ([]ProjectDocument, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Limit, true
+	return o.List, true
 }
 
-// SetLimit sets field value
-func (o *ProjectListResponse) SetLimit(v int32) {
-	o.Limit = v
+// SetList sets field value
+func (o *ProjectListResponse) SetList(v []ProjectDocument) {
+	o.List = v
 }
 
-// GetOffset returns the Offset field value
-func (o *ProjectListResponse) GetOffset() int32 {
+// GetPagination returns the Pagination field value
+func (o *ProjectListResponse) GetPagination() Pagination {
 	if o == nil {
-		var ret int32
+		var ret Pagination
 		return ret
 	}
 
-	return o.Offset
+	return o.Pagination
 }
 
-// GetOffsetOk returns a tuple with the Offset field value
+// GetPaginationOk returns a tuple with the Pagination field value
 // and a boolean to check if the value has been set.
-func (o *ProjectListResponse) GetOffsetOk() (*int32, bool) {
+func (o *ProjectListResponse) GetPaginationOk() (*Pagination, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Offset, true
+	return &o.Pagination, true
 }
 
-// SetOffset sets field value
-func (o *ProjectListResponse) SetOffset(v int32) {
-	o.Offset = v
+// SetPagination sets field value
+func (o *ProjectListResponse) SetPagination(v Pagination) {
+	o.Pagination = v
 }
 
 func (o ProjectListResponse) MarshalJSON() ([]byte, error) {
@@ -153,10 +127,9 @@ func (o ProjectListResponse) MarshalJSON() ([]byte, error) {
 
 func (o ProjectListResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["projects"] = o.Projects
-	toSerialize["total"] = o.Total
-	toSerialize["limit"] = o.Limit
-	toSerialize["offset"] = o.Offset
+	toSerialize["count"] = o.Count
+	toSerialize["list"] = o.List
+	toSerialize["pagination"] = o.Pagination
 	return toSerialize, nil
 }
 

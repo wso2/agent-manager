@@ -99,8 +99,8 @@ func TestObservabilityModule(t *testing.T) {
 	// Both organizations have a project and an agent of the same names.
 	const project, agent = "obsproj", "obsagent"
 	for _, o := range []*org{&a, &b} {
-		code, body := moduleWorld{}.call(t, o.full, http.MethodPost, "/api/v1/orgs/"+o.handle+"/projects",
-			map[string]any{"name": project, "displayName": project})
+		code, body := moduleWorld{}.call(t, o.full, http.MethodPost, "/api/v1/projects",
+			projectDocument(project, project, nil))
 		require.Equal(t, http.StatusAccepted, code, string(body))
 		code, body = moduleWorld{}.call(t, o.full, http.MethodPost, "/api/v1/agents",
 			map[string]any{

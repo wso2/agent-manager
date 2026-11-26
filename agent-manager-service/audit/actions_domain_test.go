@@ -74,7 +74,7 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		{"POST /orgs/{orgName}/identities/users/invite", nil, ActionUserInvite},
 		{"DELETE /orgs/{orgName}/identities/users/{userID}", nil, ActionUserDelete},
 		{"DELETE /agents/{agentName}", []rbac.Permission{rbac.AgentDelete}, ActionAgentDelete},
-		{"DELETE /orgs/{orgName}/projects/{projName}", []rbac.Permission{rbac.ProjectDelete}, ActionProjectDelete},
+		{"DELETE /projects/{projName}", []rbac.Permission{rbac.ProjectDelete}, ActionProjectDelete},
 	}
 
 	for _, pair := range pairs {

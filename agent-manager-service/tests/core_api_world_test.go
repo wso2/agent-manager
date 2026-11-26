@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -106,6 +107,21 @@ func newCoreWorld(t *testing.T) coreWorld {
 // path is an API path under the world's organization.
 func (w coreWorld) path(format string, a ...any) string {
 	return "/api/v1/orgs/" + w.handle + fmt.Sprintf(format, a...)
+}
+
+// projectsPath is a project API path; the organization comes from the caller's token.
+func projectsPath(format string, a ...any) string {
+	return "/api/v1/projects" + fmt.Sprintf(format, a...)
+}
+
+// projectDocument is a Project document body.
+func projectDocument(name, displayName string, description *string) spec.ProjectDocument {
+	return spec.ProjectDocument{
+		ApiVersion: "ai-control-plane.choreolabs.com/v1",
+		Kind:       "Project",
+		Metadata:   spec.DocumentMetadata{Name: name},
+		Spec:       spec.ProjectSpec{DisplayName: displayName, Description: description},
+	}
 }
 
 // agentsPath is an agent API path; the organization comes from the caller's token.
