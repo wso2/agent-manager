@@ -76,11 +76,19 @@ func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams) 
 // extraAPIRoutes, if non-nil, is called to register additional routes onto the
 // authenticated /api/v1 sub-mux before middleware is applied.
 func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams)) http.Handler {
-	return MakeHTTPHandlerWithPolicy(params, extraAPIRoutes, nil, nil)
+	return MakeHTTPHandlerWithPolicy(params, extraAPIRoutes, nil, nil, nil)
 }
 
+// AuthorizedAPIRoutes registers deployment-specific routes through the core route
+// registrar, so each one gets the same permission check, audit record and event
+// publishing as a core route. Routes added through the plain extraAPIRoutes mux get
+// none of that and must authorize callers themselves.
+type AuthorizedAPIRoutes func(rr *middleware.RouteRegistrar, params *wiring.AppParams)
+
 // MakeHTTPHandlerWithPolicy adds deployment-specific admission after authentication.
-func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler, guard workloadpolicy.Guard) http.Handler {
+// authorizedAPIRoutes, if non-nil, registers deployment-specific routes through the
+// core route registrar after the core routes.
+func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler, guard workloadpolicy.Guard, authorizedAPIRoutes AuthorizedAPIRoutes) http.Handler {
 	withPolicy := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			next.ServeHTTP(w, r.WithContext(workloadpolicy.WithGuard(r.Context(), guard)))
@@ -139,6 +147,9 @@ func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*ht
 	rr := middleware.NewRouteRegistrar(apiMux, params.OrgResolver, params.AuditRecorder)
 	rr.SetEventPublisher(params.EventPublisher)
 	registerAPIRoutes(rr, params)
+	if authorizedAPIRoutes != nil {
+		authorizedAPIRoutes(rr, params)
+	}
 	if extraAPIRoutes != nil {
 		extraAPIRoutes(apiMux, params)
 	}

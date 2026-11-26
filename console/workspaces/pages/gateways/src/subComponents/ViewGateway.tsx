@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React from "react";
+import React, { type ComponentType } from "react";
 import {
   formatRelativeTime,
   GatewayTypeChip,
@@ -38,11 +38,18 @@ import {
   absoluteRouteMap,
   isSelfHostedGateway,
 } from "@agent-management-platform/types";
-import { PageLayout } from "@agent-management-platform/views";
+import {
+  PageLayout,
+  useExternalComponentModulesByMountPoint,
+  type GatewayDetailsSectionProps,
+} from "@agent-management-platform/views";
 import { useGatewayFeatures } from "@agent-management-platform/feature-management";
 import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
 import { SelfHostedGatewayTokensCard } from "./SelfHostedGatewayTokensCard";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
+
+// Matches MountPoints.GatewayDetailsSection in core-ui, which pages do not import.
+const GATEWAY_DETAILS_SECTION_MOUNT_POINT = "gateway-details-section";
 
 export const ViewGateway: React.FC = () => {
   const { gatewayId, orgId } = useParams<{
@@ -51,6 +58,9 @@ export const ViewGateway: React.FC = () => {
   }>();
   const navigate = useNavigate();
   const { canWrite } = useGatewayFeatures();
+  const extraSections = useExternalComponentModulesByMountPoint(
+    GATEWAY_DETAILS_SECTION_MOUNT_POINT,
+  );
   const {
     data: gateway,
     isLoading,
@@ -259,12 +269,27 @@ export const ViewGateway: React.FC = () => {
                 />
               </>
             ) : (
-              <GatewayIdentityProvidersCard
-                orgId={orgId ?? ""}
-                gatewayId={gateway.uuid}
-                gatewayName={gateway.displayName || gateway.name}
-                environments={gateway.environments ?? []}
-              />
+              <>
+                <GatewayIdentityProvidersCard
+                  orgId={orgId ?? ""}
+                  gatewayId={gateway.uuid}
+                  gatewayName={gateway.displayName || gateway.name}
+                  environments={gateway.environments ?? []}
+                />
+                {extraSections.map((module) => {
+                  const Section =
+                    module.component as unknown as ComponentType<GatewayDetailsSectionProps>;
+                  return (
+                    <Section
+                      key={module.moduleName}
+                      orgId={orgId ?? ""}
+                      gatewayId={gateway.uuid}
+                      gatewayName={gateway.displayName || gateway.name}
+                      canWrite={canWrite}
+                    />
+                  );
+                })}
+              </>
             )}
           </Stack>
         )}

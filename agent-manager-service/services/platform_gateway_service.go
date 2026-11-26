@@ -438,6 +438,34 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 	return toGatewayResponse(gateway), nil
 }
 
+// GetGatewayPolicyManifest returns the policy manifest the gateway last reported, and
+// whether it has reported one at all. The gateway must belong to ouID.
+// Deployment-specific code uses it to read one gateway's policy definitions, including
+// their systemParameters schemas, which the policy catalog only exposes merged across
+// gateways.
+//
+// Unlike gatewayManifest, a failed cache read is returned rather than answered from the
+// row: a caller acting on one gateway's policies must not mistake an unreachable cache
+// for a gateway that has not reported, or act on the stale row. A cache miss still falls
+// back to the row, as for rows written before manifests moved out of the database.
+func (s *PlatformGatewayService) GetGatewayPolicyManifest(ctx context.Context, gatewayID, ouID string) (map[string]interface{}, bool, error) {
+	gateway, err := s.resolveGateway(gatewayID, ouID)
+	if err != nil {
+		return nil, false, err
+	}
+	if gateway.OUID != ouID {
+		return nil, false, utils.ErrGatewayNotFound
+	}
+	cached, ok, err := gatewayManifestCache.Get(ctx, gateway.UUID.String())
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to read gateway manifest cache: %w", err)
+	}
+	if ok {
+		return cached, true, nil
+	}
+	return gateway.Manifest, len(gateway.Manifest) > 0, nil
+}
+
 // SaveGatewayPolicyManifest stores the policy manifest a gateway pushed in the manifest
 // cache. A gateway pushes its full manifest each time its control-plane WebSocket
 // (re)connects; the manifest is large and replaced by the next connect, so it is not

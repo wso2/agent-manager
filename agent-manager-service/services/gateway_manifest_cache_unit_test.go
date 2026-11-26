@@ -305,3 +305,72 @@ func (f *failingManifestCacheBackend) Delete(context.Context, string) error {
 }
 
 var errCacheUnavailable = errors.New("cache backend unavailable")
+
+// TestGetGatewayPolicyManifest: deployment code reads one gateway's own manifest
+// through this, so it must return the cached push and refuse a gateway of another org.
+func TestGetGatewayPolicyManifest(t *testing.T) {
+	clearGatewayManifestCache(t)
+	ctx := context.Background()
+
+	gateway := newGateway(t, models.GatewayRoleBoth, true)
+	gateway.OUID = "org-a"
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(gatewayID string) (*models.Gateway, error) {
+			require.Equal(t, gateway.UUID.String(), gatewayID)
+			return gateway, nil
+		},
+	}
+	svc := NewPlatformGatewayService(repo, nil)
+
+	manifest, known, err := svc.GetGatewayPolicyManifest(ctx, gateway.UUID.String(), "org-a")
+	require.NoError(t, err)
+	require.False(t, known, "a gateway that has not reported has no known manifest")
+	require.Empty(t, manifest)
+
+	pushed := policyManifest("nvidia-nemoguard-content-safety", "v0.10.0")
+	require.NoError(t, gatewayManifestCache.Set(ctx, gateway.UUID.String(), pushed))
+
+	manifest, known, err = svc.GetGatewayPolicyManifest(ctx, gateway.UUID.String(), "org-a")
+	require.NoError(t, err)
+	require.True(t, known)
+	require.Equal(t, pushed, manifest)
+
+	_, _, err = svc.GetGatewayPolicyManifest(ctx, gateway.UUID.String(), "org-b")
+	require.ErrorIs(t, err, utils.ErrGatewayNotFound)
+}
+
+// TestGetGatewayPolicyManifestReportsACacheReadError: unlike the policy listings, which
+// degrade to the row, a caller acting on one gateway must see the failure rather than
+// a stale manifest or a gateway that seems never to have reported.
+func TestGetGatewayPolicyManifestReportsACacheReadError(t *testing.T) {
+	clearGatewayManifestCache(t)
+	gatewayManifestCache = &failingManifestCacheBackend{}
+
+	gateway := newGateway(t, models.GatewayRoleBoth, true)
+	gateway.OUID = "org-a"
+	gateway.Manifest = policyManifest("stale-policy", "v1")
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+	}
+
+	_, _, err := NewPlatformGatewayService(repo, nil).GetGatewayPolicyManifest(context.Background(), gateway.UUID.String(), "org-a")
+	require.ErrorIs(t, err, errCacheUnavailable)
+}
+
+// TestGetGatewayPolicyManifestFallsBackToTheRowOnAMiss keeps rows written before
+// manifests moved out of the database readable.
+func TestGetGatewayPolicyManifestFallsBackToTheRowOnAMiss(t *testing.T) {
+	clearGatewayManifestCache(t)
+
+	gateway := newGateway(t, models.GatewayRoleBoth, true)
+	gateway.OUID = "org-a"
+	gateway.Manifest = policyManifest("row-policy", "v1")
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+	}
+
+	manifest, known, err := NewPlatformGatewayService(repo, nil).GetGatewayPolicyManifest(context.Background(), gateway.UUID.String(), "org-a")
+	require.NoError(t, err)
+	require.True(t, known)
+	require.Equal(t, gateway.Manifest, manifest)
+}
