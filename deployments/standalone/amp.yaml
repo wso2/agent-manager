@@ -55,5 +55,12 @@ console:
   # e.g. "agent-runtime agent-portal".
   ui_modules_enable: ""
 
+# How the bundled gateway receives credentials: inline (plaintext in its
+# artifacts) or reference (it fetches each one into its encrypted secret
+# store). Applied on every start; redeploy artifacts after changing.
+# module:
+#   ai_gateway:
+#     default_gateway_secret_delivery: reference
+
 # Modules are managed with `amp module ...`; ai-gateway is installed on first
 # start. A modules: list here would instead be applied at every boot.

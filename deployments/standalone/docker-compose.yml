@@ -161,10 +161,6 @@ services:
       MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME: default
       MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST: http://${GATEWAY_HOST:-default-default.gateway.localhost}:${GATEWAY_PORT:-19080}
       MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE: /amp/gw/registration-token
-      # reference: the gateway gets {{ secret }} placeholders and fetches each
-      # credential into its encrypted secret store; inline: plaintext in the
-      # artifact, stored unencrypted with it. Redeploy artifacts after changing.
-      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_SECRET_DELIVERY: ${GATEWAY_SECRET_DELIVERY:-inline}
       # The console's settings (CONSOLE_<NAME> fills $NAME in its config.js).
       # The API base URL, ThunderID URL, sign-in redirects, AUTH_MODE and the
       # sign-in scopes default from amp.yaml.
