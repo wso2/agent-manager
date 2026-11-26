@@ -205,7 +205,12 @@ export function BuildCard(props: BuildCardProps) {
   const agentRoutes = absoluteRouteMap.children.org.children.projects.children.agents;
   const routeParams = { orgId: orgId ?? "", projectId: projectId ?? "", agentId: agentId ?? "" };
   const buildPath = generatePath(agentRoutes.children.build.path, routeParams);
-  const publishPath = generatePath(agentRoutes.children.publish.path, routeParams);
+  // A kind agent's versions belong to the kind it was created from, so point
+  // at that kind in the catalog, not at this agent's own Publish page.
+  const kindPath = generatePath(
+    absoluteRouteMap.children.org.children.catalog.children.kindDetails.path,
+    { orgId: orgId ?? "", kindId: agent?.kindName ?? "" },
+  );
 
   // ── Build-agent data ────────────────────────────────────────────────────────
   const { data: builds, isLoading: isBuildsLoading } = useGetAllAgentBuilds({
@@ -419,10 +424,10 @@ export function BuildCard(props: BuildCardProps) {
               compact
               icon={Tag}
               title="Publish a version first"
-              description="Kind agents deploy from a published version, and this kind has none yet."
+              description="Kind agents deploy from a published version, and this kind has none yet. Versions are published from the agent the kind was created from."
               actions={
-                <Button variant="contained" component={Link} to={publishPath}>
-                  Go to Publish
+                <Button variant="contained" component={Link} to={kindPath}>
+                  View kind in catalog
                 </Button>
               }
             />

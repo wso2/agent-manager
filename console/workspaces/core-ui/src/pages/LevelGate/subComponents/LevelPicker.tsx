@@ -28,7 +28,7 @@ import {
   readHeaderBreadcrumbsState,
 } from "@wso2/oxygen-ui";
 import { Bot, Box } from "@wso2/oxygen-ui-icons-react";
-import { Link, generatePath, useNavigate } from "react-router-dom";
+import { Link, generatePath, useLocation, useNavigate } from "react-router-dom";
 import {
   LoadErrorNotice,
   PageLayout,
@@ -44,6 +44,7 @@ import {
   AGENT_AVAILABLE_FOR,
   agentKindLabel,
   gatePath,
+  type LevelGateFrom,
   type NavEntry,
   type NavLevel,
   type NavParams,
@@ -73,6 +74,8 @@ function rememberedProject(orgId?: string): string | undefined {
 export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
   const { orgId } = params;
   const navigate = useNavigate();
+  // Set by the top bar when the user moved up from a project or agent.
+  const origin = (useLocation().state as { from?: LevelGateFrom } | null)?.from;
   const needProject = from === "org";
   const needAgent = to === "agent";
 
@@ -81,8 +84,9 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
 
   const projectsQuery = useListProjects({ orgName: needProject ? orgId : undefined });
   const projects = projectsQuery.data?.projects ?? [];
-  // Preselect the remembered project, or the only one.
+  // Preselect the project the user came from, the remembered one, or the only one.
   const fallbackProject =
+    projects.find((p) => p.name === origin?.projectId)?.name ??
     projects.find((p) => p.name === rememberedProject(orgId))?.name ??
     (projects.length === 1 ? projects[0].name : "");
   const projectId = needProject ? pickedProject || fallbackProject : params.projectId;
@@ -93,8 +97,15 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
   });
   const agents = agentsQuery.data?.agents ?? [];
   const supportedAgents = agents.filter((agent) => !entry.unsupportedReason?.(agent));
+  // Preselect the agent the user came from (if this page applies to it), or the only one.
+  const cameFrom =
+    projectId === origin?.projectId
+      ? supportedAgents.find((agent) => agent.name === origin?.agentId)?.name
+      : undefined;
   const agentId =
-    pickedAgent || (supportedAgents.length === 1 ? supportedAgents[0].name : "");
+    pickedAgent ||
+    cameFrom ||
+    (supportedAgents.length === 1 ? supportedAgents[0].name : "");
 
   const ready = !!projectId && (!needAgent || !!agentId);
   const open = () => {

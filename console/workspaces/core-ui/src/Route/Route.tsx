@@ -699,11 +699,7 @@ export function RootRouter() {
                     relativeRouteMap.children.org.children.projects.children
                       .agents.children.environment.children.security.path
                   }
-                  element={
-                    <AgentPageGuard navKey="credentials">
-                      <SecurityRouteElement />
-                    </AgentPageGuard>
-                  }
+                  element={<SecurityRouteElement />}
                 />
                 <Route
                   path={

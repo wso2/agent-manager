@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   ClipboardCheck as EvaluationOutline,
   Settings,
@@ -120,226 +120,246 @@ export function useNavEntries(): NavEntry[] {
   const canSeeOrgEvents =
     !enforced || scopes.has("amp:events:read") || scopes.has("amp:events:manage");
   const canSeeAgentIdentities = agentIdEnabled && hasAccess("agent_identity_read");
+  const canSeeEvaluators = hasAccess("evaluator_read");
+  const canSeeMcpServers = hasAccess("mcp_server_read");
 
-  const pluginEntries: NavEntry[] = externalNavItems.map((item) => {
-    const levels = item.levels ?? { [item.level]: item.route };
-    return {
-      id: `ext-${item.moduleName.replace(/[^a-zA-Z0-9_-]/g, "-")}`,
-      label: item.title,
-      icon: item.icon,
-      routes: Object.fromEntries(
-        Object.entries(levels).map(([level, path]) => [
-          PLUGIN_LEVELS[level as keyof typeof PLUGIN_LEVELS],
-          route(path as string),
-        ]),
-      ),
-    };
-  });
-
-  const entries: NavEntry[] = [
-    {
-      id: "overview",
-      label: "Overview",
-      icon: <LayoutDashboard size={20} />,
-      routes: {
-        org: route(org.path, [org.path]),
-        project: route(projects.path, [projects.path, projects.children.edit.path]),
-        agent: route(agents.path, [agents.path, agents.children.edit.path]),
-      },
-    },
-    {
-      id: "projects",
-      label: "Projects",
-      icon: <Box size={20} />,
-      ownLevelOnly: true,
-      routes: { org: route(org.children.projectListing.path, [org.children.projectListing.path]) },
-    },
-    {
-      id: "agents",
-      label: "Agents",
-      icon: <Bot size={20} />,
-      ownLevelOnly: true,
-      routes: {
-        project: route(projects.children.agentListing.path, [
-          projects.children.agentListing.path,
-        ]),
-      },
-    },
-    {
-      id: "agent-catalog",
-      label: "Agent catalog",
-      icon: <BookOpenText size={20} />,
-      routes: { org: route(org.children.catalog.path) },
-    },
-    ...pluginEntries,
-    {
-      id: "configure",
-      label: "Configure",
-      icon: <Settings size={20} />,
-      section: "lifecycle",
-      routes: { agent: route(agents.children.configure.path) },
-    },
-    {
-      id: "build",
-      label: "Build",
-      icon: <Hammer size={20} />,
-      section: "lifecycle",
-      routes: { agent: route(agents.children.build.path) },
-      unsupportedReason: AGENT_SUPPORT.build,
-    },
-    {
-      id: "deploy",
-      label: "Deploy",
-      icon: <Rocket size={20} />,
-      section: "lifecycle",
-      routes: { agent: route(agents.children.deployment.path) },
-      unsupportedReason: AGENT_SUPPORT.deploy,
-    },
-    {
-      id: "try-it",
-      label: "Try it",
-      icon: <FlaskConical size={20} />,
-      section: "lifecycle",
-      routes: { agent: route(agentEnv.tryOut.path) },
-      unsupportedReason: AGENT_SUPPORT["try-it"],
-    },
-    {
-      id: "publish",
-      label: "Publish",
-      icon: <Megaphone size={20} />,
-      section: "lifecycle",
-      routes: { agent: route(agents.children.publish.path) },
-      unsupportedReason: AGENT_SUPPORT.publish,
-    },
-    {
-      id: "agent-id",
-      label: "Agent ID",
-      icon: <thunderInstancesMetadata.icon size={20} />,
-      section: "security",
-      routes: when(agentIdEnabled, "agent", route(agents.children.agentId.path)),
-    },
-    {
-      id: "credentials",
-      label: "Credentials",
-      icon: <ShieldCheck size={20} />,
-      section: "security",
-      routes: { agent: route(agentEnv.security.path) },
-      unsupportedReason: AGENT_SUPPORT.credentials,
-    },
-    {
-      id: "traces",
-      label: "Traces",
-      icon: <Workflow size={20} />,
-      section: "observability",
-      routes: { agent: route(agentEnv.observability.children.traces.path) },
-    },
-    {
-      id: "runtime-logs",
-      label: "Runtime logs",
-      icon: <Logs size={20} />,
-      section: "observability",
-      routes: { agent: route(agentEnv.observability.children.logs.path) },
-      unsupportedReason: AGENT_SUPPORT["runtime-logs"],
-    },
-    {
-      id: "system-metrics",
-      label: "System metrics",
-      icon: <Gauge size={20} />,
-      section: "observability",
-      routes: { agent: route(agentEnv.observability.children.metrics.path) },
-      unsupportedReason: AGENT_SUPPORT["system-metrics"],
-    },
-    {
-      id: "monitors",
-      label: "Monitors",
-      icon: <MonitorCheck size={20} />,
-      section: "evaluation",
-      routes: { agent: route(agentEnv.evaluation.children.monitor.path) },
-    },
-    {
-      id: "evaluators",
-      label: "Evaluators",
-      icon: <Code size={20} />,
-      section: "evaluation",
-      routes: when(hasAccess("evaluator_read"), "org", route(org.children.evaluators.path)),
-    },
-    {
-      id: "llm-providers",
-      label: "LLM service providers",
-      icon: <BrainCircuit size={20} />,
-      section: "resources",
-      routes: when(canSeeResources, "org", route(org.children.llmProviders.path)),
-    },
-    {
-      id: "mcp-servers",
-      label: "MCP servers",
-      icon: <MCPLogo size={20} />,
-      section: "resources",
-      routes: {
-        ...when(hasAccess("mcp_server_read"), "org", route(org.children.mcpProxies.path)),
-        ...when(
-          hasAccess("mcp_server_read"),
-          "project",
-          route(projects.children.mcpProxies.path),
-        ),
-      },
-    },
-    {
-      id: "gateways",
-      label: "Gateways",
-      icon: <Network size={20} />,
-      section: "infrastructure",
-      routes: when(canViewGateways, "org", route(org.children.gateways.path)),
-    },
-    {
-      id: "environments",
-      label: "Environments",
-      icon: <Layers size={20} />,
-      section: "infrastructure",
-      routes: when(canViewEnvironments, "org", route(org.children.environments.path)),
-    },
-    {
-      id: "deployment-pipelines",
-      label: "Deployment pipelines",
-      icon: <Workflow size={20} />,
-      section: "infrastructure",
-      routes: when(canViewPipelines, "org", route(org.children.deploymentPipelines.path)),
-    },
-    ...(["groups", "roles"] as const).map((key): NavEntry => {
-      const ChildIcon = thunderInstancesMetadata.children[key].icon;
+  // Memoized on plain booleans, so callers (the top bar's breadcrumb model, the
+  // menu) only rebuild when access, flags or plugins actually change.
+  return useMemo(() => {
+    const pluginEntries: NavEntry[] = externalNavItems.map((item) => {
+      const levels = item.levels ?? { [item.level]: item.route };
       return {
-        id: `agent-identity-${key}`,
-        label: thunderInstancesMetadata.children[key].title,
-        icon: <ChildIcon size={20} />,
-        section: "identities",
-        routes: when(
-          canSeeAgentIdentities,
-          "org",
-          route(org.children.thunderInstances.children[key].path),
+        id: `ext-${item.moduleName.replace(/[^a-zA-Z0-9_-]/g, "-")}`,
+        label: item.title,
+        icon: item.icon,
+        routes: Object.fromEntries(
+          Object.entries(levels).map(([level, path]) => [
+            PLUGIN_LEVELS[level as keyof typeof PLUGIN_LEVELS],
+            route(path as string),
+          ]),
         ),
       };
-    }),
-    {
-      id: "events",
-      label: "Events",
-      icon: <RadioTower size={20} />,
-      dividerBefore: true,
-      routes: eventsEnabled
-        ? {
-            ...when(canSeeOrgEvents, "org", route(org.children.events.path)),
-            project: route(projects.children.events.path),
-            agent: route(agents.children.events.path),
-          }
-        : {},
-    },
-    {
-      id: "settings",
-      label: "Settings",
-      icon: <Settings size={20} />,
-      pinBottom: true,
-      routes: when(canSeeSettings, "org", route(org.children.settings.path)),
-    },
-  ];
+    });
 
-  return entries.filter((entry) => Object.keys(entry.routes).length > 0);
+    const entries: NavEntry[] = [
+      {
+        id: "overview",
+        label: "Overview",
+        icon: <LayoutDashboard size={20} />,
+        routes: {
+          org: route(org.path, [org.path]),
+          project: route(projects.path, [projects.path, projects.children.edit.path]),
+          agent: route(agents.path, [agents.path, agents.children.edit.path]),
+        },
+      },
+      {
+        id: "projects",
+        label: "Projects",
+        icon: <Box size={20} />,
+        ownLevelOnly: true,
+        routes: {
+          org: route(org.children.projectListing.path, [org.children.projectListing.path]),
+        },
+      },
+      {
+        id: "agents",
+        label: "Agents",
+        icon: <Bot size={20} />,
+        ownLevelOnly: true,
+        routes: {
+          project: route(projects.children.agentListing.path, [
+            projects.children.agentListing.path,
+          ]),
+        },
+      },
+      {
+        id: "agent-catalog",
+        label: "Agent catalog",
+        icon: <BookOpenText size={20} />,
+        routes: { org: route(org.children.catalog.path) },
+      },
+      ...pluginEntries,
+      {
+        id: "configure",
+        label: "Configure",
+        icon: <Settings size={20} />,
+        section: "lifecycle",
+        routes: { agent: route(agents.children.configure.path) },
+      },
+      {
+        id: "build",
+        label: "Build",
+        icon: <Hammer size={20} />,
+        section: "lifecycle",
+        routes: { agent: route(agents.children.build.path) },
+        unsupportedReason: AGENT_SUPPORT.build,
+      },
+      {
+        id: "deploy",
+        label: "Deploy",
+        icon: <Rocket size={20} />,
+        section: "lifecycle",
+        routes: { agent: route(agents.children.deployment.path) },
+        unsupportedReason: AGENT_SUPPORT.deploy,
+      },
+      {
+        id: "try-it",
+        label: "Try it",
+        icon: <FlaskConical size={20} />,
+        section: "lifecycle",
+        routes: { agent: route(agentEnv.tryOut.path) },
+        unsupportedReason: AGENT_SUPPORT["try-it"],
+      },
+      {
+        id: "publish",
+        label: "Publish",
+        icon: <Megaphone size={20} />,
+        section: "lifecycle",
+        routes: { agent: route(agents.children.publish.path) },
+        unsupportedReason: AGENT_SUPPORT.publish,
+      },
+      {
+        id: "agent-id",
+        label: "Agent ID",
+        icon: <thunderInstancesMetadata.icon size={20} />,
+        section: "security",
+        routes: when(agentIdEnabled, "agent", route(agents.children.agentId.path)),
+      },
+      {
+        id: "credentials",
+        label: "Credentials",
+        icon: <ShieldCheck size={20} />,
+        section: "security",
+        routes: { agent: route(agentEnv.security.path) },
+      },
+      {
+        id: "traces",
+        label: "Traces",
+        icon: <Workflow size={20} />,
+        section: "observability",
+        routes: { agent: route(agentEnv.observability.children.traces.path) },
+      },
+      {
+        id: "runtime-logs",
+        label: "Runtime logs",
+        icon: <Logs size={20} />,
+        section: "observability",
+        routes: { agent: route(agentEnv.observability.children.logs.path) },
+        unsupportedReason: AGENT_SUPPORT["runtime-logs"],
+      },
+      {
+        id: "system-metrics",
+        label: "System metrics",
+        icon: <Gauge size={20} />,
+        section: "observability",
+        routes: { agent: route(agentEnv.observability.children.metrics.path) },
+        unsupportedReason: AGENT_SUPPORT["system-metrics"],
+      },
+      {
+        id: "monitors",
+        label: "Monitors",
+        icon: <MonitorCheck size={20} />,
+        section: "evaluation",
+        routes: { agent: route(agentEnv.evaluation.children.monitor.path) },
+      },
+      {
+        id: "evaluators",
+        label: "Evaluators",
+        icon: <Code size={20} />,
+        section: "evaluation",
+        routes: when(canSeeEvaluators, "org", route(org.children.evaluators.path)),
+      },
+      {
+        id: "llm-providers",
+        label: "LLM service providers",
+        icon: <BrainCircuit size={20} />,
+        section: "resources",
+        routes: when(canSeeResources, "org", route(org.children.llmProviders.path)),
+      },
+      {
+        id: "mcp-servers",
+        label: "MCP servers",
+        icon: <MCPLogo size={20} />,
+        section: "resources",
+        routes: {
+          ...when(canSeeMcpServers, "org", route(org.children.mcpProxies.path)),
+          ...when(
+            canSeeMcpServers,
+            "project",
+            route(projects.children.mcpProxies.path),
+          ),
+        },
+      },
+      {
+        id: "gateways",
+        label: "Gateways",
+        icon: <Network size={20} />,
+        section: "infrastructure",
+        routes: when(canViewGateways, "org", route(org.children.gateways.path)),
+      },
+      {
+        id: "environments",
+        label: "Environments",
+        icon: <Layers size={20} />,
+        section: "infrastructure",
+        routes: when(canViewEnvironments, "org", route(org.children.environments.path)),
+      },
+      {
+        id: "deployment-pipelines",
+        label: "Deployment pipelines",
+        icon: <Workflow size={20} />,
+        section: "infrastructure",
+        routes: when(canViewPipelines, "org", route(org.children.deploymentPipelines.path)),
+      },
+      ...(["groups", "roles"] as const).map((key): NavEntry => {
+        const ChildIcon = thunderInstancesMetadata.children[key].icon;
+        return {
+          id: `agent-identity-${key}`,
+          label: thunderInstancesMetadata.children[key].title,
+          icon: <ChildIcon size={20} />,
+          section: "identities",
+          routes: when(
+            canSeeAgentIdentities,
+            "org",
+            route(org.children.thunderInstances.children[key].path),
+          ),
+        };
+      }),
+      {
+        id: "events",
+        label: "Events",
+        icon: <RadioTower size={20} />,
+        dividerBefore: true,
+        routes: eventsEnabled
+          ? {
+              ...when(canSeeOrgEvents, "org", route(org.children.events.path)),
+              project: route(projects.children.events.path),
+              agent: route(agents.children.events.path),
+            }
+          : {},
+      },
+      {
+        id: "settings",
+        label: "Settings",
+        icon: <Settings size={20} />,
+        pinBottom: true,
+        routes: when(canSeeSettings, "org", route(org.children.settings.path)),
+      },
+    ];
+
+    return entries.filter((entry) => Object.keys(entry.routes).length > 0);
+  }, [
+    agentIdEnabled,
+    canSeeAgentIdentities,
+    canSeeEvaluators,
+    canSeeMcpServers,
+    canSeeOrgEvents,
+    canSeeResources,
+    canSeeSettings,
+    canViewEnvironments,
+    canViewGateways,
+    canViewPipelines,
+    eventsEnabled,
+    externalNavItems,
+  ]);
 }

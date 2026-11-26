@@ -39,6 +39,7 @@ import {
   type LinkProps,
 } from "react-router-dom";
 import { useLevelSwitchHref } from "./navigation/useLevelSwitchHref";
+import type { LevelGateFrom } from "./navigation/navModel";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
   useExternalComponentModules,
@@ -369,15 +370,18 @@ export function TopNavigation() {
     [externalSwitcher, navigate, orgId, projectId, track],
   );
 
-  // Clicking a name in the trail moves to that level and keeps the left-menu
-  // item, such as Runtime logs at the project from an agent's logs.
+  // Clicking a name in the trail moves up to that level and keeps the left-menu
+  // item: from an agent's Traces, the project name opens the Traces agent
+  // picker for that project. The state lets that picker preselect where the
+  // user came from.
   const handleNavigate = useCallback(
     (_levelId: string, item: HeaderBreadcrumbsItem) => {
       if (item.href && item.href !== pathname) {
-        navigate(item.href);
+        const from: LevelGateFrom = { projectId, agentId };
+        navigate(item.href, { state: { from } });
       }
     },
-    [navigate, pathname],
+    [navigate, pathname, projectId, agentId],
   );
 
   const openTrailNameInNewTab = (event: MouseEvent) => {

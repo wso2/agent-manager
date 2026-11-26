@@ -87,6 +87,12 @@ export interface NavParams {
   envId?: string;
 }
 
+/** Router state the top bar passes to a gate: where the user came from. */
+export interface LevelGateFrom {
+  projectId?: string;
+  agentId?: string;
+}
+
 export type NavTarget =
   | { kind: "direct"; level: NavLevel }
   /** The page lives deeper: the user picks the project and/or agent. */
@@ -189,7 +195,6 @@ export const AGENT_AVAILABLE_FOR: Record<string, string> = {
   "try-it": "agents that run on the platform",
   "runtime-logs": "agents that run on the platform",
   "system-metrics": "agents that run on the platform",
-  credentials: "API agents and external agents",
 };
 
 /** Short kind shown next to an agent the page doesn't apply to. */
@@ -211,8 +216,4 @@ export const AGENT_SUPPORT: Record<
   "try-it": (agent) => (isExternal(agent) ? EXTERNAL : undefined),
   "runtime-logs": (agent) => (isExternal(agent) ? EXTERNAL : undefined),
   "system-metrics": (agent) => (isExternal(agent) ? EXTERNAL : undefined),
-  credentials: (agent) =>
-    isExternal(agent) || agent.agentType?.type === "agent-api"
-      ? undefined
-      : "Credentials are only issued for API agents and external agents.",
 };

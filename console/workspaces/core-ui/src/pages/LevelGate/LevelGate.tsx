@@ -19,7 +19,7 @@
 import type { ReactNode } from "react";
 import { Navigate, generatePath, useParams } from "react-router-dom";
 import { Layers } from "@wso2/oxygen-ui-icons-react";
-import { useGetAgent } from "@agent-management-platform/api-client";
+import { useGetAgent, useRuntimeConfig } from "@agent-management-platform/api-client";
 import {
   ErrorPages,
   usePipelineEnvironmentsState,
@@ -49,6 +49,10 @@ import { UpLevelNotice } from "./subComponents/UpLevelNotice";
 export function LevelGate() {
   const { orgId, projectId, agentId, navKey } = useParams();
   const entries = useNavEntries();
+  // Events only exists once the runtime config says so; feature flags and
+  // access are settled before the layout renders. Wait, so a refresh on an
+  // Events gate isn't mistaken for an unknown item.
+  const { isLoading: isLoadingConfig } = useRuntimeConfig();
   const params: NavParams = { orgId, projectId, agentId };
   const level = currentNavLevel(params);
   const entry = entries.find((candidate) => candidate.id === navKey);
@@ -56,6 +60,9 @@ export function LevelGate() {
 
   if (!level) {
     return <ErrorPages.NotFound />;
+  }
+  if (!entry && isLoadingConfig) {
+    return <LoadingFallback />;
   }
   if (!entry || !target) {
     // An item this user can't see here (another org's permissions, a stale
@@ -68,7 +75,16 @@ export function LevelGate() {
     return <UpLevelNotice entry={entry} from={level} to={target.level} params={params} />;
   }
   if (target.kind === "pick") {
-    return <LevelPicker entry={entry} from={level} to={target.level} params={params} />;
+    // Keyed so a choice made for one item or project doesn't carry over.
+    return (
+      <LevelPicker
+        key={`${entry.id}:${projectId ?? ""}`}
+        entry={entry}
+        from={level}
+        to={target.level}
+        params={params}
+      />
+    );
   }
   return <OpenHere entry={entry} level={level} params={params} />;
 }
