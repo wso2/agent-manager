@@ -19,7 +19,9 @@ package clickhouse
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store"
 )
@@ -59,10 +61,86 @@ func TestNewRejectsBadConfig(t *testing.T) {
 	for _, cfg := range []Config{
 		{URL: ""},
 		{URL: "tcp://clickhouse:9000"},
-		{URL: "http://clickhouse:8123", Database: "otel; DROP TABLE x"},
 	} {
 		if _, err := New(cfg); err == nil {
 			t.Errorf("New(%+v) succeeded, want an error", cfg)
 		}
+	}
+}
+
+// A bound past every storable timestamp is dropped, one that leaves no
+// storable timestamp empties the window, and others are kept as given.
+func TestWindowFilterBounds(t *testing.T) {
+	from := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(time.Hour)
+	farPast := time.Date(1000, 1, 1, 0, 0, 0, 0, time.UTC)
+	farFuture := time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)
+	for name, tc := range map[string]struct {
+		from, to  time.Time
+		wantEmpty bool
+		wantKeys  []string
+	}{
+		"open":                 {wantKeys: nil},
+		"ordinary":             {from: from, to: to, wantKeys: []string{"from", "to"}},
+		"far past start":       {from: farPast, to: to, wantKeys: []string{"to"}},
+		"far future end":       {from: from, to: farFuture, wantKeys: []string{"from"}},
+		"both far":             {from: farPast, to: farFuture, wantKeys: nil},
+		"start after storable": {from: farFuture, wantEmpty: true},
+		"end before storable":  {to: farPast, wantEmpty: true},
+	} {
+		params := map[string]string{}
+		_, empty := windowFilter(tc.from, tc.to, params)
+		if empty != tc.wantEmpty || len(params) != len(tc.wantKeys) {
+			t.Errorf("%s: empty = %v, params = %v; want empty %v, params %v", name, empty, params, tc.wantEmpty, tc.wantKeys)
+			continue
+		}
+		for _, k := range tc.wantKeys {
+			if _, ok := params[k]; !ok {
+				t.Errorf("%s: params = %v, want %s", name, params, k)
+			}
+		}
+	}
+	got := map[string]string{}
+	windowFilter(from, to, got)
+	if got["from"] != strconv.FormatInt(from.UnixNano(), 10) || got["to"] != strconv.FormatInt(to.UnixNano(), 10) {
+		t.Errorf("ordinary params = %v, want the bounds in nanoseconds", got)
+	}
+}
+
+// A window no stored span can be in returns an empty page without querying:
+// the store points at nothing listening.
+func TestEmptyWindowRunsNoQuery(t *testing.T) {
+	s, err := New(Config{URL: "http://127.0.0.1:1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	sc := store.Scope{OrgID: "org-a", Names: store.Names{Org: "acme"}}
+	future := time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)
+	if page, err := s.QueryTraces(ctx, sc, store.TraceQuery{StartTime: future}); err != nil || len(page.Traces) != 0 {
+		t.Errorf("QueryTraces = %+v, %v; want an empty page", page, err)
+	}
+	if page, err := s.QueryTraceSpans(ctx, sc, "t", store.SpanQuery{StartTime: future}); err != nil || len(page.Spans) != 0 {
+		t.Errorf("QueryTraceSpans = %+v, %v; want an empty page", page, err)
+	}
+}
+
+// A trace's spans are read from clockSkew before the window to traceSpread
+// after it; an open bound stays open.
+func TestTraceBounds(t *testing.T) {
+	from := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(time.Hour)
+	if f, e := traceBounds(from, to); !f.Equal(from.Add(-time.Minute)) || !e.Equal(to.Add(24*time.Hour)) {
+		t.Errorf("traceBounds(%v, %v) = %v, %v; want a minute before and a day after", from, to, f, e)
+	}
+	if f, e := traceBounds(time.Time{}, time.Time{}); !f.IsZero() || !e.IsZero() {
+		t.Errorf("traceBounds of an open window = %v, %v; want it open", f, e)
+	}
+	params := map[string]string{}
+	far := time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)
+	f, e := traceBounds(from, far)
+	if where, empty := timeFilter(f, e, "trace_from", "trace_to", params); empty || len(params) != 1 ||
+		params["trace_from"] != strconv.FormatInt(f.UnixNano(), 10) || where != " AND Timestamp >= fromUnixTimestamp64Nano({trace_from:Int64})" {
+		t.Errorf("timeFilter of a far end = %q, %v, %v; want only the start bound, as trace_from", where, empty, params)
 	}
 }

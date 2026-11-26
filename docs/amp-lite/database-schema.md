@@ -62,7 +62,7 @@ Replaces Postgres advisory locks for the core's workers. A module that needs a l
 | owner | short text (255) | yes | Instance holding it. NULL = free. |
 | expires_at | time | yes | Lease end; an expired lease can be taken over. |
 
-Taken with the same lease update as job claims (rule 10). Rows are seeded by migrations, so taking a lock never inserts.
+Taken with the same lease update as job claims (rule 10). Rows are seeded by migrations, so taking a lock never inserts. `modhost.external_schema` serialises `amp migrate`'s external schema runs.
 
 ### Queue tables
 

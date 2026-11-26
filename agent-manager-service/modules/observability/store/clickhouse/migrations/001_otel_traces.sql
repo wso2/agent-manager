@@ -1,8 +1,8 @@
 -- The span table of the OTel collector's clickhouse exporter, which runs with
 -- create_schema off and writes its own columns as they are. org_id,
--- project_id and agent_id are materialized from the resource attributes the
--- collector sets from the agent's verified token; every query filters on
--- org_id first. The retention TTL comes from config and is set by amp migrate.
+-- project_id and agent_id are materialized from the agent-manager/* resource
+-- attributes on each span; every query filters on org_id first. The
+-- retention TTL comes from config and is set by amp migrate.
 CREATE TABLE IF NOT EXISTS otel_traces
 (
     `Timestamp` DateTime64(9) CODEC(Delta(8), ZSTD(1)),

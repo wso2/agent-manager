@@ -18,18 +18,18 @@ package modhost
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
-
-	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -43,9 +43,18 @@ var externalFile = regexp.MustCompile(`^[0-9]{3}_[a-z0-9_]+\.[a-z0-9]+$`)
 // externalCheckTimeout bounds the install and enable check of an external store.
 const externalCheckTimeout = 10 * time.Second
 
-// externalMigrateTimeout bounds one module's external schema migration, which
-// runs while the generation lock is held.
+// externalMigrateTimeout bounds one module's external schema migration,
+// waiting for the lease included.
 const externalMigrateTimeout = 5 * time.Minute
+
+// externalLock is the core lease row that serialises external schema migrations.
+const externalLock = "modhost.external_schema"
+
+// externalLockTTL outlives a migration bounded by externalMigrateTimeout.
+const externalLockTTL = externalMigrateTimeout + time.Minute
+
+// externalLockPoll is how often a migration waiting for the lease retries.
+const externalLockPoll = time.Second
 
 // moduleConfig reads a module's settings, as Runtime.Config does.
 func moduleConfig(name string) func(key string) string {
@@ -129,34 +138,78 @@ func (h *Host) migrateExternal(ctx context.Context, name string) (*ExternalResul
 	what := fmt.Sprintf("module %s %s schema", name, s.Store())
 	ctx, cancel := context.WithTimeout(ctx, externalMigrateTimeout)
 	defer cancel()
-	err = h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Serialise with other migrators, as the SQL migrations do. The lock
-		// is held across the store's calls, so the history read and the
-		// files applied stay one step; externalMigrateTimeout bounds it.
-		if err := dbx.LockRow(tx, "module_generation", "value", "id = ?", 1); err != nil {
-			return err
+	// A lease, not a held transaction, serialises migrators, so the store's
+	// calls never hold the core database's write lock.
+	owner, err := h.takeExternalLock(ctx, name, s.Store())
+	if err != nil {
+		return res, err
+	}
+	defer h.releaseExternalLock(ctx, owner)
+	applied, err := s.Applied(ctx)
+	if err != nil {
+		return res, fmt.Errorf("%s: reading what was applied: %w", what, err)
+	}
+	todo, err := pendingFrom(what, applied, ms)
+	if err != nil {
+		return res, err
+	}
+	for _, m := range todo {
+		h.log.Info("modhost:applying external schema", "module", name, "store", s.Store(), "version", m.Version)
+		if err := s.Apply(ctx, m.Version, m.Checksum, m.body); err != nil {
+			return res, fmt.Errorf("%s %s: %w", what, m.Version, err)
 		}
-		applied, err := s.Applied(ctx)
-		if err != nil {
-			return fmt.Errorf("%s: reading what was applied: %w", what, err)
+		res.Applied++
+	}
+	if err := s.Settle(ctx); err != nil {
+		return res, fmt.Errorf("%s: %w", what, err)
+	}
+	return res, nil
+}
+
+// takeExternalLock takes the external schema lease for a new owner, retrying
+// while another run holds it until ctx ends, and returns the owner.
+func (h *Host) takeExternalLock(ctx context.Context, module, store string) (string, error) {
+	owner, err := externalLockOwner()
+	if err != nil {
+		return "", err
+	}
+	for {
+		ok, err := dbx.TryLock(ctx, h.db, "locks", externalLock, owner, dbx.Now(), externalLockTTL)
+		if err != nil && ctx.Err() == nil {
+			return "", fmt.Errorf("taking the external schema lease: %w", err)
 		}
-		todo, err := pendingFrom(what, applied, ms)
-		if err != nil {
-			return err
+		if ok {
+			return owner, nil
 		}
-		for _, m := range todo {
-			h.log.Info("modhost:applying external schema", "module", name, "store", s.Store(), "version", m.Version)
-			if err := s.Apply(ctx, m.Version, m.Checksum, m.body); err != nil {
-				return fmt.Errorf("%s %s: %w", what, m.Version, err)
-			}
-			res.Applied++
+		select {
+		case <-ctx.Done():
+			return "", fmt.Errorf("another amp migrate is applying %s's %s schema; try again: %w", module, store, ctx.Err())
+		case <-time.After(externalLockPoll):
 		}
-		if err := s.Settle(ctx); err != nil {
-			return fmt.Errorf("%s: %w", what, err)
-		}
-		return nil
-	})
-	return res, err
+	}
+}
+
+// releaseExternalLock frees the lease, on a context of its own since ctx may
+// have ended.
+func (h *Host) releaseExternalLock(ctx context.Context, owner string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), externalCheckTimeout)
+	defer cancel()
+	if err := dbx.Unlock(ctx, h.db, "locks", externalLock, owner); err != nil {
+		h.log.Warn("modhost:releasing the external schema lease", "error", err)
+	}
+}
+
+// externalLockOwner names one migration run: host, pid and a random suffix.
+func externalLockOwner() (string, error) {
+	host, err := os.Hostname()
+	if err != nil {
+		host = "unknown"
+	}
+	suffix := make([]byte, 4)
+	if _, err := rand.Read(suffix); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s/%d/%s", host, os.Getpid(), hex.EncodeToString(suffix)), nil
 }
 
 // externalPlanReady runs externalReady for each module installing name would
@@ -186,13 +239,52 @@ func (h *Host) externalPlanReady(ctx context.Context, name string, withDeps bool
 	return checked, nil
 }
 
+// externalUnready runs externalReady for each active module with a configured
+// external store, and returns those that failed it.
+func (h *Host) externalUnready(ctx context.Context, states map[string]string) map[string]error {
+	out := map[string]error{}
+	for name, st := range states {
+		if st != StateActive {
+			continue
+		}
+		if s, _, err := h.externalSchema(name, false); err == nil && s == nil {
+			continue
+		}
+		if err := h.externalReady(ctx, name); err != nil {
+			out[name] = err
+		}
+	}
+	return out
+}
+
+// without is states with the modules of drop left out.
+func without(states map[string]string, drop map[string]error) map[string]string {
+	if len(drop) == 0 {
+		return states
+	}
+	out := make(map[string]string, len(states))
+	for n, s := range states {
+		if _, ok := drop[n]; !ok {
+			out[n] = s
+		}
+	}
+	return out
+}
+
 // externalReady refuses a module whose external store is configured but does
-// not hold every schema file of this binary. With no store configured there
-// is nothing to check. It runs outside the lifecycle transaction.
+// not hold every schema file of this binary. With no store configured it
+// warns that the store was not checked. It runs outside the lifecycle
+// transaction.
 func (h *Host) externalReady(ctx context.Context, name string) error {
-	s, _, err := h.externalSchema(name, false)
-	if err != nil || s == nil {
+	s, skipped, err := h.externalSchema(name, false)
+	if err != nil {
 		return err
+	}
+	if s == nil {
+		if _, ok := h.mods[name].(modkit.ExternalMigrator); ok {
+			h.log.Warn("modhost:external store not checked", "module", name, "reason", skipped)
+		}
+		return nil
 	}
 	ms, err := loadExternal(name, s)
 	if err != nil {

@@ -8,11 +8,21 @@
                 history it keeps. No reads or writes of spans.
   amp_ingest    INSERT on the span table, for the OTel collector.
   amp_reader    SELECT on the span table and the schema history, for the
-                observability module.
+                observability module. Its profile, amp_reader_profile, is
+                read-only, stops a read after 25 s (the module's client gives
+                up at 30 s) and cancels it when the client disconnects.
   amp_cleaner   DELETE on the span table, for the observability module to
                 remove a deleted agent's spans.
 -->
 <clickhouse>
+  <profiles>
+    <amp_reader_profile>
+      <!-- 2, not 1: the client sets its output format settings per request. -->
+      <readonly>2</readonly>
+      <max_execution_time>25</max_execution_time>
+      <cancel_http_readonly_queries_on_client_close>1</cancel_http_readonly_queries_on_client_close>
+    </amp_reader_profile>
+  </profiles>
   <users>
     <amp_migrator>
       <password from_env="AMP_CLICKHOUSE_MIGRATOR_PASSWORD"/>
@@ -36,7 +46,7 @@
     <amp_reader>
       <password from_env="AMP_CLICKHOUSE_READER_PASSWORD"/>
       <networks><ip>::/0</ip></networks>
-      <profile>default</profile>
+      <profile>amp_reader_profile</profile>
       <quota>default</quota>
       <grants>
         <query>GRANT SELECT ON otel.otel_traces</query>

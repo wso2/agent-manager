@@ -77,6 +77,27 @@ tables:
 	assert.Equal(t, "db_migrations/sql/sqlite/002_later.sql", MigrationPath(DialectSQLite, s.Files()[1]))
 }
 
+// A migration's seed adds rows to a table an earlier migration created, in that migration alone.
+func TestLaterMigrationsSeedEarlierTables(t *testing.T) {
+	s, err := Parse([]byte(`
+migrations:
+  - {id: "002", name: more_locks, seed: {locks: [{name: second}]}}
+tables:
+  - name: locks
+    columns: [{name: name, type: text, size: 128}]
+    primary_key: [name]
+    seed: [{name: first}]`))
+	require.NoError(t, err)
+	baseline, err := s.Render(DialectSQLite)
+	require.NoError(t, err)
+	assert.Contains(t, baseline, "INSERT INTO locks (name) VALUES ('first')")
+	assert.NotContains(t, baseline, "'second'")
+	later, err := s.RenderMigration(DialectPostgres, "002")
+	require.NoError(t, err)
+	assert.Contains(t, later, "INSERT INTO locks (name) VALUES ('second')")
+	assert.NotContains(t, later, "CREATE TABLE")
+}
+
 func TestValidateRejectsRuleBreaks(t *testing.T) {
 	tests := map[string]string{
 		"nullable unique key": `
@@ -137,6 +158,28 @@ tables:
     columns: [{name: id, type: id}, {name: p_id, type: id}]
     primary_key: [id]
     foreign_keys: [{columns: [p_id], references: p, ref_columns: [id]}]`,
+		"seed of a table the same migration creates": `
+migrations:
+  - {id: "002", name: later, seed: {t: [{id: x}]}}
+tables:
+  - name: t
+    migration: "002"
+    columns: [{name: id, type: text, size: 10}]
+    primary_key: [id]`,
+		"seed of an unknown table": `
+migrations:
+  - {id: "002", name: later, seed: {nosuch: [{id: x}]}}
+tables:
+  - name: t
+    columns: [{name: id, type: text, size: 10}]
+    primary_key: [id]`,
+		"migration seed of an unknown column": `
+migrations:
+  - {id: "002", name: later, seed: {t: [{other: x}]}}
+tables:
+  - name: t
+    columns: [{name: id, type: text, size: 10}]
+    primary_key: [id]`,
 		"unknown field": `
 tables:
   - name: t

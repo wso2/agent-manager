@@ -210,7 +210,7 @@ jobs:
 
       - name: Remove ClickHouse
         if: always()
-        run: docker rm -f "$CH_CONTAINER" || true
+        run: docker rm -fv "$CH_CONTAINER" || true
 
   coverage:
     name: Coverage

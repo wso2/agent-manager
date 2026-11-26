@@ -23,8 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"regexp"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -35,11 +34,11 @@ import (
 // Table is the span table, the exporter's default traces_table_name.
 const Table = "otel_traces"
 
-// DefaultDatabase is the database the table is in when none is configured.
+// DefaultDatabase is the database the table is in, the one users.xml grants on.
 const DefaultDatabase = "otel"
 
-// Resource attributes the collector sets from the gateway's headers; the
-// table materializes them as org_id, project_id and agent_id.
+// Resource attributes on each span; the table materializes org_id,
+// project_id and agent_id from the agent-manager/* ones.
 const (
 	AttrOrgID         = "agent-manager/org-id"
 	AttrProjectID     = "agent-manager/project-uid"
@@ -50,10 +49,9 @@ const (
 // ErrMissingAgent is returned by DeleteAgent when it is not given an agent.
 var ErrMissingAgent = errors.New("clickhouse: no agent to delete")
 
-// Config locates the span table and the user that reads it.
+// Config locates ClickHouse and the user that reads the span table.
 type Config struct {
 	URL      string // HTTP interface, e.g. http://clickhouse:8123
-	Database string // DefaultDatabase when empty
 	User     string
 	Password string
 }
@@ -65,26 +63,13 @@ type Store struct {
 
 var _ store.TraceStore = (*Store)(nil)
 
-var identifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-
 // New returns a Store for cfg. It does not connect.
 func New(cfg Config) (*Store, error) {
-	if cfg.Database == "" {
-		cfg.Database = DefaultDatabase
-	}
-	if !identifier.MatchString(cfg.Database) {
-		return nil, fmt.Errorf("clickhouse: invalid database name %q", cfg.Database)
-	}
-	c, err := newClient(cfg.URL, cfg.Database, cfg.User, cfg.Password)
+	c, err := newClient(cfg.URL, DefaultDatabase, cfg.User, cfg.Password)
 	if err != nil {
 		return nil, err
 	}
 	return &Store{c: c}, nil
-}
-
-// Ping checks that the span table is readable.
-func (s *Store) Ping(ctx context.Context) error {
-	return s.c.query(ctx, "SELECT 1 FROM "+Table+" LIMIT 1", nil, func([]byte) error { return nil })
 }
 
 // scopeFilter is the WHERE clause for a Scope: always the org, and the
@@ -107,18 +92,50 @@ func scopeFilter(sc store.Scope, params map[string]string) string {
 	return where
 }
 
-// windowFilter narrows to [from, to]; a zero bound is open.
-func windowFilter(from, to time.Time, params map[string]string) string {
-	where := ""
+// The range of a stored Timestamp, nanoseconds since the epoch in an Int64.
+var (
+	minStored = time.Unix(0, math.MinInt64)
+	maxStored = time.Unix(0, math.MaxInt64)
+)
+
+// windowFilter narrows to [from, to]. A zero bound, or one no stored span is
+// outside of, is open; empty reports a window no stored span can be in.
+func windowFilter(from, to time.Time, params map[string]string) (where string, empty bool) {
+	return timeFilter(from, to, "from", "to", params)
+}
+
+// timeFilter is windowFilter with the bounds bound as fromKey and toKey.
+func timeFilter(from, to time.Time, fromKey, toKey string, params map[string]string) (where string, empty bool) {
+	if (!from.IsZero() && from.After(maxStored)) || (!to.IsZero() && to.Before(minStored)) {
+		return "", true
+	}
+	if !from.IsZero() && from.After(minStored) {
+		params[fromKey] = strconv.FormatInt(from.UnixNano(), 10)
+		where += " AND Timestamp >= fromUnixTimestamp64Nano({" + fromKey + ":Int64})"
+	}
+	if !to.IsZero() && to.Before(maxStored) {
+		params[toKey] = strconv.FormatInt(to.UnixNano(), 10)
+		where += " AND Timestamp <= fromUnixTimestamp64Nano({" + toKey + ":Int64})"
+	}
+	return where, false
+}
+
+// clockSkew is how far before its root a child span may be stamped.
+const clockSkew = time.Minute
+
+// traceSpread is how long after the window a listed trace's spans are counted.
+const traceSpread = 24 * time.Hour
+
+// traceBounds widens a window to where its traces' spans are read: clockSkew
+// before it and traceSpread after it. A zero bound stays open.
+func traceBounds(from, to time.Time) (time.Time, time.Time) {
 	if !from.IsZero() {
-		params["from"] = strconv.FormatInt(from.UnixNano(), 10)
-		where += " AND Timestamp >= fromUnixTimestamp64Nano({from:Int64})"
+		from = from.Add(-clockSkew)
 	}
 	if !to.IsZero() {
-		params["to"] = strconv.FormatInt(to.UnixNano(), 10)
-		where += " AND Timestamp <= fromUnixTimestamp64Nano({to:Int64})"
+		to = to.Add(traceSpread)
 	}
-	return where
+	return from, to
 }
 
 // limitClause bounds a list; zero or less lists everything.
@@ -140,16 +157,24 @@ func direction(sort, fallback string) string {
 	return "DESC"
 }
 
-// QueryTraces lists the Scope's traces with a span in the window, each
-// summarised from all its spans, in one query.
+// QueryTraces lists the Scope's traces whose root span starts in the window,
+// each summarised from its spans in one query. Spans more than clockSkew
+// before the window or traceSpread after it are not counted.
 func (s *Store) QueryTraces(ctx context.Context, sc store.Scope, q store.TraceQuery) (*store.TracePage, error) {
 	if err := sc.Validate(); err != nil {
 		return nil, err
 	}
 	params := map[string]string{}
 	scope := scopeFilter(sc, params)
-	where := scope + " AND TraceId IN (SELECT TraceId FROM " + Table + " WHERE " + scope +
-		windowFilter(q.StartTime, q.EndTime, params) + ")"
+	window, empty := windowFilter(q.StartTime, q.EndTime, params)
+	if empty {
+		return &store.TracePage{Traces: []store.Trace{}}, nil
+	}
+	// Widening a window that is not empty never empties it.
+	traceFrom, traceTo := traceBounds(q.StartTime, q.EndTime)
+	spread, _ := timeFilter(traceFrom, traceTo, "trace_from", "trace_to", params)
+	where := scope + spread + " AND TraceId IN (SELECT TraceId FROM " + Table + " WHERE " + scope +
+		" AND ParentSpanId = ''" + window + ")"
 	dir := direction(q.SortOrder, "desc")
 	sql := `SELECT
   TraceId AS trace_id,
@@ -239,7 +264,11 @@ func (s *Store) QueryTraceSpans(ctx context.Context, sc store.Scope, traceID str
 		return nil, err
 	}
 	params := map[string]string{"trace": traceID}
-	where := scopeFilter(sc, params) + " AND TraceId = {trace:String}" + windowFilter(q.StartTime, q.EndTime, params)
+	window, empty := windowFilter(q.StartTime, q.EndTime, params)
+	if empty {
+		return &store.SpanPage{Spans: []store.Span{}}, nil
+	}
+	where := scopeFilter(sc, params) + " AND TraceId = {trace:String}" + window
 	cols := spanColumns
 	if q.IncludeAttributes {
 		cols += ", SpanAttributes, ResourceAttributes"

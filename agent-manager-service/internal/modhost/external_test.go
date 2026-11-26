@@ -17,13 +17,16 @@
 package modhost_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"sync"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,6 +44,9 @@ type fakeStore struct {
 	settled int
 	failOn  string
 	down    bool
+	// reads counts Applied calls; hold, when set, runs in each with its count.
+	reads int
+	hold  func(n int)
 }
 
 // fakeSchema is fakeStore's schema with one binary's files.
@@ -53,6 +59,13 @@ func (s fakeSchema) Store() string { return "fake" }
 func (s fakeSchema) Files() fs.FS  { return s.files }
 
 func (s fakeSchema) Applied(context.Context) (map[string]string, error) {
+	s.store.mu.Lock()
+	s.store.reads++
+	n, hold := s.store.reads, s.store.hold
+	s.store.mu.Unlock()
+	if hold != nil {
+		hold(n)
+	}
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
 	if s.store.down {
@@ -119,7 +132,9 @@ func newExternal(store *fakeStore, files fs.FS, configured, canApply bool) *exte
 }
 
 func TestExternalSchema(t *testing.T) {
-	ctx := context.Background()
+	// Cancelled before the database closes, so the booted host's goroutines stop first.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	d := databases(t)[0]
 	g := d.open(t)
 	require.NoError(t, dbmigrations.MigrateBaseline(g, d.driver))
@@ -159,7 +174,7 @@ func TestExternalSchema(t *testing.T) {
 	_, err = server.Install(ctx, "t-ext", false)
 	require.NoError(t, err)
 
-	// An edited applied file is refused, by migrate and by enable.
+	// An edited applied file is refused by migrate.
 	edited := fstest.MapFS{
 		"001_spans.sql": &fstest.MapFile{Data: []byte("create 001_spans.sql, edited")},
 		"002_index.sql": &fstest.MapFile{Data: []byte("create 002_index.sql")},
@@ -249,4 +264,130 @@ func TestModulesWithoutAnExternalStoreReportNone(t *testing.T) {
 	res, err := h.Migrate(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, []modhost.MigrationResult{{Module: "t-plain"}}, res)
+}
+
+// blockFirstRead makes store's first Applied wait for release, after closing
+// entered.
+func blockFirstRead(store *fakeStore) (entered, release chan struct{}) {
+	entered, release = make(chan struct{}), make(chan struct{})
+	store.hold = func(n int) {
+		if n == 1 {
+			close(entered)
+			<-release
+		}
+	}
+	return entered, release
+}
+
+// While amp migrate waits on the store, the core database takes writes from
+// another connection: the migration holds no transaction.
+func TestExternalMigrateHoldsNoCoreTransaction(t *testing.T) {
+	ctx := context.Background()
+	d := databases(t)[0]
+	g := d.open(t)
+	require.NoError(t, dbmigrations.MigrateBaseline(g, d.driver))
+	store := &fakeStore{records: map[string]string{}}
+	entered, release := blockFirstRead(store)
+	h := modhost.NewWith(g, d.driver, quiet, []modkit.Module{newExternal(store, externalFiles("001_spans.sql"), true, true)})
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := h.Migrate(ctx)
+		done <- err
+	}()
+	<-entered
+	other := d.open(t)
+	start := time.Now()
+	err := other.Exec(`UPDATE module_generation SET value = value WHERE id = 1`).Error
+	close(release)
+	require.NoError(t, err, "a write while the store is read")
+	assert.Less(t, time.Since(start), 2*time.Second, "the write waited on a lock")
+	require.NoError(t, <-done)
+	assert.Equal(t, []string{"001_spans"}, store.applied)
+}
+
+// A second amp migrate waits for the first's lease, then runs.
+func TestExternalMigrateWaitsForTheLease(t *testing.T) {
+	ctx := context.Background()
+	d := databases(t)[0]
+	g := d.open(t)
+	require.NoError(t, dbmigrations.MigrateBaseline(g, d.driver))
+	store := &fakeStore{records: map[string]string{}}
+	entered, release := blockFirstRead(store)
+	files := externalFiles("001_spans.sql")
+	migrate := func(done chan<- error) {
+		h := modhost.NewWith(g, d.driver, quiet, []modkit.Module{newExternal(store, files, true, true)})
+		_, err := h.Migrate(ctx)
+		done <- err
+	}
+
+	first, second := make(chan error, 1), make(chan error, 1)
+	go migrate(first)
+	<-entered
+	go migrate(second)
+	time.Sleep(1500 * time.Millisecond)
+	store.mu.Lock()
+	reads := store.reads
+	store.mu.Unlock()
+	assert.Equal(t, 1, reads, "the second migrate read the store while the first held the lease")
+
+	close(release)
+	require.NoError(t, <-first)
+	require.NoError(t, <-second)
+	assert.Equal(t, 2, store.reads)
+	assert.Equal(t, []string{"001_spans"}, store.applied, "applied once")
+	assert.Equal(t, 2, store.settled)
+}
+
+// installLog installs mod on a fresh host and returns what the host logged.
+func installLog(t *testing.T, mod modkit.Module, name string) string {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	d := databases(t)[0]
+	g := d.open(t)
+	require.NoError(t, dbmigrations.MigrateBaseline(g, d.driver))
+	var buf bytes.Buffer
+	h := modhost.NewWith(g, d.driver, slog.New(slog.NewTextHandler(&buf, nil)), []modkit.Module{mod})
+	_, err := h.Migrate(ctx)
+	require.NoError(t, err)
+	require.NoError(t, h.Boot(ctx))
+	_, err = h.Install(ctx, name, false)
+	require.NoError(t, err)
+	return buf.String()
+}
+
+// Installing a module whose external store is not configured warns that the
+// store was not checked; a module with no external store installs quietly.
+func TestInstallWarnsOfAnUncheckedStore(t *testing.T) {
+	logged := installLog(t, newExternal(&fakeStore{records: map[string]string{}}, externalFiles("001_spans.sql"), false, false), "t-ext")
+	assert.Contains(t, logged, `level=WARN msg="modhost:external store not checked" module=t-ext reason="modkit: not configured: no store address"`)
+
+	logged = installLog(t, &testModule{manifest: manifest("t-plain", nil, nil)}, "t-plain")
+	assert.NotContains(t, logged, "external store not checked")
+}
+
+// An active module whose store cannot be read is left out when the host
+// loads, and comes back once the store can be read.
+func TestReloadLeavesOutAnUnreadableStore(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store := &fakeStore{records: map[string]string{}}
+	m := newExternal(store, externalFiles("001_spans.sql"), true, true)
+	h, _ := replica(t, ctx, databases(t)[0], []modkit.Module{m})
+	_, err := h.Install(ctx, "t-ext", false)
+	require.NoError(t, err)
+	assert.Contains(t, h.Active(), "t-ext")
+
+	store.mu.Lock()
+	store.down = true
+	store.mu.Unlock()
+	require.NoError(t, h.Reload(ctx))
+	assert.NotContains(t, h.Active(), "t-ext")
+
+	store.mu.Lock()
+	store.down = false
+	store.mu.Unlock()
+	require.NoError(t, h.Reload(ctx))
+	assert.Contains(t, h.Active(), "t-ext")
 }

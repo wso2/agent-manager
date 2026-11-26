@@ -246,6 +246,22 @@ func TestUserGrants(t *testing.T) {
 	}
 }
 
+// The reader's profile bounds a read below the client's timeout and cancels
+// it when the client disconnects.
+func TestReaderProfile(t *testing.T) {
+	e := clickhouseEnv(t)
+	var got struct {
+		MaxExecutionTime int `json:"max_execution_time"`
+		CancelOnClose    int `json:"cancel_on_close"`
+	}
+	err := e.reader.query(context.Background(), "SELECT toUInt32(getSetting('max_execution_time')) AS max_execution_time, "+
+		"toUInt8(getSetting('cancel_http_readonly_queries_on_client_close')) AS cancel_on_close", nil,
+		func(line []byte) error { return json.Unmarshal(line, &got) })
+	if err != nil || got.MaxExecutionTime != 25 || got.CancelOnClose != 1 {
+		t.Errorf("reader settings = %+v, %v; want max_execution_time 25 and cancel_http_readonly_queries_on_client_close 1", got, err)
+	}
+}
+
 func TestCrossOrgReadsSeeNothing(t *testing.T) {
 	e := clickhouseEnv(t)
 	ctx := context.Background()
@@ -274,23 +290,33 @@ func TestCrossOrgReadsSeeNothing(t *testing.T) {
 	}
 }
 
-// A trace with a span in the window is summarised from all its spans.
+// A trace is listed when its root span starts in the window, and is
+// summarised from its spans up to traceSpread after the window.
 func TestQueryTracesSummarisesTheWholeTrace(t *testing.T) {
 	e := clickhouseEnv(t)
 	sd := seed("org-a", "agent-1", "trace-a")
 	root := sd.Spans[0].StartTime
+	childEnd := root.Add(time.Hour + time.Second)
 	sd.Spans = append(sd.Spans, store.SpanDetails{
 		SpanID: "child", ParentSpanID: "root", SpanName: "chat", StartTime: root.Add(time.Hour), DurationNs: int64(time.Second),
+	}, store.SpanDetails{
+		SpanID: "late", ParentSpanID: "root", SpanName: "chat", StartTime: root.Add(48 * time.Hour), DurationNs: int64(time.Second),
 	})
 	e.insert(t, records([]storetest.Seed{sd}))
+	s := e.readerStore(t)
+	ctx := context.Background()
 
-	page, err := e.readerStore(t).QueryTraces(context.Background(), sd.Scope,
-		store.TraceQuery{StartTime: root.Add(30 * time.Minute), EndTime: root.Add(2 * time.Hour)})
-	if err != nil || len(page.Traces) != 1 {
-		t.Fatalf("QueryTraces = %+v, %v; want trace-a", page, err)
+	page, err := s.QueryTraces(ctx, sd.Scope, store.TraceQuery{StartTime: root.Add(30 * time.Minute), EndTime: root.Add(2 * time.Hour)})
+	if err != nil || len(page.Traces) != 0 || page.Total != 0 {
+		t.Fatalf("QueryTraces over the child only = %+v, %v; want no trace", page, err)
 	}
-	if tr := page.Traces[0]; tr.SpanCount != 2 || tr.RootSpanID != "root" || !tr.StartTime.Equal(root) {
-		t.Errorf("trace = %+v; want 2 spans from root at %v", tr, root)
+
+	page, err = s.QueryTraces(ctx, sd.Scope, store.TraceQuery{StartTime: root.Add(-time.Minute), EndTime: root.Add(time.Minute)})
+	if err != nil || len(page.Traces) != 1 {
+		t.Fatalf("QueryTraces over the root = %+v, %v; want trace-a", page, err)
+	}
+	if tr := page.Traces[0]; tr.SpanCount != 2 || tr.RootSpanID != "root" || !tr.StartTime.Equal(root) || !tr.EndTime.Equal(childEnd) {
+		t.Errorf("trace = %+v; want 2 spans from root at %v to %v", tr, root, childEnd)
 	}
 }
 
@@ -365,12 +391,7 @@ func TestSchemaHistory(t *testing.T) {
 func TestApplyRefusesAForeignSpanTable(t *testing.T) {
 	e := clickhouseEnv(t)
 	ctx := context.Background()
-	t.Cleanup(func() {
-		if err := e.admin.exec(ctx, "DROP TABLE IF EXISTS "+Table, nil); err != nil {
-			t.Fatal(err)
-		}
-		e.applySchema(t)
-	})
+	t.Cleanup(func() { e.restoreSchema(t) })
 	for _, q := range []string{
 		"DROP TABLE " + Table,
 		"CREATE TABLE " + Table + " (Timestamp DateTime64(9), TraceId String) ENGINE = MergeTree ORDER BY Timestamp",
@@ -385,8 +406,8 @@ func TestApplyRefusesAForeignSpanTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = e.migratorSchema(t, 0).Apply(ctx, "001_otel_traces", "sum", body)
-	if err == nil || !strings.Contains(err.Error(), "clickhouse.database") {
-		t.Fatalf("Apply over a foreign table = %v, want a refusal naming clickhouse.database", err)
+	if err == nil || !strings.Contains(err.Error(), "drop or rename that table") || strings.Contains(err.Error(), "clickhouse.database") {
+		t.Fatalf("Apply over a foreign table = %v, want a refusal saying to drop or rename it", err)
 	}
 	applied, err := e.migratorSchema(t, 0).Applied(ctx)
 	if err != nil {
@@ -394,6 +415,36 @@ func TestApplyRefusesAForeignSpanTable(t *testing.T) {
 	}
 	if _, ok := applied["001_otel_traces"]; ok {
 		t.Errorf("Applied = %v, want 001_otel_traces not recorded", applied)
+	}
+}
+
+// restoreSchema drops the span table and its record, whatever state a test
+// left them in, and applies the schema again.
+func (e testEnv) restoreSchema(tb testing.TB) {
+	tb.Helper()
+	for _, q := range []string{
+		"DROP TABLE IF EXISTS " + Table,
+		"DELETE FROM " + HistoryTable + " WHERE version = '001_otel_traces'",
+	} {
+		if err := e.admin.exec(context.Background(), q, nil); err != nil {
+			tb.Fatal(err)
+		}
+	}
+	e.applySchema(tb)
+}
+
+// Without the span table the reader sees nothing applied, though the
+// history still records it, so the module is not ready.
+func TestAppliedWithoutTheSpanTable(t *testing.T) {
+	e := clickhouseEnv(t)
+	ctx := context.Background()
+	t.Cleanup(func() { e.restoreSchema(t) })
+	if err := e.admin.exec(ctx, "DROP TABLE "+Table, nil); err != nil {
+		t.Fatal(err)
+	}
+	applied, err := e.schema(t, "amp_reader", os.Getenv("AMP_CLICKHOUSE_READER_PASSWORD"), 0).Applied(ctx)
+	if err != nil || len(applied) != 0 {
+		t.Errorf("reader Applied = %v, %v; want nothing applied", applied, err)
 	}
 }
 

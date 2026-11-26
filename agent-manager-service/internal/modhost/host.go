@@ -373,7 +373,14 @@ func (h *Host) Reload(ctx context.Context) error {
 	states := h.effectiveStates(rows)
 	v, failed := newView(), map[string]error{}
 	if !h.Passive {
-		v, failed = h.buildView(ctx, states)
+		// A module whose external store is unusable is left out, so it never
+		// serves routes that fail on first use, and is retried as one that
+		// failed to activate.
+		unready := h.externalUnready(ctx, states)
+		v, failed = h.buildView(ctx, without(states, unready))
+		for name, err := range unready {
+			failed[name] = err
+		}
 		for name, err := range failed {
 			h.log.Error("modhost:module failed to activate", "module", name, "error", err)
 		}

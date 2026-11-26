@@ -53,7 +53,7 @@ func openStores(rt modkit.Runtime) (store.TraceStore, agentCleaner, error) {
 		m := memory.New()
 		return m, m, nil
 	}
-	cfg := clickhouse.Config{URL: url, Database: rt.Config("clickhouse.database")}
+	cfg := clickhouse.Config{URL: url}
 	reader := cfg
 	reader.User, reader.Password = rt.Config("clickhouse.user"), rt.Config("clickhouse.password")
 	if reader.User == "" {
@@ -109,7 +109,7 @@ func (module) ExternalSchema(config func(string) string, apply bool) (modkit.Ext
 	if url == "" {
 		return nil, fmt.Errorf("%w: no ClickHouse (MODULE_OBSERVABILITY_CLICKHOUSE_URL)", modkit.ErrNotConfigured)
 	}
-	cfg := clickhouse.SchemaConfig{URL: url, Database: config("clickhouse.database")}
+	cfg := clickhouse.SchemaConfig{URL: url}
 	if apply {
 		cfg.User, cfg.Password = config("clickhouse.migrator-user"), config("clickhouse.migrator-password")
 		if cfg.User == "" {

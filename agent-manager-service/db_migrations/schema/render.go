@@ -147,6 +147,20 @@ func (s *Schema) RenderMigration(dialectName, id string) (string, error) {
 			renderSeed(&b, d, t, row)
 		}
 	}
+	if i := s.migrationIndex(id); i > 0 {
+		seed := s.Migrations[i-1].Seed
+		names := make([]string, 0, len(seed))
+		for name := range seed {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			b.WriteString("\n")
+			for _, row := range seed[name] {
+				renderSeed(&b, d, s.table(name), row)
+			}
+		}
+	}
 	return b.String(), nil
 }
 
