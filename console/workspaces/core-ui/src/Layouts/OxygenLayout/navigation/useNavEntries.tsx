@@ -94,6 +94,14 @@ const AGENT_ONLY_SECTIONS = new Set<NavSectionId | undefined>(
   NAV_SECTIONS.filter((section) => section.agentOnly).map((section) => section.id),
 );
 
+/**
+ * A URL-safe gate key that keeps distinct module names distinct: letters,
+ * digits and "-" stay, anything else (including "_") becomes "_" plus its
+ * 4-digit hex code.
+ */
+const pluginNavKey = (name: string) =>
+  name.replace(/[^a-zA-Z0-9-]/g, (c) => `_${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+
 const org = absoluteRouteMap.children.org;
 const projects = org.children.projects;
 const agents = projects.children.agents;
@@ -146,7 +154,7 @@ function useBuildNavEntries(): NavEntry[] {
     const pluginEntries: NavEntry[] = externalNavItems.map((item) => {
       const levels = item.levels ?? { [item.level]: item.route };
       return {
-        id: `ext-${item.moduleName.replace(/[^a-zA-Z0-9_-]/g, "-")}`,
+        id: `ext-${pluginNavKey(item.moduleName)}`,
         label: item.title,
         icon: item.icon,
         routes: Object.fromEntries(

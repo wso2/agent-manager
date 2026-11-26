@@ -91,7 +91,8 @@ export function LLMProviderCard({
           {provider?.name ?? "Select provider"}
         </Typography>
         {subtitle && (
-          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
+          // Wraps rather than truncating, so the deploy time stays readable on narrow screens.
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
             {subtitle}
           </Typography>
         )}

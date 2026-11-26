@@ -130,8 +130,9 @@ export function resolveNavTarget(
   return undefined;
 }
 
+/** Whether the route has a required `:envId` segment (an optional `:envId?` doesn't count). */
 export function routeNeedsEnv(route: NavRoute): boolean {
-  return route.path.includes(":envId");
+  return /\/:envId(?:\/|$)/.test(route.path);
 }
 
 const GATE_PATHS: Record<NavLevel, string> = {
@@ -196,12 +197,18 @@ export function findActiveEntry(
     (level) => matchPath(GATE_PATHS[level], pathname)?.params.navKey,
   ).find(Boolean);
   if (gateKey) return entries.find((entry) => entry.id === gateKey);
-  return entries.find((entry) =>
-    Object.values(entry.routes).some((route) =>
-      (route?.activePaths ?? [`${route?.path}/*`]).some(
-        (pattern) => !!matchPath(pattern, pathname),
+  const matches = (patterns: (route: NavRoute) => string[]) =>
+    entries.find((entry) =>
+      Object.values(entry.routes).some(
+        (route) => route && patterns(route).some((pattern) => !!matchPath(pattern, pathname)),
       ),
-    ),
+    );
+  // An entry's own route wins over an earlier entry that only contains it, so
+  // a plugin page nested under a built-in one still marks the plugin. Pages
+  // with no entry of their own then fall back to their nearest ancestor.
+  return (
+    matches((route) => route.activePaths ?? [route.path]) ??
+    matches((route) => route.activePaths ?? [`${route.path}/*`])
   );
 }
 
