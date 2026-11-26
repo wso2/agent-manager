@@ -30,5 +30,7 @@ const LOGO_FOR_DARK = '/images/choreo-ai-control-plane-white.svg';
 export function Logo({ alt = 'Choreo AI Control Plane', style, ...props }: LogoProps) {
   const { colorScheme } = useColorScheme();
   const src = withBasePath(colorScheme === 'dark' ? LOGO_FOR_DARK : LOGO_FOR_LIGHT);
-  return <img {...props} src={src} alt={alt} style={{ height: 28, width: 'auto', ...style }} />;
+  const hasOwnSize =
+    props.width != null || props.height != null || style?.width != null || style?.height != null;
+  return <img {...props} src={src} alt={alt} style={hasOwnSize ? style : { height: 28, ...style }} />;
 }

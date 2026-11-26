@@ -64,6 +64,35 @@ describe('small presentational components', () => {
     const img = screen.getByRole('img', { name: /Choreo AI Control Plane/ });
     expect(img).toHaveAttribute('src', expect.stringMatching(/choreo-ai-control-plane-(dark|white)\.svg$/));
     expect(img).toHaveAttribute('width', '40');
+    // A caller-supplied size replaces the 28px default instead of fighting it.
+    expect(img.style.height).toBe('');
+    expect(img.style.width).toBe('');
+  });
+
+  it('Logo defaults to 28px high when no size is given', () => {
+    renderWithProviders(<Logo />);
+    expect(screen.getByRole('img', { name: /Choreo AI Control Plane/ }).style.height).toBe('28px');
+  });
+
+  it('FullPageLoader shows the still artwork when reduced motion is requested', () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+    try {
+      renderWithProviders(<FullPageLoader />);
+      expect(screen.getByRole('img', { name: 'Loading' })).toHaveAttribute(
+        'src',
+        expect.stringMatching(/choreo-labs-loader-static-(navy|white)\.svg$/),
+      );
+    } finally {
+      window.matchMedia = original;
+    }
   });
 
   it('ExternalAgentIcon forwards svg props', () => {

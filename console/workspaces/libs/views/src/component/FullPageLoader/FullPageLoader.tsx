@@ -18,15 +18,40 @@
 
 import { withBasePath } from "@agent-management-platform/types";
 import { Box, useColorScheme } from "@wso2/oxygen-ui";
+import { useEffect, useState } from "react";
 
 // Animated loader artwork lives in the web app's public/images. The navy file
 // is for light backgrounds, the white one for dark backgrounds.
 const LOADER_FOR_LIGHT = "/images/choreo-labs-loader-navy.svg";
 const LOADER_FOR_DARK = "/images/choreo-labs-loader-white.svg";
+// SMIL animation inside an <img> can't be paused by CSS, so users who ask for
+// reduced motion get a still version of the same artwork instead.
+const STATIC_LOADER_FOR_LIGHT = "/images/choreo-labs-loader-static-navy.svg";
+const STATIC_LOADER_FOR_DARK = "/images/choreo-labs-loader-static-white.svg";
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(
+    () => typeof window !== "undefined" && !!window.matchMedia?.(REDUCED_MOTION_QUERY).matches,
+  );
+  useEffect(() => {
+    const query = window.matchMedia?.(REDUCED_MOTION_QUERY);
+    if (!query) return;
+    const onChange = (event: MediaQueryListEvent) => setReduced(event.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return reduced;
+}
 
 export function FullPageLoader() {
   const { colorScheme } = useColorScheme();
-  const src = withBasePath(colorScheme === "dark" ? LOADER_FOR_DARK : LOADER_FOR_LIGHT);
+  const reducedMotion = usePrefersReducedMotion();
+  const dark = colorScheme === "dark";
+  const path = reducedMotion
+    ? dark ? STATIC_LOADER_FOR_DARK : STATIC_LOADER_FOR_LIGHT
+    : dark ? LOADER_FOR_DARK : LOADER_FOR_LIGHT;
+  const src = withBasePath(path);
   return (
     <Box
       sx={{

@@ -13,9 +13,10 @@ import {
 } from "@wso2/oxygen-ui";
 import { AppWindow, Box, Building2 } from "@wso2/oxygen-ui-icons-react";
 import { forwardRef, useMemo, type ComponentPropsWithoutRef } from "react";
-import { generatePath, Link, useNavigate, useParams } from "react-router-dom";
+import { generatePath, Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useActiveAgentPage, useActiveOrgPage, useActiveProjectPage } from "./path-map";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { returnToState } from "@agent-management-platform/views";
 
 const orgLabel = (
   org?: { name: string; displayName: string },
@@ -39,12 +40,13 @@ const RouterLink = forwardRef<
   return <Link ref={ref} to={href} {...rest} />;
 });
 
-const withSuffix = (path: string, suffix?: string) =>
+const withSuffix = (path: string, suffix?: string | null) =>
   suffix ? `${path}/${suffix}` : path;
 
 export function TopNavigation() {
   const { userInfo } = useAuthHooks();
   const navigate = useNavigate();
+  const location = useLocation();
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
     projectId: string;
@@ -117,7 +119,19 @@ export function TopNavigation() {
       });
     }
 
+    // Create pages return to where they were opened from, so the link is
+    // followed in code with the current location as router state.
+    const openCreatePage =
+      (href: string) => (event: { preventDefault: () => void }) => {
+        event.preventDefault();
+        navigate(href, { state: returnToState(location) });
+      };
+
     if (projects?.projects && orgId) {
+      const newProjectPath = generatePath(
+        absoluteRouteMap.children.org.children.newProject.path,
+        { orgId },
+      );
       result.push({
         id: "project",
         label: "Project",
@@ -137,16 +151,18 @@ export function TopNavigation() {
         openLabel: "Select or create a project",
         createAction: {
           label: "Create a Project",
-          href: generatePath(
-            absoluteRouteMap.children.org.children.newProject.path,
-            { orgId },
-          ),
+          href: newProjectPath,
+          onClick: openCreatePage(newProjectPath),
         },
         manageAction: false,
       });
     }
 
     if (agents?.agents && orgId && projectId) {
+      const newAgentPath = generatePath(
+        absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+        { orgId, projectId },
+      );
       result.push({
         id: "agent",
         label: "Agent",
@@ -167,11 +183,8 @@ export function TopNavigation() {
         openLabel: "Select or create an agent",
         createAction: {
           label: "Create an Agent",
-          href: generatePath(
-            absoluteRouteMap.children.org.children.projects.children.newAgent
-              .path,
-            { orgId, projectId },
-          ),
+          href: newAgentPath,
+          onClick: openCreatePage(newAgentPath),
         },
         manageAction: false,
       });
@@ -192,6 +205,8 @@ export function TopNavigation() {
     commonOrgPages,
     commonProjectPages,
     commonAgentPages,
+    navigate,
+    location,
   ]);
 
   return (

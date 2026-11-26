@@ -42,7 +42,12 @@ vi.mock("@agent-management-platform/api-client", async (importOriginal) => ({
 }));
 
 function Where() {
-  return <div data-testid="where">{useLocation().pathname}</div>;
+  const location = useLocation();
+  return (
+    <div data-testid="where" data-from={(location.state as { from?: string } | null)?.from ?? ""}>
+      {location.pathname}
+    </div>
+  );
 }
 
 function renderAt(path: string) {
@@ -135,6 +140,10 @@ describe("TopNavigation", () => {
       "href",
       "/org/acme/project/p1",
     );
+    // The create page is told where it was opened from, so Cancel/Save return here.
+    fireEvent.click(screen.getByRole("menuitem", { name: /Create a Project/, hidden: true }));
+    expect(screen.getByTestId("where")).toHaveTextContent("/org/acme/newProject");
+    expect(screen.getByTestId("where")).toHaveAttribute("data-from", "/org/acme/projects");
   });
 
   it("shows the selected project and switches projects on the same page", () => {
