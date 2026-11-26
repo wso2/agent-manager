@@ -98,7 +98,7 @@ type planUpdate struct {
 	// that a plan in use keeps its name, conditions and expiry does not apply to the source's own changes.
 	FromWebhook bool
 	// SourceChangedAt is when the change was made at the source (FromWebhook): a change older than the
-	// plan's last one there, or than its deletion there, is out of date and is not applied (errStaleEvent).
+	// plan's last one there is out of date and is not applied (errStaleEvent).
 	SourceChangedAt *time.Time
 }
 
@@ -119,8 +119,8 @@ var (
 	errPlanDeprecated = errors.New("the subscription plan is deprecated")
 	// errPlanOriginConflict refuses a plan created at a developer portal with the handle of a plan made elsewhere.
 	errPlanOriginConflict = errors.New("a subscription plan with this handle was made elsewhere")
-	// errStaleEvent refuses a webhook change made at the source before the plan's last change there, or
-	// before its deletion there: applying it would bring back an older state.
+	// errStaleEvent refuses a webhook change made at the source before the plan's last change there:
+	// applying it would bring back an older state.
 	errStaleEvent = errors.New("the change is older than the plan's last change at its source")
 )
 
@@ -424,11 +424,6 @@ func (s *planService) create(ctx context.Context, orgID, actor string, p *plan) 
 	}
 	var created *plan
 	err = s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if p.SourceChangedAt != nil {
-			if err := checkNotDeletedSince(tx, orgID, p.Handle, *p.SourceChangedAt); err != nil {
-				return err
-			}
-		}
 		// Only a taken handle is a conflict; any other error is returned as it is. The insert runs in a
 		// savepoint, since a failed statement aborts the transaction on PostgreSQL.
 		err := tx.Transaction(func(sp *gorm.DB) error {
@@ -477,9 +472,6 @@ func (s *planService) update(ctx context.Context, orgID, handle, actor string, u
 		if at := u.SourceChangedAt; at != nil {
 			if existing.SourceChangedAt != nil && at.Before(*existing.SourceChangedAt) {
 				return errStaleEvent
-			}
-			if err := checkNotDeletedSince(tx, orgID, handle, *at); err != nil {
-				return err
 			}
 			existing.SourceChangedAt = at
 		}

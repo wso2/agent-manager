@@ -44,14 +44,3 @@ tables:
     primary_key: [plan_id, condition_id]
     foreign_keys:
       - {columns: [org_id, plan_id], references: mod_ai_hub_subscription_plans, ref_columns: [org_id, id], on_delete: cascade}
-
-  # Plans deleted (deprecated) at the developer portal they were copied from, kept for a while after the deletion,
-  # so a create delivered after it (a retry of an older event) doesn't bring back a plan this side never had.
-  # deleted_at is the portal's clock; recorded_at is ours, for pruning.
-  - name: mod_ai_hub_deleted_plans
-    columns:
-      - {name: org_id, type: id}
-      - {name: handle, type: text, size: 40}
-      - {name: deleted_at, type: time}
-      - {name: recorded_at, type: time}
-    primary_key: [org_id, handle]

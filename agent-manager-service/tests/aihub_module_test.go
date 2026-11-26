@@ -808,16 +808,6 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 		assert.Contains(t, body, "SUBSCRIPTION_PLAN_DEPRECATED")
 	})
 
-	t.Run("a creation made before a deletion this side never had, delivered after it, adds nothing", func(t *testing.T) {
-		ghost := map[string]any{"handle": "ghost", "display_name": "Ghost"}
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted", ghost, now, now))
-		require.Equal(t, http.StatusOK, code, body)
-		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", ghost, now.Add(-time.Minute), now))
-		require.Equal(t, http.StatusOK, code, body)
-		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/ghost", nil)
-		assert.Equal(t, http.StatusNotFound, code)
-	})
-
 	t.Run("disabled: neither the API nor the webhook answers", func(t *testing.T) {
 		require.NoError(t, w.host.Disable(context.Background(), aihub.Name))
 		eventually(t, "the module routes to go", func() bool {

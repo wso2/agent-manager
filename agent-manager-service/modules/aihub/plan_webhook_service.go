@@ -23,21 +23,15 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 // Plans made, changed or deleted elsewhere reach Agent Manager as webhook events
 // (plan_webhook_controller.go) and are copied here.
 
-// deletedPlanRetention is how long a plan deleted at its source is remembered (mod_ai_hub_deleted_plans): long
-// enough to outlast a sender's retries of the events before the deletion.
-const deletedPlanRetention = 30 * 24 * time.Hour
-
 // upsertFromWebhook copies a plan created or updated at its source (origin, the portal's name), as of occurredAt
 // there.
-//   - A change made there before the plan's last change there, or before its deletion there, is out of date:
-//     it changes nothing, so a retried older event can't bring back an older state or a deleted plan.
+//   - A change made there before the plan's last change there is out of date: it changes nothing, so an
+//     older event delivered late can't bring back an older state.
 //   - A new plan is created dated when it was made at the source, so a later deletion event isn't mistaken
 //     for the deletion of an older plan with the same handle.
 //   - An existing plan's name, description and conditions are updated when they differ, so an echo of
@@ -135,8 +129,6 @@ func (s *planService) recordSourceChange(ctx context.Context, orgID, handle stri
 
 // deleteFromWebhook follows a plan deleted at its source, at occurredAt there, by deprecating it: the plan stays
 // for the subscriptions on it.
-//   - The deletion is remembered for deletedPlanRetention, so a creation made before it and delivered after it
-//     doesn't bring back a plan this side never had.
 //   - A plan that is gone or already deprecated stays as it is, so a repeated delivery succeeds.
 //   - A plan created after occurredAt is a newer plan with the same handle (made again here); the
 //     deletion was of the older one, so the newer plan is kept.
@@ -144,12 +136,6 @@ func (s *planService) recordSourceChange(ctx context.Context, orgID, handle stri
 // The in-use check does not apply: the source deleted the plan.
 func (s *planService) deleteFromWebhook(ctx context.Context, orgID, handle string, occurredAt time.Time) error {
 	at := occurredAt.UTC()
-	err := s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return s.recordDeletion(tx, orgID, handle, at)
-	})
-	if err != nil {
-		return err
-	}
 	existing, err := s.get(ctx, orgID, handle)
 	if errors.Is(err, errPlanNotFound) {
 		return nil
@@ -167,50 +153,6 @@ func (s *planService) deleteFromWebhook(ctx context.Context, orgID, handle strin
 		return nil
 	}
 	return err
-}
-
-// recordDeletion remembers that the source deleted the plan at at (keeping the latest deletion) and forgets
-// deletions older than deletedPlanRetention.
-func (s *planService) recordDeletion(tx *gorm.DB, orgID, handle string, at time.Time) error {
-	now := s.now().UTC()
-	if err := tx.Exec(`DELETE FROM mod_ai_hub_deleted_plans WHERE recorded_at < ?`,
-		now.Add(-deletedPlanRetention)).Error; err != nil {
-		return fmt.Errorf("prune deleted plans: %w", err)
-	}
-	var rows []struct{ DeletedAt time.Time }
-	if err := tx.Raw(`SELECT deleted_at FROM mod_ai_hub_deleted_plans WHERE org_id = ? AND handle = ?`,
-		orgID, handle).Scan(&rows).Error; err != nil {
-		return fmt.Errorf("read the deletion of plan %s: %w", handle, err)
-	}
-	switch {
-	case len(rows) == 0:
-		err := tx.Exec(`INSERT INTO mod_ai_hub_deleted_plans (org_id, handle, deleted_at, recorded_at) VALUES (?, ?, ?, ?)`,
-			orgID, handle, at, now).Error
-		if err != nil {
-			return fmt.Errorf("record the deletion of plan %s: %w", handle, err)
-		}
-	case rows[0].DeletedAt.Before(at):
-		err := tx.Exec(`UPDATE mod_ai_hub_deleted_plans SET deleted_at = ?, recorded_at = ? WHERE org_id = ? AND handle = ?`,
-			at, now, orgID, handle).Error
-		if err != nil {
-			return fmt.Errorf("record the deletion of plan %s: %w", handle, err)
-		}
-	}
-	return nil
-}
-
-// checkNotDeletedSince refuses (errStaleEvent) a creation made at the source at or before the plan's remembered
-// deletion there.
-func checkNotDeletedSince(tx *gorm.DB, orgID, handle string, at time.Time) error {
-	var rows []struct{ DeletedAt time.Time }
-	if err := tx.Raw(`SELECT deleted_at FROM mod_ai_hub_deleted_plans WHERE org_id = ? AND handle = ?`,
-		orgID, handle).Scan(&rows).Error; err != nil {
-		return fmt.Errorf("read the deletion of plan %s: %w", handle, err)
-	}
-	if len(rows) > 0 && !at.After(rows[0].DeletedAt.UTC()) {
-		return errStaleEvent
-	}
-	return nil
 }
 
 // webhookConditions returns the conditions an event gives the plan: the event's conditions, or,

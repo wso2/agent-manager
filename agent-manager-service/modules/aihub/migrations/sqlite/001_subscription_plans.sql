@@ -32,11 +32,3 @@ CREATE TABLE mod_ai_hub_subscription_plan_conditions (
     CONSTRAINT fk_mod_ai_hub_subscription_plan_conditions_org_id_plan_id FOREIGN KEY (org_id, plan_id) REFERENCES mod_ai_hub_subscription_plans (org_id, id) ON DELETE CASCADE,
     CONSTRAINT ck_mod_ai_hub_subscription_plan_conditions_1 CHECK (json_valid(params))
 );
-
-CREATE TABLE mod_ai_hub_deleted_plans (
-    org_id TEXT NOT NULL,
-    handle TEXT NOT NULL,
-    deleted_at TIMESTAMP NOT NULL,
-    recorded_at TIMESTAMP NOT NULL,
-    CONSTRAINT pk_mod_ai_hub_deleted_plans PRIMARY KEY (org_id, handle)
-);

@@ -467,7 +467,7 @@ Organizations are not deleted in Lite.
 
 ### AI Hub module tables
 
-The `ai-hub` module (`modules/aihub`) creates its four tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` and `002_subscriptions.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
+The `ai-hub` module (`modules/aihub`) creates its three tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` and `002_subscriptions.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
 
 **mod_ai_hub_subscription_plans**: one row per plan of an organization. A plan is never deleted, only deprecated (`deprecated_at`).
 
@@ -500,17 +500,6 @@ Unique (org_id, handle) and (org_id, id).
 | sort_order | whole number | no | |
 
 PK (plan_id, condition_id).
-
-**mod_ai_hub_deleted_plans**: plans deleted at the developer portal they were copied from, kept for 30 days, so a creation made before the deletion and delivered after it doesn't bring back a plan this side never had. (A plan that is here is deprecated instead.)
-
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| org_id | ID | no | The organization's id (no foreign key) |
-| handle | short text (40) | no | The deleted plan's handle |
-| deleted_at | time | no | When the plan was deleted at the portal, by its clock; the latest deletion is kept |
-| recorded_at | time | no | When the deletion was recorded here; rows older than 30 days are pruned |
-
-PK (org_id, handle).
 
 **mod_ai_hub_subscriptions**: subscriptions to an MCP proxy on a plan, copied in from the developer portal where the subscriber subscribed. One per subscriber and MCP proxy. The subscription key is not in this table: it is in the core's `secrets` table at `subscriptions/<id>/token`, encrypted with the core's key, and gateways get it to hash.
 
