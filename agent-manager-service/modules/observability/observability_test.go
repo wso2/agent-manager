@@ -39,10 +39,6 @@ import (
 // fakeCore is one organization with one project and one agent.
 type fakeCore struct{}
 
-func (fakeCore) GetOrgByHandle(context.Context, string) (modkit.Org, error) {
-	return modkit.Org{}, modkit.ErrNotFound
-}
-
 func (fakeCore) GetOrg(_ context.Context, orgID string) (modkit.Org, error) {
 	if orgID != "org-a" {
 		return modkit.Org{}, modkit.ErrNotFound

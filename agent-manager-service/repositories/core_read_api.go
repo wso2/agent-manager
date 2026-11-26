@@ -84,27 +84,6 @@ func (c *coreReadAPI) GetOrg(ctx context.Context, orgID string) (modkit.Org, err
 	return modkit.Org{ID: o.ID.String(), Handle: o.Handle, DisplayName: o.DisplayName, CreatedAt: o.CreatedAt}, nil
 }
 
-func (c *coreReadAPI) GetOrgByHandle(ctx context.Context, handle string) (modkit.Org, error) {
-	if handle == "" {
-		return modkit.Org{}, modkit.ErrNotFound
-	}
-	q := c.db.WithContext(ctx).Where("handle = ?", handle)
-	// A caller with an organization reads only its own: the restriction is in the query, so another
-	// organization's row is never loaded. A caller without one (a signed webhook) looks up any.
-	if own := modkit.OrgID(ctx); own != "" {
-		ids, err := parseIDs(own)
-		if err != nil {
-			return modkit.Org{}, err
-		}
-		q = q.Where("id = ?", ids[0])
-	}
-	var o models.Organization
-	if err := q.First(&o).Error; err != nil {
-		return modkit.Org{}, notFound(err)
-	}
-	return modkit.Org{ID: o.ID.String(), Handle: o.Handle, DisplayName: o.DisplayName, CreatedAt: o.CreatedAt}, nil
-}
-
 func toProject(p *models.Project) modkit.Project {
 	return modkit.Project{ID: p.ID.String(), OrgID: p.OrgID.String(), Name: p.Name, DisplayName: p.DisplayName, CreatedAt: p.CreatedAt}
 }

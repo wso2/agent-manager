@@ -47,6 +47,13 @@ func (s *GatewayEventsService) broadcastEvent(gatewayID string, eventType string
 	})
 }
 
+// publishTx writes the event in tx: it is sent once tx commits.
+func (s *GatewayEventsService) publishTx(ctx context.Context, tx *gorm.DB, gatewayID string, eventType string, action string, entityID string, payload interface{}) error {
+	return s.publish(gatewayID, eventType, action, entityID, payload, func(evt eventhub.Event) error {
+		return s.hub.PublishEventTx(ctx, tx, gatewayID, evt)
+	})
+}
+
 // publish builds the event the one way gateway events are built (eventhub.NewGatewayEvent) and writes it.
 func (s *GatewayEventsService) publish(gatewayID string, eventType string, action string, entityID string, payload interface{}, write func(eventhub.Event) error) error {
 	evt := eventhub.NewGatewayEvent(eventType, action, entityID, payload)

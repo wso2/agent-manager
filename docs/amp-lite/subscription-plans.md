@@ -74,7 +74,7 @@ status:                      # observed by the server, ignored on input
 5. **Subscribe** in the portal. The portal sends `subscription.created` to the ACP with the key sealed; the ACP stores it (the key in the core's secret store) and sends its plan, then the subscription, to the gateways. A subscribed plan is in use. A subscription to a deprecated plan is refused.
 6. **Call** the MCP server with the key in the `Subscription-Key` header.
 
-The developer portal's webhook subscriber for the ACP must take `subscription_plan.*` and `subscription.*` events, at `https://<internal server>/m/ai-hub/webhooks/events`, with the shared secret the `ai-hub` module reads as `MODULE_AI_HUB_WEBHOOK_SECRET`.
+The developer portal's webhook subscriber for the ACP must take `subscription_plan.*` and `subscription.*` events, at `https://<internal server>/m/ai-hub/webhooks/events`, with the shared secret the `ai-hub` module reads as `MODULE_AI_HUB_WEBHOOK_SECRET`. Each delivery names the organization by its id (`org.ref_id`, the `ouId` in the organization's tokens), so the portal organization's control plane reference must be the ACP organization's id; a delivery naming any other organization is refused (`401`).
 
 ## What must be in place, and what happens if it isn't
 

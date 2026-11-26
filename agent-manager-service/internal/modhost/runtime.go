@@ -497,10 +497,6 @@ func (unimplementedCore) GetOrg(context.Context, string) (modkit.Org, error) {
 	return modkit.Org{}, modkit.ErrNotImplemented
 }
 
-func (unimplementedCore) GetOrgByHandle(context.Context, string) (modkit.Org, error) {
-	return modkit.Org{}, modkit.ErrNotImplemented
-}
-
 func (unimplementedCore) ListProjects(context.Context, string) ([]modkit.Project, error) {
 	return nil, modkit.ErrNotImplemented
 }

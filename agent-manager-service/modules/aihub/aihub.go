@@ -43,9 +43,8 @@ import (
 // its tables are mod_ai_hub_*, and its permissions are ai-hub:plan-<verb>.
 const Name = "ai-hub"
 
-// EventPlanChanged is published, in the same transaction, when a plan is created, updated or deprecated, with a
-// subplanv1.PlanChange (Source.ChangeEvent). Gateways don't get plan changes: a plan reaches them with its
-// subscriptions (EventSubscriptionChanged).
+// EventPlanChanged is published, in the same transaction, when a plan is created, updated or deprecated. Gateways
+// don't get plan changes: a plan reaches them with its subscriptions (EventSubscriptionChanged).
 const EventPlanChanged = Name + ".plan_changed"
 
 // EventSubscriptionChanged is published, in the same transaction, when a subscription is created, changed or

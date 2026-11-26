@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -189,7 +190,7 @@ func TestReceiverRejectsAlike(t *testing.T) {
 // failingCore fails every organization lookup, as a database that is down would.
 type failingCore struct{ modkit.CoreAPI }
 
-func (failingCore) GetOrgByHandle(context.Context, string) (modkit.Org, error) {
+func (failingCore) GetOrg(context.Context, string) (modkit.Org, error) {
 	return modkit.Org{}, errors.New("database is down")
 }
 
@@ -199,7 +200,7 @@ func TestReceiverAnswersOurFailuresWithServiceUnavailable(t *testing.T) {
 		Enabled: true, Secret: testSecret, SignatureHeader: DefaultWebhookSignatureHeader,
 		SignatureTolerance: time.Minute, MaxBodyBytes: 1 << 20,
 	}, core: failingCore{}, log: slog.New(slog.DiscardHandler), now: time.Now}
-	body := []byte(`{"event_id":"e1","event_type":"subscription_plan.deleted","org":{"ref_id":"acme"},` +
+	body := []byte(`{"event_id":"e1","event_type":"subscription_plan.deleted","org":{"ref_id":"` + uuid.NewString() + `"},` +
 		`"secret_hash":"` + SecretHash(testSecret) + `","data":{"handle":"gold"}}`)
 	req := httptest.NewRequest(http.MethodPost, WebhookRoutePath, bytes.NewReader(body))
 	req.Header.Set(DefaultWebhookSignatureHeader, Sign(testSecret, body, time.Now()))

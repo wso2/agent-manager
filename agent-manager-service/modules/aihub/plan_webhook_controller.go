@@ -46,7 +46,8 @@ import (
 //     timestamp within the tolerance (replay guard);
 //   - the envelope's secret_hash, the hex SHA3-256 of "<label>:<secret>", names the secret that signed
 //     the delivery; it is only trusted once the signature verifies;
-//   - org.ref_id is the organization's handle;
+//   - org.ref_id is the organization's id (the ouId in its tokens), which the portal organization's control
+//     plane reference holds;
 //   - events subscription_plan.created / .updated (both upsert) and subscription_plan.deleted;
 //   - events subscription.created / .updated / .plan_changed / .token_regenerated / .deleted, for
 //     subscriptions to MCP servers (subscription_service.go); subscription.billing_updated is accepted
@@ -427,9 +428,9 @@ func (r *webhookReceiver) receive(w http.ResponseWriter, req *http.Request) erro
 	if err != nil {
 		return err
 	}
-	log := r.log.With("eventId", env.EventID, "eventType", env.EventType, "orgHandle", env.OrgID)
-	// 3. The organization, by its handle.
-	orgID, err := r.orgIDByHandle(req.Context(), env.OrgID)
+	log := r.log.With("eventId", env.EventID, "eventType", env.EventType, "orgId", env.OrgID)
+	// 3. The organization, by its id.
+	orgID, err := r.orgOf(req.Context(), env.OrgID)
 	if err != nil {
 		return err
 	}
@@ -460,14 +461,18 @@ func (r *webhookReceiver) authenticate(header string, body []byte) error {
 	return verifySignature(r.cfg.Secret, header, body, r.cfg.SignatureTolerance, r.now())
 }
 
-// orgIDByHandle resolves the organization handle a delivery names (org.ref_id) to its id, through the core.
-func (r *webhookReceiver) orgIDByHandle(ctx context.Context, handle string) (string, error) {
-	org, err := r.core.GetOrgByHandle(ctx, handle)
+// orgOf checks that the organization a delivery names (org.ref_id, its id) is one the core knows, and returns
+// its id.
+func (r *webhookReceiver) orgOf(ctx context.Context, id string) (string, error) {
+	if !validID(id) {
+		return "", fmt.Errorf("%w: %q is not an organization id", errOrganizationNotFound, id)
+	}
+	org, err := r.core.GetOrg(ctx, id)
 	if errors.Is(err, modkit.ErrNotFound) {
-		return "", fmt.Errorf("%w: %s", errOrganizationNotFound, handle)
+		return "", fmt.Errorf("%w: %s", errOrganizationNotFound, id)
 	}
 	if err != nil {
-		return "", fmt.Errorf("look up organization %s: %w", handle, err)
+		return "", fmt.Errorf("look up organization %s: %w", id, err)
 	}
 	return org.ID, nil
 }

@@ -437,11 +437,6 @@ type Environment struct {
 // it answers only for that ctx's organization (OrgID).
 type CoreAPI interface {
 	GetOrg(ctx context.Context, orgID string) (Org, error)
-	// GetOrgByHandle looks an organization up by its handle, for a caller that
-	// knows only that, such as a signed webhook delivery from another product.
-	// Called with the ctx of a request, hook or event, it finds only that ctx's
-	// organization.
-	GetOrgByHandle(ctx context.Context, handle string) (Org, error)
 	ListProjects(ctx context.Context, orgID string) ([]Project, error)
 	GetProject(ctx context.Context, orgID, projectID string) (Project, error)
 	// ListAgents lists the agents of an organization; projectID, when not

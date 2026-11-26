@@ -40,13 +40,10 @@ type planSource struct {
 	subscriptions *subscriptionService
 }
 
-// ChangeEvent is the event the module publishes when a plan changes.
-func (planSource) ChangeEvent() string { return EventPlanChanged }
-
 // CountOffersWith takes the AI Gateway's count of the MCP proxies that offer a plan.
 func (s planSource) CountOffersWith(count subplanv1.OfferCounter) { s.plans.offers.Store(&count) }
 
-// GetPlan reads one plan by its ID, for a gateway push of that plan alone.
+// GetPlan reads one plan by its ID, for the push of a subscription's plan before the subscription.
 func (s planSource) GetPlan(ctx context.Context, orgID, planID string) (subplanv1.Plan, bool, error) {
 	p, err := s.plans.getByID(ctx, orgID, planID)
 	if errors.Is(err, errPlanNotFound) {
@@ -61,6 +58,11 @@ func (s planSource) GetPlan(ctx context.Context, orgID, planID string) (subplanv
 // ListSubscriptions lists the subscriptions to an artifact, with their keys, for gateways.
 func (s planSource) ListSubscriptions(ctx context.Context, orgID, kind, handle string) ([]subplanv1.Subscription, error) {
 	return s.subscriptions.list(ctx, orgID, kind, handle)
+}
+
+// SubscribedPlanIDs lists the plans a subscription to one of the artifacts is on, without their keys.
+func (s planSource) SubscribedPlanIDs(ctx context.Context, orgID, kind string, handles []string) ([]string, error) {
+	return s.subscriptions.planIDs(ctx, orgID, kind, handles)
 }
 
 // GetSubscription reads one subscription, with its key.

@@ -252,15 +252,13 @@ func SubscribedPlans(ctx context.Context, source subplanv1.Source, artifacts Sub
 	if err != nil {
 		return nil, err
 	}
-	subscribed := map[string]bool{}
-	for _, handle := range handles {
-		subs, err := source.ListSubscriptions(ctx, orgID, subplanv1.ArtifactKindMCP, handle)
-		if err != nil {
-			return nil, fmt.Errorf("listing the subscriptions to %s: %w", handle, err)
-		}
-		for _, s := range subs {
-			subscribed[s.PlanID] = true
-		}
+	ids, err := source.SubscribedPlanIDs(ctx, orgID, subplanv1.ArtifactKindMCP, handles)
+	if err != nil {
+		return nil, fmt.Errorf("listing the subscribed plans: %w", err)
+	}
+	subscribed := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		subscribed[id] = true
 	}
 	out := make([]subplanv1.Plan, 0, len(subscribed))
 	for _, p := range plans {
@@ -271,6 +269,77 @@ func SubscribedPlans(ctx context.Context, source subplanv1.Source, artifacts Sub
 	return out, nil
 }
 
+// replaySubscriptions writes, in tx, the subscriptions to the MCP proxy that the deployed artifact belongs to, each
+// preceded by its plan (once per plan), as events for the one gateway that serves the artifact.
+func replaySubscriptions(ctx context.Context, tx *gorm.DB, source subplanv1.Source, artifacts SubscriptionArtifacts,
+	events *GatewayEventsService, p gwmodels.Placement,
+) error {
+	apiID := p.ArtifactUUID.String()
+	kind, handle, found, err := artifacts.ProxyOf(ctx, p.OUID, apiID)
+	if err != nil || !found {
+		return err
+	}
+	subs, err := source.ListSubscriptions(ctx, p.OUID, kind, handle)
+	if err != nil {
+		return fmt.Errorf("listing the subscriptions to %s: %w", handle, err)
+	}
+	gatewayID := p.GatewayUUID.String()
+	sentPlans := map[string]bool{}
+	for _, sub := range subs {
+		if sub.PlanID != "" && !sentPlans[sub.PlanID] {
+			sentPlans[sub.PlanID] = true
+			plan, found, err := source.GetPlan(ctx, p.OUID, sub.PlanID)
+			if err != nil {
+				return fmt.Errorf("reading plan %s of subscription %s: %w", sub.PlanID, sub.ID, err)
+			}
+			if found {
+				eventType, action, payload, err := planEvent(subplanv1.Created, plan)
+				if err != nil {
+					return err
+				}
+				if err := events.publishTx(ctx, tx, gatewayID, eventType, action, plan.ID, payload); err != nil {
+					return err
+				}
+			}
+		}
+		perArtifact := sub
+		perArtifact.ID = GatewaySubscriptionID(sub.ID, apiID)
+		eventType, action, payload, err := gatewaySubscriptionEvent(subplanv1.Created, apiID, perArtifact)
+		if err != nil {
+			return err
+		}
+		if err := events.publishTx(ctx, tx, gatewayID, eventType, action, perArtifact.ID, payload); err != nil {
+			return err
+		}
+	}
+	if len(subs) > 0 {
+		slog.InfoContext(ctx, "Subscriptions sent to the gateway that now serves an MCP proxy deployment",
+			"orgId", p.OUID, "proxy", handle, "apiId", apiID, "gatewayId", gatewayID, "subscriptions", len(subs),
+			"plans", len(sentPlans))
+	}
+	return nil
+}
+
+// gatewaySubscriptionEvent is the gateway event for a subscription change to the deployed artifact apiID: its type,
+// action and payload.
+func gatewaySubscriptionEvent(action subplanv1.Action, apiID string, sub subplanv1.Subscription) (string, string, any, error) {
+	switch action {
+	case subplanv1.Created:
+		return "subscription.created", "CREATE", SubscriptionEvent{
+			APIID: apiID, SubscriptionID: sub.ID, SubscriptionToken: sub.Token, SubscriptionPlanID: sub.PlanID,
+			Status: sub.Status,
+		}, nil
+	case subplanv1.Updated:
+		return "subscription.updated", "UPDATE", SubscriptionEvent{
+			APIID: apiID, SubscriptionID: sub.ID, SubscriptionToken: sub.Token, SubscriptionPlanID: sub.PlanID,
+			Status: sub.Status,
+		}, nil
+	case subplanv1.Deleted:
+		return "subscription.deleted", "DELETE", SubscriptionDeletedEvent{APIID: apiID, SubscriptionID: sub.ID}, nil
+	}
+	return "", "", nil, fmt.Errorf("unknown subscription action %q", action)
+}
+
 var _ SubscriptionGateways = (*SubscriptionPlanBroadcaster)(nil)
 
 // SubscriptionChanged sends subscription.created, .updated or .deleted to every gateway of the organization.
@@ -278,23 +347,9 @@ var _ SubscriptionGateways = (*SubscriptionPlanBroadcaster)(nil)
 func (b *SubscriptionPlanBroadcaster) SubscriptionChanged(ctx context.Context, orgID string, action subplanv1.Action,
 	apiID string, sub subplanv1.Subscription,
 ) error {
-	var eventType, gatewayAction string
-	var payload any
-	switch action {
-	case subplanv1.Created, subplanv1.Updated:
-		eventType, gatewayAction = "subscription.created", "CREATE"
-		if action == subplanv1.Updated {
-			eventType, gatewayAction = "subscription.updated", "UPDATE"
-		}
-		payload = SubscriptionEvent{
-			APIID: apiID, SubscriptionID: sub.ID, SubscriptionToken: sub.Token, SubscriptionPlanID: sub.PlanID,
-			Status: sub.Status,
-		}
-	case subplanv1.Deleted:
-		eventType, gatewayAction = "subscription.deleted", "DELETE"
-		payload = SubscriptionDeletedEvent{APIID: apiID, SubscriptionID: sub.ID}
-	default:
-		return fmt.Errorf("unknown subscription action %q", action)
+	eventType, gatewayAction, payload, err := gatewaySubscriptionEvent(action, apiID, sub)
+	if err != nil {
+		return err
 	}
 	gateways, err := b.gateways.GetByOrganizationID(ctx, orgID)
 	if err != nil {

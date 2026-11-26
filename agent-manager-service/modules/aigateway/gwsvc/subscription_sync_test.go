@@ -19,12 +19,14 @@ package gwsvc
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
@@ -34,8 +36,6 @@ import (
 type planList []subplanv1.Plan
 
 func (l planList) ListPlans(context.Context, string) ([]subplanv1.Plan, error) { return l, nil }
-
-func (planList) ChangeEvent() string { return "ai-hub.plan_changed" }
 
 func (planList) CountOffersWith(subplanv1.OfferCounter) {}
 
@@ -49,6 +49,10 @@ func (l planList) GetPlan(_ context.Context, _ string, id string) (subplanv1.Pla
 }
 
 func (planList) ListSubscriptions(context.Context, string, string, string) ([]subplanv1.Subscription, error) {
+	return nil, nil
+}
+
+func (planList) SubscribedPlanIDs(context.Context, string, string, []string) ([]string, error) {
 	return nil, nil
 }
 
@@ -73,6 +77,13 @@ type subscriptionSource struct {
 func (s subscriptionSource) ListSubscriptions(_ context.Context, _, _, handle string) ([]subplanv1.Subscription, error) {
 	if s.sub != nil && s.sub.ArtifactHandle == handle {
 		return []subplanv1.Subscription{*s.sub}, nil
+	}
+	return nil, nil
+}
+
+func (s subscriptionSource) SubscribedPlanIDs(_ context.Context, _, _ string, handles []string) ([]string, error) {
+	if s.sub != nil && slices.Contains(handles, s.sub.ArtifactHandle) {
+		return []string{s.sub.PlanID}, nil
 	}
 	return nil, nil
 }
@@ -248,4 +259,55 @@ func TestSubscriptionBroadcastPayloads(t *testing.T) {
 	typ, payload = envelope(t, hub.published[0])
 	assert.Equal(t, "subscription.deleted", typ)
 	assert.Equal(t, map[string]any{"apiId": "api-1", "subscriptionId": "s-1"}, payload)
+}
+
+// A deployment the gateway now serves gets the proxy's subscriptions, each after its plan, sent to that gateway
+// in the ack's transaction, under the IDs the gateway keeps them by for this artifact.
+func TestReplaySubscriptionsAfterADeployment(t *testing.T) {
+	ctx := context.Background()
+	gold := subplanv1.Plan{ID: "p-1", Handle: "gold", Name: "Gold", Status: "ACTIVE"}
+	sub := subplanv1.Subscription{ID: uuid.NewString(), ArtifactHandle: "docs-mcp", PlanID: "p-1", Token: "key-1",
+		Status: subplanv1.SubscriptionActive}
+	source := subscriptionSource{planList: planList{gold}, sub: &sub}
+	artifact, gateway := uuid.New(), uuid.New()
+	p := gwmodels.Placement{GatewayUUID: gateway}
+	p.OUID, p.ArtifactUUID = "org-1", artifact
+	tx := &gorm.DB{}
+
+	t.Run("plan, then subscription, to the gateway that serves the artifact", func(t *testing.T) {
+		hub := &recordingEventHub{}
+		err := replaySubscriptions(ctx, tx, source, fakeDeployments{"docs-mcp": {artifact.String()}},
+			NewGatewayEventsService(hub), p)
+		require.NoError(t, err)
+		require.Len(t, hub.published, 2)
+		assert.Equal(t, "subscriptionPlan.created", string(hub.published[0].EventType))
+		assert.Equal(t, "subscription.created", string(hub.published[1].EventType))
+		for i, evt := range hub.published {
+			assert.Equal(t, gateway.String(), evt.GatewayID)
+			assert.Same(t, tx, hub.txs[i], "written in the ack's transaction")
+		}
+		var envelope struct{ Payload SubscriptionEvent }
+		require.NoError(t, json.Unmarshal([]byte(hub.published[1].EventData), &envelope))
+		payload := envelope.Payload
+		assert.Equal(t, artifact.String(), payload.APIID)
+		assert.Equal(t, GatewaySubscriptionID(sub.ID, artifact.String()), payload.SubscriptionID)
+		assert.Equal(t, "key-1", payload.SubscriptionToken)
+		assert.Equal(t, "p-1", payload.SubscriptionPlanID)
+	})
+
+	t.Run("an artifact of no MCP proxy, or one with no subscriptions, sends nothing", func(t *testing.T) {
+		hub := &recordingEventHub{}
+		require.NoError(t, replaySubscriptions(ctx, tx, source, fakeDeployments{}, NewGatewayEventsService(hub), p))
+		require.NoError(t, replaySubscriptions(ctx, tx, subscriptionSource{planList: planList{gold}},
+			fakeDeployments{"docs-mcp": {artifact.String()}}, NewGatewayEventsService(hub), p))
+		assert.Empty(t, hub.published)
+	})
+
+	t.Run("without the plans module, AfterLive sends nothing", func(t *testing.T) {
+		hub := &recordingEventHub{}
+		kind := NewMCPProxyKind(nil, nil, nil, NewSubscriptionPlans(), NewGatewayEventsService(hub))
+		require.NoError(t, kind.AfterLive(ctx, tx, p, uuid.New()))
+		assert.Empty(t, hub.published)
+		require.NoError(t, NewMCPProxyKind(nil, nil, nil, nil, nil).AfterLive(ctx, tx, p, uuid.New()))
+	})
 }

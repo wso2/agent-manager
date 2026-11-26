@@ -674,7 +674,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 	now := time.Now()
 	gone := map[string]any{"handle": "never-copied", "display_name": "Never copied"}
 	deactivatePlans(context.Background(), t, w)
-	code, refused := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", gone, now, now))
+	code, refused := send(t, w.internal, delivery(t, w.org, "subscription_plan.created", gone, now, now))
 	// A module's webhooks, like its other internal routes, answer module_inactive while it is not active.
 	require.Equal(t, http.StatusUnauthorized, code, "a module that isn't active answers no delivery: "+refused)
 	assert.Contains(t, refused, "module_inactive")
@@ -689,7 +689,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 
 	t.Run("created: the plan is copied in, dated when it was made", func(t *testing.T) {
 		made := now.Add(-time.Hour)
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", mcpPlan, made, now))
+		code, body := send(t, w.internal, delivery(t, w.org, "subscription_plan.created", mcpPlan, made, now))
 		require.Equal(t, http.StatusOK, code, body)
 		assert.JSONEq(t, `{"status":"processed"}`, body)
 		code, got := w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
@@ -704,7 +704,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 	})
 
 	t.Run("a repeated delivery changes nothing", func(t *testing.T) {
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", mcpPlan, now, now))
+		code, body := send(t, w.internal, delivery(t, w.org, "subscription_plan.created", mcpPlan, now, now))
 		require.Equal(t, http.StatusOK, code, body)
 		_, got := w.call(t, w.full, http.MethodGet, plansPath+"?query=mcp-gold", nil)
 		assert.Contains(t, string(got), `"count":1`)
@@ -715,7 +715,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 			"handle": "mcp-gold", "display_name": "MCP Gold+",
 			"limits": []any{map[string]any{"limit_type": "REQUEST_COUNT", "limit_count": 100, "time_unit": "MINUTE", "time_amount": 1}},
 		}
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.updated", upd, now, now))
+		code, body := send(t, w.internal, delivery(t, w.org, "subscription_plan.updated", upd, now, now))
 		require.Equal(t, http.StatusOK, code, body)
 		_, got := w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
 		p := decodeAs[planBody](t, got)
@@ -725,20 +725,21 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 
 	t.Run("an update made at the source before the last one changes nothing", func(t *testing.T) {
 		older := map[string]any{"handle": "mcp-gold", "display_name": "MCP Gold (older)"}
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.updated", older, now.Add(-30*time.Minute), now))
+		code, body := send(t, w.internal, delivery(t, w.org, "subscription_plan.updated", older, now.Add(-30*time.Minute), now))
 		require.Equal(t, http.StatusOK, code, "an out-of-date event is processed, and ignored: "+body)
 		_, got := w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
 		assert.Equal(t, "MCP Gold+", decodeAs[planBody](t, got).DisplayName)
 	})
 
-	t.Run("refused alike: bad signature, stale signature, unknown org, unknown event", func(t *testing.T) {
-		bad := delivery(t, w.handle, "subscription_plan.created", mcpPlan, now, now)
+	t.Run("refused alike: bad signature, stale signature, unknown org, org by handle, unknown event", func(t *testing.T) {
+		bad := delivery(t, w.org, "subscription_plan.created", mcpPlan, now, now)
 		bad.Header.Set(aihub.DefaultWebhookSignatureHeader, aihub.Sign("wrong-secret", []byte("x"), now))
-		stale := delivery(t, w.handle, "subscription_plan.created", mcpPlan, now, now.Add(-10*time.Minute))
-		unknownOrg := delivery(t, "no-such-org", "subscription_plan.created", mcpPlan, now, now)
-		unknownEvent := delivery(t, w.handle, "meter.created", map[string]any{"handle": "m"}, now, now)
+		stale := delivery(t, w.org, "subscription_plan.created", mcpPlan, now, now.Add(-10*time.Minute))
+		unknownOrg := delivery(t, uuid.NewString(), "subscription_plan.created", mcpPlan, now, now)
+		byHandle := delivery(t, w.handle, "subscription_plan.created", mcpPlan, now, now)
+		unknownEvent := delivery(t, w.org, "meter.created", map[string]any{"handle": "m"}, now, now)
 		for name, req := range map[string]*http.Request{
-			"bad signature": bad, "stale signature": stale, "unknown org": unknownOrg,
+			"bad signature": bad, "stale signature": stale, "unknown org": unknownOrg, "org by its handle": byHandle,
 			"unknown event": unknownEvent,
 		} {
 			code, body := send(t, w.internal, req)
@@ -750,7 +751,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 	t.Run("a plan made here can't be created again by the portal", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPost, plansPath, planDoc("cp-made", map[string]any{"displayName": "CP made"}))
 		require.Equal(t, http.StatusCreated, code, string(body))
-		code, got := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created",
+		code, got := send(t, w.internal, delivery(t, w.org, "subscription_plan.created",
 			map[string]any{"handle": "cp-made", "display_name": "Portal copy"}, now, now))
 		assert.Equal(t, http.StatusConflict, code, "a 409, which the portal doesn't retry: "+got)
 		assert.Contains(t, got, "SUBSCRIPTION_PLAN_ORIGIN_CONFLICT")
@@ -765,7 +766,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 				"limits": []any{map[string]any{"count": 10, "timeAmount": 1, "timeUnit": "MINUTE"}},
 			}}},
 		}
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", paid, now, now))
+		code, body := send(t, w.internal, delivery(t, w.org, "subscription_plan.created", paid, now, now))
 		require.Equal(t, http.StatusOK, code, body)
 		code, got := w.call(t, w.full, http.MethodGet, plansPath+"/paid", nil)
 		require.Equal(t, http.StatusOK, code, string(got))
@@ -777,12 +778,12 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 
 	t.Run("deleted: an older deletion keeps a newer plan; a current one deprecates it; a repeat succeeds", func(t *testing.T) {
 		del := map[string]any{"handle": "mcp-gold"}
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted", del, now.Add(-2*time.Hour), now))
+		code, body := send(t, w.internal, delivery(t, w.org, "subscription_plan.deleted", del, now.Add(-2*time.Hour), now))
 		require.Equal(t, http.StatusOK, code, body)
 		_, got := w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
 		assert.False(t, decodeAs[planBody](t, got).Deprecated, "the plan was made after that deletion")
 
-		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted", del, now, now))
+		code, body = send(t, w.internal, delivery(t, w.org, "subscription_plan.deleted", del, now, now))
 		require.Equal(t, http.StatusOK, code, body)
 		code, got = w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
 		require.Equal(t, http.StatusOK, code, "a deleted plan is deprecated, not removed: "+string(got))
@@ -791,19 +792,19 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 		require.NotNil(t, p.DeprecatedAt)
 		assert.WithinDuration(t, now, *p.DeprecatedAt, time.Second, "dated by the portal's clock")
 
-		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted", del, now, now))
+		code, body = send(t, w.internal, delivery(t, w.org, "subscription_plan.deleted", del, now, now))
 		assert.Equal(t, http.StatusOK, code, "a plan already deprecated stays so: "+body)
 	})
 
 	t.Run("a deprecated plan doesn't change, and a plan made again with its handle is refused", func(t *testing.T) {
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.updated", mcpPlan, now.Add(time.Minute), now))
+		code, body := send(t, w.internal, delivery(t, w.org, "subscription_plan.updated", mcpPlan, now.Add(time.Minute), now))
 		require.Equal(t, http.StatusOK, code, body)
 		_, got := w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
 		p := decodeAs[planBody](t, got)
 		assert.True(t, p.Deprecated)
 		assert.Equal(t, "MCP Gold+", p.DisplayName, "an update of a deprecated plan is ignored")
 
-		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", mcpPlan, now.Add(time.Minute), now))
+		code, body = send(t, w.internal, delivery(t, w.org, "subscription_plan.created", mcpPlan, now.Add(time.Minute), now))
 		assert.Equal(t, http.StatusConflict, code, body)
 		assert.Contains(t, body, "SUBSCRIPTION_PLAN_DEPRECATED")
 	})
@@ -814,7 +815,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 			code, _ := w.call(t, w.full, http.MethodGet, plansPath, nil)
 			return code == http.StatusNotFound
 		})
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", gone, time.Now(), time.Now()))
+		code, body := send(t, w.internal, delivery(t, w.org, "subscription_plan.created", gone, time.Now(), time.Now()))
 		assert.Equal(t, http.StatusUnauthorized, code, body)
 		assert.Contains(t, body, "module_inactive")
 	})
@@ -897,7 +898,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 	t.Run("nor is a plan the developer portal sends by webhook", func(t *testing.T) {
 		portal := "portal-" + uuid.NewString()[:8]
 		now := time.Now()
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", map[string]any{
+		code, body := send(t, w.internal, delivery(t, w.org, "subscription_plan.created", map[string]any{
 			"handle": portal, "display_name": "Portal Silver",
 		}, now, now))
 		require.Equal(t, http.StatusOK, code, body)
@@ -905,7 +906,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 	})
 
 	t.Run("a subscription brings its plan to the gateways first, with its legacy limit", func(t *testing.T) {
-		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.created",
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.created",
 			map[string]any{"subscription_plan": map[string]any{"ref_id": handle}}, "key-1", time.Now()))
 		require.Equal(t, http.StatusOK, code, body)
 		got := sent(t, handle, subplanv1.Created)
@@ -934,7 +935,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 	})
 
 	t.Run("a deleted subscription leaves its plan, which is free again", func(t *testing.T) {
-		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.deleted", nil, "",
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.deleted", nil, "",
 			time.Now().Add(time.Second)))
 		require.Equal(t, http.StatusOK, code, body)
 		_, ok := w.gateways.find(handle, subplanv1.Deleted)
@@ -1019,7 +1020,7 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 	var subID string
 
 	t.Run("created: stored with its key, published, and its plan in use", func(t *testing.T) {
-		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.created", planRef(gold), "key-1", now))
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.created", planRef(gold), "key-1", now))
 		require.Equal(t, http.StatusOK, code, body)
 		subs := list(t)
 		require.Len(t, subs, 1)
@@ -1051,17 +1052,17 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 	})
 
 	t.Run("a repeated creation changes nothing", func(t *testing.T) {
-		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.created", planRef(gold), "key-1", now))
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.created", planRef(gold), "key-1", now))
 		require.Equal(t, http.StatusOK, code, body)
 		assert.Len(t, list(t), 1)
 	})
 
 	t.Run("token regenerated, plan changed and deactivated follow; each is published", func(t *testing.T) {
-		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.token_regenerated", nil, "key-2", now.Add(time.Second)))
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.token_regenerated", nil, "key-2", now.Add(time.Second)))
 		require.Equal(t, http.StatusOK, code, body)
-		code, body = send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.plan_changed", planRef(silver), "", now.Add(2*time.Second)))
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.plan_changed", planRef(silver), "", now.Add(2*time.Second)))
 		require.Equal(t, http.StatusOK, code, body)
-		code, body = send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.updated", map[string]any{"status": "INACTIVE"}, "", now.Add(3*time.Second)))
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.updated", map[string]any{"status": "INACTIVE"}, "", now.Add(3*time.Second)))
 		require.Equal(t, http.StatusOK, code, body)
 		subs := list(t)
 		require.Len(t, subs, 1)
@@ -1072,7 +1073,7 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 	})
 
 	t.Run("an older event changes nothing", func(t *testing.T) {
-		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.updated", map[string]any{"status": "ACTIVE"}, "", now.Add(time.Second)))
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.updated", map[string]any{"status": "ACTIVE"}, "", now.Add(time.Second)))
 		require.Equal(t, http.StatusOK, code, body)
 		assert.Equal(t, subplanv1.SubscriptionInactive, list(t)[0].Status)
 	})
@@ -1081,7 +1082,7 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 		code, resp := w.call(t, w.full, http.MethodDelete, plansPath+"/"+silver, nil)
 		require.Equal(t, http.StatusOK, code, "a subscribed plan can be deprecated: "+string(resp))
 
-		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.updated", map[string]any{"status": "ACTIVE"}, "", now.Add(5*time.Second)))
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.updated", map[string]any{"status": "ACTIVE"}, "", now.Add(5*time.Second)))
 		require.Equal(t, http.StatusOK, code, "a subscription already on it still changes: "+body)
 		subs := list(t)
 		require.Len(t, subs, 1)
@@ -1098,7 +1099,7 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 		assert.Equal(t, silver, pulled[0].Handle)
 		assert.True(t, pulled[0].Deprecated)
 
-		bob := subscriptionDelivery(t, w.handle, "subscription.created", map[string]any{
+		bob := subscriptionDelivery(t, w.org, "subscription.created", map[string]any{
 			"subscription_id": "portal-sub-4", "subscriber_id": "bob", "subscription_plan": map[string]any{"ref_id": silver},
 		}, "key-5", now)
 		code, body = send(t, w.internal, bob)
@@ -1106,20 +1107,20 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 		assert.Contains(t, body, "SUBSCRIPTION_PLAN_DEPRECATED")
 		assert.Len(t, list(t), 1)
 
-		code, body = send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.plan_changed", planRef(gold), "", now.Add(6*time.Second)))
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.plan_changed", planRef(gold), "", now.Add(6*time.Second)))
 		require.Equal(t, http.StatusOK, code, body)
-		code, body = send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.plan_changed", planRef(silver), "", now.Add(7*time.Second)))
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.plan_changed", planRef(silver), "", now.Add(7*time.Second)))
 		assert.Equal(t, http.StatusConflict, code, "nor can a subscription move onto it: "+body)
 		assert.Equal(t, gold, list(t)[0].PlanHandle)
 	})
 
 	t.Run("a subscription on a plan that is not here, or to a REST API, is refused", func(t *testing.T) {
-		other := subscriptionDelivery(t, w.handle, "subscription.created", map[string]any{
+		other := subscriptionDelivery(t, w.org, "subscription.created", map[string]any{
 			"subscription_id": "portal-sub-2", "subscriber_id": "bob", "subscription_plan": map[string]any{"ref_id": "no-such-plan"},
 		}, "key-3", now)
 		code, _ := send(t, w.internal, other)
 		assert.Equal(t, http.StatusUnauthorized, code)
-		rest := subscriptionDelivery(t, w.handle, "subscription.created", map[string]any{
+		rest := subscriptionDelivery(t, w.org, "subscription.created", map[string]any{
 			"subscription_id": "portal-sub-3", "subscriber_id": "bob", "subscription_plan": map[string]any{"ref_id": gold},
 			"api": map[string]any{"ref_id": "orders", "type": "RestApi"},
 		}, "key-4", now)
@@ -1129,13 +1130,38 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 	})
 
 	t.Run("deleted: gone with its key, published, and its plan free again", func(t *testing.T) {
-		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.deleted", nil, "", now.Add(8*time.Second)))
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.deleted", nil, "", now.Add(8*time.Second)))
 		require.Equal(t, http.StatusOK, code, body)
 		assert.Empty(t, list(t))
 		eventually(t, "the deleted change", func() bool { _, ok := w.gateways.subscriptionChange(subID, subplanv1.Deleted); return ok })
 		assert.False(t, usageOf(t, gold).Usage.InUse)
 		code, resp := w.call(t, w.full, http.MethodPut, plansPath+"/"+gold, planDoc(gold, map[string]any{"displayName": "Gold again"}))
 		assert.Equal(t, http.StatusOK, code, string(resp))
+	})
+
+	t.Run("subscribing again replaces the old subscription, which a late deletion then doesn't touch", func(t *testing.T) {
+		as := func(sourceID string) map[string]any {
+			return map[string]any{"subscription_id": sourceID, "subscription_plan": map[string]any{"ref_id": gold}}
+		}
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.created", as("portal-sub-6"), "key-6", now.Add(10*time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.created", as("portal-sub-7"), "key-7", now.Add(12*time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		subs := list(t)
+		require.Len(t, subs, 1, "one subscription per subscriber and MCP server")
+		assert.Equal(t, "key-7", subs[0].Token, "the newer subscription replaced the older one")
+
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.deleted", as("portal-sub-6"), "", now.Add(11*time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.created", as("portal-sub-5"), "key-5", now.Add(9*time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		subs = list(t)
+		require.Len(t, subs, 1, "the old deletion and an older creation change nothing")
+		assert.Equal(t, "key-7", subs[0].Token)
+
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.org, "subscription.deleted", as("portal-sub-7"), "", now.Add(13*time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		assert.Empty(t, list(t))
 	})
 }
 

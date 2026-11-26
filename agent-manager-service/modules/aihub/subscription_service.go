@@ -107,7 +107,7 @@ func (s *subscriptionService) applyFromWebhook(ctx context.Context, orgID string
 			return s.remove(ctx, tx, orgID, existing)
 		case "created":
 			if existing == nil {
-				return s.insert(ctx, tx, orgID, ch)
+				return s.replaceOrInsert(ctx, tx, orgID, ch)
 			}
 		}
 		if existing == nil {
@@ -155,6 +155,35 @@ func (s *subscriptionService) planID(tx *gorm.DB, orgID, handle, current string)
 	return p.UUID, nil
 }
 
+// replaceOrInsert adds a created subscription. A subscriber has one subscription per artifact, so one the
+// subscriber already has under another portal id is replaced when this one is newer: the subscriber
+// unsubscribed and subscribed again, and the old deletion, arriving after, then finds nothing to delete. An
+// older creation changes nothing.
+func (s *subscriptionService) replaceOrInsert(ctx context.Context, tx *gorm.DB, orgID string, ch subscriptionChange) error {
+	if ch.SourceID != "" {
+		var rows []subscriptionRow
+		if err := tx.Raw(`SELECT `+subscriptionColumns+` FROM mod_ai_hub_subscriptions `+
+			`WHERE org_id = ? AND artifact_kind = ? AND artifact_handle = ? AND subscriber_id = ?`,
+			orgID, ch.ArtifactKind, ch.ArtifactHandle, ch.SubscriberID).Scan(&rows).Error; err != nil {
+			return fmt.Errorf("read the subscriber's subscription: %w", err)
+		}
+		if len(rows) > 0 {
+			old := &rows[0]
+			if !ch.At.After(old.SourceChangedAt.UTC()) {
+				s.log.InfoContext(ctx, "ignoring a subscription older than the subscriber's current one", "orgId", orgID,
+					"artifact", ch.ArtifactHandle, "sourceId", ch.SourceID, "current", old.ID)
+				return nil
+			}
+			s.log.InfoContext(ctx, "a newer subscription replaces the subscriber's current one", "orgId", orgID,
+				"artifact", ch.ArtifactHandle, "sourceId", ch.SourceID, "replaced", old.ID)
+			if err := s.remove(ctx, tx, orgID, old); err != nil {
+				return err
+			}
+		}
+	}
+	return s.insert(ctx, tx, orgID, ch)
+}
+
 func (s *subscriptionService) insert(ctx context.Context, tx *gorm.DB, orgID string, ch subscriptionChange) error {
 	if ch.Token == nil || *ch.Token == "" {
 		return invalid("a created subscription carries its token")
@@ -174,7 +203,7 @@ func (s *subscriptionService) insert(ctx context.Context, tx *gorm.DB, orgID str
 			statusOrActive(ch.Status), now, now, ch.At.UTC()).Error
 	})
 	if dberr.IsDuplicateKey(err) {
-		// The subscriber already has a subscription to this artifact under another portal id: a repeat.
+		// A concurrent delivery added the subscriber's subscription to this artifact first.
 		s.log.InfoContext(ctx, "ignoring a second subscription of the subscriber to the artifact", "orgId", orgID,
 			"artifact", ch.ArtifactHandle, "sourceId", ch.SourceID)
 		return nil
@@ -263,6 +292,20 @@ func (s *subscriptionService) list(ctx context.Context, orgID, kind, handle stri
 		out = append(out, sub)
 	}
 	return out, nil
+}
+
+// planIDs lists the plans a subscription to one of the artifacts is on, without reading any key.
+func (s *subscriptionService) planIDs(ctx context.Context, orgID, kind string, handles []string) ([]string, error) {
+	if len(handles) == 0 {
+		return nil, nil
+	}
+	var ids []string
+	if err := s.db().WithContext(ctx).Raw(`SELECT DISTINCT plan_id FROM mod_ai_hub_subscriptions `+
+		`WHERE org_id = ? AND artifact_kind = ? AND artifact_handle IN ? ORDER BY plan_id`, orgID, kind, handles).
+		Scan(&ids).Error; err != nil {
+		return nil, fmt.Errorf("list the subscribed plans: %w", err)
+	}
+	return ids, nil
 }
 
 // get returns one subscription, with its key.

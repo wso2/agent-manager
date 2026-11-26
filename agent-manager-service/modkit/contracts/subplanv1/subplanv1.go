@@ -15,10 +15,11 @@
 // under the License.
 
 // Package subplanv1 is the subscription plan capability between the module that owns plans and the gateway:
-// "subscription.plans/v1" lists an organization's plans, for gateways to pull when they connect, and names the
-// event its provider publishes, with a PlanChange, when a plan changes, so the gateway module pushes the change
-// to the organization's gateways. Only the gateway depends on the provider (optionally), and neither imports
-// the other.
+// "subscription.plans/v1" lists an organization's plans and the subscriptions to them, and names the event its
+// provider publishes, with a SubscriptionChange, when a subscription changes. The gateway module pushes each
+// subscription change, after its plan, to the organization's gateways, and gateways pull the subscriptions and
+// the plans they are on when they connect; a plan change alone isn't pushed. Only the gateway depends on the
+// provider (optionally), and neither imports the other.
 package subplanv1
 
 import (
@@ -30,18 +31,7 @@ import (
 // ID is the capability of the module that owns subscription plans: Source.
 const ID = "subscription.plans/v1"
 
-// PlanChange is what the provider's change event (Source.ChangeEvent) carries about the plan. The provider
-// publishes it in the transaction that creates, changes or deletes the plan, so subscribers get it only once
-// the change commits.
-type PlanChange struct {
-	OrgID    string `json:"orgId"`
-	PlanID   string `json:"planId"`
-	Handle   string `json:"handle"`
-	PlanName string `json:"planName"`
-	Action   Action `json:"action"`
-}
-
-// Action is what happened to a plan.
+// Action is what happened to a subscription.
 type Action string
 
 const (
@@ -84,9 +74,6 @@ type Source interface {
 	ListPlans(ctx context.Context, orgID string) ([]Plan, error)
 	// GetPlan reads one plan by its ID. found is false when the organization has no such plan.
 	GetPlan(ctx context.Context, orgID, planID string) (plan Plan, found bool, err error)
-	// ChangeEvent is the event type, declared in the provider's manifest as <module>.<event>, that the
-	// provider publishes with a PlanChange whenever a plan is created, changed or deleted.
-	ChangeEvent() string
 	// CountOffersWith hands the provider a count of what offers a plan (the MCP proxies of a gateway), which
 	// the provider reports as the plan's usage. The consumer calls it on every activation; nil stops counting.
 	CountOffersWith(count OfferCounter)
@@ -94,6 +81,9 @@ type Source interface {
 	// ListSubscriptions lists the subscriptions to one artifact (an MCP proxy: kind ArtifactKindMCP and its
 	// handle), with their tokens, for gateways to pull.
 	ListSubscriptions(ctx context.Context, orgID, artifactKind, artifactHandle string) ([]Subscription, error)
+	// SubscribedPlanIDs lists the IDs of the plans that a subscription to one of these artifacts (all of
+	// artifactKind) is on, subscriptions of every status included, without reading any subscription key.
+	SubscribedPlanIDs(ctx context.Context, orgID, artifactKind string, artifactHandles []string) ([]string, error)
 	// GetSubscription reads one subscription by its ID. found is false when it is gone.
 	GetSubscription(ctx context.Context, orgID, subscriptionID string) (sub Subscription, found bool, err error)
 	// SubscriptionChangeEvent is the event the provider publishes, with a SubscriptionChange, whenever a
