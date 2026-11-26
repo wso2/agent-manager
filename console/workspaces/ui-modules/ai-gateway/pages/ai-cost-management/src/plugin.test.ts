@@ -27,6 +27,9 @@ vi.mock("@agent-management-platform/feature-management", () => ({
 
 import { aiCostManagementPlugin } from "./plugin";
 
+// Loading the page component imports the whole page, which is slow on a busy runner.
+vi.setConfig({ testTimeout: 60_000 });
+
 const contributions = aiCostManagementPlugin.contributions as Array<
   Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 >;
