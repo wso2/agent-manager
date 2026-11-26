@@ -18,11 +18,14 @@ package gwsvc
 
 import (
 	"context"
+	"encoding/hex"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
@@ -227,4 +230,107 @@ func TestValidateSecretDeliveryProperty(t *testing.T) {
 	assert.NoError(t, validateSecretDeliveryProperty(map[string]interface{}{"secretDelivery": "reference"}))
 	assert.Error(t, validateSecretDeliveryProperty(map[string]interface{}{"secretDelivery": "vault"}))
 	assert.Error(t, validateSecretDeliveryProperty(map[string]interface{}{"secretDelivery": true}))
+}
+
+// trackedSecrets is a secret store that counts reads per path and fails reads of the paths in failing.
+type trackedSecrets struct {
+	*gwtest.Secrets
+	reads   map[string]int
+	failing map[string]error
+}
+
+func (s *trackedSecrets) Get(ctx context.Context, orgID, path string) (string, error) {
+	s.reads[path]++
+	if err := s.failing[path]; err != nil {
+		return "", err
+	}
+	return s.Secrets.Get(ctx, orgID, path)
+}
+
+func (s *trackedSecrets) In(*gorm.DB) modkit.Secrets { return s }
+
+// newMultiSecretFixture is gw-1 in ou-1 taking secrets by reference, with one deployed A2A agent per ref. Only the
+// refs in stored have a secret; the others name one that was removed after the agent was deployed.
+func newMultiSecretFixture(t *testing.T, refs []string, stored map[string]string) (*GatewayInternalAPIService, *trackedSecrets) {
+	t.Helper()
+	secrets := &trackedSecrets{Secrets: gwtest.NewSecrets(), reads: map[string]int{}, failing: map[string]error{}}
+	for ref, value := range stored {
+		require.NoError(t, secrets.Put(context.Background(), "ou-1", ref, value))
+	}
+	var rows []gwmodels.GatewaySyncRow
+	var contents []gwmodels.GatewayDeploymentContent
+	for _, ref := range refs {
+		in := proxiedA2AInput()
+		in.UpstreamAuth.SecretRef = &ref
+		yaml, err := generateA2AAgentDeploymentYAML(in)
+		require.NoError(t, err)
+		artifact := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindAgent}
+		id := uuid.New()
+		rows = append(rows, gwmodels.GatewaySyncRow{ArtifactRef: artifact, DeploymentID: id.String(), State: gwmodels.GatewaySyncStateDeployed})
+		contents = append(contents, gwmodels.GatewayDeploymentContent{ArtifactRef: artifact, DeploymentID: id, Content: []byte(yaml)})
+	}
+	repo := &gwrepomocks.DeploymentRepositoryMock{
+		ListForGatewaySyncFunc: func(context.Context, string, string) ([]gwmodels.GatewaySyncRow, error) {
+			return rows, nil
+		},
+		ListContentForGatewayFunc: func(context.Context, string, string, []uuid.UUID) ([]gwmodels.GatewayDeploymentContent, error) {
+			return contents, nil
+		},
+	}
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, gatewayWithDelivery(gwmodels.SecretDeliveryReference), nil, secrets, gatewayKinds())
+	return svc, secrets
+}
+
+// handleFor is the handle the gateway is sent for ref holding value.
+func handleFor(t *testing.T, secrets *trackedSecrets, ref, value string) string {
+	t.Helper()
+	stored, err := secrets.Secrets.Get(context.Background(), "ou-1", gatewaySecretHandleKeyPath)
+	require.NoError(t, err)
+	key, err := hex.DecodeString(stored)
+	require.NoError(t, err)
+	handle, _ := gatewaySecretHandle(key, ref, value)
+	return handle
+}
+
+// A deployed artifact whose credential was removed must not stop the gateway fetching or restoring the others.
+func TestMissingSecretDoesNotBlockTheGatewaysOtherSecrets(t *testing.T) {
+	healthy, removed := "a2a-proxies/1/upstream-auth", "a2a-proxies/2/upstream-auth"
+	svc, secrets := newMultiSecretFixture(t, []string{healthy, removed}, map[string]string{healthy: "s3cret"})
+	ctx := context.Background()
+
+	listed, err := svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", true)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.NotNil(t, listed[0].Value)
+	assert.Equal(t, "s3cret", *listed[0].Value)
+
+	value, err := svc.GetGatewaySecretValue(ctx, "ou-1", "gw-1", listed[0].Handle)
+	require.NoError(t, err)
+	assert.Equal(t, "s3cret", value)
+
+	_, err = svc.GetGatewaySecretValue(ctx, "ou-1", "gw-1", handleFor(t, secrets, removed, "old"))
+	assert.ErrorIs(t, err, gwerr.ErrGatewaySecretNotFound)
+}
+
+// Fetching one handle reads only that secret, so an unreadable secret elsewhere does not fail it and N fetches cost
+// N reads, not N².
+func TestGatewaySecretValueReadsOnlyTheNamedSecret(t *testing.T) {
+	refs := []string{"a2a-proxies/1/upstream-auth", "a2a-proxies/2/upstream-auth", "a2a-proxies/3/upstream-auth"}
+	stored := map[string]string{refs[0]: "one", refs[1]: "two", refs[2]: "three"}
+	svc, secrets := newMultiSecretFixture(t, refs, stored)
+	ctx := context.Background()
+	_, err := svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", false)
+	require.NoError(t, err)
+	handle := handleFor(t, secrets, refs[1], "two")
+
+	secrets.failing[refs[0]] = errors.New("vault unavailable")
+	secrets.reads = map[string]int{}
+	value, err := svc.GetGatewaySecretValue(ctx, "ou-1", "gw-1", handle)
+	require.NoError(t, err)
+	assert.Equal(t, "two", value)
+	assert.Equal(t, map[string]int{gatewaySecretHandleKeyPath: 1, refs[1]: 1}, secrets.reads)
+
+	// The list still fails on an error other than a missing secret: a partial list would hide an outage.
+	_, err = svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", true)
+	assert.ErrorContains(t, err, "vault unavailable")
 }

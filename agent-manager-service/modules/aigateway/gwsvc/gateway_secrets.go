@@ -24,7 +24,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -78,9 +80,14 @@ const gatewaySecretHandleKeyBytes = 32
 // on its reconnect sync. Both are keyed, so a handle seen in an artifact or a gateway log can't be used to check a
 // guess at the value.
 func gatewaySecretHandle(key []byte, path, value string) (handle, hash string) {
-	id := keyedDigest(key, "amp-gateway-secret-id\x00"+path)
 	version := keyedDigest(key, "amp-gateway-secret-value\x00"+path+"\x00"+value)
-	return "amp-" + id[:24] + "-" + version[:16], version
+	return gatewaySecretHandlePrefix(key, path) + version[:16], version
+}
+
+// gatewaySecretHandlePrefix is the part of path's handle that does not depend on its value, so a handle can be
+// matched to its path without reading any secret.
+func gatewaySecretHandlePrefix(key []byte, path string) string {
+	return "amp-" + keyedDigest(key, "amp-gateway-secret-id\x00"+path)[:24] + "-"
 }
 
 func keyedDigest(key []byte, message string) string {
@@ -189,16 +196,37 @@ func (s *GatewayInternalAPIService) ListGatewaySecrets(
 }
 
 // GetGatewaySecretValue returns the value of the secret handle names, when an artifact deployed to the gateway
-// refers to it. Any other handle, including one of another gateway or organization, is not found.
+// refers to it. Any other handle, including one of another gateway or organization, is not found. Only the secret
+// the handle names is read, so another artifact's missing or unreadable credential does not affect it.
 func (s *GatewayInternalAPIService) GetGatewaySecretValue(ctx context.Context, ouID, gatewayID, handle string) (string, error) {
-	secrets, err := s.gatewaySecrets(ctx, ouID, gatewayID)
+	refs, err := s.gatewaySecretRefs(ctx, ouID, gatewayID)
 	if err != nil {
 		return "", err
 	}
-	for _, sec := range secrets {
-		if sec.handle == handle {
-			return sec.value, nil
+	if len(refs) == 0 {
+		return "", gwerr.ErrGatewaySecretNotFound
+	}
+	key, err := s.gatewaySecretHandleKey(ctx, ouID)
+	if err != nil {
+		return "", err
+	}
+	for _, ref := range refs {
+		if !strings.HasPrefix(handle, gatewaySecretHandlePrefix(key, ref)) {
+			continue
 		}
+		value, err := s.readSecretRef(ctx, ouID, ref)
+		if errors.Is(err, modkit.ErrNotFound) {
+			return "", gwerr.ErrGatewaySecretNotFound
+		}
+		if err != nil {
+			return "", err
+		}
+		// A handle of an earlier value of this secret is not found: the gateway fetches the current one when the
+		// artifact naming it is redeployed.
+		if current, _ := gatewaySecretHandle(key, ref, value); current != handle {
+			return "", gwerr.ErrGatewaySecretNotFound
+		}
+		return value, nil
 	}
 	return "", gwerr.ErrGatewaySecretNotFound
 }
@@ -207,9 +235,40 @@ type gatewaySecret struct {
 	handle, hash, value string
 }
 
-// gatewaySecrets reads the secrets the gateway's deployed artifacts refer to, in handle order. They are found the
-// way the deployments are rendered for the gateway, so the gateway is offered exactly the handles it is sent.
+// gatewaySecrets reads the secrets the gateway's deployed artifacts refer to, in handle order. A reference whose
+// secret is gone, such as a credential cleared after the artifact was deployed, is left out, so it does not stop
+// the gateway restoring the others; any other failure to read one fails the list.
 func (s *GatewayInternalAPIService) gatewaySecrets(ctx context.Context, ouID, gatewayID string) ([]gatewaySecret, error) {
+	refs, err := s.gatewaySecretRefs(ctx, ouID, gatewayID)
+	if err != nil || len(refs) == 0 {
+		return nil, err
+	}
+	key, err := s.gatewaySecretHandleKey(ctx, ouID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]gatewaySecret, 0, len(refs))
+	for _, ref := range refs {
+		value, err := s.readSecretRef(ctx, ouID, ref)
+		if errors.Is(err, modkit.ErrNotFound) {
+			slog.WarnContext(ctx, "GatewayInternalAPIService: a deployed artifact refers to a secret that no longer exists",
+				"gatewayID", gatewayID, "secretRef", ref)
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		handle, hash := gatewaySecretHandle(key, ref, value)
+		out = append(out, gatewaySecret{handle: handle, hash: hash, value: value})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].handle < out[j].handle })
+	return out, nil
+}
+
+// gatewaySecretRefs lists the secretRefs the gateway's deployed artifacts name, without reading any secret. They are
+// found the way the deployments are rendered for the gateway, so the gateway is offered exactly the handles it is
+// sent. A gateway that takes secrets inline has none.
+func (s *GatewayInternalAPIService) gatewaySecretRefs(ctx context.Context, ouID, gatewayID string) ([]string, error) {
 	delivery, err := s.gatewaySecretDelivery(gatewayID)
 	if err != nil {
 		return nil, err
@@ -253,22 +312,10 @@ func (s *GatewayInternalAPIService) gatewaySecrets(ctx context.Context, ouID, ga
 		}
 	}
 
-	if len(refs) == 0 {
-		return nil, nil
-	}
-	key, err := s.gatewaySecretHandleKey(ctx, ouID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]gatewaySecret, 0, len(refs))
+	out := make([]string, 0, len(refs))
 	for ref := range refs {
-		value, err := s.readSecretRef(ctx, ouID, ref)
-		if err != nil {
-			return nil, err
-		}
-		handle, hash := gatewaySecretHandle(key, ref, value)
-		out = append(out, gatewaySecret{handle: handle, hash: hash, value: value})
+		out = append(out, ref)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].handle < out[j].handle })
+	sort.Strings(out)
 	return out, nil
 }
