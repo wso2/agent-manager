@@ -98,20 +98,23 @@ func keyedDigest(key []byte, message string) string {
 
 // gatewaySecretHandleKey returns the organization's handle key, creating it the first time one of its secrets is
 // sent by reference. It is kept in the organization's secret store, with its credentials, and read once per request
-// rather than cached, so replicas agree on it. Two replicas creating it at the same moment can briefly disagree; a
-// gateway then fails to fetch a handle and the deployment is retried.
+// rather than cached, so replicas agree on it. It is created only if absent, so replicas creating it at the same
+// moment all use the one that was stored first; a key one of them overwrote would leave handles no gateway can fetch.
 func (s *GatewayInternalAPIService) gatewaySecretHandleKey(ctx context.Context, ouID string) ([]byte, error) {
 	stored, err := s.secrets.Get(ctx, ouID, gatewaySecretHandleKeyPath)
 	if errors.Is(err, modkit.ErrNotFound) {
+		creator, ok := s.secrets.(modkit.SecretCreator)
+		if !ok {
+			return nil, errors.New("the secret store cannot create the gateway secret handle key atomically")
+		}
 		fresh := make([]byte, gatewaySecretHandleKeyBytes)
 		if _, err := rand.Read(fresh); err != nil {
 			return nil, fmt.Errorf("failed to generate the gateway secret handle key: %w", err)
 		}
-		if err := s.secrets.Put(ctx, ouID, gatewaySecretHandleKeyPath, hex.EncodeToString(fresh)); err != nil {
+		stored, err = creator.Create(ctx, ouID, gatewaySecretHandleKeyPath, hex.EncodeToString(fresh))
+		if err != nil {
 			return nil, fmt.Errorf("failed to store the gateway secret handle key: %w", err)
 		}
-		// Use what the store holds, which is the last key written if another replica created one too.
-		stored, err = s.secrets.Get(ctx, ouID, gatewaySecretHandleKeyPath)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the gateway secret handle key: %w", err)

@@ -62,6 +62,17 @@ func (s *Secrets) Delete(_ context.Context, orgID, path string) error {
 	return nil
 }
 
+// Create stores value at path unless path holds one, and returns what path holds.
+func (s *Secrets) Create(_ context.Context, orgID, path, value string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if v, ok := s.m[orgID+"|"+path]; ok {
+		return v, nil
+	}
+	s.m[orgID+"|"+path] = value
+	return value, nil
+}
+
 func (s *Secrets) In(*gorm.DB) modkit.Secrets { return s }
 
 // Prepare has nothing to stage: the fake keeps values in memory.

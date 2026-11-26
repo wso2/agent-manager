@@ -653,3 +653,122 @@ func TestSecretStoreAcceptsAnyOrgIDSpelling(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "third", string(value))
 }
+
+// moduleSecretID is the id of the owner's one module secret row.
+func moduleSecretID(t *testing.T, org, kind string, owner uuid.UUID) uuid.UUID {
+	t.Helper()
+	var ids []uuid.UUID
+	require.NoError(t, db.GetDB().Model(&models.Secret{}).
+		Where("org_id = ? AND owner_kind = ? AND owner_id = ?", canonicalOrgID(org), kind, owner).Pluck("id", &ids).Error)
+	require.Len(t, ids, 1)
+	return ids[0]
+}
+
+// Create stores a first value and then keeps it: a later Create returns the stored value instead of replacing it.
+func TestModuleSecretCreateKeepsTheFirstValue(t *testing.T) {
+	ctx, store := context.Background(), testSecrets(t)
+	modules := NewModuleSecretStore(db.GetDB(), store)
+	org, kind, owner := newOrg(t), "mod:t-create", uuid.New()
+
+	got, err := modules.Create(ctx, nil, org, kind, owner, "first")
+	require.NoError(t, err)
+	assert.Equal(t, "first", got)
+	id := moduleSecretID(t, org, kind, owner)
+	t.Cleanup(func() { _ = store.Delete(ctx, db.GetDB(), id) })
+
+	got, err = modules.Create(ctx, nil, org, kind, owner, "second")
+	require.NoError(t, err)
+	assert.Equal(t, "first", got)
+	stored, ok, err := modules.Get(ctx, nil, org, kind, owner)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, "first", stored)
+	assert.Equal(t, 1, secretRow(t, id).Version, "a Create that finds a value does not write")
+}
+
+// Concurrent first Creates of one secret all return the one value that was stored, so replicas generating a key on
+// first use agree on it.
+func TestConcurrentModuleSecretCreatesAgreeOnOneValue(t *testing.T) {
+	ctx, store := context.Background(), testSecrets(t)
+	modules := NewModuleSecretStore(db.GetDB(), store)
+	org, kind, owner := newOrg(t), "mod:t-create-race", uuid.New()
+
+	const creators = 6
+	start := make(chan struct{})
+	type result struct {
+		value string
+		err   error
+	}
+	results := make(chan result, creators)
+	for i := range creators {
+		go func() {
+			<-start
+			v, err := modules.Create(ctx, nil, org, kind, owner, string(rune('a'+i)))
+			results <- result{v, err}
+		}()
+	}
+	close(start)
+	values := map[string]bool{}
+	for range creators {
+		r := <-results
+		if assert.NoError(t, r.err) {
+			values[r.value] = true
+		}
+	}
+	id := moduleSecretID(t, org, kind, owner)
+	t.Cleanup(func() { _ = store.Delete(ctx, db.GetDB(), id) })
+	stored, ok, err := modules.Get(ctx, nil, org, kind, owner)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, map[string]bool{stored: true}, values, "every Create returned the stored value")
+	assert.Equal(t, 1, secretRow(t, id).Version, "only one Create wrote")
+}
+
+// referenceVault is a reference-only external vault, as OpenBao is: values are staged before the transaction that
+// records them, and an abandoned staging is removed.
+type referenceVault struct{ *vaulttest.External }
+
+func (v referenceVault) Reserve(ref vault.Ref) (string, error) { return v.PromotionReference(ref) }
+
+func (v referenceVault) Abandon(ctx context.Context, ref vault.Ref, reference string) error {
+	return v.Destroy(ctx, ref, vault.Sealed{ExternalRef: reference})
+}
+
+// Under a reference-only vault, a Create that loses to an existing row leaves the existing value in place and the
+// value it staged to the staging's cleanup job.
+func TestReferenceVaultCreateThatLosesLeavesItsStagedValueToCleanup(t *testing.T) {
+	local, err := vault.NewLocal(vaulttest.Key)
+	require.NoError(t, err)
+	external := vaulttest.NewExternal()
+	vaults := vault.Of(referenceVault{external}, local)
+	ctx, gdb := context.Background(), db.GetDB()
+	store := NewSecretStore(vaults)
+	runner := NewSecretJobRunner(gdb, vaults, slog.New(slog.DiscardHandler))
+	org, id := newOrg(t), NewID()
+	runner.orgID = canonicalOrgID(org)
+	t.Cleanup(func() {
+		_ = ReleaseSecret(gdb, &id)
+		_ = gdb.Where("secret_id = ?", id).Delete(&models.SecretJob{}).Error
+	})
+
+	require.NoError(t, store.Write(ctx, gdb, org, "test_owner", id, id, []byte("winner")))
+	require.Equal(t, 1, external.Len())
+
+	staged, err := store.PrepareWrite(ctx, gdb, org, "test_owner", id, []byte("loser"))
+	require.NoError(t, err)
+	require.Equal(t, 2, external.Len(), "the losing value is staged in the vault")
+	created, err := store.create(staged, gdb, org, "test_owner", id, id, []byte("loser"))
+	require.NoError(t, err)
+	assert.False(t, created)
+	got, found, err := store.Read(ctx, gdb, id)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, "winner", string(got))
+
+	_, _, err = runner.RunOnce(ctx, time.Now().UTC().Add(stagedSecretTTL+time.Minute))
+	require.NoError(t, err)
+	assert.Equal(t, 1, external.Len(), "the staged losing value is destroyed")
+	got, _, err = store.Read(ctx, gdb, id)
+	require.NoError(t, err)
+	assert.Equal(t, "winner", string(got))
+}

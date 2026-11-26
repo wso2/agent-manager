@@ -227,6 +227,15 @@ type Secrets interface {
 	In(tx *gorm.DB) Secrets
 }
 
+// SecretCreator is implemented by Secrets that can store a path's first value atomically, for a value every replica
+// must agree on, such as a key generated on first use.
+type SecretCreator interface {
+	// Create stores value at path unless path holds one, and returns what path holds afterwards: value, or what a
+	// concurrent Create stored first. Concurrent Creates of one path all return the same value. Like Put, it needs
+	// Prepare first when called inside a transaction under an external vault.
+	Create(ctx context.Context, orgID, path, value string) (string, error)
+}
+
 // APIDescriber is implemented by modules that describe the routes they mount
 // with Runtime.Handle in an OpenAPI 3 document, usually embedded from
 // api/openapi.yaml. Its servers entry is /m/<name>, so paths are relative to

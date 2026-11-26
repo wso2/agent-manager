@@ -111,6 +111,41 @@ func (s *ModuleSecretStore) Put(ctx context.Context, tx *gorm.DB, orgID, kind st
 	})
 }
 
+// Create stores value as the owner's secret unless it has one, and returns what the owner's secret holds afterwards:
+// value, or the value a concurrent first write stored. Concurrent Creates meet on the row id writeID derives from the
+// owner, so they all return the same value.
+func (s *ModuleSecretStore) Create(ctx context.Context, tx *gorm.DB, orgID, kind string, owner uuid.UUID, value string) (string, error) {
+	org, err := uuid.Parse(orgID)
+	if err != nil {
+		return "", err
+	}
+	if existing, ok, err := s.Get(ctx, tx, org.String(), kind, owner); err != nil || ok {
+		return existing, err
+	}
+	if tx == nil {
+		ctx, err = s.Prepare(ctx, org.String(), kind, owner, value)
+		if err != nil {
+			return "", err
+		}
+	}
+	err = s.conn(ctx, tx).Transaction(func(db *gorm.DB) error {
+		id, err := s.writeID(db, org.String(), kind, owner)
+		if err != nil {
+			return err
+		}
+		_, err = s.secrets.create(ctx, db, org.String(), kind, owner, id, []byte(value))
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	stored, ok, err := s.Get(ctx, tx, org.String(), kind, owner)
+	if err == nil && !ok {
+		err = fmt.Errorf("%s secret %s was deleted while it was created", kind, owner)
+	}
+	return stored, err
+}
+
 // Get reads the owner's secret; ok is false when there is none.
 func (s *ModuleSecretStore) Get(ctx context.Context, tx *gorm.DB, orgID, kind string, owner uuid.UUID) (string, bool, error) {
 	db := s.conn(ctx, tx)

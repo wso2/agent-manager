@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -334,3 +335,62 @@ func TestGatewaySecretValueReadsOnlyTheNamedSecret(t *testing.T) {
 	_, err = svc.ListGatewaySecrets(ctx, "ou-1", "gw-1", true)
 	assert.ErrorContains(t, err, "vault unavailable")
 }
+
+// lateKeySecrets is a secret store in which another replica creates the handle key just after this one found none:
+// the first read of the key misses although the key is stored.
+type lateKeySecrets struct {
+	*gwtest.Secrets
+	missed bool
+}
+
+func (s *lateKeySecrets) Get(ctx context.Context, orgID, path string) (string, error) {
+	if path == gatewaySecretHandleKeyPath && !s.missed {
+		s.missed = true
+		return "", modkit.ErrNotFound
+	}
+	return s.Secrets.Get(ctx, orgID, path)
+}
+
+func (s *lateKeySecrets) In(*gorm.DB) modkit.Secrets { return s }
+
+// A replica that finds no handle key while another is creating one must use the key that was stored, not overwrite
+// it: the other replica may already have sent handles under it.
+func TestGatewaySecretHandleKeyCreatedConcurrentlyIsNotReplaced(t *testing.T) {
+	secrets := &lateKeySecrets{Secrets: gwtest.NewSecrets()}
+	ctx := context.Background()
+	winner := strings.Repeat("ab", gatewaySecretHandleKeyBytes)
+	require.NoError(t, secrets.Put(ctx, "ou-1", gatewaySecretHandleKeyPath, winner))
+	svc := NewGatewayInternalAPIService(nil, nil, nil, nil, nil, nil, secrets, gatewayKinds())
+
+	key, err := svc.gatewaySecretHandleKey(ctx, "ou-1")
+	require.NoError(t, err)
+	require.True(t, secrets.missed)
+	assert.Equal(t, winner, hex.EncodeToString(key))
+	stored, err := secrets.Get(ctx, "ou-1", gatewaySecretHandleKeyPath)
+	require.NoError(t, err)
+	assert.Equal(t, winner, stored)
+}
+
+// A store that cannot create a key atomically is refused rather than risking two keys.
+func TestGatewaySecretHandleKeyNeedsAtomicCreate(t *testing.T) {
+	svc := NewGatewayInternalAPIService(nil, nil, nil, nil, nil, nil, putOnlySecrets{gwtest.NewSecrets()}, gatewayKinds())
+	_, err := svc.gatewaySecretHandleKey(context.Background(), "ou-1")
+	assert.ErrorContains(t, err, "atomically")
+}
+
+// putOnlySecrets hides gwtest.Secrets' Create.
+type putOnlySecrets struct{ s *gwtest.Secrets }
+
+func (p putOnlySecrets) Prepare(ctx context.Context, o, path, v string) (context.Context, error) {
+	return p.s.Prepare(ctx, o, path, v)
+}
+func (p putOnlySecrets) Put(ctx context.Context, o, path, v string) error {
+	return p.s.Put(ctx, o, path, v)
+}
+func (p putOnlySecrets) Get(ctx context.Context, o, path string) (string, error) {
+	return p.s.Get(ctx, o, path)
+}
+func (p putOnlySecrets) Delete(ctx context.Context, o, path string) error {
+	return p.s.Delete(ctx, o, path)
+}
+func (p putOnlySecrets) In(*gorm.DB) modkit.Secrets { return p }

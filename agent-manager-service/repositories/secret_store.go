@@ -71,6 +71,33 @@ func (s *SecretStore) Write(ctx context.Context, tx *gorm.DB, orgID, ownerKind s
 // writeAttempts bounds how often write retries a row that was deleted between losing the insert and locking it.
 const writeAttempts = 3
 
+// errSecretExists rolls back a create that found the secret's row already there.
+var errSecretExists = errors.New("secret already exists")
+
+// create stores value as the secret's first value and reports whether it did. When the row already exists it changes
+// nothing: the publication of a value staged for it rolls back, so the staging's cleanup job removes that value.
+func (s *SecretStore) create(ctx context.Context, tx *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) (bool, error) {
+	orgID = canonicalOrgID(orgID)
+	err := tx.WithContext(ctx).Transaction(func(db *gorm.DB) error {
+		provider, sealed, err := s.sealWrite(ctx, db, orgID, ownerKind, id, value)
+		if err != nil {
+			return err
+		}
+		created, err := s.insert(db, orgID, ownerKind, ownerID, id, provider, sealed)
+		if err != nil {
+			return err
+		}
+		if !created {
+			return errSecretExists
+		}
+		return nil
+	})
+	if errors.Is(err, errSecretExists) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (s *SecretStore) write(ctx context.Context, tx *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) error {
 	orgID = canonicalOrgID(orgID)
 	db := tx.WithContext(ctx)

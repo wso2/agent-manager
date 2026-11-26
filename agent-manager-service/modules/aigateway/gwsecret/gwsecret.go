@@ -84,6 +84,23 @@ func (st *Store) Get(ctx context.Context, orgID, path string) (string, error) {
 	return st.In(nil).Get(ctx, orgID, path)
 }
 
+// Create stores value at path unless path holds one; see modkit.SecretCreator.
+func (st *Store) Create(ctx context.Context, orgID, path, value string) (string, error) {
+	return txStore{st: st, tx: nil}.Create(ctx, orgID, path, value)
+}
+
+func (t txStore) Create(ctx context.Context, orgID, path, value string) (string, error) {
+	s, err := t.secrets()
+	if err != nil {
+		return "", err
+	}
+	creator, ok := s.(modkit.SecretCreator)
+	if !ok {
+		return "", modkit.ErrNotImplemented
+	}
+	return creator.Create(ctx, orgID, path, value)
+}
+
 func (st *Store) Delete(ctx context.Context, orgID, path string) error {
 	return st.In(nil).Delete(ctx, orgID, path)
 }
