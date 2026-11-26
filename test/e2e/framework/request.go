@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
+	"strings"
 
 	. "github.com/onsi/gomega"
 )
@@ -115,4 +117,14 @@ func Field(items []Obj, key string) []string {
 		out = append(out, Str(it, key))
 	}
 	return out
+}
+
+// GWAgent returns an AI Gateway path below an agent, with its project in the query: GWAgent(p, a, "/model-configs/%s", id).
+func GWAgent(project, agent, format string, args ...any) string {
+	p := "/m/ai-gateway/agents/" + url.PathEscape(agent) + fmt.Sprintf(format, args...)
+	sep := "?"
+	if strings.Contains(p, "?") {
+		sep = "&"
+	}
+	return p + sep + url.Values{"project": {project}}.Encode()
 }

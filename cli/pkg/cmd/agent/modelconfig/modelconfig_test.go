@@ -71,7 +71,7 @@ func Test_OptionalString(t *testing.T) {
 		want *string
 	}{
 		{name: "empty is nil", in: "", want: nil},
-		{name: "non-empty", in: "primary model", want: StringPtr("primary model")},
+		{name: "non-empty", in: "primary model", want: func() *string { v := "primary model"; return &v }()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,39 +80,5 @@ func Test_OptionalString(t *testing.T) {
 				t.Errorf("OptionalString(%q) = %v, want %v", tt.in, got, tt.want)
 			}
 		})
-	}
-}
-
-func Test_MergeExistingEnvMappings(t *testing.T) {
-	resp := &aigateway.AgentModelConfigResponse{
-		EnvMappings: map[string]aigateway.EnvProviderConfigMappings{
-			"dev":  {EnvironmentName: "dev", Configuration: &aigateway.ProviderConfig{ProviderName: "openai"}},
-			"prod": {EnvironmentName: "prod"},
-		},
-	}
-	// Stub transform echoes the environment name so routing per env is observable.
-	stub := func(m aigateway.EnvProviderConfigMappings) aigateway.EnvModelConfigRequest {
-		return aigateway.EnvModelConfigRequest{ProviderName: StringPtr(m.EnvironmentName)}
-	}
-
-	got := MergeExistingEnvMappings(resp, stub)
-
-	if len(got) != 2 {
-		t.Fatalf("len(got) = %d, want 2", len(got))
-	}
-	for _, env := range []string{"dev", "prod"} {
-		if p := got[env].ProviderName; p == nil || *p != env {
-			t.Errorf("%s provider = %v, want %s", env, p, env)
-		}
-	}
-}
-
-func Test_MergeExistingEnvMappings_empty(t *testing.T) {
-	got := MergeExistingEnvMappings(&aigateway.AgentModelConfigResponse{}, func(aigateway.EnvProviderConfigMappings) aigateway.EnvModelConfigRequest {
-		t.Fatal("transform called for empty response")
-		return aigateway.EnvModelConfigRequest{}
-	})
-	if got == nil || len(got) != 0 {
-		t.Errorf("got %#v, want empty non-nil map", got)
 	}
 }

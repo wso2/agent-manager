@@ -105,7 +105,7 @@ func runStatus(ctx context.Context, o *StatusOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.ListAgentDeploymentsWithResponse(ctx, o.Org, o.Proj, o.AgentName)
+	resp, err := client.ListAgentDeploymentsWithResponse(ctx, o.AgentName, &aigateway.ListAgentDeploymentsParams{Project: o.Proj})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

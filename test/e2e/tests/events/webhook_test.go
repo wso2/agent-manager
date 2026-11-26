@@ -219,8 +219,10 @@ var _ = Describe("Event delivery to a webhook", Label("events"), Ordered, func()
 			To(ContainElement(asID))
 
 		// The agent's subscription delivers its own update.
-		framework.Call(Default, Client, http.MethodPut, framework.API(Cfg, "/projects/%s/agents/%s", shared, agent),
-			framework.Obj{"displayName": "Renamed " + suffix, "description": "events"}, http.StatusOK)
+		renamed := agentops.GetAgent(Default, Client, Cfg.DefaultOrg, shared, agent)
+		renamed.Status = nil
+		renamed.Spec.DisplayName, renamed.Spec.Description = "Renamed "+suffix, "events"
+		framework.Call(Default, Client, http.MethodPut, agentops.AgentPath(shared, agent), renamed, http.StatusOK)
 		Eventually(func() []delivery { return s.matching(agent) }).WithTimeout(60 * time.Second).WithPolling(time.Second).ShouldNot(BeEmpty())
 		Eventually(func(g Gomega) {
 			g.Expect(framework.Items(framework.CallObj(g, Client, http.MethodGet, ag("/deliveries"), nil, http.StatusOK), "deliveries")).NotTo(BeEmpty())

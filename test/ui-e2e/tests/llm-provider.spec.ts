@@ -15,7 +15,7 @@ test.describe.serial('LLM providers and proxies', () => {
 
   test.afterAll(async ({ api, workerProject }) => {
     // A provider an agent still uses can't go: remove the agent first.
-    await api.delete(`${api.org}/projects/${workerProject}/agents/${agent}`);
+    await api.delete(api.agentPath(workerProject, agent));
     if (!providerId) return;
     await expect
       .poll(
@@ -79,7 +79,7 @@ test.describe.serial('LLM providers and proxies', () => {
       await configure.goto(workerProject, agent);
       await expect(configure.config(configName)).toBeVisible();
       const got = await api.get(
-        `${api.gw}/projects/${workerProject}/agents/${agent}/model-configs`,
+        `/m/ai-gateway/agents/${encodeURIComponent(agent)}/model-configs?project=${encodeURIComponent(workerProject)}`,
       );
       expect(got.status).toBe(200);
       expect(JSON.stringify(got.body)).toContain(configName);

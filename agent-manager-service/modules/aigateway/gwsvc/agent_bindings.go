@@ -176,7 +176,7 @@ func (s *AgentGatewayService) ValidateAgentExtension(ctx context.Context, tx *go
 				"the AI Gateway is still revoking what a deleted agent named %q in project %q held; retry shortly or use another name", name, project)}
 		}
 	} else if ext.Settings != nil {
-		return modkit.Reject("extensions.ai-gateway.settings is accepted on create only; change the settings with PUT /m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings")
+		return modkit.Reject("extensions.ai-gateway.settings is accepted on create only; change the settings with PUT /m/ai-gateway/agents/{agentName}/deploy-settings?project={project}")
 	}
 	if ext.ModelConfig != nil {
 		handles := make([]string, 0, len(*ext.ModelConfig))

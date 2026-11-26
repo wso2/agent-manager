@@ -25,12 +25,16 @@ type LLMAPIKeysAPIService service
 type ApiCreateLLMConfigAPIKeyRequest struct {
 	ctx                    context.Context
 	ApiService             *LLMAPIKeysAPIService
-	orgName                string
-	projName               string
 	agentName              string
+	project                *string
 	configId               string
-	envName                string
 	createLLMAPIKeyRequest *CreateLLMAPIKeyRequest
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiCreateLLMConfigAPIKeyRequest) Project(project string) ApiCreateLLMConfigAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiCreateLLMConfigAPIKeyRequest) CreateLLMAPIKeyRequest(createLLMAPIKeyRequest CreateLLMAPIKeyRequest) ApiCreateLLMConfigAPIKeyRequest {
@@ -48,22 +52,16 @@ CreateLLMConfigAPIKey Generate an API key for an external agent's model configur
 Generates a new API key for an external agent's model configuration and broadcasts it to all connected gateways. The key is returned only once.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Model configuration UUID
-	@param envName Environment name
 	@return ApiCreateLLMConfigAPIKeyRequest
 */
-func (a *LLMAPIKeysAPIService) CreateLLMConfigAPIKey(ctx context.Context, orgName string, projName string, agentName string, configId string, envName string) ApiCreateLLMConfigAPIKeyRequest {
+func (a *LLMAPIKeysAPIService) CreateLLMConfigAPIKey(ctx context.Context, agentName string, configId string) ApiCreateLLMConfigAPIKeyRequest {
 	return ApiCreateLLMConfigAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
-		envName:    envName,
 	}
 }
 
@@ -83,20 +81,21 @@ func (a *LLMAPIKeysAPIService) CreateLLMConfigAPIKeyExecute(r ApiCreateLLMConfig
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/model-configs/{configId}/api-keys"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envName"+"}", url.PathEscape(parameterValueToString(r.envName, "envName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 	if r.createLLMAPIKeyRequest == nil {
 		return localVarReturnValue, nil, reportError("createLLMAPIKeyRequest is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -560,11 +559,15 @@ func (a *LLMAPIKeysAPIService) CreateLLMProxyAPIKeyExecute(r ApiCreateLLMProxyAP
 type ApiListLLMConfigAPIKeysRequest struct {
 	ctx        context.Context
 	ApiService *LLMAPIKeysAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	configId   string
-	envName    string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiListLLMConfigAPIKeysRequest) Project(project string) ApiListLLMConfigAPIKeysRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiListLLMConfigAPIKeysRequest) Execute() (*ListAPIKeysResponse, *http.Response, error) {
@@ -574,25 +577,19 @@ func (r ApiListLLMConfigAPIKeysRequest) Execute() (*ListAPIKeysResponse, *http.R
 /*
 ListLLMConfigAPIKeys List API keys for an external agent's model configuration
 
-Returns the API key(s) for an external agent's model configuration in the given environment (masked values only).
+Returns the API key(s) for an external agent's model configuration (masked values only).
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Model configuration UUID
-	@param envName Environment name
 	@return ApiListLLMConfigAPIKeysRequest
 */
-func (a *LLMAPIKeysAPIService) ListLLMConfigAPIKeys(ctx context.Context, orgName string, projName string, agentName string, configId string, envName string) ApiListLLMConfigAPIKeysRequest {
+func (a *LLMAPIKeysAPIService) ListLLMConfigAPIKeys(ctx context.Context, agentName string, configId string) ApiListLLMConfigAPIKeysRequest {
 	return ApiListLLMConfigAPIKeysRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
-		envName:    envName,
 	}
 }
 
@@ -612,17 +609,18 @@ func (a *LLMAPIKeysAPIService) ListLLMConfigAPIKeysExecute(r ApiListLLMConfigAPI
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/model-configs/{configId}/api-keys"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envName"+"}", url.PathEscape(parameterValueToString(r.envName, "envName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -985,12 +983,16 @@ func (a *LLMAPIKeysAPIService) ListLLMProxyAPIKeysExecute(r ApiListLLMProxyAPIKe
 type ApiRevokeLLMConfigAPIKeyRequest struct {
 	ctx        context.Context
 	ApiService *LLMAPIKeysAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	configId   string
-	envName    string
 	keyName    string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiRevokeLLMConfigAPIKeyRequest) Project(project string) ApiRevokeLLMConfigAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRevokeLLMConfigAPIKeyRequest) Execute() (*http.Response, error) {
@@ -1003,23 +1005,17 @@ RevokeLLMConfigAPIKey Delete an external agent's model configuration API key
 Revokes and removes the API key for an external agent's model configuration and broadcasts the revocation to all connected gateways.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Model configuration UUID
-	@param envName Environment name
 	@param keyName API key name/identifier
 	@return ApiRevokeLLMConfigAPIKeyRequest
 */
-func (a *LLMAPIKeysAPIService) RevokeLLMConfigAPIKey(ctx context.Context, orgName string, projName string, agentName string, configId string, envName string, keyName string) ApiRevokeLLMConfigAPIKeyRequest {
+func (a *LLMAPIKeysAPIService) RevokeLLMConfigAPIKey(ctx context.Context, agentName string, configId string, keyName string) ApiRevokeLLMConfigAPIKeyRequest {
 	return ApiRevokeLLMConfigAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
-		envName:    envName,
 		keyName:    keyName,
 	}
 }
@@ -1037,18 +1033,19 @@ func (a *LLMAPIKeysAPIService) RevokeLLMConfigAPIKeyExecute(r ApiRevokeLLMConfig
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/model-configs/{configId}/api-keys/{keyName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envName"+"}", url.PathEscape(parameterValueToString(r.envName, "envName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -1419,13 +1416,17 @@ func (a *LLMAPIKeysAPIService) RevokeLLMProxyAPIKeyExecute(r ApiRevokeLLMProxyAP
 type ApiRotateLLMConfigAPIKeyRequest struct {
 	ctx                    context.Context
 	ApiService             *LLMAPIKeysAPIService
-	orgName                string
-	projName               string
 	agentName              string
+	project                *string
 	configId               string
-	envName                string
 	keyName                string
 	rotateLLMAPIKeyRequest *RotateLLMAPIKeyRequest
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiRotateLLMConfigAPIKeyRequest) Project(project string) ApiRotateLLMConfigAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRotateLLMConfigAPIKeyRequest) RotateLLMAPIKeyRequest(rotateLLMAPIKeyRequest RotateLLMAPIKeyRequest) ApiRotateLLMConfigAPIKeyRequest {
@@ -1443,23 +1444,17 @@ RotateLLMConfigAPIKey Regenerate an external agent's model configuration API key
 Revokes the current API key and generates a new value under the same key name, broadcasting the update to all connected gateways. The new key is returned only once.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Model configuration UUID
-	@param envName Environment name
 	@param keyName API key name/identifier
 	@return ApiRotateLLMConfigAPIKeyRequest
 */
-func (a *LLMAPIKeysAPIService) RotateLLMConfigAPIKey(ctx context.Context, orgName string, projName string, agentName string, configId string, envName string, keyName string) ApiRotateLLMConfigAPIKeyRequest {
+func (a *LLMAPIKeysAPIService) RotateLLMConfigAPIKey(ctx context.Context, agentName string, configId string, keyName string) ApiRotateLLMConfigAPIKeyRequest {
 	return ApiRotateLLMConfigAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
-		envName:    envName,
 		keyName:    keyName,
 	}
 }
@@ -1480,18 +1475,19 @@ func (a *LLMAPIKeysAPIService) RotateLLMConfigAPIKeyExecute(r ApiRotateLLMConfig
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/model-configs/{configId}/api-keys/{keyName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envName"+"}", url.PathEscape(parameterValueToString(r.envName, "envName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 

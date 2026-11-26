@@ -21,15 +21,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
-const a2aProxyBase = "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy"
+const a2aProxyBase = "/agents/{agentName}/a2a-proxy"
 
 // registerA2AProxyRoutes gates writes like the deploy-settings save and the card-source routes.
 func registerA2AProxyRoutes(rr Router, ctrl gwctl.A2AProxyController) {
-	rr.HandleFuncWithValidationAndAuthz("GET "+a2aProxyBase, gwperm.AgentRead, ctrl.GetA2AProxy)
-	rr.HandleFuncWithValidationAndAllAuthz("PUT "+a2aProxyBase, ctrl.SetA2AProxy,
+	rr.HandleFuncWithValidationAndAuthz("GET "+a2aProxyBase, gwperm.AgentRead, inProject(ctrl.GetA2AProxy))
+	rr.HandleFuncWithValidationAndAllAuthz("PUT "+a2aProxyBase, inProject(ctrl.SetA2AProxy),
 		gwperm.AgentUpdate, gwperm.DeployNonProduction)
-	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+a2aProxyBase, ctrl.DeleteA2AProxy,
+	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+a2aProxyBase, inProject(ctrl.DeleteA2AProxy),
 		gwperm.AgentUpdate, gwperm.DeployNonProduction)
-	rr.HandleFuncWithValidationAndAllAuthz("POST "+a2aProxyBase+"/refresh", ctrl.RefreshA2AProxy,
+	rr.HandleFuncWithValidationAndAllAuthz("POST "+a2aProxyBase+"/refresh", inProject(ctrl.RefreshA2AProxy),
 		gwperm.AgentUpdate, gwperm.DeployNonProduction)
 }

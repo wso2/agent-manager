@@ -31,12 +31,7 @@ func TestList_TextOutput(t *testing.T) {
 	io, _, out, _ := iostreams.Test()
 	io.JSON = false
 	status := "active"
-	client, _, closeFn := newTestClient(t, http.StatusOK, amsvc.AgentListResponse{
-		Agents: []amsvc.AgentResponse{
-			{Name: "order-triage", DisplayName: "Order Triage", Status: &status, CreatedAt: time.Date(2025, 3, 15, 0, 0, 0, 0, time.UTC)},
-		},
-		Limit: 20, Offset: 0, Total: 1,
-	})
+	client, _, closeFn := newTestClient(t, http.StatusOK, agentList(status))
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
@@ -61,12 +56,7 @@ func TestList_TextOutput(t *testing.T) {
 func TestList_JSONOutput(t *testing.T) {
 	io, out, _ := newTestIO(true)
 	status := "active"
-	client, _, closeFn := newTestClient(t, http.StatusOK, amsvc.AgentListResponse{
-		Agents: []amsvc.AgentResponse{
-			{Name: "order-triage", DisplayName: "Order Triage", Status: &status, CreatedAt: time.Date(2025, 3, 15, 0, 0, 0, 0, time.UTC)},
-		},
-		Limit: 20, Offset: 0, Total: 1,
-	})
+	client, _, closeFn := newTestClient(t, http.StatusOK, agentList(status))
 	defer closeFn()
 
 	err := runList(context.Background(), &ListOptions{
@@ -79,5 +69,17 @@ func TestList_JSONOutput(t *testing.T) {
 	env := decodeEnvelope(t, out.String())
 	if _, ok := env["data"]; !ok {
 		t.Fatal("expected data key in JSON envelope")
+	}
+}
+
+func agentList(status string) amsvc.AgentListResponse {
+	created := time.Date(2025, 3, 15, 0, 0, 0, 0, time.UTC)
+	return amsvc.AgentListResponse{
+		Count: 1,
+		List: []amsvc.AgentDocument{{
+			Metadata: amsvc.ProjectScopedDocumentMetadata{Name: "order-triage", Project: "triage", CreationTimestamp: &created},
+			Spec:     amsvc.AgentSpec{DisplayName: "Order Triage"},
+			Status:   &amsvc.AgentStatus{State: &status},
+		}},
 	}
 }

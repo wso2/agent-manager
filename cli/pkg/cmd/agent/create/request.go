@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	provisioningInternal = string(amsvc.Internal)
-	provisioningExternal = string(amsvc.External)
+	provisioningInternal = string(amsvc.ProvisioningTypeInternal)
+	provisioningExternal = string(amsvc.ProvisioningTypeExternal)
 
 	buildTypeBuildpack = string(amsvc.Buildpack)
 	buildTypeDocker    = string(amsvc.Docker)
@@ -110,7 +110,7 @@ func ensureLeadingSlash(s string) string {
 func buildProvisioning(opts *CreateOptions) amsvc.Provisioning {
 	switch opts.Provisioning {
 	case provisioningExternal:
-		return amsvc.Provisioning{Type: amsvc.External}
+		return amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal}
 	case provisioningInternal, "":
 		repo := &amsvc.RepositoryConfig{
 			Url:     opts.RepoURL,
@@ -121,7 +121,7 @@ func buildProvisioning(opts *CreateOptions) amsvc.Provisioning {
 			repo.SecretRef = &opts.RepoSecret
 		}
 		return amsvc.Provisioning{
-			Type:       amsvc.Internal,
+			Type:       amsvc.ProvisioningTypeInternal,
 			Repository: repo,
 		}
 	default:
@@ -294,4 +294,24 @@ func droppedExternalFlags(opts *CreateOptions) []string {
 	disallow("--llm-api-key-env", opts.LLMAPIKeyEnv != "")
 
 	return v
+}
+
+// agentDocument wraps a create request in the Agent document the server takes.
+func agentDocument(project string, req amsvc.CreateAgentRequest) amsvc.AgentDocument {
+	doc := amsvc.AgentDocument{
+		ApiVersion: amsvc.AiControlPlaneChoreolabsComv1,
+		Kind:       amsvc.AgentDocumentKindAgent,
+		Metadata:   amsvc.ProjectScopedDocumentMetadata{Name: req.Name, Project: project},
+		Spec: amsvc.AgentSpec{
+			DisplayName:  req.DisplayName,
+			Description:  req.Description,
+			Provisioning: amsvc.AgentProvisioning{Type: amsvc.AgentProvisioningKind(req.Provisioning.Type)},
+			Labels:       req.Labels,
+			Extensions:   req.Extensions,
+		},
+	}
+	if req.AgentType != nil {
+		doc.Spec.AgentType = *req.AgentType
+	}
+	return doc
 }

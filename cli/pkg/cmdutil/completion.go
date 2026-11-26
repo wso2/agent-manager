@@ -129,8 +129,8 @@ func CompleteProjects(cmd *cobra.Command, f *Factory) []string {
 
 // IsRuntimeManaged returns true if the platform runs the agent, that is, the
 // agent is internally provisioned.
-func IsRuntimeManaged(agent amsvc.AgentResponse) bool {
-	return agent.Provisioning.Type == amsvc.Internal
+func IsRuntimeManaged(agent amsvc.AgentDocument) bool {
+	return string(agent.Spec.Provisioning.Type) == string(amsvc.ProvisioningTypeInternal)
 }
 
 // CompleteAgents returns sorted agent names in the resolved (org, project).
@@ -151,7 +151,7 @@ func CompleteAgents(cmd *cobra.Command, f *Factory) []string {
 		logCompletionErr(op, map[string]string{"org": org, "project": proj}, err)
 		return nil
 	}
-	resp, err := client.ListAgentsWithResponse(ctx, org, proj, &amsvc.ListAgentsParams{})
+	resp, err := client.ListAgentsWithResponse(ctx, &amsvc.ListAgentsParams{Project: &proj})
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org, "project": proj}, err)
 		return nil
@@ -160,9 +160,9 @@ func CompleteAgents(cmd *cobra.Command, f *Factory) []string {
 		logCompletionErr(op, map[string]string{"org": org, "project": proj}, fmt.Errorf("status %d", resp.StatusCode()))
 		return nil
 	}
-	out := make([]string, 0, len(resp.JSON200.Agents))
-	for _, a := range resp.JSON200.Agents {
-		out = append(out, a.Name)
+	out := make([]string, 0, len(resp.JSON200.List))
+	for _, a := range resp.JSON200.List {
+		out = append(out, a.Metadata.Name)
 	}
 	sort.Strings(out)
 	return out

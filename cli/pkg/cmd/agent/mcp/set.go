@@ -111,20 +111,22 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	mapping := aigateway.EnvModelConfigRequest{ProxyName: modelconfig.StringPtr(o.Proxy)}
 	envVars := modelconfig.BuildEnvVars(o.URLEnv, o.APIKeyEnv)
 
-	var result *aigateway.AgentModelConfigResponse
+	var result *aigateway.AgentMcpConfigDocument
 	var verb string
 	if !found {
-		body := aigateway.CreateAgentModelConfigRequest{
-			Name:                 o.Name,
-			Type:                 aigateway.Mcp,
-			EnvMappings:          map[string]aigateway.EnvModelConfigRequest{cmdutil.DefaultEnvironment: mapping},
-			EnvironmentVariables: envVars,
-			Description:          modelconfig.OptionalString(o.Description),
+		body := aigateway.AgentMcpConfigDocument{
+			ApiVersion: aigateway.AgentMcpConfigDocumentApiVersionAiControlPlaneChoreolabsComv1,
+			Kind:       aigateway.AgentMcpConfig,
+			Metadata:   aigateway.ProjectScopedDocumentMetadata{Name: o.Name, Project: o.Proj},
+			Spec: aigateway.AgentMcpConfigSpec{
+				ProxyName:            o.Proxy,
+				EnvironmentVariables: envVars,
+				Description:          modelconfig.OptionalString(o.Description),
+			},
 		}
-		resp, err := client.CreateAgentMCPConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, body)
+		resp, err := client.CreateAgentMCPConfigWithResponse(ctx, o.AgentName, &aigateway.CreateAgentMCPConfigParams{Project: o.Proj}, body)
 		if err != nil {
 			return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 		}
@@ -134,8 +136,8 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		}
 		result, verb = resp.JSON201, "created"
 	} else {
-		// Read-merge-write: PUT replaces the entire envMappings set.
-		current, err := client.GetAgentMCPConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, id)
+		// Read-modify-write: the PUT carries the whole document, so start from the stored one.
+		current, err := client.GetAgentMCPConfigWithResponse(ctx, o.AgentName, id, &aigateway.GetAgentMCPConfigParams{Project: o.Proj})
 		if err != nil {
 			return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 		}
@@ -143,17 +145,16 @@ func runSet(ctx context.Context, o *SetOptions) error {
 			return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(current.HTTPResponse,
 				cmdutil.FirstNonNil(current.JSON400, current.JSON404, current.JSON500)))
 		}
-		merged := modelconfig.MergeExistingEnvMappings(current.JSON200, toEnvModelConfigRequest)
-		merged[cmdutil.DefaultEnvironment] = mapping
-
-		body := aigateway.UpdateAgentModelConfigRequest{EnvMappings: &merged}
+		body := *current.JSON200
+		body.Status = nil
+		body.Spec.ProxyName = o.Proxy
 		if envVars != nil {
-			body.EnvironmentVariables = envVars
+			body.Spec.EnvironmentVariables = envVars
 		}
 		if d := modelconfig.OptionalString(o.Description); d != nil {
-			body.Description = d
+			body.Spec.Description = d
 		}
-		resp, err := client.UpdateAgentMCPConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, id, body)
+		resp, err := client.UpdateAgentMCPConfigWithResponse(ctx, o.AgentName, id, &aigateway.UpdateAgentMCPConfigParams{Project: o.Proj}, body)
 		if err != nil {
 			return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 		}

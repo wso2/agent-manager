@@ -24,97 +24,97 @@ import (
 // RegisterAgentConfigRoutes registers all agent configuration routes
 func RegisterAgentConfigRoutes(rr Router, ctrl gwctl.AgentConfigurationController) {
 	rr.HandleFuncWithValidationAndAuthz(
-		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs",
-		gwperm.AgentUpdate, rr.Track("amp.agent-development.bind-model-config", actionDims("created-model-config-binding"), ctrl.CreateAgentModelConfig),
+		"POST /agents/{agentName}/model-configs",
+		gwperm.AgentUpdate, inProject(rr.Track("amp.agent-development.bind-model-config", actionDims("created-model-config-binding"), ctrl.CreateAgentModelConfig)),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs",
-		gwperm.AgentRead, ctrl.ListAgentModelConfigs,
+		"GET /agents/{agentName}/model-configs",
+		gwperm.AgentRead, inProject(ctrl.ListAgentModelConfigs),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
-		gwperm.AgentRead, ctrl.GetAgentModelConfig,
+		"GET /agents/{agentName}/model-configs/{configId}",
+		gwperm.AgentRead, inProject(ctrl.GetAgentModelConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
-		gwperm.AgentUpdate, rr.Track("amp.agent-development.bind-model-config", actionDims("updated-model-config-binding"), ctrl.UpdateAgentModelConfig),
+		"PUT /agents/{agentName}/model-configs/{configId}",
+		gwperm.AgentUpdate, inProject(rr.Track("amp.agent-development.bind-model-config", actionDims("updated-model-config-binding"), ctrl.UpdateAgentModelConfig)),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
-		gwperm.AgentDelete, rr.Track("amp.agent-development.bind-model-config", actionDims("deleted-model-config-binding"), ctrl.DeleteAgentModelConfig),
+		"DELETE /agents/{agentName}/model-configs/{configId}",
+		gwperm.AgentDelete, inProject(rr.Track("amp.agent-development.bind-model-config", actionDims("deleted-model-config-binding"), ctrl.DeleteAgentModelConfig)),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs",
-		gwperm.AgentUpdate, rr.Track("amp.agent-development.bind-mcp-config", actionDims("created-mcp-config-binding"), ctrl.CreateAgentMCPConfig),
+		"POST /agents/{agentName}/mcp-configs",
+		gwperm.AgentUpdate, inProject(rr.Track("amp.agent-development.bind-mcp-config", actionDims("created-mcp-config-binding"), ctrl.CreateAgentMCPConfig)),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs",
-		gwperm.AgentRead, ctrl.ListAgentMCPConfigs,
+		"GET /agents/{agentName}/mcp-configs",
+		gwperm.AgentRead, inProject(ctrl.ListAgentMCPConfigs),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}",
-		gwperm.AgentRead, ctrl.GetAgentMCPConfig,
+		"GET /agents/{agentName}/mcp-configs/{configId}",
+		gwperm.AgentRead, inProject(ctrl.GetAgentMCPConfig),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}",
-		gwperm.AgentUpdate, rr.Track("amp.agent-development.bind-mcp-config", actionDims("updated-mcp-config-binding"), ctrl.UpdateAgentMCPConfig),
+		"PUT /agents/{agentName}/mcp-configs/{configId}",
+		gwperm.AgentUpdate, inProject(rr.Track("amp.agent-development.bind-mcp-config", actionDims("updated-mcp-config-binding"), ctrl.UpdateAgentMCPConfig)),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}",
-		gwperm.AgentDelete, rr.Track("amp.agent-development.bind-mcp-config", actionDims("deleted-mcp-config-binding"), ctrl.DeleteAgentMCPConfig),
+		"DELETE /agents/{agentName}/mcp-configs/{configId}",
+		gwperm.AgentDelete, inProject(rr.Track("amp.agent-development.bind-mcp-config", actionDims("deleted-mcp-config-binding"), ctrl.DeleteAgentMCPConfig)),
 	)
 
 	// Per-config MCP API keys (external agents): the key an agent uses to call its
-	// MCP server through the gateway, scoped to a configuration + environment.
+	// MCP server through the gateway, scoped to a configuration.
 	rr.HandleFuncWithValidationAndAuthz(
-		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys",
-		gwperm.AgentRead, ctrl.ListMCPConfigAPIKeys,
+		"GET /agents/{agentName}/mcp-configs/{configId}/api-keys",
+		gwperm.AgentRead, inProject(ctrl.ListMCPConfigAPIKeys),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys",
-		gwperm.AgentAPIKeyManage, rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "issued-config-scoped-api-key"), ctrl.CreateMCPConfigAPIKey),
+		"POST /agents/{agentName}/mcp-configs/{configId}/api-keys",
+		gwperm.AgentAPIKeyManage, inProject(rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "issued-config-scoped-api-key"), ctrl.CreateMCPConfigAPIKey)),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		gwperm.AgentAPIKeyManage, rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "rotated-config-scoped-api-key"), ctrl.RotateMCPConfigAPIKey),
+		"PUT /agents/{agentName}/mcp-configs/{configId}/api-keys/{keyName}",
+		gwperm.AgentAPIKeyManage, inProject(rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "rotated-config-scoped-api-key"), ctrl.RotateMCPConfigAPIKey)),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		gwperm.AgentAPIKeyManage, rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "revoked-config-scoped-api-key"), ctrl.RevokeMCPConfigAPIKey),
+		"DELETE /agents/{agentName}/mcp-configs/{configId}/api-keys/{keyName}",
+		gwperm.AgentAPIKeyManage, inProject(rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("mcp-config", "revoked-config-scoped-api-key"), ctrl.RevokeMCPConfigAPIKey)),
 	)
 
 	// Per-config LLM API keys (external agents): the key an agent uses to call its
-	// LLM provider through the gateway, scoped to a configuration + environment.
+	// LLM provider through the gateway, scoped to a configuration.
 	rr.HandleFuncWithValidationAndAuthz(
-		"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys",
-		gwperm.AgentRead, ctrl.ListLLMConfigAPIKeys,
+		"GET /agents/{agentName}/model-configs/{configId}/api-keys",
+		gwperm.AgentRead, inProject(ctrl.ListLLMConfigAPIKeys),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys",
-		gwperm.AgentAPIKeyManage, rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "issued-config-scoped-api-key"), ctrl.CreateLLMConfigAPIKey),
+		"POST /agents/{agentName}/model-configs/{configId}/api-keys",
+		gwperm.AgentAPIKeyManage, inProject(rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "issued-config-scoped-api-key"), ctrl.CreateLLMConfigAPIKey)),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		gwperm.AgentAPIKeyManage, rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "rotated-config-scoped-api-key"), ctrl.RotateLLMConfigAPIKey),
+		"PUT /agents/{agentName}/model-configs/{configId}/api-keys/{keyName}",
+		gwperm.AgentAPIKeyManage, inProject(rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "rotated-config-scoped-api-key"), ctrl.RotateLLMConfigAPIKey)),
 	)
 
 	rr.HandleFuncWithValidationAndAuthz(
-		"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}",
-		gwperm.AgentAPIKeyManage, rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "revoked-config-scoped-api-key"), ctrl.RevokeLLMConfigAPIKey),
+		"DELETE /agents/{agentName}/model-configs/{configId}/api-keys/{keyName}",
+		gwperm.AgentAPIKeyManage, inProject(rr.Track("amp.security-access.config-scoped-api-key", configScopedAPIKeyDims("model-config", "revoked-config-scoped-api-key"), ctrl.RevokeLLMConfigAPIKey)),
 	)
 }
 

@@ -19,10 +19,12 @@ package gwctl
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
@@ -52,7 +54,7 @@ func NewMCPProxyScopeController(svc gwsvc.MCPProxyScopeService) MCPProxyScopeCon
 	return &mcpProxyScopeController{svc: svc}
 }
 
-// ListMCPProxyScopes handles GET /orgs/{orgName}/mcp-proxies/{proxyId}/scopes.
+// ListMCPProxyScopes handles GET /m/ai-gateway/mcp-proxies/{proxyId}/scopes.
 func (c *mcpProxyScopeController) ListMCPProxyScopes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -74,16 +76,13 @@ func (c *mcpProxyScopeController) ListMCPProxyScopes(w http.ResponseWriter, r *h
 		return
 	}
 
-	items := make([]gwspec.MCPProxyScopeResponse, 0, len(result.Scopes))
-	for i := range result.Scopes {
-		items = append(items, toMCPProxyScopeResponse(result.ProxyHandle, result.Scopes[i]))
-	}
+	out := gwconv.MCPProxyScopeList(result)
 
-	log.Info("ListMCPProxyScopes: completed", "ouID", ouID, "proxyID", proxyID, "count", len(items))
-	httpx.WriteSuccessResponse(w, http.StatusOK, gwspec.MCPProxyScopeListResponse{Scopes: items})
+	log.Info("ListMCPProxyScopes: completed", "ouID", ouID, "proxyID", proxyID, "count", len(out.List))
+	httpx.WriteSuccessResponse(w, http.StatusOK, out)
 }
 
-// CreateMCPProxyScope handles POST /orgs/{orgName}/mcp-proxies/{proxyId}/scopes.
+// CreateMCPProxyScope handles POST /m/ai-gateway/mcp-proxies/{proxyId}/scopes.
 func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -92,23 +91,22 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 
 	log.Info("CreateMCPProxyScope: starting", "ouID", ouID, "proxyID", proxyID)
 
-	var body gwspec.MCPProxyScopeRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		log.Error("CreateMCPProxyScope: failed to decode request", "error", err)
+	var doc gwspec.McpProxyScopeDocument
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxDocumentBytes)).Decode(&doc); err != nil {
+		log.Error("CreateMCPProxyScope: failed to decode the document", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	description := ""
-	if body.Description != nil {
-		description = *body.Description
+	// No runtime schema validation, so the converter checks apiVersion, kind and metadata.
+	in, err := gwconv.MCPProxyScopeFromDocument(doc)
+	if err != nil {
+		writeDocumentError(w, ctx, "CreateMCPProxyScope", ouID, err)
+		return
 	}
+	action := in.Action
 
-	result, err := c.svc.Create(ctx, ouID, proxyID, gwmodels.MCPProxyScopeInput{
-		Action:      body.Action,
-		Description: description,
-		Tools:       body.Tools,
-	})
+	result, err := c.svc.Create(ctx, ouID, proxyID, in)
 	if err != nil {
 		switch {
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -122,20 +120,20 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 			log.Warn("CreateMCPProxyScope: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		case errors.Is(err, httpx.ErrConflict):
-			log.Warn("CreateMCPProxyScope: scope already exists", "ouID", ouID, "proxyID", proxyID, "action", body.Action)
+			log.Warn("CreateMCPProxyScope: scope already exists", "ouID", ouID, "proxyID", proxyID, "action", action)
 			httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 		default:
-			log.Error("CreateMCPProxyScope: failed", "ouID", ouID, "proxyID", proxyID, "action", body.Action, "error", err)
+			log.Error("CreateMCPProxyScope: failed", "ouID", ouID, "proxyID", proxyID, "action", action, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create MCP proxy scope")
 		}
 		return
 	}
 
-	log.Info("CreateMCPProxyScope: completed", "ouID", ouID, "proxyID", proxyID, "action", body.Action)
-	httpx.WriteSuccessResponse(w, http.StatusCreated, toMCPProxyScopeResponse(result.ProxyHandle, result.Scope))
+	log.Info("CreateMCPProxyScope: completed", "ouID", ouID, "proxyID", proxyID, "action", action)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, gwconv.MCPProxyScopeDocument(result.ProxyHandle, result.Scope))
 }
 
-// UpdateMCPProxyScope handles PUT /orgs/{orgName}/mcp-proxies/{proxyId}/scopes/{scopeAction}.
+// UpdateMCPProxyScope handles PUT /m/ai-gateway/mcp-proxies/{proxyId}/scopes/{scopeAction}.
 func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -145,17 +143,27 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 
 	log.Info("UpdateMCPProxyScope: starting", "ouID", ouID, "proxyID", proxyID, "action", action)
 
-	var body gwspec.MCPProxyScopeUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		log.Error("UpdateMCPProxyScope: failed to decode request", "error", err)
+	var doc gwspec.McpProxyScopeDocument
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxDocumentBytes)).Decode(&doc); err != nil {
+		log.Error("UpdateMCPProxyScope: failed to decode the document", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	result, err := c.svc.Update(ctx, ouID, proxyID, action, gwmodels.MCPProxyScopeUpdateInput{
-		Description: body.Description,
-		Tools:       body.Tools,
-	})
+	in, err := gwconv.MCPProxyScopeUpdateFromDocument(doc)
+	if err != nil {
+		writeDocumentError(w, ctx, "UpdateMCPProxyScope", ouID, err)
+		return
+	}
+	// The action is immutable, so the document must name the scope the path addresses.
+	if doc.Metadata.Name != action {
+		log.Warn("UpdateMCPProxyScope: metadata.name does not match the scope", "ouID", ouID,
+			"proxyID", proxyID, "action", action, "metadataName", doc.Metadata.Name)
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "metadata.name does not match the scope action in the path")
+		return
+	}
+
+	result, err := c.svc.Update(ctx, ouID, proxyID, action, in)
 	if err != nil {
 		switch {
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -176,10 +184,10 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 	}
 
 	log.Info("UpdateMCPProxyScope: completed", "ouID", ouID, "proxyID", proxyID, "action", action)
-	httpx.WriteSuccessResponse(w, http.StatusOK, toMCPProxyScopeResponse(result.ProxyHandle, result.Scope))
+	httpx.WriteSuccessResponse(w, http.StatusOK, gwconv.MCPProxyScopeDocument(result.ProxyHandle, result.Scope))
 }
 
-// DeleteMCPProxyScope handles DELETE /orgs/{orgName}/mcp-proxies/{proxyId}/scopes/{scopeAction}.
+// DeleteMCPProxyScope handles DELETE /m/ai-gateway/mcp-proxies/{proxyId}/scopes/{scopeAction}.
 func (c *mcpProxyScopeController) DeleteMCPProxyScope(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -238,21 +246,6 @@ func (c *mcpProxyScopeController) ListAgentIdentityScopes(w http.ResponseWriter,
 
 	log.Info("ListAgentIdentityScopes: completed", "ouID", ouID, "envName", envName, "count", len(items))
 	httpx.WriteSuccessResponse(w, http.StatusOK, gwspec.AgentIdentityScopeListResponse{Scopes: items})
-}
-
-// toMCPProxyScopeResponse maps a stored scope to its API representation.
-func toMCPProxyScopeResponse(handle string, s gwmodels.MCPProxyScope) gwspec.MCPProxyScopeResponse {
-	description := s.Description
-	createdAt := s.CreatedAt
-	updatedAt := s.UpdatedAt
-	return gwspec.MCPProxyScopeResponse{
-		Action:      s.Action,
-		Scope:       s.ScopeString(handle),
-		Description: &description,
-		Tools:       s.Tools,
-		CreatedAt:   &createdAt,
-		UpdatedAt:   &updatedAt,
-	}
 }
 
 // toAgentIdentityScopeEntry maps an env-filtered scope aggregate entry to its API representation.

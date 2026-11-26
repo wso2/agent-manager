@@ -33,8 +33,8 @@ const DefaultOrgName = "default"
 const orgNamePlaceholder = "{" + utils.PathParamOrgName + "}"
 
 // RouteRegistrar wraps an http.ServeMux and an OrgResolver to provide route
-// registration helpers that automatically apply org validation + resolution on
-// any pattern containing {orgName}.
+// registration helpers that apply org resolution to every route on the public
+// API surface.
 //
 // It is also the audit trail's coverage guarantee. Every route in the public
 // API is registered here, and registration already carries the two things an
@@ -149,7 +149,8 @@ func (rr *RouteRegistrar) registerWithOrgOverride(
 	if orgOverride != nil {
 		handler = orgOverride(handler)
 	}
-	if strings.Contains(pattern, orgNamePlaceholder) {
+	// Every API-surface route, with or without {orgName}; the internal surface has no JWT to resolve from.
+	if rr.surface == audit.SurfaceAPI {
 		handler = RequireOrgMatch(rr.orgResolver)(handler)
 	}
 
@@ -262,7 +263,8 @@ func (rr *RouteRegistrar) registerRootOU(
 		handler = WithPathParamValidation(handler, params...)
 	}
 	handler = authz(handler)
-	if strings.Contains(pattern, orgNamePlaceholder) {
+	// Every API-surface route, as in registerWithOrgOverride.
+	if rr.surface == audit.SurfaceAPI {
 		handler = RequireOrgMatchAllowRootOU(rr.orgResolver)(handler)
 	}
 

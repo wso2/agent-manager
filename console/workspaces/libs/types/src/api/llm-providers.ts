@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { EnvironmentVariable, OrgPathParams, OrgProjPathParams } from "./common";
+import type { DocumentMetadata, EnvironmentVariable, OrgPathParams, OrgProjPathParams } from "./common";
 
 // -----------------------------------------------------------------------------
 // ExtractionIdentifier — used for token/model extraction in templates
@@ -382,15 +382,6 @@ export interface LLMProviderListResponse {
 // -----------------------------------------------------------------------------
 // LLM provider documents — the wire format at /m/ai-gateway/llm-providers
 // -----------------------------------------------------------------------------
-
-export interface DocumentMetadata {
-  /** The provider's handle. */
-  name: string;
-  uid?: string;
-  creationTimestamp?: string;
-  updateTimestamp?: string;
-  createdBy?: string;
-}
 
 export interface LLMProviderSpec extends Omit<CreateLLMProviderRequest, "id" | "name"> {
   displayName: string;

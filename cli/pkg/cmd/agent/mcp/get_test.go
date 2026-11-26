@@ -24,28 +24,29 @@ import (
 
 	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
-	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 const getUUID = "11111111-1111-1111-1111-111111111111"
 
-func getResponseFixture() aigateway.AgentModelConfigResponse {
-	active := "active"
+func getResponseFixture() aigateway.AgentMcpConfigDocument {
 	desc := "primary github binding"
-	return aigateway.AgentModelConfigResponse{
-		Name:        "primary",
-		Type:        "mcp",
-		Description: &desc,
-		Uuid:        mustUUID(getUUID),
-		EnvMappings: map[string]aigateway.EnvProviderConfigMappings{
-			"dev":  {EnvironmentName: "dev", Configuration: &aigateway.ProviderConfig{ProviderName: "github", ProxyName: modelconfig.StringPtr("github"), Url: "https://dev.mcp", Status: &active}},
-			"prod": {EnvironmentName: "prod", Configuration: &aigateway.ProviderConfig{ProviderName: "gitlab", ProxyName: modelconfig.StringPtr("gitlab"), Url: "https://prod.mcp"}},
+	uid := mustUUID(getUUID)
+	url := "https://default.mcp"
+	policies := []aigateway.LLMPolicy{{Name: "rate-limit", Version: "v1"}}
+	vars := []aigateway.EnvironmentVariableConfig{
+		{Key: "url", Name: "MCP_URL"},
+		{Key: "apikey", Name: "MCP_KEY"},
+	}
+	return aigateway.AgentMcpConfigDocument{
+		Metadata: aigateway.ProjectScopedDocumentMetadata{Name: "primary", Project: "triage", Uid: &uid},
+		Spec: aigateway.AgentMcpConfigSpec{
+			ProxyName:            "github",
+			Description:          &desc,
+			Configuration:        &aigateway.EnvProviderConfiguration{Policies: &policies},
+			EnvironmentVariables: &vars,
 		},
-		EnvironmentVariables: []aigateway.EnvironmentVariableConfig{
-			{Key: "url", Name: "MCP_URL"},
-			{Key: "apikey", Name: "MCP_KEY"},
-		},
+		Status: &aigateway.AgentConfigStatus{Url: &url},
 	}
 }
 
@@ -67,10 +68,9 @@ func Test_runGet_humanOutput(t *testing.T) {
 	}
 	got := out.String()
 	for _, want := range []string{
-		"primary", "mcp", "primary github binding",
-		"PROXY", "URL", "STATUS",
-		"github", "https://dev.mcp", "active",
-		"gitlab",
+		"primary", "primary github binding",
+		"PROXY", "URL",
+		"github", "https://default.mcp",
 		"MCP_URL", "MCP_KEY",
 	} {
 		if !strings.Contains(got, want) {
@@ -91,12 +91,11 @@ func Test_runGet_json(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	data := decodeEnvelope(t, out.String())["data"].(map[string]any)
-	if data["name"] != "primary" {
-		t.Errorf("name = %v, want primary", data["name"])
+	if meta := data["metadata"].(map[string]any); meta["name"] != "primary" {
+		t.Errorf("metadata.name = %v, want primary", meta["name"])
 	}
-	envs := data["envMappings"].(map[string]any)
-	if _, ok := envs["dev"]; !ok {
-		t.Errorf("envMappings missing dev: %v", envs)
+	if spec := data["spec"].(map[string]any); spec["proxyName"] != "github" {
+		t.Errorf("spec.proxyName = %v, want github", spec["proxyName"])
 	}
 }
 

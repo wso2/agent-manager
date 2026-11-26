@@ -79,16 +79,19 @@ def test_access_token_raises_on_failure():
 def test_register_external_agent_creates_project_agent_and_token():
     _mock_token()
     name = "traceloop-0-60-0-langchain"
-    p = f"/api/v1/orgs/default/projects/{name}"
     responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects", json={"name": name}, status=202)
-    responses.add(responses.POST, f"{BASE}{p}/agents", json={"name": name}, status=202)
-    responses.add(responses.POST, f"{BASE}{p}/agents/{name}/token", json={"token": "agent-tok"}, status=200)
+    responses.add(responses.POST, f"{BASE}/api/v1/agents", json={"metadata": {"name": name}}, status=202)
+    responses.add(responses.POST, f"{BASE}/api/v1/agents/{name}/token", json={"token": "agent-tok"}, status=200)
 
     assert _client().register_external_agent("default", name) == "agent-tok"
 
     import json as _json
-    agent_body = _json.loads([c for c in responses.calls if c.request.url == f"{BASE}{p}/agents"][0].request.body)
-    assert agent_body["provisioning"] == {"type": "external"}
+    agent_body = _json.loads([c for c in responses.calls if c.request.url == f"{BASE}/api/v1/agents"][0].request.body)
+    assert agent_body["kind"] == "Agent"
+    assert agent_body["metadata"] == {"name": name, "project": name}
+    assert agent_body["spec"]["provisioning"] == {"type": "external"}
+    token_call = [c for c in responses.calls if "/agents/" in c.request.url][0]
+    assert token_call.request.url.endswith(f"?project={name}")
 
 
 @responses.activate
@@ -106,7 +109,7 @@ def test_teardown_is_best_effort():
     from heavy.amp_client import DeployedAgent
 
     # DELETE returns 500 — teardown must swallow it, not raise.
-    responses.add(responses.DELETE, f"{BASE}/api/v1/orgs/default/projects/p/agents/a", status=500)
+    responses.add(responses.DELETE, f"{BASE}/api/v1/agents/a", status=500)
     responses.add(responses.DELETE, f"{BASE}/api/v1/orgs/default/projects/p", status=500)
     d = DeployedAgent(org="default", project_name="p", agent_name="a", environment="default")
     _client().teardown_agent(d)  # must not raise

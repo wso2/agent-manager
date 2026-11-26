@@ -95,6 +95,8 @@ type RequestScope struct {
 	suppress bool
 	actor    scopeActor
 	resource resourceRef
+	// environment is set by a module with modkit.AuditEnvironment.
+	environment string
 	// details are set by a module with modkit.AuditDetail.
 	details map[string]any
 }
@@ -243,6 +245,9 @@ func (s *RequestScope) applyTo(e *Event) {
 	if e.ResourceName == "" {
 		e.ResourceName = s.resource.name
 	}
+	if e.Environment == "" {
+		e.Environment = s.environment
+	}
 	for k, v := range s.details {
 		if _, set := e.Details[k]; !set {
 			Detail(k, v)(e)
@@ -258,6 +263,13 @@ func (s *RequestScope) AuditDetail(key string, value any) {
 		s.details = map[string]any{}
 	}
 	s.details[key] = value
+}
+
+// AuditEnvironment implements modkit.AuditScope.
+func (s *RequestScope) AuditEnvironment(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.environment = name
 }
 
 // AuditResource implements modkit.AuditScope.

@@ -154,6 +154,10 @@ func LLMProviderList(
 // field itself.
 var ErrDocument = errors.New("invalid document")
 
+// ErrMalformedBody is a body that is not JSON at all. It is separate from ErrDocument because
+// there is no field to name: the handler answers it with v1's "Invalid request body".
+var ErrMalformedBody = errors.New("invalid request body")
+
 // LLMProviderFromDocument turns a posted document into the create request the service takes.
 func LLMProviderFromDocument(doc gwspec.LlmProviderDocument) (gwspec.CreateLLMProviderRequest, error) {
 	if err := checkDocument(doc); err != nil {

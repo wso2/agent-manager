@@ -73,7 +73,7 @@ func CheckCardURL(flag, raw string, proxied bool) error {
 func ApplySource(ctx context.Context, client *aigateway.ClientWithResponses, t Target, cardURL string, proxy bool) (SourceResult, error) {
 	res := SourceResult{URL: cardURL}
 
-	src, err := client.SetAgentCardSourceWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment, aigateway.SetAgentCardSourceRequest{Url: cardURL})
+	src, err := client.SetAgentCardSourceWithResponse(ctx, t.Agent, &aigateway.SetAgentCardSourceParams{Project: t.Proj}, aigateway.SetAgentCardSourceRequest{Url: cardURL})
 	if err != nil {
 		return res, clierr.Newf(clierr.Transport, "%v", err)
 	}
@@ -81,7 +81,7 @@ func ApplySource(ctx context.Context, client *aigateway.ClientWithResponses, t T
 		return res, sourceError(src)
 	}
 
-	cur, err := client.GetA2AProxyWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment)
+	cur, err := client.GetA2AProxyWithResponse(ctx, t.Agent, &aigateway.GetA2AProxyParams{Project: t.Proj})
 	if err != nil {
 		return res, partialFailure(res, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -98,7 +98,7 @@ func ApplySource(ctx context.Context, client *aigateway.ClientWithResponses, t T
 		return res, nil
 	}
 
-	put, err := client.SetA2AProxyWithResponse(ctx, t.Org, t.Proj, t.Agent, cmdutil.DefaultEnvironment, aigateway.SetA2AProxyRequest{})
+	put, err := client.SetA2AProxyWithResponse(ctx, t.Agent, &aigateway.SetA2AProxyParams{Project: t.Proj}, aigateway.SetA2AProxyRequest{})
 	if err != nil {
 		return res, partialFailure(res, clierr.Newf(clierr.Transport, "%v", err))
 	}

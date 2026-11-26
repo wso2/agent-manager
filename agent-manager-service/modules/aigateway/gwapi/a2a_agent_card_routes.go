@@ -21,15 +21,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
-const agentCardBase = "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card"
+const agentCardBase = "/agents/{agentName}/agent-card"
 
 // registerA2AAgentCardRoutes gates writes like the deploy-settings save.
 func registerA2AAgentCardRoutes(rr Router, ctrl gwctl.A2AAgentCardController) {
-	rr.HandleFuncWithValidationAndAuthz("GET "+agentCardBase, gwperm.AgentRead, ctrl.GetAgentCard)
-	rr.HandleFuncWithValidationAndAllAuthz("POST "+agentCardBase+"/refresh", ctrl.RefreshAgentCard,
+	rr.HandleFuncWithValidationAndAuthz("GET "+agentCardBase, gwperm.AgentRead, inProject(ctrl.GetAgentCard))
+	rr.HandleFuncWithValidationAndAllAuthz("POST "+agentCardBase+"/refresh", inProject(ctrl.RefreshAgentCard),
 		gwperm.AgentUpdate, gwperm.DeployNonProduction)
-	rr.HandleFuncWithValidationAndAllAuthz("PUT "+agentCardBase+"/source", ctrl.SetAgentCardSource,
+	rr.HandleFuncWithValidationAndAllAuthz("PUT "+agentCardBase+"/source", inProject(ctrl.SetAgentCardSource),
 		gwperm.AgentUpdate, gwperm.DeployNonProduction)
-	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+agentCardBase+"/source", ctrl.DeleteAgentCardSource,
+	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+agentCardBase+"/source", inProject(ctrl.DeleteAgentCardSource),
 		gwperm.AgentUpdate, gwperm.DeployNonProduction)
 }

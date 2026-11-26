@@ -23,15 +23,15 @@ import (
 
 // RegisterAgentAPIKeyRoutes registers API key routes for agents
 func RegisterAgentAPIKeyRoutes(rr Router, ctrl gwctl.AgentAPIKeyController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", gwperm.AgentAPIKeyManage,
-		rr.Track("amp.security-access.issue-api-key", keyPurposeDims("production"), ctrl.CreateAPIKey))
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test", gwperm.AgentAPIKeyManage,
-		rr.Track("amp.security-access.issue-api-key", keyPurposeDims("test"), ctrl.IssueTestAPIKey))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", gwperm.AgentAPIKeyManage, ctrl.ListAPIKeys)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}", gwperm.AgentAPIKeyManage,
-		rr.Track("amp.security-access.issue-api-key.rotate", actionDims("revoked-agent-api-key"), ctrl.RevokeAPIKey))
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}", gwperm.AgentAPIKeyManage,
-		rr.Track("amp.security-access.issue-api-key.rotate", actionDims("rotated-agent-api-key"), ctrl.RotateAPIKey))
+	rr.HandleFuncWithValidationAndAuthz("POST /agents/{agentName}/api-keys", gwperm.AgentAPIKeyManage,
+		inProject(rr.Track("amp.security-access.issue-api-key", keyPurposeDims("production"), ctrl.CreateAPIKey)))
+	rr.HandleFuncWithValidationAndAuthz("POST /agents/{agentName}/api-keys/test", gwperm.AgentAPIKeyManage,
+		inProject(rr.Track("amp.security-access.issue-api-key", keyPurposeDims("test"), ctrl.IssueTestAPIKey)))
+	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}/api-keys", gwperm.AgentAPIKeyManage, inProject(ctrl.ListAPIKeys))
+	rr.HandleFuncWithValidationAndAuthz("DELETE /agents/{agentName}/api-keys/{keyName}", gwperm.AgentAPIKeyManage,
+		inProject(rr.Track("amp.security-access.issue-api-key.rotate", actionDims("revoked-agent-api-key"), ctrl.RevokeAPIKey)))
+	rr.HandleFuncWithValidationAndAuthz("PUT /agents/{agentName}/api-keys/{keyName}", gwperm.AgentAPIKeyManage,
+		inProject(rr.Track("amp.security-access.issue-api-key.rotate", actionDims("rotated-agent-api-key"), ctrl.RotateAPIKey)))
 }
 
 // keyPurposeDims builds the growth-analytics dimensions for

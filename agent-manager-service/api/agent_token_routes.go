@@ -27,7 +27,7 @@ import (
 
 // registerAgentTokenRoutes registers the agent token API routes
 func registerAgentTokenRoutes(rr *middleware.RouteRegistrar, ctrl controllers.AgentTokenController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token", rbac.AgentTokenManage,
+	rr.HandleFuncWithValidationAndAuthz("POST /agents/{agentName}/token", rbac.AgentTokenManage,
 		growthanalytics.Track("amp.security-access.agent-token", tokenTypeDims("agent-token", "generated-agent-token"), ctrl.GenerateToken))
 }
 

@@ -21,9 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
@@ -72,7 +74,7 @@ func NewMCPProxyController(
 	}
 }
 
-// CreateMCPProxy handles POST /orgs/{ouID}/mcp-proxies.
+// CreateMCPProxy handles POST /m/ai-gateway/mcp-proxies.
 func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -80,10 +82,16 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 
 	log.Info("CreateMCPProxy: starting", "ouID", ouID)
 
-	var req gwmodels.MCPProxyDTO
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("CreateMCPProxy: failed to decode request", "error", err)
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxDocumentBytes))
+	if err != nil {
+		log.Error("CreateMCPProxy: failed to read the body", "ouID", ouID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	// No runtime schema validation, so the converter checks apiVersion, kind and metadata.
+	_, req, err := gwconv.MCPProxyFromDocument(body)
+	if err != nil {
+		writeDocumentError(w, ctx, "CreateMCPProxy", ouID, err)
 		return
 	}
 
@@ -93,7 +101,7 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 	// signal that the caller probed the server before registering it.
 	gwtrack.Set(ctx, "probed_first", mcpProxyWasProbedFirst(req.Endpoints))
 
-	resp, err := c.mcpProxyService.Create(ctx, ouID, "system", &req)
+	resp, err := c.mcpProxyService.Create(ctx, ouID, "system", req)
 	if err != nil {
 		switch {
 		case errors.Is(err, gwerr.ErrContextInUse):
@@ -119,11 +127,18 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	doc, err := gwconv.MCPProxyDocument(resp)
+	if err != nil {
+		log.Error("CreateMCPProxy: failed to render the document", "ouID", ouID, "id", req.ID, "error", err)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to render the MCP proxy")
+		return
+	}
+
 	log.Info("CreateMCPProxy: completed", "ouID", ouID, "id", req.ID)
-	httpx.WriteSuccessResponse(w, http.StatusCreated, resp)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, doc)
 }
 
-// ListMCPProxies handles GET /orgs/{ouID}/mcp-proxies.
+// ListMCPProxies handles GET /m/ai-gateway/mcp-proxies.
 func (c *mcpProxyController) ListMCPProxies(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -164,11 +179,18 @@ func (c *mcpProxyController) ListMCPProxies(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	out, err := gwconv.MCPProxyList(resp)
+	if err != nil {
+		log.Error("ListMCPProxies: failed to render the documents", "ouID", ouID, "error", err)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to render MCP proxies")
+		return
+	}
+
 	log.Info("ListMCPProxies: completed", "ouID", ouID, "count", resp.Count)
-	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, out)
 }
 
-// ListAvailableMCPPolicies handles GET /orgs/{ouID}/mcp-proxies/policies.
+// ListAvailableMCPPolicies handles GET /m/ai-gateway/mcp-proxies/policies.
 func (c *mcpProxyController) ListAvailableMCPPolicies(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -187,7 +209,7 @@ func (c *mcpProxyController) ListAvailableMCPPolicies(w http.ResponseWriter, r *
 	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
-// GetMCPProxy handles GET /orgs/{ouID}/mcp-proxies/{proxyId}.
+// GetMCPProxy handles GET /m/ai-gateway/mcp-proxies/{proxyId}.
 func (c *mcpProxyController) GetMCPProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -212,11 +234,18 @@ func (c *mcpProxyController) GetMCPProxy(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	doc, err := gwconv.MCPProxyDocument(resp)
+	if err != nil {
+		log.Error("GetMCPProxy: failed to render the document", "ouID", ouID, "proxyID", proxyID, "error", err)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to render the MCP proxy")
+		return
+	}
+
 	log.Info("GetMCPProxy: completed", "ouID", ouID, "proxyID", proxyID)
-	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, doc)
 }
 
-// UpdateMCPProxy handles PUT /orgs/{ouID}/mcp-proxies/{proxyId}.
+// UpdateMCPProxy handles PUT /m/ai-gateway/mcp-proxies/{proxyId}; omitted spec fields keep their stored value.
 func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -225,14 +254,26 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 
 	log.Info("UpdateMCPProxy: starting", "ouID", ouID, "proxyID", proxyID)
 
-	var req gwmodels.MCPProxyDTO
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("UpdateMCPProxy: failed to decode request", "error", err)
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxDocumentBytes))
+	if err != nil {
+		log.Error("UpdateMCPProxy: failed to read the body", "ouID", ouID, "proxyID", proxyID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+	doc, req, err := gwconv.MCPProxyFromDocument(body)
+	if err != nil {
+		writeDocumentError(w, ctx, "UpdateMCPProxy", ouID, err)
+		return
+	}
+	// The document must name the proxy it updates; this route addresses a proxy by handle.
+	if doc.Metadata.Name != proxyID {
+		log.Warn("UpdateMCPProxy: metadata.name does not match the proxy", "ouID", ouID,
+			"proxyID", proxyID, "metadataName", doc.Metadata.Name)
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "metadata.name does not match the MCP proxy in the path")
+		return
+	}
 
-	resp, err := c.mcpProxyService.Update(ctx, ouID, proxyID, &req)
+	resp, err := c.mcpProxyService.Update(ctx, ouID, proxyID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, gwerr.ErrContextInUse):
@@ -287,11 +328,18 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 		},
 		"ouID", ouID, "proxyID", proxyID)
 
+	out, err := gwconv.MCPProxyDocument(resp)
+	if err != nil {
+		log.Error("UpdateMCPProxy: failed to render the document", "ouID", ouID, "proxyID", proxyID, "error", err)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to render the MCP proxy")
+		return
+	}
+
 	log.Info("UpdateMCPProxy: completed", "ouID", ouID, "proxyID", proxyID)
-	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, out)
 }
 
-// DeleteMCPProxy handles DELETE /orgs/{ouID}/mcp-proxies/{proxyId}.
+// DeleteMCPProxy handles DELETE /m/ai-gateway/mcp-proxies/{proxyId}.
 func (c *mcpProxyController) DeleteMCPProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -326,7 +374,7 @@ func (c *mcpProxyController) DeleteMCPProxy(w http.ResponseWriter, r *http.Reque
 	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
-// FetchServerInfo handles POST /orgs/{ouID}/mcp-proxies/fetch-server-info.
+// FetchServerInfo handles POST /m/ai-gateway/mcp-proxies/fetch-server-info.
 func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)

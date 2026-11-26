@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { AgentPathParams, ListQuery } from "./common";
+import type { AgentPathParams, ListQuery, ProjectScopedDocumentMetadata } from "./common";
 import type {
   CreateLLMAPIKeyRequest,
   CreateLLMAPIKeyResponse,
@@ -142,6 +142,45 @@ export interface AgentModelConfigListItem {
 
 export interface AgentModelConfigListResponse {
   configs: AgentModelConfigListItem[];
+  pagination: PaginationInfo;
+}
+
+// -----------------------------------------------------------------------------
+// Documents: one binding in the default environment
+// -----------------------------------------------------------------------------
+
+export type AgentConfigKind = "AgentModelConfig" | "AgentMcpConfig";
+
+/** Spec of a config document; providerName binds a model config, proxyName an MCP one. */
+export interface AgentConfigSpec {
+  description?: string;
+  providerName?: string;
+  proxyName?: string;
+  configuration?: EnvProviderConfiguration;
+  environmentVariables?: EnvironmentVariableConfig[];
+}
+
+/** How the agent reaches the binding through the gateway. */
+export interface AgentConfigStatus {
+  url?: string;
+  authInfo?: AuthInfo;
+  proxyUuid?: string;
+  proxyName?: string;
+  providerUuid?: string;
+  providerPolicies?: LLMPolicy[];
+}
+
+export interface AgentConfigDocument {
+  apiVersion: string;
+  kind: AgentConfigKind;
+  metadata: ProjectScopedDocumentMetadata;
+  spec: AgentConfigSpec;
+  status?: AgentConfigStatus;
+}
+
+export interface AgentConfigDocumentList {
+  count: number;
+  list: AgentConfigDocument[];
   pagination: PaginationInfo;
 }
 

@@ -68,9 +68,9 @@ var _ = Describe("Project management:", Label("project", "deletion-conflict"), O
 			ProjectName: projName,
 			Request:     createReq,
 		})
-		Expect(ag.Name).To(Equal(agentName))
-		Expect(ag.Provisioning.Type).To(Equal("external"))
-		Expect(ag.AgentType.Type).To(Equal("external-agent-api"))
+		Expect(ag.Metadata.Name).To(Equal(agentName))
+		Expect(ag.Spec.Provisioning.Type).To(Equal("external"))
+		Expect(ag.Spec.AgentType.Type).To(Equal("external-agent-api"))
 		GinkgoWriter.Printf("Agent: %s\n", agentName)
 	})
 

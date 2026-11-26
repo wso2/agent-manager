@@ -32,9 +32,9 @@ const cardURL = "https://a.example/.well-known/agent-card.json"
 
 var (
 	target    = Target{Org: "acme", Proj: "triage", Agent: "order-bot"}
-	sourceKey = "PUT " + envPath("default", "agent-card/source")
-	proxyGet  = "GET " + envPath("default", "a2a-proxy")
-	proxyPut  = "PUT " + envPath("default", "a2a-proxy")
+	sourceKey = "PUT " + agentGWPath("agent-card/source")
+	proxyGet  = "GET " + agentGWPath("a2a-proxy")
+	proxyPut  = "PUT " + agentGWPath("a2a-proxy")
 )
 
 func TestCheckCardURLProxied(t *testing.T) {

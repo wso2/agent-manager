@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -112,7 +113,7 @@ func CleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 	// deletion while a pipeline references it).
 	cleanupStaleDeploymentPipelines(client, orgName)
 	cleanupStaleLLMProviders(client)
-	cleanupStaleMCPProxies(client, orgName)
+	cleanupStaleMCPProxies(client)
 }
 
 // logDeleteResult reports a stale-cleanup DELETE outcome without misreporting a
@@ -231,12 +232,9 @@ func cleanupStaleLLMProviders(client *framework.AMPClient) {
 
 // cleanupStaleMCPProxies deletes e2e-created MCP proxies (handle prefixed with
 // E2EMCPProxyPrefix) created more than the cutoff ago. These are org-scoped and
-// are not cascaded by project or environment deletion. The list payload omits
-// createdAt, so each candidate is fetched by handle to read its age.
-func cleanupStaleMCPProxies(client *framework.AMPClient, orgName string) {
-
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies", orgName)
-	resp, err := client.Get(path)
+// are not cascaded by project or environment deletion.
+func cleanupStaleMCPProxies(client *framework.AMPClient) {
+	resp, err := client.Get("/m/ai-gateway/mcp-proxies")
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list MCP proxies: %v\n", err)
 		return
@@ -261,56 +259,30 @@ func cleanupStaleMCPProxies(client *framework.AMPClient, orgName string) {
 	}
 
 	for _, p := range proxies.List {
-		if p.ID == nil || !strings.HasPrefix(*p.ID, framework.E2EMCPProxyPrefix) {
+		handle := p.Metadata.Name
+		if !strings.HasPrefix(handle, framework.E2EMCPProxyPrefix) {
 			continue
 		}
-		if !mcpProxyOlderThanCutoff(client, orgName, *p.ID) {
+		// A row whose age cannot be read is left alone rather than deleted out from
+		// under a concurrent run.
+		created := p.Metadata.CreationTimestamp
+		if created == nil || time.Since(*created) < cutoff {
 			continue
 		}
 
-		proxyPath := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/%s", orgName, *p.ID)
-		delResp, err := client.Delete(proxyPath)
+		delResp, err := client.Delete(fmt.Sprintf("/m/ai-gateway/mcp-proxies/%s", handle))
 		if err != nil {
-			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete MCP proxy %s: %v\n", *p.ID, err)
+			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete MCP proxy %s: %v\n", handle, err)
 			continue
 		}
 		delResp.Body.Close()
-		logDeleteResult("MCP proxy", *p.ID, delResp.StatusCode)
+		logDeleteResult("MCP proxy", handle, delResp.StatusCode)
 	}
-}
-
-// mcpProxyOlderThanCutoff fetches a proxy by handle and reports whether it was
-// created more than the cutoff ago. On any fetch/decode error (or missing
-// createdAt) it returns false, leaving an unreadable proxy alone rather than
-// deleting one out from under a concurrent run.
-func mcpProxyOlderThanCutoff(client *framework.AMPClient, orgName, handle string) bool {
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/%s", orgName, handle)
-	resp, err := client.Get(path)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return false
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return false
-	}
-	var proxy framework.MCPProxyResponse
-	if err := json.Unmarshal(body, &proxy); err != nil {
-		return false
-	}
-	if proxy.CreatedAt == nil {
-		return false
-	}
-	return time.Since(*proxy.CreatedAt) >= cutoff
 }
 
 // deleteAgentsInProject deletes all agents within a project.
 func deleteAgentsInProject(client *framework.AMPClient, orgName, projName string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", orgName, projName)
-	resp, err := client.Get(path)
+	resp, err := client.Get("/api/v1/agents?" + url.Values{"project": {projName}, "limit": {"500"}}.Encode())
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list agents in %s: %v\n", projName, err)
 		return
@@ -331,15 +303,15 @@ func deleteAgentsInProject(client *framework.AMPClient, orgName, projName string
 		return
 	}
 
-	for _, ag := range agents.Agents {
-		agentPath := fmt.Sprintf("%s/%s", path, ag.Name)
-		delResp, err := client.Delete(agentPath)
+	for _, ag := range agents.List {
+		name := ag.Metadata.Name
+		delResp, err := client.Delete(fmt.Sprintf("/api/v1/agents/%s?%s", url.PathEscape(name), url.Values{"project": {projName}}.Encode()))
 		if err != nil {
-			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete agent %s: %v\n", ag.Name, err)
+			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete agent %s: %v\n", name, err)
 			continue
 		}
 		delResp.Body.Close()
 		ginkgo.GinkgoWriter.Printf("stale cleanup: deleted agent %s/%s (status %d)\n",
-			projName, ag.Name, delResp.StatusCode)
+			projName, name, delResp.StatusCode)
 	}
 }
