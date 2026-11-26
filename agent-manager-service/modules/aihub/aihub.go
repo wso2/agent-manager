@@ -43,7 +43,7 @@ import (
 // its tables are mod_ai_hub_*, and its permissions are ai-hub:plan-<verb>.
 const Name = "ai-hub"
 
-// EventPlanChanged is published, in the same transaction, when a plan is created, updated or deleted, with a
+// EventPlanChanged is published, in the same transaction, when a plan is created, updated or deprecated, with a
 // subplanv1.PlanChange (Source.ChangeEvent). Gateways don't get plan changes: a plan reaches them with its
 // subscriptions (EventSubscriptionChanged).
 const EventPlanChanged = Name + ".plan_changed"
@@ -95,7 +95,7 @@ func (module) Manifest() modkit.Manifest {
 			"Developer":           {PermPlanRead},
 		},
 		Events: []modkit.EventType{
-			{Name: EventPlanChanged, Description: "A subscription plan was created, changed or deleted."},
+			{Name: EventPlanChanged, Description: "A subscription plan was created, changed or deprecated."},
 			{Name: EventSubscriptionChanged, Description: "A subscription was created, changed or deleted."},
 		},
 		AuditActions: []modkit.AuditAction{

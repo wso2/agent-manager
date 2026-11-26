@@ -354,7 +354,7 @@ describe("SubscriptionPlanFormPage: edit", () => {
     renderEdit();
     expect(screen.getByText("Plan not found")).toBeInTheDocument();
     expect(
-      screen.getByText("The plan could not be loaded. It may have been deleted."),
+      screen.getByText("The plan could not be loaded. Check that it exists in this organization."),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back to Subscription Plans" }));
     expect(screen.getByText("The plan list")).toBeInTheDocument();

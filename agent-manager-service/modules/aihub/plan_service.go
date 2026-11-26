@@ -139,7 +139,7 @@ type planChanged struct {
 	PlanID     string      `json:"planId"`
 	Handle     string      `json:"handle"`
 	PlanName   string      `json:"planName"`
-	Action     string      `json:"action"` // created, updated or deleted
+	Action     string      `json:"action"` // created, or updated (a deprecation too)
 	Status     string      `json:"status,omitempty"`
 	ExpiryTime *time.Time  `json:"expiryTime,omitempty"`
 	Conditions []Condition `json:"conditions,omitempty"`

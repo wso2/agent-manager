@@ -76,7 +76,7 @@ export interface FeatureAccessConfig {
   subscription_plan_create: boolean;
   /** Edit subscription plans, including their status. */
   subscription_plan_update: boolean;
-  /** Delete subscription plans. */
+  /** Deprecate subscription plans (a soft delete; the plan-delete scope). */
   subscription_plan_delete: boolean;
   evaluator_read: boolean;
   evaluator_write: boolean;

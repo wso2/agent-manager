@@ -119,7 +119,7 @@ The console is split into five **UI modules** under `workspaces/ui-modules/`, ea
 | `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too) |
 | `ai-observability` | traces, logs, metrics, eval |
 | `agent-identity` | env-thunders (Agent ID, groups, roles) |
-| `ai-hub` | subscription-plans (an organization's subscription plans: list, create, edit). An installable module, not on by default: its pages show only once the backend `ai-hub` module is installed (`amp module install ai-hub`) |
+| `ai-hub` | subscription-plans (an organization's subscription plans: list, create, edit, deprecate). An installable module, not on by default: its pages show only once the backend `ai-hub` module is installed (`amp module install ai-hub`) |
 
 ### Pluggable structure: the rules
 

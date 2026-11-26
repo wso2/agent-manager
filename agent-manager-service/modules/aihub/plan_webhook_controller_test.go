@@ -193,7 +193,7 @@ func (failingCore) GetOrgByHandle(context.Context, string) (modkit.Org, error) {
 	return modkit.Org{}, errors.New("database is down")
 }
 
-// A failure on this side answers 503, which senders retry; 401 would tell them to give up on the change.
+// A failure on this side answers 503, not 401, which would blame the sender for it.
 func TestReceiverAnswersOurFailuresWithServiceUnavailable(t *testing.T) {
 	r := &webhookReceiver{cfg: webhookConfig{
 		Enabled: true, Secret: testSecret, SignatureHeader: DefaultWebhookSignatureHeader,

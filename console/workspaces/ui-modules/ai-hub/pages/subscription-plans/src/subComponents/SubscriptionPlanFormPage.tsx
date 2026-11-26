@@ -293,7 +293,7 @@ export function SubscriptionPlanFormPage() {
             </Button>
           }
           contained
-          description="The plan could not be loaded. It may have been deleted."
+          description="The plan could not be loaded. Check that it exists in this organization."
           icon={SearchX}
           title="Plan not found"
           tone="error"

@@ -174,7 +174,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	// subscribes then; meanwhile gateways pull when they reconnect. A plan made or changed here is not pushed:
 	// plans are subscribed to in the developer portal, so a plan reaches the gateways with its subscriptions.
 	if source, ok := gw.SubscriptionPlans.Source(); ok {
-		// A plan an MCP proxy offers is in use: the plans module asks this module how many offer it.
+		// The plans module reports how many MCP proxies offer a plan (offering doesn't lock it): it asks this module.
 		source.CountOffersWith(gwsvc.NewPlanOffers(rt.DB()).ProxiesOffering)
 		broadcaster := gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()),
 			gwsvc.NewGatewayEventsService(gw.EventHub))

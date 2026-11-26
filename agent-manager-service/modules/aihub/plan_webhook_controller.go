@@ -54,7 +54,7 @@ import (
 //
 // A delivery the sender got wrong (signature, envelope, organization, event) is answered alike (401), so a
 // caller learns nothing from the response; a failure on this side (the database, publishing the change, a
-// panic) answers 503, which senders retry. The reason is logged. The secret is the module setting webhook_secret (MODULE_AI_HUB_WEBHOOK_SECRET).
+// panic) answers 503: the delivery wasn't applied (the developer portal sends each delivery once). The reason is logged. The secret is the module setting webhook_secret (MODULE_AI_HUB_WEBHOOK_SECRET).
 
 // webhookPath is the receiver's route below the module's webhooks (Runtime.HandleWebhook).
 const webhookPath = "/events"
@@ -350,7 +350,7 @@ func webhookCaller(refused string, signed bool) modkit.InternalCaller {
 
 // ServeHTTP runs the flow: size-limited read, signature check, envelope, organization, dispatch.
 // The sender's faults are answered alike (401), except a signed request the plans here refuse (409, refusal); ours
-// answer 503, so the sender retries. The reason is logged.
+// answer 503: the delivery wasn't applied. The reason is logged.
 func (r *webhookReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -594,7 +594,7 @@ func reject(w http.ResponseWriter) {
 	})
 }
 
-// unavailable answers a delivery that failed on this side: 503, which senders retry, with nothing about why.
+// unavailable answers a delivery that failed on this side: 503, with nothing about why.
 func unavailable(w http.ResponseWriter) {
 	writeJSONStatus(w, http.StatusServiceUnavailable, errorResponse{
 		Status: "error", Code: codeUnavailable,

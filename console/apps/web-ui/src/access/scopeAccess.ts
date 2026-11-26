@@ -72,7 +72,7 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   mcp_server_read: mcpServer.read,
   mcp_server_write: mcpServer.write,
   // Subscription plans (the installable AI Hub module). Each action has its own scope, so a role
-  // that may only delete plans doesn't get the edit page or the status switch.
+  // that may only deprecate plans doesn't get the edit page or the status switch.
   subscription_plan_read: { anyOf: ['amp:ai-hub:plan-read'] },
   subscription_plan_create: { anyOf: ['amp:ai-hub:plan-create'] },
   subscription_plan_update: { anyOf: ['amp:ai-hub:plan-update'] },
