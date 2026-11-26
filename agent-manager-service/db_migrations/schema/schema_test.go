@@ -98,6 +98,30 @@ tables:
 	assert.NotContains(t, later, "CREATE TABLE")
 }
 
+// A migration that seeds a parent and its child writes the parent's rows first, in their order.
+func TestMigrationSeedsParentsFirst(t *testing.T) {
+	s, err := Parse([]byte(`
+migrations:
+  - {id: "002", name: more, seed: {children: [{id: c1, parent_id: p2}], parents: [{id: p2}, {id: p1}]}}
+tables:
+  - name: children
+    columns: [{name: id, type: text, size: 10}, {name: parent_id, type: text, size: 10}]
+    primary_key: [id]
+    foreign_keys: [{columns: [parent_id], references: parents, ref_columns: [id]}]
+  - name: parents
+    columns: [{name: id, type: text, size: 10}]
+    primary_key: [id]`))
+	require.NoError(t, err)
+	later, err := s.RenderMigration(DialectSQLite, "002")
+	require.NoError(t, err)
+	p2 := strings.Index(later, "INSERT INTO parents (id) VALUES ('p2')")
+	p1 := strings.Index(later, "INSERT INTO parents (id) VALUES ('p1')")
+	c1 := strings.Index(later, "INSERT INTO children")
+	require.True(t, p2 >= 0 && p1 >= 0 && c1 >= 0, later)
+	assert.Less(t, p2, p1, "rows keep their order")
+	assert.Less(t, p1, c1, "the parent's rows come before the child's")
+}
+
 func TestValidateRejectsRuleBreaks(t *testing.T) {
 	tests := map[string]string{
 		"nullable unique key": `

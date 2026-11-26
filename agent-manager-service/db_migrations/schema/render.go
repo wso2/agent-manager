@@ -148,16 +148,16 @@ func (s *Schema) RenderMigration(dialectName, id string) (string, error) {
 		}
 	}
 	if i := s.migrationIndex(id); i > 0 {
+		// Parents first, so a seeded child's foreign keys hold.
 		seed := s.Migrations[i-1].Seed
-		names := make([]string, 0, len(seed))
-		for name := range seed {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
+		for _, t := range tables {
+			rows, ok := seed[t.Name]
+			if !ok {
+				continue
+			}
 			b.WriteString("\n")
-			for _, row := range seed[name] {
-				renderSeed(&b, d, s.table(name), row)
+			for _, row := range rows {
+				renderSeed(&b, d, t, row)
 			}
 		}
 	}
