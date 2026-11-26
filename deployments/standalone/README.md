@@ -120,14 +120,14 @@ SQLite is the default database. To use PostgreSQL, run `make up DB=postgres`, or
 
 ### Observability (traces)
 
-The `observability` profile adds ClickHouse and the OpenTelemetry collector on an internal network that only `amp-api` joins, with no published ports. A one-shot `observability-migrate` step runs `amp migrate` with ClickHouse's migrator login, once `amp-api` is up, so the trace schema is in place before the collector starts and before the module is installed; ClickHouse creates no tables itself, and `amp-api` holds only the reading and cleaning logins.
+The `observability` profile adds ClickHouse and the OpenTelemetry collector on an internal network that only `amp-api` joins, with no published ports. A one-shot `observability-migrate` step runs `amp migrate` with ClickHouse's migrator login, once `amp-api` is up, so the trace schema is in place before the collector starts and before the module is installed; ClickHouse creates no tables itself, and `amp-api` uses only the reading and cleaning logins. The four logins' passwords are generated on first start like the other secrets (`docker compose exec amp-api amp secret show clickhouse-reader-password`); see [Passwords](../../docs/amp-lite/observability.md#passwords) to rotate one.
 
 ```bash
 make up-observability       # also installs the observability module
 make smoke-observability
 ```
 
-Without make, set `COMPOSE_PROFILES=observability`, `AMP_OBSERVABILITY_CLICKHOUSE_URL` and `AMP_OBSERVABILITY_COLLECTOR_URL` in `.env` (the commented lines in `.env.example`), set the four `AMP_CLICKHOUSE_*_PASSWORD` values (they have no default), start the stack, then run `docker compose exec amp-api amp module install observability`. To use your own ClickHouse instead, or add observability to an existing install, see [docs/amp-lite/observability.md](../../docs/amp-lite/observability.md).
+Without make, set `COMPOSE_PROFILES=observability`, `AMP_OBSERVABILITY_CLICKHOUSE_URL` and `AMP_OBSERVABILITY_COLLECTOR_URL` in `.env` (the commented lines in `.env.example`), start the stack, then run `docker compose exec amp-api amp module install observability`. To use your own ClickHouse instead, or add observability to an existing install, see [docs/amp-lite/observability.md](../../docs/amp-lite/observability.md).
 
 On macOS with Colima, keep this folder inside your home folder: Colima shares only that with its VM, and the bind mounts come up empty anywhere else.
 

@@ -127,13 +127,7 @@ down-core:
 reset-core:
 	@$(CORE_COMPOSE) $(ALL_PROFILES) down -v
 
-# The ClickHouse passwords have no default, so a first up-observability takes
-# .env.example's placeholders.
-$(STACK_DIR)/.env:
-	@cp $(STACK_DIR)/.env.example $@
-	@echo "📝 Created $@ from .env.example"
-
-up-observability: $(STACK_DIR)/.env
+up-observability:
 	@echo "🚀 Building images and starting AMP with ClickHouse and the OTel collector..."
 	@$(OBS_COMPOSE) up -d --build --wait --remove-orphans
 	@# Installs the module once; one an operator disabled stays disabled.
