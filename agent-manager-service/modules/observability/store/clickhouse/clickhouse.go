@@ -140,14 +140,16 @@ func direction(sort, fallback string) string {
 	return "DESC"
 }
 
-// QueryTraces lists the Scope's traces in the window, with each trace's
-// root span and span count, in one query.
+// QueryTraces lists the Scope's traces with a span in the window, each
+// summarised from all its spans, in one query.
 func (s *Store) QueryTraces(ctx context.Context, sc store.Scope, q store.TraceQuery) (*store.TracePage, error) {
 	if err := sc.Validate(); err != nil {
 		return nil, err
 	}
 	params := map[string]string{}
-	where := scopeFilter(sc, params) + windowFilter(q.StartTime, q.EndTime, params)
+	scope := scopeFilter(sc, params)
+	where := scope + " AND TraceId IN (SELECT TraceId FROM " + Table + " WHERE " + scope +
+		windowFilter(q.StartTime, q.EndTime, params) + ")"
 	dir := direction(q.SortOrder, "desc")
 	sql := `SELECT
   TraceId AS trace_id,

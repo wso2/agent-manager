@@ -274,6 +274,26 @@ func TestCrossOrgReadsSeeNothing(t *testing.T) {
 	}
 }
 
+// A trace with a span in the window is summarised from all its spans.
+func TestQueryTracesSummarisesTheWholeTrace(t *testing.T) {
+	e := clickhouseEnv(t)
+	sd := seed("org-a", "agent-1", "trace-a")
+	root := sd.Spans[0].StartTime
+	sd.Spans = append(sd.Spans, store.SpanDetails{
+		SpanID: "child", ParentSpanID: "root", SpanName: "chat", StartTime: root.Add(time.Hour), DurationNs: int64(time.Second),
+	})
+	e.insert(t, records([]storetest.Seed{sd}))
+
+	page, err := e.readerStore(t).QueryTraces(context.Background(), sd.Scope,
+		store.TraceQuery{StartTime: root.Add(30 * time.Minute), EndTime: root.Add(2 * time.Hour)})
+	if err != nil || len(page.Traces) != 1 {
+		t.Fatalf("QueryTraces = %+v, %v; want trace-a", page, err)
+	}
+	if tr := page.Traces[0]; tr.SpanCount != 2 || tr.RootSpanID != "root" || !tr.StartTime.Equal(root) {
+		t.Errorf("trace = %+v; want 2 spans from root at %v", tr, root)
+	}
+}
+
 func TestDeleteAgent(t *testing.T) {
 	e := clickhouseEnv(t)
 	ctx := context.Background()

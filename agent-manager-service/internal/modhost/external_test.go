@@ -178,6 +178,11 @@ func TestExternalSchema(t *testing.T) {
 	_, err = host(newExternal(store, externalFiles("001_spans.sql", "002_index.sql", "001_early.sql"), true, true)).Migrate(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sorts before the applied migration")
+
+	// And two files of one version.
+	_, err = host(newExternal(store, externalFiles("001_spans.sql", "001_spans.txt", "002_index.sql"), true, true)).Migrate(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "more than one file is version 001_spans")
 }
 
 func TestExternalSchemaFailureIsRetried(t *testing.T) {

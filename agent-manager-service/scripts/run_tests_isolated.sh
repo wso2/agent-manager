@@ -195,9 +195,10 @@ start_time=$SECONDS
 
 # Run tests (output already tee'd to log file via exec above)
 # -tags=integration includes the database-backed test files.
+# One package at a time: the ClickHouse tests share one database.
 COVERAGE_OUT="${COVERAGE_OUT:-$PROJECT_ROOT/localdata/coverage-integration.out}"
 set +e
-go test -v --race -tags=integration \
+go test -v --race -p 1 -tags=integration \
     -covermode=atomic \
     -coverpkg=./... \
     -coverprofile="$COVERAGE_OUT" \

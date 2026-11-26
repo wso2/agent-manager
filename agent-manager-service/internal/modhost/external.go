@@ -71,7 +71,8 @@ func (h *Host) externalSchema(name string, apply bool) (modkit.ExternalSchema, s
 	return s, "", nil
 }
 
-// loadExternal reads an external schema's files in lexical order.
+// loadExternal reads an external schema's files in lexical order; two files
+// may not share a version.
 func loadExternal(module string, s modkit.ExternalSchema) ([]migration, error) {
 	fsys := s.Files()
 	if fsys == nil {
@@ -101,6 +102,11 @@ func loadExternal(module string, s modkit.ExternalSchema) ([]migration, error) {
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Version < out[j].Version })
+	for i := 1; i < len(out); i++ {
+		if out[i].Version == out[i-1].Version {
+			return nil, fmt.Errorf("module %s %s schema: more than one file is version %s", module, s.Store(), out[i].Version)
+		}
+	}
 	return out, nil
 }
 
