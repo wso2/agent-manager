@@ -58,6 +58,8 @@ services:
       AMP_FILE_OWNER: "1000:1000"
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
+      # amp.yaml's ${file:/run/secrets/...} references resolve here too.
+      - ./secrets:/run/secrets:ro
       - amp-secrets:/var/lib/agent-manager/secrets
       - amp-shared-secrets:/out/shared-secrets
       - thunder-config:/out/thunder
@@ -169,6 +171,9 @@ services:
       CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
+      # Files amp.yaml reads by reference, such as
+      # "${file:/run/secrets/openbao-token}". The folder is git-ignored.
+      - ./secrets:/run/secrets:ro
       - amp-data:/var/lib/agent-manager
       - amp-secrets:/var/lib/agent-manager/secrets
       - gateway-config:/amp/gw:ro

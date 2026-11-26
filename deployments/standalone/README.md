@@ -70,6 +70,32 @@ docker compose -p amp-lite-core -f docker-compose.yml -f docker-compose.build.ym
 
 SQLite is the default database. To use PostgreSQL, run `make up DB=postgres`, or set `COMPOSE_PROFILES=postgres` in `.env` and add `-f docker-compose.postgres.yml` (or set the `db:` block in `amp.yaml`); its password is generated with the other secrets, and `amp-api` migrates it on start. Switching does not copy data between the two.
 
+### Store secrets in OpenBao
+
+Stored secrets are sealed into the database by default. To keep them in a standalone OpenBao server instead:
+
+1. On OpenBao, enable a KV v2 mount for this deployment and create a token limited to the policy in `agent-manager-service/vault/openbao/policy.hcl`.
+2. Put the token in `secrets/openbao-token` next to `amp.yaml`. The folder is git-ignored and mounted read-only into `amp-init` and `amp-api` at `/run/secrets`; the API runs as UID 1000, which must be able to read the file:
+
+   ```bash
+   mkdir -p secrets && printf '%s' 'YOUR_OPENBAO_TOKEN' > secrets/openbao-token && chmod 644 secrets/openbao-token
+   ```
+
+3. Uncomment the OpenBao block in `amp.yaml` and set the address and mount:
+
+   ```yaml
+   secret:
+     vault_provider: openbao
+   openbao:
+     addr: https://openbao.example.com:8200
+     token: "${file:/run/secrets/openbao-token}"
+     kv_mount: secret
+   ```
+
+4. Run `docker compose up -d`. `/healthz` reports 503 while OpenBao is unreachable, sealed, refuses the token, or the mount is not KV v2.
+
+`addr` must be reachable from inside the container and use `https://`; plain `http://` is accepted only for `localhost`. For a disposable development server on the host (`http://host.docker.internal:8200`), also set `allow_insecure_http: true` under `openbao:`; it sends the token unencrypted. To rotate the token, replace the file and restart `amp-api`. [database-schema.md](../../docs/amp-lite/database-schema.md#standalone-openbao) covers how values are stored and switching back to the local vault.
+
 On macOS with Colima, keep this folder inside your home folder: Colima shares only that with its VM, and the bind mounts come up empty anywhere else.
 
 ## Host names
@@ -86,6 +112,7 @@ docker compose --profile postgres down -v   # delete all data, including Thunder
 ## Files
 
 - `amp.yaml` — Agent Manager's settings, read by `amp-init` and `amp-api`.
+- `secrets/` — files `amp.yaml` reads by `${file:/run/secrets/...}` reference, such as the OpenBao token; git-ignored.
 - `docker-compose.postgres.yml` — points Agent Manager at the bundled PostgreSQL.
 - `thunder/entrypoint.sh` — installs the configuration `amp-init` generated into the ThunderID image and runs its setup or server. The templates live in `agent-manager-service/ampinit`.
 - `gateway/model_prices.json` — LLM pricing data for the gateway's cost policies.
