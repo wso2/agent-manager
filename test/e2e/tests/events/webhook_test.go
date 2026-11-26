@@ -50,8 +50,8 @@ var _ = Describe("Event delivery to a webhook", Label("events"), Ordered, func()
 
 	createProject := func(name string) {
 		projects = append(projects, name)
-		framework.Call(Default, Client, http.MethodPost, framework.API(Cfg, "/projects"),
-			framework.NewCreateProjectRequest(name, "Events "+name, "", "default"), http.StatusAccepted)
+		framework.Call(Default, Client, http.MethodPost, framework.Projects(""),
+			framework.NewProjectDocument(name, "Events "+name, ""), http.StatusAccepted)
 	}
 
 	BeforeAll(func() {
@@ -65,7 +65,7 @@ var _ = Describe("Event delivery to a webhook", Label("events"), Ordered, func()
 			}
 			agentops.DeleteAgentBestEffort(Client, Cfg.DefaultOrg, shared, agent)
 			for _, p := range projects {
-				framework.Send(Default, Client, http.MethodDelete, framework.API(Cfg, "/projects/%s", p), nil)
+				framework.Send(Default, Client, http.MethodDelete, framework.Projects("/%s", p), nil)
 			}
 			if destID != "" {
 				framework.Send(Default, Client, http.MethodDelete, ev("/destinations/%s", destID), nil)
@@ -182,10 +182,10 @@ var _ = Describe("Event delivery to a webhook", Label("events"), Ordered, func()
 			Request: framework.NewExternalAgentRequest(agent, "events journey"),
 		})
 		proj := func(f string, a ...any) string {
-			return framework.API(Cfg, "/projects/%s/events"+f, append([]any{shared}, a...)...)
+			return framework.Projects("/%s/events"+f, append([]any{shared}, a...)...)
 		}
 		ag := func(f string, a ...any) string {
-			return framework.API(Cfg, "/projects/%s/agents/%s/events"+f, append([]any{shared, agent}, a...)...)
+			return framework.Projects("/%s/agents/%s/events"+f, append([]any{shared, agent}, a...)...)
 		}
 
 		dests := framework.CallObj(Default, Client, http.MethodGet, proj("/destinations"), nil, http.StatusOK)

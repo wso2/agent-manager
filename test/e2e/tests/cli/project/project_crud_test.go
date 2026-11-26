@@ -48,22 +48,21 @@ var _ = Describe("amctl project CRUD", Label("cli", "project"), Ordered, func() 
 
 	It("creates a project", func() {
 		p := cliproject.CreateProject(Default, H, H.Org(), projName, displayName, description)
-		Expect(p.Name).To(Equal(projName))
-		Expect(p.DisplayName).To(Equal(displayName))
-		// Projects have no deployment pipeline: environments are internal.
-		Expect(p.DeploymentPipeline).To(BeEmpty())
+		Expect(p.Kind).To(Equal("Project"))
+		Expect(p.Metadata.Name).To(Equal(projName))
+		Expect(p.Spec.DisplayName).To(Equal(displayName))
 	})
 
 	It("gets the created project", func() {
 		p := cliproject.GetProject(Default, H, H.Org(), projName)
-		Expect(p.Name).To(Equal(projName))
-		Expect(p.DisplayName).To(Equal(displayName))
-		Expect(p.Description).To(Equal(description))
+		Expect(p.Metadata.Name).To(Equal(projName))
+		Expect(p.Spec.DisplayName).To(Equal(displayName))
+		Expect(p.Spec.Description).To(HaveValue(Equal(description)))
 	})
 
 	It("lists the created project", func() {
 		list := cliproject.ListProjects(Default, H, H.Org())
-		Expect(list.Names()).To(ContainElement(projName))
+		Expect(cliproject.ProjectNames(list)).To(ContainElement(projName))
 	})
 
 	It("deletes the project", func() {

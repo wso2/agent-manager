@@ -116,10 +116,10 @@ var _ = Describe("Sign-in and first-org bootstrap", Label("onboarding"), func() 
 	It("turns a display name into a free resource name", func() {
 		// The stack starts with no project, so the spec makes the one it names.
 		project := framework.E2EProjectPrefix + "name-" + uuid.NewString()[:8]
-		framework.Call(Default, Client, http.MethodPost, framework.API(Cfg, "/projects"),
-			framework.NewCreateProjectRequest(project, "Name generation", "", "default"), http.StatusAccepted)
+		framework.Call(Default, Client, http.MethodPost, framework.Projects(""),
+			framework.NewProjectDocument(project, "Name generation", ""), http.StatusAccepted)
 		DeferCleanup(func() {
-			framework.Send(Default, Client, http.MethodDelete, framework.API(Cfg, "/projects/%s", project), nil)
+			framework.Send(Default, Client, http.MethodDelete, framework.Projects("/%s", project), nil)
 		})
 
 		gen := framework.CallObj(Default, Client, http.MethodPost, framework.API(Cfg, "/utils/generate-name"),

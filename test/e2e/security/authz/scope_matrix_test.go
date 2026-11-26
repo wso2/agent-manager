@@ -141,9 +141,9 @@ func guardedRoutes(org string) []guardedRoute {
 		},
 
 		// --- Projects --------------------------------------------------------
-		{http.MethodPost, orgBase + "/projects", []string{"amp:project:create"}},
-		{http.MethodPut, orgBase + "/projects/" + absentName, []string{"amp:project:update"}},
-		{http.MethodDelete, orgBase + "/projects/" + absentName, []string{"amp:project:delete"}},
+		{http.MethodPost, "/api/v1/projects", []string{"amp:project:create"}},
+		{http.MethodPut, "/api/v1/projects/" + absentName, []string{"amp:project:update"}},
+		{http.MethodDelete, "/api/v1/projects/" + absentName, []string{"amp:project:delete"}},
 
 		// --- Identity — privilege granting -----------------------------------
 		{http.MethodPost, identityBase + "/users/invite", []string{"amp:org:invite-member"}},
