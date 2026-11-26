@@ -2,7 +2,10 @@
   ClickHouse users for the observability module's span table, otel.otel_traces.
   The install mounts this file into /etc/clickhouse-server/users.d/ and sets
   the four passwords in ClickHouse's environment. Users defined in a file
-  can't be changed or granted more with SQL.
+  can't be changed or granted more with SQL. An unset or empty password
+  variable leaves that user with no password, so the install must refuse to
+  start when any AMP_CLICKHOUSE_*_PASSWORD is empty. Each user logs in only
+  from loopback or a private network.
 
   amp_migrator  DDL on the otel database, for `amp migrate`, and the schema
                 history it keeps. No reads or writes of spans.
@@ -10,7 +13,8 @@
   amp_reader    SELECT on the span table and the schema history, for the
                 observability module. Its profile, amp_reader_profile, is
                 read-only, stops a read after 25 s (the module's client gives
-                up at 30 s) and cancels it when the client disconnects.
+                up at 30 s), refuses a max_execution_time outside 1-25 s and
+                cancels a read when the client disconnects.
   amp_cleaner   DELETE on the span table, for the observability module to
                 remove a deleted agent's spans.
 -->
@@ -21,12 +25,22 @@
       <readonly>2</readonly>
       <max_execution_time>25</max_execution_time>
       <cancel_http_readonly_queries_on_client_close>1</cancel_http_readonly_queries_on_client_close>
+      <constraints>
+        <max_execution_time><min>1</min><max>25</max></max_execution_time>
+      </constraints>
     </amp_reader_profile>
   </profiles>
   <users>
     <amp_migrator>
       <password from_env="AMP_CLICKHOUSE_MIGRATOR_PASSWORD"/>
-      <networks><ip>::/0</ip></networks>
+      <networks>
+        <ip>127.0.0.1</ip>
+        <ip>::1</ip>
+        <ip>10.0.0.0/8</ip>
+        <ip>172.16.0.0/12</ip>
+        <ip>192.168.0.0/16</ip>
+        <ip>fc00::/7</ip>
+      </networks>
       <profile>default</profile>
       <quota>default</quota>
       <grants>
@@ -36,7 +50,14 @@
     </amp_migrator>
     <amp_ingest>
       <password from_env="AMP_CLICKHOUSE_INGEST_PASSWORD"/>
-      <networks><ip>::/0</ip></networks>
+      <networks>
+        <ip>127.0.0.1</ip>
+        <ip>::1</ip>
+        <ip>10.0.0.0/8</ip>
+        <ip>172.16.0.0/12</ip>
+        <ip>192.168.0.0/16</ip>
+        <ip>fc00::/7</ip>
+      </networks>
       <profile>default</profile>
       <quota>default</quota>
       <grants>
@@ -45,7 +66,14 @@
     </amp_ingest>
     <amp_reader>
       <password from_env="AMP_CLICKHOUSE_READER_PASSWORD"/>
-      <networks><ip>::/0</ip></networks>
+      <networks>
+        <ip>127.0.0.1</ip>
+        <ip>::1</ip>
+        <ip>10.0.0.0/8</ip>
+        <ip>172.16.0.0/12</ip>
+        <ip>192.168.0.0/16</ip>
+        <ip>fc00::/7</ip>
+      </networks>
       <profile>amp_reader_profile</profile>
       <quota>default</quota>
       <grants>
@@ -55,7 +83,14 @@
     </amp_reader>
     <amp_cleaner>
       <password from_env="AMP_CLICKHOUSE_CLEANER_PASSWORD"/>
-      <networks><ip>::/0</ip></networks>
+      <networks>
+        <ip>127.0.0.1</ip>
+        <ip>::1</ip>
+        <ip>10.0.0.0/8</ip>
+        <ip>172.16.0.0/12</ip>
+        <ip>192.168.0.0/16</ip>
+        <ip>fc00::/7</ip>
+      </networks>
       <profile>default</profile>
       <quota>default</quota>
       <grants>

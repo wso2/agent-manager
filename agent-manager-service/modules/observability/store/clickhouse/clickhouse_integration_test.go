@@ -262,6 +262,18 @@ func TestReaderProfile(t *testing.T) {
 	}
 }
 
+// The reader can't lift its time limit, nor turn it off with 0.
+func TestReaderCannotRaiseItsTimeLimit(t *testing.T) {
+	e := clickhouseEnv(t)
+	for _, v := range []string{"26", "0"} {
+		var ce *Error
+		err := e.reader.exec(context.Background(), "SELECT 1 SETTINGS max_execution_time = "+v, nil)
+		if !errors.As(err, &ce) || !strings.Contains(ce.Message, "SETTING_CONSTRAINT_VIOLATION") {
+			t.Errorf("reader max_execution_time = %s: %v, want refused by the profile's constraint", v, err)
+		}
+	}
+}
+
 func TestCrossOrgReadsSeeNothing(t *testing.T) {
 	e := clickhouseEnv(t)
 	ctx := context.Background()

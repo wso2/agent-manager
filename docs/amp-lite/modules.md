@@ -178,6 +178,7 @@ func (module) ExternalSchema(config func(string) string, apply bool) (modkit.Ext
 - One `amp migrate` applies external schemas at a time, under the `modhost.external_schema` lease in `locks`; no core transaction is held while it talks to the store, so a running server's writes go on. Another run waits for the lease until its five-minute limit.
 - Installing or enabling a module whose store is configured but missing files is refused with a hint to run `amp migrate`; a store it can't reach is refused too. The check runs before the lifecycle transaction, so a slow store holds no lock. A replica also checks each module it is about to load, at boot or after a change elsewhere, leaves out one that fails and retries it; a module already loaded is not checked again, so it stays loaded and keeps getting its events while the store is down.
 - Apply never runs at install or enable, and `amp-core` has no modules, so neither changes for it.
+- The observability module's ClickHouse users are defined in `modules/observability/store/clickhouse/users.xml` and log in only from loopback or a private network. An unset or empty `AMP_CLICKHOUSE_*_PASSWORD` leaves that user with no password, so the install must refuse to start when any of them is empty.
 
 ## Activate and the Runtime
 
