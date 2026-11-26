@@ -18,13 +18,13 @@
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { OxygenUIThemeProvider } from "@wso2/oxygen-ui";
+import { OxygenUIThemeProvider, PageContent } from "@wso2/oxygen-ui";
 import {
   PLUGIN_API_VERSION,
   type PluginNavItemContribution,
   type UIModuleManifest,
 } from "@agent-management-platform/types";
-import type { ExternalModule } from "@agent-management-platform/views";
+import { usePageFooter, type ExternalModule } from "@agent-management-platform/views";
 import { PluginActivators, PluginProvider } from "../../plugins";
 import { MountPoints } from "../../types";
 import { OxygenLayout } from "./OxygenLayout";
@@ -156,8 +156,14 @@ const panel = (mountPoint: string, text: string): ExternalModule => ({
 const runtimeConfig = (window as unknown as { __RUNTIME_CONFIG__: Record<string, unknown> })
   .__RUNTIME_CONFIG__;
 
+// Pages render the layout footer through PageContent (as PageLayout does).
 function Where() {
-  return <div data-testid="where">{useLocation().pathname}</div>;
+  const footer = usePageFooter();
+  return (
+    <PageContent footer={footer}>
+      <div data-testid="where">{useLocation().pathname}</div>
+    </PageContent>
+  );
 }
 
 function renderAt(path: string, externalModules: ExternalModule[] = []) {

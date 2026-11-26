@@ -46,9 +46,12 @@ describe('MainActionPanel', () => {
 });
 
 describe('small presentational components', () => {
-  it('FullPageLoader shows a labelled progress indicator', () => {
+  it('FullPageLoader shows the themed loader image', () => {
     renderWithProviders(<FullPageLoader />);
-    expect(screen.getByRole('progressbar', { name: 'Loading' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Loading' })).toHaveAttribute(
+      'src',
+      expect.stringMatching(/choreo-labs-loader-(navy|white)\.svg$/),
+    );
   });
 
   it('FadeIn renders its children', () => {
@@ -56,10 +59,11 @@ describe('small presentational components', () => {
     expect(screen.getByText('faded')).toBeInTheDocument();
   });
 
-  it('Logo renders the brand name and mark', () => {
-    const { container } = renderWithProviders(<Logo width={40} />);
-    expect(screen.getByText(/AI Control Plane/)).toBeInTheDocument();
-    expect(container.querySelector('svg')).toHaveAttribute('width', '40');
+  it('Logo renders the themed wordmark image', () => {
+    renderWithProviders(<Logo width={40} />);
+    const img = screen.getByRole('img', { name: /Choreo AI Control Plane/ });
+    expect(img).toHaveAttribute('src', expect.stringMatching(/choreo-ai-control-plane-(dark|white)\.svg$/));
+    expect(img).toHaveAttribute('width', '40');
   });
 
   it('ExternalAgentIcon forwards svg props', () => {

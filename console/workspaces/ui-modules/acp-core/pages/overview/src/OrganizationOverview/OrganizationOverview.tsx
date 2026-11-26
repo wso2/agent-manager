@@ -32,7 +32,7 @@ import { ArrowRight, Plus } from "@wso2/oxygen-ui-icons-react";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useListProjects } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type ResourceSummaryState } from "@agent-management-platform/types";
-import { returnToState, useResourceSummaries } from "@agent-management-platform/views";
+import { returnToState, usePageFooter, useResourceSummaries } from "@agent-management-platform/views";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CARD_SLOTS, useRotatingSlots } from "./hooks/useRotatingSlots";
 import { CARD_GRID_SX } from "./cardGrid";
@@ -45,6 +45,7 @@ const PROJECTS_SHOWN = 3;
 
 export const OrganizationOverview: React.FC = () => {
   const { orgId = "" } = useParams<{ orgId: string }>();
+  const footer = usePageFooter();
   const { userInfo } = useAuthHooks();
   const location = useLocation();
   const params = { orgName: orgId };
@@ -118,7 +119,7 @@ export const OrganizationOverview: React.FC = () => {
   );
 
   return (
-    <PageContent fullWidth>
+    <PageContent fullWidth footer={footer}>
       {summaries.map((summary) => (
         <ResourceSummaryBoundary key={summary.key} summaryKey={summary.key} onFail={failSummary}>
           <ResourceSummaryProbe

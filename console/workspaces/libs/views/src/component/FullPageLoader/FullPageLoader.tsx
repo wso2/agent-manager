@@ -16,9 +16,17 @@
  * under the License.
  */
 
-import { Box, CircularProgress } from "@wso2/oxygen-ui";
+import { withBasePath } from "@agent-management-platform/types";
+import { Box, useColorScheme } from "@wso2/oxygen-ui";
+
+// Animated loader artwork lives in the web app's public/images. The navy file
+// is for light backgrounds, the white one for dark backgrounds.
+const LOADER_FOR_LIGHT = "/images/choreo-labs-loader-navy.svg";
+const LOADER_FOR_DARK = "/images/choreo-labs-loader-white.svg";
 
 export function FullPageLoader() {
+  const { colorScheme } = useColorScheme();
+  const src = withBasePath(colorScheme === "dark" ? LOADER_FOR_DARK : LOADER_FOR_LIGHT);
   return (
     <Box
       sx={{
@@ -29,7 +37,7 @@ export function FullPageLoader() {
         width: "100vw",
       }}
     >
-      <CircularProgress color="primary" size={48} aria-label="Loading" />
+      <img src={src} alt="Loading" aria-label="Loading" width={60} height={60} />
     </Box>
   );
 }
