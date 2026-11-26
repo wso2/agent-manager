@@ -17,23 +17,23 @@ import (
 // checks if the BudgetUsageListResponse type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &BudgetUsageListResponse{}
 
-// BudgetUsageListResponse A page of a budget's usage, one row per allowance, in the current period
+// BudgetUsageListResponse A page of a budget's usage, one row per usage, in the current period
 type BudgetUsageListResponse struct {
-	PeriodStart string                 `json:"periodStart"`
-	Allowances  []BudgetAllowanceUsage `json:"allowances"`
-	Total       int32                  `json:"total"`
-	Limit       int32                  `json:"limit"`
-	Offset      int32                  `json:"offset"`
+	PeriodStart string             `json:"periodStart"`
+	Usages      []BudgetUsageEntry `json:"usages"`
+	Total       int32              `json:"total"`
+	Limit       int32              `json:"limit"`
+	Offset      int32              `json:"offset"`
 }
 
 // NewBudgetUsageListResponse instantiates a new BudgetUsageListResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewBudgetUsageListResponse(periodStart string, allowances []BudgetAllowanceUsage, total int32, limit int32, offset int32) *BudgetUsageListResponse {
+func NewBudgetUsageListResponse(periodStart string, usages []BudgetUsageEntry, total int32, limit int32, offset int32) *BudgetUsageListResponse {
 	this := BudgetUsageListResponse{}
 	this.PeriodStart = periodStart
-	this.Allowances = allowances
+	this.Usages = usages
 	this.Total = total
 	this.Limit = limit
 	this.Offset = offset
@@ -72,28 +72,28 @@ func (o *BudgetUsageListResponse) SetPeriodStart(v string) {
 	o.PeriodStart = v
 }
 
-// GetAllowances returns the Allowances field value
-func (o *BudgetUsageListResponse) GetAllowances() []BudgetAllowanceUsage {
+// GetUsages returns the Usages field value
+func (o *BudgetUsageListResponse) GetUsages() []BudgetUsageEntry {
 	if o == nil {
-		var ret []BudgetAllowanceUsage
+		var ret []BudgetUsageEntry
 		return ret
 	}
 
-	return o.Allowances
+	return o.Usages
 }
 
-// GetAllowancesOk returns a tuple with the Allowances field value
+// GetUsagesOk returns a tuple with the Usages field value
 // and a boolean to check if the value has been set.
-func (o *BudgetUsageListResponse) GetAllowancesOk() ([]BudgetAllowanceUsage, bool) {
+func (o *BudgetUsageListResponse) GetUsagesOk() ([]BudgetUsageEntry, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return o.Allowances, true
+	return o.Usages, true
 }
 
-// SetAllowances sets field value
-func (o *BudgetUsageListResponse) SetAllowances(v []BudgetAllowanceUsage) {
-	o.Allowances = v
+// SetUsages sets field value
+func (o *BudgetUsageListResponse) SetUsages(v []BudgetUsageEntry) {
+	o.Usages = v
 }
 
 // GetTotal returns the Total field value
@@ -179,7 +179,7 @@ func (o BudgetUsageListResponse) MarshalJSON() ([]byte, error) {
 func (o BudgetUsageListResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["periodStart"] = o.PeriodStart
-	toSerialize["allowances"] = o.Allowances
+	toSerialize["usages"] = o.Usages
 	toSerialize["total"] = o.Total
 	toSerialize["limit"] = o.Limit
 	toSerialize["offset"] = o.Offset

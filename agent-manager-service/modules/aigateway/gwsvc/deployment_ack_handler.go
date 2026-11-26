@@ -32,7 +32,7 @@ type DeploymentAckHandler struct {
 	usage          GatewayUsageHandler
 }
 
-// GatewayUsageHandler takes a gateway's usage message: budget allowance totals.
+// GatewayUsageHandler takes a gateway's usage message: budget usage totals.
 type GatewayUsageHandler interface {
 	HandleUsage(ctx context.Context, gatewayID string, payload json.RawMessage)
 }

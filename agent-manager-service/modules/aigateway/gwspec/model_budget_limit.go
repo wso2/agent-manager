@@ -19,9 +19,8 @@ var _ MappedNullable = &BudgetLimit{}
 
 // BudgetLimit struct for BudgetLimit
 type BudgetLimit struct {
-	// Above zero; at most 12 whole digits and 2 decimals, no leading zeros; never rounded
-	Amount   string  `json:"amount"`
-	Currency *string `json:"currency,omitempty"`
+	// In USD; above zero; at most 12 whole digits and 2 decimals, no leading zeros; never rounded
+	Amount string `json:"amount"`
 	// UTC calendar periods; a week starts on Monday
 	Period string `json:"period"`
 	// block: refuses when used up; allow: only counts
@@ -38,8 +37,6 @@ type BudgetLimit struct {
 func NewBudgetLimit(amount string, period string, action string) *BudgetLimit {
 	this := BudgetLimit{}
 	this.Amount = amount
-	var currency string = "USD"
-	this.Currency = &currency
 	this.Period = period
 	this.Action = action
 	var blockAt int32 = 100
@@ -52,8 +49,6 @@ func NewBudgetLimit(amount string, period string, action string) *BudgetLimit {
 // but it doesn't guarantee that properties required by API are set
 func NewBudgetLimitWithDefaults() *BudgetLimit {
 	this := BudgetLimit{}
-	var currency string = "USD"
-	this.Currency = &currency
 	var blockAt int32 = 100
 	this.BlockAt = &blockAt
 	return &this
@@ -81,38 +76,6 @@ func (o *BudgetLimit) GetAmountOk() (*string, bool) {
 // SetAmount sets field value
 func (o *BudgetLimit) SetAmount(v string) {
 	o.Amount = v
-}
-
-// GetCurrency returns the Currency field value if set, zero value otherwise.
-func (o *BudgetLimit) GetCurrency() string {
-	if o == nil || IsNil(o.Currency) {
-		var ret string
-		return ret
-	}
-	return *o.Currency
-}
-
-// GetCurrencyOk returns a tuple with the Currency field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *BudgetLimit) GetCurrencyOk() (*string, bool) {
-	if o == nil || IsNil(o.Currency) {
-		return nil, false
-	}
-	return o.Currency, true
-}
-
-// HasCurrency returns a boolean if a field has been set.
-func (o *BudgetLimit) HasCurrency() bool {
-	if o != nil && !IsNil(o.Currency) {
-		return true
-	}
-
-	return false
-}
-
-// SetCurrency gets a reference to the given string and assigns it to the Currency field.
-func (o *BudgetLimit) SetCurrency(v string) {
-	o.Currency = &v
 }
 
 // GetPeriod returns the Period field value
@@ -238,9 +201,6 @@ func (o BudgetLimit) MarshalJSON() ([]byte, error) {
 func (o BudgetLimit) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["amount"] = o.Amount
-	if !IsNil(o.Currency) {
-		toSerialize["currency"] = o.Currency
-	}
 	toSerialize["period"] = o.Period
 	toSerialize["action"] = o.Action
 	if !IsNil(o.BlockAt) {

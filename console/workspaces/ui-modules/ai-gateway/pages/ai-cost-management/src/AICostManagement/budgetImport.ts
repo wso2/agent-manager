@@ -27,9 +27,9 @@ export const IMPORT_MAX_BYTES = 1024 * 1024;
 
 /** Every column the import reads, in order, with two example rows to edit. */
 export const IMPORT_TEMPLATE = [
-  "name,projectId,displayName,description,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels,labels",
-  "org-monthly-ceiling,,Organization monthly ceiling,All LLM spend,5000.00,month,block,95,,,,,,,,,80;100,finance-webhook,finance",
-  "online-shop-each-agent,online-shop,Each Online Shop agent,,50.00,week,block,,agent,,mock-openai,online-shop,,,,,100,finance-webhook,shop;agents",
+  "name,displayName,description,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels,labels",
+  "org-monthly-ceiling,Organization monthly ceiling,All LLM spend,5000.00,month,block,95,,,,,,,,,80;100,finance-webhook,finance",
+  "online-shop-each-agent,Each Online Shop agent,,50.00,week,block,,agent,,mock-openai,online-shop,,,,,100,finance-webhook,shop;agents",
   "",
 ].join("\n");
 
@@ -71,7 +71,7 @@ export function rowError(e: BudgetImportRowError): {
 }
 
 /**
- * The compact result above the rows. Imports are atomic: with any invalid row nothing is
+ * The compact result above the list. Imports are atomic: with any invalid row nothing is
  * imported.
  */
 export function validationResult(
@@ -82,7 +82,7 @@ export function validationResult(
     return {
       severity: "error",
       title: "Validation failed.",
-      text: `${summary.error} of ${rows} ${rows === 1 ? "row has" : "rows have"} errors. Nothing was imported.`,
+      text: `${summary.error} of ${rows} ${rows === 1 ? "budget has" : "budgets have"} errors. Nothing was imported.`,
     };
   }
   if (summary.created + summary.updated === 0) {
@@ -95,7 +95,7 @@ export function validationResult(
   return {
     severity: "success",
     title: "Validation passed.",
-    text: `${rows === 1 ? "The row is" : `All ${rows} rows are`} ready to import.`,
+    text: `${rows === 1 ? "The budget is" : `All ${rows} budgets are`} ready to import.`,
   };
 }
 

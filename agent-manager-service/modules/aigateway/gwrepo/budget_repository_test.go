@@ -47,24 +47,18 @@ func gatewayBudget(ouID string, gatewayID uuid.UUID, name, amount string) gwmode
 func budgetConfig(displayName, amount string) gwmodels.BudgetConfig {
 	return gwmodels.BudgetConfig{
 		DisplayName: displayName, Status: "active",
-		Limit:   gwmodels.BudgetLimit{Amount: amount, Currency: "USD", Period: "month", Action: "allow"},
+		Limit:   gwmodels.BudgetLimit{Amount: amount, Period: "month", Action: "allow"},
 		Filters: []gwmodels.BudgetFilter{}, Exemptions: []gwmodels.BudgetExemption{},
 	}
 }
 
-// coreOwners reads the core's organizations and projects, as the core API does.
+// coreOwners reads the core's organizations, as the core API does.
 type coreOwners struct{ db *gorm.DB }
 
 func (o coreOwners) GetOrg(ctx context.Context, orgID string) (modkit.Org, error) {
 	var org modkit.Org
 	err := o.db.WithContext(ctx).Table("organizations").Select("id, handle").Where("id = ?", orgID).Take(&org).Error
 	return org, err
-}
-
-func (o coreOwners) ListProjects(ctx context.Context, orgID string) ([]modkit.Project, error) {
-	var out []modkit.Project
-	err := o.db.WithContext(ctx).Table("projects").Select("id, name").Where("org_id = ?", orgID).Scan(&out).Error
-	return out, err
 }
 
 func newBudgetRepo(gdb *gorm.DB) BudgetRepository { return NewBudgetRepository(gdb, coreOwners{gdb}) }
@@ -221,66 +215,31 @@ func TestBudgetRepository_GetUpdateDelete(t *testing.T) {
 	assert.ErrorIs(t, err, gwerr.ErrBudgetNotFound)
 }
 
-// A budget is owned by its organization or one of its projects; reads carry both handles,
-// a gateway's push may move its budget between them, and a project with control-plane
-// budgets cannot be deleted until they are, while its gateway budgets become the
-// organization's.
-func TestBudgetRepository_ProjectBudgets(t *testing.T) {
+// Reads carry the organization's handle, and a budget belongs to the organization only: a
+// gateway's push stores it as the organization's whatever else the gateway's kind names.
+func TestBudgetRepository_BudgetsBelongToTheOrganization(t *testing.T) {
 	gdb := db.GetDB()
 	ctx := context.Background()
 	ou := dbtest.Org(t, gdb)
 	orgHandle := "org-" + ou[len(ou)-12:]
-	project := dbtest.Project(t, gdb, ou, "api-platform")
 	repo := newBudgetRepo(gdb)
 
 	orgBudget := gwmodels.Budget{OrgID: ou, Origin: gwmodels.BudgetOriginControlPlane, Configuration: budgetConfig("Org", "5000")}
 	require.NoError(t, repo.CreateForControlPlane(ctx, &orgBudget, "org-monthly"))
-	projectBudget := gwmodels.Budget{
-		OrgID: ou, Origin: gwmodels.BudgetOriginControlPlane, ProjectID: &project, ProjectName: "api-platform",
-		Configuration: budgetConfig("API Platform", "1000"),
-	}
-	require.NoError(t, repo.CreateForControlPlane(ctx, &projectBudget, "api-platform-monthly"))
-
 	all := budgetsByName(t, repo, ou)
 	assert.Equal(t, orgHandle, all["org-monthly"].OrgName)
-	assert.Empty(t, all["org-monthly"].ProjectName)
-	assert.Nil(t, all["org-monthly"].ProjectID)
-	assert.Equal(t, orgHandle, all["api-platform-monthly"].OrgName)
-	assert.Equal(t, "api-platform", all["api-platform-monthly"].ProjectName)
-	require.NotNil(t, all["api-platform-monthly"].ProjectID)
-	assert.Equal(t, project, *all["api-platform-monthly"].ProjectID)
-
-	got, err := repo.Get(ctx, ou, "api-platform-monthly")
+	got, err := repo.Get(ctx, ou, "org-monthly")
 	require.NoError(t, err)
-	assert.Equal(t, "api-platform", got.ProjectName)
+	assert.Equal(t, orgHandle, got.OrgName)
+
+	assert.False(t, gdb.Migrator().HasColumn("mod_ai_gateway_budgets", "project_id"), "the table has no owning project")
 
 	gw := newGateway(t, ou, gwmodels.GatewayRoleEgress)
 	pushed := gatewayBudget(ou, gw, "team-daily", "50")
-	pushed.ProjectID = &project
 	stored, err := repo.SaveForGateway(ctx, &pushed, "team-daily")
 	require.NoError(t, err)
 	require.True(t, stored)
-	assert.Equal(t, "api-platform", budgetsByName(t, repo, ou)["team-daily"].ProjectName)
-	again := gatewayBudget(ou, gw, "team-daily", "60")
-	stored, err = repo.SaveForGateway(ctx, &again, "team-daily")
-	require.NoError(t, err)
-	require.True(t, stored)
-	assert.Empty(t, budgetsByName(t, repo, ou)["team-daily"].ProjectName, "a push without the annotation makes it the organization's")
-	again.ProjectID = &project
-	_, err = repo.SaveForGateway(ctx, &again, "team-daily")
-	require.NoError(t, err)
-
-	// The project finalize check: its control-plane budget refuses the delete.
-	names, err := ProjectBudgets(gdb, ou, project.String())
-	require.NoError(t, err)
-	assert.Equal(t, []string{"api-platform-monthly"}, names)
-	assert.NotNil(t, budgetsByName(t, repo, ou)["team-daily"].ProjectID, "nothing changes while it refuses")
-
-	require.NoError(t, repo.Delete(ctx, ou, "api-platform-monthly"))
-	names, err = ProjectBudgets(gdb, ou, project.String())
-	require.NoError(t, err)
-	assert.Empty(t, names)
-	assert.Nil(t, budgetsByName(t, repo, ou)["team-daily"].ProjectID, "the gateway's budget becomes the organization's")
+	assert.Equal(t, orgHandle, budgetsByName(t, repo, ou)["team-daily"].OrgName)
 }
 
 // An import saves every budget or none, and finds names budgets already hold.
@@ -319,7 +278,8 @@ func TestBudgetRepository_CreateManyIsAllOrNothing(t *testing.T) {
 	assert.Len(t, budgetsByName(t, repo, ou), 4)
 }
 
-// The row holds the Budget kind as received; a provider a budget uses cannot be deleted.
+// The row keeps the name as a column and the whole Budget kind as configuration; a provider a
+// budget uses cannot be deleted.
 func TestBudgetRepository_StoredKindAndBudgetsUsing(t *testing.T) {
 	gdb := db.GetDB()
 	ctx := context.Background()
@@ -333,14 +293,30 @@ func TestBudgetRepository_StoredKindAndBudgetsUsing(t *testing.T) {
 	b := gwmodels.Budget{OrgID: ou, Origin: gwmodels.BudgetOriginControlPlane, Configuration: cfg}
 	require.NoError(t, repo.CreateForControlPlane(ctx, &b, "openai-monthly"))
 
-	var raw string
-	require.NoError(t, gdb.Table("mod_ai_gateway_budgets").Select("configuration").Where("id = ?", b.ID).Scan(&raw).Error)
-	var doc gwmodels.BudgetDocument
-	require.NoError(t, json.Unmarshal([]byte(raw), &doc))
-	assert.Equal(t, gwmodels.BudgetAPIVersion, doc.APIVersion)
-	assert.Equal(t, gwmodels.KindBudget, doc.Kind)
-	assert.Equal(t, "openai-monthly", doc.Metadata.Name)
-	assert.Equal(t, []string{"finance-email"}, doc.Spec.Warnings.Channels, "channels by name")
+	// The name is a column; the configuration holds the whole kind, with the name, display
+	// name and status in it.
+	var row struct{ Name, Configuration string }
+	require.NoError(t, gdb.Table("mod_ai_gateway_budgets").
+		Select("name, configuration").Where("id = ?", b.ID).Scan(&row).Error)
+	assert.Equal(t, "openai-monthly", row.Name)
+	var kind struct {
+		Kind     string `json:"kind"`
+		Metadata struct {
+			Name string `json:"name"`
+		} `json:"metadata"`
+		Spec struct {
+			DisplayName string                   `json:"displayName"`
+			Status      string                   `json:"status"`
+			Limit       gwmodels.BudgetLimit     `json:"limit"`
+			Warnings    *gwmodels.BudgetWarnings `json:"warnings"`
+		} `json:"spec"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(row.Configuration), &kind))
+	assert.Equal(t, "Budget", kind.Kind)
+	assert.Equal(t, "openai-monthly", kind.Metadata.Name)
+	assert.Equal(t, "OpenAI monthly", kind.Spec.DisplayName)
+	assert.Equal(t, cfg.Status, kind.Spec.Status)
+	assert.Equal(t, []string{"finance-email"}, kind.Spec.Warnings.Channels, "channels by name")
 	read, err := repo.Get(ctx, ou, "openai-monthly")
 	require.NoError(t, err)
 	assert.Equal(t, cfg, read.Configuration, "the spec reads back")

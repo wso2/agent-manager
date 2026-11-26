@@ -33,13 +33,13 @@ import (
 )
 
 // importCSV is an example, in the test environment's names.
-const importCSV = `name,projectId,displayName,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels
-wso2-monthly,,WSO2 monthly ceiling,10000,month,block,99,,,,,,,,"[{""type"": ""project"", ""id"": ""api-platform""}]",50;80;100,finance-email
-api-platform-agents,api-platform,"API Platform, per agent",100,month,block,,agent,,openai,,,,,"[{""type"": ""agent"", ""project"": ""api-platform"", ""id"": ""hotel-booking""}]",80;100,platform-slack
-api-platform-cap,,API Platform cap,500,month,block,,llmProvider,,,api-platform,,,,,80,finance-email
-rnd-per-user,,"R&D, per user",20,day,block,,attribute,"request.Auth.Claims[""email""]",,,,,"[""'research' in request.Auth.Claims[\""groups\""]""]",,80;100,finance-email
-ci-key-daily,,,20,day,block,,,,,,,ci-pipeline,,,,
-hotel-booking-daily,,,5,day,allow,,,,,,api-platform/hotel-booking,,,,,
+const importCSV = `name,displayName,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels
+wso2-monthly,WSO2 monthly ceiling,10000,month,block,99,,,,,,,,"[{""type"": ""project"", ""id"": ""api-platform""}]",50;80;100,finance-email
+api-platform-agents,"API Platform, per agent",100,month,block,,agent,,openai,api-platform,,,,"[{""type"": ""agent"", ""project"": ""api-platform"", ""id"": ""hotel-booking""}]",80;100,platform-slack
+api-platform-cap,API Platform cap,500,month,block,,llmProvider,,,api-platform,,,,,80,finance-email
+rnd-per-user,"R&D, per user",20,day,block,,attribute,"request.Auth.Claims[""email""]",,,,,"[""'research' in request.Auth.Claims[\""groups\""]""]",,80;100,finance-email
+ci-key-daily,,20,day,block,,,,,,,ci-pipeline,,,,
+hotel-booking-daily,,5,day,allow,,,,,,api-platform/hotel-booking,,,,,
 `
 
 func importBudgets(t *testing.T, env *budgetTestEnv, file string, dryRun bool) *gwspec.BudgetImportResult {
@@ -73,22 +73,18 @@ func TestBudgetImport_CreatesEveryRow(t *testing.T) {
 	assert.Equal(t, int32(99), *org.Limit.BlockAt)
 	assert.Equal(t, []int32{50, 80, 100}, org.Warnings.Thresholds)
 	assert.Equal(t, []string{"finance-email"}, org.Warnings.Channels, "channels are named in the file and stored by name")
-	assert.Nil(t, byName["wso2-monthly"].ProjectID)
 
 	agents := byName["api-platform-agents"]
-	require.NotNil(t, agents.ProjectID, "projectId makes it the project's budget")
-	assert.Equal(t, budgetTestProjectID, agents.ProjectID.String())
 	stored, err := json.Marshal(agents.Configuration.Filters)
 	require.NoError(t, err)
 	assert.JSONEq(t, `[
 		{"type": "llmProvider", "id": "openai"},
 		{"type": "project", "id": "api-platform"}
-	]`, string(stored), "the llmProvider column, then the owning project, added last")
+	]`, string(stored), "the llmProvider column, then the project column; a project's channels are available to it")
 	assert.Equal(t, &gwmodels.BudgetSplit{Type: "agent"}, agents.Configuration.Limit.SplitBy)
 	assert.Equal(t, "hotel-booking", *agents.Configuration.Exemptions[0].ID)
 
 	limitedProject := byName["api-platform-cap"]
-	assert.Nil(t, limitedProject.ProjectID, "the project column is a filter, not the owner")
 	assert.Equal(t, "llmProvider", limitedProject.Configuration.Limit.SplitBy.Type)
 	assert.Equal(t, "api-platform", *limitedProject.Configuration.Filters[0].ID)
 
@@ -126,21 +122,21 @@ func TestBudgetImport_ReportsEachRowsErrorsAndSavesNothing(t *testing.T) {
 	env := newBudgetTestEnv(t)
 	createTestBudget(t, env, "existing")
 	env.created, env.sender.sent = nil, nil
-	file := `name,amount,period,action,blockAt,projectId,project,agent,exemptions,thresholds,channels
-good,100,month,block,,,,,,,
-bad-amount,ten,month,block,,,,,,,
-bad-block-at,100,month,block,most,,,,,,
-no-such-agent,100,month,block,,,,api-platform/ghost,,,
-no-such-channel,100,month,block,,,,,,80,pagerduty
-bad-json,100,month,block,,,,,[{,,
-other-project,100,month,block,,api-platform,support,,,,
-existing,100,month,block,,,,,,,
-good,50,day,allow,,,,,,,
-bad-agent,100,month,block,,,,ghost,,,
+	file := `name,amount,period,action,blockAt,project,agent,exemptions,thresholds,channels
+good,100,month,block,,,,,,
+bad-amount,ten,month,block,,,,,,
+bad-block-at,100,month,block,most,,,,,
+no-such-agent,100,month,block,,,api-platform/ghost,,,
+no-such-channel,100,month,block,,,,,80,pagerduty
+bad-json,100,month,block,,,,[{,,
+existing,100,month,block,,,,,,
+good,50,day,allow,,,,,,
+bad-agent,100,month,block,,,ghost,,,
 `
+
 	result := importBudgets(t, env, file, false)
 	assert.False(t, result.Applied)
-	assert.Equal(t, gwspec.BudgetImportSummary{Valid: 1, Error: 9, Created: 1}, result.Summary)
+	assert.Equal(t, gwspec.BudgetImportSummary{Valid: 1, Error: 8, Created: 1}, result.Summary)
 	assert.Empty(t, env.budgets.CreateManyForControlPlaneCalls(), "one bad row and nothing is saved")
 	assert.Empty(t, env.sender.sent)
 
@@ -162,10 +158,9 @@ bad-agent,100,month,block,,,,ghost,,,
 		5:  {"agent", gwerr.ErrCodeReferenceNotFound},
 		6:  {"channels", gwerr.ErrCodeChannelNotAvailable},
 		7:  {"exemptions", httpx.ErrCodeValidation},
-		8:  {"project", httpx.ErrCodeValidation},
+		8:  {"name", gwerr.ErrCodeBudgetAlreadyExists},
 		9:  {"name", gwerr.ErrCodeBudgetAlreadyExists},
-		10: {"name", gwerr.ErrCodeBudgetAlreadyExists},
-		11: {"agent", httpx.ErrCodeValidation},
+		10: {"agent", httpx.ErrCodeValidation},
 	}, got)
 }
 
@@ -371,4 +366,50 @@ func TestBudgetImport_ReadsLabelsAndPointsAtABadOne(t *testing.T) {
 	require.Len(t, result.Results, 1)
 	require.NotEmpty(t, result.Results[0].Errors)
 	assert.Equal(t, "labels", *result.Results[0].Errors[0].Column, "the error points at the labels cell")
+}
+
+func TestBudgetImport_SeveralValuesInACellAreAlternatives(t *testing.T) {
+	env := newBudgetTestEnv(t)
+	file := "name,amount,period,action,llmProvider,project,agent\n" +
+		"two-projects,5,day,block,openai,api-platform;billing,\n" +
+		"two-agents,5,day,allow,,,api-platform/hotel-booking;billing/invoice-bot\n"
+	result := importBudgets(t, env, file, false)
+	require.Len(t, result.Results, 2)
+	assert.Empty(t, result.Results[0].Errors)
+	assert.Empty(t, result.Results[1].Errors)
+	require.Len(t, env.created, 2)
+	stored, err := json.Marshal(env.created[0].Configuration.Filters)
+	require.NoError(t, err)
+	assert.JSONEq(t, `[{"type": "llmProvider", "id": "openai"}, {"type": "project", "id": "api-platform"}, {"type": "project", "id": "billing"}]`,
+		string(stored), "one filter for each value")
+	stored, err = json.Marshal(env.created[1].Configuration.Filters)
+	require.NoError(t, err)
+	assert.JSONEq(t, `[{"type": "agent", "project": "api-platform", "id": "hotel-booking"}, {"type": "agent", "project": "billing", "id": "invoice-bot"}]`,
+		string(stored), "an agent is <project>/<agent>")
+}
+
+func TestBudgetImport_ABadCellNamesItsColumnAndValue(t *testing.T) {
+	env := newBudgetTestEnv(t)
+	file := "name,amount,period,action,project,agent,apiKey\n" +
+		"star-and-more,5,day,block,*;billing,,\n" +
+		"bad-agent,5,day,block,,api-platform/hotel-booking;nope,\n" +
+		"listed-twice,5,day,block,billing;billing,,\n" +
+		"nothing-listed,5,day,block,,,;\n" +
+		"unknown-project,5,day,block,api-platform;nowhere,,\n"
+	result := importBudgets(t, env, file, true)
+	require.Len(t, result.Results, 5)
+	want := []struct{ column, contains string }{
+		{"project", "'*' (any project) cannot be listed with other values"},
+		{"agent", `agent "nope" must be <project>/<agent>`},
+		{"project", "billing is listed twice in project"},
+		{"apiKey", "apiKey lists no value"},
+		{"project", ""},
+	}
+	for i, w := range want {
+		errs := result.Results[i].Errors
+		require.NotEmpty(t, errs, "row %d", i+1)
+		assert.Equal(t, w.column, errs[0].GetColumn(), "row %d", i+1)
+		assert.Contains(t, errs[0].Message, w.contains, "row %d", i+1)
+	}
+	assert.Empty(t, env.created, "a dry run stores nothing")
 }

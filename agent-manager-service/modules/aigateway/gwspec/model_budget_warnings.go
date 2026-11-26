@@ -19,7 +19,7 @@ var _ MappedNullable = &BudgetWarnings{}
 
 // BudgetWarnings Warnings the control plane sends to the named notification channels. Control plane only; not sent to gateways.
 type BudgetWarnings struct {
-	// Whole percentages of the amount, 1-1000; each once per allowance per period
+	// Whole percentages of the amount, 1-1000; each once per usage per period
 	Thresholds []int32 `json:"thresholds"`
 	// Names of notification channels (event destinations, unique in the organization) available to the budget
 	Channels []string `json:"channels"`

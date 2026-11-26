@@ -90,7 +90,7 @@ func (s *stubCosts) Costs(_ context.Context, _, orgName, groupBy string, _ []str
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &gwspec.CostReport{Currency: "USD", CostByGroup: []gwspec.CostByGroup{{Id: *gwspec.NewNullableString(gwspec.PtrString(orgName + "/" + groupBy))}}}, nil
+	return &gwspec.CostReport{CostByGroup: []gwspec.CostByGroup{{Id: *gwspec.NewNullableString(gwspec.PtrString(orgName + "/" + groupBy))}}}, nil
 }
 
 func budgetRequest(method, target string, body io.Reader) *http.Request {

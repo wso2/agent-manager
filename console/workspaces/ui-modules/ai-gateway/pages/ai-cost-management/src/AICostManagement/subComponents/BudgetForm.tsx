@@ -17,13 +17,18 @@
  */
 
 import {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
 } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Autocomplete,
   Box,
@@ -34,6 +39,7 @@ import {
   FormControlLabel,
   IconButton,
   InputAdornment,
+  Menu,
   MenuItem,
   Radio,
   RadioGroup,
@@ -48,13 +54,14 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
+  ChevronDown,
   Lock,
   Plus,
   SearchX,
   ServerCrash,
   X,
 } from "@wso2/oxygen-ui-icons-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   useCreateBudget,
   useGetBudget,
@@ -85,6 +92,8 @@ import {
   formFromBudget,
   handleFor,
   ANY,
+  addExpressions,
+  isAllValues,
   identityExpression,
   isCelKind,
   newExemption,
@@ -92,6 +101,7 @@ import {
   startFromQuery,
   duplicateNameError,
   isBudgetNotFound,
+  sentExemptionRows,
   sentFilterRows,
   serverFieldError,
   validateBudgetForm,
@@ -101,7 +111,12 @@ import {
   type ExemptionRow,
   type ScopeKind,
 } from "../budgetForm";
-import { PERIOD_LABELS, inSentence } from "./budgetLabels";
+import { PERIOD_LABELS, allOfKind, inSentence } from "./budgetLabels";
+import {
+  FORM_SELECT_SX,
+  FORM_TOGGLE_BUTTON_SX,
+  TOOLBAR_FIELD_SX,
+} from "../controlSizes";
 
 interface BudgetWizardProps {
   orgName?: string;
@@ -123,7 +138,7 @@ interface BudgetWizardProps {
 function splitChoices(filters: FilterRow[]): ScopeKind[] {
   const out: ScopeKind[] = [];
   for (const f of filters) {
-    if (!out.includes(f.type) && (isCelKind(f.type) || f.id === ANY)) {
+    if (!out.includes(f.type) && (isCelKind(f.type) || isAllValues(f))) {
       out.push(f.type);
     }
   }
@@ -133,19 +148,17 @@ function splitChoices(filters: FilterRow[]): ScopeKind[] {
 const STEPS = [
   { key: "details", label: "Details" },
   { key: "scope", label: "Applies to and limit" },
-  { key: "extras", label: "Exemptions, alerts and labels (optional)" },
 ] as const;
 
-/** The page a field's error belongs to: the name on Details; exemptions and alerts on
- * the last; the rest (filters, limit) on Applies to and limit. */
+/** The page a field's error belongs to: the name, description and labels on Details; the
+ * rest (filters, limit, and the optional exemptions and alerts) on Applies to and limit. */
 function stepOfField(field: string): number {
-  if (field === "displayName" || field === "description") return 0;
   if (
-    field.startsWith("exemptions") ||
-    field === "thresholds" ||
-    field === "channels"
+    field === "displayName" ||
+    field === "description" ||
+    field.startsWith("labels")
   )
-    return 2;
+    return 0;
   return 1;
 }
 
@@ -208,6 +221,7 @@ function Section({
   description,
   optional,
   locked,
+  nested,
   children,
 }: {
   title: string;
@@ -215,12 +229,14 @@ function Section({
   description?: string;
   optional?: boolean;
   locked?: boolean;
+  /** Inside another section: a smaller title. */
+  nested?: boolean;
   children: ReactNode;
 }) {
   return (
     <Box component="section">
       <Stack direction="row" spacing={1} alignItems="center">
-        <Typography variant="subtitle1">
+        <Typography variant={nested ? "subtitle2" : "subtitle1"}>
           {title}
           {optional && (
             <Typography component="span" variant="body2" color="text.secondary">
@@ -237,12 +253,73 @@ function Section({
           </Tooltip>
         )}
       </Stack>
-      {description && (
+      {description && !nested && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
           {description}
         </Typography>
       )}
-      <Box sx={{ mt: 2 }}>{children}</Box>
+      <Box sx={{ mt: nested ? 1.5 : 2 }}>{children}</Box>
+    </Box>
+  );
+}
+
+/**
+ * The optional parts of the form, folded under one heading as the other sections are
+ * titled: one line until it is clicked open.
+ */
+function FoldedSection({
+  title,
+  expanded,
+  onToggle,
+  children,
+}: {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  // In a box, so the page's spacing between sections lands on the box and does not
+  // change when the accordion opens. The gap under the divider is 12px, not the page's 32px
+  // (`&&` outranks the stack's own spacing rule).
+  return (
+    <Box sx={{ "&&": { mt: 1.5 } }}>
+      <Accordion
+        expanded={expanded}
+        onChange={onToggle}
+        disableGutters
+        elevation={0}
+        square
+        sx={{
+          // Plain, like the other sections: no box of its own.
+          background: "transparent",
+          border: 0,
+          borderRadius: 0,
+          boxShadow: "none",
+          "&:before": { display: "none" },
+        }}
+      >
+        <AccordionSummary
+          expandIcon={<ChevronDown size={18} />}
+          sx={{
+            px: 0,
+            minHeight: 0,
+            "& .MuiAccordionSummary-content": { my: 0 },
+          }}
+        >
+          <Typography variant="subtitle1">
+            {title}
+            <Typography component="span" variant="body2" color="text.secondary">
+              {" "}
+              (optional)
+            </Typography>
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails sx={{ px: 0, pt: 2, pb: 0 }}>
+          <Stack spacing={3} divider={<Divider flexItem />}>
+            {children}
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
     </Box>
   );
 }
@@ -270,7 +347,13 @@ export function Segmented<T extends string>({
       onChange={(_, v: T | null) => v && onChange(v)}
       disabled={disabled}
       aria-label={label}
-      sx={{ "& .MuiToggleButton-root": { textTransform: "none", px: 2 } }}
+      sx={{
+        "& .MuiToggleButton-root": {
+          textTransform: "none",
+          px: 2,
+          ...FORM_TOGGLE_BUTTON_SX,
+        },
+      }}
     >
       {options.map((o) => (
         <ToggleButton key={o.value} value={o.value}>
@@ -350,25 +433,45 @@ function ChoiceField<T extends string>({
   );
 }
 
-/** Picks a project, an agent or an LLM provider from a list, or names an API key. */
-function ValuePicker({
+/** A small orange all-caps word between the chips of one row: OR when any matches, AND when
+ * all must. Both words look the same. */
+function Connector({ word }: { word: "OR" | "AND" }) {
+  return (
+    <Typography
+      component="span"
+      variant="caption"
+      color="warning.main"
+      sx={{ fontWeight: 600, fontSize: 12, letterSpacing: "0.02em" }}
+    >
+      {word}
+    </Typography>
+  );
+}
+
+/**
+ * Picks one or more LLM providers, projects, agents or API keys, shown as chips: a
+ * request matches the row when it matches any of them. "All" stands alone: picking it
+ * clears the specific values, and picking a specific value clears it.
+ */
+function MultiValuePicker({
   kind,
-  value,
+  values,
   onChange,
   options,
   disabled,
   error,
-  placeholder,
   list,
+  connector,
 }: {
   kind: ScopeKind;
-  value: string;
-  onChange: (v: string) => void;
+  values: string[];
+  onChange: (v: string[]) => void;
   options: Option[];
   disabled?: boolean;
   error?: string;
-  placeholder: string;
   list?: ListState;
+  /** Show OR between the chips: a request matches any of them. */
+  connector?: boolean;
 }) {
   const empty =
     kind === "apiKey"
@@ -378,20 +481,47 @@ function ValuePicker({
         : kind === "llmProvider"
           ? "No LLM providers yet."
           : "No projects yet. Add one from Projects.";
-  // A saved key no longer listed (deleted, or an agent's own key) stays selectable.
-  if (kind === "apiKey" && value && !options.some((o) => o.value === value)) {
-    options = [...options, { value, label: value }];
+  // A saved value no longer listed (a deleted API key, or an agent's own key) stays.
+  const known = [...options];
+  for (const v of values) {
+    if (kind === "apiKey" && !known.some((o) => o.value === v)) {
+      known.push({ value: v, label: v });
+    }
   }
-  const selected = options.find((o) => o.value === value) ?? null;
+  const selected = values.map(
+    (v) => known.find((o) => o.value === v) ?? { value: v, label: v },
+  );
   return (
     <Autocomplete
+      multiple
       size="small"
       fullWidth
-      options={options}
+      disableCloseOnSelect
+      filterSelectedOptions
+      options={known}
       value={selected}
-      onChange={(_, o) => onChange(o?.value ?? "")}
+      onChange={(_, picked) => {
+        const next = picked.map((o) => o.value);
+        const added = next.find((v) => !values.includes(v));
+        onChange(added === ANY ? [ANY] : next.filter((v) => v !== ANY));
+      }}
       getOptionLabel={(o) => o.label}
       isOptionEqualToValue={(a, b) => a.value === b.value}
+      renderTags={(tags, getTagProps) =>
+        tags.map((t, i) => {
+          const { key, ...props } = getTagProps({ index: i });
+          return (
+            <Box
+              key={key}
+              component="span"
+              sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}
+            >
+              {connector && i > 0 && <Connector word="OR" />}
+              <Chip size="small" label={t.label} {...props} />
+            </Box>
+          );
+        })
+      }
       disabled={disabled}
       loading={list?.loading}
       loadingText={`Loading ${list?.noun ?? "options"}…`}
@@ -399,7 +529,7 @@ function ValuePicker({
       renderInput={(params) => (
         <TextField
           {...params}
-          placeholder={placeholder}
+          placeholder={values.length ? "Add another" : "Choose one or more"}
           error={!!error}
           helperText={error}
         />
@@ -407,6 +537,144 @@ function ValuePicker({
     />
   );
 }
+
+/**
+ * CEL expressions as chips: type one and press Enter. Only the ends are trimmed (an
+ * expression has spaces, quotes and brackets). Text typed but not entered is added when
+ * the input loses focus, and is reported through `onDraft` so Next and Save can add it
+ * before they check the form. Enter never reaches the page.
+ */
+export function ExpressionChips({
+  values,
+  onChange,
+  placeholder,
+  helper,
+  error,
+  disabled,
+  connector,
+  draftKey,
+  onDraft,
+}: {
+  values: string[];
+  onChange: (v: string[]) => void;
+  placeholder: string;
+  helper: string;
+  error?: string;
+  disabled?: boolean;
+  /** AND between the chips: every expression must match. */
+  connector?: "AND" | "OR";
+  draftKey: string;
+  onDraft: (key: string, text: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [draftError, setDraftError] = useState("");
+  const typed = (text: string) => {
+    setDraft(text);
+    onDraft(draftKey, text);
+  };
+  // Nothing typed stays pending once the input is gone.
+  useEffect(() => () => onDraft(draftKey, ""), [draftKey, onDraft]);
+  const commit = (text: string) => {
+    const added = addExpressions(values, text);
+    if (added.error) {
+      setDraftError(added.error);
+      return;
+    }
+    setDraftError("");
+    typed("");
+    if (added.values.length !== values.length) onChange(added.values);
+  };
+  return (
+    <Autocomplete
+      multiple
+      freeSolo
+      size="small"
+      fullWidth
+      options={[] as string[]}
+      disabled={disabled}
+      value={values}
+      inputValue={draft}
+      onInputChange={(_, v, reason) => {
+        if (reason === "input") {
+          typed(v);
+          setDraftError("");
+        }
+      }}
+      onChange={(_, next, reason) => {
+        if (reason === "createOption") commit(draft);
+        else {
+          onChange(next as string[]);
+          setDraftError("");
+        }
+      }}
+      renderTags={(tags, getTagProps) =>
+        tags.map((t, i) => {
+          const { key, ...props } = getTagProps({ index: i });
+          return (
+            <Box
+              key={key}
+              component="span"
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.75,
+                maxWidth: "100%",
+              }}
+            >
+              {connector && i > 0 && <Connector word={connector} />}
+              <Chip
+                size="small"
+                label={t}
+                {...props}
+                sx={{
+                  maxWidth: "100%",
+                  height: "auto",
+                  py: 0.25,
+                  "& .MuiChip-label": {
+                    whiteSpace: "normal",
+                    wordBreak: "break-all",
+                    fontFamily: "monospace",
+                  },
+                }}
+              />
+            </Box>
+          );
+        })
+      }
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          placeholder={
+            values.length ? "Add another, then press Enter" : placeholder
+          }
+          error={!!(draftError || error)}
+          helperText={draftError || error || helper}
+          slotProps={{
+            htmlInput: {
+              ...params.inputProps,
+              style: { ...params.inputProps.style, fontFamily: "monospace" },
+              onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+                params.inputProps.onKeyDown?.(e);
+                // Enter adds the chip here; it must not submit or go to the next step.
+                // It is stopped before the autocomplete sees it, so the chip is added here.
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (draft.trim()) commit(draft);
+                }
+              },
+              onBlur: (e: React.FocusEvent<HTMLInputElement>) => {
+                params.inputProps.onBlur?.(e);
+                if (draft.trim()) commit(draft);
+              },
+            },
+          }}
+        />
+      )}
+    />
+  );
+}
+
 /** A rounded "+ Kind" button that adds a condition, a warning or a channel. */
 export function AddChip({
   label,
@@ -545,49 +813,51 @@ export function Labels({
     onChange(next);
   };
   return (
-    <Autocomplete
-      multiple
-      freeSolo
-      size="small"
-      autoHighlight
-      // Any word is allowed: while typing, the typed word is offered as "Add finance".
-      options={[] as string[]}
-      filterOptions={() => (draft && !value.includes(draft) ? [draft] : [])}
-      renderOption={(props, o) => {
-        const { key, ...rest } = props as typeof props & { key: string };
-        return (
-          <li key={key} {...rest}>
-            {`Add ${o}`}
-          </li>
-        );
-      }}
-      value={value}
-      inputValue={draft}
-      onInputChange={(_, v, reason) => {
-        if (reason === "input") {
-          setDraft(v.replace(/\s/g, ""));
-          setDraftError("");
+    <Form.ElementWrapper label="Labels (optional)" name="Labels">
+      <Autocomplete
+        multiple
+        freeSolo
+        size="small"
+        autoHighlight
+        // Any word is allowed: while typing, the typed word is offered as "Add finance".
+        options={[] as string[]}
+        filterOptions={() => (draft && !value.includes(draft) ? [draft] : [])}
+        renderOption={(props, o) => {
+          const { key, ...rest } = props as typeof props & { key: string };
+          return (
+            <li key={key} {...rest}>
+              {`Add ${o}`}
+            </li>
+          );
+        }}
+        value={value}
+        inputValue={draft}
+        onInputChange={(_, v, reason) => {
+          if (reason === "input") {
+            setDraft(v.replace(/\s/g, ""));
+            setDraftError("");
+          }
+        }}
+        onChange={(_, v) => accept(v as string[])}
+        renderTags={(tags, getTagProps) =>
+          tags.map((t, i) => {
+            const { key, ...props } = getTagProps({ index: i });
+            return <Chip key={key} size="small" label={t} {...props} />;
+          })
         }
-      }}
-      onChange={(_, v) => accept(v as string[])}
-      renderTags={(tags, getTagProps) =>
-        tags.map((t, i) => {
-          const { key, ...props } = getTagProps({ index: i });
-          return <Chip key={key} size="small" label={t} {...props} />;
-        })
-      }
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          placeholder={value.length ? "" : "e.g. finance"}
-          error={!!(draftError || error)}
-          helperText={draftError || error || "Type a label and press Enter."}
-          slotProps={{
-            htmlInput: { ...params.inputProps, "aria-label": "Labels" },
-          }}
-        />
-      )}
-    />
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            placeholder={value.length ? "" : "e.g. finance"}
+            error={!!(draftError || error)}
+            helperText={draftError || error || "Type a label and press Enter."}
+            slotProps={{
+              htmlInput: { ...params.inputProps, "aria-label": "Labels" },
+            }}
+          />
+        )}
+      />
+    </Form.ElementWrapper>
   );
 }
 
@@ -678,13 +948,22 @@ export function BudgetWizard({
   const create = useCreateBudget();
   const update = useUpdateBudget();
 
-  // "Advanced options" on an entity's page opens this form with the entity filled in.
+  // "Advanced create" on an entity's page opens this form with the entity filled in.
   // Those values are where the form starts, not changes, so they don't make it dirty.
+  // A quick form's "Advanced create" also passes what was typed there (a draft): the form
+  // starts from it, and it counts as changes, as it is not saved yet.
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const [start] = useState(() =>
     editing ? EMPTY_FORM : formFor(startFromQuery(searchParams)),
   );
-  const [form, setForm] = useState<BudgetFormState>(start);
+  const [draft] = useState(
+    () =>
+      (!editing &&
+        (location.state as { draft?: BudgetFormState } | null)?.draft) ||
+      undefined,
+  );
+  const [form, setForm] = useState<BudgetFormState>(draft ?? start);
   const [initial, setInitial] = useState<BudgetFormState>(start);
   useEffect(() => {
     if (existing.data) {
@@ -695,9 +974,11 @@ export function BudgetWizard({
   }, [existing.data]);
 
   // API keys of the providers the budget covers: the one filtered on, or all of them.
-  const providerFilter = form.filters.find((f) => f.type === "llmProvider")?.id;
+  const providerFilter = (
+    form.filters.find((f) => f.type === "llmProvider")?.values ?? []
+  ).filter((v) => v !== ANY);
   const scopedProviders = (providers.data?.providers ?? []).filter(
-    (p) => !providerFilter || p.id === providerFilter,
+    (p) => !providerFilter.length || providerFilter.includes(p.id),
   );
   const providerKeys = useListLLMProvidersAPIKeys(
     orgName,
@@ -726,18 +1007,30 @@ export function BudgetWizard({
     budgets.data?.budgets ?? [],
     budgetName,
   );
-  const allErrors: BudgetFormErrors = {
-    ...validateBudgetForm(form),
+  const errorsFor = (f: BudgetFormState): BudgetFormErrors => ({
+    ...validateBudgetForm(f),
     ...(duplicateName ? { displayName: duplicateName } : {}),
-  };
-  const errorsOn = (n: number) =>
-    Object.keys(allErrors).filter((k) => stepOfField(k) === n);
+  });
+  const allErrors = errorsFor(form);
   const errors: BudgetFormErrors = {
     ...Object.fromEntries(
       Object.entries(allErrors).filter(([k]) => checked.has(stepOfField(k))),
     ),
     ...serverErrors,
   };
+  // Alerts and exemptions start folded when creating, open if they already hold a value
+  // (a draft from the quick form), and open by themselves when they have an error.
+  const [extrasOpen, setExtrasOpen] = useState(
+    form.exemptions.length > 0 ||
+      form.thresholds.length > 0 ||
+      form.channels.length > 0,
+  );
+  const extrasExpanded =
+    extrasOpen ||
+    Object.keys(errors).some(
+      (k) =>
+        k.startsWith("exemptions") || k === "thresholds" || k === "channels",
+    );
   const patch = (changes: Partial<BudgetFormState>) => {
     setServerErrors({});
     setForm((f) => ({ ...f, ...changes }));
@@ -821,7 +1114,7 @@ export function BudgetWizard({
     failed: !!destinations.error,
     retry: () => void destinations.refetch(),
   };
-  const allowedExemptionKinds = exemptionKinds(form);
+  const allowedExemptionKinds = exemptionKinds();
   const taken = useMemo(
     () => (budgets.data?.budgets ?? []).map((b) => b.metadata.name),
     [budgets.data],
@@ -830,9 +1123,9 @@ export function BudgetWizard({
 
   const updateFilter = (i: number, change: Partial<FilterRow>) =>
     setFilters(form.filters.map((f, j) => (j === i ? { ...f, ...change } : f)));
-  // A type another filter already has (Team, User and custom attributes may repeat).
+  // A type another filter already has: each type has one row, except custom attributes.
   const filterTypeTaken = (i: number, k: ScopeKind) =>
-    !isCelKind(k) && form.filters.some((f, j) => j !== i && f.type === k);
+    k !== "attribute" && form.filters.some((f, j) => j !== i && f.type === k);
   // The type a new filter starts with: the first one still free.
   const firstFreeKind = FILTER_KINDS.find((k) => !filterTypeTaken(-1, k));
   const updateExemption = (i: number, change: Partial<ExemptionRow>) =>
@@ -840,13 +1133,13 @@ export function BudgetWizard({
       "exemptions",
       form.exemptions.map((e, j) => (j === i ? { ...e, ...change } : e)),
     );
-  const agentValue = (r: { id: string; project: string }) =>
-    r.id === ANY ? ANY : r.id ? `${r.project}/${r.id}` : "";
-  const splitAgent = (v: string) => {
-    if (v === ANY) return { project: "", id: ANY };
-    const [project = "", id = ""] = v.split("/");
-    return { project, id };
-  };
+  // Each exemption type has one row, holding all its values or expressions.
+  const exemptionTypeTaken = (i: number, k: ExemptionRow["type"]) =>
+    form.exemptions.some((e, j) => j !== i && e.type === k);
+  const addableExemptionKinds = allowedExemptionKinds.filter(
+    (k) => !exemptionTypeTaken(-1, k),
+  );
+  const [exemptionMenu, setExemptionMenu] = useState<HTMLElement | null>(null);
   // "All LLM providers", "All projects", ...: the type without one value, first in the
   // list (Kong's "is set").
   const anyOption = (kind: ScopeKind): Option[] =>
@@ -855,28 +1148,47 @@ export function BudgetWizard({
       : [
           {
             value: ANY,
-            label:
-              kind === "llmProvider"
-                ? "All LLM providers"
-                : kind === "apiKey"
-                  ? "All API keys"
-                  : `All ${inSentence(KIND_LABEL[kind])}s`,
+            label: allOfKind(KIND_LABEL[kind]),
           },
         ];
-  const pickerPlaceholder = (kind: ScopeKind) =>
-    kind === "apiKey"
-      ? "Choose an API key"
-      : kind === "llmProvider"
-        ? "Choose an LLM provider"
-        : kind === "agent"
-          ? "Choose an agent"
-          : kind === "project"
-            ? "Choose a project"
-            : "Choose one";
+  // Text typed into an expression box and not yet entered, by box. Next and Save add it
+  // before they check the form, so it is never lost.
+  const drafts = useRef(new Map<string, string>());
+  const [flushes, setFlushes] = useState(0);
+  const setDraftText = useCallback((key: string, text: string) => {
+    if (text) drafts.current.set(key, text);
+    else drafts.current.delete(key);
+  }, []);
+  const commitDrafts = (): BudgetFormState => {
+    const fold = <R extends { type: ScopeKind; values: string[] }>(
+      rows: R[],
+      prefix: string,
+    ) =>
+      rows.map((r, i) => {
+        const text = drafts.current.get(`${prefix}${i}`);
+        if (!text || !isCelKind(r.type)) return r;
+        const added = addExpressions(r.values, text);
+        return added.error ? r : { ...r, values: added.values };
+      });
+    const filters = fold(form.filters, "f");
+    const exemptions = fold(form.exemptions, "e");
+    const changed =
+      JSON.stringify([filters, exemptions]) !==
+      JSON.stringify([form.filters, form.exemptions]);
+    if (drafts.current.size === 0) return form;
+    drafts.current.clear();
+    setFlushes((n) => n + 1);
+    if (!changed) return form;
+    setForm((f) => ({ ...f, filters, exemptions }));
+    return { ...form, filters, exemptions };
+  };
 
-  const check = (pages: number[]) => {
+  const check = (pages: number[], f: BudgetFormState = form) => {
     setChecked((c) => new Set([...c, ...pages]));
-    const failing = pages.filter((n) => errorsOn(n).length > 0);
+    const found = errorsFor(f);
+    const errorsOnPage = (n: number) =>
+      Object.keys(found).filter((k) => stepOfField(k) === n);
+    const failing = pages.filter((n) => errorsOnPage(n).length > 0);
     if (failing.length) {
       setStep(failing[0]);
       setFailedChecks((n) => n + 1);
@@ -888,13 +1200,14 @@ export function BudgetWizard({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const next = () => {
-    if (check([step])) goTo(step + 1);
+    if (check([step], commitDrafts())) goTo(step + 1);
   };
 
   const onSaveError = (err: unknown) => {
     const { field, message } = serverFieldError(
       err,
       sentFilterRows(form.filters),
+      sentExemptionRows(form.exemptions),
     );
     setServerErrors({ [field]: message });
     setStep(stepOfField(field));
@@ -902,8 +1215,15 @@ export function BudgetWizard({
   };
 
   const save = () => {
-    if (!check(STEPS.map((_, i) => i))) return;
-    const body = budgetFromForm(form, {
+    const current = commitDrafts();
+    if (
+      !check(
+        STEPS.map((_, i) => i),
+        current,
+      )
+    )
+      return;
+    const body = budgetFromForm(current, {
       name: handle,
       existing: existing.data,
     });
@@ -983,7 +1303,7 @@ export function BudgetWizard({
   // One row per filter: its type, then the one it matches (or a CEL expression).
   const filterRows = form.filters.map((f, i) => (
     <Stack
-      key={i}
+      key={`${i}-${flushes}`}
       direction={{ xs: "column", md: "row" }}
       spacing={1.5}
       alignItems={{ md: "flex-start" }}
@@ -996,6 +1316,7 @@ export function BudgetWizard({
           value={f.type}
           disabled={editing}
           aria-label={`Filter ${i + 1} type`}
+          sx={TOOLBAR_FIELD_SX}
           onChange={(ev) =>
             setFilters(
               form.filters.map((x, j) =>
@@ -1017,31 +1338,23 @@ export function BudgetWizard({
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {isCelKind(f.type) ? (
-          <TextInput
-            size="small"
-            fullWidth
-            value={f.expression}
-            disabled={editing}
-            onChange={(e) => updateFilter(i, { expression: e.target.value })}
+          <ExpressionChips
+            connector="OR"
+            values={f.values}
+            onChange={(values) => updateFilter(i, { values })}
             placeholder={expressionPlaceholder(f.type)}
-            error={!!errors[`filters.${i}`]}
-            helperText={
-              errors[`filters.${i}`] ??
-              (form.splitBy === f.type
-                ? `Optional. Empty counts all ${inSentence(KIND_LABEL[f.type])}s.`
-                : "CEL expression for requests to count.")
-            }
-            maxLength={MAX_EXPRESSION_LENGTH}
-            hideCharacterCount
-            sx={{ "& input": { fontFamily: "monospace" } }}
+            helper="Type a CEL expression and press Enter to add it. Add more; a request counts if it matches any."
+            error={errors[`filters.${i}`]}
+            disabled={editing}
+            draftKey={`f${i}`}
+            onDraft={setDraftText}
           />
         ) : (
-          <ValuePicker
+          <MultiValuePicker
+            connector
             kind={f.type}
-            value={f.type === "agent" ? agentValue(f) : f.id}
-            onChange={(v) =>
-              updateFilter(i, f.type === "agent" ? splitAgent(v) : { id: v })
-            }
+            values={f.values}
+            onChange={(values) => updateFilter(i, { values })}
             options={[
               ...anyOption(f.type),
               ...(f.type === "llmProvider"
@@ -1063,7 +1376,6 @@ export function BudgetWizard({
             }
             disabled={editing}
             error={errors[`filters.${i}`]}
-            placeholder={pickerPlaceholder(f.type)}
           />
         )}
       </Box>
@@ -1108,6 +1420,11 @@ export function BudgetWizard({
           helperText={errors.description}
           maxLength={INPUT_LIMITS.DESCRIPTION}
           hideCharacterCount
+        />
+        <Labels
+          value={form.labels}
+          onChange={(labels) => set("labels", labels)}
+          error={errors.labels}
         />
       </Stack>
     </Section>
@@ -1167,7 +1484,8 @@ export function BudgetWizard({
     <Section
       title="Exemptions"
       description="Traffic this budget skips."
-      optional
+      optional={editing}
+      nested={!editing}
       locked={fromGateway}
     >
       {errors.exemptions && (
@@ -1179,7 +1497,7 @@ export function BudgetWizard({
         {/* One line per exemption, as the Applies to filters: type, value, remove. */}
         {form.exemptions.map((e, i) => (
           <Stack
-            key={i}
+            key={`${i}-${flushes}`}
             direction={{ xs: "column", md: "row" }}
             spacing={1.5}
             alignItems={{ md: "flex-start" }}
@@ -1192,6 +1510,7 @@ export function BudgetWizard({
                 value={e.type}
                 disabled={fromGateway}
                 aria-label={`Exemption ${i + 1} type`}
+                sx={TOOLBAR_FIELD_SX}
                 onChange={(ev) =>
                   updateExemption(
                     i,
@@ -1199,7 +1518,14 @@ export function BudgetWizard({
                   )
                 }
               >
-                {[...new Set([e.type, ...allowedExemptionKinds])].map((k) => (
+                {[
+                  ...new Set([
+                    e.type,
+                    ...allowedExemptionKinds.filter(
+                      (k) => !exemptionTypeTaken(i, k),
+                    ),
+                  ]),
+                ].map((k) => (
                   <MenuItem key={k} value={k}>
                     {KIND_LABEL[k]}
                   </MenuItem>
@@ -1208,38 +1534,40 @@ export function BudgetWizard({
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               {isCelKind(e.type) ? (
-                <TextInput
-                  size="small"
-                  fullWidth
-                  value={e.expression}
-                  disabled={fromGateway}
-                  onChange={(ev) =>
-                    updateExemption(i, { expression: ev.target.value })
-                  }
+                <ExpressionChips
+                  values={e.values}
+                  onChange={(values) => updateExemption(i, { values })}
                   placeholder={expressionPlaceholder(e.type)}
-                  error={!!errors[`exemptions.${i}`]}
-                  helperText={
-                    errors[`exemptions.${i}`] ??
-                    "CEL expression for requests to skip."
-                  }
-                  maxLength={MAX_EXPRESSION_LENGTH}
-                  hideCharacterCount
-                  sx={{ "& input": { fontFamily: "monospace" } }}
+                  helper="Type a CEL expression and press Enter to add it. Add more; a request is skipped if it matches any."
+                  error={errors[`exemptions.${i}`]}
+                  disabled={fromGateway}
+                  draftKey={`e${i}`}
+                  onDraft={setDraftText}
                 />
               ) : (
-                <ValuePicker
+                <MultiValuePicker
                   kind={e.type}
-                  value={e.type === "agent" ? agentValue(e) : e.id}
-                  onChange={(v) =>
-                    updateExemption(
-                      i,
-                      e.type === "agent" ? splitAgent(v) : { id: v },
-                    )
+                  values={e.values}
+                  onChange={(values) => updateExemption(i, { values })}
+                  options={
+                    e.type === "llmProvider"
+                      ? providerOptions
+                      : e.type === "agent"
+                        ? agentOptions
+                        : e.type === "apiKey"
+                          ? apiKeyOptions
+                          : projectOptions
                   }
-                  options={e.type === "agent" ? agentOptions : projectOptions}
-                  list={e.type === "agent" ? agentList : projectList}
+                  list={
+                    e.type === "llmProvider"
+                      ? providerList
+                      : e.type === "agent"
+                        ? agentList
+                        : e.type === "apiKey"
+                          ? apiKeyList
+                          : projectList
+                  }
                   error={errors[`exemptions.${i}`]}
-                  placeholder={pickerPlaceholder(e.type)}
                   disabled={fromGateway}
                 />
               )}
@@ -1264,14 +1592,26 @@ export function BudgetWizard({
           <Box>
             <AddChip
               label="Add exemption"
-              disabled={!allowedExemptionKinds.length}
-              onClick={() =>
-                set("exemptions", [
-                  ...form.exemptions,
-                  newExemption(allowedExemptionKinds[0]),
-                ])
-              }
+              disabled={!addableExemptionKinds.length}
+              onClick={(ev) => setExemptionMenu(ev.currentTarget)}
             />
+            <Menu
+              anchorEl={exemptionMenu}
+              open={!!exemptionMenu}
+              onClose={() => setExemptionMenu(null)}
+            >
+              {addableExemptionKinds.map((k) => (
+                <MenuItem
+                  key={k}
+                  onClick={() => {
+                    setExemptionMenu(null);
+                    set("exemptions", [...form.exemptions, newExemption(k)]);
+                  }}
+                >
+                  {KIND_LABEL[k]}
+                </MenuItem>
+              ))}
+            </Menu>
           </Box>
         )}
       </Stack>
@@ -1300,6 +1640,7 @@ export function BudgetWizard({
               select
               size="small"
               fullWidth
+              sx={FORM_SELECT_SX}
               value={form.splitBy || "none"}
               disabled={editing}
               onChange={(e) =>
@@ -1446,7 +1787,8 @@ export function BudgetWizard({
     <Section
       title="Alerts"
       description="Notify at these % of the limit."
-      optional
+      optional={editing}
+      nested={!editing}
     >
       <Stack spacing={2} sx={fieldWidth}>
         <Thresholds
@@ -1465,29 +1807,28 @@ export function BudgetWizard({
     </Section>
   );
 
-  // Labels as chips, added like the warning percentages: type a word, press Enter.
-  const labelsSection = (
-    <Section title="Labels" description="Labels to organize budgets" optional>
-      <Labels
-        value={form.labels}
-        onChange={(labels) => set("labels", labels)}
-        error={errors.labels}
-      />
-    </Section>
-  );
-
-  // Details, then what the budget covers and its limit; exemptions, alerts and labels are
-  // optional.
+  // Details (with labels), then what the budget covers and its limit, then the optional
+  // alerts and exemptions, folded together until opened when creating.
   const pages = [
     details,
     <Stack key="scope" spacing={4} divider={<Divider flexItem />}>
       {appliesTo}
       {spendingLimit}
-    </Stack>,
-    <Stack key="extras" spacing={4} divider={<Divider flexItem />}>
-      {exemptions}
-      {alerts}
-      {labelsSection}
+      {editing ? (
+        <Stack spacing={4} divider={<Divider flexItem />}>
+          {alerts}
+          {exemptions}
+        </Stack>
+      ) : (
+        <FoldedSection
+          title="Alerts and exemptions"
+          expanded={extrasExpanded}
+          onToggle={() => setExtrasOpen((o) => !o)}
+        >
+          {alerts}
+          {exemptions}
+        </FoldedSection>
+      )}
     </Stack>,
   ];
   const last = step === STEPS.length - 1;

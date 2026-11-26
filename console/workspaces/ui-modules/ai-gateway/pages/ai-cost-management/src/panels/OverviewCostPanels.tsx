@@ -164,7 +164,7 @@ export const LLMProviderCostSection: React.FC<{
             filter={`llmProvider:${providerId}`}
             groupBy="model"
             height={130}
-            maxBarSize={56}
+            maxBarSize={120}
             fill
           />
         </Box>

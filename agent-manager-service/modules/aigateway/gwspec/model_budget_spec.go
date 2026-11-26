@@ -26,7 +26,7 @@ type BudgetSpec struct {
 	// An inactive budget is stored and listed but not enforced
 	Status *string     `json:"status,omitempty"`
 	Limit  BudgetLimit `json:"limit"`
-	// Which LLM usage the budget counts; all must match (AND). Omitted or empty: all LLM usage. Each type except attribute at most once. Fixed after creation.
+	// Which LLM usage the budget counts. Filters of different types must all match (AND); filters of the same type are alternatives (OR): list the type again for each value, e.g. two project filters count either project. An llmProvider, project, agent or apiKey filter without an id (any value) is its type's only filter, and no entry is listed twice. attribute filters all must match (write an OR inside the expression). Omitted or empty: all LLM usage. At most 20 entries in all. Fixed after creation.
 	Filters []BudgetFilter `json:"filters,omitempty"`
 	// Traffic not counted or blocked by this budget
 	Exemptions []BudgetExemption `json:"exemptions,omitempty"`

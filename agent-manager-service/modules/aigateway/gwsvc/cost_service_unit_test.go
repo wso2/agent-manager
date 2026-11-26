@@ -90,7 +90,6 @@ func TestCostService_OrganizationTotalPerMonth(t *testing.T) {
 	s, _ := newCostTestService(costTestRows)
 	report, err := s.Costs(context.Background(), budgetTestOrg, "acme", "", nil)
 	require.NoError(t, err)
-	assert.Equal(t, "USD", report.Currency)
 	require.Len(t, report.CostByGroup, 1)
 	g := report.CostByGroup[0]
 	assert.Equal(t, "acme", *g.Id.Get(), "grouped by organization, the id is its handle")

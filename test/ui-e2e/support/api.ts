@@ -86,6 +86,15 @@ export class AmpApi {
     return { status: res.status(), body: res.ok() ? await res.json() : undefined };
   }
 
+  /** A budget by name, as the Budget kind (404 when there is none). */
+  async getBudget(name: string): Promise<{ status: number; body: any }> {
+    return this.get(`${this.gw}/budgets/${name}`);
+  }
+
+  async deleteBudget(name: string): Promise<number> {
+    return this.delete(`${this.gw}/budgets/${name}`);
+  }
+
   async get(path: string): Promise<{ status: number; body: any }> {
     const res = await this.ctx.get(path);
     let body: any;

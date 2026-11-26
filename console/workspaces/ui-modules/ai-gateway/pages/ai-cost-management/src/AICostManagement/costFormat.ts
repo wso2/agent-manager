@@ -67,13 +67,18 @@ const usdCents = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+/** Shown for a cost above zero but under one cent, which two decimals can't show. */
+const UNDER_ONE_CENT = "<$0.01";
+
 /** Whole dollars for totals; cents below $100 so small spend doesn't read as $0. */
 export function formatUsd(value: number): string {
+  if (value > 0 && value < 0.01) return UNDER_ONE_CENT;
   return Math.abs(value) < 100 ? usdCents.format(value) : usd.format(value);
 }
 
 /** Dollars and cents, whatever the size: for figures read side by side. */
 export function formatUsdCents(value: number): string {
+  if (value > 0 && value < 0.01) return UNDER_ONE_CENT;
   return usdCents.format(value);
 }
 
@@ -182,6 +187,11 @@ export function changePercent(
 ): number | undefined {
   if (previous <= 0) return undefined;
   return Math.round(((current - previous) / previous) * 100);
+}
+
+/** A change as shown beside a month's cost: "+50% vs Sep", "-12% vs Oct". */
+export function formatChange(change: number, against: string): string {
+  return `${change > 0 ? "+" : ""}${change}% vs ${against}`;
 }
 
 /** Under a chart: the groups left out because they cost $0 (no price, or no usage). */

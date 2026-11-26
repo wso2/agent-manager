@@ -6,7 +6,6 @@ CREATE TABLE mod_ai_gateway_budgets (
     name TEXT NOT NULL,
     origin TEXT NOT NULL,
     gateway_id TEXT,
-    project_id TEXT,
     configuration TEXT NOT NULL,
     created_by TEXT,
     created_at TIMESTAMP NOT NULL,
@@ -20,34 +19,21 @@ CREATE TABLE mod_ai_gateway_budgets (
     CONSTRAINT ck_mod_ai_gateway_budgets_3 CHECK ((origin = 'gateway_api') = (gateway_id IS NOT NULL))
 );
 CREATE INDEX idx_mod_ai_gateway_budgets_gateway_id ON mod_ai_gateway_budgets (gateway_id);
-CREATE INDEX idx_mod_ai_gateway_budgets_org_id_project_id ON mod_ai_gateway_budgets (org_id, project_id);
 
 CREATE TABLE mod_ai_gateway_budget_usage (
     budget_id TEXT NOT NULL,
-    allowance_id TEXT NOT NULL,
+    budget_usage_id TEXT NOT NULL,
     org_id TEXT NOT NULL,
-    allowance TEXT NOT NULL,
+    budget_usage TEXT NOT NULL,
     period_start TIMESTAMP NOT NULL,
     spent TEXT NOT NULL,
     unpriced_requests INTEGER NOT NULL,
     updated_at TIMESTAMP NOT NULL,
-    CONSTRAINT pk_mod_ai_gateway_budget_usage PRIMARY KEY (budget_id, allowance_id, period_start),
+    CONSTRAINT pk_mod_ai_gateway_budget_usage PRIMARY KEY (budget_id, budget_usage_id, period_start),
     CONSTRAINT fk_mod_ai_gateway_budget_usage_org_id_budget_id FOREIGN KEY (org_id, budget_id) REFERENCES mod_ai_gateway_budgets (org_id, id) ON DELETE CASCADE,
-    CONSTRAINT ck_mod_ai_gateway_budget_usage_1 CHECK (json_valid(allowance))
+    CONSTRAINT ck_mod_ai_gateway_budget_usage_1 CHECK (json_valid(budget_usage))
 );
 CREATE INDEX idx_mod_ai_gateway_budget_usage_org_id_budget_id_period_start ON mod_ai_gateway_budget_usage (org_id, budget_id, period_start);
-
-CREATE TABLE mod_ai_gateway_budget_warnings (
-    budget_id TEXT NOT NULL,
-    allowance_id TEXT NOT NULL,
-    period_start TIMESTAMP NOT NULL,
-    amount TEXT NOT NULL,
-    org_id TEXT NOT NULL,
-    threshold INTEGER NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    CONSTRAINT pk_mod_ai_gateway_budget_warnings PRIMARY KEY (budget_id, allowance_id, period_start, amount),
-    CONSTRAINT fk_mod_ai_gateway_budget_warnings_budget_id_allowance__be5ce6bb FOREIGN KEY (budget_id, allowance_id, period_start) REFERENCES mod_ai_gateway_budget_usage (budget_id, allowance_id, period_start) ON DELETE CASCADE
-);
 
 CREATE TABLE mod_ai_gateway_cost_usage (
     org_id TEXT NOT NULL,

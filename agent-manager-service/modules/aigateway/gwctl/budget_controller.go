@@ -131,7 +131,7 @@ func (c *budgetController) ListBudgets(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("label can be given at most %d times.", maxBudgetLabelFilters), "", httpx.ErrCodeValidation)
 		return
 	}
-	resp, err := c.budgets.List(r.Context(), modkit.OrgID(r.Context()), query.Get("project"), query["filter"],
+	resp, err := c.budgets.List(r.Context(), modkit.OrgID(r.Context()), query["filter"],
 		labels, query.Get("search"), query.Get("status"), limit, offset)
 	if err != nil {
 		writeBudgetError(w, r, err, "Failed to list budgets")
@@ -172,7 +172,7 @@ func (c *budgetController) GetBudget(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetBudgetUsage handles GET /orgs/{orgName}/budgets/{budgetName}/budget-usage: each
-// allowance's spend this period, highest first.
+// usage's spend this period, highest first.
 func (c *budgetController) GetBudgetUsage(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	limit, ok := budgetQueryInt(w, query.Get("limit"), "limit", 1)

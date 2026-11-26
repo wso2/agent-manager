@@ -388,6 +388,9 @@ type ClientInterface interface {
 
 	UpdateMCPProxyScope(ctx context.Context, orgName string, proxyId string, scopeAction string, body UpdateMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetModelPrices request
+	GetModelPrices(ctx context.Context, orgName string, params *GetModelPricesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAgentConfigurations request
 	GetAgentConfigurations(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentConfigurationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1899,6 +1902,18 @@ func (c *Client) UpdateMCPProxyScope(ctx context.Context, orgName string, proxyI
 	return c.Client.Do(req)
 }
 
+func (c *Client) GetModelPrices(ctx context.Context, orgName string, params *GetModelPricesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetModelPricesRequest(c.Server, orgName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetAgentConfigurations(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentConfigurationsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAgentConfigurationsRequest(c.Server, orgName, projName, agentName, params)
 	if err != nil {
@@ -3083,22 +3098,6 @@ func NewListBudgetsRequest(server string, orgName string, params *ListBudgetsPar
 
 	if params != nil {
 		queryValues := queryURL.Query()
-
-		if params.Project != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "project", *params.Project, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
 
 		if params.Filter != nil {
 
@@ -7383,6 +7382,126 @@ func NewUpdateMCPProxyScopeRequestWithBody(server string, orgName string, proxyI
 	return req, nil
 }
 
+// NewGetModelPricesRequest generates requests for GetModelPrices
+func NewGetModelPricesRequest(server string, orgName string, params *GetModelPricesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/pricing", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "search", *params.Search, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Provider != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "provider", *params.Provider, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Sort != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort", *params.Sort, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetAgentConfigurationsRequest generates requests for GetAgentConfigurations
 func NewGetAgentConfigurationsRequest(server string, orgName string, projName string, agentName string, params *GetAgentConfigurationsParams) (*http.Request, error) {
 	var err error
@@ -11253,6 +11372,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateMCPProxyScopeWithResponse(ctx context.Context, orgName string, proxyId string, scopeAction string, body UpdateMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateMCPProxyScopeResp, error)
 
+	// GetModelPricesWithResponse request
+	GetModelPricesWithResponse(ctx context.Context, orgName string, params *GetModelPricesParams, reqEditors ...RequestEditorFn) (*GetModelPricesResp, error)
+
 	// GetAgentConfigurationsWithResponse request
 	GetAgentConfigurationsWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentConfigurationsParams, reqEditors ...RequestEditorFn) (*GetAgentConfigurationsResp, error)
 
@@ -13537,6 +13659,32 @@ func (r UpdateMCPProxyScopeResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateMCPProxyScopeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetModelPricesResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ModelPriceList
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetModelPricesResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetModelPricesResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -15965,6 +16113,15 @@ func (c *ClientWithResponses) UpdateMCPProxyScopeWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseUpdateMCPProxyScopeResp(rsp)
+}
+
+// GetModelPricesWithResponse request returning *GetModelPricesResp
+func (c *ClientWithResponses) GetModelPricesWithResponse(ctx context.Context, orgName string, params *GetModelPricesParams, reqEditors ...RequestEditorFn) (*GetModelPricesResp, error) {
+	rsp, err := c.GetModelPrices(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetModelPricesResp(rsp)
 }
 
 // GetAgentConfigurationsWithResponse request returning *GetAgentConfigurationsResp
@@ -20621,6 +20778,60 @@ func ParseUpdateMCPProxyScopeResp(rsp *http.Response) (*UpdateMCPProxyScopeResp,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetModelPricesResp parses an HTTP response from a GetModelPricesWithResponse call
+func ParseGetModelPricesResp(rsp *http.Response) (*GetModelPricesResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetModelPricesResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ModelPriceList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 

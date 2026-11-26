@@ -1,0 +1,18 @@
+module: ai-gateway
+# Model prices, as the gateways' price files list them: one global catalog, read-only. A
+# gateway posts its file after it connects (POST /api/internal/v1/gateways/{gatewayId}/pricing);
+# models not stored yet are inserted and the others are left as they are, so the first one
+# wins and nothing is updated or deleted. It belongs to no organization and no gateway.
+# Prices are USD per 1M tokens, as exact decimal strings.
+tables:
+
+  - name: mod_ai_gateway_model_prices
+    columns:
+      - {name: model, type: text, size: 255}
+      - {name: provider, type: text, size: 64, nullable: true}
+      - {name: input_per_million, type: text, size: 32, nullable: true}
+      - {name: output_per_million, type: text, size: 32, nullable: true}
+      - {name: cached_input_per_million, type: text, size: 32, nullable: true}
+      - {name: created_at, type: time}
+    primary_key: [model]
+    indexes: [[provider]]

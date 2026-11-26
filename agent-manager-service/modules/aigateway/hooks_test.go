@@ -100,8 +100,7 @@ func TestFinalizeHooksCoverEveryReference(t *testing.T) {
 			assert.True(t, covered(table, environmentTables), "%s names an environment but the environment finalize hook leaves its rows", table)
 		}
 		if slices.Contains(columns, "project_id") {
-			// A project's budgets are guarded, or handed to the organization, by gwrepo.ProjectBudgets.
-			assert.True(t, table == "mod_ai_gateway_budgets" ||
+			assert.True(t,
 				slices.ContainsFunc(projectTables, func(p struct{ table, what string }) bool { return p.table == table }),
 				"%s names a project but the project finalize hook does not guard it", table)
 		}

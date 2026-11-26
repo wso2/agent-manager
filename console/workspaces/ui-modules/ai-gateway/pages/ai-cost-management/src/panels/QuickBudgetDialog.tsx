@@ -34,7 +34,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { X } from "@wso2/oxygen-ui-icons-react";
+import { ExternalLink, X } from "@wso2/oxygen-ui-icons-react";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import {
   useCreateBudget,
@@ -60,6 +60,7 @@ import {
   Thresholds,
 } from "../AICostManagement/subComponents/BudgetForm";
 import { PERIOD_LABELS } from "../AICostManagement/subComponents/budgetLabels";
+import { FORM_SELECT_SX } from "../AICostManagement/controlSizes";
 
 export interface QuickBudgetDialogProps {
   open: boolean;
@@ -70,9 +71,7 @@ export interface QuickBudgetDialogProps {
   /** "Project", "Agent" or "LLM provider", and the entity's name as shown. */
   kind: string;
   label: string;
-  /** Set on project and agent pages: the budget is owned by this project. */
-  projectOwner?: string;
-  /** The full create page, which "Advanced options" opens with the same start. */
+  /** The full create page, which "Advanced create" opens with the same start. */
   createHref: string;
   /** A budget's detail page, opened after it is created. */
   viewHref: (budgetName: string) => string;
@@ -80,7 +79,7 @@ export interface QuickBudgetDialogProps {
 
 /**
  * The quick form for a budget started from a project, agent or LLM provider page: name,
- * amount, period, action and warnings, with the entity filled in. "Advanced options"
+ * amount, period, action and warnings, with the entity filled in. "Advanced create"
  * opens the full form with the same entity (UX 2).
  */
 export function QuickBudgetDialog({
@@ -90,7 +89,6 @@ export function QuickBudgetDialog({
   start,
   kind,
   label,
-  projectOwner,
   createHref,
   viewHref,
 }: QuickBudgetDialogProps) {
@@ -143,7 +141,6 @@ export function QuickBudgetDialog({
     if (Object.keys(validateBudgetForm(form)).length || duplicateName) return;
     const body = budgetFromForm(form, {
       name: handleFor(form.displayName, taken),
-      projectOwner,
     });
     create.mutate(
       { params: { orgName }, body },
@@ -235,6 +232,7 @@ export function QuickBudgetDialog({
               select
               label="Period"
               fullWidth
+              sx={FORM_SELECT_SX}
               value={form.period}
               onChange={(e) =>
                 set("period", e.target.value as BudgetFormState["period"])
@@ -270,8 +268,15 @@ export function QuickBudgetDialog({
           </Form.ElementWrapper>
           <Divider />
           <Box>
-            <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>
-              Warnings
+            <Typography variant="subtitle1" sx={{ mb: 1 }}>
+              Alerts{" "}
+              <Typography
+                component="span"
+                variant="body2"
+                color="text.secondary"
+              >
+                (optional)
+              </Typography>
             </Typography>
             <Thresholds
               value={form.thresholds}
@@ -304,10 +309,12 @@ export function QuickBudgetDialog({
           <Link
             component={RouterLink}
             to={`${createHref}${startQuery(start)}`}
-            state={returnToState(location)}
+            state={{ ...returnToState(location), draft: form }}
             underline="hover"
+            sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
           >
-            Advanced options
+            Advanced create
+            <ExternalLink size={14} />
           </Link>
         </Stack>
       </DialogContent>

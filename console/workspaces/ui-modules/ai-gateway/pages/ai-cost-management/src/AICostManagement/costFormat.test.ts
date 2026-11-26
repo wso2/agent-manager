@@ -20,8 +20,10 @@ import type { CostByGroup } from "@agent-management-platform/types";
 import {
   zeroCostNote,
   changePercent,
+  formatChange,
   dimensionsFor,
   formatUsd,
+  formatUsdCents,
   groupKey,
   groupLabel,
   keptMonths,
@@ -132,6 +134,25 @@ describe("costFormat", () => {
     });
     expect(changePercent(15, 25)).toBe(67);
     expect(changePercent(0, 25)).toBeUndefined();
+  });
+
+  it("shows an amount under one cent as less than a cent, and zero as zero", () => {
+    for (const v of [0.001, 0.004, 0.009, 0.0099]) {
+      expect(formatUsdCents(v)).toBe("<$0.01");
+      expect(formatUsd(v)).toBe("<$0.01");
+    }
+    expect(formatUsdCents(0)).toBe("$0.00");
+    expect(formatUsd(0)).toBe("$0.00");
+    expect(formatUsdCents(0.01)).toBe("$0.01");
+    expect(formatUsd(116.03)).toBe("$116");
+    expect(formatUsd(99.5)).toBe("$99.50");
+    expect(formatUsd(1234.5)).toBe("$1,235");
+  });
+
+  it("writes a change as a signed percentage against a month", () => {
+    expect(formatChange(50, "Sep")).toBe("+50% vs Sep");
+    expect(formatChange(-12, "Oct")).toBe("-12% vs Oct");
+    expect(formatChange(0, "Oct")).toBe("0% vs Oct");
   });
 
   it("takes the months from the report, else the 3 UTC months up to now", () => {

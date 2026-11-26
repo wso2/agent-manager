@@ -32,8 +32,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -54,7 +52,6 @@ const maxBudgetImportRows = 500
 // a JSON array of the payload's objects.
 const (
 	csvName              = "name"
-	csvProjectID         = "projectId"
 	csvDisplayName       = "displayName"
 	csvDescription       = "description"
 	csvAmount            = "amount"
@@ -79,7 +76,7 @@ const csvAnyValue = "*"
 
 var (
 	budgetImportColumns = []string{
-		csvName, csvProjectID, csvDisplayName, csvDescription,
+		csvName, csvDisplayName, csvDescription,
 		csvAmount, csvPeriod, csvAction, csvBlockAt, csvSplitBy, csvSplitByExpression,
 		csvProvider, csvProject, csvAgent, csvAPIKey,
 		csvAttributes, csvExemptions, csvThresholds, csvChannels, csvLabels,
@@ -220,10 +217,6 @@ func (s *budgetService) Import(ctx context.Context, ouID, createdBy string, file
 	}
 	for _, b := range updates {
 		s.gateways.SendBudget(ctx, b, false)
-		if s.warner != nil {
-			// A lower limit or a new threshold may already be crossed.
-			s.warner.CheckBudget(ctx, b)
-		}
 	}
 	return result, nil
 }
@@ -290,7 +283,7 @@ func budgetRequestFromCSV(cells map[string]string, row *importRow) budgetRequest
 		return nil
 	}
 	req := budgetRequest{
-		Name: cells[csvName], ProjectId: optional(csvProjectID),
+		Name:        cells[csvName],
 		DisplayName: optional(csvDisplayName), Description: optional(csvDescription),
 		Limit: gwspec.BudgetLimit{Amount: cells[csvAmount], Period: cells[csvPeriod], Action: cells[csvAction]},
 	}
@@ -311,21 +304,42 @@ func budgetRequestFromCSV(cells map[string]string, row *importRow) budgetRequest
 		if v == "" {
 			continue
 		}
-		filter := gwspec.BudgetFilter{Type: c.typ, Id: &v}
-		if v == csvAnyValue && c.typ != budgetTypeLLMProvider {
-			// '*' is the id-less filter: any project, agent or API key.
-			filter.Id = nil
-		} else if c.typ == budgetTypeAgent {
-			// An agent is <project>/<agent>: agent names are unique only per project.
-			project, agent, ok := strings.Cut(v, "/")
-			project, agent = strings.TrimSpace(project), strings.TrimSpace(agent)
-			if !ok || project == "" || agent == "" || strings.Contains(agent, "/") {
-				row.fail(csvAgent, httpx.ErrCodeValidation, "agent must be <project>/<agent>, e.g. online-shop/returns-bot.")
-				continue
-			}
-			filter.Id, filter.Project = &agent, &project
+		// One filter for each value: values of one column are alternatives (OR), as filters
+		// of one type are in the payload.
+		values := csvList(v)
+		if len(values) == 0 {
+			row.fail(c.column, httpx.ErrCodeValidation, c.column+" lists no value: give one, or several separated by ';'.")
+			continue
 		}
-		req.Filters = append(req.Filters, filter)
+		if len(values) > 1 && c.typ != budgetTypeLLMProvider && slices.Contains(values, csvAnyValue) {
+			row.fail(c.column, httpx.ErrCodeValidation, "'*' (any "+c.typ+") cannot be listed with other values in "+c.column+".")
+			continue
+		}
+		seen := map[string]bool{}
+		for _, value := range values {
+			if seen[value] {
+				row.fail(c.column, httpx.ErrCodeValidation, fmt.Sprintf("%s is listed twice in %s.", value, c.column))
+				break
+			}
+			seen[value] = true
+			id := value
+			filter := gwspec.BudgetFilter{Type: c.typ, Id: &id}
+			if value == csvAnyValue && c.typ != budgetTypeLLMProvider {
+				// '*' is the id-less filter: any project, agent or API key.
+				filter.Id = nil
+			} else if c.typ == budgetTypeAgent {
+				// An agent is <project>/<agent>: agent names are unique only per project.
+				project, agent, ok := strings.Cut(value, "/")
+				project, agent = strings.TrimSpace(project), strings.TrimSpace(agent)
+				if !ok || project == "" || agent == "" || strings.Contains(agent, "/") {
+					row.fail(csvAgent, httpx.ErrCodeValidation,
+						fmt.Sprintf("agent %q must be <project>/<agent>, e.g. online-shop/returns-bot.", value))
+					continue
+				}
+				filter.Id, filter.Project = &agent, &project
+			}
+			req.Filters = append(req.Filters, filter)
+		}
 	}
 	if v := cells[csvAttributes]; v != "" {
 		var expressions []string
@@ -384,10 +398,8 @@ func decodeCSVJSON(v string, out any) error {
 // the cell to fix; empty when it is about the whole row.
 func budgetCSVColumn(field string, req budgetRequest) string {
 	switch {
-	case field == "name", field == "orgId", field == "projectId", field == "displayName", field == "description":
+	case field == "name", field == "orgId", field == "displayName", field == "description":
 		return field
-	case field == "metadata.annotations":
-		return csvProjectID
 	case field == "metadata.labels":
 		return csvLabels
 	case field == "limit.splitBy.expression":
@@ -406,8 +418,7 @@ func budgetCSVColumn(field string, req budgetRequest) string {
 	if m := budgetFieldIndex.FindStringSubmatch(field); m != nil {
 		i, _ := strconv.Atoi(m[1])
 		if i >= len(req.Filters) {
-			// The project filter added for the owning project.
-			return csvProjectID
+			return ""
 		}
 		typ := req.Filters[i].Type
 		if typ == budgetTypeAttribute {
@@ -485,8 +496,6 @@ func importUpdateRefusal(existing, incoming *gwmodels.Budget) (column, message s
 	}
 	was, now := existing.Configuration, incoming.Configuration
 	switch {
-	case !sameProject(existing.ProjectID, incoming.ProjectID):
-		return csvProjectID, fixed("owning project")
 	case was.Limit.Period != now.Limit.Period:
 		return csvPeriod, fixed("period")
 	case !reflect.DeepEqual(was.Limit.SplitBy, now.Limit.SplitBy):
@@ -502,13 +511,6 @@ func importUpdateCode(existing *gwmodels.Budget) string {
 		return gwerr.ErrCodeBudgetReadOnly
 	}
 	return httpx.ErrCodeValidation
-}
-
-func sameProject(a, b *uuid.UUID) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
 }
 
 // updatedConfig is a stored budget with a row's editable fields, as PUT replaces them; its

@@ -14,64 +14,64 @@ import (
 	"encoding/json"
 )
 
-// checks if the BudgetAllowanceUsage type satisfies the MappedNullable interface at compile time
-var _ MappedNullable = &BudgetAllowanceUsage{}
+// checks if the BudgetUsageEntry type satisfies the MappedNullable interface at compile time
+var _ MappedNullable = &BudgetUsageEntry{}
 
-// BudgetAllowanceUsage One allowance's spend this period
-type BudgetAllowanceUsage struct {
+// BudgetUsageEntry One usage's spend this period
+type BudgetUsageEntry struct {
 	// The allocated values, e.g. {\"project\":\"api-platform\",\"agent\":\"support-agent\"}; empty when shared
-	Allowance map[string]string `json:"allowance"`
+	Usage map[string]string `json:"usage"`
 	// USD
 	Spent            string `json:"spent"`
 	UnpricedRequests int64  `json:"unpricedRequests"`
 }
 
-// NewBudgetAllowanceUsage instantiates a new BudgetAllowanceUsage object
+// NewBudgetUsageEntry instantiates a new BudgetUsageEntry object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewBudgetAllowanceUsage(allowance map[string]string, spent string, unpricedRequests int64) *BudgetAllowanceUsage {
-	this := BudgetAllowanceUsage{}
-	this.Allowance = allowance
+func NewBudgetUsageEntry(usage map[string]string, spent string, unpricedRequests int64) *BudgetUsageEntry {
+	this := BudgetUsageEntry{}
+	this.Usage = usage
 	this.Spent = spent
 	this.UnpricedRequests = unpricedRequests
 	return &this
 }
 
-// NewBudgetAllowanceUsageWithDefaults instantiates a new BudgetAllowanceUsage object
+// NewBudgetUsageEntryWithDefaults instantiates a new BudgetUsageEntry object
 // This constructor will only assign default values to properties that have it defined,
 // but it doesn't guarantee that properties required by API are set
-func NewBudgetAllowanceUsageWithDefaults() *BudgetAllowanceUsage {
-	this := BudgetAllowanceUsage{}
+func NewBudgetUsageEntryWithDefaults() *BudgetUsageEntry {
+	this := BudgetUsageEntry{}
 	return &this
 }
 
-// GetAllowance returns the Allowance field value
-func (o *BudgetAllowanceUsage) GetAllowance() map[string]string {
+// GetUsage returns the Usage field value
+func (o *BudgetUsageEntry) GetUsage() map[string]string {
 	if o == nil {
 		var ret map[string]string
 		return ret
 	}
 
-	return o.Allowance
+	return o.Usage
 }
 
-// GetAllowanceOk returns a tuple with the Allowance field value
+// GetUsageOk returns a tuple with the Usage field value
 // and a boolean to check if the value has been set.
-func (o *BudgetAllowanceUsage) GetAllowanceOk() (*map[string]string, bool) {
+func (o *BudgetUsageEntry) GetUsageOk() (*map[string]string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Allowance, true
+	return &o.Usage, true
 }
 
-// SetAllowance sets field value
-func (o *BudgetAllowanceUsage) SetAllowance(v map[string]string) {
-	o.Allowance = v
+// SetUsage sets field value
+func (o *BudgetUsageEntry) SetUsage(v map[string]string) {
+	o.Usage = v
 }
 
 // GetSpent returns the Spent field value
-func (o *BudgetAllowanceUsage) GetSpent() string {
+func (o *BudgetUsageEntry) GetSpent() string {
 	if o == nil {
 		var ret string
 		return ret
@@ -82,7 +82,7 @@ func (o *BudgetAllowanceUsage) GetSpent() string {
 
 // GetSpentOk returns a tuple with the Spent field value
 // and a boolean to check if the value has been set.
-func (o *BudgetAllowanceUsage) GetSpentOk() (*string, bool) {
+func (o *BudgetUsageEntry) GetSpentOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -90,12 +90,12 @@ func (o *BudgetAllowanceUsage) GetSpentOk() (*string, bool) {
 }
 
 // SetSpent sets field value
-func (o *BudgetAllowanceUsage) SetSpent(v string) {
+func (o *BudgetUsageEntry) SetSpent(v string) {
 	o.Spent = v
 }
 
 // GetUnpricedRequests returns the UnpricedRequests field value
-func (o *BudgetAllowanceUsage) GetUnpricedRequests() int64 {
+func (o *BudgetUsageEntry) GetUnpricedRequests() int64 {
 	if o == nil {
 		var ret int64
 		return ret
@@ -106,7 +106,7 @@ func (o *BudgetAllowanceUsage) GetUnpricedRequests() int64 {
 
 // GetUnpricedRequestsOk returns a tuple with the UnpricedRequests field value
 // and a boolean to check if the value has been set.
-func (o *BudgetAllowanceUsage) GetUnpricedRequestsOk() (*int64, bool) {
+func (o *BudgetUsageEntry) GetUnpricedRequestsOk() (*int64, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -114,11 +114,11 @@ func (o *BudgetAllowanceUsage) GetUnpricedRequestsOk() (*int64, bool) {
 }
 
 // SetUnpricedRequests sets field value
-func (o *BudgetAllowanceUsage) SetUnpricedRequests(v int64) {
+func (o *BudgetUsageEntry) SetUnpricedRequests(v int64) {
 	o.UnpricedRequests = v
 }
 
-func (o BudgetAllowanceUsage) MarshalJSON() ([]byte, error) {
+func (o BudgetUsageEntry) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
 		return []byte{}, err
@@ -126,46 +126,46 @@ func (o BudgetAllowanceUsage) MarshalJSON() ([]byte, error) {
 	return json.Marshal(toSerialize)
 }
 
-func (o BudgetAllowanceUsage) ToMap() (map[string]interface{}, error) {
+func (o BudgetUsageEntry) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["allowance"] = o.Allowance
+	toSerialize["usage"] = o.Usage
 	toSerialize["spent"] = o.Spent
 	toSerialize["unpricedRequests"] = o.UnpricedRequests
 	return toSerialize, nil
 }
 
-type NullableBudgetAllowanceUsage struct {
-	value *BudgetAllowanceUsage
+type NullableBudgetUsageEntry struct {
+	value *BudgetUsageEntry
 	isSet bool
 }
 
-func (v NullableBudgetAllowanceUsage) Get() *BudgetAllowanceUsage {
+func (v NullableBudgetUsageEntry) Get() *BudgetUsageEntry {
 	return v.value
 }
 
-func (v *NullableBudgetAllowanceUsage) Set(val *BudgetAllowanceUsage) {
+func (v *NullableBudgetUsageEntry) Set(val *BudgetUsageEntry) {
 	v.value = val
 	v.isSet = true
 }
 
-func (v NullableBudgetAllowanceUsage) IsSet() bool {
+func (v NullableBudgetUsageEntry) IsSet() bool {
 	return v.isSet
 }
 
-func (v *NullableBudgetAllowanceUsage) Unset() {
+func (v *NullableBudgetUsageEntry) Unset() {
 	v.value = nil
 	v.isSet = false
 }
 
-func NewNullableBudgetAllowanceUsage(val *BudgetAllowanceUsage) *NullableBudgetAllowanceUsage {
-	return &NullableBudgetAllowanceUsage{value: val, isSet: true}
+func NewNullableBudgetUsageEntry(val *BudgetUsageEntry) *NullableBudgetUsageEntry {
+	return &NullableBudgetUsageEntry{value: val, isSet: true}
 }
 
-func (v NullableBudgetAllowanceUsage) MarshalJSON() ([]byte, error) {
+func (v NullableBudgetUsageEntry) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.value)
 }
 
-func (v *NullableBudgetAllowanceUsage) UnmarshalJSON(src []byte) error {
+func (v *NullableBudgetUsageEntry) UnmarshalJSON(src []byte) error {
 	v.isSet = true
 	return json.Unmarshal(src, &v.value)
 }

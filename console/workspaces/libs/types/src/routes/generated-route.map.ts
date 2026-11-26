@@ -210,6 +210,11 @@ export const generatedRouteMap =  {
               "wildPath": "/org/:orgId/cost-management/unpriced-requests/*",
               "children": {}
             },
+            "pricing": {
+              "path": "/org/:orgId/cost-management/pricing",
+              "wildPath": "/org/:orgId/cost-management/pricing/*",
+              "children": {}
+            },
             "budgets": {
               "path": "/org/:orgId/cost-management/budgets",
               "wildPath": "/org/:orgId/cost-management/budgets/*",

@@ -71,6 +71,7 @@ var gatewayControllerConstructors = []any{
 	gwctl.NewWebSocketController,
 	gwctl.NewBudgetController,
 	gwctl.NewCostController,
+	gwctl.NewPricingController,
 }
 
 // stubAppParams builds an AppParams whose controller fields are non-nil.

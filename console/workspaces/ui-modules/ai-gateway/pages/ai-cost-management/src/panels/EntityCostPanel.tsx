@@ -16,12 +16,10 @@
  * under the License.
  */
 
-import type { ReactNode } from "react";
 import {
   Box,
   Card,
   CardContent,
-  Chip,
   Grid,
   Skeleton,
   Stack,
@@ -31,7 +29,6 @@ import { useCosts } from "@agent-management-platform/api-client";
 import { NESTED_CARD_SX } from "@agent-management-platform/shared-component";
 import {
   amount,
-  changePercent,
   type CostNames,
   zeroCostNote,
   entryMonthly,
@@ -56,20 +53,17 @@ export interface EntityCostPanelProps {
 }
 
 /**
- * A metric tile: its label, the amount beneath it as the headline, and an optional
- * adornment on the right. A highlighted tile (this month) shows its amount in the
- * accent colour, with an accent edge.
+ * A metric tile: its label and the amount beneath it as the headline. A highlighted
+ * tile (this month) shows its amount in the accent colour.
  */
 function MetricTile({
   value,
   label,
-  adornment,
   loading,
   highlight,
 }: {
   value: string;
   label: string;
-  adornment?: ReactNode;
   loading?: boolean;
   highlight?: boolean;
 }) {
@@ -80,7 +74,6 @@ function MetricTile({
         ...NESTED_CARD_SX,
         width: "100%",
         height: "100%",
-        ...(highlight ? { borderColor: "primary.main" } : {}),
       }}
     >
       <CardContent
@@ -110,37 +103,22 @@ function MetricTile({
           ) : (
             <Typography
               variant="h5"
-              fontWeight={700}
+              fontWeight={600}
               lineHeight={1.25}
               color={highlight ? "primary.main" : "text.primary"}
-              sx={{ fontSize: "1.5rem", fontVariantNumeric: "tabular-nums" }}
+              sx={{ fontSize: "1.125rem", fontVariantNumeric: "tabular-nums" }}
             >
               {value}
             </Typography>
           )}
         </Box>
-        {!loading && adornment}
       </CardContent>
     </Card>
   );
 }
 
-/** Up for more spend, down for less; neutral when unchanged. */
-function ChangeChip({ change, against }: { change: number; against: string }) {
-  const color = change > 0 ? "warning" : change < 0 ? "success" : "default";
-  return (
-    <Chip
-      size="small"
-      variant="outlined"
-      color={color}
-      label={`${change > 0 ? "+" : ""}${change}% vs ${against}`}
-      sx={{ flexShrink: 0 }}
-    />
-  );
-}
-
-/** One entity's monthly cost figures: this month so far, last month and its
- * change from the month before, and the three kept months (UTC calendar months). */
+/** One entity's monthly cost figures: this month so far, last month and the three kept
+ * months (UTC calendar months). */
 export function useEntityCost(orgName: string, filter: string) {
   const { data, isLoading, error } = useCosts(
     { orgName },
@@ -151,7 +129,6 @@ export function useEntityCost(orgName: string, filter: string) {
   const totals = monthlyTotals(entries, months);
   const n = months.length;
   const label = (i: number) => (months[i] ? monthLabel(months[i]) : "");
-  const change = changePercent(totals[n - 3] ?? 0, totals[n - 2] ?? 0);
   return {
     isLoading,
     error,
@@ -161,14 +138,7 @@ export function useEntityCost(orgName: string, filter: string) {
     thisMonth: label(n - 1),
     lastMonth: label(n - 2),
     firstMonth: label(0),
-    beforeLast: label(n - 3),
-    change,
     totals,
-    /** e.g. "+13% vs Sep"; undefined when the month before had no cost. */
-    changeText:
-      change === undefined
-        ? undefined
-        : `${change >= 0 ? "+" : ""}${change}% vs ${label(n - 3)}`,
   };
 }
 
@@ -201,11 +171,6 @@ export function EntityCostTiles({
       key="last"
       value={formatUsdCents(c.last)}
       label={`Last month (${c.lastMonth})`}
-      adornment={
-        c.change !== undefined && (
-          <ChangeChip change={c.change} against={c.beforeLast} />
-        )
-      }
       loading={c.isLoading}
     />,
     <MetricTile

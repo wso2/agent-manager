@@ -29,6 +29,7 @@ import {
   TablePagination,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
 import {
@@ -42,15 +43,14 @@ import { useFeatureManagement } from "@agent-management-platform/feature-managem
 import { useListBudgets } from "@agent-management-platform/api-client";
 import {
   isListEmpty,
-  LabelChips,
   ResourceListShell,
 } from "@agent-management-platform/shared-component";
 import { useConfirmDeleteBudget } from "./useConfirmDeleteBudget";
-import { wordLabels } from "../budgetForm";
 import { type Budget } from "@agent-management-platform/types";
 import { amount, formatUsd } from "../costFormat";
 import { PERIOD_LABELS } from "./budgetLabels";
 import { ImportBudgetsDialog } from "./ImportBudgetsDialog";
+import { TOOLBAR_FIELD_SX } from "../controlSizes";
 
 /** Delete shows on hover or focus, as in the console's other lists; touch shows it always. */
 const ROW_HOVER_SX = {
@@ -88,8 +88,31 @@ export function separateKind(b: Budget): string | undefined {
         : t;
 }
 
+/** A budget's name is cut at this width, so the list does not depend on its length. */
+const NAME_MAX_WIDTH = 360;
+
 /** Page sizes, as the console's other lists. */
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
+/** Warning chips shown in a row; the rest are one "+N" chip, so rows keep their height. */
+const WARNING_CHIPS_SHOWN = 3;
+
+function WarningChips({ thresholds }: { thresholds: number[] }) {
+  if (!thresholds.length) return <>None</>;
+  const shown = thresholds.slice(0, WARNING_CHIPS_SHOWN);
+  const rest = thresholds.slice(WARNING_CHIPS_SHOWN);
+  return (
+    <Stack direction="row" spacing={0.5} sx={{ flexWrap: "nowrap" }}>
+      {shown.map((t) => (
+        <Chip key={t} size="small" label={`${t}%`} />
+      ))}
+      {rest.length > 0 && (
+        <Tooltip title={rest.map((t) => `${t}%`).join(", ")}>
+          <Chip size="small" variant="outlined" label={`+${rest.length}`} />
+        </Tooltip>
+      )}
+    </Stack>
+  );
+}
 
 type StatusFilter = "all" | "active" | "inactive" | "over";
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
@@ -111,7 +134,7 @@ function Usage({ budget }: { budget: Budget }) {
   }
   const spent = amount(period.spent);
   const limit = amount(budget.spec.limit.amount);
-  // Counted separately, each allowance has the whole limit: the total is not a share of it.
+  // Counted separately, each usage has the whole limit: the total is not a share of it.
   const each = separateKind(budget);
   const share =
     limit > 0 && !each ? Math.round((spent / limit) * 100) : undefined;
@@ -199,7 +222,7 @@ export function BudgetsTab({
         setStatusFilter(e.target.value as StatusFilter);
         setPage(0);
       }}
-      sx={{ minWidth: 200, flexShrink: 0 }}
+      sx={{ minWidth: 200, flexShrink: 0, ...TOOLBAR_FIELD_SX }}
       slotProps={{ htmlInput: { "aria-label": "Filter by status" } }}
     >
       {STATUS_FILTERS.map((f) => (
@@ -278,8 +301,7 @@ export function BudgetsTab({
                 <ListingTable.Cell>This period</ListingTable.Cell>
                 <ListingTable.Cell>Warnings</ListingTable.Cell>
                 <ListingTable.Cell>Status</ListingTable.Cell>
-                <ListingTable.Cell>Labels</ListingTable.Cell>
-                {canDelete && <ListingTable.Cell />}
+                {canDelete && <ListingTable.Cell width="140px" />}
               </ListingTable.Row>
             </ListingTable.Head>
             <ListingTable.Body>
@@ -299,12 +321,23 @@ export function BudgetsTab({
                     }}
                   >
                     <ListingTable.Cell>
-                      <Stack spacing={0}>
-                        <Typography variant="body2" fontWeight={600}>
+                      {/* One line each, cut short: a row is as tall for any name. */}
+                      <Stack spacing={0} sx={{ maxWidth: NAME_MAX_WIDTH }}>
+                        <Typography
+                          variant="body2"
+                          fontWeight={600}
+                          noWrap
+                          title={displayName ?? b.metadata.name}
+                        >
                           {displayName ?? b.metadata.name}
                         </Typography>
                         {displayName && displayName !== b.metadata.name && (
-                          <Typography variant="caption" color="text.secondary">
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            noWrap
+                            title={b.metadata.name}
+                          >
                             {b.metadata.name}
                           </Typography>
                         )}
@@ -328,9 +361,7 @@ export function BudgetsTab({
                       <Usage budget={b} />
                     </ListingTable.Cell>
                     <ListingTable.Cell>
-                      {warnings?.thresholds.length
-                        ? warnings.thresholds.map((t) => `${t}%`).join(", ")
-                        : "None"}
+                      <WarningChips thresholds={warnings?.thresholds ?? []} />
                     </ListingTable.Cell>
                     <ListingTable.Cell>
                       <Chip
@@ -340,18 +371,19 @@ export function BudgetsTab({
                         label={inactive ? "Inactive" : "Active"}
                       />
                     </ListingTable.Cell>
-                    <ListingTable.Cell sx={{ maxWidth: 220 }}>
-                      {b.metadata.labels?.length ? (
-                        <LabelChips labels={wordLabels(b.metadata.labels)} />
-                      ) : (
-                        "None"
-                      )}
-                    </ListingTable.Cell>
                     {canDelete && (
-                      <ListingTable.Cell align="right" sx={{ width: 110 }}>
+                      <ListingTable.Cell
+                        align="right"
+                        padding="none"
+                        sx={{ pr: 1.5 }}
+                      >
                         {/* Gateway-made budgets are deleted on their gateway. */}
                         {b.status?.origin !== "gatewayApi" && (
-                          <Stack className="budget-actions" direction="row">
+                          <Stack
+                            className="budget-actions"
+                            direction="row"
+                            justifyContent="flex-end"
+                          >
                             <Button
                               variant="outlined"
                               color="error"

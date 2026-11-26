@@ -88,6 +88,7 @@ var Actions = withDetails([]modkit.AuditAction{
 	{Name: "gateways.delete", Class: "config", Severity: "warning", Description: "Delete (gateways)"},
 	{Name: "gateways.list-identity-providers", Class: "read", Severity: "info", Description: "List identity providers (gateways)"},
 	{Name: "gateways.push-manifest", Class: "config", Severity: "info", Description: "Push manifest (gateways)"},
+	{Name: "gateways.push-pricing", Class: "config", Severity: "info", Description: "Push pricing (gateways)"},
 	{Name: "gateways.sync-resources", Class: "config", Severity: "info", Description: "Sync resources (gateways)"},
 	{Name: "gateways.read", Class: "read", Severity: "info", Description: "Read (gateways)"},
 	{Name: "gateways.remove-identity-provider", Class: "credential", Severity: "critical", Description: "Remove identity provider (gateways)"},
@@ -236,6 +237,8 @@ func withDetails(actions []modkit.AuditAction) []modkit.AuditAction {
 		"gateways.set-identity-provider":    idpFields,
 		"gateways.remove-identity-provider": idpFields,
 		"gateways.push-manifest":            {"policyCount": "count"},
+		// A gateway sending its model price file: the models it listed and the ones added.
+		"gateways.push-pricing": {"modelCount": "count", "addedCount": "count"},
 		// A gateway mirroring the budgets it created through its own API.
 		"gateways.sync-resources": {"resourceCount": "count", "failedCount": "count"},
 		"budgets.delete":          {"budgetName": "name"},

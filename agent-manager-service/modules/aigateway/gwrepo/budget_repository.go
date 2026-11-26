@@ -33,7 +33,7 @@ import (
 
 // BudgetRepository stores budgets, whoever created them: the control plane, or a
 // gateway through its own API. Names are unique in the organization. Read budgets carry
-// their organization's and project's handles, from the core.
+// their organization's handle, from the core.
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/budget_repository_mock.go . BudgetRepository:BudgetRepositoryMock
 type BudgetRepository interface {
@@ -69,11 +69,10 @@ type BudgetRepository interface {
 	List(ctx context.Context, ouID string) ([]gwmodels.Budget, error)
 }
 
-// BudgetOwners looks up the handles of the organization and project that own a budget:
-// the core's, which the module cannot join.
+// BudgetOwners looks up the handle of the organization that owns a budget: the core's,
+// which the module cannot join.
 type BudgetOwners interface {
 	GetOrg(ctx context.Context, orgID string) (modkit.Org, error)
-	ListProjects(ctx context.Context, orgID string) ([]modkit.Project, error)
 }
 
 type budgetRepository struct {
@@ -82,7 +81,7 @@ type budgetRepository struct {
 }
 
 // NewBudgetRepository creates a BudgetRepository. owners, when not nil, fills in the
-// owners' handles of the budgets it reads.
+// organization's handle of the budgets it reads.
 func NewBudgetRepository(db *gorm.DB, owners BudgetOwners) BudgetRepository {
 	return &budgetRepository{db: db, owners: owners}
 }
@@ -190,8 +189,7 @@ func (r *budgetRepository) SaveForGateway(ctx context.Context, budget *gwmodels.
 		budget.Configuration.Warnings = existing.Configuration.Warnings
 		if err := tx.Model(&gwmodels.Budget{}).Where("id = ? AND org_id = ?", existing.ID, budget.OrgID).
 			Updates(map[string]any{
-				"configuration": dbx.JSON(gwmodels.NewBudgetDocument(name, budget.ProjectName, budget.Configuration)),
-				"project_id":    budget.ProjectID,
+				"configuration": dbx.JSON(gwmodels.NewBudgetDocument(budget.Name, budget.Configuration)),
 				"updated_at":    now,
 			}).Error; err != nil {
 			return fmt.Errorf("failed to update budget %q: %w", name, err)
@@ -267,27 +265,6 @@ func BudgetsUsing(tx *gorm.DB, ouID string, uses func(gwmodels.BudgetConfig) boo
 	return names, nil
 }
 
-// ProjectBudgets returns the names of the control-plane budgets the project owns, and
-// hands the gateway budgets it owns to the organization, in tx: what deleting the
-// project does (a gateway owns its budgets; a control-plane one must be deleted first,
-// so its gateways are told).
-func ProjectBudgets(tx *gorm.DB, ouID, projectID string) ([]string, error) {
-	var names []string
-	if err := tx.Model(&gwmodels.Budget{}).
-		Where("org_id = ? AND project_id = ? AND origin = ?", ouID, projectID, gwmodels.BudgetOriginControlPlane).
-		Order("name").Pluck("name", &names).Error; err != nil {
-		return nil, fmt.Errorf("failed to read the project's budgets: %w", err)
-	}
-	if len(names) > 0 {
-		return names, nil
-	}
-	if err := tx.Model(&gwmodels.Budget{}).Where("org_id = ? AND project_id = ?", ouID, projectID).
-		Update("project_id", nil).Error; err != nil {
-		return nil, fmt.Errorf("failed to release the project's gateway budgets: %w", err)
-	}
-	return nil, nil
-}
-
 // ChannelBudgets returns the names of the organization's budgets that send warnings to
 // the channel, sorted: budgets name their channels, so one they name keeps its name and
 // is not deleted.
@@ -305,7 +282,7 @@ func ChannelBudgets(db *gorm.DB, ouID, channel string) ([]string, error) {
 	return names, nil
 }
 
-// withOwners fills in the budgets' organization and project handles.
+// withOwners fills in the budgets' organization handle.
 func (r *budgetRepository) withOwners(ctx context.Context, ouID string, budgets []gwmodels.Budget) error {
 	if r.owners == nil || len(budgets) == 0 {
 		return nil
@@ -314,24 +291,8 @@ func (r *budgetRepository) withOwners(ctx context.Context, ouID string, budgets 
 	if err != nil && !errors.Is(err, modkit.ErrNotFound) {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
-	projects := map[string]string{}
-	for _, b := range budgets {
-		if b.ProjectID != nil {
-			list, err := r.owners.ListProjects(ctx, ouID)
-			if err != nil {
-				return fmt.Errorf("failed to list projects: %w", err)
-			}
-			for _, p := range list {
-				projects[p.ID] = p.Name
-			}
-			break
-		}
-	}
 	for i := range budgets {
 		budgets[i].OrgName = org.Handle
-		if id := budgets[i].ProjectID; id != nil {
-			budgets[i].ProjectName = projects[id.String()]
-		}
 	}
 	return nil
 }
@@ -363,7 +324,7 @@ func updateBudget(tx *gorm.DB, budget *gwmodels.Budget) error {
 	now := dbx.Now()
 	res := tx.Model(&gwmodels.Budget{}).Where("id = ? AND org_id = ?", budget.ID, budget.OrgID).
 		Updates(map[string]any{
-			"configuration": dbx.JSON(gwmodels.NewBudgetDocument(budget.Name, budget.ProjectName, budget.Configuration)),
+			"configuration": dbx.JSON(gwmodels.NewBudgetDocument(budget.Name, budget.Configuration)),
 			"updated_at":    now,
 		})
 	if res.Error != nil {

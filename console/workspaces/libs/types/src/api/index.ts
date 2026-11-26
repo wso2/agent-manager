@@ -44,3 +44,4 @@ export * from './agent-identity';
 export * from './events';
 export * from './monitor-alerts';
 export * from './budgets';
+export * from './pricing';

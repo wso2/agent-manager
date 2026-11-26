@@ -56,18 +56,15 @@ type Budget struct {
 	Name      string       `gorm:"column:name"`
 	Origin    BudgetOrigin `gorm:"column:origin"`
 	GatewayID *uuid.UUID   `gorm:"column:gateway_id"` // set for gateway budgets only
-	ProjectID *uuid.UUID   `gorm:"column:project_id"` // the owning project; nil: the organization
-	// Configuration is the kind's spec; the column holds the whole Budget kind as received,
-	// written and read by the budgetkind serializer.
+	// Configuration is the kind's spec; the column holds the whole Budget kind. The name is
+	// also a column, for lookup and search.
 	Configuration BudgetConfig `gorm:"column:configuration;serializer:budgetkind"`
 	CreatedBy     string       `gorm:"column:created_by"`
 	CreatedAt     time.Time    `gorm:"column:created_at"`
 	UpdatedAt     time.Time    `gorm:"column:updated_at"`
 
-	// The owners' handles, from the core's organization and project; the repository fills
-	// them in after reading.
-	OrgName     string `gorm:"-"`
-	ProjectName string `gorm:"-"`
+	// The organization's handle, from the core; the repository fills it in after reading.
+	OrgName string `gorm:"-"`
 }
 
 // BudgetConfig is a budget's settings, with defaults filled in: the
@@ -89,11 +86,10 @@ type BudgetConfig struct {
 // BudgetLimit is how much may be spent per period, what happens when it is used up, and
 // what gets its own limit.
 type BudgetLimit struct {
-	Amount   string `json:"amount"`
-	Currency string `json:"currency"`
-	Period   string `json:"period"`
-	Action   string `json:"action"`
-	BlockAt  *int32 `json:"blockAt,omitempty"`
+	Amount  string `json:"amount"`
+	Period  string `json:"period"`
+	Action  string `json:"action"`
+	BlockAt *int32 `json:"blockAt,omitempty"`
 	// SplitBy gives each value of a type its own limit; nil: one shared limit for all
 	// matching usage.
 	SplitBy *BudgetSplit `json:"splitBy,omitempty"`
@@ -140,9 +136,6 @@ const KindBudget = "Budget"
 // BudgetAPIVersion is the Budget kind's apiVersion.
 const BudgetAPIVersion = "gateway.api-platform.wso2.com/v1"
 
-// AnnotationBudgetProjectID names the project that owns a budget.
-const AnnotationBudgetProjectID = "gateway.api-platform.wso2.com/project-id"
-
 // BudgetDocument is a budget as stored, as a gateway stores it: the Budget kind as
 // received.
 type BudgetDocument struct {
@@ -152,21 +145,16 @@ type BudgetDocument struct {
 	Spec       BudgetConfig           `json:"spec"`
 }
 
-// BudgetDocumentMetadata names a stored budget and its owning project.
+// BudgetDocumentMetadata names a stored budget.
 type BudgetDocumentMetadata struct {
 	Name        string            `json:"name"`
 	Labels      []string          `json:"labels,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
-// NewBudgetDocument is the stored kind of a budget with that name, project ("" for an
-// organization budget) and spec.
-func NewBudgetDocument(name, project string, spec BudgetConfig) BudgetDocument {
-	doc := BudgetDocument{APIVersion: BudgetAPIVersion, Kind: KindBudget, Metadata: BudgetDocumentMetadata{Name: name, Labels: spec.Labels}, Spec: spec}
-	if project != "" {
-		doc.Metadata.Annotations = map[string]string{AnnotationBudgetProjectID: project}
-	}
-	return doc
+// NewBudgetDocument is the stored kind of a budget with that name and spec.
+func NewBudgetDocument(name string, spec BudgetConfig) BudgetDocument {
+	return BudgetDocument{APIVersion: BudgetAPIVersion, Kind: KindBudget, Metadata: BudgetDocumentMetadata{Name: name, Labels: spec.Labels}, Spec: spec}
 }
 
 func init() {
@@ -174,8 +162,8 @@ func init() {
 }
 
 // budgetKindSerializer stores a Budget's Configuration as the whole Budget kind, named
-// after the budget's Name and ProjectName, and reads the spec back. Metadata is read from
-// the budget's columns, so the stored annotation never overrides the current project.
+// after the budget's Name, and reads the spec back. The name is also a column, for lookup
+// and search.
 type budgetKindSerializer struct{}
 
 func (budgetKindSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue any) error {
@@ -190,40 +178,30 @@ func (budgetKindSerializer) Scan(ctx context.Context, field *schema.Field, dst r
 	default:
 		return fmt.Errorf("budget configuration: unsupported type %T", dbValue)
 	}
-	var probe struct {
+	var doc struct {
 		Metadata struct {
 			Labels []string `json:"labels"`
 		} `json:"metadata"`
-		Spec json.RawMessage `json:"spec"`
+		Spec BudgetConfig `json:"spec"`
 	}
-	if err := json.Unmarshal(raw, &probe); err != nil {
+	if err := json.Unmarshal(raw, &doc); err != nil {
 		return fmt.Errorf("budget configuration: %w", err)
 	}
-	var cfg BudgetConfig
-	body := raw
-	if len(probe.Spec) > 0 {
-		body = probe.Spec
-	}
-	if err := json.Unmarshal(body, &cfg); err != nil {
-		return fmt.Errorf("budget configuration: %w", err)
-	}
-	if len(probe.Metadata.Labels) > 0 {
-		cfg.Labels = probe.Metadata.Labels
-	}
+	cfg := doc.Spec
+	cfg.Labels = doc.Metadata.Labels
 	return field.Set(ctx, dst, cfg)
 }
 
 func (budgetKindSerializer) Value(_ context.Context, _ *schema.Field, dst reflect.Value, fieldValue any) (any, error) {
 	cfg, _ := fieldValue.(BudgetConfig)
-	name, project := "", ""
+	name := ""
 	for dst.Kind() == reflect.Pointer {
 		dst = dst.Elem()
 	}
 	if dst.Kind() == reflect.Struct {
 		name = dst.FieldByName("Name").String()
-		project = dst.FieldByName("ProjectName").String()
 	}
-	b, err := json.Marshal(NewBudgetDocument(name, project, cfg))
+	b, err := json.Marshal(NewBudgetDocument(name, cfg))
 	if err != nil {
 		return nil, err
 	}

@@ -52,6 +52,7 @@ type Gateway struct {
 	EnvironmentGatewayController *gwctl.EnvironmentGatewayController
 	BudgetController             gwctl.BudgetController
 	CostController               gwctl.CostController
+	PricingController            gwctl.PricingController
 
 	A2ACardReconciler        gwsvc.A2ACardReconcilerService
 	DeploymentTimeoutSweeper gwsvc.DeploymentTimeoutSweeper

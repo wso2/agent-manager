@@ -25,38 +25,41 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
-// BudgetUsageRepository keeps each budget allowance's spend in its current period
-// and records the warnings it crosses.
+// BudgetUsageRepository keeps each budget usage's spend in its current period and
+// raises the warnings the spend crosses.
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/budget_usage_repository_mock.go . BudgetUsageRepository:BudgetUsageRepositoryMock
 type BudgetUsageRepository interface {
-	// Record merges a gateway's reports into their allowances' rows, all in one
+	// Record merges a gateway's reports into their usages' rows, all in one
 	// transaction: each period has its own row, and the same period keeps the higher
 	// totals (each gateway reports the shared total; one may lag). warn gets each row that
-	// changed and returns the warnings it calls for; Record records them in the same
-	// transaction and, for each not recorded before, calls publish there, so a warning's
-	// event commits with the spend that crossed it.
-	Record(ctx context.Context, rows []gwmodels.BudgetUsage,
-		warn func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning, publish WarningPublisher) error
-	// ForBudget returns the budget's allowances.
+	// changed, with the total it held before (0 for a new row), and returns the warnings
+	// that change crosses; Record calls publish for each in the same transaction, so a
+	// warning's event commits with the spend that crossed it, and a failed publish leaves
+	// the spend unwritten, to be reported again. A total is replaced from one value to a
+	// higher one only once, so a threshold is crossed by exactly one write.
+	Record(ctx context.Context, rows []gwmodels.BudgetUsage, warn WarnFunc, publish WarningPublisher) error
+	// ForBudget returns the budget's usages.
 	ForBudget(ctx context.Context, budgetID uuid.UUID) ([]gwmodels.BudgetUsage, error)
-	// ForBudgets returns the allowances of the organization's budgets with those IDs.
+	// ForBudgets returns the usages of the organization's budgets with those IDs.
 	ForBudgets(ctx context.Context, ouID string, budgetIDs []uuid.UUID) ([]gwmodels.BudgetUsage, error)
-	// RecordWarnings records warnings and publishes those not recorded before, in one
-	// transaction.
-	RecordWarnings(ctx context.Context, warnings []gwmodels.BudgetWarning, publish WarningPublisher) error
-	// DeletePeriodsBefore deletes the budget's allowances of periods that started before
-	// before, with their warnings, in one transaction, and returns how many allowances went.
+	// DeletePeriodsBefore deletes the budget's usages of periods that started before
+	// before, and returns how many went.
 	DeletePeriodsBefore(ctx context.Context, budgetID uuid.UUID, before time.Time) (int64, error)
 }
 
-// WarningPublisher publishes a newly recorded warning's event inside tx.
-type WarningPublisher func(ctx context.Context, tx *gorm.DB, w gwmodels.BudgetWarning) error
+// WarnFunc returns the warnings a changed usage row calls for: before is the total it
+// held until this write (a decimal string, "0" for a new row), after is the row as stored.
+type WarnFunc func(before string, after gwmodels.BudgetUsage) []notifyv1.Notification
+
+// WarningPublisher sends a warning inside tx.
+type WarningPublisher func(ctx context.Context, tx *gorm.DB, n notifyv1.Notification) error
 
 type budgetUsageRepository struct {
 	db *gorm.DB
@@ -71,23 +74,14 @@ func (r *budgetUsageRepository) DeletePeriodsBefore(ctx context.Context, budgetI
 	before time.Time,
 ) (int64, error) {
 	var deleted int64
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Warnings first: their rows reference the allowances', and not every database
-		// enforces the cascade.
-		if err := tx.Where("budget_id = ? AND period_start < ?", budgetID, before.UTC()).
-			Delete(&gwmodels.BudgetWarning{}).Error; err != nil {
-			return err
-		}
-		res := tx.Where("budget_id = ? AND period_start < ?", budgetID, before.UTC()).
-			Delete(&gwmodels.BudgetUsage{})
-		deleted = res.RowsAffected
-		return res.Error
-	})
-	return deleted, err
+	res := r.db.WithContext(ctx).Where("budget_id = ? AND period_start < ?", budgetID, before.UTC()).
+		Delete(&gwmodels.BudgetUsage{})
+	deleted = res.RowsAffected
+	return deleted, res.Error
 }
 
 func (r *budgetUsageRepository) Record(ctx context.Context, rows []gwmodels.BudgetUsage,
-	warn func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning, publish WarningPublisher,
+	warn WarnFunc, publish WarningPublisher,
 ) error {
 	if len(rows) == 0 {
 		return nil
@@ -105,8 +99,8 @@ func (r *budgetUsageRepository) Record(ctx context.Context, rows []gwmodels.Budg
 		if a.BudgetID != b.BudgetID {
 			return a.BudgetID.String() < b.BudgetID.String()
 		}
-		if a.AllowanceID != b.AllowanceID {
-			return a.AllowanceID.String() < b.AllowanceID.String()
+		if a.BudgetUsageID != b.BudgetUsageID {
+			return a.BudgetUsageID.String() < b.BudgetUsageID.String()
 		}
 		return a.PeriodStart.Before(b.PeriodStart)
 	})
@@ -115,36 +109,48 @@ func (r *budgetUsageRepository) Record(ctx context.Context, rows []gwmodels.Budg
 		if err != nil {
 			return err
 		}
-		if warn == nil {
+		if warn == nil || publish == nil {
 			return nil
 		}
-		for _, stored := range changed {
-			if err := recordWarnings(ctx, tx, warn(stored), publish); err != nil {
-				return err
+		for _, c := range changed {
+			for _, n := range warn(c.before, c.after) {
+				if err := publish(ctx, tx, n); err != nil {
+					return fmt.Errorf("failed to publish a budget warning: %w", err)
+				}
 			}
 		}
 		return nil
 	})
 }
 
+// usageChange is a row a write changed: the row as stored, and the total it held before.
+type usageChange struct {
+	before string
+	after  gwmodels.BudgetUsage
+}
+
+// newRowSpent is the total a row that did not exist is taken to have held.
+const newRowSpent = "0"
+
 // usageBatchSize bounds one multi-row insert (8 columns; SQL Server allows 2,100 parameters).
 const usageBatchSize = 200
 
 type usageRowKey struct {
-	budget, allowance uuid.UUID
-	period            int64
+	budget, usage uuid.UUID
+	period        int64
 }
 
 func usageRowKeyOf(u gwmodels.BudgetUsage) usageRowKey {
-	return usageRowKey{u.BudgetID, u.AllowanceID, u.PeriodStart.UTC().UnixMicro()}
+	return usageRowKey{u.BudgetID, u.BudgetUsageID, u.PeriodStart.UTC().UnixMicro()}
 }
 
 // writeUsageBatch writes a batch of reported totals with one read and, per row that is
 // new or higher, one write: new rows in multi-row inserts, higher ones by a conditional
 // update on the value just read, with no row lock. A row another writer changed in
 // between is read again and merged; a row another writer inserted first is merged into.
-// It returns every row as stored after a change, for the warnings.
-func writeUsageBatch(tx *gorm.DB, batch []gwmodels.BudgetUsage) ([]gwmodels.BudgetUsage, error) {
+// It returns every row as stored after a change, with the total it replaced, for the
+// warnings.
+func writeUsageBatch(tx *gorm.DB, batch []gwmodels.BudgetUsage) ([]usageChange, error) {
 	stored, err := storedUsage(tx, batch)
 	if err != nil {
 		return nil, err
@@ -162,7 +168,7 @@ func writeUsageBatch(tx *gorm.DB, batch []gwmodels.BudgetUsage) ([]gwmodels.Budg
 			updates = append(updates, update{current, merged})
 		}
 	}
-	var changed []gwmodels.BudgetUsage
+	var changed []usageChange
 	for start := 0; start < len(inserts); start += usageBatchSize {
 		chunk := inserts[start:min(start+usageBatchSize, len(inserts))]
 		inserted, err := dbx.InsertIfAbsent(tx, &chunk)
@@ -170,7 +176,9 @@ func writeUsageBatch(tx *gorm.DB, batch []gwmodels.BudgetUsage) ([]gwmodels.Budg
 			return nil, err
 		}
 		if inserted {
-			changed = append(changed, chunk...)
+			for _, u := range chunk {
+				changed = append(changed, usageChange{before: newRowSpent, after: u})
+			}
 			continue
 		}
 		// Another writer inserted one of them first: row by row, merging into those.
@@ -181,15 +189,15 @@ func writeUsageBatch(tx *gorm.DB, batch []gwmodels.BudgetUsage) ([]gwmodels.Budg
 				return nil, err
 			}
 			if inserted {
-				changed = append(changed, row)
+				changed = append(changed, usageChange{before: newRowSpent, after: row})
 				continue
 			}
-			merged, ok, err := mergeUsageRetrying(tx, u)
+			before, merged, ok, err := mergeUsageRetrying(tx, u)
 			if err != nil {
 				return nil, err
 			}
 			if ok {
-				changed = append(changed, merged)
+				changed = append(changed, usageChange{before: before, after: merged})
 			}
 		}
 	}
@@ -199,33 +207,33 @@ func writeUsageBatch(tx *gorm.DB, batch []gwmodels.BudgetUsage) ([]gwmodels.Budg
 			return nil, err
 		}
 		if ok {
-			changed = append(changed, up.merged)
+			changed = append(changed, usageChange{before: up.current.Spent, after: up.merged})
 			continue
 		}
-		merged, ok, err := mergeUsageRetrying(tx, up.merged)
+		before, merged, ok, err := mergeUsageRetrying(tx, up.merged)
 		if err != nil {
 			return nil, err
 		}
 		if ok {
-			changed = append(changed, merged)
+			changed = append(changed, usageChange{before: before, after: merged})
 		}
 	}
 	return changed, nil
 }
 
-// storedUsage reads the stored rows of the batch's allowances, and only those, in one query
-// per chunk of allowances: a budget split many ways is not read whole for one change.
+// storedUsage reads the stored rows of the batch's usages, and only those, in one query
+// per chunk of usages: a budget split many ways is not read whole for one change.
 func storedUsage(tx *gorm.DB, batch []gwmodels.BudgetUsage) (map[usageRowKey]gwmodels.BudgetUsage, error) {
-	allowanceSet, budgetSet := map[uuid.UUID]bool{}, map[uuid.UUID]bool{}
+	usageSet, budgetSet := map[uuid.UUID]bool{}, map[uuid.UUID]bool{}
 	periodSet := map[int64]time.Time{}
 	for _, u := range batch {
-		allowanceSet[u.AllowanceID] = true
+		usageSet[u.BudgetUsageID] = true
 		budgetSet[u.BudgetID] = true
 		periodSet[u.PeriodStart.UTC().UnixMicro()] = u.PeriodStart.UTC()
 	}
-	allowances := make([]uuid.UUID, 0, len(allowanceSet))
-	for id := range allowanceSet {
-		allowances = append(allowances, id)
+	usages := make([]uuid.UUID, 0, len(usageSet))
+	for id := range usageSet {
+		usages = append(usages, id)
 	}
 	budgets := make([]uuid.UUID, 0, len(budgetSet))
 	for id := range budgetSet {
@@ -236,10 +244,10 @@ func storedUsage(tx *gorm.DB, batch []gwmodels.BudgetUsage) (map[usageRowKey]gwm
 		periods = append(periods, t)
 	}
 	out := make(map[usageRowKey]gwmodels.BudgetUsage, len(batch))
-	for _, chunk := range dbx.Chunks(allowances) {
+	for _, chunk := range dbx.Chunks(usages) {
 		var rows []gwmodels.BudgetUsage
 		// budget_id leads the primary key, so the lookup uses it.
-		if err := tx.Where("budget_id IN ? AND allowance_id IN ? AND period_start IN ?", budgets, chunk, periods).
+		if err := tx.Where("budget_id IN ? AND budget_usage_id IN ? AND period_start IN ?", budgets, chunk, periods).
 			Find(&rows).Error; err != nil {
 			return nil, fmt.Errorf("failed to read budget usage: %w", err)
 		}
@@ -254,10 +262,10 @@ func storedUsage(tx *gorm.DB, batch []gwmodels.BudgetUsage) (map[usageRowKey]gwm
 // writer changed it in between.
 func updateUsageIf(tx *gorm.DB, current, merged gwmodels.BudgetUsage) (bool, error) {
 	res := tx.Model(&gwmodels.BudgetUsage{}).
-		Where("budget_id = ? AND allowance_id = ? AND period_start = ? AND spent = ? AND unpriced_requests = ?",
-			current.BudgetID, current.AllowanceID, current.PeriodStart, current.Spent, current.UnpricedRequests).
+		Where("budget_id = ? AND budget_usage_id = ? AND period_start = ? AND spent = ? AND unpriced_requests = ?",
+			current.BudgetID, current.BudgetUsageID, current.PeriodStart, current.Spent, current.UnpricedRequests).
 		Updates(map[string]any{
-			"allowance":         dbx.JSON(merged.Allowance),
+			"budget_usage":      dbx.JSON(merged.Usage),
 			"spent":             merged.Spent,
 			"unpriced_requests": merged.UnpricedRequests,
 			"updated_at":        merged.UpdatedAt,
@@ -266,25 +274,26 @@ func updateUsageIf(tx *gorm.DB, current, merged gwmodels.BudgetUsage) (bool, err
 }
 
 // mergeUsageRetrying reads a row another writer just changed and merges the report into
-// it, a few times; false when the stored row is already as high.
-func mergeUsageRetrying(tx *gorm.DB, report gwmodels.BudgetUsage) (gwmodels.BudgetUsage, bool, error) {
+// it, a few times; false when the stored row is already as high. It returns the total the
+// write replaced, and the row as stored.
+func mergeUsageRetrying(tx *gorm.DB, report gwmodels.BudgetUsage) (string, gwmodels.BudgetUsage, bool, error) {
 	for range 5 {
 		var current gwmodels.BudgetUsage
-		err := tx.Where("budget_id = ? AND allowance_id = ? AND period_start = ?",
-			report.BudgetID, report.AllowanceID, report.PeriodStart).Take(&current).Error
+		err := tx.Where("budget_id = ? AND budget_usage_id = ? AND period_start = ?",
+			report.BudgetID, report.BudgetUsageID, report.PeriodStart).Take(&current).Error
 		if err != nil {
-			return report, false, err
+			return "", report, false, err
 		}
 		merged, changed := mergeUsage(current, report)
 		if !changed {
-			return current, false, nil
+			return current.Spent, current, false, nil
 		}
 		ok, err := updateUsageIf(tx, current, merged)
 		if err != nil || ok {
-			return merged, ok, err
+			return current.Spent, merged, ok, err
 		}
 	}
-	return report, false, fmt.Errorf("budget usage %s/%s kept changing while it was written", report.BudgetID, report.AllowanceID)
+	return "", report, false, fmt.Errorf("budget usage %s/%s kept changing while it was written", report.BudgetID, report.BudgetUsageID)
 }
 
 func mergeUsage(current, report gwmodels.BudgetUsage) (gwmodels.BudgetUsage, bool) {
@@ -303,27 +312,27 @@ func mergeUsage(current, report gwmodels.BudgetUsage) (gwmodels.BudgetUsage, boo
 	}
 	if changed {
 		merged.UpdatedAt = report.UpdatedAt
-		if len(report.Allowance) > 0 {
-			merged.Allowance = report.Allowance
+		if len(report.Usage) > 0 {
+			merged.Usage = report.Usage
 		}
 	}
 	return merged, changed
 }
 
-// ForBudget returns each of a budget's allowances in its latest period.
+// ForBudget returns each of a budget's usages in its latest period.
 func (r *budgetUsageRepository) ForBudget(ctx context.Context, budgetID uuid.UUID) ([]gwmodels.BudgetUsage, error) {
 	var rows []gwmodels.BudgetUsage
-	err := r.db.WithContext(ctx).Where("budget_id = ?", budgetID).Order("allowance_id").Find(&rows).Error
+	err := r.db.WithContext(ctx).Where("budget_id = ?", budgetID).Order("budget_usage_id").Find(&rows).Error
 	return latestPeriods(rows), err
 }
 
-// latestPeriods keeps each allowance's latest period, in the order the rows came.
+// latestPeriods keeps each usage's latest period, in the order the rows came.
 func latestPeriods(rows []gwmodels.BudgetUsage) []gwmodels.BudgetUsage {
-	type key struct{ budget, allowance uuid.UUID }
+	type key struct{ budget, usage uuid.UUID }
 	latest := map[key]int{}
 	out := make([]gwmodels.BudgetUsage, 0, len(rows))
 	for _, row := range rows {
-		k := key{row.BudgetID, row.AllowanceID}
+		k := key{row.BudgetID, row.BudgetUsageID}
 		if i, seen := latest[k]; seen {
 			if row.PeriodStart.After(out[i].PeriodStart) {
 				out[i] = row
@@ -346,35 +355,4 @@ func (r *budgetUsageRepository) ForBudgets(ctx context.Context, ouID string, bud
 		rows = append(rows, page...)
 	}
 	return latestPeriods(rows), nil
-}
-
-func (r *budgetUsageRepository) RecordWarnings(ctx context.Context, warnings []gwmodels.BudgetWarning, publish WarningPublisher) error {
-	if len(warnings) == 0 {
-		return nil
-	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return recordWarnings(ctx, tx, warnings, publish)
-	})
-}
-
-// recordWarnings records warnings in tx and publishes each one not recorded before: a
-// threshold amount warns once per allowance and period.
-func recordWarnings(ctx context.Context, tx *gorm.DB, warnings []gwmodels.BudgetWarning, publish WarningPublisher) error {
-	now := dbx.Now()
-	for i := range warnings {
-		w := warnings[i]
-		w.PeriodStart = w.PeriodStart.UTC()
-		w.CreatedAt = now
-		inserted, err := dbx.InsertIfAbsent(tx, &w)
-		if err != nil {
-			return fmt.Errorf("failed to record a budget warning: %w", err)
-		}
-		if !inserted || publish == nil {
-			continue
-		}
-		if err := publish(ctx, tx, w); err != nil {
-			return fmt.Errorf("failed to publish a budget warning: %w", err)
-		}
-	}
-	return nil
 }

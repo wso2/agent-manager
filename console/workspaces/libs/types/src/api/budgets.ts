@@ -23,8 +23,6 @@ import type { ListQuery, OrgPathParams, PaginationMeta } from "./common";
 export const BUDGET_API_VERSION = "gateway.api-platform.wso2.com/v1";
 /** Names the organization that owns a budget, by handle. */
 export const BUDGET_ORG_ANNOTATION = "gateway.api-platform.wso2.com/org-id";
-/** Names the project that owns a budget, by handle; absent for an organization budget. */
-export const BUDGET_PROJECT_ANNOTATION = "gateway.api-platform.wso2.com/project-id";
 
 export type BudgetPeriod = "day" | "week" | "month";
 export type BudgetAction = "block" | "allow";
@@ -37,7 +35,12 @@ export type BudgetFilterType =
   | "agent"
   | "apiKey"
   | "attribute";
-export type BudgetExemptionType = "project" | "agent" | "attribute";
+export type BudgetExemptionType =
+  | "llmProvider"
+  | "project"
+  | "agent"
+  | "apiKey"
+  | "attribute";
 
 /** A separate limit for each value of one dimension. Omitted: one shared limit. */
 export interface BudgetSplit {
@@ -47,9 +50,8 @@ export interface BudgetSplit {
 }
 
 export interface BudgetLimit {
-  /** Decimal string, at most two decimals. */
+  /** Decimal string in USD, at most two decimals. */
   amount: string;
-  currency?: "USD";
   period: BudgetPeriod;
   action: BudgetAction;
   /** Block only: refuses once spend reaches this share of the amount (1-100). */
@@ -126,22 +128,20 @@ export interface BudgetListResponse extends PaginationMeta {
   budgets: Budget[];
 }
 
-export interface BudgetAllowanceUsage {
-  /** The values this allowance counts, e.g. { agent: "hotel-booking" }; empty when shared. */
-  allowance: Record<string, string>;
+export interface BudgetUsageEntry {
+  /** The values this usage counts, e.g. { agent: "hotel-booking" }; empty when shared. */
+  usage: Record<string, string>;
   spent: string;
   unpricedRequests: number;
 }
 
 export interface BudgetUsageListResponse extends PaginationMeta {
   periodStart: string;
-  allowances: BudgetAllowanceUsage[];
+  usages: BudgetUsageEntry[];
 }
 
 export type ListBudgetsPathParams = OrgPathParams;
 export interface ListBudgetsQuery extends ListQuery {
-  /** Only the budgets this project owns. */
-  project?: string;
   filter?: string;
   /** Budgets whose name, display name or a label contains this text, ignoring case. */
   search?: string;
@@ -190,7 +190,6 @@ export interface CostByGroup {
 }
 
 export interface CostReport {
-  currency: string;
   /** One entry per value of groupBy, highest cost first. */
   costByGroup: CostByGroup[];
 }

@@ -145,5 +145,6 @@ var internalRouteOptions = map[string][]modkit.RouteOption{
 	"POST /deployments/fetch-batch":        {modkit.Audit("deployments.sync")},
 	"POST /artifacts/exists":               {modkit.Audit("artifacts.check-exists")},
 	"POST /gateways/{gatewayId}/manifest":  {modkit.Audit("gateways.push-manifest")},
+	"POST /gateways/{gatewayId}/pricing":   {modkit.Audit("gateways.push-pricing")},
 	"POST /gateways/{gatewayId}/resources": {modkit.Audit("gateways.sync-resources")},
 }

@@ -46,6 +46,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideBudgetRepository,
 	gwrepo.NewBudgetUsageRepository,
 	gwrepo.NewCostUsageRepository,
+	gwrepo.NewModelPriceRepository,
 )
 
 var serviceProviderSet = wire.NewSet(
@@ -93,9 +94,9 @@ var serviceProviderSet = wire.NewSet(
 	gwsvc.NewBudgetGateways,
 	wire.Bind(new(gwsvc.BudgetGatewaySender), new(*gwsvc.BudgetGateways)),
 	gwsvc.NewBudgetWarningService,
-	wire.Bind(new(gwsvc.BudgetWarner), new(*gwsvc.BudgetWarningService)),
 	gwsvc.NewCostService,
 	wire.Bind(new(gwsvc.CostRecorder), new(gwsvc.CostService)),
+	gwsvc.NewPricingService,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -119,6 +120,7 @@ var controllerProviderSet = wire.NewSet(
 	gwctl.NewEnvironmentGatewayController,
 	gwctl.NewBudgetController,
 	gwctl.NewCostController,
+	gwctl.NewPricingController,
 )
 
 // Initialize builds the gateway on the module's database handle and logger,

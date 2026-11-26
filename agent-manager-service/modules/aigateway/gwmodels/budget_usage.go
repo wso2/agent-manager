@@ -20,17 +20,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/notifyv1"
 )
 
-// BudgetUsage is one budget allowance's spend in one period, as gateways report it
+// BudgetUsage is one budget usage's spend in one period, as gateways report it
 // ; each period keeps its own row. Spent is a decimal string in USD.
 type BudgetUsage struct {
 	BudgetID         uuid.UUID         `gorm:"column:budget_id;primaryKey"`
-	AllowanceID      uuid.UUID         `gorm:"column:allowance_id;primaryKey"`
+	BudgetUsageID    uuid.UUID         `gorm:"column:budget_usage_id;primaryKey"`
 	OUID             string            `gorm:"column:org_id"`
-	Allowance        map[string]string `gorm:"column:allowance;serializer:json"`
+	Usage            map[string]string `gorm:"column:budget_usage;serializer:json"`
 	PeriodStart      time.Time         `gorm:"column:period_start;primaryKey"`
 	Spent            string            `gorm:"column:spent"`
 	UnpricedRequests int64             `gorm:"column:unpriced_requests"`
@@ -38,23 +36,3 @@ type BudgetUsage struct {
 }
 
 func (BudgetUsage) TableName() string { return "mod_ai_gateway_budget_usage" }
-
-// BudgetWarning is a warning threshold an allowance crossed in a period. The row is
-// written in the transaction that records the crossing, with the warning's event, so
-// each threshold amount warns once per allowance and period; raising the limit gives new
-// amounts, which warn again.
-type BudgetWarning struct {
-	BudgetID    uuid.UUID `gorm:"column:budget_id;primaryKey"`
-	AllowanceID uuid.UUID `gorm:"column:allowance_id;primaryKey"`
-	PeriodStart time.Time `gorm:"column:period_start;primaryKey"`
-	// Amount is the threshold amount in USD, two decimals.
-	Amount    string    `gorm:"column:amount;primaryKey"`
-	OUID      string    `gorm:"column:org_id"`
-	Threshold int       `gorm:"column:threshold"`
-	CreatedAt time.Time `gorm:"column:created_at"`
-
-	// Notice is the warning sent to the budget's channels when the row is new.
-	Notice notifyv1.Notification `gorm:"-"`
-}
-
-func (BudgetWarning) TableName() string { return "mod_ai_gateway_budget_warnings" }

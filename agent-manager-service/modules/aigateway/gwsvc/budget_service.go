@@ -52,7 +52,6 @@ const (
 	budgetStatusInactive  = "inactive"
 	budgetDefaultPageSize = 20
 	budgetMaxPageSize     = 100
-	budgetCurrencyUSD     = "USD"
 	budgetActionBlock     = "block"
 	budgetActionAllow     = "allow"
 	budgetDefaultBlockAt  = 100
@@ -135,7 +134,7 @@ func checkBudgetExpression(field, expression string, split bool) error {
 	}
 	ast, issues := env.Compile(expression)
 	if issues != nil && issues.Err() != nil {
-		return invalid("%s does not compile: %s", field, issues.Err())
+		return invalid("%s is not a valid CEL expression.", field)
 	}
 	out := ast.OutputType()
 	switch {
@@ -193,13 +192,12 @@ type BudgetService interface {
 	Import(ctx context.Context, ouID, createdBy string, file io.Reader, dryRun bool, onExisting string) (*gwspec.BudgetImportResult, error)
 	// Get returns the organization's budget named name.
 	Get(ctx context.Context, ouID, name string) (*gwspec.Budget, error)
-	// List returns a page of the organization's budgets matching every filter (type:id),
-	// only those the project owns when projectID is set.
-	List(ctx context.Context, ouID, projectID string, filters []string, labels []string, search, status string, limit, offset int32) (*gwspec.BudgetListResponse, error)
+	// List returns a page of the organization's budgets matching every filter (type:id).
+	List(ctx context.Context, ouID string, filters []string, labels []string, search, status string, limit, offset int32) (*gwspec.BudgetListResponse, error)
 	// Update replaces a budget's editable fields. A gateway's budget changes only in the
 	// fields gateways never get (displayName, description, warnings).
 	Update(ctx context.Context, ouID, name string, kind gwspec.Budget) (*gwspec.Budget, error)
-	// Usage returns a page of the budget's allowances with their spend this period,
+	// Usage returns a page of the budget's usages with their spend this period,
 	// highest first (GET /budgets/{budgetName}/budget-usage).
 	Usage(ctx context.Context, ouID, name string, limit, offset int32) (*gwspec.BudgetUsageListResponse, error)
 	// Delete deletes a control-plane budget.
@@ -211,27 +209,24 @@ type budgetService struct {
 	artifactRepo gwrepo.ArtifactRepository
 	core         modkit.CoreAPI
 	gateways     BudgetGatewaySender
-	warner       BudgetWarner
 	usageRepo    gwrepo.BudgetUsageRepository
 	channels     notifyv1.Notifier
 	now          func() time.Time
 }
 
 // NewBudgetService creates a BudgetService. gateways sends budgets to the gateways that
-// enforce them; warner checks an edited budget's thresholds against its spend; usageRepo
-// holds the spend the gateways report.
+// enforce them; usageRepo holds the spend the gateways report.
 func NewBudgetService(
 	budgetRepo gwrepo.BudgetRepository,
 	artifactRepo gwrepo.ArtifactRepository,
 	core modkit.CoreAPI,
 	gateways BudgetGatewaySender,
-	warner BudgetWarner,
 	usageRepo gwrepo.BudgetUsageRepository,
 	channels notifyv1.Notifier,
 ) BudgetService {
 	return &budgetService{
 		budgetRepo: budgetRepo, artifactRepo: artifactRepo, core: core,
-		gateways: gateways, warner: warner, usageRepo: usageRepo, channels: channels, now: time.Now,
+		gateways: gateways, usageRepo: usageRepo, channels: channels, now: time.Now,
 	}
 }
 
@@ -255,7 +250,6 @@ type budgetRequest struct {
 	Name string
 	// OrgId is the org-id annotation: nil when left out, filled in with the path's.
 	OrgId       *string
-	ProjectId   *string
 	DisplayName *string
 	Description *string
 	Status      *string
@@ -278,7 +272,7 @@ type budgetUpdateRequest struct {
 	Labels []string
 }
 
-// budgetUpdateLimit is the editable part of the limit; currency, period and splitBy are fixed.
+// budgetUpdateLimit is the editable part of the limit; period and splitBy are fixed.
 type budgetUpdateLimit struct {
 	Amount  string
 	Action  string
@@ -310,13 +304,9 @@ func budgetFromKind(kind gwspec.Budget) (budgetRequest, error) {
 			}
 			req.OrgId = &org
 		}
-		if project, ok := (*kind.Metadata.Annotations)[AnnotationProjectID]; ok {
-			project = strings.TrimSpace(project)
-			if project == "" {
-				return budgetRequest{}, invalidBudget("metadata.annotations",
-					"%s must name a project; leave it out for an organization budget.", AnnotationProjectID)
-			}
-			req.ProjectId = &project
+		if _, ok := (*kind.Metadata.Annotations)[AnnotationProjectID]; ok {
+			return budgetRequest{}, invalidBudget("metadata.annotations",
+				"Budgets belong to the organization, so %s is not accepted. To limit a project, add a project filter.", AnnotationProjectID)
 		}
 	}
 	return req, nil
@@ -348,10 +338,9 @@ func (s *budgetService) create(ctx context.Context, ouID, createdBy string, req 
 	return s.response(ctx, ouID, budget)
 }
 
-// prepareBudget checks a new budget, its owner and every name it refers
+// prepareBudget checks a new budget and every name it refers
 // to, and returns it ready to store; Create and Import share it.
 func (s *budgetService) prepareBudget(ctx context.Context, ouID, createdBy string, req budgetRequest) (*gwmodels.Budget, error) {
-	req.Filters = withProjectFilter(req.Filters, req.ProjectId)
 	cfg, err := normalizeBudget(req)
 	if err != nil {
 		return nil, err
@@ -363,23 +352,12 @@ func (s *budgetService) prepareBudget(ctx context.Context, ouID, createdBy strin
 	if err := sameOrg(req.OrgId, orgName); err != nil {
 		return nil, err
 	}
-	var projectID *uuid.UUID
-	projectName := ""
-	if req.ProjectId != nil {
-		projectName = strings.TrimSpace(*req.ProjectId)
-		if projectID, err = s.projectID(ctx, ouID, projectName, "metadata.annotations"); err != nil {
-			return nil, err
-		}
-		if err := ownByProject(cfg, projectName); err != nil {
-			return nil, err
-		}
-	}
 	if err := s.checkReferences(ctx, ouID, cfg); err != nil {
 		return nil, err
 	}
 	return &gwmodels.Budget{
-		OrgID: ouID, Origin: gwmodels.BudgetOriginControlPlane, ProjectID: projectID, Configuration: *cfg, CreatedBy: createdBy,
-		OrgName: orgName, ProjectName: projectName,
+		OrgID: ouID, Origin: gwmodels.BudgetOriginControlPlane, Configuration: *cfg, CreatedBy: createdBy,
+		OrgName: orgName,
 	}, nil
 }
 
@@ -406,87 +384,6 @@ func (s *budgetService) orgHandle(ctx context.Context, ouID string) (string, err
 		return "", fmt.Errorf("failed to get organization: %w", err)
 	}
 	return org.Handle, nil
-}
-
-// projectID returns the ID of the organization's project with that name.
-func (s *budgetService) projectID(ctx context.Context, ouID, name, field string) (*uuid.UUID, error) {
-	return budgetProjectID(ctx, s.core, ouID, name, field)
-}
-
-// budgetProjectID returns the ID of the organization's project with that name, or
-// REFERENCE_NOT_FOUND on field when there is none.
-func budgetProjectID(ctx context.Context, core modkit.CoreAPI, ouID, name, field string) (*uuid.UUID, error) {
-	p, err := LookupProject(ctx, core, ouID, name)
-	if err != nil {
-		if errors.Is(err, gwerr.ErrProjectNotFound) {
-			return nil, budgetReferenceNotFound(field, "Project '%s' was not found.", name)
-		}
-		return nil, fmt.Errorf("failed to get project %q: %w", name, err)
-	}
-	id, err := uuid.Parse(p.ID)
-	if err != nil {
-		return nil, fmt.Errorf("project %q has an invalid ID: %w", name, err)
-	}
-	return &id, nil
-}
-
-// withProjectFilter appends the owning project as the last filter when a project budget
-// (the project-id annotation) lists no project filter: a project budget counts only its
-// project's usage. The stored and returned kind lists it, so gateways get it too; it goes
-// last so error indexes match what the client sent. A project filter the request lists is
-// kept as sent; ownByProject checks it. No other filter is added: an agent filter carries
-// its project.
-func withProjectFilter(filters []gwspec.BudgetFilter, project *string) []gwspec.BudgetFilter {
-	if project == nil || strings.TrimSpace(*project) == "" {
-		return filters
-	}
-	for _, f := range filters {
-		if f.Type == budgetTypeProject {
-			return filters
-		}
-	}
-	id := strings.TrimSpace(*project)
-	return append(append([]gwspec.BudgetFilter{}, filters...), gwspec.BudgetFilter{Type: budgetTypeProject, Id: &id})
-}
-
-// ownByProject checks a budget owned by a project (the project-id annotation) is that
-// project's own: its filters name that project, so it counts only that
-// project's usage (an id-less project filter, any project, is refused); any agent it names
-// is of that project; its limit is not split by
-// project; and it exempts only agents of that project. Create adds the project filter when
-// it is left out (withProjectFilter), as gateways do before pushing.
-func ownByProject(cfg *gwmodels.BudgetConfig, project string) error {
-	listed := false
-	for i, f := range cfg.Filters {
-		switch {
-		case f.Type == budgetTypeProject && (f.ID == nil || *f.ID != project):
-			return invalidBudget(fmt.Sprintf("filters[%d].id", i),
-				"A budget of project %s counts only that project: its project filter must be that project.", project)
-		case f.Type == budgetTypeProject:
-			listed = true
-		case f.Type == budgetTypeAgent && f.Project != nil && *f.Project != project:
-			// An id-less agent filter (any agent) is allowed: the project filter keeps it to
-			// this project's agents.
-			return invalidBudget(fmt.Sprintf("filters[%d].project", i), "A budget of project %s can count only its agents.", project)
-		}
-	}
-	if cfg.Limit.SplitBy != nil && cfg.Limit.SplitBy.Type == budgetTypeProject {
-		return invalidBudget("limit.splitBy.type", "A budget of project %s cannot be split by project.", project)
-	}
-	for i, e := range cfg.Exemptions {
-		field := fmt.Sprintf("exemptions[%d]", i)
-		if e.Type == budgetTypeProject {
-			return invalidBudget(field+".type", "A budget of project %s cannot exempt a project.", project)
-		}
-		if e.Type == budgetTypeAgent && (e.Project == nil || *e.Project != project) {
-			return invalidBudget(field+".project", "A budget of project %s can exempt only its agents.", project)
-		}
-	}
-	if !listed {
-		return invalidBudget("filters",
-			"A budget of project %s must list that project as a filter: {type: project, id: %s}.", project, project)
-	}
-	return nil
 }
 
 func budgetNotFound(name string) error {
@@ -528,7 +425,7 @@ func (s *budgetService) Get(ctx context.Context, ouID, name string) (*gwspec.Bud
 	return s.response(ctx, ouID, b)
 }
 
-func (s *budgetService) List(ctx context.Context, ouID, projectID string, filters []string, labels []string, search, status string, limit, offset int32) (*gwspec.BudgetListResponse, error) {
+func (s *budgetService) List(ctx context.Context, ouID string, filters []string, labels []string, search, status string, limit, offset int32) (*gwspec.BudgetListResponse, error) {
 	if ouID == "" {
 		return nil, gwerr.ErrOrganizationNotFound
 	}
@@ -560,9 +457,6 @@ func (s *budgetService) List(ctx context.Context, ouID, projectID string, filter
 	}
 	matched := make([]*gwmodels.Budget, 0, len(all))
 	for i := range all {
-		if projectID != "" && all[i].ProjectName != projectID {
-			continue
-		}
 		if !budgetMatches(&all[i].Configuration, matchers) || !budgetHasLabels(&all[i].Configuration, labels) ||
 			!budgetSearchMatches(&all[i], search) {
 			continue
@@ -676,7 +570,7 @@ func budgetPeriodStart(period string, now time.Time) time.Time {
 	}
 }
 
-// spendIn is an allowance's spend in the period starting at start: its stored totals, or
+// spendIn is an usage's spend in the period starting at start: its stored totals, or
 // nothing when they belong to an earlier period.
 func spendIn(r gwmodels.BudgetUsage, start time.Time) (*big.Rat, int64) {
 	if !r.PeriodStart.UTC().Equal(start) {
@@ -717,9 +611,9 @@ func (s *budgetService) Usage(ctx context.Context, ouID, name string, limit, off
 	for _, r := range rows {
 		spent, unpriced := spendIn(r, start)
 		r.UnpricedRequests = unpriced
-		all = append(all, usage{row: r, spent: spent, label: allowanceLabel(r.Allowance)})
+		all = append(all, usage{row: r, spent: spent, label: usageLabel(r.Usage)})
 	}
-	// Highest spend first; equal spend by allowance, so pages are stable.
+	// Highest spend first; equal spend by usage, so pages are stable.
 	sort.SliceStable(all, func(i, j int) bool {
 		if c := all[i].spent.Cmp(all[j].spent); c != 0 {
 			return c > 0
@@ -728,13 +622,13 @@ func (s *budgetService) Usage(ctx context.Context, ouID, name string, limit, off
 	})
 	total := int32(len(all))
 	from, to := min(offset, total), min(offset+limit, total)
-	page := make([]gwspec.BudgetAllowanceUsage, 0, to-from)
+	page := make([]gwspec.BudgetUsageEntry, 0, to-from)
 	for _, u := range all[from:to] {
-		allowance := u.row.Allowance
-		if allowance == nil {
-			allowance = map[string]string{}
+		usage := u.row.Usage
+		if usage == nil {
+			usage = map[string]string{}
 		}
-		page = append(page, *gwspec.NewBudgetAllowanceUsage(allowance, usdString(u.spent), u.row.UnpricedRequests))
+		page = append(page, *gwspec.NewBudgetUsageEntry(usage, usdString(u.spent), u.row.UnpricedRequests))
 	}
 	return gwspec.NewBudgetUsageListResponse(start.Format(time.DateOnly), page, total, limit, offset), nil
 }
@@ -771,23 +665,12 @@ func (s *budgetService) Update(ctx context.Context, ouID, name string, kind gwsp
 }
 
 // fixedFieldsUnchanged checks an update sends the fields fixed after creation as stored:
-// the owning project, currency, period, limit.splitBy and filters. A
-// project budget may leave out its project filter, as on create.
+// period, limit.splitBy and filters.
 func fixedFieldsUnchanged(b *gwmodels.Budget, req budgetRequest) error {
 	fixed := func(field, what string) error {
 		return invalidBudget(field, "%s cannot change after creation; create a new budget instead.", what)
 	}
-	project := ""
-	if req.ProjectId != nil {
-		project = *req.ProjectId
-	}
-	if project != b.ProjectName {
-		return fixed("metadata.annotations", "The budget's project ("+AnnotationProjectID+")")
-	}
 	stored := b.Configuration
-	if req.Limit.Currency != nil && *req.Limit.Currency != stored.Limit.Currency {
-		return fixed("spec.limit.currency", "Currency")
-	}
 	if req.Limit.Period != stored.Limit.Period {
 		return fixed("spec.limit.period", "Period")
 	}
@@ -798,7 +681,7 @@ func fixedFieldsUnchanged(b *gwmodels.Budget, req budgetRequest) error {
 	if !reflect.DeepEqual(splitBy, stored.Limit.SplitBy) {
 		return fixed("spec.limit.splitBy", "limit.splitBy")
 	}
-	filters, err := normalizeBudgetFilters(withProjectFilter(req.Filters, req.ProjectId))
+	filters, err := normalizeBudgetFilters(req.Filters)
 	if err != nil {
 		return err
 	}
@@ -826,10 +709,9 @@ func (s *budgetService) update(ctx context.Context, ouID string, b *gwmodels.Bud
 		}
 		status = *req.Status
 	}
-	// Currency, period and splitBy are fixed: the new amount and action keep them.
-	currency := cfg.Limit.Currency
+	// Period and splitBy are fixed: the new amount and action keep them.
 	limit, err := normalizeBudgetLimit(gwspec.BudgetLimit{
-		Amount: req.Limit.Amount, Currency: &currency, Period: cfg.Limit.Period, Action: req.Limit.Action, BlockAt: req.Limit.BlockAt,
+		Amount: req.Limit.Amount, Period: cfg.Limit.Period, Action: req.Limit.Action, BlockAt: req.Limit.BlockAt,
 	})
 	if err != nil {
 		return nil, err
@@ -858,11 +740,6 @@ func (s *budgetService) update(ctx context.Context, ouID string, b *gwmodels.Bud
 	}
 	cfg.DisplayName, cfg.Description, cfg.Status = displayName, req.Description, status
 	cfg.Limit, cfg.Exemptions, cfg.Warnings, cfg.Labels = limit, exemptions, warnings, labels
-	if b.ProjectName != "" {
-		if err := ownByProject(&cfg, b.ProjectName); err != nil {
-			return nil, err
-		}
-	}
 	if err := s.checkEditableReferences(ctx, ouID, &cfg); err != nil {
 		return nil, err
 	}
@@ -877,10 +754,6 @@ func (s *budgetService) update(ctx context.Context, ouID string, b *gwmodels.Bud
 	}
 	if sendToGateways {
 		s.gateways.SendBudget(ctx, b, false)
-	}
-	if s.warner != nil {
-		// A lower limit or a new threshold may already be crossed.
-		s.warner.CheckBudget(ctx, b)
 	}
 	return s.response(ctx, ouID, b)
 }
@@ -1054,25 +927,34 @@ func budgetNames(c *gwmodels.BudgetConfig, f budgetListFilter) bool {
 }
 
 // budgetCountsAgent reports whether the budget names the agent, or names the agent's
-// project without naming any agent. An id-less agent filter (any agent) counts the agent
-// when the budget's project filter names its project, or when the budget names no project
-// at all (it counts every agent); an id-less project filter names no project. Other
-// filters (provider, API key, attributes) are not considered.
+// project without naming any agent. Filters of one type are alternatives: the agent
+// matches when any of the type's filters does. An id-less agent filter (any agent) counts
+// the agent when the budget's project filters name its project, or when the budget names
+// no project at all (it counts every agent); an id-less project filter names no project.
+// Other filters (provider, API key, attributes) are not considered.
 func budgetCountsAgent(c *gwmodels.BudgetConfig, project, agent string) bool {
-	projectNamed, otherProject, anyAgent := false, false, false
+	projectsNamed, projectNamed, anyAgent, agentsNamed, agentNamed := false, false, false, false, false
 	for _, x := range c.Filters {
 		switch {
 		case x.Type == budgetTypeAgent && x.ID == nil:
 			anyAgent = true
 		case x.Type == budgetTypeAgent:
-			return x.Project != nil && *x.Project == project && *x.ID == agent
+			agentsNamed = true
+			if x.Project != nil && *x.Project == project && *x.ID == agent {
+				agentNamed = true
+			}
 		case x.Type == budgetTypeProject && x.ID != nil:
-			projectNamed = *x.ID == project
-			otherProject = !projectNamed
+			projectsNamed = true
+			if *x.ID == project {
+				projectNamed = true
+			}
 		}
 	}
-	if anyAgent {
-		return !otherProject
+	switch {
+	case agentsNamed:
+		return agentNamed
+	case anyAgent:
+		return !projectsNamed || projectNamed
 	}
 	return projectNamed
 }
@@ -1149,16 +1031,13 @@ func normalizeBudget(req budgetRequest) (*gwmodels.BudgetConfig, error) {
 }
 
 func normalizeBudgetLimit(in gwspec.BudgetLimit) (gwmodels.BudgetLimit, error) {
-	out := gwmodels.BudgetLimit{Amount: in.Amount, Currency: budgetCurrencyUSD, Period: in.Period, Action: in.Action}
+	out := gwmodels.BudgetLimit{Amount: in.Amount, Period: in.Period, Action: in.Action}
 	// The pattern goes first: it refuses exponents and long strings before they are parsed.
 	if !budgetAmountPattern.MatchString(in.Amount) {
 		return out, invalidBudget("limit.amount", "limit.amount must be a decimal above zero, with at most 12 whole digits, 2 decimals and no leading zeros, e.g. \"100.00\".")
 	}
 	if amount, ok := new(big.Rat).SetString(in.Amount); !ok || amount.Sign() <= 0 {
 		return out, invalidBudget("limit.amount", "limit.amount must be a decimal above zero, with at most 12 whole digits, 2 decimals and no leading zeros, e.g. \"100.00\".")
-	}
-	if in.Currency != nil && *in.Currency != budgetCurrencyUSD {
-		return out, invalidBudget("limit.currency", "limit.currency must be USD.")
 	}
 	if !containsString(budgetPeriods, in.Period) {
 		return out, invalidBudget("limit.period", "limit.period must be day, week or month.")
@@ -1213,16 +1092,18 @@ func normalizeBudgetSplit(in *gwspec.BudgetSplit) (*gwmodels.BudgetSplit, error)
 	return &gwmodels.BudgetSplit{Type: in.Type, Expression: in.Expression}, nil
 }
 
-// normalizeBudgetFilters checks the filters (combined with AND): each type except
-// attribute at most once; llmProvider takes an id; project and apiKey take an id or none,
-// agent an id and its project or neither; attribute a bool expression. A project, agent
-// or apiKey filter without an id matches any value ("is set"): usage that carries one.
+// normalizeBudgetFilters checks the filters. Filters of different types are combined with
+// AND; filters of the same type with OR (list the type again for each value), except
+// attribute filters, which are all ANDed. llmProvider takes an id; project and apiKey take
+// an id or none, agent an id and its project or neither; attribute a bool expression. A
+// project, agent or apiKey filter without an id matches any value ("is set"): usage that
+// carries one; it is then the type's only filter, never listed with filters that name
+// values, and no entry is listed twice.
 func normalizeBudgetFilters(in []gwspec.BudgetFilter) ([]gwmodels.BudgetFilter, error) {
 	if len(in) > maxBudgetFilters {
 		return nil, invalidBudget("filters", "filters takes at most %d entries.", maxBudgetFilters)
 	}
 	out := make([]gwmodels.BudgetFilter, 0, len(in))
-	seen := map[string]bool{}
 	empty := func(p *string) bool { return p == nil || strings.TrimSpace(*p) == "" }
 	for i, f := range in {
 		field := fmt.Sprintf("filters[%d]", i)
@@ -1249,10 +1130,6 @@ func normalizeBudgetFilters(in []gwspec.BudgetFilter) ([]gwmodels.BudgetFilter, 
 				return nil, err
 			}
 		} else {
-			if seen[f.Type] {
-				return nil, invalidBudget(field+".type", "Each filter type except attribute can be used once.")
-			}
-			seen[f.Type] = true
 			if f.Expression != nil {
 				return nil, invalidBudget(field+".expression", "Only an attribute filter takes an expression.")
 			}
@@ -1277,7 +1154,46 @@ func normalizeBudgetFilters(in []gwspec.BudgetFilter) ([]gwmodels.BudgetFilter, 
 		}
 		out = append(out, gwmodels.BudgetFilter{Type: f.Type, ID: f.Id, Project: project, Expression: f.Expression})
 	}
+	if err := checkFilterGroups(out); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// checkFilterGroups checks the filters of each type except attribute as one OR group: a
+// filter without an id (any value) stands alone, and no entry is repeated.
+func checkFilterGroups(filters []gwmodels.BudgetFilter) error {
+	first := map[string]int{} // the first entry of each distinct value, by its key
+	count := map[string]int{}
+	for _, f := range filters {
+		if f.Type != budgetTypeAttribute {
+			count[f.Type]++
+		}
+	}
+	for i, f := range filters {
+		if f.Type == budgetTypeAttribute {
+			continue
+		}
+		field := fmt.Sprintf("filters[%d]", i)
+		if count[f.Type] > 1 && f.ID == nil {
+			return invalidBudget(field+".id",
+				"A %s filter without an id (any %s) cannot be listed with other %s filters; name each value, or leave only the one without an id.",
+				f.Type, f.Type, f.Type)
+		}
+		key := f.Type + "\x00" + deref(f.Project) + "\x00" + deref(f.ID)
+		if j, ok := first[key]; ok {
+			return invalidBudget(field, "Filter %d repeats filter %d; list each %s once.", i, j, f.Type)
+		}
+		first[key] = i
+	}
+	return nil
+}
+
+func deref(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func normalizeBudgetExemptions(in []gwspec.BudgetExemption) ([]gwmodels.BudgetExemption, error) {
@@ -1288,7 +1204,7 @@ func normalizeBudgetExemptions(in []gwspec.BudgetExemption) ([]gwmodels.BudgetEx
 	empty := func(p *string) bool { return p == nil || *p == "" }
 	for i, e := range in {
 		field := fmt.Sprintf("exemptions[%d]", i)
-		if containsString([]string{budgetTypeProject, budgetTypeAgent, budgetTypeAttribute}, e.Type) &&
+		if containsString([]string{budgetTypeProject, budgetTypeAgent, budgetTypeAttribute, budgetTypeAPIKey}, e.Type) &&
 			!containsString(gatewayConsumerTypes, e.Type) {
 			return nil, unsupportedConsumer(field+".type", e.Type)
 		}
@@ -1296,6 +1212,10 @@ func normalizeBudgetExemptions(in []gwspec.BudgetExemption) ([]gwmodels.BudgetEx
 		case budgetTypeProject:
 			if empty(e.Id) || e.Project != nil || e.Expression != nil {
 				return nil, invalidBudget(field, "A project exemption takes only an id.")
+			}
+		case budgetTypeLLMProvider, budgetTypeAPIKey:
+			if empty(e.Id) || e.Project != nil || e.Expression != nil {
+				return nil, invalidBudget(field, "An LLM provider or API key exemption takes only an id.")
 			}
 		case budgetTypeAgent:
 			if empty(e.Id) || empty(e.Project) || e.Expression != nil {
@@ -1312,7 +1232,7 @@ func normalizeBudgetExemptions(in []gwspec.BudgetExemption) ([]gwmodels.BudgetEx
 				return nil, err
 			}
 		default:
-			return nil, invalidBudget(field+".type", "Exemption type must be project, agent or attribute.")
+			return nil, invalidBudget(field+".type", "Exemption type must be llmProvider, project, agent, apiKey or attribute.")
 		}
 		out = append(out, gwmodels.BudgetExemption{Type: e.Type, ID: e.Id, Project: e.Project, Expression: e.Expression})
 	}
@@ -1375,19 +1295,38 @@ func (s *budgetService) checkReferences(ctx context.Context, ouID string, b *gwm
 	return s.checkEditableReferences(ctx, ouID, b)
 }
 
-// budgetProject is the project a budget counts, if any: its project filter's, else its
-// agent filter's project.
-func budgetProject(b *gwmodels.BudgetConfig) string {
-	agentProject := ""
+// budgetProjects are the projects a budget counts, if any, in the order listed: those its
+// project filters name, else those its agent filters' projects are. Empty when it counts
+// projects without naming them.
+func budgetProjects(b *gwmodels.BudgetConfig) []string {
+	var projects, agentProjects []string
+	add := func(list []string, p string) []string {
+		if containsString(list, p) {
+			return list
+		}
+		return append(list, p)
+	}
 	for _, f := range b.Filters {
 		switch {
 		case f.Type == budgetTypeProject && f.ID != nil:
-			return *f.ID
+			projects = add(projects, *f.ID)
 		case f.Type == budgetTypeAgent && f.Project != nil:
-			agentProject = *f.Project
+			agentProjects = add(agentProjects, *f.Project)
 		}
 	}
-	return agentProject
+	if len(projects) > 0 {
+		return projects
+	}
+	return agentProjects
+}
+
+// budgetProject is the one project a budget counts, or "" when it names none or several
+// (an event for it then belongs to no one project).
+func budgetProject(b *gwmodels.BudgetConfig) string {
+	if projects := budgetProjects(b); len(projects) == 1 {
+		return projects[0]
+	}
+	return ""
 }
 
 // checkEditableReferences checks the references an update can change: the exempt
@@ -1397,6 +1336,8 @@ func (s *budgetService) checkEditableReferences(ctx context.Context, ouID string
 		field := fmt.Sprintf("exemptions[%d].id", i)
 		var err error
 		switch e.Type {
+		case budgetTypeLLMProvider:
+			err = s.checkArtifact(ouID, gwmodels.KindLLMProvider, *e.ID, field, "LLM provider")
 		case budgetTypeProject:
 			err = s.checkProject(ctx, ouID, *e.ID, field)
 		case budgetTypeAgent:
@@ -1406,35 +1347,50 @@ func (s *budgetService) checkEditableReferences(ctx context.Context, ouID string
 			return err
 		}
 	}
-	return s.checkChannels(ctx, ouID, budgetProject(b), b.Warnings)
+	return s.checkChannels(ctx, ouID, budgetProjects(b), b.Warnings)
 }
 
 // checkChannels checks each warning channel, given by name, exists and is available to
-// the budget: availability all or org, or projects when the budget's
-// project (budgetProject) is one of them.
-func (s *budgetService) checkChannels(ctx context.Context, ouID, project string, warnings *gwmodels.BudgetWarnings) error {
+// the budget: availability all or org, or projects when the budget's project is one of
+// them. A budget counting several projects (budgetProjects) may use a channel only when
+// every one of them may; with none named, the organization's own channels only.
+func (s *budgetService) checkChannels(ctx context.Context, ouID string, projects []string, warnings *gwmodels.BudgetWarnings) error {
 	if s.channels == nil || warnings == nil || len(warnings.Channels) == 0 {
 		return nil
 	}
-	unusable, err := s.channels.Unusable(ctx, ouID, project, warnings.Channels)
-	if err != nil {
-		return fmt.Errorf("failed to check notification channels: %w", err)
+	if len(projects) == 0 {
+		projects = []string{""}
 	}
-	if len(unusable) == 0 {
-		return nil
-	}
-	u := unusable[0]
-	field := fmt.Sprintf("warnings.channels[%d]", slices.Index(warnings.Channels, u.Name))
-	if u.Missing {
-		return &BudgetError{
-			Code: gwerr.ErrCodeChannelNotAvailable, Field: field,
-			Message: fmt.Sprintf("Notification channel '%s' was not found.", u.Name),
+	// The channels no project can use, or that one of the projects cannot, by name.
+	unusableBy := map[string]bool{} // name → missing
+	for _, project := range projects {
+		unusable, err := s.channels.Unusable(ctx, ouID, project, warnings.Channels)
+		if err != nil {
+			return fmt.Errorf("failed to check notification channels: %w", err)
+		}
+		for _, u := range unusable {
+			unusableBy[u.Name] = unusableBy[u.Name] || u.Missing
 		}
 	}
-	return &BudgetError{
-		Code: gwerr.ErrCodeChannelNotAvailable, Field: field,
-		Message: fmt.Sprintf("Notification channel %s is not available to this budget.", u.Name),
+	// The first of the budget's channels, in its order, that cannot be used.
+	for idx, name := range warnings.Channels {
+		missing, bad := unusableBy[name]
+		if !bad {
+			continue
+		}
+		field := fmt.Sprintf("warnings.channels[%d]", idx)
+		if missing {
+			return &BudgetError{
+				Code: gwerr.ErrCodeChannelNotAvailable, Field: field,
+				Message: fmt.Sprintf("Notification channel '%s' was not found.", name),
+			}
+		}
+		return &BudgetError{
+			Code: gwerr.ErrCodeChannelNotAvailable, Field: field,
+			Message: fmt.Sprintf("Notification channel %s is not available to this budget.", name),
+		}
 	}
+	return nil
 }
 
 func (s *budgetService) checkArtifact(ouID, kind, handle, field, what string) error {
@@ -1482,11 +1438,10 @@ func BudgetAsKind(b *gwmodels.Budget) *gwspec.Budget {
 	for _, x := range c.Exemptions {
 		exemptions = append(exemptions, gwspec.BudgetExemption{Type: x.Type, Id: x.ID, Project: x.Project, Expression: x.Expression})
 	}
-	currency := c.Limit.Currency
 	displayName, status := c.DisplayName, c.Status
 	budgetSpec := gwspec.BudgetSpec{
 		DisplayName: &displayName, Description: c.Description, Status: &status,
-		Limit:   gwspec.BudgetLimit{Amount: c.Limit.Amount, Currency: &currency, Period: c.Limit.Period, Action: c.Limit.Action, BlockAt: c.Limit.BlockAt},
+		Limit:   gwspec.BudgetLimit{Amount: c.Limit.Amount, Period: c.Limit.Period, Action: c.Limit.Action, BlockAt: c.Limit.BlockAt},
 		Filters: filters, Exemptions: exemptions,
 	}
 	if c.Limit.SplitBy != nil {
@@ -1500,9 +1455,6 @@ func BudgetAsKind(b *gwmodels.Budget) *gwspec.Budget {
 	annotations := map[string]string{}
 	if b.OrgName != "" {
 		annotations[AnnotationOrgID] = b.OrgName
-	}
-	if b.ProjectName != "" {
-		annotations[AnnotationProjectID] = b.ProjectName
 	}
 	if len(annotations) > 0 {
 		metadata.Annotations = &annotations

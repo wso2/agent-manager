@@ -25,8 +25,8 @@ const snack = vi.hoisted(() => ({ pushSnackBar: vi.fn() }));
 const api = vi.hoisted(() => ({
   listBudgets: vi.fn(async () => ({ budgets: [], total: 0 })),
   getBudget: vi.fn(async () => ({ metadata: { name: "org-daily" } })),
-  getBudgetUsage: vi.fn(async () => ({ allowances: [] })),
-  getCosts: vi.fn(async () => ({ currency: "USD", costByGroup: [] })),
+  getBudgetUsage: vi.fn(async () => ({ usages: [] })),
+  getCosts: vi.fn(async () => ({ costByGroup: [] })),
   createBudget: vi.fn(async () => ({})),
   updateBudget: vi.fn(async () => ({})),
   deleteBudget: vi.fn(async () => undefined),
@@ -101,12 +101,12 @@ beforeEach(() => {
 
 describe("budget queries", () => {
   it("read with their params and the token getter", async () => {
-    await render(() => useListBudgets(org, { project: "online-shop" } as never));
+    await render(() => useListBudgets(org, { filter: "project:online-shop" } as never));
     await render(() => useGetBudget(budget));
     await render(() => useBudgetUsage(budget, { limit: 5 }));
     await render(() => useCosts(org, { groupBy: "agent" } as never));
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
-    expect(api.listBudgets).toHaveBeenCalledWith(org, { project: "online-shop" }, expect.any(Function));
+    expect(api.listBudgets).toHaveBeenCalledWith(org, { filter: "project:online-shop" }, expect.any(Function));
     expect(api.getBudget).toHaveBeenCalledWith(budget, expect.any(Function));
     expect(api.getBudgetUsage).toHaveBeenCalledWith(budget, { limit: 5 }, expect.any(Function));
     expect(api.getCosts).toHaveBeenCalledWith(org, { groupBy: "agent" }, expect.any(Function));

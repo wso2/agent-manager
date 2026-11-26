@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -35,10 +34,11 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
-// projectBudgetRequest is a budget of project api-platform: each of its agents gets $100.
+// projectBudgetRequest is a budget limiting project api-platform's usage: each of its
+// agents gets $100. It is an organization budget with a project filter.
 func projectBudgetRequest(name string) budgetRequest {
 	return budgetRequest{
-		Name: name, ProjectId: strPtr("api-platform"), DisplayName: strPtr(name),
+		Name: name, DisplayName: strPtr(name),
 		Limit: gwspec.BudgetLimit{
 			Amount: "100", Period: "month", Action: "block", SplitBy: &gwspec.BudgetSplit{Type: "agent"},
 		},
@@ -46,117 +46,13 @@ func projectBudgetRequest(name string) budgetRequest {
 	}
 }
 
-func TestBudgetService_AProjectBudgetCountsOnlyItsProject(t *testing.T) {
-	env := newBudgetTestEnv(t)
-	resp, err := env.create(context.Background(), budgetTestOrg, "alice", projectBudgetRequest("api-platform-agents"))
-	require.NoError(t, err)
-
-	require.Len(t, env.created, 1)
-	b := env.created[0]
-	require.NotNil(t, b.ProjectID)
-	assert.Equal(t, budgetTestProjectID, b.ProjectID.String(), "the owning project is stored by ID")
-	require.Len(t, b.Configuration.Filters, 1, "the filters as sent: nothing is added")
-	project := b.Configuration.Filters[0]
-	assert.Equal(t, "project", project.Type)
-	assert.Equal(t, "api-platform", *project.ID)
-	assert.Equal(t, "agent", b.Configuration.Limit.SplitBy.Type)
-
-	require.NotNil(t, kindProject(resp))
-	assert.Equal(t, "api-platform", *kindProject(resp))
-
-	kind := BuildBudgetKind(b.Name, budgetTestOrgName, b.Configuration, true)
-	out, err := json.Marshal(kind)
-	require.NoError(t, err)
-	assert.Contains(t, string(out), `"filters":[{"type":"project","id":"api-platform"}]`,
-		"gateways get the project as a filter")
-}
-
 func TestBudgetService_AnOrganizationBudgetHasNoProject(t *testing.T) {
 	env := newBudgetTestEnv(t)
 	resp, err := env.create(context.Background(), budgetTestOrg, "alice", budgetTestRequest())
 	require.NoError(t, err)
-	assert.Nil(t, env.created[0].ProjectID)
-	assert.Nil(t, kindProject(resp))
 	out, err := json.Marshal(resp)
 	require.NoError(t, err)
 	assert.NotContains(t, string(out), "projectId")
-}
-
-func TestBudgetService_AProjectBudgetMayNameItsOwnProjectFilter(t *testing.T) {
-	env := newBudgetTestEnv(t)
-	req := projectBudgetRequest("api-platform-total")
-	req.Limit.SplitBy = nil
-	_, err := env.create(context.Background(), budgetTestOrg, "alice", req)
-	require.NoError(t, err)
-	require.Len(t, env.created[0].Configuration.Filters, 1, "not added twice")
-}
-
-func TestBudgetService_AProjectBudgetGetsItsProjectFilter(t *testing.T) {
-	env := newBudgetTestEnv(t)
-	ctx := context.Background()
-	sent := projectBudgetRequest("api-platform-agents")
-	sent.Filters = []gwspec.BudgetFilter{{Type: "llmProvider", Id: strPtr("openai")}}
-	resp, err := env.create(ctx, budgetTestOrg, "alice", sent)
-	require.NoError(t, err)
-
-	stored := env.created[0].Configuration.Filters
-	require.Len(t, stored, 2)
-	assert.Equal(t, "llmProvider", stored[0].Type, "as sent")
-	assert.Equal(t, "project", stored[1].Type, "added last")
-	assert.Equal(t, "api-platform", *stored[1].ID)
-	require.Len(t, resp.Spec.Filters, 2, "the response lists it")
-	assert.Equal(t, "project", resp.Spec.Filters[1].Type)
-
-	// The body first sent, without the project filter, can be sent again as an update.
-	sent.Limit.Amount = "150"
-	updated, err := env.svc.Update(ctx, budgetTestOrg, sent.Name, asKind(sent))
-	require.NoError(t, err)
-	assert.Equal(t, "150", updated.Spec.Limit.Amount)
-}
-
-func TestBudgetService_OwnerRefusals(t *testing.T) {
-	cases := []struct {
-		name  string
-		edit  func(*budgetRequest)
-		code  string
-		field string
-	}{
-		{"an empty project annotation", func(r *budgetRequest) { r.ProjectId = strPtr(" ") }, httpx.ErrCodeValidation, "metadata.annotations"},
-		{"unknown project", func(r *budgetRequest) { r.ProjectId = strPtr("nowhere") }, gwerr.ErrCodeReferenceNotFound, "metadata.annotations"},
-		{"another project's filter", func(r *budgetRequest) {
-			r.Filters = []gwspec.BudgetFilter{{Type: "project", Id: strPtr("support")}}
-		}, httpx.ErrCodeValidation, "filters[0].id"},
-		{"another project's agent", func(r *budgetRequest) {
-			r.Limit.SplitBy = nil
-			r.Filters = []gwspec.BudgetFilter{{Type: "agent", Project: strPtr("support"), Id: strPtr("triage-bot")}}
-		}, httpx.ErrCodeValidation, "filters[0].project"},
-		{"an id-less project filter", func(r *budgetRequest) {
-			r.Filters = []gwspec.BudgetFilter{{Type: "project"}}
-		}, httpx.ErrCodeValidation, "filters[0].id"},
-		{"split by project", func(r *budgetRequest) {
-			r.Filters = nil
-			r.Limit.SplitBy = &gwspec.BudgetSplit{Type: "project"}
-		}, httpx.ErrCodeValidation, "limit.splitBy.type"},
-		{"exempting a project", func(r *budgetRequest) {
-			r.Exemptions = []gwspec.BudgetExemption{{Type: "project", Id: strPtr("api-platform")}}
-		}, httpx.ErrCodeValidation, "exemptions[0].type"},
-		{"exempting another project's agent", func(r *budgetRequest) {
-			r.Exemptions = []gwspec.BudgetExemption{{Type: "agent", Project: strPtr("support"), Id: strPtr("triage-bot")}}
-		}, httpx.ErrCodeValidation, "exemptions[0].project"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			env := newBudgetTestEnv(t)
-			req := projectBudgetRequest("x")
-			tc.edit(&req)
-			_, err := env.create(context.Background(), budgetTestOrg, "alice", req)
-			var be *BudgetError
-			require.ErrorAs(t, err, &be)
-			assert.Equal(t, tc.code, be.Code)
-			assert.Equal(t, tc.field, be.Field)
-			assert.Empty(t, env.created, "nothing is stored")
-		})
-	}
 }
 
 func TestBudgetService_TheOrganizationIsTheOneInThePath(t *testing.T) {
@@ -186,112 +82,12 @@ func TestBudgetService_RefusesWhatIsNotABudgetKind(t *testing.T) {
 	}
 }
 
-func TestBudgetService_ListsAProjectsBudgets(t *testing.T) {
-	env := newBudgetTestEnv(t)
-	createTestBudget(t, env, "org-wide")
-	_, err := env.create(context.Background(), budgetTestOrg, "alice", projectBudgetRequest("api-platform-agents"))
-	require.NoError(t, err)
-
-	all, err := env.svc.List(context.Background(), budgetTestOrg, "", nil, nil, "", "", 20, 0)
-	require.NoError(t, err)
-	assert.Equal(t, int32(2), all.Total, "the organization sees every budget")
-
-	mine, err := env.svc.List(context.Background(), budgetTestOrg, "api-platform", nil, nil, "", "", 20, 0)
-	require.NoError(t, err)
-	require.Equal(t, int32(1), mine.Total)
-	assert.Equal(t, "api-platform-agents", mine.Budgets[0].Metadata.Name)
-
-	none, err := env.svc.List(context.Background(), budgetTestOrg, "support", nil, nil, "", "", 20, 0)
-	require.NoError(t, err)
-	assert.Zero(t, none.Total)
-}
-
-func TestBudgetService_UpdateKeepsAProjectBudgetsExemptionsInItsProject(t *testing.T) {
-	env := newBudgetTestEnv(t)
-	_, err := env.create(context.Background(), budgetTestOrg, "alice", projectBudgetRequest("api-platform-agents"))
-	require.NoError(t, err)
-	update := budgetUpdateRequest{
-		DisplayName: strPtr("API Platform agents"),
-		Limit:       budgetUpdateLimit{Amount: "150", Action: "block"},
-		Exemptions:  []gwspec.BudgetExemption{{Type: "agent", Project: strPtr("api-platform"), Id: strPtr("hotel-booking")}},
-	}
-	resp, err := env.update(context.Background(), budgetTestOrg, "api-platform-agents", update)
-	require.NoError(t, err)
-	require.NotNil(t, kindProject(resp))
-	assert.Equal(t, "api-platform", *kindProject(resp))
-	assert.Len(t, resp.Spec.Filters, 1, "the project filter is kept, not added again")
-
-	update.Exemptions = []gwspec.BudgetExemption{{Type: "agent", Project: strPtr("support"), Id: strPtr("triage-bot")}}
-	_, err = env.update(context.Background(), budgetTestOrg, "api-platform-agents", update)
-	assert.Equal(t, httpx.ErrCodeValidation, budgetErrorCode(t, err))
-}
-
-func TestGatewayResourceSync_TheProjectAnnotationMakesAProjectBudget(t *testing.T) {
-	gw := &gwmodels.Gateway{UUID: resourceSyncGateway, OUID: resourceSyncOrg}
-	var saved []gwmodels.Budget
-	repo := &gwrepomocks.BudgetRepositoryMock{
-		SaveForGatewayFunc: func(_ context.Context, b *gwmodels.Budget, name string) (bool, error) {
-			b.ID, b.Name = uuid.New(), name
-			saved = append(saved, *b)
-			return true, nil
-		},
-	}
-	platform := &gwtest.Core{
-		GetProjectFunc: func(_ context.Context, ouID, name string) (*modkit.Project, error) {
-			assert.Equal(t, resourceSyncOrg, ouID)
-			if name != "api-platform" {
-				return nil, modkit.ErrNotFound
-			}
-			return &modkit.Project{ID: budgetTestProjectID, Name: name}, nil
-		},
-	}
-	annotated := func(id, name, project string, filters ...map[string]any) gwmodels.GatewayResourceItem {
-		doc, _ := json.Marshal(map[string]any{
-			"apiVersion": "gateway.api-platform.wso2.com/v1", "kind": "Budget",
-			"metadata": map[string]any{
-				"name": name, "annotations": map[string]string{AnnotationProjectID: project},
-			},
-			"spec": map[string]any{"filters": filters},
-		})
-		now := time.Date(2026, 11, 16, 9, 0, 0, 0, time.UTC)
-		return gwmodels.GatewayResourceItem{DPID: id, Configuration: doc, CreatedAt: now, UpdatedAt: now}
-	}
-	svc := NewGatewayResourceSyncService(gatewayRepoFor(gw, nil), repo, platform)
-
-	resp, err := svc.Sync(context.Background(), resourceSyncGateway.String(), resourceSyncOrg, gwmodels.GatewayResourcesRequest{
-		Resources: []gwmodels.GatewayResourceItem{
-			annotated("dp-project", "api-platform-daily", "api-platform", map[string]any{"type": "project", "id": "api-platform"}),
-			annotated("dp-no-filter", "unscoped-daily", "api-platform"),
-			annotated("dp-unknown", "nowhere-daily", "nowhere"),
-			annotated("dp-other", "other-daily", "api-platform", map[string]any{"type": "project", "id": "support"}),
-			budgetItem("dp-org", "Budget", "org-daily"),
-		},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, gwmodels.GatewayResourceStatusSynced, resp.Resources["dp-project"].Status)
-	assert.Equal(t, GatewayResourceErrInvalid, resp.Resources["dp-no-filter"].Error, "a project budget lists its project filter")
-	assert.Equal(t, GatewayResourceErrReferenceNotFound, resp.Resources["dp-unknown"].Error)
-	assert.Equal(t, GatewayResourceErrInvalid, resp.Resources["dp-other"].Error, "a project budget counts only its project")
-	assert.Equal(t, gwmodels.GatewayResourceStatusSynced, resp.Resources["dp-org"].Status)
-
-	require.Len(t, saved, 2)
-	byName := map[string]gwmodels.Budget{saved[0].Name: saved[0], saved[1].Name: saved[1]}
-	project := byName["api-platform-daily"]
-	require.NotNil(t, project.ProjectID)
-	assert.Equal(t, budgetTestProjectID, project.ProjectID.String())
-	assert.Equal(t, "api-platform", project.ProjectName, "the stored kind keeps its project annotation")
-	require.Len(t, project.Configuration.Filters, 1)
-	assert.Equal(t, "api-platform", *project.Configuration.Filters[0].ID)
-	assert.Nil(t, byName["org-daily"].ProjectID, "no annotation: an organization budget")
-}
-
 func TestBudgetService_UpdateRefusesChangesToFixedFields(t *testing.T) {
 	for _, tc := range []struct {
 		name, field string
 		edit        func(*gwspec.Budget)
 	}{
 		{"rename", "metadata.name", func(k *gwspec.Budget) { k.Metadata.Name = "renamed" }},
-		{"move to the organization", "metadata.annotations", func(k *gwspec.Budget) { k.Metadata.Annotations = nil }},
 		{"period", "spec.limit.period", func(k *gwspec.Budget) { k.Spec.Limit.Period = "week" }},
 		{"splitBy", "spec.limit.splitBy", func(k *gwspec.Budget) {
 			k.Spec.Limit.SplitBy = &gwspec.BudgetSplit{Type: "apiKey"}
@@ -321,7 +117,6 @@ func TestBudgetService_TheReturnedKindCanBeSentBack(t *testing.T) {
 	env := newBudgetTestEnv(t)
 	created, err := env.create(context.Background(), budgetTestOrg, "alice", projectBudgetRequest("api-platform-agents"))
 	require.NoError(t, err)
-	assert.Equal(t, "api-platform", *kindProject(created))
 	kind := *created
 	kind.Spec.Limit.Amount = "150.00"
 	updated, err := env.svc.Update(context.Background(), budgetTestOrg, "api-platform-agents", kind)
@@ -349,7 +144,8 @@ func TestBudgetService_EveryBudgetNamesItsOrganization(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp.Metadata.Annotations)
 	assert.Equal(t, budgetTestOrgName, (*resp.Metadata.Annotations)[AnnotationOrgID], "added when left out")
-	assert.Equal(t, "api-platform", (*resp.Metadata.Annotations)[AnnotationProjectID])
+	assert.Equal(t, map[string]string{AnnotationOrgID: budgetTestOrgName}, *resp.Metadata.Annotations,
+		"the project filter is a filter: the budget names only its organization")
 	gw := BuildBudgetKind(env.created[0].Name, env.created[0].OrgName, env.created[0].Configuration, true)
 	assert.Equal(t, budgetTestOrgName, gw.Metadata.Annotations[AnnotationOrgID], "gateways get it too")
 
@@ -462,7 +258,6 @@ func TestBudgetService_AnAgentFilterGetsNoProjectFilter(t *testing.T) {
 	stored := env.created[0].Configuration.Filters
 	require.Len(t, stored, 1, "the agent carries its project: nothing is added")
 	assert.Equal(t, "api-platform", *stored[0].Project)
-	assert.Nil(t, env.created[0].ProjectID, "still an organization budget")
 	require.Len(t, resp.Spec.Filters, 1)
 
 	sent.Limit.Amount = "60"
@@ -471,14 +266,82 @@ func TestBudgetService_AnAgentFilterGetsNoProjectFilter(t *testing.T) {
 	assert.Equal(t, "60", updated.Spec.Limit.Amount)
 }
 
-func TestBudgetService_AProjectBudgetMayCountAnyOfItsAgents(t *testing.T) {
+// A budget belongs to the organization: the project-id annotation, which would make a
+// project its owner, is refused on create and on update, whatever it names. To limit a
+// project, a budget lists it as a filter.
+func TestBudgetService_RefusesTheProjectIDAnnotation(t *testing.T) {
 	env := newBudgetTestEnv(t)
-	req := projectBudgetRequest("api-platform-any-agent")
-	req.Filters = append(req.Filters, gwspec.BudgetFilter{Type: "agent"})
-	req.Limit.SplitBy = nil // one limit for all of them
-	_, err := env.create(context.Background(), budgetTestOrg, "alice", req)
-	require.NoError(t, err, "an id-less agent filter is any agent of the project")
-	stored := env.created[0].Configuration.Filters
-	require.Len(t, stored, 2)
-	assert.Nil(t, stored[1].ID)
+	ctx := context.Background()
+	annotate := func(k gwspec.Budget, project string) gwspec.Budget {
+		annotations := map[string]string{AnnotationProjectID: project}
+		k.Metadata.Annotations = &annotations
+		return k
+	}
+	for _, project := range []string{"api-platform", "nowhere", " "} {
+		_, err := env.svc.Create(ctx, budgetTestOrg, "alice", annotate(asKind(budgetTestRequest()), project))
+		var be *BudgetError
+		require.ErrorAs(t, err, &be, project)
+		assert.Equal(t, httpx.ErrCodeValidation, be.Code)
+		assert.Equal(t, "metadata.annotations", be.Field)
+		assert.Contains(t, be.Message, "add a project filter")
+	}
+	assert.Empty(t, env.created, "nothing is stored")
+
+	created, err := env.create(ctx, budgetTestOrg, "alice", budgetTestRequest())
+	require.NoError(t, err)
+	kind := annotate(*created, "api-platform")
+	kind.Status = nil
+	_, err = env.svc.Update(ctx, budgetTestOrg, created.Metadata.Name, kind)
+	var be *BudgetError
+	require.ErrorAs(t, err, &be)
+	assert.Equal(t, "metadata.annotations", be.Field)
+}
+
+// A gateway's budget may carry the gateway's own project-id annotation (the gateway adds
+// the project filter itself): here it is no owner. The budget is stored as the
+// organization's, with its filters as the gateway sent them, and no project is looked up.
+func TestGatewayResourceSync_TheProjectAnnotationOwnsNothing(t *testing.T) {
+	gw := &gwmodels.Gateway{UUID: resourceSyncGateway, OUID: resourceSyncOrg}
+	var saved []gwmodels.Budget
+	repo := &gwrepomocks.BudgetRepositoryMock{
+		SaveForGatewayFunc: func(_ context.Context, b *gwmodels.Budget, name string) (bool, error) {
+			b.ID, b.Name = uuid.New(), name
+			saved = append(saved, *b)
+			return true, nil
+		},
+	}
+	platform := &gwtest.Core{} // a project lookup would panic
+	annotated := func(id, name, project string, filters ...map[string]any) gwmodels.GatewayResourceItem {
+		doc, _ := json.Marshal(map[string]any{
+			"apiVersion": "gateway.api-platform.wso2.com/v1", "kind": "Budget",
+			"metadata": map[string]any{
+				"name": name, "annotations": map[string]string{AnnotationProjectID: project},
+			},
+			"spec": map[string]any{"filters": filters},
+		})
+		now := time.Date(2026, 11, 16, 9, 0, 0, 0, time.UTC)
+		return gwmodels.GatewayResourceItem{DPID: id, Configuration: doc, CreatedAt: now, UpdatedAt: now}
+	}
+	svc := NewGatewayResourceSyncService(gatewayRepoFor(gw, nil), repo, platform)
+
+	resp, err := svc.Sync(context.Background(), resourceSyncGateway.String(), resourceSyncOrg, gwmodels.GatewayResourcesRequest{
+		Resources: []gwmodels.GatewayResourceItem{
+			annotated("dp-project", "api-platform-daily", "api-platform", map[string]any{"type": "project", "id": "api-platform"}),
+			annotated("dp-unknown", "nowhere-daily", "nowhere"),
+			budgetItem("dp-org", "Budget", "org-daily"),
+		},
+	})
+	require.NoError(t, err)
+	for _, id := range []string{"dp-project", "dp-unknown", "dp-org"} {
+		assert.Equal(t, gwmodels.GatewayResourceStatusSynced, resp.Resources[id].Status, id)
+	}
+	require.Len(t, saved, 3)
+	byName := map[string]gwmodels.Budget{}
+	for _, b := range saved {
+		byName[b.Name] = b
+		assert.Equal(t, gwmodels.BudgetOriginGateway, b.Origin)
+	}
+	require.Len(t, byName["api-platform-daily"].Configuration.Filters, 1, "the filters are kept as sent")
+	assert.Equal(t, "api-platform", *byName["api-platform-daily"].Configuration.Filters[0].ID)
+	assert.Empty(t, byName["nowhere-daily"].Configuration.Filters, "none is added for the annotation")
 }

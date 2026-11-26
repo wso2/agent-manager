@@ -223,17 +223,18 @@ export function CostChart({
   maxBarSize = 220,
 }: CostChartProps) {
   const theme = useTheme();
-  // Series colours from the theme, in a fixed order by the group's rank in the kept
-  // months (colour follows the group); "Other" is neutral. Each month is stacked by its
-  // own ranking, so the gap between segments, the legend and the tooltip keep them apart.
+  // Series colours in a fixed order by the group's rank in the kept months (colour
+  // follows the group): four theme colours, then violet. Nothing white or grey, which
+  // vanishes on one of the two themes; "Other" is teal. Each month is stacked by its own
+  // ranking, so the gap between segments, the legend and the tooltip keep them apart.
   const palette = [
     theme.palette.info.main,
     theme.palette.primary.main,
     theme.palette.success.main,
     theme.palette.warning.main,
-    theme.palette.secondary.main,
+    "#8b5cf6",
   ];
-  const otherColor = theme.palette.text.disabled;
+  const otherColor = "#14b8a6";
   const ranked = series.filter((s) => !s.other);
   const colorOf = (s: CostSeries) =>
     s.other ? otherColor : palette[ranked.indexOf(s) % palette.length];

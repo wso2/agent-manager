@@ -21,7 +21,7 @@ var _ MappedNullable = &BudgetMetadata{}
 type BudgetMetadata struct {
 	// Handle, unique in the organization; cannot change
 	Name string `json:"name"`
-	// gateway.api-platform.wso2.com/org-id is the handle of the organization that owns the budget: it must be the organization in the path, and is added when left out, so every returned budget has it. gateway.api-platform.wso2.com/project-id is the handle of the project that owns the budget; without it, the organization owns it. A project budget counts only that project: when no project filter is listed, {type: project, id} is added as the last filter, as on gateways; its limit.splitBy cannot be project. Cannot change. Other annotations are ignored.
+	// gateway.api-platform.wso2.com/org-id is the handle of the organization that owns the budget: it must be the organization in the path, and is added when left out, so every returned budget has it. A budget belongs to the organization: gateway.api-platform.wso2.com/project-id is refused (VALIDATION_ERROR); to limit a project, list a project filter. Other annotations are ignored.
 	Annotations *map[string]string `json:"annotations,omitempty"`
 	// One-word labels to organize and find budgets: each 1-63 characters of letters, digits, '.', '_' or '-', starting and ending with a letter or digit (no spaces); no repeats. Can change. Not sent to gateways.
 	Labels []string `json:"labels,omitempty"`

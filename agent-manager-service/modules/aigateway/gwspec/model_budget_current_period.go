@@ -20,7 +20,7 @@ var _ MappedNullable = &BudgetCurrentPeriod{}
 // BudgetCurrentPeriod Spend in the current period
 type BudgetCurrentPeriod struct {
 	PeriodStart string `json:"periodStart"`
-	// Total across the budget's allowances
+	// Total across the budget's usages
 	Spent            string `json:"spent"`
 	UnpricedRequests int32  `json:"unpricedRequests"`
 }

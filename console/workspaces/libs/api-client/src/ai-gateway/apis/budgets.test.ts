@@ -62,11 +62,11 @@ describeHttpCases("budgets API", httpMocks, [
   {
     name: "listBudgets forwards every filter",
     call: () => listBudgets(org, {
-      project: "online-shop", filter: "llmProvider:mock-openai", search: "daily", status: "active", limit: 10, offset: 20,
+      filter: "llmProvider:mock-openai", search: "daily", status: "active", limit: 10, offset: 20,
     } as never, getToken),
     method: "GET", url: `${ORG}/budgets`,
     searchParams: {
-      project: "online-shop", filter: "llmProvider:mock-openai", search: "daily", status: "active", limit: "10", offset: "20",
+      filter: "llmProvider:mock-openai", search: "daily", status: "active", limit: "10", offset: "20",
     },
   },
   {
@@ -91,7 +91,7 @@ describeHttpCases("budgets API", httpMocks, [
     method: "DELETE", url: `${ORG}/budgets/org-daily`, returnsBody: false,
   },
   {
-    name: "getBudgetUsage pages the allowances",
+    name: "getBudgetUsage pages the usages",
     call: () => getBudgetUsage(budget, { limit: 5, offset: 0 }, getToken),
     method: "GET", url: `${ORG}/budgets/org-daily/usage`, searchParams: { limit: "5", offset: "0" },
   },

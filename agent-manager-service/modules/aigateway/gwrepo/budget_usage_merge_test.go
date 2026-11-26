@@ -40,15 +40,15 @@ func TestBudgetUsageRepository_ARowWrittenFirstByAnotherWriterIsMergedInto(t *te
 	budgetID := createBudget(t, gdb, ou, "org-daily")
 	repo := NewBudgetUsageRepository(gdb)
 	day := time.Date(2026, 11, 24, 0, 0, 0, 0, time.UTC)
-	allowance := uuid.New()
+	usage := uuid.New()
 	report := func(spent string, unpriced int64) gwmodels.BudgetUsage {
 		return gwmodels.BudgetUsage{
-			BudgetID: budgetID, AllowanceID: allowance, OUID: ou, Allowance: map[string]string{},
+			BudgetID: budgetID, BudgetUsageID: usage, OUID: ou, Usage: map[string]string{},
 			PeriodStart: day, Spent: spent, UnpricedRequests: unpriced,
 		}
 	}
 
-	// Two reports of one allowance in one batch: the batch insert meets the first, so the
+	// Two reports of one usage in one batch: the batch insert meets the first, so the
 	// second is merged into it, as when another writer inserts the row first.
 	require.NoError(t, repo.Record(ctx, []gwmodels.BudgetUsage{report("5.00", 1), report("7.00", 2)}, nil, nil))
 	rows, err := repo.ForBudget(ctx, budgetID)
@@ -63,18 +63,19 @@ func TestBudgetUsageRepository_ARowWrittenFirstByAnotherWriterIsMergedInto(t *te
 		require.NoError(t, err)
 		assert.False(t, ok, "the row no longer holds what was read")
 
-		merged, ok, err := mergeUsageRetrying(tx, report("9.00", 2))
+		before, merged, ok, err := mergeUsageRetrying(tx, report("9.00", 2))
 		require.NoError(t, err)
 		assert.True(t, ok, "read again and raised")
 		assert.Equal(t, "9.00", merged.Spent)
+		assert.Equal(t, "7.00", before, "the total the write replaced")
 
-		_, ok, err = mergeUsageRetrying(tx, report("8.00", 1))
+		_, _, ok, err = mergeUsageRetrying(tx, report("8.00", 1))
 		require.NoError(t, err)
 		assert.False(t, ok, "a lower report changes nothing")
 
 		missing := report("1.00", 0)
-		missing.AllowanceID = uuid.New()
-		_, _, err = mergeUsageRetrying(tx, missing)
+		missing.BudgetUsageID = uuid.New()
+		_, _, _, err = mergeUsageRetrying(tx, missing)
 		assert.Error(t, err, "a row that is not there cannot be merged into")
 		return nil
 	}))

@@ -229,6 +229,11 @@ export const rootRouteMap: AppRoute = {
                             index: true,
                             children: {},
                         },
+                        pricing: {
+                            path: 'pricing',
+                            index: true,
+                            children: {},
+                        },
                         budgets: {
                             path: 'budgets',
                             index: true,

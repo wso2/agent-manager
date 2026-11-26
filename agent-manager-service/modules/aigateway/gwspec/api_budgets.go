@@ -529,20 +529,22 @@ checked like a created budget; if any row fails, nothing is saved. With dryRun, 
 row is checked and nothing is saved. Needs costs.write, also with onExisting=update.
 
 Columns (name, amount, period and action required):
-name,projectId,displayName,description,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels,labels
+name,displayName,description,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels,labels
 
   - splitBy: llmProvider, project, agent, apiKey or attribute; blank is one shared
     limit. splitByExpression: the attribute's CEL expression.
   - llmProvider, project, apiKey: a filter's id. agent: <project>/<agent>. '*' in
     project, agent or apiKey is the filter without an id (any project, agent or API key).
+    Each of these columns takes several values separated by ';': the budget counts any of
+    them (OR), e.g. project `api-platform;billing`. '*' cannot be listed with other values.
   - attributes: JSON array of CEL expressions (strings), each an attribute filter.
   - exemptions: JSON array of exemptions. thresholds and channels: ';' lists.
   - labels: one-word labels, a ';' list (metadata.labels).
 
 Example rows:
 
-org-monthly-ceiling,,Organization monthly ceiling,All LLM spend,5000.00,month,block,95,,,,,,,,,80;100,finance-webhook,finance
-online-shop-each-agent,online-shop,Each Online Shop agent,,50.00,week,block,,agent,,mock-openai,online-shop,,,,,100,finance-webhook,shop;agents
+org-monthly-ceiling,Organization monthly ceiling,All LLM spend,5000.00,month,block,95,,,,,,,,,80;100,finance-webhook,finance
+online-shop-each-agent,Each Online Shop agent,,50.00,week,block,,agent,,mock-openai,online-shop,,,,,100,finance-webhook,shop;agents
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
@@ -713,7 +715,7 @@ func (r ApiListBudgetUsageRequest) Execute() (*BudgetUsageListResponse, *http.Re
 /*
 ListBudgetUsage Budget usage
 
-Each allowance's spend in the budget's current period, highest spend first. An allowance whose last report was in an earlier period has spent nothing this period.
+Each usage's spend in the budget's current period, highest spend first. An usage whose last report was in an earlier period has spent nothing this period.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name
@@ -871,19 +873,12 @@ type ApiListBudgetsRequest struct {
 	ctx        context.Context
 	ApiService *BudgetsAPIService
 	orgName    string
-	project    *string
 	filter     *[]string
 	search     *string
 	label      *[]string
 	status     *string
 	limit      *int32
 	offset     *int32
-}
-
-// Only the budgets this project owns; omitted, every budget in the organization.
-func (r ApiListBudgetsRequest) Project(project string) ApiListBudgetsRequest {
-	r.project = &project
-	return r
 }
 
 // type:id, with type project, agent, apiKey or llmProvider: budgets whose filters or exemptions name it (project also matches an agent filter or exemption of that project). agent:&lt;project&gt;/&lt;agent&gt; lists the budgets that count that agent: those naming it, and those naming its project and no agent. Repeat for AND.
@@ -964,9 +959,6 @@ func (a *BudgetsAPIService) ListBudgetsExecute(r ApiListBudgetsRequest) (*Budget
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
-	if r.project != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
-	}
 	if r.filter != nil {
 		t := *r.filter
 		if reflect.TypeOf(t).Kind() == reflect.Slice {
@@ -1119,8 +1111,8 @@ func (r ApiUpdateBudgetRequest) Execute() (*Budget, *http.Response, error) {
 UpdateBudget Update a budget
 
 Replaces the budget with the Budget kind sent (JSON or YAML); also disables and enables it
-(spec.status). metadata.name must be the path's budget. The project annotation, currency,
-period, limit.splitBy and filters are fixed after creation and must be sent unchanged
+(spec.status). metadata.name must be the path's budget. The period, limit.splitBy and
+filters are fixed after creation and must be sent unchanged
 (VALIDATION_ERROR otherwise): create a new budget instead. A budget created on a gateway
 takes only displayName, description and warnings, which gateways never get; its status,
 limit and exemptions must be sent unchanged (BUDGET_READ_ONLY otherwise).

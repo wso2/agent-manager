@@ -19,12 +19,9 @@ package gwsvc
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
@@ -227,7 +224,7 @@ func (b *gatewayBudgetSyncer) Save(ctx context.Context, gateway *gwmodels.Gatewa
 	if !budgetNamePattern.MatchString(name) {
 		return "", GatewayResourceErrInvalid, nil
 	}
-	cfg, project, err := gatewayBudgetConfig(name, item.Configuration)
+	cfg, err := gatewayBudgetConfig(name, item.Configuration)
 	if err != nil {
 		return "", GatewayResourceErrInvalid, nil //nolint:nilerr // a bad document fails the item, not the push
 	}
@@ -242,26 +239,11 @@ func (b *gatewayBudgetSyncer) Save(ctx context.Context, gateway *gwmodels.Gatewa
 			return "", GatewayResourceErrInvalid, nil
 		}
 	}
-	// The project-id annotation makes it a project budget, as the artifact import reads it
-	// for project-scoped kinds.
-	var projectID *uuid.UUID
-	if project != "" {
-		projectID, err = budgetProjectID(ctx, b.core, gateway.OUID, project, "")
-		var refused *BudgetError
-		if errors.As(err, &refused) {
-			return "", GatewayResourceErrReferenceNotFound, nil
-		}
-		if err != nil {
-			return "", "", err
-		}
-		if ownByProject(&cfg, project) != nil {
-			return "", GatewayResourceErrInvalid, nil //nolint:nilerr // a budget outside its project fails the item, not the push
-		}
-	}
+	// A budget belongs to the organization: a project-id annotation on the gateway's budget
+	// is not an owner here. Its project filter, which the gateway adds, is kept as sent.
 	gatewayID := gateway.UUID
 	budget := &gwmodels.Budget{
-		OrgID: gateway.OUID, Origin: gwmodels.BudgetOriginGateway, GatewayID: &gatewayID, ProjectID: projectID,
-		ProjectName: project, Configuration: cfg,
+		OrgID: gateway.OUID, Origin: gwmodels.BudgetOriginGateway, GatewayID: &gatewayID, Configuration: cfg,
 	}
 	stored, err := b.repo.SaveForGateway(ctx, budget, name)
 	if err != nil {
@@ -296,20 +278,17 @@ func gatewayBudgetOrg(raw json.RawMessage) string {
 }
 
 // gatewayBudgetConfig maps a pushed Budget kind onto the stored model: its spec, with the
-// defaults the REST API fills in, and the project its project-id annotation names (empty
-// for an organization budget). A gateway budget has no display name, so its name is shown.
-func gatewayBudgetConfig(name string, raw json.RawMessage) (gwmodels.BudgetConfig, string, error) {
+// defaults the REST API fills in. A gateway budget has no display name, so its name is shown.
+func gatewayBudgetConfig(name string, raw json.RawMessage) (gwmodels.BudgetConfig, error) {
 	var doc struct {
 		Metadata struct {
-			Labels      []string          `json:"labels"`
-			Annotations map[string]string `json:"annotations"`
+			Labels []string `json:"labels"`
 		} `json:"metadata"`
 		Spec gwmodels.BudgetConfig `json:"spec"`
 	}
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return gwmodels.BudgetConfig{}, "", err
+		return gwmodels.BudgetConfig{}, err
 	}
-	project := strings.TrimSpace(doc.Metadata.Annotations[AnnotationProjectID])
 	cfg := doc.Spec
 	if len(doc.Metadata.Labels) > 0 {
 		cfg.Labels = doc.Metadata.Labels
@@ -320,14 +299,11 @@ func gatewayBudgetConfig(name string, raw json.RawMessage) (gwmodels.BudgetConfi
 	if cfg.Status == "" {
 		cfg.Status = budgetStatusActive
 	}
-	if cfg.Limit.Currency == "" {
-		cfg.Limit.Currency = budgetCurrencyUSD
-	}
 	if cfg.Filters == nil {
 		cfg.Filters = []gwmodels.BudgetFilter{}
 	}
 	if cfg.Exemptions == nil {
 		cfg.Exemptions = []gwmodels.BudgetExemption{}
 	}
-	return cfg, project, nil
+	return cfg, nil
 }

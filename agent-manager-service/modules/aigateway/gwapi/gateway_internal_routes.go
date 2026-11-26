@@ -53,6 +53,9 @@ func RegisterGatewayInternalRoutes(rr InternalRouter, ctrl gwctl.GatewayInternal
 	// Gateway manifest endpoint
 	rr.HandleFuncWithValidation("POST /gateways/{gatewayId}/manifest", ctrl.PushGatewayManifest)
 
+	// Gateway model price file: after it connects, the gateway sends the prices its cost policy uses.
+	rr.HandleFuncWithValidation("POST /gateways/{gatewayId}/pricing", ctrl.PushPricing)
+
 	// Gateway resource sync: per kind, the complete set of resources the gateway
 	// created through its own API (budgets), mirrored read-only here.
 	rr.HandleFuncWithValidation("POST /gateways/{gatewayId}/resources", ctrl.SyncGatewayResources)

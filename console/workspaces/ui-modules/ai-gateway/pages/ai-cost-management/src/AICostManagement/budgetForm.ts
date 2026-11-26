@@ -20,7 +20,6 @@
 // React so the rules (handle, filters, split, validation) are tested on their own.
 import {
   BUDGET_API_VERSION,
-  BUDGET_PROJECT_ANNOTATION,
   type Budget,
   type BudgetAction,
   type BudgetExemption,
@@ -75,24 +74,113 @@ function kindOfExpression(expression?: string): "team" | "user" | "attribute" {
  * (usage that has one, Kong's "is set"); for LLM providers, no provider filter at all. */
 export const ANY = "*";
 
-/** A filter as the form edits it: which usage the budget counts. */
+/**
+ * A filter as the form edits it: which usage the budget counts. One row per type for LLM
+ * providers, projects, agents and API keys, holding every value picked: a request matches
+ * the row when it matches any of them (OR); different rows must all match (AND).
+ */
 export interface FilterRow {
   type: ScopeKind;
-  /** LLM provider, project, agent or API key; ANY for any project, agent or API key. */
-  id: string;
-  /** Agent only. */
-  project: string;
-  /** Team, User, custom attribute: a CEL expression. */
-  expression: string;
+  /**
+   * LLM provider, project, agent or API key: [ANY] for all of them, or the values picked:
+   * handles, API key names, or "project/agent" for agents. Team, User and custom
+   * attribute: the CEL expressions entered, any of which may match (OR). Empty until one is
+   * picked.
+   */
+  values: string[];
 }
 
-export interface ExemptionRow {
-  type: Exclude<ScopeKind, "apiKey" | "llmProvider">;
-  id: string;
-  /** Agent only. */
-  project: string;
-  expression: string;
+/** Whether a row counts every LLM provider, project, agent or API key. */
+export const isAllValues = (row: Pick<FilterRow, "values">): boolean =>
+  row.values.length === 1 && row.values[0] === ANY;
+
+/**
+ * The expressions of one row as the one expression sent: a request matches the row when it
+ * matches any of them (OR), so several are joined as "(a) || (b)"; one is sent as it is.
+ */
+export function joinExpressions(values: string[]): string {
+  const list = values.map((v) => v.trim()).filter(Boolean);
+  return list.length > 1
+    ? list.map((v) => `(${v})`).join(" || ")
+    : (list[0] ?? "");
 }
+
+/** The expressions a stored one was joined from: the reverse of joinExpressions. Anything
+ * not shaped "(a) || (b)" is a single expression. */
+export function splitExpressions(expression: string): string[] {
+  const text = expression.trim();
+  const groups: string[] = [];
+  let depth = 0;
+  let start = 0;
+  let quote = "";
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = "";
+      continue;
+    }
+    if (c === "'" || c === '"') quote = c;
+    else if (c === "(") {
+      if (depth === 0) start = i + 1;
+      depth++;
+    } else if (c === ")") {
+      depth--;
+      if (depth < 0) return [text];
+      if (depth === 0) groups.push(text.slice(start, i));
+    }
+  }
+  const joined = groups.map((g) => `(${g})`).join(" || ");
+  return depth === 0 && !quote && groups.length > 1 && joined === text
+    ? groups
+    : [text];
+}
+
+/**
+ * The values after adding what was typed: only its ends are trimmed (a CEL expression has
+ * spaces, quotes and brackets), nothing blank or already there is added, and an
+ * expression above MAX_EXPRESSION_LENGTH is refused with the reason.
+ */
+export function addExpressions(
+  values: string[],
+  typed: string | string[],
+): { values: string[]; error?: string } {
+  const next = [...values];
+  for (const text of Array.isArray(typed) ? typed : [typed]) {
+    const expression = text.trim();
+    if (!expression) continue;
+    if (expression.length > MAX_EXPRESSION_LENGTH)
+      return {
+        values,
+        error: `Each expression can have at most ${MAX_EXPRESSION_LENGTH} characters.`,
+      };
+    if (next.includes(expression))
+      return { values, error: "Each expression can be added once." };
+    next.push(expression);
+  }
+  if (joinExpressions(next).length > MAX_EXPRESSION_LENGTH)
+    return {
+      values,
+      error: `The expressions of a row can have at most ${MAX_EXPRESSION_LENGTH} characters together.`,
+    };
+  return { values: next };
+}
+
+/** The most filter entries a budget may have in total (every value of a row counts). */
+export const MAX_FILTER_ENTRIES = 20;
+
+/**
+ * An exemption as the form edits it: traffic the budget skips. One row per type, holding
+ * every value picked ("project/agent" for agents), or, for Team, User and custom
+ * attribute, the CEL expressions entered.
+ */
+export interface ExemptionRow {
+  type: ScopeKind;
+  values: string[];
+}
+
+/** The most exemption entries a budget may have in total (every value of a row counts). */
+export const MAX_EXEMPTION_ENTRIES = 100;
 
 export interface BudgetFormState {
   displayName: string;
@@ -134,16 +222,12 @@ export const EMPTY_FORM: BudgetFormState = {
 /** A new filter starts as "All": every LLM provider, project, agent or API key. */
 export const newFilter = (type: ScopeKind): FilterRow => ({
   type,
-  id: isCelKind(type) ? "" : ANY,
-  project: "",
-  expression: "",
+  values: isCelKind(type) ? [] : [ANY],
 });
 
 export const newExemption = (type: ExemptionRow["type"]): ExemptionRow => ({
   type,
-  id: "",
-  project: "",
-  expression: "",
+  values: [],
 });
 
 /**
@@ -168,6 +252,25 @@ export function handleFor(name: string, taken: Iterable<string>): string {
   }
 }
 
+/** Exemption rows from a budget's entries: the entries of one type are one row, in the
+ * order the types first appear; expressions are grouped by the kind they read as. */
+function exemptionRowsFrom(entries: BudgetExemption[]): ExemptionRow[] {
+  const rows: ExemptionRow[] = [];
+  for (const e of entries) {
+    const type =
+      e.type === "attribute" ? kindOfExpression(e.expression) : e.type;
+    const value = isCelKind(type)
+      ? (e.expression ?? "")
+      : type === "agent"
+        ? `${e.project ?? ""}/${e.id ?? ""}`
+        : (e.id ?? "");
+    const row = rows.find((r) => r.type === type);
+    if (!row) rows.push({ type, values: [value] } as ExemptionRow);
+    else if (!row.values.includes(value)) row.values.push(value);
+  }
+  return rows;
+}
+
 /** The form's state for an existing budget. */
 export function formFromBudget(budget: Budget): BudgetFormState {
   const { spec } = budget;
@@ -177,12 +280,29 @@ export function formFromBudget(budget: Budget): BudgetFormState {
       ? kindOfExpression(split.expression)
       : split.type
     : "";
-  const filters: FilterRow[] = (spec.filters ?? []).map((f) => ({
-    type: f.type === "attribute" ? kindOfExpression(f.expression) : f.type,
-    id: f.id ?? (f.type === "attribute" ? "" : ANY),
-    project: f.project ?? "",
-    expression: f.expression ?? "",
-  }));
+  // Several entries of one type are one row with all their values; expressions are
+  // grouped by the kind they read as (Team, User or custom attribute).
+  const filters: FilterRow[] = [];
+  for (const f of spec.filters ?? []) {
+    const type =
+      f.type === "attribute" ? kindOfExpression(f.expression) : f.type;
+    if (isCelKind(type)) {
+      // One filter is one row of expressions (any of them matches); Team and User have one
+      // row each, and every custom attribute filter is a row of its own.
+      const values = splitExpressions(f.expression ?? "");
+      const row =
+        type === "attribute" ? undefined : filters.find((r) => r.type === type);
+      if (!row) filters.push({ type, values });
+      else
+        for (const v of values) if (!row.values.includes(v)) row.values.push(v);
+      continue;
+    }
+    const value =
+      type === "agent" && f.id ? `${f.project ?? ""}/${f.id}` : (f.id ?? ANY);
+    const row = filters.find((r) => r.type === type);
+    if (!row) filters.push({ type, values: [value] });
+    else if (!row.values.includes(value)) row.values.push(value);
+  }
   // The limit is split by one of the filters: a split with no filter of its type (all
   // LLM providers, or a split alone) shows that filter as "All".
   if (splitBy && !filters.some((f) => f.type === splitBy)) {
@@ -196,12 +316,7 @@ export function formFromBudget(budget: Budget): BudgetFormState {
     filters,
     splitBy,
     splitExpression: split?.expression ?? "",
-    exemptions: (spec.exemptions ?? []).map((e) => ({
-      type: e.type === "attribute" ? kindOfExpression(e.expression) : e.type,
-      id: e.id ?? "",
-      project: e.project ?? "",
-      expression: e.expression ?? "",
-    })),
+    exemptions: exemptionRowsFrom(spec.exemptions ?? []),
     amount: spec.limit.amount,
     period: spec.limit.period,
     action: spec.limit.action,
@@ -211,62 +326,112 @@ export function formFromBudget(budget: Budget): BudgetFormState {
   };
 }
 
-/** Whether a filter row is sent: All LLM providers is no provider filter (every request
- * has one), and a Team, User or custom attribute row without an expression counts every
- * value (it is there to split the limit by). */
-function filterRowSent(r: FilterRow): boolean {
-  return (
-    !(r.type === "llmProvider" && r.id === ANY) &&
-    !(isCelKind(r.type) && !r.expression.trim())
-  );
+/**
+ * The filter entries a row is sent as: one per value picked (repeating the type is how
+ * the Budget kind says "or"); a Team, User or custom attribute row is one entry per
+ * expression, or none when it has none (it is there to split the limit by); All LLM
+ * providers is no entry (every request has a provider); All projects, agents or API keys
+ * is the type without an id.
+ */
+function entriesOf(r: FilterRow): BudgetFilter[] {
+  if (isCelKind(r.type)) {
+    const expression = joinExpressions(r.values);
+    return expression ? [{ type: "attribute", expression }] : [];
+  }
+  if (r.type === "llmProvider" && isAllValues(r)) return [];
+  return r.values.map((v): BudgetFilter => {
+    if (v === ANY) return { type: r.type as BudgetFilter["type"] };
+    if (r.type === "agent") {
+      const slash = v.indexOf("/");
+      return {
+        type: "agent",
+        project: slash < 0 ? "" : v.slice(0, slash),
+        id: slash < 0 ? v : v.slice(slash + 1),
+      };
+    }
+    return { type: r.type as BudgetFilter["type"], id: v };
+  });
+}
+
+/** A filter as the Budget kind stores it. */
+export type FilterEntry = {
+  type: string;
+  id?: string;
+  project?: string;
+  expression?: string;
+};
+
+/**
+ * The entries of a budget's filters grouped as they are read: several entries of one LLM
+ * provider, project, agent or API key type are one group ("or"); a custom attribute stays
+ * on its own, as its expressions must all match. Groups keep the order their type first
+ * appears in; the groups are joined by "and".
+ */
+export function groupFilterEntries(filters: FilterEntry[]): FilterEntry[][] {
+  const groups: FilterEntry[][] = [];
+  for (const f of filters) {
+    const group =
+      f.type === "attribute"
+        ? undefined
+        : groups.find((g) => g[0].type === f.type);
+    if (group) group.push(f);
+    else groups.push([f]);
+  }
+  return groups;
 }
 
 /** The form row of each sent filter, by its index in the request's `filters`. */
 export function sentFilterRows(rows: FilterRow[]): number[] {
-  return rows.flatMap((r, i) => (filterRowSent(r) ? [i] : []));
+  return rows.flatMap((r, i) => entriesOf(r).map(() => i));
 }
 
 function filtersFor(rows: FilterRow[]): BudgetFilter[] {
-  return rows
-    .filter(filterRowSent)
-    .map((r) =>
-      isCelKind(r.type)
-        ? { type: "attribute", expression: r.expression.trim() }
-        : r.id === ANY
-          ? { type: r.type as BudgetFilter["type"] }
-          : r.type === "agent"
-            ? { type: "agent", project: r.project, id: r.id }
-            : { type: r.type as BudgetFilter["type"], id: r.id },
-    );
+  return rows.flatMap(entriesOf);
+}
+
+/** The entries a row is sent as: one per value picked, or its one expression. */
+function exemptionEntriesOf(r: ExemptionRow): BudgetExemption[] {
+  if (isCelKind(r.type))
+    return r.values
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .map(
+        (expression): BudgetExemption => ({ type: "attribute", expression }),
+      );
+  return r.values.map((v): BudgetExemption => {
+    if (r.type === "agent") {
+      const slash = v.indexOf("/");
+      return {
+        type: "agent",
+        id: slash < 0 ? v : v.slice(slash + 1),
+        project: slash < 0 ? "" : v.slice(0, slash),
+      };
+    }
+    return { type: r.type as BudgetExemption["type"], id: v };
+  });
+}
+
+/** The form row of each sent exemption, by its index in the request's `exemptions`. */
+export function sentExemptionRows(rows: ExemptionRow[]): number[] {
+  return rows.flatMap((r, i) => exemptionEntriesOf(r).map(() => i));
 }
 
 function exemptionsFor(rows: ExemptionRow[]): BudgetExemption[] {
-  return rows.map((r) =>
-    isCelKind(r.type)
-      ? { type: "attribute", expression: r.expression.trim() }
-      : r.type === "agent"
-        ? { type: "agent", id: r.id, project: r.project }
-        : { type: "project", id: r.id },
-  );
+  return rows.flatMap(exemptionEntriesOf);
 }
 
 /**
- * The Budget kind to send. A new budget is named `name` and, on a project's page, owned by
- * that project; an edit keeps the existing metadata and status.
+ * The Budget kind to send. A new budget is named `name`; an edit keeps the existing
+ * metadata and status.
  */
 export function budgetFromForm(
   form: BudgetFormState,
-  opts: { name: string; projectOwner?: string; existing?: Budget },
+  opts: { name: string; existing?: Budget },
 ): Budget {
   const words = form.labels.map((l) => l.trim()).filter(Boolean);
   const labels = words.length ? words : undefined;
   // Labels can change on an edit; the name and annotations stay.
-  const base = opts.existing?.metadata ?? {
-    name: opts.name,
-    annotations: opts.projectOwner
-      ? { [BUDGET_PROJECT_ANNOTATION]: opts.projectOwner }
-      : {},
-  };
+  const base = opts.existing?.metadata ?? { name: opts.name };
   const metadata = {
     name: base.name,
     ...(labels ? { labels } : {}),
@@ -292,7 +457,6 @@ export function budgetFromForm(
         : {}),
       limit: {
         amount: Number(form.amount).toFixed(2),
-        currency: "USD",
         period: form.period,
         action: form.action,
         ...(form.action === "block" ? { blockAt: Number(form.blockAt) } : {}),
@@ -308,36 +472,19 @@ export function budgetFromForm(
 }
 
 /**
- * Which kinds an exemption may be: narrower than what the budget counts (a project
- * budget can exempt an agent, not another project), and the kind the limit is split by,
- * which may exempt one of its own values (one user of a per-user budget). An LLM
- * provider filter or split does not change it.
+ * Which kinds an exemption may be: any of them. What is exempted is up to the person who
+ * writes the budget, so nothing is held back for being above or below what it counts.
  */
-export function exemptionKinds(
-  form: Pick<BudgetFormState, "filters" | "splitBy">,
-): ExemptionRow["type"][] {
-  const kinds = [
-    ...form.filters.map((f) => f.type),
-    ...(form.splitBy ? [form.splitBy] : []),
+export function exemptionKinds(): ExemptionRow["type"][] {
+  return [
+    "llmProvider",
+    "project",
+    "agent",
+    "apiKey",
+    "team",
+    "user",
+    "attribute",
   ];
-  const has = (k: ScopeKind) => kinds.includes(k);
-  const narrower: ExemptionRow["type"][] =
-    has("user") || has("attribute")
-      ? ["attribute"]
-      : has("team") || has("apiKey")
-        ? has("team")
-          ? ["user", "attribute"]
-          : ["attribute"]
-        : has("agent")
-          ? ["team", "user", "attribute"]
-          : has("project")
-            ? ["agent", "team", "user", "attribute"]
-            : ["project", "agent", "team", "user", "attribute"];
-  const split =
-    form.splitBy && form.splitBy !== "apiKey" && form.splitBy !== "llmProvider"
-      ? [form.splitBy as ExemptionRow["type"]]
-      : [];
-  return [...new Set([...narrower, ...split])];
 }
 
 /** What a budget started from an entity's page is about. */
@@ -354,17 +501,17 @@ export interface BudgetStart {
 export function formFor(start: BudgetStart): BudgetFormState {
   const filters: FilterRow[] = [];
   if (start.provider)
-    filters.push({ ...newFilter("llmProvider"), id: start.provider });
+    filters.push({ ...newFilter("llmProvider"), values: [start.provider] });
   if (start.project)
-    filters.push({ ...newFilter("project"), id: start.project });
+    filters.push({ ...newFilter("project"), values: [start.project] });
   if (start.agent) {
     const [project = "", id = ""] = start.agent.split("/");
-    filters.push({ ...newFilter("agent"), id, project });
+    filters.push({ ...newFilter("agent"), values: [`${project}/${id}`] });
   }
   return { ...EMPTY_FORM, filters };
 }
 
-/** The start in a URL's query, as "Advanced options" passes it to the full form. */
+/** The start in a URL's query, as "Advanced create" passes it to the full form. */
 export function startFromQuery(params: URLSearchParams): BudgetStart {
   return {
     project: params.get("project") ?? undefined,
@@ -397,10 +544,17 @@ export type BudgetFormErrors = Partial<Record<string, string>>;
 export function formFieldOf(
   serverField: string | undefined,
   filterRows?: number[],
+  exemptionRows?: number[],
 ): string {
   const f = (serverField ?? "").replace(/^spec\./, "");
   const exemption = /^exemptions\[(\d+)\]/.exec(f);
-  if (exemption) return `exemptions.${exemption[1]}`;
+  if (exemption) {
+    // Several entries are one form row; map back as the filters do.
+    const row = exemptionRows
+      ? exemptionRows[Number(exemption[1])]
+      : Number(exemption[1]);
+    return row === undefined ? "exemptions" : `exemptions.${row}`;
+  }
   if (f.startsWith("exemptions")) return "exemptions";
   const filter = /^filters\[(\d+)\]/.exec(f);
   if (filter) {
@@ -412,7 +566,7 @@ export function formFieldOf(
   if (f.startsWith("limit.splitBy")) return "splitBy";
   if (f.startsWith("warnings.thresholds")) return "thresholds";
   if (f.startsWith("warnings.channels")) return "channels";
-  if (f === "limit.amount" || f === "limit.currency") return "amount";
+  if (f === "limit.amount") return "amount";
   if (f === "limit.blockAt") return "blockAt";
   if (f === "displayName" || f === "metadata.name") return "displayName";
   if (f === "description") return "description";
@@ -424,6 +578,7 @@ export function formFieldOf(
 export function serverFieldError(
   error: unknown,
   filterRows?: number[],
+  exemptionRows?: number[],
 ): {
   field: string;
   message: string;
@@ -444,7 +599,7 @@ export function serverFieldError(
     (error as { message?: string })?.message ??
     "The budget couldn't be saved.";
   return {
-    field: formFieldOf(body?.additionalData?.field, filterRows),
+    field: formFieldOf(body?.additionalData?.field, filterRows, exemptionRows),
     message,
   };
 }
@@ -467,6 +622,29 @@ export const LABEL_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,61}[a-zA-Z0-9])?$/;
 /** The most labels a budget may have. */
 export const MAX_LABELS = 10;
 
+/** What is wrong with a row's values: none picked, a repeat, or a too long expression. */
+function rowError(
+  type: ScopeKind,
+  values: string[],
+  opts: { emptyOk?: boolean } = {},
+): string | undefined {
+  const cel = isCelKind(type);
+  const picked = cel ? values.map((v) => v.trim()).filter(Boolean) : values;
+  if (!picked.length) {
+    if (opts.emptyOk) return undefined;
+    return cel ? "Enter an expression." : "Choose one or more.";
+  }
+  if (!cel && picked.length > 1 && picked.includes(ANY))
+    return "Choose All, or specific ones.";
+  if (new Set(picked).size !== picked.length)
+    return cel
+      ? "Each expression can be added once."
+      : "Each value can be added once.";
+  if (picked.some((v) => cel && v.length > MAX_EXPRESSION_LENGTH))
+    return `Each expression can have at most ${MAX_EXPRESSION_LENGTH} characters.`;
+  return undefined;
+}
+
 /** What is wrong with the form, by field; empty when it can be saved. Mirrors the
  * server's rules so most mistakes show before saving. */
 export function validateBudgetForm(form: BudgetFormState): BudgetFormErrors {
@@ -487,36 +665,32 @@ export function validateBudgetForm(form: BudgetFormState): BudgetFormErrors {
     }
   }
   form.filters.forEach((f, i) => {
-    // A Team, User or custom attribute row may be empty when the limit is split by it.
-    const missing = isCelKind(f.type)
-      ? !f.expression.trim() && form.splitBy !== f.type
-      : !f.id;
-    if (missing) {
-      errors[`filters.${i}`] = isCelKind(f.type)
-        ? "Enter an expression, or split by it."
-        : "Choose one.";
-    }
+    const message = rowError(f.type, f.values, {
+      // An empty expression row is there to split the limit by it.
+      emptyOk: isCelKind(f.type) && form.splitBy === f.type,
+    });
+    if (message) errors[`filters.${i}`] = message;
   });
+  if (filtersFor(form.filters).length > MAX_FILTER_ENTRIES) {
+    errors.filters = `Use at most ${MAX_FILTER_ENTRIES} filter values in total.`;
+  }
   if (form.splitBy) {
     const rows = form.filters.filter((f) => f.type === form.splitBy);
     if (!rows.length) {
       errors.splitBy = "Add this type under Applies to first.";
-    } else if (!isCelKind(form.splitBy) && rows.some((f) => f.id !== ANY)) {
+    } else if (!isCelKind(form.splitBy) && rows.some((f) => !isAllValues(f))) {
       errors.splitBy = `Set the ${SPLIT_NOUN[form.splitBy]} filter to All to split by it.`;
     } else if (isCelKind(form.splitBy) && !form.splitExpression.trim()) {
       errors.splitBy = "Enter an identity expression.";
     }
   }
-  const allowedExemptions = exemptionKinds(form);
   form.exemptions.forEach((e, i) => {
-    if (!allowedExemptions.includes(e.type)) {
-      errors[`exemptions.${i}`] = "Must be narrower than the budget's filters.";
-    } else if (isCelKind(e.type) ? !e.expression.trim() : !e.id) {
-      errors[`exemptions.${i}`] = isCelKind(e.type)
-        ? "Enter the CEL expression."
-        : "Choose one.";
-    }
+    const message = rowError(e.type, e.values);
+    if (message) errors[`exemptions.${i}`] = message;
   });
+  if (exemptionsFor(form.exemptions).length > MAX_EXEMPTION_ENTRIES) {
+    errors.exemptions = `Use at most ${MAX_EXEMPTION_ENTRIES} exemption values in total.`;
+  }
   // Labels: one word each (the server's rule), no repeats, at most 10.
   const words = form.labels.map((l) => l.trim()).filter(Boolean);
   if (words.length > MAX_LABELS) {

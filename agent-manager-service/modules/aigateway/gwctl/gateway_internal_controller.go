@@ -53,6 +53,7 @@ type GatewayInternalController interface {
 	CheckArtifactsExist(w http.ResponseWriter, r *http.Request)
 	GetApplications(w http.ResponseWriter, r *http.Request)
 	PushGatewayManifest(w http.ResponseWriter, r *http.Request)
+	PushPricing(w http.ResponseWriter, r *http.Request)
 	SyncGatewayResources(w http.ResponseWriter, r *http.Request)
 	GetBudgets(w http.ResponseWriter, r *http.Request)
 }
@@ -64,6 +65,7 @@ type gatewayInternalController struct {
 	aiApplicationRepo      gwrepo.AIApplicationRepository
 	resourceSyncService    *gwsvc.GatewayResourceSyncService
 	budgetGateways         *gwsvc.BudgetGateways
+	pricingService         gwsvc.PricingService
 }
 
 // NewGatewayInternalController creates a new gateway internal controller
@@ -74,6 +76,7 @@ func NewGatewayInternalController(
 	aiApplicationRepo gwrepo.AIApplicationRepository,
 	resourceSyncService *gwsvc.GatewayResourceSyncService,
 	budgetGateways *gwsvc.BudgetGateways,
+	pricingService gwsvc.PricingService,
 ) GatewayInternalController {
 	return &gatewayInternalController{
 		gatewayService:         gatewayService,
@@ -82,6 +85,7 @@ func NewGatewayInternalController(
 		aiApplicationRepo:      aiApplicationRepo,
 		resourceSyncService:    resourceSyncService,
 		budgetGateways:         budgetGateways,
+		pricingService:         pricingService,
 	}
 }
 

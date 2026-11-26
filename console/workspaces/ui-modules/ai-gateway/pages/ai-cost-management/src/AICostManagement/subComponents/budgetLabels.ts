@@ -24,6 +24,11 @@ export const PERIOD_LABELS: Record<BudgetPeriod, string> = {
   month: "Monthly",
 };
 
+/** A filter on a type with no one value: "All projects", "All LLM providers", "All API keys". */
+export function allOfKind(label: string): string {
+  return `All ${inSentence(label)}s`;
+}
+
 /** A label as it reads mid-sentence: lowercase, except acronyms ("API key", "LLM providers"). */
 export function inSentence(label: string): string {
   return label

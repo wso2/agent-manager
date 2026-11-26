@@ -32,6 +32,7 @@ import type { CostGroupBy } from "@agent-management-platform/types";
 import { dimensionsFor, groupKey, groupLabel } from "../costFormat";
 import { inSentence } from "./budgetLabels";
 import { useEntityNames } from "../useEntityNames";
+import { TOOLBAR_FIELD_SX } from "../controlSizes";
 
 /** The cost API filter for a project's or an agent's own Cost Management. */
 export function scopeFilter(
@@ -149,6 +150,7 @@ export function CostFilterBar({ selection }: { selection: CostSelection }) {
             select
             size="small"
             aria-label="Group by"
+            sx={TOOLBAR_FIELD_SX}
             value={groupBy}
             onChange={(e) => setFilters(e.target.value as CostGroupBy, [])}
             slotProps={{
@@ -168,7 +170,7 @@ export function CostFilterBar({ selection }: { selection: CostSelection }) {
           <Autocomplete
             multiple
             size="small"
-            sx={{ minWidth: 280, flex: 1, maxWidth: 640 }}
+            sx={{ minWidth: 280, flex: 1, maxWidth: 640, ...TOOLBAR_FIELD_SX }}
             options={options}
             value={picked}
             onChange={(_, value) => setFilters(groupBy, value)}

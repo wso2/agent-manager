@@ -38,6 +38,7 @@ const (
 	ErrCodeBudgetNotFound      = "BUDGET_NOT_FOUND"
 	ErrCodeBudgetReadOnly      = "BUDGET_READ_ONLY"
 	ErrCodeInvalidCSV          = "INVALID_CSV"
+	ErrCodeInvalidPricing      = "INVALID_PRICING"
 	ErrCodeChannelNotAvailable = "CHANNEL_NOT_AVAILABLE"
 )
 

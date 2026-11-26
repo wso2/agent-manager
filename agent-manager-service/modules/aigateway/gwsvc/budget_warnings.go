@@ -46,34 +46,28 @@ import (
 const GatewayMessageBudgetUsage = "budget.usage"
 
 // GatewayUsageMessage is the usage message a gateway sends on its connection
-// : budget allowance totals.
+// : budget usage totals.
 type GatewayUsageMessage struct {
-	Allowances []GatewayAllowanceUsage `json:"allowances"`
+	Usages []GatewayUsageEntry `json:"usages"`
 	// Costs are the AI cost stats, from gateways with [ai_cost_management.tracking] on.
 	Costs []GatewayCostUsage `json:"costs"`
 }
 
-// GatewayAllowanceUsage is one allowance's total in one period, across every gateway
+// GatewayUsageEntry is one usage's total in one period, across every gateway
 // sharing the spend tracker.
-type GatewayAllowanceUsage struct {
+type GatewayUsageEntry struct {
 	Budget           string            `json:"budget"`
 	PeriodStart      string            `json:"periodStart"`
-	AllowanceUUID    string            `json:"allowanceUuid"`
-	Allowance        map[string]string `json:"allowance"`
+	UsageUUID        string            `json:"usageUuid"`
+	Usage            map[string]string `json:"usage"`
 	Spent            string            `json:"spent"`
 	UnpricedRequests int64             `json:"unpricedRequests"`
 }
 
-// BudgetWarner checks a budget's thresholds against its stored spend; run when a
-// budget is edited, since a lower limit or a new threshold may already be crossed.
-type BudgetWarner interface {
-	CheckBudget(ctx context.Context, b *gwmodels.Budget)
-}
-
-// BudgetWarningService keeps the spend gateways report for each budget allowance and
-// raises a warning, once, for every threshold an allowance crosses:
-// sent to the budget's notification channels through notifications/v1, queued in the
-// transaction that records the crossing.
+// BudgetWarningService keeps the spend gateways report for each budget usage and
+// raises a warning, once, for every threshold an usage crosses: the write that takes
+// the spend from below a threshold to or past it sends the warning to the budget's
+// notification channels through notifications/v1, queued in that write's transaction.
 type BudgetWarningService struct {
 	budgets  gwrepo.BudgetRepository
 	usage    gwrepo.BudgetUsageRepository
@@ -82,7 +76,7 @@ type BudgetWarningService struct {
 	// notifier sends warnings to channels; nil records spend without warnings.
 	notifier notifyv1.Notifier
 
-	// Reports are coalesced here, per organization, latest total per allowance and cost key,
+	// Reports are coalesced here, per organization, latest total per usage and cost key,
 	// and written every flush interval, so the database load follows how many totals
 	// changed, not how many reports, gateways or requests there were. A
 	// gateway's connection never waits on the database. Before Start (tests), HandleUsage
@@ -98,21 +92,21 @@ type BudgetWarningService struct {
 
 	// keptFrom is, per budget, the period this replica has already deleted the earlier
 	// ones before: when a budget's new period starts, its first write there deletes the
-	// past periods' allowances and warnings, not a schedule.
+	// past periods' usages, not a schedule.
 	periodMu sync.Mutex
 	keptFrom map[uuid.UUID]time.Time
 }
 
 // pendingUsage is one organization's totals waiting to be written: the highest total
-// reported for each allowance period and each cost month and key.
+// reported for each usage period and each cost month and key.
 type pendingUsage struct {
-	allowances map[allowanceUsageKey]GatewayAllowanceUsage
-	costs      map[costUsageKey]GatewayCostUsage
+	usages map[usageEntryKey]GatewayUsageEntry
+	costs  map[costUsageKey]GatewayCostUsage
 }
 
 type (
-	allowanceUsageKey struct{ budget, allowance, period string }
-	costUsageKey      struct{ month, key string }
+	usageEntryKey struct{ budget, usage, period string }
+	costUsageKey  struct{ month, key string }
 )
 
 // defaultUsageFlush is the flush interval when the settings give none.
@@ -138,14 +132,13 @@ func NewBudgetWarningService(
 	}
 }
 
-// publisher returns how a newly recorded warning is sent, or nil when warnings are not
-// sent.
+// publisher returns how a warning is sent, or nil when warnings are not sent.
 func (s *BudgetWarningService) publisher() gwrepo.WarningPublisher {
 	if s.notifier == nil {
 		return nil
 	}
-	return func(ctx context.Context, tx *gorm.DB, w gwmodels.BudgetWarning) error {
-		return s.notifier.Notify(ctx, tx, w.Notice)
+	return func(ctx context.Context, tx *gorm.DB, n notifyv1.Notification) error {
+		return s.notifier.Notify(ctx, tx, n)
 	}
 }
 
@@ -200,7 +193,7 @@ func (s *BudgetWarningService) HandleUsage(ctx context.Context, gatewayID string
 	if !ok {
 		return
 	}
-	log.Debug("Budget usage received", "allowances", len(msg.Allowances), "costs", len(msg.Costs))
+	log.Debug("Budget usage received", "usages", len(msg.Usages), "costs", len(msg.Costs))
 	s.coalesce(ouID, msg)
 }
 
@@ -210,18 +203,18 @@ func (s *BudgetWarningService) coalesce(ouID string, msg GatewayUsageMessage) {
 	defer s.mu.Unlock()
 	p := s.pending[ouID]
 	if p == nil {
-		p = &pendingUsage{allowances: map[allowanceUsageKey]GatewayAllowanceUsage{}, costs: map[costUsageKey]GatewayCostUsage{}}
+		p = &pendingUsage{usages: map[usageEntryKey]GatewayUsageEntry{}, costs: map[costUsageKey]GatewayCostUsage{}}
 		s.pending[ouID] = p
 	}
-	for _, a := range msg.Allowances {
-		k := allowanceUsageKey{a.Budget, a.AllowanceUUID, a.PeriodStart}
-		if old, seen := p.allowances[k]; seen {
+	for _, a := range msg.Usages {
+		k := usageEntryKey{a.Budget, a.UsageUUID, a.PeriodStart}
+		if old, seen := p.usages[k]; seen {
 			if !gwutil.DecimalGreater(a.Spent, old.Spent) {
 				a.Spent = old.Spent
 			}
 			a.UnpricedRequests = max(a.UnpricedRequests, old.UnpricedRequests)
 		}
-		p.allowances[k] = a
+		p.usages[k] = a
 	}
 	for _, c := range msg.Costs {
 		k := costUsageKey{c.Month, c.CostKey}
@@ -258,31 +251,31 @@ func (s *BudgetWarningService) writePending(ctx context.Context) {
 	s.mu.Unlock()
 	for ouID, p := range pending {
 		msg := GatewayUsageMessage{
-			Allowances: make([]GatewayAllowanceUsage, 0, len(p.allowances)),
-			Costs:      make([]GatewayCostUsage, 0, len(p.costs)),
+			Usages: make([]GatewayUsageEntry, 0, len(p.usages)),
+			Costs:  make([]GatewayCostUsage, 0, len(p.costs)),
 		}
-		for _, a := range p.allowances {
-			msg.Allowances = append(msg.Allowances, a)
+		for _, a := range p.usages {
+			msg.Usages = append(msg.Usages, a)
 		}
 		for _, c := range p.costs {
 			msg.Costs = append(msg.Costs, c)
 		}
 		started := time.Now()
 		result := s.recordForOrg(ctx, ouID, msg, slog.With("orgId", ouID))
-		if result.costsFailed || len(result.heldAllowances) > 0 {
-			keep := GatewayUsageMessage{Allowances: result.heldAllowances}
+		if result.costsFailed || len(result.heldUsages) > 0 {
+			keep := GatewayUsageMessage{Usages: result.heldUsages}
 			if result.costsFailed {
 				keep.Costs = msg.Costs
 			}
 			s.coalesce(ouID, keep)
 		}
-		slog.Debug("Budget usage written", "orgId", ouID, "allowances", len(msg.Allowances),
+		slog.Debug("Budget usage written", "orgId", ouID, "usages", len(msg.Usages),
 			"costs", len(msg.Costs), "took", time.Since(started))
 	}
 }
 
 // RecordUsage records a gateway's usage message: its costs in one transaction and its
-// allowances in another. An allowance whose budget is unknown or whose fields are invalid
+// usages in another. An usage whose budget is unknown or whose fields are invalid
 // is skipped and logged; the gateway sends totals again.
 func (s *BudgetWarningService) RecordUsage(ctx context.Context, gatewayID string, payload json.RawMessage) {
 	log := slog.With("gatewayID", gatewayID)
@@ -299,7 +292,7 @@ func (s *BudgetWarningService) RecordUsage(ctx context.Context, gatewayID string
 }
 
 // recordForOrg writes an organization's totals: its costs in one transaction and its
-// allowances in another. An allowance whose budget is unknown or whose fields are invalid
+// usages in another. An usage whose budget is unknown or whose fields are invalid
 // is skipped and logged; the gateway sends totals again.
 func (s *BudgetWarningService) recordForOrg(ctx context.Context, ouID string, msg GatewayUsageMessage, log *slog.Logger) usageWriteResult {
 	var err error
@@ -309,8 +302,8 @@ func (s *BudgetWarningService) recordForOrg(ctx context.Context, ouID string, ms
 	}
 	budgets := map[string]*gwmodels.Budget{}
 	byID := map[uuid.UUID]*gwmodels.Budget{}
-	rows := make([]gwmodels.BudgetUsage, 0, len(msg.Allowances))
-	for _, a := range msg.Allowances {
+	rows := make([]gwmodels.BudgetUsage, 0, len(msg.Usages))
+	for _, a := range msg.Usages {
 		b, ok := budgets[a.Budget]
 		if !ok {
 			b, err = s.budgets.Get(ctx, ouID, a.Budget)
@@ -318,7 +311,7 @@ func (s *BudgetWarningService) recordForOrg(ctx context.Context, ouID string, ms
 				b = nil
 			} else if err != nil {
 				log.Error("Failed to load a budget for its usage", "budget", a.Budget, "error", err)
-				result.heldAllowances = msg.Allowances
+				result.heldUsages = msg.Usages
 				return result
 			}
 			budgets[a.Budget] = b
@@ -338,7 +331,7 @@ func (s *BudgetWarningService) recordForOrg(ctx context.Context, ouID string, ms
 		rows = append(rows, usage)
 	}
 	if !s.record(ctx, byID, rows, log) {
-		result.heldAllowances = msg.Allowances
+		result.heldUsages = msg.Usages
 	}
 	return result
 }
@@ -346,15 +339,15 @@ func (s *BudgetWarningService) recordForOrg(ctx context.Context, ouID string, ms
 // usageWriteResult says which of an organization's totals were not written; the caller
 // keeps them for the next flush, since a quiet gateway may not report them again.
 type usageWriteResult struct {
-	costsFailed    bool
-	heldAllowances []GatewayAllowanceUsage
+	costsFailed bool
+	heldUsages  []GatewayUsageEntry
 }
 
-// usageRow validates one reported allowance.
-func usageRow(b *gwmodels.Budget, ouID string, a GatewayAllowanceUsage) (gwmodels.BudgetUsage, error) {
-	allowanceID, err := uuid.Parse(a.AllowanceUUID)
+// usageRow validates one reported usage.
+func usageRow(b *gwmodels.Budget, ouID string, a GatewayUsageEntry) (gwmodels.BudgetUsage, error) {
+	budgetUsageID, err := uuid.Parse(a.UsageUUID)
 	if err != nil {
-		return gwmodels.BudgetUsage{}, fmt.Errorf("allowanceUuid: %w", err)
+		return gwmodels.BudgetUsage{}, fmt.Errorf("usageUuid: %w", err)
 	}
 	periodStart, err := time.Parse(time.DateOnly, a.PeriodStart)
 	if err != nil {
@@ -365,15 +358,15 @@ func usageRow(b *gwmodels.Budget, ouID string, a GatewayAllowanceUsage) (gwmodel
 		return gwmodels.BudgetUsage{}, fmt.Errorf("spent %q or unpricedRequests %d", a.Spent, a.UnpricedRequests)
 	}
 	return gwmodels.BudgetUsage{
-		BudgetID: b.ID, AllowanceID: allowanceID, OUID: ouID,
-		Allowance: allowanceValues(a.Allowance), PeriodStart: periodStart,
+		BudgetID: b.ID, BudgetUsageID: budgetUsageID, OUID: ouID,
+		Usage: usageValues(a.Usage), PeriodStart: periodStart,
 		Spent: a.Spent, UnpricedRequests: a.UnpricedRequests,
 	}, nil
 }
 
-// allowanceValues are the values an allowance is separated by, as pages and warnings
+// usageValues are the values an usage is separated by, as pages and warnings
 // show them: an agent ("project/agent" on the gateway) is split into project and agent.
-func allowanceValues(labels map[string]string) map[string]string {
+func usageValues(labels map[string]string) map[string]string {
 	out := make(map[string]string, len(labels))
 	for k, v := range labels {
 		if k == budgetTypeAgent {
@@ -387,8 +380,8 @@ func allowanceValues(labels map[string]string) map[string]string {
 	return out
 }
 
-// record stores the allowances' totals in one transaction and records the warnings they
-// cross, raising each warning's event in that transaction.
+// record stores the usages' totals in one transaction and raises the warnings they
+// cross, each in that transaction.
 func (s *BudgetWarningService) record(ctx context.Context, budgets map[uuid.UUID]*gwmodels.Budget,
 	rows []gwmodels.BudgetUsage, log *slog.Logger,
 ) bool {
@@ -396,25 +389,25 @@ func (s *BudgetWarningService) record(ctx context.Context, budgets map[uuid.UUID
 		return true
 	}
 	publish := s.publisher()
-	var warn func(gwmodels.BudgetUsage) []gwmodels.BudgetWarning
+	var warn gwrepo.WarnFunc
 	if publish != nil {
-		warn = func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning {
-			b := budgets[stored.BudgetID]
+		warn = func(before string, after gwmodels.BudgetUsage) []notifyv1.Notification {
+			b := budgets[after.BudgetID]
 			if b == nil {
 				return nil
 			}
-			return budgetWarnings(b, stored)
+			return budgetWarnings(b, before, after)
 		}
 	}
 	if err := s.usage.Record(ctx, rows, warn, publish); err != nil {
-		log.Error("Failed to record budget usage", "allowances", len(rows), "error", err)
+		log.Error("Failed to record budget usage", "usages", len(rows), "error", err)
 		return false
 	}
 	s.dropPastPeriods(ctx, rows, log)
 	return true
 }
 
-// dropPastPeriods deletes, for each budget written, the allowances and warnings of the
+// dropPastPeriods deletes, for each budget written, the usages of the
 // periods before the latest one written, once per budget and period on this replica: a
 // period's spend no longer counts once the next one starts. A failure is tried again with
 // the budget's next write.
@@ -445,38 +438,16 @@ func (s *BudgetWarningService) dropPastPeriods(ctx context.Context, rows []gwmod
 		}
 		s.periodMu.Unlock()
 		if deleted > 0 {
-			log.Info("Deleted a budget's past periods", "budgetId", budgetID, "allowances", deleted)
+			log.Info("Deleted a budget's past periods", "budgetId", budgetID, "usages", deleted)
 		}
 	}
 }
 
-// CheckBudget raises the warnings a budget's stored spend already crosses: after an
-// edit lowers the limit or adds a threshold. Raising the limit gives new amounts, so
-// warnings re-arm.
-func (s *BudgetWarningService) CheckBudget(ctx context.Context, b *gwmodels.Budget) {
-	log := slog.With("budget", b.Name)
-	publish := s.publisher()
-	if publish == nil || b.Configuration.Warnings == nil || len(b.Configuration.Warnings.Thresholds) == 0 {
-		return
-	}
-	rows, err := s.usage.ForBudget(ctx, b.ID)
-	if err != nil {
-		log.Error("Failed to load a budget's spend", "error", err)
-		return
-	}
-	var warnings []gwmodels.BudgetWarning
-	for _, row := range rows {
-		warnings = append(warnings, budgetWarnings(b, row)...)
-	}
-	if err := s.usage.RecordWarnings(ctx, warnings, publish); err != nil {
-		log.Error("Failed to raise budget warnings", "error", err)
-	}
-}
-
-// budgetWarnings returns a warning for every threshold the stored spend has reached,
-// with its event. A warning is keyed by the budget, allowance, period and threshold amount,
-// so each is raised once.
-func budgetWarnings(b *gwmodels.Budget, row gwmodels.BudgetUsage) []gwmodels.BudgetWarning {
+// budgetWarnings returns a warning for every threshold a write crossed: its amount is
+// above the total the usage held before the write and at or below the total after
+// it. A threshold amount is crossed once per usage and period, as the total only
+// rises; raising the limit gives new amounts, and an edit warns nothing by itself.
+func budgetWarnings(b *gwmodels.Budget, before string, row gwmodels.BudgetUsage) []notifyv1.Notification {
 	w := b.Configuration.Warnings
 	if w == nil || b.Configuration.Status != budgetStatusActive {
 		return nil
@@ -489,17 +460,17 @@ func budgetWarnings(b *gwmodels.Budget, row gwmodels.BudgetUsage) []gwmodels.Bud
 	if !ok {
 		return nil
 	}
-	var out []gwmodels.BudgetWarning
+	was, ok := new(big.Rat).SetString(before)
+	if !ok {
+		was = new(big.Rat)
+	}
+	var out []notifyv1.Notification
 	for _, t := range w.Thresholds {
 		at := new(big.Rat).Mul(amount, big.NewRat(int64(t), 100))
-		if spent.Cmp(at) < 0 {
+		if was.Cmp(at) >= 0 || spent.Cmp(at) < 0 {
 			continue
 		}
-		out = append(out, gwmodels.BudgetWarning{
-			BudgetID: b.ID, AllowanceID: row.AllowanceID, PeriodStart: row.PeriodStart.UTC(),
-			Amount: at.FloatString(2), OUID: b.OrgID, Threshold: int(t),
-			Notice: warningNotice(b, row, int(t), at, spent),
-		})
+		out = append(out, warningNotice(b, row, int(t), at, spent))
 	}
 	return out
 }
@@ -508,17 +479,17 @@ func budgetWarnings(b *gwmodels.Budget, row gwmodels.BudgetUsage) []gwmodels.Bud
 const BudgetWarningEvent = "ai-gateway.budget.threshold_crossed"
 
 // warningNotice is the warning of one threshold crossed, for the budget's channels.
-// Its ID is the budget, period, allowance and threshold amount, so each reaches a
+// Its ID is the budget, period, usage and threshold amount, so each reaches a
 // channel once.
 func warningNotice(b *gwmodels.Budget, row gwmodels.BudgetUsage, threshold int, at, spent *big.Rat) notifyv1.Notification {
 	period := row.PeriodStart.UTC()
-	project := row.Allowance[budgetTypeProject]
+	project := row.Usage[budgetTypeProject]
 	if project == "" {
 		project = budgetProject(&b.Configuration)
 	}
 	agent := ""
 	if project != "" {
-		agent = row.Allowance[budgetTypeAgent]
+		agent = row.Usage[budgetTypeAgent]
 	}
 	limit := b.Configuration.Limit
 	resets := periodEnd(limit.Period, period)
@@ -532,26 +503,52 @@ func warningNotice(b *gwmodels.Budget, row gwmodels.BudgetUsage, threshold int, 
 	}
 	return notifyv1.Notification{
 		OrgID: b.OrgID, OrgName: b.OrgName, Channels: channels, Type: BudgetWarningEvent,
-		ID:      fmt.Sprintf("budget:%s:%s:%s:%s", b.ID, period.Format(time.DateOnly), row.AllowanceID, at.FloatString(2)),
+		ID:      fmt.Sprintf("budget:%s:%s:%s:%s", b.ID, period.Format(time.DateOnly), row.BudgetUsageID, at.FloatString(2)),
 		Project: project, Agent: agent, Subject: b.Name,
 		Data: map[string]any{
 			"budget":      b.Name,
 			"displayName": displayName,
-			"allowance":   row.Allowance,
+			"usage":       row.Usage,
 			"limit":       limit.Amount,
 			"action":      limit.Action,
 			"threshold":   threshold,
 			"spent":       spent.FloatString(2),
 			"resetsAt":    resets.Format(time.RFC3339),
-			"message": fmt.Sprintf("%s at %d%% ($%s of $%s), resets %s", allowanceLabel(row.Allowance), threshold,
-				spent.FloatString(2), amountString(limit.Amount), resets.Format("2 Jan")),
+			"message":     warningMessage(displayName, row.Usage, threshold, spent, limit, resets),
 		},
 	}
 }
 
-// allowanceLabel names an allowance in a warning: its values, or "Spend" when the
+// warningMessage is the warning as people read it, one labelled fact per line: the
+// budget, how far the threshold is, the spend against the limit, who it is for (unless
+// the limit is shared), when it resets and what happens at the limit.
+func warningMessage(name string, usage map[string]string, threshold int, spent *big.Rat,
+	limit gwmodels.BudgetLimit, resets time.Time,
+) string {
+	period := map[string]string{"day": "daily", "week": "weekly", "month": "monthly"}[limit.Period]
+	lines := []string{
+		"Budget: " + name,
+		fmt.Sprintf("Reached: %d%% of the %s limit", threshold, period),
+		fmt.Sprintf("Spent: $%s of $%s", spent.FloatString(2), amountString(limit.Amount)),
+	}
+	if len(usage) > 0 {
+		lines = append(lines, "For: "+usageLabel(usage))
+	}
+	lines = append(lines, "Resets: "+resets.Format("2 Jan")+" (UTC)")
+	switch {
+	case limit.Action != budgetActionBlock:
+		lines = append(lines, "At the limit: alerts only, requests continue")
+	case limit.BlockAt != nil && *limit.BlockAt < 100:
+		lines = append(lines, fmt.Sprintf("At the limit: requests are blocked at %d%%", *limit.BlockAt))
+	default:
+		lines = append(lines, "At the limit: requests are blocked")
+	}
+	return strings.Join(lines, "\n")
+}
+
+// usageLabel names an usage in a warning: its values, or "Spend" when the
 // budget is shared.
-func allowanceLabel(values map[string]string) string {
+func usageLabel(values map[string]string) string {
 	if len(values) == 0 {
 		return "Spend"
 	}

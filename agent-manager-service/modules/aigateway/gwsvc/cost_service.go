@@ -43,9 +43,6 @@ import (
 // costMonths is how many months are kept and shown; the current one counts as one.
 const costMonths = 3
 
-// costCurrency is the currency of every cost; prices are in USD.
-const costCurrency = "USD"
-
 // Cost group and filter types.
 const (
 	costByOrganization = "organization"
@@ -342,7 +339,7 @@ func (s *costService) Costs(ctx context.Context, ouID, orgName, groupBy string, 
 		entry.Project = g.project
 		out = append(out, *entry)
 	}
-	return gwspec.NewCostReport(costCurrency, out), nil
+	return gwspec.NewCostReport(out), nil
 }
 
 // costMatches reports whether a row passes every filter.

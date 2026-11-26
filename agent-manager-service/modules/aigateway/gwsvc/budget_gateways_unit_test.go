@@ -84,7 +84,7 @@ func newBudgetGatewaysEnv(t *testing.T) (*BudgetGateways, *recordingEventHub, *[
 func budgetConfigForTest(displayName string) gwmodels.BudgetConfig {
 	return gwmodels.BudgetConfig{
 		DisplayName: displayName, Status: "active",
-		Limit:      gwmodels.BudgetLimit{Amount: "5000", Currency: "USD", Period: "month", Action: "block", BlockAt: budgetI32(100)},
+		Limit:      gwmodels.BudgetLimit{Amount: "5000", Period: "month", Action: "block", BlockAt: budgetI32(100)},
 		Filters:    []gwmodels.BudgetFilter{{Type: "attribute", Expression: strPtr(budgetGroupExpr)}},
 		Exemptions: []gwmodels.BudgetExemption{},
 		Warnings:   &gwmodels.BudgetWarnings{Thresholds: []int32{80}, Channels: []string{"finance-email"}},

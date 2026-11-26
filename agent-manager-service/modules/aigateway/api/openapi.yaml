@@ -6739,12 +6739,6 @@ paths:
           schema:
             type: string
           description: Organization name
-        - name: project
-          in: query
-          required: false
-          description: Only the budgets this project owns; omitted, every budget in the organization.
-          schema:
-            type: string
         - name: filter
           in: query
           required: false
@@ -6909,20 +6903,22 @@ paths:
         row is checked and nothing is saved. Needs costs.write, also with onExisting=update.
 
         Columns (name, amount, period and action required):
-        name,projectId,displayName,description,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels,labels
+        name,displayName,description,amount,period,action,blockAt,splitBy,splitByExpression,llmProvider,project,agent,apiKey,attributes,exemptions,thresholds,channels,labels
 
         - splitBy: llmProvider, project, agent, apiKey or attribute; blank is one shared
           limit. splitByExpression: the attribute's CEL expression.
         - llmProvider, project, apiKey: a filter's id. agent: <project>/<agent>. '*' in
           project, agent or apiKey is the filter without an id (any project, agent or API key).
+          Each of these columns takes several values separated by ';': the budget counts any of
+          them (OR), e.g. project `api-platform;billing`. '*' cannot be listed with other values.
         - attributes: JSON array of CEL expressions (strings), each an attribute filter.
         - exemptions: JSON array of exemptions. thresholds and channels: ';' lists.
         - labels: one-word labels, a ';' list (metadata.labels).
 
         Example rows:
 
-        org-monthly-ceiling,,Organization monthly ceiling,All LLM spend,5000.00,month,block,95,,,,,,,,,80;100,finance-webhook,finance
-        online-shop-each-agent,online-shop,Each Online Shop agent,,50.00,week,block,,agent,,mock-openai,online-shop,,,,,100,finance-webhook,shop;agents
+        org-monthly-ceiling,Organization monthly ceiling,All LLM spend,5000.00,month,block,95,,,,,,,,,80;100,finance-webhook,finance
+        online-shop-each-agent,Each Online Shop agent,,50.00,week,block,,agent,,mock-openai,online-shop,,,,,100,finance-webhook,shop;agents
       operationId: importBudgets
       tags:
         - Budgets
@@ -7047,8 +7043,8 @@ paths:
       summary: Update a budget
       description: |
         Replaces the budget with the Budget kind sent (JSON or YAML); also disables and enables it
-        (spec.status). metadata.name must be the path's budget. The project annotation, currency,
-        period, limit.splitBy and filters are fixed after creation and must be sent unchanged
+        (spec.status). metadata.name must be the path's budget. The period, limit.splitBy and
+        filters are fixed after creation and must be sent unchanged
         (VALIDATION_ERROR otherwise): create a new budget instead. A budget created on a gateway
         takes only displayName, description and warnings, which gateways never get; its status,
         limit and exemptions must be sent unchanged (BUDGET_READ_ONLY otherwise).
@@ -7175,8 +7171,8 @@ paths:
     get:
       summary: Budget usage
       description: >-
-        Each allowance's spend in the budget's current period, highest spend first. An
-        allowance whose last report was in an earlier period has spent nothing this period.
+        Each usage's spend in the budget's current period, highest spend first. An
+        usage whose last report was in an earlier period has spent nothing this period.
       operationId: listBudgetUsage
       tags:
         - Budgets
@@ -7313,6 +7309,91 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /orgs/{orgName}/pricing:
+    get:
+      summary: Model prices
+      description: >-
+        The model prices the gateways use, USD per 1M tokens, read-only. One catalog shared by
+        every organization: gateways send their price file after they connect, and a model
+        already stored is kept as it is. Needs costs.read.
+      operationId: getModelPrices
+      tags:
+        - Costs
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization name
+        - name: search
+          in: query
+          required: false
+          description: Part of the model name, any case
+          schema:
+            type: string
+            maxLength: 255
+        - name: provider
+          in: query
+          required: false
+          description: Only this provider's models
+          schema:
+            type: string
+            maxLength: 64
+        - name: sort
+          in: query
+          required: false
+          description: The order of the catalog. By model name by default; "provider" lists providers A to Z, models without a provider last, then by model name.
+          schema:
+            type: string
+            enum: [model, provider]
+            default: model
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: A page of the catalog, by model name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelPriceList"
+        "400":
+          description: Invalid limit or offset (VALIDATION_ERROR)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   securitySchemes:
     bearerAuth:
@@ -7378,7 +7459,7 @@ components:
           format: date
         spent:
           type: string
-          description: Total across the budget's allowances
+          description: Total across the budget's usages
           example: "312.40"
         unpricedRequests:
           type: integer
@@ -7396,10 +7477,8 @@ components:
           description: >-
             gateway.api-platform.wso2.com/org-id is the handle of the organization that owns the budget:
             it must be the organization in the path, and is added when left out, so every returned budget
-            has it. gateway.api-platform.wso2.com/project-id is the handle of the project that owns the
-            budget; without it, the organization owns it. A project budget counts only that project: when no
-            project filter is listed, {type: project, id} is added as the last filter, as on gateways;
-            its limit.splitBy cannot be project. Cannot change. Other annotations are ignored.
+            has it. A budget belongs to the organization: gateway.api-platform.wso2.com/project-id is refused
+            (VALIDATION_ERROR); to limit a project, list a project filter. Other annotations are ignored.
           additionalProperties:
             type: string
         labels:
@@ -7437,8 +7516,12 @@ components:
           type: array
           maxItems: 20
           description: >-
-            Which LLM usage the budget counts; all must match (AND). Omitted or empty: all LLM
-            usage. Each type except attribute at most once. Fixed after creation.
+            Which LLM usage the budget counts. Filters of different types must all match (AND);
+            filters of the same type are alternatives (OR): list the type again for each value, e.g. two
+            project filters count either project. An llmProvider, project, agent or apiKey filter
+            without an id (any value) is its type's only filter, and no entry is listed twice. attribute
+            filters all must match (write an OR inside the expression). Omitted or empty: all LLM usage.
+            At most 20 entries in all. Fixed after creation.
           items:
             $ref: "#/components/schemas/BudgetFilter"
         exemptions:
@@ -7508,15 +7591,61 @@ components:
           description: The 3 kept months, oldest first; the last is the current month so far
           items:
             $ref: "#/components/schemas/MonthlyCost"
+    ModelPriceList:
+      type: object
+      description: A page of the model price catalog
+      required: [providers, total, limit, offset, models]
+      properties:
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the newest model was added; null with no prices
+        providers:
+          type: array
+          description: Every provider in the catalog, sorted
+          items:
+            type: string
+        total:
+          type: integer
+          description: Models matching the search and provider
+        limit:
+          type: integer
+        offset:
+          type: integer
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelPrice"
+    ModelPrice:
+      type: object
+      description: One model's price. Prices are USD per 1M tokens as exact decimal strings; null where the price file had none.
+      required: [model]
+      properties:
+        model:
+          type: string
+          example: gpt-4o
+        provider:
+          type: string
+          nullable: true
+          example: openai
+        inputPer1M:
+          type: string
+          nullable: true
+          example: "2.50"
+        outputPer1M:
+          type: string
+          nullable: true
+          example: "10.00"
+        cachedInputPer1M:
+          type: string
+          nullable: true
+          example: "1.25"
     CostReport:
       type: object
-      description: Costs per month for each value of the requested groupBy
-      required: [currency, costByGroup]
+      description: Costs in USD per month for each value of the requested groupBy
+      required: [costByGroup]
       properties:
-        currency:
-          type: string
-          description: Currency of every amount
-          example: USD
         costByGroup:
           type: array
           description: One entry per value of groupBy, highest cost first
@@ -7565,10 +7694,10 @@ components:
       properties:
         type:
           type: string
-          enum: [project, agent, attribute]
+          enum: [llmProvider, project, agent, apiKey, attribute]
         id:
           type: string
-          description: Project or agent handle
+          description: LLM provider, project or agent handle, or API key name
         project:
           type: string
           description: The agent's project; agent only
@@ -7653,16 +7782,16 @@ components:
           maxLength: 1024
     BudgetUsageListResponse:
       type: object
-      description: A page of a budget's usage, one row per allowance, in the current period
-      required: [periodStart, allowances, total, limit, offset]
+      description: A page of a budget's usage, one row per usage, in the current period
+      required: [periodStart, usages, total, limit, offset]
       properties:
         periodStart:
           type: string
           format: date
-        allowances:
+        usages:
           type: array
           items:
-            $ref: "#/components/schemas/BudgetAllowanceUsage"
+            $ref: "#/components/schemas/BudgetUsageEntry"
         total:
           type: integer
         limit:
@@ -7711,7 +7840,6 @@ components:
           name: api-platform-per-agent-openai
           annotations:
             gateway.api-platform.wso2.com/org-id: wso2
-            gateway.api-platform.wso2.com/project-id: api-platform
         spec:
           displayName: API Platform, per agent on OpenAI
           limit:
@@ -7735,12 +7863,8 @@ components:
         amount:
           type: string
           pattern: '^([1-9][0-9]{0,11}(\.[0-9]{1,2})?|0\.([1-9][0-9]?|0[1-9]))$'
-          description: Above zero; at most 12 whole digits and 2 decimals, no leading zeros; never rounded
+          description: In USD; above zero; at most 12 whole digits and 2 decimals, no leading zeros; never rounded
           example: "100.00"
-        currency:
-          type: string
-          enum: [USD]
-          default: USD
         period:
           type: string
           enum: [day, week, month]
@@ -7757,12 +7881,12 @@ components:
           description: "Block only: refuses once spend reaches this share of the amount"
         splitBy:
           $ref: "#/components/schemas/BudgetSplit"
-    BudgetAllowanceUsage:
+    BudgetUsageEntry:
       type: object
-      description: One allowance's spend this period
-      required: [allowance, spent, unpricedRequests]
+      description: One usage's spend this period
+      required: [usage, spent, unpricedRequests]
       properties:
-        allowance:
+        usage:
           type: object
           description: The allocated values, e.g. {"project":"api-platform","agent":"support-agent"}; empty when shared
           additionalProperties:
@@ -7785,7 +7909,7 @@ components:
           type: array
           minItems: 1
           maxItems: 10
-          description: Whole percentages of the amount, 1-1000; each once per allowance per period
+          description: Whole percentages of the amount, 1-1000; each once per usage per period
           items:
             type: integer
             minimum: 1

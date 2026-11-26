@@ -142,6 +142,7 @@ var gatewayInternalRoutes = []string{
 	"GET /applications",
 	"POST /gateways/{gatewayId}/manifest",
 	"POST /gateways/{gatewayId}/resources",
+	"POST /gateways/{gatewayId}/pricing",
 	"GET /llm-providers/{providerId}",
 	"GET /llm-proxies/{proxyId}",
 	"GET /mcp-proxies/{proxyId}",

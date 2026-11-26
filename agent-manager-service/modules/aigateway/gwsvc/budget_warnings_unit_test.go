@@ -34,30 +34,21 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 )
-
-// recordingNotifier keeps the warnings sent, as notifications/v1 would queue them.
-type recordingNotifier struct{ sent *[]notifyv1.Notification }
-
-func (n recordingNotifier) Notify(_ context.Context, _ *gorm.DB, in notifyv1.Notification) error {
-	*n.sent = append(*n.sent, in)
-	return nil
-}
-
-func (recordingNotifier) Unusable(context.Context, string, string, []string) ([]notifyv1.Unusable, error) {
-	return nil, nil
-}
 
 // warningsEnv is a BudgetWarningService over mocks: one budget "per-agent" in project
 // api-platform ($100 a month, warnings at 80 and 100, two channels), a usage store that
-// keeps rows and warnings, and a publisher that records the events raised.
+// keeps the higher total per usage and period as the repository does, and a
+// publisher that records the events raised.
 type warningsEnv struct {
 	svc       *BudgetWarningService
 	budget    *gwmodels.Budget
 	rows      map[uuid.UUID]gwmodels.BudgetUsage
-	warned    []gwmodels.BudgetWarning
 	published []notifyv1.Notification
 	usage     *gwrepomocks.BudgetUsageRepositoryMock
+	// publishErr, when set, fails the publisher: the write is then not stored.
+	publishErr error
 }
 
 func newWarningsEnv(t *testing.T) *warningsEnv {
@@ -70,7 +61,7 @@ func newWarningsEnv(t *testing.T) *warningsEnv {
 		Configuration: gwmodels.BudgetConfig{
 			DisplayName: "API Platform, per agent", Status: budgetStatusActive,
 			Limit: gwmodels.BudgetLimit{
-				Amount: "100.00", Currency: "USD", Period: "month", Action: "block", SplitBy: &gwmodels.BudgetSplit{Type: budgetTypeAgent},
+				Amount: "100.00", Period: "month", Action: "block", SplitBy: &gwmodels.BudgetSplit{Type: budgetTypeAgent},
 			},
 			Filters: []gwmodels.BudgetFilter{
 				{Type: budgetTypeProject, ID: &project},
@@ -86,38 +77,35 @@ func newWarningsEnv(t *testing.T) *warningsEnv {
 			return nil, gwerr.ErrBudgetNotFound
 		},
 	}
-	// record keeps warnings as the repository does: each key once, published when new.
-	record := func(ctx context.Context, warnings []gwmodels.BudgetWarning, publish gwrepo.WarningPublisher) error {
-		for _, w := range warnings {
-			seen := false
-			for _, old := range env.warned {
-				seen = seen || (old.BudgetID == w.BudgetID && old.AllowanceID == w.AllowanceID &&
-					old.PeriodStart.Equal(w.PeriodStart) && old.Amount == w.Amount)
-			}
-			if seen {
-				continue
-			}
-			env.warned = append(env.warned, w)
-			if publish != nil {
-				if err := publish(ctx, nil, w); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
 	usage := &gwrepomocks.BudgetUsageRepositoryMock{
-		RecordFunc: func(ctx context.Context, rows []gwmodels.BudgetUsage, warn func(gwmodels.BudgetUsage) []gwmodels.BudgetWarning,
-			publish gwrepo.WarningPublisher,
-		) error {
+		// Record keeps what the repository does: a row only rises, a write that changed
+		// one hands warn the total it held before (0 for a new row), and a failed publish
+		// stores nothing.
+		RecordFunc: func(ctx context.Context, rows []gwmodels.BudgetUsage, warn gwrepo.WarnFunc, publish gwrepo.WarningPublisher) error {
+			stored := map[uuid.UUID]gwmodels.BudgetUsage{}
+			for k, v := range env.rows {
+				stored[k] = v
+			}
 			for _, u := range rows {
-				env.rows[u.AllowanceID] = u
-				if warn != nil {
-					if err := record(ctx, warn(u), publish); err != nil {
+				before, had := stored[u.BudgetUsageID]
+				was := "0"
+				if had && before.PeriodStart.Equal(u.PeriodStart) {
+					was = before.Spent
+					if !gwutil.DecimalGreater(u.Spent, was) {
+						continue
+					}
+				}
+				stored[u.BudgetUsageID] = u
+				if warn == nil || publish == nil {
+					continue
+				}
+				for _, n := range warn(was, u) {
+					if err := publish(ctx, nil, n); err != nil {
 						return err
 					}
 				}
 			}
+			env.rows = stored
 			return nil
 		},
 		ForBudgetFunc: func(context.Context, uuid.UUID) ([]gwmodels.BudgetUsage, error) {
@@ -127,7 +115,6 @@ func newWarningsEnv(t *testing.T) *warningsEnv {
 			}
 			return out, nil
 		},
-		RecordWarningsFunc: record,
 		DeletePeriodsBeforeFunc: func(context.Context, uuid.UUID, time.Time) (int64, error) {
 			return 0, nil
 		},
@@ -136,21 +123,36 @@ func newWarningsEnv(t *testing.T) *warningsEnv {
 		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return &gwmodels.Gateway{OUID: budgetTestOrg}, nil },
 	}
 	env.usage = usage
-	env.svc = NewBudgetWarningService(budgets, usage, gateways, nil, recordingNotifier{sent: &env.published}, gwconfig.Settings{})
+	env.svc = NewBudgetWarningService(budgets, usage, gateways, nil, &failingNotifier{env: env}, gwconfig.Settings{})
 	return env
 }
 
-func usagePayload(t *testing.T, allowances ...GatewayAllowanceUsage) json.RawMessage {
+// failingNotifier records the warnings sent, and fails while env.publishErr is set.
+type failingNotifier struct{ env *warningsEnv }
+
+func (n *failingNotifier) Notify(_ context.Context, _ *gorm.DB, in notifyv1.Notification) error {
+	if n.env.publishErr != nil {
+		return n.env.publishErr
+	}
+	n.env.published = append(n.env.published, in)
+	return nil
+}
+
+func (*failingNotifier) Unusable(context.Context, string, string, []string) ([]notifyv1.Unusable, error) {
+	return nil, nil
+}
+
+func usagePayload(t *testing.T, usages ...GatewayUsageEntry) json.RawMessage {
 	t.Helper()
-	data, err := json.Marshal(GatewayUsageMessage{Allowances: allowances})
+	data, err := json.Marshal(GatewayUsageMessage{Usages: usages})
 	require.NoError(t, err)
 	return data
 }
 
-func supportAgentUsage(spent string) GatewayAllowanceUsage {
-	return GatewayAllowanceUsage{
-		Budget: "per-agent", PeriodStart: "2026-11-01", AllowanceUUID: "5d6e2c1a-8f3b-5c47-a1d9-7e2b4c6f0a83",
-		Allowance: map[string]string{"agent": "api-platform/support-agent"}, Spent: spent, UnpricedRequests: 3,
+func supportAgentUsage(spent string) GatewayUsageEntry {
+	return GatewayUsageEntry{
+		Budget: "per-agent", PeriodStart: "2026-11-01", UsageUUID: "5d6e2c1a-8f3b-5c47-a1d9-7e2b4c6f0a83",
+		Usage: map[string]string{"agent": "api-platform/support-agent"}, Spent: spent, UnpricedRequests: 3,
 	}
 }
 
@@ -159,16 +161,12 @@ func TestBudgetWarnings_ACrossedThresholdRaisesOneEvent(t *testing.T) {
 	env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, supportAgentUsage("80.14")))
 
 	row := env.rows[uuid.MustParse("5d6e2c1a-8f3b-5c47-a1d9-7e2b4c6f0a83")]
-	assert.Equal(t, map[string]string{"project": "api-platform", "agent": "support-agent"}, row.Allowance,
+	assert.Equal(t, map[string]string{"project": "api-platform", "agent": "support-agent"}, row.Usage,
 		"an agent is stored as project and agent")
 	assert.Equal(t, "80.14", row.Spent)
 	assert.True(t, row.PeriodStart.Equal(time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)))
 
 	require.Len(t, env.published, 1, "80% crossed, 100% not")
-	w := env.warned[0]
-	assert.Equal(t, env.budget.ID, w.BudgetID)
-	assert.Equal(t, "80.00", w.Amount)
-	assert.Equal(t, 80, w.Threshold)
 	e := env.published[0]
 	assert.Equal(t, BudgetWarningEvent, e.Type)
 	assert.Equal(t, budgetTestOrg, e.OrgID)
@@ -178,13 +176,15 @@ func TestBudgetWarnings_ACrossedThresholdRaisesOneEvent(t *testing.T) {
 	assert.Equal(t, "support-agent", e.Agent)
 	assert.Equal(t, "per-agent", e.Subject)
 	assert.Equal(t, "budget:"+env.budget.ID.String()+":2026-11-01:5d6e2c1a-8f3b-5c47-a1d9-7e2b4c6f0a83:80.00", e.ID,
-		"the ID is the budget, period, allowance and threshold amount")
+		"the ID is the budget, period, usage and threshold amount")
 	assert.Equal(t, "per-agent", e.Data["budget"])
 	assert.Equal(t, "API Platform, per agent", e.Data["displayName"])
 	assert.Equal(t, "80.14", e.Data["spent"])
 	assert.EqualValues(t, 80, e.Data["threshold"])
 	assert.Equal(t, "2026-12-01T00:00:00Z", e.Data["resetsAt"])
-	assert.Equal(t, "support-agent at 80% ($80.14 of $100.00), resets 1 Dec", e.Data["message"])
+	assert.Equal(t, "Budget: API Platform, per agent\nReached: 80% of the monthly limit\n"+
+		"Spent: $80.14 of $100.00\nFor: support-agent\nResets: 1 Dec (UTC)\nAt the limit: requests are blocked",
+		e.Data["message"])
 
 	// The same total again, or a higher one below 100%, raises nothing new.
 	env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, supportAgentUsage("85")))
@@ -197,8 +197,6 @@ func TestBudgetWarnings_NoPublisherRecordsSpendWithoutWarnings(t *testing.T) {
 	env.svc.notifier = nil
 	env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, supportAgentUsage("99")))
 	assert.Len(t, env.rows, 1, "spend is recorded")
-	assert.Empty(t, env.warned)
-	env.svc.CheckBudget(context.Background(), env.budget)
 	assert.Empty(t, env.published)
 }
 
@@ -208,7 +206,7 @@ func TestBudgetWarnings_SkipsUnknownBudgetsAndInvalidTotals(t *testing.T) {
 	unknown := supportAgentUsage("500")
 	unknown.Budget = "gone"
 	noUUID := supportAgentUsage("500")
-	noUUID.AllowanceUUID = "x"
+	noUUID.UsageUUID = "x"
 	env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, bad, unknown, noUUID))
 	assert.Empty(t, env.rows)
 	assert.Empty(t, env.published)
@@ -222,48 +220,105 @@ func TestBudgetWarnings_NoWarningsWithoutThresholdsOrWhenDisabled(t *testing.T) 
 	assert.Empty(t, env.published)
 }
 
-func TestBudgetWarnings_AnEditCrossingStoredSpendWarns(t *testing.T) {
+// An edit warns nothing by itself: a lowered limit does not warn for spend already past
+// the new threshold, and raising it gives new amounts, which warn as the spend crosses them.
+func TestBudgetWarnings_AnEditWarnsNothingAndNewAmountsWarnAgain(t *testing.T) {
 	env := newWarningsEnv(t)
-	env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, supportAgentUsage("60")))
+	handle := func(spent string) {
+		env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, supportAgentUsage(spent)))
+	}
+	handle("60")
 	assert.Empty(t, env.published)
 
 	env.budget.Configuration.Limit.Amount = "70.00"
-	env.svc.CheckBudget(context.Background(), env.budget)
-	require.Len(t, env.published, 1, "60 is past 80% of the lowered $70 limit")
-	assert.Equal(t, "56.00", env.warned[0].Amount, "the warning is keyed by the new threshold amount, so it re-arms")
-	env.svc.CheckBudget(context.Background(), env.budget)
-	assert.Len(t, env.published, 1, "a warning is raised once")
+	handle("61")
+	assert.Empty(t, env.published, "60 was already past 80% of the lowered $70 limit: nothing crosses it")
+
+	handle("70")
+	require.Len(t, env.published, 1, "100% of $70 is crossed by the next write")
+	assert.EqualValues(t, 100, env.published[0].Data["threshold"])
+
+	env.budget.Configuration.Limit.Amount = "200.00"
+	handle("150")
+	handle("160")
+	require.Len(t, env.published, 2, "the raised limit has new amounts: 80% of $200 is $160")
+	assert.EqualValues(t, 80, env.published[1].Data["threshold"])
+	assert.Contains(t, env.published[1].ID, ":160.00")
+}
+
+// A threshold is crossed by the write that takes the total from below it to or past it,
+// and by no other.
+func TestBudgetWarnings_ACrossingWarnsOnceWhateverFollows(t *testing.T) {
+	handle := func(env *warningsEnv, period, spent string) {
+		u := supportAgentUsage(spent)
+		u.PeriodStart = period
+		env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, u))
+	}
+
+	t.Run("exactly reaching a threshold crosses it", func(t *testing.T) {
+		env := newWarningsEnv(t)
+		handle(env, "2026-11-01", "79.99")
+		assert.Empty(t, env.published)
+		handle(env, "2026-11-01", "80.00")
+		require.Len(t, env.published, 1)
+		assert.EqualValues(t, 80, env.published[0].Data["threshold"])
+	})
+
+	t.Run("a later write above a crossed threshold does not warn again", func(t *testing.T) {
+		env := newWarningsEnv(t)
+		handle(env, "2026-11-01", "85")
+		handle(env, "2026-11-01", "90")
+		handle(env, "2026-11-01", "90")
+		handle(env, "2026-11-01", "84")
+		assert.Len(t, env.published, 1)
+	})
+
+	t.Run("one write crossing several thresholds warns for each, once", func(t *testing.T) {
+		env := newWarningsEnv(t)
+		handle(env, "2026-11-01", "120")
+		require.Len(t, env.published, 2)
+		got := []any{env.published[0].Data["threshold"], env.published[1].Data["threshold"]}
+		assert.ElementsMatch(t, []any{80, 100}, got)
+		handle(env, "2026-11-01", "130")
+		assert.Len(t, env.published, 2)
+	})
+
+	t.Run("a new period starts again", func(t *testing.T) {
+		env := newWarningsEnv(t)
+		handle(env, "2026-11-01", "85")
+		handle(env, "2026-12-01", "10")
+		assert.Len(t, env.published, 1)
+		handle(env, "2026-12-01", "85")
+		require.Len(t, env.published, 2, "the same threshold warns again in the next period")
+		assert.Contains(t, env.published[1].ID, ":2026-12-01:")
+	})
+
+	t.Run("a failed publish stores nothing, so the next flush crosses it again", func(t *testing.T) {
+		env := newWarningsEnv(t)
+		env.svc.flush = time.Hour
+		ctx := context.Background()
+		require.NoError(t, env.svc.Start(ctx))
+		defer func() { require.NoError(t, env.svc.Stop()) }()
+		env.publishErr = errors.New("queue unavailable")
+		env.svc.HandleUsage(ctx, "gw-1", usagePayload(t, supportAgentUsage("85")))
+		env.svc.writePending(ctx)
+		assert.Empty(t, env.rows, "the spend was not stored")
+		assert.Empty(t, env.published)
+
+		env.publishErr = nil
+		env.svc.writePending(ctx)
+		require.Len(t, env.published, 1, "the held total crosses 80% on the next flush")
+		assert.Equal(t, "85", env.rows[uuid.MustParse("5d6e2c1a-8f3b-5c47-a1d9-7e2b4c6f0a83")].Spent)
+	})
 }
 
 func TestBudgetWarnings_LabelsAndPeriods(t *testing.T) {
-	assert.Equal(t, "Spend", allowanceLabel(nil))
-	assert.Equal(t, "alice@wso2.com, openai", allowanceLabel(map[string]string{"attribute": "alice@wso2.com", "llmProvider": "openai"}))
+	assert.Equal(t, "Spend", usageLabel(nil))
+	assert.Equal(t, "alice@wso2.com, openai", usageLabel(map[string]string{"attribute": "alice@wso2.com", "llmProvider": "openai"}))
 	start := time.Date(2026, 11, 30, 0, 0, 0, 0, time.UTC)
 	assert.Equal(t, start.AddDate(0, 0, 1), periodEnd("day", start))
 	assert.Equal(t, start.AddDate(0, 0, 7), periodEnd("week", start))
 	assert.Equal(t, time.Date(2026, 12, 30, 0, 0, 0, 0, time.UTC), periodEnd("month", start))
-}
-
-// recordingWarner records the budgets an edit checks.
-type recordingWarner struct{ checked []string }
-
-func (w *recordingWarner) CheckBudget(_ context.Context, b *gwmodels.Budget) {
-	w.checked = append(w.checked, b.Name)
-}
-
-func TestBudgetService_UpdateChecksWarnings(t *testing.T) {
-	env := newBudgetTestEnv(t)
-	resp, err := env.create(context.Background(), budgetTestOrg, "alice", budgetTestRequest())
-	require.NoError(t, err)
-	warner := &recordingWarner{}
-	env.svc.(*budgetService).warner = warner
-
-	_, err = env.update(context.Background(), budgetTestOrg, resp.Metadata.Name, budgetUpdateRequest{
-		DisplayName: resp.Spec.DisplayName, Status: strPtr("active"),
-		Limit: budgetUpdateLimit{Amount: "50.00", Action: "block"},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, []string{resp.Metadata.Name}, warner.checked)
 }
 
 // usageRecorder records the usage messages the gateway message handler passes on.
@@ -279,9 +334,9 @@ func (u *usageRecorder) HandleUsage(_ context.Context, gatewayID string, payload
 func TestGatewayMessages_UsageGoesToTheWarningService(t *testing.T) {
 	usage := &usageRecorder{}
 	h := NewDeploymentAckHandler(nil, nil, usage)
-	assert.True(t, h.HandleMessage("gw-1", []byte(`{"type":"budget.usage","payload":{"allowances":[]}}`)))
+	assert.True(t, h.HandleMessage("gw-1", []byte(`{"type":"budget.usage","payload":{"usages":[]}}`)))
 	assert.Equal(t, "gw-1", usage.gateway)
-	assert.JSONEq(t, `{"allowances":[]}`, string(usage.payload))
+	assert.JSONEq(t, `{"usages":[]}`, string(usage.payload))
 	assert.False(t, NewDeploymentAckHandler(nil, nil, nil).HandleMessage("gw-1", []byte(`{"type":"budget.usage","payload":{}}`)),
 		"without budgets the message is not handled")
 }
@@ -298,7 +353,7 @@ func (r *recordedCosts) RecordCosts(_ context.Context, ouID string, costs []Gate
 }
 
 // A usage message's costs (AI cost stats) are recorded for the gateway's organization,
-// whether or not it carries allowances, and even when its budget is unknown.
+// whether or not it carries usages, and even when its budget is unknown.
 func TestBudgetWarnings_UsageCostsAreRecorded(t *testing.T) {
 	env := newWarningsEnv(t)
 	recorder := &recordedCosts{}
@@ -309,7 +364,7 @@ func TestBudgetWarnings_UsageCostsAreRecorded(t *testing.T) {
 	}
 	unknown := supportAgentUsage("1")
 	unknown.Budget = "gone"
-	data, err := json.Marshal(GatewayUsageMessage{Allowances: []GatewayAllowanceUsage{unknown}, Costs: []GatewayCostUsage{cost}})
+	data, err := json.Marshal(GatewayUsageMessage{Usages: []GatewayUsageEntry{unknown}, Costs: []GatewayCostUsage{cost}})
 	require.NoError(t, err)
 
 	env.svc.HandleUsage(context.Background(), "gw-1", data)
@@ -322,8 +377,8 @@ func TestBudgetWarnings_UsageCostsAreRecorded(t *testing.T) {
 func TestBudgetWarnings_OneMessageIsOneWrite(t *testing.T) {
 	env := newWarningsEnv(t)
 	other := supportAgentUsage("10")
-	other.AllowanceUUID = "6e7f3d2b-9a4c-5d58-b2ea-8f3c5d7a1b94"
-	other.Allowance = map[string]string{"agent": "api-platform/billing-agent"}
+	other.UsageUUID = "6e7f3d2b-9a4c-5d58-b2ea-8f3c5d7a1b94"
+	other.Usage = map[string]string{"agent": "api-platform/billing-agent"}
 	env.svc.HandleUsage(context.Background(), "gw-1", usagePayload(t, supportAgentUsage("80.14"), other))
 
 	require.Len(t, env.usage.RecordCalls(), 1)
@@ -349,7 +404,7 @@ func TestBudgetWarnings_ReportsAreCoalescedAndWrittenOncePerFlush(t *testing.T) 
 	ctx := context.Background()
 	require.NoError(t, env.svc.Start(ctx))
 
-	// Two gateways report the same allowance; one lags behind the other.
+	// Two gateways report the same usage; one lags behind the other.
 	for _, spent := range []string{"10.00", "45.50", "30.00", "80.14", "79.00"} {
 		env.svc.HandleUsage(ctx, "gw-1", usagePayload(t, supportAgentUsage(spent)))
 		env.svc.HandleUsage(ctx, "gw-2", usagePayload(t, supportAgentUsage("12.00")))
@@ -358,7 +413,7 @@ func TestBudgetWarnings_ReportsAreCoalescedAndWrittenOncePerFlush(t *testing.T) 
 
 	require.NoError(t, env.svc.Stop())
 	calls := env.usage.RecordCalls()
-	require.Len(t, calls, 1, "ten reports for one allowance are one write")
+	require.Len(t, calls, 1, "ten reports for one usage are one write")
 	require.Len(t, calls[0].Rows, 1)
 	assert.Equal(t, "80.14", calls[0].Rows[0].Spent, "the highest total reported is written")
 	assert.Equal(t, int64(3), calls[0].Rows[0].UnpricedRequests)
@@ -372,7 +427,7 @@ func TestBudgetWarnings_TotalsAFailedWriteLostAreWrittenByTheNextFlush(t *testin
 	defer func() { require.NoError(t, env.svc.Stop()) }()
 
 	written := env.usage.RecordFunc
-	env.usage.RecordFunc = func(context.Context, []gwmodels.BudgetUsage, func(gwmodels.BudgetUsage) []gwmodels.BudgetWarning, gwrepo.WarningPublisher) error {
+	env.usage.RecordFunc = func(context.Context, []gwmodels.BudgetUsage, gwrepo.WarnFunc, gwrepo.WarningPublisher) error {
 		return errors.New("database unavailable")
 	}
 	env.svc.HandleUsage(ctx, "gw-1", usagePayload(t, supportAgentUsage("80.14")))

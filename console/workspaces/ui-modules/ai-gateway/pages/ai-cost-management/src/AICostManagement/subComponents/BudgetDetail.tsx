@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -29,6 +29,7 @@ import {
   Link,
   Skeleton,
   Stack,
+  TablePagination,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -68,15 +69,20 @@ import {
   StateNotice,
 } from "@agent-management-platform/views";
 import {
-  BUDGET_PROJECT_ANNOTATION,
   type Budget,
   type BudgetFilterType,
   type BudgetPeriod,
 } from "@agent-management-platform/types";
-import { amount, type CostNames } from "../costFormat";
-import { isBudgetNotFound, wordLabels } from "../budgetForm";
+import { amount, formatUsdCents, type CostNames } from "../costFormat";
+import {
+  groupFilterEntries,
+  splitExpressions,
+  isBudgetNotFound,
+  wordLabels,
+  type FilterEntry,
+} from "../budgetForm";
 import { useConfirmDeleteBudget } from "./useConfirmDeleteBudget";
-import { PERIOD_LABELS, inSentence } from "./budgetLabels";
+import { PERIOD_LABELS, allOfKind, inSentence } from "./budgetLabels";
 import { separateKind } from "./BudgetsTab";
 import { useEntityNames } from "../useEntityNames";
 
@@ -93,21 +99,30 @@ interface BudgetDetailProps {
   unpricedHref?: string;
 }
 
+/** The one filter a budget has of a type, when it names exactly one value (several values
+ * of a type are an "or" the page cannot narrow to). */
+function onlyFilter(filters: Budget["spec"]["filters"], type: string) {
+  const ofType = (filters ?? []).filter((f) => f.type === type);
+  return ofType.length === 1 ? ofType[0] : undefined;
+}
+
 /** The Requests charged $0 page narrowed to what the budget names: its agent, else its
- * project, else its LLM provider. */
+ * project, else its LLM provider, each only when the budget names one. */
 function unpricedLink(
   href: string,
   budget: Budget | undefined,
   projectView: boolean,
 ): string {
   const filters = budget?.spec.filters ?? [];
-  const agent = filters.find((f) => f.type === "agent" && f.project);
-  const project = filters.find((f) => f.type === "project");
-  const provider = filters.find((f) => f.type === "llmProvider")?.id;
+  const agentFilter = onlyFilter(filters, "agent");
+  const agent =
+    agentFilter?.project && agentFilter.id ? agentFilter : undefined;
+  const project = onlyFilter(filters, "project");
+  const provider = onlyFilter(filters, "llmProvider")?.id;
   const [groupBy, pick] = agent
     ? ["agent", `${agent.project}/${agent.id}`]
-    : project && !projectView // a project's page is that project already
-      ? ["project", project.id ?? ""]
+    : project?.id && !projectView // a project's page is that project already
+      ? ["project", project.id]
       : provider
         ? ["llmProvider", provider]
         : [];
@@ -123,9 +138,9 @@ const KIND_LABEL: Record<BudgetFilterType, string> = {
   attribute: "Custom attribute",
 };
 
-/** USD with cents, for limits and spend on this page. */
+/** USD with cents, for limits and spend on this page; under a cent reads "<$0.01". */
 function usd(value: number): string {
-  return value.toLocaleString("en-US", { style: "currency", currency: "USD" });
+  return formatUsdCents(value);
 }
 
 function utcDate(d: Date): string {
@@ -297,9 +312,9 @@ function ThisPeriod({ budget }: { budget: Budget }) {
             flexWrap="wrap"
           >
             <Typography
-              fontWeight={700}
+              fontWeight={600}
               sx={{
-                fontSize: { xs: 32, md: 40 },
+                fontSize: { xs: 28, md: 32 },
                 lineHeight: 1.1,
                 fontVariantNumeric: "tabular-nums",
               }}
@@ -411,8 +426,8 @@ function ThisPeriod({ budget }: { budget: Budget }) {
 
 /**
  * This period of a budget counted separately (each agent, each API key, ...): every
- * allowance has the whole limit, so the total is a sum, not a share of it. The list of
- * allowances below shows each one against its own limit.
+ * usage has the whole limit, so the total is a sum, not a share of it. The list of
+ * usages below shows each one against its own limit.
  */
 function ThisPeriodEach({ budget }: { budget: Budget }) {
   const lim = budget.spec.limit;
@@ -590,6 +605,9 @@ function entityText(
   names: CostNames,
 ): string {
   if (e.type === "attribute") return e.expression ?? "";
+  // A type with no value: "All projects", "All LLM providers", ...
+  if ((e.type === "llmProvider" || e.type === "project") && !e.id)
+    return allOfKind(KIND_LABEL[e.type as keyof typeof KIND_LABEL]);
   if (e.type === "llmProvider")
     return names.llmProvider?.[e.id ?? ""] ?? e.id ?? "";
   if (e.type === "project") return names.project?.[e.id ?? ""] ?? e.id ?? "";
@@ -602,24 +620,23 @@ function entityText(
       : agent;
   }
   if (!e.id)
-    return `Any ${inSentence(KIND_LABEL[e.type as keyof typeof KIND_LABEL] ?? e.type)}`;
+    return allOfKind(KIND_LABEL[e.type as keyof typeof KIND_LABEL] ?? e.type);
   return e.id;
 }
 
-/** The filters one per line, joined by AND as in the form: "Agent  Any agent". */
+/**
+ * The filters as chips, one per type: types are joined by AND as in the form, and several
+ * values of a type read "Project  project-A or project-B". A type without a value is
+ * "All projects".
+ */
 function FilterList({
   filters,
   names,
 }: {
-  filters: {
-    type: string;
-    id?: string;
-    project?: string;
-    expression?: string;
-  }[];
+  filters: FilterEntry[];
   names: CostNames;
 }) {
-  // One chip per filter, type then value; every filter must match.
+  const unit = { sx: { color: "text.secondary", fontWeight: 400 } } as const;
   return (
     <Stack
       direction="row"
@@ -628,50 +645,84 @@ function FilterList({
       spacing={1}
       sx={{ mt: 0.5 }}
     >
-      {filters.map((f, i) => (
-        <Chip
-          key={i}
-          variant="outlined"
-          label={
-            <Box component="span" sx={{ display: "inline-flex", gap: 0.75 }}>
-              <Box
-                component="span"
-                sx={{ color: "text.secondary", fontWeight: 400 }}
-              >
-                {KIND_LABEL[f.type as keyof typeof KIND_LABEL] ?? f.type}
-              </Box>
-              <Box
-                component="span"
-                sx={{
-                  fontWeight: 600,
-                  ...(f.type === "attribute"
-                    ? {
-                        fontFamily: "monospace",
-                        whiteSpace: "normal",
-                        wordBreak: "break-all",
-                      }
-                    : {}),
-                }}
-              >
-                {entityText(f, names)}
-              </Box>
-            </Box>
-          }
-          sx={{
-            height: "auto",
-            py: 0.5,
-            "& .MuiChip-label": { whiteSpace: "normal" },
-          }}
-        />
-      ))}
+      {groupFilterEntries(filters).map((group, i) => {
+        const first = group[0];
+        const attribute = first.type === "attribute";
+        // An attribute filter holds the expressions of its row, any of which may match.
+        const items = attribute
+          ? splitExpressions(first.expression ?? "").map((expression) => ({
+              ...first,
+              expression,
+            }))
+          : group;
+        return (
+          <Chip
+            key={i}
+            variant="outlined"
+            label={
+              // A filter without a value reads as in the create form: "All projects".
+              !attribute &&
+              items.length === 1 &&
+              !first.id &&
+              !first.project ? (
+                <Box component="span" sx={{ fontWeight: 600 }}>
+                  {entityText(first, names)}
+                </Box>
+              ) : (
+                <Box
+                  component="span"
+                  sx={{ display: "inline-flex", flexWrap: "wrap", gap: 0.75 }}
+                >
+                  <Box component="span" {...unit}>
+                    {KIND_LABEL[first.type as keyof typeof KIND_LABEL] ??
+                      first.type}
+                  </Box>
+                  {items.map((f, k) => (
+                    <Box
+                      key={k}
+                      component="span"
+                      sx={{ display: "inline-flex", gap: 0.75 }}
+                    >
+                      {k > 0 && (
+                        <Box component="span" {...unit}>
+                          or
+                        </Box>
+                      )}
+                      <Box
+                        component="span"
+                        sx={{
+                          fontWeight: 600,
+                          ...(attribute
+                            ? {
+                                fontFamily: "monospace",
+                                whiteSpace: "normal",
+                                wordBreak: "break-all",
+                              }
+                            : {}),
+                        }}
+                      >
+                        {entityText(f, names)}
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              )
+            }
+            sx={{
+              height: "auto",
+              py: 0.5,
+              "& .MuiChip-label": { whiteSpace: "normal" },
+            }}
+          />
+        );
+      })}
     </Stack>
   );
 }
 
 function Scope({ budget, orgName }: { budget: Budget; orgName: string }) {
-  const { spec, metadata } = budget;
+  const { spec } = budget;
   const names = useEntityNames(orgName);
-  const owner = metadata.annotations?.[BUDGET_PROJECT_ANNOTATION];
   const filters = spec.filters ?? [];
   const split = spec.limit.splitBy;
   return (
@@ -693,11 +744,6 @@ function Scope({ budget, orgName }: { budget: Budget; orgName: string }) {
                 "All LLM usage"
               )
             }
-            note={
-              !filters.length && owner
-                ? `All usage in project ${names.project?.[owner] ?? owner}`
-                : undefined
-            }
           />
           <ScopeRow
             icon={<BrainCircuit size={20} />}
@@ -708,7 +754,9 @@ function Scope({ budget, orgName }: { budget: Budget; orgName: string }) {
                 : "One shared limit"
             }
             note={
-              split?.expression ? `Told apart by ${split.expression}` : undefined
+              split?.expression
+                ? `Told apart by ${split.expression}`
+                : undefined
             }
           />
         </Stack>
@@ -812,8 +860,10 @@ function Alerts({ budget, orgName }: { budget: Budget; orgName: string }) {
   );
 }
 
-/** Spend per allowance, when the budget's limit is split. */
-function Allowances({ budget, orgName }: { budget: Budget; orgName?: string }) {
+const USAGE_ROWS_PER_PAGE = [5, 10, 25];
+
+/** Spend per limit, when the budget's limit is split. */
+function Usages({ budget, orgName }: { budget: Budget; orgName?: string }) {
   const limit = amount(budget.spec.limit.amount);
   const blockAt =
     budget.spec.limit.action === "block"
@@ -822,9 +872,11 @@ function Allowances({ budget, orgName }: { budget: Budget; orgName?: string }) {
   const point = blockAt !== undefined ? (limit * blockAt) / 100 : limit;
   const inactive = budget.spec.status === "inactive";
   const names = useEntityNames(orgName ?? "");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(USAGE_ROWS_PER_PAGE[1]);
   const usage = useBudgetUsage(
     { orgName, budgetName: budget.metadata.name },
-    { limit: 100 },
+    { limit: rowsPerPage, offset: page * rowsPerPage },
   );
   const kind = separateKind(budget);
   if (!kind) return null;
@@ -842,11 +894,11 @@ function Allowances({ budget, orgName }: { budget: Budget; orgName?: string }) {
           </Button>
         }
       >
-        Couldn&apos;t load the spend per allowance.
+        Couldn&apos;t load the spend per limit.
       </Alert>
     );
   }
-  const rows = allowanceRows(budget, usage.data?.allowances ?? [], names);
+  const rows = usageRows(usage.data?.usages ?? [], names);
   return (
     <Card variant="outlined">
       <CardContent sx={{ p: 3 }}>
@@ -934,34 +986,41 @@ function Allowances({ budget, orgName }: { budget: Budget; orgName?: string }) {
             })}
           </Stack>
         )}
+        {(usage.data?.total ?? 0) > 0 && (
+          <TablePagination
+            component="div"
+            rowsPerPageOptions={USAGE_ROWS_PER_PAGE}
+            count={usage.data?.total ?? 0}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={(_, next) => setPage(next)}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+          />
+        )}
       </CardContent>
     </Card>
   );
 }
 
-interface AllowanceRow {
+interface UsageRow {
   key: string;
   label: string;
   spent: number;
   unpriced: number;
 }
 
-/**
- * Every allowance of a budget counted separately: those with spend this period and, for
- * agents and projects, the ones in scope that have not spent yet (they can be listed;
- * API keys, users and attribute values cannot). Display names; highest share first.
- */
-function allowanceRows(
-  budget: Budget,
+/** One page of a budget's separately counted usages, with display names; highest spend first. */
+function usageRows(
   usage: {
-    allowance: Record<string, string>;
+    usage: Record<string, string>;
     spent: string;
     unpricedRequests: number;
   }[],
   names: CostNames,
-): AllowanceRow[] {
-  const filters = budget.spec.filters ?? [];
-  const exemptions = budget.spec.exemptions ?? [];
+): UsageRow[] {
   const label = (a: Record<string, string>) => {
     if (a.agent) {
       const project = a.project ?? "";
@@ -975,48 +1034,15 @@ function allowanceRows(
       return names.llmProvider?.[a.llmProvider] ?? a.llmProvider;
     return Object.values(a).join(" · ") || "All traffic";
   };
-  const rows = new Map<string, AllowanceRow>();
+  const rows = new Map<string, UsageRow>();
   for (const u of usage) {
-    const key = JSON.stringify(u.allowance);
+    const key = JSON.stringify(u.usage);
     rows.set(key, {
       key,
-      label: label(u.allowance),
+      label: label(u.usage),
       spent: amount(u.spent),
       unpriced: u.unpricedRequests,
     });
-  }
-  const zero = (a: Record<string, string>) => {
-    const key = JSON.stringify(a);
-    if (!rows.has(key))
-      rows.set(key, { key, label: label(a), spent: 0, unpriced: 0 });
-  };
-  const owner = budget.metadata.annotations?.[BUDGET_PROJECT_ANNOTATION];
-  const sharedProject =
-    filters.find((f) => f.type === "project" && f.id)?.id ??
-    filters.find((f) => f.type === "agent" && f.project)?.project ??
-    owner;
-  const separate = (type: string) => budget.spec.limit.splitBy?.type === type;
-  if (separate("agent")) {
-    for (const key of Object.keys(names.agent ?? {})) {
-      const [project, agent] = key.split("/");
-      if (sharedProject && project !== sharedProject) continue;
-      if (
-        exemptions.some(
-          (e) => e.type === "agent" && e.id === agent && e.project === project,
-        )
-      )
-        continue;
-      if (exemptions.some((e) => e.type === "project" && e.id === project))
-        continue;
-      // The gateway reports an agent as its project and agent (allowance values).
-      zero({ agent, project });
-    }
-  } else if (separate("project")) {
-    for (const project of Object.keys(names.project ?? {})) {
-      if (exemptions.some((e) => e.type === "project" && e.id === project))
-        continue;
-      zero({ project });
-    }
   }
   return [...rows.values()].sort(
     (a, b) => b.spent - a.spent || a.label.localeCompare(b.label),
@@ -1054,8 +1080,6 @@ export function BudgetDetail({
   const name = notFound
     ? "Budget not found"
     : (budget?.spec.displayName ?? budget?.metadata.name ?? budgetName ?? "");
-  const owner = budget?.metadata.annotations?.[BUDGET_PROJECT_ANNOTATION];
-  const ownerName = useEntityNames(orgName ?? "").project?.[owner ?? ""];
   const updatedAt = budget?.status?.updatedAt ?? budget?.status?.createdAt;
 
   const toggle = () => {
@@ -1146,10 +1170,6 @@ export function BudgetDetail({
               color={inactive ? "default" : "success"}
               label={inactive ? "Inactive" : "Active"}
             />
-            <Chip
-              size="small"
-              label={owner ? `Project ${ownerName ?? owner}` : "Organization"}
-            />
             {fromGateway && (
               <Chip size="small" variant="outlined" label="From a gateway" />
             )}
@@ -1205,7 +1225,6 @@ export function BudgetDetail({
         </Stack>
       ) : (
         <Stack spacing={2.5}>
-          {fromGateway && <Alert severity="info">{gatewayNote}</Alert>}
           {inactive && (
             <Alert severity="warning">
               Disabled: not counting or blocking until it is enabled.
@@ -1238,7 +1257,7 @@ export function BudgetDetail({
                 </Typography>
               </SideCard>
               <SideCard icon={<Layers size={22} />} title="Unpriced requests">
-                <Typography variant="h5" fontWeight={700}>
+                <Typography variant="h5" fontWeight={600}>
                   {unpriced}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -1271,7 +1290,7 @@ export function BudgetDetail({
             <Scope budget={budget} orgName={orgName ?? ""} />
             <Alerts budget={budget} orgName={orgName ?? ""} />
           </Box>
-          <Allowances budget={budget} orgName={orgName} />
+          <Usages budget={budget} orgName={orgName} />
         </Stack>
       )}
     </PageLayout>

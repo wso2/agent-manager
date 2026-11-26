@@ -20,7 +20,7 @@ var _ MappedNullable = &BudgetExemption{}
 // BudgetExemption struct for BudgetExemption
 type BudgetExemption struct {
 	Type string `json:"type"`
-	// Project or agent handle
+	// LLM provider, project or agent handle, or API key name
 	Id *string `json:"id,omitempty"`
 	// The agent's project; agent only
 	Project *string `json:"project,omitempty"`

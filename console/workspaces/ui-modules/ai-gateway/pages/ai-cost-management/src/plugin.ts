@@ -19,7 +19,7 @@
 // Plugin manifest. The shell imports this module eagerly, so it must not import
 // the page components: they are reached only through the dynamic import() in
 // `load`, which keeps them in their own chunk.
-import { ChartColumnStacked, Wallet } from "@wso2/oxygen-ui-icons-react";
+import { ChartColumnStacked, Coins, Wallet } from "@wso2/oxygen-ui-icons-react";
 import { useFeatureManagement } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
@@ -96,6 +96,22 @@ export const aiCostManagementPlugin: PluginManifest = {
           icon: Wallet,
           route: page.children.budgets,
         },
+        // The price catalog is the organization's, so only its page has Pricing.
+        ...(level === "org"
+          ? [
+              {
+                type: "nav-item" as const,
+                id: "org-pricing-nav",
+                useActivation: useCostRead,
+                level,
+                section: "cost-management",
+                order: 30,
+                label: "Pricing Catalog",
+                icon: Coins,
+                route: orgNav.costManagement.children.pricing,
+              },
+            ]
+          : []),
       ];
     }),
   ],

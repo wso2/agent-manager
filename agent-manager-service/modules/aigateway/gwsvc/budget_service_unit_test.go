@@ -140,26 +140,11 @@ func asKind(req budgetRequest) gwspec.Budget {
 	if req.OrgId != nil {
 		annotations[AnnotationOrgID] = *req.OrgId
 	}
-	if req.ProjectId != nil {
-		annotations[AnnotationProjectID] = *req.ProjectId
-	}
 	if len(annotations) > 0 {
 		kind.Metadata.Annotations = &annotations
 	}
 	kind.Metadata.Labels = req.Labels
 	return kind
-}
-
-// kindProject is a returned budget's project, from its project-id annotation; nil for an
-// organization budget.
-func kindProject(b *gwspec.Budget) *string {
-	if b.Metadata.Annotations == nil {
-		return nil
-	}
-	if p, ok := (*b.Metadata.Annotations)[AnnotationProjectID]; ok {
-		return &p
-	}
-	return nil
 }
 
 func (e *budgetTestEnv) create(ctx context.Context, ouID, createdBy string, req budgetRequest) (*gwspec.Budget, error) {
@@ -254,7 +239,7 @@ func newBudgetTestEnv(t *testing.T) *budgetTestEnv {
 	}
 	core := &gwtest.Core{
 		GetProjectFunc: func(_ context.Context, _, name string) (*modkit.Project, error) {
-			if name != "api-platform" {
+			if name != "api-platform" && name != "billing" {
 				return nil, modkit.ErrNotFound
 			}
 			return &modkit.Project{ID: budgetTestProjectID, Name: name}, nil
@@ -263,7 +248,7 @@ func newBudgetTestEnv(t *testing.T) *budgetTestEnv {
 			return modkit.Org{ID: id, Handle: budgetTestOrgName}, nil
 		},
 		GetAgentFunc: func(_ context.Context, _, project, name string) (*modkit.Agent, error) {
-			if project != "api-platform" || name != "hotel-booking" {
+			if (project != "api-platform" || name != "hotel-booking") && (project != "billing" || name != "invoice-bot") {
 				return nil, modkit.ErrNotFound
 			}
 			return &modkit.Agent{Name: name}, nil
@@ -291,7 +276,7 @@ func newBudgetTestEnv(t *testing.T) *budgetTestEnv {
 			return out, nil
 		},
 	}
-	env.svc = NewBudgetService(env.budgets, artifacts, core, env.sender, nil, usageRepo, env.channels)
+	env.svc = NewBudgetService(env.budgets, artifacts, core, env.sender, usageRepo, env.channels)
 	env.svc.(*budgetService).now = func() time.Time { return budgetTestNow }
 	return env
 }
@@ -307,7 +292,7 @@ func TestBudgetService_CreateStoresTheBudgetKindWithDefaults(t *testing.T) {
 	assert.Equal(t, gwmodels.BudgetOriginControlPlane, b.Origin)
 	assert.Nil(t, b.GatewayID)
 	assert.Equal(t, "alice", b.CreatedBy)
-	stored, err := json.Marshal(gwmodels.NewBudgetDocument(b.Name, b.ProjectName, b.Configuration))
+	stored, err := json.Marshal(gwmodels.NewBudgetDocument(b.Name, b.Configuration))
 	require.NoError(t, err)
 	assert.JSONEq(t, `{
 		"apiVersion": "gateway.api-platform.wso2.com/v1", "kind": "Budget",
@@ -317,7 +302,7 @@ func TestBudgetService_CreateStoresTheBudgetKindWithDefaults(t *testing.T) {
 		"description": "Every agent in API Platform gets $100 a month on OpenAI.",
 		"status": "active",
 		"limit": {
-			"amount": "100.00", "currency": "USD", "period": "month", "action": "block", "blockAt": 100,
+			"amount": "100.00", "period": "month", "action": "block", "blockAt": 100,
 			"splitBy": {"type": "attribute", "expression": "request.Auth.Claims[\"email\"]"}
 		},
 		"filters": [
@@ -332,7 +317,6 @@ func TestBudgetService_CreateStoresTheBudgetKindWithDefaults(t *testing.T) {
 	assert.Equal(t, "api-platform-per-agent-openai", resp.Metadata.Name)
 	assert.Equal(t, "active", *resp.Spec.Status)
 	assert.Equal(t, "controlPlane", resp.Status.Origin)
-	assert.Equal(t, "USD", *resp.Spec.Limit.Currency)
 	assert.Equal(t, int32(100), *resp.Spec.Limit.BlockAt)
 	assert.Equal(t, "alice", *resp.Status.CreatedBy)
 	assert.Equal(t, b.CreatedAt, resp.Status.CreatedAt)
@@ -392,7 +376,6 @@ func TestBudgetService_CreateRefusesInvalidPayloads(t *testing.T) {
 		{"long exemption expression", func(r *budgetRequest) {
 			r.Exemptions[0].Expression = strPtr("true || " + strings.Repeat("x", maxBudgetExpression))
 		}, httpx.ErrCodeValidation, "exemptions[0].expression"},
-		{"other currency", func(r *budgetRequest) { r.Limit.Currency = strPtr("EUR") }, httpx.ErrCodeValidation, "limit.currency"},
 		{"bad period", func(r *budgetRequest) { r.Limit.Period = "year" }, httpx.ErrCodeValidation, "limit.period"},
 		{"bad action", func(r *budgetRequest) { r.Limit.Action = "warn" }, httpx.ErrCodeValidation, "limit.action"},
 		{"blockAt out of range", func(r *budgetRequest) { r.Limit.BlockAt = budgetI32(101) }, httpx.ErrCodeValidation, "limit.blockAt"},
@@ -430,12 +413,26 @@ func TestBudgetService_CreateRefusesInvalidPayloads(t *testing.T) {
 		{"api key with an empty id", func(r *budgetRequest) {
 			r.Filters = []gwspec.BudgetFilter{{Type: "apiKey", Id: strPtr(" ")}}
 		}, httpx.ErrCodeValidation, "filters[0].id"},
-		{"id-less project used twice", func(r *budgetRequest) {
+		{"id-less project listed with a named one", func(r *budgetRequest) {
 			r.Filters = []gwspec.BudgetFilter{{Type: "project"}, {Type: "project", Id: strPtr("api-platform")}}
-		}, httpx.ErrCodeValidation, "filters[1].type"},
-		{"project used twice", func(r *budgetRequest) {
+		}, httpx.ErrCodeValidation, "filters[0].id"},
+		{"a named project listed with an id-less one", func(r *budgetRequest) {
+			r.Filters = []gwspec.BudgetFilter{{Type: "project", Id: strPtr("api-platform")}, {Type: "project"}}
+		}, httpx.ErrCodeValidation, "filters[1].id"},
+		{"the same project listed twice", func(r *budgetRequest) {
 			r.Filters = []gwspec.BudgetFilter{{Type: "project", Id: strPtr("api-platform")}, {Type: "project", Id: strPtr("api-platform")}}
-		}, httpx.ErrCodeValidation, "filters[1].type"},
+		}, httpx.ErrCodeValidation, "filters[1]"},
+		{"the same agent listed twice", func(r *budgetRequest) {
+			agent := gwspec.BudgetFilter{Type: "agent", Project: strPtr("api-platform"), Id: strPtr("hotel-booking")}
+			r.Filters = []gwspec.BudgetFilter{agent, agent}
+		}, httpx.ErrCodeValidation, "filters[1]"},
+		{"splitBy a type that has several named filters", func(r *budgetRequest) {
+			r.Filters = []gwspec.BudgetFilter{
+				{Type: "agent", Project: strPtr("api-platform"), Id: strPtr("hotel-booking")},
+				{Type: "agent", Project: strPtr("billing"), Id: strPtr("invoice-bot")},
+			}
+			r.Limit.SplitBy = &gwspec.BudgetSplit{Type: "agent"}
+		}, httpx.ErrCodeValidation, "limit.splitBy.type"},
 		{"unknown filter type", func(r *budgetRequest) {
 			r.Filters = []gwspec.BudgetFilter{{Type: "team"}}
 		}, httpx.ErrCodeValidation, "filters[0].type"},
@@ -528,7 +525,7 @@ func TestBuildBudgetKind(t *testing.T) {
 }
 
 func TestGatewayBudgetConfigMapsTheKindsSpec(t *testing.T) {
-	cfg, project, err := gatewayBudgetConfig("research-monthly", json.RawMessage(`{
+	cfg, err := gatewayBudgetConfig("research-monthly", json.RawMessage(`{
 		"apiVersion": "gateway.api-platform.wso2.com/v1", "kind": "Budget",
 		"metadata": {"name": "research-monthly"},
 		"spec": {
@@ -540,10 +537,8 @@ func TestGatewayBudgetConfigMapsTheKindsSpec(t *testing.T) {
 		}
 	}`))
 	require.NoError(t, err)
-	assert.Empty(t, project, "no project-id annotation: an organization budget")
 	assert.Equal(t, "research-monthly", cfg.DisplayName, "a gateway budget shows its name")
 	assert.Equal(t, "active", cfg.Status)
-	assert.Equal(t, "USD", cfg.Limit.Currency)
 	assert.Equal(t, int32(95), *cfg.Limit.BlockAt)
 	assert.Equal(t, &gwmodels.BudgetSplit{Type: "agent"}, cfg.Limit.SplitBy)
 	require.Len(t, cfg.Filters, 2)
@@ -551,11 +546,11 @@ func TestGatewayBudgetConfigMapsTheKindsSpec(t *testing.T) {
 	assert.Equal(t, "attribute", cfg.Filters[1].Type)
 	assert.NotNil(t, cfg.Exemptions)
 
-	cfg, _, err = gatewayBudgetConfig("all", json.RawMessage(`{"spec": {"limit": {"amount": "1", "period": "day", "action": "allow"}}}`))
+	cfg, err = gatewayBudgetConfig("all", json.RawMessage(`{"spec": {"limit": {"amount": "1", "period": "day", "action": "allow"}}}`))
 	require.NoError(t, err)
 	assert.NotNil(t, cfg.Filters, "no filters: an empty list, all LLM usage")
 
-	_, _, err = gatewayBudgetConfig("x", json.RawMessage(`not json`))
+	_, err = gatewayBudgetConfig("x", json.RawMessage(`not json`))
 	assert.Error(t, err)
 }
 
@@ -597,20 +592,20 @@ func TestBudgetService_ListFiltersAndPages(t *testing.T) {
 	other.Configuration.Exemptions = []gwmodels.BudgetExemption{}
 	env.store["c"] = other
 
-	page, err := env.svc.List(context.Background(), budgetTestOrg, "", nil, nil, "", "", 2, 0)
+	page, err := env.svc.List(context.Background(), budgetTestOrg, nil, nil, "", "", 2, 0)
 	require.NoError(t, err)
 	assert.Equal(t, int32(3), page.Total)
 	assert.Equal(t, int32(2), page.Limit)
 	require.Len(t, page.Budgets, 2)
 	assert.Equal(t, "a", page.Budgets[0].Metadata.Name)
 
-	page, err = env.svc.List(context.Background(), budgetTestOrg, "", nil, nil, "", "", 0, 2)
+	page, err = env.svc.List(context.Background(), budgetTestOrg, nil, nil, "", "", 0, 2)
 	require.NoError(t, err)
 	assert.Equal(t, int32(20), page.Limit, "default page size")
 	require.Len(t, page.Budgets, 1)
 	assert.Equal(t, "c", page.Budgets[0].Metadata.Name)
 
-	page, err = env.svc.List(context.Background(), budgetTestOrg, "", nil, nil, "", "", 20, 10)
+	page, err = env.svc.List(context.Background(), budgetTestOrg, nil, nil, "", "", 20, 10)
 	require.NoError(t, err)
 	assert.Empty(t, page.Budgets)
 	assert.Equal(t, int32(3), page.Total)
@@ -621,19 +616,19 @@ func TestBudgetService_ListFiltersAndPages(t *testing.T) {
 		"agent:hotel-booking":  0,
 		"llmProvider:other":    0,
 	} {
-		page, err = env.svc.List(context.Background(), budgetTestOrg, "", []string{filter}, nil, "", "", 20, 0)
+		page, err = env.svc.List(context.Background(), budgetTestOrg, []string{filter}, nil, "", "", 20, 0)
 		require.NoError(t, err)
 		assert.Len(t, page.Budgets, want, filter)
 	}
-	page, err = env.svc.List(context.Background(), budgetTestOrg, "", []string{"project:api-platform", "llmProvider:other"}, nil, "", "", 20, 0)
+	page, err = env.svc.List(context.Background(), budgetTestOrg, []string{"project:api-platform", "llmProvider:other"}, nil, "", "", 20, 0)
 	require.NoError(t, err)
 	assert.Empty(t, page.Budgets, "filters combine with AND")
 
 	for _, bad := range [][]string{{"team:a"}, {"project"}, {"project:"}} {
-		_, err = env.svc.List(context.Background(), budgetTestOrg, "", bad, nil, "", "", 20, 0)
+		_, err = env.svc.List(context.Background(), budgetTestOrg, bad, nil, "", "", 20, 0)
 		assert.Equal(t, httpx.ErrCodeValidation, budgetErrorCode(t, err), bad)
 	}
-	_, err = env.svc.List(context.Background(), budgetTestOrg, "", nil, nil, "", "", 101, 0)
+	_, err = env.svc.List(context.Background(), budgetTestOrg, nil, nil, "", "", 101, 0)
 	assert.Equal(t, httpx.ErrCodeValidation, budgetErrorCode(t, err))
 }
 
@@ -655,7 +650,6 @@ func TestBudgetService_UpdateReplacesTheEditableFields(t *testing.T) {
 	assert.Equal(t, "150.00", resp.Spec.Limit.Amount)
 	assert.Equal(t, int32(90), *resp.Spec.Limit.BlockAt)
 	assert.Equal(t, "month", resp.Spec.Limit.Period, "period is fixed")
-	assert.Equal(t, "USD", *resp.Spec.Limit.Currency, "currency is fixed")
 	assert.Len(t, resp.Spec.Filters, 2, "filters are fixed")
 	assert.Equal(t, "openai", *resp.Spec.Filters[0].Id, "filters are fixed")
 	assert.Equal(t, "attribute", resp.Spec.Limit.SplitBy.Type, "splitBy is fixed")
@@ -784,7 +778,7 @@ func TestBudgetService_SendsBudgetsToGateways(t *testing.T) {
 func TestBuildBudgetKind_ForGatewayKeepsTheShape(t *testing.T) {
 	cfg := gwmodels.BudgetConfig{
 		DisplayName: "Org", Status: "active",
-		Limit:   gwmodels.BudgetLimit{Amount: "10", Currency: "USD", Period: "day", Action: "allow", SplitBy: &gwmodels.BudgetSplit{Type: "agent"}},
+		Limit:   gwmodels.BudgetLimit{Amount: "10", Period: "day", Action: "allow", SplitBy: &gwmodels.BudgetSplit{Type: "agent"}},
 		Filters: []gwmodels.BudgetFilter{}, Exemptions: []gwmodels.BudgetExemption{},
 	}
 	gw, err := json.Marshal(BuildBudgetKind("org", budgetTestOrgName, cfg, true))
@@ -801,7 +795,7 @@ func TestBudgetService_GatewayBudgetsTakeOnlyAgentManagerFields(t *testing.T) {
 		Configuration: gwmodels.BudgetConfig{
 			DisplayName: "from-gateway", Status: "active",
 			// As a gateway pushes it: no blockAt means block at 100%.
-			Limit:      gwmodels.BudgetLimit{Amount: "500.00", Currency: "USD", Period: "month", Action: "block"},
+			Limit:      gwmodels.BudgetLimit{Amount: "500.00", Period: "month", Action: "block"},
 			Filters:    []gwmodels.BudgetFilter{{Type: "attribute", Expression: strPtr(budgetGroupExpr)}},
 			Exemptions: []gwmodels.BudgetExemption{},
 		},
@@ -870,7 +864,7 @@ func TestBudgetService_ProjectAgentAndAPIKeyBudgets(t *testing.T) {
 		{"agent:hotel-booking", "project:api-platform"},
 		{"project:api-platform"},
 	} {
-		page, err := env.svc.List(context.Background(), budgetTestOrg, "", filters, nil, "", "", 20, 0)
+		page, err := env.svc.List(context.Background(), budgetTestOrg, filters, nil, "", "", 20, 0)
 		require.NoError(t, err)
 		assert.Len(t, page.Budgets, 1, "an agent filter's project matches project:%v", filters)
 	}
@@ -881,17 +875,17 @@ func TestBudgetService_ProjectAgentAndAPIKeyBudgets(t *testing.T) {
 	req.Filters = []gwspec.BudgetFilter{{Type: "project", Id: strPtr("api-platform")}, {Type: "apiKey", Id: strPtr("ci-pipeline")}}
 	_, err = env.create(context.Background(), budgetTestOrg, "alice", req)
 	require.NoError(t, err)
-	page, err := env.svc.List(context.Background(), budgetTestOrg, "", []string{"project:api-platform"}, nil, "", "", 20, 0)
+	page, err := env.svc.List(context.Background(), budgetTestOrg, []string{"project:api-platform"}, nil, "", "", 20, 0)
 	require.NoError(t, err)
 	assert.Len(t, page.Budgets, 2, "a project filter matches too")
-	page, err = env.svc.List(context.Background(), budgetTestOrg, "", []string{"apiKey:ci-pipeline"}, nil, "", "", 20, 0)
+	page, err = env.svc.List(context.Background(), budgetTestOrg, []string{"apiKey:ci-pipeline"}, nil, "", "", 20, 0)
 	require.NoError(t, err)
 	assert.Len(t, page.Budgets, 1)
 }
 
-func spendRow(budgetID uuid.UUID, allowance map[string]string, start time.Time, spent string, unpriced int64) gwmodels.BudgetUsage {
+func spendRow(budgetID uuid.UUID, usage map[string]string, start time.Time, spent string, unpriced int64) gwmodels.BudgetUsage {
 	return gwmodels.BudgetUsage{
-		BudgetID: budgetID, AllowanceID: uuid.New(), Allowance: allowance, PeriodStart: start, Spent: spent, UnpricedRequests: unpriced,
+		BudgetID: budgetID, BudgetUsageID: uuid.New(), Usage: usage, PeriodStart: start, Spent: spent, UnpricedRequests: unpriced,
 	}
 }
 
@@ -926,7 +920,7 @@ func TestBudgetService_CurrentPeriodSumsThisPeriodsSpend(t *testing.T) {
 	assert.Equal(t, gwspec.BudgetCurrentPeriod{PeriodStart: "2026-11-01", Spent: "100.15", UnpricedRequests: 3}, *got.Status.CurrentPeriod,
 		"October's row counts as $0")
 
-	list, err := env.svc.List(context.Background(), budgetTestOrg, "", nil, nil, "", "", 20, 0)
+	list, err := env.svc.List(context.Background(), budgetTestOrg, nil, nil, "", "", 20, 0)
 	require.NoError(t, err)
 	spent := map[string]string{}
 	for _, r := range list.Budgets {
@@ -935,7 +929,7 @@ func TestBudgetService_CurrentPeriodSumsThisPeriodsSpend(t *testing.T) {
 	assert.Equal(t, map[string]string{"team-a": "100.15", "team-b": "5.00"}, spent)
 }
 
-func TestBudgetService_UsageListsAllowancesByHighestSpend(t *testing.T) {
+func TestBudgetService_UsageListsUsagesByHighestSpend(t *testing.T) {
 	env := newBudgetTestEnv(t)
 	createTestBudget(t, env, "team-a")
 	id := env.store["team-a"].ID
@@ -951,15 +945,15 @@ func TestBudgetService_UsageListsAllowancesByHighestSpend(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "2026-11-01", page.PeriodStart)
 	assert.Equal(t, int32(4), page.Total)
-	require.Len(t, page.Allowances, 3)
-	assert.Equal(t, gwspec.BudgetAllowanceUsage{Allowance: map[string]string{"user": "alice"}, Spent: "80.14", UnpricedRequests: 2}, page.Allowances[0])
-	assert.Equal(t, "bob", page.Allowances[1].Allowance["user"], "equal spend: ordered by allowance")
-	assert.Equal(t, "erin", page.Allowances[2].Allowance["user"])
+	require.Len(t, page.Usages, 3)
+	assert.Equal(t, gwspec.BudgetUsageEntry{Usage: map[string]string{"user": "alice"}, Spent: "80.14", UnpricedRequests: 2}, page.Usages[0])
+	assert.Equal(t, "bob", page.Usages[1].Usage["user"], "equal spend: ordered by usage")
+	assert.Equal(t, "erin", page.Usages[2].Usage["user"])
 
 	last, err := env.svc.Usage(context.Background(), budgetTestOrg, "team-a", 3, 3)
 	require.NoError(t, err)
-	require.Len(t, last.Allowances, 1)
-	assert.Equal(t, gwspec.BudgetAllowanceUsage{Allowance: map[string]string{"user": "carol"}, Spent: "0.00", UnpricedRequests: 0}, last.Allowances[0],
+	require.Len(t, last.Usages, 1)
+	assert.Equal(t, gwspec.BudgetUsageEntry{Usage: map[string]string{"user": "carol"}, Spent: "0.00", UnpricedRequests: 0}, last.Usages[0],
 		"a row from an earlier period has spent nothing this period")
 
 	_, err = env.svc.Usage(context.Background(), budgetTestOrg, "nope", 20, 0)
@@ -989,7 +983,7 @@ func TestBudgetService_ListSearchesStatusAndAgent(t *testing.T) {
 		gwmodels.BudgetFilter{Type: "agent", Project: str("online-shop"), ID: str("checkout")})
 
 	names := func(filters []string, search, status string) []string {
-		page, err := env.svc.List(ctx, budgetTestOrg, "", filters, nil, search, status, 20, 0)
+		page, err := env.svc.List(ctx, budgetTestOrg, filters, nil, search, status, 20, 0)
 		require.NoError(t, err)
 		out := []string{}
 		for _, b := range page.Budgets {
@@ -1004,7 +998,7 @@ func TestBudgetService_ListSearchesStatusAndAgent(t *testing.T) {
 	assert.Equal(t, []string{"returns-only", "shop-weekly"}, names([]string{"agent:online-shop/returns-bot"}, "", ""),
 		"the agent's own budget and its project's budget that names no agent")
 
-	_, err := env.svc.List(ctx, budgetTestOrg, "", nil, nil, "", "paused", 20, 0)
+	_, err := env.svc.List(ctx, budgetTestOrg, nil, nil, "", "paused", 20, 0)
 	assert.Equal(t, httpx.ErrCodeValidation, budgetErrorCode(t, err))
 }
 
@@ -1025,7 +1019,7 @@ func TestBudgetService_IdLessFiltersMatchAnyValue(t *testing.T) {
 	assert.Empty(t, budgetProject(&env.created[0].Configuration), "an id-less project filter names no project")
 
 	for _, filter := range []string{"project:api-platform", "agent:hotel-booking", "apiKey:ci-pipeline"} {
-		page, err := env.svc.List(context.Background(), budgetTestOrg, "", []string{filter}, nil, "", "", 20, 0)
+		page, err := env.svc.List(context.Background(), budgetTestOrg, []string{filter}, nil, "", "", 20, 0)
 		require.NoError(t, err)
 		assert.Empty(t, page.Budgets, "an id-less filter names no value: %s", filter)
 	}
@@ -1071,14 +1065,14 @@ func TestBudgetService_LabelsAreStoredFilteredAndSearched(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"finance", "prod"}, resp.Metadata.Labels)
 
-	raw, err := json.Marshal(gwmodels.NewBudgetDocument(env.created[0].Name, "", env.created[0].Configuration))
+	raw, err := json.Marshal(gwmodels.NewBudgetDocument(env.created[0].Name, env.created[0].Configuration))
 	require.NoError(t, err)
 	doc := string(raw)
 	assert.Contains(t, doc, `"metadata":{"name":"`+env.created[0].Name+`","labels":["finance","prod"]`, "stored under metadata.labels")
 	assert.NotContains(t, doc, `"spec":{"labels"`)
 
 	list := func(labels []string, search string) int {
-		page, err := env.svc.List(ctx, budgetTestOrg, "", nil, labels, search, "", 20, 0)
+		page, err := env.svc.List(ctx, budgetTestOrg, nil, labels, search, "", 20, 0)
 		require.NoError(t, err)
 		return len(page.Budgets)
 	}
@@ -1110,4 +1104,22 @@ func TestBudgetService_RefusesAnExpressionTooCostlyForGateways(t *testing.T) {
 	req.Filters = append(req.Filters, gwspec.BudgetFilter{Type: "attribute", Expression: &cheap})
 	_, err = env.create(context.Background(), budgetTestOrg, "alice", req)
 	require.NoError(t, err, "a claim check on an empty request errors, but is not too costly")
+}
+
+func TestExemptionsCanNameAnLLMProviderOrAnAPIKey(t *testing.T) {
+	ok, err := normalizeBudgetExemptions([]gwspec.BudgetExemption{
+		{Type: budgetTypeLLMProvider, Id: strPtr("openai")},
+		{Type: budgetTypeAPIKey, Id: strPtr("team-alpha-key")},
+	})
+	require.NoError(t, err)
+	assert.Len(t, ok, 2)
+
+	for _, bad := range []gwspec.BudgetExemption{
+		{Type: budgetTypeLLMProvider},
+		{Type: budgetTypeAPIKey, Id: strPtr("k"), Project: strPtr("p")},
+		{Type: "team", Id: strPtr("x")},
+	} {
+		_, err := normalizeBudgetExemptions([]gwspec.BudgetExemption{bad})
+		assert.Error(t, err, "%v", bad)
+	}
 }

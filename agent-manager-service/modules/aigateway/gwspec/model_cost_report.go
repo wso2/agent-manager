@@ -17,10 +17,8 @@ import (
 // checks if the CostReport type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &CostReport{}
 
-// CostReport Costs per month for each value of the requested groupBy
+// CostReport Costs in USD per month for each value of the requested groupBy
 type CostReport struct {
-	// Currency of every amount
-	Currency string `json:"currency"`
 	// One entry per value of groupBy, highest cost first
 	CostByGroup []CostByGroup `json:"costByGroup"`
 }
@@ -29,9 +27,8 @@ type CostReport struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewCostReport(currency string, costByGroup []CostByGroup) *CostReport {
+func NewCostReport(costByGroup []CostByGroup) *CostReport {
 	this := CostReport{}
-	this.Currency = currency
 	this.CostByGroup = costByGroup
 	return &this
 }
@@ -42,30 +39,6 @@ func NewCostReport(currency string, costByGroup []CostByGroup) *CostReport {
 func NewCostReportWithDefaults() *CostReport {
 	this := CostReport{}
 	return &this
-}
-
-// GetCurrency returns the Currency field value
-func (o *CostReport) GetCurrency() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.Currency
-}
-
-// GetCurrencyOk returns a tuple with the Currency field value
-// and a boolean to check if the value has been set.
-func (o *CostReport) GetCurrencyOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Currency, true
-}
-
-// SetCurrency sets field value
-func (o *CostReport) SetCurrency(v string) {
-	o.Currency = v
 }
 
 // GetCostByGroup returns the CostByGroup field value
@@ -102,7 +75,6 @@ func (o CostReport) MarshalJSON() ([]byte, error) {
 
 func (o CostReport) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["currency"] = o.Currency
 	toSerialize["costByGroup"] = o.CostByGroup
 	return toSerialize, nil
 }

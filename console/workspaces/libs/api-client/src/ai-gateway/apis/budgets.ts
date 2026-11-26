@@ -49,7 +49,6 @@ export async function listBudgets(
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
   const searchParams: Record<string, string> = {};
-  if (query?.project) searchParams.project = query.project;
   if (query?.filter) searchParams.filter = query.filter;
   if (query?.search) searchParams.search = query.search;
   if (query?.status) searchParams.status = query.status;
@@ -109,7 +108,7 @@ export async function deleteBudget(
   if (!res.ok) throw await res.json();
 }
 
-/** Each allowance's spend this period, highest first. */
+/** Each usage's spend this period, highest first. */
 export async function getBudgetUsage(
   params: BudgetPathParams,
   query?: ListQuery,

@@ -50,11 +50,11 @@ describe("budgetImport", () => {
     expect(
       rowError({
         code: "REFERENCE_NOT_FOUND",
-        column: "projectId",
+        column: "project",
         message: "Project 'api-platform' was not found.",
       }),
     ).toEqual({
-      column: "projectId",
+      column: "project",
       message: "Project 'api-platform' was not found.",
     });
     expect(
@@ -73,10 +73,10 @@ describe("budgetImport", () => {
     ).toEqual({
       severity: "error",
       title: "Validation failed.",
-      text: "1 of 2 rows have errors. Nothing was imported.",
+      text: "1 of 2 budgets have errors. Nothing was imported.",
     });
     expect(validationResult({ ...base, valid: 2, created: 2 }, 2).text).toBe(
-      "All 2 rows are ready to import.",
+      "All 2 budgets are ready to import.",
     );
     expect(
       validationResult({ ...base, valid: 1, skipped: 1 }, 1).severity,
@@ -100,7 +100,7 @@ describe("budgetImport", () => {
 
   it("offers a template with every column and the same count in each row", () => {
     const [header, ...rows] = IMPORT_TEMPLATE.trim().split("\n");
-    expect(header.split(",")).toHaveLength(19);
-    rows.forEach((r) => expect(r.split(",")).toHaveLength(19));
+    expect(header.split(",")).toHaveLength(18);
+    rows.forEach((r) => expect(r.split(",")).toHaveLength(18));
   });
 });

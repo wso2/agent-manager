@@ -229,9 +229,11 @@ func (e BudgetKind) Valid() bool {
 
 // Defines values for BudgetExemptionType.
 const (
-	BudgetExemptionTypeAgent     BudgetExemptionType = "agent"
-	BudgetExemptionTypeAttribute BudgetExemptionType = "attribute"
-	BudgetExemptionTypeProject   BudgetExemptionType = "project"
+	BudgetExemptionTypeAgent       BudgetExemptionType = "agent"
+	BudgetExemptionTypeApiKey      BudgetExemptionType = "apiKey"
+	BudgetExemptionTypeAttribute   BudgetExemptionType = "attribute"
+	BudgetExemptionTypeLlmProvider BudgetExemptionType = "llmProvider"
+	BudgetExemptionTypeProject     BudgetExemptionType = "project"
 )
 
 // Valid indicates whether the value is a known member of the BudgetExemptionType enum.
@@ -239,7 +241,11 @@ func (e BudgetExemptionType) Valid() bool {
 	switch e {
 	case BudgetExemptionTypeAgent:
 		return true
+	case BudgetExemptionTypeApiKey:
+		return true
 	case BudgetExemptionTypeAttribute:
+		return true
+	case BudgetExemptionTypeLlmProvider:
 		return true
 	case BudgetExemptionTypeProject:
 		return true
@@ -308,21 +314,6 @@ func (e BudgetLimitAction) Valid() bool {
 	case Allow:
 		return true
 	case Block:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for BudgetLimitCurrency.
-const (
-	USD BudgetLimitCurrency = "USD"
-)
-
-// Valid indicates whether the value is a known member of the BudgetLimitCurrency enum.
-func (e BudgetLimitCurrency) Valid() bool {
-	switch e {
-	case USD:
 		return true
 	default:
 		return false
@@ -1163,6 +1154,24 @@ func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for GetModelPricesParamsSort.
+const (
+	Model    GetModelPricesParamsSort = "model"
+	Provider GetModelPricesParamsSort = "provider"
+)
+
+// Valid indicates whether the value is a known member of the GetModelPricesParamsSort enum.
+func (e GetModelPricesParamsSort) Valid() bool {
+	switch e {
+	case Model:
+		return true
+	case Provider:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetLLMProxyDeploymentsParamsStatus.
 const (
 	GetLLMProxyDeploymentsParamsStatusARCHIVED    GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
@@ -1594,21 +1603,11 @@ type BudgetApiVersion string
 // BudgetKind defines model for Budget.Kind.
 type BudgetKind string
 
-// BudgetAllowanceUsage One allowance's spend this period
-type BudgetAllowanceUsage struct {
-	// Allowance The allocated values, e.g. {"project":"api-platform","agent":"support-agent"}; empty when shared
-	Allowance map[string]string `json:"allowance"`
-
-	// Spent USD
-	Spent            string `json:"spent"`
-	UnpricedRequests int64  `json:"unpricedRequests"`
-}
-
 // BudgetCurrentPeriod Spend in the current period
 type BudgetCurrentPeriod struct {
 	PeriodStart openapi_types.Date `json:"periodStart"`
 
-	// Spent Total across the budget's allowances
+	// Spent Total across the budget's usages
 	Spent            string `json:"spent"`
 	UnpricedRequests int    `json:"unpricedRequests"`
 }
@@ -1618,7 +1617,7 @@ type BudgetExemption struct {
 	// Expression attribute only: CEL returning bool
 	Expression *string `json:"expression,omitempty"`
 
-	// Id Project or agent handle
+	// Id LLM provider, project or agent handle, or API key name
 	Id *string `json:"id,omitempty"`
 
 	// Project The agent's project; agent only
@@ -1700,12 +1699,11 @@ type BudgetLimit struct {
 	// Action block: refuses when used up; allow: only counts
 	Action BudgetLimitAction `json:"action"`
 
-	// Amount Above zero; at most 12 whole digits and 2 decimals, no leading zeros; never rounded
+	// Amount In USD; above zero; at most 12 whole digits and 2 decimals, no leading zeros; never rounded
 	Amount string `json:"amount"`
 
 	// BlockAt Block only: refuses once spend reaches this share of the amount
-	BlockAt  *int                 `json:"blockAt,omitempty"`
-	Currency *BudgetLimitCurrency `json:"currency,omitempty"`
+	BlockAt *int `json:"blockAt,omitempty"`
 
 	// Period UTC calendar periods; a week starts on Monday
 	Period BudgetLimitPeriod `json:"period"`
@@ -1716,9 +1714,6 @@ type BudgetLimit struct {
 
 // BudgetLimitAction block: refuses when used up; allow: only counts
 type BudgetLimitAction string
-
-// BudgetLimitCurrency defines model for BudgetLimit.Currency.
-type BudgetLimitCurrency string
 
 // BudgetLimitPeriod UTC calendar periods; a week starts on Monday
 type BudgetLimitPeriod string
@@ -1733,7 +1728,7 @@ type BudgetListResponse struct {
 
 // BudgetMetadata defines model for BudgetMetadata.
 type BudgetMetadata struct {
-	// Annotations gateway.api-platform.wso2.com/org-id is the handle of the organization that owns the budget: it must be the organization in the path, and is added when left out, so every returned budget has it. gateway.api-platform.wso2.com/project-id is the handle of the project that owns the budget; without it, the organization owns it. A project budget counts only that project: when no project filter is listed, {type: project, id} is added as the last filter, as on gateways; its limit.splitBy cannot be project. Cannot change. Other annotations are ignored.
+	// Annotations gateway.api-platform.wso2.com/org-id is the handle of the organization that owns the budget: it must be the organization in the path, and is added when left out, so every returned budget has it. A budget belongs to the organization: gateway.api-platform.wso2.com/project-id is refused (VALIDATION_ERROR); to limit a project, list a project filter. Other annotations are ignored.
 	Annotations *map[string]string `json:"annotations,omitempty"`
 
 	// Labels One-word labels to organize and find budgets: each 1-63 characters of letters, digits, '.', '_' or '-', starting and ending with a letter or digit (no spaces); no repeats. Can change. Not sent to gateways.
@@ -1770,7 +1765,7 @@ type BudgetSpec struct {
 	// Exemptions Traffic not counted or blocked by this budget
 	Exemptions *[]BudgetExemption `json:"exemptions,omitempty"`
 
-	// Filters Which LLM usage the budget counts; all must match (AND). Omitted or empty: all LLM usage. Each type except attribute at most once. Fixed after creation.
+	// Filters Which LLM usage the budget counts. Filters of different types must all match (AND); filters of the same type are alternatives (OR): list the type again for each value, e.g. two project filters count either project. An llmProvider, project, agent or apiKey filter without an id (any value) is its type's only filter, and no entry is listed twice. attribute filters all must match (write an OR inside the expression). Omitted or empty: all LLM usage. At most 20 entries in all. Fixed after creation.
 	Filters *[]BudgetFilter `json:"filters,omitempty"`
 	Limit   BudgetLimit     `json:"limit"`
 
@@ -1794,13 +1789,23 @@ type BudgetSplit struct {
 // BudgetSplitType defines model for BudgetSplit.Type.
 type BudgetSplitType string
 
-// BudgetUsageListResponse A page of a budget's usage, one row per allowance, in the current period
+// BudgetUsageEntry One usage's spend this period
+type BudgetUsageEntry struct {
+	// Spent USD
+	Spent            string `json:"spent"`
+	UnpricedRequests int64  `json:"unpricedRequests"`
+
+	// Usage The allocated values, e.g. {"project":"api-platform","agent":"support-agent"}; empty when shared
+	Usage map[string]string `json:"usage"`
+}
+
+// BudgetUsageListResponse A page of a budget's usage, one row per usage, in the current period
 type BudgetUsageListResponse struct {
-	Allowances  []BudgetAllowanceUsage `json:"allowances"`
-	Limit       int                    `json:"limit"`
-	Offset      int                    `json:"offset"`
-	PeriodStart openapi_types.Date     `json:"periodStart"`
-	Total       int                    `json:"total"`
+	Limit       int                `json:"limit"`
+	Offset      int                `json:"offset"`
+	PeriodStart openapi_types.Date `json:"periodStart"`
+	Total       int                `json:"total"`
+	Usages      []BudgetUsageEntry `json:"usages"`
 }
 
 // BudgetWarnings Warnings the control plane sends to the named notification channels. Control plane only; not sent to gateways.
@@ -1808,7 +1813,7 @@ type BudgetWarnings struct {
 	// Channels Names of notification channels (event destinations, unique in the organization) available to the budget
 	Channels []string `json:"channels"`
 
-	// Thresholds Whole percentages of the amount, 1-1000; each once per allowance per period
+	// Thresholds Whole percentages of the amount, 1-1000; each once per usage per period
 	Thresholds []int `json:"thresholds"`
 }
 
@@ -1987,13 +1992,10 @@ type CostRateLimit struct {
 	Reset   RateLimitResetWindow `json:"reset"`
 }
 
-// CostReport Costs per month for each value of the requested groupBy
+// CostReport Costs in USD per month for each value of the requested groupBy
 type CostReport struct {
 	// CostByGroup One entry per value of groupBy, highest cost first
 	CostByGroup []CostByGroup `json:"costByGroup"`
-
-	// Currency Currency of every amount
-	Currency string `json:"currency"`
 }
 
 // CreateAgentModelConfigRequest defines model for CreateAgentModelConfigRequest.
@@ -3281,6 +3283,31 @@ type MCPServerInfoFetchResponse struct {
 	Tools             *[]map[string]interface{} `json:"tools,omitempty"`
 }
 
+// ModelPrice One model's price. Prices are USD per 1M tokens as exact decimal strings; null where the price file had none.
+type ModelPrice struct {
+	CachedInputPer1M *string `json:"cachedInputPer1M,omitempty"`
+	InputPer1M       *string `json:"inputPer1M,omitempty"`
+	Model            string  `json:"model"`
+	OutputPer1M      *string `json:"outputPer1M,omitempty"`
+	Provider         *string `json:"provider,omitempty"`
+}
+
+// ModelPriceList A page of the model price catalog
+type ModelPriceList struct {
+	Limit  int          `json:"limit"`
+	Models []ModelPrice `json:"models"`
+	Offset int          `json:"offset"`
+
+	// Providers Every provider in the catalog, sorted
+	Providers []string `json:"providers"`
+
+	// Total Models matching the search and provider
+	Total int `json:"total"`
+
+	// UpdatedAt When the newest model was added; null with no prices
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
 // MonthlyCost defines model for MonthlyCost.
 type MonthlyCost struct {
 	Cost string `json:"cost"`
@@ -3829,9 +3856,6 @@ type ListLLMProvidersParams struct {
 
 // ListBudgetsParams defines parameters for ListBudgets.
 type ListBudgetsParams struct {
-	// Project Only the budgets this project owns; omitted, every budget in the organization.
-	Project *string `form:"project,omitempty" json:"project,omitempty"`
-
 	// Filter type:id, with type project, agent, apiKey or llmProvider: budgets whose filters or exemptions name it (project also matches an agent filter or exemption of that project). agent:<project>/<agent> lists the budgets that count that agent: those naming it, and those naming its project and no agent. Repeat for AND.
 	Filter *[]string `form:"filter,omitempty" json:"filter,omitempty"`
 
@@ -4027,6 +4051,23 @@ type ListMCPProxiesParams struct {
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
+
+// GetModelPricesParams defines parameters for GetModelPrices.
+type GetModelPricesParams struct {
+	// Search Part of the model name, any case
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+
+	// Provider Only this provider's models
+	Provider *string `form:"provider,omitempty" json:"provider,omitempty"`
+
+	// Sort The order of the catalog. By model name by default; "provider" lists providers A to Z, models without a provider last, then by model name.
+	Sort   *GetModelPricesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+	Limit  *int                      `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int                      `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// GetModelPricesParamsSort defines parameters for GetModelPrices.
+type GetModelPricesParamsSort string
 
 // GetAgentConfigurationsParams defines parameters for GetAgentConfigurations.
 type GetAgentConfigurationsParams struct {

@@ -38,6 +38,7 @@ import { globalConfig } from "@agent-management-platform/types";
 import {
   amount,
   changePercent,
+  formatChange,
   entryMonthly,
   formatUsdCents,
   groupKey,
@@ -78,23 +79,17 @@ function Tile({
   action?: React.ReactNode;
 }) {
   return (
-    <Card
-      variant="outlined"
-      sx={{
-        height: "100%",
-        borderColor: highlight ? "primary.main" : "divider",
-      }}
-    >
+    <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
         <Typography variant="body2" color="text.secondary">
           {label}
         </Typography>
         <Typography
           variant="h5"
-          fontWeight={700}
+          fontWeight={600}
           sx={{
             mt: 0.5,
-            fontSize: "1.5rem",
+            fontSize: "1.25rem",
             color: highlight ? "primary.main" : "text.primary",
             fontVariantNumeric: "tabular-nums",
           }}
@@ -171,6 +166,8 @@ export function CostOverview({
   const beforeLast = totals[months.length - 3] ?? 0;
   const threeMonths = totals.reduce((a, b) => a + b, 0);
   const change = changePercent(beforeLast, last);
+  // This month so far against the whole of last month.
+  const currentChange = changePercent(last, current);
   const { missingPrice: missing, usageUnavailable: unavailable } =
     unpricedTotals(groups);
 
@@ -244,9 +241,13 @@ export function CostOverview({
           <>
             <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
               <Tile
-                label={`This month (${thisMonth})`}
+                label={`This month (${thisMonth}) so far`}
                 value={formatUsdCents(current)}
-                caption={`So far in ${thisMonth}`}
+                caption={
+                  currentChange === undefined
+                    ? undefined
+                    : formatChange(currentChange, lastMonth)
+                }
                 highlight
               />
             </Grid>
@@ -257,7 +258,10 @@ export function CostOverview({
                 caption={
                   change === undefined
                     ? undefined
-                    : `${change >= 0 ? "+" : ""}${change}% vs ${monthLabel(months[months.length - 3] ?? "")}`
+                    : formatChange(
+                        change,
+                        monthLabel(months[months.length - 3] ?? ""),
+                      )
                 }
               />
             </Grid>
@@ -307,7 +311,7 @@ export function CostOverview({
             <StateNotice
               compact
               icon={ChartColumnStacked}
-              title="No AI traffic yet"
+              title="No traffic yet"
               description="Costs appear once requests flow through a gateway."
             />
           ) : (

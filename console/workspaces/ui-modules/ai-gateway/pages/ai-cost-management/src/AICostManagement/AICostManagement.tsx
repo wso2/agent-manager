@@ -42,6 +42,7 @@ import { BudgetWizard } from "./subComponents/BudgetForm";
 import { startQuery } from "./budgetForm";
 import { UnpricedRequests } from "./subComponents/UnpricedRequests";
 import { QuickBudgetDialog } from "../panels/QuickBudgetDialog";
+import { PricingList } from "../Pricing/PricingList";
 
 type View = "overview" | "budgets";
 
@@ -152,7 +153,7 @@ function CostManagementPage({ view }: { view: View }) {
     orgBudgetView,
   } = useScope();
   // On a project's or agent's page "Add budget" opens the quick form with it filled in;
-  // its "Advanced options" opens the full form.
+  // its "Advanced create" opens the full form.
   const [quickOpen, setQuickOpen] = useState(false);
   // The header has the create action only while the list has budgets; an empty list
   // shows it in its empty state.
@@ -241,6 +242,20 @@ function UnpricedRequestsPage() {
   );
 }
 
+/** The model prices the gateways use: organization level only. */
+function PricingPage() {
+  const { orgId } = useScope();
+  return (
+    <PageLayout
+      title="Pricing Catalog"
+      description="Model prices the gateways use."
+      disableIcon
+    >
+      <PricingList orgName={orgId} />
+    </PageLayout>
+  );
+}
+
 function BudgetDetailPage() {
   const { budgetName = "" } = useParams<{ budgetName: string }>();
   const { orgId, projectId, budgets, budgetEdit, unpriced } = useScope();
@@ -288,6 +303,14 @@ export const AICostManagement: React.FC = () => {
       <Route index element={<CostManagementPage view="overview" />} />
       <Route path="unpriced-requests" element={<UnpricedRequestsPage />} />
       <Route path="budgets" element={<CostManagementPage view="budgets" />} />
+      <Route
+        path="pricing"
+        element={
+          <Guard allowed={!projectId} fallback={overview}>
+            <PricingPage />
+          </Guard>
+        }
+      />
       <Route
         path="budgets/create"
         element={

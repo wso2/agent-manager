@@ -28,11 +28,8 @@ import (
 //			ForBudgetsFunc: func(ctx context.Context, ouID string, budgetIDs []uuid.UUID) ([]gwmodels.BudgetUsage, error) {
 //				panic("mock out the ForBudgets method")
 //			},
-//			RecordFunc: func(ctx context.Context, rows []gwmodels.BudgetUsage, warn func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning, publish gwrepo.WarningPublisher) error {
+//			RecordFunc: func(ctx context.Context, rows []gwmodels.BudgetUsage, warn gwrepo.WarnFunc, publish gwrepo.WarningPublisher) error {
 //				panic("mock out the Record method")
-//			},
-//			RecordWarningsFunc: func(ctx context.Context, warnings []gwmodels.BudgetWarning, publish gwrepo.WarningPublisher) error {
-//				panic("mock out the RecordWarnings method")
 //			},
 //		}
 //
@@ -51,10 +48,7 @@ type BudgetUsageRepositoryMock struct {
 	ForBudgetsFunc func(ctx context.Context, ouID string, budgetIDs []uuid.UUID) ([]gwmodels.BudgetUsage, error)
 
 	// RecordFunc mocks the Record method.
-	RecordFunc func(ctx context.Context, rows []gwmodels.BudgetUsage, warn func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning, publish gwrepo.WarningPublisher) error
-
-	// RecordWarningsFunc mocks the RecordWarnings method.
-	RecordWarningsFunc func(ctx context.Context, warnings []gwmodels.BudgetWarning, publish gwrepo.WarningPublisher) error
+	RecordFunc func(ctx context.Context, rows []gwmodels.BudgetUsage, warn gwrepo.WarnFunc, publish gwrepo.WarningPublisher) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -90,16 +84,7 @@ type BudgetUsageRepositoryMock struct {
 			// Rows is the rows argument value.
 			Rows []gwmodels.BudgetUsage
 			// Warn is the warn argument value.
-			Warn func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning
-			// Publish is the publish argument value.
-			Publish gwrepo.WarningPublisher
-		}
-		// RecordWarnings holds details about calls to the RecordWarnings method.
-		RecordWarnings []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// Warnings is the warnings argument value.
-			Warnings []gwmodels.BudgetWarning
+			Warn gwrepo.WarnFunc
 			// Publish is the publish argument value.
 			Publish gwrepo.WarningPublisher
 		}
@@ -108,7 +93,6 @@ type BudgetUsageRepositoryMock struct {
 	lockForBudget           sync.RWMutex
 	lockForBudgets          sync.RWMutex
 	lockRecord              sync.RWMutex
-	lockRecordWarnings      sync.RWMutex
 }
 
 // DeletePeriodsBefore calls DeletePeriodsBeforeFunc.
@@ -228,14 +212,14 @@ func (mock *BudgetUsageRepositoryMock) ForBudgetsCalls() []struct {
 }
 
 // Record calls RecordFunc.
-func (mock *BudgetUsageRepositoryMock) Record(ctx context.Context, rows []gwmodels.BudgetUsage, warn func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning, publish gwrepo.WarningPublisher) error {
+func (mock *BudgetUsageRepositoryMock) Record(ctx context.Context, rows []gwmodels.BudgetUsage, warn gwrepo.WarnFunc, publish gwrepo.WarningPublisher) error {
 	if mock.RecordFunc == nil {
 		panic("BudgetUsageRepositoryMock.RecordFunc: method is nil but BudgetUsageRepository.Record was just called")
 	}
 	callInfo := struct {
 		Ctx     context.Context
 		Rows    []gwmodels.BudgetUsage
-		Warn    func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning
+		Warn    gwrepo.WarnFunc
 		Publish gwrepo.WarningPublisher
 	}{
 		Ctx:     ctx,
@@ -256,57 +240,17 @@ func (mock *BudgetUsageRepositoryMock) Record(ctx context.Context, rows []gwmode
 func (mock *BudgetUsageRepositoryMock) RecordCalls() []struct {
 	Ctx     context.Context
 	Rows    []gwmodels.BudgetUsage
-	Warn    func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning
+	Warn    gwrepo.WarnFunc
 	Publish gwrepo.WarningPublisher
 } {
 	var calls []struct {
 		Ctx     context.Context
 		Rows    []gwmodels.BudgetUsage
-		Warn    func(stored gwmodels.BudgetUsage) []gwmodels.BudgetWarning
+		Warn    gwrepo.WarnFunc
 		Publish gwrepo.WarningPublisher
 	}
 	mock.lockRecord.RLock()
 	calls = mock.calls.Record
 	mock.lockRecord.RUnlock()
-	return calls
-}
-
-// RecordWarnings calls RecordWarningsFunc.
-func (mock *BudgetUsageRepositoryMock) RecordWarnings(ctx context.Context, warnings []gwmodels.BudgetWarning, publish gwrepo.WarningPublisher) error {
-	if mock.RecordWarningsFunc == nil {
-		panic("BudgetUsageRepositoryMock.RecordWarningsFunc: method is nil but BudgetUsageRepository.RecordWarnings was just called")
-	}
-	callInfo := struct {
-		Ctx      context.Context
-		Warnings []gwmodels.BudgetWarning
-		Publish  gwrepo.WarningPublisher
-	}{
-		Ctx:      ctx,
-		Warnings: warnings,
-		Publish:  publish,
-	}
-	mock.lockRecordWarnings.Lock()
-	mock.calls.RecordWarnings = append(mock.calls.RecordWarnings, callInfo)
-	mock.lockRecordWarnings.Unlock()
-	return mock.RecordWarningsFunc(ctx, warnings, publish)
-}
-
-// RecordWarningsCalls gets all the calls that were made to RecordWarnings.
-// Check the length with:
-//
-//	len(mockedBudgetUsageRepository.RecordWarningsCalls())
-func (mock *BudgetUsageRepositoryMock) RecordWarningsCalls() []struct {
-	Ctx      context.Context
-	Warnings []gwmodels.BudgetWarning
-	Publish  gwrepo.WarningPublisher
-} {
-	var calls []struct {
-		Ctx      context.Context
-		Warnings []gwmodels.BudgetWarning
-		Publish  gwrepo.WarningPublisher
-	}
-	mock.lockRecordWarnings.RLock()
-	calls = mock.calls.RecordWarnings
-	mock.lockRecordWarnings.RUnlock()
 	return calls
 }

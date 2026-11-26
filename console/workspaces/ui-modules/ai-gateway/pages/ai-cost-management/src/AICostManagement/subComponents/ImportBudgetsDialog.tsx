@@ -28,14 +28,9 @@ import {
   DialogTitle,
   IconButton,
   Link,
+  ListingTable,
   MenuItem,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
 } from "@wso2/oxygen-ui";
@@ -64,6 +59,7 @@ import {
   rowStatus,
   validationResult,
 } from "../budgetImport";
+import { FORM_SELECT_SX } from "../controlSizes";
 
 interface ImportBudgetsDialogProps {
   open: boolean;
@@ -168,7 +164,7 @@ export function ImportBudgetsDialog({
       <DialogContent>
         <Stack spacing={2}>
           <Typography variant="body2" color="text.secondary">
-            Upload a CSV of up to 500 budgets. Every row is checked first.
+            Create several budgets at once from a CSV file.
           </Typography>
           <Box>
             <Link
@@ -236,6 +232,7 @@ export function ImportBudgetsDialog({
               select
               size="small"
               fullWidth
+              sx={FORM_SELECT_SX}
               value={onExisting}
               onChange={(e) => {
                 const mode = e.target.value as BudgetImportOnExisting;
@@ -292,36 +289,26 @@ export function ImportBudgetsDialog({
                   </Alert>
                 );
               })()}
-              <TableContainer
-                sx={{
-                  maxHeight: 320,
-                  border: 1,
-                  borderColor: "divider",
-                  borderRadius: 1,
-                }}
-              >
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600, width: 56 }}>
-                        Row
-                      </TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Budget</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>
-                        Validation status
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
+              <ListingTable.Container sx={{ maxHeight: 320, overflow: "auto" }}>
+                <ListingTable density="compact">
+                  <ListingTable.Head>
+                    <ListingTable.Row>
+                      <ListingTable.Cell>Budget</ListingTable.Cell>
+                      <ListingTable.Cell>Status</ListingTable.Cell>
+                    </ListingTable.Row>
+                  </ListingTable.Head>
+                  <ListingTable.Body>
                     {result.results.map((r) => {
                       const status = rowStatus(r);
                       return (
-                        <TableRow key={r.row} sx={{ verticalAlign: "top" }}>
-                          <TableCell>{r.row}</TableCell>
-                          <TableCell sx={{ overflowWrap: "anywhere" }}>
-                            {r.name || "—"}
-                          </TableCell>
-                          <TableCell>
+                        <ListingTable.Row
+                          key={r.row}
+                          sx={{ verticalAlign: "top" }}
+                        >
+                          <ListingTable.Cell sx={{ overflowWrap: "anywhere" }}>
+                            {r.name || `Line ${r.row}`}
+                          </ListingTable.Cell>
+                          <ListingTable.Cell>
                             <Stack
                               direction="row"
                               spacing={0.75}
@@ -366,13 +353,13 @@ export function ImportBudgetsDialog({
                                 </Typography>
                               );
                             })}
-                          </TableCell>
-                        </TableRow>
+                          </ListingTable.Cell>
+                        </ListingTable.Row>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                  </ListingTable.Body>
+                </ListingTable>
+              </ListingTable.Container>
             </>
           )}
         </Stack>
