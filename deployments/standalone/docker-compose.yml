@@ -154,14 +154,6 @@ services:
       # Lite answers 501 for internal agents, the only writers of agent
       # credentials, so no secret manager provider is wired here.
       SECRET_MANAGER_PROVIDER: unsupported
-      SECRET_VAULT_PROVIDER: ${SECRET_VAULT_PROVIDER:-local}
-      SECRET_VAULT_READERS: ${SECRET_VAULT_READERS:-}
-      OPENBAO_ADDR: ${OPENBAO_ADDR:-}
-      OPENBAO_TOKEN: ${OPENBAO_TOKEN:-}
-      OPENBAO_KV_MOUNT: ${OPENBAO_KV_MOUNT:-secret}
-      # Development only: lets OPENBAO_ADDR be plain http:// on a non-loopback
-      # host, such as http://host.docker.internal:8200 from this container.
-      OPENBAO_ALLOW_INSECURE_HTTP: ${OPENBAO_ALLOW_INSECURE_HTTP:-false}
       MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR: gateway-runtime:19080
       # The bundled gateway, registered at startup with the token amp-init wrote.
       MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME: default
