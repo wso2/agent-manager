@@ -273,7 +273,11 @@ func TestWithEvents_CreateEventsNameADocumentByMetadataName(t *testing.T) {
 func TestWithEvents_EmitAlsoRaisesMoreEvents(t *testing.T) {
 	pub := serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x?project=p1",
 		map[string]string{"agentName": "a1"}, func(w http.ResponseWriter, r *http.Request) {
-			modkit.EmitAlso(r.Context(), "agent.created", map[string]any{"gatewayId": "gw-1", "apiKey": "secret"})
+			modkit.EmitAlso(r.Context(), "agent.created", map[string]any{
+				"gatewayId": "gw-1", "apiKey": "secret",
+				"nested": map[string]string{"token": "secret", "name": "n"},
+				"typed":  struct{ Password, Kind string }{"secret", "k"},
+			})
 			modkit.EmitAlso(r.Context(), "testmod.not_declared", map[string]any{"x": 1})
 			modkit.EmitAlso(r.Context(), "agent.deleted", nil)
 			w.WriteHeader(http.StatusOK)
@@ -283,7 +287,11 @@ func TestWithEvents_EmitAlsoRaisesMoreEvents(t *testing.T) {
 	route, deployed, deleted := pub.got[0], pub.got[1], pub.got[2]
 	assert.Equal(t, "testmod.widget_updated", route.Name())
 	assert.Equal(t, "agent.created", deployed.Name())
-	assert.Equal(t, map[string]any{"gatewayId": "gw-1"}, deployed.Data, "credential-looking fields are redacted")
+	assert.Equal(t, map[string]any{
+		"gatewayId": "gw-1",
+		"nested":    map[string]any{"name": "n"},
+		"typed":     map[string]any{"Kind": "k"},
+	}, deployed.Data, "credential-looking fields are redacted, in typed values too")
 	for _, e := range []events.Event{deployed, deleted} {
 		assert.Equal(t, route.Subject, e.Subject)
 		assert.Equal(t, route.OrgID, e.OrgID)

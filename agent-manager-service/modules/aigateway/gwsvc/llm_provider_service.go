@@ -823,6 +823,7 @@ var ErrAllGatewayDeploymentsFailed = errors.New("all gateway deployments failed"
 // UpdateAndSync updates an LLM provider and syncs its gateway deployments
 func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID string, updates *gwmodels.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*UpdateAndSyncResponse, error) {
 	slog.Info("LLMProviderService.UpdateAndSync: starting", "providerID", providerID, "ouID", ouID, "gatewayCount", len(gatewayIDs))
+	gatewayIDs = uniqueGatewayIDs(gatewayIDs)
 
 	// First, update the provider using the existing Update method
 	updated, err := s.Update(ctx, providerID, ouID, updates)
@@ -1352,9 +1353,31 @@ func (s *LLMProviderService) syncProxyAuthHeader(
 	return true, nil
 }
 
+// uniqueGatewayIDs drops repeated gateways, compared as UUIDs, so each gateway is placed at most once.
+func uniqueGatewayIDs(ids []string) []string {
+	if ids == nil {
+		return nil
+	}
+	seen := make(map[string]bool, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		key := id
+		if u, err := uuid.Parse(id); err == nil {
+			key = u.String()
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, id)
+	}
+	return out
+}
+
 // CreateAndDeploy creates an LLM provider and deploys it to the specified gateways
 func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdBy string, provider *gwmodels.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*CreateAndDeployResponse, error) {
 	slog.Info("LLMProviderService.CreateAndDeploy: starting", "ouID", ouID, "createdBy", createdBy, "gatewayCount", len(gatewayIDs))
+	gatewayIDs = uniqueGatewayIDs(gatewayIDs)
 
 	// Validate gateway UUIDs
 	deploymentResults := make([]DeploymentResult, 0, len(gatewayIDs))

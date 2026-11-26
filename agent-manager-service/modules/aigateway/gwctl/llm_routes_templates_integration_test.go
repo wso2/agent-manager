@@ -151,23 +151,37 @@ func TestLLMRoutesTemplateErrors(t *testing.T) {
 		message string
 	}{
 		{"create malformed body", http.MethodPost, llmTemplatesPath, "{", http.StatusBadRequest, "Invalid request body"},
-		{"create without a displayName", http.MethodPost, llmTemplatesPath, llmTemplateDoc(unique("x"), map[string]any{}),
-			http.StatusBadRequest, "invalid document: spec.displayName is required"},
-		{"create with the wrong kind", http.MethodPost, llmTemplatesPath, wrongKind,
-			http.StatusBadRequest, `invalid document: kind must be "LlmProviderTemplate" on this route, got "LlmProvider"`},
-		{"create with a bad handle", http.MethodPost, llmTemplatesPath, llmTemplateDoc("bad handle!", map[string]any{"displayName": "x"}),
-			http.StatusBadRequest, "Invalid input"},
-		{"create a duplicate", http.MethodPost, llmTemplatesPath, llmTemplateDoc(existing, map[string]any{"displayName": "Again"}),
-			http.StatusConflict, "LLM provider template already exists"},
+		{
+			"create without a displayName", http.MethodPost, llmTemplatesPath, llmTemplateDoc(unique("x"), map[string]any{}),
+			http.StatusBadRequest, "invalid document: spec.displayName is required",
+		},
+		{
+			"create with the wrong kind", http.MethodPost, llmTemplatesPath, wrongKind,
+			http.StatusBadRequest, `invalid document: kind must be "LlmProviderTemplate" on this route, got "LlmProvider"`,
+		},
+		{
+			"create with a bad handle", http.MethodPost, llmTemplatesPath, llmTemplateDoc("bad handle!", map[string]any{"displayName": "x"}),
+			http.StatusBadRequest, "Invalid input",
+		},
+		{
+			"create a duplicate", http.MethodPost, llmTemplatesPath, llmTemplateDoc(existing, map[string]any{"displayName": "Again"}),
+			http.StatusConflict, "LLM provider template already exists",
+		},
 		{"get a bad handle", http.MethodGet, llmTemplatesPath + "/bad%20handle", nil, http.StatusBadRequest, "Invalid template id"},
 		{"get a missing template", http.MethodGet, llmTemplatesPath + "/" + missing, nil, http.StatusNotFound, "LLM provider template not found"},
 		{"update malformed body", http.MethodPut, llmTemplatesPath + "/" + existing, "{", http.StatusBadRequest, "Invalid request body"},
-		{"update without a displayName", http.MethodPut, llmTemplatesPath + "/" + existing, llmTemplateDoc(existing, map[string]any{"description": "d"}),
-			http.StatusBadRequest, "invalid document: spec.displayName is required"},
-		{"update another template's name", http.MethodPut, llmTemplatesPath + "/" + existing, llmTemplateDoc(missing, map[string]any{"displayName": "x"}),
-			http.StatusBadRequest, "metadata.name does not match the LLM provider template in the path"},
-		{"update a missing template", http.MethodPut, llmTemplatesPath + "/" + missing, llmTemplateDoc(missing, map[string]any{"displayName": "x"}),
-			http.StatusNotFound, "LLM provider template not found"},
+		{
+			"update without a displayName", http.MethodPut, llmTemplatesPath + "/" + existing, llmTemplateDoc(existing, map[string]any{"description": "d"}),
+			http.StatusBadRequest, "invalid document: spec.displayName is required",
+		},
+		{
+			"update another template's name", http.MethodPut, llmTemplatesPath + "/" + existing, llmTemplateDoc(missing, map[string]any{"displayName": "x"}),
+			http.StatusBadRequest, "metadata.name does not match the LLM provider template in the path",
+		},
+		{
+			"update a missing template", http.MethodPut, llmTemplatesPath + "/" + missing, llmTemplateDoc(missing, map[string]any{"displayName": "x"}),
+			http.StatusNotFound, "LLM provider template not found",
+		},
 		{"delete a bad handle", http.MethodDelete, llmTemplatesPath + "/bad%20handle", nil, http.StatusBadRequest, "Invalid template id"},
 		{"delete a missing template", http.MethodDelete, llmTemplatesPath + "/" + missing, nil, http.StatusNotFound, "LLM provider template not found"},
 	}
