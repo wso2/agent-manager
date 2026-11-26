@@ -56,6 +56,12 @@ console:
 # With no list, amp installs ai-gateway at boot if it was never installed.
 modules:
   - ai-gateway
+  # To configure ai-gateway, write its entry as a mapping instead:
+  # - name: ai-gateway
+  #   config:
+  #     # How the bundled gateway receives credentials: inline (in its
+  #     # artifacts) or reference (fetched into its encrypted secret store).
+  #     default_gateway_secret_delivery: reference  # MODULE_AI_GATEWAY_DEFAULT_GATEWAY_SECRET_DELIVERY
   # - name: widgets
   #   enabled: true
   #   config:                     # MODULE_WIDGETS_<KEY>, read with Runtime.Config
