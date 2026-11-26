@@ -25,6 +25,8 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -142,9 +144,9 @@ func TestListTracesRequests(t *testing.T) {
 		{"unknown agent", "project=shop&agent=nosuch&" + testWindow, http.StatusNotFound},
 		{"no agent", "project=shop&" + testWindow, http.StatusBadRequest},
 		{"no window", "project=shop&agent=bot", http.StatusBadRequest},
-		{"unsupported filter", "project=shop&agent=bot&model=gpt-4o&" + testWindow, http.StatusBadRequest},
-		{"cursor", "project=shop&agent=bot&cursor=x&" + testWindow, http.StatusBadRequest},
-		{"malformed unsupported filter", "project=shop&agent=bot&model=%zz&" + testWindow, http.StatusBadRequest},
+		{"filter", "project=shop&agent=bot&model=gpt-4o&" + testWindow, http.StatusOK},
+		{"cursor the store didn't issue", "project=shop&agent=bot&cursor=x&" + testWindow, http.StatusBadRequest},
+		{"malformed filter", "project=shop&agent=bot&model=%zz&" + testWindow, http.StatusBadRequest},
 	} {
 		if got := serve(t, h.listTraces, "org-a", "/?"+tc.query); got != tc.want {
 			t.Errorf("%s: listTraces = %d, want %d", tc.name, got, tc.want)
@@ -183,8 +185,117 @@ func TestListTracesPage(t *testing.T) {
 	if len(got.Traces) != 2 || got.Traces[0].TraceID != "2" {
 		t.Fatalf("listed %+v, want the 2 newest", got.Traces)
 	}
+	if got.Pagination.NextCursor == "" || got.Pagination.Total == nil || *got.Pagination.Total != 3 {
+		t.Fatalf("pagination = %+v, want a cursor and total 3", got.Pagination)
+	}
+
+	r = httptest.NewRequest(http.MethodGet, "/?project=shop&agent=bot&limit=2&cursor="+url.QueryEscape(got.Pagination.NextCursor)+"&"+testWindow, nil)
+	w = httptest.NewRecorder()
+	h.listTraces(w, r.WithContext(modkit.WithOrgID(r.Context(), "org-a")))
+	var next TraceListResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &next); err != nil || w.Code != http.StatusOK {
+		t.Fatalf("second page = %d %s", w.Code, w.Body.String())
+	}
+	if len(next.Traces) != 1 || next.Traces[0].TraceID != "0" {
+		t.Fatalf("second page listed %+v, want the oldest", next.Traces)
+	}
 	if got, want := rawPagination(t, w.Body.Bytes()), `{"limit":2,"total":3}`; got != want {
-		t.Errorf("pagination = %s, want %s: no cursor, not truncated", got, want)
+		t.Errorf("last page pagination = %s, want %s: no cursor, not truncated", got, want)
+	}
+}
+
+// The observer's filter checks answer 400 with its messages, on the list and the export.
+func TestTraceFilterErrors(t *testing.T) {
+	h := newHandlers()
+	long := url.QueryEscape(strings.Repeat("é", maxFilterValueLen+1))
+	for _, tc := range []struct{ query, msg string }{
+		{"status=failed", "status must be 'error' or 'ok'"},
+		{"status=ERROR", "status must be 'error' or 'ok'"},
+		{"minDurationMs=1.5", "minDurationMs must be a non-negative integer"},
+		{"minTokens=-1", "minTokens must be a non-negative integer"},
+		{"minSpanCount=lots", "minSpanCount must be a non-negative integer"},
+		{"model=" + long, "model must be at most 256 characters"},
+		{"conversationId=" + long, "conversationId must be at most 256 characters"},
+		{"tool=" + long, "tool must be at most 256 characters"},
+		{"mcpServer=" + long, "mcpServer must be at most 256 characters"},
+		{"toolError=TRUE", "toolError must be 'true' or 'false'"},
+		{"toolError=1", "toolError must be 'true' or 'false'"},
+		{"missing=model", `invalid missing value "model": must be 'conversationId'`},
+		{"missing=conversationId&conversationId=c1", "conversationId and missing=conversationId can't be combined"},
+	} {
+		for name, serveFn := range map[string]http.HandlerFunc{"list": h.listTraces, "export": h.exportTraces} {
+			r := httptest.NewRequest(http.MethodGet, "/?project=shop&agent=bot&"+testWindow+"&"+tc.query, nil)
+			w := httptest.NewRecorder()
+			serveFn(w, r.WithContext(modkit.WithOrgID(r.Context(), "org-a")))
+			var body ErrorResponse
+			_ = json.Unmarshal(w.Body.Bytes(), &body)
+			if w.Code != http.StatusBadRequest || body.Message != tc.msg {
+				t.Errorf("%s %s = %d %q, want 400 %q", name, tc.query, w.Code, body.Message, tc.msg)
+			}
+		}
+	}
+}
+
+func TestTraceFilterValues(t *testing.T) {
+	at256 := strings.Repeat("é", maxFilterValueLen)
+	for _, tc := range []struct {
+		query string
+		want  tracesv1.TraceFilters
+	}{
+		{"", tracesv1.TraceFilters{}},
+		{"status=ok&toolError=false", tracesv1.TraceFilters{Status: "ok"}},
+		{"minTokens=0", tracesv1.TraceFilters{MinTokens: ptr(int64(0))}},
+		{"minDurationMs=5000&minSpanCount=20", tracesv1.TraceFilters{MinDurationMs: ptr(int64(5000)), MinSpanCount: ptr(int64(20))}},
+		{"model=" + at256, tracesv1.TraceFilters{Model: at256}},
+		{"tool=search&toolError=true&mcpServer=github", tracesv1.TraceFilters{Tool: "search", ToolError: true, MCPServer: "github"}},
+		{"missing=%20conversationId,&missing=conversationId", tracesv1.TraceFilters{MissingConversationID: true}},
+	} {
+		query, _ := url.ParseQuery(tc.query)
+		got, err := parseTraceFilters(query)
+		if err != nil || !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("parseTraceFilters(%q) = %+v, %v; want %+v", tc.query, got, err, tc.want)
+		}
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// queryStore records the query it is asked and answers with page.
+type queryStore struct {
+	store.TraceStore
+	page *tracesv1.TracePage
+	got  tracesv1.TraceQuery
+}
+
+func (s *queryStore) QueryTraces(_ context.Context, _ store.Scope, q tracesv1.TraceQuery) (*tracesv1.TracePage, error) {
+	s.got = q
+	return s.page, nil
+}
+
+func TestListTracesPassesFiltersAndCursor(t *testing.T) {
+	traces := &queryStore{page: &tracesv1.TracePage{}}
+	h := handlers{core: fakeCore{}, traces: guarded{traces: traces}, log: slog.New(slog.DiscardHandler)}
+	serve(t, h.listTraces, "org-a", "/?project=shop&agent=bot&status=error&tool=search&cursor=c1&"+testWindow)
+	want := tracesv1.TraceFilters{Status: "error", Tool: "search"}
+	if traces.got.Filters != want || traces.got.Cursor != "c1" {
+		t.Errorf("store got %+v, want filters %+v and cursor c1", traces.got, want)
+	}
+	if got := serve(t, h.exportTraces, "org-a", "/?project=shop&agent=bot&cursor=c1&"+testWindow); got != http.StatusBadRequest {
+		t.Errorf("export with a cursor = %d, want 400", got)
+	}
+}
+
+// A store that stopped early reports it; the pagination says how far it looked.
+func TestListTracesTruncatedPage(t *testing.T) {
+	at := time.Date(2026, 11, 1, 9, 40, 0, 0, time.UTC)
+	traces := &queryStore{page: &tracesv1.TracePage{NextCursor: "c2", Truncated: true, LookedBackTo: at}}
+	h := handlers{core: fakeCore{}, traces: guarded{traces: traces}, log: slog.New(slog.DiscardHandler)}
+	r := httptest.NewRequest(http.MethodGet, "/?project=shop&agent=bot&limit=5&"+testWindow, nil)
+	w := httptest.NewRecorder()
+	h.listTraces(w, r.WithContext(modkit.WithOrgID(r.Context(), "org-a")))
+	want := `{"limit":5,"nextCursor":"c2","lookedBackTo":"2026-11-01T09:40:00Z","truncated":true}`
+	if got := rawPagination(t, w.Body.Bytes()); got != want {
+		t.Errorf("pagination = %s, want %s", got, want)
 	}
 }
 

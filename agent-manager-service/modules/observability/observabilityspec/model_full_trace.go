@@ -1,7 +1,7 @@
 /*
 Observability module API
 
-The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
+The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The trace list and export take the observer's trace filters, with its rules and 400 messages; the list pages with `cursor`.  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
 
 API version: 1.0.0
 */

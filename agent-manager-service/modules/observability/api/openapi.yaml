@@ -4,8 +4,8 @@ info:
   description: |
     The observability module's trace routes, under `/m/observability`. A trace or span
     has the Agent Manager Observer's shape; a list holds its items and a `pagination`
-    object with the page's paging state. The observer's trace filters and `cursor` are
-    refused with 400 (see each operation).
+    object with the page's paging state. The trace list and export take the observer's
+    trace filters, with its rules and 400 messages; the list pages with `cursor`.
 
     The organization is always the caller's. An `organization` query parameter, which the
     console sends, is ignored. `project` and `agent` are names in that organization; an
@@ -31,10 +31,10 @@ paths:
       tags: [traces]
       summary: List traces
       description: |
-        Lists the agent's traces whose root span starts in the window, by start time.
-        The observer's filter parameters (`status`, `minDurationMs`, `minTokens`,
-        `minSpanCount`, `model`, `conversationId`, `tool`, `toolError`, `mcpServer`,
-        `missing`) and `cursor` are refused with 400. `include` is ignored.
+        Lists the agent's traces whose root span starts in the window, by start time, then
+        trace ID. Set filters combine with AND. To read the next page, send the previous
+        page's `pagination.nextCursor` as `cursor` with the same window, sort and filters.
+        `include` is ignored.
       operationId: listTraces
       parameters:
         - $ref: "#/components/parameters/project"
@@ -49,6 +49,23 @@ paths:
             type: string
             enum: [asc, desc]
             default: desc
+        - $ref: "#/components/parameters/status"
+        - $ref: "#/components/parameters/minDurationMs"
+        - $ref: "#/components/parameters/minTokens"
+        - $ref: "#/components/parameters/minSpanCount"
+        - $ref: "#/components/parameters/model"
+        - $ref: "#/components/parameters/conversationId"
+        - $ref: "#/components/parameters/tool"
+        - $ref: "#/components/parameters/toolError"
+        - $ref: "#/components/parameters/mcpServer"
+        - $ref: "#/components/parameters/missing"
+        - name: cursor
+          in: query
+          description: |
+            The previous page's `pagination.nextCursor`. One the server didn't issue for this
+            sort order is a 400 "invalid cursor".
+          schema:
+            type: string
       responses:
         "200":
           description: Trace overview list
@@ -73,9 +90,9 @@ paths:
       summary: Export traces
       description: |
         Exports the agent's traces whose root span starts in the window, each with its
-        spans and their attributes (at most 1000 spans a trace). The filters and `cursor`
-        are refused with 400 as on the list. A trace whose spans can't be read is left
-        out and named in `failedTraceIds`.
+        spans and their attributes (at most 1000 spans a trace). It takes the list's filters,
+        but no `cursor` (400). A trace whose spans can't be read is left out and named in
+        `failedTraceIds`.
       operationId: exportTraces
       parameters:
         - $ref: "#/components/parameters/project"
@@ -97,6 +114,16 @@ paths:
             type: string
             enum: [asc, desc]
             default: desc
+        - $ref: "#/components/parameters/status"
+        - $ref: "#/components/parameters/minDurationMs"
+        - $ref: "#/components/parameters/minTokens"
+        - $ref: "#/components/parameters/minSpanCount"
+        - $ref: "#/components/parameters/model"
+        - $ref: "#/components/parameters/conversationId"
+        - $ref: "#/components/parameters/tool"
+        - $ref: "#/components/parameters/toolError"
+        - $ref: "#/components/parameters/mcpServer"
+        - $ref: "#/components/parameters/missing"
       responses:
         "200":
           description: The exported traces
@@ -256,6 +283,87 @@ components:
         minimum: 1
         maximum: 1000
         default: 10
+    status:
+      name: status
+      in: query
+      description: Keep traces whose root span failed (`error`) or didn't (`ok`).
+      schema:
+        type: string
+        enum: [error, ok]
+    minDurationMs:
+      name: minDurationMs
+      in: query
+      description: Keep traces at least this long, in milliseconds.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    minTokens:
+      name: minTokens
+      in: query
+      description: |
+        Keep traces that used at least this many tokens. A trace's tokens are its LLM calls'
+        input and output tokens, or its root span's when no LLM call reports any. A trace
+        with no token usage never matches, even with 0.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    minSpanCount:
+      name: minSpanCount
+      in: query
+      description: Keep traces with at least this many spans.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    model:
+      name: model
+      in: query
+      description: Keep traces with an LLM call whose model contains this, ignoring case.
+      schema:
+        type: string
+        maxLength: 256
+    conversationId:
+      name: conversationId
+      in: query
+      description: |
+        Keep traces in this conversation, matched exactly. Can't be combined with
+        `missing=conversationId`.
+      schema:
+        type: string
+        maxLength: 256
+    tool:
+      name: tool
+      in: query
+      description: Keep traces that call a tool whose name contains this, ignoring case.
+      schema:
+        type: string
+        maxLength: 256
+    toolError:
+      name: toolError
+      in: query
+      description: Keep traces with a failed tool call; with `tool`, a failed call of that tool.
+      schema:
+        type: boolean
+    mcpServer:
+      name: mcpServer
+      in: query
+      description: Keep traces that connect to an MCP server whose name contains this, ignoring case.
+      schema:
+        type: string
+        maxLength: 256
+    missing:
+      name: missing
+      in: query
+      description: Keep traces without these fields. The only field is `conversationId`.
+      style: form
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+          enum: [conversationId]
 
   responses:
     BadRequest:
@@ -326,9 +434,8 @@ components:
         nextCursor:
           type: string
           description: |
-            Opaque cursor for the next page, sent back as `cursor`. Absent when the window ran
-            out. Not set yet: `cursor` is refused until the trace stores support it. Never set
-            on an export, which takes no cursor.
+            Opaque cursor for the next page, sent back as `cursor`. Absent on the last page.
+            Never set on an export, which takes no cursor.
         lookedBackTo:
           type: string
           format: date-time

@@ -1,7 +1,7 @@
 /*
 Observability module API
 
-The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
+The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The trace list and export take the observer's trace filters, with its rules and 400 messages; the list pages with `cursor`.  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
 
 API version: 1.0.0
 */
@@ -24,15 +24,25 @@ import (
 type TracesAPIService service
 
 type ApiExportTracesRequest struct {
-	ctx         context.Context
-	ApiService  *TracesAPIService
-	project     *string
-	agent       *string
-	startTime   *time.Time
-	endTime     *time.Time
-	environment *string
-	limit       *int32
-	sortOrder   *string
+	ctx            context.Context
+	ApiService     *TracesAPIService
+	project        *string
+	agent          *string
+	startTime      *time.Time
+	endTime        *time.Time
+	environment    *string
+	limit          *int32
+	sortOrder      *string
+	status         *string
+	minDurationMs  *int64
+	minTokens      *int64
+	minSpanCount   *int64
+	model          *string
+	conversationId *string
+	tool           *string
+	toolError      *bool
+	mcpServer      *string
+	missing        *[]string
 }
 
 // Project name
@@ -74,6 +84,66 @@ func (r ApiExportTracesRequest) SortOrder(sortOrder string) ApiExportTracesReque
 	return r
 }
 
+// Keep traces whose root span failed (&#x60;error&#x60;) or didn&#39;t (&#x60;ok&#x60;).
+func (r ApiExportTracesRequest) Status(status string) ApiExportTracesRequest {
+	r.status = &status
+	return r
+}
+
+// Keep traces at least this long, in milliseconds.
+func (r ApiExportTracesRequest) MinDurationMs(minDurationMs int64) ApiExportTracesRequest {
+	r.minDurationMs = &minDurationMs
+	return r
+}
+
+// Keep traces that used at least this many tokens. A trace&#39;s tokens are its LLM calls&#39; input and output tokens, or its root span&#39;s when no LLM call reports any. A trace with no token usage never matches, even with 0.
+func (r ApiExportTracesRequest) MinTokens(minTokens int64) ApiExportTracesRequest {
+	r.minTokens = &minTokens
+	return r
+}
+
+// Keep traces with at least this many spans.
+func (r ApiExportTracesRequest) MinSpanCount(minSpanCount int64) ApiExportTracesRequest {
+	r.minSpanCount = &minSpanCount
+	return r
+}
+
+// Keep traces with an LLM call whose model contains this, ignoring case.
+func (r ApiExportTracesRequest) Model(model string) ApiExportTracesRequest {
+	r.model = &model
+	return r
+}
+
+// Keep traces in this conversation, matched exactly. Can&#39;t be combined with &#x60;missing&#x3D;conversationId&#x60;.
+func (r ApiExportTracesRequest) ConversationId(conversationId string) ApiExportTracesRequest {
+	r.conversationId = &conversationId
+	return r
+}
+
+// Keep traces that call a tool whose name contains this, ignoring case.
+func (r ApiExportTracesRequest) Tool(tool string) ApiExportTracesRequest {
+	r.tool = &tool
+	return r
+}
+
+// Keep traces with a failed tool call; with &#x60;tool&#x60;, a failed call of that tool.
+func (r ApiExportTracesRequest) ToolError(toolError bool) ApiExportTracesRequest {
+	r.toolError = &toolError
+	return r
+}
+
+// Keep traces that connect to an MCP server whose name contains this, ignoring case.
+func (r ApiExportTracesRequest) McpServer(mcpServer string) ApiExportTracesRequest {
+	r.mcpServer = &mcpServer
+	return r
+}
+
+// Keep traces without these fields. The only field is &#x60;conversationId&#x60;.
+func (r ApiExportTracesRequest) Missing(missing []string) ApiExportTracesRequest {
+	r.missing = &missing
+	return r
+}
+
 func (r ApiExportTracesRequest) Execute() (*TraceExportResponse, *http.Response, error) {
 	return r.ApiService.ExportTracesExecute(r)
 }
@@ -82,9 +152,9 @@ func (r ApiExportTracesRequest) Execute() (*TraceExportResponse, *http.Response,
 ExportTraces Export traces
 
 Exports the agent's traces whose root span starts in the window, each with its
-spans and their attributes (at most 1000 spans a trace). The filters and `cursor`
-are refused with 400 as on the list. A trace whose spans can't be read is left
-out and named in `failedTraceIds`.
+spans and their attributes (at most 1000 spans a trace). It takes the list's filters,
+but no `cursor` (400). A trace whose spans can't be read is left out and named in
+`failedTraceIds`.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@return ApiExportTracesRequest
@@ -142,6 +212,36 @@ func (a *TracesAPIService) ExportTracesExecute(r ApiExportTracesRequest) (*Trace
 	}
 	if r.sortOrder != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "sortOrder", r.sortOrder, "")
+	}
+	if r.status != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "status", r.status, "")
+	}
+	if r.minDurationMs != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "minDurationMs", r.minDurationMs, "")
+	}
+	if r.minTokens != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "minTokens", r.minTokens, "")
+	}
+	if r.minSpanCount != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "minSpanCount", r.minSpanCount, "")
+	}
+	if r.model != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "model", r.model, "")
+	}
+	if r.conversationId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "conversationId", r.conversationId, "")
+	}
+	if r.tool != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "tool", r.tool, "")
+	}
+	if r.toolError != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "toolError", r.toolError, "")
+	}
+	if r.mcpServer != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "mcpServer", r.mcpServer, "")
+	}
+	if r.missing != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "missing", r.missing, "csv")
 	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -633,15 +733,26 @@ func (a *TracesAPIService) ListTraceSpansExecute(r ApiListTraceSpansRequest) (*S
 }
 
 type ApiListTracesRequest struct {
-	ctx         context.Context
-	ApiService  *TracesAPIService
-	project     *string
-	agent       *string
-	startTime   *time.Time
-	endTime     *time.Time
-	environment *string
-	limit       *int32
-	sortOrder   *string
+	ctx            context.Context
+	ApiService     *TracesAPIService
+	project        *string
+	agent          *string
+	startTime      *time.Time
+	endTime        *time.Time
+	environment    *string
+	limit          *int32
+	sortOrder      *string
+	status         *string
+	minDurationMs  *int64
+	minTokens      *int64
+	minSpanCount   *int64
+	model          *string
+	conversationId *string
+	tool           *string
+	toolError      *bool
+	mcpServer      *string
+	missing        *[]string
+	cursor         *string
 }
 
 // Project name
@@ -683,6 +794,72 @@ func (r ApiListTracesRequest) SortOrder(sortOrder string) ApiListTracesRequest {
 	return r
 }
 
+// Keep traces whose root span failed (&#x60;error&#x60;) or didn&#39;t (&#x60;ok&#x60;).
+func (r ApiListTracesRequest) Status(status string) ApiListTracesRequest {
+	r.status = &status
+	return r
+}
+
+// Keep traces at least this long, in milliseconds.
+func (r ApiListTracesRequest) MinDurationMs(minDurationMs int64) ApiListTracesRequest {
+	r.minDurationMs = &minDurationMs
+	return r
+}
+
+// Keep traces that used at least this many tokens. A trace&#39;s tokens are its LLM calls&#39; input and output tokens, or its root span&#39;s when no LLM call reports any. A trace with no token usage never matches, even with 0.
+func (r ApiListTracesRequest) MinTokens(minTokens int64) ApiListTracesRequest {
+	r.minTokens = &minTokens
+	return r
+}
+
+// Keep traces with at least this many spans.
+func (r ApiListTracesRequest) MinSpanCount(minSpanCount int64) ApiListTracesRequest {
+	r.minSpanCount = &minSpanCount
+	return r
+}
+
+// Keep traces with an LLM call whose model contains this, ignoring case.
+func (r ApiListTracesRequest) Model(model string) ApiListTracesRequest {
+	r.model = &model
+	return r
+}
+
+// Keep traces in this conversation, matched exactly. Can&#39;t be combined with &#x60;missing&#x3D;conversationId&#x60;.
+func (r ApiListTracesRequest) ConversationId(conversationId string) ApiListTracesRequest {
+	r.conversationId = &conversationId
+	return r
+}
+
+// Keep traces that call a tool whose name contains this, ignoring case.
+func (r ApiListTracesRequest) Tool(tool string) ApiListTracesRequest {
+	r.tool = &tool
+	return r
+}
+
+// Keep traces with a failed tool call; with &#x60;tool&#x60;, a failed call of that tool.
+func (r ApiListTracesRequest) ToolError(toolError bool) ApiListTracesRequest {
+	r.toolError = &toolError
+	return r
+}
+
+// Keep traces that connect to an MCP server whose name contains this, ignoring case.
+func (r ApiListTracesRequest) McpServer(mcpServer string) ApiListTracesRequest {
+	r.mcpServer = &mcpServer
+	return r
+}
+
+// Keep traces without these fields. The only field is &#x60;conversationId&#x60;.
+func (r ApiListTracesRequest) Missing(missing []string) ApiListTracesRequest {
+	r.missing = &missing
+	return r
+}
+
+// The previous page&#39;s &#x60;pagination.nextCursor&#x60;. One the server didn&#39;t issue for this sort order is a 400 \&quot;invalid cursor\&quot;.
+func (r ApiListTracesRequest) Cursor(cursor string) ApiListTracesRequest {
+	r.cursor = &cursor
+	return r
+}
+
 func (r ApiListTracesRequest) Execute() (*TraceListResponse, *http.Response, error) {
 	return r.ApiService.ListTracesExecute(r)
 }
@@ -690,10 +867,10 @@ func (r ApiListTracesRequest) Execute() (*TraceListResponse, *http.Response, err
 /*
 ListTraces List traces
 
-Lists the agent's traces whose root span starts in the window, by start time.
-The observer's filter parameters (`status`, `minDurationMs`, `minTokens`,
-`minSpanCount`, `model`, `conversationId`, `tool`, `toolError`, `mcpServer`,
-`missing`) and `cursor` are refused with 400. `include` is ignored.
+Lists the agent's traces whose root span starts in the window, by start time, then
+trace ID. Set filters combine with AND. To read the next page, send the previous
+page's `pagination.nextCursor` as `cursor` with the same window, sort and filters.
+`include` is ignored.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@return ApiListTracesRequest
@@ -751,6 +928,39 @@ func (a *TracesAPIService) ListTracesExecute(r ApiListTracesRequest) (*TraceList
 	}
 	if r.sortOrder != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "sortOrder", r.sortOrder, "")
+	}
+	if r.status != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "status", r.status, "")
+	}
+	if r.minDurationMs != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "minDurationMs", r.minDurationMs, "")
+	}
+	if r.minTokens != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "minTokens", r.minTokens, "")
+	}
+	if r.minSpanCount != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "minSpanCount", r.minSpanCount, "")
+	}
+	if r.model != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "model", r.model, "")
+	}
+	if r.conversationId != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "conversationId", r.conversationId, "")
+	}
+	if r.tool != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "tool", r.tool, "")
+	}
+	if r.toolError != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "toolError", r.toolError, "")
+	}
+	if r.mcpServer != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "mcpServer", r.mcpServer, "")
+	}
+	if r.missing != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "missing", r.missing, "csv")
+	}
+	if r.cursor != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "cursor", r.cursor, "")
 	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
