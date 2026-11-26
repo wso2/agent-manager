@@ -108,7 +108,7 @@ func (m *Store) QueryTraces(_ context.Context, s store.Scope, q store.TraceQuery
 	if q.Limit > 0 && len(traces) > q.Limit {
 		traces = traces[:q.Limit]
 	}
-	return &store.TracePage{Traces: traces, Total: total}, nil
+	return &store.TracePage{Traces: traces, Total: &total}, nil
 }
 
 // QueryTraceSpans lists one of the Scope's traces' spans, within

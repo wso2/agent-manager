@@ -282,8 +282,7 @@ func (h handlers) getSpan(w http.ResponseWriter, r *http.Request) {
 
 // tracePagination is a trace page's size and total; this module never stops a search early.
 func tracePagination(w window, page *tracesv1.TracePage) TracePagination {
-	total := page.Total
-	return TracePagination{Limit: w.limit, Total: &total}
+	return TracePagination{Limit: w.limit, Total: page.Total}
 }
 
 // overview is a trace's list entry.

@@ -67,7 +67,7 @@ func TestDeleteAgentWithNoOrgDeletesNothing(t *testing.T) {
 		t.Fatalf("DeleteAgent with no org error = %v, want ErrMissingOrg", err)
 	}
 	page, err := m.QueryTraces(ctx, sc, store.TraceQuery{})
-	if err != nil || page.Total != 1 {
+	if err != nil || page.Total == nil || *page.Total != 1 {
 		t.Errorf("after DeleteAgent with no org: %v, %v; want the trace kept", page, err)
 	}
 }

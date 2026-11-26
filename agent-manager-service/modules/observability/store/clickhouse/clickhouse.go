@@ -223,7 +223,7 @@ ORDER BY start_ns ` + dir + `, trace_id ` + dir + limitClause(q.Limit, params)
 		if err := json.Unmarshal(line, &r); err != nil {
 			return err
 		}
-		page.Total = r.Total
+		page.Total = &r.Total
 		page.Traces = append(page.Traces, store.Trace{
 			TraceID: r.TraceID, TraceName: r.RootSpanName, SpanCount: r.SpanCount,
 			RootSpanID: r.RootSpanID, RootSpanName: r.RootSpanName, RootSpanKind: r.RootSpanKind,
@@ -234,6 +234,10 @@ ORDER BY start_ns ` + dir + `, trace_id ` + dir + limitClause(q.Limit, params)
 	})
 	if err != nil {
 		return nil, err
+	}
+	if page.Total == nil {
+		zero := 0
+		page.Total = &zero
 	}
 	return page, nil
 }

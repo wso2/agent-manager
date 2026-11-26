@@ -209,7 +209,7 @@ func testOrgIsolation(t *testing.T, newStore NewStore) {
 		if err != nil {
 			t.Fatalf("%s: QueryTraces: %v", org, err)
 		}
-		if len(page.Traces) != 1 || page.Total != 1 || page.Traces[0].RootSpanName != want {
+		if len(page.Traces) != 1 || page.Total == nil || *page.Total != 1 || page.Traces[0].RootSpanName != want {
 			t.Errorf("%s: QueryTraces = %+v, want only its own trace with total 1", org, page)
 		}
 

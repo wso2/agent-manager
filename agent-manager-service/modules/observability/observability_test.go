@@ -464,8 +464,8 @@ func TestMemoryStoreDeletesOnlyThatAgent(t *testing.T) {
 		want       int
 	}{{"org-a", "agent-1", 0}, {"org-a", "agent-2", 1}, {"org-b", "agent-1", 1}} {
 		page, err := m.QueryTraces(ctx, store.Scope{OrgID: tc.org, AgentID: tc.agent, Names: store.Names{Org: tc.org, Agent: tc.agent}}, tracesv1.TraceQuery{})
-		if err != nil || page.Total != tc.want {
-			t.Errorf("%s/%s: %d traces, %v; want %d", tc.org, tc.agent, page.Total, err, tc.want)
+		if err != nil || page.Total == nil || *page.Total != tc.want {
+			t.Errorf("%s/%s: %+v, %v; want %d traces", tc.org, tc.agent, page, err, tc.want)
 		}
 	}
 }

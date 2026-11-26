@@ -36,6 +36,8 @@ var (
 	// ErrNotFound is returned when a trace or span is not in the Scope, or
 	// the Scope's project, agent or environment does not exist.
 	ErrNotFound = errors.New("tracesv1: not found")
+	// ErrInvalidCursor is returned for a cursor the store did not issue.
+	ErrInvalidCursor = errors.New("tracesv1: invalid cursor")
 )
 
 // Query reads traces for one Scope at a time. Every call refuses a Scope
@@ -66,13 +68,36 @@ func (s Scope) Validate() error {
 	return nil
 }
 
-// TraceQuery is the time window and paging of a trace list.
+// TraceQuery is the time window, filters and paging of a trace list.
 type TraceQuery struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Limit     int
 	// SortOrder is "asc" or "desc" by start time.
 	SortOrder string
+	Filters   TraceFilters
+	// Cursor is an earlier page's NextCursor for the same query; empty starts at the first page.
+	Cursor string
+}
+
+// TraceFilters narrow a trace list; set fields combine with AND. Min* are
+// pointers so an explicit 0 still filters.
+type TraceFilters struct {
+	// Status is "error" or "ok", by the root span; empty matches any.
+	Status        string
+	MinDurationMs *int64
+	MinTokens     *int64
+	MinSpanCount  *int64
+	// Model, Tool and MCPServer match a substring, ignoring case.
+	Model string
+	// ConversationID matches exactly.
+	ConversationID string
+	Tool           string
+	MCPServer      string
+	// ToolError keeps traces with a failed tool; with Tool, a failed tool that matches it.
+	ToolError bool
+	// MissingConversationID keeps traces with no conversation ID.
+	MissingConversationID bool
 }
 
 // SpanQuery is the time window and paging of a span list. The window is the
@@ -88,10 +113,16 @@ type SpanQuery struct {
 	IncludeAttributes bool
 }
 
-// TracePage is one page of traces, with the window's total.
+// TracePage is one page of traces and where the list continues.
 type TracePage struct {
 	Traces []Trace
-	Total  int
+	// Total is the matching traces in the window, or nil when the store doesn't know it exactly.
+	Total *int
+	// NextCursor continues the list; empty when it has no more traces.
+	NextCursor string
+	// Truncated is set when the store stopped before the window ran out; LookedBackTo is how far it got.
+	Truncated    bool
+	LookedBackTo time.Time
 }
 
 // Trace is one trace in a list.
