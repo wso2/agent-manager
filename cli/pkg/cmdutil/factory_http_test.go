@@ -95,6 +95,8 @@ func newFakePlatform(t *testing.T) *fakePlatform {
 			_, _ = w.Write([]byte(`{"organizations":[{"name":"acme","createdAt":"2026-01-01T00:00:00Z"}],"limit":20,"offset":0,"total":1}`))
 		case "/m/ai-gateway/llm-providers":
 			_, _ = w.Write([]byte(`{"list":[{"metadata":{"name":"zeta"}},{"metadata":{"name":"alpha"}}]}`))
+		case "/m/ai-gateway/llm-provider-templates":
+			_, _ = w.Write([]byte(`{"list":[{"metadata":{"name":"openai"}},{"metadata":{"name":"anthropic"}}]}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
