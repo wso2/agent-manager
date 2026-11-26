@@ -300,3 +300,15 @@ func TestMCPProxyFromDocumentSeparatesAMalformedBody(t *testing.T) {
 	require.ErrorIs(t, err, gwconv.ErrMalformedBody)
 	assert.NotErrorIs(t, err, gwconv.ErrDocument)
 }
+
+func TestMCPProxyListNeedsAPage(t *testing.T) {
+	_, err := gwconv.MCPProxyList(nil)
+	require.ErrorContains(t, err, "no MCP proxy page")
+}
+
+// A spec key the document ignores but the body types differently is refused as a document error.
+func TestMCPProxyFromDocumentRejectsASpecTheBodyCannotTake(t *testing.T) {
+	_, _, err := gwconv.MCPProxyFromDocument(mcpProxyDocJSON(t, gwconv.GroupVersion, "McpProxy", "github-mcp",
+		map[string]any{"displayName": "GitHub MCP", "version": "v1.0", "gateways": "not-a-list"}))
+	require.ErrorIs(t, err, gwconv.ErrDocument)
+}
