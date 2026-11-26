@@ -83,8 +83,8 @@ class TestParseDiff(unittest.TestCase):
         self.assertEqual(parse_diff(diff), {"svc/new.go": {5}})
 
     def test_quoted_path_decoded(self):
-        diff = '--- a/x\n+++ "b/console/src/caf\\303\\251.ts"\n@@ -1 +1 @@\n-a\n+b\n'
-        self.assertEqual(parse_diff(diff), {"console/src/café.ts": {1}})
+        diff = '--- a/x\n+++ "b/console/src/caf\\303\\251\\"q.ts"\n@@ -1 +1 @@\n-a\n+b\n'
+        self.assertEqual(parse_diff(diff), {'console/src/café"q.ts': {1}})
 
     def test_pure_rename_has_no_lines(self):
         diff = (
@@ -137,11 +137,11 @@ class TestEvaluateGo(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp()
         for name in ("svc/a.go", "svc/b.go", "svc/a_test.go", "svc/spec/gen.go"):
-            write(self.root, name, "package x\n\nfunc f() {}\n")
+            write(self.root, name, "package x\nfunc f() {\n" + "\tg()\n" * 10 + "}\n")
         write(self.root, "svc/types.go", "package x\n\ntype T struct{}\n\nvar Err = 1\n")
 
     def evaluate(self, changed, coverage, excludes=()):
-        return evaluate_go(changed, coverage, "svc", list(excludes))
+        return evaluate_go(changed, coverage, "svc", list(excludes), repo_root=self.root)
 
     def test_test_files_and_non_go_ignored(self):
         changed = {"svc/a_test.go": {1}, "svc/README.md": {1}, "cli/x.go": {1}, "svc/a.go": {2}}
@@ -162,6 +162,17 @@ class TestEvaluateGo(unittest.TestCase):
         changed = {"svc/linux.go": {5}, "svc/lit.go": {3, 4}, "svc/new/n.go": {3, 4}, "svc/gone.go": {1}}
         res = self.evaluate(changed, {"svc/a.go": {2: True}})
         self.assertEqual(res, ChangedResult(covered=0, total=0, uncovered={}))
+
+    def test_comment_lines_inside_a_block_not_coverable(self):
+        write(self.root, "svc/c.go", "package x\n\nfunc f() {\n\t// why\n\n\t/* more\n\t   detail */ g()\n}\n")
+        cov = {"svc/c.go": {n: False for n in range(3, 9)}}
+        res = self.evaluate({"svc/c.go": {4, 5, 6, 7}}, cov)
+        self.assertEqual(res, ChangedResult(covered=0, total=1, uncovered={"svc/c.go": [7]}))
+
+    def test_matching_build_tag_file_in_profile_is_counted(self):
+        write(self.root, "svc/l.go", "//go:build linux\n\npackage x\n\nfunc L() {\n\tg()\n}\n")
+        res = self.evaluate({"svc/l.go": {6}}, {"svc/l.go": {5: False, 6: False, 7: False}})
+        self.assertEqual(res, ChangedResult(covered=0, total=1, uncovered={"svc/l.go": [6]}))
 
     def test_uncovered_lines_listed_sorted(self):
         cov = {"svc/a.go": {9: False, 3: False, 5: True}}
@@ -249,6 +260,17 @@ class TestEvaluateConsole(ConsoleTree):
               "import { // shared\n  a,\n  b,\n} from \"x\";\nexport const w = a + b;\n")
         res = self.evaluate({"console/workspaces/libs/fresh/src/w.ts": {1, 2, 3, 4, 5}})
         self.assertEqual(res.uncovered, {"console/workspaces/libs/fresh/src/w.ts": [5]})
+
+    def test_comment_markers_inside_strings_are_code(self):
+        path = "console/workspaces/libs/fresh/src/s.ts"
+        write(self.root, path,
+              'export const route = "/api/*";\n'
+              'export const url = "https://example.com"; /* note\n'
+              ' * more */ export const x = 1;\n'
+              'export const t = `a /* b`;\n'
+              'export const y = 2;\n')
+        res = self.evaluate({path: {1, 2, 3, 4, 5}})
+        self.assertEqual(res.uncovered, {path: [1, 2, 3, 4, 5]})
 
     def test_read_error_names_the_file(self):
         path = "console/workspaces/libs/fresh/src/r.ts"

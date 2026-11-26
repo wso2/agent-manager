@@ -82,7 +82,7 @@ def git_changed_lines(base, repo_root):
     mb = git("merge-base", base, "HEAD")
     if mb.returncode != 0 or not mb.stdout.strip():
         return None
-    diff = git("-c", "core.quotePath=false", "diff", "-U0", "--no-color", f"{mb.stdout.strip()}...HEAD")
+    diff = git("-c", "core.quotePath=true", "diff", "-U0", "--no-color", f"{mb.stdout.strip()}...HEAD")
     if diff.returncode != 0:
         return None
     return parse_diff(diff.stdout)
@@ -145,37 +145,83 @@ def _read_source(path):
         raise OSError(f"cannot read {path}: {e}") from e
 
 
+def _code_text(text, backtick_escapes):
+    """Line number -> the line's text with comments removed (strings kept).
+
+    A small scanner that knows strings ("", '', and `` raw or template
+    strings) so comment markers inside them, like "/api/*" or a URL, are
+    not taken for comments. backtick_escapes: True for TypeScript
+    template strings, False for Go raw strings.
+    """
+    out = {}
+    mode, quote, buf, n = "code", "", [], 1
+    i = 0
+    while i < len(text):
+        c = text[i]
+        nxt = text[i + 1] if i + 1 < len(text) else ""
+        if c == "\n":
+            out[n] = "".join(buf).strip()
+            buf, n = [], n + 1
+            if mode == "line":
+                mode = "code"
+            elif mode == "str" and quote != "`":
+                mode = "code"  # an unterminated one-line string ends here
+            i += 1
+            continue
+        if mode == "line":
+            pass
+        elif mode == "block":
+            if c == "*" and nxt == "/":
+                mode = "code"
+                i += 1
+        elif mode == "str":
+            buf.append(c)
+            if c == "\\" and (quote != "`" or backtick_escapes):
+                if nxt and nxt != "\n":
+                    buf.append(nxt)
+                i += 1
+            elif c == quote:
+                mode = "code"
+        elif c == "/" and nxt == "/":
+            mode = "line"
+        elif c == "/" and nxt == "*":
+            mode = "block"
+            i += 1
+        else:
+            buf.append(c)
+            if c in "\"'`":
+                mode, quote = "str", c
+        i += 1
+    out[n] = "".join(buf).strip()
+    return out
+
+
+def _go_code_lines(text):
+    """Line numbers of a Go file that hold code, not only comments or blanks."""
+    return {n for n, t in _code_text(text, False).items() if t}
+
+
 def _ts_code_lines(text, lines):
     """The given line numbers of a TypeScript file that hold code.
 
-    Blank lines, comments and import statements are not code. A rough
-    scan, not a parser: enough to keep comment and import edits in a
-    package with no coverage run from counting as untested.
+    Blank lines, comments and import statements are not code: enough to
+    keep comment and import edits in a package with no coverage run from
+    counting as untested.
     """
-    code, in_block, in_import = set(), False, False
-    for n, raw in enumerate(text.splitlines(), 1):
-        line = raw.strip()
-        if in_block:
-            if "*/" in line:
-                in_block = False
-            continue
-        bare = line.split("//", 1)[0].rstrip()
-        opened = bare.rfind("/*")
-        if opened >= 0 and "*/" not in bare[opened:]:
-            in_block = True
-            bare = bare[:opened].rstrip()
+    code, in_import = set(), False
+    for n, bare in sorted(_code_text(text, True).items()):
         if in_import:
             in_import = not bare.startswith("}")
             continue
         if bare.startswith("import "):
             in_import = bare.endswith("{")
             continue
-        if bare and not bare.startswith("/*") and n in lines:
+        if bare and n in lines:
             code.add(n)
     return code
 
 
-def evaluate_go(changed, coverage, module_dir, excludes):
+def evaluate_go(changed, coverage, module_dir, excludes, repo_root="."):
     """Covered and total coverable changed lines of one Go module."""
     prefix = module_dir.rstrip("/") + "/"
     per_file = {}
@@ -189,7 +235,15 @@ def evaluate_go(changed, coverage, module_dir, excludes):
         # file missing from the profile was not built (a build tag, another
         # platform, wireinject) or has no statements: nothing to cover.
         if path in coverage:
-            per_file[path] = {n: coverage[path][n] for n in lines if n in coverage[path]}
+            # A block spans whole source ranges, comments and blank lines
+            # included; count only the lines that hold code.
+            text = _read_source(os.path.join(repo_root, path))
+            code = None if text is None else _go_code_lines(text)
+            per_file[path] = {
+                n: coverage[path][n]
+                for n in lines
+                if n in coverage[path] and (code is None or n in code)
+            }
     return _tally(per_file)
 
 

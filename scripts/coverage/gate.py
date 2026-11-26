@@ -176,7 +176,7 @@ def main(argv=None):
     if changed is not None and go:
         excludes = read_excludes(args.exclude_file) if args.exclude_file else []
         coverage = go_line_coverage(args.go_profile, args.module, args.module_dir, excludes)
-        result = evaluate_go(changed, coverage, args.module_dir, excludes)
+        result = evaluate_go(changed, coverage, args.module_dir, excludes, repo_root=args.repo_root)
     elif changed is not None:
         coverage, reported = console_line_coverage(args.console_root, args.repo_root)
         result = evaluate_console(
