@@ -172,3 +172,19 @@ export interface FooterLinksProps {
   /** Reports the links to add, or null for none. */
   onLinksChange: (links: FooterLink[] | null) => void;
 }
+
+/**
+ * Props passed to a component injected at MountPoints.GatewayDetailsSection. The
+ * component renders as a section of a managed gateway's page, below its token issuers.
+ * It is not rendered for self-hosted gateways.
+ */
+export interface GatewayDetailsSectionProps {
+  /** Organization id (handle) the gateway belongs to. */
+  orgId: string;
+  /** The gateway's UUID. */
+  gatewayId: string;
+  /** Name shown for the gateway. */
+  gatewayName: string;
+  /** When false, the user can view the gateway but not change it. */
+  canWrite: boolean;
+}

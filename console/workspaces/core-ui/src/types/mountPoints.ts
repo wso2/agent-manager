@@ -60,4 +60,9 @@ export enum MountPoints {
     // Settings button opens the project's settings here, or in the app named by
     // externalProjectManagementUrl (the self-hosted default).
     ProjectSettingsAction = "project-settings-action",
+    // A deployment can add sections to a managed gateway's page, below the token
+    // issuers (see GatewayDetailsSectionProps), for example a way to configure the
+    // gateway's policies. When nothing is injected, the page shows only the built-in
+    // sections (the self-hosted default).
+    GatewayDetailsSection = "gateway-details-section",
 }

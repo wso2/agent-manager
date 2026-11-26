@@ -80,6 +80,11 @@ type Options struct {
 	// ExtraAPIRoutes registers additional routes onto the authenticated /api/v1 sub-mux.
 	// Use this to inject deployment-specific routes without modifying the core handler.
 	ExtraAPIRoutes func(mux *http.ServeMux, params *wiring.AppParams)
+	// ExtraAuthorizedAPIRoutes registers additional /api/v1 routes through the core
+	// route registrar, so they carry a permission check, audit policy and event
+	// publishing exactly like core routes. Prefer it over ExtraAPIRoutes for any
+	// route that reads or changes an organization's resources.
+	ExtraAuthorizedAPIRoutes api.AuthorizedAPIRoutes
 	// GatewayConfigApplier patches the gateway runtime config when an identity provider
 	// changes, keeping the gateway and the AMS mirror in sync. nil (the open-source
 	// default) preserves the script-driven behavior; cloud deployments inject an
@@ -393,7 +398,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	recordStartupPosture(dependencies.AuditRecorder)
 
 	// Create main API server handler
-	handler := api.MakeHTTPHandlerWithPolicy(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, opts.WorkloadGuard)
+	handler := api.MakeHTTPHandlerWithPolicy(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, opts.WorkloadGuard, opts.ExtraAuthorizedAPIRoutes)
 	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,

@@ -438,6 +438,23 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 	return toGatewayResponse(gateway), nil
 }
 
+// GetGatewayPolicyManifest returns the policy manifest the gateway last reported, and
+// whether it has reported one at all (see gatewayManifest). The gateway must belong to
+// ouID. Deployment-specific code uses it to read one gateway's policy definitions,
+// including their systemParameters schemas, which the policy catalog only exposes
+// merged across gateways.
+func (s *PlatformGatewayService) GetGatewayPolicyManifest(gatewayID, ouID string) (map[string]interface{}, bool, error) {
+	gateway, err := s.resolveGateway(gatewayID, ouID)
+	if err != nil {
+		return nil, false, err
+	}
+	if gateway.OUID != ouID {
+		return nil, false, utils.ErrGatewayNotFound
+	}
+	manifest, known := gatewayManifest(gateway)
+	return manifest, known, nil
+}
+
 // SaveGatewayPolicyManifest stores the policy manifest a gateway pushed in the manifest
 // cache. A gateway pushes its full manifest each time its control-plane WebSocket
 // (re)connects; the manifest is large and replaced by the next connect, so it is not

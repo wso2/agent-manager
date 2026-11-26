@@ -25,6 +25,7 @@ import {
 import { ViewGateway } from "./ViewGateway";
 
 const getGateway = vi.hoisted(() => vi.fn());
+const mountedModules = vi.hoisted(() => vi.fn<(mountPoint: string) => unknown[]>(() => []));
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetGateway: getGateway,
@@ -35,6 +36,7 @@ vi.mock("@agent-management-platform/views", async () => {
   return {
     PageLayout: ({ children }: { children: React.ReactNode }) =>
       React.createElement("div", null, children),
+    useExternalComponentModulesByMountPoint: mountedModules,
   };
 });
 
@@ -86,7 +88,14 @@ const renderGateway = (hosting: "MANAGED" | "SELF_HOSTED") => {
 
 afterEach(() => {
   featureFlags = {};
+  mountedModules.mockImplementation(() => []);
 });
+
+const injectedSection = ({ gatewayId, orgId }: { gatewayId: string; orgId: string }) => (
+  <div>
+    injected section {orgId}/{gatewayId}
+  </div>
+);
 
 describe("ViewGateway with enableSelfHostedGateways off", () => {
   it("shows a self-hosted gateway's setup steps and tokens", () => {
@@ -105,5 +114,28 @@ describe("ViewGateway with enableSelfHostedGateways off", () => {
     expect(screen.getByText("identity providers card")).toBeInTheDocument();
     expect(screen.queryByText("setup steps")).not.toBeInTheDocument();
     expect(screen.queryByText("tokens card")).not.toBeInTheDocument();
+  });
+});
+
+describe("ViewGateway gateway-details-section mount point", () => {
+  it("renders an injected section on a managed gateway", () => {
+    mountedModules.mockImplementation((mountPoint: string) =>
+      mountPoint === "gateway-details-section"
+        ? [{ kind: "component", moduleName: "Policy Configuration", component: injectedSection }]
+        : [],
+    );
+    renderGateway("MANAGED");
+
+    expect(screen.getByText("injected section acme/gw-1")).toBeInTheDocument();
+  });
+
+  it("does not render an injected section on a self-hosted gateway", () => {
+    featureFlags = { enableSelfHostedGateways: false };
+    mountedModules.mockReturnValue([
+      { kind: "component", moduleName: "Policy Configuration", component: injectedSection },
+    ]);
+    renderGateway("SELF_HOSTED");
+
+    expect(screen.queryByText(/injected section/)).not.toBeInTheDocument();
   });
 });
