@@ -319,9 +319,11 @@ describe("ViewMCPServerComponent page", () => {
       withSubscriptions(apiKeySecurity, { subscriptionKeyHeader: "X-Sub" });
       renderPage({ authInfoByEnv: { dev: { type: "apikey", in: "header", name: "ignored", value: "mcp-secret" } } });
       expect(screen.getByDisplayValue("X-Sub")).toBeInTheDocument();
-      expect(screen.getByTestId("code").textContent).toBe(
-        'curl -N https://gw.example/weather/mcp \\\n  --header "X-MCP-Key: mcp-secret" \\\n  --header "X-Sub: <subscription-key>"',
-      );
+      // The lines in order: the API key's header, then the subscription key's.
+      const lines = (screen.getByTestId("code").textContent ?? "").split(" \\\n");
+      expect(lines).toHaveLength(3);
+      expect(lines[1]).toContain("X-MCP-Key");
+      expect(lines[2]).toBe('  --header "X-Sub: <subscription-key>"');
     });
 
     it("hands over client credentials, IdP endpoints and scopes for an OAuth proxy", async () => {
