@@ -1,7 +1,7 @@
 /*
 Observability module API
 
-The observability module's trace routes, under `/m/observability`. They take the Agent Manager Observer's trace paths and response shapes, but serve a subset: the observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
+The observability module's trace routes, under `/m/observability`. A trace or span has the Agent Manager Observer's shape; a list holds its items and a `pagination` object with the page's paging state. The observer's trace filters and `cursor` are refused with 400 (see each operation).  The organization is always the caller's. An `organization` query parameter, which the console sends, is ignored. `project` and `agent` are names in that organization; an unknown one is a 404. `environment` is accepted and ignored, as on the observer.  The routes exist only while the module is active: they answer 404 before it is installed and after it is disabled.
 
 API version: 1.0.0
 */
@@ -112,7 +112,7 @@ func (a *TracesAPIService) ExportTracesExecute(r ApiExportTracesRequest) (*Trace
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/v1/traces/export"
+	localVarPath := localBasePath + "/traces/export"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -297,7 +297,7 @@ func (a *TracesAPIService) GetSpanDetailExecute(r ApiGetSpanDetailRequest) (*Enr
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/v1/traces/{traceId}/spans/{spanId}"
+	localVarPath := localBasePath + "/traces/{traceId}/spans/{spanId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"traceId"+"}", url.PathEscape(parameterValueToString(r.traceId, "traceId")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"spanId"+"}", url.PathEscape(parameterValueToString(r.spanId, "spanId")), -1)
 
@@ -492,7 +492,7 @@ func (a *TracesAPIService) ListTraceSpansExecute(r ApiListTraceSpansRequest) (*S
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/v1/traces/{traceId}/spans"
+	localVarPath := localBasePath + "/traces/{traceId}/spans"
 	localVarPath = strings.Replace(localVarPath, "{"+"traceId"+"}", url.PathEscape(parameterValueToString(r.traceId, "traceId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -681,7 +681,7 @@ func (r ApiListTracesRequest) SortOrder(sortOrder string) ApiListTracesRequest {
 	return r
 }
 
-func (r ApiListTracesRequest) Execute() (*TraceOverviewListResponse, *http.Response, error) {
+func (r ApiListTracesRequest) Execute() (*TraceListResponse, *http.Response, error) {
 	return r.ApiService.ListTracesExecute(r)
 }
 
@@ -705,13 +705,13 @@ func (a *TracesAPIService) ListTraces(ctx context.Context) ApiListTracesRequest 
 
 // Execute executes the request
 //
-//	@return TraceOverviewListResponse
-func (a *TracesAPIService) ListTracesExecute(r ApiListTracesRequest) (*TraceOverviewListResponse, *http.Response, error) {
+//	@return TraceListResponse
+func (a *TracesAPIService) ListTracesExecute(r ApiListTracesRequest) (*TraceListResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *TraceOverviewListResponse
+		localVarReturnValue *TraceListResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "TracesAPIService.ListTraces")
@@ -719,7 +719,7 @@ func (a *TracesAPIService) ListTracesExecute(r ApiListTracesRequest) (*TraceOver
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/v1/traces"
+	localVarPath := localBasePath + "/traces"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}

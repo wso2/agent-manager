@@ -144,7 +144,7 @@ check evaluators 404 "$(code "${A[@]}" "$B/evaluators")"
 check module-route-404 404 "$(code "${A[@]}" "$API/m/testmod/whoami")"
 # The observability module is installable, not on by default: its trace routes
 # are absent until `amp module install observability`.
-OBS=$API/m/observability/api/v1/traces
+OBS=$API/m/observability/traces
 WINDOW="startTime=2026-01-01T00:00:00Z&endTime=2026-01-02T00:00:00Z"
 check traces-not-installed 404 "$(code "${A[@]}" "$OBS?project=$P&agent=$AG&$WINDOW")"
 check traces-export-not-installed 404 "$(code "${A[@]}" "$OBS/export?project=$P&agent=$AG&$WINDOW")"

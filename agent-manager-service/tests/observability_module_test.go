@@ -149,11 +149,11 @@ func TestObservabilityModule(t *testing.T) {
 		for k, v := range extra {
 			q[k] = v
 		}
-		return "/m/observability/api/v1/traces?" + q.Encode()
+		return "/m/observability/traces?" + q.Encode()
 	}
 	exportPath := strings.Replace(listPath(nil), "/traces?", "/traces/export?", 1)
-	spansPath := "/m/observability/api/v1/traces/trace-a/spans?" + window.Encode() + "&project=" + project + "&agent=" + agent
-	spanPath := "/m/observability/api/v1/traces/trace-a/spans/llm"
+	spansPath := "/m/observability/traces/trace-a/spans?" + window.Encode() + "&project=" + project + "&agent=" + agent
+	spanPath := "/m/observability/traces/trace-a/spans/llm"
 
 	t.Run("routes are not found before install", func(t *testing.T) {
 		for _, p := range []string{listPath(nil), exportPath, spansPath, spanPath} {
@@ -168,10 +168,10 @@ func TestObservabilityModule(t *testing.T) {
 	t.Run("the caller's organization reads its traces", func(t *testing.T) {
 		code, body := call(a.full, listPath(nil))
 		require.Equal(t, http.StatusOK, code, string(body))
-		var list observability.TraceOverviewResponse
+		var list observability.TraceListResponse
 		require.NoError(t, json.Unmarshal(body, &list))
 		require.Len(t, list.Traces, 1)
-		assert.Equal(t, 1, list.TotalCount)
+		assert.JSONEq(t, `{"limit":10,"total":1}`, string(mustField(t, body, "pagination")))
 		assert.Equal(t, "trace-a", list.Traces[0].TraceID)
 		assert.Equal(t, "agent", list.Traces[0].RootSpanKind)
 
@@ -180,6 +180,7 @@ func TestObservabilityModule(t *testing.T) {
 		var spans observability.SpanListResponse
 		require.NoError(t, json.Unmarshal(body, &spans))
 		require.Len(t, spans.Spans, 2)
+		assert.Equal(t, observability.Pagination{Limit: 10, Total: 2}, spans.Pagination)
 		assert.Equal(t, "llm", spans.Spans[1].SpanKind)
 		assert.True(t, spans.Spans[1].Error)
 
@@ -198,7 +199,7 @@ func TestObservabilityModule(t *testing.T) {
 		var export observability.TraceExportResponse
 		require.NoError(t, json.Unmarshal(body, &export))
 		require.Len(t, export.Traces, 1)
-		assert.Equal(t, 1, export.TotalCount)
+		assert.JSONEq(t, `{"limit":100,"total":1}`, string(mustField(t, body, "pagination")))
 		assert.Equal(t, "trace-a", export.Traces[0].TraceID)
 		require.Len(t, export.Traces[0].Spans, 2)
 		assert.Equal(t, "gpt-4o", export.Traces[0].Spans[1].Attributes["gen_ai.request.model"])
