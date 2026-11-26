@@ -53,6 +53,11 @@ jobs:
         run: cmp deployments/standalone/observability/clickhouse-users.xml agent-manager-service/modules/observability/store/clickhouse/users.xml
         shell: bash
 
+      - name: Check the SQL for your own ClickHouse grants what the bundled users do
+        working-directory: deployments/standalone/observability
+        run: diff <(grep -o 'GRANT [^<]*' clickhouse-users.xml) <(sed -n 's/ TO amp_[a-z]*;$//p' clickhouse-users.sql)
+        shell: bash
+
       # A release bundle must run from its own files, pinned to published images.
       - name: Build and validate a release bundle
         run: |

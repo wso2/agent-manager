@@ -56,7 +56,7 @@ exporters:
     endpoint: ${env:AMP_CLICKHOUSE_ENDPOINT:-tcp://clickhouse:9000}
     database: otel
     username: amp_ingest
-    password: ${file:/amp/secrets/clickhouse-ingest-password}
+    password: ${file:/run/secrets/observability/write-password}
     # amp migrate owns the table; the insert-only login could not create it.
     create_schema: false
     traces_table_name: otel_traces

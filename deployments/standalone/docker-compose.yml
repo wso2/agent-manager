@@ -1,11 +1,11 @@
 # AMP Lite without Kubernetes: `docker compose up` from this directory.
 # Agent Manager's settings are in amp.yaml; .env is optional and only changes
 # images, host ports and ThunderID's network name. Secrets are generated on
-# first start and kept in the amp-secrets volume; those other containers read
-# (the admin, PostgreSQL and ClickHouse passwords) are copied to
-# amp-shared-secrets, the only secrets volume those containers mount. Each
-# service publishes its own port; there is no ingress controller or reverse
-# proxy. Browsers use the public names (*.localhost resolves to 127.0.0.1); containers dial the
+# first start and kept in the amp-secrets volume; the two other containers
+# read (the admin and PostgreSQL passwords) are copied to amp-shared-secrets,
+# the only secrets volume those containers mount. Each service publishes its
+# own port; there is no ingress controller or reverse proxy. Browsers use the
+# public names (*.localhost resolves to 127.0.0.1); containers dial the
 # service names, and ThunderID's public URL stays the token issuer everywhere.
 # Clients such as curl pin *.localhost to loopback, so service-to-service URLs
 # never use it.
@@ -24,6 +24,49 @@ x-thunder: &thunder
   entrypoint: ["/bin/sh", "/amp/thunder/entrypoint.sh"]
   networks: [amp]
 
+# Writes the observability store's four passwords, one file per job, into
+# observability-secrets, and the two amp-api uses into
+# amp-observability-secrets. A password set in .env (a secret below) is
+# written as is; else a missing one is generated, and reruns keep it.
+x-observability-secrets: &observability-secrets
+  image: ${AMP_API_IMAGE:-amp-api:lite}
+  user: "0:0"
+  entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      for job in read write delete setup; do
+        f=/out/all/$$job-password set=/run/secrets/observability-$$job-password
+        if [ -e "$$set" ]; then
+          v=$$(cat "$$set")
+          [ -n "$$v" ] || { echo "AMP_OBSERVABILITY_$$(echo "$$job" | tr '[:lower:]' '[:upper:]')_PASSWORD is empty" >&2; exit 1; }
+          printf %s "$$v" >"$$f"
+        elif [ ! -s "$$f" ]; then
+          tr -dc A-Za-z0-9 </dev/urandom | head -c 24 >"$$f"
+        fi
+      done
+      cp /out/all/read-password /out/all/delete-password /out/amp/
+      chmod 644 /out/all/* /out/amp/*
+  volumes:
+    - observability-secrets:/out/all
+    - amp-observability-secrets:/out/amp
+  network_mode: none
+
+x-otel-collector: &otel-collector
+  image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.163.2}
+  command: ["--config=/etc/otelcol-contrib/amp.yaml"]
+  volumes:
+    - ./observability/otel-collector.yaml:/etc/otelcol-contrib/amp.yaml:ro
+    - type: volume
+      source: observability-secrets
+      target: /run/secrets/observability/write-password
+      read_only: true
+      volume: { subpath: write-password }
+  depends_on:
+    observability-migrate:
+      condition: service_completed_successfully
+  restart: unless-stopped
+
 services:
   # --- Generated configuration --------------------------------------------------
   # Generates the secrets nothing sets, and writes ThunderID's configuration
@@ -40,10 +83,8 @@ services:
     environment:
       AMP_CONFIG: /etc/amp/amp.yaml
       AMP_DATA_DIR: /var/lib/agent-manager
-      # The admin, PostgreSQL and ClickHouse passwords, for the containers that read them.
+      # The admin and PostgreSQL passwords, for the containers that read them.
       AMP_SHARED_SECRETS_DIR: /out/shared-secrets
-      # Set by the observability profile; generates ClickHouse's four passwords.
-      MODULE_OBSERVABILITY_CLICKHOUSE_URL: ${AMP_OBSERVABILITY_CLICKHOUSE_URL:-}
       # What only Compose knows: ports and service names.
       THUNDER_PORT: ${THUNDER_PORT:-8080}
       # The console amp-api serves (server.public_url) may always sign in; the
@@ -169,26 +210,35 @@ services:
       CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: "true"
       CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT: "true"
       CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
-      # The observability module's trace store, set by the observability
-      # profile (or for your own ClickHouse). Unset, the module keeps traces
-      # in memory. The passwords are amp-init's generated files in amp-secrets.
-      # See docs/amp-lite/observability.md.
-      MODULE_OBSERVABILITY_CLICKHOUSE_URL: ${AMP_OBSERVABILITY_CLICKHOUSE_URL:-}
+      # The observability module's trace store, set with an observability
+      # profile; unset, the module keeps traces in memory. Its passwords are
+      # files from observability-secrets. See docs/amp-lite/observability.md.
+      MODULE_OBSERVABILITY_CLICKHOUSE_URL: ${AMP_OBSERVABILITY_STORE_URL:-}
       MODULE_OBSERVABILITY_CLICKHOUSE_USER: amp_reader
+      MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD_FILE: ${AMP_OBSERVABILITY_STORE_URL:+/amp/observability/read-password}
       MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER: amp_cleaner
-      # Where the module forwards agents' spans (OTLP/HTTP).
-      MODULE_OBSERVABILITY_COLLECTOR_URL: ${AMP_OBSERVABILITY_COLLECTOR_URL:-}
+      MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD_FILE: ${AMP_OBSERVABILITY_STORE_URL:+/amp/observability/delete-password}
+      # Where the module forwards agents' spans (OTLP/HTTP): the collector, with a store.
+      MODULE_OBSERVABILITY_COLLECTOR_URL: ${AMP_OBSERVABILITY_COLLECTOR_URL:-${AMP_OBSERVABILITY_STORE_URL:+http://otel-collector:4318}}
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-data:/var/lib/agent-manager
       - amp-secrets:/var/lib/agent-manager/secrets
       - gateway-config:/amp/gw:ro
       - fileauth-config:/amp/fileauth:ro
+      # The read and delete passwords only.
+      - amp-observability-secrets:/amp/observability:ro
     depends_on:
       thunder:
         condition: service_healthy
       postgres:
         condition: service_healthy
+        required: false
+      observability-secrets:
+        condition: service_completed_successfully
+        required: false
+      observability-secrets-external:
+        condition: service_completed_successfully
         required: false
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz >/dev/null"]
@@ -199,90 +249,118 @@ services:
     networks: [amp, observability]
     restart: unless-stopped
 
-  # --- Observability (optional) -----------------------------------------------------
-  # With COMPOSE_PROFILES=observability (`make up-observability`): ClickHouse
-  # and the OpenTelemetry collector on the internal observability network,
-  # with no published ports, and a step that applies the trace schema with
-  # `amp migrate` once amp-api is up, before the collector starts. ClickHouse
-  # creates no tables itself.
+  # --- Observability (optional) ---------------------------------------------------
+  # Traces need a store and the OpenTelemetry collector. One of two profiles:
+  #   observability           runs ClickHouse here, with no published ports,
+  #                           and generates its passwords.
+  #   observability-external  uses your ClickHouse at AMP_OBSERVABILITY_STORE_URL,
+  #                           with the passwords you set in .env.
+  # Both run the collector on the internal observability network and a step
+  # that applies the trace schema with `amp migrate` once amp-api is up, before
+  # the collector starts. ClickHouse creates no tables itself. Each password is
+  # a file named for its job (read, write, delete, setup); each container
+  # mounts only the ones it uses.
+  observability-secrets:
+    <<: *observability-secrets
+    profiles: [observability]
+
+  observability-secrets-external:
+    <<: *observability-secrets
+    profiles: [observability-external]
+    # Compose refuses to start while any of these is unset.
+    secrets:
+      - observability-read-password
+      - observability-write-password
+      - observability-delete-password
+      - observability-setup-password
+
   clickhouse:
     image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:25.8.33.6}
     profiles: [observability]
     # users.xml reads the passwords from the environment, so this exports each
-    # generated file into its variable; a missing or empty one stops the start.
+    # file into its variable; a missing or empty one stops the start.
     entrypoint:
       - /bin/sh
       - -c
       - |
-        for login in migrator ingest reader cleaner; do
-          f=/amp/secrets/clickhouse-$$login-password
+        for p in read:READER write:INGEST delete:CLEANER setup:MIGRATOR; do
+          f=/run/secrets/observability/$${p%%:*}-password
           v=$$(cat "$$f" 2>/dev/null)
-          [ -n "$$v" ] || { echo "$$f is missing or empty; is AMP_OBSERVABILITY_CLICKHOUSE_URL set?" >&2; exit 1; }
-          export "AMP_CLICKHOUSE_$$(echo "$$login" | tr '[:lower:]' '[:upper:]')_PASSWORD=$$v"
+          [ -n "$$v" ] || { echo "$$f is missing or empty" >&2; exit 1; }
+          export "AMP_CLICKHOUSE_$${p#*:}_PASSWORD=$$v"
         done
         exec /entrypoint.sh
     ulimits:
       nofile: { soft: 262144, hard: 262144 }
     volumes:
-      - amp-shared-secrets:/amp/secrets:ro
+      - observability-secrets:/run/secrets/observability:ro
       - clickhouse-data:/var/lib/clickhouse
       # The module's four logins (agent-manager-service/modules/observability/store/clickhouse/users.xml).
       - ./observability/clickhouse-users.xml:/etc/clickhouse-server/users.d/amp.xml:ro
+    depends_on:
+      observability-secrets:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8123/ping >/dev/null"]
       interval: 3s
       retries: 60
-    depends_on:
-      amp-init:
-        condition: service_completed_successfully
     networks: [observability]
     restart: unless-stopped
 
-  # Applies the trace schema as the migrator login, which amp-api never uses.
+  # Applies the trace schema with the setup login, which amp-api never holds.
   # It waits for amp-api, whose first start creates the encryption key on an
   # empty database. Rerun it (`docker compose run --rm observability-migrate`) after an upgrade.
   observability-migrate:
     image: ${AMP_API_IMAGE:-amp-api:lite}
-    profiles: [observability]
+    profiles: [observability, observability-external]
     entrypoint: ["/go/bin/amp"]
     command: ["migrate"]
-    # amp-api's settings, database and secrets (the migrator password among
-    # them), plus the migrator login.
+    # amp-api's settings and database, plus the setup login.
     environment:
       AMP_CONFIG: /etc/amp/amp.yaml
       AMP_DATA_DIR: /var/lib/agent-manager
       DB_SSL_MODE: disable
-      MODULE_OBSERVABILITY_CLICKHOUSE_URL: http://clickhouse:8123
+      MODULE_OBSERVABILITY_CLICKHOUSE_URL: ${AMP_OBSERVABILITY_STORE_URL:-http://clickhouse:8123}
       MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER: amp_migrator
+      MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD_FILE: /run/secrets/observability/setup-password
       MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS: ${AMP_OBSERVABILITY_TTL_DAYS:-}
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-data:/var/lib/agent-manager
       - amp-secrets:/var/lib/agent-manager/secrets
+      - type: volume
+        source: observability-secrets
+        target: /run/secrets/observability/setup-password
+        read_only: true
+        volume: { subpath: setup-password }
     depends_on:
       amp-api:
         condition: service_healthy
       clickhouse:
         condition: service_healthy
-    # amp for PostgreSQL, observability for ClickHouse.
+        required: false
+    # amp for PostgreSQL and your ClickHouse, observability for the bundled one.
     networks: [amp, observability]
 
   # Receives OTLP/HTTP only from the observability network, replaces the
   # spans' agent-manager/* resource attributes with the identity headers the
-  # observability module sets, and writes to ClickHouse as the insert-only login.
+  # observability module sets, and writes to ClickHouse with the write login.
   otel-collector:
-    image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector-contrib:0.163.2}
+    <<: *otel-collector
     profiles: [observability]
-    command: ["--config=/etc/otelcol-contrib/amp.yaml"]
-    volumes:
-      - ./observability/otel-collector.yaml:/etc/otelcol-contrib/amp.yaml:ro
-      # The ingest password, which otel-collector.yaml reads as a file.
-      - amp-shared-secrets:/amp/secrets:ro
-    depends_on:
-      observability-migrate:
-        condition: service_completed_successfully
     networks: [observability]
-    restart: unless-stopped
+
+  # The same, writing to your ClickHouse: its own network out reaches it, and
+  # nothing else joins that network.
+  otel-collector-external:
+    <<: *otel-collector
+    profiles: [observability-external]
+    environment:
+      AMP_CLICKHOUSE_ENDPOINT: ${AMP_OBSERVABILITY_STORE_URL:-}
+    networks:
+      observability:
+        aliases: [otel-collector]
+      observability-egress:
 
   # --- AI Gateway -----------------------------------------------------------------
   # Uses config.toml from amp-init and connects to amp-api with the registration
@@ -342,9 +420,23 @@ volumes:
   gateway-data:
   fileauth-config:
   clickhouse-data:
+  observability-secrets:
+  amp-observability-secrets:
 
 networks:
   amp:
   # amp-api, ClickHouse and the collector only. Internal: no route out.
   observability:
     internal: true
+  observability-egress:
+
+# Your ClickHouse's passwords, from .env, for the observability-external profile.
+secrets:
+  observability-read-password:
+    environment: AMP_OBSERVABILITY_READ_PASSWORD
+  observability-write-password:
+    environment: AMP_OBSERVABILITY_WRITE_PASSWORD
+  observability-delete-password:
+    environment: AMP_OBSERVABILITY_DELETE_PASSWORD
+  observability-setup-password:
+    environment: AMP_OBSERVABILITY_SETUP_PASSWORD

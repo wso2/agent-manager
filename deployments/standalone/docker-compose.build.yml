@@ -16,3 +16,7 @@ services:
   observability-migrate:
     # Built by amp-api above; never pulled.
     pull_policy: never
+  observability-secrets:
+    pull_policy: never
+  observability-secrets-external:
+    pull_policy: never

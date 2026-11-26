@@ -85,12 +85,11 @@ DEV_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.dev.yml
 CORE_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.core.yml -p amp-lite-core
 # The observability profile: ClickHouse and the OTel collector, with amp-api
 # pointed at them for this run (docs/amp-lite/observability.md).
-OBS_COMPOSE := AMP_OBSERVABILITY_CLICKHOUSE_URL=http://clickhouse:8123 \
-	AMP_OBSERVABILITY_COLLECTOR_URL=http://otel-collector:4318 \
+OBS_COMPOSE := AMP_OBSERVABILITY_STORE_URL=http://clickhouse:8123 \
 	$(COMPOSE) --profile observability $(if $(filter postgres,$(DB)),--profile postgres)
 # The stop targets name every profile, so they also stop PostgreSQL from a
 # DB=postgres run and ClickHouse from up-observability.
-ALL_PROFILES := --profile postgres --profile observability
+ALL_PROFILES := --profile postgres --profile observability --profile observability-external
 
 # Complete setup
 setup: tools
