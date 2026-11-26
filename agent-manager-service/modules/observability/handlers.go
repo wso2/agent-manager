@@ -253,7 +253,7 @@ func (h handlers) listSpans(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, sp := range page.Spans {
 		sum := SpanSummary{
-			SpanID: sp.SpanID, SpanName: sp.SpanName, SpanKind: spanKind(sp.SpanName), ParentSpanID: sp.ParentSpanID,
+			SpanID: sp.SpanID, SpanName: sp.SpanName, SpanKind: store.SpanKind(sp.SpanName), ParentSpanID: sp.ParentSpanID,
 			StartTime: sp.StartTime, EndTime: sp.EndTime, DurationNs: sp.DurationNs, Error: isError(sp.Status),
 		}
 		if sp.Status != nil {
@@ -289,7 +289,7 @@ func tracePagination(w window, page *tracesv1.TracePage) TracePagination {
 func overview(t tracesv1.Trace) TraceOverview {
 	return TraceOverview{
 		TraceID: t.TraceID, RootSpanID: t.RootSpanID, RootSpanName: t.RootSpanName,
-		RootSpanKind: spanKind(t.RootSpanName),
+		RootSpanKind: store.SpanKind(t.RootSpanName),
 		StartTime:    formatTime(t.StartTime), EndTime: formatTime(t.EndTime),
 		DurationInNanos: t.DurationNs, SpanCount: t.SpanCount,
 	}
@@ -301,7 +301,7 @@ func toSpan(traceID string, d tracesv1.SpanDetails) Span {
 		TraceID: traceID, SpanID: d.SpanID, ParentSpanID: d.ParentSpanID, Name: d.SpanName,
 		StartTime: d.StartTime, EndTime: d.EndTime, DurationInNanos: d.DurationNs, Kind: d.Kind,
 		Attributes: d.Attributes, Resource: d.ResourceAttributes,
-		AmpAttributes: &AmpAttributes{Kind: spanKind(d.SpanName), Status: &SpanStatus{Error: isError(d.Status)}},
+		AmpAttributes: &AmpAttributes{Kind: store.SpanKind(d.SpanName), Status: &SpanStatus{Error: isError(d.Status)}},
 	}
 	span.Service, _ = d.ResourceAttributes[resourceAgent].(string)
 	if d.Status != nil {
