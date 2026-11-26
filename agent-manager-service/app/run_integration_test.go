@@ -24,6 +24,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -39,6 +41,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -95,11 +98,15 @@ func TestRunServesAndShutsDownOnSignal(t *testing.T) {
 	cfg.InternalServer.Port = freeTCPPort(t)
 	cfg.InternalServer.TLSEnabled = false
 	cfg.DefaultOrg = config.DefaultOrgConfig{OUID: ouID, Handle: handle}
+	// The trial organization is set up at boot only with file sign-in, which needs a user file.
+	cfg.AuthMode = config.AuthModeFile
+	cfg.FileAuth.UsersPath = filepath.Join(t.TempDir(), "users.yaml")
+	require.NoError(t, os.WriteFile(cfg.FileAuth.UsersPath, []byte("organization: {handle: "+handle+", uuid: "+ouID+"}\n"+
+		"users:\n  - {username: admin, passwordHash: \"$2a$04$abcdefghijklmnopqrstuuJ2s0ZQnWUoK3qz5bH4n0Ql6rU7lXy2W\", roles: ["+rbac.RoleAdmin+"]}\n"), 0o600))
 	cfg.LogLevel = "WARN"
 	t.Cleanup(func() {
 		g := db.GetDB()
 		g.Where("org_id = ?", ouID).Delete(&models.Environment{})
-		g.Where("id = ?", ouID).Delete(&models.Organization{})
 	})
 
 	var (
@@ -153,12 +160,9 @@ func TestRunServesAndShutsDownOnSignal(t *testing.T) {
 	}
 	assert.NoError(t, err, "the internal server listens on its own port")
 
-	var org models.Organization
-	require.NoError(t, db.GetDB().Where("id = ?", ouID).First(&org).Error, "the configured organization is created at boot")
-	assert.Equal(t, handle, org.Handle)
 	var envs int64
 	require.NoError(t, db.GetDB().Model(&models.Environment{}).Where("org_id = ?", ouID).Count(&envs).Error)
-	assert.Equal(t, int64(1), envs, "with its default environment")
+	assert.Equal(t, int64(1), envs, "the configured organization gets its default environment at boot")
 
 	assert.True(t, startedWithRecorder.Load())
 	assert.True(t, decorated.Load())

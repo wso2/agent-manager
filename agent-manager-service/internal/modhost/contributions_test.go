@@ -39,7 +39,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
@@ -294,9 +293,6 @@ func secretsStayInTheModule(t *testing.T, d database) {
 	installAll(t, h, "t-sa", "t-sb")
 
 	org := uuid.NewString()
-	now := dbx.Now()
-	require.NoError(t, g.Exec(`INSERT INTO organizations (id, handle, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-		org, "o-"+org[:8], "Org", now, now).Error)
 
 	sa, sb := a.runtime().Secrets(), b.runtime().Secrets()
 	require.NoError(t, sa.Put(ctx, org, "providers/p1/api-key", "s3cret"))

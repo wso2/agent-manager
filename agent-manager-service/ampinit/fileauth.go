@@ -19,7 +19,6 @@ package ampinit
 import (
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/yaml.v3"
@@ -119,16 +118,4 @@ func roleFor(u User) string {
 		return rbac.RoleAdmin
 	}
 	return rbac.RoleDeveloper
-}
-
-// defaultOrgHandle is the handle an organization gets when none is configured.
-const defaultOrgHandle = "default"
-
-// normaliseHandle keeps the handle within what the control plane accepts.
-func normaliseHandle(handle string) string {
-	handle = strings.ToLower(strings.TrimSpace(handle))
-	if handle == "" {
-		return defaultOrgHandle
-	}
-	return handle
 }

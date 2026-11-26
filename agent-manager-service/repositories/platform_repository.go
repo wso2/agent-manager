@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -115,19 +116,23 @@ func deref(s *string) string {
 	return *s
 }
 
-// orgByOUID returns the organization for an OU, creating it and its default environment on first use.
-func (r *platformRepo) orgByOUID(ctx context.Context, ouID string) (*models.Organization, error) {
-	return EnsureOrg(ctx, r.db, ouID)
+// orgRef is an organization as the repositories use it: its id and the handle it is known by.
+type orgRef struct {
+	ID     uuid.UUID
+	Handle string
 }
 
-func orgResponse(o *models.Organization) *models.OrganizationResponse {
-	return &models.OrganizationResponse{
-		Name:        o.Handle,
-		DisplayName: o.DisplayName,
-		Description: deref(o.Description),
-		CreatedAt:   o.CreatedAt,
-		Handle:      o.Handle,
+// orgByOUID returns the organization for an OU, creating its default environment on first use.
+func (r *platformRepo) orgByOUID(ctx context.Context, ouID string) (*orgRef, error) {
+	id, err := EnsureOrg(ctx, r.db, ouID)
+	if err != nil {
+		return nil, err
 	}
+	return &orgRef{ID: id, Handle: orgHandle(ctx, ouID)}, nil
+}
+
+func orgResponse(o *orgRef) *models.OrganizationResponse {
+	return &models.OrganizationResponse{Name: o.Handle, DisplayName: o.Handle, Handle: o.Handle}
 }
 
 func (r *platformRepo) GetOrganization(ctx context.Context, ouID string) (*models.OrganizationResponse, error) {
@@ -138,19 +143,22 @@ func (r *platformRepo) GetOrganization(ctx context.Context, ouID string) (*model
 	return orgResponse(org), nil
 }
 
+// ListOrganizations lists the request's organization: the only one known, as organizations are the tokens'. Like
+// GetOrganization it ensures the organization, so a first read creates its default environment, with the
+// environment hooks and the environment.created event that come with it.
 func (r *platformRepo) ListOrganizations(ctx context.Context) ([]*models.OrganizationResponse, error) {
-	var orgs []models.Organization
-	if err := r.db.WithContext(ctx).Order("created_at, id").Find(&orgs).Error; err != nil {
+	resolved, ok := orgctx.GetResolvedOrg(ctx)
+	if !ok || resolved.OUID == "" {
+		return nil, utils.ErrOrganizationNotFound
+	}
+	org, err := r.orgByOUID(ctx, resolved.OUID)
+	if err != nil {
 		return nil, err
 	}
-	out := make([]*models.OrganizationResponse, 0, len(orgs))
-	for i := range orgs {
-		out = append(out, orgResponse(&orgs[i]))
-	}
-	return out, nil
+	return []*models.OrganizationResponse{orgResponse(org)}, nil
 }
 
-func projectResponse(org *models.Organization, p *models.Project) *models.ProjectResponse {
+func projectResponse(org *orgRef, p *models.Project) *models.ProjectResponse {
 	return &models.ProjectResponse{
 		UUID:        p.ID.String(),
 		Name:        p.Name,
@@ -161,7 +169,7 @@ func projectResponse(org *models.Organization, p *models.Project) *models.Projec
 	}
 }
 
-func (r *platformRepo) project(ctx context.Context, org *models.Organization, projectName string) (*models.Project, error) {
+func (r *platformRepo) project(ctx context.Context, org *orgRef, projectName string) (*models.Project, error) {
 	var p models.Project
 	err := r.db.WithContext(ctx).Where("org_id = ? AND name = ?", org.ID, projectName).First(&p).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -304,7 +312,7 @@ func agentResponse(projectName string, a *models.Agent) *models.AgentResponse {
 	}
 }
 
-func (r *platformRepo) agent(ctx context.Context, ouID, projectName, agentName string) (*models.Organization, *models.Project, *models.Agent, error) {
+func (r *platformRepo) agent(ctx context.Context, ouID, projectName, agentName string) (*orgRef, *models.Project, *models.Agent, error) {
 	org, err := r.orgByOUID(ctx, ouID)
 	if err != nil {
 		return nil, nil, nil, err

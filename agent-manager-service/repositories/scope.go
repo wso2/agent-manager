@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -38,49 +39,36 @@ import (
 // lookups below translate project, agent and environment names, so repositories keep the interfaces the services
 // call while storing only ids.
 
-// EnsureOrg returns the organization for an OU, creating it and its default environment on first use.
-func EnsureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organization, error) {
+// EnsureOrg makes the organization of an OU ready to hold rows and returns its id. An organization is the token's;
+// the database holds no row for it, only what belongs to it, first of all its default environment, which this
+// creates on first use.
+func EnsureOrg(ctx context.Context, db *gorm.DB, ouID string) (uuid.UUID, error) {
 	if ouID == "" {
-		return nil, utils.ErrOrganizationNotFound
+		return uuid.Nil, utils.ErrOrganizationNotFound
 	}
 	orgID, err := uuid.Parse(ouID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: OU id %q is not a UUID", utils.ErrOrganizationNotFound, ouID)
+		return uuid.Nil, fmt.Errorf("%w: OU id %q is not a UUID", utils.ErrOrganizationNotFound, ouID)
 	}
 	db = db.WithContext(ctx)
-	var org models.Organization
-	err = db.Where("id = ?", orgID).First(&org).Error
-	if err == nil {
-		return &org, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
+	exists, err := hasDefaultEnvironment(db, orgID)
+	if err != nil || exists {
+		return orgID, err
 	}
 
-	handle := ouID
-	if resolved, ok := orgctx.GetResolvedOrg(ctx); ok && resolved.OUID == ouID && resolved.OuHandle != "" {
-		handle = resolved.OuHandle
-	}
 	now := dbx.Now()
-	org = models.Organization{
-		ID: orgID, Handle: handle, DisplayName: handle, ThunderOUID: &ouID,
-		CreatedAt: now, UpdatedAt: now,
-	}
 	env := models.Environment{
-		ID: NewID(), OrgID: org.ID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
+		ID: NewID(), OrgID: orgID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
 		CreatedAt: now, UpdatedAt: now,
 	}
 	// The default environment is the only one an organization gets, and it
 	// comes with the organization, possibly on a read: it cannot be refused,
 	// so environment hooks get only the apply phase, in a savepoint. A module
-	// that fails there is logged and its writes undone; the organization is
+	// that fails there is logged and its writes undone; the environment is
 	// created all the same.
 	op := coreext.Begin(ctx, modkit.ResourceEnvironment)
-	envReq := modkit.HookRequest{Action: modkit.ActionCreate, OrgID: org.ID.String()}
+	envReq := modkit.HookRequest{Action: modkit.ActionCreate, OrgID: orgID.String()}
 	txErr := db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&org).Error; err != nil {
-			return err
-		}
 		if err := tx.Create(&env).Error; err != nil {
 			return err
 		}
@@ -89,23 +77,49 @@ func EnsureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organizat
 			if err := op.Run(ctx, sp, modkit.Apply, withObject(envReq, env.ID.String(), object), nil); err != nil {
 				return err
 			}
-			return emit(ctx, op, sp, modkit.EventEnvironmentCreated, org.ID.String(), env.Name, object)
+			return emit(ctx, op, sp, modkit.EventEnvironmentCreated, orgID.String(), env.Name, object)
 		})
 		if hookErr != nil {
 			slog.ErrorContext(ctx, "module hooks failed on a new organization's default environment; created without them",
-				"orgId", org.ID.String(), "error", hookErr)
+				"orgId", orgID.String(), "error", hookErr)
 		}
 		return nil
 	})
 	if txErr != nil {
 		// A concurrent request may have created it first.
-		var existing models.Organization
-		if err := db.Where("id = ?", orgID).First(&existing).Error; err == nil {
-			return &existing, nil
+		if exists, err := hasDefaultEnvironment(db, orgID); err == nil && exists {
+			return orgID, nil
 		}
-		return nil, fmt.Errorf("failed to create organization for OU %q: %w", ouID, txErr)
+		return uuid.Nil, fmt.Errorf("failed to create the default environment of organization %q: %w", ouID, txErr)
 	}
-	return &org, nil
+	return orgID, nil
+}
+
+// hasDefaultEnvironment reports whether the organization has its default environment, which is what makes it exist.
+func hasDefaultEnvironment(db *gorm.DB, orgID uuid.UUID) (bool, error) {
+	var n int64
+	err := db.Model(&models.Environment{}).Where("org_id = ? AND name = ?", orgID, models.DefaultEnvironmentName).
+		Count(&n).Error
+	return n > 0, err
+}
+
+// orgHandle is an organization's handle: the request's when it is for this organization; outside a request, the
+// configured default organization's; otherwise the id, as nothing else names it.
+func orgHandle(ctx context.Context, orgID string) string {
+	if resolved, ok := orgctx.GetResolvedOrg(ctx); ok && sameOrg(resolved.OUID, orgID) && resolved.OuHandle != "" {
+		return resolved.OuHandle
+	}
+	if def := config.GetConfig().DefaultOrg; sameOrg(def.OUID, orgID) && def.Handle != "" {
+		return def.Handle
+	}
+	return orgID
+}
+
+// sameOrg reports whether two organization ids name the same UUID, whatever their case.
+func sameOrg(a, b string) bool {
+	ua, errA := uuid.Parse(a)
+	ub, errB := uuid.Parse(b)
+	return errA == nil && errB == nil && ua == ub
 }
 
 // environmentObject is an environment as module hooks and events see it.
@@ -118,11 +132,7 @@ func environmentObject(e *models.Environment) map[string]any {
 
 // orgIDFor is the id of the caller's organization.
 func orgIDFor(ctx context.Context, db *gorm.DB, ouID string) (uuid.UUID, error) {
-	org, err := EnsureOrg(ctx, db, ouID)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	return org.ID, nil
+	return EnsureOrg(ctx, db, ouID)
 }
 
 // projectIDFor is the id of a project in an organization.
@@ -178,47 +188,6 @@ func defaultEnvironmentID(ctx context.Context, db *gorm.DB, orgID uuid.UUID) (uu
 		return uuid.Nil, utils.ErrEnvironmentNotFound
 	}
 	return env.ID, err
-}
-
-// agentNames is what services know an agent by.
-type agentNames struct {
-	OUID        string
-	ProjectName string
-	AgentName   string
-}
-
-// agentNamesByID reads the names of agents by id, for filling the name fields of rows read by id.
-func agentNamesByID(ctx context.Context, db *gorm.DB, ids []uuid.UUID) (map[uuid.UUID]agentNames, error) {
-	out := make(map[uuid.UUID]agentNames, len(ids))
-	for _, chunk := range dbx.Chunks(ids) {
-		var rows []struct {
-			ID          uuid.UUID
-			AgentName   string
-			ProjectName string
-			OUID        *string
-		}
-		err := db.WithContext(ctx).Table("agents a").
-			Select("a.id, a.name AS agent_name, p.name AS project_name, o.thunder_ou_id AS ouid").
-			Joins("JOIN projects p ON p.org_id = a.org_id AND p.id = a.project_id").
-			Joins("JOIN organizations o ON o.id = a.org_id").
-			Where("a.id IN ?", chunk).Scan(&rows).Error
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range rows {
-			out[r.ID] = agentNames{OUID: deref(r.OUID), ProjectName: r.ProjectName, AgentName: r.AgentName}
-		}
-	}
-	return out, nil
-}
-
-// ouIDByOrgID is the Thunder OU of an organization.
-func ouIDByOrgID(ctx context.Context, db *gorm.DB, orgID uuid.UUID) (string, error) {
-	var org models.Organization
-	if err := db.WithContext(ctx).Select("thunder_ou_id").Where("id = ?", orgID).First(&org).Error; err != nil {
-		return "", err
-	}
-	return deref(org.ThunderOUID), nil
 }
 
 // LockAgent locks an agent's row for the rest of tx, serialising work on that agent (schema rule 10).

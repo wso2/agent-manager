@@ -96,7 +96,7 @@ file_auth: {users_path: /tmp/users.yaml}
 	assert.Equal(t, "amp-api-client", c.IDP.ClientID)
 	assert.Equal(t, "amp-system-client", c.Thunder.ClientID)
 	assert.Equal(t, []string{"http://thunder.amp.localhost:8080"}, c.OAuthAuthorizationServers)
-	assert.Equal(t, "01900000-0000-7000-8000-000000000001", c.PlatformAdminOUID)
+	assert.Equal(t, DefaultTrialOrgOUID, c.PlatformAdminOUID, "file sign-in's organization is the platform one")
 
 	require.NoError(t, loadWith(t, `
 server: {port: 9000, public_url: "http://localhost:9000"}
@@ -108,4 +108,49 @@ auth: {mode: idp}
 	t.Setenv("KEY_MANAGER_JWKS_URL", "http://explicit/jwks")
 	require.NoError(t, loadWith(t, "auth: {mode: idp}\n"))
 	assert.Equal(t, "http://explicit/jwks", GetConfig().KeyManagerConfigurations.JWKSUrl)
+}
+
+// The trial organization is file sign-in's; with file sign-in it is also the platform organization, so the trial
+// admin keeps the cross-organization routes. With an identity provider the platform organization stays ThunderID's.
+func TestPlatformAdminDefaultFollowsAuthMode(t *testing.T) {
+	reloadAfter(t)
+	unset(t, "PLATFORM_ADMIN_OU_ID", "DEFAULT_ORG_OU_ID", "DEFAULT_ORG_HANDLE", "AUTH_MODE", "FILE_AUTH_USERS_PATH")
+	t.Setenv("THUNDER_CLIENT_SECRET", "s")
+	base := "server: {port: 9000, public_url: \"http://localhost:9000\"}\n" +
+		"thunder: {base_url: \"http://thunder.amp.localhost:8080\"}\n"
+	file := base + "auth: {mode: file}\nfile_auth: {users_path: /tmp/users.yaml}\n"
+
+	require.NoError(t, loadWith(t, file))
+	assert.Equal(t, "00000000-0000-0000-0000-000000000001", GetConfig().DefaultOrg.OUID)
+	assert.Equal(t, "default", GetConfig().DefaultOrg.Handle)
+	t.Setenv("DEFAULT_ORG_HANDLE", "  Acme ")
+	require.NoError(t, loadWith(t, file))
+	assert.Equal(t, "acme", GetConfig().DefaultOrg.Handle, "normalised as amp init writes it into users.yaml")
+	unset(t, "DEFAULT_ORG_HANDLE")
+	assert.Equal(t, "00000000-0000-0000-0000-000000000001", GetConfig().PlatformAdminOUID)
+
+	t.Setenv("DEFAULT_ORG_OU_ID", "   ")
+	require.NoError(t, loadWith(t, file))
+	assert.Equal(t, "00000000-0000-0000-0000-000000000001", GetConfig().DefaultOrg.OUID, "blank is unset")
+	assert.Equal(t, "00000000-0000-0000-0000-000000000001", GetConfig().PlatformAdminOUID)
+	unset(t, "DEFAULT_ORG_OU_ID")
+
+	require.NoError(t, loadWith(t, file+"default: {org_ou_id: 0190a000-0000-7000-8000-0000000000bb}\n"))
+	assert.Equal(t, "0190a000-0000-7000-8000-0000000000bb", GetConfig().PlatformAdminOUID, "follows the trial organization")
+
+	require.NoError(t, loadWith(t, base+"auth: {mode: idp}\ndefault: {org_ou_id: 0190a000-0000-7000-8000-0000000000bb}\n"))
+	assert.Equal(t, "01900000-0000-7000-8000-000000000001", GetConfig().PlatformAdminOUID, "an identity provider's stays ThunderID's")
+
+	// Set but empty denies every caller the cross-organization routes, in either mode.
+	t.Setenv("PLATFORM_ADMIN_OU_ID", "")
+	for _, cfg := range []string{file, base + "auth: {mode: idp}\n"} {
+		require.NoError(t, loadWith(t, cfg))
+		assert.Empty(t, GetConfig().PlatformAdminOUID, "an explicitly empty value stays empty")
+	}
+
+	t.Setenv("PLATFORM_ADMIN_OU_ID", "0190a000-0000-7000-8000-0000000000cc")
+	for _, cfg := range []string{file, base + "auth: {mode: idp}\n"} {
+		require.NoError(t, loadWith(t, cfg))
+		assert.Equal(t, "0190a000-0000-7000-8000-0000000000cc", GetConfig().PlatformAdminOUID, "an explicit value wins")
+	}
 }

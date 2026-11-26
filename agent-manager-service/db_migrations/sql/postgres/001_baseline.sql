@@ -1,19 +1,5 @@
 -- Code generated from db_migrations/schema/lite.yaml by `make schema`. DO NOT EDIT.
 
-CREATE TABLE organizations (
-    id UUID NOT NULL,
-    handle VARCHAR(63) NOT NULL,
-    display_name VARCHAR(255) NOT NULL,
-    description VARCHAR(1000),
-    thunder_ou_id VARCHAR(64),
-    created_by VARCHAR(255),
-    created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT pk_organizations PRIMARY KEY (id),
-    CONSTRAINT uq_organizations_handle UNIQUE (handle)
-);
-CREATE INDEX idx_organizations_thunder_ou_id ON organizations (thunder_ou_id);
-
 CREATE TABLE projects (
     id UUID NOT NULL,
     org_id UUID NOT NULL,
@@ -25,8 +11,7 @@ CREATE TABLE projects (
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT pk_projects PRIMARY KEY (id),
     CONSTRAINT uq_projects_org_id_name UNIQUE (org_id, name),
-    CONSTRAINT uq_projects_org_id_id UNIQUE (org_id, id),
-    CONSTRAINT fk_projects_org_id FOREIGN KEY (org_id) REFERENCES organizations (id)
+    CONSTRAINT uq_projects_org_id_id UNIQUE (org_id, id)
 );
 
 CREATE TABLE environments (
@@ -39,8 +24,7 @@ CREATE TABLE environments (
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT pk_environments PRIMARY KEY (id),
     CONSTRAINT uq_environments_org_id_name UNIQUE (org_id, name),
-    CONSTRAINT uq_environments_org_id_id UNIQUE (org_id, id),
-    CONSTRAINT fk_environments_org_id FOREIGN KEY (org_id) REFERENCES organizations (id)
+    CONSTRAINT uq_environments_org_id_id UNIQUE (org_id, id)
 );
 
 CREATE TABLE agents (
@@ -109,10 +93,32 @@ CREATE TABLE secrets (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT pk_secrets PRIMARY KEY (id),
-    CONSTRAINT uq_secrets_org_id_id UNIQUE (org_id, id),
-    CONSTRAINT fk_secrets_org_id FOREIGN KEY (org_id) REFERENCES organizations (id)
+    CONSTRAINT uq_secrets_org_id_id UNIQUE (org_id, id)
 );
 CREATE INDEX idx_secrets_org_id_owner_kind_owner_id ON secrets (org_id, owner_kind, owner_id);
+
+CREATE TABLE secret_jobs (
+    id UUID NOT NULL,
+    org_id UUID NOT NULL,
+    secret_id UUID NOT NULL,
+    owner_kind VARCHAR(32) NOT NULL,
+    action VARCHAR(16) NOT NULL,
+    provider VARCHAR(16),
+    external_ref VARCHAR(512),
+    staged_provider VARCHAR(16),
+    staged_ref VARCHAR(512),
+    version INTEGER,
+    attempts INTEGER NOT NULL,
+    last_error TEXT,
+    available_at TIMESTAMPTZ NOT NULL,
+    claimed_by VARCHAR(255),
+    claimed_until TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT pk_secret_jobs PRIMARY KEY (id)
+);
+CREATE INDEX idx_secret_jobs_available_at_id ON secret_jobs (available_at, id);
+CREATE INDEX idx_secret_jobs_secret_id ON secret_jobs (secret_id);
+CREATE INDEX idx_secret_jobs_provider_external_ref ON secret_jobs (provider, external_ref);
 
 CREATE TABLE event_destinations (
     id UUID NOT NULL,
@@ -129,7 +135,6 @@ CREATE TABLE event_destinations (
     CONSTRAINT pk_event_destinations PRIMARY KEY (id),
     CONSTRAINT uq_event_destinations_org_id_name UNIQUE (org_id, name),
     CONSTRAINT uq_event_destinations_org_id_id UNIQUE (org_id, id),
-    CONSTRAINT fk_event_destinations_org_id FOREIGN KEY (org_id) REFERENCES organizations (id),
     CONSTRAINT fk_event_destinations_org_id_secret_id FOREIGN KEY (org_id, secret_id) REFERENCES secrets (org_id, id),
     CONSTRAINT ck_event_destinations_1 CHECK (availability IN ('all', 'org', 'projects'))
 );
@@ -194,8 +199,7 @@ CREATE TABLE event_outbox (
     available_at TIMESTAMPTZ NOT NULL,
     claimed_by VARCHAR(255),
     claimed_until TIMESTAMPTZ,
-    CONSTRAINT pk_event_outbox PRIMARY KEY (id),
-    CONSTRAINT fk_event_outbox_org_id FOREIGN KEY (org_id) REFERENCES organizations (id)
+    CONSTRAINT pk_event_outbox PRIMARY KEY (id)
 );
 CREATE INDEX idx_event_outbox_available_at_id ON event_outbox (available_at, id);
 
@@ -332,8 +336,7 @@ CREATE TABLE module_events (
     subject VARCHAR(255),
     data JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT pk_module_events PRIMARY KEY (id),
-    CONSTRAINT fk_module_events_org_id FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE
+    CONSTRAINT pk_module_events PRIMARY KEY (id)
 );
 
 CREATE TABLE module_event_deliveries (
@@ -358,8 +361,7 @@ CREATE TABLE workload_credentials (
     secret_hash VARCHAR(64) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     revoked_at TIMESTAMPTZ,
-    CONSTRAINT pk_workload_credentials PRIMARY KEY (id),
-    CONSTRAINT fk_workload_credentials_org_id FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE
+    CONSTRAINT pk_workload_credentials PRIMARY KEY (id)
 );
 CREATE INDEX idx_workload_credentials_module_workload ON workload_credentials (module, workload);
 

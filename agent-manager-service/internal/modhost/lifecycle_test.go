@@ -324,8 +324,6 @@ func lifecycle(t *testing.T, d database) {
 	t.Run("purge empties the tables and secrets; reinstall needs no migration", func(t *testing.T) {
 		before := migrationRows()
 		org := uuid.NewString()
-		require.NoError(t, g.Exec(`INSERT INTO organizations (id, handle, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-			org, "purge-org", "purge-org", time.Now(), time.Now()).Error)
 		require.NoError(t, g.Exec(`INSERT INTO secrets (id, org_id, owner_kind, owner_id, provider, ciphertext, version, created_at, updated_at)
 			VALUES (?, ?, 'mod:t-consumer', ?, 'db', ?, 1, ?, ?)`, uuid.NewString(), org, uuid.NewString(), []byte("x"), time.Now(), time.Now()).Error)
 		require.NoError(t, h1.Uninstall(ctx, "t-consumer", false))
@@ -438,7 +436,7 @@ func TestMigrationsStayInsideTheModulePrefix(t *testing.T) {
 		"core table":      "CREATE TABLE agents_extra (id INTEGER);\n",
 		"other module":    "CREATE TABLE mod_t_other_x (id INTEGER);\n",
 		"index elsewhere": "CREATE TABLE mod_t_sneaky_x (id INTEGER);\nCREATE INDEX idx_x ON agents (name);\n",
-		"write elsewhere": "INSERT INTO organizations (id) VALUES ('x');\n",
+		"write elsewhere": "INSERT INTO projects (id) VALUES ('x');\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			m := &testModule{manifest: manifest("t-sneaky", nil, nil), migrations: rawSQL(map[string]string{"001_x.sql": sql})}

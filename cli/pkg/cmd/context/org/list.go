@@ -82,11 +82,11 @@ func runList(ctx context.Context, o *ListOptions) error {
 		return render.JSONSuccess(o.IO, scope, resp.JSON200)
 	}
 
-	tp := tableprinter.New(o.IO, "name", "created")
+	// The server records no creation date for an organization, so there is no date column.
+	tp := tableprinter.New(o.IO, "name")
 	cs := o.IO.ColorScheme()
 	for _, org := range resp.JSON200.Organizations {
 		tp.AddField(org.Name, tableprinter.WithColor(cs.Bold))
-		tp.AddField(org.CreatedAt.Format("2006-01-02"), tableprinter.WithColor(cs.Gray))
 		tp.EndRow()
 	}
 	return tp.Render()

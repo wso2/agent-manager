@@ -48,7 +48,7 @@ func CreateMockPlatformRepository() *repomocks.PlatformRepositoryMock {
 			if ouID == "nonexistent-org" {
 				return nil, utils.ErrOrganizationNotFound
 			}
-			return &models.OrganizationResponse{Name: ouID, DisplayName: ouID, Handle: ouID, CreatedAt: time.Now()}, nil
+			return &models.OrganizationResponse{Name: ouID, DisplayName: ouID, Handle: ouID}, nil
 		},
 		GetProjectFunc: func(_ context.Context, ouID, projectName string) (*models.ProjectResponse, error) {
 			if strings.Contains(projectName, "nonexistent-proj") {

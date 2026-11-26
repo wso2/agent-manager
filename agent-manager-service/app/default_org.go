@@ -27,13 +27,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
-// ensureDefaultOrg creates the configured organization and its default
-// environment if they do not exist. Organizations are otherwise created on
-// first use, so without this a fresh install lists none until something is
+// ensureDefaultOrg gives the trial organization, the one file sign-in names,
+// its default environment if it has none. Organizations otherwise get it on
+// first use, so without this a fresh install is empty until something is
 // written to one. Runs before modules activate, so a module can rely on it
-// existing; no module hook or module event sees its creation.
-func ensureDefaultOrg(ctx context.Context, db *gorm.DB, cfg config.DefaultOrgConfig) error {
-	if cfg.OUID == "" {
+// existing; no module hook or module event sees its creation. With an
+// identity provider it does nothing: the provider's organization is set up on
+// its first request.
+func ensureDefaultOrg(ctx context.Context, db *gorm.DB, authMode string, cfg config.DefaultOrgConfig) error {
+	if cfg.OUID == "" || authMode != config.AuthModeFile {
 		return nil
 	}
 	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: cfg.OUID, OuHandle: cfg.Handle})

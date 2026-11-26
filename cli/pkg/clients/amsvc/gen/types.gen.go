@@ -1360,8 +1360,8 @@ type Labels map[string]string
 
 // OrganizationListItem defines model for OrganizationListItem.
 type OrganizationListItem struct {
-	// CreatedAt Timestamp when the organization was created
-	CreatedAt time.Time `json:"createdAt"`
+	// CreatedAt When the organization was created. Not recorded, so omitted.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
 
 	// DisplayName Display name of the organization
 	DisplayName string `json:"displayName"`
@@ -1385,8 +1385,8 @@ type OrganizationListResponse struct {
 
 // OrganizationResponse defines model for OrganizationResponse.
 type OrganizationResponse struct {
-	// CreatedAt Timestamp when the organization was created
-	CreatedAt time.Time `json:"createdAt"`
+	// CreatedAt When the organization was created. Not recorded, so omitted.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
 
 	// Description Description of the organization
 	Description string `json:"description"`

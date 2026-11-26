@@ -23,7 +23,7 @@ export interface OrganizationResponse {
   name: string;
   displayName: string;
   description: string;
-  createdAt: string; // ISO date-time
+  createdAt?: string; // ISO date-time; the API does not record when an organization was created
   handle?: string; // org handle for console URLs; omitted when the backend can't tell
 }
 

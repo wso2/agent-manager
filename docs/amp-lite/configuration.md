@@ -85,6 +85,8 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `JWT_SIGNING_DEFAULT_EXPIRY` | `jwt.signing_default_expiry` | `2160h` | Lifetime of an agent token. |
 | `JWT_SIGNING_ISSUER` | `jwt.signing_issuer` | `agent-manager-service` | Issuer of agent tokens. |
 | `JWT_SIGNING_DEFAULT_ENVIRONMENT` | `jwt.signing_default_environment` | `default` | Environment an agent token names when none is given. |
+| `DEFAULT_ORG_OU_ID` | `default.org_ou_id` | `00000000-0000-0000-0000-000000000001` | The trial organization file sign-in tokens name. Connecting an identity provider starts in its own organization. Change it together with the AI Gateway's default_gateway_org_ou_id. |
+| `DEFAULT_ORG_HANDLE` | `default.org_handle` | `default` | The trial organization's handle. Do not change it once in use: traces are found by it. |
 
 ## Identity provider (ThunderID)
 
@@ -100,10 +102,8 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `AMP_CONSOLE_CLIENT_SECRET` | `amp.console_client_secret` | `generated` | Its secret. **Secret.** |
 | `AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER` | `amp.use_thunder_default_resource_server` | `false` | Request administrative tokens for ThunderID's default resource server. |
 | `AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER` | `amp.thunder_system_resource_identifier` | `THUNDER_BASE_URL/mcp` | Resource server administrative tokens are requested for. |
-| `PLATFORM_ADMIN_OU_ID` | `platform.admin_ou_id` | `01900000-0000-7000-8000-000000000001` | The platform organization; cross-organization routes accept only its tokens. |
+| `PLATFORM_ADMIN_OU_ID` | `platform.admin_ou_id` | `DEFAULT_ORG_OU_ID (file), 01900000-0000-7000-8000-000000000001 (idp)` | The platform organization; cross-organization routes accept only its tokens. |
 | `ROOT_OU_HANDLE` | `root.ou_handle` | `admin` | Handle of ThunderID's root organization unit. |
-| `DEFAULT_ORG_OU_ID` | `default.org_ou_id` | `01900000-0000-7000-8000-000000000001` | The default organization's unit id. |
-| `DEFAULT_ORG_HANDLE` | `default.org_handle` | `default` | The default organization's handle. |
 | `AMP_ORG_NAMESPACE` | `amp.org_namespace` | `default` | The organization ThunderID instances are addressed by. |
 
 ## Secrets and state
@@ -194,7 +194,6 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `AMP_ADMIN_USERNAME` | `amp.admin_username` | `admin` | The console admin account. |
 | `AMP_ADMIN_PASSWORD` | `amp.admin_password` | `generated` | Its password, for file sign-in and ThunderID alike. **Secret.** |
 | `AMP_DEFAULT_USERS` | `amp.default_users` |  | More console users: name:password[:admin], comma-separated. **Secret.** |
-| `AMP_DEFAULT_ORG_HANDLE` | `amp.default_org_handle` | `default` | Handle of the organization file sign-in tokens name. |
 | `CONSOLE_URL` | `console.url` | `SERVER_PUBLIC_URL` | Where the console runs, for its sign-in client. |
 | `CONSOLE_REDIRECT_URIS` | `console.redirect_uris` | `CONSOLE_URL/login` | More sign-in redirects for the console client, comma-separated; CONSOLE_URL/login is always one. |
 | `AMCTL_CLIENT_ID` | `amctl.client_id` | `amctl` | The CLI's client. |
@@ -244,7 +243,7 @@ modules:
 | `default_gateway_display_name` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_DISPLAY_NAME` | `Default AI Gateway` | The registered gateway's display name. |
 | `default_gateway_vhost` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST` |  | The registered gateway's virtual host, the URL agents reach it at. |
 | `default_gateway_type` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TYPE` | `BOTH` | What the registered gateway handles: INGRESS, EGRESS or BOTH. |
-| `default_gateway_org_ou_id` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID` | `01900000-0000-7000-8000-000000000001` | The organization unit the registered gateway belongs to. |
+| `default_gateway_org_ou_id` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID` | `00000000-0000-0000-0000-000000000001` | The organization the registered gateway belongs to: by default the trial organization file sign-in names. Change it together with the core's default.org_ou_id. |
 | `default_gateway_token` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN` |  | The registered gateway's registration token; generated and kept by amp init when unset. **Secret.** |
 | `default_gateway_token_file` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE` |  | A file holding the registration token, read when DEFAULT_GATEWAY_TOKEN is unset. |
 | `a2a_card_fetch_dial_addr` | `MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR` |  | host:port every A2A agent card fetch dials instead of the card URL's host. |

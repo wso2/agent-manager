@@ -79,7 +79,7 @@ A=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
 
 # --- Core API ------------------------------------------------------------------------
 check organizations 200 "$(code "${A[@]}" "$API/api/v1/organizations")"
-# A fresh install lists its default organization before anything is written to it.
+# The organization list is the token's organization, there before anything is written to it.
 ORG=$(jq -r '.organizations[0].name // empty' "$BODY" 2>/dev/null)
 if [ -n "$ORG" ]; then check orgs-listed ok ok; else check orgs-listed ok "none"; fi
 ORG=${ORG:-default}

@@ -391,12 +391,14 @@ type EventHandler func(ctx context.Context, e Event) error
 // in the organization.
 var ErrNotFound = errors.New("modkit: not found")
 
-// Org is an organization.
+// Org is an organization: its id and handle, as the request's token names it. The core keeps no other record of it.
 type Org struct {
-	ID          string    `json:"id"`
-	Handle      string    `json:"handle"`
-	DisplayName string    `json:"displayName"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID string `json:"id"`
+	// Handle is the organization's handle as the request's token names it. Outside a request (a worker, or a
+	// hook or event with no request behind it) the core knows it only for the configured file sign-in
+	// organization; for any other it is the organization's id. A caller that looks something up by handle,
+	// such as traces, should do so from a request.
+	Handle string `json:"handle"`
 }
 
 // Project is a project in an organization.

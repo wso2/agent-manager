@@ -4,28 +4,12 @@
 # Types: id (UUID v7 from the app), text (needs size), longtext, json, bool, int, bigint, time (UTC), binary.
 # Every column is NOT NULL unless `nullable: true`. on_delete is `cascade` or omitted (no action).
 #
-# Tables go into the baseline (001) unless they name a later migration, which creates them on a database the baseline
-# already ran on. Once a migration has shipped, add new tables in a new one rather than editing it.
-
-migrations:
-  - {id: "002", name: secret_jobs}
+# Every table is in the baseline (001): while AMP Lite is in development the baseline is edited in place, so a schema
+# change needs a fresh database. Once a release ships, later tables go into a new migration (`migrations:` plus
+# `migration: "NNN"` on the table) instead.
 
 tables:
-  # --- Orgs, projects, environments ---------------------------------------------------------
-
-  - name: organizations
-    columns:
-      - {name: id, type: id}
-      - {name: handle, type: text, size: 63}
-      - {name: display_name, type: text, size: 255}
-      - {name: description, type: text, size: 1000, nullable: true}
-      - {name: thunder_ou_id, type: text, size: 64, nullable: true}
-      - {name: created_by, type: text, size: 255, nullable: true}
-      - {name: created_at, type: time}
-      - {name: updated_at, type: time}
-    primary_key: [id]
-    unique: [[handle]]
-    indexes: [[thunder_ou_id]]
+  # --- Projects, environments -----------------------------------------------------------------
 
   - name: projects
     columns:
@@ -39,8 +23,6 @@ tables:
       - {name: updated_at, type: time}
     primary_key: [id]
     unique: [[org_id, name], [org_id, id]]
-    foreign_keys:
-      - {columns: [org_id], references: organizations, ref_columns: [id]}
 
   - name: environments
     columns:
@@ -53,8 +35,6 @@ tables:
       - {name: updated_at, type: time}
     primary_key: [id]
     unique: [[org_id, name], [org_id, id]]
-    foreign_keys:
-      - {columns: [org_id], references: organizations, ref_columns: [id]}
 
   # --- Agents -------------------------------------------------------------------------------
 
@@ -132,15 +112,12 @@ tables:
       - {name: updated_at, type: time}
     primary_key: [id]
     unique: [[org_id, id]]
-    foreign_keys:
-      - {columns: [org_id], references: organizations, ref_columns: [id]}
     indexes: [[org_id, owner_kind, owner_id]]
 
   # Work on an external vault that waits for the database change needing it to commit: promote copies a value
   # sealed into the row to the configured external vault, destroy removes a value no row refers to any more.
   # No foreign keys: a job outlives the secret and the organization it cleans up after.
   - name: secret_jobs
-    migration: "002"
     columns:
       - {name: id, type: id}
       - {name: org_id, type: id}
@@ -179,7 +156,6 @@ tables:
     primary_key: [id]
     unique: [[org_id, name], [org_id, id]]
     foreign_keys:
-      - {columns: [org_id], references: organizations, ref_columns: [id]}
       - {columns: [org_id, secret_id], references: secrets, ref_columns: [org_id, id]}
     checks:
       - "availability IN ('all', 'org', 'projects')"
@@ -250,8 +226,6 @@ tables:
       - {name: claimed_by, type: text, size: 255, nullable: true}
       - {name: claimed_until, type: time, nullable: true}
     primary_key: [id]
-    foreign_keys:
-      - {columns: [org_id], references: organizations, ref_columns: [id]}
     indexes: [[available_at, id]]
 
   - name: event_deliveries
@@ -406,8 +380,6 @@ tables:
       - {name: data, type: json}
       - {name: created_at, type: time}
     primary_key: [id]
-    foreign_keys:
-      - {columns: [org_id], references: organizations, ref_columns: [id], on_delete: cascade}
 
   # One row per event and subscribing module, until that module has handled
   # it. A failed delivery is retried with backoff; after the last attempt
@@ -440,8 +412,6 @@ tables:
       - {name: created_at, type: time}
       - {name: revoked_at, type: time, nullable: true}
     primary_key: [id]
-    foreign_keys:
-      - {columns: [org_id], references: organizations, ref_columns: [id], on_delete: cascade}
     indexes: [[module, workload]]
 
   # Workload instances that heartbeated, one row per credential and instance

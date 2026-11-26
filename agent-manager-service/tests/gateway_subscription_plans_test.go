@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aihub"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -66,7 +67,9 @@ func TestGatewayTakesPlansFromTheAIHub(t *testing.T) {
 		return rr.Code, rr.Body.Bytes()
 	}
 	proxies := "/m/ai-gateway/mcp-proxies"
-	ensureOrgRow(t, jwtassertion.MockOUID)
+	// The mocked tokens' organization exists once it has its default environment.
+	_, err := repositories.EnsureOrg(context.Background(), db.GetDB(), jwtassertion.MockOUID)
+	require.NoError(t, err)
 	env := uuid.MustParse(apitestutils.DefaultEnvironmentUUID)
 	dbtest.EnvironmentNamed(t, db.GetDB(), jwtassertion.MockOUID, env, "default-"+env.String()[:8])
 	// Named in each proxy: the environment collects a gateway per run, and a proxy must pick one of several.

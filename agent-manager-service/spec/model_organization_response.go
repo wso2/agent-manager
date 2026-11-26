@@ -28,20 +28,19 @@ type OrganizationResponse struct {
 	Description string `json:"description"`
 	// Human-readable handle of the organization (the caller's OU handle), used in console URLs. Omitted when it cannot be determined.
 	Handle *string `json:"handle,omitempty"`
-	// Timestamp when the organization was created
-	CreatedAt time.Time `json:"createdAt"`
+	// When the organization was created. Not recorded, so omitted.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
 }
 
 // NewOrganizationResponse instantiates a new OrganizationResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewOrganizationResponse(name string, displayName string, description string, createdAt time.Time) *OrganizationResponse {
+func NewOrganizationResponse(name string, displayName string, description string) *OrganizationResponse {
 	this := OrganizationResponse{}
 	this.Name = name
 	this.DisplayName = displayName
 	this.Description = description
-	this.CreatedAt = createdAt
 	return &this
 }
 
@@ -157,28 +156,36 @@ func (o *OrganizationResponse) SetHandle(v string) {
 	o.Handle = &v
 }
 
-// GetCreatedAt returns the CreatedAt field value
+// GetCreatedAt returns the CreatedAt field value if set, zero value otherwise.
 func (o *OrganizationResponse) GetCreatedAt() time.Time {
-	if o == nil {
+	if o == nil || IsNil(o.CreatedAt) {
 		var ret time.Time
 		return ret
 	}
-
-	return o.CreatedAt
+	return *o.CreatedAt
 }
 
-// GetCreatedAtOk returns a tuple with the CreatedAt field value
+// GetCreatedAtOk returns a tuple with the CreatedAt field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *OrganizationResponse) GetCreatedAtOk() (*time.Time, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.CreatedAt) {
 		return nil, false
 	}
-	return &o.CreatedAt, true
+	return o.CreatedAt, true
 }
 
-// SetCreatedAt sets field value
+// HasCreatedAt returns a boolean if a field has been set.
+func (o *OrganizationResponse) HasCreatedAt() bool {
+	if o != nil && !IsNil(o.CreatedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetCreatedAt gets a reference to the given time.Time and assigns it to the CreatedAt field.
 func (o *OrganizationResponse) SetCreatedAt(v time.Time) {
-	o.CreatedAt = v
+	o.CreatedAt = &v
 }
 
 func (o OrganizationResponse) MarshalJSON() ([]byte, error) {
@@ -197,7 +204,9 @@ func (o OrganizationResponse) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Handle) {
 		toSerialize["handle"] = o.Handle
 	}
-	toSerialize["createdAt"] = o.CreatedAt
+	if !IsNil(o.CreatedAt) {
+		toSerialize["createdAt"] = o.CreatedAt
+	}
 	return toSerialize, nil
 }
 

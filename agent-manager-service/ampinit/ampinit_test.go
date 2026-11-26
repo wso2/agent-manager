@@ -450,3 +450,28 @@ func TestConsoleURLDefaultIsTrimmed(t *testing.T) {
 		t.Errorf("ConsoleRedirectURIs = %q", cfg.ConsoleRedirectURIs)
 	}
 }
+
+// File sign-in names the trial organization, not ThunderID's built-in one.
+func TestLoadFileAuthConfigUsesTrialOrg(t *testing.T) {
+	t.Setenv("AMP_ADMIN_PASSWORD", "secret")
+	t.Setenv("DEFAULT_ORG_OU_ID", "")
+	t.Setenv("DEFAULT_ORG_HANDLE", "")
+	t.Setenv("PLATFORM_ADMIN_OU_ID", "0190a000-0000-7000-8000-0000000000cc")
+
+	cfg, err := LoadFileAuthConfig()
+	if err != nil {
+		t.Fatalf("LoadFileAuthConfig: %v", err)
+	}
+	if cfg.OrgUUID != "00000000-0000-0000-0000-000000000001" || cfg.OrgHandle != "default" {
+		t.Errorf("org = %q/%q, want the trial organization", cfg.OrgUUID, cfg.OrgHandle)
+	}
+
+	t.Setenv("DEFAULT_ORG_OU_ID", "0190a000-0000-7000-8000-0000000000bb")
+	t.Setenv("DEFAULT_ORG_HANDLE", "Acme")
+	if cfg, err = LoadFileAuthConfig(); err != nil {
+		t.Fatalf("LoadFileAuthConfig: %v", err)
+	}
+	if cfg.OrgUUID != "0190a000-0000-7000-8000-0000000000bb" || cfg.OrgHandle != "acme" {
+		t.Errorf("org = %q/%q, want the configured one", cfg.OrgUUID, cfg.OrgHandle)
+	}
+}

@@ -24,7 +24,6 @@ import (
 	"strconv"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -93,13 +92,10 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// The platform store has no notion of the org handle; the only one known here is the
-	// caller's, from the token. It can be attributed only when the list holds a
-	// single org — in cloud the list is always scoped to the caller's own org.
+	// The list is the request's organization, so its handle is the resolved org's: the
+	// token's, or the one an allowed org override switched to.
 	if total == 1 && len(orgs) == 1 && orgs[0] != nil {
-		if claims := jwtassertion.GetTokenClaims(ctx); claims != nil {
-			orgs[0].Handle = claims.OuHandle
-		}
+		orgs[0].Handle = middleware.OrgHandleFromRequest(r)
 	}
 
 	orgList := utils.ConvertToOrganizationListResponse(orgs)

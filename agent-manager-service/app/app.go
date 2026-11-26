@@ -213,7 +213,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// so it exists when modules activate.
 	modulesCtx, modulesCancel := context.WithCancel(context.Background())
 	defer modulesCancel()
-	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
+	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.AuthMode, cfg.DefaultOrg); err != nil {
 		slog.Error("failed to create the default organization", "error", err)
 		os.Exit(1)
 	}
