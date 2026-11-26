@@ -293,6 +293,21 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
                   </TextInput>
                 </Grid>
               )}
+              {!blocked && (
+                // Same row as the selects, at the right end, level with the inputs.
+                <Grid
+                  size={{ xs: 12, md: "grow" }}
+                  sx={{
+                    display: "flex",
+                    alignItems: "flex-end",
+                    justifyContent: { xs: "flex-start" },
+                  }}
+                >
+                  <Button variant="contained" disabled={!ready} onClick={open}>
+                    Open {entry.label}
+                  </Button>
+                </Grid>
+              )}
             </Grid>
             {needAgent && projectId && agentsQuery.isError && (
               <LoadErrorNotice
@@ -308,13 +323,6 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
                   ? `${entry.label} is only available for ${availableFor}.`
                   : `Some agents don't support ${entry.label}.`}
               </Typography>
-            )}
-            {!blocked && (
-              <Stack direction="row" justifyContent="flex-start">
-                <Button variant="contained" disabled={!ready} onClick={open}>
-                  Open {entry.label}
-                </Button>
-              </Stack>
             )}
           </Stack>
         </CardContent>
