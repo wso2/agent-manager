@@ -39,10 +39,8 @@ const (
 	gwAgent   = "gw-agent"
 )
 
-// gwAgentPath is path under the test agent's routes.
-func gwAgentPath(path string) string {
-	return "/orgs/{org}/projects/" + gwProject + "/agents/" + gwAgent + path
-}
+// gwAgentPath is path under the test agent's routes, in its project.
+func gwAgentPath(path string) string { return agentPathIn(gwProject, gwAgent, path) }
 
 // gwCreateProvider creates a catalog LLM provider through the API, placed on gateways (ids), and returns its id.
 func gwCreateProvider(t *testing.T, a *routeAPI, handle string, gateways ...string) string {
@@ -323,11 +321,11 @@ func TestGWRoutesAgentDeploymentsAndConfigurations(t *testing.T) {
 	require.Empty(t, cfg.Bindings)
 	require.Nil(t, cfg.EnableApiKeySecurity, "nothing is saved yet")
 
-	rec := a.do(http.MethodGet, "/orgs/{org}/projects/no-such-project/agents/"+gwAgent+"/deployments", nil)
+	rec := a.do(http.MethodGet, agentPathIn("no-such-project", gwAgent, "/deployments"), nil)
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 
 	for _, p := range []string{"/deployments", "/configurations"} {
-		rec = a.do(http.MethodGet, "/orgs/{org}/projects/"+gwProject+"/agents/no-such-agent"+p, nil)
+		rec = a.do(http.MethodGet, agentPathIn(gwProject, "no-such-agent", p), nil)
 		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 		require.Equal(t, "Agent not found", errorMessage(t, rec))
 		rec = a.do(http.MethodGet, gwAgentPath(p), nil, withScopes(scope(gwperm.Read)))
@@ -347,35 +345,35 @@ func TestGWRoutesAgentDeploySettings(t *testing.T) {
 	require.Equal(t, "Invalid request body", errorMessage(t, rec))
 	rec = a.do(http.MethodPut, path, map[string]any{"enableApiKeySecurity": true})
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	require.Equal(t, "environmentName is required", errorMessage(t, rec))
-	rec = a.do(http.MethodPut, "/orgs/{org}/projects/"+gwProject+"/agents/no-such-agent/deploy-settings",
-		map[string]any{"environmentName": "default"})
+	require.Equal(t, "Invalid input provided", errorMessage(t, rec))
+	rec = a.do(http.MethodPut, agentPathIn(gwProject, "no-such-agent", "/deploy-settings"),
+		map[string]any{})
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	require.Equal(t, "Agent not found", errorMessage(t, rec))
-	rec = a.do(http.MethodPut, path, map[string]any{"environmentName": "default"}, withScopes(scope(gwperm.AgentRead)))
+	rec = a.do(http.MethodPut, path, map[string]any{}, withScopes(scope(gwperm.AgentRead)))
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
 	// A platform-hosted agent takes its settings elsewhere.
 	hosted := a.agent(gwProject, "gw-hosted")
 	require.NoError(t, a.db.Exec(`UPDATE agents SET provisioning_type = 'internal' WHERE id = ?`, hosted).Error)
-	rec = a.do(http.MethodPut, "/orgs/{org}/projects/"+gwProject+"/agents/gw-hosted/deploy-settings",
-		map[string]any{"environmentName": "default"})
+	rec = a.do(http.MethodPut, agentPathIn(gwProject, "gw-hosted", "/deploy-settings"),
+		map[string]any{})
 	require.Equal(t, http.StatusNotImplemented, rec.Code, rec.Body.String())
 
 	// An agent the gateway does not route has no deploy settings to save.
-	rec = a.do(http.MethodPut, path, map[string]any{"environmentName": "default", "enableApiKeySecurity": true})
+	rec = a.do(http.MethodPut, path, map[string]any{"enableApiKeySecurity": true})
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	require.Equal(t, "Invalid input provided", errorMessage(t, rec))
 
 	// Route the agent through the gateway, then save.
-	rec = a.do(http.MethodPut, gwAgentPath("/environments/default/agent-card/source"),
+	rec = a.do(http.MethodPut, gwAgentPath("/agent-card/source"),
 		map[string]any{"url": "https://1.1.1.1/.well-known/agent-card.json"})
 	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
-	rec = a.do(http.MethodPut, gwAgentPath("/environments/default/a2a-proxy"), map[string]any{})
+	rec = a.do(http.MethodPut, gwAgentPath("/a2a-proxy"), map[string]any{})
 	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
 
 	rec = a.do(http.MethodPut, path, map[string]any{
-		"environmentName": "default", "enableApiKeySecurity": true, "resilienceTimeoutSeconds": 45,
+		"enableApiKeySecurity": true, "resilienceTimeoutSeconds": 45,
 	})
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 
@@ -387,8 +385,8 @@ func TestGWRoutesAgentDeploySettings(t *testing.T) {
 
 	// API key and OAuth security are mutually exclusive.
 	rec = a.do(http.MethodPut, path, map[string]any{
-		"environmentName": "default", "enableOAuthSecurity": true,
-		"oauthConfig": map[string]any{"issuers": []string{"https://idp.example.com"}},
+		"enableOAuthSecurity": true,
+		"oauthConfig":         map[string]any{"issuers": []string{"https://idp.example.com"}},
 	})
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	cfg = expectInto[gwspec.AgentConfigurationResponse](t, a.do(http.MethodGet, gwAgentPath("/configurations"), nil), http.StatusOK)

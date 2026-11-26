@@ -122,7 +122,7 @@ func runUnset(ctx context.Context, o *UnsetOptions) error {
 }
 
 func runUnsetDelete(ctx context.Context, o *UnsetOptions, client *aigateway.ClientWithResponses, id openapi_types.UUID) error {
-	resp, err := client.DeleteAgentModelConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, id)
+	resp, err := client.DeleteAgentModelConfigWithResponse(ctx, o.AgentName, id, &aigateway.DeleteAgentModelConfigParams{Project: o.Proj})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

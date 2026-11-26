@@ -60,6 +60,12 @@ type orgGateways interface {
 	GetByOrganizationID(ctx context.Context, ouID string) ([]*gwmodels.Gateway, error)
 }
 
+// PlanGateways sends a plan to every gateway of the organization (SubscriptionPlanBroadcaster). For a deleted
+// plan only its ID, Handle and Name are read.
+type PlanGateways interface {
+	PlanChanged(ctx context.Context, orgID string, action subplanv1.Action, plan subplanv1.Plan) error
+}
+
 // SubscriptionPlanBroadcaster sends plan changes to the organization's gateways over their control
 // plane connection (PlanGateways).
 type SubscriptionPlanBroadcaster struct {

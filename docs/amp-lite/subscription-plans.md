@@ -11,24 +11,67 @@ How an MCP server limits its agents with subscription plans, and what has to be 
 | Subscription | `ai-hub`, copied in from the developer portal | A subscriber's subscription to an MCP server on one of its plans, with a subscription key |
 | Policies | The MCP server's endpoint policies | `subscription-validation` v2 checks the key; `subscription-tool-ratelimit` v1 holds the subscriber to the plan's tool-call limits |
 
+## A plan as a document
+
+The plans API (`/m/ai-hub/subscription-plans`) serves and takes each plan as a document, the shape Kubernetes resources have, so a plan can be kept in a file and applied as well as edited in the console:
+
+```yaml
+apiVersion: ai-control-plane.choreolabs.com/v1   # the document schema's version, separate from the URL's
+kind: SubscriptionPlan                           # must match the route
+metadata:
+  name: gold                 # the plan's handle; it can't change
+  uid: 0b9e...               # set by the server, like the timestamps and createdBy
+  origin: ai-control-plane   # where the plan was made: here, or the developer portal that copied it in
+spec:
+  displayName: Gold
+  description: For production agents
+  status: ACTIVE             # ACTIVE or INACTIVE
+  expiryTime: 2027-01-01T00:00:00Z
+  conditions:
+    - type: tool-call-count
+      params:
+        onExceed: reject
+        limits: [{count: 30, timeAmount: 1, timeUnit: MINUTE}]
+status:                      # observed by the server, ignored on input
+  deprecated: false          # with deprecationTimestamp once deprecated
+  usage: {inUse: true, mcpProxies: 1, subscriptions: 3}   # GET of one plan only
+```
+
+- Bodies are JSON, or YAML with `Content-Type: application/yaml`. A response is YAML when the request's `Accept` names `application/yaml` first.
+- `PUT /subscription-plans/{name}` takes the same document; `metadata.name` must be the plan's handle. Spec fields left out are kept, so a document read with GET can be sent back as it is, and `spec.expiryTime: null` clears the expiry.
+- A list is `{list, count, pagination}`, each item a whole document; its `status` has no `usage`. Current plans come first, then deprecated ones, each newest first, on every page.
+- The older single-limit form is still taken as `spec.limits`, and read as a request-count condition; it isn't returned.
+
+## Changing and deprecating a plan
+
+- **In use.** A plan with subscriptions is in use: it keeps its name, conditions and expiry (`409 SUBSCRIPTION_PLAN_IN_USE`); its description and status (`ACTIVE`/`INACTIVE`) can still change, and are only saved here. Offering a plan on an MCP server doesn't put it in use. To change what subscribers get, make a new plan.
+- **No delete, only deprecate.** `DELETE /subscription-plans/{name}` (the console's **Deprecate**) is a soft delete, allowed in use or not, and answers with the deprecated plan. A deprecated plan stays, read only, for the subscriptions on it:
+  - it can't be changed, its status included (`409 SUBSCRIPTION_PLAN_DEPRECATED`), and its handle can't be used again;
+  - it can't be offered on an MCP server. An MCP server that already offers it keeps it, but its plans can't change otherwise until it is removed (unticked); saving the server's other settings still works;
+  - it takes no new subscriptions, and no subscription can move onto it; the developer portal's delivery is refused with `409 SUBSCRIPTION_PLAN_DEPRECATED`, which it doesn't retry. Subscriptions already on it keep working and can still change;
+  - gateways still get it, with its subscriptions, and pull it when they connect.
+- **Origin.** A plan made here has the origin `ai-control-plane`; one the developer portal copies in has the portal's name, `developer-portal` unless the module's `webhook_source_name` setting (`MODULE_AI_HUB_WEBHOOK_SOURCE_NAME`) names it. The portal can't create a plan with the handle of a plan made elsewhere (`409 SUBSCRIPTION_PLAN_ORIGIN_CONFLICT`).
+- **From the developer portal.** The portal creates, changes and deletes its plans by webhook (`subscription_plan.*`). A deletion there deprecates the plan here; a later change of it is ignored, and a plan made there again with its handle is refused (`409`).
+
 ## End to end
 
 ```
  developer portal                      AI Control Plane                                   AI gateway
  ───────────────                       ────────────────                                   ──────────
- plan (refId = ACP plan handle) ──webhook subscription_plan.*──▶ ai-hub plan ──subscriptionPlan.*──▶ plan
+ plan (refId = ACP plan handle) ──webhook subscription_plan.*──▶ ai-hub plan
  MCP server (referenceId = ACP MCP proxy handle, offering the plan)
                                        MCP proxy offers the plan, policies attached ──deploy──▶ MCP route
  subscribe ─▶ subscription key
-           ──webhook subscription.*──▶ ai-hub subscription ──subscription.*──────────▶ key (hashed)
+           ──webhook subscription.*──▶ ai-hub subscription ──subscriptionPlan.created─────────▶ plan
+                                                             then subscription.*──────────────▶ key (hashed)
  agent ── tools/call with Subscription-Key ─────────────────────────────────────────▶ 200, then 429 over the limit
 ```
 
-1. **The plan.** Make it in the ACP, or in the developer portal, which copies it in by webhook (the portal plan's `refId` is the ACP plan's handle). Every plan reaches the organization's gateways.
-2. **The offer.** On the MCP server, tick the plans it offers. A plan offered by an MCP server is in use: it keeps its name and conditions and can't be deleted.
+1. **The plan.** Make it in the ACP, or in the developer portal, which copies it in by webhook (the portal plan's `refId` is the ACP plan's handle). A plan doesn't reach the gateways when it is made or changed: it reaches them with its first subscription.
+2. **The offer.** On the MCP server, tick the plans it offers. Only an active plan that isn't deprecated can be added; the tab marks an offered plan that has since been deactivated or deprecated.
 3. **The policies.** Attach `subscription-validation` v2 and `subscription-tool-ratelimit` v1 to every endpoint (the tab offers to when a plan is ticked), and save to deploy them.
 4. **The portal's MCP server.** Its `referenceId` is the ACP MCP proxy's handle, and it offers the same plans (by the portal plan's id). The portal lets only one MCP server use a `referenceId`.
-5. **Subscribe** in the portal. The portal sends `subscription.created` to the ACP with the key sealed; the ACP stores it (the key in the core's secret store) and sends it to the gateways. A subscribed plan is in use too.
+5. **Subscribe** in the portal. The portal sends `subscription.created` to the ACP with the key sealed; the ACP stores it (the key in the core's secret store) and sends its plan, then the subscription, to the gateways. A subscribed plan is in use. A subscription to a deprecated plan is refused.
 6. **Call** the MCP server with the key in the `Subscription-Key` header.
 
 The developer portal's webhook subscriber for the ACP must take `subscription_plan.*` and `subscription.*` events, at `https://<internal server>/m/ai-hub/webhooks/events`, with the shared secret the `ai-hub` module reads as `MODULE_AI_HUB_WEBHOOK_SECRET`.
@@ -49,7 +92,7 @@ The developer portal's webhook subscriber for the ACP must take `subscription_pl
 
 ## Which MCP servers
 
-MCP servers in Agent Manager are organization-level (**MCP Servers** in the console, `/m/ai-gateway/orgs/{org}/mcp-proxies`), and each can offer plans. An agent picks the MCP servers it uses as tools in its configuration (Agent › Configure › MCP tools); the plans the server offers apply to it there.
+MCP servers in Agent Manager are organization-level (**MCP Servers** in the console, `/m/ai-gateway/mcp-proxies`, where `spec.subscriptionPlans` lists the plans a proxy offers), and each can offer plans. An agent picks the MCP servers it uses as tools in its configuration (Agent › Configure › MCP tools); the plans the server offers apply to it there.
 
 ## The policy catalog
 
@@ -59,7 +102,8 @@ The console lists an MCP server's policies from the policy hub, keeping those ev
 
 | Change | Gateway event | Pulled on connect from |
 |---|---|---|
-| Plan created, changed, deleted | `subscriptionPlan.created`, `.updated`, `.deleted` | `GET /api/internal/v1/subscription-plans` |
-| Subscription created, changed (plan, status, key), deleted | `subscription.created`, `.updated`, `.deleted`, once for each deployment of the MCP proxy | `GET /api/internal/v1/apis/{deployment id}/subscriptions` |
+| Subscription created or changed (plan, status, key) | Its plan first, as `subscriptionPlan.created` (a gateway stores it, or replaces the one it has); then `subscription.created` or `.updated`, once for each deployment of the MCP proxy | Plans: `GET /api/internal/v1/subscription-plans`, only those a subscription to a deployed MCP proxy is on. Subscriptions: `GET /api/internal/v1/apis/{deployment id}/subscriptions` |
+| Subscription deleted | `subscription.deleted`, once for each deployment; the plan stays until the gateway next connects | |
+| Plan created, changed or deprecated, here or in the developer portal | Nothing: plans are subscribed to in the developer portal, so a plan reaches the gateways with its subscriptions. A deprecated plan still does, for the subscriptions on it | |
 
 A gateway holds an MCP proxy as one deployed artifact per endpoint and environment, so a subscription is sent for each. Each copy has its own ID, derived from the subscription's, so a gateway holding two deployments of one proxy keeps both.

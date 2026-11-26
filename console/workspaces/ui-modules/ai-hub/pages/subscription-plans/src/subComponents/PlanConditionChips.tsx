@@ -217,9 +217,19 @@ export function PlanConditionChips({
       setFit(chipsThatFit(widths, box.clientWidth, max));
     };
     measure();
+    // The hidden copy changes size when the chips' fonts load (the limits are monospace), so it is
+    // watched as well as the cell: measured before the font arrives, the chips read too narrow.
     const observer = new ResizeObserver(measure);
     observer.observe(box);
-    return () => observer.disconnect();
+    observer.observe(measureRef.current);
+    let live = true;
+    document.fonts?.ready.then(() => {
+      if (live) measure();
+    });
+    return () => {
+      live = false;
+      observer.disconnect();
+    };
   }, [singleLine, max, conditions]);
 
   if (chips.length === 0) {
@@ -268,7 +278,8 @@ export function PlanConditionChips({
       <Stack direction="row" flexWrap={singleLine ? "nowrap" : "wrap"} gap={0.75}>
         {shown.map((chip, index) => (
           // The chip says it all; only "+N" has a tooltip, for what it hides.
-          <ConditionChipView chip={chip} key={index} shrink={index === 0} />
+          // Only a lone chip may be cut short, when even it doesn't fit the cell.
+          <ConditionChipView chip={chip} key={index} shrink={shown.length === 1} />
         ))}
         {rest.length > 0 && (
           <Tooltip slotProps={tipSlotProps} title={<ConditionTip chips={rest} />}>

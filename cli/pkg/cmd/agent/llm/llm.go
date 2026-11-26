@@ -25,7 +25,6 @@ import (
 
 	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
-	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
@@ -43,36 +42,19 @@ func NewLLMCmd(f *cmdutil.Factory) *cobra.Command {
 	return cmd
 }
 
-// configType is the model-config Type value this command group manages. The
-// model-configs endpoint is shared across config types (llm/mcp/other), so
-// every read filters to this value.
-const configType = "llm"
-
-// toEnvModelConfigRequest translates a GET-response env mapping into the shape
-// the PUT/POST request body expects. Server-managed fields (URL, status, auth
-// info, proxy UUID) are dropped; only the provider handle and policies survive.
-func toEnvModelConfigRequest(m aigateway.EnvProviderConfigMappings) aigateway.EnvModelConfigRequest {
-	req := aigateway.EnvModelConfigRequest{}
-	if m.Configuration != nil {
-		req.ProviderName = modelconfig.StringPtr(m.Configuration.ProviderName)
-		req.Configuration = aigateway.EnvProviderConfiguration{Policies: m.Configuration.Policies}
-	}
-	return req
-}
-
 // findLLMConfigByName resolves a config name to its UUID via List, considering
 // only llm-typed configs. found is false when no llm config matches the name.
 func findLLMConfigByName(ctx context.Context, client *aigateway.ClientWithResponses, org, proj, agent, name string) (openapi_types.UUID, bool, error) {
-	resp, err := client.ListAgentModelConfigsWithResponse(ctx, org, proj, agent, &aigateway.ListAgentModelConfigsParams{})
+	resp, err := client.ListAgentModelConfigsWithResponse(ctx, agent, &aigateway.ListAgentModelConfigsParams{Project: proj})
 	if err != nil {
 		return openapi_types.UUID{}, false, clierr.Newf(clierr.Transport, "%v", err)
 	}
 	if resp.JSON200 == nil {
 		return openapi_types.UUID{}, false, cmdutil.ErrorFromServer(resp.HTTPResponse, resp.JSON500)
 	}
-	for _, c := range resp.JSON200.Configs {
-		if c.Type == configType && c.Name == name {
-			return c.Uuid, true, nil
+	for _, c := range resp.JSON200.List {
+		if c.Metadata.Name == name && c.Metadata.Uid != nil {
+			return *c.Metadata.Uid, true, nil
 		}
 	}
 	return openapi_types.UUID{}, false, nil

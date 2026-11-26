@@ -139,14 +139,18 @@ func (s *subscriptionService) find(tx *gorm.DB, orgID string, ch subscriptionCha
 	return &rows[0], nil
 }
 
-// planID resolves the plan an event names by its handle.
-func (s *subscriptionService) planID(tx *gorm.DB, orgID, handle string) (string, error) {
+// planID resolves the plan an event names by its handle. A deprecated plan takes no new subscriptions
+// (errPlanDeprecated): only a subscription already on it (current, its plan's ID) keeps it.
+func (s *subscriptionService) planID(tx *gorm.DB, orgID, handle, current string) (string, error) {
 	p, err := s.plans.getTx(tx, orgID, handle)
 	if errors.Is(err, errPlanNotFound) {
 		return "", fmt.Errorf("%w: %s", errSubscriptionPlanUnknown, handle)
 	}
 	if err != nil {
 		return "", err
+	}
+	if p.deprecated() && p.UUID != current {
+		return "", fmt.Errorf("%w: %s takes no new subscriptions", errPlanDeprecated, handle)
 	}
 	return p.UUID, nil
 }
@@ -155,7 +159,7 @@ func (s *subscriptionService) insert(ctx context.Context, tx *gorm.DB, orgID str
 	if ch.Token == nil || *ch.Token == "" {
 		return invalid("a created subscription carries its token")
 	}
-	planID, err := s.planID(tx, orgID, ch.PlanHandle)
+	planID, err := s.planID(tx, orgID, ch.PlanHandle, "")
 	if err != nil {
 		return err
 	}
@@ -195,7 +199,7 @@ func (s *subscriptionService) update(ctx context.Context, tx *gorm.DB, orgID str
 	switch ch.Event {
 	case "created", "plan_changed":
 		var err error
-		if planID, err = s.planID(tx, orgID, ch.PlanHandle); err != nil {
+		if planID, err = s.planID(tx, orgID, ch.PlanHandle, row.PlanID); err != nil {
 			return err
 		}
 	}

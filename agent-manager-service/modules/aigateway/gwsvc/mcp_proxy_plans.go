@@ -24,6 +24,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
@@ -32,9 +33,13 @@ const planStatusActive = "ACTIVE"
 
 // offeredPlans checks the subscription plans an MCP proxy is asked to offer and returns the handles to store:
 // trimmed, without repeats, in the order given. A nil request is returned as nil, which on update keeps the
-// stored list; an empty list offers none. Each added plan must exist in the organization and be active; one
-// the proxy already offers stays, even after the plan is deactivated. Plans come from the module that owns
-// them (subscription.plans/v1), so without it no plan can be added.
+// stored list; an empty list offers none.
+//   - Each added plan must exist in the organization, be active and not be deprecated.
+//   - A list sent back unchanged is kept as it is, even with a plan since deactivated or deprecated, so saving
+//     another part of the proxy works (also while the plans module is off).
+//   - A changed list can't keep a deprecated plan: it must be removed before the offer changes otherwise.
+//
+// Plans come from the module that owns them (subscription.plans/v1), so without it no plan can be added.
 func (s *MCPProxyService) offeredPlans(ctx context.Context, orgUUID string, requested *[]string, current []string) ([]string, error) {
 	if requested == nil {
 		return nil, nil
@@ -52,18 +57,16 @@ func (s *MCPProxyService) offeredPlans(ctx context.Context, orgUUID string, requ
 		}
 		return handles, nil
 	}
-	// Plans the proxy already offers are kept as they are, so saving another part of the proxy works even
-	// while the plans module is off. Only added plans are checked.
-	added := slices.DeleteFunc(slices.Clone(handles), func(h string) bool { return slices.Contains(current, h) })
-	if len(added) == 0 {
+	if sameHandles(handles, current) {
 		return handles, nil
 	}
-	if s.plans == nil {
-		return nil, fmt.Errorf("%w: subscription plans are not available, as the AI Hub module is not installed",
-			httpx.ErrInvalidInput)
-	}
-	source, ok := s.plans.Source()
+	added := slices.DeleteFunc(slices.Clone(handles), func(h string) bool { return slices.Contains(current, h) })
+	source, ok := s.planSource()
 	if !ok {
+		if len(added) == 0 {
+			// Only removals, which need no plan: allowed while the plans module is off.
+			return handles, nil
+		}
 		return nil, fmt.Errorf("%w: subscription plans are not available, as the AI Hub module is not installed",
 			httpx.ErrInvalidInput)
 	}
@@ -71,16 +74,46 @@ func (s *MCPProxyService) offeredPlans(ctx context.Context, orgUUID string, requ
 	if err != nil {
 		return nil, fmt.Errorf("failed to list subscription plans: %w", err)
 	}
-	status := make(map[string]string, len(plans))
+	byHandle := make(map[string]subplanv1.Plan, len(plans))
 	for _, p := range plans {
-		status[p.Handle] = p.Status
+		byHandle[p.Handle] = p
+	}
+	for _, h := range handles {
+		if p, found := byHandle[h]; found && p.Deprecated {
+			if slices.Contains(added, h) {
+				return nil, fmt.Errorf("%w: subscription plan %q is deprecated and can't be offered", httpx.ErrInvalidInput, h)
+			}
+			return nil, fmt.Errorf("%w: subscription plan %q is deprecated; remove it before changing the offered plans",
+				httpx.ErrInvalidInput, h)
+		}
 	}
 	for _, h := range added {
-		if st, found := status[h]; !found || st != planStatusActive {
+		if p, found := byHandle[h]; !found || p.Status != planStatusActive {
 			return nil, fmt.Errorf("%w: subscription plan %q was not found or is not active", httpx.ErrInvalidInput, h)
 		}
 	}
 	return handles, nil
+}
+
+// planSource is the module that owns plans, when one is active.
+func (s *MCPProxyService) planSource() (subplanv1.Source, bool) {
+	if s.plans == nil {
+		return nil, false
+	}
+	return s.plans.Source()
+}
+
+// sameHandles reports whether two lists name the same plans, in any order.
+func sameHandles(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, h := range a {
+		if !slices.Contains(b, h) {
+			return false
+		}
+	}
+	return true
 }
 
 // offeredPlansDTO is the list a response shows: never nil, so a proxy that offers no plan shows [].
@@ -90,7 +123,7 @@ func offeredPlansDTO(handles []string) *[]string {
 }
 
 // PlanOffers counts the MCP proxies that offer a plan. The AI Gateway hands it to the module that owns plans
-// (subplanv1.Source.CountOffersWith), which keeps a plan in use while a proxy offers it.
+// (subplanv1.Source.CountOffersWith), which reports it as the plan's usage.
 type PlanOffers struct{ db *gorm.DB }
 
 // NewPlanOffers returns the counter over the module's MCP proxy table.

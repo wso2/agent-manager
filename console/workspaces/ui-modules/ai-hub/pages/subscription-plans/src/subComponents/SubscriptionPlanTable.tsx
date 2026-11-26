@@ -19,6 +19,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Button,
+  Chip,
   IconButton,
   ListingTable,
   SearchBar,
@@ -28,11 +29,10 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Pencil, ReceiptText, SearchX, Trash2 } from "@wso2/oxygen-ui-icons-react";
+import { Archive, Pencil, ReceiptText, SearchX } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  useDeleteSubscriptionPlan,
-  useGetSubscriptionPlan,
+  useDeprecateSubscriptionPlan,
   useListSubscriptionPlans,
   useUpdateSubscriptionPlan,
 } from "@agent-management-platform/api-client";
@@ -63,14 +63,15 @@ interface SubscriptionPlanTableProps {
   createAction?: ReactNode;
 }
 
-/** The organization's plans: a full-width search, then a table
- * of name, conditions, pricing, an active switch and edit and delete, paged on the server. */
+/** The organization's plans: a full-width search, then a table of name, conditions, an active
+ * switch and edit and deprecate, paged on the server. A deprecated plan is listed read only. */
 export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTableProps) {
   const { orgId = "" } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const canUpdate = useFeatureAccess("subscription_plan_update");
-  const canDelete = useFeatureAccess("subscription_plan_delete");
+  // Deprecating is the plans module's delete: the same permission gates it.
+  const canDeprecate = useFeatureAccess("subscription_plan_delete");
   const { addConfirmation } = useConfirmationDialog();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -85,7 +86,7 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
   // their actions are off, so none acts on a row that is no longer there.
   const stale = isPlaceholderData;
   const updatePlan = useUpdateSubscriptionPlan();
-  const deletePlan = useDeleteSubscriptionPlan();
+  const deprecatePlan = useDeprecateSubscriptionPlan();
   // Status switches being saved, keyed `${orgId}:${planId}`, with the status they are being set
   // to. Only those switches wait; the others stay usable. A Map, so no plan id hits an inherited
   // property.
@@ -107,7 +108,7 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
 
   // A new search starts from the first page.
   useEffect(() => setPage(0), [debouncedSearch]);
-  // Deleting the only row on the last page leaves `page` past the end.
+  // A search that shrinks the list can leave `page` past the end.
   useEffect(() => {
     if (page > lastPage) setPage(lastPage);
   }, [page, lastPage]);
@@ -131,7 +132,7 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
     updatePlan
       .mutateAsync({
         // A partial update, so a stale row can't overwrite the plan's conditions.
-        body: { displayName: plan.displayName, id: plan.id, status },
+        body: { displayName: plan.displayName, status },
         params: { orgName: orgId, planId: plan.id },
         successText: `${status === "ACTIVE" ? "Activated" : "Deactivated"} plan "${plan.displayName}".`,
       })
@@ -139,46 +140,22 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
       .finally(done);
   };
 
-  // A plan in use can't be deleted: its usage is read first, and the dialog says so with Delete
-  // disabled. Otherwise the name must be typed to confirm.
-  const [deleteTarget, setDeleteTarget] = useState<SubscriptionPlan | null>(null);
-  const usage = useGetSubscriptionPlan({ orgName: orgId, planId: deleteTarget?.id });
-  useEffect(() => {
-    if (!deleteTarget || usage.isPending || usage.isFetching) return;
-    const plan = deleteTarget;
-    setDeleteTarget(null);
-    if (usage.data?.usage?.inUse) {
-      addConfirmation({
-        confirmButtonColor: "error",
-        confirmButtonText: "Delete",
-        confirmDisabled: true,
-        description: `"${plan.displayName}" is in use and can’t be deleted.`,
-        onConfirm: () => undefined,
-        title: "Delete plan",
-      });
-      return;
-    }
+  // Deprecating keeps the plan for the subscriptions on it, so it is allowed in use too; it can't
+  // be undone, so the name must be typed to confirm.
+  const confirmDeprecate = (plan: SubscriptionPlan) =>
     addConfirmation({
-      analytics: { action: "delete", entity: "subscription-plan" },
+      analytics: { action: "deprecate", entity: "subscription-plan" },
       confirmButtonColor: "error",
-      confirmButtonText: "Delete",
+      confirmButtonText: "Deprecate",
       confirmationInputLabel: "Type the plan name to confirm",
       confirmationText: plan.displayName,
-      description: `This permanently deletes "${plan.displayName}". This can’t be undone.`,
+      description:
+        `"${plan.displayName}" stays for the subscriptions on it, which keep working, but it ` +
+        "can’t be edited, offered on an MCP server or subscribed to again. This can’t be undone.",
       onConfirm: () =>
-        deletePlan.mutate({ displayName: plan.displayName, orgName: orgId, planId: plan.id }),
-      title: "Delete plan",
+        deprecatePlan.mutate({ displayName: plan.displayName, orgName: orgId, planId: plan.id }),
+      title: "Deprecate plan",
     });
-  }, [
-    addConfirmation,
-    deletePlan,
-    deleteTarget,
-    orgId,
-    usage.data,
-    usage.isFetching,
-    usage.isPending,
-  ]);
-  const confirmDelete = (plan: SubscriptionPlan) => setDeleteTarget(plan);
 
   const editPath = (plan: SubscriptionPlan) =>
     generatePath(absoluteRouteMap.children.org.children.subscriptionPlans.children.edit.path, {
@@ -231,7 +208,6 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
                 <ListingTable.Row>
                   <ListingTable.Cell>Name</ListingTable.Cell>
                   <ListingTable.Cell>Conditions</ListingTable.Cell>
-                  <ListingTable.Cell>Pricing</ListingTable.Cell>
                   <ListingTable.Cell align="center" sx={{ width: 96 }}>
                     Status
                   </ListingTable.Cell>
@@ -261,29 +237,27 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
                         {/* One line in every row: three chips at most, the rest in "+N". */}
                         <PlanConditionChips conditions={plan.conditions} singleLine />
                       </ListingTable.Cell>
-                      <ListingTable.Cell>
-                        {/* Agent Manager plans are free: pricing is not supported. */}
-                        <Typography color="text.secondary" noWrap variant="body2">
-                          Free
-                        </Typography>
+                      <ListingTable.Cell align="center">
+                        {plan.deprecated ? (
+                          <Chip label="Deprecated" size="small" variant="outlined" />
+                        ) : (
+                          <Switch
+                            checked={status === "ACTIVE"}
+                            disabled={!canUpdate || stale || pendingStatus !== undefined}
+                            onChange={() => toggleStatus(plan)}
+                            size="small"
+                            slotProps={{
+                              input: {
+                                "aria-label": `${plan.displayName}, ${
+                                  status === "ACTIVE" ? "active" : "inactive"
+                                }`,
+                              },
+                            }}
+                          />
+                        )}
                       </ListingTable.Cell>
                       <ListingTable.Cell align="center">
-                        <Switch
-                          checked={status === "ACTIVE"}
-                          disabled={!canUpdate || stale || pendingStatus !== undefined}
-                          onChange={() => toggleStatus(plan)}
-                          size="small"
-                          slotProps={{
-                            input: {
-                              "aria-label": `${plan.displayName}, ${
-                                status === "ACTIVE" ? "active" : "inactive"
-                              }`,
-                            },
-                          }}
-                        />
-                      </ListingTable.Cell>
-                      <ListingTable.Cell align="center">
-                        {canUpdate || canDelete ? (
+                        {!plan.deprecated && (canUpdate || canDeprecate) ? (
                           <Stack direction="row" justifyContent="center" spacing={0.5}>
                             {canUpdate && (
                               <Tooltip title={`Edit ${plan.displayName}`}>
@@ -299,16 +273,16 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
                                 </IconButton>
                               </Tooltip>
                             )}
-                            {canDelete && (
-                              <Tooltip title={`Delete ${plan.displayName}`}>
+                            {canDeprecate && (
+                              <Tooltip title={`Deprecate ${plan.displayName}`}>
                                 <IconButton
-                                  aria-label={`Delete ${plan.displayName}`}
+                                  aria-label={`Deprecate ${plan.displayName}`}
                                   disabled={stale}
                                   color="error"
-                                  onClick={() => confirmDelete(plan)}
+                                  onClick={() => confirmDeprecate(plan)}
                                   size="small"
                                 >
-                                  <Trash2 size={16} />
+                                  <Archive size={16} />
                                 </IconButton>
                               </Tooltip>
                             )}

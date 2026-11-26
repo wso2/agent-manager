@@ -106,8 +106,8 @@ func TestUpdateAgentDeploySettingsDecidesAProxiedExternalAgentUnderTheLock(t *te
 	svc := deploySettingsService(configs, m.publisher())
 	apiKeys := false
 
-	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&gwspec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev", EnableApiKeySecurity: &apiKeys})
+	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
+		&gwspec.UpdateAgentDeploySettingsRequest{EnableApiKeySecurity: &apiKeys})
 
 	require.NoError(t, err)
 	require.Len(t, txConfigs.UpsertCalls(), 1)
@@ -132,8 +132,8 @@ func TestUpdateAgentDeploySettingsSavesWhenTheReRenderCannotBeMarked(t *testing.
 	configs, txConfigs := savedConfigs(t)
 	svc := deploySettingsService(configs, m.publisher())
 
-	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&gwspec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
+	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
+		&gwspec.UpdateAgentDeploySettingsRequest{})
 
 	require.NoError(t, err)
 	assert.Len(t, txConfigs.UpsertCalls(), 1)
@@ -150,9 +150,8 @@ func TestUpdateAgentDeploySettingsAppliesA2ACORSToAProxiedExternalAgent(t *testi
 	svc := deploySettingsService(configs, m.publisher())
 	enabled, inherit := true, false
 
-	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
+	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
 		&gwspec.UpdateAgentDeploySettingsRequest{
-			EnvironmentName:     "dev",
 			AgentCardCorsConfig: &gwspec.AgentCardCORSConfig{Inherit: &inherit, Enabled: &enabled, AllowOrigin: []string{"https://app.example.com"}},
 		})
 
@@ -177,8 +176,8 @@ func TestUpdateAgentDeploySettingsSeesASwitchToDirectUnderTheLock(t *testing.T) 
 	configs, txConfigs := savedConfigs(t)
 	svc := deploySettingsService(configs, m.publisher())
 
-	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&gwspec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
+	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
+		&gwspec.UpdateAgentDeploySettingsRequest{})
 
 	require.NoError(t, err)
 	assert.Len(t, txConfigs.UpsertCalls(), 1)
@@ -193,8 +192,8 @@ func TestUpdateAgentDeploySettingsRejectsADirectExternalEnvironment(t *testing.T
 	configs, txConfigs := savedConfigs(t)
 	svc := deploySettingsService(configs, m.publisher())
 
-	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&gwspec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
+	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
+		&gwspec.UpdateAgentDeploySettingsRequest{})
 
 	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.Contains(t, err.Error(), "gateway")

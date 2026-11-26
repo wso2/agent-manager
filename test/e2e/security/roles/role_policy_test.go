@@ -96,7 +96,13 @@ func roleProbes() []roleProbe {
 			return "/api/v1/orgs/" + cfg.DefaultOrg + suffix
 		}
 	}
-	// The AI Gateway module's API.
+	// The AI Gateway module's API. Migrated resources take the org from the token, so
+	// their routes hang off the module base with no org segment.
+	gwPath := func(suffix string) func(*framework.Config) string {
+		return func(*framework.Config) string {
+			return "/m/ai-gateway" + suffix
+		}
+	}
 	gwOrgPath := func(suffix string) func(*framework.Config) string {
 		return func(cfg *framework.Config) string {
 			return "/m/ai-gateway/orgs/" + cfg.DefaultOrg + suffix
@@ -109,13 +115,13 @@ func roleProbes() []roleProbe {
 		{"developer", "amp:role:update", false, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
 
 		// AI Lead: owns AI providers, not project/platform administration.
-		{"ai-lead", "amp:ai-gateway:llm-providers.create", true, http.MethodPost, gwOrgPath("/llm-providers")},
+		{"ai-lead", "amp:ai-gateway:llm-providers.create", true, http.MethodPost, gwPath("/llm-providers")},
 		{"ai-lead", "amp:project:create", false, http.MethodPost, orgPath("/projects")},
 		{"ai-lead", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwOrgPath("/gateways")},
 
 		// Platform Engineer: owns infrastructure and production delivery, not agent authoring or IAM.
 		{"platform-engineer", "amp:ai-gateway:gateways.create", true, http.MethodPost, gwOrgPath("/gateways")},
-		{"platform-engineer", "amp:agent:create", false, http.MethodPost, orgPath("/projects/" + absentResourceName + "/agents")},
+		{"platform-engineer", "amp:agent:create", false, http.MethodPost, func(*framework.Config) string { return "/api/v1/agents" }},
 		{"platform-engineer", "amp:role:update", false, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
 
 		// Admin positive controls cover the privilege-granting IAM boundary.

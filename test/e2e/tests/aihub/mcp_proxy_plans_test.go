@@ -15,8 +15,9 @@
 // under the License.
 
 // Validates that an MCP proxy offers subscription plans: it refuses a plan that doesn't exist, offers an
-// existing one, and the plan it offers is in use (it can't be renamed or deleted) until the proxy is gone.
-// The proxy is deployed to the default environment, so the stack needs its AI gateway.
+// existing one, which counts the offer without locking the plan, and refuses to offer a deprecated plan, while
+// a proxy that already offers it keeps it. The proxies are deployed to the default environment, so the stack
+// needs its AI gateway.
 
 package aihub
 
@@ -36,76 +37,81 @@ import (
 )
 
 var _ = Describe("Subscription Plans offered by an MCP proxy", Label("ai-hub", "subscription-plans", "mcp-proxy"), Ordered, func() {
-	var planID, proxyID, envUUID string
+	var planID, proxyID, otherProxyID, envUUID, gatewayID string
 
-	proxyRequest := func(id string, plans ...string) framework.CreateMCPProxyRequest {
+	proxySpec := func(id string, plans ...string) framework.MCPProxySpec {
 		ctxPath := "/" + id
 		upstream := framework.TestMCPServerURL
-		return framework.CreateMCPProxyRequest{
-			ID: id, Name: "E2E Plans Proxy " + id[len(id)-8:], Version: "v1.0", Context: &ctxPath,
+		return framework.MCPProxySpec{
+			DisplayName: "E2E Plans Proxy " + id[len(id)-8:], Version: "v1.0", Context: &ctxPath,
 			Endpoints: []framework.MCPProxyEndpoint{{
-				ID:           "primary",
-				Upstream:     framework.UpstreamConfig{Main: &framework.UpstreamEndpoint{URL: &upstream}},
-				Environments: []framework.MCPEndpointEnvironment{{EnvironmentUUID: envUUID}},
+				ID:       "primary",
+				Upstream: framework.UpstreamConfig{Main: &framework.UpstreamEndpoint{URL: &upstream}},
+				// Named, since an environment may have more than one egress gateway.
+				Environments: []framework.MCPEndpointEnvironment{{EnvironmentUUID: envUUID, GatewayID: gatewayID}},
 			}},
 			SubscriptionPlans: plans,
+		}
+	}
+	proxyDocument := func(id string, plans ...string) framework.MCPProxyDocument {
+		return framework.MCPProxyDocument{
+			APIVersion: framework.MCPProxyAPIVersion, Kind: framework.MCPProxyKind,
+			Metadata: framework.DocumentMetadata{Name: id}, Spec: proxySpec(id, plans...),
 		}
 	}
 
 	BeforeAll(func() {
 		skipWithoutAIHub()
-		_, envUUID = gateway.WaitForActiveGatewayForEnvWithEnvUUID(Client, Cfg.DefaultOrg, Cfg.DefaultEnv, 3*time.Minute)
+		gatewayID, envUUID = gateway.WaitForActiveGatewayForEnvWithEnvUUID(Client, Cfg.DefaultOrg, Cfg.DefaultEnv, 3*time.Minute)
 		Expect(envUUID).NotTo(BeEmpty(), "expected an environment UUID for %s", Cfg.DefaultEnv)
 		suffix := uuid.New().String()[:8]
 		planID = "e2e-test-offered-plan-" + suffix
 		proxyID = "e2e-test-plans-proxy-" + suffix
+		otherProxyID = "e2e-test-plans-proxy-b-" + suffix
 		aihubop.CreatePlan(Default, Client, framework.SubscriptionPlanRequest{ID: planID, DisplayName: "E2E Offered " + suffix})
 	})
 
 	AfterAll(func() {
-		if proxyID != "" {
-			mcpproxyop.DeleteMCPProxyBestEffort(context.Background(), Client, Cfg.DefaultOrg, proxyID)
+		for _, id := range []string{proxyID, otherProxyID} {
+			if id != "" {
+				mcpproxyop.DeleteMCPProxyBestEffort(context.Background(), Client, id)
+			}
 		}
 		if planID != "" {
-			aihubop.DeletePlan(Default, Client, planID)
+			aihubop.DeprecatePlanBestEffort(Client, planID)
 		}
 	})
 
 	It("should refuse to offer a plan that doesn't exist", func() {
-		resp, err := Client.Post("/m/ai-gateway/orgs/"+Cfg.DefaultOrg+"/mcp-proxies",
-			proxyRequest(proxyID, "e2e-test-no-such-plan-"+uuid.New().String()[:8]))
+		resp, err := Client.Post("/m/ai-gateway/mcp-proxies",
+			proxyDocument(proxyID, "e2e-test-no-such-plan-"+uuid.New().String()[:8]))
 		Expect(err).NotTo(HaveOccurred())
 		defer resp.Body.Close()
 		Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
 	})
 
 	It("should offer the plan", func() {
-		proxy := mcpproxyop.CreateMCPProxy(Default, Client, Cfg.DefaultOrg, proxyRequest(proxyID, planID))
-		Expect(proxy.SubscriptionPlans).To(ConsistOf(planID))
-		Expect(mcpproxyop.GetMCPProxy(Default, Client, Cfg.DefaultOrg, proxyID).SubscriptionPlans).To(ConsistOf(planID))
+		proxy := mcpproxyop.CreateMCPProxy(Default, Client, proxyID, proxySpec(proxyID, planID))
+		Expect(proxy.Spec.SubscriptionPlans).To(ConsistOf(planID))
+		Expect(mcpproxyop.GetMCPProxy(Default, Client, proxyID).Spec.SubscriptionPlans).To(ConsistOf(planID))
 	})
 
-	It("should keep the offered plan in use", func() {
+	It("should count the offer without locking the plan", func() {
 		plan := aihubop.GetPlan(Default, Client, planID)
 		Expect(plan.Usage).NotTo(BeNil())
-		Expect(plan.Usage.InUse).To(BeTrue())
 		Expect(plan.Usage.MCPProxies).To(Equal(1))
-
-		resp, err := Client.Put(aihubop.PlansPath+"/"+planID, framework.SubscriptionPlanRequest{DisplayName: "Renamed"})
-		Expect(err).NotTo(HaveOccurred())
-		defer resp.Body.Close()
-		Expect(resp.StatusCode).To(Equal(http.StatusConflict), "an offered plan keeps its name")
-
-		del, err := Client.Delete(aihubop.PlansPath + "/" + planID)
-		Expect(err).NotTo(HaveOccurred())
-		defer del.Body.Close()
-		Expect(del.StatusCode).To(Equal(http.StatusConflict), "an offered plan can't be deleted")
+		Expect(plan.Usage.InUse).To(BeFalse(), "only subscriptions lock a plan")
+		renamed := aihubop.UpdatePlan(Default, Client, planID, framework.SubscriptionPlanRequest{DisplayName: "E2E Offered renamed"})
+		Expect(renamed.DisplayName).To(Equal("E2E Offered renamed"))
 	})
 
-	It("should free the plan once the proxy is gone", func() {
-		mcpproxyop.DeleteMCPProxy(Default, Client, Cfg.DefaultOrg, proxyID)
-		Expect(aihubop.GetPlan(Default, Client, planID).Usage.InUse).To(BeFalse())
-		aihubop.DeletePlan(Default, Client, planID)
-		aihubop.GetPlanExpectStatus(Default, Client, planID, http.StatusNotFound)
+	It("should keep a deprecated plan where it is offered, and refuse to offer it again", func() {
+		Expect(aihubop.DeprecatePlan(Default, Client, planID).Deprecated).To(BeTrue())
+		Expect(mcpproxyop.GetMCPProxy(Default, Client, proxyID).Spec.SubscriptionPlans).To(ConsistOf(planID))
+
+		resp, err := Client.Post("/m/ai-gateway/mcp-proxies", proxyDocument(otherProxyID, planID))
+		Expect(err).NotTo(HaveOccurred())
+		defer resp.Body.Close()
+		Expect(resp.StatusCode).To(Equal(http.StatusBadRequest), "a deprecated plan can't be offered")
 	})
 })

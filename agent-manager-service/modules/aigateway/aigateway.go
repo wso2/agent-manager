@@ -65,8 +65,8 @@ func (module) Manifest() modkit.Manifest {
 		Version:     "1.0.0",
 		Description: "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
 		CoreAPI:     modkit.CoreAPIVersion,
-		// The subscription plans its gateways pull, and whose changes it pushes to them, from the module that
-		// owns them when it is active.
+		// The subscriptions its gateways pull, and whose changes it pushes to them with their plans, from the
+		// module that owns them when it is active.
 		Provides:     []string{llmv1.ID, mcpv1.ID},
 		Requires:     []string{identityv1.ID},
 		Optional:     []string{subplanv1.ID},
@@ -169,18 +169,18 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	gw.SubscriptionPlans.Use(func() (subplanv1.Source, bool) {
 		return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID)
 	})
-	// Plan changes are pushed while the plans module is active, on the event it names. Activate runs again
-	// whenever the set of active modules changes (providers first), so enabling that module later subscribes
-	// then; meanwhile gateways pull every plan when they reconnect.
+	// Subscription changes are pushed while the plans module is active, on the event it names. Activate runs
+	// again whenever the set of active modules changes (providers first), so enabling that module later
+	// subscribes then; meanwhile gateways pull when they reconnect. A plan made or changed here is not pushed:
+	// plans are subscribed to in the developer portal, so a plan reaches the gateways with its subscriptions.
 	if source, ok := gw.SubscriptionPlans.Source(); ok {
 		// A plan an MCP proxy offers is in use: the plans module asks this module how many offer it.
 		source.CountOffersWith(gwsvc.NewPlanOffers(rt.DB()).ProxiesOffering)
-		rt.Subscribe(source.ChangeEvent(), gwsvc.PlanChangeHandler(gw.SubscriptionPlans.Source,
-			gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()), gwsvc.NewGatewayEventsService(gw.EventHub))))
-		// Subscriptions too: each change is pushed to the organization's gateways, for the MCP proxy it is to.
+		broadcaster := gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()),
+			gwsvc.NewGatewayEventsService(gw.EventHub))
+		// Each change is pushed to the organization's gateways, for the MCP proxy it is to, after its plan.
 		rt.Subscribe(source.SubscriptionChangeEvent(), gwsvc.SubscriptionChangeHandler(gw.SubscriptionPlans.Source,
-			gwsvc.NewSubscriptionArtifacts(rt.DB()),
-			gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()), gwsvc.NewGatewayEventsService(gw.EventHub))))
+			gwsvc.NewSubscriptionArtifacts(rt.DB()), broadcaster, broadcaster))
 	}
 	registerHooks(rt, gw.AgentGateway)
 	gwapi.RegisterRoutes(gwapi.NewModuleRouter(rt), gw)

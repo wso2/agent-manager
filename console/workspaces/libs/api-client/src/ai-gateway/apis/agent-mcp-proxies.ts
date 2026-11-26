@@ -20,13 +20,15 @@ import type {
   AddAgentMCPProxyRequest,
   AgentMCPProxyListResponse,
   AgentMCPConfigResponse,
-  CreateAgentMCPConfigRequest,
   ListAgentMCPProxiesPathParams,
 } from "@agent-management-platform/types";
-import { listEnvironments } from "../../agent-runtime/apis/deployments";
+import {
+  agentConfigDocumentFromCreateRequest,
+  agentConfigFromDocument,
+  DEFAULT_ENVIRONMENT,
+} from "../../agent-runtime/apis/agent-config-documents";
 import {
   createAgentMCPConfig,
-  getAgentMCPConfig,
   listAgentMCPConfigs,
 } from "../../agent-runtime/apis/agent-mcp-configs";
 
@@ -34,19 +36,11 @@ export async function listAgentMCPProxies(
   params: ListAgentMCPProxiesPathParams,
   getToken?: () => Promise<string>,
 ): Promise<AgentMCPProxyListResponse> {
-  const list = await listAgentMCPConfigs(
-    params,
-    { limit: 1000, offset: 0 },
-    getToken,
-  );
-  const details = await Promise.all(
-    list.configs.map((config) =>
-      getAgentMCPConfig({ ...params, configId: config.uuid }, getToken),
-    ),
-  );
+  const page = await listAgentMCPConfigs(params, { limit: 100, offset: 0 }, getToken);
+  const configs = page.list.map((doc) => agentConfigFromDocument(doc, params.agentName ?? ""));
   return {
-    count: details.length,
-    list: details.map(toAgentMCPProxyListItem),
+    count: configs.length,
+    list: configs.map(toAgentMCPProxyListItem),
   };
 }
 
@@ -55,25 +49,13 @@ export async function addAgentMCPProxy(
   body: AddAgentMCPProxyRequest,
   getToken?: () => Promise<string>,
 ): Promise<AgentMCPConfigResponse> {
-  const envs = await listEnvironments({ orgName: params.orgName }, getToken);
-  const envMappings: CreateAgentMCPConfigRequest["envMappings"] = {};
-  for (const env of envs) {
-    envMappings[env.name] = {
-      proxyId: body.proxyId,
-      configuration: {},
-    };
-  }
-
-  return createAgentMCPConfig(
-    params,
-    {
-      name: body.proxyId,
-      type: "mcp",
-      envMappings,
-      environmentVariables: body.environmentVariables,
-    },
-    getToken,
-  );
+  const doc = agentConfigDocumentFromCreateRequest("AgentMcpConfig", params.projName ?? "", {
+    name: body.proxyId,
+    type: "mcp",
+    envMappings: { [DEFAULT_ENVIRONMENT]: { proxyId: body.proxyId, configuration: {} } },
+    environmentVariables: body.environmentVariables,
+  });
+  return agentConfigFromDocument(await createAgentMCPConfig(params, doc, getToken), params.agentName ?? "");
 }
 
 function toAgentMCPProxyListItem(config: AgentMCPConfigResponse) {

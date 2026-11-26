@@ -18,7 +18,9 @@
 
 // Subscription plans, served by the backend `ai-hub` module at
 // /m/ai-hub/subscription-plans (GET/POST /subscription-plans, GET/PUT/DELETE
-// /subscription-plans/{subscriptionPlanId}).
+// /subscription-plans/{subscriptionPlanId}; DELETE deprecates the plan, a soft delete). The
+// API serves each plan as a document (SubscriptionPlanDocument); the UI works on the flat
+// SubscriptionPlan, and the API client converts between them.
 
 export type SubscriptionPlanStatus = "ACTIVE" | "INACTIVE";
 
@@ -48,31 +50,87 @@ export interface SubscriptionPlanConditionLimits {
   tokenType?: "total" | "prompt" | "completion";
 }
 
-/** What offers or uses a plan. A plan in use keeps its name and conditions and can't be deleted. */
+/**
+ * What offers or uses a plan. A plan in use (one with subscriptions) keeps its name, conditions
+ * and expiry; an offer alone doesn't lock it.
+ */
 export interface SubscriptionPlanUsage {
   inUse: boolean;
-  restApis: number;
   mcpProxies: number;
-  drafts: number;
-  publications: number;
   subscriptions: number;
 }
 
+/** A plan as the UI works on it (the document, flattened). */
 export interface SubscriptionPlan {
-  /** The plan's handle, immutable after creation. */
+  /** The plan's handle (metadata.name), immutable after creation. */
   id: string;
+  /** The server-assigned ID (metadata.uid). */
+  uid?: string;
   displayName: string;
   description?: string;
   conditions: SubscriptionPlanCondition[];
   expiryTime?: string;
-  organizationId?: string;
   status: SubscriptionPlanStatus;
   createdBy?: string;
-  updatedBy?: string;
   createdAt?: string;
   updatedAt?: string;
-  /** Only in GET of one plan. */
+  /** Only in GET of one plan (status.usage). */
   usage?: SubscriptionPlanUsage;
+  /**
+   * Where the plan was made (metadata.origin): "ai-control-plane", or the developer portal
+   * that copied it in.
+   */
+  origin?: string;
+  /**
+   * A deprecated plan (status.deprecated) is read only: it stays for the subscriptions on it,
+   * but can't be changed, offered on an MCP server or subscribed to again.
+   */
+  deprecated: boolean;
+  /** When the plan was deprecated (status.deprecationTimestamp). */
+  deprecatedAt?: string;
+}
+
+export const SUBSCRIPTION_PLAN_API_VERSION = "ai-control-plane.choreolabs.com/v1";
+export const SUBSCRIPTION_PLAN_KIND = "SubscriptionPlan";
+
+export interface SubscriptionPlanDocumentMetadata {
+  /** The plan's handle. */
+  name: string;
+  uid?: string;
+  creationTimestamp?: string;
+  updateTimestamp?: string;
+  createdBy?: string;
+  /** Where the plan was made; set by the server. */
+  origin?: string;
+}
+
+export interface SubscriptionPlanSpec {
+  displayName: string;
+  description?: string;
+  status?: SubscriptionPlanStatus;
+  /** null clears the expiry on update. */
+  expiryTime?: string | null;
+  conditions?: SubscriptionPlanCondition[];
+}
+
+/** A plan as the API serves it: a document, as Kubernetes resources are. */
+export interface SubscriptionPlanDocument {
+  apiVersion: typeof SUBSCRIPTION_PLAN_API_VERSION;
+  kind: typeof SUBSCRIPTION_PLAN_KIND;
+  metadata: SubscriptionPlanDocumentMetadata;
+  spec: SubscriptionPlanSpec;
+  /** Observed by the server, ignored on input. */
+  status?: {
+    deprecated?: boolean;
+    deprecationTimestamp?: string;
+    usage?: SubscriptionPlanUsage;
+  };
+}
+
+export interface SubscriptionPlanDocumentList {
+  list: SubscriptionPlanDocument[];
+  count: number;
+  pagination: { total: number; offset: number; limit: number };
 }
 
 export interface SubscriptionPlanListResponse {
@@ -81,6 +139,7 @@ export interface SubscriptionPlanListResponse {
   pagination: { total: number; offset: number; limit: number };
 }
 
+/** A new plan; the API client sends it as a document. */
 export interface CreateSubscriptionPlanRequest {
   id: string;
   displayName: string;
@@ -90,10 +149,10 @@ export interface CreateSubscriptionPlanRequest {
   status?: SubscriptionPlanStatus;
 }
 
-/** PUT body. displayName is required; an omitted field keeps the stored value, and
- * `expiryTime: null` clears the expiry. */
+/** A change to a plan; the API client sends it as a document named by the plan's id.
+ * displayName is required; an omitted field keeps the stored value, and `expiryTime: null`
+ * clears the expiry. */
 export interface UpdateSubscriptionPlanRequest {
-  id?: string;
   displayName: string;
   description?: string;
   conditions?: SubscriptionPlanCondition[];

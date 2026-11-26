@@ -65,26 +65,45 @@ export type PlanOption = {
   description?: string;
   expiryTime?: string;
   status?: SubscriptionPlan["status"];
+  /** A deprecated plan can't be offered again; one the proxy offers stays until unticked. */
+  deprecated?: boolean;
   conditions?: SubscriptionPlan["conditions"];
 };
 
-/** The cards: active plans, plus the plans the proxy already offers, whatever their status. */
+/**
+ * The cards: active plans that aren't deprecated, plus the plans the proxy already offers,
+ * whatever their status.
+ */
 export function planOptions(plans: SubscriptionPlan[], offered: string[]): PlanOption[] {
   const byId = new Map(plans.map((p) => [p.id, p]));
   const options: PlanOption[] = plans
-    .filter((p) => p.status === "ACTIVE" || offered.includes(p.id))
+    .filter((p) => (p.status === "ACTIVE" && !p.deprecated) || offered.includes(p.id))
     .map((p) => ({
       id: p.id,
       displayName: p.displayName,
       description: p.description,
       expiryTime: p.expiryTime,
       status: p.status,
+      deprecated: p.deprecated,
       conditions: p.conditions,
     }));
   for (const id of offered) {
     if (!byId.has(id)) options.push({ id, displayName: id });
   }
   return options;
+}
+
+/**
+ * The deprecated plans that stop a save: a changed selection can't keep a deprecated plan (the
+ * server refuses it), while the offered plans sent back unchanged may.
+ */
+export function deprecatedBlockingSave(
+  selected: string[],
+  offered: string[],
+  options: PlanOption[],
+): PlanOption[] {
+  if (samePlans(selected, offered)) return [];
+  return options.filter((o) => o.deprecated && selected.includes(o.id));
 }
 
 export function samePlans(a: string[], b: string[]): boolean {
@@ -217,8 +236,12 @@ function PlanCard({
             sx={{ alignItems: "center", display: "flex", gap: 1, minHeight: NAME_LINE_HEIGHT }}
           >
             <PlanName name={option.displayName} />
-            {option.status === "INACTIVE" && (
-              <Chip size="small" variant="outlined" label="Inactive" sx={{ flexShrink: 0 }} />
+            {option.deprecated ? (
+              <Chip size="small" variant="outlined" label="Deprecated" sx={{ flexShrink: 0 }} />
+            ) : (
+              option.status === "INACTIVE" && (
+                <Chip size="small" variant="outlined" label="Inactive" sx={{ flexShrink: 0 }} />
+              )
             )}
           </Box>
           {option.expiryTime && (
@@ -335,6 +358,7 @@ export function MCPProxySubscriptionPlansTab({
   const shown = editable ? options : options.filter((o) => offered.includes(o.id));
   const policiesChanged = endpoints !== savedEndpoints;
   const dirty = !samePlans(selected, offered) || policiesChanged;
+  const blocking = deprecatedBlockingSave(selected, offered, options);
   const missing = data ? missingPolicies(requiredPolicies(plansOf(selected)), endpoints) : [];
 
   const attachMissing = (policies: MCPProxyPolicy[]) =>
@@ -444,13 +468,25 @@ export function MCPProxySubscriptionPlansTab({
         </Grid>
       )}
 
+      {blocking.length > 0 && (
+        <Alert severity="error">
+          {blocking.length === 1
+            ? `"${blocking[0].displayName}" is deprecated. Remove it to save a change to the offered plans.`
+            : `${blocking.map((o) => `"${o.displayName}"`).join(", ")} are deprecated. ` +
+              "Remove them to save a change to the offered plans."}
+        </Alert>
+      )}
       {saveError && <Alert severity="error">{saveError}</Alert>}
       {editable && (
         <Stack direction="row" spacing={1.5} justifyContent="flex-end">
           <Button variant="outlined" onClick={discard} disabled={!dirty || isSaving}>
             Discard
           </Button>
-          <Button variant="contained" onClick={() => void save()} disabled={!dirty || isSaving}>
+          <Button
+            variant="contained"
+            onClick={() => void save()}
+            disabled={!dirty || isSaving || blocking.length > 0}
+          >
             {isSaving ? "Saving..." : "Save"}
           </Button>
         </Stack>

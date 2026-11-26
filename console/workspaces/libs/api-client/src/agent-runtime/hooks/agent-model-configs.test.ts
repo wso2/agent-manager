@@ -40,6 +40,12 @@ vi.mock("../apis/agent-model-configs", () => ({
 import * as api from "../apis/agent-model-configs";
 import { describeMutationHooks, describeQueryHooks } from "../../test-utils/hook-cases";
 import {
+  agentConfigDocumentFromCreateRequest,
+  agentConfigDocumentFromUpdateRequest,
+  agentConfigFromDocument,
+  agentConfigListFromDocuments,
+} from "../apis/agent-config-documents";
+import {
   useCreateAgentModelConfig,
   useCreateLLMConfigAPIKey,
   useDeleteAgentModelConfig,
@@ -52,6 +58,17 @@ import {
 } from "./agent-model-configs";
 
 const m = vi.mocked(api);
+const doc = {
+  apiVersion: "ai-control-plane.choreolabs.com/v1", kind: "AgentModelConfig" as const,
+  metadata: { name: "cfg", project: "p", uid: "c1" }, spec: { description: "d" },
+};
+const docPage = { count: 1, list: [doc], pagination: { count: 1, offset: 0, limit: 20 } };
+
+// useUpdating reads the current document first, so the update case serves it.
+function useUpdating() {
+  m.getAgentModelConfig.mockResolvedValue(doc as never);
+  return useUpdateAgentModelConfig();
+}
 const agent = { orgName: "o", projName: "p", agentName: "a" };
 const config = { ...agent, configId: "c1" };
 const keys = { ...config, envName: "dev" };
@@ -62,12 +79,14 @@ describeQueryHooks("agent model config queries", [
     name: "useListAgentModelConfigs",
     use: () => useListAgentModelConfigs(agent, page),
     api: m.listAgentModelConfigs, args: [agent, page], key: ["agent-model-configs", "list", agent, page],
+    data: docPage, expected: agentConfigListFromDocuments(docPage, "a"),
     idle: [() => useListAgentModelConfigs({ ...agent, agentName: "" })],
   },
   {
     name: "useGetAgentModelConfig",
     use: () => useGetAgentModelConfig(config),
     api: m.getAgentModelConfig, args: [config], key: ["agent-model-configs", config],
+    data: doc, expected: agentConfigFromDocument(doc, "a"),
     idle: [() => useGetAgentModelConfig({ ...agent, configId: "" })],
   },
   {
@@ -91,11 +110,15 @@ const keyBody = { name: "ci" };
 describeMutationHooks("agent model config mutations", SEEDED, [
   {
     name: "useCreateAgentModelConfig", use: useCreateAgentModelConfig, api: m.createAgentModelConfig,
-    variables: { params: agent, body }, args: [agent, body], invalidates: ["configs", "config"],
+    variables: { params: agent, body },
+    args: [agent, agentConfigDocumentFromCreateRequest("AgentModelConfig", "p", body as never)],
+    response: doc, expected: agentConfigFromDocument(doc, "a"), invalidates: ["configs", "config"],
   },
   {
-    name: "useUpdateAgentModelConfig", use: useUpdateAgentModelConfig, api: m.updateAgentModelConfig,
-    variables: { params: config, body }, args: [config, body], invalidates: ["configs", "config"],
+    name: "useUpdateAgentModelConfig", use: useUpdating, api: m.updateAgentModelConfig,
+    variables: { params: config, body },
+    args: [config, agentConfigDocumentFromUpdateRequest("AgentModelConfig", "p", body, doc)],
+    response: doc, expected: agentConfigFromDocument(doc, "a"), invalidates: ["configs", "config"],
   },
   {
     name: "useDeleteAgentModelConfig", use: useDeleteAgentModelConfig, api: m.deleteAgentModelConfig,

@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -42,8 +41,9 @@ import (
 )
 
 // With the AI Hub on beside the real AI Gateway, an MCP proxy offers the AI Hub's plans and the AI Gateway
-// counts the MCP proxies that offer a plan, which keeps it in use. With the AI Hub off, an MCP proxy can't
-// offer plans.
+// counts the MCP proxies that offer a plan, which the plan reports as its usage. A deprecated plan can't be
+// offered, and an MCP proxy that offers one can't change its plans until it is removed. With the AI Hub off, an
+// MCP proxy can't offer plans.
 func TestGatewayTakesPlansFromTheAIHub(t *testing.T) {
 	ctx := context.Background()
 	app, host := apitestutils.MakeAppClientWithModules(t, wiring.TestClients{
@@ -65,19 +65,24 @@ func TestGatewayTakesPlansFromTheAIHub(t *testing.T) {
 		app.ServeHTTP(rr, req)
 		return rr.Code, rr.Body.Bytes()
 	}
-	proxies := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies", testOrgName)
+	proxies := "/m/ai-gateway/mcp-proxies"
 	ensureOrgRow(t, jwtassertion.MockOUID)
 	env := uuid.MustParse(apitestutils.DefaultEnvironmentUUID)
 	dbtest.EnvironmentNamed(t, db.GetDB(), jwtassertion.MockOUID, env, "default-"+env.String()[:8])
-	gwtest.GatewayIn(t, db.GetDB(), jwtassertion.MockOUID, gwmodels.GatewayRoleEgress, env)
+	// Named in each proxy: the environment collects a gateway per run, and a proxy must pick one of several.
+	gw := gwtest.GatewayIn(t, db.GetDB(), jwtassertion.MockOUID, gwmodels.GatewayRoleEgress, env)
 	proxy := func(id string, plans []string) map[string]any {
 		return map[string]any{
-			"id": id, "name": "Plans " + id, "version": "v1.0", "context": "/" + id,
-			"endpoints": []map[string]any{{
-				"id": "primary", "upstream": map[string]any{"main": map[string]any{"url": "https://1.1.1.1/mcp"}},
-				"environments": []map[string]any{{"environmentUuid": env.String()}},
-			}},
-			"subscriptionPlans": plans,
+			"apiVersion": "ai-control-plane.choreolabs.com/v1", "kind": "McpProxy",
+			"metadata": map[string]any{"name": id},
+			"spec": map[string]any{
+				"displayName": "Plans " + id, "version": "v1.0", "context": "/" + id,
+				"endpoints": []map[string]any{{
+					"id": "primary", "upstream": map[string]any{"main": map[string]any{"url": "https://1.1.1.1/mcp"}},
+					"environments": []map[string]any{{"environmentUuid": env.String(), "gatewayId": gw.UUID.String()}},
+				}},
+				"subscriptionPlans": plans,
+			},
 		}
 	}
 	suffix := uuid.NewString()[:8]
@@ -94,7 +99,7 @@ func TestGatewayTakesPlansFromTheAIHub(t *testing.T) {
 		require.NoError(t, host.Enable(ctx, aihub.Name), "install: %v", err)
 	}
 	t.Cleanup(func() { _ = host.Disable(context.Background(), aihub.Name) })
-	code, body := call(http.MethodPost, plansPath, map[string]any{"id": plan, "displayName": "Gateway plan"})
+	code, body := call(http.MethodPost, plansPath, planDoc(plan, map[string]any{"displayName": "Gateway plan"}))
 	require.Equal(t, http.StatusCreated, code, string(body))
 
 	usage := func(t *testing.T) map[string]any {
@@ -102,33 +107,54 @@ func TestGatewayTakesPlansFromTheAIHub(t *testing.T) {
 		code, body := call(http.MethodGet, plansPath+"/"+plan, nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		var p struct {
-			Usage map[string]any `json:"usage"`
+			Status struct {
+				Usage map[string]any `json:"usage"`
+			} `json:"status"`
 		}
 		require.NoError(t, json.Unmarshal(body, &p))
-		return p.Usage
+		return p.Status.Usage
 	}
 
-	t.Run("an MCP proxy offers the plan, which is then in use", func(t *testing.T) {
-		assert.Equal(t, false, usage(t)["inUse"])
+	t.Run("an MCP proxy offers the plan, which counts it without locking it", func(t *testing.T) {
+		assert.EqualValues(t, 0, usage(t)["mcpProxies"])
 		code, body := call(http.MethodPost, proxies, proxy("offers-"+suffix, []string{plan}))
 		require.Equal(t, http.StatusCreated, code, string(body))
 		var created struct {
-			SubscriptionPlans []string `json:"subscriptionPlans"`
+			Spec struct {
+				SubscriptionPlans []string `json:"subscriptionPlans"`
+			} `json:"spec"`
 		}
 		require.NoError(t, json.Unmarshal(body, &created))
-		assert.Equal(t, []string{plan}, created.SubscriptionPlans)
+		assert.Equal(t, []string{plan}, created.Spec.SubscriptionPlans)
 		u := usage(t)
-		assert.Equal(t, true, u["inUse"])
 		assert.EqualValues(t, 1, u["mcpProxies"], "counted by the AI Gateway")
-		code, body = call(http.MethodDelete, plansPath+"/"+plan, nil)
-		assert.Equal(t, http.StatusConflict, code, string(body))
+		assert.Equal(t, false, u["inUse"], "an offer alone doesn't lock the plan")
+		code, body = call(http.MethodPut, plansPath+"/"+plan, planDoc(plan, map[string]any{"displayName": "Renamed"}))
+		assert.Equal(t, http.StatusOK, code, string(body))
 	})
 
-	t.Run("once the MCP proxy is gone, the plan is free", func(t *testing.T) {
-		code, body := call(http.MethodDelete, proxies+"/offers-"+suffix, nil)
+	t.Run("a deprecated plan stays offered where it was, and can't be offered again", func(t *testing.T) {
+		code, body := call(http.MethodDelete, plansPath+"/"+plan, nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		code, body = call(http.MethodGet, proxies+"/offers-"+suffix, nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.Contains(t, string(body), plan, "an existing offer stays")
+		code, body = call(http.MethodPost, proxies, proxy("again-"+suffix, []string{plan}))
+		assert.Equal(t, http.StatusBadRequest, code, string(body))
+		assert.Contains(t, string(body), "deprecated")
+
+		other := "gw-other-" + suffix
+		code, body = call(http.MethodPost, plansPath, planDoc(other, map[string]any{"displayName": "Other plan"}))
+		require.Equal(t, http.StatusCreated, code, string(body))
+		code, body = call(http.MethodPut, proxies+"/offers-"+suffix, proxy("offers-"+suffix, []string{plan}))
+		assert.Equal(t, http.StatusOK, code, "the same plans sent back save: "+string(body))
+		code, body = call(http.MethodPut, proxies+"/offers-"+suffix, proxy("offers-"+suffix, []string{plan, other}))
+		assert.Equal(t, http.StatusBadRequest, code, "another plan beside the deprecated one: "+string(body))
+		assert.Contains(t, string(body), "remove it before changing the offered plans")
+		code, body = call(http.MethodPut, proxies+"/offers-"+suffix, proxy("offers-"+suffix, []string{other}))
+		assert.Equal(t, http.StatusOK, code, "once it is removed, the change saves: "+string(body))
+		code, body = call(http.MethodDelete, proxies+"/offers-"+suffix, nil)
 		require.Equal(t, http.StatusNoContent, code, string(body))
-		assert.Equal(t, false, usage(t)["inUse"])
-		code, body = call(http.MethodDelete, plansPath+"/"+plan, nil)
-		assert.Equal(t, http.StatusNoContent, code, string(body))
+		assert.EqualValues(t, 0, usage(t)["mcpProxies"])
 	})
 }

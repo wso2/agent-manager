@@ -71,18 +71,26 @@ func ListPlans(g Gomega, client *framework.AMPClient, query string) framework.Su
 	return framework.ExpectStatusAndDecode[framework.SubscriptionPlanListResponse](g, resp, http.StatusOK)
 }
 
-// UpdatePlan updates a subscription plan and expects 200.
+// UpdatePlan updates a subscription plan and expects 200. The document's metadata.name is the plan's id.
 func UpdatePlan(g Gomega, client *framework.AMPClient, id string, req framework.SubscriptionPlanRequest) framework.SubscriptionPlanResponse {
+	req.ID = id
 	resp, err := client.Put(PlansPath+"/"+url.PathEscape(id), req)
 	g.Expect(err).NotTo(HaveOccurred(), "update subscription plan request failed")
 	defer resp.Body.Close()
 	return framework.ExpectStatusAndDecode[framework.SubscriptionPlanResponse](g, resp, http.StatusOK)
 }
 
-// DeletePlan deletes a subscription plan, accepting 204 or (already gone) 404.
-func DeletePlan(g Gomega, client *framework.AMPClient, id string) {
+// DeprecatePlan deprecates a subscription plan (DELETE is a soft delete) and returns it.
+func DeprecatePlan(g Gomega, client *framework.AMPClient, id string) framework.SubscriptionPlanResponse {
 	resp, err := client.Delete(PlansPath + "/" + url.PathEscape(id))
-	g.Expect(err).NotTo(HaveOccurred(), "delete subscription plan request failed")
+	g.Expect(err).NotTo(HaveOccurred(), "deprecate subscription plan request failed")
 	defer resp.Body.Close()
-	framework.ExpectStatusIn(g, resp, http.StatusNoContent, http.StatusNotFound)
+	return framework.ExpectStatusAndDecode[framework.SubscriptionPlanResponse](g, resp, http.StatusOK)
+}
+
+// DeprecatePlanBestEffort deprecates a plan in cleanup, whatever state an earlier failure left it in.
+func DeprecatePlanBestEffort(client *framework.AMPClient, id string) {
+	if resp, err := client.Delete(PlansPath + "/" + url.PathEscape(id)); err == nil {
+		resp.Body.Close()
+	}
 }

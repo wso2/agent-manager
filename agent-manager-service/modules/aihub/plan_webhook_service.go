@@ -34,18 +34,22 @@ import (
 // enough to outlast a sender's retries of the events before the deletion.
 const deletedPlanRetention = 30 * 24 * time.Hour
 
-// upsertFromWebhook copies a plan created or updated at its source, as of occurredAt there.
+// upsertFromWebhook copies a plan created or updated at its source (origin, the portal's name), as of occurredAt
+// there.
 //   - A change made there before the plan's last change there, or before its deletion there, is out of date:
 //     it changes nothing, so a retried older event can't bring back an older state or a deleted plan.
 //   - A new plan is created dated when it was made at the source, so a later deletion event isn't mistaken
 //     for the deletion of an older plan with the same handle.
 //   - An existing plan's name, description and conditions are updated when they differ, so an echo of
 //     a change made here changes nothing. The in-use lock does not apply: the source made the change.
+//   - A deprecated plan doesn't change: an update is ignored, and a creation made after the deprecation (a new
+//     plan at the source with the handle of the deprecated one) is refused (errPlanDeprecated).
+//   - A creation with the handle of a plan made elsewhere (another origin) is refused (errPlanOriginConflict).
 //
 // Senders that predate conditions send only request limits (requestWindows); those change only the
 // request-count condition. A priced plan is stored without its price: Agent Manager plans are free for now.
-func (s *planService) upsertFromWebhook(ctx context.Context, orgID, handle, name, description string,
-	conditions *[]Condition, requestWindows []Window, paid bool, occurredAt time.Time,
+func (s *planService) upsertFromWebhook(ctx context.Context, orgID, origin, handle, name, description string,
+	conditions *[]Condition, requestWindows []Window, paid, created bool, occurredAt time.Time,
 ) error {
 	if paid {
 		s.log.InfoContext(ctx, "storing a priced plan from the webhook without its price", "orgId", orgID, "plan", handle)
@@ -56,7 +60,7 @@ func (s *planService) upsertFromWebhook(ctx context.Context, orgID, handle, name
 	description = truncateRunes(strings.TrimSpace(description), maxDescriptionChars)
 	at := occurredAt.UTC()
 
-	_, err := s.applyFromWebhook(ctx, orgID, handle, name, description, conditions, requestWindows, at)
+	_, err := s.applyFromWebhook(ctx, orgID, origin, handle, name, description, conditions, requestWindows, created, at)
 	if errors.Is(err, errStaleEvent) {
 		s.log.InfoContext(ctx, "ignoring an out-of-date subscription plan event", "orgId", orgID, "plan", handle,
 			"occurredAt", at)
@@ -65,8 +69,8 @@ func (s *planService) upsertFromWebhook(ctx context.Context, orgID, handle, name
 	return err
 }
 
-func (s *planService) applyFromWebhook(ctx context.Context, orgID, handle, name, description string,
-	conditions *[]Condition, requestWindows []Window, at time.Time,
+func (s *planService) applyFromWebhook(ctx context.Context, orgID, origin, handle, name, description string,
+	conditions *[]Condition, requestWindows []Window, created bool, at time.Time,
 ) (*plan, error) {
 	existing, err := s.get(ctx, orgID, handle)
 	if err != nil && !errors.Is(err, errPlanNotFound) {
@@ -77,12 +81,12 @@ func (s *planService) applyFromWebhook(ctx context.Context, orgID, handle, name,
 		if err != nil {
 			return nil, err
 		}
-		created, err := s.create(ctx, orgID, "", &plan{
-			Handle: handle, Name: name, Description: description,
+		made, err := s.create(ctx, orgID, "", &plan{
+			Handle: handle, Name: name, Description: description, Origin: origin,
 			Conditions: planConditions, CreatedAt: at, SourceChangedAt: &at,
 		})
 		if err == nil || !errors.Is(err, errPlanExists) {
-			return created, err
+			return made, err
 		}
 		// A concurrent delivery created it first: reconcile against that copy instead.
 		if existing, err = s.get(ctx, orgID, handle); err != nil {
@@ -91,6 +95,16 @@ func (s *planService) applyFromWebhook(ctx context.Context, orgID, handle, name,
 	}
 	if existing.SourceChangedAt != nil && at.Before(*existing.SourceChangedAt) {
 		return nil, errStaleEvent
+	}
+	if existing.deprecated() {
+		if created && at.After(*existing.DeprecatedAt) {
+			return nil, fmt.Errorf("%w: %s", errPlanDeprecated, handle)
+		}
+		s.log.InfoContext(ctx, "ignoring a change of a deprecated subscription plan", "orgId", orgID, "plan", handle)
+		return existing, nil
+	}
+	if created && existing.Origin != origin {
+		return nil, fmt.Errorf("%w: %s (made at %s)", errPlanOriginConflict, handle, existing.Origin)
 	}
 	planConditions, err := webhookConditions(existing.Conditions, conditions, requestWindows)
 	if err != nil {
@@ -119,52 +133,40 @@ func (s *planService) recordSourceChange(ctx context.Context, orgID, handle stri
 	return nil
 }
 
-// deleteFromWebhook follows a plan deleted at its source, at occurredAt there.
-//   - The deletion is remembered for deletedPlanRetention, so a create or update made before it and
-//     delivered after it changes nothing.
-//   - A plan that is already gone counts as deleted, so a repeated delivery succeeds.
+// deleteFromWebhook follows a plan deleted at its source, at occurredAt there, by deprecating it: the plan stays
+// for the subscriptions on it.
+//   - The deletion is remembered for deletedPlanRetention, so a creation made before it and delivered after it
+//     doesn't bring back a plan this side never had.
+//   - A plan that is gone or already deprecated stays as it is, so a repeated delivery succeeds.
 //   - A plan created after occurredAt is a newer plan with the same handle (made again here); the
 //     deletion was of the older one, so the newer plan is kept.
 //
 // The in-use check does not apply: the source deleted the plan.
 func (s *planService) deleteFromWebhook(ctx context.Context, orgID, handle string, occurredAt time.Time) error {
 	at := occurredAt.UTC()
-	var deleted *plan
 	err := s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.recordDeletion(tx, orgID, handle, at); err != nil {
-			return err
-		}
-		if err := lockPlan(tx, orgID, handle); err != nil {
-			return err
-		}
-		existing, err := s.getTx(tx, orgID, handle)
-		if errors.Is(err, errPlanNotFound) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if existing.CreatedAt.After(at) {
-			s.log.InfoContext(ctx, "ignoring the deletion of an older subscription plan with the same handle",
-				"orgId", orgID, "plan", handle)
-			return nil
-		}
-		if err := deletePlanRow(tx, orgID, existing); errors.Is(err, errPlanNotFound) {
-			return nil
-		} else if err != nil {
-			return err
-		}
-		deleted = existing
-		return s.publish(ctx, tx, deletedEvent(existing))
+		return s.recordDeletion(tx, orgID, handle, at)
 	})
 	if err != nil {
 		return err
 	}
-	if deleted != nil {
-		s.log.InfoContext(ctx, "subscription plan deleted at its source", "orgId", orgID, "plan", handle,
-			"planId", deleted.UUID)
+	existing, err := s.get(ctx, orgID, handle)
+	if errors.Is(err, errPlanNotFound) {
+		return nil
 	}
-	return nil
+	if err != nil {
+		return err
+	}
+	if existing.CreatedAt.After(at) {
+		s.log.InfoContext(ctx, "ignoring the deletion of an older subscription plan with the same handle",
+			"orgId", orgID, "plan", handle)
+		return nil
+	}
+	_, err = s.deprecateAt(ctx, orgID, handle, "", &at)
+	if errors.Is(err, errPlanNotFound) {
+		return nil
+	}
+	return err
 }
 
 // recordDeletion remembers that the source deleted the plan at at (keeping the latest deletion) and forgets
@@ -197,7 +199,7 @@ func (s *planService) recordDeletion(tx *gorm.DB, orgID, handle string, at time.
 	return nil
 }
 
-// checkNotDeletedSince refuses (errStaleEvent) a change made at the source at or before the plan's remembered
+// checkNotDeletedSince refuses (errStaleEvent) a creation made at the source at or before the plan's remembered
 // deletion there.
 func checkNotDeletedSince(tx *gorm.DB, orgID, handle string, at time.Time) error {
 	var rows []struct{ DeletedAt time.Time }

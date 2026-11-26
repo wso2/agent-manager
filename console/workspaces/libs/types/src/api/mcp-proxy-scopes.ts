@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { OrgPathParams } from './common';
+import type { DocumentMetadata, OrgPathParams } from './common';
 
 // Per-MCP-proxy scope catalog. Each scope is an action on the proxy's resource
 // server and directly owns the list of tools it authorizes; the token scope
@@ -44,6 +44,30 @@ export interface MCPProxyScopeResponse {
 
 export interface MCPProxyScopeListResponse {
   scopes: MCPProxyScopeResponse[];
+}
+
+/**
+ * The scope's desired state. metadata.name is the action, which is immutable, and `scope` is
+ * the token string derived from it and the proxy's handle.
+ */
+export interface MCPProxyScopeSpec {
+  /** Derived token scope string ("<proxy-handle>:<action>"); read only. */
+  scope?: string;
+  description?: string;
+  /** Absent on a PUT leaves the tool list unchanged; an empty array unbinds every tool. */
+  tools?: string[];
+}
+
+export interface MCPProxyScopeDocument {
+  apiVersion: "ai-control-plane.choreolabs.com/v1";
+  kind: "McpProxyScope";
+  metadata: DocumentMetadata;
+  spec: MCPProxyScopeSpec;
+}
+
+export interface MCPProxyScopeDocumentList {
+  count?: number;
+  list: MCPProxyScopeDocument[];
 }
 
 // --- Path params ---

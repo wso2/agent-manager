@@ -1004,7 +1004,16 @@ func forEachFile(t *testing.T, dir string, fn func(*token.FileSet, *ast.File)) {
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+		// Recurse, so routes in a sub-package stay covered by these invariants.
+		if entry.IsDir() {
+			name := entry.Name()
+			if strings.HasPrefix(name, ".") || name == "testdata" || name == "vendor" {
+				continue
+			}
+			forEachFile(t, filepath.Join(dir, name), fn)
+			continue
+		}
+		if filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
 		}
 

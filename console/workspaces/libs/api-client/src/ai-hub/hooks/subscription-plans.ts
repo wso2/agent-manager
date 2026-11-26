@@ -31,7 +31,7 @@ import { useUIModulePresent } from "../../shared/useUIModulePresent";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
 import {
   createSubscriptionPlan,
-  deleteSubscriptionPlan,
+  deprecateSubscriptionPlan,
   getSubscriptionPlan,
   listSubscriptionPlans,
   updateSubscriptionPlan,
@@ -47,6 +47,9 @@ export const subscriptionPlanKeys = {
 
 /** The code the API answers a new plan whose handle is taken with. */
 export const SUBSCRIPTION_PLAN_EXISTS = "SUBSCRIPTION_PLAN_EXISTS";
+
+/** The code the API answers a change to a deprecated plan with. */
+export const SUBSCRIPTION_PLAN_DEPRECATED = "SUBSCRIPTION_PLAN_DEPRECATED";
 
 /** The API error code of a failed request, from the error the http helpers throw. */
 export function subscriptionPlanErrorCode(error: unknown): string | undefined {
@@ -141,15 +144,29 @@ export function useUpdateSubscriptionPlan() {
   });
 }
 
-export function useDeleteSubscriptionPlan() {
+/** Deprecates a plan: it stays, read only and marked deprecated, for its subscriptions. */
+export function useDeprecateSubscriptionPlan() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useApiMutation<void, unknown, SubscriptionPlanPathParams & { displayName: string }>({
-    successMessage: (_data, variables) => `Deleted plan "${variables.displayName}".`,
+  return useApiMutation<
+    SubscriptionPlan,
+    unknown,
+    SubscriptionPlanPathParams & { displayName: string }
+  >({
+    successMessage: (_data, variables) => `Deprecated plan "${variables.displayName}".`,
     errorMessage: (error) =>
-      (error as { message?: string } | null)?.message || "Failed to delete the plan.",
-    mutationFn: (params) => deleteSubscriptionPlan(params, getToken),
-    onSuccess: () => {
+      (error as { message?: string } | null)?.message || "Failed to deprecate the plan.",
+    mutationFn: (params) => deprecateSubscriptionPlan(params, getToken),
+    onSuccess: (plan) => {
+      // The row shows the plan as deprecated at once, then the lists reload.
+      queryClient.setQueriesData<SubscriptionPlanListResponse>(
+        { queryKey: subscriptionPlanKeys.lists() },
+        (list) =>
+          list?.list && {
+            ...list,
+            list: list.list.map((item) => (item.id === plan.id ? { ...item, ...plan } : item)),
+          },
+      );
       queryClient.invalidateQueries({ queryKey: subscriptionPlanKeys.lists() });
       queryClient.invalidateQueries({ queryKey: subscriptionPlanKeys.details() });
     },

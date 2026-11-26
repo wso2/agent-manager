@@ -464,10 +464,11 @@ type gatewaySubscriptionPlan struct {
 	UpdatedAt          time.Time             `json:"updatedAt"`
 }
 
-// GetSubscriptionPlans handles GET /api/internal/v1/subscription-plans: every subscription plan of the
-// authenticated gateway's organization, which the gateway syncs when it connects (it removes the plans it
-// has that are not listed). Plans come from the module that owns them ("subscription.plans/v1"); without
-// it the list is empty.
+// GetSubscriptionPlans handles GET /api/internal/v1/subscription-plans: the subscription plans of the
+// authenticated gateway's organization that a subscription to one of its deployed MCP proxies is on, which
+// the gateway syncs when it connects (it removes the plans it has that are not listed). A plan reaches the
+// gateways with its subscriptions only (gwsvc.SubscriptionChangeHandler). Plans come from the module that
+// owns them ("subscription.plans/v1"); without it the list is empty.
 func (c *gatewayInternalController) GetSubscriptionPlans(w http.ResponseWriter, r *http.Request) {
 	identity, ok := c.authenticateGateway(w, r, "internal-read")
 	if !ok {
@@ -476,6 +477,9 @@ func (c *gatewayInternalController) GetSubscriptionPlans(w http.ResponseWriter, 
 	out := []gatewaySubscriptionPlan{}
 	if source, ok := c.plans.Source(); ok {
 		plans, err := source.ListPlans(r.Context(), identity.OUID)
+		if err == nil {
+			plans, err = gwsvc.SubscribedPlans(r.Context(), source, c.subscriptionArtifacts, identity.OUID, plans)
+		}
 		if err != nil {
 			logger.GetLogger(r.Context()).Error("Failed to list subscription plans for a gateway",
 				"orgId", identity.OUID, "error", err)

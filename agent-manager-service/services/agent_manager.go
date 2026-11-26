@@ -42,7 +42,6 @@ import (
 
 type AgentManagerService interface {
 	ListAgents(ctx context.Context, ouID string, projName string, labelFilter map[string]string, limit int32, offset int32) ([]*models.AgentResponse, int32, error)
-	ListOrgAgents(ctx context.Context, ouID string) ([]*models.AgentSummary, error)
 	CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error
 	UpdateAgentBasicInfo(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error)
 	DeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) error
@@ -157,8 +156,7 @@ func (s *agentManagerService) ListAgents(ctx context.Context, ouID string, projN
 		return nil, 0, err
 	}
 
-	// Fetch all agent components
-	agents, err := s.platform.ListAgents(ctx, ouID, projName)
+	agents, err := s.listAgentsIn(ctx, ouID, projName)
 	if err != nil {
 		s.logger.Error("Failed to list agents from repository", "ouID", ouID, "projectName", projName, "error", err)
 		return nil, 0, fmt.Errorf("failed to list agents: %w", err)
@@ -183,53 +181,19 @@ func (s *agentManagerService) ListAgents(ctx context.Context, ouID string, projN
 	return paginatedAgents, total, nil
 }
 
-// ListOrgAgents returns every agent across all projects in the organization, unpaginated,
-// with each agent's project name and display name attached.
-func (s *agentManagerService) ListOrgAgents(ctx context.Context, ouID string) ([]*models.AgentSummary, error) {
-	s.logger.Info("Listing all agents in organization", "ouID", ouID)
-
-	// Validate organization exists
-	if _, err := s.platform.GetOrganization(ctx, ouID); err != nil {
-		s.logger.Error("Failed to find organization", "ouID", ouID, "error", err)
-		return nil, err
+// listAgentsIn returns the agents of one project, or of every project in the org when projName is empty.
+func (s *agentManagerService) listAgentsIn(ctx context.Context, ouID, projName string) ([]*models.AgentResponse, error) {
+	if projName != "" {
+		return s.platform.ListAgents(ctx, ouID, projName)
 	}
-
 	projects, err := listOrgProjects(ctx, s.platform, ouID)
 	if err != nil {
-		s.logger.Error("Failed to list projects", "ouID", ouID, "error", err)
 		return nil, err
 	}
-
-	agents, err := fetchAcrossOrgProjects(ctx, projects, ouID, s.platform.ListAgents)
-	if err != nil {
-		s.logger.Error("Failed to list agents across projects", "ouID", ouID, "error", err)
-		return nil, err
-	}
-
-	// The project list is already in hand from the fan-out above, so attaching each
-	// agent's project display name costs an in-memory lookup, not another round trip.
-	projectDisplayNames := make(map[string]string, len(projects))
-	for _, p := range projects {
-		projectDisplayNames[p.Name] = p.DisplayName
-	}
-	summaries := make([]*models.AgentSummary, len(agents))
-	for i, a := range agents {
-		summaries[i] = &models.AgentSummary{
-			Name:               a.Name,
-			DisplayName:        a.DisplayName,
-			ProjectName:        a.ProjectName,
-			ProjectDisplayName: projectDisplayNames[a.ProjectName],
-		}
-	}
-
-	s.logger.Info("Listed org agents successfully", "ouID", ouID, "totalAgents", len(summaries))
-	return summaries, nil
+	return fetchAcrossOrgProjects(ctx, projects, ouID, s.platform.ListAgents)
 }
 
-// listOrgProjects fetches every project in the org, wrapping the error consistently for
-// the two org-wide listings that need the project list itself (not just the fan-out
-// over it): ListOrgAgents (for project display names) and ListKindAgents (as the
-// fan-out target list).
+// listOrgProjects fetches every project in the org, for the org-wide listings that fan out per project.
 func listOrgProjects(ctx context.Context, platform repositories.PlatformRepository, ouID string) ([]*models.ProjectResponse, error) {
 	projects, err := platform.ListProjects(ctx, ouID)
 	if err != nil {

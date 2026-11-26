@@ -1,7 +1,7 @@
 /*
 AI Hub API
 
-Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token.
+Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token. A plan is never removed: deleting it deprecates it (a soft delete). A deprecated plan stays, read only, for the subscriptions on it, and gateways still get it; it can't be changed, offered on an MCP server or subscribed to again. A plan is a document, as Kubernetes resources are: `apiVersion` (the document schema's version, separate from the URL's), `kind`, `metadata` (`name` is the plan's handle; the rest is set by the server), `spec` (what the caller declares) and `status` (what the server observes, ignored on input). Bodies are JSON, or YAML with `Content-Type: application/yaml`; a response is YAML when the request accepts `application/yaml`.
 
 API version: 0.1.0
 */
@@ -19,7 +19,9 @@ var _ MappedNullable = &SubscriptionPlanListResponse{}
 
 // SubscriptionPlanListResponse struct for SubscriptionPlanListResponse
 type SubscriptionPlanListResponse struct {
-	List       []SubscriptionPlan                     `json:"list"`
+	// Each item is a whole document; its status has no usage.
+	List []SubscriptionPlanDocument `json:"list"`
+	// Number of items in this page.
 	Count      int32                                  `json:"count"`
 	Pagination SubscriptionPlanListResponsePagination `json:"pagination"`
 }
@@ -28,7 +30,7 @@ type SubscriptionPlanListResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewSubscriptionPlanListResponse(list []SubscriptionPlan, count int32, pagination SubscriptionPlanListResponsePagination) *SubscriptionPlanListResponse {
+func NewSubscriptionPlanListResponse(list []SubscriptionPlanDocument, count int32, pagination SubscriptionPlanListResponsePagination) *SubscriptionPlanListResponse {
 	this := SubscriptionPlanListResponse{}
 	this.List = list
 	this.Count = count
@@ -45,9 +47,9 @@ func NewSubscriptionPlanListResponseWithDefaults() *SubscriptionPlanListResponse
 }
 
 // GetList returns the List field value
-func (o *SubscriptionPlanListResponse) GetList() []SubscriptionPlan {
+func (o *SubscriptionPlanListResponse) GetList() []SubscriptionPlanDocument {
 	if o == nil {
-		var ret []SubscriptionPlan
+		var ret []SubscriptionPlanDocument
 		return ret
 	}
 
@@ -56,7 +58,7 @@ func (o *SubscriptionPlanListResponse) GetList() []SubscriptionPlan {
 
 // GetListOk returns a tuple with the List field value
 // and a boolean to check if the value has been set.
-func (o *SubscriptionPlanListResponse) GetListOk() ([]SubscriptionPlan, bool) {
+func (o *SubscriptionPlanListResponse) GetListOk() ([]SubscriptionPlanDocument, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -64,7 +66,7 @@ func (o *SubscriptionPlanListResponse) GetListOk() ([]SubscriptionPlan, bool) {
 }
 
 // SetList sets field value
-func (o *SubscriptionPlanListResponse) SetList(v []SubscriptionPlan) {
+func (o *SubscriptionPlanListResponse) SetList(v []SubscriptionPlanDocument) {
 	o.List = v
 }
 

@@ -17,19 +17,65 @@
  */
 
 import { httpDELETE, httpGET, httpPOST, httpPUT, moduleBase } from "../../shared/utils";
-import type {
-  CreateSubscriptionPlanRequest,
-  ListSubscriptionPlansPathParams,
-  ListSubscriptionPlansQuery,
-  SubscriptionPlan,
-  SubscriptionPlanListResponse,
-  SubscriptionPlanPathParams,
-  UpdateSubscriptionPlanRequest,
+import {
+  SUBSCRIPTION_PLAN_API_VERSION,
+  SUBSCRIPTION_PLAN_KIND,
+  type CreateSubscriptionPlanRequest,
+  type ListSubscriptionPlansPathParams,
+  type ListSubscriptionPlansQuery,
+  type SubscriptionPlan,
+  type SubscriptionPlanDocument,
+  type SubscriptionPlanDocumentList,
+  type SubscriptionPlanListResponse,
+  type SubscriptionPlanPathParams,
+  type SubscriptionPlanSpec,
+  type UpdateSubscriptionPlanRequest,
 } from "@agent-management-platform/types";
 
 // The backend `ai-hub` module's routes. The organization comes from the caller's token, so
 // the path has none.
 const PLANS_BASE = `${moduleBase("ai-hub")}/subscription-plans`;
+
+// The API serves each plan as a document; the UI works on a flat plan. These convert between them.
+
+export function planFromDocument(doc: SubscriptionPlanDocument): SubscriptionPlan {
+  const { metadata, spec, status } = doc;
+  return {
+    id: metadata.name,
+    uid: metadata.uid,
+    displayName: spec.displayName,
+    description: spec.description,
+    conditions: spec.conditions ?? [],
+    expiryTime: spec.expiryTime ?? undefined,
+    status: spec.status ?? "ACTIVE",
+    createdBy: metadata.createdBy,
+    createdAt: metadata.creationTimestamp,
+    updatedAt: metadata.updateTimestamp,
+    usage: status?.usage,
+    origin: metadata.origin,
+    deprecated: status?.deprecated === true,
+    deprecatedAt: status?.deprecationTimestamp,
+  };
+}
+
+export function planListFromDocuments(
+  docs: SubscriptionPlanDocumentList,
+): SubscriptionPlanListResponse {
+  return { list: docs.list.map(planFromDocument), count: docs.count, pagination: docs.pagination };
+}
+
+/** A plan document to send: metadata.name is the handle, the rest is spec. */
+export function documentFromPlan(
+  name: string,
+  spec: SubscriptionPlanSpec,
+): SubscriptionPlanDocument {
+  return {
+    apiVersion: SUBSCRIPTION_PLAN_API_VERSION,
+    kind: SUBSCRIPTION_PLAN_KIND,
+    metadata: { name },
+    spec,
+  };
+}
 
 async function throwHttpError(res: Response): Promise<never> {
   const body = await res.json().catch(() => undefined);
@@ -50,7 +96,7 @@ export async function listSubscriptionPlans(
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(PLANS_BASE, { searchParams: search, token });
   if (!res.ok) await throwHttpError(res);
-  return res.json();
+  return planListFromDocuments(await res.json());
 }
 
 export async function getSubscriptionPlan(
@@ -60,7 +106,7 @@ export async function getSubscriptionPlan(
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(`${PLANS_BASE}/${encodeURIComponent(params.planId)}`, { token });
   if (!res.ok) await throwHttpError(res);
-  return res.json();
+  return planFromDocument(await res.json());
 }
 
 export async function createSubscriptionPlan(
@@ -69,8 +115,9 @@ export async function createSubscriptionPlan(
   getToken?: () => Promise<string>,
 ): Promise<SubscriptionPlan> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(PLANS_BASE, body, { token });
-  return res.json();
+  const { id, ...spec } = body;
+  const res = await httpPOST(PLANS_BASE, documentFromPlan(id, spec), { token });
+  return planFromDocument(await res.json());
 }
 
 export async function updateSubscriptionPlan(
@@ -79,14 +126,24 @@ export async function updateSubscriptionPlan(
   getToken?: () => Promise<string>,
 ): Promise<SubscriptionPlan> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPUT(`${PLANS_BASE}/${encodeURIComponent(params.planId)}`, body, { token });
-  return res.json();
+  const res = await httpPUT(
+    `${PLANS_BASE}/${encodeURIComponent(params.planId)}`,
+    documentFromPlan(params.planId, body),
+    { token },
+  );
+  return planFromDocument(await res.json());
 }
 
-export async function deleteSubscriptionPlan(
+/**
+ * Deprecates a plan (DELETE is a soft delete): it stays, read only, for the subscriptions on
+ * it. Returns the deprecated plan.
+ */
+export async function deprecateSubscriptionPlan(
   params: SubscriptionPlanPathParams,
   getToken?: () => Promise<string>,
-): Promise<void> {
+): Promise<SubscriptionPlan> {
   const token = getToken ? await getToken() : undefined;
-  await httpDELETE(`${PLANS_BASE}/${encodeURIComponent(params.planId)}`, { token });
+  const res = await httpDELETE(`${PLANS_BASE}/${encodeURIComponent(params.planId)}`, { token });
+  if (!res.ok) await throwHttpError(res);
+  return planFromDocument(await res.json());
 }

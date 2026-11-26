@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -116,4 +117,27 @@ func TestWindowKey(t *testing.T) {
 	assert.Equal(t, windowKey(60, "MINUTE"), windowKey(1, "HOUR"))
 	assert.Equal(t, windowKey(24, "HOUR"), windowKey(1, "DAY"))
 	assert.NotEqual(t, windowKey(30, "DAY"), windowKey(1, "MONTH"), "months match only months")
+}
+
+func TestNormalizeConditions_KeepsAGivenTokenType(t *testing.T) {
+	got, err := normalizeConditions([]Condition{
+		cond(ConditionTypeTokenCount, "", `{"limits":[{"count":5,"timeUnit":"MINUTE"}],"tokenType":"prompt"}`),
+	})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"limits":[{"count":5,"timeAmount":1,"timeUnit":"MINUTE"}],"onExceed":"reject","tokenType":"prompt"}`,
+		string(got[0].Params))
+}
+
+func TestSameConditions_SeesADifference(t *testing.T) {
+	a, err := normalizeConditions([]Condition{cond(ConditionTypeCustom, "x", `{"a":1}`)})
+	require.NoError(t, err)
+	b, err := normalizeConditions([]Condition{cond(ConditionTypeCustom, "x", `{"a":2}`)})
+	require.NoError(t, err)
+	assert.False(t, sameConditions(a, b))
+}
+
+func TestWindowKey_KeepsAnOverflowingLengthApart(t *testing.T) {
+	huge := math.MaxInt / 60
+	assert.Equal(t, fmt.Sprintf("HOUR%d", huge+1), windowKey(huge+1, "HOUR"))
+	assert.NotEqual(t, windowKey(huge+1, "HOUR"), windowKey(1, "MINUTE"))
 }

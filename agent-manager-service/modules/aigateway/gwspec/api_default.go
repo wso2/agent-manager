@@ -23,53 +23,54 @@ import (
 type DefaultAPIService service
 
 type ApiCreateAgentMCPConfigRequest struct {
-	ctx                           context.Context
-	ApiService                    *DefaultAPIService
-	orgName                       string
-	projName                      string
-	agentName                     string
-	createAgentModelConfigRequest *CreateAgentModelConfigRequest
+	ctx                    context.Context
+	ApiService             *DefaultAPIService
+	agentName              string
+	project                *string
+	agentMcpConfigDocument *AgentMcpConfigDocument
 }
 
-func (r ApiCreateAgentMCPConfigRequest) CreateAgentModelConfigRequest(createAgentModelConfigRequest CreateAgentModelConfigRequest) ApiCreateAgentMCPConfigRequest {
-	r.createAgentModelConfigRequest = &createAgentModelConfigRequest
+// Handle of the project the agent belongs to.
+func (r ApiCreateAgentMCPConfigRequest) Project(project string) ApiCreateAgentMCPConfigRequest {
+	r.project = &project
 	return r
 }
 
-func (r ApiCreateAgentMCPConfigRequest) Execute() (*AgentModelConfigResponse, *http.Response, error) {
+func (r ApiCreateAgentMCPConfigRequest) AgentMcpConfigDocument(agentMcpConfigDocument AgentMcpConfigDocument) ApiCreateAgentMCPConfigRequest {
+	r.agentMcpConfigDocument = &agentMcpConfigDocument
+	return r
+}
+
+func (r ApiCreateAgentMCPConfigRequest) Execute() (*AgentMcpConfigDocument, *http.Response, error) {
 	return r.ApiService.CreateAgentMCPConfigExecute(r)
 }
 
 /*
 CreateAgentMCPConfig Create agent MCP configuration
 
-Creates a new MCP configuration for an agent with environment-specific MCP proxy mappings
+Creates an MCP configuration for an agent in the default environment. The project is metadata.project.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiCreateAgentMCPConfigRequest
 */
-func (a *DefaultAPIService) CreateAgentMCPConfig(ctx context.Context, orgName string, projName string, agentName string) ApiCreateAgentMCPConfigRequest {
+func (a *DefaultAPIService) CreateAgentMCPConfig(ctx context.Context, agentName string) ApiCreateAgentMCPConfigRequest {
 	return ApiCreateAgentMCPConfigRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return AgentModelConfigResponse
-func (a *DefaultAPIService) CreateAgentMCPConfigExecute(r ApiCreateAgentMCPConfigRequest) (*AgentModelConfigResponse, *http.Response, error) {
+//	@return AgentMcpConfigDocument
+func (a *DefaultAPIService) CreateAgentMCPConfigExecute(r ApiCreateAgentMCPConfigRequest) (*AgentMcpConfigDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentModelConfigResponse
+		localVarReturnValue *AgentMcpConfigDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.CreateAgentMCPConfig")
@@ -77,18 +78,20 @@ func (a *DefaultAPIService) CreateAgentMCPConfigExecute(r ApiCreateAgentMCPConfi
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/mcp-configs"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.createAgentModelConfigRequest == nil {
-		return localVarReturnValue, nil, reportError("createAgentModelConfigRequest is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
+	if r.agentMcpConfigDocument == nil {
+		return localVarReturnValue, nil, reportError("agentMcpConfigDocument is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -107,7 +110,7 @@ func (a *DefaultAPIService) CreateAgentMCPConfigExecute(r ApiCreateAgentMCPConfi
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.createAgentModelConfigRequest
+	localVarPostBody = r.agentMcpConfigDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -200,53 +203,54 @@ func (a *DefaultAPIService) CreateAgentMCPConfigExecute(r ApiCreateAgentMCPConfi
 }
 
 type ApiCreateAgentModelConfigRequest struct {
-	ctx                           context.Context
-	ApiService                    *DefaultAPIService
-	orgName                       string
-	projName                      string
-	agentName                     string
-	createAgentModelConfigRequest *CreateAgentModelConfigRequest
+	ctx                      context.Context
+	ApiService               *DefaultAPIService
+	agentName                string
+	project                  *string
+	agentModelConfigDocument *AgentModelConfigDocument
 }
 
-func (r ApiCreateAgentModelConfigRequest) CreateAgentModelConfigRequest(createAgentModelConfigRequest CreateAgentModelConfigRequest) ApiCreateAgentModelConfigRequest {
-	r.createAgentModelConfigRequest = &createAgentModelConfigRequest
+// Handle of the project the agent belongs to.
+func (r ApiCreateAgentModelConfigRequest) Project(project string) ApiCreateAgentModelConfigRequest {
+	r.project = &project
 	return r
 }
 
-func (r ApiCreateAgentModelConfigRequest) Execute() (*AgentModelConfigResponse, *http.Response, error) {
+func (r ApiCreateAgentModelConfigRequest) AgentModelConfigDocument(agentModelConfigDocument AgentModelConfigDocument) ApiCreateAgentModelConfigRequest {
+	r.agentModelConfigDocument = &agentModelConfigDocument
+	return r
+}
+
+func (r ApiCreateAgentModelConfigRequest) Execute() (*AgentModelConfigDocument, *http.Response, error) {
 	return r.ApiService.CreateAgentModelConfigExecute(r)
 }
 
 /*
 CreateAgentModelConfig Create agent model configuration
 
-Creates a new model configuration for an agent with environment-specific mappings
+Creates a model configuration for an agent in the default environment. The project is metadata.project.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiCreateAgentModelConfigRequest
 */
-func (a *DefaultAPIService) CreateAgentModelConfig(ctx context.Context, orgName string, projName string, agentName string) ApiCreateAgentModelConfigRequest {
+func (a *DefaultAPIService) CreateAgentModelConfig(ctx context.Context, agentName string) ApiCreateAgentModelConfigRequest {
 	return ApiCreateAgentModelConfigRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return AgentModelConfigResponse
-func (a *DefaultAPIService) CreateAgentModelConfigExecute(r ApiCreateAgentModelConfigRequest) (*AgentModelConfigResponse, *http.Response, error) {
+//	@return AgentModelConfigDocument
+func (a *DefaultAPIService) CreateAgentModelConfigExecute(r ApiCreateAgentModelConfigRequest) (*AgentModelConfigDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentModelConfigResponse
+		localVarReturnValue *AgentModelConfigDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.CreateAgentModelConfig")
@@ -254,18 +258,20 @@ func (a *DefaultAPIService) CreateAgentModelConfigExecute(r ApiCreateAgentModelC
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/model-configs"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.createAgentModelConfigRequest == nil {
-		return localVarReturnValue, nil, reportError("createAgentModelConfigRequest is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
+	if r.agentModelConfigDocument == nil {
+		return localVarReturnValue, nil, reportError("agentModelConfigDocument is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -284,7 +290,7 @@ func (a *DefaultAPIService) CreateAgentModelConfigExecute(r ApiCreateAgentModelC
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.createAgentModelConfigRequest
+	localVarPostBody = r.agentModelConfigDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -379,10 +385,15 @@ func (a *DefaultAPIService) CreateAgentModelConfigExecute(r ApiCreateAgentModelC
 type ApiDeleteAgentMCPConfigRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	configId   string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiDeleteAgentMCPConfigRequest) Project(project string) ApiDeleteAgentMCPConfigRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiDeleteAgentMCPConfigRequest) Execute() (*http.Response, error) {
@@ -395,18 +406,14 @@ DeleteAgentMCPConfig Delete agent MCP configuration
 Deletes an MCP configuration
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Configuration UUID
 	@return ApiDeleteAgentMCPConfigRequest
 */
-func (a *DefaultAPIService) DeleteAgentMCPConfig(ctx context.Context, orgName string, projName string, agentName string, configId string) ApiDeleteAgentMCPConfigRequest {
+func (a *DefaultAPIService) DeleteAgentMCPConfig(ctx context.Context, agentName string, configId string) ApiDeleteAgentMCPConfigRequest {
 	return ApiDeleteAgentMCPConfigRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
 	}
@@ -425,16 +432,18 @@ func (a *DefaultAPIService) DeleteAgentMCPConfigExecute(r ApiDeleteAgentMCPConfi
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/mcp-configs/{configId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -515,10 +524,15 @@ func (a *DefaultAPIService) DeleteAgentMCPConfigExecute(r ApiDeleteAgentMCPConfi
 type ApiDeleteAgentModelConfigRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	configId   string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiDeleteAgentModelConfigRequest) Project(project string) ApiDeleteAgentModelConfigRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiDeleteAgentModelConfigRequest) Execute() (*http.Response, error) {
@@ -531,18 +545,14 @@ DeleteAgentModelConfig Delete agent model configuration
 Deletes a model configuration
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Configuration UUID
 	@return ApiDeleteAgentModelConfigRequest
 */
-func (a *DefaultAPIService) DeleteAgentModelConfig(ctx context.Context, orgName string, projName string, agentName string, configId string) ApiDeleteAgentModelConfigRequest {
+func (a *DefaultAPIService) DeleteAgentModelConfig(ctx context.Context, agentName string, configId string) ApiDeleteAgentModelConfigRequest {
 	return ApiDeleteAgentModelConfigRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
 	}
@@ -561,16 +571,18 @@ func (a *DefaultAPIService) DeleteAgentModelConfigExecute(r ApiDeleteAgentModelC
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/model-configs/{configId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -649,17 +661,15 @@ func (a *DefaultAPIService) DeleteAgentModelConfigExecute(r ApiDeleteAgentModelC
 }
 
 type ApiGetAgentConfigurationsRequest struct {
-	ctx         context.Context
-	ApiService  *DefaultAPIService
-	agentName   string
-	orgName     string
-	projName    string
-	environment *string
+	ctx        context.Context
+	ApiService *DefaultAPIService
+	agentName  string
+	project    *string
 }
 
-// Environment name
-func (r ApiGetAgentConfigurationsRequest) Environment(environment string) ApiGetAgentConfigurationsRequest {
-	r.environment = &environment
+// Handle of the project the agent belongs to.
+func (r ApiGetAgentConfigurationsRequest) Project(project string) ApiGetAgentConfigurationsRequest {
+	r.project = &project
 	return r
 }
 
@@ -668,23 +678,19 @@ func (r ApiGetAgentConfigurationsRequest) Execute() (*AgentConfigurationResponse
 }
 
 /*
-GetAgentConfigurations Get agent configurations for a specific environment
+GetAgentConfigurations Get agent configurations
 
-The agent's gateway settings in an environment, and the provisioning state of the LLM providers and MCP proxies it asked for in its extensions.ai-gateway block (see AgentGatewayExtension)
+The agent's gateway settings in the default environment, and the provisioning state of the LLM providers and MCP proxies it asked for in its extensions.ai-gateway block (see AgentGatewayExtension)
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName Unique name of the agent
-	@param orgName Organization name
-	@param projName Project name
 	@return ApiGetAgentConfigurationsRequest
 */
-func (a *DefaultAPIService) GetAgentConfigurations(ctx context.Context, agentName string, orgName string, projName string) ApiGetAgentConfigurationsRequest {
+func (a *DefaultAPIService) GetAgentConfigurations(ctx context.Context, agentName string) ApiGetAgentConfigurationsRequest {
 	return ApiGetAgentConfigurationsRequest{
 		ApiService: a,
 		ctx:        ctx,
 		agentName:  agentName,
-		orgName:    orgName,
-		projName:   projName,
 	}
 }
 
@@ -704,19 +710,17 @@ func (a *DefaultAPIService) GetAgentConfigurationsExecute(r ApiGetAgentConfigura
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations"
+	localVarPath := localBasePath + "/agents/{agentName}/configurations"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.environment == nil {
-		return localVarReturnValue, nil, reportError("environment is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
 	}
 
-	parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -795,13 +799,18 @@ func (a *DefaultAPIService) GetAgentConfigurationsExecute(r ApiGetAgentConfigura
 type ApiGetAgentMCPConfigRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	configId   string
 }
 
-func (r ApiGetAgentMCPConfigRequest) Execute() (*AgentModelConfigResponse, *http.Response, error) {
+// Handle of the project the agent belongs to.
+func (r ApiGetAgentMCPConfigRequest) Project(project string) ApiGetAgentMCPConfigRequest {
+	r.project = &project
+	return r
+}
+
+func (r ApiGetAgentMCPConfigRequest) Execute() (*AgentMcpConfigDocument, *http.Response, error) {
 	return r.ApiService.GetAgentMCPConfigExecute(r)
 }
 
@@ -811,18 +820,14 @@ GetAgentMCPConfig Get agent MCP configuration
 Retrieves a specific MCP configuration by ID
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Configuration UUID
 	@return ApiGetAgentMCPConfigRequest
 */
-func (a *DefaultAPIService) GetAgentMCPConfig(ctx context.Context, orgName string, projName string, agentName string, configId string) ApiGetAgentMCPConfigRequest {
+func (a *DefaultAPIService) GetAgentMCPConfig(ctx context.Context, agentName string, configId string) ApiGetAgentMCPConfigRequest {
 	return ApiGetAgentMCPConfigRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
 	}
@@ -830,13 +835,13 @@ func (a *DefaultAPIService) GetAgentMCPConfig(ctx context.Context, orgName strin
 
 // Execute executes the request
 //
-//	@return AgentModelConfigResponse
-func (a *DefaultAPIService) GetAgentMCPConfigExecute(r ApiGetAgentMCPConfigRequest) (*AgentModelConfigResponse, *http.Response, error) {
+//	@return AgentMcpConfigDocument
+func (a *DefaultAPIService) GetAgentMCPConfigExecute(r ApiGetAgentMCPConfigRequest) (*AgentMcpConfigDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentModelConfigResponse
+		localVarReturnValue *AgentMcpConfigDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.GetAgentMCPConfig")
@@ -844,16 +849,18 @@ func (a *DefaultAPIService) GetAgentMCPConfigExecute(r ApiGetAgentMCPConfigReque
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/mcp-configs/{configId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -943,13 +950,18 @@ func (a *DefaultAPIService) GetAgentMCPConfigExecute(r ApiGetAgentMCPConfigReque
 type ApiGetAgentModelConfigRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	configId   string
 }
 
-func (r ApiGetAgentModelConfigRequest) Execute() (*AgentModelConfigResponse, *http.Response, error) {
+// Handle of the project the agent belongs to.
+func (r ApiGetAgentModelConfigRequest) Project(project string) ApiGetAgentModelConfigRequest {
+	r.project = &project
+	return r
+}
+
+func (r ApiGetAgentModelConfigRequest) Execute() (*AgentModelConfigDocument, *http.Response, error) {
 	return r.ApiService.GetAgentModelConfigExecute(r)
 }
 
@@ -959,18 +971,14 @@ GetAgentModelConfig Get agent model configuration
 Retrieves a specific model configuration by ID
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Configuration UUID
 	@return ApiGetAgentModelConfigRequest
 */
-func (a *DefaultAPIService) GetAgentModelConfig(ctx context.Context, orgName string, projName string, agentName string, configId string) ApiGetAgentModelConfigRequest {
+func (a *DefaultAPIService) GetAgentModelConfig(ctx context.Context, agentName string, configId string) ApiGetAgentModelConfigRequest {
 	return ApiGetAgentModelConfigRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
 	}
@@ -978,13 +986,13 @@ func (a *DefaultAPIService) GetAgentModelConfig(ctx context.Context, orgName str
 
 // Execute executes the request
 //
-//	@return AgentModelConfigResponse
-func (a *DefaultAPIService) GetAgentModelConfigExecute(r ApiGetAgentModelConfigRequest) (*AgentModelConfigResponse, *http.Response, error) {
+//	@return AgentModelConfigDocument
+func (a *DefaultAPIService) GetAgentModelConfigExecute(r ApiGetAgentModelConfigRequest) (*AgentModelConfigDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentModelConfigResponse
+		localVarReturnValue *AgentModelConfigDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.GetAgentModelConfig")
@@ -992,16 +1000,18 @@ func (a *DefaultAPIService) GetAgentModelConfigExecute(r ApiGetAgentModelConfigR
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/model-configs/{configId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -1092,8 +1102,13 @@ type ApiListAgentDeploymentsRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
 	agentName  string
-	orgName    string
-	projName   string
+	project    *string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiListAgentDeploymentsRequest) Project(project string) ApiListAgentDeploymentsRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiListAgentDeploymentsRequest) Execute() (*map[string]DeploymentDetailsResponse, *http.Response, error) {
@@ -1107,17 +1122,13 @@ Retrieves detailed deployment information for a specific agent across all enviro
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName Unique name of the agent
-	@param orgName Organization name
-	@param projName Project name
 	@return ApiListAgentDeploymentsRequest
 */
-func (a *DefaultAPIService) ListAgentDeployments(ctx context.Context, agentName string, orgName string, projName string) ApiListAgentDeploymentsRequest {
+func (a *DefaultAPIService) ListAgentDeployments(ctx context.Context, agentName string) ApiListAgentDeploymentsRequest {
 	return ApiListAgentDeploymentsRequest{
 		ApiService: a,
 		ctx:        ctx,
 		agentName:  agentName,
-		orgName:    orgName,
-		projName:   projName,
 	}
 }
 
@@ -1137,15 +1148,17 @@ func (a *DefaultAPIService) ListAgentDeploymentsExecute(r ApiListAgentDeployment
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments"
+	localVarPath := localBasePath + "/agents/{agentName}/deployments"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -1224,11 +1237,16 @@ func (a *DefaultAPIService) ListAgentDeploymentsExecute(r ApiListAgentDeployment
 type ApiListAgentMCPConfigsRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	limit      *int32
 	offset     *int32
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiListAgentMCPConfigsRequest) Project(project string) ApiListAgentMCPConfigsRequest {
+	r.project = &project
+	return r
 }
 
 // Maximum number of results to return
@@ -1243,7 +1261,7 @@ func (r ApiListAgentMCPConfigsRequest) Offset(offset int32) ApiListAgentMCPConfi
 	return r
 }
 
-func (r ApiListAgentMCPConfigsRequest) Execute() (*AgentModelConfigListResponse, *http.Response, error) {
+func (r ApiListAgentMCPConfigsRequest) Execute() (*AgentMcpConfigListResponse, *http.Response, error) {
 	return r.ApiService.ListAgentMCPConfigsExecute(r)
 }
 
@@ -1253,30 +1271,26 @@ ListAgentMCPConfigs List agent MCP configurations
 Lists all MCP configurations for an agent with pagination
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiListAgentMCPConfigsRequest
 */
-func (a *DefaultAPIService) ListAgentMCPConfigs(ctx context.Context, orgName string, projName string, agentName string) ApiListAgentMCPConfigsRequest {
+func (a *DefaultAPIService) ListAgentMCPConfigs(ctx context.Context, agentName string) ApiListAgentMCPConfigsRequest {
 	return ApiListAgentMCPConfigsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return AgentModelConfigListResponse
-func (a *DefaultAPIService) ListAgentMCPConfigsExecute(r ApiListAgentMCPConfigsRequest) (*AgentModelConfigListResponse, *http.Response, error) {
+//	@return AgentMcpConfigListResponse
+func (a *DefaultAPIService) ListAgentMCPConfigsExecute(r ApiListAgentMCPConfigsRequest) (*AgentMcpConfigListResponse, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentModelConfigListResponse
+		localVarReturnValue *AgentMcpConfigListResponse
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ListAgentMCPConfigs")
@@ -1284,15 +1298,17 @@ func (a *DefaultAPIService) ListAgentMCPConfigsExecute(r ApiListAgentMCPConfigsR
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/mcp-configs"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	if r.limit != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
 	}
@@ -1366,11 +1382,16 @@ func (a *DefaultAPIService) ListAgentMCPConfigsExecute(r ApiListAgentMCPConfigsR
 type ApiListAgentModelConfigsRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
-	orgName    string
-	projName   string
 	agentName  string
+	project    *string
 	limit      *int32
 	offset     *int32
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiListAgentModelConfigsRequest) Project(project string) ApiListAgentModelConfigsRequest {
+	r.project = &project
+	return r
 }
 
 // Maximum number of results to return
@@ -1395,17 +1416,13 @@ ListAgentModelConfigs List agent model configurations
 Lists all model configurations for an agent with pagination
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@return ApiListAgentModelConfigsRequest
 */
-func (a *DefaultAPIService) ListAgentModelConfigs(ctx context.Context, orgName string, projName string, agentName string) ApiListAgentModelConfigsRequest {
+func (a *DefaultAPIService) ListAgentModelConfigs(ctx context.Context, agentName string) ApiListAgentModelConfigsRequest {
 	return ApiListAgentModelConfigsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 	}
 }
@@ -1426,15 +1443,17 @@ func (a *DefaultAPIService) ListAgentModelConfigsExecute(r ApiListAgentModelConf
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/model-configs"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	if r.limit != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
 	}
@@ -1509,9 +1528,14 @@ type ApiUpdateAgentDeploySettingsRequest struct {
 	ctx                              context.Context
 	ApiService                       *DefaultAPIService
 	agentName                        string
-	orgName                          string
-	projName                         string
+	project                          *string
 	updateAgentDeploySettingsRequest *UpdateAgentDeploySettingsRequest
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiUpdateAgentDeploySettingsRequest) Project(project string) ApiUpdateAgentDeploySettingsRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiUpdateAgentDeploySettingsRequest) UpdateAgentDeploySettingsRequest(updateAgentDeploySettingsRequest UpdateAgentDeploySettingsRequest) ApiUpdateAgentDeploySettingsRequest {
@@ -1524,7 +1548,7 @@ func (r ApiUpdateAgentDeploySettingsRequest) Execute() (*http.Response, error) {
 }
 
 /*
-UpdateAgentDeploySettings Update agent deploy settings for an environment
+UpdateAgentDeploySettings Update agent deploy settings
 
 Updates per-environment deploy settings (CORS, API key security, auto
 instrumentation) on the agent's release binding without redeploying or
@@ -1534,17 +1558,13 @@ request retains its current value.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param agentName Unique name of the agent
-	@param orgName Organization name
-	@param projName Project name
 	@return ApiUpdateAgentDeploySettingsRequest
 */
-func (a *DefaultAPIService) UpdateAgentDeploySettings(ctx context.Context, agentName string, orgName string, projName string) ApiUpdateAgentDeploySettingsRequest {
+func (a *DefaultAPIService) UpdateAgentDeploySettings(ctx context.Context, agentName string) ApiUpdateAgentDeploySettingsRequest {
 	return ApiUpdateAgentDeploySettingsRequest{
 		ApiService: a,
 		ctx:        ctx,
 		agentName:  agentName,
-		orgName:    orgName,
-		projName:   projName,
 	}
 }
 
@@ -1561,18 +1581,20 @@ func (a *DefaultAPIService) UpdateAgentDeploySettingsExecute(r ApiUpdateAgentDep
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings"
+	localVarPath := localBasePath + "/agents/{agentName}/deploy-settings"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 	if r.updateAgentDeploySettingsRequest == nil {
 		return nil, reportError("updateAgentDeploySettingsRequest is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -1653,42 +1675,43 @@ func (a *DefaultAPIService) UpdateAgentDeploySettingsExecute(r ApiUpdateAgentDep
 }
 
 type ApiUpdateAgentMCPConfigRequest struct {
-	ctx                           context.Context
-	ApiService                    *DefaultAPIService
-	orgName                       string
-	projName                      string
-	agentName                     string
-	configId                      string
-	updateAgentModelConfigRequest *UpdateAgentModelConfigRequest
+	ctx                    context.Context
+	ApiService             *DefaultAPIService
+	agentName              string
+	project                *string
+	configId               string
+	agentMcpConfigDocument *AgentMcpConfigDocument
 }
 
-func (r ApiUpdateAgentMCPConfigRequest) UpdateAgentModelConfigRequest(updateAgentModelConfigRequest UpdateAgentModelConfigRequest) ApiUpdateAgentMCPConfigRequest {
-	r.updateAgentModelConfigRequest = &updateAgentModelConfigRequest
+// Handle of the project the agent belongs to.
+func (r ApiUpdateAgentMCPConfigRequest) Project(project string) ApiUpdateAgentMCPConfigRequest {
+	r.project = &project
 	return r
 }
 
-func (r ApiUpdateAgentMCPConfigRequest) Execute() (*AgentModelConfigResponse, *http.Response, error) {
+func (r ApiUpdateAgentMCPConfigRequest) AgentMcpConfigDocument(agentMcpConfigDocument AgentMcpConfigDocument) ApiUpdateAgentMCPConfigRequest {
+	r.agentMcpConfigDocument = &agentMcpConfigDocument
+	return r
+}
+
+func (r ApiUpdateAgentMCPConfigRequest) Execute() (*AgentMcpConfigDocument, *http.Response, error) {
 	return r.ApiService.UpdateAgentMCPConfigExecute(r)
 }
 
 /*
 UpdateAgentMCPConfig Update agent MCP configuration
 
-Updates an existing MCP configuration
+Updates an existing MCP configuration. metadata.project must name the project in the query; a changed metadata.name renames it. An absent spec.description, spec.configuration or spec.environmentVariables keeps its stored value.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Configuration UUID
 	@return ApiUpdateAgentMCPConfigRequest
 */
-func (a *DefaultAPIService) UpdateAgentMCPConfig(ctx context.Context, orgName string, projName string, agentName string, configId string) ApiUpdateAgentMCPConfigRequest {
+func (a *DefaultAPIService) UpdateAgentMCPConfig(ctx context.Context, agentName string, configId string) ApiUpdateAgentMCPConfigRequest {
 	return ApiUpdateAgentMCPConfigRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
 	}
@@ -1696,13 +1719,13 @@ func (a *DefaultAPIService) UpdateAgentMCPConfig(ctx context.Context, orgName st
 
 // Execute executes the request
 //
-//	@return AgentModelConfigResponse
-func (a *DefaultAPIService) UpdateAgentMCPConfigExecute(r ApiUpdateAgentMCPConfigRequest) (*AgentModelConfigResponse, *http.Response, error) {
+//	@return AgentMcpConfigDocument
+func (a *DefaultAPIService) UpdateAgentMCPConfigExecute(r ApiUpdateAgentMCPConfigRequest) (*AgentMcpConfigDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPut
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentModelConfigResponse
+		localVarReturnValue *AgentMcpConfigDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.UpdateAgentMCPConfig")
@@ -1710,19 +1733,21 @@ func (a *DefaultAPIService) UpdateAgentMCPConfigExecute(r ApiUpdateAgentMCPConfi
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/mcp-configs/{configId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.updateAgentModelConfigRequest == nil {
-		return localVarReturnValue, nil, reportError("updateAgentModelConfigRequest is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
+	if r.agentMcpConfigDocument == nil {
+		return localVarReturnValue, nil, reportError("agentMcpConfigDocument is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -1741,7 +1766,7 @@ func (a *DefaultAPIService) UpdateAgentMCPConfigExecute(r ApiUpdateAgentMCPConfi
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.updateAgentModelConfigRequest
+	localVarPostBody = r.agentMcpConfigDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -1812,42 +1837,43 @@ func (a *DefaultAPIService) UpdateAgentMCPConfigExecute(r ApiUpdateAgentMCPConfi
 }
 
 type ApiUpdateAgentModelConfigRequest struct {
-	ctx                           context.Context
-	ApiService                    *DefaultAPIService
-	orgName                       string
-	projName                      string
-	agentName                     string
-	configId                      string
-	updateAgentModelConfigRequest *UpdateAgentModelConfigRequest
+	ctx                      context.Context
+	ApiService               *DefaultAPIService
+	agentName                string
+	project                  *string
+	configId                 string
+	agentModelConfigDocument *AgentModelConfigDocument
 }
 
-func (r ApiUpdateAgentModelConfigRequest) UpdateAgentModelConfigRequest(updateAgentModelConfigRequest UpdateAgentModelConfigRequest) ApiUpdateAgentModelConfigRequest {
-	r.updateAgentModelConfigRequest = &updateAgentModelConfigRequest
+// Handle of the project the agent belongs to.
+func (r ApiUpdateAgentModelConfigRequest) Project(project string) ApiUpdateAgentModelConfigRequest {
+	r.project = &project
 	return r
 }
 
-func (r ApiUpdateAgentModelConfigRequest) Execute() (*AgentModelConfigResponse, *http.Response, error) {
+func (r ApiUpdateAgentModelConfigRequest) AgentModelConfigDocument(agentModelConfigDocument AgentModelConfigDocument) ApiUpdateAgentModelConfigRequest {
+	r.agentModelConfigDocument = &agentModelConfigDocument
+	return r
+}
+
+func (r ApiUpdateAgentModelConfigRequest) Execute() (*AgentModelConfigDocument, *http.Response, error) {
 	return r.ApiService.UpdateAgentModelConfigExecute(r)
 }
 
 /*
 UpdateAgentModelConfig Update agent model configuration
 
-Updates an existing model configuration
+Updates an existing model configuration. metadata.project must name the project in the query; a changed metadata.name renames it. An absent spec.description, spec.configuration or spec.environmentVariables keeps its stored value.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
-	@param projName Project name
 	@param agentName Agent name
 	@param configId Configuration UUID
 	@return ApiUpdateAgentModelConfigRequest
 */
-func (a *DefaultAPIService) UpdateAgentModelConfig(ctx context.Context, orgName string, projName string, agentName string, configId string) ApiUpdateAgentModelConfigRequest {
+func (a *DefaultAPIService) UpdateAgentModelConfig(ctx context.Context, agentName string, configId string) ApiUpdateAgentModelConfigRequest {
 	return ApiUpdateAgentModelConfigRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
 		configId:   configId,
 	}
@@ -1855,13 +1881,13 @@ func (a *DefaultAPIService) UpdateAgentModelConfig(ctx context.Context, orgName 
 
 // Execute executes the request
 //
-//	@return AgentModelConfigResponse
-func (a *DefaultAPIService) UpdateAgentModelConfigExecute(r ApiUpdateAgentModelConfigRequest) (*AgentModelConfigResponse, *http.Response, error) {
+//	@return AgentModelConfigDocument
+func (a *DefaultAPIService) UpdateAgentModelConfigExecute(r ApiUpdateAgentModelConfigRequest) (*AgentModelConfigDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPut
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *AgentModelConfigResponse
+		localVarReturnValue *AgentModelConfigDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.UpdateAgentModelConfig")
@@ -1869,19 +1895,21 @@ func (a *DefaultAPIService) UpdateAgentModelConfigExecute(r ApiUpdateAgentModelC
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/model-configs/{configId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"configId"+"}", url.PathEscape(parameterValueToString(r.configId, "configId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.updateAgentModelConfigRequest == nil {
-		return localVarReturnValue, nil, reportError("updateAgentModelConfigRequest is required and must be specified")
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
+	if r.agentModelConfigDocument == nil {
+		return localVarReturnValue, nil, reportError("agentModelConfigDocument is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -1900,7 +1928,7 @@ func (a *DefaultAPIService) UpdateAgentModelConfigExecute(r ApiUpdateAgentModelC
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.updateAgentModelConfigRequest
+	localVarPostBody = r.agentModelConfigDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err

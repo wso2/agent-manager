@@ -14,6 +14,8 @@ CREATE TABLE mod_ai_hub_subscription_plans (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     source_changed_at TIMESTAMPTZ,
+    origin VARCHAR(255) NOT NULL,
+    deprecated_at TIMESTAMPTZ,
     CONSTRAINT pk_mod_ai_hub_subscription_plans PRIMARY KEY (id),
     CONSTRAINT uq_mod_ai_hub_subscription_plans_org_id_handle UNIQUE (org_id, handle),
     CONSTRAINT uq_mod_ai_hub_subscription_plans_org_id_id UNIQUE (org_id, id)

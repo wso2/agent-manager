@@ -57,13 +57,13 @@ Never call `fetch`/TanStack Query directly from a component. Split into a pure f
 ```ts
 import { httpGET, SERVICE_BASE } from "../../shared/utils";
 
-export async function listAgents(params, query, getToken) {
-  const { orgName = "default", projName = "default" } = params;
+export async function listAgentDocuments(params, query, getToken) {
+  const { projName } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents`,
-    { searchParams: /* stringified query */, token },
-  );
+  const res = await httpGET(`${SERVICE_BASE}/agents`, {
+    searchParams: { ...query, project: projName } /* stringified */,
+    token,
+  });
   if (!res.ok) throw await res.json();
   return res.json();
 }

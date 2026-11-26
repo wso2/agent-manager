@@ -469,7 +469,7 @@ Organizations are not deleted in Lite.
 
 The `ai-hub` module (`modules/aihub`) creates its four tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` and `002_subscriptions.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
 
-**mod_ai_hub_subscription_plans**: one row per plan of an organization.
+**mod_ai_hub_subscription_plans**: one row per plan of an organization. A plan is never deleted, only deprecated (`deprecated_at`).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -484,6 +484,8 @@ The `ai-hub` module (`modules/aihub`) creates its four tables with its own migra
 | created_by, updated_by | short text (255) | yes | Empty for plans copied in by the webhook |
 | created_at, updated_at | time | no | A plan copied in by the webhook is dated when it was made at its source. |
 | source_changed_at | time | yes | When the plan last changed at the developer portal it was copied from, by the portal's clock; a webhook delivery of an earlier change changes nothing. Null for a plan made here. |
+| origin | short text (255) | no | Where the plan was made: `ai-control-plane`, or the name of the developer portal that copied it in (`webhook_source_name`, `developer-portal` by default) |
+| deprecated_at | time | yes | When the plan was deprecated (by the portal's clock for a deletion there). A deprecated plan is kept, read only, for the subscriptions on it. Null while it is current. |
 
 Unique (org_id, handle) and (org_id, id).
 
@@ -499,7 +501,7 @@ Unique (org_id, handle) and (org_id, id).
 
 PK (plan_id, condition_id).
 
-**mod_ai_hub_deleted_plans**: plans deleted at the developer portal they were copied from, kept for 30 days, so a create or update made before the deletion and delivered after it doesn't bring the plan back.
+**mod_ai_hub_deleted_plans**: plans deleted at the developer portal they were copied from, kept for 30 days, so a creation made before the deletion and delivered after it doesn't bring back a plan this side never had. (A plan that is here is deprecated instead.)
 
 | Column | Type | Null | Notes |
 |---|---|---|---|

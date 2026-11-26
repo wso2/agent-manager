@@ -24,17 +24,17 @@ import (
 // registerAgentGatewayRoutes registers the agent and environment routes that
 // only exist with a gateway.
 func registerAgentGatewayRoutes(rr Router, ctrl *gwctl.AgentGatewayController, envCtrl *gwctl.EnvironmentGatewayController) {
-	// Both of these rewrite a running deployment's env vars, secret references
+	// Deploy settings rewrite a running deployment's env vars, secret references
 	// and file mounts, so they reach an environment the same way a deploy does
 	// and carry the same two axes: agent:update is the capability, and the tier
-	// is where it lands. The environment comes from the request body, so
+	// is where it lands. They apply to the default environment, and
 	// requireEnvTier in the service layer is what decides production; declaring
 	// the floor here is the early deny and the floor half of that check.
-	rr.HandleFuncWithValidationAndAllAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings",
-		rr.Track("amp.agent-development.update-agent", updateTargetDims("deploy-settings"), ctrl.UpdateAgentDeploySettings),
+	rr.HandleFuncWithValidationAndAllAuthz("PUT /agents/{agentName}/deploy-settings",
+		inProject(rr.Track("amp.agent-development.update-agent", updateTargetDims("deploy-settings"), ctrl.UpdateAgentDeploySettings)),
 		gwperm.AgentUpdate, gwperm.DeployNonProduction)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments", gwperm.AgentRead, ctrl.GetAgentDeployments)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations", gwperm.AgentRead, ctrl.GetAgentConfigurations)
+	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}/deployments", gwperm.AgentRead, inProject(ctrl.GetAgentDeployments))
+	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}/configurations", gwperm.AgentRead, inProject(ctrl.GetAgentConfigurations))
 	rr.HandleFuncWithValidationAndAnyAuthz("GET /orgs/{orgName}/environments/{envID}/gateways", envCtrl.GetEnvironmentGateways,
 		gwperm.EnvironmentRead, gwperm.Read)
 }

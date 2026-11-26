@@ -36,6 +36,11 @@ import (
 // WebSocket on every change (subscription.created, .updated, .deleted), and pulled for each MCP proxy they
 // hold when they connect (GET /api/internal/v1/apis/{apiId}/subscriptions). A gateway keeps the
 // subscription key hashed, and accepts it only on that MCP proxy (subscription-validation v2).
+//
+// The developer portal is where plans are subscribed to, so a plan reaches the gateways with its first
+// subscription, not when it is made or changed here: each created or updated subscription is preceded by its
+// plan (subscriptionPlan.created, which a gateway stores or replaces). Gateways pull only the plans that have
+// a subscription (GET /api/internal/v1/subscription-plans).
 
 // SubscriptionEvent is the payload of a subscription.created or subscription.updated gateway event.
 type SubscriptionEvent struct {
@@ -87,6 +92,9 @@ type SubscriptionArtifacts interface {
 	// DeployedArtifactIDs lists the IDs of the artifacts the proxy is deployed as; empty when the organization
 	// has no such proxy or it isn't deployed.
 	DeployedArtifactIDs(ctx context.Context, orgID, kind, handle string) ([]string, error)
+	// DeployedProxies lists the handles of the organization's MCP proxies that are deployed, as subscriptions
+	// name their artifact (subplanv1.ArtifactKindMCP).
+	DeployedProxies(ctx context.Context, orgID string) ([]string, error)
 	// ProxyOf finds the proxy a deployed artifact (or the proxy's own artifact) belongs to: its kind as
 	// subscriptions name it, and its handle. found is false for an artifact that takes no subscriptions.
 	ProxyOf(ctx context.Context, orgID, artifactID string) (kind, handle string, found bool, err error)
@@ -112,6 +120,17 @@ func (a subscriptionArtifacts) DeployedArtifactIDs(ctx context.Context, orgID, k
 		return nil, fmt.Errorf("list the deployments of %s: %w", handle, err)
 	}
 	return ids, nil
+}
+
+func (a subscriptionArtifacts) DeployedProxies(ctx context.Context, orgID string) ([]string, error) {
+	var handles []string
+	if err := a.db.WithContext(ctx).Raw(`SELECT DISTINCT a.handle FROM mod_ai_gateway_artifacts a `+
+		`JOIN mod_ai_gateway_mcp_proxy_endpoint_environments ee ON ee.mcp_proxy_id = a.id `+
+		`WHERE a.org_id = ? AND a.kind = ? ORDER BY a.handle`, orgID, gwmodels.KindMCPProxy).
+		Scan(&handles).Error; err != nil {
+		return nil, fmt.Errorf("list the deployed MCP proxies of organization %s: %w", orgID, err)
+	}
+	return handles, nil
 }
 
 func (a subscriptionArtifacts) ProxyOf(ctx context.Context, orgID, artifactID string) (string, string, bool, error) {
@@ -146,10 +165,11 @@ type SubscriptionGateways interface {
 
 // SubscriptionChangeHandler pushes a committed subscription change (the event the plans module names with
 // subplanv1.Source.SubscriptionChangeEvent) to the organization's gateways. A created or updated subscription
-// is read back from the module that owns it, so the gateways get its current plan, status and key. A
-// subscription to an artifact this module doesn't hold is not sent: no gateway serves it.
+// is read back from the module that owns it, so the gateways get its current plan, status and key, and its
+// plan is sent first (planGateways), as the plan has it now, so the gateway holds the plan the subscription
+// names. A subscription to an artifact this module doesn't hold is not sent: no gateway serves it.
 func SubscriptionChangeHandler(plans func() (subplanv1.Source, bool), artifacts SubscriptionArtifacts,
-	gateways SubscriptionGateways,
+	planGateways PlanGateways, gateways SubscriptionGateways,
 ) modkit.EventHandler {
 	return func(ctx context.Context, e modkit.Event) error {
 		var ch subplanv1.SubscriptionChange
@@ -185,6 +205,9 @@ func SubscriptionChangeHandler(plans func() (subplanv1.Source, bool), artifacts 
 				// Deleted since: its own deletion event follows.
 				return nil
 			}
+			if err := sendPlanOf(ctx, source, planGateways, orgID, sub); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("subscription change %q has an unknown action %q", ch.SubscriptionID, ch.Action)
 		}
@@ -198,6 +221,54 @@ func SubscriptionChangeHandler(plans func() (subplanv1.Source, bool), artifacts 
 		}
 		return errors.Join(errs...)
 	}
+}
+
+// sendPlanOf sends the subscription's plan to the organization's gateways, as subscriptionPlan.created: a
+// gateway stores it, or replaces the one it has. A plan that is gone is not sent; the subscription still is.
+func sendPlanOf(ctx context.Context, source subplanv1.Source, planGateways PlanGateways, orgID string,
+	sub subplanv1.Subscription,
+) error {
+	if sub.PlanID == "" {
+		return nil
+	}
+	p, found, err := source.GetPlan(ctx, orgID, sub.PlanID)
+	if err != nil {
+		return fmt.Errorf("reading plan %s of subscription %s: %w", sub.PlanID, sub.ID, err)
+	}
+	if !found {
+		slog.WarnContext(ctx, "The plan of a subscription is gone; the subscription is sent without it",
+			"orgId", orgID, "planId", sub.PlanID, "subscriptionId", sub.ID)
+		return nil
+	}
+	return planGateways.PlanChanged(ctx, orgID, subplanv1.Created, p)
+}
+
+// SubscribedPlans keeps the plans that a subscription to one of the organization's deployed MCP proxies is
+// on: the plans gateways pull. Subscriptions of every status count, since a gateway holds them all.
+func SubscribedPlans(ctx context.Context, source subplanv1.Source, artifacts SubscriptionArtifacts, orgID string,
+	plans []subplanv1.Plan,
+) ([]subplanv1.Plan, error) {
+	handles, err := artifacts.DeployedProxies(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	subscribed := map[string]bool{}
+	for _, handle := range handles {
+		subs, err := source.ListSubscriptions(ctx, orgID, subplanv1.ArtifactKindMCP, handle)
+		if err != nil {
+			return nil, fmt.Errorf("listing the subscriptions to %s: %w", handle, err)
+		}
+		for _, s := range subs {
+			subscribed[s.PlanID] = true
+		}
+	}
+	out := make([]subplanv1.Plan, 0, len(subscribed))
+	for _, p := range plans {
+		if subscribed[p.ID] {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 var _ SubscriptionGateways = (*SubscriptionPlanBroadcaster)(nil)

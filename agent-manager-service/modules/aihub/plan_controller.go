@@ -34,8 +34,9 @@ import (
 
 // The subscription plans API (GET/POST /subscription-plans, GET/PUT/DELETE
 // /subscription-plans/{subscriptionPlanId}), served by the module at /api/v1/m/ai-hub/subscription-plans.
-// Bodies, rules, status codes and error codes are the same, so the same console code works against both.
-// Differences: pricing (paid plans) is not supported, and usage counts MCP proxies and subscriptions only.
+// A plan is a document, as Kubernetes resources are: apiVersion, kind, metadata (name is the plan's handle),
+// spec (what the caller declares) and status (what the server observes, ignored on input). Bodies are JSON,
+// or YAML (plan_document.go). Pricing (paid plans) is not supported.
 
 const (
 	maxPlanBodyBytes = 128 << 10
@@ -73,8 +74,9 @@ type limitRequest struct {
 	StopOnQuotaReach *bool  `json:"stopOnQuotaReach,omitempty"`
 }
 
+// createRequest is a posted document's spec, with ID from metadata.name.
 type createRequest struct {
-	ID          string          `json:"id"`
+	ID          string          `json:"-"`
 	DisplayName string          `json:"displayName"`
 	Description string          `json:"description,omitempty"`
 	Conditions  json.RawMessage `json:"conditions,omitempty"`
@@ -84,8 +86,9 @@ type createRequest struct {
 	Pricing     json.RawMessage `json:"pricing,omitempty"`
 }
 
+// updateRequest is a PUT document's spec. Only displayName is required; an omitted field keeps the stored
+// value.
 type updateRequest struct {
-	ID          *string         `json:"id"`
 	DisplayName string          `json:"displayName"`
 	Description *string         `json:"description"`
 	Conditions  json.RawMessage `json:"conditions"`
@@ -95,79 +98,37 @@ type updateRequest struct {
 	Pricing     json.RawMessage `json:"pricing"`
 }
 
-type planResponse struct {
-	ID             string           `json:"id"`
-	DisplayName    string           `json:"displayName"`
-	Description    string           `json:"description"`
-	Conditions     []Condition      `json:"conditions"`
-	Limits         []map[string]any `json:"limits"`
-	ExpiryTime     *time.Time       `json:"expiryTime,omitempty"`
-	OrganizationID string           `json:"organizationId"`
-	Status         string           `json:"status"`
-	CreatedBy      string           `json:"createdBy"`
-	UpdatedBy      *string          `json:"updatedBy,omitempty"`
-	CreatedAt      time.Time        `json:"createdAt"`
-	UpdatedAt      time.Time        `json:"updatedAt"`
-	Usage          *usageResponse   `json:"usage,omitempty"`
-}
-
-// usageResponse says what offers or uses a plan. REST APIs, drafts and publications don't exist in Agent Manager
-// and are always 0.
-type usageResponse struct {
-	InUse         bool `json:"inUse"`
-	RestAPIs      int  `json:"restApis"`
-	MCPProxies    int  `json:"mcpProxies"`
-	Drafts        int  `json:"drafts"`
-	Publications  int  `json:"publications"`
-	Subscriptions int  `json:"subscriptions"`
-}
-
-type pagination struct {
-	Total  int `json:"total"`
-	Offset int `json:"offset"`
-	Limit  int `json:"limit"`
-}
-
-type listResponse struct {
-	List       []planResponse `json:"list"`
-	Count      int            `json:"count"`
-	Pagination pagination     `json:"pagination"`
-}
-
 // createPlan handles POST /subscription-plans.
 func (a *planController) createPlan(w http.ResponseWriter, r *http.Request) {
-	org, orgHandle, actor, ok := a.callerWithHandle(w, r)
+	org, actor, ok := a.writer(w, r)
 	if !ok {
 		return
 	}
-	body, ok := a.readBody(w, r)
+	name, spec, ok := a.readDocument(w, r)
 	if !ok {
 		return
 	}
 	var req createRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "Invalid request body")
+	if err := json.Unmarshal(spec, &req); err != nil {
+		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "Invalid spec")
 		return
 	}
+	req.ID = name
 	if len(req.Pricing) > 0 && string(req.Pricing) != "null" {
-		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "pricing is not supported: Agent Manager plans are free")
-		return
-	}
-	if req.ID == "" {
-		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "id is required")
+		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "spec.pricing is not supported: Agent Manager plans are free")
 		return
 	}
 	if utf8.RuneCountInString(req.ID) > maxHandleChars {
-		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "id must be at most 40 characters")
+		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "metadata.name must be at most 40 characters")
 		return
 	}
 	if !handlePattern.MatchString(req.ID) {
 		a.writeError(w, http.StatusBadRequest, codeValidationFailed,
-			"id must be lowercase letters, digits and hyphens, starting and ending with a letter or digit")
+			"metadata.name must be lowercase letters, digits and hyphens, starting and ending with a letter or digit")
 		return
 	}
 	if strings.TrimSpace(req.DisplayName) == "" {
-		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "displayName is required")
+		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "spec.displayName is required")
 		return
 	}
 	if req.Status != "" && req.Status != StatusActive && req.Status != StatusInactive {
@@ -214,12 +175,12 @@ func (a *planController) createPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Location", basePath+"/"+created.Handle)
-	a.writeJSON(w, http.StatusCreated, a.responseFor(orgHandle, created, true, nil))
+	a.writeDocument(w, r, http.StatusCreated, documentFor(created, nil))
 }
 
 // listPlans handles GET /subscription-plans?limit&offset&query&status.
 func (a *planController) listPlans(w http.ResponseWriter, r *http.Request) {
-	org, orgHandle, _, ok := a.callerWithHandle(w, r)
+	org, _, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -245,20 +206,20 @@ func (a *planController) listPlans(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, err)
 		return
 	}
-	items := make([]planResponse, 0, len(plans))
+	items := make([]planDocument, 0, len(plans))
 	for _, p := range plans {
-		items = append(items, a.responseFor(orgHandle, p, false, nil))
+		items = append(items, documentFor(p, nil))
 	}
-	a.writeJSON(w, http.StatusOK, listResponse{
+	a.writeDocument(w, r, http.StatusOK, listResponse{
 		List: items, Count: len(items),
 		Pagination: pagination{Total: total, Offset: opts.Offset, Limit: opts.Limit},
 	})
 }
 
 // getPlan handles GET /subscription-plans/{subscriptionPlanId}. Only this read carries usage, so a client can show
-// a delete, or a change of name or conditions, as refused before it is tried.
+// a change of name, conditions or expiry as refused before it is tried.
 func (a *planController) getPlan(w http.ResponseWriter, r *http.Request) {
-	org, orgHandle, _, ok := a.callerWithHandle(w, r)
+	org, _, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
@@ -272,36 +233,38 @@ func (a *planController) getPlan(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, err)
 		return
 	}
-	a.writeJSON(w, http.StatusOK, a.responseFor(orgHandle, p, true, &use))
+	a.writeDocument(w, r, http.StatusOK, documentFor(p, &use))
 }
 
-// updatePlan handles PUT /subscription-plans/{subscriptionPlanId}. displayName is required. An omitted
-// description, conditions, status or expiryTime keeps the stored value; "expiryTime": null clears the expiry.
+// updatePlan handles PUT /subscription-plans/{subscriptionPlanId}. metadata.name must be the plan's handle and
+// spec.displayName is required. An omitted description, conditions, status or expiryTime keeps the stored
+// value, so a document read with GET can be sent back as it is; "expiryTime": null clears the expiry.
 func (a *planController) updatePlan(w http.ResponseWriter, r *http.Request) {
-	org, orgHandle, actor, ok := a.callerWithHandle(w, r)
+	org, actor, ok := a.writer(w, r)
 	if !ok {
 		return
 	}
 	handle := r.PathValue("subscriptionPlanId")
-	body, ok := a.readBody(w, r)
+	name, spec, ok := a.readDocument(w, r)
 	if !ok {
 		return
 	}
+	if name != handle {
+		a.writeError(w, http.StatusBadRequest, codeValidationFailed,
+			"metadata.name must be the plan's handle, "+strconv.Quote(handle)+": it can't change")
+		return
+	}
 	var req updateRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "Invalid request body")
+	if err := json.Unmarshal(spec, &req); err != nil {
+		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "Invalid spec")
 		return
 	}
 	if req.Pricing != nil {
-		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "pricing is not supported: Agent Manager plans are free")
+		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "spec.pricing is not supported: Agent Manager plans are free")
 		return
 	}
-	if req.ID != nil && *req.ID != handle {
-		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "The plan id is immutable and cannot be changed")
-		return
-	}
-	if req.DisplayName == "" {
-		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "displayName is required")
+	if strings.TrimSpace(req.DisplayName) == "" {
+		a.writeError(w, http.StatusBadRequest, codeValidationFailed, "spec.displayName is required")
 		return
 	}
 	u := &planUpdate{Name: &req.DisplayName, Description: req.Description}
@@ -357,20 +320,23 @@ func (a *planController) updatePlan(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, err)
 		return
 	}
-	a.writeJSON(w, http.StatusOK, a.responseFor(orgHandle, updated, true, nil))
+	a.writeDocument(w, r, http.StatusOK, documentFor(updated, nil))
 }
 
-// deletePlan handles DELETE /subscription-plans/{subscriptionPlanId}.
-func (a *planController) deletePlan(w http.ResponseWriter, r *http.Request) {
+// deprecatePlan handles DELETE /subscription-plans/{subscriptionPlanId}: a plan is never removed, only deprecated
+// (a soft delete). It stays, read only, for the subscriptions on it, and the response is the deprecated plan.
+// Deprecating a deprecated plan changes nothing.
+func (a *planController) deprecatePlan(w http.ResponseWriter, r *http.Request) {
 	org, actor, ok := a.caller(w, r)
 	if !ok {
 		return
 	}
-	if err := a.plans.delete(r.Context(), org, r.PathValue("subscriptionPlanId"), actor); err != nil {
+	p, err := a.plans.deprecate(r.Context(), org, r.PathValue("subscriptionPlanId"), actor)
+	if err != nil {
 		a.fail(w, r, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	a.writeDocument(w, r, http.StatusOK, documentFor(p, nil))
 }
 
 // decodeConditions reads the "conditions" field. null or a non-array is refused.
@@ -436,71 +402,18 @@ func normalizeLimit(l *limitRequest) string {
 	return ""
 }
 
-// requestLimits returns the request-count windows in the old "limits" shape, for older clients.
-func requestLimits(p *plan) []map[string]any {
-	limits := []map[string]any{}
-	for _, c := range p.Conditions {
-		if c.Type != ConditionTypeRequestCount {
-			continue
-		}
-		var params Limits
-		if err := json.Unmarshal(c.Params, &params); err != nil {
-			return limits
-		}
-		for _, w := range params.Limits {
-			limits = append(limits, map[string]any{
-				"limitType": "REQUEST_COUNT", "timeUnit": w.TimeUnit, "timeAmount": w.TimeAmount,
-				"limitCount": w.Count, "stopOnQuotaReach": params.OnExceed != OnExceedAllow,
-			})
-		}
-		break
-	}
-	return limits
-}
-
-// responseFor builds a plan's response. updatedBy is only in single-plan responses; usage only in GET of one plan.
-func (a *planController) responseFor(orgHandle string, p *plan, detail bool, use *usage) planResponse {
-	resp := planResponse{
-		ID: p.Handle, DisplayName: p.Name, Description: p.Description, Conditions: p.Conditions,
-		Limits: requestLimits(p), ExpiryTime: p.ExpiryTime, OrganizationID: orgHandle, Status: p.Status,
-		CreatedBy: p.CreatedBy, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
-	}
-	if resp.Conditions == nil {
-		resp.Conditions = []Condition{}
-	}
-	if detail {
-		updatedBy := p.UpdatedBy
-		resp.UpdatedBy = &updatedBy
-	}
-	if use != nil {
-		resp.Usage = &usageResponse{InUse: use.inUse(), MCPProxies: use.MCPProxies, Subscriptions: use.Subscriptions}
-	}
-	return resp
-}
-
-// callerWithHandle is caller plus the organization's handle, which responses return as organizationId. It is
-// read before the plan is, so a failed lookup answers 500 before anything changes, never after a write
-// committed. A write makes sure the organization exists first, as the core's own write routes do; a read of
-// an organization that doesn't exist yet has no plans, and no handle.
-func (a *planController) callerWithHandle(w http.ResponseWriter, r *http.Request) (org, orgHandle, actor string, ok bool) {
+// writer is caller for a write, which makes sure the organization exists first, as the core's own write
+// routes do. It runs before the plan is read, so a failure answers 500 before anything changes.
+func (a *planController) writer(w http.ResponseWriter, r *http.Request) (org, actor string, ok bool) {
 	if org, actor, ok = a.caller(w, r); !ok {
-		return "", "", "", false
+		return "", "", false
 	}
-	var o modkit.Org
-	var err error
-	if r.Method == http.MethodGet {
-		if o, err = a.core().GetOrg(r.Context(), org); errors.Is(err, modkit.ErrNotFound) {
-			return org, "", actor, true
-		}
-	} else {
-		o, err = a.core().EnsureOrg(r.Context(), org)
-	}
-	if err != nil {
+	if _, err := a.core().EnsureOrg(r.Context(), org); err != nil {
 		a.log.ErrorContext(r.Context(), "could not read the caller's organization", "orgId", org, "error", err)
 		a.writeError(w, http.StatusInternalServerError, codeInternal, "Failed to read the organization")
-		return "", "", "", false
+		return "", "", false
 	}
-	return org, o.Handle, actor, true
+	return org, actor, true
 }
 
 // caller returns the organization and the acting user of a request. The core has signed the caller in
@@ -550,6 +463,8 @@ func (a *planController) fail(w http.ResponseWriter, r *http.Request, err error)
 		a.writeError(w, http.StatusNotFound, codePlanNotFound, "The specified subscription plan could not be found.")
 	case errors.Is(err, errPlanExists):
 		a.writeError(w, http.StatusConflict, codePlanExists, "A subscription plan with this name already exists.")
+	case errors.Is(err, errPlanDeprecated):
+		a.writeError(w, http.StatusConflict, codePlanDeprecated, "The subscription plan is deprecated and can't be changed.")
 	default:
 		tracking := uuid.NewString()
 		a.log.ErrorContext(r.Context(), "subscription plan request failed", "method", r.Method, "path", r.URL.Path,

@@ -25,11 +25,15 @@ type AgentAPIKeysAPIService service
 type ApiCreateAgentAPIKeyRequest struct {
 	ctx                    context.Context
 	ApiService             *AgentAPIKeysAPIService
-	orgName                string
-	projName               string
 	agentName              string
-	envID                  string
+	project                *string
 	createLLMAPIKeyRequest *CreateLLMAPIKeyRequest
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiCreateAgentAPIKeyRequest) Project(project string) ApiCreateAgentAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiCreateAgentAPIKeyRequest) CreateLLMAPIKeyRequest(createLLMAPIKeyRequest CreateLLMAPIKeyRequest) ApiCreateAgentAPIKeyRequest {
@@ -47,20 +51,14 @@ CreateAgentAPIKey Create an API key for an agent
 Generates a new API key for an agent and broadcasts it to all connected gateways. The key is returned only once in the response.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name or UUID
 	@return ApiCreateAgentAPIKeyRequest
 */
-func (a *AgentAPIKeysAPIService) CreateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiCreateAgentAPIKeyRequest {
+func (a *AgentAPIKeysAPIService) CreateAgentAPIKey(ctx context.Context, agentName string) ApiCreateAgentAPIKeyRequest {
 	return ApiCreateAgentAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -80,19 +78,20 @@ func (a *AgentAPIKeysAPIService) CreateAgentAPIKeyExecute(r ApiCreateAgentAPIKey
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/api-keys"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 	if r.createLLMAPIKeyRequest == nil {
 		return localVarReturnValue, nil, reportError("createLLMAPIKeyRequest is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 
@@ -206,10 +205,14 @@ func (a *AgentAPIKeysAPIService) CreateAgentAPIKeyExecute(r ApiCreateAgentAPIKey
 type ApiIssueTestAgentAPIKeyRequest struct {
 	ctx        context.Context
 	ApiService *AgentAPIKeysAPIService
-	orgName    string
-	projName   string
 	agentName  string
-	envID      string
+	project    *string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiIssueTestAgentAPIKeyRequest) Project(project string) ApiIssueTestAgentAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiIssueTestAgentAPIKeyRequest) Execute() (*IssueTestAPIKeyResponse, *http.Response, error) {
@@ -225,20 +228,14 @@ rotate the same logical key (fixed name `console-test`) rather than producing
 new rows. Test keys are excluded from the regular list endpoint.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName
-	@param projName
 	@param agentName
-	@param envID Environment name or UUID
 	@return ApiIssueTestAgentAPIKeyRequest
 */
-func (a *AgentAPIKeysAPIService) IssueTestAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiIssueTestAgentAPIKeyRequest {
+func (a *AgentAPIKeysAPIService) IssueTestAgentAPIKey(ctx context.Context, agentName string) ApiIssueTestAgentAPIKeyRequest {
 	return ApiIssueTestAgentAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -258,16 +255,17 @@ func (a *AgentAPIKeysAPIService) IssueTestAgentAPIKeyExecute(r ApiIssueTestAgent
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/api-keys/test"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -368,10 +366,14 @@ func (a *AgentAPIKeysAPIService) IssueTestAgentAPIKeyExecute(r ApiIssueTestAgent
 type ApiListAgentAPIKeysRequest struct {
 	ctx        context.Context
 	ApiService *AgentAPIKeysAPIService
-	orgName    string
-	projName   string
 	agentName  string
-	envID      string
+	project    *string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiListAgentAPIKeysRequest) Project(project string) ApiListAgentAPIKeysRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiListAgentAPIKeysRequest) Execute() ([]StoredAPIKey, *http.Response, error) {
@@ -384,20 +386,14 @@ ListAgentAPIKeys List API keys for an agent
 Returns the list of API keys for an agent (masked values only).
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name or UUID
 	@return ApiListAgentAPIKeysRequest
 */
-func (a *AgentAPIKeysAPIService) ListAgentAPIKeys(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiListAgentAPIKeysRequest {
+func (a *AgentAPIKeysAPIService) ListAgentAPIKeys(ctx context.Context, agentName string) ApiListAgentAPIKeysRequest {
 	return ApiListAgentAPIKeysRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -417,16 +413,17 @@ func (a *AgentAPIKeysAPIService) ListAgentAPIKeysExecute(r ApiListAgentAPIKeysRe
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/api-keys"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -516,11 +513,15 @@ func (a *AgentAPIKeysAPIService) ListAgentAPIKeysExecute(r ApiListAgentAPIKeysRe
 type ApiRevokeAgentAPIKeyRequest struct {
 	ctx        context.Context
 	ApiService *AgentAPIKeysAPIService
-	orgName    string
-	projName   string
 	agentName  string
-	envID      string
+	project    *string
 	keyName    string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiRevokeAgentAPIKeyRequest) Project(project string) ApiRevokeAgentAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRevokeAgentAPIKeyRequest) Execute() (*http.Response, error) {
@@ -533,21 +534,15 @@ RevokeAgentAPIKey Revoke an agent API key
 Revokes an API key for an agent and broadcasts the revocation to all connected gateways.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name or UUID
 	@param keyName API key name/identifier
 	@return ApiRevokeAgentAPIKeyRequest
 */
-func (a *AgentAPIKeysAPIService) RevokeAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string) ApiRevokeAgentAPIKeyRequest {
+func (a *AgentAPIKeysAPIService) RevokeAgentAPIKey(ctx context.Context, agentName string, keyName string) ApiRevokeAgentAPIKeyRequest {
 	return ApiRevokeAgentAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 		keyName:    keyName,
 	}
 }
@@ -565,17 +560,18 @@ func (a *AgentAPIKeysAPIService) RevokeAgentAPIKeyExecute(r ApiRevokeAgentAPIKey
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/api-keys/{keyName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -667,12 +663,16 @@ func (a *AgentAPIKeysAPIService) RevokeAgentAPIKeyExecute(r ApiRevokeAgentAPIKey
 type ApiRotateAgentAPIKeyRequest struct {
 	ctx                    context.Context
 	ApiService             *AgentAPIKeysAPIService
-	orgName                string
-	projName               string
 	agentName              string
-	envID                  string
+	project                *string
 	keyName                string
 	rotateLLMAPIKeyRequest *RotateLLMAPIKeyRequest
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiRotateAgentAPIKeyRequest) Project(project string) ApiRotateAgentAPIKeyRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRotateAgentAPIKeyRequest) RotateLLMAPIKeyRequest(rotateLLMAPIKeyRequest RotateLLMAPIKeyRequest) ApiRotateAgentAPIKeyRequest {
@@ -690,21 +690,15 @@ RotateAgentAPIKey Rotate an agent API key
 Generates a new API key value for the given key name and broadcasts the update to all connected gateways. The new key is returned only once in the response.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name or UUID
 	@param keyName API key name/identifier
 	@return ApiRotateAgentAPIKeyRequest
 */
-func (a *AgentAPIKeysAPIService) RotateAgentAPIKey(ctx context.Context, orgName string, projName string, agentName string, envID string, keyName string) ApiRotateAgentAPIKeyRequest {
+func (a *AgentAPIKeysAPIService) RotateAgentAPIKey(ctx context.Context, agentName string, keyName string) ApiRotateAgentAPIKeyRequest {
 	return ApiRotateAgentAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 		keyName:    keyName,
 	}
 }
@@ -725,17 +719,18 @@ func (a *AgentAPIKeysAPIService) RotateAgentAPIKeyExecute(r ApiRotateAgentAPIKey
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/api-keys/{keyName}"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 

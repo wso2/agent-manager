@@ -36,14 +36,14 @@ vi.mock("../apis/subscription-plans", () => ({
   getSubscriptionPlan: vi.fn(),
   createSubscriptionPlan: vi.fn(),
   updateSubscriptionPlan: vi.fn(),
-  deleteSubscriptionPlan: vi.fn(),
+  deprecateSubscriptionPlan: vi.fn(),
 }));
 
 import type { SubscriptionPlanListResponse } from "@agent-management-platform/types";
 import type { UseQueryResult } from "@tanstack/react-query";
 import {
   createSubscriptionPlan,
-  deleteSubscriptionPlan,
+  deprecateSubscriptionPlan,
   getSubscriptionPlan,
   listSubscriptionPlans,
   updateSubscriptionPlan,
@@ -54,7 +54,7 @@ import {
   subscriptionPlanErrorCode,
   subscriptionPlanKeys,
   useCreateSubscriptionPlan,
-  useDeleteSubscriptionPlan,
+  useDeprecateSubscriptionPlan,
   useGetSubscriptionPlan,
   useListSubscriptionPlans,
   useUpdateSubscriptionPlan,
@@ -72,7 +72,9 @@ beforeEach(() => {
   vi.mocked(getSubscriptionPlan).mockReset().mockResolvedValue({ id: "gold" } as never);
   vi.mocked(createSubscriptionPlan).mockReset().mockResolvedValue({ id: "gold", displayName: "Gold" } as never);
   vi.mocked(updateSubscriptionPlan).mockReset().mockResolvedValue({ id: "gold", displayName: "Gold 2", status: "INACTIVE" } as never);
-  vi.mocked(deleteSubscriptionPlan).mockReset().mockResolvedValue(undefined);
+  vi.mocked(deprecateSubscriptionPlan)
+    .mockReset()
+    .mockResolvedValue({ id: "gold", displayName: "Gold", deprecated: true } as never);
 });
 
 afterEach(() => {
@@ -172,23 +174,23 @@ describe("plan mutations", () => {
     expect(snack.push).toHaveBeenCalledWith(expect.objectContaining({ message }));
   });
 
-  it("deletes a plan and reloads lists and details", async () => {
+  it("deprecates a plan and reloads lists and details", async () => {
     const { invalidated } = await runMutation(
-      useDeleteSubscriptionPlan, { orgName: "o", planId: "gold", displayName: "Gold" }, SEEDED,
+      useDeprecateSubscriptionPlan, { orgName: "o", planId: "gold", displayName: "Gold" }, SEEDED,
     );
-    expect(deleteSubscriptionPlan).toHaveBeenCalledWith(
+    expect(deprecateSubscriptionPlan).toHaveBeenCalledWith(
       { orgName: "o", planId: "gold", displayName: "Gold" }, expect.any(Function),
     );
     expect(invalidated).toEqual(["detail", "list"]);
-    expect(snack.push).toHaveBeenCalledWith(expect.objectContaining({ message: 'Deleted plan "Gold".' }));
+    expect(snack.push).toHaveBeenCalledWith(expect.objectContaining({ message: 'Deprecated plan "Gold".' }));
   });
 
   it.each([
     [new Error("Plan is in use"), "Plan is in use"],
-    [{}, "Failed to delete the plan."],
-  ])("shows the delete error %#", async (failure, message) => {
-    vi.mocked(deleteSubscriptionPlan).mockRejectedValue(failure);
-    await runMutation(useDeleteSubscriptionPlan, { orgName: "o", planId: "gold", displayName: "Gold" });
+    [{}, "Failed to deprecate the plan."],
+  ])("shows the deprecate error %#", async (failure, message) => {
+    vi.mocked(deprecateSubscriptionPlan).mockRejectedValue(failure);
+    await runMutation(useDeprecateSubscriptionPlan, { orgName: "o", planId: "gold", displayName: "Gold" });
     expect(snack.push).toHaveBeenCalledWith(expect.objectContaining({ message }));
   });
 });

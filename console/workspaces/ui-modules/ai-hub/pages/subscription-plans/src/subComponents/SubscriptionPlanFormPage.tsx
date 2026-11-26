@@ -101,12 +101,14 @@ export function SubscriptionPlanFormPage() {
   });
   const returnTo = useReturnTo(listPath);
 
-  // The plan with its usage: a plan in use keeps its name and conditions (the server refuses a
-  // change);
-  // its description and expiry can still change.
+  // The plan with its usage: a plan in use (one with subscriptions) keeps its name, conditions and
+  // expiry (the server refuses a change); its description can still change.
   const planQuery = useGetSubscriptionPlan({ orgName: orgId, planId });
   const plan = planQuery.data;
-  const inUse = isEdit && plan?.usage?.inUse === true;
+  // A deprecated plan is read only: it is shown, but nothing can be changed or saved.
+  const deprecated = isEdit && plan?.deprecated === true;
+  // A plan with subscriptions keeps its name, conditions and expiry.
+  const inUse = isEdit && (plan?.usage?.inUse === true || deprecated);
 
   const createPlan = useCreateSubscriptionPlan();
   const updatePlan = useUpdateSubscriptionPlan();
@@ -196,14 +198,15 @@ export function SubscriptionPlanFormPage() {
       updatePlan.mutate(
         {
           // The editable fields only. null, not undefined: an omitted expiryTime means "keep",
-          // so clearing the date is sent explicitly. A plan in use keeps its conditions, so they
-          // are left out; the description is sent only when it changed ("" clears it).
+          // so clearing the date is sent explicitly. A plan in use keeps its conditions and
+          // expiry, so they are left out; the description is sent only when it changed ("" clears
+          // it).
           body: {
             displayName: trimmedName,
-            expiryTime: expiryTime ?? null,
-            id: plan.id,
             status: plan.status,
-            ...(inUse ? {} : { conditions: conditionsCheck.body ?? [] }),
+            ...(inUse
+              ? {}
+              : { conditions: conditionsCheck.body ?? [], expiryTime: expiryTime ?? null }),
             ...(trimmedDescription !== (plan.description ?? "").trim()
               ? { description: trimmedDescription }
               : {}),
@@ -244,11 +247,21 @@ export function SubscriptionPlanFormPage() {
     );
   };
 
-  const title = isEdit ? "Edit subscription plan" : "Add subscription plan";
+  const title = deprecated
+    ? "Subscription plan"
+    : isEdit
+      ? "Edit subscription plan"
+      : "Add subscription plan";
 
   // Cancel and Create/Save sit at the bottom left of the form, as on the console's other create and
   // edit pages (MCP servers, LLM providers), with the same short labels.
-  const actions = (
+  const actions = deprecated ? (
+    <Stack direction="row" justifyContent="flex-start" spacing={1}>
+      <Button onClick={leave} variant="outlined">
+        Back
+      </Button>
+    </Stack>
+  ) : (
     <Stack direction="row" justifyContent="flex-start" spacing={1}>
       <Button disabled={busy} onClick={leave} variant="outlined">
         Cancel
@@ -294,9 +307,11 @@ export function SubscriptionPlanFormPage() {
       backHref={returnTo}
       backLabel="Back to Subscription Plans"
       description={
-        isEdit
-          ? "Update the conditions and availability of this plan."
-          : "Define the conditions and availability of this plan."
+        deprecated
+          ? "A deprecated plan, kept for the subscriptions on it."
+          : isEdit
+            ? "Update the conditions and availability of this plan."
+            : "Define the conditions and availability of this plan."
       }
       disableIcon
       isLoading={isEdit && planQuery.isLoading}
@@ -305,9 +320,16 @@ export function SubscriptionPlanFormPage() {
       <Box component="form" id={FORM_ID} noValidate onSubmit={handleSubmit}>
         <Stack spacing={3}>
           <Form.Stack spacing={3}>
-            {inUse && (
+            {deprecated && (
+              <Alert severity="warning">
+                This plan is deprecated. It stays for the subscriptions on it, but it can’t be
+                edited, offered on an MCP server or subscribed to again.
+              </Alert>
+            )}
+            {inUse && !deprecated && (
               <Alert severity="info">
-                This plan is in use. To change its name or conditions, create a new plan.
+                This plan has subscriptions. To change its name, conditions or expiry, create a new
+                plan.
               </Alert>
             )}
             {conflict && (
@@ -342,7 +364,7 @@ export function SubscriptionPlanFormPage() {
               </Grid>
               <Grid size={{ xl: 8, xs: 12 }}>
                 <TextInput
-                  disabled={busy}
+                  disabled={deprecated || busy}
                   error={Boolean(descriptionError)}
                   helperText={descriptionError ?? undefined}
                   label="Description (optional)"
@@ -376,7 +398,7 @@ export function SubscriptionPlanFormPage() {
                   </FormLabel>
                   <DatePickers.LocalizationProvider dateAdapter={AdapterDateFns}>
                     <DatePickers.DatePicker
-                      disabled={busy}
+                      disabled={inUse || busy}
                       disablePast
                       onChange={(date: Date | null) =>
                         setForm((current) => ({ ...current, expiryDate: date }))

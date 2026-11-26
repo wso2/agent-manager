@@ -62,13 +62,11 @@ func (s *proxyServiceStub) RefreshA2AProxy(context.Context, string, string, stri
 	panic("not used")
 }
 
-// agentEnvRequest targets resource under the checkout/weather agent's dev environment in a resolved org.
+// agentEnvRequest targets resource under the checkout/weather agent in a resolved org.
 func agentEnvRequest(method, resource, body string) *http.Request {
-	req := httptest.NewRequest(method, "/orgs/default/projects/checkout/agents/weather/environments/dev/"+resource,
+	req := httptest.NewRequest(method, "/agents/weather/"+resource+"?project=checkout",
 		strings.NewReader(body))
-	req.SetPathValue(gwutil.PathParamProjName, "checkout")
 	req.SetPathValue(gwutil.PathParamAgentName, "weather")
-	req.SetPathValue(gwutil.PathParamEnvID, "dev")
 	return req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 }
 

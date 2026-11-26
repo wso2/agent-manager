@@ -62,10 +62,13 @@ type Condition struct {
 // (from the first request-count window of length one) and StopOnQuotaReach are for gateways that read
 // only that limit.
 type Plan struct {
-	ID                 string
-	Handle             string
-	Name               string
-	Status             string // ACTIVE or INACTIVE
+	ID     string
+	Handle string
+	Name   string
+	Status string // ACTIVE or INACTIVE
+	// Deprecated marks a plan that can't be offered or subscribed to any more. Gateways still get it, for the
+	// subscriptions already on it.
+	Deprecated         bool
 	ExpiryTime         *time.Time
 	Conditions         []Condition
 	StopOnQuotaReach   bool
@@ -77,15 +80,15 @@ type Plan struct {
 
 // Source lists an organization's subscription plans, and the subscriptions to them.
 type Source interface {
+	// ListPlans lists every plan of the organization, deprecated ones included.
 	ListPlans(ctx context.Context, orgID string) ([]Plan, error)
 	// GetPlan reads one plan by its ID. found is false when the organization has no such plan.
 	GetPlan(ctx context.Context, orgID, planID string) (plan Plan, found bool, err error)
 	// ChangeEvent is the event type, declared in the provider's manifest as <module>.<event>, that the
 	// provider publishes with a PlanChange whenever a plan is created, changed or deleted.
 	ChangeEvent() string
-	// CountOffersWith hands the provider a count of what offers a plan (the MCP proxies of a gateway), so a
-	// plan in use keeps its name and conditions and can't be deleted. The consumer calls it on every
-	// activation; nil stops counting.
+	// CountOffersWith hands the provider a count of what offers a plan (the MCP proxies of a gateway), which
+	// the provider reports as the plan's usage. The consumer calls it on every activation; nil stops counting.
 	CountOffersWith(count OfferCounter)
 
 	// ListSubscriptions lists the subscriptions to one artifact (an MCP proxy: kind ArtifactKindMCP and its

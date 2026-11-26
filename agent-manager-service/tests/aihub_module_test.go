@@ -61,8 +61,8 @@ type plansWorld struct {
 	gateways    *planGateways // what the stand-in gateway module was sent, once installed
 }
 
-// planGateways records the plan changes the gateway handler would send to the organization's gateways, and
-// the subscription changes the plans module published.
+// planGateways records the plans and subscriptions the gateway handler would send to the organization's
+// gateways, and the subscription changes the plans module published.
 type planGateways struct {
 	mu   sync.Mutex
 	sent []sentPlan
@@ -87,16 +87,44 @@ func (g *planGateways) setOffers(handle string, n int) {
 	g.offers[handle] = n
 }
 
-// subscriptionChanged records a published subscription change.
-func (g *planGateways) subscriptionChanged(_ context.Context, e modkit.Event) error {
-	var ch subplanv1.SubscriptionChange
-	if err := json.Unmarshal(e.Data, &ch); err != nil {
-		return err
+// subscriptionChanged records a published subscription change, then hands it to the gateway's own handler.
+func (g *planGateways) subscriptionChanged(plans func() (subplanv1.Source, bool)) modkit.EventHandler {
+	send := gwsvc.SubscriptionChangeHandler(plans, standInDeployments{}, g, g)
+	return func(ctx context.Context, e modkit.Event) error {
+		var ch subplanv1.SubscriptionChange
+		if err := json.Unmarshal(e.Data, &ch); err != nil {
+			return err
+		}
+		g.mu.Lock()
+		g.subs = append(g.subs, ch)
+		g.mu.Unlock()
+		return send(ctx, e)
 	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.subs = append(g.subs, ch)
+}
+
+// SubscriptionChanged takes what the gateway handler sends; the published changes are recorded already.
+func (g *planGateways) SubscriptionChanged(context.Context, string, subplanv1.Action, string, subplanv1.Subscription) error {
 	return nil
+}
+
+// standInDeployments deploys the MCP proxy docs-mcp, which the portal deliveries in these tests are to, once.
+type standInDeployments struct{}
+
+const standInDeployment = "0b9e4c8e-5f0c-4a43-9a43-6f3cbb8e1d11"
+
+func (standInDeployments) DeployedArtifactIDs(_ context.Context, _, _, handle string) ([]string, error) {
+	if handle == "docs-mcp" {
+		return []string{standInDeployment}, nil
+	}
+	return nil, nil
+}
+
+func (standInDeployments) DeployedProxies(context.Context, string) ([]string, error) {
+	return []string{"docs-mcp"}, nil
+}
+
+func (standInDeployments) ProxyOf(_ context.Context, _, id string) (string, string, bool, error) {
+	return subplanv1.ArtifactKindMCP, "docs-mcp", id == standInDeployment, nil
 }
 
 // subscriptionChange returns the last change published for the subscription with the action, if any.
@@ -136,9 +164,9 @@ func (g *planGateways) find(handle string, action subplanv1.Action) (sentPlan, b
 	return sentPlan{}, false
 }
 
-// planGatewayModule stands in for the AI Gateway: it subscribes to the plans module's event with the gateway's
-// own handler (gwsvc.PlanChangeHandler) and records what it would send to the organization's gateways. It
-// provides planGatewayReady so a test can wait for it.
+// planGatewayModule stands in for the AI Gateway: it subscribes to the plans module's subscription event with
+// the gateway's own handler (gwsvc.SubscriptionChangeHandler) and records what it would send to the
+// organization's gateways. It provides planGatewayReady so a test can wait for it.
 type planGatewayModule struct{ gateways *planGateways }
 
 const (
@@ -160,8 +188,7 @@ func (m planGatewayModule) Activate(_ context.Context, rt modkit.Runtime) error 
 	plans := func() (subplanv1.Source, bool) { return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID) }
 	// As the AI Gateway does: subscribe to the event the plans module names, while it is active.
 	if source, ok := plans(); ok {
-		rt.Subscribe(source.ChangeEvent(), gwsvc.PlanChangeHandler(plans, m.gateways))
-		rt.Subscribe(source.SubscriptionChangeEvent(), m.gateways.subscriptionChanged)
+		rt.Subscribe(source.SubscriptionChangeEvent(), m.gateways.subscriptionChanged(plans))
 		source.CountOffersWith(m.gateways.offering)
 	}
 	return nil
@@ -217,22 +244,80 @@ func newPlansWorld(t *testing.T) plansWorld {
 	}
 }
 
+// planDoc is a plan document to send: metadata.name is the handle, spec the rest.
+func planDoc(name string, spec map[string]any) map[string]any {
+	return map[string]any{
+		"apiVersion": "ai-control-plane.choreolabs.com/v1", "kind": "SubscriptionPlan",
+		"metadata": map[string]any{"name": name}, "spec": spec,
+	}
+}
+
+type planUsage struct {
+	InUse         bool `json:"inUse"`
+	MCPProxies    int  `json:"mcpProxies"`
+	Subscriptions int  `json:"subscriptions"`
+}
+
+// planBody is a plan document as the API returns it, read flat: ID is metadata.name.
 type planBody struct {
-	ID             string            `json:"id"`
-	DisplayName    string            `json:"displayName"`
-	Description    string            `json:"description"`
-	Conditions     []json.RawMessage `json:"conditions"`
-	Limits         []map[string]any  `json:"limits"`
-	ExpiryTime     *time.Time        `json:"expiryTime"`
-	OrganizationID string            `json:"organizationId"`
-	Status         string            `json:"status"`
-	CreatedBy      string            `json:"createdBy"`
-	UpdatedBy      *string           `json:"updatedBy"`
-	Usage          *struct {
-		InUse         bool `json:"inUse"`
-		MCPProxies    int  `json:"mcpProxies"`
-		Subscriptions int  `json:"subscriptions"`
-	} `json:"usage"`
+	APIVersion  string
+	Kind        string
+	ID          string
+	UID         string
+	DisplayName string
+	Description string
+	Conditions  []json.RawMessage
+	ExpiryTime  *time.Time
+	Status      string
+	CreatedBy   string
+	CreatedAt   *time.Time
+	UpdatedAt   *time.Time
+	Usage       *planUsage
+	Origin      string
+	// Deprecated and DeprecatedAt are status.deprecated and status.deprecationTimestamp.
+	Deprecated   bool
+	DeprecatedAt *time.Time
+}
+
+func (p *planBody) UnmarshalJSON(b []byte) error {
+	var doc struct {
+		APIVersion string `json:"apiVersion"`
+		Kind       string `json:"kind"`
+		Metadata   struct {
+			Name              string     `json:"name"`
+			UID               string     `json:"uid"`
+			CreatedBy         string     `json:"createdBy"`
+			CreationTimestamp *time.Time `json:"creationTimestamp"`
+			UpdateTimestamp   *time.Time `json:"updateTimestamp"`
+			Origin            string     `json:"origin"`
+		} `json:"metadata"`
+		Spec struct {
+			DisplayName string            `json:"displayName"`
+			Description string            `json:"description"`
+			Status      string            `json:"status"`
+			Conditions  []json.RawMessage `json:"conditions"`
+			ExpiryTime  *time.Time        `json:"expiryTime"`
+		} `json:"spec"`
+		Status *struct {
+			Usage                *planUsage `json:"usage"`
+			Deprecated           bool       `json:"deprecated"`
+			DeprecationTimestamp *time.Time `json:"deprecationTimestamp"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		return err
+	}
+	*p = planBody{
+		APIVersion: doc.APIVersion, Kind: doc.Kind, ID: doc.Metadata.Name, UID: doc.Metadata.UID,
+		DisplayName: doc.Spec.DisplayName, Description: doc.Spec.Description, Conditions: doc.Spec.Conditions,
+		ExpiryTime: doc.Spec.ExpiryTime, Status: doc.Spec.Status, CreatedBy: doc.Metadata.CreatedBy,
+		CreatedAt: doc.Metadata.CreationTimestamp, UpdatedAt: doc.Metadata.UpdateTimestamp,
+		Origin: doc.Metadata.Origin,
+	}
+	if doc.Status != nil {
+		p.Usage, p.Deprecated, p.DeprecatedAt = doc.Status.Usage, doc.Status.Deprecated, doc.Status.DeprecationTimestamp
+	}
+	return nil
 }
 
 type errBody struct {
@@ -247,17 +332,17 @@ type errBody struct {
 func TestSubscriptionPlansModule(t *testing.T) {
 	w := newPlansWorld(t)
 	ctx := context.Background()
-	gold := map[string]any{
-		"id": "gold", "displayName": "Gold", "description": "For production agents",
-		"conditions": []any{
-			map[string]any{"type": "request-count", "params": map[string]any{"limits": []any{
-				map[string]any{"count": 1000, "timeUnit": "HOUR"},
-			}}},
-			map[string]any{"type": "tool-call-count", "params": map[string]any{"limits": []any{
-				map[string]any{"count": 3, "timeAmount": 1, "timeUnit": "MINUTE"},
-			}, "onExceed": "reject"}},
-		},
+	goldConditions := []any{
+		map[string]any{"type": "request-count", "params": map[string]any{"limits": []any{
+			map[string]any{"count": 1000, "timeUnit": "HOUR"},
+		}}},
+		map[string]any{"type": "tool-call-count", "params": map[string]any{"limits": []any{
+			map[string]any{"count": 3, "timeAmount": 1, "timeUnit": "MINUTE"},
+		}, "onExceed": "reject"}},
 	}
+	gold := planDoc("gold", map[string]any{
+		"displayName": "Gold", "description": "For production agents", "conditions": goldConditions,
+	})
 
 	// Creating a project creates the organization in the core: plans need their organization to exist.
 	code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
@@ -279,19 +364,66 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, code)
 	})
 
-	t.Run("create fills defaults and returns the full plan", func(t *testing.T) {
+	t.Run("create fills defaults and returns the whole document", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPost, plansPath, gold)
 		require.Equal(t, http.StatusCreated, code, string(body))
 		p := decodeAs[planBody](t, body)
+		assert.Equal(t, "ai-control-plane.choreolabs.com/v1", p.APIVersion)
+		assert.Equal(t, "SubscriptionPlan", p.Kind)
 		assert.Equal(t, "gold", p.ID)
+		assert.NotEmpty(t, p.UID)
 		assert.Equal(t, "ACTIVE", p.Status)
-		assert.Equal(t, w.handle, p.OrganizationID)
 		assert.Equal(t, "module-tester", p.CreatedBy)
+		require.NotNil(t, p.CreatedAt)
+		require.NotNil(t, p.UpdatedAt)
 		require.Len(t, p.Conditions, 2)
 		assert.JSONEq(t, `{"id":"requests","type":"request-count","params":{"limits":[{"count":1000,"timeAmount":1,"timeUnit":"HOUR"}],"onExceed":"reject"}}`,
 			string(p.Conditions[0]))
-		require.Len(t, p.Limits, 1, "the old limits field mirrors the request-count condition")
-		assert.EqualValues(t, 1000, p.Limits[0]["limitCount"])
+		assert.NotContains(t, string(body), `"limits":[{"limitCount"`, "the older limits field is taken, not returned")
+	})
+
+	t.Run("a plan made here has the control plane as its origin", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodGet, plansPath+"/gold", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		p := decodeAs[planBody](t, body)
+		assert.Equal(t, aihub.OriginControlPlane, p.Origin)
+		assert.False(t, p.Deprecated)
+	})
+
+	t.Run("a document read back can be sent back as it is", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodGet, plansPath+"/gold", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		var doc map[string]any
+		require.NoError(t, json.Unmarshal(body, &doc))
+		code, body = w.call(t, w.full, http.MethodPut, plansPath+"/gold", doc)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.Len(t, decodeAs[planBody](t, body).Conditions, 2)
+	})
+
+	t.Run("YAML in and out", func(t *testing.T) {
+		yamlDoc := "apiVersion: ai-control-plane.choreolabs.com/v1\nkind: SubscriptionPlan\nmetadata:\n  name: yaml-plan\n" +
+			"spec:\n  displayName: From YAML\n  expiryTime: 2030-01-01T00:00:00Z\n  conditions:\n" +
+			"    - type: tool-call-count\n      params:\n        limits: [{count: 5, timeUnit: MINUTE}]\n"
+		req := httptest.NewRequest(http.MethodPost, plansPath, strings.NewReader(yamlDoc))
+		req.Header.Set("Content-Type", "application/yaml")
+		req.Header.Set("Accept", "application/yaml")
+		rec := httptest.NewRecorder()
+		w.full.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		assert.Equal(t, "application/yaml", rec.Header().Get("Content-Type"))
+		out := rec.Body.String()
+		assert.Contains(t, out, "kind: SubscriptionPlan")
+		assert.Contains(t, out, "name: yaml-plan")
+		assert.Contains(t, out, "displayName: From YAML")
+		assert.Less(t, strings.Index(out, "apiVersion:"), strings.Index(out, "spec:"))
+
+		code, body := w.call(t, w.full, http.MethodGet, plansPath+"/yaml-plan", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		p := decodeAs[planBody](t, body)
+		require.NotNil(t, p.ExpiryTime)
+		assert.Equal(t, 2030, p.ExpiryTime.Year())
+		code, _ = w.call(t, w.full, http.MethodDelete, plansPath+"/yaml-plan", nil)
+		require.Equal(t, http.StatusOK, code, "deprecated")
 	})
 
 	t.Run("create refuses a duplicate, bad input and pricing", func(t *testing.T) {
@@ -299,29 +431,50 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, code)
 		assert.Equal(t, "SUBSCRIPTION_PLAN_EXISTS", decodeAs[errBody](t, body).Code)
 
-		for name, b := range map[string]map[string]any{
-			"no id":                  {"displayName": "X"},
-			"long id":                {"id": "a234567890123456789012345678901234567890x", "displayName": "X"},
-			"no name":                {"id": "x"},
-			"bad status":             {"id": "x", "displayName": "X", "status": "DRAFT"},
-			"conditions and limits":  {"id": "x", "displayName": "X", "conditions": []any{}, "limits": []any{}},
-			"two request conditions": {"id": "x", "displayName": "X", "conditions": []any{gold["conditions"].([]any)[0], gold["conditions"].([]any)[0]}},
-			"bad expiry":             {"id": "x", "displayName": "X", "expiryTime": "tomorrow"},
-			"pricing":                {"id": "x", "displayName": "X", "pricing": map[string]any{"pricingType": "FLAT_RATE"}},
+		x := func(spec map[string]any) map[string]any { return planDoc("x", spec) }
+		with := func(doc map[string]any, key string, v any) map[string]any {
+			out := map[string]any{}
+			for k, val := range doc {
+				out[k] = val
+			}
+			if v == nil {
+				delete(out, key)
+			} else {
+				out[key] = v
+			}
+			return out
+		}
+		for name, c := range map[string]struct {
+			doc  map[string]any
+			says string
+		}{
+			"no metadata.name":       {planDoc("", map[string]any{"displayName": "X"}), "metadata.name"},
+			"long name":              {planDoc("a234567890123456789012345678901234567890x", map[string]any{"displayName": "X"}), "metadata.name"},
+			"bad name":               {planDoc("Gold Plan", map[string]any{"displayName": "X"}), "metadata.name"},
+			"wrong kind":             {with(x(map[string]any{"displayName": "X"}), "kind", "LlmProvider"), "kind"},
+			"wrong apiVersion":       {with(x(map[string]any{"displayName": "X"}), "apiVersion", "v1"), "apiVersion"},
+			"no spec":                {with(x(nil), "spec", nil), "spec"},
+			"no displayName":         {x(map[string]any{"description": "X"}), "spec.displayName"},
+			"bad status":             {x(map[string]any{"displayName": "X", "status": "DRAFT"}), "status"},
+			"conditions and limits":  {x(map[string]any{"displayName": "X", "conditions": []any{}, "limits": []any{}}), "conditions or limits"},
+			"two request conditions": {x(map[string]any{"displayName": "X", "conditions": []any{goldConditions[0], goldConditions[0]}}), ""},
+			"bad expiry":             {x(map[string]any{"displayName": "X", "expiryTime": "tomorrow"}), "expiryTime"},
+			"pricing":                {x(map[string]any{"displayName": "X", "pricing": map[string]any{"pricingType": "FLAT_RATE"}}), "pricing"},
 		} {
-			code, body := w.call(t, w.full, http.MethodPost, plansPath, b)
+			code, body := w.call(t, w.full, http.MethodPost, plansPath, c.doc)
 			assert.Equal(t, http.StatusBadRequest, code, name)
 			e := decodeAs[errBody](t, body)
 			assert.Equal(t, "VALIDATION_FAILED", e.Code, name)
 			assert.Equal(t, "error", e.Status, name)
+			assert.Contains(t, e.Message, c.says, name)
 		}
 	})
 
 	t.Run("old limits become a request-count condition", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPost, plansPath, map[string]any{
-			"id": "legacy", "displayName": "Legacy", "status": "INACTIVE",
+		code, body := w.call(t, w.full, http.MethodPost, plansPath, planDoc("legacy", map[string]any{
+			"displayName": "Legacy", "status": "INACTIVE",
 			"limits": []any{map[string]any{"timeUnit": "MINUTE", "limitCount": 10, "stopOnQuotaReach": false}},
-		})
+		}))
 		require.Equal(t, http.StatusCreated, code, string(body))
 		p := decodeAs[planBody](t, body)
 		require.Len(t, p.Conditions, 1)
@@ -329,13 +482,12 @@ func TestSubscriptionPlansModule(t *testing.T) {
 			string(p.Conditions[0]))
 	})
 
-	t.Run("get carries usage and updatedBy", func(t *testing.T) {
+	t.Run("get carries usage in status", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodGet, plansPath+"/gold", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		p := decodeAs[planBody](t, body)
 		require.NotNil(t, p.Usage)
 		assert.False(t, p.Usage.InUse)
-		require.NotNil(t, p.UpdatedBy)
 		code, body = w.call(t, w.full, http.MethodGet, plansPath+"/missing", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		assert.Equal(t, "SUBSCRIPTION_PLAN_NOT_FOUND", decodeAs[errBody](t, body).Code)
@@ -350,12 +502,20 @@ func TestSubscriptionPlansModule(t *testing.T) {
 			Pagination struct{ Total, Offset, Limit int }
 		}
 		require.NoError(t, json.Unmarshal(body, &list))
-		assert.Equal(t, 2, list.Count)
-		assert.Equal(t, 2, list.Pagination.Total)
+		assert.Equal(t, 3, list.Count, "gold, the deprecated yaml-plan and legacy")
+		assert.Equal(t, 3, list.Pagination.Total)
 		assert.Equal(t, 20, list.Pagination.Limit)
-		assert.Equal(t, "legacy", list.List[0].ID, "newest first")
-		assert.Nil(t, list.List[0].UpdatedBy, "list items leave out updatedBy")
+		require.Len(t, list.List, 3)
+		assert.Equal(t, []string{"legacy", "gold", "yaml-plan"}, []string{list.List[0].ID, list.List[1].ID, list.List[2].ID},
+			"current plans newest first, then the deprecated one")
+		assert.Equal(t, "SubscriptionPlan", list.List[0].Kind, "each item is a whole document")
 		assert.Nil(t, list.List[0].Usage, "list items leave out usage")
+		assert.True(t, list.List[2].Deprecated, "a deprecated plan is listed, marked deprecated")
+
+		_, body = w.call(t, w.full, http.MethodGet, plansPath+"?limit=2&offset=2", nil)
+		require.NoError(t, json.Unmarshal(body, &list))
+		require.Len(t, list.List, 1, "the order holds across pages")
+		assert.Equal(t, "yaml-plan", list.List[0].ID)
 
 		_, body = w.call(t, w.full, http.MethodGet, plansPath+"?query=GOL", nil)
 		require.NoError(t, json.Unmarshal(body, &list))
@@ -380,9 +540,9 @@ func TestSubscriptionPlansModule(t *testing.T) {
 
 	t.Run("update keeps omitted fields and clears expiry on null", func(t *testing.T) {
 		expiry := "2030-01-01T00:00:00Z"
-		code, body := w.call(t, w.full, http.MethodPut, plansPath+"/gold", map[string]any{
+		code, body := w.call(t, w.full, http.MethodPut, plansPath+"/gold", planDoc("gold", map[string]any{
 			"displayName": "Gold+", "expiryTime": expiry, "status": "INACTIVE",
-		})
+		}))
 		require.Equal(t, http.StatusOK, code, string(body))
 		p := decodeAs[planBody](t, body)
 		assert.Equal(t, "Gold+", p.DisplayName)
@@ -391,9 +551,9 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		require.NotNil(t, p.ExpiryTime)
 		assert.Equal(t, "INACTIVE", p.Status)
 
-		code, body = w.call(t, w.full, http.MethodPut, plansPath+"/gold", map[string]any{
+		code, body = w.call(t, w.full, http.MethodPut, plansPath+"/gold", planDoc("gold", map[string]any{
 			"displayName": "Gold+", "expiryTime": nil, "conditions": []any{},
-		})
+		}))
 		require.Equal(t, http.StatusOK, code, string(body))
 		p = decodeAs[planBody](t, body)
 		assert.Nil(t, p.ExpiryTime)
@@ -401,16 +561,16 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		assert.Equal(t, "INACTIVE", p.Status, "an omitted status is kept")
 
 		for name, b := range map[string]map[string]any{
-			"no name":       {"description": "x"},
-			"id change":     {"id": "silver", "displayName": "Gold"},
-			"pricing":       {"displayName": "Gold", "pricing": nil},
-			"null conds":    {"displayName": "Gold", "conditions": nil},
-			"bad condition": {"displayName": "Gold", "conditions": []any{map[string]any{"type": "event-count"}}},
+			"no name":       planDoc("gold", map[string]any{"description": "x"}),
+			"name change":   planDoc("silver", map[string]any{"displayName": "Gold"}),
+			"pricing":       planDoc("gold", map[string]any{"displayName": "Gold", "pricing": nil}),
+			"null conds":    planDoc("gold", map[string]any{"displayName": "Gold", "conditions": nil}),
+			"bad condition": planDoc("gold", map[string]any{"displayName": "Gold", "conditions": []any{map[string]any{"type": "event-count"}}}),
 		} {
 			code, _ := w.call(t, w.full, http.MethodPut, plansPath+"/gold", b)
 			assert.Equal(t, http.StatusBadRequest, code, name)
 		}
-		code, _ = w.call(t, w.full, http.MethodPut, plansPath+"/missing", map[string]any{"displayName": "X"})
+		code, _ = w.call(t, w.full, http.MethodPut, plansPath+"/missing", planDoc("missing", map[string]any{"displayName": "X"}))
 		assert.Equal(t, http.StatusNotFound, code)
 	})
 
@@ -425,9 +585,9 @@ func TestSubscriptionPlansModule(t *testing.T) {
 
 	t.Run("search folds case beyond ASCII, even where folding lengthens the name", func(t *testing.T) {
 		long := strings.Repeat("ß", 200) // folds to 400 characters
-		code, body := w.call(t, w.full, http.MethodPost, plansPath, map[string]any{"id": "strasse", "displayName": long})
+		code, body := w.call(t, w.full, http.MethodPost, plansPath, planDoc("strasse", map[string]any{"displayName": long}))
 		require.Equal(t, http.StatusCreated, code, string(body))
-		code, body = w.call(t, w.full, http.MethodPost, plansPath, map[string]any{"id": "equipe", "displayName": "Équipe"})
+		code, body = w.call(t, w.full, http.MethodPost, plansPath, planDoc("equipe", map[string]any{"displayName": "Équipe"}))
 		require.Equal(t, http.StatusCreated, code, string(body))
 		for query, want := range map[string]string{"SSSS": "strasse", "%C3%A9QUIPE": "equipe"} {
 			code, body = w.call(t, w.full, http.MethodGet, plansPath+"?query="+query, nil)
@@ -441,19 +601,41 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		}
 		for _, id := range []string{"strasse", "equipe"} {
 			code, _ = w.call(t, w.full, http.MethodDelete, plansPath+"/"+id, nil)
-			require.Equal(t, http.StatusNoContent, code)
+			require.Equal(t, http.StatusOK, code)
 		}
 	})
 
-	t.Run("delete removes the plan and its conditions", func(t *testing.T) {
-		code, _ := w.call(t, w.full, http.MethodDelete, plansPath+"/legacy", nil)
-		assert.Equal(t, http.StatusNoContent, code)
-		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/legacy", nil)
+	t.Run("deprecate keeps the plan, read only, and closes its handle", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodDelete, plansPath+"/legacy", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		p := decodeAs[planBody](t, body)
+		assert.True(t, p.Deprecated)
+		require.NotNil(t, p.DeprecatedAt)
+
+		code, body = w.call(t, w.full, http.MethodGet, plansPath+"/legacy", nil)
+		require.Equal(t, http.StatusOK, code, "a deprecated plan is still there: "+string(body))
+		assert.True(t, decodeAs[planBody](t, body).Deprecated)
+		assert.Len(t, decodeAs[planBody](t, body).Conditions, 1, "with its conditions")
+
+		for name, spec := range map[string]map[string]any{
+			"description": {"displayName": "Legacy", "description": "x"},
+			"status":      {"displayName": "Legacy", "status": "ACTIVE"},
+		} {
+			code, body = w.call(t, w.full, http.MethodPut, plansPath+"/legacy", planDoc("legacy", spec))
+			assert.Equal(t, http.StatusConflict, code, name)
+			assert.Equal(t, "SUBSCRIPTION_PLAN_DEPRECATED", decodeAs[errBody](t, body).Code, name)
+		}
+		code, body = w.call(t, w.full, http.MethodDelete, plansPath+"/legacy", nil)
+		assert.Equal(t, http.StatusOK, code, "deprecating it again changes nothing: "+string(body))
+		assert.Equal(t, p.DeprecatedAt.Unix(), decodeAs[planBody](t, body).DeprecatedAt.Unix())
+		code, body = w.call(t, w.full, http.MethodPost, plansPath, planDoc("legacy", map[string]any{"displayName": "Legacy"}))
+		assert.Equal(t, http.StatusConflict, code, "its handle stays taken: "+string(body))
+		code, _ = w.call(t, w.full, http.MethodDelete, plansPath+"/missing", nil)
 		assert.Equal(t, http.StatusNotFound, code)
-		var left int64
-		require.NoError(t, db.DB(ctx).Raw(`SELECT COUNT(*) FROM mod_ai_hub_subscription_plan_conditions c `+
-			`WHERE NOT EXISTS (SELECT 1 FROM mod_ai_hub_subscription_plans p WHERE p.id = c.plan_id)`).Scan(&left).Error)
-		assert.Zero(t, left)
+		var plans int64
+		require.NoError(t, db.DB(ctx).Raw(`SELECT COUNT(*) FROM mod_ai_hub_subscription_plans WHERE org_id = ? AND handle = ?`,
+			w.org, "legacy").Scan(&plans).Error)
+		assert.EqualValues(t, 1, plans, "nothing is removed")
 	})
 }
 
@@ -515,6 +697,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 		p := decodeAs[planBody](t, got)
 		assert.Equal(t, "MCP Gold", p.DisplayName)
 		assert.Equal(t, "ACTIVE", p.Status)
+		assert.Equal(t, aihub.DefaultWebhookSourceName, p.Origin, "the developer portal made it")
 		require.Len(t, p.Conditions, 1)
 		assert.JSONEq(t, `{"id":"tool-calls","type":"tool-call-count","params":{"limits":[{"count":30,"timeAmount":1,"timeUnit":"MINUTE"}],"onExceed":"reject"}}`,
 			string(p.Conditions[0]))
@@ -564,6 +747,17 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 		}
 	})
 
+	t.Run("a plan made here can't be created again by the portal", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPost, plansPath, planDoc("cp-made", map[string]any{"displayName": "CP made"}))
+		require.Equal(t, http.StatusCreated, code, string(body))
+		code, got := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created",
+			map[string]any{"handle": "cp-made", "display_name": "Portal copy"}, now, now))
+		assert.Equal(t, http.StatusConflict, code, "a 409, which the portal doesn't retry: "+got)
+		assert.Contains(t, got, "SUBSCRIPTION_PLAN_ORIGIN_CONFLICT")
+		_, body = w.call(t, w.full, http.MethodGet, plansPath+"/cp-made", nil)
+		assert.Equal(t, "CP made", decodeAs[planBody](t, body).DisplayName)
+	})
+
 	t.Run("a priced plan is stored without its price", func(t *testing.T) {
 		paid := map[string]any{
 			"handle": "paid", "display_name": "Paid", "pricing": map[string]any{"pricingType": "FLAT_RATE"},
@@ -581,32 +775,47 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 		assert.NotContains(t, string(got), "pricing")
 	})
 
-	t.Run("deleted: an older deletion keeps a newer plan; a current one deletes; a repeat succeeds", func(t *testing.T) {
+	t.Run("deleted: an older deletion keeps a newer plan; a current one deprecates it; a repeat succeeds", func(t *testing.T) {
 		del := map[string]any{"handle": "mcp-gold"}
 		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted", del, now.Add(-2*time.Hour), now))
 		require.Equal(t, http.StatusOK, code, body)
-		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
-		assert.Equal(t, http.StatusOK, code, "the plan was made after that deletion")
+		_, got := w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
+		assert.False(t, decodeAs[planBody](t, got).Deprecated, "the plan was made after that deletion")
 
 		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted", del, now, now))
 		require.Equal(t, http.StatusOK, code, body)
-		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
-		assert.Equal(t, http.StatusNotFound, code)
+		code, got = w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
+		require.Equal(t, http.StatusOK, code, "a deleted plan is deprecated, not removed: "+string(got))
+		p := decodeAs[planBody](t, got)
+		assert.True(t, p.Deprecated)
+		require.NotNil(t, p.DeprecatedAt)
+		assert.WithinDuration(t, now, *p.DeprecatedAt, time.Second, "dated by the portal's clock")
 
 		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted", del, now, now))
-		assert.Equal(t, http.StatusOK, code, "a plan already gone counts as deleted: "+body)
+		assert.Equal(t, http.StatusOK, code, "a plan already deprecated stays so: "+body)
 	})
 
-	t.Run("a change made before the deletion, delivered after it, doesn't bring the plan back", func(t *testing.T) {
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.updated", mcpPlan, now.Add(-time.Minute), now))
+	t.Run("a deprecated plan doesn't change, and a plan made again with its handle is refused", func(t *testing.T) {
+		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.updated", mcpPlan, now.Add(time.Minute), now))
 		require.Equal(t, http.StatusOK, code, body)
-		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
-		assert.Equal(t, http.StatusNotFound, code)
+		_, got := w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
+		p := decodeAs[planBody](t, got)
+		assert.True(t, p.Deprecated)
+		assert.Equal(t, "MCP Gold+", p.DisplayName, "an update of a deprecated plan is ignored")
 
 		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", mcpPlan, now.Add(time.Minute), now))
+		assert.Equal(t, http.StatusConflict, code, body)
+		assert.Contains(t, body, "SUBSCRIPTION_PLAN_DEPRECATED")
+	})
+
+	t.Run("a creation made before a deletion this side never had, delivered after it, adds nothing", func(t *testing.T) {
+		ghost := map[string]any{"handle": "ghost", "display_name": "Ghost"}
+		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted", ghost, now, now))
 		require.Equal(t, http.StatusOK, code, body)
-		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
-		assert.Equal(t, http.StatusOK, code, "a plan made again at the source after the deletion is copied in")
+		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", ghost, now.Add(-time.Minute), now))
+		require.Equal(t, http.StatusOK, code, body)
+		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/ghost", nil)
+		assert.Equal(t, http.StatusNotFound, code)
 	})
 
 	t.Run("disabled: neither the API nor the webhook answers", func(t *testing.T) {
@@ -668,10 +877,16 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 		return got
 	}
 	handle := "gw-" + uuid.NewString()[:8]
+	notSent := func(t *testing.T, handle string) {
+		t.Helper()
+		time.Sleep(500 * time.Millisecond)
+		_, ok := w.gateways.find(handle, subplanv1.Created)
+		assert.False(t, ok, "a plan reaches the gateways with its subscriptions only")
+	}
 
-	t.Run("a plan made here is pushed to the organization's gateways, with its legacy limit", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPost, plansPath, map[string]any{
-			"id": handle, "displayName": "Gateway Gold",
+	t.Run("a plan made or changed here is not pushed", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPost, plansPath, planDoc(handle, map[string]any{
+			"displayName": "Gateway Gold",
 			"conditions": []any{
 				map[string]any{"type": "request-count", "params": map[string]any{"limits": []any{
 					map[string]any{"count": 5, "timeAmount": 10, "timeUnit": "MINUTE"},
@@ -681,8 +896,28 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 					map[string]any{"count": 30, "timeAmount": 1, "timeUnit": "MINUTE"},
 				}}},
 			},
-		})
+		}))
 		require.Equal(t, http.StatusCreated, code, string(body))
+		code, body = w.call(t, w.full, http.MethodPut, plansPath+"/"+handle,
+			planDoc(handle, map[string]any{"displayName": "Gateway Gold", "description": "changed"}))
+		require.Equal(t, http.StatusOK, code, string(body))
+		notSent(t, handle)
+	})
+
+	t.Run("nor is a plan the developer portal sends by webhook", func(t *testing.T) {
+		portal := "portal-" + uuid.NewString()[:8]
+		now := time.Now()
+		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", map[string]any{
+			"handle": portal, "display_name": "Portal Silver",
+		}, now, now))
+		require.Equal(t, http.StatusOK, code, body)
+		notSent(t, portal)
+	})
+
+	t.Run("a subscription brings its plan to the gateways first, with its legacy limit", func(t *testing.T) {
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.created",
+			map[string]any{"subscription_plan": map[string]any{"ref_id": handle}}, "key-1", time.Now()))
+		require.Equal(t, http.StatusOK, code, body)
 		got := sent(t, handle, subplanv1.Created)
 		assert.Equal(t, w.org, got.org)
 		assert.NotEmpty(t, got.plan.ID, "gateways key plans by the plan's id")
@@ -695,66 +930,35 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 		assert.Len(t, got.plan.Conditions, 2)
 	})
 
-	t.Run("gateways that connect pull every plan of their organization", func(t *testing.T) {
+	t.Run("gateways that connect pull only the plans subscribed to", func(t *testing.T) {
 		source, ok := coreext.Lookup[subplanv1.Source](subplanv1.ID)
 		require.True(t, ok)
 		plans, err := source.ListPlans(ctx, w.org)
 		require.NoError(t, err)
-		var found *subplanv1.Plan
-		for i := range plans {
-			if plans[i].Handle == handle {
-				found = &plans[i]
-			}
-		}
-		require.NotNil(t, found)
+		pulled, err := gwsvc.SubscribedPlans(ctx, source, standInDeployments{}, w.org, plans)
+		require.NoError(t, err)
+		require.Len(t, pulled, 1)
+		assert.Equal(t, handle, pulled[0].Handle)
 		created, _ := w.gateways.find(handle, subplanv1.Created)
-		assert.Equal(t, created.plan.ID, found.ID, "the same id is pushed and pulled")
-		assert.False(t, found.UpdatedAt.IsZero())
+		assert.Equal(t, created.plan.ID, pulled[0].ID, "the same id is pushed and pulled")
 	})
 
-	t.Run("a change and a deletion are pushed too", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPut, plansPath+"/"+handle, map[string]any{
-			"displayName": "Gateway Gold v2", "status": "INACTIVE",
-		})
-		require.Equal(t, http.StatusOK, code, string(body))
-		got := sent(t, handle, subplanv1.Updated)
-		assert.Equal(t, "Gateway Gold v2", got.plan.Name)
-		assert.Equal(t, "INACTIVE", got.plan.Status)
-
-		code, _ = w.call(t, w.full, http.MethodDelete, plansPath+"/"+handle, nil)
-		require.Equal(t, http.StatusNoContent, code)
-		deleted := sent(t, handle, subplanv1.Deleted)
-		created, _ := w.gateways.find(handle, subplanv1.Created)
-		assert.Equal(t, created.plan.ID, deleted.plan.ID)
-	})
-
-	t.Run("a plan the developer portal sends by webhook reaches the gateways", func(t *testing.T) {
-		portal := "portal-" + uuid.NewString()[:8]
-		now := time.Now()
-		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", map[string]any{
-			"handle": portal, "display_name": "Portal Silver",
-			"conditions": []any{map[string]any{"type": "request-count", "params": map[string]any{
-				"limits": []any{map[string]any{"count": 60, "timeAmount": 1, "timeUnit": "MINUTE"}},
-			}}},
-		}, now, now))
+	t.Run("a deleted subscription leaves its plan, which is free again", func(t *testing.T) {
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.deleted", nil, "",
+			time.Now().Add(time.Second)))
 		require.Equal(t, http.StatusOK, code, body)
-		got := sent(t, portal, subplanv1.Created)
-		assert.Equal(t, "Portal Silver", got.plan.Name)
-		require.NotNil(t, got.plan.ThrottleLimitCount)
-		assert.Equal(t, 60, *got.plan.ThrottleLimitCount)
-		assert.Equal(t, "MINUTE", got.plan.ThrottleLimitUnit)
-
-		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted",
-			map[string]any{"handle": portal}, time.Now(), time.Now()))
-		require.Equal(t, http.StatusOK, code, body)
-		sent(t, portal, subplanv1.Deleted)
+		_, ok := w.gateways.find(handle, subplanv1.Deleted)
+		assert.False(t, ok)
+		code, resp := w.call(t, w.full, http.MethodPut, plansPath+"/"+handle,
+			planDoc(handle, map[string]any{"displayName": "Gateway Gold renamed"}))
+		assert.Equal(t, http.StatusOK, code, string(resp))
 	})
 
 	t.Run("without the gateway, plan changes still succeed", func(t *testing.T) {
 		require.NoError(t, w.host.Disable(ctx, planGatewayModuleName))
 		eventually(t, "the stand-in gateway to go", func() bool { _, ok := coreext.Capability(planGatewayReady); return !ok })
 		lone := "lone-" + uuid.NewString()[:8]
-		code, body := w.call(t, w.full, http.MethodPost, plansPath, map[string]any{"id": lone, "displayName": "Lone"})
+		code, body := w.call(t, w.full, http.MethodPost, plansPath, planDoc(lone, map[string]any{"displayName": "Lone"}))
 		require.Equal(t, http.StatusCreated, code, string(body))
 		time.Sleep(500 * time.Millisecond)
 		_, ok := w.gateways.find(lone, subplanv1.Created)
@@ -798,12 +1002,12 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 
 	gold, silver := "sub-gold-"+uuid.NewString()[:6], "sub-silver-"+uuid.NewString()[:6]
 	for _, id := range []string{gold, silver} {
-		code, body := w.call(t, w.full, http.MethodPost, plansPath, map[string]any{
-			"id": id, "displayName": id,
+		code, body := w.call(t, w.full, http.MethodPost, plansPath, planDoc(id, map[string]any{
+			"displayName": id,
 			"conditions": []any{map[string]any{"type": "tool-call-count", "params": map[string]any{"limits": []any{
 				map[string]any{"count": 3, "timeAmount": 1, "timeUnit": "MINUTE"},
 			}}}},
-		})
+		}))
 		require.Equal(t, http.StatusCreated, code, string(body))
 	}
 	planRef := func(h string) map[string]any { return map[string]any{"subscription_plan": map[string]any{"ref_id": h}} }
@@ -839,8 +1043,21 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 		p := usageOf(t, gold)
 		require.NotNil(t, p.Usage)
 		assert.True(t, p.Usage.InUse)
-		code, resp := w.call(t, w.full, http.MethodDelete, plansPath+"/"+gold, nil)
-		assert.Equal(t, http.StatusConflict, code, "a subscribed plan can't be deleted: "+string(resp))
+		for name, spec := range map[string]map[string]any{
+			"name":       {"displayName": "Renamed"},
+			"conditions": {"displayName": gold, "conditions": []any{}},
+			"expiry":     {"displayName": gold, "expiryTime": "2099-01-31T23:59:59Z"},
+		} {
+			code, resp := w.call(t, w.full, http.MethodPut, plansPath+"/"+gold, planDoc(gold, spec))
+			assert.Equal(t, http.StatusConflict, code, "a subscribed plan keeps its %s: %s", name, resp)
+			assert.Equal(t, "SUBSCRIPTION_PLAN_IN_USE", decodeAs[errBody](t, resp).Code, name)
+		}
+		code, resp := w.call(t, w.full, http.MethodPut, plansPath+"/"+gold,
+			planDoc(gold, map[string]any{"displayName": gold, "description": "still editable", "status": "INACTIVE"}))
+		assert.Equal(t, http.StatusOK, code, "its description and status can change: "+string(resp))
+		code, resp = w.call(t, w.full, http.MethodPut, plansPath+"/"+gold,
+			planDoc(gold, map[string]any{"displayName": gold, "status": "ACTIVE"}))
+		require.Equal(t, http.StatusOK, code, string(resp))
 	})
 
 	t.Run("a repeated creation changes nothing", func(t *testing.T) {
@@ -870,6 +1087,42 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 		assert.Equal(t, subplanv1.SubscriptionInactive, list(t)[0].Status)
 	})
 
+	t.Run("a deprecated plan keeps its subscriptions, and gateways still get it, but it takes no new ones", func(t *testing.T) {
+		code, resp := w.call(t, w.full, http.MethodDelete, plansPath+"/"+silver, nil)
+		require.Equal(t, http.StatusOK, code, "a subscribed plan can be deprecated: "+string(resp))
+
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.updated", map[string]any{"status": "ACTIVE"}, "", now.Add(5*time.Second)))
+		require.Equal(t, http.StatusOK, code, "a subscription already on it still changes: "+body)
+		subs := list(t)
+		require.Len(t, subs, 1)
+		assert.Equal(t, silver, subs[0].PlanHandle)
+		assert.Equal(t, subplanv1.SubscriptionActive, subs[0].Status)
+
+		source, ok := coreext.Lookup[subplanv1.Source](subplanv1.ID)
+		require.True(t, ok)
+		plans, err := source.ListPlans(ctx, w.org)
+		require.NoError(t, err)
+		pulled, err := gwsvc.SubscribedPlans(ctx, source, standInDeployments{}, w.org, plans)
+		require.NoError(t, err)
+		require.Len(t, pulled, 1, "gateways that connect still pull it")
+		assert.Equal(t, silver, pulled[0].Handle)
+		assert.True(t, pulled[0].Deprecated)
+
+		bob := subscriptionDelivery(t, w.handle, "subscription.created", map[string]any{
+			"subscription_id": "portal-sub-4", "subscriber_id": "bob", "subscription_plan": map[string]any{"ref_id": silver},
+		}, "key-5", now)
+		code, body = send(t, w.internal, bob)
+		assert.Equal(t, http.StatusConflict, code, "a new subscription is refused, and not retried: "+body)
+		assert.Contains(t, body, "SUBSCRIPTION_PLAN_DEPRECATED")
+		assert.Len(t, list(t), 1)
+
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.plan_changed", planRef(gold), "", now.Add(6*time.Second)))
+		require.Equal(t, http.StatusOK, code, body)
+		code, body = send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.plan_changed", planRef(silver), "", now.Add(7*time.Second)))
+		assert.Equal(t, http.StatusConflict, code, "nor can a subscription move onto it: "+body)
+		assert.Equal(t, gold, list(t)[0].PlanHandle)
+	})
+
 	t.Run("a subscription on a plan that is not here, or to a REST API, is refused", func(t *testing.T) {
 		other := subscriptionDelivery(t, w.handle, "subscription.created", map[string]any{
 			"subscription_id": "portal-sub-2", "subscriber_id": "bob", "subscription_plan": map[string]any{"ref_id": "no-such-plan"},
@@ -886,18 +1139,18 @@ func TestSubscriptionsFromThePortal(t *testing.T) {
 	})
 
 	t.Run("deleted: gone with its key, published, and its plan free again", func(t *testing.T) {
-		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.deleted", nil, "", now.Add(4*time.Second)))
+		code, body := send(t, w.internal, subscriptionDelivery(t, w.handle, "subscription.deleted", nil, "", now.Add(8*time.Second)))
 		require.Equal(t, http.StatusOK, code, body)
 		assert.Empty(t, list(t))
 		eventually(t, "the deleted change", func() bool { _, ok := w.gateways.subscriptionChange(subID, subplanv1.Deleted); return ok })
-		assert.False(t, usageOf(t, silver).Usage.InUse)
-		code, resp := w.call(t, w.full, http.MethodDelete, plansPath+"/"+silver, nil)
-		assert.Equal(t, http.StatusNoContent, code, string(resp))
+		assert.False(t, usageOf(t, gold).Usage.InUse)
+		code, resp := w.call(t, w.full, http.MethodPut, plansPath+"/"+gold, planDoc(gold, map[string]any{"displayName": "Gold again"}))
+		assert.Equal(t, http.StatusOK, code, string(resp))
 	})
 }
 
-// TestPlanOfferedByMCPProxies holds a plan the gateway reports as offered (subplanv1.Source.CountOffersWith) to
-// the in-use rule: it keeps its name and conditions and can't be deleted until no MCP proxy offers it.
+// TestPlanOfferedByMCPProxies counts the MCP proxies the gateway reports as offering a plan
+// (subplanv1.Source.CountOffersWith) in the plan's usage. An offer doesn't lock the plan: only subscriptions do.
 func TestPlanOfferedByMCPProxies(t *testing.T) {
 	w := newPlansWorld(t)
 	ctx := context.Background()
@@ -909,7 +1162,7 @@ func TestPlanOfferedByMCPProxies(t *testing.T) {
 	_ = w.host.Disable(ctx, planGatewayModuleName) // an earlier test may have left the stand-in gateway on
 	eventually(t, "the stand-in gateway to go", func() bool { _, ok := coreext.Capability(planGatewayReady); return !ok })
 	handle := "offered-" + uuid.NewString()[:6]
-	code, body = w.call(t, w.full, http.MethodPost, plansPath, map[string]any{"id": handle, "displayName": "Offered"})
+	code, body = w.call(t, w.full, http.MethodPost, plansPath, planDoc(handle, map[string]any{"displayName": "Offered"}))
 	require.Equal(t, http.StatusCreated, code, string(body))
 	usageOf := func(t *testing.T) planBody {
 		t.Helper()
@@ -920,7 +1173,7 @@ func TestPlanOfferedByMCPProxies(t *testing.T) {
 
 	t.Run("without the gateway nothing offers it", func(t *testing.T) {
 		w.gateways.setOffers(handle, 2)
-		assert.False(t, usageOf(t).Usage.InUse)
+		assert.Zero(t, usageOf(t).Usage.MCPProxies)
 	})
 
 	if _, err := w.host.Install(ctx, planGatewayModuleName, false); err != nil {
@@ -928,23 +1181,27 @@ func TestPlanOfferedByMCPProxies(t *testing.T) {
 	}
 	eventually(t, "the stand-in gateway", func() bool { _, ok := coreext.Capability(planGatewayReady); return ok })
 
-	t.Run("offered by MCP proxies, the plan is in use and locked", func(t *testing.T) {
+	t.Run("offered by MCP proxies, the plan is counted, and still editable", func(t *testing.T) {
 		p := usageOf(t)
-		assert.True(t, p.Usage.InUse)
 		assert.Equal(t, 2, p.Usage.MCPProxies)
-		code, body := w.call(t, w.full, http.MethodPut, plansPath+"/"+handle, map[string]any{"displayName": "Renamed"})
-		assert.Equal(t, http.StatusConflict, code, string(body))
-		code, body = w.call(t, w.full, http.MethodPut, plansPath+"/"+handle,
-			map[string]any{"displayName": "Offered", "description": "Still offered"})
-		assert.Equal(t, http.StatusOK, code, "the description can always change: "+string(body))
-		code, body = w.call(t, w.full, http.MethodDelete, plansPath+"/"+handle, nil)
-		assert.Equal(t, http.StatusConflict, code, string(body))
+		assert.False(t, p.Usage.InUse, "an offer alone doesn't lock the plan")
+		code, body := w.call(t, w.full, http.MethodPut, plansPath+"/"+handle, planDoc(handle, map[string]any{
+			"displayName": "Renamed", "expiryTime": "2099-01-31T23:59:59Z",
+			"conditions": []any{map[string]any{"type": "tool-call-count", "params": map[string]any{
+				"limits": []any{map[string]any{"count": 5, "timeUnit": "MINUTE"}},
+			}}},
+		}))
+		assert.Equal(t, http.StatusOK, code, "its name, expiry and conditions can change: "+string(body))
 	})
 
-	t.Run("once no proxy offers it, it can be deleted", func(t *testing.T) {
-		w.gateways.setOffers(handle, 0)
-		assert.False(t, usageOf(t).Usage.InUse)
+	t.Run("an offered plan can be deprecated, and is then read only", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodDelete, plansPath+"/"+handle, nil)
-		assert.Equal(t, http.StatusNoContent, code, string(body))
+		require.Equal(t, http.StatusOK, code, string(body))
+		p := usageOf(t)
+		assert.True(t, p.Deprecated)
+		assert.Equal(t, 2, p.Usage.MCPProxies, "the offers stay")
+		code, body = w.call(t, w.full, http.MethodPut, plansPath+"/"+handle, planDoc(handle, map[string]any{"displayName": "Again"}))
+		assert.Equal(t, http.StatusConflict, code, string(body))
+		w.gateways.setOffers(handle, 0)
 	})
 }

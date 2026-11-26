@@ -18,6 +18,7 @@ package agent
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/google/uuid"
 	"github.com/onsi/ginkgo/v2"
@@ -37,15 +38,12 @@ import (
 // the DeferCleanup revoke runs only after the invocation completes. The key name is
 // suffixed with a unique token so a not-yet-revoked key from a crashed run can't cause
 // a same-name/different-ID collision. Revoke is best-effort — it only logs on failure.
-func CreateAgentAPIKey(g Gomega, client *framework.AMPClient, orgName, projName, agentName, environment string, req framework.CreateAgentAPIKeyRequest) framework.CreateAgentAPIKeyResponse {
+func CreateAgentAPIKey(g Gomega, client *framework.AMPClient, projName, agentName string, req framework.CreateAgentAPIKeyRequest) framework.CreateAgentAPIKeyResponse {
 	if req.DisplayName != "" {
 		req.DisplayName = fmt.Sprintf("%s-%s", req.DisplayName, uuid.New().String()[:8])
 	}
 
-	basePath := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/environments/%s/api-keys",
-		orgName, projName, agentName, environment)
-
-	resp, err := client.Post(basePath, req)
+	resp, err := client.Post(framework.GWAgent(projName, agentName, "/api-keys"), req)
 	g.Expect(err).NotTo(HaveOccurred(), "create agent API key request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 201)
@@ -58,7 +56,7 @@ func CreateAgentAPIKey(g Gomega, client *framework.AMPClient, orgName, projName,
 	}
 	if keyName != "" {
 		ginkgo.DeferCleanup(func() {
-			delResp, derr := client.Delete(fmt.Sprintf("%s/%s", basePath, keyName))
+			delResp, derr := client.Delete(framework.GWAgent(projName, agentName, "/api-keys/%s", url.PathEscape(keyName)))
 			if derr != nil {
 				ginkgo.GinkgoWriter.Printf("revoke agent API key %q: request failed: %v\n", keyName, derr)
 				return

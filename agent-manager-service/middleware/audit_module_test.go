@@ -128,3 +128,44 @@ func TestAuditInternalCaller(t *testing.T) {
 		t.Errorf("actor = %s/%s, want gateway/gw-1", typ, id)
 	}
 }
+
+// A route without {projName} names its project in the project query parameter, and the path wins over it.
+func TestModuleRouteRecordTakesProjectFromQuery(t *testing.T) {
+	ok := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }
+	cases := []struct{ name, pattern, target, want string }{
+		{"query", "PUT /widgets/{widget}", "/widgets/w-1?project=shop", "shop"},
+		{"path wins", "PUT /projects/{projName}/widgets/{widget}", "/projects/shop/widgets/w-1?project=other", "shop"},
+		{"neither", "PUT /widgets/{widget}", "/widgets/w-1", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := &captureRecorder{}
+			serveModuleRoute(t, rec, tc.pattern, tc.target, audit.RoutePolicy{}, ok)
+			if len(rec.events) != 1 {
+				t.Fatalf("recorded %d events, want 1", len(rec.events))
+			}
+			if got := rec.events[0].ProjectName; got != tc.want {
+				t.Errorf("project = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// A module names the environment a route acts on with modkit.AuditEnvironment; an environment in the path still wins.
+func TestModuleRouteRecordCarriesAuditEnvironment(t *testing.T) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		modkit.AuditEnvironment(r.Context(), "default")
+		w.WriteHeader(http.StatusCreated)
+	}
+	rec := &captureRecorder{}
+	serveModuleRoute(t, rec, "POST /widgets", "/widgets", audit.RoutePolicy{}, handler)
+	if len(rec.events) != 1 || rec.events[0].Environment != "default" {
+		t.Fatalf("events = %+v, want one naming environment default", rec.events)
+	}
+
+	rec = &captureRecorder{}
+	serveModuleRoute(t, rec, "POST /environments/{envName}/widgets", "/environments/prod/widgets", audit.RoutePolicy{}, handler)
+	if len(rec.events) != 1 || rec.events[0].Environment != "prod" {
+		t.Fatalf("events = %+v, want one naming environment prod", rec.events)
+	}
+}

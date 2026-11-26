@@ -25,6 +25,11 @@ export class AmpApi {
     return `/api/v1/orgs/${orgName}`;
   }
 
+  /** Path of one agent, its project in the query. */
+  agentPath(project: string, name: string): string {
+    return `/api/v1/agents/${encodeURIComponent(name)}?project=${encodeURIComponent(project)}`;
+  }
+
   get gw(): string {
     return `/m/ai-gateway/orgs/${orgName}`;
   }
@@ -41,11 +46,11 @@ export class AmpApi {
 
   async deleteProject(name: string): Promise<void> {
     // Agents first: a project with agents may refuse to go.
-    const agents = await this.ctx.get(`${this.org}/projects/${name}/agents`);
+    const agents = await this.ctx.get('/api/v1/agents', { params: { project: name, limit: 500 } });
     if (agents.ok()) {
       const body = await agents.json();
-      for (const a of body.agents ?? []) {
-        await this.ctx.delete(`${this.org}/projects/${name}/agents/${a.name}`);
+      for (const a of body.list ?? []) {
+        await this.ctx.delete(this.agentPath(name, a.metadata.name));
       }
     }
     // Agent deletion finishes in the background, and a project with agents
@@ -70,19 +75,23 @@ export class AmpApi {
   }
 
   async createExternalAgent(project: string, name: string, displayName = name): Promise<void> {
-    const res = await this.ctx.post(`${this.org}/projects/${project}/agents`, {
+    const res = await this.ctx.post('/api/v1/agents', {
       data: {
-        name,
-        displayName,
-        provisioning: { type: 'external' },
-        agentType: { type: 'external-agent-api', subType: 'custom-api' },
+        apiVersion: 'ai-control-plane.choreolabs.com/v1',
+        kind: 'Agent',
+        metadata: { name, project },
+        spec: {
+          displayName,
+          provisioning: { type: 'external' },
+          agentType: { type: 'external-agent-api', subType: 'custom-api' },
+        },
       },
     });
     expect(res.status(), await res.text()).toBe(202);
   }
 
   async getAgent(project: string, name: string): Promise<{ status: number; body: any }> {
-    const res = await this.ctx.get(`${this.org}/projects/${project}/agents/${name}`);
+    const res = await this.ctx.get(this.agentPath(project, name));
     return { status: res.status(), body: res.ok() ? await res.json() : undefined };
   }
 
@@ -99,6 +108,65 @@ export class AmpApi {
 
   async delete(path: string): Promise<number> {
     return (await this.ctx.delete(path)).status();
+  }
+
+  async post(path: string, data: unknown): Promise<{ status: number; body: any }> {
+    const res = await this.ctx.post(path, { data });
+    return { status: res.status(), body: await res.json().catch(() => undefined) };
+  }
+
+  /** Subscription plans (the AI Hub module): served while the module is installed. */
+  readonly plans = '/m/ai-hub/subscription-plans';
+
+  /** Creates a plan through the API, as a document; metadata.name is its handle. */
+  async createPlan(handle: string, spec: Record<string, unknown>): Promise<void> {
+    const res = await this.post(this.plans, {
+      apiVersion: 'ai-control-plane.choreolabs.com/v1',
+      kind: 'SubscriptionPlan',
+      metadata: { name: handle },
+      spec,
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
+  }
+
+  /**
+   * An active gateway serving the environment, with the environment's UUID, or undefined when none
+   * does. A proxy names the gateway, since an environment may have more than one.
+   */
+  async activeGateway(envName = 'default'): Promise<{ envUuid: string; gatewayId: string } | undefined> {
+    const { body } = await this.get(`${this.gw}/gateways`);
+    for (const gw of body?.gateways ?? []) {
+      if (gw.status !== 'ACTIVE') continue;
+      const env = (gw.environments ?? []).find((e: any) => e.name === envName);
+      if (env) return { envUuid: env.id, gatewayId: gw.uuid };
+    }
+    return undefined;
+  }
+
+  /** Creates an org MCP proxy with one endpoint on the gateway, offering the plans. */
+  async createMcpProxy(
+    handle: string,
+    target: { envUuid: string; gatewayId: string },
+    plans: string[],
+  ): Promise<void> {
+    const res = await this.post('/m/ai-gateway/mcp-proxies', {
+      apiVersion: 'ai-control-plane.choreolabs.com/v1',
+      kind: 'McpProxy',
+      metadata: { name: handle },
+      spec: {
+        displayName: `UI e2e ${handle}`,
+        version: 'v1.0',
+        context: `/${handle}`,
+        endpoints: [{
+          id: 'primary',
+          // An address, not a name: the server checks that the upstream host resolves. Nothing calls it.
+          upstream: { main: { url: 'https://1.1.1.1/mcp' } },
+          environments: [{ environmentUuid: target.envUuid, gatewayId: target.gatewayId }],
+        }],
+        subscriptionPlans: plans,
+      },
+    });
+    expect(res.status, JSON.stringify(res.body)).toBe(201);
   }
 
   async dispose(): Promise<void> {

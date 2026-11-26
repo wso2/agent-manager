@@ -24,6 +24,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // WithAudit returns a middleware that records one audit event per request for
@@ -173,10 +174,10 @@ func emitEnvelope(
 }
 
 // pathScope names the project and environment a module route acts on from
-// its path parameters, or the environment query parameter.
+// its path parameters, or the project and environment query parameters.
 func pathScope(r *http.Request) []audit.Option {
 	var opts []audit.Option
-	if p := r.PathValue("projName"); p != "" {
+	if p := requestProject(r); p != "" {
 		opts = append(opts, audit.Project(p))
 	}
 	env := r.URL.Query().Get("environment")
@@ -190,6 +191,14 @@ func pathScope(r *http.Request) []audit.Option {
 		opts = append(opts, audit.Environment(env))
 	}
 	return opts
+}
+
+// requestProject is the project a request names, in its path or else its query.
+func requestProject(r *http.Request) string {
+	if p := r.PathValue(utils.PathParamProjName); p != "" {
+		return p
+	}
+	return r.URL.Query().Get(utils.QueryParamProject)
 }
 
 // routeCoalescer bounds how often a polled route is recorded per caller.

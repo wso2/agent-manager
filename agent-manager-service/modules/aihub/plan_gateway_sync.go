@@ -25,10 +25,11 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
 )
 
-// Gateway sync, as the gateways expect it from any control plane: a gateway pulls every plan of its
-// organization when it connects (planSource, the "subscription.plans/v1" capability), and each plan change is
-// pushed to the organization's gateways once it is committed (the AI Gateway subscribes to the module's
-// plan-changed event, EventPlanChanged, which planSource names).
+// Gateway sync, as the gateways expect it from any control plane, through planSource (the
+// "subscription.plans/v1" capability). Plans are subscribed to in the developer portal, so a plan reaches the
+// gateways with its subscriptions: the AI Gateway pushes each subscription change, after its plan, once it is
+// committed (it subscribes to EventSubscriptionChanged, which planSource names), and a gateway that connects
+// pulls the subscriptions and the plans they are on.
 
 // gatewayUnits are the throttle units a gateway takes for its single limit.
 var gatewayUnits = map[string]bool{"MINUTE": true, "HOUR": true, "DAY": true, "MONTH": true}
@@ -100,6 +101,7 @@ func gatewayPlan(id, handle, name, status string, conditions []Condition, full *
 	}
 	if full != nil {
 		out.ExpiryTime, out.CreatedAt, out.UpdatedAt = full.ExpiryTime, full.CreatedAt, full.UpdatedAt
+		out.Deprecated = full.deprecated()
 	}
 	return out
 }

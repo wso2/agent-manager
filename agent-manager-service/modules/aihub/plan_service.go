@@ -38,11 +38,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
-// Plan statuses. Only an ACTIVE plan can be offered or subscribed to.
+// Plan statuses. Only an ACTIVE plan that isn't deprecated can be offered or subscribed to.
 const (
 	StatusActive   = "ACTIVE"
 	StatusInactive = "INACTIVE"
 )
+
+// OriginControlPlane is the origin of a plan made here. A plan copied in from a developer portal has the portal's
+// name as its origin (the webhook_source_name setting).
+const OriginControlPlane = "ai-control-plane"
 
 // Limits on a plan's fields.
 const (
@@ -70,7 +74,15 @@ type plan struct {
 	// SourceChangedAt is when the plan last changed at the developer portal it was copied from, by the portal's
 	// clock; nil for a plan made here.
 	SourceChangedAt *time.Time
+	// Origin is where the plan was made: OriginControlPlane, or the developer portal that copied it in.
+	Origin string
+	// DeprecatedAt is when the plan was deprecated; nil while it is current.
+	DeprecatedAt *time.Time
 }
+
+// deprecated reports whether the plan is deprecated: kept for the subscriptions on it, but closed to changes,
+// offers and new subscriptions.
+func (p *plan) deprecated() bool { return p.DeprecatedAt != nil }
 
 // planUpdate is a change to a plan. A nil field keeps the stored value.
 type planUpdate struct {
@@ -83,41 +95,42 @@ type planUpdate struct {
 	ClearExpiryTime bool // "expiryTime": null
 	Status          *string
 	// FromWebhook marks a change that came in by webhook from where the plan was made: the rule
-	// that a plan in use keeps its name and conditions does not apply to the source's own changes.
+	// that a plan in use keeps its name, conditions and expiry does not apply to the source's own changes.
 	FromWebhook bool
 	// SourceChangedAt is when the change was made at the source (FromWebhook): a change older than the
 	// plan's last one there, or than its deletion there, is out of date and is not applied (errStaleEvent).
 	SourceChangedAt *time.Time
 }
 
-// usage is what offers or uses a plan. A plan in use keeps its name and conditions and can't be deleted.
+// usage is what offers or uses a plan. A plan in use (one with subscriptions; later also one published to a
+// developer portal) keeps its name, conditions and expiry. Offering a plan on an MCP proxy doesn't lock it.
 type usage struct {
 	MCPProxies    int
 	Subscriptions int
 }
 
-func (u usage) inUse() bool { return u.MCPProxies > 0 || u.Subscriptions > 0 }
+func (u usage) inUse() bool { return u.Subscriptions > 0 }
 
 // Errors the API maps to a status and code. A validationError is a 400.
 var (
 	errPlanNotFound = errors.New("the specified subscription plan could not be found")
 	errPlanExists   = errors.New("a subscription plan with this name already exists")
+	// errPlanDeprecated refuses changing a deprecated plan, offering it or subscribing to it.
+	errPlanDeprecated = errors.New("the subscription plan is deprecated")
+	// errPlanOriginConflict refuses a plan created at a developer portal with the handle of a plan made elsewhere.
+	errPlanOriginConflict = errors.New("a subscription plan with this handle was made elsewhere")
 	// errStaleEvent refuses a webhook change made at the source before the plan's last change there, or
 	// before its deletion there: applying it would bring back an older state.
 	errStaleEvent = errors.New("the change is older than the plan's last change at its source")
 )
 
-// inUseError refuses deleting a plan, or changing its name or conditions, while something offers or uses it.
+// inUseError refuses changing a plan's name, conditions or expiry while subscriptions use it.
 type inUseError struct{ msg string }
 
 func (e *inUseError) Error() string { return e.msg }
 
-func planInUse(name string) error {
-	return &inUseError{msg: fmt.Sprintf("The plan %s is in use and can't be deleted.", name)}
-}
-
 func planEditInUse(name string) error {
-	return &inUseError{msg: fmt.Sprintf("The plan %s is in use. To change its name or conditions, create a new plan.", name)}
+	return &inUseError{msg: fmt.Sprintf("The plan %s has subscriptions. To change its name, conditions or expiry, create a new plan.", name)}
 }
 
 // planChanged is the payload of EventPlanChanged.
@@ -136,8 +149,7 @@ type planChanged struct {
 type planService struct {
 	db      func() *gorm.DB
 	publish func(ctx context.Context, tx *gorm.DB, data planChanged) error
-	// usage counts what offers or uses a plan. Offering plans on MCP proxies and subscriptions come in later
-	// parts of the module; until then nothing uses a plan.
+	// usage counts what offers or uses a plan: the MCP proxies that offer it and the subscriptions on it.
 	usage func(ctx context.Context, tx *gorm.DB, orgID, handle string) (usage, error)
 	// offers counts the MCP proxies that offer a plan, as the AI Gateway reports them
 	// (subplanv1.Source.CountOffersWith); nil without a gateway.
@@ -158,8 +170,10 @@ type planRow struct {
 	UpdatedBy   *string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-	// SourceChangedAt, see plan.
+	// SourceChangedAt, Origin and DeprecatedAt, see plan.
 	SourceChangedAt *time.Time
+	Origin          string
+	DeprecatedAt    *time.Time
 }
 
 type conditionRow struct {
@@ -170,7 +184,7 @@ type conditionRow struct {
 }
 
 const planColumns = `id, org_id, handle, display_name, description, status, expiry_time, created_by, updated_by, ` +
-	`created_at, updated_at, source_changed_at`
+	`created_at, updated_at, source_changed_at, origin, deprecated_at`
 
 // foldName is how names are compared in a search: Unicode case-folded, in one normal form. It is stored with each
 // plan (display_name_folded), since SQLite's LOWER folds ASCII only.
@@ -209,7 +223,8 @@ func listFilter(orgID string, opts listOptions) (string, []any) {
 	return where, args
 }
 
-// list returns a page of the organization's plans, newest first, and the number of plans that match. The plans
+// list returns a page of the organization's plans, current ones first and then deprecated ones, each newest
+// first, and the number of plans that match. The order is in the query, so every page follows it. The plans
 // and their conditions are read in one snapshot (read), so a plan never pairs one version's fields with
 // another's conditions.
 func (s *planService) list(ctx context.Context, orgID string, opts listOptions) ([]*plan, int, error) {
@@ -222,7 +237,7 @@ func (s *planService) list(ctx context.Context, orgID string, opts listOptions) 
 		}
 		var rows []planRow
 		if err := tx.Raw(`SELECT `+planColumns+` FROM mod_ai_hub_subscription_plans`+where+
-			` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, append(args, opts.Limit, opts.Offset)...).
+			` ORDER BY CASE WHEN deprecated_at IS NULL THEN 0 ELSE 1 END, created_at DESC, id DESC LIMIT ? OFFSET ?`, append(args, opts.Limit, opts.Offset)...).
 			Scan(&rows).Error; err != nil {
 			return fmt.Errorf("list plans: %w", err)
 		}
@@ -341,6 +356,11 @@ func (s *planService) planFrom(r planRow, raw []Condition) *plan {
 		UUID: r.ID, OrgID: r.OrgID, Handle: r.Handle, Name: r.DisplayName, Description: "", Status: r.Status,
 		ExpiryTime: nil, Conditions: []Condition{}, CreatedBy: "", UpdatedBy: "",
 		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(), SourceChangedAt: nil,
+		Origin: r.Origin, DeprecatedAt: nil,
+	}
+	if r.DeprecatedAt != nil {
+		t := r.DeprecatedAt.UTC()
+		p.DeprecatedAt = &t
 	}
 	if r.Description != nil {
 		p.Description = *r.Description
@@ -381,6 +401,9 @@ func (s *planService) create(ctx context.Context, orgID, actor string, p *plan) 
 	if p.Status == "" {
 		p.Status = StatusActive
 	}
+	if p.Origin == "" {
+		p.Origin = OriginControlPlane
+	}
 	if err := checkDescription(p.Description); err != nil {
 		return nil, err
 	}
@@ -410,9 +433,9 @@ func (s *planService) create(ctx context.Context, orgID, actor string, p *plan) 
 		// savepoint, since a failed statement aborts the transaction on PostgreSQL.
 		err := tx.Transaction(func(sp *gorm.DB) error {
 			return sp.Exec(`INSERT INTO mod_ai_hub_subscription_plans (`+planColumns+`, display_name_folded) `+
-				`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id.String(), orgID, p.Handle, p.Name, nullable(p.Description), p.Status, p.ExpiryTime,
-				nullable(actor), nullable(actor), createdAt, now, p.SourceChangedAt, foldName(p.Name)).Error
+				nullable(actor), nullable(actor), createdAt, now, p.SourceChangedAt, p.Origin, nil, foldName(p.Name)).Error
 		})
 		if dberr.IsDuplicateKey(err) {
 			return errPlanExists
@@ -432,12 +455,12 @@ func (s *planService) create(ctx context.Context, orgID, actor string, p *plan) 
 		return nil, err
 	}
 	s.log.InfoContext(ctx, "subscription plan created", "orgId", orgID, "plan", created.Handle, "planId", created.UUID,
-		"conditions", len(created.Conditions), "status", created.Status, "actor", actor)
+		"conditions", len(created.Conditions), "status", created.Status, "origin", created.Origin, "actor", actor)
 	return created, nil
 }
 
-// update changes a plan. The name and conditions can change only while nothing offers or uses the plan; the
-// description, expiry and status can always change.
+// update changes a plan. The name, conditions and expiry can change only while no subscription uses the plan;
+// the description and status can always change. A deprecated plan can't change (errPlanDeprecated).
 func (s *planService) update(ctx context.Context, orgID, handle, actor string, u *planUpdate) (*plan, error) {
 	var updated *plan
 	err := s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -447,6 +470,9 @@ func (s *planService) update(ctx context.Context, orgID, handle, actor string, u
 		existing, err := s.getTx(tx, orgID, handle)
 		if err != nil {
 			return err
+		}
+		if existing.deprecated() {
+			return errPlanDeprecated
 		}
 		if at := u.SourceChangedAt; at != nil {
 			if existing.SourceChangedAt != nil && at.Before(*existing.SourceChangedAt) {
@@ -527,9 +553,16 @@ func (s *planService) update(ctx context.Context, orgID, handle, actor string, u
 	return updated, nil
 }
 
-// delete removes a plan that nothing offers or uses, with its conditions.
-func (s *planService) delete(ctx context.Context, orgID, handle, actor string) error {
-	var deleted *plan
+// deprecate marks a plan deprecated. It stays, for the subscriptions on it, and gateways still get it; but it
+// can't be changed, offered or subscribed to again. Deprecating a deprecated plan changes nothing.
+func (s *planService) deprecate(ctx context.Context, orgID, handle, actor string) (*plan, error) {
+	return s.deprecateAt(ctx, orgID, handle, actor, nil)
+}
+
+// deprecateAt deprecates a plan; at, when set, is when its source deprecated it, by the source's clock.
+func (s *planService) deprecateAt(ctx context.Context, orgID, handle, actor string, at *time.Time) (*plan, error) {
+	var deprecated *plan
+	changed := false
 	err := s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockPlan(tx, orgID, handle); err != nil {
 			return err
@@ -538,47 +571,34 @@ func (s *planService) delete(ctx context.Context, orgID, handle, actor string) e
 		if err != nil {
 			return err
 		}
-		use, err := s.usage(ctx, tx, orgID, existing.Handle)
-		if err != nil {
+		if existing.deprecated() {
+			deprecated = existing
+			return nil
+		}
+		now := s.now().UTC()
+		when, sourceChangedAt := now, existing.SourceChangedAt
+		if at != nil {
+			when, sourceChangedAt = at.UTC(), at
+		}
+		if err := tx.Exec(`UPDATE mod_ai_hub_subscription_plans SET deprecated_at = ?, updated_by = ?, updated_at = ?, `+
+			`source_changed_at = ? WHERE org_id = ? AND id = ?`,
+			when, nullable(actor), now, sourceChangedAt, orgID, existing.UUID).Error; err != nil {
+			return fmt.Errorf("deprecate plan %s: %w", handle, err)
+		}
+		if deprecated, err = s.getTx(tx, orgID, handle); err != nil {
 			return err
 		}
-		if use.inUse() {
-			return planInUse(existing.Name)
-		}
-		if err := deletePlanRow(tx, orgID, existing); err != nil {
-			return err
-		}
-		deleted = existing
-		return s.publish(ctx, tx, deletedEvent(existing))
+		changed = true
+		return s.publish(ctx, tx, changedEvent(deprecated, "updated"))
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s.log.InfoContext(ctx, "subscription plan deleted", "orgId", orgID, "plan", handle, "planId", deleted.UUID,
-		"actor", actor)
-	return nil
-}
-
-// deletePlanRow deletes the plan, with its conditions (ON DELETE CASCADE). A plan another transaction deleted
-// first is not found, so only one deletion is published.
-func deletePlanRow(tx *gorm.DB, orgID string, p *plan) error {
-	res := tx.Exec(`DELETE FROM mod_ai_hub_subscription_plans WHERE org_id = ? AND id = ?`, orgID, p.UUID)
-	if res.Error != nil {
-		return fmt.Errorf("delete plan %s: %w", p.Handle, res.Error)
+	if changed {
+		s.log.InfoContext(ctx, "subscription plan deprecated", "orgId", orgID, "plan", handle, "planId", deprecated.UUID,
+			"actor", actor)
 	}
-	if res.RowsAffected == 0 {
-		return errPlanNotFound
-	}
-	return nil
-}
-
-// deletedEvent is the event of a deleted plan: it names the plan only, so the fields of a change stay empty and
-// are left out.
-func deletedEvent(p *plan) planChanged {
-	return planChanged{
-		OrgID: p.OrgID, PlanID: p.UUID, Handle: p.Handle, PlanName: p.Name, Action: "deleted",
-		Status: "", ExpiryTime: nil, Conditions: nil,
-	}
+	return deprecated, nil
 }
 
 func changedEvent(p *plan, action string) planChanged {
@@ -588,13 +608,29 @@ func changedEvent(p *plan, action string) planChanged {
 	}
 }
 
-// changesLockedValues reports whether the update changes the name or conditions, which a plan in use keeps. Values
+// changesLockedValues reports whether the update changes the name, conditions or expiry, which a plan in use keeps. Values
 // are compared, not which fields were sent; names ignore surrounding spaces.
 func changesLockedValues(existing *plan, u *planUpdate, conditions []Condition) bool {
 	if u.Name != nil && strings.TrimSpace(*u.Name) != strings.TrimSpace(existing.Name) {
 		return true
 	}
+	if changesExpiry(existing.ExpiryTime, u) {
+		return true
+	}
 	return !sameConditions(existing.Conditions, conditions)
+}
+
+// changesExpiry reports whether the update sets an expiry other than the plan's, or clears one it has. Times are
+// compared to the second, so an expiry read back and sent unchanged is not a change.
+func changesExpiry(current *time.Time, u *planUpdate) bool {
+	switch {
+	case u.ExpiryTime != nil:
+		return current == nil || !current.Truncate(time.Second).Equal(u.ExpiryTime.Truncate(time.Second))
+	case u.ClearExpiryTime:
+		return current != nil
+	default:
+		return false
+	}
 }
 
 // updatedConditions returns the plan's conditions after the update, normalized.
@@ -655,9 +691,6 @@ func nullable(s string) *string {
 	}
 	return &s
 }
-
-// noUsage is the usage counter where nothing counts offers.
-func noUsage(context.Context, *gorm.DB, string, string) (usage, error) { return usage{}, nil }
 
 // proxyUsage counts what uses a plan: the subscriptions on it, and the MCP proxies that offer it, with the
 // counter the AI Gateway handed over (without one, nothing offers plans).

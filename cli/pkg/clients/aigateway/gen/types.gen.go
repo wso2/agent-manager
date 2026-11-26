@@ -197,6 +197,66 @@ func (e AgentKindVersionResponseAgentSubType) Valid() bool {
 	}
 }
 
+// Defines values for AgentMcpConfigDocumentApiVersion.
+const (
+	AgentMcpConfigDocumentApiVersionAiControlPlaneChoreolabsComv1 AgentMcpConfigDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the AgentMcpConfigDocumentApiVersion enum.
+func (e AgentMcpConfigDocumentApiVersion) Valid() bool {
+	switch e {
+	case AgentMcpConfigDocumentApiVersionAiControlPlaneChoreolabsComv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentMcpConfigDocumentKind.
+const (
+	AgentMcpConfig AgentMcpConfigDocumentKind = "AgentMcpConfig"
+)
+
+// Valid indicates whether the value is a known member of the AgentMcpConfigDocumentKind enum.
+func (e AgentMcpConfigDocumentKind) Valid() bool {
+	switch e {
+	case AgentMcpConfig:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentModelConfigDocumentApiVersion.
+const (
+	AgentModelConfigDocumentApiVersionAiControlPlaneChoreolabsComv1 AgentModelConfigDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the AgentModelConfigDocumentApiVersion enum.
+func (e AgentModelConfigDocumentApiVersion) Valid() bool {
+	switch e {
+	case AgentModelConfigDocumentApiVersionAiControlPlaneChoreolabsComv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentModelConfigDocumentKind.
+const (
+	AgentModelConfig AgentModelConfigDocumentKind = "AgentModelConfig"
+)
+
+// Valid indicates whether the value is a known member of the AgentModelConfigDocumentKind enum.
+func (e AgentModelConfigDocumentKind) Valid() bool {
+	switch e {
+	case AgentModelConfig:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CatalogDeploymentSummaryStatus.
 const (
 	CatalogDeploymentSummaryStatusDEPLOYED    CatalogDeploymentSummaryStatus = "DEPLOYED"
@@ -254,27 +314,6 @@ const (
 func (e CatalogLLMProviderEntryKind) Valid() bool {
 	switch e {
 	case CatalogLLMProviderEntryKindLlmProvider:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateAgentModelConfigRequestType.
-const (
-	Llm   CreateAgentModelConfigRequestType = "llm"
-	Mcp   CreateAgentModelConfigRequestType = "mcp"
-	Other CreateAgentModelConfigRequestType = "other"
-)
-
-// Valid indicates whether the value is a known member of the CreateAgentModelConfigRequestType enum.
-func (e CreateAgentModelConfigRequestType) Valid() bool {
-	switch e {
-	case Llm:
-		return true
-	case Mcp:
-		return true
-	case Other:
 		return true
 	default:
 		return false
@@ -661,13 +700,13 @@ func (e LLMProviderConsumerItemConsumerType) Valid() bool {
 
 // Defines values for LlmProviderDocumentApiVersion.
 const (
-	AiControlPlaneChoreolabsComv1 LlmProviderDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+	LlmProviderDocumentApiVersionAiControlPlaneChoreolabsComv1 LlmProviderDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
 )
 
 // Valid indicates whether the value is a known member of the LlmProviderDocumentApiVersion enum.
 func (e LlmProviderDocumentApiVersion) Valid() bool {
 	switch e {
-	case AiControlPlaneChoreolabsComv1:
+	case LlmProviderDocumentApiVersionAiControlPlaneChoreolabsComv1:
 		return true
 	default:
 		return false
@@ -710,6 +749,66 @@ func (e MCPEndpointEnvironmentDeploymentStatus) Valid() bool {
 	case Undeployed:
 		return true
 	case Undeploying:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for McpProxyDocumentApiVersion.
+const (
+	McpProxyDocumentApiVersionAiControlPlaneChoreolabsComv1 McpProxyDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the McpProxyDocumentApiVersion enum.
+func (e McpProxyDocumentApiVersion) Valid() bool {
+	switch e {
+	case McpProxyDocumentApiVersionAiControlPlaneChoreolabsComv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for McpProxyDocumentKind.
+const (
+	McpProxy McpProxyDocumentKind = "McpProxy"
+)
+
+// Valid indicates whether the value is a known member of the McpProxyDocumentKind enum.
+func (e McpProxyDocumentKind) Valid() bool {
+	switch e {
+	case McpProxy:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for McpProxyScopeDocumentApiVersion.
+const (
+	AiControlPlaneChoreolabsComv1 McpProxyScopeDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the McpProxyScopeDocumentApiVersion enum.
+func (e McpProxyScopeDocumentApiVersion) Valid() bool {
+	switch e {
+	case AiControlPlaneChoreolabsComv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for McpProxyScopeDocumentKind.
+const (
+	McpProxyScope McpProxyScopeDocumentKind = "McpProxyScope"
+)
+
+// Valid indicates whether the value is a known member of the McpProxyScopeDocumentKind enum.
+func (e McpProxyScopeDocumentKind) Valid() bool {
+	switch e {
+	case McpProxyScope:
 		return true
 	default:
 		return false
@@ -1033,6 +1132,29 @@ type AgentCardResponseSource string
 // AgentCardResponseStatus pending while a fetch is due or retrying; failed once the retry budget ran out.
 type AgentCardResponseStatus string
 
+// AgentConfigEnvironmentVariables Names of the environment variables the agent reads the binding from. If omitted on create, names are generated from the configuration name. On update, entries are merged by key. Duplicate keys are rejected with 400.
+type AgentConfigEnvironmentVariables = []EnvironmentVariableConfig
+
+// AgentConfigStatus How the agent reaches the binding through the gateway.
+type AgentConfigStatus struct {
+	AuthInfo *AuthInfo `json:"authInfo,omitempty"`
+
+	// ProviderPolicies Guardrails set on the provider itself, applied with spec.configuration.policies.
+	ProviderPolicies *[]LLMPolicy `json:"providerPolicies,omitempty"`
+
+	// ProviderUuid UUID of the bound provider or MCP proxy.
+	ProviderUuid *string `json:"providerUuid,omitempty"`
+
+	// ProxyName Handle of the gateway proxy that serves the binding.
+	ProxyName *string `json:"proxyName,omitempty"`
+
+	// ProxyUuid UUID of the gateway proxy that serves the binding.
+	ProxyUuid *string `json:"proxyUuid,omitempty"`
+
+	// Url Gateway URL the agent calls.
+	Url *string `json:"url,omitempty"`
+}
+
 // AgentConfigurationResponse defines model for AgentConfigurationResponse.
 type AgentConfigurationResponse struct {
 	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
@@ -1207,68 +1329,90 @@ type AgentKindVersionResponse struct {
 // AgentKindVersionResponseAgentSubType Agent sub-type (chat-api, custom-api or a2a-agent)
 type AgentKindVersionResponseAgentSubType string
 
-// AgentModelConfigListItem defines model for AgentModelConfigListItem.
-type AgentModelConfigListItem struct {
-	// AgentId Agent identifier
-	AgentId string `json:"agentId"`
+// AgentMcpConfigDocument An agent's binding to an MCP proxy, as a document. metadata.name is the configuration's name; metadata.uid is the configId in the path. It applies to the default environment.
+type AgentMcpConfigDocument struct {
+	ApiVersion AgentMcpConfigDocumentApiVersion `json:"apiVersion"`
 
-	// CreatedAt Creation timestamp
-	CreatedAt time.Time `json:"createdAt"`
+	// Kind Must match the route; never ignored.
+	Kind AgentMcpConfigDocumentKind `json:"kind"`
 
-	// Description Configuration description
+	// Metadata Metadata of a kind that lives inside a project.
+	Metadata ProjectScopedDocumentMetadata `json:"metadata"`
+	Spec     AgentMcpConfigSpec            `json:"spec"`
+
+	// Status How the agent reaches the binding through the gateway.
+	Status *AgentConfigStatus `json:"status,omitempty"`
+}
+
+// AgentMcpConfigDocumentApiVersion defines model for AgentMcpConfigDocument.ApiVersion.
+type AgentMcpConfigDocumentApiVersion string
+
+// AgentMcpConfigDocumentKind Must match the route; never ignored.
+type AgentMcpConfigDocumentKind string
+
+// AgentMcpConfigListResponse defines model for AgentMcpConfigListResponse.
+type AgentMcpConfigListResponse struct {
+	// Count Number of items in this page.
+	Count      int32                    `json:"count"`
+	List       []AgentMcpConfigDocument `json:"list"`
+	Pagination PaginationInfo           `json:"pagination"`
+}
+
+// AgentMcpConfigSpec defines model for AgentMcpConfigSpec.
+type AgentMcpConfigSpec struct {
+	Configuration *EnvProviderConfiguration `json:"configuration,omitempty"`
+
+	// Description Description of the configuration.
 	Description *string `json:"description,omitempty"`
 
-	// Name Configuration name
-	Name string `json:"name"`
+	// EnvironmentVariables Names of the environment variables the agent reads the binding from. If omitted on create, names are generated from the configuration name. On update, entries are merged by key. Duplicate keys are rejected with 400.
+	EnvironmentVariables *AgentConfigEnvironmentVariables `json:"environmentVariables,omitempty"`
 
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// Type Configuration type
-	Type string `json:"type"`
-
-	// Uuid Configuration UUID
-	Uuid openapi_types.UUID `json:"uuid"`
+	// ProxyName Handle of the MCP proxy this configuration binds to.
+	ProxyName string `json:"proxyName"`
 }
+
+// AgentModelConfigDocument An agent's binding to an LLM provider, as a document. metadata.name is the configuration's name; metadata.uid is the configId in the path. It applies to the default environment.
+type AgentModelConfigDocument struct {
+	ApiVersion AgentModelConfigDocumentApiVersion `json:"apiVersion"`
+
+	// Kind Must match the route; never ignored.
+	Kind AgentModelConfigDocumentKind `json:"kind"`
+
+	// Metadata Metadata of a kind that lives inside a project.
+	Metadata ProjectScopedDocumentMetadata `json:"metadata"`
+	Spec     AgentModelConfigSpec          `json:"spec"`
+
+	// Status How the agent reaches the binding through the gateway.
+	Status *AgentConfigStatus `json:"status,omitempty"`
+}
+
+// AgentModelConfigDocumentApiVersion defines model for AgentModelConfigDocument.ApiVersion.
+type AgentModelConfigDocumentApiVersion string
+
+// AgentModelConfigDocumentKind Must match the route; never ignored.
+type AgentModelConfigDocumentKind string
 
 // AgentModelConfigListResponse defines model for AgentModelConfigListResponse.
 type AgentModelConfigListResponse struct {
-	// Configs List of agent model configurations
-	Configs    []AgentModelConfigListItem `json:"configs"`
+	// Count Number of items in this page.
+	Count      int32                      `json:"count"`
+	List       []AgentModelConfigDocument `json:"list"`
 	Pagination PaginationInfo             `json:"pagination"`
 }
 
-// AgentModelConfigResponse defines model for AgentModelConfigResponse.
-type AgentModelConfigResponse struct {
-	// AgentId Agent identifier
-	AgentId string `json:"agentId"`
+// AgentModelConfigSpec defines model for AgentModelConfigSpec.
+type AgentModelConfigSpec struct {
+	Configuration *EnvProviderConfiguration `json:"configuration,omitempty"`
 
-	// CreatedAt Configuration creation timestamp
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Description Description of the configuration
+	// Description Description of the configuration.
 	Description *string `json:"description,omitempty"`
 
-	// EnvMappings Environment-specific model configurations
-	EnvMappings map[string]EnvProviderConfigMappings `json:"envMappings"`
+	// EnvironmentVariables Names of the environment variables the agent reads the binding from. If omitted on create, names are generated from the configuration name. On update, entries are merged by key. Duplicate keys are rejected with 400.
+	EnvironmentVariables *AgentConfigEnvironmentVariables `json:"environmentVariables,omitempty"`
 
-	// EnvironmentVariables Environment variables configured for the agent
-	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables"`
-
-	// Name Name of the configuration
-	Name string `json:"name"`
-
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// Type Type of configuration
-	Type string `json:"type"`
-
-	// UpdatedAt Configuration last updated timestamp
-	UpdatedAt time.Time `json:"updatedAt"`
-
-	// Uuid Unique identifier for the configuration
-	Uuid openapi_types.UUID `json:"uuid"`
+	// ProviderName Handle of the LLM provider this configuration binds to.
+	ProviderName string `json:"providerName"`
 }
 
 // AuthInfo defines model for AuthInfo.
@@ -1442,27 +1586,6 @@ type CostRateLimit struct {
 	Enabled bool                 `json:"enabled"`
 	Reset   RateLimitResetWindow `json:"reset"`
 }
-
-// CreateAgentModelConfigRequest defines model for CreateAgentModelConfigRequest.
-type CreateAgentModelConfigRequest struct {
-	// Description Optional description of the configuration
-	Description *string `json:"description,omitempty"`
-
-	// EnvMappings Map of environment names to their model configurations
-	EnvMappings map[string]EnvModelConfigRequest `json:"envMappings"`
-
-	// EnvironmentVariables Optional custom environment variable names. If omitted, names are auto-generated from the config name. Duplicate keys are rejected with 400.
-	EnvironmentVariables *[]EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
-
-	// Name Name of the model configuration
-	Name string `json:"name"`
-
-	// Type Type of configuration
-	Type CreateAgentModelConfigRequestType `json:"type"`
-}
-
-// CreateAgentModelConfigRequestType Type of configuration
-type CreateAgentModelConfigRequestType string
 
 // CreateGatewayRequest defines model for CreateGatewayRequest.
 type CreateGatewayRequest struct {
@@ -1661,34 +1784,6 @@ type DocumentMetadata struct {
 
 	// UpdateTimestamp When the resource last changed (the flat body's `updatedAt`).
 	UpdateTimestamp *time.Time `json:"updateTimestamp,omitempty"`
-}
-
-// EnvModelConfigRequest defines model for EnvModelConfigRequest.
-type EnvModelConfigRequest struct {
-	Configuration EnvProviderConfiguration `json:"configuration"`
-
-	// McpProxyId ID/handle of the MCP proxy for this environment
-	McpProxyId *string `json:"mcpProxyId,omitempty"`
-
-	// McpProxyName Handle/name of the MCP proxy for this environment
-	McpProxyName *string `json:"mcpProxyName,omitempty"`
-
-	// ProviderName Handle of the LLM provider for this environment. For MCP configs, proxyName/proxyId may be used instead.
-	ProviderName *string `json:"providerName,omitempty"`
-
-	// ProxyId ID/handle of the MCP proxy for this environment
-	ProxyId *string `json:"proxyId,omitempty"`
-
-	// ProxyName Handle/name of the MCP proxy for this environment
-	ProxyName *string `json:"proxyName,omitempty"`
-}
-
-// EnvProviderConfigMappings defines model for EnvProviderConfigMappings.
-type EnvProviderConfigMappings struct {
-	Configuration *ProviderConfig `json:"configuration,omitempty"`
-
-	// EnvironmentName Name of the environment
-	EnvironmentName string `json:"environmentName"`
 }
 
 // EnvProviderConfiguration defines model for EnvProviderConfiguration.
@@ -2545,173 +2640,21 @@ type MCPProxyEndpoint struct {
 	Upstream UpstreamConfig  `json:"upstream"`
 }
 
-// MCPProxyListItem defines model for MCPProxyListItem.
-type MCPProxyListItem struct {
-	// Context MCP proxy context path
-	Context *string `json:"context,omitempty"`
-
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy User who created the MCP proxy
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Description Description of the MCP proxy
-	Description *string `json:"description,omitempty"`
-
-	// Id Unique handle for the MCP proxy
-	Id *string `json:"id,omitempty"`
-
-	// McpSpecVersion MCP specification version implemented by the upstream server
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// Name Human-readable name of the MCP proxy
-	Name *string `json:"name,omitempty"`
-
-	// ProjectName Set for a project-owned proxy; absent for an org-level one
-	ProjectName *string `json:"projectName,omitempty"`
-
-	// Status MCP proxy status
-	Status *string `json:"status,omitempty"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-
-	// Version Version of the MCP proxy
-	Version *string `json:"version,omitempty"`
-}
-
 // MCPProxyListResponse defines model for MCPProxyListResponse.
 type MCPProxyListResponse struct {
-	Count      int32              `json:"count"`
-	List       []MCPProxyListItem `json:"list"`
-	Pagination PaginationInfo     `json:"pagination"`
-}
+	// Count Number of items in this page.
+	Count *int32             `json:"count,omitempty"`
+	List  []McpProxyDocument `json:"list"`
 
-// MCPProxyRequest defines model for MCPProxyRequest.
-type MCPProxyRequest struct {
-	// Context MCP proxy context path
-	Context *string `json:"context,omitempty"`
-
-	// Description Description of the MCP proxy
-	Description *string `json:"description,omitempty"`
-
-	// Endpoints Deployable endpoint definitions of the MCP proxy. Each endpoint is deployed to one or more environments; within a proxy an environment maps to at most one endpoint. At least one endpoint is required.
-	Endpoints *[]MCPProxyEndpoint `json:"endpoints,omitempty"`
-
-	// Gateways Deprecated and never implemented. Deployment is per (endpoint, environment),
-	// so this proxy-wide field is at the wrong granularity — use
-	// MCPEndpointEnvironment.gatewayId. Populated on read only.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Gateways *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique handle for the MCP proxy
-	Id string `json:"id"`
-
-	// InCatalog Whether the MCP proxy is available in the catalog
-	InCatalog *bool `json:"inCatalog,omitempty"`
-
-	// McpSpecVersion MCP specification version implemented by the upstream server
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// Name Human-readable name of the MCP proxy
-	Name string `json:"name"`
-
-	// SubscriptionPlans Handles of the subscription plans the MCP proxy offers, for every endpoint. Each added plan must be an
-	// active plan of the organization; a plan the proxy already offers can stay after it is deactivated. On
-	// update, leaving it out keeps the offered plans and an empty list offers none. Needs the ai-hub module.
-	// A plan is enforced only where subscription-validation v2 (and subscription-tool-ratelimit for tool-call
-	// limits) are attached to the endpoint; once they are, calls without an active subscription get 403.
-	SubscriptionPlans *[]string `json:"subscriptionPlans,omitempty"`
-
-	// Version Version of the MCP proxy
-	Version string `json:"version"`
-
-	// Vhost Virtual host assigned to the MCP proxy
-	Vhost *string `json:"vhost,omitempty"`
-}
-
-// MCPProxyResponse defines model for MCPProxyResponse.
-type MCPProxyResponse struct {
-	// Context MCP proxy context path
-	Context *string `json:"context,omitempty"`
-
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy User who created the MCP proxy
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Description Description of the MCP proxy
-	Description *string `json:"description,omitempty"`
-
-	// Endpoints Deployable endpoint definitions of the MCP proxy. Each endpoint reports its per-environment deployment status. Absent for a project-owned proxy.
-	Endpoints *[]MCPProxyEndpoint `json:"endpoints,omitempty"`
-
-	// Gateways Gateway UUIDs associated with the MCP proxy
-	Gateways *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique handle for the MCP proxy
-	Id string `json:"id"`
-
-	// InCatalog Whether the MCP proxy is available in the catalog
-	InCatalog *bool `json:"inCatalog,omitempty"`
-
-	// McpSpecVersion MCP specification version implemented by the upstream server
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// Name Human-readable name of the MCP proxy
-	Name string `json:"name"`
-
-	// ProjectName Set for a project-owned proxy; absent for an org-level one
-	ProjectName *string `json:"projectName,omitempty"`
-
-	// SubscriptionPlans Handles of the subscription plans the MCP proxy offers; empty when it offers none.
-	SubscriptionPlans *[]string `json:"subscriptionPlans,omitempty"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-
-	// Version Version of the MCP proxy
-	Version string `json:"version"`
-
-	// Vhost Virtual host assigned to the MCP proxy
-	Vhost *string `json:"vhost,omitempty"`
+	// Pagination Where this page sits in the collection.
+	Pagination *Pagination `json:"pagination,omitempty"`
 }
 
 // MCPProxyScopeListResponse defines model for MCPProxyScopeListResponse.
 type MCPProxyScopeListResponse struct {
-	Scopes []MCPProxyScopeResponse `json:"scopes"`
-}
-
-// MCPProxyScopeRequest defines model for MCPProxyScopeRequest.
-type MCPProxyScopeRequest struct {
-	// Action Action name on the proxy's resource server; the token scope is "<proxy-handle>:<action>".
-	Action      string  `json:"action"`
-	Description *string `json:"description,omitempty"`
-
-	// Tools MCP tool names this scope authorizes. May be omitted or empty to declare a scope before binding it to any tool; such a scope is grantable to roles but enforced on no tool.
-	Tools *[]string `json:"tools,omitempty"`
-}
-
-// MCPProxyScopeResponse defines model for MCPProxyScopeResponse.
-type MCPProxyScopeResponse struct {
-	Action      string     `json:"action"`
-	CreatedAt   *time.Time `json:"createdAt,omitempty"`
-	Description *string    `json:"description,omitempty"`
-
-	// Scope Derived token scope string ("<proxy-handle>:<action>").
-	Scope     string     `json:"scope"`
-	Tools     []string   `json:"tools"`
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-}
-
-// MCPProxyScopeUpdateRequest defines model for MCPProxyScopeUpdateRequest.
-type MCPProxyScopeUpdateRequest struct {
-	Description *string `json:"description,omitempty"`
-
-	// Tools Replaces the scope's tool list. Omit to leave it unchanged; send an empty array to unbind the scope from every tool.
-	Tools *[]string `json:"tools,omitempty"`
+	// Count Number of items in this page.
+	Count *int32                  `json:"count,omitempty"`
+	List  []McpProxyScopeDocument `json:"list"`
 }
 
 // MCPServerInfoFetchRequest defines model for MCPServerInfoFetchRequest.
@@ -2736,6 +2679,93 @@ type MCPServerInfoFetchResponse struct {
 	// SupportedVersions MCP specification versions the upstream server supports. For a server that answers server/discover (MCP 2026-07-28 and later), the versions it reported; for an earlier server, the version agreed in the initialize handshake.
 	SupportedVersions *[]string                 `json:"supportedVersions,omitempty"`
 	Tools             *[]map[string]interface{} `json:"tools,omitempty"`
+}
+
+// McpProxyDocument An MCP proxy as a document; metadata.name is its handle, spec.displayName its label. There is no status block: a proxy is placed per (endpoint, environment), and each binding reports its own state under spec.endpoints.
+type McpProxyDocument struct {
+	ApiVersion McpProxyDocumentApiVersion `json:"apiVersion"`
+
+	// Kind Must match the route; never ignored.
+	Kind     McpProxyDocumentKind `json:"kind"`
+	Metadata DocumentMetadata     `json:"metadata"`
+
+	// Spec Desired state of an MCP proxy. displayName, version, context, vhost and mcpSpecVersion are shared metadata; the deployable configuration lives on each endpoint, and the proxy itself deploys nothing to any gateway.
+	Spec McpProxySpec `json:"spec"`
+}
+
+// McpProxyDocumentApiVersion defines model for McpProxyDocument.ApiVersion.
+type McpProxyDocumentApiVersion string
+
+// McpProxyDocumentKind Must match the route; never ignored.
+type McpProxyDocumentKind string
+
+// McpProxyScopeDocument An MCP proxy scope as a document; metadata.name is its action.
+type McpProxyScopeDocument struct {
+	ApiVersion McpProxyScopeDocumentApiVersion `json:"apiVersion"`
+
+	// Kind Must match the route; never ignored.
+	Kind     McpProxyScopeDocumentKind `json:"kind"`
+	Metadata DocumentMetadata          `json:"metadata"`
+
+	// Spec Desired state of one scope on an MCP proxy. The action is metadata.name; renaming it means delete + create.
+	Spec McpProxyScopeSpec `json:"spec"`
+}
+
+// McpProxyScopeDocumentApiVersion defines model for McpProxyScopeDocument.ApiVersion.
+type McpProxyScopeDocumentApiVersion string
+
+// McpProxyScopeDocumentKind Must match the route; never ignored.
+type McpProxyScopeDocumentKind string
+
+// McpProxyScopeSpec Desired state of one scope on an MCP proxy. The action is metadata.name; renaming it means delete + create.
+type McpProxyScopeSpec struct {
+	Description *string `json:"description,omitempty"`
+
+	// Scope Derived token scope string ("<proxy-handle>:<action>").
+	Scope *string `json:"scope,omitempty"`
+
+	// Tools MCP tool names this scope authorizes. On create it may be omitted or empty to declare a scope before binding it to any tool; such a scope is grantable to roles but enforced on no tool. On update it replaces the list, and omitting it leaves the list unchanged.
+	Tools *[]string `json:"tools,omitempty"`
+}
+
+// McpProxySpec Desired state of an MCP proxy. displayName, version, context, vhost and mcpSpecVersion are shared metadata; the deployable configuration lives on each endpoint, and the proxy itself deploys nothing to any gateway.
+type McpProxySpec struct {
+	// Context MCP proxy context path
+	Context *string `json:"context,omitempty"`
+
+	// Description Description of the MCP proxy
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable name of the MCP proxy
+	DisplayName string `json:"displayName"`
+
+	// Endpoints Deployable endpoint definitions of the MCP proxy. Each endpoint is deployed to one or more environments; within a proxy an environment maps to at most one endpoint. On read each entry reports its per-environment deployment status. Omitted from list rows, and absent for a project-owned proxy.
+	Endpoints *[]MCPProxyEndpoint `json:"endpoints,omitempty"`
+
+	// InCatalog Whether the MCP proxy is available in the catalog
+	InCatalog *bool `json:"inCatalog,omitempty"`
+
+	// McpSpecVersion MCP specification version implemented by the upstream server
+	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
+
+	// ProjectName Set for a project-owned proxy, which these routes serve read only; absent for an org-level one.
+	ProjectName *string `json:"projectName,omitempty"`
+
+	// SubscriptionPlans Handles of the subscription plans the MCP proxy offers, for every endpoint. Each added plan must be an
+	// active plan of the organization that isn't deprecated. A plan the proxy already offers stays after it is
+	// deactivated or deprecated while the list is sent back unchanged; a deprecated one must be removed before
+	// the list can change otherwise. On
+	// update, leaving it out keeps the offered plans and an empty list offers none. Needs the ai-hub module.
+	// A plan is enforced only where subscription-validation v2 (and subscription-tool-ratelimit for tool-call
+	// limits) are attached to the endpoint; once they are, calls without an active subscription get 403.
+	// Omitted from list rows.
+	SubscriptionPlans *[]string `json:"subscriptionPlans,omitempty"`
+
+	// Version Version of the MCP proxy
+	Version string `json:"version"`
+
+	// Vhost Virtual host assigned to the MCP proxy
+	Vhost *string `json:"vhost,omitempty"`
 }
 
 // OAuthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
@@ -2790,45 +2820,25 @@ type PaginationInfo struct {
 	Offset int `json:"offset"`
 }
 
-// ProviderConfig defines model for ProviderConfig.
-type ProviderConfig struct {
-	AuthInfo *AuthInfo `json:"authInfo,omitempty"`
+// ProjectScopedDocumentMetadata Metadata of a kind that lives inside a project.
+type ProjectScopedDocumentMetadata struct {
+	// CreatedBy Subject that created the resource.
+	CreatedBy *string `json:"createdBy,omitempty"`
 
-	// McpProxyId ID/handle of the MCP proxy
-	McpProxyId *string `json:"mcpProxyId,omitempty"`
+	// CreationTimestamp When the resource was created.
+	CreationTimestamp *time.Time `json:"creationTimestamp,omitempty"`
 
-	// McpProxyName Name/handle of the MCP proxy
-	McpProxyName *string `json:"mcpProxyName,omitempty"`
+	// Name The resource's name.
+	Name string `json:"name"`
 
-	// Policies Provider-specific policy configurations
-	Policies *[]LLMPolicy `json:"policies,omitempty"`
+	// Project Handle of the project the resource belongs to.
+	Project string `json:"project"`
 
-	// ProviderName Name of the llm provider
-	ProviderName string `json:"providerName"`
+	// Uid Server-assigned UUID.
+	Uid *openapi_types.UUID `json:"uid,omitempty"`
 
-	// ProviderPolicies Guardrails configured on the org-level LLM provider this config is based on; applied in addition to the config's own policies
-	ProviderPolicies *[]LLMPolicy `json:"providerPolicies,omitempty"`
-
-	// ProviderUuid UUID of the org-level LLM provider this config is based on
-	ProviderUuid *openapi_types.UUID `json:"providerUuid,omitempty"`
-
-	// ProxyId ID/handle of the MCP proxy
-	ProxyId *string `json:"proxyId,omitempty"`
-
-	// ProxyName Name/handle of the MCP proxy
-	ProxyName *string `json:"proxyName,omitempty"`
-
-	// ProxyUuid UUID of the proxy created
-	ProxyUuid openapi_types.UUID `json:"proxyUuid"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Status Status of the proxy
-	Status *string `json:"status,omitempty"`
-
-	// Url url of the created proxy
-	Url string `json:"url"`
+	// UpdateTimestamp When the resource last changed.
+	UpdateTimestamp *time.Time `json:"updateTimestamp,omitempty"`
 }
 
 // RateLimitEntry defines model for RateLimitEntry.
@@ -3094,7 +3104,7 @@ type TokenRateLimit struct {
 	Reset   RateLimitResetWindow `json:"reset"`
 }
 
-// UpdateAgentDeploySettingsRequest defines model for UpdateAgentDeploySettingsRequest.
+// UpdateAgentDeploySettingsRequest Deploy settings of the agent in the default environment.
 type UpdateAgentDeploySettingsRequest struct {
 	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
 	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
@@ -3108,9 +3118,6 @@ type UpdateAgentDeploySettingsRequest struct {
 
 	// EnableOAuthSecurity Enable OAuth security for the agent endpoint in this environment. Mutually exclusive with enableApiKeySecurity. Omit to keep the current value.
 	EnableOAuthSecurity *bool `json:"enableOAuthSecurity,omitempty"`
-
-	// EnvironmentName Name of the environment whose deploy settings to update.
-	EnvironmentName string `json:"environmentName"`
 
 	// InstrumentationVersion AMP instrumentation version to pin for this agent. Selects the
 	// pre-built init-container image
@@ -3126,21 +3133,6 @@ type UpdateAgentDeploySettingsRequest struct {
 
 	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Omit to keep the current value.
 	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
-}
-
-// UpdateAgentModelConfigRequest defines model for UpdateAgentModelConfigRequest.
-type UpdateAgentModelConfigRequest struct {
-	// Description Updated description
-	Description *string `json:"description,omitempty"`
-
-	// EnvMappings Updated map of environment names to their model configurations
-	EnvMappings *map[string]EnvModelConfigRequest `json:"envMappings,omitempty"`
-
-	// EnvironmentVariables Optional updated environment variable names. Partial updates are supported: entries are merged by key, so only the keys included in the payload will be renamed and omitted keys retain their existing names. Changes apply globally across all environments. If omitted entirely, all existing names are left unchanged.
-	EnvironmentVariables *[]EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
-
-	// Name Updated name of the model configuration
-	Name *string `json:"name,omitempty"`
 }
 
 // UpdateGatewayRequest Update request for gateway properties (all fields optional, but at least one must be provided)
@@ -3258,8 +3250,236 @@ type AgentIdentityOrgName = string
 // AgentIdentityRoleID defines model for AgentIdentityRoleID.
 type AgentIdentityRoleID = string
 
+// DeleteA2AProxyParams defines parameters for DeleteA2AProxy.
+type DeleteA2AProxyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// GetA2AProxyParams defines parameters for GetA2AProxy.
+type GetA2AProxyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// SetA2AProxyParams defines parameters for SetA2AProxy.
+type SetA2AProxyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// RefreshA2AProxyParams defines parameters for RefreshA2AProxy.
+type RefreshA2AProxyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// GetAgentCardParams defines parameters for GetAgentCard.
+type GetAgentCardParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// RefreshAgentCardParams defines parameters for RefreshAgentCard.
+type RefreshAgentCardParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// DeleteAgentCardSourceParams defines parameters for DeleteAgentCardSource.
+type DeleteAgentCardSourceParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// SetAgentCardSourceParams defines parameters for SetAgentCardSource.
+type SetAgentCardSourceParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// ListAgentAPIKeysParams defines parameters for ListAgentAPIKeys.
+type ListAgentAPIKeysParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// CreateAgentAPIKeyParams defines parameters for CreateAgentAPIKey.
+type CreateAgentAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// IssueTestAgentAPIKeyParams defines parameters for IssueTestAgentAPIKey.
+type IssueTestAgentAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// RevokeAgentAPIKeyParams defines parameters for RevokeAgentAPIKey.
+type RevokeAgentAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// RotateAgentAPIKeyParams defines parameters for RotateAgentAPIKey.
+type RotateAgentAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// GetAgentConfigurationsParams defines parameters for GetAgentConfigurations.
+type GetAgentConfigurationsParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// UpdateAgentDeploySettingsParams defines parameters for UpdateAgentDeploySettings.
+type UpdateAgentDeploySettingsParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// ListAgentDeploymentsParams defines parameters for ListAgentDeployments.
+type ListAgentDeploymentsParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// ListAgentMCPConfigsParams defines parameters for ListAgentMCPConfigs.
+type ListAgentMCPConfigsParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+
+	// Limit Maximum number of results to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// CreateAgentMCPConfigParams defines parameters for CreateAgentMCPConfig.
+type CreateAgentMCPConfigParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// DeleteAgentMCPConfigParams defines parameters for DeleteAgentMCPConfig.
+type DeleteAgentMCPConfigParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// GetAgentMCPConfigParams defines parameters for GetAgentMCPConfig.
+type GetAgentMCPConfigParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// UpdateAgentMCPConfigParams defines parameters for UpdateAgentMCPConfig.
+type UpdateAgentMCPConfigParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// ListMCPConfigAPIKeysParams defines parameters for ListMCPConfigAPIKeys.
+type ListMCPConfigAPIKeysParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// CreateMCPConfigAPIKeyParams defines parameters for CreateMCPConfigAPIKey.
+type CreateMCPConfigAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// RevokeMCPConfigAPIKeyParams defines parameters for RevokeMCPConfigAPIKey.
+type RevokeMCPConfigAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// RotateMCPConfigAPIKeyParams defines parameters for RotateMCPConfigAPIKey.
+type RotateMCPConfigAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// ListAgentModelConfigsParams defines parameters for ListAgentModelConfigs.
+type ListAgentModelConfigsParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+
+	// Limit Maximum number of results to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// CreateAgentModelConfigParams defines parameters for CreateAgentModelConfig.
+type CreateAgentModelConfigParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// DeleteAgentModelConfigParams defines parameters for DeleteAgentModelConfig.
+type DeleteAgentModelConfigParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// GetAgentModelConfigParams defines parameters for GetAgentModelConfig.
+type GetAgentModelConfigParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// UpdateAgentModelConfigParams defines parameters for UpdateAgentModelConfig.
+type UpdateAgentModelConfigParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// ListLLMConfigAPIKeysParams defines parameters for ListLLMConfigAPIKeys.
+type ListLLMConfigAPIKeysParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// CreateLLMConfigAPIKeyParams defines parameters for CreateLLMConfigAPIKey.
+type CreateLLMConfigAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// RevokeLLMConfigAPIKeyParams defines parameters for RevokeLLMConfigAPIKey.
+type RevokeLLMConfigAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
+// RotateLLMConfigAPIKeyParams defines parameters for RotateLLMConfigAPIKey.
+type RotateLLMConfigAPIKeyParams struct {
+	// Project Handle of the project the agent belongs to.
+	Project string `form:"project" json:"project"`
+}
+
 // ListLLMProvidersParams defines parameters for ListLLMProviders.
 type ListLLMProvidersParams struct {
+	// Limit Maximum number of results to return
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListMCPProxiesParams defines parameters for ListMCPProxies.
+type ListMCPProxiesParams struct {
+	// Project Also include this project's proxies, read only. Without it only org-level proxies are returned. Unknown project returns 404 PROJECT_NOT_FOUND. The agent Tools picker passes the agent's project.
+	Project *string `form:"project,omitempty" json:"project,omitempty"`
+
 	// Limit Maximum number of results to return
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -3404,42 +3624,6 @@ type ListLLMProxiesByProviderParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
-// ListMCPProxiesParams defines parameters for ListMCPProxies.
-type ListMCPProxiesParams struct {
-	// Project Also include this project's proxies, read only. Without it only org-level proxies are returned. Unknown project returns 404 PROJECT_NOT_FOUND. The agent Tools picker passes the agent's project.
-	Project *string `form:"project,omitempty" json:"project,omitempty"`
-
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// GetAgentConfigurationsParams defines parameters for GetAgentConfigurations.
-type GetAgentConfigurationsParams struct {
-	// Environment Environment name
-	Environment string `form:"environment" json:"environment"`
-}
-
-// ListAgentMCPConfigsParams defines parameters for ListAgentMCPConfigs.
-type ListAgentMCPConfigsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListAgentModelConfigsParams defines parameters for ListAgentModelConfigs.
-type ListAgentModelConfigsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
 // ListLLMProxiesParams defines parameters for ListLLMProxies.
 type ListLLMProxiesParams struct {
 	// Limit Maximum number of results to return
@@ -3488,11 +3672,65 @@ type ListSelfHostedGatewaysParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// SetA2AProxyJSONRequestBody defines body for SetA2AProxy for application/json ContentType.
+type SetA2AProxyJSONRequestBody = SetA2AProxyRequest
+
+// SetAgentCardSourceJSONRequestBody defines body for SetAgentCardSource for application/json ContentType.
+type SetAgentCardSourceJSONRequestBody = SetAgentCardSourceRequest
+
+// CreateAgentAPIKeyJSONRequestBody defines body for CreateAgentAPIKey for application/json ContentType.
+type CreateAgentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
+
+// RotateAgentAPIKeyJSONRequestBody defines body for RotateAgentAPIKey for application/json ContentType.
+type RotateAgentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
+
+// UpdateAgentDeploySettingsJSONRequestBody defines body for UpdateAgentDeploySettings for application/json ContentType.
+type UpdateAgentDeploySettingsJSONRequestBody = UpdateAgentDeploySettingsRequest
+
+// CreateAgentMCPConfigJSONRequestBody defines body for CreateAgentMCPConfig for application/json ContentType.
+type CreateAgentMCPConfigJSONRequestBody = AgentMcpConfigDocument
+
+// UpdateAgentMCPConfigJSONRequestBody defines body for UpdateAgentMCPConfig for application/json ContentType.
+type UpdateAgentMCPConfigJSONRequestBody = AgentMcpConfigDocument
+
+// CreateMCPConfigAPIKeyJSONRequestBody defines body for CreateMCPConfigAPIKey for application/json ContentType.
+type CreateMCPConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
+
+// RotateMCPConfigAPIKeyJSONRequestBody defines body for RotateMCPConfigAPIKey for application/json ContentType.
+type RotateMCPConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
+
+// CreateAgentModelConfigJSONRequestBody defines body for CreateAgentModelConfig for application/json ContentType.
+type CreateAgentModelConfigJSONRequestBody = AgentModelConfigDocument
+
+// UpdateAgentModelConfigJSONRequestBody defines body for UpdateAgentModelConfig for application/json ContentType.
+type UpdateAgentModelConfigJSONRequestBody = AgentModelConfigDocument
+
+// CreateLLMConfigAPIKeyJSONRequestBody defines body for CreateLLMConfigAPIKey for application/json ContentType.
+type CreateLLMConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
+
+// RotateLLMConfigAPIKeyJSONRequestBody defines body for RotateLLMConfigAPIKey for application/json ContentType.
+type RotateLLMConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
+
 // CreateLLMProviderJSONRequestBody defines body for CreateLLMProvider for application/json ContentType.
 type CreateLLMProviderJSONRequestBody = LlmProviderDocument
 
 // UpdateLLMProviderJSONRequestBody defines body for UpdateLLMProvider for application/json ContentType.
 type UpdateLLMProviderJSONRequestBody = LlmProviderDocument
+
+// CreateMCPProxyJSONRequestBody defines body for CreateMCPProxy for application/json ContentType.
+type CreateMCPProxyJSONRequestBody = McpProxyDocument
+
+// FetchMCPProxyServerInfoJSONRequestBody defines body for FetchMCPProxyServerInfo for application/json ContentType.
+type FetchMCPProxyServerInfoJSONRequestBody = MCPServerInfoFetchRequest
+
+// UpdateMCPProxyJSONRequestBody defines body for UpdateMCPProxy for application/json ContentType.
+type UpdateMCPProxyJSONRequestBody = McpProxyDocument
+
+// CreateMCPProxyScopeJSONRequestBody defines body for CreateMCPProxyScope for application/json ContentType.
+type CreateMCPProxyScopeJSONRequestBody = McpProxyScopeDocument
+
+// UpdateMCPProxyScopeJSONRequestBody defines body for UpdateMCPProxyScope for application/json ContentType.
+type UpdateMCPProxyScopeJSONRequestBody = McpProxyScopeDocument
 
 // CreateAgentIdentityGroupJSONRequestBody defines body for CreateAgentIdentityGroup for application/json ContentType.
 type CreateAgentIdentityGroupJSONRequestBody = AgentIdentityGroupRequest
@@ -3544,60 +3782,6 @@ type RotateLLMProviderAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
 // DeployLLMProviderJSONRequestBody defines body for DeployLLMProvider for application/json ContentType.
 type DeployLLMProviderJSONRequestBody = LLMDeployRequest
-
-// CreateMCPProxyJSONRequestBody defines body for CreateMCPProxy for application/json ContentType.
-type CreateMCPProxyJSONRequestBody = MCPProxyRequest
-
-// FetchMCPProxyServerInfoJSONRequestBody defines body for FetchMCPProxyServerInfo for application/json ContentType.
-type FetchMCPProxyServerInfoJSONRequestBody = MCPServerInfoFetchRequest
-
-// UpdateMCPProxyJSONRequestBody defines body for UpdateMCPProxy for application/json ContentType.
-type UpdateMCPProxyJSONRequestBody = MCPProxyRequest
-
-// CreateMCPProxyScopeJSONRequestBody defines body for CreateMCPProxyScope for application/json ContentType.
-type CreateMCPProxyScopeJSONRequestBody = MCPProxyScopeRequest
-
-// UpdateMCPProxyScopeJSONRequestBody defines body for UpdateMCPProxyScope for application/json ContentType.
-type UpdateMCPProxyScopeJSONRequestBody = MCPProxyScopeUpdateRequest
-
-// UpdateAgentDeploySettingsJSONRequestBody defines body for UpdateAgentDeploySettings for application/json ContentType.
-type UpdateAgentDeploySettingsJSONRequestBody = UpdateAgentDeploySettingsRequest
-
-// SetA2AProxyJSONRequestBody defines body for SetA2AProxy for application/json ContentType.
-type SetA2AProxyJSONRequestBody = SetA2AProxyRequest
-
-// SetAgentCardSourceJSONRequestBody defines body for SetAgentCardSource for application/json ContentType.
-type SetAgentCardSourceJSONRequestBody = SetAgentCardSourceRequest
-
-// CreateAgentAPIKeyJSONRequestBody defines body for CreateAgentAPIKey for application/json ContentType.
-type CreateAgentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
-
-// RotateAgentAPIKeyJSONRequestBody defines body for RotateAgentAPIKey for application/json ContentType.
-type RotateAgentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
-
-// CreateAgentMCPConfigJSONRequestBody defines body for CreateAgentMCPConfig for application/json ContentType.
-type CreateAgentMCPConfigJSONRequestBody = CreateAgentModelConfigRequest
-
-// UpdateAgentMCPConfigJSONRequestBody defines body for UpdateAgentMCPConfig for application/json ContentType.
-type UpdateAgentMCPConfigJSONRequestBody = UpdateAgentModelConfigRequest
-
-// CreateMCPConfigAPIKeyJSONRequestBody defines body for CreateMCPConfigAPIKey for application/json ContentType.
-type CreateMCPConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
-
-// RotateMCPConfigAPIKeyJSONRequestBody defines body for RotateMCPConfigAPIKey for application/json ContentType.
-type RotateMCPConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
-
-// CreateAgentModelConfigJSONRequestBody defines body for CreateAgentModelConfig for application/json ContentType.
-type CreateAgentModelConfigJSONRequestBody = CreateAgentModelConfigRequest
-
-// UpdateAgentModelConfigJSONRequestBody defines body for UpdateAgentModelConfig for application/json ContentType.
-type UpdateAgentModelConfigJSONRequestBody = UpdateAgentModelConfigRequest
-
-// CreateLLMConfigAPIKeyJSONRequestBody defines body for CreateLLMConfigAPIKey for application/json ContentType.
-type CreateLLMConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
-
-// RotateLLMConfigAPIKeyJSONRequestBody defines body for RotateLLMConfigAPIKey for application/json ContentType.
-type RotateLLMConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
 // CreateLLMProxyJSONRequestBody defines body for CreateLLMProxy for application/json ContentType.
 type CreateLLMProxyJSONRequestBody = CreateLLMProxyRequest

@@ -15,65 +15,32 @@
 // under the License.
 
 // amctl agent mcp commands as thin, assertion-backed operations over the amctl
-// harness. Lives in package cliagent alongside llm_operations.go and reuses its
-// DeleteResult. Decode structs mirror amsvc.AgentModelConfigResponse /
-// AgentModelConfigListItem (only the fields specs assert on). Unlike an llm
-// config, an mcp config references a catalog MCP proxy by handle; the server
-// mirrors that handle into proxyName/mcpProxyName/providerName, so
-// AgentMCPProxyRef.Handle reads them in that order. Note that `agent mcp unset`
-// requires --yes for a whole-config delete (the llm equivalent does not).
+// harness, in the cliagent package beside llm_operations.go, reusing its
+// DeleteResult. `agent mcp unset` needs --yes for a whole-config delete (the llm
+// equivalent does not).
 package cliagent
 
 import (
 	. "github.com/onsi/gomega"
 
+	"github.com/wso2/agent-manager/test/e2e/framework"
 	"github.com/wso2/agent-manager/test/e2e/framework/amctl"
 )
 
-// AgentMCPConfig is the data shape of `agent mcp set`/`get` (AgentModelConfigResponse).
-type AgentMCPConfig struct {
-	Name        string                        `json:"name"`
-	Type        string                        `json:"type"`
-	Description string                        `json:"description"`
-	EnvMappings map[string]AgentMCPEnvMapping `json:"envMappings"`
-}
+// AgentMCPConfig is the configuration document `agent mcp set`/`get --json` prints.
+type AgentMCPConfig = framework.AgentConfigDocument
 
-// AgentMCPEnvMapping is one entry of AgentModelConfigResponse.EnvMappings.
-// Configuration is server-managed and may be nil for an undeployed proxy.
-type AgentMCPEnvMapping struct {
-	Configuration *AgentMCPProxyRef `json:"configuration,omitempty"`
-}
-
-// AgentMCPProxyRef is the subset of ProviderConfig we assert on. The server
-// mirrors the bound MCP proxy handle into all three fields; Handle prefers the
-// proxy-specific names and falls back to providerName.
-type AgentMCPProxyRef struct {
-	ProxyName    string `json:"proxyName,omitempty"`
-	McpProxyName string `json:"mcpProxyName,omitempty"`
-	ProviderName string `json:"providerName,omitempty"`
-}
-
-// Handle returns the bound MCP proxy handle (proxyName → mcpProxyName → providerName).
-func (r AgentMCPProxyRef) Handle() string {
-	if r.ProxyName != "" {
-		return r.ProxyName
-	}
-	if r.McpProxyName != "" {
-		return r.McpProxyName
-	}
-	return r.ProviderName
-}
-
-// AgentMCPConfigList is the data shape of `agent mcp list --json` (CLI's ListResult).
+// AgentMCPConfigList is the list response `agent mcp list --json` prints.
 type AgentMCPConfigList struct {
-	Configs []AgentMCPConfig `json:"configs"`
+	Count int              `json:"count"`
+	List  []AgentMCPConfig `json:"list"`
 }
 
 // Names returns the config names in the list, for membership assertions.
 func (l AgentMCPConfigList) Names() []string {
-	names := make([]string, 0, len(l.Configs))
-	for _, c := range l.Configs {
-		names = append(names, c.Name)
+	names := make([]string, 0, len(l.List))
+	for _, c := range l.List {
+		names = append(names, c.Metadata.Name)
 	}
 	return names
 }

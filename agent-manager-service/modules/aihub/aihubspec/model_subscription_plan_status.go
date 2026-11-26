@@ -1,7 +1,7 @@
 /*
 AI Hub API
 
-Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token.
+Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token. A plan is never removed: deleting it deprecates it (a soft delete). A deprecated plan stays, read only, for the subscriptions on it, and gateways still get it; it can't be changed, offered on an MCP server or subscribed to again. A plan is a document, as Kubernetes resources are: `apiVersion` (the document schema's version, separate from the URL's), `kind`, `metadata` (`name` is the plan's handle; the rest is set by the server), `spec` (what the caller declares) and `status` (what the server observes, ignored on input). Bodies are JSON, or YAML with `Content-Type: application/yaml`; a response is YAML when the request accepts `application/yaml`.
 
 API version: 0.1.0
 */

@@ -21,14 +21,17 @@ import type {
   AgentCardResponse,
   SetAgentCardSourceRequest,
 } from "@agent-management-platform/types";
-import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
+import {
+  agentGatewayPath,
+  agentRequestOptions,
+  httpDELETE,
+  httpGET,
+  httpPOST,
+  httpPUT,
+} from "../../shared/utils";
 
-function agentCardPath(params: AgentCardPathParams): string {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const agent = encodeRequired(params.agentName, "agentName");
-  const env = encodeRequired(params.envId, "envId");
-  return `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/agent-card`;
+function agentCardPath(params: AgentCardPathParams, suffix = ""): string {
+  return agentGatewayPath(params, `/agent-card${suffix}`);
 }
 
 // The http helpers throw on non-2xx, so a 404 surfaces as an error with status 404.
@@ -37,7 +40,7 @@ export async function getAgentCard(
   getToken?: () => Promise<string>,
 ): Promise<AgentCardResponse> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(agentCardPath(params), { token });
+  const res = await httpGET(agentCardPath(params), agentRequestOptions(params, token));
   return res.json();
 }
 
@@ -47,7 +50,7 @@ export async function refreshAgentCard(
   getToken?: () => Promise<string>,
 ): Promise<void> {
   const token = getToken ? await getToken() : undefined;
-  await httpPOST(`${agentCardPath(params)}/refresh`, {}, { token });
+  await httpPOST(agentCardPath(params, "/refresh"), {}, agentRequestOptions(params, token));
 }
 
 export async function setAgentCardSource(
@@ -56,7 +59,7 @@ export async function setAgentCardSource(
   getToken?: () => Promise<string>,
 ): Promise<void> {
   const token = getToken ? await getToken() : undefined;
-  await httpPUT(`${agentCardPath(params)}/source`, body, { token });
+  await httpPUT(agentCardPath(params, "/source"), body, agentRequestOptions(params, token));
 }
 
 export async function deleteAgentCardSource(
@@ -64,5 +67,5 @@ export async function deleteAgentCardSource(
   getToken?: () => Promise<string>,
 ): Promise<void> {
   const token = getToken ? await getToken() : undefined;
-  await httpDELETE(`${agentCardPath(params)}/source`, { token });
+  await httpDELETE(agentCardPath(params, "/source"), agentRequestOptions(params, token));
 }

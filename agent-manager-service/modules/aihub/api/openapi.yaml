@@ -5,6 +5,15 @@ info:
   description: >-
     Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom
     limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token.
+
+    A plan is never removed: deleting it deprecates it (a soft delete). A deprecated plan stays, read only, for the
+    subscriptions on it, and gateways still get it; it can't be changed, offered on an MCP server or subscribed to
+    again.
+
+    A plan is a document, as Kubernetes resources are: `apiVersion` (the document schema's version, separate from
+    the URL's), `kind`, `metadata` (`name` is the plan's handle; the rest is set by the server), `spec` (what the
+    caller declares) and `status` (what the server observes, ignored on input). Bodies are JSON, or YAML with
+    `Content-Type: application/yaml`; a response is YAML when the request accepts `application/yaml`.
   x-amp-module: ai-hub
 servers:
   - url: /m/ai-hub
@@ -14,7 +23,7 @@ paths:
   /subscription-plans:
     get:
       operationId: listSubscriptionPlans
-      summary: List the organization's subscription plans, newest first
+      summary: List the organization's subscription plans, current ones first, then deprecated ones, each newest first
       parameters:
         - name: query
           in: query
@@ -45,6 +54,9 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SubscriptionPlanListResponse"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlanListResponse"
         default:
           $ref: "#/components/responses/Error"
     post:
@@ -55,14 +67,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SubscriptionPlanCreateRequest"
+              $ref: "#/components/schemas/SubscriptionPlanDocument"
+          application/yaml:
+            schema:
+              $ref: "#/components/schemas/SubscriptionPlanDocument"
       responses:
         "201":
           description: Created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SubscriptionPlan"
+                $ref: "#/components/schemas/SubscriptionPlanDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlanDocument"
         default:
           $ref: "#/components/responses/Error"
   /subscription-plans/{subscriptionPlanId}:
@@ -82,37 +100,58 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SubscriptionPlan"
+                $ref: "#/components/schemas/SubscriptionPlanDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlanDocument"
         default:
           $ref: "#/components/responses/Error"
     put:
       operationId: updateSubscriptionPlan
       summary: Update a subscription plan
       description: >-
-        Fields left out are kept. `expiryTime: null` clears the expiry. A plan in use keeps its name and conditions
-        (409).
+        `metadata.name` must be the plan's handle, which can't change. Spec fields left out are kept, so a document
+        read with GET can be sent back as it is; `spec.expiryTime: null` clears the expiry. A plan in use (one with
+        subscriptions) keeps its name, conditions and expiry (409 SUBSCRIPTION_PLAN_IN_USE); its description and status
+        can change. A deprecated plan can't change (409 SUBSCRIPTION_PLAN_DEPRECATED).
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SubscriptionPlanUpdateRequest"
+              $ref: "#/components/schemas/SubscriptionPlanDocument"
+          application/yaml:
+            schema:
+              $ref: "#/components/schemas/SubscriptionPlanDocument"
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SubscriptionPlan"
+                $ref: "#/components/schemas/SubscriptionPlanDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlanDocument"
         default:
           $ref: "#/components/responses/Error"
     delete:
-      operationId: deleteSubscriptionPlan
-      summary: Delete a subscription plan
-      description: A plan in use can't be deleted (409).
+      operationId: deprecateSubscriptionPlan
+      summary: Deprecate a subscription plan
+      description: >-
+        Deprecates the plan (a soft delete), in use or not: it stays, read only, for the subscriptions on it, and
+        gateways still get it, but it can't be changed, offered or subscribed to again. Returns the deprecated plan.
+        Deprecating a deprecated plan changes nothing.
       responses:
-        "204":
-          description: Deleted
+        "200":
+          description: The deprecated plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlanDocument"
+            application/yaml:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlanDocument"
         default:
           $ref: "#/components/responses/Error"
 components:
@@ -163,33 +202,40 @@ components:
           type: string
         stopOnQuotaReach:
           type: boolean
-    SubscriptionPlanCreateRequest:
+    DocumentMetadata:
       type: object
-      required: [id, displayName]
+      required: [name]
       properties:
-        id:
+        name:
           type: string
           maxLength: 40
-        displayName:
+          description: >-
+            The plan's handle: lowercase letters, digits and hyphens, starting and ending with a letter or digit.
+            It can't change.
+        uid:
           type: string
-          maxLength: 255
-        description:
-          type: string
-          maxLength: 1023
-        conditions:
-          type: array
-          items:
-            $ref: "#/components/schemas/SubscriptionPlanCondition"
-        limits:
-          type: array
-          items:
-            $ref: "#/components/schemas/SubscriptionPlanLimit"
-        expiryTime:
+          format: uuid
+          readOnly: true
+          description: Server-assigned ID; gateways know the plan by it.
+        creationTimestamp:
           type: string
           format: date-time
-        status:
-          $ref: "#/components/schemas/SubscriptionPlanStatus"
-    SubscriptionPlanUpdateRequest:
+          readOnly: true
+        updateTimestamp:
+          type: string
+          format: date-time
+          readOnly: true
+        createdBy:
+          type: string
+          readOnly: true
+          description: Subject that created the plan; empty for a plan copied in from the developer portal.
+        origin:
+          type: string
+          readOnly: true
+          description: >-
+            Where the plan was made: `ai-control-plane` for a plan made here, or the name of the developer portal
+            that copied it in.
+    SubscriptionPlanSpec:
       type: object
       required: [displayName]
       properties:
@@ -199,85 +245,83 @@ components:
         description:
           type: string
           maxLength: 1023
-        conditions:
-          type: array
-          items:
-            $ref: "#/components/schemas/SubscriptionPlanCondition"
-        limits:
-          type: array
-          items:
-            $ref: "#/components/schemas/SubscriptionPlanLimit"
+        status:
+          $ref: "#/components/schemas/SubscriptionPlanStatus"
         expiryTime:
           type: string
           format: date-time
           nullable: true
-        status:
-          $ref: "#/components/schemas/SubscriptionPlanStatus"
-    SubscriptionPlanUsage:
-      type: object
-      description: What offers or uses the plan. A plan in use can't be deleted, renamed or have its conditions changed.
-      properties:
-        inUse:
-          type: boolean
-        restApis:
-          type: integer
-        mcpProxies:
-          type: integer
-        drafts:
-          type: integer
-        publications:
-          type: integer
-        subscriptions:
-          type: integer
-    SubscriptionPlan:
-      type: object
-      required: [id, displayName, conditions, organizationId, status, createdAt, updatedAt]
-      properties:
-        id:
-          type: string
-        displayName:
-          type: string
-        description:
-          type: string
         conditions:
           type: array
           items:
             $ref: "#/components/schemas/SubscriptionPlanCondition"
         limits:
           type: array
+          writeOnly: true
+          description: The older single-limit form, read as a request-count condition. Send conditions or limits, not both.
           items:
-            type: object
-            additionalProperties: true
-        expiryTime:
+            $ref: "#/components/schemas/SubscriptionPlanLimit"
+    SubscriptionPlanUsage:
+      type: object
+      description: >-
+        What offers or uses the plan. A plan in use (one with subscriptions) keeps its name, conditions and expiry.
+        Offering a plan on an MCP proxy doesn't put it in use.
+      required: [inUse, mcpProxies, subscriptions]
+      properties:
+        inUse:
+          type: boolean
+          description: Whether the plan has subscriptions, so its name, conditions and expiry can't change.
+        mcpProxies:
+          type: integer
+          description: The MCP proxies offering the plan.
+        subscriptions:
+          type: integer
+          description: The subscriptions on the plan.
+    SubscriptionPlanObservedStatus:
+      type: object
+      readOnly: true
+      description: Observed state, set by the server and ignored on input. `usage` is only in GET of one plan.
+      required: [deprecated]
+      properties:
+        deprecated:
+          type: boolean
+          description: Whether the plan is deprecated (read only, kept for the subscriptions on it).
+        deprecationTimestamp:
           type: string
           format: date-time
-        organizationId:
-          type: string
-          description: The organization's handle.
-        status:
-          $ref: "#/components/schemas/SubscriptionPlanStatus"
-        createdBy:
-          type: string
-        updatedBy:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
+          description: When the plan was deprecated; absent while it is current.
         usage:
           $ref: "#/components/schemas/SubscriptionPlanUsage"
+    SubscriptionPlanDocument:
+      type: object
+      description: A subscription plan as a document; metadata.name is its handle, spec.displayName its label.
+      required: [apiVersion, kind, metadata, spec]
+      properties:
+        apiVersion:
+          type: string
+          enum: [ai-control-plane.choreolabs.com/v1]
+        kind:
+          type: string
+          enum: [SubscriptionPlan]
+          description: Must match the route; never ignored.
+        metadata:
+          $ref: "#/components/schemas/DocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/SubscriptionPlanSpec"
+        status:
+          $ref: "#/components/schemas/SubscriptionPlanObservedStatus"
     SubscriptionPlanListResponse:
       type: object
       required: [list, count, pagination]
       properties:
         list:
           type: array
+          description: Each item is a whole document; its status has no usage.
           items:
-            $ref: "#/components/schemas/SubscriptionPlan"
+            $ref: "#/components/schemas/SubscriptionPlanDocument"
         count:
           type: integer
+          description: Number of items in this page.
         pagination:
           type: object
           required: [total, offset, limit]

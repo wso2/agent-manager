@@ -82,8 +82,12 @@ func withRouteEvent(publisher events.Publisher, meta audit.RouteMeta, eventType 
 			if ae.OUID == "" {
 				return
 			}
+			project := requestProject(r)
+			if project == "" {
+				project = notes.Project()
+			}
 			e := events.New("evt_"+uuid.NewString(), eventType, scope, ae.OUID,
-				r.PathValue(utils.PathParamProjName), r.PathValue(utils.PathParamAgentName), time.Now())
+				project, r.PathValue(utils.PathParamAgentName), time.Now())
 			e.OrgHandle = ae.OrgHandle
 			if ae.ActorID != "" {
 				e.ActorType, e.ActorID = string(ae.ActorType), ae.ActorID
@@ -139,7 +143,7 @@ func nameCreated(e *events.Event, meta audit.RouteMeta, data map[string]any) {
 	if meta.Method != http.MethodPost || strings.HasPrefix(collection, "{") {
 		return
 	}
-	name, _ := data["name"].(string)
+	name := createdName(data)
 	if name == "" {
 		return
 	}
@@ -153,6 +157,17 @@ func nameCreated(e *events.Event, meta audit.RouteMeta, data map[string]any) {
 		return
 	}
 	e.Source = events.SourceOf(e.OrgID, e.Project, e.Agent)
+}
+
+// createdName is the handle a create response names: metadata.name on a document, else name.
+func createdName(data map[string]any) string {
+	if md, ok := data["metadata"].(map[string]any); ok {
+		if name, _ := md["name"].(string); name != "" {
+			return name
+		}
+	}
+	name, _ := data["name"].(string)
+	return name
 }
 
 // bodyRecorder keeps a bounded copy of the response body.

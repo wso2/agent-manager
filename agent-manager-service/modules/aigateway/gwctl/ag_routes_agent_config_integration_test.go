@@ -31,32 +31,50 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
-// agModelConfigBody is a create request for an LLM configuration on provider
-// in the default environment.
+// agConfigDoc is a config document of kind in the test agent's project.
+func agConfigDoc(kind, name string, spec map[string]any) map[string]any {
+	return map[string]any{
+		"apiVersion": "ai-control-plane.choreolabs.com/v1",
+		"kind":       kind,
+		"metadata":   map[string]any{"name": name, "project": agProject},
+		"spec":       spec,
+	}
+}
+
+// agModelConfigBody is an AgentModelConfig document binding provider.
 func agModelConfigBody(name, provider string) map[string]any {
-	return map[string]any{
-		"name": name, "type": "llm", "description": "config " + name,
-		"envMappings": map[string]any{"default": map[string]any{"providerName": provider, "configuration": map[string]any{}}},
-	}
+	return agConfigDoc("AgentModelConfig", name, map[string]any{
+		"description": "config " + name, "providerName": provider, "configuration": map[string]any{},
+	})
 }
 
-// agMCPConfigBody is a create request for an MCP configuration on proxy in the
-// default environment.
+// agMCPConfigBody is an AgentMcpConfig document binding proxy.
 func agMCPConfigBody(name, proxy string) map[string]any {
-	return map[string]any{
-		"name":        name,
-		"envMappings": map[string]any{"default": map[string]any{"mcpProxyName": proxy, "configuration": map[string]any{}}},
-	}
+	return agConfigDoc("AgentMcpConfig", name, map[string]any{"proxyName": proxy, "configuration": map[string]any{}})
 }
 
-// agDefaultMapping is the default environment's mapping in a configuration response.
-func agDefaultMapping(t *testing.T, cfg map[string]any) map[string]any {
+// agUID is a config document's metadata.uid.
+func agUID(t *testing.T, cfg map[string]any) string {
 	t.Helper()
-	mappings, ok := cfg["envMappings"].(map[string]any)
-	require.True(t, ok, "envMappings: %v", cfg)
-	m, ok := mappings["default"].(map[string]any)
-	require.True(t, ok, "default mapping: %v", mappings)
-	return m["configuration"].(map[string]any)
+	uid, _ := agPart(t, cfg, "metadata")["uid"].(string)
+	require.NotEmpty(t, uid, "metadata.uid: %v", cfg)
+	return uid
+}
+
+// agPart is one top-level object of a document: metadata, spec or status.
+func agPart(t *testing.T, cfg map[string]any, part string) map[string]any {
+	t.Helper()
+	m, ok := cfg[part].(map[string]any)
+	require.True(t, ok, "%s: %v", part, cfg)
+	return m
+}
+
+// agList is the items of a list response.
+func agList(t *testing.T, list map[string]any) []any {
+	t.Helper()
+	items, ok := list["list"].([]any)
+	require.True(t, ok, "list: %v", list)
+	return items
 }
 
 // TestAGRoutesModelConfigLifecycle creates an external agent's LLM
@@ -66,37 +84,47 @@ func TestAGRoutesModelConfigLifecycle(t *testing.T) {
 	providerUID := agCreateProvider(t, a, "agprov", gw)
 
 	created := expect(t, a.do(http.MethodPost, agAgentPath("/model-configs"), agModelConfigBody("chat", "agprov")), http.StatusCreated)
-	id, _ := created["uuid"].(string)
-	require.NotEmpty(t, id)
-	assert.Equal(t, "chat", created["name"])
-	assert.Equal(t, "llm", created["type"])
-	assert.Equal(t, agAgent, created["agentId"])
-	mapping := agDefaultMapping(t, created)
-	assert.Equal(t, "agprov", mapping["providerName"])
-	assert.Equal(t, providerUID, mapping["providerUuid"])
-	assert.Contains(t, mapping["url"], "https://gw.example.com/", "the external agent is handed the gateway's public URL")
-	assert.Len(t, created["environmentVariables"], 2)
+	id := agUID(t, created)
+	assert.Equal(t, "AgentModelConfig", created["kind"])
+	assert.Equal(t, "chat", agPart(t, created, "metadata")["name"])
+	assert.Equal(t, agProject, agPart(t, created, "metadata")["project"])
+	spec := agPart(t, created, "spec")
+	assert.Equal(t, "agprov", spec["providerName"])
+	assert.Len(t, spec["environmentVariables"], 2)
+	status := agPart(t, created, "status")
+	assert.Equal(t, providerUID, status["providerUuid"])
+	assert.Contains(t, status["url"], "https://gw.example.com/", "the external agent is handed the gateway's public URL")
 
 	got := expect(t, a.do(http.MethodGet, agAgentPath("/model-configs/"+id), nil), http.StatusOK)
-	assert.Equal(t, "config chat", got["description"])
-	assert.Equal(t, "agprov", agDefaultMapping(t, got)["providerName"])
+	assert.Equal(t, "config chat", agPart(t, got, "spec")["description"])
+	assert.Equal(t, "agprov", agPart(t, got, "spec")["providerName"])
 
 	list := expect(t, a.do(http.MethodGet, agAgentPath("/model-configs?limit=0&offset=-5"), nil), http.StatusOK)
-	configs := list["configs"].([]any)
-	require.Len(t, configs, 1)
-	assert.Equal(t, id, configs[0].(map[string]any)["uuid"])
+	items := agList(t, list)
+	require.Len(t, items, 1)
+	assert.EqualValues(t, 1, list["count"])
+	assert.Equal(t, id, agUID(t, items[0].(map[string]any)))
+	assert.Equal(t, "agprov", agPart(t, items[0].(map[string]any), "spec")["providerName"], "a list item carries the bound provider")
 	assert.EqualValues(t, 20, list["pagination"].(map[string]any)["limit"], "an out-of-range limit falls back to the default")
 	capped := expect(t, a.do(http.MethodGet, agAgentPath("/model-configs?limit=1000"), nil), http.StatusOK)
 	assert.EqualValues(t, 100, capped["pagination"].(map[string]any)["limit"])
 
-	updated := expect(t, a.do(http.MethodPut, agAgentPath("/model-configs/"+id),
-		map[string]any{"name": "chat2", "description": "renamed"}), http.StatusOK)
-	assert.Equal(t, "renamed", updated["description"])
+	renamed := agModelConfigBody("chat2", "agprov")
+	renamed["spec"].(map[string]any)["description"] = "renamed"
+	updated := expect(t, a.do(http.MethodPut, agAgentPath("/model-configs/"+id), renamed), http.StatusOK)
+	assert.Equal(t, "renamed", agPart(t, updated, "spec")["description"])
+	assert.Equal(t, "chat2", agPart(t, updated, "metadata")["name"])
 	got = expect(t, a.do(http.MethodGet, agAgentPath("/model-configs/"+id), nil), http.StatusOK)
-	assert.Equal(t, "renamed", got["description"])
+	assert.Equal(t, "renamed", agPart(t, got, "spec")["description"])
+
+	// An absent description keeps the stored one.
+	kept := agConfigDoc("AgentModelConfig", "chat2", map[string]any{"providerName": "agprov"})
+	expect(t, a.do(http.MethodPut, agAgentPath("/model-configs/"+id), kept), http.StatusOK)
+	got = expect(t, a.do(http.MethodGet, agAgentPath("/model-configs/"+id), nil), http.StatusOK)
+	assert.Equal(t, "renamed", agPart(t, got, "spec")["description"])
 
 	mcpList := expect(t, a.do(http.MethodGet, agAgentPath("/mcp-configs"), nil), http.StatusOK)
-	assert.Empty(t, mcpList["configs"], "an LLM configuration is not listed as an MCP one")
+	assert.Empty(t, agList(t, mcpList), "an LLM configuration is not listed as an MCP one")
 
 	rec := a.do(http.MethodDelete, agAgentPath("/model-configs/"+id), nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
@@ -116,12 +144,13 @@ func TestAGRoutesModelConfigCreateRejections(t *testing.T) {
 	elsewhere := gwtest.GatewayIn(t, a.db, a.org, gwmodels.GatewayRoleBoth, otherEnv)
 	agCreateProvider(t, a, "elsewhere", elsewhere)
 
-	noProvider := agModelConfigBody("x", "agprov")
-	noProvider["envMappings"] = map[string]any{"default": map[string]any{"configuration": map[string]any{}}}
-	wrongType := agModelConfigBody("x", "agprov")
-	wrongType["type"] = "mcp"
-	noMappings := agModelConfigBody("x", "agprov")
-	noMappings["envMappings"] = map[string]any{}
+	noProvider := agConfigDoc("AgentModelConfig", "x", map[string]any{"configuration": map[string]any{}})
+	wrongKind := agModelConfigBody("x", "agprov")
+	wrongKind["kind"] = "AgentMcpConfig"
+	noSpec := agModelConfigBody("x", "agprov")
+	delete(noSpec, "spec")
+	otherProject := agModelConfigBody("x", "agprov")
+	otherProject["metadata"].(map[string]any)["project"] = "other"
 
 	tests := []struct {
 		name    string
@@ -131,13 +160,15 @@ func TestAGRoutesModelConfigCreateRejections(t *testing.T) {
 		message string
 	}{
 		{"malformed json", agAgentPath("/model-configs"), "{", http.StatusBadRequest, "Invalid request body"},
+		{"no project", "/agents/" + agAgent + "/model-configs", agModelConfigBody("x", "agprov"), http.StatusBadRequest, "project query parameter is required"},
+		{"other project", agAgentPath("/model-configs"), otherProject, http.StatusBadRequest, "metadata.project must match"},
 		{"invalid name", agAgentPath("/model-configs"), agModelConfigBody("bad/name", "agprov"), http.StatusBadRequest, "invalid characters"},
-		{"wrong type", agAgentPath("/model-configs"), wrongType, http.StatusBadRequest, "Type must be llm"},
-		{"mapping without provider", agAgentPath("/model-configs"), noProvider, http.StatusBadRequest, "providerName or proxyName is required for environment default"},
-		{"no mappings", agAgentPath("/model-configs"), noMappings, http.StatusBadRequest, "at least one environment mapping is required"},
+		{"wrong kind", agAgentPath("/model-configs"), wrongKind, http.StatusBadRequest, `kind must be "AgentModelConfig"`},
+		{"no provider", agAgentPath("/model-configs"), noProvider, http.StatusBadRequest, "spec.providerName is required"},
+		{"no spec", agAgentPath("/model-configs"), noSpec, http.StatusBadRequest, "spec is required"},
 		{"unknown provider", agAgentPath("/model-configs"), agModelConfigBody("x", "ghost"), http.StatusNotFound, "LLM provider not found"},
 		{"provider not in the environment", agAgentPath("/model-configs"), agModelConfigBody("x", "elsewhere"), http.StatusBadRequest, "not deployed to a"},
-		{"unknown agent", "/orgs/{org}/projects/" + agProject + "/agents/ghost/model-configs", agModelConfigBody("x", "agprov"), http.StatusNotFound, "Agent not found"},
+		{"unknown agent", agentPathIn(agProject, "ghost", "/model-configs"), agModelConfigBody("x", "agprov"), http.StatusNotFound, "Agent not found"},
 		{"name taken", agAgentPath("/model-configs"), agModelConfigBody("taken", "agprov"), http.StatusConflict, "Agent configuration already exists"},
 	}
 	for _, tc := range tests {
@@ -148,7 +179,7 @@ func TestAGRoutesModelConfigCreateRejections(t *testing.T) {
 		})
 	}
 	list := expect(t, a.do(http.MethodGet, agAgentPath("/model-configs"), nil), http.StatusOK)
-	assert.Len(t, list["configs"], 1, "no refused create left a configuration")
+	assert.Len(t, agList(t, list), 1, "no refused create left a configuration")
 }
 
 // TestAGRoutesModelConfigByIDRejections pins the 400s and 404s of the
@@ -157,7 +188,7 @@ func TestAGRoutesModelConfigByIDRejections(t *testing.T) {
 	a, _ := agSetup(t)
 	agCreateMCPProxy(t, a, "tools")
 	mcpCfg := expect(t, a.do(http.MethodPost, agAgentPath("/mcp-configs"), agMCPConfigBody("tools", "tools")), http.StatusCreated)
-	mcpID := mcpCfg["uuid"].(string)
+	mcpID := agUID(t, mcpCfg)
 	missing := uuid.NewString()
 
 	for _, method := range []string{http.MethodGet, http.MethodPut, http.MethodDelete} {
@@ -170,7 +201,7 @@ func TestAGRoutesModelConfigByIDRejections(t *testing.T) {
 			{missing, http.StatusNotFound, "Configuration not found"},
 			{mcpID, http.StatusNotFound, "Configuration not found"},
 		} {
-			rec := a.do(method, agAgentPath("/model-configs/"+tc.id), map[string]any{"description": "d"})
+			rec := a.do(method, agAgentPath("/model-configs/"+tc.id), agModelConfigBody("d", "agprov"))
 			require.Equal(t, tc.status, rec.Code, "%s %s: %s", method, tc.id, rec.Body.String())
 			assert.Equal(t, tc.message, errorMessage(t, rec))
 		}
@@ -178,35 +209,31 @@ func TestAGRoutesModelConfigByIDRejections(t *testing.T) {
 	rec := a.do(http.MethodPut, agAgentPath("/model-configs/"+missing), "{")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Equal(t, "Invalid request body", errorMessage(t, rec))
-	rec = a.do(http.MethodPut, agAgentPath("/model-configs/"+missing), map[string]any{"name": "bad/name"})
+	rec = a.do(http.MethodPut, agAgentPath("/model-configs/"+missing), agModelConfigBody("bad/name", "agprov"))
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	rec = a.do(http.MethodPut, agAgentPath("/model-configs/"+missing),
-		map[string]any{"envMappings": map[string]any{"default": map[string]any{"configuration": map[string]any{}}}})
+	rec = a.do(http.MethodPut, agAgentPath("/model-configs/"+missing), agConfigDoc("AgentModelConfig", "d", map[string]any{}))
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	assert.Contains(t, errorMessage(t, rec), "providerName or proxyName is required")
+	assert.Contains(t, errorMessage(t, rec), "spec.providerName is required")
 	expect(t, a.do(http.MethodGet, agAgentPath("/mcp-configs/"+mcpID), nil), http.StatusOK)
 }
 
 // TestAGRoutesModelConfigUpdateSwitchesProvider pins that an update moving the
-// environment to another provider re-points the mapping, read back after.
+// binding to another provider re-points it, read back after.
 func TestAGRoutesModelConfigUpdateSwitchesProvider(t *testing.T) {
 	a, gw := agSetup(t)
 	agCreateProvider(t, a, "first", gw)
 	second := agCreateProvider(t, a, "second", gw)
 	created := expect(t, a.do(http.MethodPost, agAgentPath("/model-configs"), agModelConfigBody("chat", "first")), http.StatusCreated)
-	id := created["uuid"].(string)
+	id := agUID(t, created)
 
-	rec := a.do(http.MethodPut, agAgentPath("/model-configs/"+id), map[string]any{
-		"envMappings": map[string]any{"default": map[string]any{"providerName": "ghost", "configuration": map[string]any{}}},
-	})
+	rec := a.do(http.MethodPut, agAgentPath("/model-configs/"+id), agModelConfigBody("chat", "ghost"))
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	assert.Equal(t, "LLM provider not found", errorMessage(t, rec))
 
-	expect(t, a.do(http.MethodPut, agAgentPath("/model-configs/"+id), map[string]any{
-		"envMappings": map[string]any{"default": map[string]any{"providerName": "second", "configuration": map[string]any{}}},
-	}), http.StatusOK)
+	expect(t, a.do(http.MethodPut, agAgentPath("/model-configs/"+id), agModelConfigBody("chat", "second")), http.StatusOK)
 	got := expect(t, a.do(http.MethodGet, agAgentPath("/model-configs/"+id), nil), http.StatusOK)
-	assert.Equal(t, second, agDefaultMapping(t, got)["providerUuid"])
+	assert.Equal(t, second, agPart(t, got, "status")["providerUuid"])
+	assert.Equal(t, "second", agPart(t, got, "spec")["providerName"])
 }
 
 // TestAGRoutesMCPConfigLifecycle creates an external agent's MCP configuration,
@@ -216,25 +243,27 @@ func TestAGRoutesMCPConfigLifecycle(t *testing.T) {
 	agCreateMCPProxy(t, a, "tools")
 
 	created := expect(t, a.do(http.MethodPost, agAgentPath("/mcp-configs"), agMCPConfigBody("tools", "tools")), http.StatusCreated)
-	id := created["uuid"].(string)
-	assert.Equal(t, "mcp", created["type"])
-	mapping := agDefaultMapping(t, created)
-	assert.Equal(t, "tools", mapping["mcpProxyName"])
-	assert.Equal(t, "https://gw.example.com/tools/mcp", mapping["url"])
-	auth := mapping["authInfo"].(map[string]any)
+	id := agUID(t, created)
+	assert.Equal(t, "AgentMcpConfig", created["kind"])
+	assert.Equal(t, "tools", agPart(t, created, "spec")["proxyName"])
+	status := agPart(t, created, "status")
+	assert.Equal(t, "https://gw.example.com/tools/mcp", status["url"])
+	auth := status["authInfo"].(map[string]any)
 	assert.Equal(t, "X-API-Key", auth["name"])
 	assert.NotEmpty(t, auth["value"], "the external agent is handed its key once")
 
 	got := expect(t, a.do(http.MethodGet, agAgentPath("/mcp-configs/"+id), nil), http.StatusOK)
-	assert.Equal(t, "tools", agDefaultMapping(t, got)["mcpProxyName"])
+	assert.Equal(t, "tools", agPart(t, got, "spec")["proxyName"])
 	list := expect(t, a.do(http.MethodGet, agAgentPath("/mcp-configs?limit=-1&offset=-1"), nil), http.StatusOK)
-	require.Len(t, list["configs"], 1)
+	require.Len(t, agList(t, list), 1)
 	models := expect(t, a.do(http.MethodGet, agAgentPath("/model-configs"), nil), http.StatusOK)
-	assert.Empty(t, models["configs"], "an MCP configuration is not listed as an LLM one")
+	assert.Empty(t, agList(t, models), "an MCP configuration is not listed as an LLM one")
 
-	expect(t, a.do(http.MethodPut, agAgentPath("/mcp-configs/"+id), map[string]any{"description": "my tools"}), http.StatusOK)
+	described := agMCPConfigBody("tools", "tools")
+	described["spec"].(map[string]any)["description"] = "my tools"
+	expect(t, a.do(http.MethodPut, agAgentPath("/mcp-configs/"+id), described), http.StatusOK)
 	got = expect(t, a.do(http.MethodGet, agAgentPath("/mcp-configs/"+id), nil), http.StatusOK)
-	assert.Equal(t, "my tools", got["description"])
+	assert.Equal(t, "my tools", agPart(t, got, "spec")["description"])
 
 	rec := a.do(http.MethodDelete, agAgentPath("/mcp-configs/"+id), nil)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
@@ -250,8 +279,7 @@ func TestAGRoutesMCPConfigRejections(t *testing.T) {
 	agCreateProvider(t, a, "agprov", gw)
 	llm := expect(t, a.do(http.MethodPost, agAgentPath("/model-configs"), agModelConfigBody("chat", "agprov")), http.StatusCreated)
 	expect(t, a.do(http.MethodPost, agAgentPath("/mcp-configs"), agMCPConfigBody("taken", "tools")), http.StatusCreated)
-	noProxy := agMCPConfigBody("x", "tools")
-	noProxy["envMappings"] = map[string]any{"default": map[string]any{"configuration": map[string]any{}}}
+	noProxy := agConfigDoc("AgentMcpConfig", "x", map[string]any{"configuration": map[string]any{}})
 
 	creates := []struct {
 		name    string
@@ -262,9 +290,10 @@ func TestAGRoutesMCPConfigRejections(t *testing.T) {
 	}{
 		{"malformed json", agAgentPath("/mcp-configs"), "{", http.StatusBadRequest, "Invalid request body"},
 		{"invalid name", agAgentPath("/mcp-configs"), agMCPConfigBody("bad/name", "tools"), http.StatusBadRequest, "invalid characters"},
-		{"mapping without proxy", agAgentPath("/mcp-configs"), noProxy, http.StatusBadRequest, "is required for environment default"},
+		{"wrong kind", agAgentPath("/mcp-configs"), agModelConfigBody("x", "tools"), http.StatusBadRequest, `kind must be "AgentMcpConfig"`},
+		{"no proxy", agAgentPath("/mcp-configs"), noProxy, http.StatusBadRequest, "spec.proxyName is required"},
 		{"unknown proxy", agAgentPath("/mcp-configs"), agMCPConfigBody("x", "ghost"), http.StatusNotFound, "MCP proxy not found"},
-		{"unknown agent", "/orgs/{org}/projects/" + agProject + "/agents/ghost/mcp-configs", agMCPConfigBody("x", "tools"), http.StatusNotFound, "Agent not found"},
+		{"unknown agent", agentPathIn(agProject, "ghost", "/mcp-configs"), agMCPConfigBody("x", "tools"), http.StatusNotFound, "Agent not found"},
 		{"name taken", agAgentPath("/mcp-configs"), agMCPConfigBody("taken", "tools"), http.StatusConflict, "Agent MCP configuration already exists"},
 	}
 	for _, tc := range creates {
@@ -275,7 +304,7 @@ func TestAGRoutesMCPConfigRejections(t *testing.T) {
 		})
 	}
 
-	llmID := llm["uuid"].(string)
+	llmID := agUID(t, llm)
 	for _, method := range []string{http.MethodGet, http.MethodPut, http.MethodDelete} {
 		for _, tc := range []struct {
 			id      string
@@ -286,7 +315,7 @@ func TestAGRoutesMCPConfigRejections(t *testing.T) {
 			{uuid.NewString(), http.StatusNotFound, "Configuration not found"},
 			{llmID, http.StatusNotFound, "Configuration not found"},
 		} {
-			rec := a.do(method, agAgentPath("/mcp-configs/"+tc.id), map[string]any{"description": "d"})
+			rec := a.do(method, agAgentPath("/mcp-configs/"+tc.id), agMCPConfigBody("d", "tools"))
 			require.Equal(t, tc.status, rec.Code, "%s %s: %s", method, tc.id, rec.Body.String())
 			assert.Equal(t, tc.message, errorMessage(t, rec))
 		}
@@ -309,9 +338,9 @@ func TestAGRoutesAgentConfigForbidden(t *testing.T) {
 		{http.MethodGet, agAgentPath("/model-configs"), withScopes(scope(gwperm.AgentUpdate))},
 		{http.MethodPost, agAgentPath("/mcp-configs"), readOnly},
 		{http.MethodGet, agAgentPath("/mcp-configs/" + id), withScopes(scope(gwperm.AgentUpdate))},
-		{http.MethodPost, agAgentPath("/model-configs/" + id + "/environments/default/api-keys"), readOnly},
-		{http.MethodDelete, agAgentPath("/mcp-configs/" + id + "/environments/default/api-keys/k"), readOnly},
-		{http.MethodGet, agAgentPath("/mcp-configs/" + id + "/environments/default/api-keys"), withScopes(scope(gwperm.AgentAPIKeyManage))},
+		{http.MethodPost, agAgentPath("/model-configs/" + id + "/api-keys"), readOnly},
+		{http.MethodDelete, agAgentPath("/mcp-configs/" + id + "/api-keys/k"), readOnly},
+		{http.MethodGet, agAgentPath("/mcp-configs/" + id + "/api-keys"), withScopes(scope(gwperm.AgentAPIKeyManage))},
 	} {
 		rec := a.do(r.method, r.path, map[string]any{"name": "x"}, r.opt)
 		assert.Equal(t, http.StatusForbidden, rec.Code, "%s %s: %s", r.method, r.path, rec.Body.String())
@@ -328,73 +357,72 @@ func TestAGRoutesConfigAPIKeys(t *testing.T) {
 	mcp := expect(t, a.do(http.MethodPost, agAgentPath("/mcp-configs"), agMCPConfigBody("tools", "tools")), http.StatusCreated)
 
 	for _, kind := range []struct{ name, base string }{
-		{"llm", agAgentPath("/model-configs/" + llm["uuid"].(string) + "/environments/default/api-keys")},
-		{"mcp", agAgentPath("/mcp-configs/" + mcp["uuid"].(string) + "/environments/default/api-keys")},
+		{"llm", "/model-configs/" + agUID(t, llm) + "/api-keys"},
+		{"mcp", "/mcp-configs/" + agUID(t, mcp) + "/api-keys"},
 	} {
 		t.Run(kind.name, func(t *testing.T) {
-			before := expect(t, a.do(http.MethodGet, kind.base, nil), http.StatusOK)
+			keys := func(p string) string { return agAgentPath(kind.base + p) }
+			before := expect(t, a.do(http.MethodGet, keys(""), nil), http.StatusOK)
 			keysBefore, _ := before["keys"].([]any)
 
-			created := expect(t, a.do(http.MethodPost, kind.base, map[string]any{"name": "ci-key"}), http.StatusCreated)
+			created := expect(t, a.do(http.MethodPost, keys(""), map[string]any{"name": "ci-key"}), http.StatusCreated)
 			assert.Equal(t, "ci-key", created["keyId"])
 			first, _ := created["apiKey"].(string)
 			require.NotEmpty(t, first)
 
-			listed := expect(t, a.do(http.MethodGet, kind.base, nil), http.StatusOK)
-			keys := listed["keys"].([]any)
-			require.Len(t, keys, len(keysBefore)+1)
+			listed := expect(t, a.do(http.MethodGet, keys(""), nil), http.StatusOK)
+			require.Len(t, listed["keys"].([]any), len(keysBefore)+1)
 
-			rotated := expect(t, a.do(http.MethodPut, kind.base+"/ci-key", nil), http.StatusOK)
+			rotated := expect(t, a.do(http.MethodPut, keys("/ci-key"), nil), http.StatusOK)
 			assert.NotEqual(t, first, rotated["apiKey"], "a rotation issues a new value")
 
-			rec := a.do(http.MethodPut, kind.base+"/ci-key", "{")
+			rec := a.do(http.MethodPut, keys("/ci-key"), "{")
 			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 			assert.Equal(t, "Invalid request body", errorMessage(t, rec))
-			rec = a.do(http.MethodPost, kind.base, map[string]any{})
+			rec = a.do(http.MethodPost, keys(""), map[string]any{})
 			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 			assert.Equal(t, "At least one of 'name' or 'displayName' must be provided", errorMessage(t, rec))
-			rec = a.do(http.MethodPost, kind.base, "{")
+			rec = a.do(http.MethodPost, keys(""), "{")
 			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
-			rec = a.do(http.MethodDelete, kind.base+"/ci-key", nil)
+			rec = a.do(http.MethodDelete, keys("/ci-key"), nil)
 			require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
-			listed = expect(t, a.do(http.MethodGet, kind.base, nil), http.StatusOK)
+			listed = expect(t, a.do(http.MethodGet, keys(""), nil), http.StatusOK)
 			assert.Len(t, listed["keys"], len(keysBefore), "the revoked key is gone")
 		})
 	}
 
 	missing := uuid.NewString()
-	for _, base := range []string{
-		agAgentPath("/model-configs/" + missing + "/environments/default/api-keys"),
-		agAgentPath("/mcp-configs/" + missing + "/environments/default/api-keys"),
-	} {
+	for _, base := range []string{"/model-configs/" + missing + "/api-keys", "/mcp-configs/" + missing + "/api-keys"} {
 		for _, r := range []struct {
 			method, path string
 			body         any
 		}{
-			{http.MethodGet, base, nil},
-			{http.MethodPost, base, map[string]any{"name": "k1"}},
-			{http.MethodPut, base + "/k1", nil},
-			{http.MethodDelete, base + "/k1", nil},
+			{http.MethodGet, agAgentPath(base), nil},
+			{http.MethodPost, agAgentPath(base), map[string]any{"name": "k1"}},
+			{http.MethodPut, agAgentPath(base + "/k1"), nil},
+			{http.MethodDelete, agAgentPath(base + "/k1"), nil},
 		} {
 			rec := a.do(r.method, r.path, r.body)
 			require.Equal(t, http.StatusNotFound, rec.Code, "%s %s: %s", r.method, r.path, rec.Body.String())
 			assert.Equal(t, "Configuration not found", errorMessage(t, rec))
 		}
-		rec := a.do(http.MethodGet, agAgentPath("/model-configs/nope/environments/default/api-keys"), nil)
+		rec := a.do(http.MethodGet, agAgentPath("/model-configs/nope/api-keys"), nil)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 		assert.Equal(t, "Invalid configuration ID", errorMessage(t, rec))
 	}
 }
 
 // TestAGRoutesMCPConfigUpdate pins the update's 400s and 404, and that an
-// update moving the environment to another proxy is read back.
+// update moving the binding to another proxy is read back.
 func TestAGRoutesMCPConfigUpdate(t *testing.T) {
 	a, _ := agSetup(t)
 	agCreateMCPProxy(t, a, "first")
 	agCreateMCPProxy(t, a, "second")
 	created := expect(t, a.do(http.MethodPost, agAgentPath("/mcp-configs"), agMCPConfigBody("tools", "first")), http.StatusCreated)
-	path := agAgentPath("/mcp-configs/" + created["uuid"].(string))
+	path := agAgentPath("/mcp-configs/" + agUID(t, created))
+	otherProject := agMCPConfigBody("tools", "first")
+	otherProject["metadata"].(map[string]any)["project"] = "other"
 
 	tests := []struct {
 		name    string
@@ -403,9 +431,10 @@ func TestAGRoutesMCPConfigUpdate(t *testing.T) {
 		message string
 	}{
 		{"malformed json", "{", http.StatusBadRequest, "Invalid request body"},
-		{"invalid name", map[string]any{"name": "bad/name"}, http.StatusBadRequest, "invalid characters"},
-		{"mapping without proxy", map[string]any{"envMappings": map[string]any{"default": map[string]any{"configuration": map[string]any{}}}}, http.StatusBadRequest, "is required for environment default"},
-		{"unknown proxy", map[string]any{"envMappings": map[string]any{"default": map[string]any{"mcpProxyName": "ghost", "configuration": map[string]any{}}}}, http.StatusNotFound, "MCP proxy not found"},
+		{"invalid name", agMCPConfigBody("bad/name", "first"), http.StatusBadRequest, "invalid characters"},
+		{"other project", otherProject, http.StatusBadRequest, "metadata.project must match"},
+		{"no proxy", agConfigDoc("AgentMcpConfig", "tools", map[string]any{"configuration": map[string]any{}}), http.StatusBadRequest, "spec.proxyName is required"},
+		{"unknown proxy", agMCPConfigBody("tools", "ghost"), http.StatusNotFound, "MCP proxy not found"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -415,32 +444,39 @@ func TestAGRoutesMCPConfigUpdate(t *testing.T) {
 		})
 	}
 	got := expect(t, a.do(http.MethodGet, path, nil), http.StatusOK)
-	assert.Equal(t, "first", agDefaultMapping(t, got)["mcpProxyName"], "the refused updates changed nothing")
+	assert.Equal(t, "first", agPart(t, got, "spec")["proxyName"], "the refused updates changed nothing")
 
-	expect(t, a.do(http.MethodPut, path, map[string]any{
-		"envMappings": map[string]any{"default": map[string]any{"mcpProxyId": "second", "configuration": map[string]any{}}},
-	}), http.StatusOK)
+	expect(t, a.do(http.MethodPut, path, agMCPConfigBody("tools", "second")), http.StatusOK)
 	got = expect(t, a.do(http.MethodGet, path, nil), http.StatusOK)
-	assert.Equal(t, "second", agDefaultMapping(t, got)["mcpProxyName"])
+	assert.Equal(t, "second", agPart(t, got, "spec")["proxyName"])
 }
 
-// TestAGRoutesModelConfigPolicies pins that an environment's policies, with
-// their paths, are stored and read back.
+// TestAGRoutesModelConfigPolicies pins that a binding's policies, with their
+// paths, are stored, read back and kept by an update that omits them.
 func TestAGRoutesModelConfigPolicies(t *testing.T) {
 	a, gw := agSetup(t)
 	agCreateProvider(t, a, "agprov", gw)
 	body := agModelConfigBody("guarded", "agprov")
-	body["envMappings"] = map[string]any{"default": map[string]any{"proxyName": "agprov", "configuration": map[string]any{
+	body["spec"].(map[string]any)["configuration"] = map[string]any{
 		"policies": []any{map[string]any{"name": "word-count-guardrail", "version": "v0", "paths": []any{
 			map[string]any{"path": "/chat/completions", "methods": []string{"POST"}, "params": map[string]any{"max": 100}},
 		}}},
-	}}}
+	}
 	created := expect(t, a.do(http.MethodPost, agAgentPath("/model-configs"), body), http.StatusCreated)
+	path := agAgentPath("/model-configs/" + agUID(t, created))
 
-	got := expect(t, a.do(http.MethodGet, agAgentPath("/model-configs/"+created["uuid"].(string)), nil), http.StatusOK)
-	policies := agDefaultMapping(t, got)["policies"].([]any)
-	require.Len(t, policies, 1)
-	policy := policies[0].(map[string]any)
-	assert.Equal(t, "word-count-guardrail", policy["name"])
-	assert.Equal(t, []any{map[string]any{"path": "/chat/completions", "methods": []any{"POST"}, "params": map[string]any{"max": float64(100)}}}, policy["paths"])
+	assertPolicy := func(got map[string]any) {
+		t.Helper()
+		cfg := agPart(t, got, "spec")["configuration"].(map[string]any)
+		policies := cfg["policies"].([]any)
+		require.Len(t, policies, 1)
+		policy := policies[0].(map[string]any)
+		assert.Equal(t, "word-count-guardrail", policy["name"])
+		assert.Equal(t, []any{map[string]any{"path": "/chat/completions", "methods": []any{"POST"}, "params": map[string]any{"max": float64(100)}}}, policy["paths"])
+	}
+	assertPolicy(expect(t, a.do(http.MethodGet, path, nil), http.StatusOK))
+
+	// An absent configuration keeps the stored policies.
+	expect(t, a.do(http.MethodPut, path, agConfigDoc("AgentModelConfig", "guarded", map[string]any{"providerName": "agprov"})), http.StatusOK)
+	assertPolicy(expect(t, a.do(http.MethodGet, path, nil), http.StatusOK))
 }

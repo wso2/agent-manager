@@ -40,8 +40,8 @@ func setOpts(client func(context.Context) (*aigateway.ClientWithResponses, error
 
 func Test_runSet_jsonEnvelope(t *testing.T) {
 	client := newClient(t, map[string]route{
-		"PUT " + envPath("default", "agent-card/source"): {status: http.StatusAccepted},
-		"GET " + envPath("default", "a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
+		"PUT " + agentGWPath("agent-card/source"): {status: http.StatusAccepted},
+		"GET " + agentGWPath("a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
 	})
 	o, got := setOpts(client, true)
 	if err := runSet(context.Background(), o); err != nil {
@@ -59,9 +59,9 @@ func Test_runSet_jsonEnvelope(t *testing.T) {
 
 func Test_runSet_text(t *testing.T) {
 	client := newClient(t, map[string]route{
-		"PUT " + envPath("default", "agent-card/source"): {status: http.StatusAccepted},
-		"GET " + envPath("default", "a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
-		"PUT " + envPath("default", "a2a-proxy"):         {status: http.StatusAccepted},
+		"PUT " + agentGWPath("agent-card/source"): {status: http.StatusAccepted},
+		"GET " + agentGWPath("a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
+		"PUT " + agentGWPath("a2a-proxy"):         {status: http.StatusAccepted},
 	})
 	o, got := setOpts(client, false)
 	o.Proxy = true
@@ -89,9 +89,9 @@ func Test_runSet_proxyRejectsNonWellKnownURL(t *testing.T) {
 
 func Test_runSet_partialFailureEnvelope(t *testing.T) {
 	client := newClient(t, map[string]route{
-		"PUT " + envPath("default", "agent-card/source"): {status: http.StatusAccepted},
-		"GET " + envPath("default", "a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
-		"PUT " + envPath("default", "a2a-proxy"):         {status: http.StatusBadRequest, body: map[string]any{"code": "BAD", "message": "nope"}},
+		"PUT " + agentGWPath("agent-card/source"): {status: http.StatusAccepted},
+		"GET " + agentGWPath("a2a-proxy"):         {status: http.StatusNotFound, body: map[string]any{"code": "NOT_FOUND", "message": "none"}},
+		"PUT " + agentGWPath("a2a-proxy"):         {status: http.StatusBadRequest, body: map[string]any{"code": "BAD", "message": "nope"}},
 	})
 	o, got := setOpts(client, true)
 	o.Proxy = true

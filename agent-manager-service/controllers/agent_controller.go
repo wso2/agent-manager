@@ -20,12 +20,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -39,7 +41,6 @@ import (
 
 type AgentController interface {
 	ListAgents(w http.ResponseWriter, r *http.Request)
-	ListOrgAgents(w http.ResponseWriter, r *http.Request)
 	GetAgent(w http.ResponseWriter, r *http.Request)
 	CreateAgent(w http.ResponseWriter, r *http.Request)
 	UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Request)
@@ -178,7 +179,10 @@ func (c *agentController) GetAgent(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 	// Extract path parameters
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
+	projName, ok := requireProject(w, r)
+	if !ok {
+		return
+	}
 	agentName := r.PathValue(utils.PathParamAgentName)
 
 	agent, err := c.agentService.GetAgent(ctx, ouID, projName, agentName)
@@ -188,8 +192,7 @@ func (c *agentController) GetAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agentResponse := utils.ConvertToAgentResponse(agent)
-	httpx.WriteSuccessResponse(w, http.StatusOK, agentResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, agentDocument(agent))
 }
 
 func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +200,8 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 	// Extract path parameters
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
+	// Optional: without a project the list spans every project in the org.
+	projName := r.URL.Query().Get(utils.QueryParamProject)
 
 	// Parse query parameters
 	limitStr := r.URL.Query().Get("limit")
@@ -211,9 +215,9 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 
 	// Parse and validate pagination parameters
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
+	if err != nil || limit < utils.MinLimit || limit > maxAgentListLimit {
 		log.Error("ListAgents: invalid limit parameter", "limit", limitStr)
-		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, maxAgentListLimit))
 		return
 	}
 
@@ -238,33 +242,7 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agentResponses := utils.ConvertToAgentListResponse(agents)
-	response := &spec.AgentListResponse{
-		Agents: agentResponses,
-		Total:  total,
-		Limit:  int32(limit),
-		Offset: int32(offset),
-	}
-
-	httpx.WriteSuccessResponse(w, http.StatusOK, response)
-}
-
-func (c *agentController) ListOrgAgents(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
-
-	agents, err := c.agentService.ListOrgAgents(ctx, ouID)
-	if err != nil {
-		log.Error("ListOrgAgents: failed to list agents", "error", err)
-		HandleCommonErrors(w, err, "Failed to list agents")
-		return
-	}
-
-	response := &spec.AgentSummaryListResponse{
-		Agents: utils.ConvertToAgentSummaryListResponse(agents),
-	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, agentList(agents, int32(limit), int32(offset), total))
 }
 
 func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
@@ -273,15 +251,21 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	// Extract path parameters
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
 
-	// Parse and validate request body
-	var payload spec.CreateAgentRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("CreateAgent: failed to decode request body", "error", err)
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxDocumentBytes))
+	if err != nil {
+		log.Error("CreateAgent: failed to read request body", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
+	doc, payload, err := agentCreateFromDocument(body)
+	if err != nil {
+		log.Error("CreateAgent: invalid document", "error", err)
+		writeDocumentError(w, err)
+		return
+	}
+	projName := doc.Metadata.Project
+	events.SetProject(ctx, projName)
 
 	// Hosted agents need an agent runtime; refuse them before validating the
 	// fields only they carry.
@@ -297,27 +281,27 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	growthanalytics.SetDimension(ctx, "creation_method", "external")
 
-	err := c.agentService.CreateAgent(ctx, ouID, projName, &payload)
-	if err != nil {
+	if err := c.agentService.CreateAgent(ctx, ouID, projName, &payload); err != nil {
 		log.Error("CreateAgent: failed to create agent", "error", err)
 		HandleCommonErrors(w, err, "Failed to create agent")
 		return
 	}
-	agentType := spec.AgentType{}
-	if payload.AgentType != nil {
-		agentType = *payload.AgentType
-	}
-	response := &spec.AgentResponse{
+	created := &models.AgentResponse{
 		Name:         payload.Name,
 		DisplayName:  payload.DisplayName,
 		Description:  utils.StrPointerAsStr(payload.Description, ""),
 		ProjectName:  projName,
-		Provisioning: payload.Provisioning,
-		AgentType:    agentType,
+		Provisioning: models.Provisioning{Type: payload.Provisioning.Type},
 		CreatedAt:    time.Now(),
 	}
+	if payload.AgentType != nil {
+		created.Type = models.AgentType{Type: payload.AgentType.Type, SubType: payload.AgentType.GetSubType()}
+	}
+	if payload.Labels != nil {
+		created.Labels = *payload.Labels
+	}
 
-	httpx.WriteSuccessResponse(w, http.StatusAccepted, response)
+	httpx.WriteSuccessResponse(w, http.StatusAccepted, agentDocument(created))
 }
 
 func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Request) {
@@ -326,14 +310,28 @@ func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Re
 
 	// Extract path parameters
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
+	projName, ok := requireProject(w, r)
+	if !ok {
+		return
+	}
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	// Parse and validate request body
-	var payload spec.UpdateAgentBasicInfoRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgent: failed to decode request body", "error", err)
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxDocumentBytes))
+	if err != nil {
+		log.Error("UpdateAgent: failed to read request body", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	stored, err := c.agentService.GetAgent(ctx, ouID, projName, agentName)
+	if err != nil {
+		log.Error("UpdateAgent: failed to read the agent", "error", err)
+		HandleCommonErrors(w, err, "Failed to update agent")
+		return
+	}
+	payload, err := agentUpdateFromDocument(body, stored)
+	if err != nil {
+		log.Error("UpdateAgent: invalid document", "error", err)
+		writeDocumentError(w, err)
 		return
 	}
 	if err := utils.ValidateAgentBasicInfoUpdatePayload(payload); err != nil {
@@ -348,8 +346,7 @@ func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	agentResponse := utils.ConvertToAgentResponse(agent)
-	httpx.WriteSuccessResponse(w, http.StatusOK, agentResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, agentDocument(agent))
 }
 
 func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
@@ -357,7 +354,10 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
+	projName, ok := requireProject(w, r)
+	if !ok {
+		return
+	}
 	agentName := r.PathValue(utils.PathParamAgentName)
 
 	err := c.agentService.DeleteAgent(ctx, ouID, projName, agentName)
@@ -424,7 +424,10 @@ func (c *agentController) GetAgentIdentity(w http.ResponseWriter, r *http.Reques
 
 	orgName := middleware.OrgHandleFromRequest(r)
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
+	projName, ok := requireProject(w, r)
+	if !ok {
+		return
+	}
 	agentName := r.PathValue(utils.PathParamAgentName)
 	environment := r.URL.Query().Get("environment")
 
@@ -465,7 +468,10 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 
 	orgName := middleware.OrgHandleFromRequest(r)
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
+	projName, ok := requireProject(w, r)
+	if !ok {
+		return
+	}
 	agentName := r.PathValue(utils.PathParamAgentName)
 
 	var payload models.AgentIdentityActionRequest
@@ -474,11 +480,8 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	envID := payload.Environment
-	if envID == "" {
-		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment is required in the request body")
-		return
-	}
+	// An absent environment means the organization's only one.
+	envID := models.EnvironmentOrDefault(payload.Environment)
 
 	log.Info("RegenerateAgentIdentitySecret: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 
@@ -524,13 +527,13 @@ func (c *agentController) RevokeAgentIdentitySecret(w http.ResponseWriter, r *ht
 
 	orgName := middleware.OrgHandleFromRequest(r)
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	envID := r.URL.Query().Get("environment")
-	if envID == "" {
-		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+	projName, ok := requireProject(w, r)
+	if !ok {
 		return
 	}
+	agentName := r.PathValue(utils.PathParamAgentName)
+	// An absent environment means the organization's only one.
+	envID := models.EnvironmentOrDefault(r.URL.Query().Get("environment"))
 
 	log.Info("RevokeAgentIdentitySecret: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 
@@ -579,13 +582,13 @@ func (c *agentController) ProvisionAgentIdentity(w http.ResponseWriter, r *http.
 
 	orgName := middleware.OrgHandleFromRequest(r)
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	envID := r.URL.Query().Get("environment")
-	if envID == "" {
-		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+	projName, ok := requireProject(w, r)
+	if !ok {
 		return
 	}
+	agentName := r.PathValue(utils.PathParamAgentName)
+	// An absent environment means the organization's only one.
+	envID := models.EnvironmentOrDefault(r.URL.Query().Get("environment"))
 
 	log.Info("ProvisionAgentIdentity: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 
@@ -638,7 +641,10 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 
 	orgName := middleware.OrgHandleFromRequest(r)
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
+	projName, ok := requireProject(w, r)
+	if !ok {
+		return
+	}
 	agentName := r.PathValue(utils.PathParamAgentName)
 
 	var payload models.AgentIdentityActionRequest
@@ -647,11 +653,8 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	envID := payload.Environment
-	if envID == "" {
-		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment is required in the request body")
-		return
-	}
+	// An absent environment means the organization's only one.
+	envID := models.EnvironmentOrDefault(payload.Environment)
 
 	log.Info("RetryAgentIdentityProvisioning: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 
@@ -704,13 +707,13 @@ func (c *agentController) GetAgentRoles(w http.ResponseWriter, r *http.Request) 
 
 	orgName := middleware.OrgHandleFromRequest(r)
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	envID := r.URL.Query().Get("environment")
-	if envID == "" {
-		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+	projName, ok := requireProject(w, r)
+	if !ok {
 		return
 	}
+	agentName := r.PathValue(utils.PathParamAgentName)
+	// An absent environment means the organization's only one.
+	envID := models.EnvironmentOrDefault(r.URL.Query().Get("environment"))
 
 	log.Info("GetAgentRoles: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 
@@ -749,13 +752,13 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 
 	orgName := middleware.OrgHandleFromRequest(r)
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	envID := r.URL.Query().Get("environment")
-	if envID == "" {
-		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+	projName, ok := requireProject(w, r)
+	if !ok {
 		return
 	}
+	agentName := r.PathValue(utils.PathParamAgentName)
+	// An absent environment means the organization's only one.
+	envID := models.EnvironmentOrDefault(r.URL.Query().Get("environment"))
 
 	log.Info("GetAgentGroups: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 

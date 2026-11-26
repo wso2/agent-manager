@@ -43,6 +43,9 @@ const (
 	PathParamRoleID    = "roleID"
 )
 
+// QueryParamProject names the project on a route whose path does not carry it.
+const QueryParamProject = "project"
+
 // Pagination constants
 const (
 	DefaultLimit  = 50

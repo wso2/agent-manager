@@ -41,7 +41,7 @@ var _ = Describe("Subscription Plans", Label("ai-hub", "subscription-plans"), Or
 
 	AfterAll(func() {
 		if planID != "" {
-			aihubop.DeletePlan(Default, Client, planID)
+			aihubop.DeprecatePlanBestEffort(Client, planID)
 		}
 	})
 
@@ -95,8 +95,18 @@ var _ = Describe("Subscription Plans", Label("ai-hub", "subscription-plans"), Or
 		Expect(aihubop.GetPlan(Default, Client, planID).DisplayName).To(Equal("E2E Gold v2"))
 	})
 
-	It("should delete the plan", func() {
-		aihubop.DeletePlan(Default, Client, planID)
-		aihubop.GetPlanExpectStatus(Default, Client, planID, http.StatusNotFound)
+	It("should create the plan with the control plane as its origin", func() {
+		Expect(aihubop.GetPlan(Default, Client, planID).Origin).To(Equal("ai-control-plane"))
+	})
+
+	It("should deprecate the plan, which stays read only", func() {
+		plan := aihubop.DeprecatePlan(Default, Client, planID)
+		Expect(plan.Deprecated).To(BeTrue())
+		Expect(aihubop.GetPlan(Default, Client, planID).Deprecated).To(BeTrue(), "a deprecated plan is kept")
+
+		resp, err := Client.Put(aihubop.PlansPath+"/"+planID, framework.SubscriptionPlanRequest{ID: planID, DisplayName: "E2E Gold v3"})
+		Expect(err).NotTo(HaveOccurred())
+		defer resp.Body.Close()
+		Expect(resp.StatusCode).To(Equal(http.StatusConflict), "a deprecated plan can't change")
 	})
 })

@@ -58,7 +58,7 @@ func TestDeleteAgent(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the delete request
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", testDeleteOrgName, testDeleteProjName, testDeleteAgentName)
+		url := fmt.Sprintf("/api/v1/agents/%s?project=%s", testDeleteAgentName, testDeleteProjName)
 		req := httptest.NewRequest(http.MethodDelete, url, nil)
 
 		rr := httptest.NewRecorder()
@@ -87,7 +87,7 @@ func TestDeleteAgent(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the delete request
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", testDeleteOrgName, testDeleteProjName, testExternalAgentName)
+		url := fmt.Sprintf("/api/v1/agents/%s?project=%s", testExternalAgentName, testDeleteProjName)
 		req := httptest.NewRequest(http.MethodDelete, url, nil)
 
 		rr := httptest.NewRecorder()
@@ -113,7 +113,7 @@ func TestDeleteAgent(t *testing.T) {
 			authMiddleware: authMiddleware,
 			wantStatus:     404,
 			wantErrMsg:     "Project not found",
-			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project/agents/%s", testDeleteOrgName, testDeleteAgentName),
+			url:            fmt.Sprintf("/api/v1/agents/%s?project=nonexistent-project", testDeleteAgentName),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
 				mock.DeleteAgentFunc = func(ctx context.Context, ouID string, projectName string, agentName string) error {
@@ -134,7 +134,7 @@ func TestDeleteAgent(t *testing.T) {
 			},
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", testDeleteOrgName, testDeleteProjName, testDeleteAgentName),
+			url:        fmt.Sprintf("/api/v1/agents/%s?project=%s", testDeleteAgentName, testDeleteProjName),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},
@@ -144,7 +144,7 @@ func TestDeleteAgent(t *testing.T) {
 			authMiddleware: authMiddleware,
 			wantStatus:     500,
 			wantErrMsg:     "Failed to delete agent",
-			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", testDeleteOrgName, testDeleteProjName, testFailingAgentName),
+			url:            fmt.Sprintf("/api/v1/agents/%s?project=%s", testFailingAgentName, testDeleteProjName),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
 				mock.DeleteAgentFunc = func(ctx context.Context, orgName string, projName string, agentName string) error {
@@ -206,7 +206,7 @@ func TestDeleteAgentIdempotency(t *testing.T) {
 
 		for i := 0; i < numRequests; i++ {
 			responses[i] = httptest.NewRecorder()
-			url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s", testDeleteOrgName, testDeleteProjName, agentName)
+			url := fmt.Sprintf("/api/v1/agents/%s?project=%s", agentName, testDeleteProjName)
 			req := httptest.NewRequest(http.MethodDelete, url, nil)
 
 			// Execute request

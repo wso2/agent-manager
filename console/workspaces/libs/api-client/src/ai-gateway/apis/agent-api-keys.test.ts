@@ -39,34 +39,35 @@ const mocks = {
 } as unknown as HttpMocks;
 
 const env = { orgName: "acme corp", projName: "p/1", agentName: "my bot", envId: "dev" };
-const KEYS = "/m/ai-gateway/orgs/acme%20corp/projects/p%2F1/agents/my%20bot/environments/dev/api-keys";
+const KEYS = "/m/ai-gateway/agents/my%20bot/api-keys";
+const IN_PROJECT = { project: "p/1" };
 
 describeHttpCases("agent API key API", mocks, [
   {
     name: "createAgentAPIKey",
     call: () => createAgentAPIKey(env, { name: "ci", expiresIn: "30d" } as never, getToken),
-    method: "POST", url: KEYS, body: { name: "ci", expiresIn: "30d" },
+    method: "POST", url: KEYS, searchParams: IN_PROJECT, body: { name: "ci", expiresIn: "30d" },
   },
-  { name: "listAgentAPIKeys", call: () => listAgentAPIKeys(env, getToken), method: "GET", url: KEYS },
+  { name: "listAgentAPIKeys", call: () => listAgentAPIKeys(env, getToken), method: "GET", url: KEYS, searchParams: IN_PROJECT },
   {
     name: "rotateAgentAPIKey",
     call: () => rotateAgentAPIKey({ ...env, keyName: "ci key" }, { expiresIn: "7d" } as never, getToken),
-    method: "PUT", url: `${KEYS}/ci%20key`, body: { expiresIn: "7d" },
+    method: "PUT", url: `${KEYS}/ci%20key`, searchParams: IN_PROJECT, body: { expiresIn: "7d" },
   },
   {
     name: "revokeAgentAPIKey",
     call: () => revokeAgentAPIKey({ ...env, keyName: "ci key" }, getToken),
-    method: "DELETE", url: `${KEYS}/ci%20key`, returnsBody: false,
+    method: "DELETE", url: `${KEYS}/ci%20key`, searchParams: IN_PROJECT, returnsBody: false,
   },
   {
     name: "issueTestAgentAPIKey",
     call: () => issueTestAgentAPIKey(env, getToken),
-    method: "POST", url: `${KEYS}/test`, body: {},
+    method: "POST", url: `${KEYS}/test`, searchParams: IN_PROJECT, body: {},
   },
 ]);
 
 describe("agent API key required params", () => {
-  it.each(["orgName", "projName", "agentName", "envId"] as const)(
+  it.each(["projName", "agentName"] as const)(
     "refuses a missing %s before any request",
     async (missing) => {
       mocks.GET.mockReset();

@@ -22,7 +22,8 @@
 // It is an optional module: the amp distribution links it, and an operator installs it with
 // `amp module install ai-hub`. It holds the plans: their API (plan_controller.go) at /m/ai-hub, and a webhook
 // (plan_webhook_controller.go) at /m/ai-hub/webhooks/events on the internal server, through which plans made in
-// a developer portal are copied in. Gateways get every plan through the AI Gateway (subplanv1).
+// a developer portal are copied in, with the subscriptions made there. Gateways get each subscription, and the
+// plan it is on, through the AI Gateway (subplanv1).
 package aihub
 
 import (
@@ -43,8 +44,8 @@ import (
 const Name = "ai-hub"
 
 // EventPlanChanged is published, in the same transaction, when a plan is created, updated or deleted, with a
-// subplanv1.PlanChange. The AI Gateway finds it through the capability (Source.ChangeEvent), subscribes to it
-// and pushes the change to the organization's gateways.
+// subplanv1.PlanChange (Source.ChangeEvent). Gateways don't get plan changes: a plan reaches them with its
+// subscriptions (EventSubscriptionChanged).
 const EventPlanChanged = Name + ".plan_changed"
 
 // EventSubscriptionChanged is published, in the same transaction, when a subscription is created, changed or
@@ -78,14 +79,14 @@ func (module) Manifest() modkit.Manifest {
 		Version:     "0.1.0",
 		Description: "AI Hub: subscription plans for MCP servers and agents",
 		CoreAPI:     modkit.CoreAPIVersion,
-		// Its plans, for gateways to pull. It depends on no gateway: the AI Gateway reads the plans and
-		// subscribes to EventPlanChanged, so the dependency runs one way only.
+		// Its plans and subscriptions, for gateways. It depends on no gateway: the AI Gateway reads them and
+		// subscribes to EventSubscriptionChanged, so the dependency runs one way only.
 		Provides: []string{subplanv1.ID},
 		Permissions: []modkit.Permission{
 			{Name: PermPlanRead, DisplayName: "View Subscription Plans", Description: "View subscription plans"},
 			{Name: PermPlanCreate, DisplayName: "Create Subscription Plans", Description: "Create subscription plans"},
 			{Name: PermPlanUpdate, DisplayName: "Change Subscription Plans", Description: "Change subscription plans"},
-			{Name: PermPlanDelete, DisplayName: "Delete Subscription Plans", Description: "Delete subscription plans"},
+			{Name: PermPlanDelete, DisplayName: "Deprecate Subscription Plans", Description: "Deprecate (soft-delete) subscription plans"},
 		},
 		RoleGrants: map[string][]string{
 			"Agent Manager Admin": {PermPlanRead, PermPlanCreate, PermPlanUpdate, PermPlanDelete},
@@ -154,14 +155,14 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		cfg: webhookConfigFrom(rt.Config, log), plans: plans, subscriptions: subs, core: rt.Core(),
 		log: log.With("component", "plan-webhook"), now: time.Now,
 	}).ServeHTTP, modkit.Audit(ActionPortalSync))
-	// Gateways pull the plans and subscriptions when they connect; the AI Gateway pushes each change on
-	// EventPlanChanged and EventSubscriptionChanged.
+	// Gateways pull the subscriptions, and the plans they are on, when they connect; the AI Gateway pushes each
+	// subscription change, after its plan, on EventSubscriptionChanged.
 	rt.Provide(subplanv1.ID, planSource{plans: plans, subscriptions: subs})
 	// The subscription plans API, under /m/ai-hub.
 	rt.Handle(http.MethodPost, "/subscription-plans", PermPlanCreate, a.createPlan)
 	rt.Handle(http.MethodGet, "/subscription-plans", PermPlanRead, a.listPlans)
 	rt.Handle(http.MethodGet, "/subscription-plans/{subscriptionPlanId}", PermPlanRead, a.getPlan)
 	rt.Handle(http.MethodPut, "/subscription-plans/{subscriptionPlanId}", PermPlanUpdate, a.updatePlan)
-	rt.Handle(http.MethodDelete, "/subscription-plans/{subscriptionPlanId}", PermPlanDelete, a.deletePlan)
+	rt.Handle(http.MethodDelete, "/subscription-plans/{subscriptionPlanId}", PermPlanDelete, a.deprecatePlan)
 	return nil
 }

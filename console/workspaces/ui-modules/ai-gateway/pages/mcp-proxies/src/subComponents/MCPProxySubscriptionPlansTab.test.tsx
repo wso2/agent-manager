@@ -26,6 +26,7 @@ import type {
 } from "@agent-management-platform/types";
 import {
   MCPProxySubscriptionPlansTab,
+  deprecatedBlockingSave,
   planOptions,
   samePlans,
   shortDate,
@@ -36,6 +37,8 @@ const state = vi.hoisted(() => ({
   canWrite: true,
   canReadPlans: true,
   plans: [] as SubscriptionPlan[],
+  isLoading: false,
+  error: null as unknown,
 }));
 
 vi.mock("@agent-management-platform/views", () => ({
@@ -53,8 +56,8 @@ vi.mock("@agent-management-platform/feature-management", () => ({
 vi.mock("@agent-management-platform/api-client", () => ({
   useListSubscriptionPlans: () => ({
     data: { list: state.plans, count: state.plans.length },
-    isLoading: false,
-    error: null,
+    isLoading: state.isLoading,
+    error: state.error,
   }),
   extractServerErrorMessage: (e: unknown) => (e instanceof Error ? e.message : undefined),
 }));
@@ -63,7 +66,14 @@ const plan = (
   id: string,
   displayName: string,
   extra: Partial<SubscriptionPlan> = {},
-): SubscriptionPlan => ({ id, displayName, status: "ACTIVE", conditions: [], ...extra });
+): SubscriptionPlan => ({
+  id,
+  displayName,
+  status: "ACTIVE",
+  conditions: [],
+  deprecated: false,
+  ...extra,
+});
 
 const proxy = (
   subscriptionPlans?: string[],
@@ -100,6 +110,29 @@ describe("plan helpers", () => {
     expect(planOptions(plans, ["kept", "gone"]).map((o) => o.id)).toEqual(["gold", "kept", "gone"]);
   });
 
+  it("leaves out a deprecated plan unless the proxy already offers it", () => {
+    const plans = [
+      plan("gold", "Gold"),
+      plan("retired", "Retired", { deprecated: true }),
+      plan("offered", "Offered", { deprecated: true }),
+    ];
+    const options = planOptions(plans, ["offered"]);
+    expect(options.map((o) => o.id)).toEqual(["gold", "offered"]);
+    expect(options.find((o) => o.id === "offered")?.deprecated).toBe(true);
+  });
+
+  it("a deprecated plan blocks only a changed selection", () => {
+    const options = planOptions(
+      [plan("gold", "Gold"), plan("retired", "Retired", { deprecated: true })],
+      ["retired"],
+    );
+    expect(deprecatedBlockingSave(["retired"], ["retired"], options)).toEqual([]);
+    expect(deprecatedBlockingSave(["retired", "gold"], ["retired"], options).map((o) => o.id)).toEqual([
+      "retired",
+    ]);
+    expect(deprecatedBlockingSave(["gold"], ["retired"], options)).toEqual([]);
+  });
+
   it("compares and toggles plans", () => {
     expect(samePlans(["a", "b"], ["b", "a"])).toBe(true);
     expect(samePlans([], ["a"])).toBe(false);
@@ -112,6 +145,8 @@ describe("MCPProxySubscriptionPlansTab", () => {
   beforeEach(() => {
     state.canWrite = true;
     state.canReadPlans = true;
+    state.isLoading = false;
+    state.error = null;
     state.plans = [
       plan("gold", "Gold", {
         description: "For production agents",
@@ -133,6 +168,33 @@ describe("MCPProxySubscriptionPlansTab", () => {
     const silver = screen.getByRole("checkbox", { name: "Silver" });
     expect(silver).toHaveAttribute("aria-checked", "false");
     expect(within(silver).queryByText(/Expires/)).not.toBeInTheDocument();
+  });
+
+  it("marks an offered deprecated plan, which can still be unticked", () => {
+    state.plans = [...state.plans, plan("retired", "Retired", { deprecated: true })];
+    renderTab(proxy(["retired"], allPolicies));
+    const retired = screen.getByRole("checkbox", { name: "Retired" });
+    expect(retired).toHaveAttribute("aria-checked", "true");
+    expect(within(retired).getByText("Deprecated")).toBeInTheDocument();
+    fireEvent.click(retired);
+    expect(retired).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("won't save another plan beside an offered deprecated one until it is removed", () => {
+    state.plans = [...state.plans, plan("retired", "Retired", { deprecated: true })];
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    renderTab(proxy(["retired"], allPolicies), onSave);
+    const save = screen.getByRole("button", { name: "Save" });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Gold" }));
+    const dialog = screen.queryByRole("dialog");
+    if (dialog) fireEvent.click(within(dialog).getByRole("button", { name: /skip/i }));
+    expect(save).toBeDisabled();
+    expect(screen.getByText(/"Retired" is deprecated\. Remove it to save/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Retired" }));
+    expect(save).toBeEnabled();
+    expect(screen.queryByText(/is deprecated\. Remove it/)).not.toBeInTheDocument();
   });
 
   it("warns when an offered plan's policies are not attached", () => {
@@ -213,5 +275,56 @@ describe("MCPProxySubscriptionPlansTab", () => {
     state.plans = [];
     renderTab(proxy([]));
     expect(screen.getByText("No active subscription plans")).toBeInTheDocument();
+  });
+
+  it("says a read-only viewer the server offers nothing", () => {
+    state.plans = [];
+    state.canWrite = false;
+    renderTab(proxy([]));
+    expect(screen.getByText("No plans offered")).toBeInTheDocument();
+    expect(
+      screen.getByText("This MCP server doesn't offer any subscription plans."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows placeholders while the plans load, and an error when they don't", () => {
+    state.isLoading = true;
+    const { container, unmount } = renderTab(proxy(["gold"]));
+    expect(container.querySelectorAll(".MuiSkeleton-root")).toHaveLength(3);
+    unmount();
+    state.isLoading = false;
+    state.error = new Error("down");
+    renderTab(proxy(["gold"]));
+    expect(screen.getByText(/Couldn.t load the subscription plans/)).toBeInTheDocument();
+  });
+
+  it("marks an offered plan that has since been deactivated", () => {
+    state.plans = [...state.plans, plan("paused", "Paused", { status: "INACTIVE" })];
+    renderTab(proxy(["paused"], allPolicies));
+    const paused = screen.getByRole("checkbox", { name: "Paused" });
+    expect(within(paused).getByText("Inactive")).toBeInTheDocument();
+  });
+
+  it("names every deprecated plan that blocks a save", () => {
+    state.plans = [
+      ...state.plans,
+      plan("old-a", "Old A", { deprecated: true }),
+      plan("old-b", "Old B", { deprecated: true }),
+    ];
+    renderTab(proxy(["old-a", "old-b"], allPolicies));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Gold" }));
+    const dialog = screen.queryByRole("dialog");
+    if (dialog) fireEvent.click(within(dialog).getByRole("button", { name: /skip/i }));
+    expect(
+      screen.getByText(/"Old A", "Old B" are deprecated\. Remove them to save/),
+    ).toBeInTheDocument();
+  });
+
+  it("checks on hover whether a name or description is cut short", () => {
+    renderTab(proxy(["gold"], allPolicies));
+    const gold = screen.getByRole("checkbox", { name: "Gold" });
+    fireEvent.mouseEnter(within(gold).getByText("Gold"));
+    fireEvent.mouseEnter(within(gold).getByText("For production agents"));
+    expect(gold).toBeInTheDocument();
   });
 });

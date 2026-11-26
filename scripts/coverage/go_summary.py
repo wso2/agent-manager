@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Summarise Go cover profiles per package for ratchet.py.
+"""Summarise Go cover profiles per package for gate.py.
 
 Reads one or more profiles (any mode). A block that appears in several
 profiles is counted once, and counts as covered if any profile hit it.

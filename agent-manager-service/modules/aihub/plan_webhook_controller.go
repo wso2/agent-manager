@@ -88,8 +88,11 @@ const (
 	webhookSecretHashLabel = "api-portal-webhook-secret-hash-v1"
 
 	DefaultWebhookSignatureHeader = "X-Api-Portal-Signature"
-	defaultSignatureTolerance     = 5 * time.Minute
-	defaultMaxBodyBytes           = 1 << 20 // 1 MiB
+	// DefaultWebhookSourceName is the origin of the plans the webhook copies in, unless webhook_source_name names
+	// the developer portal.
+	DefaultWebhookSourceName  = "developer-portal"
+	defaultSignatureTolerance = 5 * time.Minute
+	defaultMaxBodyBytes       = 1 << 20 // 1 MiB
 )
 
 var (
@@ -119,6 +122,8 @@ type webhookConfig struct {
 	// LegacySharedSecret accepts a delivery with no secret_hash (a sender that predates it), verified
 	// against Secret. Off by default.
 	LegacySharedSecret bool
+	// SourceName names the developer portal that sends the deliveries: the origin of the plans it creates.
+	SourceName string
 }
 
 // webhookConfigFrom reads the module settings (amp.yaml modules[].config, or MODULE_AI_HUB_<KEY>).
@@ -128,6 +133,10 @@ func webhookConfigFrom(get func(key string) string, log *slog.Logger) webhookCon
 		SignatureHeader:    DefaultWebhookSignatureHeader,
 		SignatureTolerance: defaultSignatureTolerance,
 		MaxBodyBytes:       defaultMaxBodyBytes,
+		SourceName:         DefaultWebhookSourceName,
+	}
+	if v := strings.TrimSpace(get("webhook_source_name")); v != "" {
+		cfg.SourceName = v
 	}
 	cfg.Enabled = cfg.Secret != ""
 	if v := strings.TrimSpace(get("webhook_enabled")); v != "" {
@@ -340,7 +349,8 @@ func webhookCaller(refused string, signed bool) modkit.InternalCaller {
 }
 
 // ServeHTTP runs the flow: size-limited read, signature check, envelope, organization, dispatch.
-// The sender's faults are answered alike (401); ours answer 503, so the sender retries. The reason is logged.
+// The sender's faults are answered alike (401), except a signed request the plans here refuse (409, refusal); ours
+// answer 503, so the sender retries. The reason is logged.
 func (r *webhookReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -358,11 +368,41 @@ func (r *webhookReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			modkit.AuditInternalCaller(req.Context(),
 				webhookCaller("invalid-signature", req.Header.Get(r.cfg.SignatureHeader) != ""))
 		}
+		if refused := refusal(err); refused != nil {
+			writeJSONStatus(w, http.StatusConflict, refused)
+			return
+		}
 		if !isClientFault(err) {
 			unavailable(w)
 			return
 		}
 		reject(w)
+	}
+}
+
+// Codes of a signed delivery refused for what it asks (409), which a retry can't change.
+const (
+	codePlanDeprecated     = "SUBSCRIPTION_PLAN_DEPRECATED"
+	codePlanOriginConflict = "SUBSCRIPTION_PLAN_ORIGIN_CONFLICT"
+)
+
+// refusal answers a signed delivery that asks for what the plans here don't allow: subscribing to a deprecated
+// plan, or creating a plan with the handle of one made elsewhere. The sender is authenticated by then, so it is
+// told why, and a 409 is not retried. Nil for any other error.
+func refusal(err error) *errorResponse {
+	switch {
+	case errors.Is(err, errPlanDeprecated):
+		return &errorResponse{
+			Status: "error", Code: codePlanDeprecated,
+			Message: "The subscription plan is deprecated: it takes no new subscriptions and can't be created again.",
+		}
+	case errors.Is(err, errPlanOriginConflict):
+		return &errorResponse{
+			Status: "error", Code: codePlanOriginConflict,
+			Message: "A subscription plan with this handle was made elsewhere; create the plan with another handle.",
+		}
+	default:
+		return nil
 	}
 }
 
@@ -454,8 +494,8 @@ func (r *webhookReceiver) dispatch(ctx context.Context, orgID string, env *envel
 			return fmt.Errorf("%w: data.display_name is required", errInvalidEnvelope)
 		}
 		paid := d.Pricing != nil && string(*d.Pricing) != "null"
-		return r.plans.upsertFromWebhook(ctx, orgID, d.Handle, name, d.Description, d.Conditions,
-			requestWindowsFrom(d.Limits), paid, env.occurredAt())
+		return r.plans.upsertFromWebhook(ctx, orgID, r.cfg.SourceName, d.Handle, name, d.Description, d.Conditions,
+			requestWindowsFrom(d.Limits), paid, env.EventType == EventSubscriptionPlanCreated, env.occurredAt())
 	case EventSubscriptionPlanDeleted:
 		d, err := planData(env)
 		if err != nil {
@@ -542,7 +582,8 @@ func isClientFault(err error) bool {
 	return errors.Is(err, errSignatureMissing) || errors.Is(err, errSignatureInvalid) ||
 		errors.Is(err, errTimestampOutOfTolerance) || errors.Is(err, errInvalidEnvelope) ||
 		errors.Is(err, errUnsupportedEvent) || errors.Is(err, errOrganizationNotFound) ||
-		errors.Is(err, errWebhookDisabled) || errors.Is(err, errSubscriptionPlanUnknown) || errors.As(err, &v)
+		errors.Is(err, errWebhookDisabled) || errors.Is(err, errSubscriptionPlanUnknown) || errors.As(err, &v) ||
+		errors.Is(err, errPlanDeprecated) || errors.Is(err, errPlanOriginConflict)
 }
 
 // reject answers a refused delivery: always 401, with nothing about why.

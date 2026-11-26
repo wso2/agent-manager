@@ -20,7 +20,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { httpDELETE, httpGET, httpPOST, httpPUT } from "../../shared/utils";
 import {
   createSubscriptionPlan,
-  deleteSubscriptionPlan,
+  deprecateSubscriptionPlan,
   getSubscriptionPlan,
   listSubscriptionPlans,
   updateSubscriptionPlan,
@@ -37,13 +37,27 @@ vi.mock("../../shared/utils", async (importOriginal) => ({
 const PLANS = "/m/ai-hub/subscription-plans";
 const getToken = async () => "jwt";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const noContent = () => new Response(null, { status: 204 });
+const DOC = { apiVersion: "ai-control-plane.choreolabs.com/v1", kind: "SubscriptionPlan" };
+const doc = (
+  name: string,
+  spec: Record<string, unknown> = { displayName: name },
+  status?: unknown,
+) => ({
+  ...DOC,
+  metadata: { name },
+  spec,
+  ...(status ? { status } : {}),
+});
 
 beforeEach(() => {
   vi.mocked(httpGET).mockReset().mockImplementation(async () => json({ list: [] }));
-  vi.mocked(httpPOST).mockReset().mockImplementation(async () => json({ id: "gold" }, 201));
-  vi.mocked(httpPUT).mockReset().mockImplementation(async () => json({ id: "gold" }));
-  vi.mocked(httpDELETE).mockReset().mockImplementation(async () => noContent());
+  vi.mocked(httpPOST).mockReset().mockImplementation(async () => json(doc("gold"), 201));
+  vi.mocked(httpPUT).mockReset().mockImplementation(async () => json(doc("gold")));
+  vi.mocked(httpDELETE)
+    .mockReset()
+    .mockImplementation(async () =>
+      json(doc("gold", { displayName: "Gold" }, { deprecated: true, deprecationTimestamp: "t3" })),
+    );
 });
 
 describe("subscription plans API", () => {
@@ -61,10 +75,45 @@ describe("subscription plans API", () => {
     expect(httpGET).toHaveBeenCalledWith(PLANS, { searchParams: {}, token: undefined });
   });
 
-  it("gets one plan by its encoded handle", async () => {
-    vi.mocked(httpGET).mockResolvedValue(json({ id: "a b" }));
-    await expect(getSubscriptionPlan({ orgName: "acme", planId: "a b" }, getToken)).resolves.toEqual({ id: "a b" });
+  it("gets one plan by its encoded handle, flattening its document", async () => {
+    vi.mocked(httpGET).mockResolvedValue(
+      json({
+        ...doc(
+          "a b",
+          { displayName: "A B", status: "INACTIVE", conditions: [{ id: "requests", type: "request-count", params: {} }] },
+          { deprecated: false, usage: { inUse: true, mcpProxies: 1, subscriptions: 2 } },
+        ),
+        metadata: {
+          name: "a b", uid: "u-1", createdBy: "alice", creationTimestamp: "t1", updateTimestamp: "t2",
+          origin: "ai-control-plane",
+        },
+      }),
+    );
+    await expect(getSubscriptionPlan({ orgName: "acme", planId: "a b" }, getToken)).resolves.toEqual({
+      id: "a b",
+      uid: "u-1",
+      displayName: "A B",
+      status: "INACTIVE",
+      conditions: [{ id: "requests", type: "request-count", params: {} }],
+      createdBy: "alice",
+      createdAt: "t1",
+      updatedAt: "t2",
+      usage: { inUse: true, mcpProxies: 1, subscriptions: 2 },
+      origin: "ai-control-plane",
+      deprecated: false,
+    });
     expect(httpGET).toHaveBeenCalledWith(`${PLANS}/a%20b`, { token: "jwt" });
+  });
+
+  it("lists plans as flat plans", async () => {
+    vi.mocked(httpGET).mockResolvedValue(
+      json({ list: [doc("gold")], count: 1, pagination: { total: 1, offset: 0, limit: 20 } }),
+    );
+    const page = await listSubscriptionPlans({ orgName: "acme" }, undefined, getToken);
+    expect(page.list).toEqual([
+      expect.objectContaining({ id: "gold", displayName: "gold", status: "ACTIVE", conditions: [] }),
+    ]);
+    expect(page.pagination).toEqual({ total: 1, offset: 0, limit: 20 });
   });
 
   it.each([
@@ -84,15 +133,36 @@ describe("subscription plans API", () => {
     await expect(listSubscriptionPlans({ orgName: "acme" }, undefined, getToken)).rejects.toMatchObject({ status: 403 });
   });
 
-  it("creates, updates and deletes a plan", async () => {
+  it("creates, updates and deprecates a plan, sending documents", async () => {
     const body = { id: "gold", displayName: "Gold" };
-    await expect(createSubscriptionPlan({ orgName: "acme" }, body as never, getToken)).resolves.toEqual({ id: "gold" });
-    expect(httpPOST).toHaveBeenCalledWith(PLANS, body, { token: "jwt" });
+    await expect(createSubscriptionPlan({ orgName: "acme" }, body as never, getToken)).resolves.toMatchObject({
+      id: "gold",
+    });
+    expect(httpPOST).toHaveBeenCalledWith(PLANS, doc("gold", { displayName: "Gold" }), { token: "jwt" });
 
-    await updateSubscriptionPlan({ orgName: "acme", planId: "gold" }, { displayName: "Gold 2" } as never, getToken);
-    expect(httpPUT).toHaveBeenCalledWith(`${PLANS}/gold`, { displayName: "Gold 2" }, { token: "jwt" });
+    await updateSubscriptionPlan(
+      { orgName: "acme", planId: "gold" },
+      { displayName: "Gold 2", expiryTime: null } as never,
+      getToken,
+    );
+    expect(httpPUT).toHaveBeenCalledWith(
+      `${PLANS}/gold`,
+      doc("gold", { displayName: "Gold 2", expiryTime: null }),
+      { token: "jwt" },
+    );
 
-    await deleteSubscriptionPlan({ orgName: "acme", planId: "gold" });
+    await expect(deprecateSubscriptionPlan({ orgName: "acme", planId: "gold" })).resolves.toMatchObject({
+      id: "gold",
+      deprecated: true,
+      deprecatedAt: "t3",
+    });
     expect(httpDELETE).toHaveBeenCalledWith(`${PLANS}/gold`, { token: undefined });
+  });
+
+  it("fails a deprecation with the server's message", async () => {
+    vi.mocked(httpDELETE).mockResolvedValue(json({ message: "gone" }, 404));
+    await expect(deprecateSubscriptionPlan({ orgName: "acme", planId: "gold" })).rejects.toMatchObject({
+      status: 404,
+    });
   });
 });

@@ -44,7 +44,8 @@ var _ = Describe("Agent identity:", Label("agent", "agent-identity"), Ordered, f
 	ai := func(f string, a ...any) string {
 		return framework.GW(Cfg, "/environments/%s/agent-identities"+f, append([]any{Cfg.DefaultEnv}, a...)...)
 	}
-	agentPath := func(f string) string { return framework.API(Cfg, "/projects/%s/agents/%s"+f, proj, agentName) }
+	// agentPath takes a sub-path that already carries a query and adds the project to it.
+	agentPath := func(f string) string { return "/api/v1/agents/" + agentName + f + "&project=" + proj }
 
 	BeforeAll(func() {
 		suffix = uuid.NewString()[:8]

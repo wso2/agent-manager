@@ -87,7 +87,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
+	resp, err := client.GetAgentWithResponse(ctx, o.AgentName, &amsvc.GetAgentParams{Project: o.Proj})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -102,20 +102,28 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	a := resp.JSON200
 	w := o.IO.Out
 	cs := o.IO.ColorScheme()
-	fmt.Fprintf(w, "name:          %s\n", cs.Bold(a.Name))
-	fmt.Fprintf(w, "display name:  %s\n", a.DisplayName)
-	fmt.Fprintf(w, "description:   %s\n", a.Description)
-	typeStr := a.AgentType.Type
-	if a.AgentType.SubType != nil && *a.AgentType.SubType != "" {
-		typeStr = fmt.Sprintf("%s / %s", a.AgentType.Type, *a.AgentType.SubType)
+	description := ""
+	if a.Spec.Description != nil {
+		description = *a.Spec.Description
+	}
+	fmt.Fprintf(w, "name:          %s\n", cs.Bold(a.Metadata.Name))
+	fmt.Fprintf(w, "display name:  %s\n", a.Spec.DisplayName)
+	fmt.Fprintf(w, "description:   %s\n", description)
+	typeStr := a.Spec.AgentType.Type
+	if a.Spec.AgentType.SubType != nil && *a.Spec.AgentType.SubType != "" {
+		typeStr = fmt.Sprintf("%s / %s", a.Spec.AgentType.Type, *a.Spec.AgentType.SubType)
 	}
 	fmt.Fprintf(w, "type:          %s\n", typeStr)
 	status := "-"
-	if a.Status != nil {
-		status = *a.Status
+	if a.Status != nil && a.Status.State != nil {
+		status = *a.Status.State
 	}
 	fmt.Fprintf(w, "status:        %s\n", status)
-	fmt.Fprintf(w, "project:       %s\n", a.ProjectName)
-	fmt.Fprintf(w, "created:       %s\n", cs.Gray(a.CreatedAt.Format("2006-01-02T15:04:05Z07:00")))
+	fmt.Fprintf(w, "project:       %s\n", a.Metadata.Project)
+	created := "-"
+	if a.Metadata.CreationTimestamp != nil {
+		created = a.Metadata.CreationTimestamp.Format("2006-01-02T15:04:05Z07:00")
+	}
+	fmt.Fprintf(w, "created:       %s\n", cs.Gray(created))
 	return nil
 }

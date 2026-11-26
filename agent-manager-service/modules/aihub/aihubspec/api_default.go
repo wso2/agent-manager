@@ -1,7 +1,7 @@
 /*
 AI Hub API
 
-Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token.
+Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token. A plan is never removed: deleting it deprecates it (a soft delete). A deprecated plan stays, read only, for the subscriptions on it, and gateways still get it; it can't be changed, offered on an MCP server or subscribed to again. A plan is a document, as Kubernetes resources are: `apiVersion` (the document schema's version, separate from the URL's), `kind`, `metadata` (`name` is the plan's handle; the rest is set by the server), `spec` (what the caller declares) and `status` (what the server observes, ignored on input). Bodies are JSON, or YAML with `Content-Type: application/yaml`; a response is YAML when the request accepts `application/yaml`.
 
 API version: 0.1.0
 */
@@ -23,17 +23,17 @@ import (
 type DefaultAPIService service
 
 type ApiCreateSubscriptionPlanRequest struct {
-	ctx                           context.Context
-	ApiService                    *DefaultAPIService
-	subscriptionPlanCreateRequest *SubscriptionPlanCreateRequest
+	ctx                      context.Context
+	ApiService               *DefaultAPIService
+	subscriptionPlanDocument *SubscriptionPlanDocument
 }
 
-func (r ApiCreateSubscriptionPlanRequest) SubscriptionPlanCreateRequest(subscriptionPlanCreateRequest SubscriptionPlanCreateRequest) ApiCreateSubscriptionPlanRequest {
-	r.subscriptionPlanCreateRequest = &subscriptionPlanCreateRequest
+func (r ApiCreateSubscriptionPlanRequest) SubscriptionPlanDocument(subscriptionPlanDocument SubscriptionPlanDocument) ApiCreateSubscriptionPlanRequest {
+	r.subscriptionPlanDocument = &subscriptionPlanDocument
 	return r
 }
 
-func (r ApiCreateSubscriptionPlanRequest) Execute() (*SubscriptionPlan, *http.Response, error) {
+func (r ApiCreateSubscriptionPlanRequest) Execute() (*SubscriptionPlanDocument, *http.Response, error) {
 	return r.ApiService.CreateSubscriptionPlanExecute(r)
 }
 
@@ -52,13 +52,13 @@ func (a *DefaultAPIService) CreateSubscriptionPlan(ctx context.Context) ApiCreat
 
 // Execute executes the request
 //
-//	@return SubscriptionPlan
-func (a *DefaultAPIService) CreateSubscriptionPlanExecute(r ApiCreateSubscriptionPlanRequest) (*SubscriptionPlan, *http.Response, error) {
+//	@return SubscriptionPlanDocument
+func (a *DefaultAPIService) CreateSubscriptionPlanExecute(r ApiCreateSubscriptionPlanRequest) (*SubscriptionPlanDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *SubscriptionPlan
+		localVarReturnValue *SubscriptionPlanDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.CreateSubscriptionPlan")
@@ -71,12 +71,12 @@ func (a *DefaultAPIService) CreateSubscriptionPlanExecute(r ApiCreateSubscriptio
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.subscriptionPlanCreateRequest == nil {
-		return localVarReturnValue, nil, reportError("subscriptionPlanCreateRequest is required and must be specified")
+	if r.subscriptionPlanDocument == nil {
+		return localVarReturnValue, nil, reportError("subscriptionPlanDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
-	localVarHTTPContentTypes := []string{"application/json"}
+	localVarHTTPContentTypes := []string{"application/json", "application/yaml"}
 
 	// set Content-Type header
 	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
@@ -85,7 +85,7 @@ func (a *DefaultAPIService) CreateSubscriptionPlanExecute(r ApiCreateSubscriptio
 	}
 
 	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
+	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
@@ -93,7 +93,7 @@ func (a *DefaultAPIService) CreateSubscriptionPlanExecute(r ApiCreateSubscriptio
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.subscriptionPlanCreateRequest
+	localVarPostBody = r.subscriptionPlanDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -139,27 +139,27 @@ func (a *DefaultAPIService) CreateSubscriptionPlanExecute(r ApiCreateSubscriptio
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type ApiDeleteSubscriptionPlanRequest struct {
+type ApiDeprecateSubscriptionPlanRequest struct {
 	ctx                context.Context
 	ApiService         *DefaultAPIService
 	subscriptionPlanId string
 }
 
-func (r ApiDeleteSubscriptionPlanRequest) Execute() (*http.Response, error) {
-	return r.ApiService.DeleteSubscriptionPlanExecute(r)
+func (r ApiDeprecateSubscriptionPlanRequest) Execute() (*SubscriptionPlanDocument, *http.Response, error) {
+	return r.ApiService.DeprecateSubscriptionPlanExecute(r)
 }
 
 /*
-DeleteSubscriptionPlan Delete a subscription plan
+DeprecateSubscriptionPlan Deprecate a subscription plan
 
-A plan in use can't be deleted (409).
+Deprecates the plan (a soft delete), in use or not: it stays, read only, for the subscriptions on it, and gateways still get it, but it can't be changed, offered or subscribed to again. Returns the deprecated plan. Deprecating a deprecated plan changes nothing.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param subscriptionPlanId The plan's id (its handle).
-	@return ApiDeleteSubscriptionPlanRequest
+	@return ApiDeprecateSubscriptionPlanRequest
 */
-func (a *DefaultAPIService) DeleteSubscriptionPlan(ctx context.Context, subscriptionPlanId string) ApiDeleteSubscriptionPlanRequest {
-	return ApiDeleteSubscriptionPlanRequest{
+func (a *DefaultAPIService) DeprecateSubscriptionPlan(ctx context.Context, subscriptionPlanId string) ApiDeprecateSubscriptionPlanRequest {
+	return ApiDeprecateSubscriptionPlanRequest{
 		ApiService:         a,
 		ctx:                ctx,
 		subscriptionPlanId: subscriptionPlanId,
@@ -167,16 +167,19 @@ func (a *DefaultAPIService) DeleteSubscriptionPlan(ctx context.Context, subscrip
 }
 
 // Execute executes the request
-func (a *DefaultAPIService) DeleteSubscriptionPlanExecute(r ApiDeleteSubscriptionPlanRequest) (*http.Response, error) {
+//
+//	@return SubscriptionPlanDocument
+func (a *DefaultAPIService) DeprecateSubscriptionPlanExecute(r ApiDeprecateSubscriptionPlanRequest) (*SubscriptionPlanDocument, *http.Response, error) {
 	var (
-		localVarHTTPMethod = http.MethodDelete
-		localVarPostBody   interface{}
-		formFiles          []formFile
+		localVarHTTPMethod  = http.MethodDelete
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *SubscriptionPlanDocument
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.DeleteSubscriptionPlan")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.DeprecateSubscriptionPlan")
 	if err != nil {
-		return nil, &GenericOpenAPIError{error: err.Error()}
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
 	localVarPath := localBasePath + "/subscription-plans/{subscriptionPlanId}"
@@ -196,7 +199,7 @@ func (a *DefaultAPIService) DeleteSubscriptionPlanExecute(r ApiDeleteSubscriptio
 	}
 
 	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
+	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
@@ -205,19 +208,19 @@ func (a *DefaultAPIService) DeleteSubscriptionPlanExecute(r ApiDeleteSubscriptio
 	}
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
-		return nil, err
+		return localVarReturnValue, nil, err
 	}
 
 	localVarHTTPResponse, err := a.client.callAPI(req)
 	if err != nil || localVarHTTPResponse == nil {
-		return localVarHTTPResponse, err
+		return localVarReturnValue, localVarHTTPResponse, err
 	}
 
 	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
 	localVarHTTPResponse.Body.Close()
 	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
 	if err != nil {
-		return localVarHTTPResponse, err
+		return localVarReturnValue, localVarHTTPResponse, err
 	}
 
 	if localVarHTTPResponse.StatusCode >= 300 {
@@ -229,14 +232,23 @@ func (a *DefaultAPIService) DeleteSubscriptionPlanExecute(r ApiDeleteSubscriptio
 		err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 		if err != nil {
 			newErr.error = err.Error()
-			return localVarHTTPResponse, newErr
+			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
 		newErr.model = v
-		return localVarHTTPResponse, newErr
+		return localVarReturnValue, localVarHTTPResponse, newErr
 	}
 
-	return localVarHTTPResponse, nil
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
 type ApiGetSubscriptionPlanRequest struct {
@@ -245,7 +257,7 @@ type ApiGetSubscriptionPlanRequest struct {
 	subscriptionPlanId string
 }
 
-func (r ApiGetSubscriptionPlanRequest) Execute() (*SubscriptionPlan, *http.Response, error) {
+func (r ApiGetSubscriptionPlanRequest) Execute() (*SubscriptionPlanDocument, *http.Response, error) {
 	return r.ApiService.GetSubscriptionPlanExecute(r)
 }
 
@@ -266,13 +278,13 @@ func (a *DefaultAPIService) GetSubscriptionPlan(ctx context.Context, subscriptio
 
 // Execute executes the request
 //
-//	@return SubscriptionPlan
-func (a *DefaultAPIService) GetSubscriptionPlanExecute(r ApiGetSubscriptionPlanRequest) (*SubscriptionPlan, *http.Response, error) {
+//	@return SubscriptionPlanDocument
+func (a *DefaultAPIService) GetSubscriptionPlanExecute(r ApiGetSubscriptionPlanRequest) (*SubscriptionPlanDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *SubscriptionPlan
+		localVarReturnValue *SubscriptionPlanDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.GetSubscriptionPlan")
@@ -297,7 +309,7 @@ func (a *DefaultAPIService) GetSubscriptionPlanExecute(r ApiGetSubscriptionPlanR
 	}
 
 	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
+	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
@@ -384,7 +396,7 @@ func (r ApiListSubscriptionPlansRequest) Execute() (*SubscriptionPlanListRespons
 }
 
 /*
-ListSubscriptionPlans List the organization's subscription plans, newest first
+ListSubscriptionPlans List the organization's subscription plans, current ones first, then deprecated ones, each newest first
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@return ApiListSubscriptionPlansRequest
@@ -440,7 +452,7 @@ func (a *DefaultAPIService) ListSubscriptionPlansExecute(r ApiListSubscriptionPl
 	}
 
 	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
+	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
@@ -493,25 +505,25 @@ func (a *DefaultAPIService) ListSubscriptionPlansExecute(r ApiListSubscriptionPl
 }
 
 type ApiUpdateSubscriptionPlanRequest struct {
-	ctx                           context.Context
-	ApiService                    *DefaultAPIService
-	subscriptionPlanId            string
-	subscriptionPlanUpdateRequest *SubscriptionPlanUpdateRequest
+	ctx                      context.Context
+	ApiService               *DefaultAPIService
+	subscriptionPlanId       string
+	subscriptionPlanDocument *SubscriptionPlanDocument
 }
 
-func (r ApiUpdateSubscriptionPlanRequest) SubscriptionPlanUpdateRequest(subscriptionPlanUpdateRequest SubscriptionPlanUpdateRequest) ApiUpdateSubscriptionPlanRequest {
-	r.subscriptionPlanUpdateRequest = &subscriptionPlanUpdateRequest
+func (r ApiUpdateSubscriptionPlanRequest) SubscriptionPlanDocument(subscriptionPlanDocument SubscriptionPlanDocument) ApiUpdateSubscriptionPlanRequest {
+	r.subscriptionPlanDocument = &subscriptionPlanDocument
 	return r
 }
 
-func (r ApiUpdateSubscriptionPlanRequest) Execute() (*SubscriptionPlan, *http.Response, error) {
+func (r ApiUpdateSubscriptionPlanRequest) Execute() (*SubscriptionPlanDocument, *http.Response, error) {
 	return r.ApiService.UpdateSubscriptionPlanExecute(r)
 }
 
 /*
 UpdateSubscriptionPlan Update a subscription plan
 
-Fields left out are kept. `expiryTime: null` clears the expiry. A plan in use keeps its name and conditions (409).
+`metadata.name` must be the plan's handle, which can't change. Spec fields left out are kept, so a document read with GET can be sent back as it is; `spec.expiryTime: null` clears the expiry. A plan in use (one with subscriptions) keeps its name, conditions and expiry (409 SUBSCRIPTION_PLAN_IN_USE); its description and status can change. A deprecated plan can't change (409 SUBSCRIPTION_PLAN_DEPRECATED).
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param subscriptionPlanId The plan's id (its handle).
@@ -527,13 +539,13 @@ func (a *DefaultAPIService) UpdateSubscriptionPlan(ctx context.Context, subscrip
 
 // Execute executes the request
 //
-//	@return SubscriptionPlan
-func (a *DefaultAPIService) UpdateSubscriptionPlanExecute(r ApiUpdateSubscriptionPlanRequest) (*SubscriptionPlan, *http.Response, error) {
+//	@return SubscriptionPlanDocument
+func (a *DefaultAPIService) UpdateSubscriptionPlanExecute(r ApiUpdateSubscriptionPlanRequest) (*SubscriptionPlanDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPut
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *SubscriptionPlan
+		localVarReturnValue *SubscriptionPlanDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.UpdateSubscriptionPlan")
@@ -547,12 +559,12 @@ func (a *DefaultAPIService) UpdateSubscriptionPlanExecute(r ApiUpdateSubscriptio
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.subscriptionPlanUpdateRequest == nil {
-		return localVarReturnValue, nil, reportError("subscriptionPlanUpdateRequest is required and must be specified")
+	if r.subscriptionPlanDocument == nil {
+		return localVarReturnValue, nil, reportError("subscriptionPlanDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
-	localVarHTTPContentTypes := []string{"application/json"}
+	localVarHTTPContentTypes := []string{"application/json", "application/yaml"}
 
 	// set Content-Type header
 	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
@@ -561,7 +573,7 @@ func (a *DefaultAPIService) UpdateSubscriptionPlanExecute(r ApiUpdateSubscriptio
 	}
 
 	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
+	localVarHTTPHeaderAccepts := []string{"application/json", "application/yaml"}
 
 	// set Accept header
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
@@ -569,7 +581,7 @@ func (a *DefaultAPIService) UpdateSubscriptionPlanExecute(r ApiUpdateSubscriptio
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.subscriptionPlanUpdateRequest
+	localVarPostBody = r.subscriptionPlanDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err

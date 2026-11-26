@@ -1,7 +1,7 @@
 /*
 AI Hub API
 
-Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token.
+Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token. A plan is never removed: deleting it deprecates it (a soft delete). A deprecated plan stays, read only, for the subscriptions on it, and gateways still get it; it can't be changed, offered on an MCP server or subscribed to again. A plan is a document, as Kubernetes resources are: `apiVersion` (the document schema's version, separate from the URL's), `kind`, `metadata` (`name` is the plan's handle; the rest is set by the server), `spec` (what the caller declares) and `status` (what the server observes, ignored on input). Bodies are JSON, or YAML with `Content-Type: application/yaml`; a response is YAML when the request accepts `application/yaml`.
 
 API version: 0.1.0
 */
@@ -17,22 +17,25 @@ import (
 // checks if the SubscriptionPlanUsage type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &SubscriptionPlanUsage{}
 
-// SubscriptionPlanUsage What offers or uses the plan. A plan in use can't be deleted, renamed or have its conditions changed.
+// SubscriptionPlanUsage What offers or uses the plan. A plan in use (one with subscriptions) keeps its name, conditions and expiry. Offering a plan on an MCP proxy doesn't put it in use.
 type SubscriptionPlanUsage struct {
-	InUse         *bool  `json:"inUse,omitempty"`
-	RestApis      *int32 `json:"restApis,omitempty"`
-	McpProxies    *int32 `json:"mcpProxies,omitempty"`
-	Drafts        *int32 `json:"drafts,omitempty"`
-	Publications  *int32 `json:"publications,omitempty"`
-	Subscriptions *int32 `json:"subscriptions,omitempty"`
+	// Whether the plan has subscriptions, so its name, conditions and expiry can't change.
+	InUse bool `json:"inUse"`
+	// The MCP proxies offering the plan.
+	McpProxies int32 `json:"mcpProxies"`
+	// The subscriptions on the plan.
+	Subscriptions int32 `json:"subscriptions"`
 }
 
 // NewSubscriptionPlanUsage instantiates a new SubscriptionPlanUsage object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewSubscriptionPlanUsage() *SubscriptionPlanUsage {
+func NewSubscriptionPlanUsage(inUse bool, mcpProxies int32, subscriptions int32) *SubscriptionPlanUsage {
 	this := SubscriptionPlanUsage{}
+	this.InUse = inUse
+	this.McpProxies = mcpProxies
+	this.Subscriptions = subscriptions
 	return &this
 }
 
@@ -44,196 +47,76 @@ func NewSubscriptionPlanUsageWithDefaults() *SubscriptionPlanUsage {
 	return &this
 }
 
-// GetInUse returns the InUse field value if set, zero value otherwise.
+// GetInUse returns the InUse field value
 func (o *SubscriptionPlanUsage) GetInUse() bool {
-	if o == nil || IsNil(o.InUse) {
+	if o == nil {
 		var ret bool
 		return ret
 	}
-	return *o.InUse
+
+	return o.InUse
 }
 
-// GetInUseOk returns a tuple with the InUse field value if set, nil otherwise
+// GetInUseOk returns a tuple with the InUse field value
 // and a boolean to check if the value has been set.
 func (o *SubscriptionPlanUsage) GetInUseOk() (*bool, bool) {
-	if o == nil || IsNil(o.InUse) {
+	if o == nil {
 		return nil, false
 	}
-	return o.InUse, true
+	return &o.InUse, true
 }
 
-// HasInUse returns a boolean if a field has been set.
-func (o *SubscriptionPlanUsage) HasInUse() bool {
-	if o != nil && !IsNil(o.InUse) {
-		return true
-	}
-
-	return false
-}
-
-// SetInUse gets a reference to the given bool and assigns it to the InUse field.
+// SetInUse sets field value
 func (o *SubscriptionPlanUsage) SetInUse(v bool) {
-	o.InUse = &v
+	o.InUse = v
 }
 
-// GetRestApis returns the RestApis field value if set, zero value otherwise.
-func (o *SubscriptionPlanUsage) GetRestApis() int32 {
-	if o == nil || IsNil(o.RestApis) {
-		var ret int32
-		return ret
-	}
-	return *o.RestApis
-}
-
-// GetRestApisOk returns a tuple with the RestApis field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *SubscriptionPlanUsage) GetRestApisOk() (*int32, bool) {
-	if o == nil || IsNil(o.RestApis) {
-		return nil, false
-	}
-	return o.RestApis, true
-}
-
-// HasRestApis returns a boolean if a field has been set.
-func (o *SubscriptionPlanUsage) HasRestApis() bool {
-	if o != nil && !IsNil(o.RestApis) {
-		return true
-	}
-
-	return false
-}
-
-// SetRestApis gets a reference to the given int32 and assigns it to the RestApis field.
-func (o *SubscriptionPlanUsage) SetRestApis(v int32) {
-	o.RestApis = &v
-}
-
-// GetMcpProxies returns the McpProxies field value if set, zero value otherwise.
+// GetMcpProxies returns the McpProxies field value
 func (o *SubscriptionPlanUsage) GetMcpProxies() int32 {
-	if o == nil || IsNil(o.McpProxies) {
+	if o == nil {
 		var ret int32
 		return ret
 	}
-	return *o.McpProxies
+
+	return o.McpProxies
 }
 
-// GetMcpProxiesOk returns a tuple with the McpProxies field value if set, nil otherwise
+// GetMcpProxiesOk returns a tuple with the McpProxies field value
 // and a boolean to check if the value has been set.
 func (o *SubscriptionPlanUsage) GetMcpProxiesOk() (*int32, bool) {
-	if o == nil || IsNil(o.McpProxies) {
+	if o == nil {
 		return nil, false
 	}
-	return o.McpProxies, true
+	return &o.McpProxies, true
 }
 
-// HasMcpProxies returns a boolean if a field has been set.
-func (o *SubscriptionPlanUsage) HasMcpProxies() bool {
-	if o != nil && !IsNil(o.McpProxies) {
-		return true
-	}
-
-	return false
-}
-
-// SetMcpProxies gets a reference to the given int32 and assigns it to the McpProxies field.
+// SetMcpProxies sets field value
 func (o *SubscriptionPlanUsage) SetMcpProxies(v int32) {
-	o.McpProxies = &v
+	o.McpProxies = v
 }
 
-// GetDrafts returns the Drafts field value if set, zero value otherwise.
-func (o *SubscriptionPlanUsage) GetDrafts() int32 {
-	if o == nil || IsNil(o.Drafts) {
-		var ret int32
-		return ret
-	}
-	return *o.Drafts
-}
-
-// GetDraftsOk returns a tuple with the Drafts field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *SubscriptionPlanUsage) GetDraftsOk() (*int32, bool) {
-	if o == nil || IsNil(o.Drafts) {
-		return nil, false
-	}
-	return o.Drafts, true
-}
-
-// HasDrafts returns a boolean if a field has been set.
-func (o *SubscriptionPlanUsage) HasDrafts() bool {
-	if o != nil && !IsNil(o.Drafts) {
-		return true
-	}
-
-	return false
-}
-
-// SetDrafts gets a reference to the given int32 and assigns it to the Drafts field.
-func (o *SubscriptionPlanUsage) SetDrafts(v int32) {
-	o.Drafts = &v
-}
-
-// GetPublications returns the Publications field value if set, zero value otherwise.
-func (o *SubscriptionPlanUsage) GetPublications() int32 {
-	if o == nil || IsNil(o.Publications) {
-		var ret int32
-		return ret
-	}
-	return *o.Publications
-}
-
-// GetPublicationsOk returns a tuple with the Publications field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *SubscriptionPlanUsage) GetPublicationsOk() (*int32, bool) {
-	if o == nil || IsNil(o.Publications) {
-		return nil, false
-	}
-	return o.Publications, true
-}
-
-// HasPublications returns a boolean if a field has been set.
-func (o *SubscriptionPlanUsage) HasPublications() bool {
-	if o != nil && !IsNil(o.Publications) {
-		return true
-	}
-
-	return false
-}
-
-// SetPublications gets a reference to the given int32 and assigns it to the Publications field.
-func (o *SubscriptionPlanUsage) SetPublications(v int32) {
-	o.Publications = &v
-}
-
-// GetSubscriptions returns the Subscriptions field value if set, zero value otherwise.
+// GetSubscriptions returns the Subscriptions field value
 func (o *SubscriptionPlanUsage) GetSubscriptions() int32 {
-	if o == nil || IsNil(o.Subscriptions) {
+	if o == nil {
 		var ret int32
 		return ret
 	}
-	return *o.Subscriptions
+
+	return o.Subscriptions
 }
 
-// GetSubscriptionsOk returns a tuple with the Subscriptions field value if set, nil otherwise
+// GetSubscriptionsOk returns a tuple with the Subscriptions field value
 // and a boolean to check if the value has been set.
 func (o *SubscriptionPlanUsage) GetSubscriptionsOk() (*int32, bool) {
-	if o == nil || IsNil(o.Subscriptions) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Subscriptions, true
+	return &o.Subscriptions, true
 }
 
-// HasSubscriptions returns a boolean if a field has been set.
-func (o *SubscriptionPlanUsage) HasSubscriptions() bool {
-	if o != nil && !IsNil(o.Subscriptions) {
-		return true
-	}
-
-	return false
-}
-
-// SetSubscriptions gets a reference to the given int32 and assigns it to the Subscriptions field.
+// SetSubscriptions sets field value
 func (o *SubscriptionPlanUsage) SetSubscriptions(v int32) {
-	o.Subscriptions = &v
+	o.Subscriptions = v
 }
 
 func (o SubscriptionPlanUsage) MarshalJSON() ([]byte, error) {
@@ -246,24 +129,9 @@ func (o SubscriptionPlanUsage) MarshalJSON() ([]byte, error) {
 
 func (o SubscriptionPlanUsage) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.InUse) {
-		toSerialize["inUse"] = o.InUse
-	}
-	if !IsNil(o.RestApis) {
-		toSerialize["restApis"] = o.RestApis
-	}
-	if !IsNil(o.McpProxies) {
-		toSerialize["mcpProxies"] = o.McpProxies
-	}
-	if !IsNil(o.Drafts) {
-		toSerialize["drafts"] = o.Drafts
-	}
-	if !IsNil(o.Publications) {
-		toSerialize["publications"] = o.Publications
-	}
-	if !IsNil(o.Subscriptions) {
-		toSerialize["subscriptions"] = o.Subscriptions
-	}
+	toSerialize["inUse"] = o.InUse
+	toSerialize["mcpProxies"] = o.McpProxies
+	toSerialize["subscriptions"] = o.Subscriptions
 	return toSerialize, nil
 }
 

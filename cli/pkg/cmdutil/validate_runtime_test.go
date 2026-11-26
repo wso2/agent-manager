@@ -11,13 +11,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
-func newGetAgentServer(t *testing.T, agent *amsvc.AgentResponse, status int) *amsvc.ClientWithResponses {
+func newGetAgentServer(t *testing.T, agent *amsvc.AgentDocument, status int) *amsvc.ClientWithResponses {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -38,12 +37,12 @@ func newGetAgentServer(t *testing.T, agent *amsvc.AgentResponse, status int) *am
 }
 
 func TestValidateRuntimeManaged_InternalPasses(t *testing.T) {
-	agent := &amsvc.AgentResponse{
-		Name:         "my-agent",
-		DisplayName:  "My Agent",
-		ProjectName:  "proj",
-		Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
-		CreatedAt:    time.Now().UTC(),
+	agent := &amsvc.AgentDocument{
+		Metadata: amsvc.ProjectScopedDocumentMetadata{Name: "my-agent", Project: "proj"},
+		Spec: amsvc.AgentSpec{
+			DisplayName:  "My Agent",
+			Provisioning: amsvc.AgentProvisioning{Type: amsvc.AgentProvisioningKind(amsvc.ProvisioningTypeInternal)},
+		},
 	}
 	client := newGetAgentServer(t, agent, http.StatusOK)
 
@@ -54,12 +53,12 @@ func TestValidateRuntimeManaged_InternalPasses(t *testing.T) {
 }
 
 func TestValidateRuntimeManaged_ExternalFails(t *testing.T) {
-	agent := &amsvc.AgentResponse{
-		Name:         "ext-agent",
-		DisplayName:  "Ext",
-		ProjectName:  "proj",
-		Provisioning: amsvc.Provisioning{Type: "external"},
-		CreatedAt:    time.Now().UTC(),
+	agent := &amsvc.AgentDocument{
+		Metadata: amsvc.ProjectScopedDocumentMetadata{Name: "ext-agent", Project: "proj"},
+		Spec: amsvc.AgentSpec{
+			DisplayName:  "Ext",
+			Provisioning: amsvc.AgentProvisioning{Type: amsvc.AgentProvisioningKind("external")},
+		},
 	}
 	client := newGetAgentServer(t, agent, http.StatusOK)
 

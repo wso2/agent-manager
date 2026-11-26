@@ -357,3 +357,38 @@ describe("a custom condition’s policy (params.policy)", () => {
     expect(checkConditions([html]).errors.has(fieldKeys.params(html.key))).toBe(true);
   });
 });
+
+describe("checkConditions refuses", () => {
+  it("a custom condition with a bad id", () => {
+    expect(messageIds([custom("Bad Id")])[0]).toMatch(/lowercase letters, digits and hyphens/);
+  });
+
+  it("a custom value with no key", () => {
+    expect(messageIds([custom("region", [["", "eu"]])]).length).toBe(1);
+  });
+
+  it("a limit-type condition with no limits, or too many", () => {
+    expect(messageIds([requestCount([])]).length).toBeGreaterThan(0);
+    const many = Array.from({ length: 11 }, (_, i) => ({
+      count: 1,
+      timeAmount: i + 1,
+      timeUnit: "MINUTE" as const,
+    }));
+    expect(messageIds([requestCount(many)]).join(" ")).toMatch(/10/);
+  });
+
+  it("a window length below one", () => {
+    const draft = requestCount([{ count: 1, timeUnit: "MINUTE" }]);
+    draft.windows[0].timeAmount = "0";
+    expect(messageIds([draft]).length).toBe(1);
+  });
+});
+
+describe("draftsFromConditions", () => {
+  it("keeps a known token type", () => {
+    const [draft] = draftsFromConditions([
+      { id: "tokens", type: "token-count", params: { limits: [], tokenType: "prompt" } },
+    ]);
+    expect(draft.tokenType).toBe("prompt");
+  });
+});

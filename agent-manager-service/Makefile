@@ -92,15 +92,15 @@ test-coverage: gen-keys ## Run unit + integration tests and produce a merged HTM
 COVERAGE_SUMMARY = python3 ../scripts/coverage/go_summary.py localdata/coverage-unit.out localdata/coverage-integration.out \
 	--module github.com/wso2/agent-manager/agent-manager-service --exclude-file coverage-excludes.txt --out localdata/coverage-summary.json
 
-.PHONY: coverage-check
-coverage-check: ## Compare the profiles from `make test-coverage` with coverage-baseline.json (report only: CI also runs PostgreSQL and enforces it).
-	$(COVERAGE_SUMMARY)
-	python3 ../scripts/coverage/ratchet.py localdata/coverage-summary.json coverage-baseline.json --title "agent-manager-service coverage" --report-only
+BASE ?= upstream/amp-2.x
 
-.PHONY: coverage-baseline
-coverage-baseline: ## Raise coverage-baseline.json to the profiles from `make test-coverage` (never lowers an area).
+.PHONY: coverage-check
+coverage-check: ## Report the profiles from `make test-coverage` against coverage-gate.json and changes since BASE (report only: CI also runs PostgreSQL and enforces it).
 	$(COVERAGE_SUMMARY)
-	python3 ../scripts/coverage/ratchet.py localdata/coverage-summary.json coverage-baseline.json --update
+	python3 ../scripts/coverage/gate.py localdata/coverage-summary.json coverage-gate.json --title "agent-manager-service coverage" \
+		--go-profile localdata/coverage-unit.out --go-profile localdata/coverage-integration.out \
+		--module github.com/wso2/agent-manager/agent-manager-service --module-dir agent-manager-service \
+		--exclude-file coverage-excludes.txt --repo-root .. --base $(BASE) --report-only
 
 .PHONY: console-embed
 console-embed: ## Build the console (../console, needs pnpm) and copy it here for `go build -tags console`.

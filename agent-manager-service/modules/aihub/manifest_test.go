@@ -32,3 +32,10 @@ func TestPermissionNamesMatchManifest(t *testing.T) {
 	assert.Equal(t, Name, mf.Name)
 	assert.ElementsMatch(t, []string{PermPlanRead, PermPlanCreate, PermPlanUpdate, PermPlanDelete}, names)
 }
+
+// The module ships no UI of its own (the console builds it in) and its migrations from schema/.
+func TestModuleFiles(t *testing.T) {
+	m := Module()
+	assert.Nil(t, m.UI())
+	assert.NotNil(t, m.Migrations())
+}
