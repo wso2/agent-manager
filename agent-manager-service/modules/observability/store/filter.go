@@ -26,19 +26,12 @@ func MatchTrace(f TraceFilters, t Trace, spans []SpanDetails) bool {
 	if f == (TraceFilters{}) {
 		return true
 	}
-	ordered := make([]SpanDetails, len(spans))
-	copy(ordered, spans)
-	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].StartTime.Before(ordered[j].StartTime) })
-	attrs := make([]Attrs, len(ordered))
-	for i, sp := range ordered {
-		attrs[i] = StringAttrs(sp.Attributes)
-	}
-	root := rootIndex(ordered)
+	ts := newTraceSpans(spans)
+	ordered, attrs := ts.spans, ts.attrs
 
 	switch f.Status {
 	case "error", "ok":
-		failed := root >= 0 && attrs[root].IsError(statusCode(ordered[root]))
-		if failed != (f.Status == "error") {
+		if ts.rootError() != (f.Status == "error") {
 			return false
 		}
 	}
@@ -49,7 +42,8 @@ func MatchTrace(f TraceFilters, t Trace, spans []SpanDetails) bool {
 		return false
 	}
 	if f.MinTokens != nil {
-		if n := tokens(ordered, attrs, root); n <= 0 || n < *f.MinTokens {
+		in, out := ts.tokens()
+		if n := in + out; n <= 0 || n < *f.MinTokens {
 			return false
 		}
 	}
@@ -59,7 +53,7 @@ func MatchTrace(f TraceFilters, t Trace, spans []SpanDetails) bool {
 		return false
 	}
 	if f.ConversationID != "" || f.MissingConversationID {
-		id := conversationID(ordered, attrs, root)
+		id := ts.conversationID()
 		if f.MissingConversationID && id != "" || f.ConversationID != "" && id != f.ConversationID {
 			return false
 		}
@@ -79,6 +73,56 @@ func MatchTrace(f TraceFilters, t Trace, spans []SpanDetails) bool {
 	return true
 }
 
+// Overview is t with the status, tokens, conversation, input and output its spans give.
+func Overview(t Trace, spans []SpanDetails) Trace {
+	ts := newTraceSpans(spans)
+	if ts.root < 0 {
+		return t
+	}
+	t.Status = &TraceStatus{}
+	if ts.rootError() {
+		t.Status.ErrorCount = 1
+	}
+	if in, out := ts.tokens(); in+out > 0 {
+		t.Tokens = &TokenUsage{InputTokens: in, OutputTokens: out, TotalTokens: in + out}
+	}
+	t.ConversationID = ts.conversationID()
+	var leaves []Attrs
+	for i, sp := range ts.spans {
+		if IsLLMLeaf(sp.SpanName) {
+			leaves = append(leaves, ts.attrs[i])
+		}
+	}
+	t.Input, t.Output = TraceIO(ts.attrs[ts.root], ts.at(ts.chainChild()), leaves, t.SpanCount)
+	return t
+}
+
+// traceSpans are a trace's spans in start order, with their attributes and root.
+type traceSpans struct {
+	spans []SpanDetails
+	attrs []Attrs
+	root  int
+}
+
+func newTraceSpans(spans []SpanDetails) traceSpans {
+	ordered := make([]SpanDetails, len(spans))
+	copy(ordered, spans)
+	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].StartTime.Before(ordered[j].StartTime) })
+	attrs := make([]Attrs, len(ordered))
+	for i, sp := range ordered {
+		attrs[i] = StringAttrs(sp.Attributes)
+	}
+	return traceSpans{spans: ordered, attrs: attrs, root: rootIndex(ordered)}
+}
+
+// at is span i's attributes, or nil for -1.
+func (ts traceSpans) at(i int) Attrs {
+	if i < 0 {
+		return nil
+	}
+	return ts.attrs[i]
+}
+
 // rootIndex is the earliest span with no parent, else the earliest span; -1 for none.
 func rootIndex(spans []SpanDetails) int {
 	for i, sp := range spans {
@@ -92,50 +136,63 @@ func rootIndex(spans []SpanDetails) int {
 	return 0
 }
 
+// rootError reports whether the root span failed.
+func (ts traceSpans) rootError() bool {
+	return ts.root >= 0 && ts.attrs[ts.root].IsError(statusCode(ts.spans[ts.root]))
+}
+
 // tokens sums the LLM leaves that report usage, leaving out a leaf whose
 // parent leaf reports it too; with no such leaf, it is the root's usage.
-func tokens(spans []SpanDetails, attrs []Attrs, root int) int64 {
+func (ts traceSpans) tokens() (in, out int64) {
 	reporting := map[string]bool{}
-	for i, sp := range spans {
-		if IsLLMLeaf(sp.SpanName) && attrs[i].Tokens() > 0 {
+	for i, sp := range ts.spans {
+		if IsLLMLeaf(sp.SpanName) && ts.attrs[i].Tokens() > 0 {
 			reporting[sp.SpanID] = true
 		}
 	}
 	if len(reporting) == 0 {
-		if root < 0 {
-			return 0
+		if ts.root < 0 {
+			return 0, 0
 		}
-		return attrs[root].Tokens()
+		return ts.attrs[ts.root].Usage()
 	}
-	var sum int64
-	for i, sp := range spans {
+	for i, sp := range ts.spans {
 		if reporting[sp.SpanID] && !reporting[sp.ParentSpanID] {
-			sum += attrs[i].Tokens()
+			a, b := ts.attrs[i].Usage()
+			in, out = in+a, out+b
 		}
 	}
-	return sum
+	return in, out
 }
 
-// conversationID is the root's conversation ID, else the earliest non-LLM
-// child of the root's, else the first one on an LLM leaf.
-func conversationID(spans []SpanDetails, attrs []Attrs, root int) string {
-	if root < 0 {
-		return ""
+// chainChild is the earliest child of the root that is not an LLM leaf; -1 for none.
+func (ts traceSpans) chainChild() int {
+	if ts.root < 0 {
+		return -1
 	}
-	if id := attrs[root].ConversationID(); id != "" {
-		return id
-	}
-	for i, sp := range spans {
-		if sp.ParentSpanID != "" && sp.ParentSpanID == spans[root].SpanID && !IsLLMLeaf(sp.SpanName) {
-			if id := attrs[i].ConversationID(); id != "" {
-				return id
-			}
-			break
+	for i, sp := range ts.spans {
+		if sp.ParentSpanID != "" && sp.ParentSpanID == ts.spans[ts.root].SpanID && !IsLLMLeaf(sp.SpanName) {
+			return i
 		}
 	}
-	for i, sp := range spans {
+	return -1
+}
+
+// conversationID is the root's conversation ID, else its chain child's, else
+// the first one on an LLM leaf.
+func (ts traceSpans) conversationID() string {
+	if ts.root < 0 {
+		return ""
+	}
+	if id := ts.attrs[ts.root].ConversationID(); id != "" {
+		return id
+	}
+	if id := ts.at(ts.chainChild()).ConversationID(); id != "" {
+		return id
+	}
+	for i, sp := range ts.spans {
 		if IsLLMLeaf(sp.SpanName) {
-			if id := attrs[i].ConversationID(); id != "" {
+			if id := ts.attrs[i].ConversationID(); id != "" {
 				return id
 			}
 		}

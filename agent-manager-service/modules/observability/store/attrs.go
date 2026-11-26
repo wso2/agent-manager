@@ -218,15 +218,21 @@ func count(v string) int64 {
 	return n
 }
 
+// Usage is a span's input and output tokens; both 0 when neither is positive.
+func (a Attrs) Usage() (in, out int64) {
+	i, _ := a.first(InputTokenKeys)
+	o, _ := a.first(OutputTokenKeys)
+	in, out = count(i), count(o)
+	if in <= 0 && out <= 0 {
+		return 0, 0
+	}
+	return in, out
+}
+
 // Tokens is a span's input plus output tokens; 0 when it reports neither.
 func (a Attrs) Tokens() int64 {
-	in, _ := a.first(InputTokenKeys)
-	out, _ := a.first(OutputTokenKeys)
-	i, o := count(in), count(out)
-	if i <= 0 && o <= 0 {
-		return 0
-	}
-	return i + o
+	in, out := a.Usage()
+	return in + out
 }
 
 // Model is an LLM span's model, or "".

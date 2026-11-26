@@ -105,39 +105,43 @@ func (m *Store) QueryTraces(_ context.Context, s store.Scope, q store.TraceQuery
 	m.queries++
 
 	from, to := store.TraceBounds(q.StartTime, q.EndTime)
-	traces := []store.Trace{}
+	matched := []entry{}
 	for _, e := range m.entries {
 		if !inScope(e.scope, s) || !inWindow(e.trace.StartTime, q.StartTime, q.EndTime) {
 			continue
 		}
-		tr, spans := e.trace, e.spans
 		if len(e.spans) > 0 {
-			spans = spansIn(e.spans, from, to)
-			tr.SpanCount = len(spans)
+			e.spans = spansIn(e.spans, from, to)
+			e.trace.SpanCount = len(e.spans)
 		}
-		if store.MatchTrace(q.Filters, tr, spans) {
-			traces = append(traces, tr)
+		if store.MatchTrace(q.Filters, e.trace, e.spans) {
+			matched = append(matched, e)
 		}
 	}
-	sort.SliceStable(traces, func(i, j int) bool {
-		a, b := traces[i], traces[j]
+	sort.SliceStable(matched, func(i, j int) bool {
+		a, b := matched[i].trace, matched[j].trace
 		k := store.CursorKey{Order: order, StartNs: a.StartTime.UnixNano(), TraceID: a.TraceID}
 		return k.After(b.StartTime.UnixNano(), b.TraceID)
 	})
-	total := len(traces)
+	total := len(matched)
 	if after != nil {
-		i := sort.Search(len(traces), func(i int) bool {
-			return after.After(traces[i].StartTime.UnixNano(), traces[i].TraceID)
+		i := sort.Search(len(matched), func(i int) bool {
+			return after.After(matched[i].trace.StartTime.UnixNano(), matched[i].trace.TraceID)
 		})
-		traces = traces[i:]
+		matched = matched[i:]
 	}
-	page := &store.TracePage{Traces: traces, Total: &total}
-	if q.Limit > 0 && len(traces) > q.Limit {
-		page.Traces = traces[:q.Limit]
-		last := page.Traces[q.Limit-1]
+	page := &store.TracePage{Total: &total}
+	if q.Limit > 0 && len(matched) > q.Limit {
+		matched = matched[:q.Limit]
+		last := matched[q.Limit-1].trace
 		page.NextCursor = store.EncodeCursor(cursorTag, store.CursorKey{
 			Order: order, StartNs: last.StartTime.UnixNano(), TraceID: last.TraceID,
 		})
+	}
+	// The overview is read for the page's traces only.
+	page.Traces = make([]store.Trace, 0, len(matched))
+	for _, e := range matched {
+		page.Traces = append(page.Traces, store.Overview(e.trace, e.spans))
 	}
 	return page, nil
 }

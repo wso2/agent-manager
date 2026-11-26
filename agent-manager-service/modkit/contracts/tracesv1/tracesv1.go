@@ -136,6 +136,26 @@ type Trace struct {
 	StartTime    time.Time
 	EndTime      time.Time
 	DurationNs   int64
+	// Status is nil when the store has no span to tell it from.
+	Status *TraceStatus
+	// Tokens is nil when no span reports token usage.
+	Tokens *TokenUsage
+	// ConversationID, Input and Output are empty when the trace has none.
+	ConversationID string
+	Input          string
+	Output         string
+}
+
+// TraceStatus is a trace's error count: 1 when its root span failed, else 0.
+type TraceStatus struct {
+	ErrorCount int
+}
+
+// TokenUsage is a trace's token usage, as the minTokens filter counts it.
+type TokenUsage struct {
+	InputTokens  int64
+	OutputTokens int64
+	TotalTokens  int64
 }
 
 // SpanPage is one page of a trace's spans, with the trace's total.

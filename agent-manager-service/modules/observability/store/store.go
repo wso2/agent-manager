@@ -100,6 +100,8 @@ type (
 	SpanQuery    = tracesv1.SpanQuery
 	TracePage    = tracesv1.TracePage
 	Trace        = tracesv1.Trace
+	TraceStatus  = tracesv1.TraceStatus
+	TokenUsage   = tracesv1.TokenUsage
 	SpanPage     = tracesv1.SpanPage
 	Span         = tracesv1.Span
 	SpanStatus   = tracesv1.SpanStatus

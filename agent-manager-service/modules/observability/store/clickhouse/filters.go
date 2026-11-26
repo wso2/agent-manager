@@ -72,7 +72,7 @@ var (
 		" OR toFloat64OrZero(" + attr(store.AttrHTTPStatus) + ") >= 400" +
 		" OR lowerUTF8(StatusCode) IN " + litList(store.ErrorStatuses) + ")"
 
-	spanTokens = tokenSum(firstPresent(store.InputTokenKeys), firstPresent(store.OutputTokenKeys))
+	spanInputTokens, spanOutputTokens = tokenCount(firstPresent(store.InputTokenKeys)), tokenCount(firstPresent(store.OutputTokenKeys))
 
 	spanModel = firstPresent(store.ModelKeys)
 
@@ -81,14 +81,15 @@ var (
 	spanTool = toolName()
 
 	spanMCPServer = mcpServer()
+
+	// spanIO is the attributes store.TraceIO reads; a crewai.* key is kept with an empty value.
+	spanIO = "mapApply((k, v) -> (k, if(k IN " + litList(store.IOKeys) + ", v, '')), mapFilter((k, v) -> k IN " +
+		litList(store.IOKeys) + " OR startsWith(k, " + lit(store.CrewAIPrefix) + "), SpanAttributes))"
 )
 
-// tokenSum is input plus output tokens, read as the integer each value starts with; 0 when neither is positive.
-func tokenSum(in, out string) string {
-	n := func(v string) string {
-		return "toInt64OrZero(extract(trimLeft(" + v + "), " + lit(store.LeadingIntPattern) + "))"
-	}
-	return "if(" + n(in) + " > 0 OR " + n(out) + " > 0, " + n(in) + " + " + n(out) + ", 0)"
+// tokenCount is a token value read as the integer it starts with, or 0.
+func tokenCount(v string) string {
+	return "toInt64OrZero(extract(trimLeft(" + v + "), " + lit(store.LeadingIntPattern) + "))"
 }
 
 // toolName is the tool a span's name calls, or ” (store.ToolName).
@@ -124,6 +125,60 @@ func ofRoot(expr string) string {
 	return "if(has_root, argMinIf(" + expr + ", Timestamp, ParentSpanId = ''), argMin(" + expr + ", Timestamp))"
 }
 
+// ofChainChild is expr on the root's earliest child that is not an LLM leaf, or its type's default.
+func ofChainChild(expr string) string {
+	return "tupleElement(arrayFirst(x -> x.2 = root_span_id, arraySort(x -> x.1, groupArrayIf((toUnixTimestamp64Nano(Timestamp), ParentSpanId, " +
+		expr + "), ParentSpanId != '' AND NOT " + isLLMLeaf + "))), 3)"
+}
+
+// Each trace value below is defined once: the list query selects it when a
+// filter reads it, and the overview query selects it for the page's traces.
+// They read has_root and root_span_id from rootColumns.
+var (
+	// rootColumns pick the trace's root span.
+	rootColumns = []string{
+		"countIf(ParentSpanId = '') > 0 AS has_root",
+		ofRoot("SpanId") + " AS root_span_id",
+	}
+
+	// rootErrorColumns are root_error, whether the root span failed.
+	rootErrorColumns = []string{ofRoot(spanError) + " AS root_error"}
+
+	// tokenColumns are input_tokens, output_tokens and tokens: the LLM leaves
+	// that report usage, less a leaf whose parent leaf reports it, else the
+	// root's; a span reports usage when its input plus output is positive.
+	tokenColumns = []string{
+		"groupArrayIf((SpanId, ParentSpanId, " + spanInputTokens + ", " + spanOutputTokens + "), " +
+			isLLMLeaf + " AND " + spanInputTokens + " + " + spanOutputTokens + " > 0) AS token_leaves",
+		"arrayMap(x -> x.1, token_leaves) AS token_leaf_ids",
+		"arrayFilter(x -> NOT has(token_leaf_ids, x.2), token_leaves) AS counted_leaves",
+		ofRoot("("+spanInputTokens+", "+spanOutputTokens+")") + " AS root_usage",
+		"tupleElement(root_usage, 1) > 0 OR tupleElement(root_usage, 2) > 0 AS root_reports",
+		"if(length(token_leaves) > 0, arraySum(arrayMap(x -> x.3, counted_leaves)), if(root_reports, tupleElement(root_usage, 1), 0)) AS input_tokens",
+		"if(length(token_leaves) > 0, arraySum(arrayMap(x -> x.4, counted_leaves)), if(root_reports, tupleElement(root_usage, 2), 0)) AS output_tokens",
+		"input_tokens + output_tokens AS tokens",
+	}
+
+	// conversationColumns are conversation: the root's, else its chain child's, else the first LLM leaf's.
+	conversationColumns = []string{
+		ofRoot(spanConversation) + " AS root_conversation",
+		ofChainChild(spanConversation) + " AS child_conversation",
+		"arrayFirst(x -> x != '', arrayMap(x -> x.2, arraySort(x -> x.1," +
+			" groupArrayIf((toUnixTimestamp64Nano(Timestamp), " + spanConversation + "), " + isLLMLeaf + ")))) AS leaf_conversation",
+		"multiIf(root_conversation != '', root_conversation, child_conversation != '', child_conversation, leaf_conversation) AS conversation",
+	}
+
+	// ioColumns are the root's, the chain child's and the first LLM leaves'
+	// attributes store.TraceIO reads; no leaf past the observer's span count.
+	ioColumns = []string{
+		ofRoot(spanIO) + " AS root_io",
+		ofChainChild(spanIO) + " AS child_io",
+		"if(count() > " + strconv.Itoa(store.MaxIOSpanCount) + ", [], arraySlice(arrayMap(x -> x.2, arraySort(x -> x.1," +
+			" groupArrayIf((toUnixTimestamp64Nano(Timestamp), " + spanIO + "), " + isLLMLeaf + "))), 1, " +
+			strconv.Itoa(store.MaxIOLeaves) + ")) AS leaf_io",
+	}
+)
+
 func containsParam(expr, param string) string {
 	return "positionCaseInsensitiveUTF8(" + expr + ", {" + param + ":String}) > 0"
 }
@@ -132,10 +187,10 @@ func containsParam(expr, param string) string {
 func traceFilters(f store.TraceFilters, params map[string]string) (columns, having []string) {
 	switch f.Status {
 	case "error":
-		columns = append(columns, ofRoot(spanError)+" AS root_error")
+		columns = append(columns, rootErrorColumns...)
 		having = append(having, "root_error")
 	case "ok":
-		columns = append(columns, ofRoot(spanError)+" AS root_error")
+		columns = append(columns, rootErrorColumns...)
 		having = append(having, "NOT root_error")
 	}
 	if f.MinDurationMs != nil {
@@ -148,12 +203,7 @@ func traceFilters(f store.TraceFilters, params map[string]string) (columns, havi
 	}
 	if f.MinTokens != nil {
 		params["min_tokens"] = strconv.FormatInt(*f.MinTokens, 10)
-		columns = append(columns,
-			"groupArrayIf((SpanId, ParentSpanId, "+spanTokens+"), "+isLLMLeaf+" AND "+spanTokens+" > 0) AS token_leaves",
-			"arrayMap(x -> x.1, token_leaves) AS token_leaf_ids",
-			"if(length(token_leaves) > 0,"+
-				" arraySum(arrayMap(x -> x.3, arrayFilter(x -> NOT has(token_leaf_ids, x.2), token_leaves))),"+
-				" "+ofRoot(spanTokens)+") AS tokens")
+		columns = append(columns, tokenColumns...)
 		having = append(having, "tokens > 0 AND tokens >= {min_tokens:Int64}")
 	}
 	if f.Model != "" {
@@ -161,14 +211,7 @@ func traceFilters(f store.TraceFilters, params map[string]string) (columns, havi
 		having = append(having, "countIf("+isLLMLeaf+" AND "+containsParam(spanModel, "model")+") > 0")
 	}
 	if f.ConversationID != "" || f.MissingConversationID {
-		columns = append(columns,
-			ofRoot(spanConversation)+" AS root_conversation",
-			"tupleElement(arrayFirst(x -> x.2 = root_span_id, arraySort(x -> x.1,"+
-				" groupArrayIf((toUnixTimestamp64Nano(Timestamp), ParentSpanId, "+spanConversation+"),"+
-				" ParentSpanId != '' AND NOT "+isLLMLeaf+"))), 3) AS child_conversation",
-			"arrayFirst(x -> x != '', arrayMap(x -> x.2, arraySort(x -> x.1,"+
-				" groupArrayIf((toUnixTimestamp64Nano(Timestamp), "+spanConversation+"), "+isLLMLeaf+")))) AS leaf_conversation",
-			"multiIf(root_conversation != '', root_conversation, child_conversation != '', child_conversation, leaf_conversation) AS conversation")
+		columns = append(columns, conversationColumns...)
 		if f.MissingConversationID {
 			having = append(having, "conversation = ''")
 		} else {
