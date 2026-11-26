@@ -91,7 +91,7 @@ func newFakePlatform(t *testing.T) *fakePlatform {
 		switch r.URL.Path {
 		case "/api/v1/config":
 			_, _ = w.Write([]byte(p.configBody))
-		case "/api/v1/orgs":
+		case "/api/v1/organizations":
 			_, _ = w.Write([]byte(`{"organizations":[{"name":"acme","createdAt":"2026-01-01T00:00:00Z"}],"limit":20,"offset":0,"total":1}`))
 		case "/m/ai-gateway/llm-providers":
 			_, _ = w.Write([]byte(`{"list":[{"metadata":{"name":"zeta"}},{"metadata":{"name":"alpha"}}]}`))
@@ -150,7 +150,7 @@ func TestNewFactory_SignsRequestsWithBearerToken(t *testing.T) {
 		t.Fatalf("err=%v resp=%v", err, resp)
 	}
 	got := p.lastRequest(t)
-	if got.Path != "/api/v1/orgs" {
+	if got.Path != "/api/v1/organizations" {
 		t.Errorf("path = %q (instance URL trailing slash must be trimmed)", got.Path)
 	}
 	if got.Auth != "Bearer static-token" || got.Accept != "application/json" {

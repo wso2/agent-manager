@@ -181,7 +181,7 @@ func TestHasPlaceholders(t *testing.T) {
 	if hasPlaceholders("/orgs/default/projects/default/agents") {
 		t.Error("literal path should report no placeholders")
 	}
-	if hasPlaceholders("/orgs") {
+	if hasPlaceholders("/projects") {
 		t.Error("plain path should report no placeholders")
 	}
 }
@@ -254,8 +254,8 @@ func TestAPIExamplesUseRealEndpoints(t *testing.T) {
 		}
 		root, _, _ := strings.Cut(strings.TrimPrefix(ep, "/"), "/")
 		root, _, _ = strings.Cut(root, "?")
-		if root != "orgs" && root != "projects" && root != "agents" {
-			t.Errorf("example endpoint %q must begin with /orgs, /projects or /agents", ep)
+		if root != "organizations" && root != "projects" && root != "agents" {
+			t.Errorf("example endpoint %q must begin with /organizations, /projects or /agents", ep)
 		}
 	}
 }

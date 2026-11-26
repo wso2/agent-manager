@@ -72,7 +72,7 @@ func NewAPICmd(f *cmdutil.Factory) *cobra.Command {
 			the response verbatim.
 
 			The endpoint is resolved relative to the current instance's API base, so
-			"/api/v1" may be omitted: "amctl api /orgs" and "amctl api /api/v1/orgs"
+			"/api/v1" may be omitted: "amctl api /projects" and "amctl api /api/v1/projects"
 			are equivalent. A module's API is reached at its own root, which is kept as
 			given: "amctl api /m/ai-gateway/llm-providers". The current
 			instance's access token is attached automatically.
@@ -97,7 +97,7 @@ func NewAPICmd(f *cmdutil.Factory) *cobra.Command {
 			written to stderr, and the command exits non-zero.`),
 		Example: heredoc(`
 			# List organizations
-			$ amctl api /orgs
+			$ amctl api /organizations
 
 			# List projects
 			$ amctl api /projects

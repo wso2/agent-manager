@@ -795,12 +795,6 @@ type CreateGroupRequest struct {
 	Name string `json:"name"`
 }
 
-// CreateOrganizationRequest defines model for CreateOrganizationRequest.
-type CreateOrganizationRequest struct {
-	// Name Name of the organization
-	Name string `json:"name"`
-}
-
 // CreateProjectRequest The create input a Project document maps to.
 type CreateProjectRequest struct {
 	// Description Description of the project
@@ -1803,15 +1797,6 @@ type GenerateAgentTokenParams struct {
 	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
 }
 
-// ListOrganizationsParams defines parameters for ListOrganizations.
-type ListOrganizationsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
 // ListEnvironmentsParams defines parameters for ListEnvironments.
 type ListEnvironmentsParams struct {
 	// Limit Maximum number of results to return
@@ -1880,6 +1865,24 @@ type ListUsersParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListOrganizationsParams defines parameters for ListOrganizations.
+type ListOrganizationsParams struct {
+	// Limit Maximum number of results to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListProjectsParams defines parameters for ListProjects.
+type ListProjectsParams struct {
+	// Limit Maximum number of results to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListAgentEventDeliveriesParams defines parameters for ListAgentEventDeliveries.
 type ListAgentEventDeliveriesParams struct {
 	// DestinationId Only deliveries to this destination.
@@ -1922,15 +1925,6 @@ type ListProjectEventDeliveriesParams struct {
 // ListProjectEventDeliveriesParamsStatus defines parameters for ListProjectEventDeliveries.
 type ListProjectEventDeliveriesParamsStatus string
 
-// ListProjectsParams defines parameters for ListProjects.
-type ListProjectsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
 // CreateAgentJSONRequestBody defines body for CreateAgent for application/json ContentType.
 type CreateAgentJSONRequestBody = AgentDocument
 
@@ -1945,9 +1939,6 @@ type RetryAgentIdentityProvisioningJSONRequestBody = AgentIdentityActionRequest
 
 // GenerateAgentTokenJSONRequestBody defines body for GenerateAgentToken for application/json ContentType.
 type GenerateAgentTokenJSONRequestBody = TokenRequest
-
-// CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
-type CreateOrganizationJSONRequestBody = CreateOrganizationRequest
 
 // CreateEventDestinationJSONRequestBody defines body for CreateEventDestination for application/json ContentType.
 type CreateEventDestinationJSONRequestBody = EventDestinationRequest
@@ -1982,6 +1973,12 @@ type UpdateUserJSONRequestBody = UpdateUserRequest
 // UpdateUserProfileJSONRequestBody defines body for UpdateUserProfile for application/json ContentType.
 type UpdateUserProfileJSONRequestBody = UpdateUserRequest
 
+// CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
+type CreateProjectJSONRequestBody = ProjectDocument
+
+// UpdateProjectJSONRequestBody defines body for UpdateProject for application/json ContentType.
+type UpdateProjectJSONRequestBody = ProjectDocument
+
 // CreateAgentEventSubscriptionJSONRequestBody defines body for CreateAgentEventSubscription for application/json ContentType.
 type CreateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
@@ -1994,17 +1991,11 @@ type CreateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 // UpdateProjectEventSubscriptionJSONRequestBody defines body for UpdateProjectEventSubscription for application/json ContentType.
 type UpdateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
-// GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
-type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
-
-// CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
-type CreateProjectJSONRequestBody = ProjectDocument
-
-// UpdateProjectJSONRequestBody defines body for UpdateProject for application/json ContentType.
-type UpdateProjectJSONRequestBody = ProjectDocument
-
 // ReportConsoleActionsJSONRequestBody defines body for ReportConsoleActions for application/json ContentType.
 type ReportConsoleActionsJSONRequestBody = ConsoleActionBatchRequest
+
+// GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
+type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
 
 // AsBuildpackBuild returns the union data inside the Build as a BuildpackBuild
 func (t Build) AsBuildpackBuild() (BuildpackBuild, error) {
