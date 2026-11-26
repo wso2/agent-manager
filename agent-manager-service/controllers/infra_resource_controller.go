@@ -229,13 +229,7 @@ func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.R
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	stored, err := c.infraResourceManager.GetProject(ctx, ouID, projectName)
-	if err != nil {
-		log.Error("UpdateProject: failed to get project", "error", err)
-		HandleCommonErrors(w, err, "Failed to update project")
-		return
-	}
-	payload, err := projectUpdateFromDocument(body, stored)
+	payload, err := projectUpdateFromDocument(body, projectName)
 	if err != nil {
 		log.Error("UpdateProject: invalid document", "error", err)
 		writeDocumentError(w, err)

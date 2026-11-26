@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // projectDoc builds a Project document body with the given name and raw spec.
@@ -80,30 +81,25 @@ func TestProjectDocument_CreateAndUpdate(t *testing.T) {
 	assert.Equal(t, spec.CreateProjectRequest{Name: "shop", DisplayName: "Shop", Description: req.Description}, req)
 	assert.Equal(t, "d", *req.Description)
 
-	stored := &models.ProjectResponse{Name: "shop", Description: "kept"}
-	upd, err := projectUpdateFromDocument([]byte(projectDoc("shop", `{"displayName":"New"}`)), stored)
+	upd, err := projectUpdateFromDocument([]byte(projectDoc("shop", `{"displayName":"New"}`)), "shop")
 	require.NoError(t, err)
-	assert.Equal(t, spec.UpdateProjectRequest{DisplayName: "New", Description: "kept"}, upd, "an absent description is kept")
+	assert.Equal(t, spec.UpdateProjectRequest{DisplayName: "New"}, upd, "an absent description is left for the store to keep")
 
-	upd, err = projectUpdateFromDocument([]byte(projectDoc("shop", `{"displayName":"New","description":""}`)), stored)
+	upd, err = projectUpdateFromDocument([]byte(projectDoc("shop", `{"displayName":"New","description":""}`)), "shop")
 	require.NoError(t, err)
-	assert.Empty(t, upd.Description, "a sent description replaces the stored one")
+	require.NotNil(t, upd.Description, "a sent description replaces the stored one")
+	assert.Empty(t, *upd.Description)
 
-	_, err = projectUpdateFromDocument([]byte(projectDoc("other", `{"displayName":"New"}`)), stored)
+	_, err = projectUpdateFromDocument([]byte(projectDoc("other", `{"displayName":"New"}`)), "shop")
 	require.ErrorContains(t, err, "metadata.name does not match")
 
-	_, err = projectUpdateFromDocument([]byte(`{`), stored)
+	_, err = projectUpdateFromDocument([]byte(`{`), "shop")
 	require.ErrorIs(t, err, errMalformedBody)
 }
 
-// storedProjects answers GetProject with one stored project and echoes updates.
+// storedProjects echoes creates and updates.
 type storedProjects struct {
 	stubProjects
-	stored *models.ProjectResponse
-}
-
-func (s *storedProjects) GetProject(context.Context, string, string) (*models.ProjectResponse, error) {
-	return s.stored, nil
 }
 
 func (s *storedProjects) CreateProject(_ context.Context, _ string, p spec.CreateProjectRequest) (*models.ProjectResponse, error) {
@@ -111,11 +107,11 @@ func (s *storedProjects) CreateProject(_ context.Context, _ string, p spec.Creat
 }
 
 func (s *storedProjects) UpdateProject(_ context.Context, _, name string, p spec.UpdateProjectRequest) (*models.ProjectResponse, error) {
-	return &models.ProjectResponse{Name: name, DisplayName: p.DisplayName, Description: p.Description}, nil
+	return &models.ProjectResponse{Name: name, DisplayName: p.DisplayName, Description: utils.StrPointerAsStr(p.Description, "")}, nil
 }
 
 func TestInfraResourceController_ProjectDocumentBodies(t *testing.T) {
-	ctrl := NewInfraResourceController(&storedProjects{stored: &models.ProjectResponse{Name: "proj", DisplayName: "P"}}, nil)
+	ctrl := NewInfraResourceController(&storedProjects{}, nil)
 	for name, tc := range map[string]struct {
 		h    http.HandlerFunc
 		body string

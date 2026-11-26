@@ -182,10 +182,10 @@ var _ = Describe("Event delivery to a webhook", Label("events"), Ordered, func()
 			Request: framework.NewExternalAgentRequest(agent, "events journey"),
 		})
 		proj := func(f string, a ...any) string {
-			return framework.Projects("/%s/events"+f, append([]any{shared}, a...)...)
+			return framework.API(Cfg, "/projects/%s/events"+f, append([]any{shared}, a...)...)
 		}
 		ag := func(f string, a ...any) string {
-			return framework.Projects("/%s/agents/%s/events"+f, append([]any{shared, agent}, a...)...)
+			return framework.API(Cfg, "/projects/%s/agents/%s/events"+f, append([]any{shared, agent}, a...)...)
 		}
 
 		dests := framework.CallObj(Default, Client, http.MethodGet, proj("/destinations"), nil, http.StatusOK)

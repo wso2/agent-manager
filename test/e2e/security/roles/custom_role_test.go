@@ -49,7 +49,7 @@ var _ = Describe("SEC-ROLE-002: custom role mutation and revocation", Label("sec
 		admin := framework.NewAMPClientWithToken(cfg, personas["admin"].Token)
 		identityBase := "/api/v1/orgs/" + cfg.DefaultOrg + "/identities"
 		probePath := "/api/v1/orgs/" + cfg.DefaultOrg + "/environments"
-		retainedPath := "/api/v1/orgs/" + cfg.DefaultOrg + "/projects"
+		retainedPath := "/api/v1/projects"
 
 		By("Resolving the deployed AMP resource server")
 		resp, err := admin.GetWithContext(ctx, identityBase+"/permissions")

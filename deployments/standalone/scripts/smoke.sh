@@ -90,12 +90,15 @@ GW=$API/m/ai-gateway/orgs/$ORG
 GWR=$API/m/ai-gateway
 P=smoke-$RANDOM
 AG=ext-$RANDOM
+# Projects are documents at /api/v1/projects; the org comes from the token.
+PRS=$API/api/v1/projects
 # Agents are documents at /api/v1/agents; the project is metadata.project, or ?project= on an agent's own path.
 AGS=$API/api/v1/agents
 EXT='"provisioning":{"type":"external"},"agentType":{"type":"external-agent-api","subType":"custom-api"}'
 agent_doc() { echo "{\"apiVersion\":\"ai-control-plane.choreolabs.com/v1\",\"kind\":\"Agent\",\"metadata\":{\"name\":\"$1\",\"project\":\"$P\"},\"spec\":{\"displayName\":\"$2\",$EXT${3:-}}}"; }
-check project-create 202 "$(code "${A[@]}" -X POST "$B/projects" -d "{\"name\":\"$P\",\"displayName\":\"Smoke $P\"}")"
-check project-get 200 "$(code "${A[@]}" "$B/projects/$P")"
+check project-create 202 "$(code "${A[@]}" -X POST "$PRS" -d "{\"apiVersion\":\"ai-control-plane.choreolabs.com/v1\",\"kind\":\"Project\",\"metadata\":{\"name\":\"$P\"},\"spec\":{\"displayName\":\"Smoke $P\"}}")"
+check project-get 200 "$(code "${A[@]}" "$PRS/$P")"
+check project-old-path 404 "$(code "${A[@]}" "$B/projects/$P")"
 check agent-create 202 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "$AG" "Ext $AG")")"
 check agent-get 200 "$(code "${A[@]}" "$AGS/$AG?project=$P")"
 check agent-list 200 "$(code "${A[@]}" "$AGS?project=$P")"
@@ -154,7 +157,7 @@ check workload-heartbeat-bad 401 "$(code -k -X POST "$INT/api/internal/v1/worklo
 
 check agent-delete 204 "$(code "${A[@]}" -X DELETE "$AGS/$AG?project=$P")"
 check agent-gone 404 "$(code "${A[@]}" "$AGS/$AG?project=$P")"
-check project-delete 204 "$(code "${A[@]}" -X DELETE "$B/projects/$P")"
+check project-delete 204 "$(code "${A[@]}" -X DELETE "$PRS/$P")"
 
 # --- Console, served by the API ---------------------------------------------------------
 if [ "$CONSOLE" = yes ]; then

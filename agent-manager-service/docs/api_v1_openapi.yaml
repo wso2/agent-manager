@@ -3659,10 +3659,9 @@ components:
           description: Display name of the project
         description:
           type: string
-          description: Description of the project
+          description: Description of the project; absent keeps the stored value
       required:
         - displayName
-        - description
     AgentResponse:
       type: object
       properties:

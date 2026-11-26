@@ -110,13 +110,13 @@ func roleProbes() []roleProbe {
 	}
 	return []roleProbe{
 		// Developer: owns project and agent development, not platform or IAM.
-		{"developer", "amp:project:create", true, http.MethodPost, orgPath("/projects")},
+		{"developer", "amp:project:create", true, http.MethodPost, func(*framework.Config) string { return "/api/v1/projects" }},
 		{"developer", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwOrgPath("/gateways")},
 		{"developer", "amp:role:update", false, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
 
 		// AI Lead: owns AI providers, not project/platform administration.
 		{"ai-lead", "amp:ai-gateway:llm-providers.create", true, http.MethodPost, gwPath("/llm-providers")},
-		{"ai-lead", "amp:project:create", false, http.MethodPost, orgPath("/projects")},
+		{"ai-lead", "amp:project:create", false, http.MethodPost, func(*framework.Config) string { return "/api/v1/projects" }},
 		{"ai-lead", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwOrgPath("/gateways")},
 
 		// Platform Engineer: owns infrastructure and production delivery, not agent authoring or IAM.

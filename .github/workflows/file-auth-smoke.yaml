@@ -79,7 +79,7 @@ jobs:
 
           code="$(curl -s -o /dev/null -w '%{http_code}' \
             -H "Authorization: Bearer $token" \
-            http://localhost:9000/api/v1/orgs/default/projects)"
+            http://localhost:9000/api/v1/projects)"
           [ "$code" = "200" ] || { echo "::error::API rejected a file-mode token: $code"; exit 1; }
 
       - name: Bad credentials are refused

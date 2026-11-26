@@ -108,18 +108,19 @@ func projectCreateFromDocument(body []byte) (spec.CreateProjectRequest, error) {
 	}, nil
 }
 
-// projectUpdateFromDocument turns a PUT body into the update request, keeping a description it omits.
-func projectUpdateFromDocument(body []byte, stored *models.ProjectResponse) (spec.UpdateProjectRequest, error) {
+// projectUpdateFromDocument turns a PUT body into the update request; an omitted description stays nil so the stored one is kept.
+func projectUpdateFromDocument(body []byte, projectName string) (spec.UpdateProjectRequest, error) {
 	doc, rawSpec, err := decodeProjectDocument(body)
 	if err != nil {
 		return spec.UpdateProjectRequest{}, err
 	}
-	if doc.Metadata.Name != stored.Name {
+	if doc.Metadata.Name != projectName {
 		return spec.UpdateProjectRequest{}, fmt.Errorf("%w: metadata.name does not match the project in the path", errDocument)
 	}
-	req := spec.UpdateProjectRequest{DisplayName: doc.Spec.DisplayName, Description: stored.Description}
+	req := spec.UpdateProjectRequest{DisplayName: doc.Spec.DisplayName}
 	if _, ok := rawSpec["description"]; ok {
-		req.Description = doc.Spec.GetDescription()
+		description := doc.Spec.GetDescription()
+		req.Description = &description
 	}
 	return req, nil
 }

@@ -21,18 +21,17 @@ var _ MappedNullable = &UpdateProjectRequest{}
 type UpdateProjectRequest struct {
 	// Display name of the project
 	DisplayName string `json:"displayName"`
-	// Description of the project
-	Description string `json:"description"`
+	// Description of the project; absent keeps the stored value
+	Description *string `json:"description,omitempty"`
 }
 
 // NewUpdateProjectRequest instantiates a new UpdateProjectRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUpdateProjectRequest(displayName string, description string) *UpdateProjectRequest {
+func NewUpdateProjectRequest(displayName string) *UpdateProjectRequest {
 	this := UpdateProjectRequest{}
 	this.DisplayName = displayName
-	this.Description = description
 	return &this
 }
 
@@ -68,28 +67,36 @@ func (o *UpdateProjectRequest) SetDisplayName(v string) {
 	o.DisplayName = v
 }
 
-// GetDescription returns the Description field value
+// GetDescription returns the Description field value if set, zero value otherwise.
 func (o *UpdateProjectRequest) GetDescription() string {
-	if o == nil {
+	if o == nil || IsNil(o.Description) {
 		var ret string
 		return ret
 	}
-
-	return o.Description
+	return *o.Description
 }
 
-// GetDescriptionOk returns a tuple with the Description field value
+// GetDescriptionOk returns a tuple with the Description field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *UpdateProjectRequest) GetDescriptionOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Description) {
 		return nil, false
 	}
-	return &o.Description, true
+	return o.Description, true
 }
 
-// SetDescription sets field value
+// HasDescription returns a boolean if a field has been set.
+func (o *UpdateProjectRequest) HasDescription() bool {
+	if o != nil && !IsNil(o.Description) {
+		return true
+	}
+
+	return false
+}
+
+// SetDescription gets a reference to the given string and assigns it to the Description field.
 func (o *UpdateProjectRequest) SetDescription(v string) {
-	o.Description = v
+	o.Description = &v
 }
 
 func (o UpdateProjectRequest) MarshalJSON() ([]byte, error) {
@@ -103,7 +110,9 @@ func (o UpdateProjectRequest) MarshalJSON() ([]byte, error) {
 func (o UpdateProjectRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["displayName"] = o.DisplayName
-	toSerialize["description"] = o.Description
+	if !IsNil(o.Description) {
+		toSerialize["description"] = o.Description
+	}
 	return toSerialize, nil
 }
 

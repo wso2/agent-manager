@@ -25,6 +25,11 @@ export class AmpApi {
     return `/api/v1/orgs/${orgName}`;
   }
 
+  /** Path of the projects collection, or of one project. */
+  projectPath(name?: string): string {
+    return name ? `/api/v1/projects/${encodeURIComponent(name)}` : '/api/v1/projects';
+  }
+
   /** Path of one agent, its project in the query. */
   agentPath(project: string, name: string): string {
     return `/api/v1/agents/${encodeURIComponent(name)}?project=${encodeURIComponent(project)}`;
@@ -35,12 +40,19 @@ export class AmpApi {
   }
 
   async createProject(name: string, displayName = name): Promise<void> {
-    const res = await this.ctx.post(`${this.org}/projects`, { data: { name, displayName } });
+    const res = await this.ctx.post(this.projectPath(), {
+      data: {
+        apiVersion: 'ai-control-plane.choreolabs.com/v1',
+        kind: 'Project',
+        metadata: { name },
+        spec: { displayName },
+      },
+    });
     expect(res.status(), await res.text()).toBe(202);
   }
 
   async getProject(name: string): Promise<{ status: number; body: any }> {
-    const res = await this.ctx.get(`${this.org}/projects/${name}`);
+    const res = await this.ctx.get(this.projectPath(name));
     return { status: res.status(), body: res.ok() ? await res.json() : undefined };
   }
 
@@ -58,8 +70,8 @@ export class AmpApi {
     await expect
       .poll(
         async () => {
-          await this.ctx.delete(`${this.org}/projects/${name}`);
-          return (await this.ctx.get(`${this.org}/projects/${name}`)).status();
+          await this.ctx.delete(this.projectPath(name));
+          return (await this.ctx.get(this.projectPath(name))).status();
         },
         { timeout: 60_000, intervals: [1_000, 2_000, 5_000] },
       )

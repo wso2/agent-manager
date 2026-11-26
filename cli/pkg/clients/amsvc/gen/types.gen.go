@@ -1654,8 +1654,8 @@ type UpdateGroupRequest struct {
 
 // UpdateProjectRequest The update input a Project document maps to.
 type UpdateProjectRequest struct {
-	// Description Description of the project
-	Description string `json:"description"`
+	// Description Description of the project; absent keeps the stored value
+	Description *string `json:"description,omitempty"`
 
 	// DisplayName Display name of the project
 	DisplayName string `json:"displayName"`
