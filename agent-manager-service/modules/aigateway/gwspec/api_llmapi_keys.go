@@ -209,8 +209,7 @@ func (a *LLMAPIKeysAPIService) CreateLLMConfigAPIKeyExecute(r ApiCreateLLMConfig
 type ApiCreateLLMProviderAPIKeyRequest struct {
 	ctx                    context.Context
 	ApiService             *LLMAPIKeysAPIService
-	orgName                string
-	id                     string
+	providerId             string
 	createLLMAPIKeyRequest *CreateLLMAPIKeyRequest
 }
 
@@ -229,16 +228,14 @@ CreateLLMProviderAPIKey Create an API key for an LLM provider
 Generates a new API key for an LLM provider and broadcasts it to all connected gateways. The key is returned only once in the response.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param id Provider UUID
+	@param providerId Provider UUID
 	@return ApiCreateLLMProviderAPIKeyRequest
 */
-func (a *LLMAPIKeysAPIService) CreateLLMProviderAPIKey(ctx context.Context, orgName string, id string) ApiCreateLLMProviderAPIKeyRequest {
+func (a *LLMAPIKeysAPIService) CreateLLMProviderAPIKey(ctx context.Context, providerId string) ApiCreateLLMProviderAPIKeyRequest {
 	return ApiCreateLLMProviderAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		id:         id,
+		providerId: providerId,
 	}
 }
 
@@ -258,9 +255,8 @@ func (a *LLMAPIKeysAPIService) CreateLLMProviderAPIKeyExecute(r ApiCreateLLMProv
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{id}/api-keys"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+	localVarPath := localBasePath + "/llm-providers/{providerId}/api-keys"
+	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -699,8 +695,7 @@ func (a *LLMAPIKeysAPIService) ListLLMConfigAPIKeysExecute(r ApiListLLMConfigAPI
 type ApiListLLMProviderAPIKeysRequest struct {
 	ctx        context.Context
 	ApiService *LLMAPIKeysAPIService
-	orgName    string
-	id         string
+	providerId string
 }
 
 func (r ApiListLLMProviderAPIKeysRequest) Execute() (*ListAPIKeysResponse, *http.Response, error) {
@@ -713,16 +708,14 @@ ListLLMProviderAPIKeys List API keys for an LLM provider
 Returns the list of API keys for an LLM provider (masked values only).
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param id Provider UUID
+	@param providerId Provider UUID
 	@return ApiListLLMProviderAPIKeysRequest
 */
-func (a *LLMAPIKeysAPIService) ListLLMProviderAPIKeys(ctx context.Context, orgName string, id string) ApiListLLMProviderAPIKeysRequest {
+func (a *LLMAPIKeysAPIService) ListLLMProviderAPIKeys(ctx context.Context, providerId string) ApiListLLMProviderAPIKeysRequest {
 	return ApiListLLMProviderAPIKeysRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		id:         id,
+		providerId: providerId,
 	}
 }
 
@@ -742,9 +735,8 @@ func (a *LLMAPIKeysAPIService) ListLLMProviderAPIKeysExecute(r ApiListLLMProvide
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{id}/api-keys"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+	localVarPath := localBasePath + "/llm-providers/{providerId}/api-keys"
+	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -1126,8 +1118,7 @@ func (a *LLMAPIKeysAPIService) RevokeLLMConfigAPIKeyExecute(r ApiRevokeLLMConfig
 type ApiRevokeLLMProviderAPIKeyRequest struct {
 	ctx        context.Context
 	ApiService *LLMAPIKeysAPIService
-	orgName    string
-	id         string
+	providerId string
 	keyName    string
 }
 
@@ -1141,17 +1132,15 @@ RevokeLLMProviderAPIKey Revoke an LLM provider API key
 Revokes an API key for an LLM provider and broadcasts the revocation to all connected gateways.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param id Provider UUID
+	@param providerId Provider UUID
 	@param keyName API key name/identifier
 	@return ApiRevokeLLMProviderAPIKeyRequest
 */
-func (a *LLMAPIKeysAPIService) RevokeLLMProviderAPIKey(ctx context.Context, orgName string, id string, keyName string) ApiRevokeLLMProviderAPIKeyRequest {
+func (a *LLMAPIKeysAPIService) RevokeLLMProviderAPIKey(ctx context.Context, providerId string, keyName string) ApiRevokeLLMProviderAPIKeyRequest {
 	return ApiRevokeLLMProviderAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		id:         id,
+		providerId: providerId,
 		keyName:    keyName,
 	}
 }
@@ -1169,9 +1158,8 @@ func (a *LLMAPIKeysAPIService) RevokeLLMProviderAPIKeyExecute(r ApiRevokeLLMProv
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+	localVarPath := localBasePath + "/llm-providers/{providerId}/api-keys/{keyName}"
+	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -1590,8 +1578,7 @@ func (a *LLMAPIKeysAPIService) RotateLLMConfigAPIKeyExecute(r ApiRotateLLMConfig
 type ApiRotateLLMProviderAPIKeyRequest struct {
 	ctx                    context.Context
 	ApiService             *LLMAPIKeysAPIService
-	orgName                string
-	id                     string
+	providerId             string
 	keyName                string
 	rotateLLMAPIKeyRequest *RotateLLMAPIKeyRequest
 }
@@ -1611,17 +1598,15 @@ RotateLLMProviderAPIKey Rotate an LLM provider API key
 Generates a new API key value for the given key name and broadcasts the update to all connected gateways. The new key is returned only once in the response.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param id Provider UUID
+	@param providerId Provider UUID
 	@param keyName API key name/identifier
 	@return ApiRotateLLMProviderAPIKeyRequest
 */
-func (a *LLMAPIKeysAPIService) RotateLLMProviderAPIKey(ctx context.Context, orgName string, id string, keyName string) ApiRotateLLMProviderAPIKeyRequest {
+func (a *LLMAPIKeysAPIService) RotateLLMProviderAPIKey(ctx context.Context, providerId string, keyName string) ApiRotateLLMProviderAPIKeyRequest {
 	return ApiRotateLLMProviderAPIKeyRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		id:         id,
+		providerId: providerId,
 		keyName:    keyName,
 	}
 }
@@ -1642,9 +1627,8 @@ func (a *LLMAPIKeysAPIService) RotateLLMProviderAPIKeyExecute(r ApiRotateLLMProv
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
+	localVarPath := localBasePath + "/llm-providers/{providerId}/api-keys/{keyName}"
+	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"keyName"+"}", url.PathEscape(parameterValueToString(r.keyName, "keyName")), -1)
 
 	localVarHeaderParams := make(map[string]string)

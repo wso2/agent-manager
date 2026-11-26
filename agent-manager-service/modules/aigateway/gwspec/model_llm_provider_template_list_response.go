@@ -19,25 +19,19 @@ var _ MappedNullable = &LLMProviderTemplateListResponse{}
 
 // LLMProviderTemplateListResponse struct for LLMProviderTemplateListResponse
 type LLMProviderTemplateListResponse struct {
-	Templates []LLMProviderTemplateResponse `json:"templates"`
-	// Total number of templates
-	Total int32 `json:"total"`
-	// Number of results per page
-	Limit int32 `json:"limit"`
-	// Number of results skipped
-	Offset int32 `json:"offset"`
+	// Number of items in this page.
+	Count      *int32                        `json:"count,omitempty"`
+	List       []LlmProviderTemplateDocument `json:"list"`
+	Pagination *Pagination                   `json:"pagination,omitempty"`
 }
 
 // NewLLMProviderTemplateListResponse instantiates a new LLMProviderTemplateListResponse object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewLLMProviderTemplateListResponse(templates []LLMProviderTemplateResponse, total int32, limit int32, offset int32) *LLMProviderTemplateListResponse {
+func NewLLMProviderTemplateListResponse(list []LlmProviderTemplateDocument) *LLMProviderTemplateListResponse {
 	this := LLMProviderTemplateListResponse{}
-	this.Templates = templates
-	this.Total = total
-	this.Limit = limit
-	this.Offset = offset
+	this.List = list
 	return &this
 }
 
@@ -49,100 +43,92 @@ func NewLLMProviderTemplateListResponseWithDefaults() *LLMProviderTemplateListRe
 	return &this
 }
 
-// GetTemplates returns the Templates field value
-func (o *LLMProviderTemplateListResponse) GetTemplates() []LLMProviderTemplateResponse {
-	if o == nil {
-		var ret []LLMProviderTemplateResponse
-		return ret
-	}
-
-	return o.Templates
-}
-
-// GetTemplatesOk returns a tuple with the Templates field value
-// and a boolean to check if the value has been set.
-func (o *LLMProviderTemplateListResponse) GetTemplatesOk() ([]LLMProviderTemplateResponse, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return o.Templates, true
-}
-
-// SetTemplates sets field value
-func (o *LLMProviderTemplateListResponse) SetTemplates(v []LLMProviderTemplateResponse) {
-	o.Templates = v
-}
-
-// GetTotal returns the Total field value
-func (o *LLMProviderTemplateListResponse) GetTotal() int32 {
-	if o == nil {
+// GetCount returns the Count field value if set, zero value otherwise.
+func (o *LLMProviderTemplateListResponse) GetCount() int32 {
+	if o == nil || IsNil(o.Count) {
 		var ret int32
 		return ret
 	}
-
-	return o.Total
+	return *o.Count
 }
 
-// GetTotalOk returns a tuple with the Total field value
+// GetCountOk returns a tuple with the Count field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *LLMProviderTemplateListResponse) GetTotalOk() (*int32, bool) {
-	if o == nil {
+func (o *LLMProviderTemplateListResponse) GetCountOk() (*int32, bool) {
+	if o == nil || IsNil(o.Count) {
 		return nil, false
 	}
-	return &o.Total, true
+	return o.Count, true
 }
 
-// SetTotal sets field value
-func (o *LLMProviderTemplateListResponse) SetTotal(v int32) {
-	o.Total = v
+// HasCount returns a boolean if a field has been set.
+func (o *LLMProviderTemplateListResponse) HasCount() bool {
+	if o != nil && !IsNil(o.Count) {
+		return true
+	}
+
+	return false
 }
 
-// GetLimit returns the Limit field value
-func (o *LLMProviderTemplateListResponse) GetLimit() int32 {
+// SetCount gets a reference to the given int32 and assigns it to the Count field.
+func (o *LLMProviderTemplateListResponse) SetCount(v int32) {
+	o.Count = &v
+}
+
+// GetList returns the List field value
+func (o *LLMProviderTemplateListResponse) GetList() []LlmProviderTemplateDocument {
 	if o == nil {
-		var ret int32
+		var ret []LlmProviderTemplateDocument
 		return ret
 	}
 
-	return o.Limit
+	return o.List
 }
 
-// GetLimitOk returns a tuple with the Limit field value
+// GetListOk returns a tuple with the List field value
 // and a boolean to check if the value has been set.
-func (o *LLMProviderTemplateListResponse) GetLimitOk() (*int32, bool) {
+func (o *LLMProviderTemplateListResponse) GetListOk() ([]LlmProviderTemplateDocument, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Limit, true
+	return o.List, true
 }
 
-// SetLimit sets field value
-func (o *LLMProviderTemplateListResponse) SetLimit(v int32) {
-	o.Limit = v
+// SetList sets field value
+func (o *LLMProviderTemplateListResponse) SetList(v []LlmProviderTemplateDocument) {
+	o.List = v
 }
 
-// GetOffset returns the Offset field value
-func (o *LLMProviderTemplateListResponse) GetOffset() int32 {
-	if o == nil {
-		var ret int32
+// GetPagination returns the Pagination field value if set, zero value otherwise.
+func (o *LLMProviderTemplateListResponse) GetPagination() Pagination {
+	if o == nil || IsNil(o.Pagination) {
+		var ret Pagination
 		return ret
 	}
-
-	return o.Offset
+	return *o.Pagination
 }
 
-// GetOffsetOk returns a tuple with the Offset field value
+// GetPaginationOk returns a tuple with the Pagination field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *LLMProviderTemplateListResponse) GetOffsetOk() (*int32, bool) {
-	if o == nil {
+func (o *LLMProviderTemplateListResponse) GetPaginationOk() (*Pagination, bool) {
+	if o == nil || IsNil(o.Pagination) {
 		return nil, false
 	}
-	return &o.Offset, true
+	return o.Pagination, true
 }
 
-// SetOffset sets field value
-func (o *LLMProviderTemplateListResponse) SetOffset(v int32) {
-	o.Offset = v
+// HasPagination returns a boolean if a field has been set.
+func (o *LLMProviderTemplateListResponse) HasPagination() bool {
+	if o != nil && !IsNil(o.Pagination) {
+		return true
+	}
+
+	return false
+}
+
+// SetPagination gets a reference to the given Pagination and assigns it to the Pagination field.
+func (o *LLMProviderTemplateListResponse) SetPagination(v Pagination) {
+	o.Pagination = &v
 }
 
 func (o LLMProviderTemplateListResponse) MarshalJSON() ([]byte, error) {
@@ -155,10 +141,13 @@ func (o LLMProviderTemplateListResponse) MarshalJSON() ([]byte, error) {
 
 func (o LLMProviderTemplateListResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["templates"] = o.Templates
-	toSerialize["total"] = o.Total
-	toSerialize["limit"] = o.Limit
-	toSerialize["offset"] = o.Offset
+	if !IsNil(o.Count) {
+		toSerialize["count"] = o.Count
+	}
+	toSerialize["list"] = o.List
+	if !IsNil(o.Pagination) {
+		toSerialize["pagination"] = o.Pagination
+	}
 	return toSerialize, nil
 }
 

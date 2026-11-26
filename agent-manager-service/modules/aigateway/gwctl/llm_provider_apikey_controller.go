@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 )
@@ -53,13 +54,13 @@ func NewLLMProviderAPIKeyController(
 	}
 }
 
-// ListAPIKeys handles GET /api/v1/orgs/{ouID}/llm-providers/{id}/api-keys
+// ListAPIKeys handles GET /m/ai-gateway/llm-providers/{providerId}/api-keys
 func (c *llmProviderAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("ListLLMProviderAPIKeys: starting", "ouID", ouID, "providerID", providerID)
 
@@ -80,13 +81,13 @@ func (c *llmProviderAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http
 	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
-// CreateAPIKey handles POST /api/v1/orgs/{ouID}/llm-providers/{id}/api-keys
+// CreateAPIKey handles POST /m/ai-gateway/llm-providers/{providerId}/api-keys
 func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("CreateLLMProviderAPIKey: starting", "ouID", ouID, "providerID", providerID)
 
@@ -147,13 +148,13 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
-// RevokeAPIKey handles DELETE /api/v1/orgs/{ouID}/llm-providers/{id}/api-keys/{keyName}
+// RevokeAPIKey handles DELETE /m/ai-gateway/llm-providers/{providerId}/api-keys/{keyName}
 func (c *llmProviderAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 	keyName := r.PathValue("keyName")
 
 	log.Info("RevokeLLMProviderAPIKey: starting", "ouID", ouID, "providerID", providerID, "keyName", keyName)
@@ -180,13 +181,13 @@ func (c *llmProviderAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *htt
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// RotateAPIKey handles PUT /api/v1/orgs/{ouID}/llm-providers/{id}/api-keys/{keyName}
+// RotateAPIKey handles PUT /m/ai-gateway/llm-providers/{providerId}/api-keys/{keyName}
 func (c *llmProviderAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
 	ouID := modkit.OrgID(r.Context())
-	providerID := r.PathValue("id")
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 	keyName := r.PathValue("keyName")
 
 	log.Info("RotateLLMProviderAPIKey: starting", "ouID", ouID, "providerID", providerID, "keyName", keyName)

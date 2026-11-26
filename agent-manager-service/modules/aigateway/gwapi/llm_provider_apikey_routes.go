@@ -23,11 +23,11 @@ import (
 
 // RegisterLLMProviderAPIKeyRoutes registers API key routes for LLM providers
 func RegisterLLMProviderAPIKeyRoutes(rr Router, ctrl gwctl.LLMProviderAPIKeyController) {
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{id}/api-keys", gwperm.LLMProviderAPIKeyManage, ctrl.ListAPIKeys)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{id}/api-keys", gwperm.LLMProviderAPIKeyManage,
+	rr.HandleFuncWithValidationAndAuthz("GET /llm-providers/{providerId}/api-keys", gwperm.LLMProviderAPIKeyManage, ctrl.ListAPIKeys)
+	rr.HandleFuncWithValidationAndAuthz("POST /llm-providers/{providerId}/api-keys", gwperm.LLMProviderAPIKeyManage,
 		rr.Track("amp.connections.llm-provider-api-key", actionDims("issued-provider-api-key"), ctrl.CreateAPIKey))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", gwperm.LLMProviderAPIKeyManage,
+	rr.HandleFuncWithValidationAndAuthz("DELETE /llm-providers/{providerId}/api-keys/{keyName}", gwperm.LLMProviderAPIKeyManage,
 		rr.Track("amp.connections.llm-provider-api-key", actionDims("revoked-provider-api-key"), ctrl.RevokeAPIKey))
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", gwperm.LLMProviderAPIKeyManage,
+	rr.HandleFuncWithValidationAndAuthz("PUT /llm-providers/{providerId}/api-keys/{keyName}", gwperm.LLMProviderAPIKeyManage,
 		rr.Track("amp.connections.llm-provider-api-key", actionDims("rotated-provider-api-key"), ctrl.RotateAPIKey))
 }

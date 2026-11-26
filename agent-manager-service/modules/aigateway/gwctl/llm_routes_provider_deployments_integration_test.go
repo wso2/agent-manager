@@ -19,88 +19,71 @@
 package gwctl_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
-// llmDeploymentQuery is the query an undeploy or restore names its deployment with.
+// llmDeploymentQuery is the query a restore names its deployment with.
 func llmDeploymentQuery(deploymentID, gatewayID string) string {
 	return "?deploymentId=" + deploymentID + "&gatewayId=" + gatewayID
 }
 
-// A provider is deployed to a gateway, read back, undeployed, restored, and its superseded deployment deleted.
+// llmDeploymentsPath is the deployment history of the provider with the given handle.
+func llmDeploymentsPath(handle string) string {
+	return "/llm-providers/" + handle + "/deployments"
+}
+
+// A provider placed through spec.gateways is listed, undeployed by an empty list, and restored.
 func TestLLMRoutesProviderDeploymentLifecycle(t *testing.T) {
 	a := newRouteAPI(t)
 	gw := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleEgress)
 	gwID := gw.UUID.String()
 	handle := unique("dep")
-	uid := *llmCreateProvider(t, a, handle).Metadata.Uid
-	base := "/orgs/{org}/llm-providers/" + handle + "/deployments"
-
-	first := expectInto[gwspec.LLMDeploymentResponse](t, a.do(http.MethodPost, base, map[string]any{"gatewayId": gwID}), http.StatusCreated)
-	require.NotEmpty(t, first.DeploymentId)
-	require.Equal(t, gwID, first.GatewayId)
-	require.Equal(t, uid, first.ArtifactId)
-
-	got := expectInto[gwspec.LLMDeploymentResponse](t, a.do(http.MethodGet, base+"/"+first.DeploymentId, nil), http.StatusOK)
-	require.Equal(t, first.DeploymentId, got.DeploymentId)
-	require.Equal(t, first.Status, got.Status)
+	uid := *llmCreateProvider(t, a, handle, gwID).Metadata.Uid
+	base := llmDeploymentsPath(handle)
 
 	list := expectInto[[]gwspec.LLMDeploymentResponse](t, a.do(http.MethodGet, base+"?gatewayId="+gwID, nil), http.StatusOK)
 	require.Len(t, list, 1)
+	first := list[0]
+	require.NotEmpty(t, first.DeploymentId)
+	require.Equal(t, uid, first.ArtifactId)
 
-	rec := a.do(http.MethodDelete, base+"/"+first.DeploymentId, nil)
-	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	require.Equal(t, "Cannot delete the gateway's current deployment - undeploy it and wait until it is UNDEPLOYED", errorMessage(t, rec))
-
-	rec = a.do(http.MethodPost, base+"/restore"+llmDeploymentQuery(first.DeploymentId, gwID), nil)
+	rec := a.do(http.MethodPost, base+"/restore"+llmDeploymentQuery(first.DeploymentId, gwID), nil)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	require.Equal(t, "Cannot restore the deployment the gateway is already deploying or serving", errorMessage(t, rec))
 
-	undeployed := expect(t, a.do(http.MethodPost, base+"/undeploy"+llmDeploymentQuery(first.DeploymentId, gwID), nil), http.StatusOK)
-	require.Equal(t, "LLM provider undeployed successfully", undeployed["message"])
-
-	got = expectInto[gwspec.LLMDeploymentResponse](t, a.do(http.MethodGet, base+"/"+first.DeploymentId, nil), http.StatusOK)
-	require.NotEqual(t, first.Status, got.Status, "the undeploy is recorded")
+	expect(t, a.do(http.MethodPut, "/llm-providers/"+uid, llmProviderUpdate(handle, map[string]any{"gateways": []string{}})), http.StatusOK)
+	undeploying := expectInto[[]gwspec.LLMDeploymentResponse](t, a.do(http.MethodGet, base+"?status=UNDEPLOYING", nil), http.StatusOK)
+	require.Len(t, undeploying, 1, "the undeploy is recorded")
 
 	restored := expectInto[gwspec.LLMDeploymentResponse](t,
 		a.do(http.MethodPost, base+"/restore"+llmDeploymentQuery(first.DeploymentId, gwID), nil), http.StatusOK)
 	require.Equal(t, first.DeploymentId, restored.DeploymentId)
-
-	// A provider change and a redeploy supersede the first deployment, which can then be deleted.
-	expect(t, a.do(http.MethodPut, "/llm-providers/"+uid, llmProviderUpdate(handle, map[string]any{"description": "v2"})), http.StatusOK)
-	second := expectInto[gwspec.LLMDeploymentResponse](t, a.do(http.MethodPost, base, map[string]any{"gatewayId": gwID, "base": "current"}), http.StatusCreated)
-	require.NotEqual(t, first.DeploymentId, second.DeploymentId)
-
-	rec = a.do(http.MethodDelete, base+"/"+first.DeploymentId, nil)
-	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
-	remaining := expectInto[[]gwspec.LLMDeploymentResponse](t, a.do(http.MethodGet, base, nil), http.StatusOK)
-	require.Len(t, remaining, 1, "the deleted deployment is gone")
-	require.Equal(t, second.DeploymentId, remaining[0].DeploymentId)
-	rec = a.do(http.MethodGet, base+"/"+first.DeploymentId, nil)
-	require.Equal(t, http.StatusNotFound, rec.Code, "a deleted deployment is not read back as an archived placeholder: %s", rec.Body.String())
 }
 
 // Provider deployment routes map bad input, unknown resources and state conflicts to their statuses.
 func TestLLMRoutesProviderDeploymentErrors(t *testing.T) {
 	a := newRouteAPI(t)
 	egress := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleEgress)
-	ingress := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleIngress)
 	handle := unique("deperr")
-	llmCreateProvider(t, a, handle)
-	base := "/orgs/{org}/llm-providers/" + handle + "/deployments"
-	dep := expectInto[gwspec.LLMDeploymentResponse](t, a.do(http.MethodPost, base, map[string]any{"gatewayId": egress.UUID.String()}), http.StatusCreated)
+	llmCreateProvider(t, a, handle, egress.UUID.String())
+	base := llmDeploymentsPath(handle)
+	deps := expectInto[[]gwspec.LLMDeploymentResponse](t, a.do(http.MethodGet, base, nil), http.StatusOK)
+	require.Len(t, deps, 1)
+	dep := deps[0]
 	unknown := uuid.NewString()
-	missing := "/orgs/{org}/llm-providers/" + unique("missing") + "/deployments"
+	missing := llmDeploymentsPath(unique("missing"))
 
 	tests := []struct {
 		name    string
@@ -110,26 +93,6 @@ func TestLLMRoutesProviderDeploymentErrors(t *testing.T) {
 		status  int
 		message string
 	}{
-		{"deploy malformed body", http.MethodPost, base, "{", http.StatusBadRequest, "Invalid request body"},
-		{"deploy without a gateway", http.MethodPost, base, map[string]any{}, http.StatusBadRequest, "gatewayId is required"},
-		{
-			"deploy an earlier base", http.MethodPost, base,
-			map[string]any{"gatewayId": egress.UUID.String(), "base": dep.DeploymentId},
-			http.StatusBadRequest, gwerr.ErrDeploymentBaseNotCurrent.Error(),
-		},
-		{"deploy to an ingress gateway", http.MethodPost, base, map[string]any{"gatewayId": ingress.UUID.String()}, http.StatusBadRequest, "Invalid input"},
-		{
-			"undeploy without a deployment", http.MethodPost, base + "/undeploy?gatewayId=" + unknown, nil, http.StatusBadRequest,
-			"deploymentId query parameter is required",
-		},
-		{
-			"undeploy without a gateway", http.MethodPost, base + "/undeploy?deploymentId=" + unknown, nil, http.StatusBadRequest,
-			"gatewayId query parameter is required",
-		},
-		{
-			"undeploy on another gateway", http.MethodPost, base + "/undeploy" + llmDeploymentQuery(dep.DeploymentId, unknown), nil, http.StatusBadRequest,
-			"Deployment is bound to a different gateway",
-		},
 		{
 			"restore without a deployment", http.MethodPost, base + "/restore?gatewayId=" + unknown, nil, http.StatusBadRequest,
 			"deploymentId query parameter is required",
@@ -142,30 +105,12 @@ func TestLLMRoutesProviderDeploymentErrors(t *testing.T) {
 			"restore an unknown deployment", http.MethodPost, base + "/restore" + llmDeploymentQuery(unknown, unknown), nil, http.StatusNotFound,
 			"Deployment not found",
 		},
-		{"get an unknown deployment", http.MethodGet, base + "/" + unknown, nil, http.StatusNotFound, "Deployment not found"},
-		{"delete an unknown deployment", http.MethodDelete, base + "/" + unknown, nil, http.StatusNotFound, "Deployment not found"},
-		{
-			"undeploy an unknown deployment", http.MethodPost, base + "/undeploy" + llmDeploymentQuery(unknown, unknown), nil, http.StatusNotFound,
-			"Deployment not found",
-		},
 		{
 			"restore on another gateway", http.MethodPost, base + "/restore" + llmDeploymentQuery(dep.DeploymentId, unknown), nil, http.StatusBadRequest,
 			"Deployment is bound to a different gateway",
 		},
 		{"list with a bad status", http.MethodGet, base + "?status=BOGUS", nil, http.StatusBadRequest, "Invalid deployment status"},
-		{"deploy to an unknown gateway", http.MethodPost, base, map[string]any{"gatewayId": unknown}, http.StatusNotFound, "Gateway not found"},
-		{
-			"deploy an unknown provider", http.MethodPost, missing,
-			map[string]any{"gatewayId": egress.UUID.String()},
-			http.StatusNotFound, "LLM provider not found",
-		},
 		{"list an unknown provider", http.MethodGet, missing, nil, http.StatusNotFound, "LLM provider not found"},
-		{"get on an unknown provider", http.MethodGet, missing + "/" + unknown, nil, http.StatusNotFound, "LLM provider not found"},
-		{"delete on an unknown provider", http.MethodDelete, missing + "/" + unknown, nil, http.StatusNotFound, "LLM provider not found"},
-		{
-			"undeploy on an unknown provider", http.MethodPost, missing + "/undeploy" + llmDeploymentQuery(unknown, unknown), nil,
-			http.StatusNotFound, "LLM provider not found",
-		},
 		{
 			"restore on an unknown provider", http.MethodPost, missing + "/restore" + llmDeploymentQuery(unknown, unknown), nil,
 			http.StatusNotFound, "LLM provider not found",
@@ -178,28 +123,64 @@ func TestLLMRoutesProviderDeploymentErrors(t *testing.T) {
 			require.Equal(t, tt.message, errorMessage(t, rec))
 		})
 	}
-
-	list := expectInto[[]gwspec.LLMDeploymentResponse](t, a.do(http.MethodGet, base, nil), http.StatusOK)
-	require.Len(t, list, 1, "no refused deploy is stored")
 }
 
-// Reading a provider's deployments needs read access; changing them needs deploy access.
+// Reading a provider's deployments needs read access; restoring one needs deploy access.
 func TestLLMRoutesProviderDeploymentNeedsScope(t *testing.T) {
 	a := newRouteAPI(t)
-	base := "/orgs/{org}/llm-providers/x/deployments"
-	read := withScopes(scope(gwperm.LLMProviderRead))
+	base := llmDeploymentsPath("x")
+	rec := a.do(http.MethodPost, base+"/restore", nil, withScopes(scope(gwperm.LLMProviderRead)))
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	rec = a.do(http.MethodGet, base, nil, withScopes(scope(gwperm.LLMProviderDeploy)))
+	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+}
+
+// The removed deployment operations are no longer served.
+func TestLLMRoutesProviderDeploymentRemovedRoutes(t *testing.T) {
+	a := newRouteAPI(t)
+	base := llmDeploymentsPath("x")
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodPost, base},
 		{http.MethodPost, base + "/undeploy"},
-		{http.MethodPost, base + "/restore"},
+		{http.MethodGet, base + "/d"},
 		{http.MethodDelete, base + "/d"},
 	} {
-		rec := a.do(tc.method, tc.path, nil, read)
-		require.Equal(t, http.StatusForbidden, rec.Code, "%s %s: %s", tc.method, tc.path, rec.Body.String())
+		rec := a.do(tc.method, tc.path, nil)
+		require.Contains(t, []int{http.StatusNotFound, http.StatusMethodNotAllowed}, rec.Code, "%s %s: %s", tc.method, tc.path, rec.Body.String())
 	}
-	deploy := withScopes(scope(gwperm.LLMProviderDeploy))
-	for _, p := range []string{base, base + "/d"} {
-		rec := a.do(http.MethodGet, p, nil, deploy)
-		require.Equal(t, http.StatusForbidden, rec.Code, "GET %s: %s", p, rec.Body.String())
+}
+
+// A sync marks only the gateways it newly placed the provider on, which are the ones a deployed
+// event is raised for; a redeploy to a current gateway is not one.
+func TestLLMProviderSyncMarksNewPlacements(t *testing.T) {
+	a := newRouteAPI(t)
+	gw := aigateway.Current()
+	gwID := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleEgress).UUID.String()
+	handle := unique("placed")
+	llmCreateProvider(t, a, handle)
+	ctx := context.Background()
+	sync := func(gateways ...string) *gwsvc.UpdateAndSyncResponse {
+		t.Helper()
+		stored, err := gw.LLMProviderService.Get(handle, a.org)
+		require.NoError(t, err)
+		resp, err := gw.LLMProviderService.UpdateAndSync(ctx, handle, a.org, stored, gateways, gw.LLMProviderDeploymentService)
+		require.NoError(t, err)
+		return resp
 	}
+
+	first := sync(gwID)
+	require.Len(t, first.Deployments, 1)
+	require.True(t, first.Deployments[0].Success)
+	require.True(t, first.Deployments[0].Placed, "the provider was on no gateway")
+
+	again := sync(gwID)
+	require.Len(t, again.Deployments, 1)
+	require.True(t, again.Deployments[0].Success)
+	require.False(t, again.Deployments[0].Placed, "a redeploy to a current gateway is not a new placement")
+
+	removed := sync()
+	require.Empty(t, removed.Deployments)
+	require.Len(t, removed.Undeployments, 1)
+	require.True(t, removed.Undeployments[0].Success)
+	require.Equal(t, gwID, removed.Undeployments[0].GatewayID)
 }
