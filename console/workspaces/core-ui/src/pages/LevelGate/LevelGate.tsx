@@ -17,14 +17,18 @@
  */
 
 import type { ReactNode } from "react";
-import { Navigate, generatePath, useParams } from "react-router-dom";
-import { Layers } from "@wso2/oxygen-ui-icons-react";
+import { Link, Navigate, generatePath, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@wso2/oxygen-ui";
+import { AlertTriangle, Layers } from "@wso2/oxygen-ui-icons-react";
 import { useGetAgent, useRuntimeConfig } from "@agent-management-platform/api-client";
 import {
   ErrorPages,
   usePipelineEnvironmentsState,
 } from "@agent-management-platform/shared-component";
-import { PageLayout, StateNotice } from "@agent-management-platform/views";
+import { usePipelineFeatures } from "@agent-management-platform/feature-management";
+import { LoadErrorNotice, PageLayout, StateNotice } from "@agent-management-platform/views";
+import { absoluteRouteMap } from "@agent-management-platform/types";
 import { LoadingFallback } from "../../components/LoadingFallback";
 import { useNavEntries } from "../../Layouts/OxygenLayout/navigation/useNavEntries";
 import {
@@ -52,7 +56,7 @@ export function LevelGate() {
   // Events only exists once the runtime config says so; feature flags and
   // access are settled before the layout renders. Wait, so a refresh on an
   // Events gate isn't mistaken for an unknown item.
-  const { isLoading: isLoadingConfig } = useRuntimeConfig();
+  const config = useRuntimeConfig();
   const params: NavParams = { orgId, projectId, agentId };
   const level = currentNavLevel(params);
   const entry = entries.find((candidate) => candidate.id === navKey);
@@ -61,8 +65,26 @@ export function LevelGate() {
   if (!level) {
     return <ErrorPages.NotFound />;
   }
-  if (!entry && isLoadingConfig) {
+  if (!entry && config.isLoading) {
     return <LoadingFallback />;
+  }
+  if (!entry && config.isError) {
+    // Can't tell an unknown item from one the config would have enabled.
+    return (
+      <PageLayout title="Page unavailable" avatar={null}>
+        <StateNotice
+          icon={AlertTriangle}
+          tone="error"
+          title="Couldn't load the console configuration"
+          description="This page depends on it. Try again to reload the configuration."
+          actions={
+            <Button variant="contained" onClick={() => config.refetch()}>
+              Try again
+            </Button>
+          }
+        />
+      </PageLayout>
+    );
   }
   if (!entry || !target) {
     // An item this user can't see here (another org's permissions, a stale
@@ -78,7 +100,7 @@ export function LevelGate() {
     // Keyed so a choice made for one item or project doesn't carry over.
     return (
       <LevelPicker
-        key={`${entry.id}:${projectId ?? ""}`}
+        key={`${orgId}:${entry.id}:${projectId ?? ""}`}
         entry={entry}
         from={level}
         to={target.level}
@@ -106,8 +128,13 @@ function OpenHere({
     projName: params.projectId,
     agentName: params.agentId,
   });
-  const { environments, isLoading: isLoadingEnvironments } =
-    usePipelineEnvironmentsState(params.orgId, params.projectId);
+  const {
+    environments,
+    isLoading: isLoadingEnvironments,
+    isError: isEnvironmentsError,
+  } = usePipelineEnvironmentsState(params.orgId, params.projectId);
+  const queryClient = useQueryClient();
+  const { canWrite: canEditPipelines } = usePipelineFeatures();
 
   if ((level === "agent" && isLoadingAgent) || (needsEnv && isLoadingEnvironments)) {
     return <LoadingFallback />;
@@ -115,6 +142,17 @@ function OpenHere({
   const reason = agent && level === "agent" ? entry.unsupportedReason?.(agent) : undefined;
   if (reason) {
     return <AgentUnsupportedNotice label={entry.label} reason={reason} params={params} />;
+  }
+  if (needsEnv && isEnvironmentsError) {
+    return (
+      <PageLayout title={entry.label} avatar={null}>
+        <LoadErrorNotice
+          entityLabel="project's environments"
+          // The state exposes no refetch; refetch the queries this page uses.
+          onRetry={() => queryClient.refetchQueries({ type: "active" })}
+        />
+      </PageLayout>
+    );
   }
   const envId = environments[0]?.name;
   if (needsEnv && !envId) {
@@ -124,6 +162,20 @@ function OpenHere({
           icon={Layers}
           title="No environment to open this in"
           description={`${entry.label} is shown per environment. Add an environment to this project's deployment pipeline first.`}
+          actions={
+            canEditPipelines && (
+              <Button
+                variant="contained"
+                component={Link}
+                to={generatePath(
+                  absoluteRouteMap.children.org.children.deploymentPipelines.path,
+                  { orgId: params.orgId },
+                )}
+              >
+                Go to deployment pipelines
+              </Button>
+            )
+          }
         />
       </PageLayout>
     );

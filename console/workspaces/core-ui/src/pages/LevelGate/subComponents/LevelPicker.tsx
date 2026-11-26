@@ -18,6 +18,8 @@
 
 import { useState } from "react";
 import {
+  Alert,
+  AlertTitle,
   Button,
   Card,
   CardContent,
@@ -34,10 +36,11 @@ import {
   PageLayout,
   StateNotice,
   TextInput,
+  returnToState,
 } from "@agent-management-platform/views";
 import {
-  useListAgents,
-  useListProjects,
+  useListAllAgents,
+  useListAllProjects,
 } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
@@ -74,24 +77,28 @@ function rememberedProject(orgId?: string): string | undefined {
 export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
   const { orgId } = params;
   const navigate = useNavigate();
+  const location = useLocation();
   // Set by the top bar when the user moved up from a project or agent.
-  const origin = (useLocation().state as { from?: LevelGateFrom } | null)?.from;
+  const origin = (location.state as { from?: LevelGateFrom } | null)?.from;
   const needProject = from === "org";
   const needAgent = to === "agent";
 
   const [pickedProject, setPickedProject] = useState("");
   const [pickedAgent, setPickedAgent] = useState("");
 
-  const projectsQuery = useListProjects({ orgName: needProject ? orgId : undefined });
+  // Every page, so a project or agent past the first page can still be picked.
+  const projectsQuery = useListAllProjects({ orgName: needProject ? orgId : undefined });
   const projects = projectsQuery.data?.projects ?? [];
   // Preselect the project the user came from, the remembered one, or the only one.
   const fallbackProject =
     projects.find((p) => p.name === origin?.projectId)?.name ??
     projects.find((p) => p.name === rememberedProject(orgId))?.name ??
     (projects.length === 1 ? projects[0].name : "");
-  const projectId = needProject ? pickedProject || fallbackProject : params.projectId;
+  // An explicit choice wins over the default, but only while it is still listed.
+  const validPick = projects.some((p) => p.name === pickedProject) ? pickedProject : "";
+  const projectId = needProject ? validPick || fallbackProject : params.projectId;
 
-  const agentsQuery = useListAgents({
+  const agentsQuery = useListAllAgents({
     orgName: orgId,
     projName: needAgent ? projectId || undefined : undefined,
   });
@@ -103,11 +110,12 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
       ? supportedAgents.find((agent) => agent.name === origin?.agentId)?.name
       : undefined;
   const agentId =
-    pickedAgent ||
+    (supportedAgents.some((agent) => agent.name === pickedAgent) ? pickedAgent : "") ||
     cameFrom ||
     (supportedAgents.length === 1 ? supportedAgents[0].name : "");
 
-  const ready = !!projectId && (!needAgent || !!agentId);
+  // Agents are only trusted from a successful load, not a stale cache after an error.
+  const ready = !!projectId && (!needAgent || (!!agentId && !agentsQuery.isError));
   const open = () => {
     // The target level's gate opens the page itself (and picks its environment).
     navigate(gatePath(to, { orgId, projectId, agentId }, entry.id));
@@ -147,6 +155,7 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
               to={generatePath(absoluteRouteMap.children.org.children.newProject.path, {
                 orgId,
               })}
+              state={returnToState(location)}
             >
               Create project
             </Button>
@@ -163,29 +172,64 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
   const noneSupported =
     needAgent && agentsLoaded && agents.length > 0 && supportedAgents.length === 0;
   const availableFor = AGENT_AVAILABLE_FOR[entry.id];
-  const agentNotice = noAgents ? (
+  // Nothing to pick: explain why and offer a way forward, instead of an empty
+  // select and a disabled button.
+  const blocked = noAgents || noneSupported;
+  const orAnotherProject = needProject ? ", or pick another project" : "";
+  const blockedTitle = noAgents
+    ? "No agents in this project"
+    : `No agents in this project support ${entry.label}`;
+  const blockedText = noAgents
+    ? `Create an agent to open ${entry.label}${orAnotherProject}.`
+    : `${entry.label} is only available for ${availableFor ?? "some kinds of agents"}. ` +
+      `Create one to use it here${orAnotherProject}.`;
+  const createAgentPath = generatePath(
+    absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+    { orgId, projectId },
+  );
+  // Inside the form (org level) the message stays in the form's flow, under the
+  // project select; on its own (project level) it is the page's empty state.
+  const agentNotice = !blocked ? null : needProject ? (
+    <Alert
+      severity="info"
+      // Centre the icon, text and button on one axis; the action slot is
+      // otherwise top-aligned with its own top padding.
+      sx={{ alignItems: "center" }}
+      slotProps={{ action: { sx: { alignItems: "center", pt: 0, mr: 0 } } }}
+      action={
+        <Button
+          size="small"
+          variant="outlined"
+          component={Link}
+          to={createAgentPath}
+          state={returnToState(location)}
+        >
+          Create agent
+        </Button>
+      }
+    >
+      <AlertTitle>{blockedTitle}</AlertTitle>
+      {blockedText}
+    </Alert>
+  ) : (
     <StateNotice
-      compact={needProject}
-      contained={!needProject}
       icon={Bot}
-      title="No agents in this project"
-      description={`Create an agent to open ${entry.label}.`}
+      title={blockedTitle}
+      description={blockedText}
       actions={
         <Button
           variant="contained"
           component={Link}
-          to={generatePath(
-            absoluteRouteMap.children.org.children.projects.children.newAgent.path,
-            { orgId, projectId },
-          )}
+          to={createAgentPath}
+          state={returnToState(location)}
         >
           Create agent
         </Button>
       }
     />
-  ) : null;
+  );
 
-  if (noAgents && !needProject) {
+  if (blocked && !needProject) {
     return <PageLayout {...header}>{agentNotice}</PageLayout>;
   }
 
@@ -215,7 +259,7 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
                   </TextInput>
                 </Grid>
               )}
-              {needAgent && !noAgents && (
+              {needAgent && !blocked && (
                 <Grid size={{ xs: 12, md: 6, xl: 4 }}>
                   <TextInput
                     select
@@ -258,16 +302,14 @@ export function LevelPicker({ entry, from, to, params }: LevelPickerProps) {
               />
             )}
             {agentNotice}
-            {needAgent && agentsLoaded && agents.length > supportedAgents.length && (
+            {needAgent && !blocked && agentsLoaded && agents.length > supportedAgents.length && (
               <Typography variant="body2" color="text.secondary">
                 {availableFor
                   ? `${entry.label} is only available for ${availableFor}.`
                   : `Some agents don't support ${entry.label}.`}
-                {noneSupported &&
-                  ` None of the agents in this project are${needProject ? ", so pick another project" : ""}.`}
               </Typography>
             )}
-            {!noAgents && (
+            {!blocked && (
               <Stack direction="row" justifyContent="flex-start">
                 <Button variant="contained" disabled={!ready} onClick={open}>
                   Open {entry.label}

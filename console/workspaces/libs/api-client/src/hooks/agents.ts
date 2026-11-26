@@ -80,6 +80,41 @@ export function useListAgents(
   });
 }
 
+const AGENT_PAGE_SIZE = 100;
+
+/** Every agent in a project, across all pages. */
+export async function listAllAgents(
+  params: ListAgentsPathParams,
+  getToken?: () => Promise<string>,
+): Promise<AgentListResponse> {
+  const first = await listAgents(params, { limit: AGENT_PAGE_SIZE, offset: 0 }, getToken);
+  const agents = [...first.agents];
+  while (agents.length < first.total) {
+    const page = await listAgents(
+      params,
+      { limit: AGENT_PAGE_SIZE, offset: agents.length },
+      getToken,
+    );
+    // Agents deleted meanwhile can leave total short of what is there.
+    if (page.agents.length === 0) break;
+    agents.push(...page.agents);
+  }
+  return { ...first, agents, limit: agents.length };
+}
+
+/**
+ * Hook to list every agent in a project, for pickers that must offer all of
+ * them.
+ */
+export function useListAllAgents(params: ListAgentsPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<AgentListResponse>({
+    queryKey: ['agents', params, 'all'],
+    queryFn: () => listAllAgents(params, getToken),
+    enabled: !!params.orgName && !!params.projName,
+  });
+}
+
 // Org-wide, lightweight (name + displayName only) agent listing across all
 // projects — for pickers/selectors, not the per-project ListAgents table.
 export function useListOrgAgents(params: ListOrgAgentsPathParams) {

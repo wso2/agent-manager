@@ -26,6 +26,11 @@ export interface ExternalModuleCore {
 export interface ExternalPageModule extends ExternalModuleCore {
   pageComponent: React.ComponentType<Record<string, unknown>>;
   kind: 'page';
+  /**
+   * Path under the mount point's level. Must not start with `go/`: that
+   * segment is reserved for the console's level gate (`go/:navKey`), which
+   * takes precedence at every level.
+   */
   path: string;
   icon?: React.ReactNode;
 }

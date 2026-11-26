@@ -42,20 +42,19 @@ export function useNavigationItems(): Array<NavigationSection | NavigationItem> 
     orgName: orgId,
     projName: projectId,
   });
-  const { environments } = usePipelineEnvironmentsState(orgId, projectId);
+  const { environments, isLoading: isLoadingEnvironments } =
+    usePipelineEnvironmentsState(orgId, projectId);
 
   const level = currentNavLevel({ orgId, projectId, agentId });
   if (!level) {
     return [];
   }
-  // Agent pages outside an environment open the first one in the pipeline.
-  // Until that is known the entry links to the gate, which picks it.
-  const params = {
-    orgId,
-    projectId,
-    agentId,
-    envId: envId ?? (agentId ? environments[0]?.name : undefined),
-  };
+  // Agent pages outside an environment open the first one in the pipeline,
+  // once the pipeline has loaded (its order isn't final before). Until then the
+  // entry links to the gate, which waits and picks it.
+  const fallbackEnv =
+    agentId && !isLoadingEnvironments ? environments[0]?.name : undefined;
+  const params = { orgId, projectId, agentId, envId: envId ?? fallbackEnv };
 
   const toItem = (entry: (typeof entries)[number]): NavigationItem => ({
     label: entry.label,
