@@ -333,9 +333,12 @@ func (c *thunderClient) doAuthorized(req *http.Request) (*http.Response, error) 
 
 	retry := req.Clone(req.Context())
 	if req.GetBody != nil {
-		if retry.Body, err = req.GetBody(); err != nil {
-			return resp, nil
+		body, bodyErr := req.GetBody()
+		if bodyErr != nil {
+			_ = resp.Body.Close()
+			return nil, fmt.Errorf("replay request body for retry: %w", bodyErr)
 		}
+		retry.Body = body
 	}
 	retry.Header.Set("Authorization", "Bearer "+fresh)
 	_ = resp.Body.Close()
