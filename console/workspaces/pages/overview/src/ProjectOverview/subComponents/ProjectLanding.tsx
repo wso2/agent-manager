@@ -98,7 +98,7 @@ const EXPLORE = [
   },
   {
     icon: <Rocket size={22} />,
-    title: "Connect and Deploy",
+    title: "Connect and Govern",
     links: [
       {
         label: "Register an LLM service provider",
@@ -167,7 +167,7 @@ interface ProjectLandingProps {
   projectId: string;
   projectName?: string;
   /**
-   * Shows "Create agent or AI service"; without it the card still explains what the
+   * Shows "Add Agent or AI Service"; without it the card still explains what the
    * project is for.
    */
   canCreateAgent: boolean;
@@ -216,7 +216,7 @@ export function ProjectLanding({
     shortcut({
       icon: <Brain size={26} />,
       title: "LLM Service Providers",
-      description: "Model providers your agents call, set up once for the organization.",
+      description: "Govern the models your agents call. Set up once for the organization.",
       count: llmProviders?.total,
       loading: isLoadingLLM,
       failed: isLLMError && !llmProviders,
@@ -230,7 +230,7 @@ export function ProjectLanding({
     shortcut({
       icon: <Server size={26} />,
       title: "MCP Servers",
-      description: "Tool servers your agents can use, registered once and shared.",
+      description: "Govern the MCP tools your agents can call. Registered once and shared.",
       count: mcpServerTotal(mcpProxies),
       loading: isLoadingMCP,
       failed: isMCPError && !mcpProxies,
@@ -301,10 +301,11 @@ export function ProjectLanding({
                 Start here
               </Typography>
               <Typography variant="h3" component="h2" sx={{ fontWeight: 600 }}>
-                Govern and manage agents
+                Govern every agent and AI service
               </Typography>
               <Typography variant="body1" color="text.secondary">
-                Secure, operate, and manage AI agents across any framework and any deployment.
+                Bring in agents wherever they run, on the platform or hosted elsewhere. Connect them
+                to models and MCP tools, then trace, evaluate, and control every run.
               </Typography>
               {/* The types wrap as one group, so neither is left alone on a line. */}
               <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap gap={1.5}>
@@ -362,7 +363,8 @@ export function ProjectLanding({
                   state={returnToState(location)}
                   sx={{ mt: 1 }}
                 >
-                  Create agent or AI service
+                  {/* Approved product copy, kept in title case on purpose. */}
+                  {"Add Agent or AI Service"}
                 </Button>
               )}
             </Stack>
