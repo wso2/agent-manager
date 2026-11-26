@@ -287,20 +287,13 @@ func (h *Host) externalReady(ctx context.Context, name string) error {
 		}
 		return nil
 	}
-	ms, err := loadExternal(name, s)
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(ctx, externalCheckTimeout)
-	defer cancel()
-	applied, err := s.Applied(ctx)
-	if err != nil {
+	p, readErr, err := externalPending(ctx, name, s)
+	if readErr != nil {
 		return &ResolveError{
-			Msg:  fmt.Sprintf("cannot read %s's %s schema: %v", name, s.Store(), err),
+			Msg:  fmt.Sprintf("cannot read %s's %s schema: %v", name, s.Store(), readErr),
 			Hint: "check that " + s.Store() + " is reachable with the module's configured login",
 		}
 	}
-	p, err := pendingFrom(fmt.Sprintf("module %s %s schema", name, s.Store()), applied, ms)
 	if err != nil {
 		return err
 	}
@@ -309,6 +302,59 @@ func (h *Host) externalReady(ctx context.Context, name string) error {
 			Msg:  fmt.Sprintf("%s has %d %s schema file(s) not applied", name, len(p), s.Store()),
 			Hint: "run `amp migrate` with this binary and the module's " + s.Store() + " migrator login first; the schema is created at migrate time, not at install",
 		}
+	}
+	return nil
+}
+
+// externalPending returns this binary's schema files that s lacks; readErr is
+// set when s can't be read.
+func externalPending(ctx context.Context, name string, s modkit.ExternalSchema) ([]migration, error, error) {
+	ms, err := loadExternal(name, s)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, externalCheckTimeout)
+	defer cancel()
+	applied, err := s.Applied(ctx)
+	if err != nil {
+		return nil, err, nil
+	}
+	p, err := pendingFrom(fmt.Sprintf("module %s %s schema", name, s.Store()), applied, ms)
+	return p, nil, err
+}
+
+// CheckExternalSchema reports the active modules whose configured external
+// store lacks schema files of this binary. A store it can't read is logged,
+// not reported: boot leaves that module out and retries it.
+func (h *Host) CheckExternalSchema(ctx context.Context) error {
+	rows, err := loadRows(h.db.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	var behind []string
+	for _, name := range h.names() {
+		if rows[name].State != StateActive {
+			continue
+		}
+		s, _, err := h.externalSchema(name, false)
+		if err != nil {
+			return err
+		}
+		if s == nil {
+			continue
+		}
+		p, readErr, err := externalPending(ctx, name, s)
+		switch {
+		case readErr != nil:
+			h.log.Warn("modhost:cannot read the external schema; not waiting for it", "module", name, "store", s.Store(), "error", readErr)
+		case err != nil:
+			return err
+		case len(p) > 0:
+			behind = append(behind, fmt.Sprintf("%s: %d %s file(s)", name, len(p), s.Store()))
+		}
+	}
+	if len(behind) > 0 {
+		return fmt.Errorf("external schemas are behind this binary (%s); run `amp migrate` with each store's migrator login", strings.Join(behind, ", "))
 	}
 	return nil
 }

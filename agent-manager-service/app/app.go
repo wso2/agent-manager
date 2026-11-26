@@ -440,6 +440,9 @@ func waitForModuleSchema(ctx context.Context, modules *modhost.Host) error {
 	for {
 		err := modules.CheckSchema(ctx)
 		if err == nil {
+			err = modules.CheckExternalSchema(ctx)
+		}
+		if err == nil {
 			return nil
 		}
 		slog.Info("waiting for module migrations", "reason", err.Error())

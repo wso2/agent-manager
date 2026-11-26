@@ -414,3 +414,33 @@ func TestReloadLeavesOutAnUnreadableStore(t *testing.T) {
 	setDown(false)
 	waitFor(t, "t-ext to load once its store is back", func() bool { return slices.Contains(h2.Active(), "t-ext") })
 }
+
+func TestCheckExternalSchemaWaitsForPendingFiles(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store := &fakeStore{records: map[string]string{}}
+	d := databases(t)[0]
+	h, g := replica(t, ctx, d, []modkit.Module{newExternal(store, externalFiles("001_spans.sql"), true, true)})
+
+	// A newer binary with a file the store lacks.
+	next := modhost.NewWith(g, d.driver, quiet, []modkit.Module{newExternal(store, externalFiles("001_spans.sql", "002_more.sql"), true, true)})
+	require.NoError(t, next.CheckExternalSchema(ctx), "a module that isn't active is not waited for")
+
+	_, err := h.Install(ctx, "t-ext", false)
+	require.NoError(t, err)
+	err = next.CheckExternalSchema(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "t-ext: 1 fake file(s)")
+
+	store.mu.Lock()
+	store.down = true
+	store.mu.Unlock()
+	require.NoError(t, next.CheckExternalSchema(ctx), "a store that can't be read is not waited for")
+	store.mu.Lock()
+	store.down = false
+	store.mu.Unlock()
+
+	_, err = next.Migrate(ctx)
+	require.NoError(t, err)
+	require.NoError(t, next.CheckExternalSchema(ctx))
+}
