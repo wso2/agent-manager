@@ -30,6 +30,13 @@ type annotations struct {
 	environment string
 	project     string
 	data        map[string]any
+	also        []Extra
+}
+
+// Extra is one more event a handler raised next to its route's event.
+type Extra struct {
+	Type string
+	Data map[string]any
 }
 
 type annotationsKey struct{}
@@ -83,6 +90,19 @@ func (a *annotations) EventData(key string, value any) {
 		a.data = map[string]any{}
 	}
 	a.data[key] = value
+}
+
+// EventAlso implements modkit.EventScope.
+func (a *annotations) EventAlso(eventType string, data map[string]any) {
+	a.also = append(a.also, Extra{Type: eventType, Data: data})
+}
+
+// Also returns the extra events, in the order they were raised.
+func (a *annotations) Also() []Extra {
+	if a == nil {
+		return nil
+	}
+	return a.also
 }
 
 // Environment returns the annotated environment.

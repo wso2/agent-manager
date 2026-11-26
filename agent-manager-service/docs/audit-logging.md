@@ -455,11 +455,8 @@ AI Gateway actions (`modules/aigateway/gwaudit/gwaudit.go`), all 66 the module's
 | `ai-gateway:llm-provider-templates.update` | config | 1 info | — |
 | `ai-gateway:llm-providers.create` | config | 1 info | — |
 | `ai-gateway:llm-providers.delete` | config | 2 notice | — |
-| `ai-gateway:llm-providers.delete-deployment` | config | 1 info | — |
-| `ai-gateway:llm-providers.deploy` | deployment | 2 notice | — |
 | `ai-gateway:llm-providers.read` | read | 1 info | — |
 | `ai-gateway:llm-providers.restore` | deployment | 2 notice | — |
-| `ai-gateway:llm-providers.undeploy` | deployment | 2 notice | — |
 | `ai-gateway:llm-providers.update` | config | 1 info | — |
 | `ai-gateway:llm-providers.update-catalog` | config | 1 info | — |
 | `ai-gateway:llm-proxies.create` | config | 1 info | — |

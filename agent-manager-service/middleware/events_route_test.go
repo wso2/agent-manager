@@ -269,3 +269,36 @@ func TestWithEvents_CreateEventsNameADocumentByMetadataName(t *testing.T) {
 	assert.Equal(t, "a1", pub.got[0].Subject)
 	assert.Equal(t, "a1", pub.got[0].Agent)
 }
+
+func TestWithEvents_EmitAlsoRaisesMoreEvents(t *testing.T) {
+	pub := serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x?project=p1",
+		map[string]string{"agentName": "a1"}, func(w http.ResponseWriter, r *http.Request) {
+			modkit.EmitAlso(r.Context(), "agent.created", map[string]any{"gatewayId": "gw-1", "apiKey": "secret"})
+			modkit.EmitAlso(r.Context(), "testmod.not_declared", map[string]any{"x": 1})
+			modkit.EmitAlso(r.Context(), "agent.deleted", nil)
+			w.WriteHeader(http.StatusOK)
+		})
+
+	require.Len(t, pub.got, 3, "the route's event and the two catalogued extras; an unknown type is skipped")
+	route, deployed, deleted := pub.got[0], pub.got[1], pub.got[2]
+	assert.Equal(t, "testmod.widget_updated", route.Name())
+	assert.Equal(t, "agent.created", deployed.Name())
+	assert.Equal(t, map[string]any{"gatewayId": "gw-1"}, deployed.Data, "credential-looking fields are redacted")
+	for _, e := range []events.Event{deployed, deleted} {
+		assert.Equal(t, route.Subject, e.Subject)
+		assert.Equal(t, route.OrgID, e.OrgID)
+		assert.Equal(t, "p1", e.Project)
+		assert.NotEqual(t, route.ID, e.ID)
+	}
+	assert.Nil(t, deleted.Data, "an extra with no data carries none")
+
+	failed := serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x",
+		map[string]string{"agentName": "a1"}, func(w http.ResponseWriter, r *http.Request) {
+			modkit.EmitAlso(r.Context(), "agent.created", nil)
+			w.WriteHeader(http.StatusConflict)
+		})
+	assert.Empty(t, failed.got, "nothing is raised on a failed request")
+
+	// Outside an event-emitting route, EmitAlso does nothing.
+	modkit.EmitAlso(context.Background(), "agent.created", nil)
+}
