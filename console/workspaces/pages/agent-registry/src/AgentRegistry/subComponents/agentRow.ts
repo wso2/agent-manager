@@ -29,10 +29,10 @@ import {
 
 /**
  * Hosting, interface and kind in one line, e.g. "Platform · A2A · Kind reviewer 0.4.1".
- * For an unregistered agent: where it was found, e.g. "Found on OpenAI · proj_cs".
+ * For an unmanaged agent: where it was found, e.g. "Found on OpenAI · proj_cs".
  */
 export function agentTypeText(agent: AgentRegistryEntry): string {
-  if (agent.registration === "unregistered") {
+  if (agent.management === "unmanaged") {
     const found = agent.discovery
       ? [`Found on ${agent.discovery.providerDisplayName}`, agent.discovery.scope]
       : ["Found outside Agent Manager"];
@@ -55,12 +55,12 @@ export function shadowSourceText(discovery: AgentRegistryDiscovery): string {
 const registryRoutes = absoluteRouteMap.children.org.children.agentRegistry.children;
 
 /**
- * The agent's page in the registry: a registered agent's overview, by project and name; an
- * unregistered agent's page, by its discovery finding.
+ * The agent's page in the registry: a managed agent's overview, by project and name; an
+ * unmanaged agent's page, by its discovery finding.
  */
 export function agentOverviewPath(orgId: string, agent: AgentRegistryEntry): string {
-  if (agent.registration === "unregistered") {
-    return generatePath(registryRoutes.unregisteredAgent.path, {
+  if (agent.management === "unmanaged") {
+    return generatePath(registryRoutes.unmanagedAgent.path, {
       orgId,
       findingId: agent.discovery?.findingId ?? agent.name,
     });

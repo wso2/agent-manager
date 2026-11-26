@@ -36,14 +36,14 @@ import { listShadowFindings, listShadowProviders } from "./shadowAgents";
 
 // "createdBy" stands in for the owner: owners do not exist yet.
 
-/** A registered agent's row, from its AgentSummary and registry record. */
-function registeredEntry(agent: AgentRegistryApiAgent): AgentRegistryEntry {
+/** A managed agent's row, from its AgentSummary and registry record. */
+function managedEntry(agent: AgentRegistryApiAgent): AgentRegistryEntry {
   const record = agent.registry;
   return {
     name: agent.name,
     displayName: agent.displayName || agent.name,
     description: record.description,
-    registration: "registered",
+    management: "managed",
     projectName: agent.projectName,
     projectDisplayName: agent.projectDisplayName || agent.projectName,
     hosting: record.hosting,
@@ -71,7 +71,7 @@ function registeredEntry(agent: AgentRegistryApiAgent): AgentRegistryEntry {
   };
 }
 
-/** Every registered agent in the organization, from every project, with its registry record. */
+/** Every managed agent in the organization, from every project, with its registry record. */
 export async function listAgentRegistry(
   params: ListAgentRegistryPathParams,
   getToken?: () => Promise<string>,
@@ -82,21 +82,21 @@ export async function listAgentRegistry(
     token,
   });
   const body: AgentRegistryApiListResponse = await res.json();
-  return { agents: body.agents.map(registeredEntry) };
+  return { agents: body.agents.map(managedEntry) };
 }
 
 /** The most findings the findings API returns in one page. */
 const FINDINGS_PAGE_SIZE = 200;
 
-/** An unregistered agent's row, from its Shadow Agent Discovery finding. */
-function unregisteredEntry(
+/** An unmanaged agent's row, from its Shadow Agent Discovery finding. */
+function unmanagedEntry(
   finding: ShadowFindingSummary,
   providerNames: Map<string, string>,
 ): AgentRegistryEntry {
   return {
     name: finding.id,
     displayName: finding.displayName,
-    registration: "unregistered",
+    management: "unmanaged",
     discovery: {
       findingId: finding.id,
       provider: finding.provider,
@@ -130,10 +130,10 @@ function unregisteredEntry(
 }
 
 /**
- * Every unregistered agent: the Shadow Agent Discovery findings that are not onboarded.
+ * Every unmanaged agent: the Shadow Agent Discovery findings that are not onboarded.
  * Without a scan ID the findings API returns only the agents their platforms still list.
  */
-export async function listUnregisteredAgents(
+export async function listUnmanagedAgents(
   params: ListAgentRegistryPathParams,
   getToken?: () => Promise<string>,
 ): Promise<AgentRegistryListResponse> {
@@ -149,7 +149,7 @@ export async function listUnregisteredAgents(
     if (page.findings.length === 0 || findings.length >= page.total) break;
   }
   const providerNames = providerNamesOf(await providersRequest);
-  return { agents: findings.map((finding) => unregisteredEntry(finding, providerNames)) };
+  return { agents: findings.map((finding) => unmanagedEntry(finding, providerNames)) };
 }
 
 /** The display name of each Shadow Agent Discovery platform. */
@@ -182,7 +182,7 @@ function environmentDetail(env: AgentRegistryApiEnvironment): AgentRegistryEnvir
 }
 
 /**
- * One registered agent's registry record, with its governance in each environment, or null
+ * One managed agent's registry record, with its governance in each environment, or null
  * when there is no such agent. Reads GET agent with view=registry, and the project for its name.
  */
 export async function getAgentRegistryEntry(
@@ -207,7 +207,7 @@ export async function getAgentRegistryEntry(
   }
   const project = await projectRequest;
   if (!agent.registry) return null;
-  const entry = registeredEntry({
+  const entry = managedEntry({
     name: agent.name,
     displayName: agent.displayName || agent.name,
     projectName: projName,

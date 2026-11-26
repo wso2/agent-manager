@@ -26,7 +26,7 @@ import { useAuthHooks } from "@agent-management-platform/auth";
 import {
   getAgentRegistryEntry,
   listAgentRegistry,
-  listUnregisteredAgents,
+  listUnmanagedAgents,
 } from "../apis";
 import { useApiQuery } from "./react-query-notifications";
 
@@ -36,7 +36,7 @@ import { useApiQuery } from "./react-query-notifications";
  */
 const REGISTRY_LIST_STALE_MS = 60_000;
 
-/** Every registered agent in the organization, across all projects, with its registry record. */
+/** Every managed agent in the organization, across all projects, with its registry record. */
 export function useListAgentRegistry(params: ListAgentRegistryPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentRegistryListResponse>({
@@ -47,20 +47,20 @@ export function useListAgentRegistry(params: ListAgentRegistryPathParams) {
   });
 }
 
-/** Every unregistered agent: the Shadow Agent Discovery findings not onboarded yet. */
-export function useListUnregisteredAgents(params: ListAgentRegistryPathParams) {
+/** Every unmanaged agent: the Shadow Agent Discovery findings not onboarded yet. */
+export function useListUnmanagedAgents(params: ListAgentRegistryPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentRegistryListResponse>({
     // Under the findings' prefix, so a Shadow Agent Discovery change (scan, onboard,
     // delete) refreshes it.
     queryKey: ["shadow-agents", "findings", params.orgName, "agent-registry"],
-    queryFn: () => listUnregisteredAgents(params, getToken),
+    queryFn: () => listUnmanagedAgents(params, getToken),
     enabled: !!params.orgName,
     staleTime: REGISTRY_LIST_STALE_MS,
   });
 }
 
-/** One registered agent's registry record; null when there is no such agent. */
+/** One managed agent's registry record; null when there is no such agent. */
 export function useGetAgentRegistryEntry(params: GetAgentRegistryEntryPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentRegistryEntryDetail | null>({

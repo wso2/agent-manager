@@ -52,7 +52,7 @@ import {
   OnboardingChip,
   providerLabel,
   SOURCE_HOSTS,
-  unregisteredAgentPath,
+  unmanagedAgentPath,
 } from "../shadowUi";
 
 const PAGE_SIZE = 50;
@@ -84,7 +84,7 @@ function sourceLabel(f: ShadowFindingSummary): string {
 }
 
 /**
- * The unregistered agents: every agent the platforms list, once however many
+ * The unmanaged agents: every agent the platforms list, once however many
  * connections found it, most recently seen first. With scanId, the agents one
  * scan found.
  */
@@ -152,7 +152,7 @@ export function FindingsTab({
     });
   const handleDeleteAll = () =>
     addConfirmation({
-      title: "Delete all unregistered agents?",
+      title: "Delete all unmanaged agents?",
       description:
         "Every agent and its evidence is deleted from Agent Manager, on every platform, whatever the filters show, " +
         "including the agents their platforms no longer list. " +
@@ -242,7 +242,7 @@ export function FindingsTab({
 
   return (
     <ResourceListShell
-      resourceName="shadow-agent-unregistered-agents"
+      resourceName="shadow-agent-unmanaged-agents"
       disablePaper
       searchValue={search}
       onSearchChange={setFilter(setSearch)}
@@ -256,7 +256,7 @@ export function FindingsTab({
       emptyState={{
         illustration: <ScanSearch size={64} />,
         title:
-          emptyText?.title ?? (scanId ? "This scan found no agents" : "No unregistered agents yet"),
+          emptyText?.title ?? (scanId ? "This scan found no agents" : "No unmanaged agents yet"),
         description: emptyText
           ? emptyText.description
           : scanId
@@ -290,7 +290,7 @@ export function FindingsTab({
               hover
               sx={{ cursor: "pointer" }}
               onClick={() =>
-                navigate(unregisteredAgentPath(orgName ?? "", f.id), {
+                navigate(unmanagedAgentPath(orgName ?? "", f.id), {
                   state: returnToState(location),
                 })
               }

@@ -745,7 +745,7 @@ function DuplicatesSection({ f, orgName }: { f: ShadowFindingDetail; orgName: st
               <Link
                 component={RouterLink}
                 to={generatePath(
-                  absoluteRouteMap.children.org.children.agentRegistry.children.unregisteredAgent
+                  absoluteRouteMap.children.org.children.agentRegistry.children.unmanagedAgent
                     .path,
                   { orgId: orgName, findingId: r.findingId },
                 )}
@@ -819,7 +819,7 @@ function Sidebar({
 }
 
 /**
- * One unregistered agent: why it is an agent and what it uses, with its status,
+ * One unmanaged agent: why it is an agent and what it uses, with its status,
  * connections and IDs beside them, and onboarding it (a code agent can also be
  * deployed as a platform-hosted agent).
  */
@@ -851,7 +851,7 @@ export function FindingDetail({
           icon={SearchX}
           tone="error"
           title="Couldn't load this agent"
-          description="It may have been deleted with its platform. Go back to Unregistered Agents."
+          description="It may have been deleted with its platform. Go back to the unmanaged agents."
         />
       </PageLayout>
     );
@@ -868,7 +868,7 @@ export function FindingDetail({
         })
       : "";
   const onboardPath = generatePath(
-    absoluteRouteMap.children.org.children.agentRegistry.children.unregisteredAgent.children.onboard
+    absoluteRouteMap.children.org.children.agentRegistry.children.unmanagedAgent.children.onboard
       .path,
     { orgId: orgName ?? "", findingId: f.id },
   );
@@ -883,7 +883,7 @@ export function FindingDetail({
             variant="contained"
             endIcon={<ExternalLink size={16} />}
           >
-            Open registered agent
+            Open managed agent
           </Button>
         ) : canManage && isCode ? (
           <CodeAgentOnboardActions f={f} orgName={orgName ?? ""} onboardPath={onboardPath} />

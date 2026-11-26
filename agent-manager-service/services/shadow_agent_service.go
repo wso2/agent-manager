@@ -123,8 +123,8 @@ type ShadowAgentService interface {
 	// Onboard links the agent to the externally-hosted agent registered for
 	// it (projectName/agentName, which must exist in the org).
 	Onboard(ctx context.Context, ouID string, id uuid.UUID, projectName, agentName string) (*ShadowFindingView, error)
-	// SetFindingHidden removes an onboarded agent from the Unregistered
-	// Agents list (hidden true), or puts it back. Later scans keep the choice.
+	// SetFindingHidden removes an onboarded agent from the unmanaged
+	// agents list (hidden true), or puts it back. Later scans keep the choice.
 	SetFindingHidden(ctx context.Context, ouID string, id uuid.UUID, hidden bool) (*ShadowFindingView, error)
 	// DeleteFinding deletes an agent, on every connection that found it. A
 	// later scan lists it again if a platform still has it.
@@ -1300,7 +1300,7 @@ func (s *shadowAgentService) DeleteFinding(ctx context.Context, ouID string, id 
 	return nil
 }
 
-// SetFindingHidden removes an onboarded agent from the Unregistered Agents
+// SetFindingHidden removes an onboarded agent from the unmanaged agents
 // list, or puts it back, on every connection that found it.
 func (s *shadowAgentService) SetFindingHidden(
 	ctx context.Context, ouID string, id uuid.UUID, hidden bool,

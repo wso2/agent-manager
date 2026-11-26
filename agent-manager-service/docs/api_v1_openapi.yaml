@@ -14694,7 +14694,7 @@ paths:
     get:
       tags:
         - Shadow Agent Discovery
-      summary: Summarize the unregistered agents found in the organization
+      summary: Summarize the unmanaged agents found in the organization
       description: |
         Counts of the agents found (each agent once, however many connections
         found it) by platform and review status, and the latest scan.
@@ -15282,7 +15282,7 @@ paths:
     get:
       tags:
         - Shadow Agent Discovery
-      summary: List unregistered agents
+      summary: List unmanaged agents
       description: |
         The agents the platforms list, one row per agent however many
         connections found it (the same platform, kind and platform ID), most
@@ -15360,7 +15360,7 @@ paths:
     delete:
       tags:
         - Shadow Agent Discovery
-      summary: Delete every unregistered agent
+      summary: Delete every unmanaged agent
       description: |
         Deletes every agent of the organization, with its evidence, on every
         connection that found it. Platforms and scans are kept. A later scan
@@ -15398,7 +15398,7 @@ paths:
     get:
       tags:
         - Shadow Agent Discovery
-      summary: Get an unregistered agent
+      summary: Get an unmanaged agent
       description: |
         The agent as its platform lists it, its evidence, every connection that
         found it, and possible duplicates on other platforms.
@@ -15425,7 +15425,7 @@ paths:
     delete:
       tags:
         - Shadow Agent Discovery
-      summary: Delete an unregistered agent
+      summary: Delete an unmanaged agent
       description: |
         Deletes the agent, with its evidence, on every connection that found
         it. A later scan lists it again if a platform still has it.
@@ -15464,7 +15464,7 @@ paths:
     post:
       tags:
         - Shadow Agent Discovery
-      summary: Onboard an unregistered agent as an external agent
+      summary: Onboard an unmanaged agent as an external agent
       description: |
         Links the agent, on every connection that found it, to the
         externally-hosted agent registered for it in a project of the
@@ -15526,9 +15526,9 @@ paths:
     put:
       tags:
         - Shadow Agent Discovery
-      summary: Remove an onboarded agent from the Unregistered Agents list, or put it back
+      summary: Remove an onboarded agent from the unmanaged agents list, or put it back
       description: |
-        hidden true removes an onboarded agent from the Unregistered Agents
+        hidden true removes an onboarded agent from the unmanaged agents
         list, on every connection that found it; later scans keep it out.
         hidden false puts it back. Only an onboarded agent can be removed.
       operationId: setShadowFindingHidden
@@ -25654,7 +25654,7 @@ components:
         hidden:
           type: boolean
           description: >-
-            The onboarded agent was removed from the Unregistered Agents list. The list leaves it out; it can
+            The onboarded agent was removed from the unmanaged agents list. The list leaves it out; it can
             still be opened by its ID.
 
     ShadowFindingSource:
@@ -25752,7 +25752,7 @@ components:
       properties:
         hidden:
           type: boolean
-          description: true removes the onboarded agent from the Unregistered Agents list; false puts it back.
+          description: true removes the onboarded agent from the unmanaged agents list; false puts it back.
 
     ShadowOnboardingRequest:
       type: object

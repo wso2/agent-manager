@@ -31,8 +31,8 @@ import {
 import { Info } from "@wso2/oxygen-ui-icons-react";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 
-// The pieces both agent pages in the registry are built from, so a registered and an
-// unregistered agent look alike: a main column of titled cards, and a properties sidebar.
+// The pieces both agent pages in the registry are built from, so a managed and an
+// unmanaged agent look alike: a main column of titled cards, and a properties sidebar.
 
 /** The main column and the properties sidebar beside it; the sidebar drops below when narrow. */
 export function AgentPageColumns({ main, sidebar }: { main: ReactNode; sidebar: ReactNode }) {

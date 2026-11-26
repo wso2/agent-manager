@@ -55,7 +55,7 @@ import {
   providerLabel,
   ScanStatusChip,
   SOURCE_HOSTS,
-  unregisteredAgentsPath,
+  unmanagedAgentsPath,
 } from "../shadowUi";
 import { UploadResultsDialog, useConfirmCancelScan } from "./UploadResultsDialog";
 
@@ -362,7 +362,7 @@ export function ScansTab({
       description:
         `Every finished scan is deleted, with its call results and its list of agents.${
           active > 0 ? " Scans that are queued, running or waiting for results are kept." : ""
-        } Unregistered Agents and their evidence are kept, and the next scan updates them as usual. ` +
+        } Unmanaged Agents and their evidence are kept, and the next scan updates them as usual. ` +
         "This can't be undone.",
       confirmButtonText: "Clear scans",
       confirmButtonColor: "error",
@@ -378,9 +378,9 @@ export function ScansTab({
       <Button
         variant="outlined"
         startIcon={<Library size={16} />}
-        onClick={() => navigate(unregisteredAgentsPath(orgName ?? ""))}
+        onClick={() => navigate(unmanagedAgentsPath(orgName ?? ""))}
       >
-        View unregistered agents
+        View unmanaged agents
       </Button>
       {canManage && (
         <>

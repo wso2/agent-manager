@@ -50,7 +50,7 @@ type ShadowFindingDetail struct {
 	OnboardedAt *time.Time `json:"onboardedAt,omitempty"`
 	// For code agents, who confirmed the agent: rules (the scan's rules), ai_review (the customer's LLM) or ai_review_judge (the LLM judge). Absent for other kinds.
 	ReviewedBy *string `json:"reviewedBy,omitempty"`
-	// The onboarded agent was removed from the Unregistered Agents list. The list leaves it out; it can still be opened by its ID.
+	// The onboarded agent was removed from the unmanaged agents list. The list leaves it out; it can still be opened by its ID.
 	Hidden bool `json:"hidden"`
 	// What the platform's agent listing reports about the agent (allow-listed fields only).
 	Attributes map[string]interface{} `json:"attributes"`

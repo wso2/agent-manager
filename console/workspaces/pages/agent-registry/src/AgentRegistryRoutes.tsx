@@ -16,32 +16,42 @@
  * under the License.
  */
 
-import { Route, Routes } from "react-router-dom";
-import { relativeRouteMap } from "@agent-management-platform/types";
+import { generatePath, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { absoluteRouteMap, relativeRouteMap } from "@agent-management-platform/types";
 import { AgentRegistry } from "./AgentRegistry/AgentRegistry";
 import { AgentRegistryOverview } from "./AgentRegistryOverview/AgentRegistryOverview";
 import {
-  UnregisteredAgentOnboardPage,
-  UnregisteredAgentPage,
-} from "./UnregisteredAgent/UnregisteredAgentPages";
+  UnmanagedAgentOnboardPage,
+  UnmanagedAgentPage,
+} from "./UnmanagedAgent/UnmanagedAgentPages";
 
 const registryRoutes = relativeRouteMap.children.org.children.agentRegistry.children;
-const unregisteredRoute = registryRoutes.unregisteredAgent;
+const unmanagedRoute = registryRoutes.unmanagedAgent;
+const unmanagedAgentAbsolutePath =
+  absoluteRouteMap.children.org.children.agentRegistry.children.unmanagedAgent.path;
+
+/** A link from before the rename (/agent-registry/unregistered/...): the same page, renamed. */
+function RedirectFromUnregistered() {
+  const { orgId = "", findingId = "", "*": rest = "" } = useParams();
+  const page = generatePath(unmanagedAgentAbsolutePath, { orgId, findingId });
+  return <Navigate to={rest ? `${page}/${rest}` : page} replace />;
+}
 
 /**
- * The registry's pages under /agent-registry: the list, a registered agent's overview, and an
- * unregistered agent's page with onboarding.
+ * The registry's pages under /agent-registry: the list, a managed agent's overview, and an
+ * unmanaged agent's page with onboarding.
  */
 export function AgentRegistryRoutes() {
   return (
     <Routes>
       <Route index element={<AgentRegistry />} />
       <Route path={registryRoutes.agent.path} element={<AgentRegistryOverview />} />
-      <Route path={unregisteredRoute.path} element={<UnregisteredAgentPage />} />
+      <Route path={unmanagedRoute.path} element={<UnmanagedAgentPage />} />
       <Route
-        path={`${unregisteredRoute.path}/${unregisteredRoute.children.onboard.path}`}
-        element={<UnregisteredAgentOnboardPage />}
+        path={`${unmanagedRoute.path}/${unmanagedRoute.children.onboard.path}`}
+        element={<UnmanagedAgentOnboardPage />}
       />
+      <Route path="unregistered/:findingId/*" element={<RedirectFromUnregistered />} />
     </Routes>
   );
 }

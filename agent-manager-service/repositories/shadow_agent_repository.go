@@ -189,7 +189,7 @@ type ShadowAgentRepository interface {
 	// with utils.ErrShadowAlreadyOnboarded when the agent is already linked,
 	// and gorm.ErrRecordNotFound when the org has no such finding.
 	OnboardFinding(ctx context.Context, ouID string, id uuid.UUID, project, agent, by string, at time.Time) error
-	// SetFindingHidden removes an onboarded agent from the Unregistered Agents
+	// SetFindingHidden removes an onboarded agent from the unmanaged agents
 	// list (hidden true) or puts it back (false), on every connection's
 	// finding of it. Hiding fails with utils.ErrShadowNotOnboarded when the
 	// agent is not onboarded, and both fail with gorm.ErrRecordNotFound when

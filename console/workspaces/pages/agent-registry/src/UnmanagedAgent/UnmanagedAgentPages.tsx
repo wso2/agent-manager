@@ -26,12 +26,12 @@ import { useShadowAccess } from "@agent-management-platform/shadow-agent-discove
 import { FindingDetail } from "./FindingDetail";
 import { OnboardFinding } from "./OnboardFinding";
 
-/** The registry's Unregistered tab, where an unregistered agent's Back goes on a direct visit. */
-function unregisteredListPath(orgId: string): string {
+/** The registry's Unmanaged tab, where an unmanaged agent's Back goes on a direct visit. */
+function unmanagedListPath(orgId: string): string {
   const registryPath = generatePath(absoluteRouteMap.children.org.children.agentRegistry.path, {
     orgId,
   });
-  return `${registryPath}?registration=unregistered`;
+  return `${registryPath}?management=unmanaged`;
 }
 
 /**
@@ -53,7 +53,7 @@ function ShadowAccessGate({ manage, children }: { manage?: boolean; children: Re
         <StateNotice
           icon={Lock}
           title="You don't have access to this agent"
-          description="Unregistered agents are found by Shadow Agent Discovery, which is available to organization administrators."
+          description="Unmanaged agents are found by Shadow Agent Discovery, which is available to organization administrators."
         />
       </PageLayout>
     );
@@ -61,8 +61,8 @@ function ShadowAccessGate({ manage, children }: { manage?: boolean; children: Re
   return children;
 }
 
-/** An unregistered agent's page: what its platform reports, the evidence, and onboarding. */
-export function UnregisteredAgentPage() {
+/** An unmanaged agent's page: what its platform reports, the evidence, and onboarding. */
+export function UnmanagedAgentPage() {
   const { orgId = "" } = useParams<{ orgId: string }>();
   const access = useShadowAccess();
   return (
@@ -70,18 +70,18 @@ export function UnregisteredAgentPage() {
       <FindingDetail
         orgName={orgId}
         canManage={access.canManage}
-        listPath={unregisteredListPath(orgId)}
+        listPath={unmanagedListPath(orgId)}
       />
     </ShadowAccessGate>
   );
 }
 
-/** Onboarding an unregistered agent as an external agent. */
-export function UnregisteredAgentOnboardPage() {
+/** Onboarding an unmanaged agent as an external agent. */
+export function UnmanagedAgentOnboardPage() {
   const { orgId = "" } = useParams<{ orgId: string }>();
   return (
     <ShadowAccessGate manage>
-      <OnboardFinding orgName={orgId} listPath={unregisteredListPath(orgId)} />
+      <OnboardFinding orgName={orgId} listPath={unmanagedListPath(orgId)} />
     </ShadowAccessGate>
   );
 }
