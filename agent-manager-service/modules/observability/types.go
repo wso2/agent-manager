@@ -21,8 +21,8 @@ import (
 	"time"
 )
 
-// The response bodies match the Agent Manager Observer's trace endpoints, so
-// the console reads either.
+// A trace or span has the Agent Manager Observer's shape; a list holds its
+// items and its paging state in pagination.
 
 // ErrorResponse is the error body of every route.
 type ErrorResponse struct {
@@ -30,13 +30,26 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-// TraceOverviewResponse is the body of the trace list.
-type TraceOverviewResponse struct {
-	Traces       []TraceOverview `json:"traces"`
-	TotalCount   int             `json:"totalCount"`
-	LookedBackTo string          `json:"lookedBackTo"`
-	Truncated    bool            `json:"truncated"`
-	NextCursor   string          `json:"nextCursor,omitempty"`
+// Pagination is a span list page's size and total.
+type Pagination struct {
+	Limit int `json:"limit"`
+	Total int `json:"total"`
+}
+
+// TracePagination is where a trace search stopped.
+type TracePagination struct {
+	Limit int `json:"limit"`
+	// Total is absent when the server doesn't know it exactly.
+	Total        *int   `json:"total,omitempty"`
+	NextCursor   string `json:"nextCursor,omitempty"`
+	LookedBackTo string `json:"lookedBackTo"`
+	Truncated    bool   `json:"truncated"`
+}
+
+// TraceListResponse is the body of the trace list.
+type TraceListResponse struct {
+	Traces     []TraceOverview `json:"traces"`
+	Pagination TracePagination `json:"pagination"`
 }
 
 // TraceOverview is one trace in the list.
@@ -57,11 +70,10 @@ type TraceOverview struct {
 
 // TraceExportResponse is the body of the trace export.
 type TraceExportResponse struct {
-	Traces         []FullTrace `json:"traces"`
-	TotalCount     int         `json:"totalCount"`
-	Truncated      bool        `json:"truncated"`
-	SpansTruncated bool        `json:"spansTruncated"`
-	FailedTraceIDs []string    `json:"failedTraceIds,omitempty"`
+	Traces         []FullTrace     `json:"traces"`
+	Pagination     TracePagination `json:"pagination"`
+	SpansTruncated bool            `json:"spansTruncated"`
+	FailedTraceIDs []string        `json:"failedTraceIds,omitempty"`
 }
 
 // FullTrace is one exported trace with its spans.
@@ -86,7 +98,7 @@ type TraceStatus struct {
 // SpanListResponse is the body of a trace's span list.
 type SpanListResponse struct {
 	Spans      []SpanSummary `json:"spans"`
-	TotalCount int           `json:"totalCount"`
+	Pagination Pagination    `json:"pagination"`
 }
 
 // SpanSummary is one span in the span list, without attributes.

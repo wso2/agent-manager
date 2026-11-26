@@ -2,9 +2,10 @@ openapi: 3.0.3
 info:
   title: Observability module API
   description: |
-    The observability module's trace routes, under `/m/observability`. They take the
-    Agent Manager Observer's trace paths and response shapes, but serve a subset: the
-    observer's trace filters and `cursor` are refused with 400 (see each operation).
+    The observability module's trace routes, under `/m/observability`. A trace or span
+    has the Agent Manager Observer's shape; a list holds its items and a `pagination`
+    object with the page's paging state. The observer's trace filters and `cursor` are
+    refused with 400 (see each operation).
 
     The organization is always the caller's. An `organization` query parameter, which the
     console sends, is ignored. `project` and `agent` are names in that organization; an
@@ -25,7 +26,7 @@ security:
   - bearerAuth: []
 
 paths:
-  /api/v1/traces:
+  /traces:
     get:
       tags: [traces]
       summary: List traces
@@ -54,7 +55,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TraceOverviewListResponse"
+                $ref: "#/components/schemas/TraceListResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -66,7 +67,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/traces/export:
+  /traces/export:
     get:
       tags: [traces]
       summary: Export traces
@@ -114,7 +115,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/traces/{traceId}/spans:
+  /traces/{traceId}/spans:
     get:
       tags: [traces]
       summary: List spans for a trace
@@ -154,7 +155,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /api/v1/traces/{traceId}/spans/{spanId}:
+  /traces/{traceId}/spans/{spanId}:
     get:
       tags: [traces]
       summary: Get a span
@@ -298,29 +299,56 @@ components:
         message:
           type: string
 
-    TraceOverviewListResponse:
+    Pagination:
       type: object
-      required: [traces, totalCount, lookedBackTo, truncated]
+      required: [limit, total]
+      properties:
+        limit:
+          type: integer
+          description: Maximum items requested for this page
+        total:
+          type: integer
+          description: Spans across all pages
+
+    TracePagination:
+      type: object
+      required: [limit, lookedBackTo, truncated]
+      description: Where a trace search stopped. Pages follow `nextCursor`, not an offset.
+      properties:
+        limit:
+          type: integer
+          description: Maximum traces requested for this page
+        total:
+          type: integer
+          description: Matching traces in the window; absent when the server doesn't know it exactly
+        nextCursor:
+          type: string
+          description: |
+            Opaque cursor for the next page, sent back as `cursor`. Absent when the window ran
+            out. Not set yet: `cursor` is refused until the trace stores support it.
+        lookedBackTo:
+          type: string
+          format: date-time
+          description: |
+            How far the server searched: the start time of the page's last trace when the
+            window holds more, else the window edge (`startTime` for `desc`, `endTime` for `asc`).
+            For display; page with `nextCursor`.
+        truncated:
+          type: boolean
+          description: |
+            True when the server stopped before filling the page and before the window ran
+            out. Always false while trace filters are refused.
+
+    TraceListResponse:
+      type: object
+      required: [traces, pagination]
       properties:
         traces:
           type: array
           items:
             $ref: "#/components/schemas/TraceOverview"
-        totalCount:
-          type: integer
-          description: Traces in the window
-        lookedBackTo:
-          type: string
-          format: date-time
-          description: |
-            The start time of the page's last trace when the window holds more, else the
-            window edge (`startTime` for `desc`, `endTime` for `asc`)
-        truncated:
-          type: boolean
-          description: Always false
-        nextCursor:
-          type: string
-          description: Never set
+        pagination:
+          $ref: "#/components/schemas/TracePagination"
 
     TraceOverview:
       type: object
@@ -350,18 +378,14 @@ components:
 
     TraceExportResponse:
       type: object
-      required: [traces, totalCount, truncated, spansTruncated]
+      required: [traces, pagination, spansTruncated]
       properties:
         traces:
           type: array
           items:
             $ref: "#/components/schemas/FullTrace"
-        totalCount:
-          type: integer
-          description: Traces in the window
-        truncated:
-          type: boolean
-          description: True when `spansTruncated` is
+        pagination:
+          $ref: "#/components/schemas/TracePagination"
         spansTruncated:
           type: boolean
           description: True when an exported trace has more than 1000 spans and its spans were cut
@@ -384,14 +408,14 @@ components:
 
     SpanSummaryListResponse:
       type: object
-      required: [spans, totalCount]
+      required: [spans, pagination]
       properties:
         spans:
           type: array
           items:
             $ref: "#/components/schemas/SpanSummary"
-        totalCount:
-          type: integer
+        pagination:
+          $ref: "#/components/schemas/Pagination"
 
     SpanSummary:
       type: object

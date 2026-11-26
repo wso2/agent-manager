@@ -141,7 +141,7 @@ func (h handlers) traceQuery(r *http.Request, limit int) (store.Scope, window, e
 	return s, win, nil
 }
 
-// listTraces serves GET /api/v1/traces.
+// listTraces serves GET /traces.
 func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
 	s, window, err := h.traceQuery(r, defaultLimit)
 	if err != nil {
@@ -155,18 +155,17 @@ func (h handlers) listTraces(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	resp := TraceOverviewResponse{Traces: make([]TraceOverview, 0, len(page.Traces)), TotalCount: page.Total}
+	resp := TraceListResponse{
+		Traces:     make([]TraceOverview, 0, len(page.Traces)),
+		Pagination: tracePagination(window, page),
+	}
 	for _, t := range page.Traces {
 		resp.Traces = append(resp.Traces, overview(t))
-	}
-	resp.LookedBackTo = formatTime(window.edge())
-	if n := len(page.Traces); n > 0 && n < page.Total {
-		resp.LookedBackTo = formatTime(page.Traces[n-1].StartTime)
 	}
 	h.ok(w, r, resp)
 }
 
-// exportTraces serves GET /api/v1/traces/export: the window's traces, each
+// exportTraces serves GET /traces/export: the window's traces, each
 // with its spans and their attributes.
 func (h handlers) exportTraces(w http.ResponseWriter, r *http.Request) {
 	s, window, err := h.traceQuery(r, defaultExportLimit)
@@ -182,7 +181,10 @@ func (h handlers) exportTraces(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	resp := TraceExportResponse{Traces: make([]FullTrace, 0, len(page.Traces)), TotalCount: page.Total}
+	resp := TraceExportResponse{
+		Traces:     make([]FullTrace, 0, len(page.Traces)),
+		Pagination: tracePagination(window, page),
+	}
 	for _, t := range page.Traces {
 		spans, err := h.traces.QueryTraceSpans(ctx, s, t.TraceID, tracesv1.SpanQuery{
 			Limit: maxExportSpans, SortOrder: "asc", IncludeAttributes: true,
@@ -200,14 +202,13 @@ func (h handlers) exportTraces(w http.ResponseWriter, r *http.Request) {
 		resp.SpansTruncated = resp.SpansTruncated || len(spans.Spans) < spans.Total
 		resp.Traces = append(resp.Traces, full)
 	}
-	resp.Truncated = resp.SpansTruncated
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q",
 		"traces-export-"+time.Now().UTC().Format("20060102-150405")+".json"))
 	w.Header().Set("Cache-Control", "no-store")
 	h.ok(w, r, resp)
 }
 
-// listSpans serves GET /api/v1/traces/{traceId}/spans.
+// listSpans serves GET /traces/{traceId}/spans.
 func (h handlers) listSpans(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	window, err := parseWindow(query, "asc", defaultLimit)
@@ -227,7 +228,10 @@ func (h handlers) listSpans(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	resp := SpanListResponse{Spans: make([]SpanSummary, 0, len(page.Spans)), TotalCount: page.Total}
+	resp := SpanListResponse{
+		Spans:      make([]SpanSummary, 0, len(page.Spans)),
+		Pagination: Pagination{Limit: window.limit, Total: page.Total},
+	}
 	for _, sp := range page.Spans {
 		sum := SpanSummary{
 			SpanID: sp.SpanID, SpanName: sp.SpanName, SpanKind: spanKind(sp.SpanName), ParentSpanID: sp.ParentSpanID,
@@ -241,7 +245,7 @@ func (h handlers) listSpans(w http.ResponseWriter, r *http.Request) {
 	h.ok(w, r, resp)
 }
 
-// getSpan serves GET /api/v1/traces/{traceId}/spans/{spanId}.
+// getSpan serves GET /traces/{traceId}/spans/{spanId}.
 func (h handlers) getSpan(w http.ResponseWriter, r *http.Request) {
 	s, err := h.scope(r, "", "")
 	if err != nil {
@@ -255,6 +259,16 @@ func (h handlers) getSpan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.ok(w, r, toSpan(traceID, *d))
+}
+
+// tracePagination is where a trace page stopped in its window.
+func tracePagination(w window, page *tracesv1.TracePage) TracePagination {
+	total := page.Total
+	p := TracePagination{Limit: w.limit, Total: &total, LookedBackTo: formatTime(w.edge())}
+	if n := len(page.Traces); n > 0 && n < page.Total {
+		p.LookedBackTo = formatTime(page.Traces[n-1].StartTime)
+	}
+	return p
 }
 
 // overview is a trace's list entry.
