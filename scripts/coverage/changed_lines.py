@@ -31,14 +31,6 @@ import os
 import re
 import subprocess
 
-# A function body: a declaration, or a literal assigned or passed somewhere.
-FUNC = re.compile(r"^func\b|[=(,:]\s*func\s*\(", re.M)
-BUILD_TAG = re.compile(r"^//go:build ", re.M)
-# file_GOOS.go, file_GOARCH.go, file_GOOS_GOARCH.go: built on that platform only.
-PLATFORM_FILE = re.compile(
-    r"_(aix|android|darwin|dragonfly|freebsd|illumos|ios|js|netbsd|openbsd|plan9|solaris|wasip1|windows"
-    r"|386|amd64|arm|arm64|loong64|mips\w*|ppc64\w*|riscv64|s390x|wasm)\.go$"
-)
 # Files vitest.coverage.ts excludes, for packages that have no report.
 CONSOLE_EXCLUDED = re.compile(
     r"\.(stories|test|spec)\.|\.d\.ts$|/(test-utils|__test__|__tests__|generated)/|\.generated\.|/generated-"
@@ -149,59 +141,55 @@ def _read_source(path):
             return f.read()
     except FileNotFoundError:
         return None
+    except OSError as e:
+        raise OSError(f"cannot read {path}: {e}") from e
 
 
-def _code_lines(text, lines, import_word):
-    """The given line numbers that hold code: not blank, a comment or an import."""
+def _ts_code_lines(text, lines):
+    """The given line numbers of a TypeScript file that hold code.
+
+    Blank lines, comments and import statements are not code. A rough
+    scan, not a parser: enough to keep comment and import edits in a
+    package with no coverage run from counting as untested.
+    """
     code, in_block, in_import = set(), False, False
     for n, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
-        skip = in_block or in_import or not line or line.startswith(("//", "/*", "package "))
-        if line.startswith("/*") and "*/" not in line:
+        if in_block:
+            if "*/" in line:
+                in_block = False
+            continue
+        bare = line.split("//", 1)[0].rstrip()
+        opened = bare.rfind("/*")
+        if opened >= 0 and "*/" not in bare[opened:]:
             in_block = True
-        elif in_block and "*/" in line:
-            in_block = False
-        if line.startswith(import_word):
-            skip = True
-            in_import = line.rstrip().endswith(("(", "{"))
-        elif in_import and (line.startswith(")") or line.startswith("}")):
-            in_import = False
-        if not skip and n in lines:
+            bare = bare[:opened].rstrip()
+        if in_import:
+            in_import = not bare.startswith("}")
+            continue
+        if bare.startswith("import "):
+            in_import = bare.endswith("{")
+            continue
+        if bare and not bare.startswith("/*") and n in lines:
             code.add(n)
     return code
 
 
-def _untested_go_lines(path, lines):
-    """Changed code lines of a Go file in a package no test run compiled.
-
-    None when the file has nothing a test could cover: it is gone, built
-    for another platform or tag, or holds only types, vars and consts.
-    """
-    text = _read_source(path)
-    if text is None or PLATFORM_FILE.search(path) or BUILD_TAG.search(text) or not FUNC.search(text):
-        return None
-    return {n: False for n in _code_lines(text, lines, "import")}
-
-
-def evaluate_go(changed, coverage, module_dir, excludes, repo_root="."):
+def evaluate_go(changed, coverage, module_dir, excludes):
     """Covered and total coverable changed lines of one Go module."""
     prefix = module_dir.rstrip("/") + "/"
-    profiled_dirs = {os.path.dirname(p) for p in coverage}
     per_file = {}
     for path, lines in changed.items():
         if not path.startswith(prefix) or not path.endswith(".go") or path.endswith("_test.go"):
             continue
         if any(rx.search(path[len(prefix):]) for rx in excludes):
             continue
+        # The coverage runs compile every package (go test ./..., and
+        # -coverpkg=./... for the API's integration runs), tested or not. A
+        # file missing from the profile was not built (a build tag, another
+        # platform, wireinject) or has no statements: nothing to cover.
         if path in coverage:
             per_file[path] = {n: coverage[path][n] for n in lines if n in coverage[path]}
-        elif os.path.dirname(path) not in profiled_dirs:
-            # No test run compiled the package, so its changed code is untested.
-            # A file missing beside profiled ones was left out by a build
-            # constraint (wireinject, another OS) and is not counted.
-            untested = _untested_go_lines(os.path.join(repo_root, path), lines)
-            if untested is not None:
-                per_file[path] = untested
     return _tally(per_file)
 
 
@@ -268,5 +256,5 @@ def evaluate_console(changed, coverage, reported_packages, no_coverage_packages,
             # A package that runs no coverage at all: its changed code is untested.
             text = _read_source(os.path.join(repo_root, path))
             if text is not None:
-                per_file[path] = {n: False for n in _code_lines(text, lines, "import ")}
+                per_file[path] = {n: False for n in _ts_code_lines(text, lines)}
     return _tally(per_file)

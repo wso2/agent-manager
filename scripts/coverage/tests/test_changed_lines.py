@@ -14,11 +14,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import io
 import os
 import re
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -139,7 +141,7 @@ class TestEvaluateGo(unittest.TestCase):
         write(self.root, "svc/types.go", "package x\n\ntype T struct{}\n\nvar Err = 1\n")
 
     def evaluate(self, changed, coverage, excludes=()):
-        return evaluate_go(changed, coverage, "svc", list(excludes), repo_root=self.root)
+        return evaluate_go(changed, coverage, "svc", list(excludes))
 
     def test_test_files_and_non_go_ignored(self):
         changed = {"svc/a_test.go": {1}, "svc/README.md": {1}, "cli/x.go": {1}, "svc/a.go": {2}}
@@ -150,42 +152,16 @@ class TestEvaluateGo(unittest.TestCase):
         res = self.evaluate({"svc/a.go": {1, 2, 3}}, {"svc/a.go": {2: False}})
         self.assertEqual(res, ChangedResult(covered=0, total=1, uncovered={"svc/a.go": [2]}))
 
-    def test_file_missing_from_profile_is_uncovered(self):
-        write(self.root, "svc/b.go", "package x\n\nfunc f() {\n\tg()\n}\n")
-        changed = {"svc/b.go": {4, 3}, "svc/spec/gen.go": {1}, "svc/gone.go": {1}}
-        res = self.evaluate(changed, {}, [re.compile(r"^spec/")])
-        self.assertEqual(res, ChangedResult(covered=0, total=2, uncovered={"svc/b.go": [3, 4]}))
-
-    def test_missing_file_without_functions_not_coverable(self):
-        res = self.evaluate({"svc/types.go": {3, 5}}, {})
+    def test_file_missing_from_profile_not_coverable(self):
+        # The coverage runs compile every package (go test ./..., -coverpkg=./...),
+        # so a file missing from the profile was not built (build tag, other
+        # platform, wireinject) or has no statements (only types, vars, consts).
+        write(self.root, "svc/linux.go", "//go:build linux\n\npackage x\n\nfunc L() {}\n")
+        write(self.root, "svc/lit.go", "package x\n\nvar hs = []func() int{\n\tfunc() int { return 1 },\n}\n")
+        write(self.root, "svc/new/n.go", "package n\n\nfunc F() {\n\tg()\n}\n")
+        changed = {"svc/linux.go": {5}, "svc/lit.go": {3, 4}, "svc/new/n.go": {3, 4}, "svc/gone.go": {1}}
+        res = self.evaluate(changed, {"svc/a.go": {2: True}})
         self.assertEqual(res, ChangedResult(covered=0, total=0, uncovered={}))
-
-    def test_missing_file_beside_profiled_files_not_coverable(self):
-        # wire.go is build-constrained out of `go test`; its package is profiled.
-        write(self.root, "svc/wire.go", "//go:build wireinject\n\npackage x\n\nfunc Build() {}\n")
-        res = self.evaluate({"svc/wire.go": {5}, "svc/a.go": {2}}, {"svc/a.go": {2: True}})
-        self.assertEqual(res, ChangedResult(covered=1, total=1, uncovered={}))
-
-    def test_unprofiled_package_counts_only_code_lines(self):
-        write(self.root, "pkg/new/n.go", "// Package new.\npackage new\n\nimport (\n\t\"fmt\"\n)\n\n// F prints.\nfunc F() {\n\tfmt.Println()\n}\n")
-        res = evaluate_go({"pkg/new/n.go": set(range(1, 12))}, {}, "pkg", [], repo_root=self.root)
-        self.assertEqual(res, ChangedResult(covered=0, total=3, uncovered={"pkg/new/n.go": [9, 10, 11]}))
-
-    def test_function_literal_file_is_code(self):
-        write(self.root, "pkg/lit/h.go", "package lit\n\nvar Handler = func() int {\n\treturn 1\n}\n")
-        res = evaluate_go({"pkg/lit/h.go": {3, 4}}, {}, "pkg", [], repo_root=self.root)
-        self.assertEqual(res.total, 2)
-
-    def test_build_constrained_file_in_unprofiled_package_not_coverable(self):
-        write(self.root, "pkg/sig/s.go", "//go:build windows\n\npackage sig\n\nfunc F() {}\n")
-        write(self.root, "pkg/sig/t_windows.go", "package sig\n\nfunc G() {}\n")
-        res = evaluate_go({"pkg/sig/s.go": {5}, "pkg/sig/t_windows.go": {3}}, {}, "pkg", [], repo_root=self.root)
-        self.assertEqual(res, ChangedResult(covered=0, total=0, uncovered={}))
-
-    def test_unreadable_file_raises(self):
-        os.makedirs(os.path.join(self.root, "pkg/dir.go"))  # a directory: reading it fails
-        with self.assertRaises(OSError):
-            evaluate_go({"pkg/dir.go": {1}}, {}, "pkg", [], repo_root=self.root)
 
     def test_uncovered_lines_listed_sorted(self):
         cov = {"svc/a.go": {9: False, 3: False, 5: True}}
@@ -261,6 +237,32 @@ class TestEvaluateConsole(ConsoleTree):
               "/**\n * Doc.\n */\nimport { a } from \"a\";\n\n// note\nexport const y = a + 1;\n")
         res = self.evaluate({"console/workspaces/libs/fresh/src/y.ts": set(range(1, 8))})
         self.assertEqual(res.uncovered, {"console/workspaces/libs/fresh/src/y.ts": [7]})
+
+    def test_package_without_report_skips_block_comment_after_code(self):
+        write(self.root, "console/workspaces/libs/fresh/src/z.ts",
+              "export const a = 1; /* note\n * more\n */\nexport const b = 2;\n")
+        res = self.evaluate({"console/workspaces/libs/fresh/src/z.ts": {1, 2, 3, 4}})
+        self.assertEqual(res.uncovered, {"console/workspaces/libs/fresh/src/z.ts": [1, 4]})
+
+    def test_package_without_report_skips_import_with_trailing_comment(self):
+        write(self.root, "console/workspaces/libs/fresh/src/w.ts",
+              "import { // shared\n  a,\n  b,\n} from \"x\";\nexport const w = a + b;\n")
+        res = self.evaluate({"console/workspaces/libs/fresh/src/w.ts": {1, 2, 3, 4, 5}})
+        self.assertEqual(res.uncovered, {"console/workspaces/libs/fresh/src/w.ts": [5]})
+
+    def test_read_error_names_the_file(self):
+        path = "console/workspaces/libs/fresh/src/r.ts"
+        write(self.root, path, "export const r = 1;\n")
+
+        class Broken(io.StringIO):
+            def read(self, *args):
+                raise OSError(5, "Input/output error")
+
+        cov, reported = console_line_coverage(self.console, self.root)
+        with mock.patch("changed_lines.open", return_value=Broken(), create=True):
+            with self.assertRaises(OSError) as ctx:
+                evaluate_console({path: {1}}, cov, reported, [], self.root)
+        self.assertIn("r.ts", str(ctx.exception))
 
     def test_package_without_report_skips_tests_and_stories(self):
         changed = {
