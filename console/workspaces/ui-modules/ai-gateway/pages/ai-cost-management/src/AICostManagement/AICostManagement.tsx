@@ -247,7 +247,7 @@ function PricingPage() {
   const { orgId } = useScope();
   return (
     <PageLayout
-      title="Pricing Catalog"
+      title="Pricing catalog"
       description="Model prices the gateways use."
       disableIcon
     >

@@ -106,7 +106,7 @@ export const aiCostManagementPlugin: PluginManifest = {
                 level,
                 section: "cost-management",
                 order: 30,
-                label: "Pricing Catalog",
+                label: "Pricing catalog",
                 icon: Coins,
                 route: orgNav.costManagement.children.pricing,
               },
