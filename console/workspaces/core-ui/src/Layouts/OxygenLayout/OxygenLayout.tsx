@@ -55,10 +55,12 @@ export function OxygenLayout() {
   const navigate = useNavigate();
   const { orgId } = useParams();
   const profileManagementEnabled = useFeatureFlag("enableProfileManagement");
-  const { data: userProfile } = useGetUserProfile({
-    orgName: orgId || "default",
-    userId: userInfo?.sub || "",
-  });
+  // Only for the avatar's picture: a missing profile keeps the initial rather
+  // than popping an error over a page that loaded fine.
+  const { data: userProfile } = useGetUserProfile(
+    { orgName: orgId || "default", userId: userInfo?.sub || "" },
+    { silent: true },
+  );
 
   const externalTopRightComponentModules =
     useExternalComponentModules(MountPoints.TopRightPanel);

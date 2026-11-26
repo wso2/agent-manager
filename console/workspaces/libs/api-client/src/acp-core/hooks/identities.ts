@@ -59,7 +59,7 @@ import type {
   AMPPermissionsResponse,
   IdentityOrgPathParams, UserPathParams, GroupPathParams, RolePathParams,
 } from "@agent-management-platform/types";
-import { useAuthHooks } from "@agent-management-platform/auth";
+import { authMode, useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
 
 // --- Users ---
@@ -158,18 +158,29 @@ export function useDeleteUser() {
   });
 }
 
-/** Shared by the two hooks below so they hit one cache entry, one way. */
+/**
+ * Shared by the two hooks below so they hit one cache entry, one way. Profiles
+ * live in the identity provider, so with file or no sign-in there is none to
+ * read: the token's subject is a username the API cannot look up.
+ */
 function userProfileQuery(params: UserPathParams, getToken: () => Promise<string>) {
   return {
     queryKey: ['identity-user-profile', params] as const,
     queryFn: () => getUserProfile(params, getToken),
-    enabled: !!params.orgName && !!params.userId,
+    enabled: authMode === 'thunder' && !!params.orgName && !!params.userId,
   };
 }
 
-export function useGetUserProfile(params: UserPathParams) {
+/**
+ * The user's profile. `silent` is for a caller that only decorates with it
+ * (an avatar), so a failure leaves the fallback instead of an error snackbar.
+ */
+export function useGetUserProfile(params: UserPathParams, options?: { silent?: boolean }) {
   const { getToken } = useAuthHooks();
-  return useApiQuery<ThunderUser>(userProfileQuery(params, getToken));
+  return useApiQuery<ThunderUser>({
+    ...userProfileQuery(params, getToken),
+    silent: options?.silent,
+  });
 }
 
 /** Reads a name out of a user's profile attributes, if it has one. */

@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   agent: {} as { data?: unknown; isLoading: boolean },
   envs: {} as { environments: { name: string }[]; isLoading: boolean },
   profile: undefined as unknown,
+  profileOptions: [] as unknown[],
   canManageSecrets: true,
 }));
 
@@ -66,7 +67,10 @@ vi.mock("@agent-management-platform/api-client", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useUIManifest: () => uiManifest,
   useRouteAgent: () => mocks.agent,
-  useGetUserProfile: () => ({ data: mocks.profile }),
+  useGetUserProfile: (_params: unknown, options?: unknown) => {
+    mocks.profileOptions.push(options);
+    return { data: mocks.profile };
+  },
   useUpdateUserProfile: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }),
   useListOrganizations: () => ({
     data: { organizations: [{ name: "ns-acme", handle: "acme", displayName: "Acme" }], total: 1 },
@@ -198,6 +202,18 @@ beforeEach(() => {
   delete runtimeConfig.ampVersion;
   delete runtimeConfig.docsUrl;
   delete runtimeConfig.footerLinks;
+});
+
+describe("OxygenLayout profile", () => {
+  // The layout only shows the profile's picture, so a missing profile must not
+  // pop an error over a page that loaded fine.
+  it("reads the profile silently", () => {
+    mocks.profileOptions.length = 0;
+    renderAt("/org/acme/overview", []);
+    expect(mocks.profileOptions.length).toBeGreaterThan(0);
+    const silent = mocks.profileOptions.map((o) => (o as { silent?: boolean })?.silent);
+    expect(silent.every((s) => s === true)).toBe(true);
+  });
 });
 
 describe("OxygenLayout navigation", () => {

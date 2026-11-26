@@ -22,7 +22,9 @@ import {
   invalidatedKeys, renderHook, seed, testQueryClient, waitFor, type RenderedHook,
 } from "../../test-utils/render-hook";
 
-const ui = vi.hoisted(() => ({ pushSnackBar: vi.fn(), getToken: async () => "tok" }));
+const ui = vi.hoisted(() => ({
+  pushSnackBar: vi.fn(), getToken: async () => "tok", authMode: "thunder" as string,
+}));
 const api = vi.hoisted(() => {
   const names = [
     "listUsers", "getUser", "getUserProfile", "createUser", "inviteUser", "updateUser",
@@ -43,6 +45,9 @@ vi.mock("@agent-management-platform/views", () => ({
 }));
 vi.mock("@agent-management-platform/auth", () => ({
   useAuthHooks: () => ({ getToken: ui.getToken, isAuthenticated: true, logout: vi.fn() }),
+  get authMode() {
+    return ui.authMode;
+  },
 }));
 vi.mock("./telemetry", () => ({
   ConsoleAction: {}, markSessionExpired: vi.fn(), useTrack: () => ({ track: vi.fn() }),
@@ -63,6 +68,7 @@ afterEach(() => {
   rendered?.unmount();
   rendered = undefined;
   vi.resetAllMocks();
+  ui.authMode = "thunder";
 });
 
 const org = { orgName: "o" };
@@ -135,6 +141,39 @@ describe("query gating", () => {
       expect(api[fn]).not.toHaveBeenCalled();
     },
   );
+});
+
+// With file sign-in there is no identity provider, so no profile to read: the
+// token's subject is a username the API cannot look up.
+describe("user profile with file sign-in", () => {
+  it.each([
+    ["useGetUserProfile", () => hooks.useGetUserProfile(user)],
+    ["useUserDisplayName", () => hooks.useUserDisplayName(user)],
+  ] as [string, () => unknown][])("%s does not ask for one", async (_name, useHook) => {
+    ui.authMode = "file";
+    await render(useHook);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(api.getUserProfile).not.toHaveBeenCalled();
+  });
+});
+
+describe("useGetUserProfile silent", () => {
+  const failOnce = async (options?: { silent?: boolean }) => {
+    api.getUserProfile.mockRejectedValue(Object.assign(new Error("x"), { status: 500 }));
+    const hook = await render(() => hooks.useGetUserProfile(user, options));
+    await waitFor(() => hook.client.getQueryState(["identity-user-profile", user])?.status === "error");
+    await new Promise((r) => setTimeout(r, 20));
+  };
+
+  it("announces a failure by default", async () => {
+    await failOnce();
+    expect(ui.pushSnackBar).toHaveBeenCalled();
+  });
+
+  it("leaves a failure to the caller, without a snackbar, when silent", async () => {
+    await failOnce({ silent: true });
+    expect(ui.pushSnackBar).not.toHaveBeenCalled();
+  });
 });
 
 const people = (from: number, count: number) =>
