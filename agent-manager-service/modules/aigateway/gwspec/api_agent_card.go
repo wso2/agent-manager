@@ -25,10 +25,14 @@ type AgentCardAPIService service
 type ApiDeleteAgentCardSourceRequest struct {
 	ctx        context.Context
 	ApiService *AgentCardAPIService
-	orgName    string
-	projName   string
 	agentName  string
-	envID      string
+	project    *string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiDeleteAgentCardSourceRequest) Project(project string) ApiDeleteAgentCardSourceRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiDeleteAgentCardSourceRequest) Execute() (*http.Response, error) {
@@ -41,20 +45,14 @@ DeleteAgentCardSource Remove an external agent's card source for an environment
 Deletes the stored card and its source. Idempotent. External agents only.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name
 	@return ApiDeleteAgentCardSourceRequest
 */
-func (a *AgentCardAPIService) DeleteAgentCardSource(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiDeleteAgentCardSourceRequest {
+func (a *AgentCardAPIService) DeleteAgentCardSource(ctx context.Context, agentName string) ApiDeleteAgentCardSourceRequest {
 	return ApiDeleteAgentCardSourceRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -71,16 +69,17 @@ func (a *AgentCardAPIService) DeleteAgentCardSourceExecute(r ApiDeleteAgentCardS
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/agent-card/source"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -183,10 +182,14 @@ func (a *AgentCardAPIService) DeleteAgentCardSourceExecute(r ApiDeleteAgentCardS
 type ApiGetAgentCardRequest struct {
 	ctx        context.Context
 	ApiService *AgentCardAPIService
-	orgName    string
-	projName   string
 	agentName  string
-	envID      string
+	project    *string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiGetAgentCardRequest) Project(project string) ApiGetAgentCardRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiGetAgentCardRequest) Execute() (*AgentCardResponse, *http.Response, error) {
@@ -199,20 +202,14 @@ GetAgentCard Get an A2A agent's stored agent card for an environment
 Returns the last good public agent card the platform fetched, and the state of the current fetch. Returns 404 when no fetch was ever queued for the environment; refreshing queues one.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name
 	@return ApiGetAgentCardRequest
 */
-func (a *AgentCardAPIService) GetAgentCard(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiGetAgentCardRequest {
+func (a *AgentCardAPIService) GetAgentCard(ctx context.Context, agentName string) ApiGetAgentCardRequest {
 	return ApiGetAgentCardRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -232,16 +229,17 @@ func (a *AgentCardAPIService) GetAgentCardExecute(r ApiGetAgentCardRequest) (*Ag
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/agent-card"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return localVarReturnValue, nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -331,10 +329,14 @@ func (a *AgentCardAPIService) GetAgentCardExecute(r ApiGetAgentCardRequest) (*Ag
 type ApiRefreshAgentCardRequest struct {
 	ctx        context.Context
 	ApiService *AgentCardAPIService
-	orgName    string
-	projName   string
 	agentName  string
-	envID      string
+	project    *string
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiRefreshAgentCardRequest) Project(project string) ApiRefreshAgentCardRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiRefreshAgentCardRequest) Execute() (*http.Response, error) {
@@ -347,20 +349,14 @@ RefreshAgentCard Re-fetch an A2A agent's card
 Queues a fetch of the agent card. The stored card is kept until the new fetch succeeds.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name
 	@return ApiRefreshAgentCardRequest
 */
-func (a *AgentCardAPIService) RefreshAgentCard(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiRefreshAgentCardRequest {
+func (a *AgentCardAPIService) RefreshAgentCard(ctx context.Context, agentName string) ApiRefreshAgentCardRequest {
 	return ApiRefreshAgentCardRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -377,16 +373,17 @@ func (a *AgentCardAPIService) RefreshAgentCardExecute(r ApiRefreshAgentCardReque
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/refresh"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/agent-card/refresh"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 
@@ -478,11 +475,15 @@ func (a *AgentCardAPIService) RefreshAgentCardExecute(r ApiRefreshAgentCardReque
 type ApiSetAgentCardSourceRequest struct {
 	ctx                       context.Context
 	ApiService                *AgentCardAPIService
-	orgName                   string
-	projName                  string
 	agentName                 string
-	envID                     string
+	project                   *string
 	setAgentCardSourceRequest *SetAgentCardSourceRequest
+}
+
+// Handle of the project the agent belongs to.
+func (r ApiSetAgentCardSourceRequest) Project(project string) ApiSetAgentCardSourceRequest {
+	r.project = &project
+	return r
 }
 
 func (r ApiSetAgentCardSourceRequest) SetAgentCardSourceRequest(setAgentCardSourceRequest SetAgentCardSourceRequest) ApiSetAgentCardSourceRequest {
@@ -500,20 +501,14 @@ SetAgentCardSource Register an external agent's card URL for an environment
 Sets the URL the platform fetches the card from and queues a fetch. External agents only.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param projName Project name
 	@param agentName Agent name
-	@param envID Environment name
 	@return ApiSetAgentCardSourceRequest
 */
-func (a *AgentCardAPIService) SetAgentCardSource(ctx context.Context, orgName string, projName string, agentName string, envID string) ApiSetAgentCardSourceRequest {
+func (a *AgentCardAPIService) SetAgentCardSource(ctx context.Context, agentName string) ApiSetAgentCardSourceRequest {
 	return ApiSetAgentCardSourceRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
-		projName:   projName,
 		agentName:  agentName,
-		envID:      envID,
 	}
 }
 
@@ -530,19 +525,20 @@ func (a *AgentCardAPIService) SetAgentCardSourceExecute(r ApiSetAgentCardSourceR
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
+	localVarPath := localBasePath + "/agents/{agentName}/agent-card/source"
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
+	if r.project == nil {
+		return nil, reportError("project is required and must be specified")
+	}
 	if r.setAgentCardSourceRequest == nil {
 		return nil, reportError("setAgentCardSourceRequest is required and must be specified")
 	}
 
+	parameterAddToHeaderOrQuery(localVarQueryParams, "project", r.project, "")
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
 

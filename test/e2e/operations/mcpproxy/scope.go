@@ -26,10 +26,18 @@ import (
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
 
-func CreateScope(ctx context.Context, g Gomega, client *framework.AMPClient, orgName, proxyID string, request framework.MCPProxyScopeRequest) framework.MCPProxyScopeResponse {
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/%s/scopes", orgName, proxyID)
-	response, err := client.PostWithContext(ctx, path, request)
+// CreateScope adds a tool scope to an MCP proxy. The action naming the scope is the
+// document's metadata.name; spec carries its description and tool bindings.
+func CreateScope(ctx context.Context, g Gomega, client *framework.AMPClient, proxyID, action string, spec framework.MCPProxyScopeSpec) framework.MCPProxyScopeDocument {
+	doc := framework.MCPProxyScopeDocument{
+		APIVersion: framework.MCPProxyAPIVersion,
+		Kind:       framework.MCPProxyScopeKind,
+		Metadata:   framework.DocumentMetadata{Name: action},
+		Spec:       spec,
+	}
+	path := fmt.Sprintf("/m/ai-gateway/mcp-proxies/%s/scopes", proxyID)
+	response, err := client.PostWithContext(ctx, path, doc)
 	g.Expect(err).NotTo(HaveOccurred(), "create MCP scope request failed")
 	defer response.Body.Close()
-	return framework.ExpectStatusAndDecode[framework.MCPProxyScopeResponse](g, response, http.StatusCreated)
+	return framework.ExpectStatusAndDecode[framework.MCPProxyScopeDocument](g, response, http.StatusCreated)
 }

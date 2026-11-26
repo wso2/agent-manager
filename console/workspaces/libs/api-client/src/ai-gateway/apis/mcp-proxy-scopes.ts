@@ -18,18 +18,23 @@
 
 import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 import type {
+  MCPProxyScopeDocument,
+  MCPProxyScopeDocumentList,
   MCPProxyScopeListResponse,
   MCPProxyScopeRequest,
   MCPProxyScopeResponse,
+  MCPProxyScopeSpec,
   MCPProxyScopeUpdateRequest,
   MCPProxyScopesPathParams,
   MCPProxyScopePathParams,
 } from "@agent-management-platform/types";
 
-// Both are required: a missing one would request another org's, or
-// `/mcp-proxies/undefined/`, scopes.
-const scopesBase = (orgName: string | undefined, proxyId: string | undefined) =>
-  `${GATEWAY_BASE}/orgs/${encodeRequired(orgName, "orgName")}/mcp-proxies/${encodeRequired(proxyId, "proxyId")}/scopes`;
+const API_VERSION = "ai-control-plane.choreolabs.com/v1";
+const KIND = "McpProxyScope";
+
+// Required: a missing proxy would request `/mcp-proxies/undefined/scopes`.
+const scopesBase = (proxyId: string | undefined) =>
+  `${GATEWAY_BASE}/mcp-proxies/${encodeRequired(proxyId, "proxyId")}/scopes`;
 
 /**
  * List an MCP proxy's scopes
@@ -37,10 +42,9 @@ const scopesBase = (orgName: string | undefined, proxyId: string | undefined) =>
 export async function listMCPProxyScopes(
   params: MCPProxyScopesPathParams,
   getToken?: () => Promise<string>,
-): Promise<MCPProxyScopeListResponse> {
-  const { orgName, proxyId } = params;
+): Promise<MCPProxyScopeDocumentList> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(scopesBase(orgName, proxyId), { token });
+  const res = await httpGET(scopesBase(params.proxyId), { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -50,12 +54,11 @@ export async function listMCPProxyScopes(
  */
 export async function createMCPProxyScope(
   params: MCPProxyScopesPathParams,
-  body: MCPProxyScopeRequest,
+  body: MCPProxyScopeDocument,
   getToken?: () => Promise<string>,
-): Promise<MCPProxyScopeResponse> {
-  const { orgName, proxyId } = params;
+): Promise<MCPProxyScopeDocument> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(scopesBase(orgName, proxyId), body, { token });
+  const res = await httpPOST(scopesBase(params.proxyId), body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -66,13 +69,12 @@ export async function createMCPProxyScope(
  */
 export async function updateMCPProxyScope(
   params: MCPProxyScopePathParams,
-  body: MCPProxyScopeUpdateRequest,
+  body: MCPProxyScopeDocument,
   getToken?: () => Promise<string>,
-): Promise<MCPProxyScopeResponse> {
-  const { orgName, proxyId, scopeAction } = params;
-  const action = encodeRequired(scopeAction, "scopeAction");
+): Promise<MCPProxyScopeDocument> {
+  const action = encodeRequired(params.scopeAction, "scopeAction");
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPUT(`${scopesBase(orgName, proxyId)}/${action}`, body, { token });
+  const res = await httpPUT(`${scopesBase(params.proxyId)}/${action}`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -84,9 +86,45 @@ export async function deleteMCPProxyScope(
   params: MCPProxyScopePathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName, proxyId, scopeAction } = params;
-  const action = encodeRequired(scopeAction, "scopeAction");
+  const action = encodeRequired(params.scopeAction, "scopeAction");
   const token = getToken ? await getToken() : undefined;
-  const res = await httpDELETE(`${scopesBase(orgName, proxyId)}/${action}`, { token });
+  const res = await httpDELETE(`${scopesBase(params.proxyId)}/${action}`, { token });
   if (!res.ok && res.status !== 204) throw await res.json();
+}
+
+// The UI works on a flat scope; these convert it to and from the document the API serves.
+
+export function scopeFromDocument(doc: MCPProxyScopeDocument): MCPProxyScopeResponse {
+  const { metadata, spec } = doc;
+  return {
+    action: metadata.name,
+    scope: spec.scope ?? "",
+    description: spec.description,
+    tools: spec.tools ?? [],
+    createdAt: metadata.creationTimestamp,
+    updatedAt: metadata.updateTimestamp,
+  };
+}
+
+export function scopeListFromDocuments(list: MCPProxyScopeDocumentList): MCPProxyScopeListResponse {
+  return { scopes: list.list.map(scopeFromDocument) };
+}
+
+export function documentFromScopeRequest(body: MCPProxyScopeRequest): MCPProxyScopeDocument {
+  const { action, ...spec } = body;
+  return { apiVersion: API_VERSION, kind: KIND, metadata: { name: action }, spec };
+}
+
+/**
+ * The update document. The action is immutable, so it comes from the path; an omitted `tools`
+ * stays omitted, which leaves the scope's tool list alone.
+ */
+export function documentFromScopeUpdate(
+  action: string,
+  body: MCPProxyScopeUpdateRequest,
+): MCPProxyScopeDocument {
+  const spec: MCPProxyScopeSpec = {};
+  if (body.description !== undefined) spec.description = body.description;
+  if (body.tools !== undefined) spec.tools = body.tools;
+  return { apiVersion: API_VERSION, kind: KIND, metadata: { name: action }, spec };
 }

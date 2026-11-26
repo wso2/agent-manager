@@ -37,41 +37,35 @@ import (
 )
 
 var _ = Describe("External agent registration:", Label("agent", "external-agent", "cli"), Ordered, func() {
-	var agentName, envUUID string
+	var agentName string
 	proj := framework.E2ESharedProjectName
-	core := func(f string) string { return framework.API(Cfg, "/projects/%s/agents/%s"+f, proj, agentName) }
-	gw := func(f string, a ...any) string {
-		return framework.GW(Cfg, "/projects/%s/agents/%s"+f, append([]any{proj, agentName}, a...)...)
-	}
+	gw := func(f string, a ...any) string { return framework.GWAgent(proj, agentName, f, a...) }
 
 	BeforeAll(func() {
 		agentName = framework.E2EAgentPrefix + uuid.NewString()[:8]
-		for _, e := range framework.CallJSON[framework.EnvironmentListResponse](Default, Client, http.MethodGet, framework.API(Cfg, "/environments"), nil, http.StatusOK) {
-			if e.Name == Cfg.DefaultEnv {
-				envUUID = e.ID
-			}
-		}
 		DeferCleanup(func() { agentops.DeleteAgentBestEffort(Client, Cfg.DefaultOrg, proj, agentName) })
 	})
 
 	It("registers the agent with amctl, which the API then reads", func() {
 		res := cliagent.CreateExternalAgent(Default, H, H.Org(), proj, agentName, "CLI agent", "registered by amctl")
-		Expect(res.Agent.Name).To(Equal(agentName))
-		Expect(res.Agent.Provisioning.Type).To(Equal("external"))
+		Expect(res.Agent.Metadata.Name).To(Equal(agentName))
+		Expect(res.Agent.Spec.Provisioning.Type).To(Equal("external"))
 
-		got := framework.CallJSON[framework.AgentResponse](Default, Client, http.MethodGet, core(""), nil, http.StatusOK)
-		Expect(got.DisplayName).To(Equal("CLI agent"))
-		list := framework.CallObj(Default, Client, http.MethodGet, framework.API(Cfg, "/projects/%s/agents", proj), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(list, "agents"), "name")).To(ContainElement(agentName))
+		got := agentops.GetAgent(Default, Client, Cfg.DefaultOrg, proj, agentName)
+		Expect(got.Spec.DisplayName).To(Equal("CLI agent"))
+		Expect(agentops.ListAgents(Default, Client, Cfg.DefaultOrg, proj).List).To(ContainElement(
+			HaveField("Metadata.Name", agentName)))
 
-		framework.CallError(Default, Client, http.MethodPost, framework.API(Cfg, "/projects/%s/agents", proj),
-			framework.NewExternalAgentRequest(agentName, "duplicate"), http.StatusConflict)
+		framework.CallError(Default, Client, http.MethodPost, "/api/v1/agents",
+			framework.NewExternalAgentRequest(agentName, "duplicate").Document(proj), http.StatusConflict)
 	})
 
 	It("edits the agent through the API, which amctl then shows", func() {
-		framework.Call(Default, Client, http.MethodPut, core(""),
-			framework.Obj{"displayName": "Edited agent", "description": "edited"}, http.StatusOK)
-		Expect(cliagent.GetAgent(Default, H, H.Org(), proj, agentName).DisplayName).To(Equal("Edited agent"))
+		edited := agentops.GetAgent(Default, Client, Cfg.DefaultOrg, proj, agentName)
+		edited.Status = nil
+		edited.Spec.DisplayName, edited.Spec.Description = "Edited agent", "edited"
+		framework.Call(Default, Client, http.MethodPut, agentops.AgentPath(proj, agentName), edited, http.StatusOK)
+		Expect(cliagent.GetAgent(Default, H, H.Org(), proj, agentName).Spec.DisplayName).To(Equal("Edited agent"))
 		Expect(cliagent.ListAgents(Default, H, H.Org(), proj).Names()).To(ContainElement(agentName))
 	})
 
@@ -84,56 +78,56 @@ var _ = Describe("External agent registration:", Label("agent", "external-agent"
 		Expect(tok.ExpiresAt).To(BeNumerically(">", tok.IssuedAt))
 
 		framework.CallError(Default, Client, http.MethodPost,
-			framework.API(Cfg, "/projects/%s/agents/%s/token", proj, framework.E2EAgentPrefix+"absent00"), framework.TokenRequest{ExpiresIn: "1h"}, http.StatusNotFound)
+			"/api/v1/agents/"+framework.E2EAgentPrefix+"absent00/token?project="+proj, framework.TokenRequest{ExpiresIn: "1h"}, http.StatusNotFound)
 	})
 
 	It("shows where the agent runs and what the gateway provisions for it", func() {
 		deps := framework.CallObj(Default, Client, http.MethodGet, gw("/deployments"), nil, http.StatusOK)
 		Expect(deps).To(HaveKey(Cfg.DefaultEnv))
-		conf := framework.CallObj(Default, Client, http.MethodGet, gw("/configurations?environment=%s", Cfg.DefaultEnv), nil, http.StatusOK)
+		conf := framework.CallObj(Default, Client, http.MethodGet, gw("/configurations"), nil, http.StatusOK)
 		Expect(conf["agentName"]).To(Equal(agentName))
 	})
 
 	It("refuses gateway settings and keys until the agent is routed through the gateway", func() {
 		framework.CallError(Default, Client, http.MethodPut, gw("/deploy-settings"),
-			framework.Obj{"environmentName": Cfg.DefaultEnv, "enableApiKeySecurity": true}, http.StatusBadRequest)
-		framework.CallError(Default, Client, http.MethodPost, gw("/environments/%s/api-keys", envUUID), framework.Obj{"displayName": "k"}, http.StatusNotFound)
-		framework.CallError(Default, Client, http.MethodGet, gw("/environments/%s/api-keys", envUUID), nil, http.StatusNotFound)
-		framework.CallError(Default, Client, http.MethodPost, gw("/environments/%s/api-keys/test", envUUID), framework.Obj{}, http.StatusNotFound)
+			framework.Obj{"enableApiKeySecurity": true}, http.StatusBadRequest)
+		framework.CallError(Default, Client, http.MethodPost, gw("/api-keys"), framework.Obj{"displayName": "k"}, http.StatusNotFound)
+		framework.CallError(Default, Client, http.MethodGet, gw("/api-keys"), nil, http.StatusNotFound)
+		framework.CallError(Default, Client, http.MethodPost, gw("/api-keys/test"), framework.Obj{}, http.StatusNotFound)
 
 		// The card source is fetched server-side, so a private address is refused.
-		framework.CallError(Default, Client, http.MethodPut, gw("/environments/%s/agent-card/source", Cfg.DefaultEnv),
+		framework.CallError(Default, Client, http.MethodPut, gw("/agent-card/source"),
 			framework.Obj{"url": "http://127.0.0.1:9/.well-known/agent-card.json"}, http.StatusBadRequest)
-		status, _ := framework.Send(Default, Client, http.MethodPut, gw("/environments/%s/a2a-proxy", Cfg.DefaultEnv), framework.Obj{})
+		status, _ := framework.Send(Default, Client, http.MethodPut, gw("/a2a-proxy"), framework.Obj{})
 		Expect(status).To(BeNumerically(">=", 400), "an A2A proxy needs a card source")
 		for _, call := range []struct{ method, path string }{
-			{http.MethodPost, gw("/environments/%s/a2a-proxy/refresh", Cfg.DefaultEnv)},
-			{http.MethodPost, gw("/environments/%s/agent-card/refresh", Cfg.DefaultEnv)},
-			{http.MethodPut, gw("/environments/%s/api-keys/e2e-absent-key", envUUID)},
-			{http.MethodDelete, gw("/environments/%s/api-keys/e2e-absent-key", envUUID)},
+			{http.MethodPost, gw("/a2a-proxy/refresh")},
+			{http.MethodPost, gw("/agent-card/refresh")},
+			{http.MethodPut, gw("/api-keys/e2e-absent-key")},
+			{http.MethodDelete, gw("/api-keys/e2e-absent-key")},
 		} {
 			status, body := framework.Send(Default, Client, call.method, call.path, framework.Obj{})
 			Expect(status).To(BeNumerically(">=", 400), "%s %s: %s", call.method, call.path, body)
 			Expect(status).To(BeNumerically("<", 500), "%s %s: %s", call.method, call.path, body)
 		}
 		// Reads say there is no card or proxy yet; removing them is idempotent.
-		for _, p := range []string{gw("/environments/%s/agent-card", Cfg.DefaultEnv), gw("/environments/%s/a2a-proxy", Cfg.DefaultEnv)} {
+		for _, p := range []string{gw("/agent-card"), gw("/a2a-proxy")} {
 			status, body := framework.Send(Default, Client, http.MethodGet, p, nil)
 			Expect(status).To(BeNumerically("<", 500), "GET %s: %s", p, body)
 		}
-		for _, p := range []string{gw("/environments/%s/agent-card/source", Cfg.DefaultEnv), gw("/environments/%s/a2a-proxy", Cfg.DefaultEnv)} {
+		for _, p := range []string{gw("/agent-card/source"), gw("/a2a-proxy")} {
 			status, body := framework.Send(Default, Client, http.MethodDelete, p, nil)
 			Expect(status).To(BeNumerically("<", 500), "DELETE %s: %s", p, body)
 		}
 
 		// Nothing was set up by the refused calls.
-		conf := framework.CallObj(Default, Client, http.MethodGet, gw("/configurations?environment=%s", Cfg.DefaultEnv), nil, http.StatusOK)
+		conf := framework.CallObj(Default, Client, http.MethodGet, gw("/configurations"), nil, http.StatusOK)
 		Expect(conf["bindings"]).To(BeEmpty())
 	})
 
 	It("deletes the agent with amctl, after which the API can't find it", func() {
 		Expect(cliagent.DeleteAgent(Default, H, H.Org(), proj, agentName).Deleted).To(BeTrue())
-		framework.CallError(Default, Client, http.MethodGet, core(""), nil, http.StatusNotFound)
+		framework.CallError(Default, Client, http.MethodGet, agentops.AgentPath(proj, agentName), nil, http.StatusNotFound)
 		Expect(cliagent.GetAgentExpectError(Default, H, H.Org(), proj, agentName).Status).To(Equal(http.StatusNotFound))
 	})
 })

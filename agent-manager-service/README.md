@@ -38,7 +38,6 @@ agent-manager-service/
 ├── wiring/                   # Dependency injection
 ├── .air.toml                 # Air hot-reload configuration
 ├── .env                      # Environment variables (development)
-├── amp.example.yaml          # Example amp.yaml
 ├── Dockerfile                # Production container build
 ├── Dockerfile.dev            # Development container with hot-reload
 ├── go.mod                    # Go module definition
@@ -75,7 +74,7 @@ SQLite is the default: set `DB_PATH` to the database file. For PostgreSQL, set `
 
 ### 4. Configurations
 <!-- Update this section when adding new configs-->
-The service reads its settings from environment variables, and from an optional `amp.yaml` for anything the environment leaves unset (`--config`, else `$AMP_CONFIG`, else `./amp.yaml`). YAML keys are the variable names nested by `_`; see [amp.example.yaml](amp.example.yaml). A value can be a reference, `${env:NAME}` or `${file:/path}` with an optional `:-default`, and any setting can be read from a file with `<SETTING>_FILE` (`<setting>_file` in the YAML). The file also takes the `modules:` list the server reconciles at boot. For development, create a `.env` file in the project root:
+The service reads its settings from environment variables, and from an optional `amp.yaml` for anything the environment leaves unset (`--config`, else `$AMP_CONFIG`, else `./amp.yaml`). YAML keys are the variable names nested by `_`; the [configuration reference](../docs/amp-lite/configuration.md) lists every key, and [deployments/standalone/amp.yaml](../deployments/standalone/amp.yaml) is a working file to start from. A value can be a reference, `${env:NAME}` or `${file:/path}` with an optional `:-default`, and any setting can be read from a file with `<SETTING>_FILE` (`<setting>_file` in the YAML). The file also takes the `modules:` list the server reconciles at boot. For development, create a `.env` file in the project root:
 
 
 | **Key**                            | **Description**                                           |
@@ -221,9 +220,9 @@ The API is documented using OpenAPI 3.0 specification in `docs/api_v1_openapi.ya
 
 The service provides JWT-based authentication for external agents:
 
-- **Token Generation**: `POST /api/v1/orgs/{orgName}/projects/{projName}/agents/{agentName}/token`
+- **Token Generation**: `POST /api/v1/agents/{agentName}/token?project={projName}`
   - Generate a signed JWT token for an agent
-  - Optional parameters: `environment` (query), `expires_in` (body)
+  - Required parameter: `project` (query). Optional parameters: `environment` (query), `expires_in` (body)
   - Returns a Bearer token with configurable expiry
 
 - **JWKS Endpoint**: `GET /auth/external/jwks.json`

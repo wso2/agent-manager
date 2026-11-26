@@ -21,30 +21,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
-func ConvertToAgentListResponse(components []*models.AgentResponse) []spec.AgentResponse {
-	if len(components) == 0 {
-		return []spec.AgentResponse{}
-	}
-	responses := make([]spec.AgentResponse, len(components))
-	for i, component := range components {
-		responses[i] = ConvertToAgentResponse(component)
-	}
-	return responses
-}
-
-func ConvertToAgentSummaryListResponse(summaries []*models.AgentSummary) []spec.AgentSummary {
-	responses := make([]spec.AgentSummary, len(summaries))
-	for i, summary := range summaries {
-		responses[i] = spec.AgentSummary{
-			Name:               summary.Name,
-			DisplayName:        summary.DisplayName,
-			ProjectName:        summary.ProjectName,
-			ProjectDisplayName: summary.ProjectDisplayName,
-		}
-	}
-	return responses
-}
-
 func ConvertToAgentResponse(component *models.AgentResponse) spec.AgentResponse {
 	if component == nil {
 		return spec.AgentResponse{}

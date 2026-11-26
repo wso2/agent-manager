@@ -143,51 +143,41 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 			ProjectName: framework.E2ESharedProjectName,
 			Request:     createReq,
 		})
-		Expect(ag.Name).To(Equal(agentName))
-		Expect(ag.Provisioning.Type).To(Equal("external"))
-		Expect(ag.AgentType.Type).To(Equal("external-agent-api"))
-		Expect(ag.AgentType.SubType).To(Equal("custom-api"))
+		Expect(ag.Metadata.Name).To(Equal(agentName))
+		Expect(ag.Spec.Provisioning.Type).To(Equal("external"))
+		Expect(ag.Spec.AgentType.Type).To(Equal("external-agent-api"))
+		Expect(ag.Spec.AgentType.SubType).To(Equal("custom-api"))
 		GinkgoWriter.Printf("External agent: %s\n", agentName)
 	})
 
 	It("creates a model config and returns the LLM proxy credentials", func() {
 		By("Creating model config — this auto-creates the LLM proxy and returns credentials")
-		config := configuration.CreateAgentModelConfig(Default, Client,
-			Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName,
-			framework.CreateAgentModelConfigRequest{
-				Name: "e2e-test-llmprov-config-" + suffix,
-				Type: "llm",
-				EnvMappings: map[string]framework.EnvModelConfigRequest{
-					Cfg.DefaultEnv: {
-						ProviderName: providerID,
-					},
-				},
-			})
-		Expect(config.UUID).NotTo(BeEmpty())
-		modelConfigID = config.UUID
+		config := configuration.CreateAgentModelConfig(Default, Client, framework.E2ESharedProjectName, agentName,
+			framework.NewModelConfigDocument(framework.E2ESharedProjectName, "e2e-test-llmprov-config-"+suffix, providerID))
+		Expect(config.Metadata.UID).NotTo(BeEmpty())
+		modelConfigID = config.Metadata.UID
 
 		By("Extracting proxy URL, API key, and auth header from response")
-		envMapping, exists := config.EnvMappings[Cfg.DefaultEnv]
-		Expect(exists).To(BeTrue(), "expected env mapping for %s", Cfg.DefaultEnv)
-		Expect(envMapping.Configuration).NotTo(BeNil(), "expected configuration in env mapping")
+		Expect(config.Status).NotTo(BeNil(), "expected the binding's status")
+		status := config.Status
 
-		proxyUUID = envMapping.Configuration.ProxyUuid
-		proxyURL = envMapping.Configuration.URL
+		proxyUUID = status.ProxyUuid
+		proxyURL = status.URL
 		Expect(proxyUUID).NotTo(BeEmpty(), "proxy UUID should be set")
 		Expect(proxyURL).NotTo(BeEmpty(), "proxy URL should be set")
 
-		Expect(envMapping.Configuration.AuthInfo).NotTo(BeNil(), "expected authInfo with API key")
-		Expect(envMapping.Configuration.AuthInfo.Value).NotTo(BeNil(), "expected API key value")
-		proxyAPIKey = *envMapping.Configuration.AuthInfo.Value
-		Expect(envMapping.Configuration.AuthInfo.In).To(Equal("header"), "expected the proxy API key in a header")
-		Expect(envMapping.Configuration.AuthInfo.Name).NotTo(BeEmpty(), "expected the proxy API key header name")
-		proxyAuthName = envMapping.Configuration.AuthInfo.Name
+		Expect(status.AuthInfo).NotTo(BeNil(), "expected authInfo with API key")
+		Expect(status.AuthInfo.Value).NotTo(BeNil(), "expected API key value")
+		proxyAPIKey = *status.AuthInfo.Value
+		Expect(status.AuthInfo.In).To(Equal("header"), "expected the proxy API key in a header")
+		Expect(status.AuthInfo.Name).NotTo(BeEmpty(), "expected the proxy API key header name")
+		proxyAuthName = status.AuthInfo.Name
 
 		GinkgoWriter.Printf("Model config: %s\n  Proxy UUID: %s\n  URL: %s\n  Auth: %s in %s header %s\n",
-			config.UUID, proxyUUID, proxyURL,
-			envMapping.Configuration.AuthInfo.Type,
-			envMapping.Configuration.AuthInfo.In,
-			envMapping.Configuration.AuthInfo.Name)
+			config.Metadata.UID, proxyUUID, proxyURL,
+			status.AuthInfo.Type,
+			status.AuthInfo.In,
+			status.AuthInfo.Name)
 	})
 
 	It("invokes the LLM proxy endpoint successfully", func() {
@@ -231,36 +221,29 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 	It("adds a content-length guardrail to the model config", func() {
 		Expect(modelConfigID).NotTo(BeEmpty(), "model config ID must be set")
 
-		configuration.UpdateAgentModelConfig(Default, Client,
-			Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, modelConfigID,
-			framework.UpdateAgentModelConfigRequest{
-				EnvMappings: map[string]framework.EnvModelConfigRequest{
-					Cfg.DefaultEnv: {
-						ProviderName: providerID,
-						Configuration: map[string]interface{}{
-							"policies": []map[string]interface{}{
-								{
-									"name":    "content-length-guardrail",
-									"version": "v1.0.1",
-									"paths": []map[string]interface{}{
-										{
-											"path":    "/*",
-											"methods": []string{"POST"},
-											"params": map[string]interface{}{
-												"request": map[string]interface{}{
-													"enabled": true,
-													"min":     0,
-													"max":     1,
-												},
-											},
-										},
-									},
+		cfg := configuration.GetAgentModelConfig(Default, Client, framework.E2ESharedProjectName, agentName, modelConfigID)
+		cfg.Spec.Configuration = map[string]interface{}{
+			"policies": []map[string]interface{}{
+				{
+					"name":    "content-length-guardrail",
+					"version": "v1.0.1",
+					"paths": []map[string]interface{}{
+						{
+							"path":    "/*",
+							"methods": []string{"POST"},
+							"params": map[string]interface{}{
+								"request": map[string]interface{}{
+									"enabled": true,
+									"min":     0,
+									"max":     1,
 								},
 							},
 						},
 					},
 				},
-			})
+			},
+		}
+		configuration.UpdateAgentModelConfig(Default, Client, framework.E2ESharedProjectName, agentName, modelConfigID, cfg)
 		GinkgoWriter.Printf("Model config updated with content-length-guardrail (maxBytes: 10)\n")
 	})
 
@@ -332,10 +315,9 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 			Skip("OPENAI_API_KEY is not set (pull requests from forks get no secrets)")
 		}
 		By("Removing the guardrail")
-		configuration.UpdateAgentModelConfig(Default, Client, Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, modelConfigID,
-			framework.UpdateAgentModelConfigRequest{EnvMappings: map[string]framework.EnvModelConfigRequest{
-				Cfg.DefaultEnv: {ProviderName: providerID},
-			}})
+		unguarded := configuration.GetAgentModelConfig(Default, Client, framework.E2ESharedProjectName, agentName, modelConfigID)
+		unguarded.Spec.Configuration = map[string]any{}
+		configuration.UpdateAgentModelConfig(Default, Client, framework.E2ESharedProjectName, agentName, modelConfigID, unguarded)
 
 		By("Rotating the upstream key on the provider")
 		doc := llmproviderop.GetLLMProvider(Default, Client, providerID)

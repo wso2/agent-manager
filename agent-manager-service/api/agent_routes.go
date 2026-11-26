@@ -24,29 +24,28 @@ import (
 )
 
 func registerAgentRoutes(rr *middleware.RouteRegistrar, ctrl controllers.AgentController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents", rbac.AgentCreate,
+	rr.HandleFuncWithValidationAndAuthz("POST /agents", rbac.AgentCreate,
 		growthanalytics.Track("amp.agent-development.create-agent", actionDims("created-agent"), ctrl.CreateAgent))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents", rbac.AgentRead, ctrl.ListAgents)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/agents", rbac.AgentRead, ctrl.ListOrgAgents)
+	rr.HandleFuncWithValidationAndAuthz("GET /agents", rbac.AgentRead, ctrl.ListAgents)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/utils/generate-name", rbac.AgentCreate, ctrl.GenerateName)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}", rbac.AgentRead, ctrl.GetAgent)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}", rbac.AgentUpdate,
+	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}", rbac.AgentRead, ctrl.GetAgent)
+	rr.HandleFuncWithValidationAndAuthz("PUT /agents/{agentName}", rbac.AgentUpdate,
 		growthanalytics.Track("amp.agent-development.update-agent", updateTargetDims("basic-info"), ctrl.UpdateAgentBasicInfo))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}", rbac.AgentDelete,
+	rr.HandleFuncWithValidationAndAuthz("DELETE /agents/{agentName}", rbac.AgentDelete,
 		growthanalytics.Track("amp.agent-development.delete-agent", actionDims("deleted-agent"), ctrl.DeleteAgent))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", rbac.AgentUpdate, ctrl.GetAgentIdentity)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", rbac.AgentUpdate,
+	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}/identities", rbac.AgentUpdate, ctrl.GetAgentIdentity)
+	rr.HandleFuncWithValidationAndAuthz("PUT /agents/{agentName}/identities", rbac.AgentUpdate,
 		growthanalytics.Track("amp.security-access.agent-identity", actionDims("provisioned-agent-identity"), ctrl.ProvisionAgentIdentity))
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", rbac.AgentUpdate,
+	rr.HandleFuncWithValidationAndAuthz("POST /agents/{agentName}/identities", rbac.AgentUpdate,
 		growthanalytics.Track("amp.security-access.agent-identity", actionDims("regenerated-agent-identity-secret"), ctrl.RegenerateAgentIdentitySecret))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", rbac.AgentUpdate,
+	rr.HandleFuncWithValidationAndAuthz("DELETE /agents/{agentName}/identities", rbac.AgentUpdate,
 		growthanalytics.Track("amp.security-access.agent-identity", actionDims("revoked-agent-identity-secret"), ctrl.RevokeAgentIdentitySecret))
 	// RetryAgentIdentityProvisioning didn't exist yet when the growth-analytics
 	// taxonomy for this feature was defined upstream, so it's intentionally left
 	// untracked here rather than guessing a new action value for it.
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities/retry", rbac.AgentUpdate, ctrl.RetryAgentIdentityProvisioning)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/roles", rbac.AgentUpdate, ctrl.GetAgentRoles)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/groups", rbac.AgentUpdate, ctrl.GetAgentGroups)
+	rr.HandleFuncWithValidationAndAuthz("POST /agents/{agentName}/identities/retry", rbac.AgentUpdate, ctrl.RetryAgentIdentityProvisioning)
+	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}/roles", rbac.AgentUpdate, ctrl.GetAgentRoles)
+	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}/groups", rbac.AgentUpdate, ctrl.GetAgentGroups)
 }
 
 // updateTargetDims builds the growth-analytics dimensions for the shared

@@ -20,7 +20,7 @@ test('register an external agent and copy its connection token', async ({ page, 
 
   const got = await api.getAgent(workerProject, handle);
   expect(got.status).toBe(200);
-  expect(got.body.displayName).toBe(displayName);
+  expect(got.body.spec.displayName).toBe(displayName);
 
   // The drawer generates a token on open; copy it.
   await expect(drawer.generated).toBeVisible();

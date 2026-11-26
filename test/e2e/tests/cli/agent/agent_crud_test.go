@@ -63,17 +63,17 @@ var _ = Describe("amctl agent CRUD (build-free)", Label("cli", "agent"), Ordered
 
 	It("creates an external agent", func() {
 		r := cliagent.CreateExternalAgent(Default, H, H.Org(), projName, agentName, displayName, description)
-		Expect(r.Agent.Name).To(Equal(agentName))
-		Expect(r.Agent.AgentType.Type).To(Equal("external-agent-api"))
+		Expect(r.Agent.Metadata.Name).To(Equal(agentName))
+		Expect(r.Agent.Spec.AgentType.Type).To(Equal("external-agent-api"))
 		Expect(r.Token).NotTo(BeEmpty())
 	})
 
 	It("gets the external agent", func() {
 		a := cliagent.GetAgent(Default, H, H.Org(), projName, agentName)
-		Expect(a.Name).To(Equal(agentName))
-		Expect(a.DisplayName).To(Equal(displayName))
-		Expect(a.Description).To(Equal(description))
-		Expect(a.ProjectName).To(Equal(projName))
+		Expect(a.Metadata.Name).To(Equal(agentName))
+		Expect(a.Spec.DisplayName).To(Equal(displayName))
+		Expect(a.Spec.Description).To(Equal(description))
+		Expect(a.Metadata.Project).To(Equal(projName))
 	})
 
 	It("lists the external agent", func() {

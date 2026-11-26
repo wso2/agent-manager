@@ -49,8 +49,7 @@ help:
 	@echo "  make amctl-build             - Build amctl for current platform"
 	@echo "  make amctl-release-dry-run   - Cross-compile all targets without publishing"
 	@echo "  make amctl-test              - Run amctl tests"
-	@echo "  make amctl-coverage-check    - Run amctl tests and compare coverage with the baseline"
-	@echo "  make amctl-coverage-baseline - Run amctl tests and rewrite the coverage baseline"
+	@echo "  make amctl-coverage-check    - Run amctl tests and report coverage against cli/coverage-gate.json"
 	@echo "🧪 E2E Tests:"
 	@echo "  make e2e-test           - Run E2E tests (stack must be running)"
 	@echo ""
@@ -254,11 +253,13 @@ amctl-coverage-summary: | .make
 	python3 scripts/coverage/go_summary.py .make/amctl-coverage.out --module github.com/wso2/agent-manager/cli \
 		--exclude-file cli/coverage-excludes.txt --out .make/amctl-coverage.json
 
-amctl-coverage-check: amctl-coverage-summary
-	python3 scripts/coverage/ratchet.py .make/amctl-coverage.json cli/coverage-baseline.json --title "amctl coverage"
+# BASE is the branch a pull request targets; changed lines are counted against it.
+BASE ?= upstream/amp-2.x
 
-amctl-coverage-baseline: amctl-coverage-summary
-	python3 scripts/coverage/ratchet.py .make/amctl-coverage.json cli/coverage-baseline.json --update
+amctl-coverage-check: amctl-coverage-summary
+	python3 scripts/coverage/gate.py .make/amctl-coverage.json cli/coverage-gate.json --title "amctl coverage" \
+		--go-profile .make/amctl-coverage.out --module github.com/wso2/agent-manager/cli --module-dir cli \
+		--exclude-file cli/coverage-excludes.txt --base $(BASE) --report-only
 
 # Code generation
 gen-instrumentation-contract:

@@ -19,7 +19,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TraceFilters } from "@agent-management-platform/types";
 import { httpGET } from "../../shared/utils";
-import { exportTraces, getTraceList, type ObserverTraceListParams } from "./traces";
+import {
+  exportTraces,
+  getTraceList,
+  toSpanList,
+  toTraceExport,
+  toTraceList,
+  type ObserverTraceListParams,
+} from "./traces";
 
 vi.mock("../../shared/utils", () => ({
   httpGET: vi.fn(),
@@ -54,14 +61,15 @@ const BASE_QUERY = {
 async function sentQuery(params: ObserverTraceListParams): Promise<Record<string, string>> {
   await getTraceList(params);
   const [path, opts] = mockGET.mock.calls[0];
-  expect(path).toBe("/m/observability/api/v1/traces");
+  expect(path).toBe("/m/observability/traces");
   return (opts.searchParams ?? {}) as Record<string, string>;
 }
 
 beforeEach(() => {
   mockGET.mockReset();
   mockGET.mockImplementation(
-    async () => new Response(JSON.stringify({ traces: [], totalCount: 0 })),
+    async () =>
+      new Response(JSON.stringify({ traces: [], pagination: { limit: 10, total: 0 } })),
   );
 });
 
@@ -121,7 +129,7 @@ describe("exportTraces query string", () => {
   async function sentExportQuery(params: ObserverTraceListParams): Promise<Record<string, string>> {
     await exportTraces(params);
     const [path, opts] = mockGET.mock.calls[0];
-    expect(path).toBe("/m/observability/api/v1/traces/export");
+    expect(path).toBe("/m/observability/traces/export");
     return (opts.searchParams ?? {}) as Record<string, string>;
   }
 
@@ -190,7 +198,7 @@ describe("getTraceList tool and MCP server filters", () => {
       filters: { tool: "search_web", toolError: true, mcpServer: "github" },
     });
     const [path, opts] = mockGET.mock.calls[0];
-    expect(path).toBe("/m/observability/api/v1/traces/export");
+    expect(path).toBe("/m/observability/traces/export");
     expect(opts.searchParams).toEqual({
       ...BASE_QUERY, tool: "search_web", toolError: "true", mcpServer: "github",
     });
@@ -203,5 +211,78 @@ describe("getTraceList missing filter", () => {
     [{ missing: [] }, {}],
   ] satisfies [TraceFilters, Record<string, string>][])("sends %o", async (filters, extra) => {
     expect(await sentQuery({ ...BASE, filters })).toEqual({ ...BASE_QUERY, ...extra });
+  });
+});
+
+describe("module list responses", () => {
+  const trace = {
+    traceId: "a",
+    rootSpanId: "root",
+    rootSpanName: "invoke_agent",
+    startTime: "2026-10-02T09:40:00Z",
+    endTime: "2026-10-02T09:40:01Z",
+    durationInNanos: 1,
+    spanCount: 1,
+  };
+
+  it("reads the trace list's paging state from pagination", () => {
+    const got = toTraceList({
+      traces: [trace],
+      pagination: {
+        limit: 1,
+        total: 5,
+        nextCursor: "c",
+        lookedBackTo: "2026-10-02T09:40:00Z",
+        truncated: true,
+      },
+    });
+    expect(got).toEqual({
+      traces: [trace],
+      totalCount: 5,
+      nextCursor: "c",
+      lookedBackTo: "2026-10-02T09:40:00Z",
+      truncated: true,
+    });
+  });
+
+  it("counts the page when the total is unknown", () => {
+    expect(toTraceList({ traces: [trace], pagination: { limit: 10 } }).totalCount).toBe(1);
+  });
+
+  it.each([
+    [false, false, false],
+    [true, false, true],
+    [false, true, true],
+  ])("marks an export truncated=%s, spansTruncated=%s as %s", (truncated, spansTruncated, want) => {
+    // An untruncated search sends neither truncated nor lookedBackTo.
+    const lookedBackTo = truncated ? "2026-10-02T09:00:00Z" : undefined;
+    const got = toTraceExport({
+      traces: [],
+      pagination: { limit: 100, total: 3, ...(truncated ? { lookedBackTo, truncated } : {}) },
+      spansTruncated,
+      failedTraceIds: ["x"],
+    });
+    expect(got).toEqual({
+      traces: [],
+      totalCount: 3,
+      lookedBackTo,
+      truncated: want,
+      spansTruncated,
+      failedTraceIds: ["x"],
+    });
+  });
+
+  it("reads the span list", () => {
+    const span = {
+      spanId: "s",
+      spanName: "chat",
+      startTime: "2026-10-02T09:00:00Z",
+      endTime: "2026-10-02T10:00:00Z",
+      durationNs: 1,
+    };
+    expect(toSpanList({ spans: [span], pagination: { limit: 10, total: 4 } })).toEqual({
+      spans: [span],
+      totalCount: 4,
+    });
   });
 });

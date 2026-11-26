@@ -49,14 +49,17 @@ func NewAgentTokenController(tokenService services.AgentTokenManagerService) Age
 	}
 }
 
-// GenerateToken handles POST /orgs/{org}/projects/{project}/agents/{agent}/token
+// GenerateToken handles POST /agents/{agentName}/token
 func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
 	// Extract path parameters
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
+	projName, ok := requireProject(w, r)
+	if !ok {
+		return
+	}
 	agentName := r.PathValue(utils.PathParamAgentName)
 
 	log.Info(

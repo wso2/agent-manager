@@ -36,7 +36,7 @@ func refreshOpts(client func(context.Context) (*aigateway.ClientWithResponses, e
 		func() (string, string) { return out.String(), errOut.String() }
 }
 
-var refreshKey = "POST " + envPath("default", "agent-card/refresh")
+var refreshKey = "POST " + agentGWPath("agent-card/refresh")
 
 func Test_runRefresh_queues(t *testing.T) {
 	o, got := refreshOpts(newClient(t, map[string]route{refreshKey: {status: http.StatusAccepted}}), false)

@@ -21,7 +21,8 @@ import type { GatewaySpec } from './gateways';
 import type { HealthChecks } from './agents';
 
 export interface UpdateAgentDeploySettingsRequest {
-  environmentName: string;
+  /** Ignored: the settings apply to the default environment. */
+  environmentName?: string;
   enableAutoInstrumentation?: boolean;
   /**
    * AMP instrumentation version to pin for this Python buildpack agent in this

@@ -62,7 +62,7 @@ func TestCreateExternalAgent(t *testing.T) {
 
 		// Create the request body for external agent
 		reqBody := new(bytes.Buffer)
-		err := json.NewEncoder(reqBody).Encode(map[string]interface{}{
+		err := json.NewEncoder(reqBody).Encode(agentDocument(testExternalProjName, map[string]interface{}{
 			"name":        testExternalAgentNameOne,
 			"displayName": "Test External Agent",
 			"description": "Test External Agent Description",
@@ -72,12 +72,11 @@ func TestCreateExternalAgent(t *testing.T) {
 			"agentType": map[string]interface{}{
 				"type": "external-agent-api",
 			},
-		})
+		}))
 		require.NoError(t, err)
 
 		// Send the request
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName)
-		req := httptest.NewRequest(http.MethodPost, url, reqBody)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/agents", reqBody)
 		req.Header.Set("Content-Type", "application/json")
 
 		rr := httptest.NewRecorder()
@@ -91,15 +90,15 @@ func TestCreateExternalAgent(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("response body: %s", string(b))
 
-		var payload spec.AgentResponse
+		var payload spec.AgentDocument
 		require.NoError(t, json.Unmarshal(b, &payload))
 
 		// Validate response fields
-		require.Equal(t, testExternalAgentNameOne, payload.Name)
-		require.Equal(t, "Test External Agent Description", payload.Description)
-		require.Equal(t, testExternalProjName, payload.ProjectName)
-		require.Equal(t, "external", payload.Provisioning.Type)
-		require.NotZero(t, payload.CreatedAt)
+		require.Equal(t, testExternalAgentNameOne, payload.Metadata.Name)
+		require.Equal(t, "Test External Agent Description", payload.Spec.GetDescription())
+		require.Equal(t, testExternalProjName, payload.Metadata.Project)
+		require.Equal(t, "external", payload.Spec.Provisioning.Type)
+		require.NotZero(t, payload.Metadata.GetCreationTimestamp())
 	})
 
 	externalAgentValidationTests := []struct {
@@ -108,7 +107,7 @@ func TestCreateExternalAgent(t *testing.T) {
 		payload        map[string]interface{}
 		wantStatus     int
 		wantErrMsg     string
-		url            string
+		project        string
 		setupMock      func() *repomocks.PlatformRepositoryMock
 	}{
 		{
@@ -125,8 +124,8 @@ func TestCreateExternalAgent(t *testing.T) {
 				},
 			},
 			wantStatus: 400,
-			wantErrMsg: "Agent name cannot be empty",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
+			wantErrMsg: "metadata.name is required",
+			project:    testExternalProjName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},
@@ -147,7 +146,7 @@ func TestCreateExternalAgent(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "Agent name must contain only lowercase alphanumeric characters or '-'",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
+			project:    testExternalProjName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},
@@ -167,7 +166,7 @@ func TestCreateExternalAgent(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "Agent display name cannot be empty",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
+			project:    testExternalProjName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},
@@ -188,7 +187,7 @@ func TestCreateExternalAgent(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "provisioning type must be 'external'",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
+			project:    testExternalProjName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},
@@ -209,7 +208,7 @@ func TestCreateExternalAgent(t *testing.T) {
 			},
 			wantStatus: 400,
 			wantErrMsg: "provisioning type must be 'external'",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
+			project:    testExternalProjName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},
@@ -230,7 +229,7 @@ func TestCreateExternalAgent(t *testing.T) {
 			},
 			wantStatus: 404,
 			wantErrMsg: "Project not found",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project/agents", testExternalOrgName),
+			project:    "nonexistent-project",
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
 				mock.CreateAgentFunc = func(ctx context.Context, ouID, projectName string, in repositories.CreateAgentInput) (*models.AgentResponse, error) {
@@ -258,7 +257,7 @@ func TestCreateExternalAgent(t *testing.T) {
 			},
 			wantStatus: 409,
 			wantErrMsg: "Agent already exists",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
+			project:    testExternalProjName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
 				// Override CreateAgentFunc to return error indicating agent already exists
@@ -288,7 +287,7 @@ func TestCreateExternalAgent(t *testing.T) {
 			},
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", testExternalOrgName, testExternalProjName),
+			project:    testExternalProjName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},
@@ -305,11 +304,11 @@ func TestCreateExternalAgent(t *testing.T) {
 			app := apitestutils.MakeAppClientWithDeps(t, testClients, tt.authMiddleware)
 
 			reqBody := new(bytes.Buffer)
-			err := json.NewEncoder(reqBody).Encode(tt.payload)
+			err := json.NewEncoder(reqBody).Encode(agentDocument(tt.project, tt.payload))
 			require.NoError(t, err)
 
 			// Send the request
-			req := httptest.NewRequest(http.MethodPost, tt.url, reqBody)
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/agents", reqBody)
 			req.Header.Set("Content-Type", "application/json")
 
 			rr := httptest.NewRecorder()
@@ -328,9 +327,9 @@ func TestCreateExternalAgent(t *testing.T) {
 				require.Contains(t, bodyStr, tt.wantErrMsg)
 			} else if tt.wantStatus == 202 {
 				// For success responses, validate the response structure
-				var payload spec.AgentResponse
+				var payload spec.AgentDocument
 				require.NoError(t, json.Unmarshal(body, &payload))
-				require.Equal(t, "external", payload.Provisioning.Type)
+				require.Equal(t, "external", payload.Spec.Provisioning.Type)
 			}
 		})
 	}

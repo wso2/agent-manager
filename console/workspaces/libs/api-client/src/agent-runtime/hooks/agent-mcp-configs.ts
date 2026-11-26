@@ -30,6 +30,12 @@ import {
   rotateMCPConfigAPIKey,
   updateAgentMCPConfig,
 } from "../apis/agent-mcp-configs";
+import {
+  agentConfigDocumentFromCreateRequest,
+  agentConfigDocumentFromUpdateRequest,
+  agentConfigFromDocument,
+  agentConfigListFromDocuments,
+} from "../apis/agent-config-documents";
 import type {
   AgentMCPConfigListResponse,
   AgentMCPConfigPathParams,
@@ -50,6 +56,8 @@ import type {
   RotateMCPConfigAPIKeyResponse,
   UpdateAgentMCPConfigPathParams,
   UpdateAgentMCPConfigRequest,
+  CreateAgentModelConfigRequest,
+  UpdateAgentModelConfigRequest,
 } from "@agent-management-platform/types";
 
 const QUERY_KEY = "agent-mcp-configs";
@@ -61,7 +69,8 @@ export function useListAgentMCPConfigs(
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentMCPConfigListResponse>({
     queryKey: [QUERY_KEY, "list", params, query],
-    queryFn: () => listAgentMCPConfigs(params, query, getToken),
+    queryFn: async () =>
+      agentConfigListFromDocuments(await listAgentMCPConfigs(params, query, getToken), params.agentName ?? ""),
     enabled: !!params.orgName && !!params.projName && !!params.agentName,
   });
 }
@@ -70,12 +79,10 @@ export function useGetAgentMCPConfig(params: AgentMCPConfigPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentMCPConfigResponse>({
     queryKey: [QUERY_KEY, params],
-    queryFn: () => {
+    queryFn: async () => {
       if (!params.configId) throw new Error("configId is required");
-      return getAgentMCPConfig(
-        { ...params, configId: params.configId },
-        getToken,
-      );
+      const doc = await getAgentMCPConfig({ ...params, configId: params.configId }, getToken);
+      return agentConfigFromDocument(doc, params.agentName ?? "");
     },
     enabled:
       !!params.orgName &&
@@ -97,8 +104,11 @@ export function useCreateAgentMCPConfig() {
     }
   >({
     action: { verb: "create", target: "agent MCP config" },
-    mutationFn: ({ params, body }) =>
-      createAgentMCPConfig(params, body, getToken),
+    mutationFn: async ({ params, body }) => {
+      const doc = agentConfigDocumentFromCreateRequest(
+        "AgentMcpConfig", params.projName ?? "", body as CreateAgentModelConfigRequest);
+      return agentConfigFromDocument(await createAgentMCPConfig(params, doc, getToken), params.agentName ?? "");
+    },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       queryClient.invalidateQueries({
@@ -127,8 +137,12 @@ export function useUpdateAgentMCPConfig() {
     }
   >({
     action: { verb: "update", target: "agent MCP config" },
-    mutationFn: ({ params, body }) =>
-      updateAgentMCPConfig(params, body, getToken),
+    mutationFn: async ({ params, body }) => {
+      const current = await getAgentMCPConfig(params, getToken);
+      const doc = agentConfigDocumentFromUpdateRequest(
+        "AgentMcpConfig", params.projName ?? "", body as UpdateAgentModelConfigRequest, current);
+      return agentConfigFromDocument(await updateAgentMCPConfig(params, doc, getToken), params.agentName ?? "");
+    },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       queryClient.invalidateQueries({

@@ -71,6 +71,11 @@ func newClient(t *testing.T, routes map[string]route) (func(context.Context) (*a
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Method + " " + r.URL.Path
+		if got := r.URL.Query().Get("project"); got != "triage" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "NO_PROJECT", "message": "project = " + got})
+			return
+		}
 		rt, ok := routes[key]
 		if !ok {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -131,12 +136,12 @@ func decodeEnvelope(t *testing.T, raw string) map[string]any {
 
 // Path constants for the model-configs endpoints under the test agent.
 const (
-	listPath = "GET /orgs/acme/projects/triage/agents/order-bot/model-configs"
-	postPath = "POST /orgs/acme/projects/triage/agents/order-bot/model-configs"
+	listPath = "GET /agents/order-bot/model-configs"
+	postPath = "POST /agents/order-bot/model-configs"
 )
 
 func configPath(method, uuid string) string {
-	return method + " /orgs/acme/projects/triage/agents/order-bot/model-configs/" + uuid
+	return method + " /agents/order-bot/model-configs/" + uuid
 }
 
 func mustUUID(s string) openapi_types.UUID {

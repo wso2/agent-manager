@@ -107,7 +107,7 @@ func runDelete(ctx context.Context, o *DeleteOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.DeleteAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
+	resp, err := client.DeleteAgentWithResponse(ctx, o.AgentName, &amsvc.DeleteAgentParams{Project: o.Proj})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

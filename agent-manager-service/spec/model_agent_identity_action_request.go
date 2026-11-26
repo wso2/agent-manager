@@ -19,17 +19,16 @@ var _ MappedNullable = &AgentIdentityActionRequest{}
 
 // AgentIdentityActionRequest Request body for regenerating an AgentID secret
 type AgentIdentityActionRequest struct {
-	// Environment name to regenerate the AgentID secret in
-	Environment string `json:"environment"`
+	// Environment name; omitted means the organization's only environment
+	Environment *string `json:"environment,omitempty"`
 }
 
 // NewAgentIdentityActionRequest instantiates a new AgentIdentityActionRequest object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewAgentIdentityActionRequest(environment string) *AgentIdentityActionRequest {
+func NewAgentIdentityActionRequest() *AgentIdentityActionRequest {
 	this := AgentIdentityActionRequest{}
-	this.Environment = environment
 	return &this
 }
 
@@ -41,28 +40,36 @@ func NewAgentIdentityActionRequestWithDefaults() *AgentIdentityActionRequest {
 	return &this
 }
 
-// GetEnvironment returns the Environment field value
+// GetEnvironment returns the Environment field value if set, zero value otherwise.
 func (o *AgentIdentityActionRequest) GetEnvironment() string {
-	if o == nil {
+	if o == nil || IsNil(o.Environment) {
 		var ret string
 		return ret
 	}
-
-	return o.Environment
+	return *o.Environment
 }
 
-// GetEnvironmentOk returns a tuple with the Environment field value
+// GetEnvironmentOk returns a tuple with the Environment field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *AgentIdentityActionRequest) GetEnvironmentOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Environment) {
 		return nil, false
 	}
-	return &o.Environment, true
+	return o.Environment, true
 }
 
-// SetEnvironment sets field value
+// HasEnvironment returns a boolean if a field has been set.
+func (o *AgentIdentityActionRequest) HasEnvironment() bool {
+	if o != nil && !IsNil(o.Environment) {
+		return true
+	}
+
+	return false
+}
+
+// SetEnvironment gets a reference to the given string and assigns it to the Environment field.
 func (o *AgentIdentityActionRequest) SetEnvironment(v string) {
-	o.Environment = v
+	o.Environment = &v
 }
 
 func (o AgentIdentityActionRequest) MarshalJSON() ([]byte, error) {
@@ -75,7 +82,9 @@ func (o AgentIdentityActionRequest) MarshalJSON() ([]byte, error) {
 
 func (o AgentIdentityActionRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["environment"] = o.Environment
+	if !IsNil(o.Environment) {
+		toSerialize["environment"] = o.Environment
+	}
 	return toSerialize, nil
 }
 

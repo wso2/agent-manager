@@ -17,10 +17,8 @@ import (
 // checks if the UpdateAgentDeploySettingsRequest type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &UpdateAgentDeploySettingsRequest{}
 
-// UpdateAgentDeploySettingsRequest struct for UpdateAgentDeploySettingsRequest
+// UpdateAgentDeploySettingsRequest Deploy settings of the agent in the default environment.
 type UpdateAgentDeploySettingsRequest struct {
-	// Name of the environment whose deploy settings to update.
-	EnvironmentName string `json:"environmentName"`
 	// Enable auto instrumentation for observability in this environment. Omit to keep the current value.
 	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
 	// AMP instrumentation version to pin for this agent. Selects the pre-built init-container image (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the `traceloop-sdk` it bundles. Applies only to Python buildpack agents with auto-instrumentation enabled. Omit (or send null) to keep the currently-pinned version. Must be one of the versions supported by the deployment; unknown or python-incompatible values are rejected.
@@ -40,9 +38,8 @@ type UpdateAgentDeploySettingsRequest struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUpdateAgentDeploySettingsRequest(environmentName string) *UpdateAgentDeploySettingsRequest {
+func NewUpdateAgentDeploySettingsRequest() *UpdateAgentDeploySettingsRequest {
 	this := UpdateAgentDeploySettingsRequest{}
-	this.EnvironmentName = environmentName
 	return &this
 }
 
@@ -52,30 +49,6 @@ func NewUpdateAgentDeploySettingsRequest(environmentName string) *UpdateAgentDep
 func NewUpdateAgentDeploySettingsRequestWithDefaults() *UpdateAgentDeploySettingsRequest {
 	this := UpdateAgentDeploySettingsRequest{}
 	return &this
-}
-
-// GetEnvironmentName returns the EnvironmentName field value
-func (o *UpdateAgentDeploySettingsRequest) GetEnvironmentName() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.EnvironmentName
-}
-
-// GetEnvironmentNameOk returns a tuple with the EnvironmentName field value
-// and a boolean to check if the value has been set.
-func (o *UpdateAgentDeploySettingsRequest) GetEnvironmentNameOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.EnvironmentName, true
-}
-
-// SetEnvironmentName sets field value
-func (o *UpdateAgentDeploySettingsRequest) SetEnvironmentName(v string) {
-	o.EnvironmentName = v
 }
 
 // GetEnableAutoInstrumentation returns the EnableAutoInstrumentation field value if set, zero value otherwise.
@@ -355,7 +328,6 @@ func (o UpdateAgentDeploySettingsRequest) MarshalJSON() ([]byte, error) {
 
 func (o UpdateAgentDeploySettingsRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["environmentName"] = o.EnvironmentName
 	if !IsNil(o.EnableAutoInstrumentation) {
 		toSerialize["enableAutoInstrumentation"] = o.EnableAutoInstrumentation
 	}

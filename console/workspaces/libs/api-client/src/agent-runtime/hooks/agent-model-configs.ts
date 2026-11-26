@@ -30,6 +30,12 @@ import {
   rotateLLMConfigAPIKey,
   updateAgentModelConfig,
 } from "../apis/agent-model-configs";
+import {
+  agentConfigDocumentFromCreateRequest,
+  agentConfigDocumentFromUpdateRequest,
+  agentConfigFromDocument,
+  agentConfigListFromDocuments,
+} from "../apis/agent-config-documents";
 import type {
   AgentModelConfigListResponse,
   AgentModelConfigPathParams,
@@ -61,7 +67,8 @@ export function useListAgentModelConfigs(
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentModelConfigListResponse>({
     queryKey: [QUERY_KEY, "list", params, query],
-    queryFn: () => listAgentModelConfigs(params, query, getToken),
+    queryFn: async () =>
+      agentConfigListFromDocuments(await listAgentModelConfigs(params, query, getToken), params.agentName ?? ""),
     enabled:
       !!params.orgName && !!params.projName && !!params.agentName,
   });
@@ -71,12 +78,10 @@ export function useGetAgentModelConfig(params: AgentModelConfigPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentModelConfigResponse>({
     queryKey: [QUERY_KEY, params],
-    queryFn: () => {
+    queryFn: async () => {
       if (!params.configId) throw new Error("configId is required");
-      return getAgentModelConfig(
-        { ...params, configId: params.configId },
-        getToken,
-      );
+      const doc = await getAgentModelConfig({ ...params, configId: params.configId }, getToken);
+      return agentConfigFromDocument(doc, params.agentName ?? "");
     },
     enabled:
       !!params.orgName &&
@@ -98,8 +103,11 @@ export function useCreateAgentModelConfig() {
     }
   >({
     action: { verb: 'create', target: 'agent model config' },
-    mutationFn: ({ params, body }) =>
-      createAgentModelConfig(params, body, getToken),
+    mutationFn: async ({ params, body }) => {
+      const doc = agentConfigDocumentFromCreateRequest(
+        "AgentModelConfig", params.projName ?? "", body as CreateAgentModelConfigRequest);
+      return agentConfigFromDocument(await createAgentModelConfig(params, doc, getToken), params.agentName ?? "");
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },
@@ -118,8 +126,12 @@ export function useUpdateAgentModelConfig() {
     }
   >({
     action: { verb: 'update', target: 'agent model config' },
-    mutationFn: ({ params, body }) =>
-      updateAgentModelConfig(params, body, getToken),
+    mutationFn: async ({ params, body }) => {
+      const current = await getAgentModelConfig(params, getToken);
+      const doc = agentConfigDocumentFromUpdateRequest(
+        "AgentModelConfig", params.projName ?? "", body as UpdateAgentModelConfigRequest, current);
+      return agentConfigFromDocument(await updateAgentModelConfig(params, doc, getToken), params.agentName ?? "");
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },

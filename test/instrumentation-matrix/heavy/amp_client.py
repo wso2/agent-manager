@@ -176,16 +176,21 @@ class AmpClient:
             json={"name": name, "displayName": name}, expect=(202,),
         )
         self._request(
-            "POST", f"/api/v1/orgs/{org}/projects/{name}/agents",
+            "POST", "/api/v1/agents",
             json={
-                "name": name, "displayName": name,
-                "provisioning": {"type": "external"},
-                "agentType": {"type": "external-agent-api", "subType": "custom-api"},
+                "apiVersion": "ai-control-plane.choreolabs.com/v1",
+                "kind": "Agent",
+                "metadata": {"name": name, "project": name},
+                "spec": {
+                    "displayName": name,
+                    "provisioning": {"type": "external"},
+                    "agentType": {"type": "external-agent-api", "subType": "custom-api"},
+                },
             },
             expect=(202,),
         )
         resp = self._request(
-            "POST", f"/api/v1/orgs/{org}/projects/{name}/agents/{name}/token",
+            "POST", f"/api/v1/agents/{name}/token?project={name}",
             json={"expires_in": "24h"}, expect=(200,),
         )
         return resp.json()["token"]
@@ -195,8 +200,7 @@ class AmpClient:
         runs in a finally block and a failure here shouldn't mask the cell's
         actual result."""
         for path in (
-            f"/api/v1/orgs/{deployed.org}/projects/{deployed.project_name}"
-            f"/agents/{deployed.agent_name}",
+            f"/api/v1/agents/{deployed.agent_name}?project={deployed.project_name}",
             f"/api/v1/orgs/{deployed.org}/projects/{deployed.project_name}",
         ):
             try:

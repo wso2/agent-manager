@@ -22,6 +22,10 @@ import {
   createMCPProxyScope,
   updateMCPProxyScope,
   deleteMCPProxyScope,
+  documentFromScopeRequest,
+  documentFromScopeUpdate,
+  scopeFromDocument,
+  scopeListFromDocuments,
 } from "../apis/mcp-proxy-scopes";
 import type {
   MCPProxyScopeListResponse,
@@ -46,7 +50,7 @@ export function useListMCPProxyScopes(
   const { getToken } = useAuthHooks();
   return useApiQuery<MCPProxyScopeListResponse>({
     queryKey: ['mcp-proxy-scopes', params],
-    queryFn: () => listMCPProxyScopes(params, getToken),
+    queryFn: () => listMCPProxyScopes(params, getToken).then(scopeListFromDocuments),
     enabled: gatewayPresent && (options?.enabled ?? true) && !!params.orgName && !!params.proxyId,
   });
 }
@@ -61,7 +65,8 @@ export function useCreateMCPProxyScope() {
     MCPProxyScopeResponse, unknown, { params: MCPProxyScopesPathParams; body: MCPProxyScopeRequest }
   >({
     action: { verb: 'create', target: 'scope' },
-    mutationFn: ({ params, body }) => createMCPProxyScope(params, body, getToken),
+    mutationFn: ({ params, body }) =>
+      createMCPProxyScope(params, documentFromScopeRequest(body), getToken).then(scopeFromDocument),
     onSuccess: (_data, { params }) => {
       queryClient.invalidateQueries({ queryKey: ['mcp-proxy-scopes', params] });
     },
@@ -80,7 +85,9 @@ export function useUpdateMCPProxyScope() {
     { params: MCPProxyScopePathParams; body: MCPProxyScopeUpdateRequest }
   >({
     action: { verb: 'update', target: 'scope' },
-    mutationFn: ({ params, body }) => updateMCPProxyScope(params, body, getToken),
+    mutationFn: ({ params, body }) =>
+      updateMCPProxyScope(params, documentFromScopeUpdate(params.scopeAction, body), getToken)
+        .then(scopeFromDocument),
     onSuccess: (_data, { params }) => {
       queryClient.invalidateQueries({
         queryKey: ['mcp-proxy-scopes', { orgName: params.orgName, proxyId: params.proxyId }],

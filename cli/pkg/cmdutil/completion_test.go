@@ -280,19 +280,21 @@ func TestCompleteProjects_NoOrgReturnsNil(t *testing.T) {
 func newAgentServer(t *testing.T, expectedOrg, expectedProj string, status int, names []string) (*Factory, func()) {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.URL.Path, expectedOrg) || !strings.Contains(r.URL.Path, expectedProj) {
-			t.Errorf("path = %q, want to contain org %q and proj %q", r.URL.Path, expectedOrg, expectedProj)
+		if got := r.URL.Query().Get("project"); got != expectedProj {
+			t.Errorf("project = %q, want %q", got, expectedProj)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		if status == http.StatusOK {
-			agents := make([]amsvc.AgentResponse, 0, len(names))
+			agents := make([]amsvc.AgentDocument, 0, len(names))
 			for _, n := range names {
-				agents = append(agents, amsvc.AgentResponse{Name: n, DisplayName: n, ProjectName: expectedProj, CreatedAt: time.Now().UTC()})
+				created := time.Now().UTC()
+				agents = append(agents, amsvc.AgentDocument{
+					Metadata: amsvc.ProjectScopedDocumentMetadata{Name: n, Project: expectedProj, CreationTimestamp: &created},
+					Spec:     amsvc.AgentSpec{DisplayName: n},
+				})
 			}
-			_ = json.NewEncoder(w).Encode(amsvc.AgentListResponse{
-				Agents: agents, Limit: 20, Offset: 0, Total: len(agents),
-			})
+			_ = json.NewEncoder(w).Encode(amsvc.AgentListResponse{Count: int32(len(agents)), List: agents})
 		}
 	}))
 	client, err := amsvc.NewClientWithResponses(server.URL)
@@ -349,9 +351,9 @@ func TestCompleteAgents_MissingProjectReturnsNil(t *testing.T) {
 }
 
 func TestIsRuntimeManaged_InternalIsTrue(t *testing.T) {
-	agent := amsvc.AgentResponse{
-		Name:         "my-agent",
-		Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
+	agent := amsvc.AgentDocument{
+		Metadata: amsvc.ProjectScopedDocumentMetadata{Name: "my-agent"},
+		Spec:     amsvc.AgentSpec{Provisioning: amsvc.AgentProvisioning{Type: amsvc.AgentProvisioningKind(amsvc.ProvisioningTypeInternal)}},
 	}
 	if !IsRuntimeManaged(agent) {
 		t.Error("IsRuntimeManaged = false for internal agent, want true")
@@ -359,9 +361,9 @@ func TestIsRuntimeManaged_InternalIsTrue(t *testing.T) {
 }
 
 func TestIsRuntimeManaged_ExternalIsFalse(t *testing.T) {
-	agent := amsvc.AgentResponse{
-		Name:         "ext-agent",
-		Provisioning: amsvc.Provisioning{Type: "external"},
+	agent := amsvc.AgentDocument{
+		Metadata: amsvc.ProjectScopedDocumentMetadata{Name: "ext-agent"},
+		Spec:     amsvc.AgentSpec{Provisioning: amsvc.AgentProvisioning{Type: amsvc.AgentProvisioningKindExternal}},
 	}
 	if IsRuntimeManaged(agent) {
 		t.Error("IsRuntimeManaged = true for external agent, want false")

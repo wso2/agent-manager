@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,13 +42,17 @@ const (
 	agPublicURL = "https://1.1.1.1/mcp"
 )
 
-// agAgentPath is path under the test agent's routes.
-func agAgentPath(path string) string {
-	return "/orgs/{org}/projects/" + agProject + "/agents/" + agAgent + path
-}
+// agAgentPath is path under the test agent's routes, in its project.
+func agAgentPath(path string) string { return agentPathIn(agProject, agAgent, path) }
 
-// agEnvPath is path under the test agent's routes for the default environment.
-func agEnvPath(path string) string { return agAgentPath("/environments/default" + path) }
+// agentPathIn is path under agent's routes with the project in the query.
+func agentPathIn(project, agent, path string) string {
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	return "/agents/" + agent + path + sep + "project=" + project
+}
 
 // agSetup serves the gateway for a fresh organization with the test agent and
 // one gateway in the default environment, and returns the gateway.
@@ -80,24 +85,28 @@ func agCreateProvider(t *testing.T, a *routeAPI, handle string, gateway *gwmodel
 	return uid
 }
 
-// agMCPProxyBody is a create request for an org-level MCP proxy with one
-// endpoint bound to env.
+// agMCPProxyBody is an MCP proxy document with one endpoint bound to env.
 func agMCPProxyBody(handle, env string) map[string]any {
 	return map[string]any{
-		"id": handle, "name": "MCP " + handle, "version": "v1.0", "context": "/" + handle,
-		"description": "proxy " + handle,
-		"endpoints": []any{map[string]any{
-			"id":           "primary",
-			"upstream":     map[string]any{"main": map[string]any{"url": agPublicURL}},
-			"environments": []any{map[string]any{"environmentUuid": env}},
-		}},
+		"apiVersion": "ai-control-plane.choreolabs.com/v1",
+		"kind":       "McpProxy",
+		"metadata":   map[string]any{"name": handle},
+		"spec": map[string]any{
+			"displayName": "MCP " + handle, "version": "v1.0", "context": "/" + handle,
+			"description": "proxy " + handle,
+			"endpoints": []any{map[string]any{
+				"id":           "primary",
+				"upstream":     map[string]any{"main": map[string]any{"url": agPublicURL}},
+				"environments": []any{map[string]any{"environmentUuid": env}},
+			}},
+		},
 	}
 }
 
 // agCreateMCPProxy creates an org-level MCP proxy bound to the default environment.
 func agCreateMCPProxy(t *testing.T, a *routeAPI, handle string) {
 	t.Helper()
-	expect(t, a.do(http.MethodPost, "/orgs/{org}/mcp-proxies", agMCPProxyBody(handle, a.defaultEnv().String())), http.StatusCreated)
+	expect(t, a.do(http.MethodPost, "/mcp-proxies", agMCPProxyBody(handle, a.defaultEnv().String())), http.StatusCreated)
 }
 
 // agReason is the technical reason of an error response.

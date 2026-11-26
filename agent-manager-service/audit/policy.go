@@ -31,7 +31,7 @@ import (
 // request path free of policy lookups and lets the coverage test inspect it.
 type RouteMeta struct {
 	// Pattern is the registrar pattern, e.g.
-	// "POST /orgs/{orgName}/projects/{projName}/agents".
+	// "POST /agents".
 	Pattern string
 	Method  string
 	// Path is Pattern with the method stripped.
@@ -214,7 +214,7 @@ var coalesceWindows = map[string]time.Duration{}
 
 var sensitiveReadPaths = map[string]bool{
 	// Credential material.
-	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities": true,
+	"/agents/{agentName}/identities": true,
 
 	// Security configuration — who holds which privilege.
 	"/orgs/{orgName}/identities/permissions":                true,
@@ -255,13 +255,13 @@ var actionOverrides = map[string]Action{
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}": "event-subscription:delete",
 
 	// One permission, several operations — agent OAuth identity.
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":        "agent-identity:provision",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":       "agent-identity:regenerate-secret",
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":     "agent-identity:revoke-secret",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities/retry": "agent-identity:retry-provisioning",
+	"PUT /agents/{agentName}/identities":        "agent-identity:provision",
+	"POST /agents/{agentName}/identities":       "agent-identity:regenerate-secret",
+	"DELETE /agents/{agentName}/identities":     "agent-identity:revoke-secret",
+	"POST /agents/{agentName}/identities/retry": "agent-identity:retry-provisioning",
 
 	// One permission, several operations — agent tokens.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token": "agent-token:mint",
+	"POST /agents/{agentName}/token": "agent-token:mint",
 
 	// The privilege-escalation path. All four are gated by role:update, and
 	// telling them apart is the whole point of an audit trail.
@@ -280,9 +280,9 @@ var actionOverrides = map[string]Action{
 	"DELETE /orgs/{orgName}/identities/users/{userID}": "user:delete",
 
 	// Sensitive reads.
-	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities": "agent-identity:read",
-	"GET /orgs/{orgName}/identities/permissions":                            "permission:list",
-	"GET /orgs/{orgName}/identities/roles/{roleID}/assignments":             "role:list-assignments",
+	"GET /agents/{agentName}/identities":                        "agent-identity:read",
+	"GET /orgs/{orgName}/identities/permissions":                "permission:list",
+	"GET /orgs/{orgName}/identities/roles/{roleID}/assignments": "role:list-assignments",
 }
 
 // methodVerbs map an HTTP method to a verb, used as the last fallback for

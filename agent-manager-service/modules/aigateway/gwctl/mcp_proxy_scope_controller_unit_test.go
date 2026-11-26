@@ -70,11 +70,16 @@ func scopeUpdateTestController(scopeRepo *gwrepomocks.MCPProxyScopeRepositoryMoc
 	return NewMCPProxyScopeController(svc)
 }
 
+// scopeDoc wraps a spec in the scope document the route takes.
+func scopeDoc(spec string) string {
+	return `{"apiVersion":"ai-control-plane.choreolabs.com/v1","kind":"McpProxyScope",` +
+		`"metadata":{"name":"write-only"},"spec":` + spec + `}`
+}
+
 func updateScopeRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPut,
-		"/orgs/default/mcp-proxies/t4-deepwiki/scopes/write-only", strings.NewReader(body))
-	req.SetPathValue(gwutil.PathParamOrgName, "default")
+		"/mcp-proxies/t4-deepwiki/scopes/write-only", strings.NewReader(body))
 	req.SetPathValue(gwutil.PathParamProxyId, "t4-deepwiki")
 	req.SetPathValue(gwutil.PathParamScopeAction, "write-only")
 	return req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
@@ -95,7 +100,7 @@ func TestUpdateMCPProxyScope_EmptyToolsClearsBindings(t *testing.T) {
 	ctrl := scopeUpdateTestController(scopeRepo)
 
 	w := httptest.NewRecorder()
-	ctrl.UpdateMCPProxyScope(w, updateScopeRequest(t, `{"tools":[]}`))
+	ctrl.UpdateMCPProxyScope(w, updateScopeRequest(t, scopeDoc(`{"tools":[]}`)))
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), `"tools":[]`)
@@ -118,7 +123,7 @@ func TestUpdateMCPProxyScope_OmittedToolsKeepsBindings(t *testing.T) {
 	ctrl := scopeUpdateTestController(scopeRepo)
 
 	w := httptest.NewRecorder()
-	ctrl.UpdateMCPProxyScope(w, updateScopeRequest(t, `{"description":"write access"}`))
+	ctrl.UpdateMCPProxyScope(w, updateScopeRequest(t, scopeDoc(`{"description":"write access"}`)))
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	require.NotNil(t, persisted)

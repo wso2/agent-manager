@@ -121,33 +121,11 @@ type RuntimeConfigs struct {
 	RunCommand      string                `json:"runCommand,omitempty"`
 }
 
-type EnvModelConfigRequest struct {
-	// ProviderName references an LLM provider (type "llm"); MCPProxyName references
-	// an MCP proxy (type "mcp"). Exactly one is set depending on the config type.
-	ProviderName  string                 `json:"providerName,omitempty"`
-	MCPProxyName  string                 `json:"mcpProxyName,omitempty"`
-	Configuration map[string]interface{} `json:"configuration,omitempty"`
-}
-
 type AuthInfo struct {
 	Type  string  `json:"type"`
 	In    string  `json:"in"`
 	Name  string  `json:"name"`
 	Value *string `json:"value,omitempty"`
-}
-
-type ProviderConfig struct {
-	ProviderName string      `json:"providerName"`
-	ProxyUuid    string      `json:"proxyUuid"`
-	URL          string      `json:"url"`
-	AuthInfo     *AuthInfo   `json:"authInfo,omitempty"`
-	Policies     []LLMPolicy `json:"policies,omitempty"`
-	Status       *string     `json:"status,omitempty"`
-}
-
-type EnvProviderConfigMapping struct {
-	EnvironmentName string          `json:"environmentName"`
-	Configuration   *ProviderConfig `json:"configuration,omitempty"`
 }
 
 type EnvironmentVariableConfig struct {
@@ -174,23 +152,62 @@ type UpdateAgentRequest struct {
 	Description string `json:"description"`
 }
 
-type AgentResponse struct {
-	UUID         string       `json:"uuid"`
-	Name         string       `json:"name"`
-	DisplayName  string       `json:"displayName"`
-	Description  string       `json:"description"`
-	ProjectName  string       `json:"projectName"`
-	Status       string       `json:"status"`
-	Provisioning Provisioning `json:"provisioning"`
-	AgentType    AgentType    `json:"agentType"`
-	CreatedAt    time.Time    `json:"createdAt"`
+// AgentDocumentAPIVersion is the apiVersion of every resource document.
+const AgentDocumentAPIVersion = "ai-control-plane.choreolabs.com/v1"
+
+// AgentDocument is an agent as the API reads and writes it.
+type AgentDocument struct {
+	APIVersion string        `json:"apiVersion"`
+	Kind       string        `json:"kind"`
+	Metadata   AgentMetadata `json:"metadata"`
+	Spec       AgentSpec     `json:"spec"`
+	Status     *AgentStatus  `json:"status,omitempty"`
+}
+
+type AgentMetadata struct {
+	Name              string     `json:"name"`
+	Project           string     `json:"project"`
+	UID               string     `json:"uid,omitempty"`
+	CreationTimestamp *time.Time `json:"creationTimestamp,omitempty"`
+}
+
+type AgentSpec struct {
+	DisplayName  string                    `json:"displayName"`
+	Description  string                    `json:"description,omitempty"`
+	Provisioning Provisioning              `json:"provisioning"`
+	AgentType    AgentType                 `json:"agentType"`
+	Labels       map[string]string         `json:"labels,omitempty"`
+	Extensions   map[string]map[string]any `json:"extensions,omitempty"`
+}
+
+type AgentStatus struct {
+	State string `json:"state,omitempty"`
 }
 
 type AgentListResponse struct {
-	Agents []AgentResponse `json:"agents"`
-	Total  int             `json:"total"`
-	Limit  int             `json:"limit"`
-	Offset int             `json:"offset"`
+	Count      int             `json:"count"`
+	List       []AgentDocument `json:"list"`
+	Pagination struct {
+		Limit  int `json:"limit"`
+		Offset int `json:"offset"`
+		Total  int `json:"total"`
+	} `json:"pagination"`
+}
+
+// Document wraps the request in the Agent document the API takes for the given project.
+func (r CreateAgentRequest) Document(project string) AgentDocument {
+	return AgentDocument{
+		APIVersion: AgentDocumentAPIVersion,
+		Kind:       "Agent",
+		Metadata:   AgentMetadata{Name: r.Name, Project: project},
+		Spec: AgentSpec{
+			DisplayName:  r.DisplayName,
+			Description:  r.Description,
+			Provisioning: r.Provisioning,
+			AgentType:    r.AgentType,
+			Extensions:   r.Extensions,
+		},
+	}
 }
 
 type AgentIdentityEnvironmentView struct {
@@ -622,59 +639,66 @@ type MCPProxyEndpoint struct {
 	Environments []MCPEndpointEnvironment `json:"environments,omitempty"`
 }
 
-type CreateMCPProxyRequest struct {
-	ID             string  `json:"id"`
-	Name           string  `json:"name"`
-	Version        string  `json:"version"`
+// MCPProxyAPIVersion, MCPProxyKind and MCPProxyScopeKind identify MCP proxy documents.
+const (
+	MCPProxyAPIVersion = "ai-control-plane.choreolabs.com/v1"
+	MCPProxyKind       = "McpProxy"
+	MCPProxyScopeKind  = "McpProxyScope"
+)
+
+// MCPProxySpec is the desired state of an MCP proxy. The deployable configuration lives on
+// each endpoint; the proxy itself deploys nothing, so there is no status block.
+type MCPProxySpec struct {
+	DisplayName    string  `json:"displayName"`
 	Description    *string `json:"description,omitempty"`
+	Version        string  `json:"version"`
 	Context        *string `json:"context,omitempty"`
 	Vhost          *string `json:"vhost,omitempty"`
 	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
+	InCatalog      bool    `json:"inCatalog,omitempty"`
 	// Endpoints are the deployable endpoint definitions. Each endpoint is deployed to the
 	// environments listed in its Environments block on create/update.
-	Endpoints []MCPProxyEndpoint `json:"endpoints,omitempty"`
+	Endpoints   []MCPProxyEndpoint `json:"endpoints,omitempty"`
+	ProjectName *string            `json:"projectName,omitempty"`
 }
 
-type MCPProxyResponse struct {
-	ID             string  `json:"id"`
-	Name           string  `json:"name"`
-	Version        string  `json:"version"`
-	Description    *string `json:"description,omitempty"`
-	Context        *string `json:"context,omitempty"`
-	Vhost          *string `json:"vhost,omitempty"`
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-	InCatalog      bool    `json:"inCatalog"`
-	// Gateways aggregates the gateways across all per-endpoint/per-environment artifacts deployed.
-	Gateways  []string           `json:"gateways,omitempty"`
-	Endpoints []MCPProxyEndpoint `json:"endpoints,omitempty"`
-	CreatedBy *string            `json:"createdBy,omitempty"`
-	CreatedAt *time.Time         `json:"createdAt,omitempty"`
+type MCPProxyDocument struct {
+	APIVersion string           `json:"apiVersion"`
+	Kind       string           `json:"kind"`
+	Metadata   DocumentMetadata `json:"metadata"`
+	Spec       MCPProxySpec     `json:"spec"`
 }
 
-type MCPProxyListItem struct {
-	ID      *string `json:"id,omitempty"`
-	Name    *string `json:"name,omitempty"`
-	Version *string `json:"version,omitempty"`
-	Status  *string `json:"status,omitempty"`
-}
-
-// MCPProxyListResponse mirrors the org-scoped list payload ({count, list}).
+// MCPProxyListResponse is the collection payload. List rows are sparsely populated: they
+// carry the shared metadata but no endpoints.
 type MCPProxyListResponse struct {
 	Count int                `json:"count"`
-	List  []MCPProxyListItem `json:"list"`
+	List  []MCPProxyDocument `json:"list"`
 }
 
-type MCPProxyScopeRequest struct {
-	Action      string   `json:"action"`
-	Description string   `json:"description,omitempty"`
+// MCPProxyScopeSpec is a scope's desired state. The action naming it is Metadata.Name, not a
+// spec field, because renaming a scope means deleting and recreating it.
+//
+// On update the server reads an absent key as "keep the stored value", so the write fields
+// must be able to say "absent" and "empty" apart: Description is a pointer (nil omits the
+// key, &"" clears it) and Tools carries no omitempty (nil marshals to null, which the server
+// also reads as absent, and []string{} to [], which unbinds every tool).
+type MCPProxyScopeSpec struct {
+	Scope       string   `json:"scope,omitempty"`
+	Description *string  `json:"description,omitempty"`
 	Tools       []string `json:"tools"`
 }
 
-type MCPProxyScopeResponse struct {
-	Action      string   `json:"action"`
-	Scope       string   `json:"scope"`
-	Description string   `json:"description,omitempty"`
-	Tools       []string `json:"tools"`
+type MCPProxyScopeDocument struct {
+	APIVersion string            `json:"apiVersion"`
+	Kind       string            `json:"kind"`
+	Metadata   DocumentMetadata  `json:"metadata"`
+	Spec       MCPProxyScopeSpec `json:"spec"`
+}
+
+type MCPProxyScopeListResponse struct {
+	Count int                     `json:"count"`
+	List  []MCPProxyScopeDocument `json:"list"`
 }
 
 type AgentIdentityRoleRequest struct {
@@ -859,37 +883,53 @@ type AgentResourceConfigsResponse struct {
 // Agent Model Configuration
 // ---------------------------------------------------------------------------
 
-type CreateAgentModelConfigRequest struct {
-	Name                 string                           `json:"name"`
-	Description          string                           `json:"description,omitempty"`
-	Type                 string                           `json:"type"`
-	EnvMappings          map[string]EnvModelConfigRequest `json:"envMappings"`
-	EnvironmentVariables []EnvironmentVariableConfig      `json:"environmentVariables,omitempty"`
+// AgentConfigDocument is an agent's model configuration (kind AgentModelConfig) or MCP configuration (kind AgentMcpConfig).
+type AgentConfigDocument struct {
+	APIVersion string             `json:"apiVersion"`
+	Kind       string             `json:"kind"`
+	Metadata   AgentMetadata      `json:"metadata"`
+	Spec       AgentConfigSpec    `json:"spec"`
+	Status     *AgentConfigStatus `json:"status,omitempty"`
 }
 
-type UpdateAgentModelConfigRequest struct {
-	Name                 string                           `json:"name,omitempty"`
-	Description          string                           `json:"description,omitempty"`
-	EnvMappings          map[string]EnvModelConfigRequest `json:"envMappings,omitempty"`
-	EnvironmentVariables []EnvironmentVariableConfig      `json:"environmentVariables,omitempty"`
+type AgentConfigSpec struct {
+	Description          string                      `json:"description,omitempty"`
+	ProviderName         string                      `json:"providerName,omitempty"`
+	ProxyName            string                      `json:"proxyName,omitempty"`
+	Configuration        map[string]any              `json:"configuration,omitempty"`
+	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
 }
 
-type AgentModelConfigResponse struct {
-	UUID                 string                              `json:"uuid"`
-	Name                 string                              `json:"name"`
-	Description          string                              `json:"description"`
-	AgentID              string                              `json:"agentId"`
-	Type                 string                              `json:"type"`
-	OrganizationName     string                              `json:"organizationName"`
-	ProjectName          string                              `json:"projectName"`
-	EnvMappings          map[string]EnvProviderConfigMapping `json:"envMappings"`
-	EnvironmentVariables []EnvironmentVariableConfig         `json:"environmentVariables"`
-	CreatedAt            time.Time                           `json:"createdAt"`
-	UpdatedAt            time.Time                           `json:"updatedAt"`
+type AgentConfigStatus struct {
+	URL              string      `json:"url,omitempty"`
+	AuthInfo         *AuthInfo   `json:"authInfo,omitempty"`
+	ProxyUuid        string      `json:"proxyUuid,omitempty"`
+	ProxyName        string      `json:"proxyName,omitempty"`
+	ProviderUuid     string      `json:"providerUuid,omitempty"`
+	ProviderPolicies []LLMPolicy `json:"providerPolicies,omitempty"`
 }
 
-type AgentModelConfigListResponse struct {
-	Configs []AgentModelConfigResponse `json:"configs"`
+type AgentConfigListResponse struct {
+	Count int                   `json:"count"`
+	List  []AgentConfigDocument `json:"list"`
+}
+
+// NewModelConfigDocument returns a model configuration binding the agent to an LLM provider.
+func NewModelConfigDocument(project, name, provider string) AgentConfigDocument {
+	return AgentConfigDocument{
+		APIVersion: AgentDocumentAPIVersion, Kind: "AgentModelConfig",
+		Metadata: AgentMetadata{Name: name, Project: project},
+		Spec:     AgentConfigSpec{ProviderName: provider},
+	}
+}
+
+// NewMCPConfigDocument returns an MCP configuration binding the agent to an MCP proxy.
+func NewMCPConfigDocument(project, name, proxy string) AgentConfigDocument {
+	return AgentConfigDocument{
+		APIVersion: AgentDocumentAPIVersion, Kind: "AgentMcpConfig",
+		Metadata: AgentMetadata{Name: name, Project: project},
+		Spec:     AgentConfigSpec{ProxyName: proxy},
+	}
 }
 
 // ---------------------------------------------------------------------------

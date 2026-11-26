@@ -17,6 +17,7 @@
 package models
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,6 +68,15 @@ func (Environment) TableName() string { return "environments" }
 
 // DefaultEnvironmentName is the name of every organization's only environment.
 const DefaultEnvironmentName = "default"
+
+// EnvironmentOrDefault returns name, or the organization's only environment
+// when a request named none.
+func EnvironmentOrDefault(name string) string {
+	if strings.TrimSpace(name) == "" {
+		return DefaultEnvironmentName
+	}
+	return name
+}
 
 // Agent is an agent registered in a project. Only external agents exist
 // without a hosted runtime.

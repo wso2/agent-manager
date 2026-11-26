@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import type { ListQuery, OrgPathParams, OrgProjPathParams } from "./common";
+import type { DocumentMetadata, ListQuery, OrgPathParams, OrgProjPathParams } from "./common";
 import type {
   APIKeySecurity,
   Resilience,
@@ -174,6 +174,30 @@ export interface MCPProxyListItem {
   projectName?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+/**
+ * The proxy's desired state. metadata.name carries the handle and spec.displayName the label,
+ * so neither `id` nor `name` appears here; the record fields live on metadata.
+ */
+export type MCPProxySpec = Omit<MCPProxy, "id" | "name" | "createdBy" | "createdAt" | "updatedAt"> & {
+  displayName: string;
+};
+
+/** A PUT keeps any spec field it leaves out, so only displayName is required. */
+export type MCPProxyUpdateSpec = Partial<MCPProxySpec> & { displayName: string };
+
+export interface MCPProxyDocument<S = MCPProxySpec> {
+  apiVersion: "ai-control-plane.choreolabs.com/v1";
+  kind: "McpProxy";
+  metadata: DocumentMetadata;
+  spec: S;
+}
+
+export interface MCPProxyDocumentList {
+  count?: number;
+  list: MCPProxyDocument[];
+  pagination?: { limit?: number; offset?: number; total?: number };
 }
 
 export interface MCPProxyPagination {

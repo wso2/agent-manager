@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 )
@@ -101,7 +100,7 @@ func TestCreate_FileMode_Internal(t *testing.T) {
 	if captured.method != http.MethodPost {
 		t.Errorf("method = %q, want POST", captured.method)
 	}
-	if !strings.HasSuffix(captured.path, "/orgs/acme/projects/triage/agents") {
+	if captured.path != "/agents" {
 		t.Errorf("path = %q", captured.path)
 	}
 
@@ -109,16 +108,10 @@ func TestCreate_FileMode_Internal(t *testing.T) {
 	if err := json.Unmarshal(captured.body, &body); err != nil {
 		t.Fatalf("decode request: %v", err)
 	}
-	if body["name"] != "my-agent" || body["displayName"] != "My Agent" {
-		t.Errorf("body name/displayName = %v/%v", body["name"], body["displayName"])
-	}
-	build := body["build"].(map[string]any)
-	if build["type"] != "buildpack" {
-		t.Errorf("build.type = %v", build["type"])
-	}
-	bp := build["buildpack"].(map[string]any)
-	if bp["language"] != "python" {
-		t.Errorf("buildpack.language = %v", bp["language"])
+	meta := body["metadata"].(map[string]any)
+	spec := body["spec"].(map[string]any)
+	if meta["name"] != "my-agent" || spec["displayName"] != "My Agent" {
+		t.Errorf("metadata.name/spec.displayName = %v/%v", meta["name"], spec["displayName"])
 	}
 }
 
@@ -127,21 +120,13 @@ func TestCreate_FileMode_Internal(t *testing.T) {
 func TestCreate_FileMode_External_TokenFlow(t *testing.T) {
 	ios, _, errOut := newTestIO(false)
 	routes := map[string]routeResponse{
-		"/orgs/acme/projects/triage/agents/testing/token": {
+		"/agents/testing/token": {
 			Status: 200,
 			Body:   amsvc.TokenResponse{Token: "tok-abc", ExpiresAt: 1700000000, IssuedAt: 1690000000, TokenType: "Bearer"},
 		},
-		"/orgs/acme/projects/triage/agents": {
+		"/agents": {
 			Status: 202,
-			Body: amsvc.AgentResponse{
-				Name:         "testing",
-				DisplayName:  "Testing",
-				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.External},
-				ProjectName:  "triage",
-				Uuid:         "u",
-				CreatedAt:    time.Date(2026, 6, 11, 12, 0, 0, 0, time.UTC),
-			},
+			Body:   testAgentDoc("testing", "Testing", "", amsvc.AgentType{Type: "external-agent-api"}, amsvc.ProvisioningTypeExternal),
 		},
 	}
 	clientFn, captured, cleanup := newTestRouter(t, routes)
@@ -164,7 +149,7 @@ spec:
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, ok := captured["/orgs/acme/projects/triage/agents/testing/token"]; !ok {
+	if _, ok := captured["/agents/testing/token"]; !ok {
 		t.Error("no token request captured — external flow must run for file mode")
 	}
 	if !strings.Contains(errOut.String(), `export AMP_AGENT_API_KEY="tok-abc"`) {

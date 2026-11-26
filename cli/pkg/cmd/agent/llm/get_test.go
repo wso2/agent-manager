@@ -29,22 +29,24 @@ import (
 
 const getUUID = "11111111-1111-1111-1111-111111111111"
 
-func getResponseFixture() aigateway.AgentModelConfigResponse {
-	active := "active"
+func getResponseFixture() aigateway.AgentModelConfigDocument {
 	desc := "primary openai binding"
-	return aigateway.AgentModelConfigResponse{
-		Name:        "primary",
-		Type:        "llm",
-		Description: &desc,
-		Uuid:        mustUUID(getUUID),
-		EnvMappings: map[string]aigateway.EnvProviderConfigMappings{
-			"dev":  {EnvironmentName: "dev", Configuration: &aigateway.ProviderConfig{ProviderName: "openai", Url: "https://dev.llm", Status: &active}},
-			"prod": {EnvironmentName: "prod", Configuration: &aigateway.ProviderConfig{ProviderName: "anthropic", Url: "https://prod.llm"}},
+	uid := mustUUID(getUUID)
+	url := "https://default.llm"
+	policies := []aigateway.LLMPolicy{{Name: "rate-limit", Version: "v1"}}
+	vars := []aigateway.EnvironmentVariableConfig{
+		{Key: "url", Name: "OPENAI_URL"},
+		{Key: "apikey", Name: "OPENAI_KEY"},
+	}
+	return aigateway.AgentModelConfigDocument{
+		Metadata: aigateway.ProjectScopedDocumentMetadata{Name: "primary", Project: "triage", Uid: &uid},
+		Spec: aigateway.AgentModelConfigSpec{
+			ProviderName:         "openai",
+			Description:          &desc,
+			Configuration:        &aigateway.EnvProviderConfiguration{Policies: &policies},
+			EnvironmentVariables: &vars,
 		},
-		EnvironmentVariables: []aigateway.EnvironmentVariableConfig{
-			{Key: "url", Name: "OPENAI_URL"},
-			{Key: "apikey", Name: "OPENAI_KEY"},
-		},
+		Status: &aigateway.AgentConfigStatus{Url: &url},
 	}
 }
 
@@ -66,10 +68,9 @@ func Test_runGet_humanOutput(t *testing.T) {
 	}
 	got := out.String()
 	for _, want := range []string{
-		"primary", "llm", "primary openai binding",
-		"PROVIDER", "URL", "STATUS",
-		"openai", "https://dev.llm", "active",
-		"anthropic",
+		"primary", "primary openai binding",
+		"PROVIDER", "URL",
+		"openai", "https://default.llm",
 		"OPENAI_URL", "OPENAI_KEY",
 	} {
 		if !strings.Contains(got, want) {
@@ -90,12 +91,11 @@ func Test_runGet_json(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	data := decodeEnvelope(t, out.String())["data"].(map[string]any)
-	if data["name"] != "primary" {
-		t.Errorf("name = %v, want primary", data["name"])
+	if meta := data["metadata"].(map[string]any); meta["name"] != "primary" {
+		t.Errorf("metadata.name = %v, want primary", meta["name"])
 	}
-	envs := data["envMappings"].(map[string]any)
-	if _, ok := envs["dev"]; !ok {
-		t.Errorf("envMappings missing dev: %v", envs)
+	if spec := data["spec"].(map[string]any); spec["providerName"] != "openai" {
+		t.Errorf("spec.providerName = %v, want openai", spec["providerName"])
 	}
 }
 

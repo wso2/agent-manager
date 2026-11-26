@@ -29,23 +29,27 @@ import type {
   RotateAgentAPIKeyRequest,
   RotateAgentAPIKeyResponse,
 } from "@agent-management-platform/types";
-import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
+import {
+  agentGatewayPath,
+  agentRequestOptions,
+  encodeRequired,
+  httpDELETE,
+  httpGET,
+  httpPOST,
+  httpPUT,
+} from "../../shared/utils";
 
 export async function createAgentAPIKey(
   params: CreateAgentAPIKeyPathParams,
   body: CreateAgentAPIKeyRequest,
   getToken?: () => Promise<string>,
 ): Promise<CreateAgentAPIKeyResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const agent = encodeRequired(params.agentName, "agentName");
-  const env = encodeRequired(params.envId, "envId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys`,
+    agentGatewayPath(params, "/api-keys"),
     body,
-    { token },
+    agentRequestOptions(params, token),
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -55,15 +59,11 @@ export async function listAgentAPIKeys(
   params: ListAgentAPIKeysPathParams,
   getToken?: () => Promise<string>,
 ): Promise<AgentAPIKeyListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const agent = encodeRequired(params.agentName, "agentName");
-  const env = encodeRequired(params.envId, "envId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys`,
-    { token },
+    agentGatewayPath(params, "/api-keys"),
+    agentRequestOptions(params, token),
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -74,17 +74,13 @@ export async function rotateAgentAPIKey(
   body: RotateAgentAPIKeyRequest,
   getToken?: () => Promise<string>,
 ): Promise<RotateAgentAPIKeyResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const agent = encodeRequired(params.agentName, "agentName");
-  const env = encodeRequired(params.envId, "envId");
   const keyName = encodeRequired(params.keyName, "keyName");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/${keyName}`,
+    agentGatewayPath(params, `/api-keys/${keyName}`),
     body,
-    { token },
+    agentRequestOptions(params, token),
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -94,16 +90,12 @@ export async function revokeAgentAPIKey(
   params: RevokeAgentAPIKeyPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const agent = encodeRequired(params.agentName, "agentName");
-  const env = encodeRequired(params.envId, "envId");
   const keyName = encodeRequired(params.keyName, "keyName");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/${keyName}`,
-    { token },
+    agentGatewayPath(params, `/api-keys/${keyName}`),
+    agentRequestOptions(params, token),
   );
   if (!res.ok) throw await res.json();
 }
@@ -112,16 +104,12 @@ export async function issueTestAgentAPIKey(
   params: IssueTestAgentAPIKeyPathParams,
   getToken?: () => Promise<string>,
 ): Promise<IssueTestAgentAPIKeyResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const proj = encodeRequired(params.projName, "projName");
-  const agent = encodeRequired(params.agentName, "agentName");
-  const env = encodeRequired(params.envId, "envId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/test`,
+    agentGatewayPath(params, "/api-keys/test"),
     {},
-    { token },
+    agentRequestOptions(params, token),
   );
   if (!res.ok) throw await res.json();
   return res.json();

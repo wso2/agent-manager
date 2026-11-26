@@ -19,6 +19,7 @@
 export * from "./apis/deployments";
 export * from "./apis/agent-card";
 export * from "./apis/a2a-proxy";
+export * from "./apis/agent-config-documents";
 export * from "./apis/agent-mcp-configs";
 export * from "./apis/agent-model-configs";
 export * from "./hooks/deployments";

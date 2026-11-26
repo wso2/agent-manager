@@ -38,8 +38,8 @@ Exemptions are a YAML list of route + reason, in this fixed form:
 
 A route may use * as a wildcard (fnmatch).
 
---out writes the ratchet format ({"areas": {group: {covered, total}}}, see
-ratchet.py); --hits writes the hit routes as TSV (route, module, status,
+--out writes the coverage summary format ({"areas": {group: {covered, total}}}, see
+gate.py); --hits writes the hit routes as TSV (route, module, status,
 count).
 
 Usage:

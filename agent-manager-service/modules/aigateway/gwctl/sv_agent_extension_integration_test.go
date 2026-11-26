@@ -42,16 +42,27 @@ const svExtProject = "ext-proj"
 // svExtAgent is an external agent create request carrying the gateway's
 // extension block.
 func svExtAgent(name string, ext map[string]any) map[string]any {
-	return map[string]any{
-		"name": name, "displayName": name,
+	return svAgentDoc(name, map[string]any{
+		"displayName":  name,
 		"provisioning": map[string]any{"type": "external"},
 		"agentType":    map[string]any{"type": "external-agent-api"},
 		"extensions":   map[string]any{"ai-gateway": ext},
+	})
+}
+
+// svAgentDoc is an Agent document in svExtProject.
+func svAgentDoc(name string, spec map[string]any) map[string]any {
+	return map[string]any{
+		"apiVersion": "ai-control-plane.choreolabs.com/v1", "kind": "Agent",
+		"metadata": map[string]any{"name": name, "project": svExtProject}, "spec": spec,
 	}
 }
 
-func svAgentsPath(a *routeAPI) string {
-	return "/api/v1/orgs/" + a.handle + "/projects/" + svExtProject + "/agents"
+const svAgentsPath = "/api/v1/agents"
+
+// svAgentPath addresses one agent in svExtProject.
+func svAgentPath(name string) string {
+	return svAgentsPath + "/" + name + "?project=" + svExtProject
 }
 
 // An agent created with model and MCP bindings and settings gets them: the
@@ -66,7 +77,7 @@ func TestSVAgentExtensionCreateStoresBindingsAndSettings(t *testing.T) {
 	agCreateMCPProxy(t, a, proxy)
 
 	name := unique("ext")
-	expect(t, a.raw(http.MethodPost, svAgentsPath(a), svExtAgent(name, map[string]any{
+	expect(t, a.raw(http.MethodPost, svAgentsPath, svExtAgent(name, map[string]any{
 		"modelConfig": []any{map[string]any{"providerName": provider}},
 		"mcpConfig":   []any{map[string]any{"proxyName": proxy}},
 		"settings":    map[string]any{"enableApiKeySecurity": true, "resilienceTimeoutSeconds": 30},
@@ -81,13 +92,13 @@ func TestSVAgentExtensionCreateStoresBindingsAndSettings(t *testing.T) {
 	}
 	assert.Equal(t, map[string]string{"llm": provider, "mcp": proxy}, got, "the agent's bindings are stored with it")
 
-	configs := a.do(http.MethodGet, "/orgs/{org}/projects/"+svExtProject+"/agents/"+name+"/configurations", nil)
+	configs := a.do(http.MethodGet, agentPathIn(svExtProject, name, "/configurations"), nil)
 	require.Equal(t, http.StatusOK, configs.Code, configs.Body.String())
 	assert.Contains(t, configs.Body.String(), `"resilienceTimeoutSeconds":30`, "the settings are stored on create")
 
-	rec := a.raw(http.MethodPut, svAgentsPath(a)+"/"+name, map[string]any{
+	rec := a.raw(http.MethodPut, svAgentPath(name), svAgentDoc(name, map[string]any{
 		"displayName": name, "extensions": map[string]any{"ai-gateway": map[string]any{"settings": map[string]any{"enableApiKeySecurity": false}}},
-	})
+	}))
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, errorMessage(t, rec), "accepted on create only")
 }
@@ -112,10 +123,10 @@ func TestSVAgentExtensionRefusesInvalidBlocks(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			name := unique("bad")
-			rec := a.raw(http.MethodPost, svAgentsPath(a), svExtAgent(name, tc.ext))
+			rec := a.raw(http.MethodPost, svAgentsPath, svExtAgent(name, tc.ext))
 			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 			assert.Contains(t, errorMessage(t, rec), tc.want)
-			got := a.raw(http.MethodGet, svAgentsPath(a)+"/"+name, nil)
+			got := a.raw(http.MethodGet, svAgentPath(name), nil)
 			assert.Equal(t, http.StatusNotFound, got.Code, "no agent is created")
 		})
 	}
@@ -133,7 +144,7 @@ func TestSVAgentExtensionRefusesANameStillBeingTornDown(t *testing.T) {
 		CreatedAt: now, UpdatedAt: now,
 	}).Error)
 
-	rec := a.raw(http.MethodPost, svAgentsPath(a), svExtAgent(name, map[string]any{}))
+	rec := a.raw(http.MethodPost, svAgentsPath, svExtAgent(name, map[string]any{}))
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, errorMessage(t, rec), "still revoking")
 }

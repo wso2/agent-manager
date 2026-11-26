@@ -873,6 +873,11 @@ func (c *llmController) applyCatalog(
 // writeDocumentError maps a refused document to 400 and anything else to 500.
 func writeDocumentError(w http.ResponseWriter, ctx context.Context, op, ouID string, err error) {
 	log := logger.GetLogger(ctx)
+	if errors.Is(err, gwconv.ErrMalformedBody) {
+		log.Error(op+": failed to decode the document", "ouID", ouID, "error", err)
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
 	if errors.Is(err, gwconv.ErrDocument) {
 		log.Warn(op+": the document was refused", "ouID", ouID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())

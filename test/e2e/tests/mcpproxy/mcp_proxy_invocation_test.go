@@ -24,7 +24,6 @@ package mcpproxy
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -90,12 +89,11 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 		upstreamURL := framework.TestMCPServerURL
 		ctx := "/" + proxyID
 
-		proxy := mcpproxyop.CreateMCPProxy(Default, Client, Cfg.DefaultOrg,
-			framework.CreateMCPProxyRequest{
-				ID:      proxyID,
-				Name:    "E2E MCP Inv Proxy " + suffix,
-				Version: "v1.0",
-				Context: &ctx,
+		proxy := mcpproxyop.CreateMCPProxy(Default, Client, proxyID,
+			framework.MCPProxySpec{
+				DisplayName: "E2E MCP Inv Proxy " + suffix,
+				Version:     "v1.0",
+				Context:     &ctx,
 				// The api-key security policy lives on the endpoint; the proxy deploys the
 				// endpoint's artifact to the env's gateway, and per-agent inbound keys are
 				// minted against it.
@@ -117,7 +115,7 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 					},
 				},
 			})
-		Expect(proxy.ID).To(Equal(proxyID))
+		Expect(proxy.Metadata.Name).To(Equal(proxyID))
 	})
 
 	It("should create an external agent", func() {
@@ -126,35 +124,26 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 			ProjectName: framework.E2ESharedProjectName,
 			Request:     createReq,
 		})
-		Expect(ag.Name).To(Equal(agentName))
-		Expect(ag.Provisioning.Type).To(Equal("external"))
+		Expect(ag.Metadata.Name).To(Equal(agentName))
+		Expect(ag.Spec.Provisioning.Type).To(Equal("external"))
 	})
 
 	It("should attach the MCP proxy and extract gateway proxy credentials", func() {
 		// MCP proxies attach via the dedicated mcp-configs endpoint; the server
 		// forces type "mcp", so we don't set it on the request.
-		config := configuration.CreateAgentMCPConfig(Default, Client,
-			Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName,
-			framework.CreateAgentModelConfigRequest{
-				Name: "e2e-mcp-cfg-" + suffix,
-				EnvMappings: map[string]framework.EnvModelConfigRequest{
-					Cfg.DefaultEnv: {MCPProxyName: proxyID},
-				},
-			})
-		Expect(config.UUID).NotTo(BeEmpty())
-		configID = config.UUID
+		config := configuration.CreateAgentMCPConfig(Default, Client, framework.E2ESharedProjectName, agentName,
+			framework.NewMCPConfigDocument(framework.E2ESharedProjectName, "e2e-mcp-cfg-"+suffix, proxyID))
+		Expect(config.Metadata.UID).NotTo(BeEmpty())
+		configID = config.Metadata.UID
 
-		envMapping, exists := config.EnvMappings[Cfg.DefaultEnv]
-		Expect(exists).To(BeTrue(), "expected env mapping for %s", Cfg.DefaultEnv)
-		Expect(envMapping.Configuration).NotTo(BeNil(), "expected configuration in env mapping")
-
-		proxyURL = envMapping.Configuration.URL
+		Expect(config.Status).NotTo(BeNil(), "expected the binding's status")
+		proxyURL = config.Status.URL
 		Expect(proxyURL).NotTo(BeEmpty(), "MCP proxy URL should be set")
 
-		Expect(envMapping.Configuration.AuthInfo).NotTo(BeNil(), "expected authInfo with API key")
-		Expect(envMapping.Configuration.AuthInfo.Value).NotTo(BeNil(), "expected API key value")
-		proxyAPIKey = *envMapping.Configuration.AuthInfo.Value
-		authHeader = envMapping.Configuration.AuthInfo.Name
+		Expect(config.Status.AuthInfo).NotTo(BeNil(), "expected authInfo with API key")
+		Expect(config.Status.AuthInfo.Value).NotTo(BeNil(), "expected API key value")
+		proxyAPIKey = *config.Status.AuthInfo.Value
+		authHeader = config.Status.AuthInfo.Name
 		Expect(authHeader).NotTo(BeEmpty(), "expected auth header name")
 
 		GinkgoWriter.Printf("MCP proxy attached: url=%s, authHeader=%s\n", proxyURL, authHeader)
@@ -230,42 +219,43 @@ var _ = Describe("MCP Proxy with External Agent and Policy Enforcement", Label("
 	}
 
 	It("reads, lists and updates the agent's MCP binding", func() {
-		base := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs", Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName)
-		got := framework.CallObj(Default, Client, http.MethodGet, base+"/"+configID, nil, http.StatusOK)
-		Expect(got["name"]).To(Equal("e2e-mcp-cfg-" + suffix))
-		list := framework.CallObj(Default, Client, http.MethodGet, base, nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(list, "configs"), "uuid")).To(ContainElement(configID))
-		framework.Call(Default, Client, http.MethodPut, base+"/"+configID, framework.Obj{
-			"name": "e2e-mcp-cfg-" + suffix, "description": "updated",
-			"envMappings": framework.Obj{Cfg.DefaultEnv: framework.Obj{"mcpProxyName": proxyID}},
-		}, http.StatusOK)
-		Expect(framework.CallObj(Default, Client, http.MethodGet, base+"/"+configID, nil, http.StatusOK)["description"]).To(Equal("updated"))
+		cfgPath := framework.GWAgent(framework.E2ESharedProjectName, agentName, "/mcp-configs/%s", configID)
+		got := framework.CallJSON[framework.AgentConfigDocument](Default, Client, http.MethodGet, cfgPath, nil, http.StatusOK)
+		Expect(got.Metadata.Name).To(Equal("e2e-mcp-cfg-" + suffix))
+		list := framework.CallJSON[framework.AgentConfigListResponse](Default, Client, http.MethodGet,
+			framework.GWAgent(framework.E2ESharedProjectName, agentName, "/mcp-configs"), nil, http.StatusOK)
+		Expect(list.List).To(ContainElement(HaveField("Metadata.UID", configID)))
+		got.Status = nil
+		got.Spec.Description = "updated"
+		framework.Call(Default, Client, http.MethodPut, cfgPath, got, http.StatusOK)
+		Expect(framework.CallJSON[framework.AgentConfigDocument](Default, Client, http.MethodGet, cfgPath, nil, http.StatusOK).Spec.Description).To(Equal("updated"))
 	})
 
 	It("mints a key for the binding that works until it's rotated and then revoked", func() {
-		keys := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs/%s/environments/%s/api-keys",
-			Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName, configID, Cfg.DefaultEnv)
-		minted := framework.CallObj(Default, Client, http.MethodPost, keys, framework.Obj{"name": "e2e-mcp-key", "displayName": "e2e-mcp-key"}, http.StatusCreated)
+		keys := func(f string) string {
+			return framework.GWAgent(framework.E2ESharedProjectName, agentName, "/mcp-configs/%s/api-keys%s", configID, f)
+		}
+		minted := framework.CallObj(Default, Client, http.MethodPost, keys(""), framework.Obj{"name": "e2e-mcp-key", "displayName": "e2e-mcp-key"}, http.StatusCreated)
 		first := framework.Str(minted, "apiKey")
 		Expect(first).NotTo(BeEmpty())
-		Expect(framework.Field(framework.Items(framework.CallObj(Default, Client, http.MethodGet, keys, nil, http.StatusOK), "keys"), "name")).
+		Expect(framework.Field(framework.Items(framework.CallObj(Default, Client, http.MethodGet, keys(""), nil, http.StatusOK), "keys"), "name")).
 			To(ContainElement("e2e-mcp-key"))
 		Eventually(func(g Gomega) int { return invokeStatus(g, first) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal(http.StatusOK))
 
-		rotated := framework.Str(framework.CallObj(Default, Client, http.MethodPut, keys+"/e2e-mcp-key", framework.Obj{}, http.StatusOK), "apiKey")
+		rotated := framework.Str(framework.CallObj(Default, Client, http.MethodPut, keys("/e2e-mcp-key"), framework.Obj{}, http.StatusOK), "apiKey")
 		Expect(rotated).NotTo(Equal(first))
 		Eventually(func(g Gomega) int { return invokeStatus(g, rotated) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal(http.StatusOK))
 		Eventually(func(g Gomega) int { return invokeStatus(g, first) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal(http.StatusUnauthorized))
 
-		framework.Call(Default, Client, http.MethodDelete, keys+"/e2e-mcp-key", nil, http.StatusNoContent)
+		framework.Call(Default, Client, http.MethodDelete, keys("/e2e-mcp-key"), nil, http.StatusNoContent)
 		Eventually(func(g Gomega) int { return invokeStatus(g, rotated) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).Should(Equal(http.StatusUnauthorized))
 		// The binding's own key is untouched.
 		Expect(invokeStatus(Default, proxyAPIKey)).To(Equal(http.StatusOK))
 	})
 	It("removes the binding, after which its key no longer works", func() {
-		base := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs", Cfg.DefaultOrg, framework.E2ESharedProjectName, agentName)
-		framework.Call(Default, Client, http.MethodDelete, base+"/"+configID, nil, http.StatusNoContent)
-		framework.CallError(Default, Client, http.MethodGet, base+"/"+configID, nil, http.StatusNotFound)
+		cfgPath := framework.GWAgent(framework.E2ESharedProjectName, agentName, "/mcp-configs/%s", configID)
+		framework.Call(Default, Client, http.MethodDelete, cfgPath, nil, http.StatusNoContent)
+		framework.CallError(Default, Client, http.MethodGet, cfgPath, nil, http.StatusNotFound)
 		Eventually(func(g Gomega) int { return invokeStatus(g, proxyAPIKey) }).WithTimeout(2 * time.Minute).WithPolling(5 * time.Second).
 			Should(BeElementOf(http.StatusUnauthorized, http.StatusForbidden))
 	})

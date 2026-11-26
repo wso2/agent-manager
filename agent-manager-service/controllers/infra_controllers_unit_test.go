@@ -174,8 +174,8 @@ func TestAgentTokenController_GenerateToken(t *testing.T) {
 
 	t.Run("a token without an org identity is refused", func(t *testing.T) {
 		for name, r := range map[string]*http.Request{
-			"no claims": orgRequest(http.MethodPost, "/x", ""),
-			"no OU":     withClaims(orgRequest(http.MethodPost, "/x", ""), ""),
+			"no claims": orgRequest(http.MethodPost, "/x?project=proj", ""),
+			"no OU":     withClaims(orgRequest(http.MethodPost, "/x?project=proj", ""), ""),
 		} {
 			w := httptest.NewRecorder()
 			NewAgentTokenController(&stubTokens{}).GenerateToken(w, r)
@@ -183,7 +183,7 @@ func TestAgentTokenController_GenerateToken(t *testing.T) {
 		}
 	})
 
-	t.Run("passes the path, environment and expiry through", func(t *testing.T) {
+	t.Run("passes the project, agent, environment and expiry through", func(t *testing.T) {
 		ctrl := NewAgentTokenController(&stubTokens{gen: func(req services.GenerateTokenRequest) (*spec.TokenResponse, error) {
 			assert.Equal(t, services.GenerateTokenRequest{
 				OrgName: callerOU, ProjectName: "proj", AgentName: "agent", Environment: "dev", ExpiresIn: "1h", OrgId: callerOU,
@@ -191,14 +191,21 @@ func TestAgentTokenController_GenerateToken(t *testing.T) {
 			return &spec.TokenResponse{Token: "signed"}, nil
 		}})
 		w := httptest.NewRecorder()
-		ctrl.GenerateToken(w, withClaims(orgRequest(http.MethodPost, "/x?environment=dev", `{"expires_in":"1h"}`), callerOU))
+		ctrl.GenerateToken(w, withClaims(orgRequest(http.MethodPost, "/x?project=proj&environment=dev", `{"expires_in":"1h"}`), callerOU))
 		require.Equal(t, http.StatusOK, w.Code)
 		assert.Equal(t, "signed", decodeMap(t, w)["token"])
 	})
 
+	t.Run("the project query parameter is required", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		NewAgentTokenController(&stubTokens{}).GenerateToken(w, withClaims(orgRequest(http.MethodPost, "/x", ""), callerOU))
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, "project query parameter is required", decodeError(t, w).Message)
+	})
+
 	t.Run("a malformed body", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		NewAgentTokenController(&stubTokens{}).GenerateToken(w, withClaims(orgRequest(http.MethodPost, "/x", "{"), callerOU))
+		NewAgentTokenController(&stubTokens{}).GenerateToken(w, withClaims(orgRequest(http.MethodPost, "/x?project=proj", "{"), callerOU))
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 
@@ -215,7 +222,7 @@ func TestAgentTokenController_GenerateToken(t *testing.T) {
 	} {
 		ctrl := NewAgentTokenController(&stubTokens{gen: func(services.GenerateTokenRequest) (*spec.TokenResponse, error) { return nil, err }})
 		w := httptest.NewRecorder()
-		ctrl.GenerateToken(w, withClaims(orgRequest(http.MethodPost, "/x", ""), callerOU))
+		ctrl.GenerateToken(w, withClaims(orgRequest(http.MethodPost, "/x?project=proj", ""), callerOU))
 		assert.Equal(t, want.status, w.Code, err.Error())
 		assert.Contains(t, decodeError(t, w).Message, want.msg)
 	}

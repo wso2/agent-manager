@@ -113,7 +113,7 @@ func runLink(ctx context.Context, o *LinkOptions, org, project string, scope ren
 		if err := cmdutil.ValidatePathParam("agent", o.Agent); err != nil {
 			return render.Error(o.IO, scope, err)
 		}
-		agentResp, err := client.GetAgentWithResponse(ctx, org, project, o.Agent)
+		agentResp, err := client.GetAgentWithResponse(ctx, o.Agent, &amsvc.GetAgentParams{Project: project})
 		if err != nil {
 			return render.Error(o.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
 		}

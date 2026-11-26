@@ -14,7 +14,7 @@ servers:
 security:
   - bearerAuth: []
 paths:
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments:
+  /agents/{agentName}/deployments:
     get:
       summary: List agent deployments with detailed information
       description: Retrieves detailed deployment information for a specific agent across all environments
@@ -26,16 +26,10 @@ paths:
           required: true
           schema:
             type: string
-        - name: orgName
-          in: path
-          description: Organization name
+        - name: project
+          in: query
           required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          description: Project name
-          required: true
+          description: Handle of the project the agent belongs to.
           schema:
             type: string
       responses:
@@ -58,10 +52,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations:
+  /agents/{agentName}/configurations:
     get:
-      summary: Get agent configurations for a specific environment
-      description: The agent's gateway settings in an environment, and the provisioning state of the LLM providers and MCP proxies it asked for in its extensions.ai-gateway block (see AgentGatewayExtension)
+      summary: Get agent configurations
+      description: The agent's gateway settings in the default environment, and the provisioning state of the LLM providers and MCP proxies it asked for in its extensions.ai-gateway block (see AgentGatewayExtension)
       operationId: getAgentConfigurations
       parameters:
         - name: agentName
@@ -70,22 +64,10 @@ paths:
           required: true
           schema:
             type: string
-        - name: orgName
-          in: path
-          description: Organization name
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          description: Project name
-          required: true
-          schema:
-            type: string
-        - name: environment
+        - name: project
           in: query
-          description: Environment name
           required: true
+          description: Handle of the project the agent belongs to.
           schema:
             type: string
       responses:
@@ -108,9 +90,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings:
+  /agents/{agentName}/deploy-settings:
     put:
-      summary: Update agent deploy settings for an environment
+      summary: Update agent deploy settings
       description: |
         Updates per-environment deploy settings (CORS, API key security, auto
         instrumentation) on the agent's release binding without redeploying or
@@ -125,16 +107,10 @@ paths:
           required: true
           schema:
             type: string
-        - name: orgName
-          in: path
-          description: Organization name
+        - name: project
+          in: query
           required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          description: Project name
-          required: true
+          description: Handle of the project the agent belongs to.
           schema:
             type: string
       requestBody:
@@ -1696,43 +1672,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs:
+  /agents/{agentName}/model-configs:
     post:
       summary: Create agent model configuration
-      description: Creates a new model configuration for an agent with environment-specific mappings
+      description: Creates a model configuration for an agent in the default environment. The project is metadata.project.
       operationId: createAgentModelConfig
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateAgentModelConfigRequest"
+              $ref: "#/components/schemas/AgentModelConfigDocument"
       responses:
         "201":
           description: Agent model configuration created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentModelConfigResponse"
+                $ref: "#/components/schemas/AgentModelConfigDocument"
         "400":
           description: Invalid request
           content:
@@ -1768,24 +1738,18 @@ paths:
       description: Lists all model configurations for an agent with pagination
       operationId: listAgentModelConfigs
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
         - name: limit
           in: query
           required: false
@@ -1817,30 +1781,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}:
+  /agents/{agentName}/model-configs/{configId}:
     get:
       summary: Get agent model configuration
       description: Retrieves a specific model configuration by ID
       operationId: getAgentModelConfig
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
         - name: configId
           in: path
           required: true
@@ -1854,7 +1812,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentModelConfigResponse"
+                $ref: "#/components/schemas/AgentModelConfigDocument"
         "400":
           description: Invalid configuration ID
           content:
@@ -1875,27 +1833,24 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
       summary: Update agent model configuration
-      description: Updates an existing model configuration
+      description: >-
+        Updates an existing model configuration. metadata.project must name the project
+        in the query; a changed metadata.name renames it. An absent spec.description,
+        spec.configuration or spec.environmentVariables keeps its stored value.
       operationId: updateAgentModelConfig
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
         - name: configId
           in: path
           required: true
@@ -1908,14 +1863,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateAgentModelConfigRequest"
+              $ref: "#/components/schemas/AgentModelConfigDocument"
       responses:
         "200":
           description: Agent model configuration updated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentModelConfigResponse"
+                $ref: "#/components/schemas/AgentModelConfigDocument"
         "400":
           description: Invalid request or configuration ID
           content:
@@ -1939,24 +1894,18 @@ paths:
       description: Deletes a model configuration
       operationId: deleteAgentModelConfig
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
         - name: configId
           in: path
           required: true
@@ -1986,43 +1935,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs:
+  /agents/{agentName}/mcp-configs:
     post:
       summary: Create agent MCP configuration
-      description: Creates a new MCP configuration for an agent with environment-specific MCP proxy mappings
+      description: Creates an MCP configuration for an agent in the default environment. The project is metadata.project.
       operationId: createAgentMCPConfig
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateAgentModelConfigRequest"
+              $ref: "#/components/schemas/AgentMcpConfigDocument"
       responses:
         "201":
           description: Agent MCP configuration created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentModelConfigResponse"
+                $ref: "#/components/schemas/AgentMcpConfigDocument"
         "400":
           description: Invalid request
           content:
@@ -2058,24 +2001,18 @@ paths:
       description: Lists all MCP configurations for an agent with pagination
       operationId: listAgentMCPConfigs
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
         - name: limit
           in: query
           required: false
@@ -2099,7 +2036,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentModelConfigListResponse"
+                $ref: "#/components/schemas/AgentMcpConfigListResponse"
         "500":
           description: Internal server error
           content:
@@ -2107,30 +2044,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}:
+  /agents/{agentName}/mcp-configs/{configId}:
     get:
       summary: Get agent MCP configuration
       description: Retrieves a specific MCP configuration by ID
       operationId: getAgentMCPConfig
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
         - name: configId
           in: path
           required: true
@@ -2144,7 +2075,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentModelConfigResponse"
+                $ref: "#/components/schemas/AgentMcpConfigDocument"
         "400":
           description: Invalid configuration ID
           content:
@@ -2165,27 +2096,24 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
       summary: Update agent MCP configuration
-      description: Updates an existing MCP configuration
+      description: >-
+        Updates an existing MCP configuration. metadata.project must name the project
+        in the query; a changed metadata.name renames it. An absent spec.description,
+        spec.configuration or spec.environmentVariables keeps its stored value.
       operationId: updateAgentMCPConfig
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
         - name: configId
           in: path
           required: true
@@ -2198,14 +2126,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateAgentModelConfigRequest"
+              $ref: "#/components/schemas/AgentMcpConfigDocument"
       responses:
         "200":
           description: Agent MCP configuration updated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AgentModelConfigResponse"
+                $ref: "#/components/schemas/AgentMcpConfigDocument"
         "400":
           description: Invalid request or configuration ID
           content:
@@ -2229,24 +2157,18 @@ paths:
       description: Deletes an MCP configuration
       operationId: deleteAgentMCPConfig
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Organization name
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Project name
         - name: agentName
           in: path
           required: true
           schema:
             type: string
           description: Agent name
+        - name: project
+          in: query
+          required: true
+          description: Handle of the project the agent belongs to.
+          schema:
+            type: string
         - name: configId
           in: path
           required: true
@@ -2276,26 +2198,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys:
+  /agents/{agentName}/mcp-configs/{configId}/api-keys:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Organization name
-      - name: projName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Project name
       - name: agentName
         in: path
         required: true
         schema:
           type: string
         description: Agent name
+      - name: project
+        in: query
+        required: true
+        description: Handle of the project the agent belongs to.
+        schema:
+          type: string
       - name: configId
         in: path
         required: true
@@ -2303,17 +2219,11 @@ paths:
           type: string
           format: uuid
         description: MCP configuration UUID
-      - name: envName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Environment name
     get:
       tags:
         - MCP API Keys
       summary: List API keys for an external agent's MCP configuration
-      description: Returns the API key(s) for an external agent's MCP configuration in the given environment (masked values only).
+      description: Returns the API key(s) for an external agent's MCP configuration (masked values only).
       operationId: listMCPConfigAPIKeys
       responses:
         "200":
@@ -2384,26 +2294,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}:
+  /agents/{agentName}/mcp-configs/{configId}/api-keys/{keyName}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Organization name
-      - name: projName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Project name
       - name: agentName
         in: path
         required: true
         schema:
           type: string
         description: Agent name
+      - name: project
+        in: query
+        required: true
+        description: Handle of the project the agent belongs to.
+        schema:
+          type: string
       - name: configId
         in: path
         required: true
@@ -2411,12 +2315,6 @@ paths:
           type: string
           format: uuid
         description: MCP configuration UUID
-      - name: envName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Environment name
       - name: keyName
         in: path
         required: true
@@ -2494,26 +2392,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys:
+  /agents/{agentName}/model-configs/{configId}/api-keys:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Organization name
-      - name: projName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Project name
       - name: agentName
         in: path
         required: true
         schema:
           type: string
         description: Agent name
+      - name: project
+        in: query
+        required: true
+        description: Handle of the project the agent belongs to.
+        schema:
+          type: string
       - name: configId
         in: path
         required: true
@@ -2521,17 +2413,11 @@ paths:
           type: string
           format: uuid
         description: Model configuration UUID
-      - name: envName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Environment name
     get:
       tags:
         - LLM API Keys
       summary: List API keys for an external agent's model configuration
-      description: Returns the API key(s) for an external agent's model configuration in the given environment (masked values only).
+      description: Returns the API key(s) for an external agent's model configuration (masked values only).
       operationId: listLLMConfigAPIKeys
       responses:
         "200":
@@ -2602,26 +2488,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}/environments/{envName}/api-keys/{keyName}:
+  /agents/{agentName}/model-configs/{configId}/api-keys/{keyName}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Organization name
-      - name: projName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Project name
       - name: agentName
         in: path
         required: true
         schema:
           type: string
         description: Agent name
+      - name: project
+        in: query
+        required: true
+        description: Handle of the project the agent belongs to.
+        schema:
+          type: string
       - name: configId
         in: path
         required: true
@@ -2629,12 +2509,6 @@ paths:
           type: string
           format: uuid
         description: Model configuration UUID
-      - name: envName
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Environment name
       - name: keyName
         in: path
         required: true
@@ -3503,15 +3377,7 @@ paths:
   # MCP PROXY ENDPOINTS
   # ============================================
 
-  /orgs/{orgName}/mcp-proxies/fetch-server-info:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-
+  /mcp-proxies/fetch-server-info:
     post:
       tags:
         - MCP Proxies
@@ -3556,15 +3422,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/mcp-proxies/policies:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-
+  /mcp-proxies/policies:
     get:
       tags:
         - MCP Proxies
@@ -3591,34 +3449,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/mcp-proxies:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-
+  /mcp-proxies:
     post:
       tags:
         - MCP Proxies
       summary: Create an MCP proxy
-      description: Creates an MCP proxy and optionally deploys it to selected gateways.
+      description: Creates an MCP proxy and optionally deploys its endpoints to the environments they declare.
       operationId: createMCPProxy
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MCPProxyRequest"
+              $ref: "#/components/schemas/McpProxyDocument"
       responses:
         "201":
           description: MCP proxy created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyResponse"
+                $ref: "#/components/schemas/McpProxyDocument"
         "400":
           description: Invalid request
           content:
@@ -3648,7 +3498,14 @@ paths:
       tags:
         - MCP Proxies
       summary: List MCP proxies
-      description: Retrieve a paginated list of MCP proxies in an organization.
+      description: >-
+        Retrieve a paginated list of MCP proxies in an organization.
+
+
+        Each item is an McpProxy document, populated for list use: every required field
+        is present, but heavy optional blocks - spec.endpoints above all - are omitted.
+        A list item is a valid document, not necessarily a complete one; read the item
+        itself for the full spec.
       operationId: listMCPProxies
       parameters:
         - name: project
@@ -3708,14 +3565,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/mcp-proxies/{proxyId}:
+  /mcp-proxies/{proxyId}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
       - name: proxyId
         in: path
         required: true
@@ -3729,8 +3580,8 @@ paths:
       summary: Get MCP proxy details
       description: >-
         Retrieve detailed information about an MCP proxy. Also returns a project's proxy (read only),
-        with projectName set and no endpoints; its per-environment data (security, deployment status)
-        is on GET /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}.
+        with spec.projectName set and no endpoints; its per-environment data (security, deployment
+        status) is on the project's own route.
       operationId: getMCPProxy
       responses:
         "200":
@@ -3738,7 +3589,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyResponse"
+                $ref: "#/components/schemas/McpProxyDocument"
         "400":
           description: Invalid MCP proxy ID
           content:
@@ -3768,21 +3619,25 @@ paths:
       tags:
         - MCP Proxies
       summary: Update MCP proxy
-      description: Updates an MCP proxy and redeploys dependent MCP mapping artifacts.
+      description: >-
+        Updates an MCP proxy and redeploys dependent MCP mapping artifacts. metadata.name must
+        name the proxy in the path. The spec replaces the stored one, so it must carry every
+        field to keep, including at least one endpoint; an endpoint's upstream credentials are
+        the exception and survive being omitted.
       operationId: updateMCPProxy
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MCPProxyRequest"
+              $ref: "#/components/schemas/McpProxyDocument"
       responses:
         "200":
           description: MCP proxy updated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyResponse"
+                $ref: "#/components/schemas/McpProxyDocument"
         "400":
           description: Invalid request
           content:
@@ -3857,23 +3712,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
+  /mcp-proxies/{proxyId}/scopes:
+    parameters:
+      - name: proxyId
+        in: path
+        required: true
+        description: MCP proxy UUID or handle
+        schema:
+          type: string
+
     get:
+      tags:
+        - MCPProxyScopes
       summary: List MCP proxy scopes
-      description: Lists the proxy's scopes. Each scope is an action on the resource server this proxy is; the token scope string is "<proxy-handle>:<action>".
+      description: >-
+        Lists the proxy's scopes. Each scope is an action on the resource server this proxy is;
+        metadata.name is the action and spec.scope the token scope string "<proxy-handle>:<action>".
       operationId: listMCPProxyScopes
-      tags: [MCPProxyScopes]
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: proxyId
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "200":
           description: Scope list
@@ -3883,103 +3738,114 @@ paths:
                 $ref: "#/components/schemas/MCPProxyScopeListResponse"
         "404":
           description: MCP proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     post:
+      tags:
+        - MCPProxyScopes
       summary: Create MCP proxy scope
+      description: metadata.name is the scope's action.
       operationId: createMCPProxyScope
-      tags: [MCPProxyScopes]
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: proxyId
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MCPProxyScopeRequest"
+              $ref: "#/components/schemas/McpProxyScopeDocument"
       responses:
         "201":
           description: Scope created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyScopeResponse"
+                $ref: "#/components/schemas/McpProxyScopeDocument"
         "400":
           description: Invalid action, tools, or unknown tool name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: MCP proxy not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: A scope with this action already exists on the proxy
-  /orgs/{orgName}/mcp-proxies/{proxyId}/scopes/{scopeAction}:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /mcp-proxies/{proxyId}/scopes/{scopeAction}:
+    parameters:
+      - name: proxyId
+        in: path
+        required: true
+        description: MCP proxy UUID or handle
+        schema:
+          type: string
+      - name: scopeAction
+        in: path
+        required: true
+        description: The scope's action
+        schema:
+          type: string
+
     put:
+      tags:
+        - MCPProxyScopes
       summary: Update MCP proxy scope
-      description: Updates description and/or tools. The action itself is immutable (rename = delete + create).
+      description: >-
+        Updates description and/or tools. The action itself is immutable (rename = delete +
+        create), so metadata.name must match the action in the path. An absent spec.tools
+        leaves the tool list unchanged; an empty one unbinds the scope from every tool.
       operationId: updateMCPProxyScope
-      tags: [MCPProxyScopes]
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: proxyId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: scopeAction
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MCPProxyScopeUpdateRequest"
+              $ref: "#/components/schemas/McpProxyScopeDocument"
       responses:
         "200":
           description: Scope updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MCPProxyScopeResponse"
+                $ref: "#/components/schemas/McpProxyScopeDocument"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: MCP proxy or scope not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
     delete:
+      tags:
+        - MCPProxyScopes
       summary: Delete MCP proxy scope
       description: Deletes the scope. Best-effort removal of the corresponding Thunder action and role permissions, then gateway re-emission; tools the scope covered become authenticated-only unless another scope covers them.
       operationId: deleteMCPProxyScope
-      tags: [MCPProxyScopes]
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: proxyId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: scopeAction
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "204":
           description: Scope deleted
         "404":
           description: MCP proxy or scope not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ============================================
   # LLM DEPLOYMENT ENDPOINTS
@@ -5197,30 +5063,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys:
+  /agents/{agentName}/api-keys:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-      - name: projName
-        in: path
-        required: true
-        description: Project name
-        schema:
-          type: string
       - name: agentName
         in: path
         required: true
         description: Agent name
         schema:
           type: string
-      - name: envID
-        in: path
+      - name: project
+        in: query
         required: true
-        description: Environment name or UUID
+        description: Handle of the project the agent belongs to.
         schema:
           type: string
 
@@ -5308,27 +5162,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test:
+  /agents/{agentName}/api-keys/test:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: projName
-        in: path
-        required: true
-        schema:
-          type: string
       - name: agentName
         in: path
         required: true
         schema:
           type: string
-      - name: envID
-        in: path
+      - name: project
+        in: query
         required: true
-        description: Environment name or UUID
+        description: Handle of the project the agent belongs to.
         schema:
           type: string
     post:
@@ -5373,30 +5217,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}:
+  /agents/{agentName}/api-keys/{keyName}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-      - name: projName
-        in: path
-        required: true
-        description: Project name
-        schema:
-          type: string
       - name: agentName
         in: path
         required: true
         description: Agent name
         schema:
           type: string
-      - name: envID
-        in: path
+      - name: project
+        in: query
         required: true
-        description: Environment name or UUID
+        description: Handle of the project the agent belongs to.
         schema:
           type: string
       - name: keyName
@@ -5490,30 +5322,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card:
+  /agents/{agentName}/agent-card:
     parameters: &agentCardPathParams
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-      - name: projName
-        in: path
-        required: true
-        description: Project name
-        schema:
-          type: string
       - name: agentName
         in: path
         required: true
         description: Agent name
         schema:
           type: string
-      - name: envID
-        in: path
+      - name: project
+        in: query
         required: true
-        description: Environment name
+        description: Handle of the project the agent belongs to.
         schema:
           type: string
     get:
@@ -5548,7 +5368,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/refresh:
+  /agents/{agentName}/agent-card/refresh:
     parameters: *agentCardPathParams
     post:
       tags:
@@ -5584,7 +5404,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source:
+  /agents/{agentName}/agent-card/source:
     parameters: *agentCardPathParams
     put:
       tags:
@@ -5676,7 +5496,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy:
+  /agents/{agentName}/a2a-proxy:
     parameters: *agentCardPathParams
     get:
       tags:
@@ -5809,7 +5629,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy/refresh:
+  /agents/{agentName}/a2a-proxy/refresh:
     parameters: *agentCardPathParams
     post:
       tags:
@@ -7923,6 +7743,191 @@ components:
             available to the budget
           items:
             type: string
+    ProjectScopedDocumentMetadata:
+      type: object
+      description: Metadata of a kind that lives inside a project.
+      required:
+        - name
+        - project
+      properties:
+        name:
+          type: string
+          description: The resource's name.
+        project:
+          type: string
+          description: Handle of the project the resource belongs to.
+          example: my-project
+        uid:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Server-assigned UUID.
+        creationTimestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When the resource was created.
+        updateTimestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When the resource last changed.
+        createdBy:
+          type: string
+          readOnly: true
+          description: Subject that created the resource.
+    AgentModelConfigDocument:
+      type: object
+      description: >-
+        An agent's binding to an LLM provider, as a document. metadata.name is the
+        configuration's name; metadata.uid is the configId in the path. It applies to
+        the default environment.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+      properties:
+        apiVersion:
+          type: string
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
+          type: string
+          description: Must match the route; never ignored.
+          enum:
+            - AgentModelConfig
+        metadata:
+          $ref: "#/components/schemas/ProjectScopedDocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/AgentModelConfigSpec"
+        status:
+          $ref: "#/components/schemas/AgentConfigStatus"
+    AgentModelConfigSpec:
+      type: object
+      required:
+        - providerName
+      properties:
+        description:
+          type: string
+          description: Description of the configuration.
+        providerName:
+          type: string
+          description: Handle of the LLM provider this configuration binds to.
+          example: openai-gpt4
+        configuration:
+          $ref: "#/components/schemas/EnvProviderConfiguration"
+        environmentVariables:
+          $ref: "#/components/schemas/AgentConfigEnvironmentVariables"
+    AgentMcpConfigDocument:
+      type: object
+      description: >-
+        An agent's binding to an MCP proxy, as a document. metadata.name is the
+        configuration's name; metadata.uid is the configId in the path. It applies to
+        the default environment.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+      properties:
+        apiVersion:
+          type: string
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
+          type: string
+          description: Must match the route; never ignored.
+          enum:
+            - AgentMcpConfig
+        metadata:
+          $ref: "#/components/schemas/ProjectScopedDocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/AgentMcpConfigSpec"
+        status:
+          $ref: "#/components/schemas/AgentConfigStatus"
+    AgentMcpConfigSpec:
+      type: object
+      required:
+        - proxyName
+      properties:
+        description:
+          type: string
+          description: Description of the configuration.
+        proxyName:
+          type: string
+          description: Handle of the MCP proxy this configuration binds to.
+          example: github-mcp
+        configuration:
+          $ref: "#/components/schemas/EnvProviderConfiguration"
+        environmentVariables:
+          $ref: "#/components/schemas/AgentConfigEnvironmentVariables"
+    AgentConfigEnvironmentVariables:
+      type: array
+      description: >-
+        Names of the environment variables the agent reads the binding from. If omitted
+        on create, names are generated from the configuration name. On update, entries
+        are merged by key. Duplicate keys are rejected with 400.
+      items:
+        $ref: "#/components/schemas/EnvironmentVariableConfig"
+    AgentConfigStatus:
+      type: object
+      readOnly: true
+      description: How the agent reaches the binding through the gateway.
+      properties:
+        url:
+          type: string
+          description: Gateway URL the agent calls.
+        authInfo:
+          $ref: "#/components/schemas/AuthInfo"
+        proxyUuid:
+          type: string
+          description: UUID of the gateway proxy that serves the binding.
+        proxyName:
+          type: string
+          description: Handle of the gateway proxy that serves the binding.
+        providerUuid:
+          type: string
+          description: UUID of the bound provider or MCP proxy.
+        providerPolicies:
+          type: array
+          description: Guardrails set on the provider itself, applied with spec.configuration.policies.
+          items:
+            $ref: "#/components/schemas/LLMPolicy"
+    AgentModelConfigListResponse:
+      type: object
+      required:
+        - count
+        - list
+        - pagination
+      properties:
+        count:
+          type: integer
+          format: int32
+          description: Number of items in this page.
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentModelConfigDocument"
+        pagination:
+          $ref: "#/components/schemas/PaginationInfo"
+    AgentMcpConfigListResponse:
+      type: object
+      required:
+        - count
+        - list
+        - pagination
+      properties:
+        count:
+          type: integer
+          format: int32
+          description: Number of items in this page.
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentMcpConfigDocument"
+        pagination:
+          $ref: "#/components/schemas/PaginationInfo"
     AgentGatewayExtension:
       type: object
       description: >-
@@ -8051,15 +8056,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgentBinding"
-    MCPProxyScopeRequest:
+    McpProxyScopeSpec:
       type: object
-      required: [action]
+      description: >-
+        Desired state of one scope on an MCP proxy. The action is metadata.name; renaming
+        it means delete + create.
       properties:
-        action:
+        scope:
           type: string
-          pattern: '^[A-Za-z0-9._\-]{1,100}$'
-          description: Action name on the proxy's resource server; the token scope is "<proxy-handle>:<action>".
-          example: "read"
+          description: Derived token scope string ("<proxy-handle>:<action>").
+          example: "gh-proxy:read"
+          readOnly: true
         description:
           type: string
           example: Read access to repository tools
@@ -8068,51 +8075,48 @@ components:
           items:
             type: string
           description: >-
-            MCP tool names this scope authorizes. May be omitted or empty to declare a
-            scope before binding it to any tool; such a scope is grantable to roles but
-            enforced on no tool.
-    MCPProxyScopeUpdateRequest:
+            MCP tool names this scope authorizes. On create it may be omitted or empty to
+            declare a scope before binding it to any tool; such a scope is grantable to
+            roles but enforced on no tool. On update it replaces the list, and omitting it
+            leaves the list unchanged.
+
+    McpProxyScopeDocument:
       type: object
+      description: An MCP proxy scope as a document; metadata.name is its action.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
       properties:
-        description:
+        apiVersion:
           type: string
-        tools:
-          type: array
-          items:
-            type: string
-          description: >-
-            Replaces the scope's tool list. Omit to leave it unchanged; send an empty
-            array to unbind the scope from every tool.
-    MCPProxyScopeResponse:
-      type: object
-      required: [action, scope, tools]
-      properties:
-        action:
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
           type: string
-        scope:
-          type: string
-          description: Derived token scope string ("<proxy-handle>:<action>").
-          example: "gh-proxy:read"
-        description:
-          type: string
-        tools:
-          type: array
-          items:
-            type: string
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
+          description: Must match the route; never ignored.
+          enum:
+            - McpProxyScope
+        metadata:
+          $ref: "#/components/schemas/DocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/McpProxyScopeSpec"
+
     MCPProxyScopeListResponse:
       type: object
-      required: [scopes]
+      required:
+        - list
       properties:
-        scopes:
+        count:
+          type: integer
+          format: int32
+          description: Number of items in this page.
+        list:
           type: array
           items:
-            $ref: "#/components/schemas/MCPProxyScopeResponse"
+            $ref: "#/components/schemas/McpProxyScopeDocument"
+
     AgentIdentityGroupRequest:
       type: object
       required:
@@ -8924,13 +8928,8 @@ components:
 
     UpdateAgentDeploySettingsRequest:
       type: object
-      required:
-        - environmentName
+      description: Deploy settings of the agent in the default environment.
       properties:
-        environmentName:
-          type: string
-          description: Name of the environment whose deploy settings to update.
-          example: default
         enableAutoInstrumentation:
           type: boolean
           description: Enable auto instrumentation for observability in this environment. Omit to keep the current value.
@@ -9993,20 +9992,17 @@ components:
     # MCP PROXY SCHEMAS
     # ============================================
 
-    MCPProxyRequest:
+    McpProxySpec:
       type: object
+      description: >-
+        Desired state of an MCP proxy. displayName, version, context, vhost and
+        mcpSpecVersion are shared metadata; the deployable configuration lives on each
+        endpoint, and the proxy itself deploys nothing to any gateway.
       required:
-        - id
-        - name
+        - displayName
         - version
       properties:
-        id:
-          type: string
-          description: Unique handle for the MCP proxy
-          pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-          maxLength: 100
-          example: github-mcp
-        name:
+        displayName:
           type: string
           description: Human-readable name of the MCP proxy
           example: GitHub MCP
@@ -10029,156 +10025,68 @@ components:
           type: string
           description: MCP specification version implemented by the upstream server
           example: "2025-03-26"
-        endpoints:
-          type: array
-          minItems: 1
-          description: >-
-            Deployable endpoint definitions of the MCP proxy. Each endpoint is
-            deployed to one or more environments; within a proxy an environment
-            maps to at most one endpoint. At least one endpoint is required.
-          items:
-            $ref: "#/components/schemas/MCPProxyEndpoint"
         inCatalog:
           type: boolean
           description: Whether the MCP proxy is available in the catalog
           example: true
-        gateways:
-          type: array
-          deprecated: true
-          description: |
-            Deprecated and never implemented. Deployment is per (endpoint, environment),
-            so this proxy-wide field is at the wrong granularity — use
-            MCPEndpointEnvironment.gatewayId. Populated on read only.
-          items:
-            type: string
-            format: uuid
-
-    MCPProxyResponse:
-      type: object
-      required:
-        - id
-        - name
-        - version
-      properties:
-        id:
-          type: string
-          description: Unique handle for the MCP proxy
-          example: github-mcp
-        name:
-          type: string
-          description: Human-readable name of the MCP proxy
-          example: GitHub MCP
-        description:
-          type: string
-          description: Description of the MCP proxy
-        version:
-          type: string
-          description: Version of the MCP proxy
-          example: v1.0
-        context:
-          type: string
-          description: MCP proxy context path
-        vhost:
-          type: string
-          description: Virtual host assigned to the MCP proxy
-        mcpSpecVersion:
-          type: string
-          description: MCP specification version implemented by the upstream server
         endpoints:
           type: array
           minItems: 1
           description: >-
-            Deployable endpoint definitions of the MCP proxy. Each endpoint
-            reports its per-environment deployment status. Absent for a project-owned proxy.
+            Deployable endpoint definitions of the MCP proxy. Each endpoint is deployed
+            to one or more environments; within a proxy an environment maps to at most
+            one endpoint. On read each entry reports its per-environment deployment
+            status. Omitted from list rows, and absent for a project-owned proxy.
           items:
             $ref: "#/components/schemas/MCPProxyEndpoint"
-        inCatalog:
-          type: boolean
-          description: Whether the MCP proxy is available in the catalog
-        gateways:
-          type: array
-          description: Gateway UUIDs associated with the MCP proxy
-          items:
-            type: string
-            format: uuid
         projectName:
           type: string
-          description: Set for a project-owned proxy; absent for an org-level one
-          readOnly: true
-        createdBy:
-          type: string
-          description: User who created the MCP proxy
-          readOnly: true
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was created
-          readOnly: true
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was last updated
+          description: >-
+            Set for a project-owned proxy, which these routes serve read only; absent for
+            an org-level one.
           readOnly: true
 
-    MCPProxyListItem:
+    McpProxyDocument:
       type: object
+      description: >-
+        An MCP proxy as a document; metadata.name is its handle, spec.displayName its
+        label. There is no status block: a proxy is placed per (endpoint, environment),
+        and each binding reports its own state under spec.endpoints.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
       properties:
-        id:
+        apiVersion:
           type: string
-          description: Unique handle for the MCP proxy
-        name:
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
           type: string
-          description: Human-readable name of the MCP proxy
-        description:
-          type: string
-          description: Description of the MCP proxy
-        version:
-          type: string
-          description: Version of the MCP proxy
-        context:
-          type: string
-          description: MCP proxy context path
-        mcpSpecVersion:
-          type: string
-          description: MCP specification version implemented by the upstream server
-        projectName:
-          type: string
-          description: Set for a project-owned proxy; absent for an org-level one
-          readOnly: true
-        status:
-          type: string
-          description: MCP proxy status
-        createdBy:
-          type: string
-          description: User who created the MCP proxy
-          readOnly: true
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was created
-          readOnly: true
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when the resource was last updated
-          readOnly: true
+          description: Must match the route; never ignored.
+          enum:
+            - McpProxy
+        metadata:
+          $ref: "#/components/schemas/DocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/McpProxySpec"
 
     MCPProxyListResponse:
       type: object
       required:
-        - count
         - list
-        - pagination
       properties:
         count:
           type: integer
           format: int32
+          description: Number of items in this page.
         list:
           type: array
           items:
-            $ref: "#/components/schemas/MCPProxyListItem"
+            $ref: "#/components/schemas/McpProxyDocument"
         pagination:
-          $ref: "#/components/schemas/PaginationInfo"
+          $ref: "#/components/schemas/Pagination"
 
     MCPProxyEndpoint:
       type: object
@@ -10824,86 +10732,6 @@ components:
           type: boolean
           description: Whether Agent Identity security is enabled
 
-    CreateAgentModelConfigRequest:
-      type: object
-      required:
-        - name
-        - type
-        - envMappings
-      properties:
-        name:
-          type: string
-          maxLength: 255
-          description: Name of the model configuration
-          example: "primary-llm-config"
-        description:
-          type: string
-          description: Optional description of the configuration
-          example: "Primary LLM configuration for production"
-        type:
-          type: string
-          enum: [llm, mcp, other]
-          description: Type of configuration
-          example: "llm"
-        envMappings:
-          type: object
-          description: Map of environment names to their model configurations
-          additionalProperties:
-            $ref: "#/components/schemas/EnvModelConfigRequest"
-          minProperties: 1
-          example:
-            development:
-              providerName: "openai-gpt4"
-              configuration:
-                policies:
-                  - name: "retry"
-                    enabled: true
-            production:
-              providerName: "openai-gpt4"
-              configuration:
-                policies:
-                  - name: "cache"
-                    enabled: true
-        environmentVariables:
-          type: array
-          description: Optional custom environment variable names. If omitted, names are auto-generated from the config name. Duplicate keys are rejected with 400.
-          uniqueItems: true
-          items:
-            $ref: "#/components/schemas/EnvironmentVariableConfig"
-          example:
-            - key: "url"
-              name: "MY_CUSTOM_LLM_URL"
-            - key: "apikey"
-              name: "MY_CUSTOM_API_KEY"
-
-    EnvModelConfigRequest:
-      type: object
-      required:
-        - configuration
-      properties:
-        providerName:
-          type: string
-          description: Handle of the LLM provider for this environment. For MCP configs, proxyName/proxyId may be used instead.
-          example: "openai-gpt4"
-        proxyName:
-          type: string
-          description: Handle/name of the MCP proxy for this environment
-          example: "github-mcp"
-        proxyId:
-          type: string
-          description: ID/handle of the MCP proxy for this environment
-          example: "github-mcp"
-        mcpProxyName:
-          type: string
-          description: Handle/name of the MCP proxy for this environment
-          example: "github-mcp"
-        mcpProxyId:
-          type: string
-          description: ID/handle of the MCP proxy for this environment
-          example: "github-mcp"
-        configuration:
-          $ref: "#/components/schemas/EnvProviderConfiguration"
-
     EnvProviderConfiguration:
       type: object
       properties:
@@ -10913,187 +10741,6 @@ components:
             $ref: "#/components/schemas/LLMPolicy"
         resilience:
           $ref: "#/components/schemas/Resilience"
-
-    UpdateAgentModelConfigRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          maxLength: 255
-          description: Updated name of the model configuration
-          example: "updated-llm-config"
-        description:
-          type: string
-          description: Updated description
-          example: "Updated LLM configuration"
-        envMappings:
-          type: object
-          description: Updated map of environment names to their model configurations
-          additionalProperties:
-            $ref: "#/components/schemas/EnvModelConfigRequest"
-          example:
-            development:
-              providerName: "openai-gpt4"
-              configuration:
-                policies:
-                  - name: "retry"
-                    enabled: true
-        environmentVariables:
-          type: array
-          description: >
-            Optional updated environment variable names. Partial updates are supported: entries are merged by key, so
-            only the keys included in the payload will be renamed and omitted keys retain their existing names.
-            Changes apply globally across all environments. If omitted entirely, all existing names are left unchanged.
-          items:
-            $ref: "#/components/schemas/EnvironmentVariableConfig"
-          example:
-            - key: "url"
-              name: "NEW_LLM_URL"
-            - key: "apikey"
-              name: "NEW_API_KEY"
-
-    AgentModelConfigResponse:
-      type: object
-      required:
-        - uuid
-        - name
-        - agentId
-        - type
-        - projectName
-        - envMappings
-        - environmentVariables
-        - createdAt
-        - updatedAt
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: Unique identifier for the configuration
-          example: "550e8400-e29b-41d4-a716-446655440000"
-        name:
-          type: string
-          description: Name of the configuration
-          example: "primary-llm-config"
-        description:
-          type: string
-          description: Description of the configuration
-          example: "Primary LLM configuration for production"
-        agentId:
-          type: string
-          description: Agent identifier
-          example: "customer-support-agent"
-        type:
-          type: string
-          description: Type of configuration
-          example: "llm"
-        projectName:
-          type: string
-          description: Project name
-          example: "support-project"
-        envMappings:
-          type: object
-          description: Environment-specific model configurations
-          additionalProperties:
-            $ref: "#/components/schemas/EnvProviderConfigMappings"
-          example:
-            development:
-              environmentName: "development"
-              configuration:
-                providerName: "openai-gpt4"
-                proxyUuid: "880e8400-e29b-41d4-a716-446655440000"
-                url: "https://proxy.example.com/v1/chat/completions"
-                status: "active"
-        environmentVariables:
-          type: array
-          description: Environment variables configured for the agent
-          items:
-            $ref: "#/components/schemas/EnvironmentVariableConfig"
-          example:
-            - key: "apikey"
-              name: "OPENAI_API_KEY"
-            - key: "url"
-              name: "MODEL_ENDPOINT"
-        createdAt:
-          type: string
-          format: date-time
-          description: Configuration creation timestamp
-          example: "2026-02-20T10:30:00Z"
-        updatedAt:
-          type: string
-          format: date-time
-          description: Configuration last updated timestamp
-          example: "2026-02-20T15:45:00Z"
-
-    EnvProviderConfigMappings:
-      type: object
-      required:
-        - environmentName
-      properties:
-        environmentName:
-          type: string
-          description: Name of the environment
-          example: "development"
-        configuration:
-          $ref: "#/components/schemas/ProviderConfig"
-
-    ProviderConfig:
-      type: object
-      required:
-        - providerName
-        - proxyUuid
-        - url
-      properties:
-        providerName:
-          type: string
-          description: Name of the llm provider
-          example: "OpenAI"
-        proxyUuid:
-          type: string
-          format: uuid
-          description: UUID of the proxy created
-        providerUuid:
-          type: string
-          format: uuid
-          readOnly: true
-          description: UUID of the org-level LLM provider this config is based on
-        proxyName:
-          type: string
-          description: Name/handle of the MCP proxy
-          example: "github-mcp"
-        proxyId:
-          type: string
-          description: ID/handle of the MCP proxy
-          example: "github-mcp"
-        mcpProxyName:
-          type: string
-          description: Name/handle of the MCP proxy
-          example: "github-mcp"
-        mcpProxyId:
-          type: string
-          description: ID/handle of the MCP proxy
-          example: "github-mcp"
-        url:
-          type: string
-          description: url of the created proxy
-        authInfo:
-          $ref: "#/components/schemas/AuthInfo"
-        policies:
-          type: array
-          description: Provider-specific policy configurations
-          items:
-            $ref: "#/components/schemas/LLMPolicy"
-        providerPolicies:
-          type: array
-          readOnly: true
-          description: Guardrails configured on the org-level LLM provider this config is based on; applied in addition to the config's own policies
-          items:
-            $ref: "#/components/schemas/LLMPolicy"
-        resilience:
-          $ref: "#/components/schemas/Resilience"
-        status:
-          type: string
-          description: Status of the proxy
-          example: "active"
 
     AuthInfo:
       type: object
@@ -11134,61 +10781,6 @@ components:
           pattern: "^[A-Za-z_][A-Za-z0-9_]*$"
           description: Environment variable name. Must start with a letter or underscore and contain only letters, digits, and underscores.
           example: "OPENAI_API_KEY"
-
-    AgentModelConfigListResponse:
-      type: object
-      required:
-        - configs
-        - pagination
-      properties:
-        configs:
-          type: array
-          description: List of agent model configurations
-          items:
-            $ref: "#/components/schemas/AgentModelConfigListItem"
-        pagination:
-          $ref: "#/components/schemas/PaginationInfo"
-
-    AgentModelConfigListItem:
-      type: object
-      required:
-        - uuid
-        - name
-        - agentId
-        - type
-        - projectName
-        - createdAt
-      properties:
-        uuid:
-          type: string
-          format: uuid
-          description: Configuration UUID
-          example: "550e8400-e29b-41d4-a716-446655440000"
-        name:
-          type: string
-          description: Configuration name
-          example: "primary-llm-config"
-        description:
-          type: string
-          description: Configuration description
-          example: "Primary LLM configuration"
-        agentId:
-          type: string
-          description: Agent identifier
-          example: "customer-support-agent"
-        type:
-          type: string
-          description: Configuration type
-          example: "llm"
-        projectName:
-          type: string
-          description: Project name
-          example: "support-project"
-        createdAt:
-          type: string
-          format: date-time
-          description: Creation timestamp
-          example: "2026-02-20T10:30:00Z"
 
     PaginationInfo:
       type: object

@@ -2,7 +2,6 @@ package configuration
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -11,44 +10,34 @@ import (
 )
 
 // CreateAgentModelConfig creates a model configuration for an agent.
-func CreateAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName string, req framework.CreateAgentModelConfigRequest) framework.AgentModelConfigResponse {
-	basePath := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs",
-		orgName, projName, agentName)
-
-	resp, err := client.Post(basePath, req)
+func CreateAgentModelConfig(g Gomega, client *framework.AMPClient, projName, agentName string, doc framework.AgentConfigDocument) framework.AgentConfigDocument {
+	resp, err := client.Post(framework.GWAgent(projName, agentName, "/model-configs"), doc)
 	g.Expect(err).NotTo(HaveOccurred(), "create agent model config request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 201)
 
-	return framework.DecodeBody[framework.AgentModelConfigResponse](g, resp)
+	return framework.DecodeBody[framework.AgentConfigDocument](g, resp)
 }
 
-// CreateAgentMCPConfig attaches an MCP proxy to an agent via the dedicated
-// mcp-configs endpoint. The server forces the config type to "mcp", so the
-// request's env mappings should reference an MCP proxy via MCPProxyName.
-func CreateAgentMCPConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName string, req framework.CreateAgentModelConfigRequest) framework.AgentModelConfigResponse {
-	basePath := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs",
-		orgName, projName, agentName)
-
-	resp, err := client.Post(basePath, req)
+// CreateAgentMCPConfig attaches an MCP proxy to an agent.
+func CreateAgentMCPConfig(g Gomega, client *framework.AMPClient, projName, agentName string, doc framework.AgentConfigDocument) framework.AgentConfigDocument {
+	resp, err := client.Post(framework.GWAgent(projName, agentName, "/mcp-configs"), doc)
 	g.Expect(err).NotTo(HaveOccurred(), "create agent MCP config request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 201)
 
-	return framework.DecodeBody[framework.AgentModelConfigResponse](g, resp)
+	return framework.DecodeBody[framework.AgentConfigDocument](g, resp)
 }
 
 // DeleteAgentMCPConfigBestEffort removes a disposable MCP binding before its
 // agent and proxy are deleted. Removing the binding first avoids a proxy-delete
 // conflict during suite teardown, while never hiding the original spec result
 // behind a cleanup failure.
-func DeleteAgentMCPConfigBestEffort(ctx context.Context, client *framework.AMPClient, orgName, projName, agentName, configID string) {
+func DeleteAgentMCPConfigBestEffort(ctx context.Context, client *framework.AMPClient, projName, agentName, configID string) {
 	if configID == "" {
 		return
 	}
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs/%s",
-		orgName, projName, agentName, configID)
-	response, err := client.DeleteWithContext(ctx, path)
+	response, err := client.DeleteWithContext(ctx, framework.GWAgent(projName, agentName, "/mcp-configs/%s", configID))
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("teardown: delete agent MCP config %q failed: %v\n", configID, err)
 		return
@@ -58,50 +47,39 @@ func DeleteAgentMCPConfigBestEffort(ctx context.Context, client *framework.AMPCl
 }
 
 // ListAgentModelConfigs returns all model configurations for an agent.
-func ListAgentModelConfigs(g Gomega, client *framework.AMPClient, orgName, projName, agentName string) framework.AgentModelConfigListResponse {
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs",
-		orgName, projName, agentName)
-
-	resp, err := client.Get(path)
+func ListAgentModelConfigs(g Gomega, client *framework.AMPClient, projName, agentName string) framework.AgentConfigListResponse {
+	resp, err := client.Get(framework.GWAgent(projName, agentName, "/model-configs"))
 	g.Expect(err).NotTo(HaveOccurred(), "list agent model configs request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.AgentModelConfigListResponse](g, resp)
+	return framework.DecodeBody[framework.AgentConfigListResponse](g, resp)
 }
 
 // GetAgentModelConfig retrieves a specific model configuration by ID.
-func GetAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName, configID string) framework.AgentModelConfigResponse {
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs/%s",
-		orgName, projName, agentName, configID)
-
-	resp, err := client.Get(path)
+func GetAgentModelConfig(g Gomega, client *framework.AMPClient, projName, agentName, configID string) framework.AgentConfigDocument {
+	resp, err := client.Get(framework.GWAgent(projName, agentName, "/model-configs/%s", configID))
 	g.Expect(err).NotTo(HaveOccurred(), "get agent model config request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.AgentModelConfigResponse](g, resp)
+	return framework.DecodeBody[framework.AgentConfigDocument](g, resp)
 }
 
-// UpdateAgentModelConfig updates a model configuration.
-func UpdateAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName, configID string, req framework.UpdateAgentModelConfigRequest) framework.AgentModelConfigResponse {
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs/%s",
-		orgName, projName, agentName, configID)
-
-	resp, err := client.Put(path, req)
+// UpdateAgentModelConfig replaces a model configuration with doc.
+func UpdateAgentModelConfig(g Gomega, client *framework.AMPClient, projName, agentName, configID string, doc framework.AgentConfigDocument) framework.AgentConfigDocument {
+	doc.Status = nil
+	resp, err := client.Put(framework.GWAgent(projName, agentName, "/model-configs/%s", configID), doc)
 	g.Expect(err).NotTo(HaveOccurred(), "update agent model config request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.AgentModelConfigResponse](g, resp)
+	return framework.DecodeBody[framework.AgentConfigDocument](g, resp)
 }
 
 // DeleteAgentModelConfig deletes a model configuration.
-func DeleteAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName, configID string) {
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs/%s",
-		orgName, projName, agentName, configID)
-
-	resp, err := client.Delete(path)
+func DeleteAgentModelConfig(g Gomega, client *framework.AMPClient, projName, agentName, configID string) {
+	resp, err := client.Delete(framework.GWAgent(projName, agentName, "/model-configs/%s", configID))
 	g.Expect(err).NotTo(HaveOccurred(), "delete agent model config request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 204)

@@ -17,10 +17,13 @@
  */
 
 import type {
+  FullTrace,
   TraceListResponse,
   TraceExportResponse,
   TraceFilters,
+  TraceOverview,
   Span,
+  TraceSpanSummary,
   TraceSpanSummaryListResponse,
 } from "@agent-management-platform/types";
 import { httpGET, moduleBase } from "../../shared/utils";
@@ -30,6 +33,65 @@ const OBSERVABILITY_BASE = moduleBase("observability");
 
 /** Whether the trace routes serve the trace filters; the observability module refuses them. */
 export const TRACE_FILTERS_SUPPORTED = false;
+
+// A trace page's paging state from the observability module.
+interface ModuleTracePagination {
+  limit?: number;
+  total?: number;
+  nextCursor?: string;
+  lookedBackTo?: string;
+  truncated?: boolean;
+}
+
+interface ModuleTraceList {
+  traces?: TraceOverview[];
+  pagination?: ModuleTracePagination;
+}
+
+interface ModuleTraceExport {
+  traces?: FullTrace[];
+  pagination?: ModuleTracePagination;
+  spansTruncated?: boolean;
+  failedTraceIds?: string[];
+}
+
+interface ModuleSpanList {
+  spans?: TraceSpanSummary[];
+  pagination?: { limit?: number; total?: number };
+}
+
+/** The module's trace list as the trace page reads it. */
+export function toTraceList(body: ModuleTraceList): TraceListResponse {
+  const traces = body.traces ?? [];
+  const page = body.pagination ?? {};
+  return {
+    traces,
+    totalCount: page.total ?? traces.length,
+    lookedBackTo: page.lookedBackTo,
+    truncated: page.truncated,
+    nextCursor: page.nextCursor,
+  };
+}
+
+/** The module's trace export as the export file holds it. */
+export function toTraceExport(body: ModuleTraceExport): TraceExportResponse {
+  const traces = body.traces ?? [];
+  const page = body.pagination ?? {};
+  return {
+    traces,
+    totalCount: page.total ?? traces.length,
+    lookedBackTo: page.lookedBackTo,
+    truncated: !!page.truncated || !!body.spansTruncated,
+    spansTruncated: body.spansTruncated,
+    failedTraceIds: body.failedTraceIds,
+  };
+}
+
+/** The module's span list as the trace drawer reads it. */
+export function toSpanList(body: ModuleSpanList): TraceSpanSummaryListResponse {
+  const spans = body.spans ?? [];
+  return { spans, totalCount: body.pagination?.total ?? spans.length };
+}
 
 // Params for direct observer service calls.
 export interface ObserverTraceListParams {
@@ -142,8 +204,8 @@ export async function getTraceList(
   if (includeModels) searchParams.include = "models";
   if (cursor) searchParams.cursor = cursor;
 
-  const res = await httpGET(`${OBSERVABILITY_BASE}/api/v1/traces`, { searchParams, token });
-  return res.json();
+  const res = await httpGET(`${OBSERVABILITY_BASE}/traces`, { searchParams, token });
+  return toTraceList(await res.json());
 }
 
 /** Exports full traces for the window and filters. */
@@ -183,8 +245,8 @@ export async function exportTraces(
   if (sortOrder) searchParams.sortOrder = sortOrder;
   Object.assign(searchParams, traceFilterSearchParams(filters));
 
-  const res = await httpGET(`${OBSERVABILITY_BASE}/api/v1/traces/export`, { searchParams, token });
-  return res.json();
+  const res = await httpGET(`${OBSERVABILITY_BASE}/traces/export`, { searchParams, token });
+  return toTraceExport(await res.json());
 }
 
 export async function listTraceSpans(
@@ -221,11 +283,11 @@ export async function listTraceSpans(
   if (limit !== undefined) searchParams.limit = limit.toString();
   if (sortOrder) searchParams.sortOrder = sortOrder;
 
-  const res = await httpGET(`${OBSERVABILITY_BASE}/api/v1/traces/${encodeURIComponent(traceId)}/spans`, {
+  const res = await httpGET(`${OBSERVABILITY_BASE}/traces/${encodeURIComponent(traceId)}/spans`, {
     searchParams,
     token,
   });
-  return res.json();
+  return toSpanList(await res.json());
 }
 
 export async function getSpanDetail(
@@ -238,7 +300,7 @@ export async function getSpanDetail(
 
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
-    `${OBSERVABILITY_BASE}/api/v1/traces/${encodeURIComponent(traceId)}/spans/${encodeURIComponent(spanId)}`,
+    `${OBSERVABILITY_BASE}/traces/${encodeURIComponent(traceId)}/spans/${encodeURIComponent(spanId)}`,
     { token },
   );
   return res.json();

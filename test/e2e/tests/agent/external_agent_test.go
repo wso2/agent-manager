@@ -53,8 +53,8 @@ var _ = Describe("External agent:", Label("agent", "external-agent"), Ordered, f
 			ProjectName: framework.E2ESharedProjectName,
 			Request:     createReq,
 		})
-		Expect(ag.Name).To(Equal(agentName))
-		GinkgoWriter.Printf("Agent: %s (type: %s/%s)\n", agentName, ag.AgentType.Type, ag.AgentType.SubType)
+		Expect(ag.Metadata.Name).To(Equal(agentName))
+		GinkgoWriter.Printf("Agent: %s (type: %s/%s)\n", agentName, ag.Spec.AgentType.Type, ag.Spec.AgentType.SubType)
 	})
 
 	It("issues an api token for trace publishing for an external agent", func() {

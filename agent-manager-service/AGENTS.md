@@ -20,14 +20,14 @@ The core (orgs, projects, environments, agents, identity, tokens, events) lives 
 | Sentinel errors | `utils/errors.go` |
 | Generated mocks | `repositories/repomocks/`, `clients/clientmocks/`, `modules/aigateway/gwrepo/gwrepomocks/` |
 | DI wiring | `wiring/wire.go` (core), `modules/aigateway/gwwire/wire.go` (gateway) |
-| Configuration (env + `amp.yaml`) | `config/config_loader.go`, `config/file.go`, example `amp.example.yaml` |
+| Configuration (env + `amp.yaml`) | `config/config_loader.go`, `config/file.go`; every key in `../docs/amp-lite/configuration.md` |
 | Embedded console (`-tags console`) | `webconsole/` (`make console-embed` fills `webconsole/dist/`) |
 | Console UI of the core / modules | `api.CoreUI` in `api/ui_manifest_routes.go`, `modkit.UI.Pages` in a module's manifest |
 
 ## Configuration, the console and the modules list
 
 - **One binary, one image.** `amp serve [--migrate]`, `amp migrate`, `amp init thunder DIR ai-gateway DIR fileauth DIR`, `amp module …`; the old flags (`-migrate`, `-init-thunder=…`) still work. The image carries it as `/go/bin/amp` (and `/go/bin/agent-manager-service`). Compose's `amp-init` runs `amp init` from the `amp-api` image.
-- **Settings** are environment variables, and an optional `amp.yaml` fills in what the environment leaves unset. The command line loads one file after parsing its flags: `--config`, else `$AMP_CONFIG`, else `./amp.yaml`. YAML keys are the variable names nested by `_` (`db: {driver: postgres}` is `DB_DRIVER`). A set variable always wins, even when empty (`FOO=` clears a file value). File values never enter the process environment: read settings with `config.Value`, and register keys a command reads outside the config package with `config.RegisterKeys` (keys nothing reads are logged as likely typos). See `amp.example.yaml`.
+- **Settings** are environment variables, and an optional `amp.yaml` fills in what the environment leaves unset. The command line loads one file after parsing its flags: `--config`, else `$AMP_CONFIG`, else `./amp.yaml`. YAML keys are the variable names nested by `_` (`db: {driver: postgres}` is `DB_DRIVER`). A set variable always wins, even when empty (`FOO=` clears a file value). File values never enter the process environment: read settings with `config.Value`, and register keys a command reads outside the config package with `config.RegisterKeys` (keys nothing reads are logged as likely typos). Every key is listed in `../docs/amp-lite/configuration.md`.
 - **Modules list.** `modules:` in `amp.yaml` (or `AMP_MODULES=ai-gateway,widgets=off`) is reconciled at boot: listed modules are installed with their providers and enabled or disabled as listed (a module listed disabled is installed only if it never was); other installed modules are disabled unless a listed one requires them. A change another replica already made counts as done. No list (or a `modules:` key whose entries are all commented out) means no reconcile, only the distribution's defaults (`cli.Main("amp", "ai-gateway")`) are installed if they never were; an empty list needs `modules: []` or `AMP_MODULES=none`. A module's `config:` block reaches it via `Runtime.Config("key")` (env `MODULE_<NAME>_<KEY>`).
 - **Console.** The built console is embedded with `-tags console` and served at `/` on the API port (SPA fallback to `index.html`; hashed `assets/` cached a year; `index.html`, `config.js` not cached). Without the tag a placeholder page is served — no Node needed for backend work. `config.js` fills each `$NAME` of the console's `config.template.js` from `CONSOLE_<NAME>`, else a default the service derives (public URL, ThunderID, `AUTH_MODE`, instrumentation URL, sign-in scopes = every active permission). `CONSOLE_ENABLED=false` turns it off. Set `SERVER_PUBLIC_URL` behind a proxy or ingress; without it the origin comes from the request (`X-Forwarded-Proto`/`X-Forwarded-Host` when set). The image builds the console unless built with `--build-arg CONSOLE=none`. `make dev-up` still runs Vite on :3000 against the API.
 - **Which console pages show** comes from `GET /api/v1/ui-manifest` (signed-in, filtered by the caller's permissions): the core's `api.CoreUI` plus every active module's `Manifest().UI.Pages` (`"<console module>/<page>"`). A console UI module with no listed page is hidden. A module adding console pages lists them there.
@@ -70,9 +70,9 @@ Permissions are typed OAuth2 scopes in `rbac/permissions.go` (e.g. `agent:create
 ```go
 // api/<resource>_routes.go
 rr.HandleFuncWithValidationAndAuthz(
-    "POST /orgs/{orgName}/projects/{projName}/agents", rbac.AgentCreate, ctrl.CreateAgent)
+    "POST /agents", rbac.AgentCreate, ctrl.CreateAgent)
 rr.HandleFuncWithValidationAndAuthz(
-    "GET /orgs/{orgName}/projects/{projName}/agents", rbac.AgentRead, ctrl.ListAgents)
+    "GET /agents", rbac.AgentRead, ctrl.ListAgents)
 ```
 
 `HandleFuncWithValidationAndAuthz` composes: path-param validation → `RequirePermission` (token scope via `jwtassertion.HasAllScopes`) → `RequireOrgMatch` (when the path has `{orgName}`). Variants: `...AndAnyAuthz` (any-of), `RequireDynamicPermission` (permission depends on the request), `...AndPlatformAdminAuthz` (see below). `...AndAuthzAndOrgOverride` composes `middleware.ApplyOrgOverride` between `RequireOrgMatch` and the permission check, so a caller the deployment's `OrgOverrideResolver` trusts can act on the org named in `X-Impersonate-Org`; no core route uses it now. Module routes opt in with `modkit.AllowOrgOverride()` (the AI Gateway's gateway list and gateway identity-provider routes).
