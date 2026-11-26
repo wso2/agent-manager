@@ -77,18 +77,30 @@ export class BudgetWizardPage {
     return this.page.getByRole('radio', { name });
   }
 
-  /** Adds a filter of the given type and returns its field (filters are numbered from 1). */
+  /** The select of a filter's type: the label sits on its field, the menu opens from the combobox inside. */
+  private filterTypeSelect(position: number): Locator {
+    return this.page
+      .getByLabel(`Filter ${position} type`)
+      .first()
+      .locator('xpath=ancestor-or-self::*[contains(@class,"MuiFormControl-root")][1]')
+      .getByRole('combobox');
+  }
+
+  /** Adds a filter of the given type (filters are numbered from 1). */
   async addFilterOfType(position: number, type: string): Promise<void> {
     await this.addFilter.click();
-    await this.page.getByRole('combobox', { name: `Filter ${position} type` }).click();
+    await this.filterTypeSelect(position).click();
     await this.page.getByRole('option', { name: type }).click();
   }
 
-  /** Types CEL expressions into the filter's chip field, each added with Enter. */
-  async addExpressions(...expressions: string[]): Promise<void> {
+  /** Types CEL expressions into a filter's chip field, each added with Enter. */
+  async addExpressions(position: number, ...expressions: string[]): Promise<void> {
+    // The filter's row holds its type select and its chip field.
+    const row = this.filterTypeSelect(position).locator(
+      'xpath=ancestor::*[contains(@class,"MuiStack-root")][1]',
+    );
+    const field = row.locator('input[role="combobox"]');
     for (const expression of expressions) {
-      // The chip field is the filter row's text field; the type is a select.
-      const field = this.page.locator('input[role="combobox"]').first();
       await field.fill(expression);
       await field.press('Enter');
     }

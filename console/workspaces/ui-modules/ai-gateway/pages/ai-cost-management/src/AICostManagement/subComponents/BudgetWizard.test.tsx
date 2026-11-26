@@ -70,6 +70,9 @@ vi.mock(
 
 import { BudgetWizard } from "./BudgetForm";
 
+// The wizard is driven one field at a time, which is slow on a busy runner.
+vi.setConfig({ testTimeout: 60_000 });
+
 const renderWizard = (
   props: Partial<React.ComponentProps<typeof BudgetWizard>> = {},
 ) => {

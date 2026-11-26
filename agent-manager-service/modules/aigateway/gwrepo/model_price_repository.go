@@ -18,6 +18,7 @@ package gwrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -156,8 +157,8 @@ func (r *modelPriceRepository) Providers(ctx context.Context) ([]string, error) 
 func (r *modelPriceRepository) Newest(ctx context.Context) (*time.Time, error) {
 	var row gwmodels.ModelPrice
 	err := r.db.WithContext(ctx).Order("created_at DESC").Limit(1).Take(&row).Error
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil //nolint:nilnil // no model price is stored yet
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the newest model price: %w", err)

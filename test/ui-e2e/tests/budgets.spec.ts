@@ -42,7 +42,7 @@ test.describe('budgets', () => {
       await expect(wizard.amount).toHaveAttribute('aria-invalid', 'true');
 
       await wizard.addFilterOfType(1, 'Custom attribute');
-      await wizard.addExpressions(CEL_MINI, CEL_CLAUDE);
+      await wizard.addExpressions(1, CEL_MINI, CEL_CLAUDE);
       await wizard.amount.fill('50');
       await expect(wizard.enforcement('Block requests')).toBeChecked();
       await wizard.create.click();
