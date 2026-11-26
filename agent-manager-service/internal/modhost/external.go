@@ -184,7 +184,7 @@ func (h *Host) takeExternalLock(ctx context.Context, module, store string) (stri
 		}
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("another amp migrate is applying %s's %s schema; try again: %w", module, store, ctx.Err())
+			return "", fmt.Errorf("the lease for applying %s's %s schema is still held, by another amp migrate or one that stopped (a lease expires %s after it is taken); try again: %w", module, store, externalLockTTL, ctx.Err())
 		case <-time.After(externalLockPoll):
 		}
 	}
