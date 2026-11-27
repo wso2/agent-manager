@@ -436,13 +436,13 @@ func (e GatewayDocumentApiVersion) Valid() bool {
 
 // Defines values for GatewayDocumentKind.
 const (
-	Gateway GatewayDocumentKind = "Gateway"
+	GatewayDocumentKindGateway GatewayDocumentKind = "Gateway"
 )
 
 // Valid indicates whether the value is a known member of the GatewayDocumentKind enum.
 func (e GatewayDocumentKind) Valid() bool {
 	switch e {
-	case Gateway:
+	case GatewayDocumentKindGateway:
 		return true
 	default:
 		return false
@@ -461,6 +461,36 @@ func (e GatewayHosting) Valid() bool {
 	case MANAGED:
 		return true
 	case SELFHOSTED:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatewayRegistrationDocumentApiVersion.
+const (
+	GatewayRegistrationDocumentApiVersionAiControlPlaneChoreolabsComv1 GatewayRegistrationDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the GatewayRegistrationDocumentApiVersion enum.
+func (e GatewayRegistrationDocumentApiVersion) Valid() bool {
+	switch e {
+	case GatewayRegistrationDocumentApiVersionAiControlPlaneChoreolabsComv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatewayRegistrationDocumentKind.
+const (
+	GatewayRegistrationDocumentKindGateway GatewayRegistrationDocumentKind = "Gateway"
+)
+
+// Valid indicates whether the value is a known member of the GatewayRegistrationDocumentKind enum.
+func (e GatewayRegistrationDocumentKind) Valid() bool {
+	switch e {
+	case GatewayRegistrationDocumentKindGateway:
 		return true
 	default:
 		return false
@@ -823,13 +853,13 @@ func (e McpProxyDocumentKind) Valid() bool {
 
 // Defines values for McpProxyScopeDocumentApiVersion.
 const (
-	AiControlPlaneChoreolabsComv1 McpProxyScopeDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+	McpProxyScopeDocumentApiVersionAiControlPlaneChoreolabsComv1 McpProxyScopeDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
 )
 
 // Valid indicates whether the value is a known member of the McpProxyScopeDocumentApiVersion enum.
 func (e McpProxyScopeDocumentApiVersion) Valid() bool {
 	switch e {
-	case AiControlPlaneChoreolabsComv1:
+	case McpProxyScopeDocumentApiVersionAiControlPlaneChoreolabsComv1:
 		return true
 	default:
 		return false
@@ -1831,6 +1861,61 @@ type GatewayListResponse struct {
 
 	// Pagination Where this page sits in the collection.
 	Pagination *Pagination `json:"pagination,omitempty"`
+}
+
+// GatewayRegistrationDocument A gateway to register; as GatewayDocument, with spec.endpoint required.
+type GatewayRegistrationDocument struct {
+	ApiVersion GatewayRegistrationDocumentApiVersion `json:"apiVersion"`
+
+	// Kind Must match the route; never ignored.
+	Kind     GatewayRegistrationDocumentKind `json:"kind"`
+	Metadata DocumentMetadata                `json:"metadata"`
+
+	// Spec The spec of a gateway to register; spec.endpoint is required.
+	Spec GatewayRegistrationSpec `json:"spec"`
+}
+
+// GatewayRegistrationDocumentApiVersion defines model for GatewayRegistrationDocument.ApiVersion.
+type GatewayRegistrationDocumentApiVersion string
+
+// GatewayRegistrationDocumentKind Must match the route; never ignored.
+type GatewayRegistrationDocumentKind string
+
+// GatewayRegistrationSpec defines model for GatewayRegistrationSpec.
+type GatewayRegistrationSpec struct {
+	// Description What the gateway is for
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable display name
+	DisplayName string `json:"displayName"`
+
+	// Endpoint Where the gateway is reached: the base http or https URL of a self-hosted gateway, or the virtual host of a managed one. Required to register a gateway; fixed once registered.
+	Endpoint string `json:"endpoint"`
+
+	// Hosting Who runs the gateway runtime.
+	// - MANAGED: the platform provisions and runs it.
+	// - SELF_HOSTED: the customer runs it and connects it to the platform.
+	Hosting *GatewayHosting `json:"hosting,omitempty"`
+
+	// IsCritical Flag indicating if this is a critical production gateway
+	IsCritical *bool `json:"isCritical,omitempty"`
+
+	// Properties Free-form properties of a self-hosted gateway
+	Properties *map[string]interface{} `json:"properties,omitempty"`
+
+	// RuntimeUrl In-cluster base URL of a managed gateway's runtime, used by sandboxed platform-hosted agents. Absent when none is registered.
+	RuntimeUrl *string `json:"runtimeUrl,omitempty"`
+
+	// Type Gateway placement role. Naming and placement policy, not capability — every
+	// gateway has identical runtime capabilities regardless of role.
+	// - INGRESS: handles inbound agent traffic. At most one per environment.
+	// - EGRESS: hosts outbound LLM/MCP artifacts. Uncapped per environment.
+	// - BOTH: does both. Counts against the ingress cap.
+	//
+	// Immutable once registered. `REGULAR` and `AI` are accepted on input as
+	// deprecated aliases (REGULAR -> BOTH, AI -> EGRESS) so gateway charts pinned to
+	// an older version keep registering; responses always emit canonical values.
+	Type *GatewayType `json:"type,omitempty"`
 }
 
 // GatewaySpec defines model for GatewaySpec.
@@ -3499,7 +3584,7 @@ type CreateLLMConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
 type RotateLLMConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
 // RegisterGatewayJSONRequestBody defines body for RegisterGateway for application/json ContentType.
-type RegisterGatewayJSONRequestBody = GatewayDocument
+type RegisterGatewayJSONRequestBody = GatewayRegistrationDocument
 
 // UpdateGatewayJSONRequestBody defines body for UpdateGateway for application/json ContentType.
 type UpdateGatewayJSONRequestBody = GatewayDocument

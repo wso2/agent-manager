@@ -67,7 +67,7 @@ import { listEnvironments } from "../../agent-runtime/apis/deployments";
 
 /**
  * The organization's environments, which every gateway serves. A caller who cannot read them still
- * sees its gateways, without environments.
+ * sees its gateways, without environments; any other failure fails the query.
  */
 async function gatewayEnvironments(
   orgName: string | undefined,
@@ -75,8 +75,9 @@ async function gatewayEnvironments(
 ): Promise<GatewayEnvironmentResponse[]> {
   try {
     return (await listEnvironments({ orgName }, getToken)).map(gatewayEnvironment);
-  } catch {
-    return [];
+  } catch (err) {
+    if ((err as { code?: string } | null)?.code === "FORBIDDEN") return [];
+    throw err;
   }
 }
 

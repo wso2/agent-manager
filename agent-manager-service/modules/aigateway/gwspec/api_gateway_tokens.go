@@ -326,18 +326,14 @@ func (r ApiRotateGatewayTokenRequest) Execute() (*GatewayTokenResponse, *http.Re
 /*
 RotateGatewayToken Rotate gateway token
 
-Generate a new authentication token for the gateway and invalidate the old one.
+Issues a new authentication token for the gateway. A gateway has at most two active tokens.
 
-**Security Note:**
-- The new token is only returned once in this response
-- Store the token securely - it cannot be retrieved later
-- The old token will be immediately invalidated
-- Update your gateway configuration with the new token
+**Rotation does not revoke the old token.** Both stay valid, so the gateway can move to the new
+token without downtime. Once it uses the new one, revoke the old token with
+`DELETE /gateways/{gatewayID}/tokens/{tokenID}`. After a suspected compromise, revoke the old
+token straight away.
 
-**Use Cases:**
-- Regular token rotation for security compliance
-- Token compromise recovery
-- Periodic security maintenance
+The token is returned only in this response and cannot be read again.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param gatewayID Gateway UUID or name
@@ -449,6 +445,17 @@ func (a *GatewayTokensAPIService) RotateGatewayTokenExecute(r ApiRotateGatewayTo
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

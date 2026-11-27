@@ -459,7 +459,8 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 	return toGatewayResponse(gateway), nil
 }
 
-// orgGateway returns the organization's gateway named by a name or UUID.
+// orgGateway returns the organization's gateway named by a UUID or, failing that shape, a name.
+// Names can't be UUID-shaped, so each value selects at most one gateway.
 func (s *PlatformGatewayService) orgGateway(gatewayID, ouID string) (*gwmodels.Gateway, error) {
 	gateway, err := s.resolveGateway(strings.TrimSpace(gatewayID), ouID)
 	if err != nil {
@@ -935,7 +936,7 @@ func (s *PlatformGatewayService) UpdateGatewayActiveStatus(gatewayID string, isA
 // resolveGatewayUUID resolves a gateway identifier (UUID or name) to its UUID,
 // scoped to the organization.
 func (s *PlatformGatewayService) resolveGatewayUUID(gatewayID, ouID string) (string, error) {
-	gw, err := s.lookupGatewayInOrg(gatewayID, ouID)
+	gw, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {
 		return "", err
 	}
@@ -945,7 +946,7 @@ func (s *PlatformGatewayService) resolveGatewayUUID(gatewayID, ouID string) (str
 // resolveManagedGatewayUUID is resolveGatewayUUID for operations a self-hosted gateway does
 // not support: a self-hosted gateway is reported as not found.
 func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID string) (string, error) {
-	gw, err := s.lookupGatewayInOrg(gatewayID, ouID)
+	gw, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {
 		return "", err
 	}
@@ -953,20 +954,6 @@ func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID strin
 		return "", gwerr.ErrGatewayNotFound
 	}
 	return gw.UUID.String(), nil
-}
-
-func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*gwmodels.Gateway, error) {
-	if gw, err := s.gatewayRepo.GetByNameAndOrgID(gatewayID, ouID); err == nil {
-		return gw, nil
-	}
-	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
-	if err != nil {
-		return nil, gwerr.ErrGatewayNotFound
-	}
-	if gw.OUID != ouID {
-		return nil, gwerr.ErrGatewayNotFound
-	}
-	return gw, nil
 }
 
 // UpsertIdentityProvider creates or updates an identity provider mirror row for a
@@ -1296,6 +1283,10 @@ func (s *PlatformGatewayService) validateGatewayInput(ouID, name, displayName, v
 	// No leading/trailing hyphens
 	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") {
 		return httpx.NewInvalidInputError("Gateway name cannot start or end with a hyphen", "gateway name cannot start or end with a hyphen")
+	}
+	// A UUID-shaped name would be read as a UUID by every gateway route.
+	if _, err := uuid.Parse(name); err == nil {
+		return httpx.NewInvalidInputError("Gateway name cannot be a UUID", "gateway name must not be UUID-shaped")
 	}
 
 	if err := validateGatewayDisplayName(displayName); err != nil {

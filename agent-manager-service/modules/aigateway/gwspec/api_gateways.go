@@ -722,13 +722,13 @@ func (a *GatewaysAPIService) ListGatewaysExecute(r ApiListGatewaysRequest) (*Gat
 }
 
 type ApiRegisterGatewayRequest struct {
-	ctx             context.Context
-	ApiService      *GatewaysAPIService
-	gatewayDocument *GatewayDocument
+	ctx                         context.Context
+	ApiService                  *GatewaysAPIService
+	gatewayRegistrationDocument *GatewayRegistrationDocument
 }
 
-func (r ApiRegisterGatewayRequest) GatewayDocument(gatewayDocument GatewayDocument) ApiRegisterGatewayRequest {
-	r.gatewayDocument = &gatewayDocument
+func (r ApiRegisterGatewayRequest) GatewayRegistrationDocument(gatewayRegistrationDocument GatewayRegistrationDocument) ApiRegisterGatewayRequest {
+	r.gatewayRegistrationDocument = &gatewayRegistrationDocument
 	return r
 }
 
@@ -775,8 +775,8 @@ func (a *GatewaysAPIService) RegisterGatewayExecute(r ApiRegisterGatewayRequest)
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.gatewayDocument == nil {
-		return localVarReturnValue, nil, reportError("gatewayDocument is required and must be specified")
+	if r.gatewayRegistrationDocument == nil {
+		return localVarReturnValue, nil, reportError("gatewayRegistrationDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -797,7 +797,7 @@ func (a *GatewaysAPIService) RegisterGatewayExecute(r ApiRegisterGatewayRequest)
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.gatewayDocument
+	localVarPostBody = r.gatewayRegistrationDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err

@@ -399,6 +399,17 @@ func TestValidateGatewayInput_IsInvalidInput(t *testing.T) {
 	assert.Equal(t, "Gateway name must be 3 to 64 characters", ve.Message)
 }
 
+// A UUID-shaped name would be read as a UUID by every route, so it would name two gateways.
+func TestValidateGatewayInput_RefusesUUIDShapedName(t *testing.T) {
+	svc := NewPlatformGatewayService(&gwrepomocks.GatewayRepositoryMock{})
+
+	err := svc.validateGatewayInput(gatewayTestOUID, "11111111-1111-4111-8111-111111111111", "Edge", "edge.example.com")
+
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
+	assert.Equal(t, "Gateway name cannot be a UUID", httpx.IsValidationError(err).Message)
+	require.NoError(t, svc.validateGatewayInput(gatewayTestOUID, "edge-1111", "Edge", "edge.example.com"))
+}
+
 func updateRepo(gw *gwmodels.Gateway) *gwrepomocks.GatewayRepositoryMock {
 	return &gwrepomocks.GatewayRepositoryMock{
 		GetByUUIDFunc:     func(string) (*gwmodels.Gateway, error) { return gw, nil },

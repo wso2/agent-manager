@@ -58,7 +58,7 @@ func (s *PlatformGatewayService) RegisterSelfHostedGateway(ouID string, in SelfH
 // RequireSelfHosted returns the organization's gateway named by ref, a name or UUID. A managed gateway is
 // refused with ErrGatewayManaged: the platform runs it, so the organization cannot change or remove it.
 func (s *PlatformGatewayService) RequireSelfHosted(ref, ouID string) (*gwmodels.Gateway, error) {
-	gateway, err := s.lookupGatewayInOrg(strings.TrimSpace(ref), ouID)
+	gateway, err := s.orgGateway(ref, ouID)
 	if err != nil {
 		return nil, err
 	}

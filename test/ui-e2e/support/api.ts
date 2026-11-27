@@ -140,14 +140,17 @@ export class AmpApi {
   }
 
   /**
-   * An active gateway with the environment's UUID, or undefined when none is active. Every gateway
-   * serves the organization's one environment; a proxy names the gateway.
+   * An active gateway with the environment's UUID, or undefined when there is no such environment
+   * or no active gateway. Every gateway serves the organization's one environment; a proxy names the
+   * gateway. Any other API failure fails the caller.
    */
   async activeGateway(envName = 'default'): Promise<{ envUuid: string; gatewayId: string } | undefined> {
     const env = await this.get(`/api/v1/environments/${encodeURIComponent(envName)}`);
-    if (env.status !== 200) return undefined;
-    const { body } = await this.get('/m/ai-gateway/gateways');
-    const gw = (body?.list ?? []).find((g: any) => g.status?.state === 'ACTIVE');
+    if (env.status === 404) return undefined;
+    expect(env.status, JSON.stringify(env.body)).toBe(200);
+    const gateways = await this.get('/m/ai-gateway/gateways');
+    expect(gateways.status, JSON.stringify(gateways.body)).toBe(200);
+    const gw = (gateways.body?.list ?? []).find((g: any) => g.status?.state === 'ACTIVE');
     return gw ? { envUuid: env.body.id, gatewayId: gw.metadata.uid } : undefined;
   }
 

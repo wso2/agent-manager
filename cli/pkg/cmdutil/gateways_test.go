@@ -52,7 +52,7 @@ func pagedGatewayServer(t *testing.T, total int) (*aigateway.ClientWithResponses
 // A single unpaginated request stopped at the server's page size, so a gateway past
 // that boundary was invisible to both name resolution and completion.
 func TestListAllGateways_FollowsEveryPage(t *testing.T) {
-	const total = 450 // more than two pages at gatewayPageLimit
+	const total = 250 // more than two pages at gatewayPageLimit
 	client, offsets := pagedGatewayServer(t, total)
 
 	got, err := ListAllGateways(context.Background(), client, "acme")
@@ -65,7 +65,7 @@ func TestListAllGateways_FollowsEveryPage(t *testing.T) {
 	if got[0].Metadata.Name != "gw-0" || got[total-1].Metadata.Name != "gw-"+strconv.Itoa(total-1) {
 		t.Errorf("bounds = %q..%q, want gw-0..gw-%d", got[0].Metadata.Name, got[total-1].Metadata.Name, total-1)
 	}
-	want := []string{"0", "200", "400"}
+	want := []string{"0", "100", "200"}
 	if len(*offsets) != len(want) {
 		t.Fatalf("offsets = %v, want %v", *offsets, want)
 	}

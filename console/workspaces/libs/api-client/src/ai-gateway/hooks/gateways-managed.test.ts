@@ -148,7 +148,8 @@ describeMutationHooks("gateway mutations", SEEDED, [
 
 describe("gateway environments", () => {
   it("lists gateways without environments when they cannot be read", async () => {
-    vi.mocked(listEnvironments).mockRejectedValueOnce(new Error("forbidden"));
+    vi.mocked(listEnvironments)
+      .mockRejectedValueOnce({ code: "FORBIDDEN", message: "insufficient permissions" });
     m.listGateways.mockReset().mockResolvedValue({ list: [doc] });
     const qc = new QueryClient();
     let data: unknown;
@@ -161,5 +162,22 @@ describe("gateway environments", () => {
       root.render(createElement(QueryClientProvider, { client: qc }, createElement(Probe))));
     await vi.waitFor(() => expect(data).toBeDefined());
     expect(data).toEqual(api.gatewayListFromDocuments({ list: [doc] }));
+  });
+
+  it("fails the gateway list when the environments fail for another reason", async () => {
+    const outage = { code: "INTERNAL_ERROR", message: "boom" };
+    vi.mocked(listEnvironments).mockRejectedValue(outage);
+    m.listGateways.mockReset().mockResolvedValue({ list: [doc] });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let error: unknown;
+    const Probe = () => {
+      error = useListGateways(org).error;
+      return null;
+    };
+    const root = createRoot(document.createElement("div"));
+    await act(async () =>
+      root.render(createElement(QueryClientProvider, { client: qc }, createElement(Probe))));
+    await vi.waitFor(() => expect(error).toEqual(outage));
+    vi.mocked(listEnvironments).mockReset();
   });
 });

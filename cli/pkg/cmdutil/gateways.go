@@ -23,9 +23,8 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
-// gatewayPageLimit is the page size ListAllGateways requests. The server defaults
-// to 100 per page and caps a page at 1000.
-const gatewayPageLimit = int32(200)
+// gatewayPageLimit is the page size ListAllGateways requests: the contract's maximum.
+const gatewayPageLimit = int32(100)
 
 // ListAllGateways returns every gateway in the org, following the response's
 // pagination metadata rather than trusting one page. A single unpaginated request

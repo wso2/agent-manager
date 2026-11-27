@@ -227,7 +227,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GatewayDocument"
+              $ref: "#/components/schemas/GatewayRegistrationDocument"
       responses:
         "201":
           description: Gateway registered
@@ -500,18 +500,14 @@ paths:
         - Gateway Tokens
       summary: Rotate gateway token
       description: |
-        Generate a new authentication token for the gateway and invalidate the old one.
+        Issues a new authentication token for the gateway. A gateway has at most two active tokens.
 
-        **Security Note:**
-        - The new token is only returned once in this response
-        - Store the token securely - it cannot be retrieved later
-        - The old token will be immediately invalidated
-        - Update your gateway configuration with the new token
+        **Rotation does not revoke the old token.** Both stay valid, so the gateway can move to the new
+        token without downtime. Once it uses the new one, revoke the old token with
+        `DELETE /gateways/{gatewayID}/tokens/{tokenID}`. After a suspected compromise, revoke the old
+        token straight away.
 
-        **Use Cases:**
-        - Regular token rotation for security compliance
-        - Token compromise recovery
-        - Periodic security maintenance
+        The token is returned only in this response and cannot be read again.
       operationId: rotateGatewayToken
       requestBody:
         required: false
@@ -542,6 +538,13 @@ paths:
           description: >-
             Forbidden - insufficient permissions, or `orgId` names an organization other than the
             caller's
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The gateway already has two active tokens. Revoke one it no longer uses, then retry.
           content:
             application/json:
               schema:
@@ -6532,6 +6535,37 @@ components:
           $ref: "#/components/schemas/GatewaySpec"
         status:
           $ref: "#/components/schemas/GatewayDocumentStatus"
+
+    GatewayRegistrationDocument:
+      type: object
+      description: A gateway to register; as GatewayDocument, with spec.endpoint required.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+      properties:
+        apiVersion:
+          type: string
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
+          type: string
+          description: Must match the route; never ignored.
+          enum:
+            - Gateway
+        metadata:
+          $ref: "#/components/schemas/DocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/GatewayRegistrationSpec"
+
+    GatewayRegistrationSpec:
+      description: The spec of a gateway to register; spec.endpoint is required.
+      allOf:
+        - $ref: "#/components/schemas/GatewaySpec"
+        - type: object
+          required:
+            - endpoint
 
     GatewaySpec:
       type: object

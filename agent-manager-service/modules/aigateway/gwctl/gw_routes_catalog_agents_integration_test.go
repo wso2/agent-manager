@@ -347,7 +347,6 @@ func TestGWRoutesAgentDeploySettings(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	cfg = expectInto[gwspec.AgentConfigurationResponse](t, a.do(http.MethodGet, gwAgentPath("/configurations"), nil), http.StatusOK)
 	require.True(t, *cfg.EnableApiKeySecurity, "the refused save changed nothing")
-
 }
 
 // TestGWRoutesPlatformGatewayFailureSummary reports the fleet's failures to the platform admin organization only.
