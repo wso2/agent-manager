@@ -17,9 +17,9 @@ Without any of this, the module keeps traces in memory, and Lite runs no ClickHo
 
 | Piece | What it does |
 |---|---|
-| `observability-secrets` | Writes the four passwords, one file per job, before anything else in the profile starts. |
+| `amp-init` | Generates the four passwords, or writes the ones `amp.yaml` sets, when the store URL is set: one file per job, into a folder per container that reads it. It does nothing new without a store URL. |
 | `clickhouse` | Bundled profile only. Stores spans in `otel.otel_traces`. Creates no tables itself; its four logins come from [`users.xml`](../../agent-manager-service/modules/observability/store/clickhouse/users.xml). |
-| `observability-migrate` | Runs `amp migrate` as the migrator login once ClickHouse and `amp-api` are healthy (`amp-api`'s first start creates the encryption key, which needs an empty database), so the schema is applied before the module is installed (and, with the bundled ClickHouse, before the collector starts). |
+| `observability-migrate` | Runs `amp migrate` as the migrator login once ClickHouse and `amp-api` are healthy (`amp-api`'s first start creates the encryption key, which needs an empty database), so the schema is applied before the collector starts and before the module is installed. |
 | `otel-collector` | Receives OTLP/HTTP, sets each span's identity from the request headers, and writes to ClickHouse as the insert-only login. |
 | `observability` network | Internal: holds `amp-api`, ClickHouse and the collector (and the migrate step while it runs), with no route out and no published ports. With your own ClickHouse, the collector also joins a network of its own to reach it. |
 
@@ -60,7 +60,7 @@ COMPOSE_PROFILES=observability          # postgres,observability with PostgreSQL
 AMP_OBSERVABILITY_STORE_URL=http://clickhouse:8123
 ```
 
-Every `docker compose` command, `make up` and `make dev-up` read them. With either observability profile on and no `AMP_OBSERVABILITY_STORE_URL`, the start stops at its first step (`service "observability-secrets" didn't complete successfully`); `docker compose logs observability-secrets` (or `observability-secrets-external`) names the missing line. `make up-observability` sets them for its own run only, so without them in `.env` a later restart, `make up`, or the rotation steps below bring `amp-api` back without the store address, serving traces from memory, and the profile's services are left out.
+Every `docker compose` command, `make up` and `make dev-up` read them. With either observability profile on and no `AMP_OBSERVABILITY_STORE_URL`, amp-init writes no observability passwords, so ClickHouse and `observability-migrate` stop with a message naming that line (`docker compose logs clickhouse observability-migrate`) and the collector does not start; the rest of the stack runs, with traces in memory. `make up-observability` sets them for its own run only, so without them in `.env` a later restart, `make up`, or the rotation steps below bring `amp-api` back without the store address, serving traces from memory, and the profile's services are left out.
 
 From a source checkout:
 
@@ -78,55 +78,89 @@ docker compose up -d --wait
 docker compose exec amp-api /go/bin/amp module install observability
 ```
 
-The four passwords are generated on first start. `AMP_OBSERVABILITY_TTL_DAYS` sets how long spans are kept (30 days when empty).
+amp-init generates the four passwords on first start. `AMP_OBSERVABILITY_TTL_DAYS` sets how long spans are kept (30 days when empty).
 
 ## Your own ClickHouse, with Compose
 
-1. **Create the logins.** Fill in a password for each job in [`clickhouse-users.sql`](../../deployments/standalone/observability/clickhouse-users.sql) and run it on your ClickHouse as an admin. It grants the same rights as `users.xml`.
-2. **Set `.env`.** Compose refuses to start while a password is unset.
+The collector and the schema step run here, against your ClickHouse; no ClickHouse runs in the stack. The four passwords are set like any other Agent Manager secret: amp-init generates each one you don't set in `amp.yaml`, and none goes in `.env`. Run the commands below from `deployments/standalone`.
+
+1. **Set `.env`:**
 
    ```bash
    COMPOSE_PROFILES=observability-external
    AMP_OBSERVABILITY_STORE_URL=http://clickhouse.example.internal:8123
-   AMP_OBSERVABILITY_READ_PASSWORD=...
-   AMP_OBSERVABILITY_WRITE_PASSWORD=...
-   AMP_OBSERVABILITY_DELETE_PASSWORD=...
-   AMP_OBSERVABILITY_SETUP_PASSWORD=...
    ```
 
-3. **Start and install:** `docker compose up -d --wait`, then `docker compose exec amp-api /go/bin/amp module install observability`.
+2. **Generate or set the passwords.**
+   - To have them generated, run `docker compose run --rm amp-init`, then read each one:
 
-The collector and the schema step run here, against your ClickHouse; no ClickHouse runs in the stack.
+     ```bash
+     docker compose run --rm amp-init secret list
+     docker compose run --rm amp-init secret show setup-password    # and read-, write-, delete-password
+     ```
+
+   - To choose them, keep them in a folder only root can read (`chmod 700` the folder, `chmod 600` the files), mount it into `amp-init` alone with a `docker-compose.override.yml` beside the compose files, and name the files in `amp.yaml`:
+
+     ```yaml
+     # docker-compose.override.yml
+     services:
+       amp-init:
+         volumes:
+           - /etc/amp/observability:/etc/amp/observability:ro
+     ```
+
+     ```yaml
+     # amp.yaml
+     module:
+       observability:
+         clickhouse:
+           password: "${file:/etc/amp/observability/read-password:-}"
+           cleaner-password: "${file:/etc/amp/observability/delete-password:-}"
+           migrator-password: "${file:/etc/amp/observability/setup-password:-}"
+           ingest-password: "${file:/etc/amp/observability/write-password:-}"
+     ```
+
+     amp-init writes each one where its containers read it, on every start, so the folder always wins. The `:-` lets `amp-api` and `observability-migrate`, which also read `amp.yaml` but never mount this folder, start without it; they read amp-init's copies instead. If amp-init can't read a file either, it generates that password, and `observability-migrate` then stops with the message below.
+
+3. **Create the logins.** Fill in each `<... password>` in [`clickhouse-users.sql`](../../deployments/standalone/observability/clickhouse-users.sql) and run it on your ClickHouse as an admin. It grants the same hosts and rights as `users.xml`.
+4. **Start and install:** `docker compose up -d --wait`, then `docker compose exec amp-api /go/bin/amp module install observability`.
+
+If a login is missing or its password differs, `observability-migrate` stops with "ClickHouse refused the amp_migrator login … create the observability logins first", the collector does not start, and installing the module is refused; `amp-api` keeps running. Create or fix the login, then run `docker compose up -d --wait` again.
 
 ## Passwords
 
-Each password is a file in the `observability-secrets` volume, named for its job (`read-password`, `write-password`, `delete-password`, `setup-password`). The one-shot `observability-secrets` step writes them before the rest of the profile starts: with the bundled ClickHouse it generates any that are missing and keeps them across restarts; with your own, it writes the ones from `.env` every start. Each container mounts only the files it uses:
+The four are generated secrets like `admin-password`: amp-init writes each one when the store URL is set, keeps a generated one across restarts, and writes a value `amp.yaml` (or the environment) sets instead, on every start. An empty value counts as unset. The files are named for the job (`read-password`, `write-password`, `delete-password`, `setup-password`) and none is in `amp-secrets`, the folder `amp-api` reads its own secrets from. Each container mounts only the folder with its own:
 
-| Container | Passwords |
-|---|---|
-| `clickhouse` | all four; its entrypoint exports them into the variables `users.xml` reads, in its own process only |
-| `amp-api` | read, delete (a copy in `amp-observability-secrets`) |
-| `observability-migrate` | setup |
-| the collector | write |
+| Volume | Passwords | Mounted by |
+|---|---|---|
+| `observability-secrets` | all four | `clickhouse`, whose entrypoint exports them into the variables `users.xml` reads, in its own process only |
+| `amp-observability-secrets` | read, delete | `amp-api` |
+| `observability-migrate-secrets` | setup | `observability-migrate` |
+| `observability-collector-secrets` | write | the collector |
 
-No password is in a container's configuration or `docker inspect`. ClickHouse holds all four in its own process environment, since `users.xml` reads them from there.
+amp-init mounts all four volumes to write them. No password is in a container's configuration or `docker inspect`. ClickHouse holds all four in its own process environment, since `users.xml` reads them from there.
 
-To read one, for example to sign in with `clickhouse-client`:
+To list or read one, run the amp CLI in amp-init, the only container that holds all four (`amp secret` in `amp-api` lists only its own):
 
 ```bash
-docker compose exec clickhouse sh -c 'clickhouse-client -u amp_reader --password "$(cat /run/secrets/observability/read-password)"'
+docker compose run --rm amp-init secret list
+docker compose run --rm amp-init secret show read-password
 ```
 
-To rotate one:
+To rotate one, from `deployments/standalone` with the profile and store URL in `.env` (on the dev stack, add `-f docker-compose.yml -f docker-compose.dev.yml` after `docker compose`):
 
-- **Bundled:** with the two lines from [Quick setup](#quick-setup-bundled-clickhouse) in `.env`, delete its file and recreate what reads it; a new one is generated. Run these from `deployments/standalone`; on the dev stack (`make dev-up-observability`), add `-f docker-compose.yml -f docker-compose.dev.yml` after `docker compose`.
+1. Generated: delete its file, and amp-init generates a new one. Chosen: change the file in your folder.
 
-  ```bash
-  docker compose run --rm --no-deps --entrypoint rm observability-secrets /out/all/read-password
-  docker compose up -d --wait --no-deps --force-recreate observability-secrets clickhouse amp-api otel-collector
-  ```
+   ```bash
+   docker compose run --rm --no-deps --entrypoint rm amp-init /out/clickhouse/read-password
+   ```
 
-- **Your own:** change it on ClickHouse and in `.env`, then `docker compose up -d --wait --force-recreate`.
+2. With your own ClickHouse, set the new password on it: `ALTER USER amp_reader IDENTIFIED BY '...'`, with the value from `amp secret show`.
+3. Rerun amp-init and recreate what reads it (`clickhouse` only with the bundled one; `otel-collector-external` with your own):
+
+   ```bash
+   docker compose up -d --wait --no-deps --force-recreate amp-init clickhouse amp-api otel-collector
+   ```
 
 ## Your own ClickHouse, without Compose
 
