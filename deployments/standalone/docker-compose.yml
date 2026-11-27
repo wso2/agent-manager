@@ -185,39 +185,40 @@ services:
       - "${AMP_API_PORT:-9000}:8080"
       - "${AMP_INTERNAL_PORT:-9243}:9243"
     environment:
-      AMP_CONFIG: /etc/amp/amp.yaml
-      AMP_DATA_DIR: /var/lib/agent-manager
-      DB_SSL_MODE: disable
+      - AMP_CONFIG=/etc/amp/amp.yaml
+      - AMP_DATA_DIR=/var/lib/agent-manager
+      - DB_SSL_MODE=disable
       # The console is same-origin; this lets the dev console (Vite) call in.
-      CORS_ALLOWED_ORIGIN: http://localhost:${CONSOLE_PORT:-3000}
+      - CORS_ALLOWED_ORIGIN=http://localhost:${CONSOLE_PORT:-3000}
       # ThunderID is dialled by its service name; its public URL (amp.yaml)
       # stays the token issuer.
-      THUNDER_RESOLVE_TO_HOST: thunder:${THUNDER_PORT:-8080}
-      FILE_AUTH_USERS_PATH: /amp/fileauth/users.yaml
+      - THUNDER_RESOLVE_TO_HOST=thunder:${THUNDER_PORT:-8080}
+      - FILE_AUTH_USERS_PATH=/amp/fileauth/users.yaml
       # Lite answers 501 for internal agents, the only writers of agent
       # credentials, so no secret manager provider is wired here.
-      SECRET_MANAGER_PROVIDER: unsupported
-      MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR: gateway-runtime:19080
+      - SECRET_MANAGER_PROVIDER=unsupported
+      - MODULE_AI_GATEWAY_A2A_CARD_FETCH_DIAL_ADDR=gateway-runtime:19080
       # The bundled gateway, registered at startup with the token amp-init wrote.
-      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME: default
-      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST: http://${GATEWAY_HOST:-default-default.gateway.localhost}:${GATEWAY_PORT:-19080}
-      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE: /amp/gw/registration-token
+      - MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME=default
+      - MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST=http://${GATEWAY_HOST:-default-default.gateway.localhost}:${GATEWAY_PORT:-19080}
+      - MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE=/amp/gw/registration-token
       # The console's settings (CONSOLE_<NAME> fills $NAME in its config.js).
       # The API base URL, ThunderID URL, sign-in redirects, AUTH_MODE and the
       # sign-in scopes default from amp.yaml.
-      CONSOLE_GATEWAY_CONTROL_PLANE_URL: https://localhost:${AMP_INTERNAL_PORT:-9243}
-      CONSOLE_GATEWAY_VERSION: v2026.09.24
-      CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: "true"
-      CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT: "true"
-      CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
+      - CONSOLE_GATEWAY_CONTROL_PLANE_URL=https://localhost:${AMP_INTERNAL_PORT:-9243}
+      - CONSOLE_GATEWAY_VERSION=v2026.09.24
+      - CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT=true
+      - CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT=true
+      - CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS=true
       # The observability module's trace store, set with an observability
       # profile; unset, the module keeps traces in memory. Its passwords are
       # files from observability-secrets. See docs/amp-lite/observability.md.
-      MODULE_OBSERVABILITY_CLICKHOUSE_URL: ${AMP_OBSERVABILITY_STORE_URL:-}
-      MODULE_OBSERVABILITY_CLICKHOUSE_USER: amp_reader
-      MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD_FILE: ${AMP_OBSERVABILITY_STORE_URL:+/amp/observability/read-password}
-      MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER: amp_cleaner
-      MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD_FILE: ${AMP_OBSERVABILITY_STORE_URL:+/amp/observability/delete-password}
+      # Left out when .env has no store URL, so amp.yaml's clickhouse.url applies.
+      - MODULE_OBSERVABILITY_CLICKHOUSE_URL${AMP_OBSERVABILITY_STORE_URL:+=${AMP_OBSERVABILITY_STORE_URL:-}}
+      - MODULE_OBSERVABILITY_CLICKHOUSE_USER=amp_reader
+      - MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD_FILE=${AMP_OBSERVABILITY_STORE_URL:+/amp/observability/read-password}
+      - MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER=amp_cleaner
+      - MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD_FILE=${AMP_OBSERVABILITY_STORE_URL:+/amp/observability/delete-password}
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-data:/var/lib/agent-manager
@@ -315,13 +316,14 @@ services:
     command: ["migrate"]
     # amp-api's settings and database, plus the setup login.
     environment:
-      AMP_CONFIG: /etc/amp/amp.yaml
-      AMP_DATA_DIR: /var/lib/agent-manager
-      DB_SSL_MODE: disable
-      MODULE_OBSERVABILITY_CLICKHOUSE_URL: ${AMP_OBSERVABILITY_STORE_URL:-http://clickhouse:8123}
-      MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER: amp_migrator
-      MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD_FILE: /run/secrets/observability/setup-password
-      MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS: ${AMP_OBSERVABILITY_TTL_DAYS:-}
+      - AMP_CONFIG=/etc/amp/amp.yaml
+      - AMP_DATA_DIR=/var/lib/agent-manager
+      - DB_SSL_MODE=disable
+      - MODULE_OBSERVABILITY_CLICKHOUSE_URL=${AMP_OBSERVABILITY_STORE_URL:-http://clickhouse:8123}
+      - MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER=amp_migrator
+      - MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD_FILE=/run/secrets/observability/setup-password
+      # Left out when .env has no TTL, so amp.yaml's clickhouse.ttl-days applies.
+      - MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS${AMP_OBSERVABILITY_TTL_DAYS:+=${AMP_OBSERVABILITY_TTL_DAYS:-}}
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-data:/var/lib/agent-manager
