@@ -34,7 +34,8 @@ import (
 
 // subscriber is a module that handles agent.created with fn.
 func subscriber(name string, fn modkit.EventHandler) *testModule {
-	return &testModule{manifest: manifest(name, nil, nil), activate: func(rt modkit.Runtime) error {
+	mf := manifest(name, nil, nil)
+	return &testModule{manifest: mf, activate: func(rt modkit.Runtime) error {
 		rt.Subscribe(modkit.EventAgentCreated, fn)
 		return nil
 	}}
@@ -181,4 +182,37 @@ func bootWith(t *testing.T, ctx context.Context, d database, g *gorm.DB, mods []
 	require.NoError(t, err)
 	require.NoError(t, h.Boot(ctx))
 	return h
+}
+
+// A replica claims only the event types its modules handle, so one running
+// another version of a module leaves a newer event type for a replica that
+// handles it.
+func TestDeliveryWaitsForAReplicaThatHandlesItsType(t *testing.T) {
+	eachDatabase(t, deliveryWaitsForAReplicaThatHandlesItsType)
+}
+
+func deliveryWaitsForAReplicaThatHandlesItsType(t *testing.T, d database) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	nop := func(context.Context, modkit.Event) error { return nil }
+	g := d.open(t)
+	h := bootWith(t, ctx, d, g, []modkit.Module{subscriber("t-old", nop)}, nil)
+	installAll(t, h, "t-old")
+	org := newOrg(t, g)
+	id := uuid.Must(uuid.NewV7()).String()
+	require.NoError(t, g.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`INSERT INTO module_events (id, org_id, type, source, data, created_at) VALUES (?, ?, ?, 'core', '{}', ?)`,
+			id, org, modkit.EventAgentDeleted, dbx.Now()).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`INSERT INTO module_event_deliveries (event_id, module, attempts, available_at) VALUES (?, 't-old', 0, ?)`,
+			id, dbx.Now()).Error
+	}))
+
+	emit(t, h, org)
+	waitFor(t, "the handled delivery to be made", func() bool {
+		return count(t, g, `SELECT count(*) FROM module_event_deliveries WHERE event_id <> ?`, id) == 0
+	})
+	assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM module_event_deliveries WHERE event_id = ? AND claimed_by IS NULL`, id),
+		"the delivery of a type the module does not handle here stays queued")
 }

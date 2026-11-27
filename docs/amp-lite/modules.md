@@ -14,7 +14,7 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, `observability` (traces) another, and `ai-hub` (the AI Hub) a third; only `ai-gateway` is a default. The `observability` store is in memory and per replica, and nothing writes to it yet, so it serves no traces until a real backend replaces it. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
+- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, `observability` (traces, from ClickHouse, or from an in-memory store per replica when none is [configured](configuration.md#module-observability)) another, and `ai-hub` (the AI Hub) a third; only `ai-gateway` is a default. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
 - **Distribution defaults.** A distribution's `main` passes its default modules to `cli.Main` (`cmd/amp`: `cli.Main("amp", "ai-gateway")`; `cmd/amp-core` none). With no modules list declared, the server installs each default at boot, with its providers, only if it was never installed (or was purged), and changes nothing else, so a default an operator disabled or uninstalled stays that way across restarts. A declared list replaces the defaults.
 
 A distribution is a `main` package that chooses its modules with blank imports:
@@ -162,6 +162,24 @@ tables:
 
 - `amp migrate` (or `amp serve --migrate`) applies the core's migrations, then every compiled-in module's in name order, whether the module is installed or not. Each applied file is recorded in `module_migrations` with a sha256 checksum. The runner refuses an applied file that was edited, a recorded file the binary doesn't have (a database newer than the binary), a new file that sorts before an applied one, and any statement that touches a table outside the module's prefix. Add a new file; never edit one. A server won't start while migrations are pending.
 - Queries you write in Go follow the [database rules](database-schema.md#rules): one SQL text for SQLite and PostgreSQL, no `ON CONFLICT`, no row-lock clauses, no database-specific functions. `db/portability_test.go` checks the repository for them; `pkg/dbx` has the portable helpers (claims, upserts, row locks).
+
+### Stores outside the core database
+
+A module that keeps data in its own store, such as ClickHouse, implements `modkit.ExternalMigrator`. `amp migrate` applies that store's schema files after the module's SQL migrations, and prints how many of each module's files it applied, why it skipped the store, or why it could not apply it; install and enable only check that they were applied. A store it can't apply (unreachable, a wrong login, a refused file) stops no other module: `amp migrate` goes on with the rest, then exits with that error. A replica that has not loaded the module leaves it out until a later run applies the schema; one that has it loaded keeps it. Give the migrator login only to a step of its own, as the Compose stack's `observability-migrate` does, so the server's own `--migrate` never touches the store and a store that is down fails only that step.
+
+```go
+func (module) ExternalSchema(config func(string) string, apply bool) (modkit.ExternalSchema, error)
+```
+
+- `ExternalSchema` returns the store's `Files()` (`NNN_description.<ext>`) and how to read what was applied (`Applied`), apply one file and record it (`Apply`), and settle config-driven settings such as a TTL after the files (`Settle`, on every run). `apply` is true for `amp migrate` and false for the install and enable check, so the module can log in with its migrator only in the migrate step.
+- The core applies the same rules as for SQL migrations: files in order, each recorded with a sha256 checksum, and a refusal for an edited applied file, an applied version the binary doesn't have, and a new file that sorts before an applied one. Running `amp migrate` again applies nothing.
+- The store keeps the record of what it applied, next to its data (the observability module's is `otel.amp_schema_migrations`), so a store that is recreated is migrated again from scratch.
+- An error wrapping `modkit.ErrNotConfigured` means there is no store, or no login, to migrate: `amp migrate` logs the reason and carries on. This is how `amp serve --migrate` behaves on a server that has only the store's reading login. Install and enable log a warning that the store was not checked.
+- One `amp migrate` applies external schemas at a time, under the `modhost.external_schema` lease in `locks`; no core transaction is held while it talks to the store, so a running server's writes go on. Another run waits for the lease until its five-minute limit; a lease left by a run that was killed expires six minutes after it was taken.
+- Installing or enabling a module whose store is configured but missing files is refused with a hint to run `amp migrate`; a store it can't reach is refused too. The check runs before the lifecycle transaction, so a slow store holds no lock. The server's own installs at boot, from a modules list or its default modules, skip the check: the module is installed and left out, as below, until its store is ready, so a store that is down never stops the server from starting. A replica also checks each module it is about to load, at boot or after a change elsewhere, and leaves out one that fails and retries it; it writes no event deliveries for a module it leaves out. A module already loaded is not checked again, so it stays loaded while the store is down, and its event handlers fail and retry as on any other error. A deleted agent's spans that no handler could delete expire with the span TTL. `amp serve --wait-for-migrations` does not wait for external stores.
+- Apply never runs at install or enable, and `amp-core` has no modules, so neither changes for it.
+- The observability module scopes spans by the resource attributes `agent-manager/org-id`, `agent-manager/project-uid`, `agent-manager/agent-uid` and `agent-manager/environment-uid`, which the span table reads as written. The collector or gateway in front of ClickHouse must overwrite these four from the sender's authenticated identity and drop any values the sender supplied.
+- The observability module's ClickHouse users are defined in `modules/observability/store/clickhouse/users.xml` and log in only from loopback or a private network. Their grants name the `otel` database, so for another `clickhouse.database` edit them to name it. An unset or empty `AMP_CLICKHOUSE_*_PASSWORD` leaves that user with no password, so the install must refuse to start when any of them is empty. The module's logins for them are in its [settings](configuration.md#module-observability).
 
 ## Activate and the Runtime
 
@@ -339,6 +357,7 @@ type Proxy interface {
 - `modkit.Installer`: `OnInstall(ctx, rt)` runs once when the module is installed, to catch up with core state that existed before it (agents created earlier, for example). If it fails, the module stays installed and the error is reported.
 - `modkit.InitComponent`: `Init(ctx, req)` writes the module's own files at `amp init <module> DIR`, the way the core writes ThunderID's at `amp init thunder DIR`, for a service the module ships beside the server. It runs before any server, with no Runtime: `req.Config` reads the module's settings as `rt.Config` does, `req.Dir` is where its files go, and `req.CoreOwner` is the `uid:gid` for files the core reads back. It runs on every `amp init`, so it keeps what an earlier run generated. `pkg/initfiles` has the helpers.
 - `modkit.HealthReporter`: `Health(ctx, rt) map[string]any` adds the module's own detail to `amp module health`. It runs within 5 seconds and must read only shared state (its tables), never one replica's memory, so every replica gives the same answer.
+- `modkit.ExternalMigrator`: the schema of a store outside the core database (see [Stores outside the core database](#stores-outside-the-core-database)).
 
 ## Workloads
 
@@ -583,7 +602,7 @@ When a module is disabled:
 - its pages leave the UI manifest, and its permissions leave file sign-in roles and the console's sign-in scopes;
 - its tables and data stay, and events queued for it wait up to 7 days. Uninstall keeps the data too, but drops queued events. Installing or enabling again picks up where it left off.
 
-`amp module uninstall <name> --purge` (also on a module already uninstalled) empties its `mod_<name>_*` tables, deletes its secrets, revokes its workload credentials and forgets it, in one transaction. The tables themselves stay, as in the proof of concept, so installing it again runs no migration; reference data a migration seeded is restored by the module's `OnInstall` (the gateway re-creates its drift scan lease row).
+`amp module uninstall <name> --purge` (also on a module already uninstalled) empties its `mod_<name>_*` tables, deletes its secrets, revokes its workload credentials and forgets it, in one transaction. The tables themselves stay, as in the proof of concept, so installing it again runs no migration; reference data a migration seeded is restored by the module's `OnInstall` (the gateway re-creates its drift scan lease row). Purge does not touch a store outside the core database: the observability module's spans stay in ClickHouse until its [TTL](configuration.md#module-observability) removes them.
 
 ## Beyond the proof of concept
 
@@ -623,6 +642,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [`WorkloadSpec.Endpoints`](#workloads) and endpoints in the heartbeat response | A workload learns every URL from its heartbeat, so it holds no module paths and follows a module's internal API when it moves. |
 | [`modkit.APIDescriber`](#api-document) | Each module describes its routes in its own OpenAPI document, kept out of the core's. |
 | [`modkit.InitComponent`](#optional-interfaces) | A module writes its own `amp init` files (the gateway's controller configuration). |
+| [`modkit.ExternalMigrator`](#stores-outside-the-core-database) | A module that keeps its data outside the core database (the observability module's ClickHouse) has its schema applied and checked by `amp migrate`, under the same rules as SQL migrations. |
 | [The trial organization exists at `Activate`](#activate-and-the-runtime) | Lite is multi-organization and sets organizations up on first use; a module that seeds rows for the trial organization (the gateway's bundled gateway) needs it to exist before its routes are mounted. |
 | [Distribution default modules](#what-a-module-is) | A full install should run the AI Gateway without an operator step, as before it was a module, while `amp module disable` or `uninstall` still sticks across restarts; a reconciled default list would undo those on every boot. |
 | [Core capabilities](#capabilities) (`identity.directory/v1`) | A module reaches a core service through a versioned contract instead of a core import. The proof of concept has only module-to-module capabilities. |

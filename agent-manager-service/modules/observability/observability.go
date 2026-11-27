@@ -31,7 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/memory"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/clickhouse"
 )
 
 const (
@@ -44,13 +44,14 @@ const (
 )
 
 func init() {
-	modkit.Register(New(memory.New()))
+	modkit.Register(module{})
 }
 
 //go:embed api/openapi.yaml
 var openAPI []byte
 
-// New returns the module serving traces from traces.
+// New returns the module serving traces from traces; nil picks the store from
+// config each time the module activates.
 func New(traces store.TraceStore) modkit.Module {
 	return module{traces: traces}
 }
@@ -58,6 +59,8 @@ func New(traces store.TraceStore) modkit.Module {
 type module struct {
 	traces store.TraceStore
 }
+
+var _ modkit.ExternalMigrator = module{}
 
 func (module) Manifest() modkit.Manifest {
 	return modkit.Manifest{
@@ -79,7 +82,21 @@ func (module) Manifest() modkit.Manifest {
 		UI: &modkit.UI{Pages: []modkit.Page{
 			{ID: "ai-observability/traces", Permission: PermTracesRead},
 		}},
+		Settings: settings,
 	}
+}
+
+// settings are the keys openStores and ExternalSchema read.
+var settings = []modkit.Setting{
+	{Key: "clickhouse.url", Description: "ClickHouse HTTP URL traces are read from; unset, traces come from an empty in-memory store."},
+	{Key: "clickhouse.database", Default: clickhouse.DefaultDatabase, Description: "The database the span table is in. users.xml grants on otel; edit its grants for another name."},
+	{Key: "clickhouse.user", Description: "The reader login; required with url."},
+	{Key: "clickhouse.password", Description: "The reader login's password.", Secret: true},
+	{Key: "clickhouse.cleaner-user", Description: "The login that deletes a deleted agent's spans; unset, they are kept until the TTL."},
+	{Key: "clickhouse.cleaner-password", Description: "The cleaner login's password.", Secret: true},
+	{Key: "clickhouse.migrator-user", Description: "The login that applies the schema; used only by `amp migrate`."},
+	{Key: "clickhouse.migrator-password", Description: "The migrator login's password.", Secret: true},
+	{Key: "clickhouse.ttl-days", Default: "30", Description: "Days ClickHouse keeps spans; applied by `amp migrate`. A change applies only to spans written or merged after the next `amp migrate`."},
 }
 
 func (module) Migrations() fs.FS { return nil }
@@ -89,9 +106,19 @@ func (module) UI() fs.FS         { return nil }
 func (module) OpenAPI() []byte { return openAPI }
 
 func (m module) Activate(_ context.Context, rt modkit.Runtime) error {
-	traces := guarded(m)
-	rt.Provide(tracesv1.ID, capability{core: rt.Core(), traces: traces})
-	h := handlers{core: rt.Core(), traces: traces, log: rt.Logger()}
+	traces, cleaner := m.traces, agentCleaner(nil)
+	if traces == nil {
+		var err error
+		if traces, cleaner, err = openStores(rt); err != nil {
+			return err
+		}
+	} else if c, ok := traces.(agentCleaner); ok {
+		cleaner = c
+	}
+	rt.Subscribe(modkit.EventAgentDeleted, cleanup{cleaner: cleaner, log: rt.Logger()}.agentDeleted)
+	g := guarded{traces: traces}
+	rt.Provide(tracesv1.ID, capability{core: rt.Core(), traces: g})
+	h := handlers{core: rt.Core(), traces: g, log: rt.Logger()}
 	rt.Handle(http.MethodGet, "/traces", PermTracesRead, h.listTraces)
 	rt.Handle(http.MethodGet, "/traces/export", PermTracesRead, h.exportTraces)
 	rt.Handle(http.MethodGet, "/traces/{traceId}/spans", PermTracesRead, h.listSpans)
@@ -129,6 +156,13 @@ func (g guarded) QueryTraceSpans(ctx context.Context, s store.Scope, traceID str
 		return nil, err
 	}
 	return g.traces.QueryTraceSpans(ctx, s, traceID, q)
+}
+
+func (g guarded) QuerySpansByTrace(ctx context.Context, s store.Scope, traceIDs []string, q store.SpanQuery) (map[string]*store.SpanPage, error) {
+	if err := g.check(ctx, s); err != nil {
+		return nil, err
+	}
+	return g.traces.QuerySpansByTrace(ctx, s, traceIDs, q)
 }
 
 func (g guarded) GetSpanDetails(ctx context.Context, s store.Scope, traceID, spanID string) (*store.SpanDetails, error) {

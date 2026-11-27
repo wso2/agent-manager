@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -38,6 +39,9 @@ const (
 	// defaultExportLimit and maxExportSpans match the observer's export.
 	defaultExportLimit = 100
 	maxExportSpans     = 1000
+	// exportBatch is how many traces' spans one export query reads: the
+	// default export in one query, the largest in ten.
+	exportBatch = 100
 	// resourceAgent is the resource attribute naming a span's agent.
 	resourceAgent = "agent-manager/agent"
 )
@@ -185,22 +189,33 @@ func (h handlers) exportTraces(w http.ResponseWriter, r *http.Request) {
 		Traces:     make([]FullTrace, 0, len(page.Traces)),
 		Pagination: tracePagination(window, page),
 	}
-	for _, t := range page.Traces {
-		spans, err := h.traces.QueryTraceSpans(ctx, s, t.TraceID, tracesv1.SpanQuery{
-			Limit: maxExportSpans, SortOrder: "asc", IncludeAttributes: true,
+	// The spans are read as the list counted them, exportBatch traces a query.
+	for batch := range slices.Chunk(page.Traces, exportBatch) {
+		ids := make([]string, 0, len(batch))
+		for _, t := range batch {
+			ids = append(ids, t.TraceID)
+		}
+		pages, err := h.traces.QuerySpansByTrace(ctx, s, ids, tracesv1.SpanQuery{
+			StartTime: window.start, EndTime: window.end, Limit: maxExportSpans, SortOrder: "asc", IncludeAttributes: true,
 		})
 		if err != nil {
-			h.log.WarnContext(ctx, "observability: export left out a trace",
-				"org", modkit.OrgID(ctx), "traceId", t.TraceID, "error", err)
-			resp.FailedTraceIDs = append(resp.FailedTraceIDs, t.TraceID)
+			h.log.WarnContext(ctx, "observability: export left out traces",
+				"org", modkit.OrgID(ctx), "traces", len(ids), "error", err)
+			resp.FailedTraceIDs = append(resp.FailedTraceIDs, ids...)
 			continue
 		}
-		full := FullTrace{TraceOverview: overview(t), Spans: make([]Span, 0, len(spans.Spans))}
-		for _, sp := range spans.Spans {
-			full.Spans = append(full.Spans, toSpan(t.TraceID, tracesv1.SpanDetails(sp)))
+		for _, t := range batch {
+			spans := pages[t.TraceID]
+			if spans == nil {
+				spans = &tracesv1.SpanPage{}
+			}
+			full := FullTrace{TraceOverview: overview(t), Spans: make([]Span, 0, len(spans.Spans))}
+			for _, sp := range spans.Spans {
+				full.Spans = append(full.Spans, toSpan(t.TraceID, tracesv1.SpanDetails(sp)))
+			}
+			resp.SpansTruncated = resp.SpansTruncated || len(spans.Spans) < spans.Total
+			resp.Traces = append(resp.Traces, full)
 		}
-		resp.SpansTruncated = resp.SpansTruncated || len(spans.Spans) < spans.Total
-		resp.Traces = append(resp.Traces, full)
 	}
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q",
 		"traces-export-"+time.Now().UTC().Format("20060102-150405")+".json"))
@@ -210,7 +225,11 @@ func (h handlers) exportTraces(w http.ResponseWriter, r *http.Request) {
 
 // listSpans serves GET /traces/{traceId}/spans.
 func (h handlers) listSpans(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
+	query, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		h.fail(w, r, badRequest("invalid query: %v", err))
+		return
+	}
 	window, err := parseWindow(query, "asc", defaultLimit)
 	if err != nil {
 		h.fail(w, r, err)

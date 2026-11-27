@@ -21,6 +21,7 @@ package store
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
 )
@@ -32,14 +33,37 @@ var (
 	ErrNotFound = tracesv1.ErrNotFound
 )
 
-// TraceStore reads traces for one Scope at a time.
+// TraceStore reads traces for one Scope at a time. A trace list's span counts
+// and a span list's spans are both read within TraceBounds of the window, so
+// a trace shows the same spans in both.
 type TraceStore interface {
-	// QueryTraces lists the traces in the Scope and time window.
+	// QueryTraces lists the traces whose root span starts in the window.
 	QueryTraces(ctx context.Context, s Scope, q TraceQuery) (*TracePage, error)
 	// QueryTraceSpans lists one trace's spans in the Scope.
 	QueryTraceSpans(ctx context.Context, s Scope, traceID string, q SpanQuery) (*SpanPage, error)
+	// QuerySpansByTrace lists the spans of several traces, at most q.Limit
+	// each, by trace ID; a trace with no spans is left out.
+	QuerySpansByTrace(ctx context.Context, s Scope, traceIDs []string, q SpanQuery) (map[string]*SpanPage, error)
 	// GetSpanDetails reads one span with its attributes.
 	GetSpanDetails(ctx context.Context, s Scope, traceID, spanID string) (*SpanDetails, error)
+}
+
+// ClockSkew is how far before its root a child span may be stamped.
+const ClockSkew = time.Minute
+
+// TraceSpread is how long after the window a listed trace's spans are read.
+const TraceSpread = 24 * time.Hour
+
+// TraceBounds widens a window to where its traces' spans are read: ClockSkew
+// before it and TraceSpread after it. A zero bound stays open.
+func TraceBounds(from, to time.Time) (time.Time, time.Time) {
+	if !from.IsZero() {
+		from = from.Add(-ClockSkew)
+	}
+	if !to.IsZero() {
+		to = to.Add(TraceSpread)
+	}
+	return from, to
 }
 
 // Names are the names a Scope's IDs resolve to.

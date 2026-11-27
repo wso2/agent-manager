@@ -462,7 +462,9 @@ func (r ApiListTraceSpansRequest) Execute() (*SpanSummaryListResponse, *http.Res
 ListTraceSpans List spans for a trace
 
 Lists a trace's span summaries, without attributes. A trace outside the caller's
-organization, project or agent has no spans.
+organization, project or agent has no spans. `startTime` and `endTime` are the
+trace list's window: spans are read from a minute before it to a day after it,
+as the list counts them.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param traceId

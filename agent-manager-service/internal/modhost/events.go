@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -226,26 +227,35 @@ func (h *Host) drain(ctx context.Context) {
 	}
 }
 
-// claim claims up to n due deliveries for the modules this replica runs.
+// claim claims up to n due deliveries of the event types this replica's
+// modules handle; others wait for a replica that handles them, or expire.
 func (h *Host) claim(ctx context.Context, n int) (*view, string, []deliveryRow) {
 	v := h.current()
-	var modules []string
-	for _, subs := range v.subs {
+	types := map[string][]string{}
+	for t, subs := range v.subs {
 		for _, s := range subs {
-			if !slices.Contains(modules, s.module) {
-				modules = append(modules, s.module)
+			if !slices.Contains(types[s.module], t) {
+				types[s.module] = append(types[s.module], t)
 			}
 		}
 	}
-	if len(modules) == 0 {
+	if len(types) == 0 {
 		return v, "", nil
 	}
 	db := h.db.WithContext(ctx)
 	now := dbx.Now()
+	conds := make([]string, 0, len(types))
+	args := []any{now}
+	for m, ts := range types {
+		conds = append(conds, `(d.module = ? AND e.type IN ?)`)
+		args = append(args, m, ts)
+	}
+	args = append(args, n)
 	var due []deliveryRow
-	if err := db.Raw(`SELECT event_id, module, attempts FROM module_event_deliveries
-		WHERE available_at <= ? AND failed_at IS NULL AND module IN ? ORDER BY available_at LIMIT ?`,
-		now, modules, n).Scan(&due).Error; err != nil {
+	if err := db.Raw(`SELECT d.event_id, d.module, d.attempts FROM module_event_deliveries d
+		JOIN module_events e ON e.id = d.event_id
+		WHERE d.available_at <= ? AND d.failed_at IS NULL AND (`+strings.Join(conds, " OR ")+`)
+		ORDER BY d.available_at LIMIT ?`, args...).Scan(&due).Error; err != nil {
 		if ctx.Err() == nil {
 			h.log.Error("modhost:reading module event deliveries failed", "error", err)
 		}

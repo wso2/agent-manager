@@ -79,7 +79,7 @@ func TestSQLiteBaselineAppliesOnce(t *testing.T) {
 
 	var locks []string
 	require.NoError(t, gormDB.Raw("SELECT name FROM locks ORDER BY name").Scan(&locks).Error)
-	assert.Equal(t, []string{"agent_identity.reconciler"}, locks)
+	assert.Equal(t, []string{"agent_identity.reconciler", "modhost.external_schema"}, locks)
 }
 
 // The organization is the token's: the schema keeps no table of them, and everything is in the one baseline.
