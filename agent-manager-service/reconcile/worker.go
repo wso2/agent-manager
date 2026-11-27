@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -74,7 +75,7 @@ func NewWorker(core *Core, logger *slog.Logger) *Worker {
 }
 
 // Start runs the render loop on its short interval and on nudges, the fleet-wide placement pass at once and then on
-// its slow interval, requested placements as they come, and the drift check on its own slow interval.
+// its slow interval, requested placements as they come, and the drift check at startup and on its own slow interval.
 func (w *Worker) Start(ctx context.Context) error {
 	w.done.Add(4)
 	go w.loop(ctx, w.core.cfg.RenderInterval, w.nudgeCh, w.RunOnce)
@@ -249,18 +250,23 @@ func (w *Worker) placeRecord(ctx context.Context, kind EnvironmentKind, record R
 	return w.core.renderOwed(ctx, placed.OUID, placed.ArtifactUUID, []uuid.UUID{placed.GatewayUUID}, ignoreRenderFailed)
 }
 
-// driftLoop checks for drift on interval boundaries, so the replicas' ticks line up and the scan lock leaves
-// one scan per interval.
+// driftLoop checks for drift at startup, then on interval boundaries so replicas' ticks line up.
 func (w *Worker) driftLoop(ctx context.Context) {
 	defer w.done.Done()
+	if !slices.ContainsFunc(w.core.kinds, func(kind Kind) bool {
+		_, ok := kind.(DriftChecker)
+		return ok
+	}) {
+		return
+	}
 	interval := w.core.cfg.DriftInterval
 	for {
+		if _, err := w.CheckDrift(ctx); err != nil {
+			w.logger.Error("Drift check failed", "error", err)
+		}
 		untilBoundary := interval - time.Duration(time.Now().UnixNano()%int64(interval))
 		select {
 		case <-time.After(untilBoundary):
-			if _, err := w.CheckDrift(ctx); err != nil {
-				w.logger.Error("Drift check failed", "error", err)
-			}
 		case <-w.stopCh:
 			return
 		case <-ctx.Done():
@@ -269,7 +275,7 @@ func (w *Worker) driftLoop(ctx context.Context) {
 	}
 }
 
-// CheckDrift marks DEPLOYED rows whose inputs moved for a re-render, for every kind with a DriftChecker. One
+// CheckDrift marks deployments that a DriftChecker identifies as stale for a re-render. One
 // replica scans at a time: scanned is false when another holds the scan. The scan holds a session lock on one
 // pinned connection, so no transaction stays open across the external drift calls.
 func (w *Worker) CheckDrift(ctx context.Context) (scanned bool, err error) {

@@ -774,8 +774,6 @@ func TestMCPProxyDeployment_GatewayRequiresEveryToolScope(t *testing.T) {
 	const (
 		handle = "test-proxy"
 		tool   = "read_report"
-		read   = handle + ":read"
-		review = handle + ":review"
 	)
 	proxy := &models.MCPProxy{
 		Handle: handle,
@@ -791,8 +789,13 @@ func TestMCPProxyDeployment_GatewayRequiresEveryToolScope(t *testing.T) {
 		{Action: "review", Tools: []string{tool}},
 	})
 	require.NoError(t, err)
+	assertMCPGatewayScopeEnforcement(t, []byte(rendered), tool, handle+":read", handle+":review")
+}
+
+func assertMCPGatewayScopeEnforcement(t *testing.T, rendered []byte, tool, read, review string) {
+	t.Helper()
 	var deployment MCPProxyDeploymentYAML
-	require.NoError(t, yaml.Unmarshal([]byte(rendered), &deployment))
+	require.NoError(t, yaml.Unmarshal(rendered, &deployment))
 	authz := findMCPPolicy(deployment.Spec.Policies, mcpAuthzPolicyName)
 	require.NotNil(t, authz)
 

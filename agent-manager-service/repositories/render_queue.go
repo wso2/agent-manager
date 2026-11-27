@@ -245,15 +245,21 @@ func DriftKey(p models.Placement) string {
 	return p.ArtifactUUID.String() + "/" + p.GatewayUUID.String()
 }
 
-// ListDeployedForDrift pages through the DEPLOYED rows of an artifact kind with no render owed, after afterKey
-// (DriftKey) in key order. Agent rows are only platform-hosted agents: drift is a moved release binding, which
-// external agents don't have.
+// ListDeployedForDrift pages through an artifact kind's deployments with no render owed, after afterKey
+// (DriftKey) in key order. For MCP, any deployment already sent to a gateway and still desired can have a
+// legacy policy, whether or not the gateway acknowledged it. Other kinds check only DEPLOYED rows.
 func (r *DeploymentRepo) ListDeployedForDrift(ctx context.Context, kind string, afterKey string, limit int) ([]models.Placement, error) {
 	query := r.db.WithContext(ctx).Table("deployment_status s").
 		Select("s.artifact_uuid, s.ou_id, s.gateway_uuid, a.kind, a.handle").
 		Joins("INNER JOIN artifacts a ON a.uuid = s.artifact_uuid AND a.ou_id = s.ou_id")
 	if slices.Contains(models.AgentArtifactKinds, kind) {
 		query = query.Joins("INNER JOIN platform_agent_exposures e ON e.artifact_uuid = s.artifact_uuid")
+	}
+	switch kind {
+	case models.KindMCPProxy, models.KindMCPMapping:
+		query = query.Where("s.status_desired = ? AND s.deployment_id IS NOT NULL", models.DeploymentStatusDeployed)
+	default:
+		query = query.Where("s.status = ?", models.DeploymentStatusDeployed)
 	}
 	var rows []struct {
 		ArtifactUUID uuid.UUID `gorm:"column:artifact_uuid"`
@@ -264,8 +270,7 @@ func (r *DeploymentRepo) ListDeployedForDrift(ctx context.Context, kind string, 
 	}
 	const key = "s.artifact_uuid::text || '/' || s.gateway_uuid::text"
 	err := query.
-		Where("a.kind = ? AND s.status = ? AND s.next_attempt_at IS NULL AND "+key+" > ?",
-			kind, models.DeploymentStatusDeployed, afterKey).
+		Where("a.kind = ? AND s.next_attempt_at IS NULL AND "+key+" > ?", kind, afterKey).
 		Order(key).Limit(limit).
 		Scan(&rows).Error
 	if err != nil {

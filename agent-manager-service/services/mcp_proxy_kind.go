@@ -17,12 +17,15 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
@@ -171,6 +174,59 @@ func (k *MCPProxyKind) Render(ctx context.Context, artifact models.ArtifactRef) 
 		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid MCP proxy configuration: %w", utils.ErrInvalidInput, err))
 	}
 	return renderedDeployment(a.deployable.Handle, []byte(content)), nil
+}
+
+// Drifted detects a stored Agent Identity policy with grouped scope rules that the current renderer would replace.
+func (k *MCPProxyKind) Drifted(ctx context.Context, p models.Placement) (string, bool, error) {
+	deployment, err := k.deploymentRepo.GetPullable(ctx, p.OUID, p.ArtifactUUID, p.GatewayUUID.String())
+	if err != nil || deployment == nil {
+		return "", false, err
+	}
+	legacy, err := hasGroupedMCPIdentityScopes(deployment.Content)
+	if err != nil || !legacy {
+		return "", false, err
+	}
+
+	rendered, err := k.Render(ctx, p.ArtifactRef)
+	if errors.Is(err, reconcile.ErrRecordGone) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	// A caller-authored policy can keep grouped scopes. Re-render only if it will remove the old rules.
+	grouped, err := hasGroupedMCPIdentityScopes(rendered.Content)
+	if err != nil || grouped {
+		return "", false, err
+	}
+	return "MCP tool scope enforcement changed", true, nil
+}
+
+func hasGroupedMCPIdentityScopes(content []byte) (bool, error) {
+	if !bytes.Contains(content, []byte(mcpAuthzPolicyName)) {
+		return false, nil
+	}
+	var deployment MCPProxyDeploymentYAML
+	if err := yaml.Unmarshal(content, &deployment); err != nil {
+		return false, fmt.Errorf("failed to read MCP deployment scope rules: %w", err)
+	}
+
+	identityAuth := slices.ContainsFunc(deployment.Spec.Policies, func(policy models.MCPPolicy) bool {
+		issuers, _ := policy.Params["issuers"].([]any)
+		return policy.Name == mcpAuthPolicyName && policy.Version == mcpAuthPolicyVersion &&
+			len(issuers) == 1 && issuers[0] == mcpIdentityIssuerKeyManager
+	})
+	return identityAuth && slices.ContainsFunc(deployment.Spec.Policies, func(policy models.MCPPolicy) bool {
+		if policy.Name != mcpAuthzPolicyName || policy.Version != mcpAuthzPolicyVersion {
+			return false
+		}
+		tools, _ := policy.Params["tools"].([]any)
+		return slices.ContainsFunc(tools, func(tool any) bool {
+			rule, _ := tool.(map[string]any)
+			required, _ := rule["requiredScopes"].([]any)
+			return len(required) > 1
+		})
+	}), nil
 }
 
 // DescribeRenderError is the reason a binding shows for a failed render: CONTEXT_IN_USE for a context clash, the
