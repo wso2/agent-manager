@@ -25,10 +25,10 @@ import { globalConfig } from "@agent-management-platform/types";
 import type { AuthProviderProps } from "../types";
 import {
   clearBrowserSignInSession,
-  dropStaleRefreshTimer,
   resolveAuthConfig,
   setBackendAccessTokenProvider,
 } from "./backendSession";
+import { dropStaleRefreshTimer } from "./browserSession";
 
 const BackendAccessToken = () => {
   const { getAccessToken } = useThunderID();
@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [authConfig] = useState(() => {
     const resolved = resolveAuthConfig(globalConfig.authConfig);
     if (resolved.endpoints?.backend) clearBrowserSignInSession(resolved.clientId);
-    // Before the SDK starts: it would cancel a timer of this page by that id.
+    // Before the SDK starts, or it clears a timer of this page by a stale id.
     else dropStaleRefreshTimer(resolved.clientId);
     return resolved;
   });
