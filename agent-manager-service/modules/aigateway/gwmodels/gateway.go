@@ -124,15 +124,15 @@ func (t *GatewayToken) Revoke() {
 
 // Identity provider provenance. System providers are seeded with the platform
 // (e.g. ThunderKeyManager) and cannot be deleted; custom providers are added by
-// operators via the management script.
+// operators.
 const (
 	IdentityProviderTypeSystem = "system"
 	IdentityProviderTypeCustom = "custom"
 )
 
 // GatewayIdentityProvider mirrors a gateway-side jwt-auth keymanagers (token
-// issuer) entry. The gateway ConfigMap is the source of truth; this row is a
-// read mirror written by the gateway bootstrap and the management script.
+// issuer) entry. The gateway's config.toml is the source of truth; this row is a
+// read mirror written through the identity provider API.
 type GatewayIdentityProvider struct {
 	UUID              uuid.UUID `gorm:"column:id;primaryKey" json:"-"`
 	OrgID             uuid.UUID `gorm:"column:org_id" json:"-"`

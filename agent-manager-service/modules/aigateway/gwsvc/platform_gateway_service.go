@@ -959,8 +959,8 @@ func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID strin
 // UpsertIdentityProvider creates or updates an identity provider mirror row for a
 // gateway. System provenance is derived from the well-known provider names.
 //
-// The gateway's runtime configuration is applied out of band (manage-identity-provider.sh);
-// this writes the mirror only.
+// The gateway's runtime configuration (its config.toml) is changed out of band by the
+// operator; this writes the mirror only.
 func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gatewayID, ouID, name, issuer, jwksURI, description string, skipTLS bool) (*gwmodels.GatewayIdentityProvider, error) {
 	if name == gwmodels.ReservedIdentityProviderName {
 		return nil, httpx.ErrInvalidInput

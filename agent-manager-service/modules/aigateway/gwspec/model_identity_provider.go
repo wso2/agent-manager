@@ -29,7 +29,7 @@ type IdentityProvider struct {
 	SkipTlsVerify *bool `json:"skipTlsVerify,omitempty"`
 	// Optional human-readable description (mirror-only).
 	Description *string `json:"description,omitempty"`
-	// Provenance of the identity provider. `system` providers (e.g. ThunderKeyManager) are seeded with the platform and cannot be deleted; `custom` providers are added by operators via the management script.
+	// Provenance of the identity provider. `system` providers (e.g. ThunderKeyManager) are seeded with the platform and cannot be deleted; `custom` providers are added by operators.
 	Type *string `json:"type,omitempty"`
 	// Environment this provider's gateway is mapped to (read-only, set on org-wide listing).
 	EnvironmentName *string `json:"environmentName,omitempty"`

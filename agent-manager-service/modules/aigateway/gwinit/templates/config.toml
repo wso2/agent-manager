@@ -192,12 +192,14 @@ name = "agent-manager-service"
 [policy_configurations.jwtauth_v1.keymanagers.jwks.remote]
 skipTlsVerify = true
 uri = {{ q .AMPJWKSURL }}
+{{- if .ThunderIssuer }}
 [[policy_configurations.jwtauth_v1.keymanagers]]
 issuer = {{ q .ThunderIssuer }}
 name = "ThunderKeyManager"
 [policy_configurations.jwtauth_v1.keymanagers.jwks.remote]
 skipTlsVerify = true
 uri = {{ q .ThunderJWKSURL }}
+{{- end }}
 [policy_configurations.llm_cost_ratelimit_v1]
 cost_scale_factor = 1000000000
 [policy_configurations.mcpauth_v1]
