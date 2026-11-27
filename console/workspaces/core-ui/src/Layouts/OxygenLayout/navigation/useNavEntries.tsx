@@ -86,7 +86,7 @@ export const NAV_SECTIONS: Array<{
   { id: "observability", title: "Observability", icon: <Activity /> },
   { id: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
   { id: "identities", title: "Agent identities", icon: <thunderInstancesMetadata.icon /> },
-  // Last section, so it sits just above Events (which follows the sections).
+  // Last section, so it sits just above Gateways and Events (which follow the sections).
   { id: "infrastructure", title: "Infrastructure", icon: <Server /> },
 ];
 
@@ -318,7 +318,9 @@ function useBuildNavEntries(): NavEntry[] {
         id: "gateways",
         label: "Gateways",
         icon: <Network size={20} />,
-        section: "infrastructure",
+        // Below the sections behind a divider, grouped with Events.
+        afterSections: true,
+        dividerBefore: true,
         routes: when(canViewGateways, "org", route(org.children.gateways.path)),
       },
       {

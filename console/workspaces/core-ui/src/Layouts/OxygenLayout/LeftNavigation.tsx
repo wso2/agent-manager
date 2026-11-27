@@ -283,9 +283,10 @@ export function LeftNavigation({
           ),
         )}
         {separatedItems.map((item) => (
-          <Sidebar.Category key={item.label}>
-            {renderItem(item, collapsed)}
-          </Sidebar.Category>
+          <Fragment key={item.label}>
+            {item.dividerBefore && !collapsed && <Divider sx={{ my: 1, mx: 2 }} />}
+            <Sidebar.Category>{renderItem(item, collapsed)}</Sidebar.Category>
+          </Fragment>
         ))}
       </Sidebar.Nav>
       <Sidebar.Footer>
