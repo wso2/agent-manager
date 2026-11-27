@@ -1,8 +1,11 @@
 import { AddUserPage, InviteUserPage, RolePage, UsersPage } from '../pages/IdentityPages';
-import { uniqueName } from '../support/env';
+import { authMode, uniqueName } from '../support/env';
 import { expect, test } from '../support/fixtures';
 
 test.describe('members', () => {
+  // Members live in the identity provider; with file sign-in there is none.
+  test.skip(authMode !== 'idp', 'members need an identity provider (AMP_AUTH_MODE=idp)');
+
   const username = uniqueName('user').replace(/-/g, '.');
 
   test.afterAll(async ({ api }) => {
@@ -36,7 +39,7 @@ test.describe('members', () => {
     await expect(users.row(username)).toBeVisible();
 
     // Assign a role from the role's page.
-    const roles = await api.get(`${api.org}/identities/roles`);
+    const roles = await api.get(`${api.identities}/roles`);
     expect(roles.status).toBe(200);
     const list: any[] = roles.body.roles ?? roles.body;
     const role = list.find((r) => r.name === 'Developer') ?? list.find((r) => !/admin/i.test(r.name));

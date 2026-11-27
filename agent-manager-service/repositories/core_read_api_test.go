@@ -20,6 +20,7 @@ package repositories
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -27,9 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 )
 
 func TestCoreReadAPIReads(t *testing.T) {
@@ -182,7 +185,54 @@ func TestCoreReadAPIEnsureOrg(t *testing.T) {
 	assert.Len(t, envs, 1, "the default environment comes with it")
 	again, err := api.EnsureOrg(ctx, ou)
 	require.NoError(t, err)
-	assert.Equal(t, org.CreatedAt.Unix(), again.CreatedAt.Unix(), "the second call finds the first's row")
+	assert.Equal(t, org, again)
+	envs, err = api.ListEnvironments(ctx, ou)
+	require.NoError(t, err)
+	assert.Len(t, envs, 1, "the second call creates nothing")
+}
+
+// GetOrg is a read: an organization that never made a core request is not found, and is not created by asking.
+func TestCoreReadAPIGetOrgDoesNotCreate(t *testing.T) {
+	gdb := db.GetDB()
+	api := NewCoreReadAPI(gdb)
+	ou := uuid.Must(uuid.NewV7()).String()
+	t.Cleanup(func() { deleteOrg(t, ou) })
+
+	_, err := api.GetOrg(context.Background(), ou)
+	require.ErrorIs(t, err, modkit.ErrNotFound)
+	var envs int64
+	require.NoError(t, gdb.Model(&models.Environment{}).Where("org_id = ?", ou).Count(&envs).Error)
+	assert.Zero(t, envs)
+}
+
+// The handle is the request's; outside a request, the configured default organization's, else the id.
+func TestCoreReadAPIGetOrgHandle(t *testing.T) {
+	gdb := db.GetDB()
+	api := NewCoreReadAPI(gdb)
+	ou := newOrg(t)
+
+	inRequest := orgctx.WithResolvedOrg(context.Background(), orgctx.ResolvedOrg{OUID: ou, OuHandle: "acme"})
+	org, err := api.GetOrg(inRequest, ou)
+	require.NoError(t, err)
+	assert.Equal(t, modkit.Org{ID: ou, Handle: "acme"}, org)
+
+	upper := orgctx.WithResolvedOrg(context.Background(), orgctx.ResolvedOrg{OUID: strings.ToUpper(ou), OuHandle: "acme"})
+	org, err = api.GetOrg(upper, ou)
+	require.NoError(t, err)
+	assert.Equal(t, "acme", org.Handle, "the same UUID in another case is the same organization")
+
+	org, err = api.GetOrg(context.Background(), ou)
+	require.NoError(t, err)
+	assert.Equal(t, ou, org.Handle, "no request and not the default organization: the id")
+
+	def := config.GetConfig().DefaultOrg
+	if def.OUID != "" {
+		_, err := EnsureOrg(context.Background(), gdb, def.OUID)
+		require.NoError(t, err)
+		org, err = api.GetOrg(context.Background(), def.OUID)
+		require.NoError(t, err)
+		assert.Equal(t, def.Handle, org.Handle)
+	}
 }
 
 func TestCoreReadAPILockAgent(t *testing.T) {

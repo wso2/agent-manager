@@ -9,3 +9,11 @@ reviews:
       - amp-2.x
       - oc-0.7-migration
       - "feature/*"
+  # Skip generated code: it is rebuilt from the OpenAPI specs and interfaces, which are reviewed instead.
+  path_filters:
+    - "!agent-manager-service/spec/**"
+    - "!agent-manager-service/modules/aigateway/gwspec/**"
+    - "!**/wire_gen.go"
+    - "!**/*.gen.go"
+    - "!**/*_mock.go"
+    - "!**/*.generated.ts"

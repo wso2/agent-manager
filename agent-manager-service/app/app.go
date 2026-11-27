@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -145,7 +146,9 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 			slog.Error("error occurred while migrating", "error", err)
 			os.Exit(1)
 		}
-		if _, err := moduleHost().Migrate(context.Background()); err != nil {
+		results, err := moduleHost().Migrate(context.Background())
+		printMigrations(os.Stdout, results)
+		if err != nil {
 			slog.Error("error occurred while migrating modules", "error", err)
 			os.Exit(1)
 		}
@@ -172,9 +175,10 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
 
-	// Deployment-specific AgentID provisioning; nil disables it.
+	// Deployment-specific AgentID provisioning; nil disables it. Agent
+	// identities live in the identity provider, so file sign-in has none.
 	var agentThunderProvisioning services.AgentThunderProvisioningService
-	if opts.AgentThunderProvisioning != nil {
+	if opts.AgentThunderProvisioning != nil && identityProviderConnected(cfg.AuthMode) {
 		encryptionKey, err := wiring.ProvideEncryptionKey(*cfg)
 		if err != nil {
 			slog.Error("failed to load encryption key for AgentID provisioning", "error", err)
@@ -213,7 +217,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// so it exists when modules activate.
 	modulesCtx, modulesCancel := context.WithCancel(context.Background())
 	defer modulesCancel()
-	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
+	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.AuthMode, cfg.DefaultOrg); err != nil {
 		slog.Error("failed to create the default organization", "error", err)
 		os.Exit(1)
 	}
@@ -381,7 +385,7 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 		Core:          repositories.NewCoreReadAPI(database),
 		Secrets:       repositories.NewModuleSecretStore(database, deps.SecretStore),
 		InternalURL:   config.GetConfig().InternalServerPublicURL,
-		Capabilities:  map[string]any{identityv1.ID: services.NewIdentityDirectory(deps.EnvThunderResolver, deps.AgentThunderClientRepository)},
+		Capabilities:  map[string]any{identityv1.ID: identityDirectory(deps)},
 	}
 	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
 		attach.Tokens = signer
@@ -431,7 +435,8 @@ func ReconcileModules(ctx context.Context, host *modhost.Host, defaults []string
 }
 
 // waitForModuleSchema waits until another process has applied the migrations
-// of every module compiled into this binary.
+// of every module compiled into this binary. It does not wait for external
+// stores: a module whose store lacks its schema is left out until it has it.
 func waitForModuleSchema(ctx context.Context, modules *modhost.Host) error {
 	for {
 		err := modules.CheckSchema(ctx)
@@ -443,6 +448,24 @@ func waitForModuleSchema(ctx context.Context, modules *modhost.Host) error {
 		case <-ctx.Done():
 			return fmt.Errorf("waiting for module migrations: %w (last: %w)", ctx.Err(), err)
 		case <-time.After(migrationWaitInterval):
+		}
+	}
+}
+
+// printMigrations writes what Migrate did, one line per module schema it has.
+func printMigrations(w io.Writer, results []modhost.MigrationResult) {
+	for _, r := range results {
+		if r.Total > 0 {
+			_, _ = fmt.Fprintf(w, "%s: applied %d of %d migration(s)\n", r.Module, r.Applied, r.Total)
+		}
+		switch e := r.External; {
+		case e == nil:
+		case e.Error != "":
+			_, _ = fmt.Fprintf(w, "%s: external schema not applied, replicas that have not loaded the module leave it out until it is: %s\n", r.Module, e.Error)
+		case e.Skipped != "":
+			_, _ = fmt.Fprintf(w, "%s: skipped its external schema: %s\n", r.Module, e.Skipped)
+		default:
+			_, _ = fmt.Fprintf(w, "%s: applied %d of %d %s schema file(s)\n", r.Module, e.Applied, e.Total, e.Store)
 		}
 	}
 }
@@ -558,4 +581,21 @@ func stopEvents(deps *wiring.AppParams) {
 		publisher.Stop()
 	}
 	deps.EventBus.Close()
+}
+
+// identityProviderConnected reports whether sign-in goes through an identity
+// provider. With file sign-in there is none: users, groups, roles and agent
+// identities, which live in the provider, are not available.
+func identityProviderConnected(authMode string) bool {
+	return authMode != config.AuthModeFile
+}
+
+// identityDirectory is the identity.directory/v1 modules get: the identity
+// provider's, or with file sign-in one that has no environment provisioned.
+// The capability is offered either way, as modules require it.
+func identityDirectory(deps *wiring.AppParams) identityv1.Directory {
+	if !identityProviderConnected(config.GetConfig().AuthMode) {
+		return services.NoIdentityDirectory()
+	}
+	return services.NewIdentityDirectory(deps.EnvThunderResolver, deps.AgentThunderClientRepository)
 }

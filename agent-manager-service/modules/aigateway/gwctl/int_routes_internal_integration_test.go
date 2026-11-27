@@ -58,8 +58,7 @@ func newINTAPI(t *testing.T) *intAPI {
 	t.Helper()
 	gdb := db.GetDB()
 	org := dbtest.Org(t, gdb)
-	var handle string
-	require.NoError(t, gdb.Raw(`SELECT handle FROM organizations WHERE id = ?`, org).Scan(&handle).Error)
+	handle := "org-" + org[len(org)-12:]
 	clients := wiring.TestClients{
 		PlatformRepository: apitestutils.CreateMockPlatformRepository(),
 		SecretMgmtClient:   apitestutils.CreateMockSecretManagementClient(),
@@ -182,6 +181,7 @@ func intAllRoutes(gateway uuid.UUID) []intRoute {
 		{http.MethodGet, "/apis/api-keys", nil},
 		{http.MethodGet, "/apis/" + id, nil},
 		{http.MethodGet, "/subscription-plans", nil},
+		{http.MethodGet, "/apis/" + id + "/subscriptions", nil},
 		{http.MethodGet, "/deployments", nil},
 		{http.MethodPost, "/deployments/fetch-batch", map[string]any{"deploymentIds": []string{id}}},
 		{http.MethodPost, "/artifacts/exists", map[string]any{"artifactIds": []string{id}}},
@@ -223,4 +223,14 @@ func TestINTRoutesSubscriptionPlansAreEmpty(t *testing.T) {
 	plans := expectInto[[]map[string]any](t, a.call(http.MethodGet, "/subscription-plans", nil), http.StatusOK)
 	require.Empty(t, plans)
 	require.NotNil(t, plans, "an empty JSON array, not null")
+}
+
+// TestINTRoutesAPISubscriptionsAreEmpty pins that a gateway pulling the subscriptions of an artifact that takes
+// none (an unknown one, or with no module owning plans) is served an empty list, so it drops what it holds.
+func TestINTRoutesAPISubscriptionsAreEmpty(t *testing.T) {
+	a := newINTAPI(t)
+
+	subs := expectInto[[]map[string]any](t, a.call(http.MethodGet, "/apis/"+uuid.NewString()+"/subscriptions", nil), http.StatusOK)
+	require.Empty(t, subs)
+	require.NotNil(t, subs, "an empty JSON array, not null")
 }

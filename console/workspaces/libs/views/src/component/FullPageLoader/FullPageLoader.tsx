@@ -16,20 +16,10 @@
  * under the License.
  */
 
-import { Box, CircularProgress } from "@wso2/oxygen-ui";
+import { PageLoader } from "@wso2/oxygen-ui";
 
+// Oxygen UI's loader follows the theme colours and stops its animation for
+// users who ask for reduced motion.
 export function FullPageLoader() {
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        width: "100vw",
-      }}
-    >
-      <CircularProgress color="primary" size={48} aria-label="Loading" />
-    </Box>
-  );
+  return <PageLoader loading size={60} />;
 }

@@ -221,7 +221,7 @@ func TestRunAPI_SubstitutesPlaceholders(t *testing.T) {
 // A literal path must never trigger context resolution.
 func TestRunAPI_LiteralPathSkipsScope(t *testing.T) {
 	_, captured, o, _ := newTestServer(t, http.StatusOK, nil, `{}`)
-	o.RequestPath = "/orgs"
+	o.RequestPath = "/projects"
 	o.RequestMethod = "GET"
 	o.Scope = func() (string, string, error) {
 		t.Fatal("Scope must not be called for a literal path")
@@ -231,8 +231,8 @@ func TestRunAPI_LiteralPathSkipsScope(t *testing.T) {
 	if err := runAPI(context.Background(), o); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if captured.path != "/api/v1/orgs" {
-		t.Errorf("path = %q, want /api/v1/orgs", captured.path)
+	if captured.path != "/api/v1/projects" {
+		t.Errorf("path = %q, want /api/v1/projects", captured.path)
 	}
 }
 

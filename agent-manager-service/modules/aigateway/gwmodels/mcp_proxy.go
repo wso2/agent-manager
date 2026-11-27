@@ -109,6 +109,8 @@ type MCPProxyConfig struct {
 	// Source records the Integration Platform component endpoint a project-scoped
 	// proxy was published from. Nil for organization-level proxies.
 	Source *MCPProxySource `json:"source,omitempty"`
+	// SubscriptionPlans lists the handles of the subscription plans the proxy offers. Empty: it offers none.
+	SubscriptionPlans []string `json:"subscriptionPlans,omitempty"`
 }
 
 // MCPProxySource identifies the component endpoint an MCP proxy was published from.
@@ -257,6 +259,9 @@ type MCPProxyDTO struct {
 	UpdatedAt      *time.Time            `json:"updatedAt,omitempty"`
 	Version        string                `json:"version"`
 	Vhost          *string               `json:"vhost,omitempty"`
+	// SubscriptionPlans are the handles of the plans the proxy offers. On update, leaving it out keeps
+	// the stored list and an empty list offers none.
+	SubscriptionPlans *[]string `json:"subscriptionPlans,omitempty"`
 }
 
 // MCPProxyEndpointDTO is one endpoint in an MCP proxy request/response body. On write,

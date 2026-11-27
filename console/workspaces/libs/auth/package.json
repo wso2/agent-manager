@@ -47,7 +47,7 @@
     "@agent-management-platform/views": "workspace:*",
     "@emotion/react": "11.13.5",
     "@emotion/styled": "11.13.5",
-    "@wso2/oxygen-ui-icons-react": "0.20.0",
-    "@wso2/oxygen-ui": "0.20.0"
+    "@wso2/oxygen-ui-icons-react": "0.27.0",
+    "@wso2/oxygen-ui": "0.27.0"
   }
 }

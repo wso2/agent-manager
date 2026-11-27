@@ -15,6 +15,7 @@
     "workspaces/ui-modules/acp-core",
     "workspaces/ui-modules/agent-identity",
     "workspaces/ui-modules/ai-gateway",
+    "workspaces/ui-modules/ai-hub",
     "workspaces/ui-modules/ai-observability"
   ]
 }

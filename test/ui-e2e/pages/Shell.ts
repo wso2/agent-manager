@@ -6,7 +6,7 @@ export class Shell {
   readonly org: Locator;
 
   constructor(readonly page: Page) {
-    this.org = page.getByRole('link', { name: `Go to ${orgName}` });
+    this.org = page.getByRole('button', { name: orgName, exact: true });
   }
 
   /** A side-navigation item (rendered as a button inside its link). */

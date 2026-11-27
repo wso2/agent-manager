@@ -25,6 +25,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -44,6 +45,23 @@ type listProjectItem struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"createdAt"`
 }
+
+// createdProject is a project as create_project returns it.
+type createdProject struct {
+	UUID        string    `json:"uuid"`
+	Name        string    `json:"name"`
+	DisplayName string    `json:"displayName"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+func projectOutput(p *models.ProjectResponse) createdProject {
+	if p == nil {
+		return createdProject{}
+	}
+	return createdProject{UUID: p.UUID, Name: p.Name, DisplayName: p.DisplayName, Description: p.Description, CreatedAt: p.CreatedAt}
+}
+
 type listProjectsOutput struct {
 	Total    int32             `json:"total"`
 	Projects []listProjectItem `json:"projects"`
@@ -130,7 +148,7 @@ func createProject(handler ProjectToolsetHandler) func(context.Context, *gomcp.C
 			return nil, nil, wrapToolError("create_project", err)
 		}
 		response := map[string]any{
-			"project": utils.ConvertToProjectResponse(project),
+			"project": projectOutput(project),
 		}
 		return handleToolResult(response, nil)
 	}

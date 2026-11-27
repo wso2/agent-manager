@@ -118,7 +118,7 @@ var Actions = []Action{
 	{"llm-providers.delete", "Delete LLM Providers", "Delete an LLM provider"},
 	{"llm-providers.configure-guardrail", "Configure LLM Provider Guardrails", "Configure guardrails, rate limits, and budgets"},
 	{"llm-providers.connect", "Connect LLM Providers", "Connect an agent to an LLM provider"},
-	{"llm-providers.deploy", "Deploy LLM Providers", "Deploy, undeploy, and restore an LLM provider"},
+	{"llm-providers.deploy", "Deploy LLM Providers", "Restore an LLM provider to an earlier deployment"},
 	{"llm-providers.api-key-manage", "Manage LLM Provider API Keys", "Create, update, and delete LLM provider API keys"},
 	{"llm-provider-templates.create", "Create LLM Provider Templates", "Create a provider template"},
 	{"llm-provider-templates.read", "Read LLM Provider Templates", "View provider templates"},

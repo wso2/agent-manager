@@ -42,7 +42,12 @@ vi.mock("@agent-management-platform/api-client", async (importOriginal) => ({
 }));
 
 function Where() {
-  return <div data-testid="where">{useLocation().pathname}</div>;
+  const location = useLocation();
+  return (
+    <div data-testid="where" data-from={(location.state as { from?: string } | null)?.from ?? ""}>
+      {location.pathname}
+    </div>
+  );
 }
 
 function renderAt(path: string) {
@@ -85,25 +90,25 @@ beforeEach(() => {
 describe("TopNavigation", () => {
   it("links the selected org and keeps the current org page when switching", () => {
     renderAt("/org/acme/gateways");
-    expect(screen.getByText("Organizations")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to Acme Corp", hidden: true })).toHaveAttribute(
+    expect(screen.getAllByText("Organization").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Acme Corp", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/gateways",
     );
     fireEvent.click(screen.getByRole("button", { name: "Switch organization", hidden: true }));
-    const menu = screen.getByRole("menu", { hidden: true });
+    const menu = screen.getAllByRole("menu", { hidden: true })[0];
     // An org without a display name is listed by its namespace.
-    expect(within(menu).getByRole("menuitem", { name: "ns-beta", hidden: true })).toHaveAttribute(
+    expect(within(menu).getByRole("menuitemradio", { name: "ns-beta", hidden: true })).toHaveAttribute(
       "href",
       "/org/beta/gateways",
     );
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "ns-beta", hidden: true }));
+    fireEvent.click(within(menu).getByRole("menuitemradio", { name: "ns-beta", hidden: true }));
     expect(screen.getByTestId("where")).toHaveTextContent("/org/beta/gateways");
   });
 
   it("drops project-scoped pages from the org link", () => {
     renderAt("/org/acme/project/p1");
-    expect(screen.getByRole("link", { name: "Go to Acme Corp", hidden: true })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Acme Corp", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme",
     );
@@ -113,70 +118,71 @@ describe("TopNavigation", () => {
     mocks.orgs = { organizations: [{ name: "ns-solo", displayName: "" }], total: 1 };
     mocks.userInfo = { ouName: "Solo Org" };
     renderAt("/org/ns-solo");
-    expect(screen.getByText("Organization")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to Solo Org", hidden: true })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Switch organization", hidden: true })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Organization").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Solo Org", hidden: true })).toBeInTheDocument();
   });
 
   it("hides the org card for an org not in the list", () => {
     renderAt("/org/unknown");
-    expect(screen.queryByText("Organizations")).not.toBeInTheDocument();
+    expect(screen.queryAllByText("Organization")).toHaveLength(0);
   });
 
   it("offers to select or create a project when none is selected", () => {
-    mocks.projects = { projects: [{ name: "p1", displayName: "Project One" }] };
+    mocks.projects = { list: [{ metadata: { name: "p1" }, spec: { displayName: "Project One" } }] };
     renderAt("/org/acme/projects");
     fireEvent.click(screen.getByRole("button", { name: "Select or create a project", hidden: true }));
-    const menu = screen.getByRole("menu", { hidden: true });
-    expect(within(menu).getByRole("menuitem", { name: /Create a Project/, hidden: true })).toHaveAttribute(
+    const menu = screen.getAllByRole("menu", { hidden: true })[0];
+    const actions = screen.getAllByRole("menu", { hidden: true })[1];
+    expect(within(actions).getByRole("menuitem", { name: /Create a Project/, hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/newProject",
     );
-    expect(within(menu).getByRole("menuitem", { name: "Project One", hidden: true })).toHaveAttribute(
+    expect(within(menu).getByRole("menuitemradio", { name: "Project One", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p1",
     );
+    // The create page is told where it was opened from, so Cancel/Save return here.
+    fireEvent.click(within(actions).getByRole("menuitem", { name: /Create a Project/, hidden: true }));
+    expect(screen.getByTestId("where")).toHaveTextContent("/org/acme/newProject");
+    expect(screen.getByTestId("where")).toHaveAttribute("data-from", "/org/acme/projects");
   });
 
-  it("shows the selected project and closes it back to the listing", () => {
+  it("shows the selected project and switches projects on the same page", () => {
     mocks.projects = {
-      projects: [
-        { name: "p1", displayName: "Project One" },
-        { name: "p2", displayName: "Project Two" },
+      list: [
+        { metadata: { name: "p1" }, spec: { displayName: "Project One" } },
+        { metadata: { name: "p2" }, spec: { displayName: "Project Two" } },
       ],
     };
     renderAt("/org/acme/project/p1/settings");
-    expect(screen.getByRole("link", { name: "Go to Project One", hidden: true })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Project One", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p1/settings",
     );
     fireEvent.click(screen.getByRole("button", { name: "Switch project", hidden: true }));
-    expect(screen.getByRole("menuitem", { name: "Project Two", hidden: true })).toHaveAttribute(
+    expect(screen.getByRole("menuitemradio", { name: "Project Two", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p2/settings",
     );
-    fireEvent.keyDown(screen.getByRole("menu", { hidden: true }), { key: "Escape" });
-    fireEvent.click(screen.getByRole("button", { name: "Close project", hidden: true }));
-    expect(screen.getByTestId("where")).toHaveTextContent("/org/acme/projects");
   });
 
   it("keeps the agent listing when switching projects from it", () => {
     mocks.projects = {
-      projects: [
-        { name: "p1", displayName: "Project One" },
-        { name: "p2", displayName: "Project Two" },
+      list: [
+        { metadata: { name: "p1" }, spec: { displayName: "Project One" } },
+        { metadata: { name: "p2" }, spec: { displayName: "Project Two" } },
       ],
     };
     mocks.agents = { agents: [] };
     renderAt("/org/acme/project/p1/agents");
-    expect(screen.getByRole("link", { name: "Go to Project One", hidden: true })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Project One", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p1/agents",
     );
   });
 
-  it("shows the selected agent, switches agents on the same page, and closes it", () => {
-    mocks.projects = { projects: [{ name: "p1", displayName: "Project One" }] };
+  it("shows the selected agent and switches agents on the same page", () => {
+    mocks.projects = { list: [{ metadata: { name: "p1" }, spec: { displayName: "Project One" } }] };
     mocks.agents = {
       agents: [
         { name: "a1", displayName: "Agent One" },
@@ -184,42 +190,40 @@ describe("TopNavigation", () => {
       ],
     };
     renderAt("/org/acme/project/p1/agents/a1/builds");
-    expect(screen.getByRole("link", { name: "Go to Agent One", hidden: true })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Agent One", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p1/agents/a1/builds",
     );
     // Agent-detail pages are not carried over to the project link.
-    expect(screen.getByRole("link", { name: "Go to Project One", hidden: true })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Project One", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p1",
     );
     fireEvent.click(screen.getByRole("button", { name: "Switch agent", hidden: true }));
-    const menu = screen.getByRole("menu", { hidden: true });
-    expect(within(menu).getByRole("menuitem", { name: /Create an Agent/, hidden: true })).toHaveAttribute(
+    const menu = screen.getAllByRole("menu", { hidden: true })[0];
+    const actions = screen.getAllByRole("menu", { hidden: true })[1];
+    expect(within(actions).getByRole("menuitem", { name: /Create an Agent/, hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p1/newAgent",
     );
-    expect(within(menu).getByRole("menuitem", { name: "Agent Two", hidden: true })).toHaveAttribute(
+    expect(within(menu).getByRole("menuitemradio", { name: "Agent Two", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p1/agents/a2/builds",
     );
-    fireEvent.keyDown(menu, { key: "Escape" });
-    fireEvent.click(screen.getByRole("button", { name: "Close agent", hidden: true }));
-    expect(screen.getByTestId("where")).toHaveTextContent("/org/acme/project/p1");
   });
 
   it("does not carry environment pages over when switching agents", () => {
-    mocks.projects = { projects: [{ name: "p1", displayName: "Project One" }] };
+    mocks.projects = { list: [{ metadata: { name: "p1" }, spec: { displayName: "Project One" } }] };
     mocks.agents = { agents: [{ name: "a1", displayName: "Agent One" }] };
     renderAt("/org/acme/project/p1/agents/a1/environment/dev");
-    expect(screen.getByRole("link", { name: "Go to Agent One", hidden: true })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Agent One", hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p1/agents/a1",
     );
   });
 
   it("offers to select or create an agent when none is selected", () => {
-    mocks.projects = { projects: [{ name: "p1", displayName: "Project One" }] };
+    mocks.projects = { list: [{ metadata: { name: "p1" }, spec: { displayName: "Project One" } }] };
     mocks.agents = { agents: [{ name: "a1", displayName: "Agent One" }] };
     renderAt("/org/acme/project/p1");
     expect(screen.getByRole("button", { name: "Select or create an agent", hidden: true })).toBeInTheDocument();

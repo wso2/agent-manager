@@ -91,10 +91,9 @@ var _ = Describe("SEC-ROLE-001: deployed role policy", Label("security", "roles"
 })
 
 func roleProbes() []roleProbe {
-	orgPath := func(suffix string) func(*framework.Config) string {
-		return func(cfg *framework.Config) string {
-			return "/api/v1/orgs/" + cfg.DefaultOrg + suffix
-		}
+	// Core resources take the org from the token, so their paths are fixed.
+	fixedPath := func(path string) func(*framework.Config) string {
+		return func(*framework.Config) string { return path }
 	}
 	// The AI Gateway module's API. Migrated resources take the org from the token, so
 	// their routes hang off the module base with no org segment.
@@ -110,22 +109,22 @@ func roleProbes() []roleProbe {
 	}
 	return []roleProbe{
 		// Developer: owns project and agent development, not platform or IAM.
-		{"developer", "amp:project:create", true, http.MethodPost, orgPath("/projects")},
+		{"developer", "amp:project:create", true, http.MethodPost, fixedPath("/api/v1/projects")},
 		{"developer", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwOrgPath("/gateways")},
-		{"developer", "amp:role:update", false, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
+		{"developer", "amp:role:update", false, http.MethodPut, fixedPath("/api/v1/identities/roles/" + absentResourceName)},
 
 		// AI Lead: owns AI providers, not project/platform administration.
 		{"ai-lead", "amp:ai-gateway:llm-providers.create", true, http.MethodPost, gwPath("/llm-providers")},
-		{"ai-lead", "amp:project:create", false, http.MethodPost, orgPath("/projects")},
+		{"ai-lead", "amp:project:create", false, http.MethodPost, fixedPath("/api/v1/projects")},
 		{"ai-lead", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwOrgPath("/gateways")},
 
 		// Platform Engineer: owns infrastructure and production delivery, not agent authoring or IAM.
 		{"platform-engineer", "amp:ai-gateway:gateways.create", true, http.MethodPost, gwOrgPath("/gateways")},
-		{"platform-engineer", "amp:agent:create", false, http.MethodPost, func(*framework.Config) string { return "/api/v1/agents" }},
-		{"platform-engineer", "amp:role:update", false, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
+		{"platform-engineer", "amp:agent:create", false, http.MethodPost, fixedPath("/api/v1/agents")},
+		{"platform-engineer", "amp:role:update", false, http.MethodPut, fixedPath("/api/v1/identities/roles/" + absentResourceName)},
 
 		// Admin positive controls cover the privilege-granting IAM boundary.
-		{"admin", "amp:role:update", true, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
-		{"admin", "amp:org:invite-member", true, http.MethodPost, orgPath("/identities/users/invite")},
+		{"admin", "amp:role:update", true, http.MethodPut, fixedPath("/api/v1/identities/roles/" + absentResourceName)},
+		{"admin", "amp:org:invite-member", true, http.MethodPost, fixedPath("/api/v1/identities/users/invite")},
 	}
 }

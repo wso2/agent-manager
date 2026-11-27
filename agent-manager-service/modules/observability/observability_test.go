@@ -25,6 +25,8 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/clickhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/memory"
 )
 
@@ -150,6 +153,9 @@ func TestListTracesRequests(t *testing.T) {
 			t.Errorf("%s: exportTraces = %d, want %d", tc.name, got, tc.want)
 		}
 	}
+	if got := serve(t, h.listSpans, "org-a", "/?project=shop&agent=bot&model=%zz&"+testWindow); got != http.StatusBadRequest {
+		t.Errorf("malformed query: listSpans = %d, want 400", got)
+	}
 }
 
 func TestListTracesPage(t *testing.T) {
@@ -213,6 +219,9 @@ func TestExportTraces(t *testing.T) {
 	h.exportTraces(w, r.WithContext(modkit.WithOrgID(r.Context(), "org-a")))
 	if w.Code != http.StatusOK {
 		t.Fatalf("exportTraces = %d %s, want 200", w.Code, w.Body.String())
+	}
+	if n := traces.Queries(); n != 2 {
+		t.Errorf("export ran %d store queries, want 2: the list and one for every trace's spans", n)
 	}
 	var got TraceExportResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
@@ -310,6 +319,153 @@ func TestCapabilityResolvesIDsToNames(t *testing.T) {
 	} {
 		if _, err := q.QueryTraces(ctx, s, tracesv1.TraceQuery{}); !errors.Is(err, tracesv1.ErrNotFound) {
 			t.Errorf("QueryTraces(%+v) = %v, want ErrNotFound", s, err)
+		}
+	}
+}
+
+// configRuntime answers Config from a map; nothing else is used.
+type configRuntime struct {
+	modkit.Runtime
+	cfg map[string]string
+}
+
+func (r configRuntime) Config(key string) string { return r.cfg[key] }
+func (configRuntime) Logger() *slog.Logger       { return slog.New(slog.DiscardHandler) }
+
+func TestOpenStores(t *testing.T) {
+	traces, cleaner, err := openStores(configRuntime{cfg: map[string]string{}})
+	if m, ok := traces.(*memory.Store); err != nil || !ok || cleaner != agentCleaner(m) {
+		t.Errorf("no ClickHouse configured: openStores = %T, %T, %v; want the memory store for both", traces, cleaner, err)
+	}
+	ch := map[string]string{"clickhouse.url": "http://clickhouse:8123", "clickhouse.user": "amp_reader"}
+	traces, cleaner, err = openStores(configRuntime{cfg: ch})
+	if _, ok := traces.(*clickhouse.Store); err != nil || !ok || cleaner != nil {
+		t.Errorf("ClickHouse with no cleaner: openStores = %T, %T, %v; want the ClickHouse store and no cleaner", traces, cleaner, err)
+	}
+	ch["clickhouse.cleaner-user"] = "amp_cleaner"
+	if _, _, err := openStores(configRuntime{cfg: ch}); !errors.Is(err, errHalfCleaner) {
+		t.Errorf("cleaner login without a password: openStores = %v, want errHalfCleaner", err)
+	}
+	ch["clickhouse.cleaner-password"] = "secret"
+	traces, cleaner, err = openStores(configRuntime{cfg: ch})
+	if _, ok := cleaner.(*clickhouse.Store); err != nil || !ok || cleaner == agentCleaner(traces.(*clickhouse.Store)) {
+		t.Errorf("ClickHouse with a cleaner: openStores = %T, %T, %v; want a separate cleaner store", traces, cleaner, err)
+	}
+	delete(ch, "clickhouse.cleaner-user")
+	if _, _, err := openStores(configRuntime{cfg: ch}); !errors.Is(err, errHalfCleaner) {
+		t.Errorf("cleaner password without a login: openStores = %v, want errHalfCleaner", err)
+	}
+	if _, _, err := openStores(configRuntime{cfg: map[string]string{"clickhouse.url": "clickhouse:8123", "clickhouse.user": "amp_reader"}}); err == nil || errors.Is(err, errNoReader) {
+		t.Errorf("openStores with a bad URL = %v, want a URL error", err)
+	}
+	if _, _, err := openStores(configRuntime{cfg: map[string]string{"clickhouse.url": "http://clickhouse:8123"}}); !errors.Is(err, errNoReader) {
+		t.Errorf("openStores with no reader login = %v, want errNoReader", err)
+	}
+}
+
+func TestExternalSchemaConfig(t *testing.T) {
+	cfg := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
+	for _, apply := range []bool{true, false} {
+		if _, err := (module{}).ExternalSchema(cfg(nil), apply); !errors.Is(err, modkit.ErrNotConfigured) {
+			t.Errorf("apply=%v with no ClickHouse: %v, want ErrNotConfigured", apply, err)
+		}
+	}
+	ch := map[string]string{"clickhouse.url": "http://clickhouse:8123", "clickhouse.user": "amp_reader"}
+	if _, err := (module{}).ExternalSchema(cfg(ch), true); !errors.Is(err, modkit.ErrNotConfigured) {
+		t.Errorf("migrating with no migrator login: %v, want ErrNotConfigured", err)
+	}
+	if s, err := (module{}).ExternalSchema(cfg(ch), false); err != nil || s.Store() != "clickhouse" {
+		t.Errorf("checking with the reader login = %v, %v; want the ClickHouse schema", s, err)
+	}
+	ch["clickhouse.migrator-user"] = "amp_migrator"
+	if s, err := (module{}).ExternalSchema(cfg(ch), true); err != nil || s.Store() != "clickhouse" {
+		t.Errorf("migrating with the migrator login = %v, %v; want the ClickHouse schema", s, err)
+	}
+	for _, bad := range []string{"0", "-1", "thirty"} {
+		ch["clickhouse.ttl-days"] = bad
+		for _, apply := range []bool{true, false} {
+			_, err := (module{}).ExternalSchema(cfg(ch), apply)
+			if err == nil || errors.Is(err, modkit.ErrNotConfigured) || !strings.Contains(err.Error(), "MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS") {
+				t.Errorf("ttl-days %q, apply=%v: %v, want a config error naming the setting", bad, apply, err)
+			}
+		}
+	}
+}
+
+// recordingCleaner records the agents it was asked to delete.
+type recordingCleaner struct {
+	deleted []string
+	err     error
+}
+
+func (c *recordingCleaner) DeleteAgent(_ context.Context, orgID, agentID string) error {
+	c.deleted = append(c.deleted, orgID+"/"+agentID)
+	return c.err
+}
+
+func TestAgentDeletedDeletesThatAgentsSpans(t *testing.T) {
+	ctx := context.Background()
+	log := slog.New(slog.DiscardHandler)
+	ev := func(org, data string) modkit.Event {
+		return modkit.Event{ID: "e1", Type: modkit.EventAgentDeleted, OrgID: org, Data: []byte(data)}
+	}
+
+	c := &recordingCleaner{}
+	h := cleanup{cleaner: c, log: log}
+	if err := h.agentDeleted(ctx, ev("org-a", `{"id":"agent-1","orgId":"org-a","name":"bot"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.agentDeleted(ctx, ev("", `{"id":"agent-2","orgId":"org-b"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"org-a/agent-1", "org-b/agent-2"}; !slices.Equal(c.deleted, want) {
+		t.Errorf("deleted %v, want %v", c.deleted, want)
+	}
+
+	// An event it can never act on is dropped, not retried.
+	for _, data := range []string{`not json`, `{"orgId":"org-a"}`, `{"id":"agent-1"}`} {
+		if err := h.agentDeleted(ctx, ev("", data)); err != nil {
+			t.Errorf("%s: %v, want nil", data, err)
+		}
+	}
+	if len(c.deleted) != 2 {
+		t.Errorf("deleted %v after unusable events", c.deleted)
+	}
+
+	// A failed delete is returned, so the event is retried.
+	c.err = errors.New("clickhouse down")
+	if err := h.agentDeleted(ctx, ev("org-a", `{"id":"agent-1"}`)); err == nil {
+		t.Error("a failed delete returned nil, want the error")
+	}
+
+	// With no cleaner login, the spans are left to expire.
+	if err := (cleanup{log: log}).agentDeleted(ctx, ev("org-a", `{"id":"agent-1"}`)); err != nil {
+		t.Errorf("no cleaner: %v, want nil", err)
+	}
+}
+
+func TestMemoryStoreDeletesOnlyThatAgent(t *testing.T) {
+	ctx := context.Background()
+	m := memory.New()
+	day := time.Date(2026, 11, 1, 1, 0, 0, 0, time.UTC)
+	add := func(org, agent, trace string) {
+		m.Add(store.Scope{OrgID: org, AgentID: agent, Names: store.Names{Org: org, Agent: agent}},
+			tracesv1.Trace{TraceID: trace, StartTime: day})
+	}
+	add("org-a", "agent-1", "a1")
+	add("org-a", "agent-2", "a2")
+	add("org-b", "agent-1", "b1")
+	if err := (cleanup{cleaner: m, log: slog.New(slog.DiscardHandler)}).agentDeleted(ctx,
+		modkit.Event{OrgID: "org-a", Data: []byte(`{"id":"agent-1"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		org, agent string
+		want       int
+	}{{"org-a", "agent-1", 0}, {"org-a", "agent-2", 1}, {"org-b", "agent-1", 1}} {
+		page, err := m.QueryTraces(ctx, store.Scope{OrgID: tc.org, AgentID: tc.agent, Names: store.Names{Org: tc.org, Agent: tc.agent}}, tracesv1.TraceQuery{})
+		if err != nil || page.Total != tc.want {
+			t.Errorf("%s/%s: %d traces, %v; want %d", tc.org, tc.agent, page.Total, err, tc.want)
 		}
 	}
 }

@@ -105,3 +105,17 @@ func TestWants(t *testing.T) {
 	assert.False(t, Wants(ScopeProject, []string{"project.deleted"}, "project.deleted"),
 		"a type that moved to a wider scope is ignored")
 }
+
+func TestLookupModuleAndNarrowerThan(t *testing.T) {
+	SetModuleTypes([]Type{{Name: "testmod.thing_done", Scope: ScopeAgent}})
+	t.Cleanup(func() { SetModuleTypes(nil) })
+	if _, ok := LookupModule("testmod.thing_done"); !ok {
+		t.Error("a module type is found")
+	}
+	if _, ok := LookupModule("agent.created"); ok {
+		t.Error("a core type is not a module type")
+	}
+	if !ScopeAgent.NarrowerThan(ScopeOrg) || !ScopeProject.NarrowerThan(ScopeOrg) || ScopeOrg.NarrowerThan(ScopeAgent) || ScopeAgent.NarrowerThan(ScopeAgent) {
+		t.Error("scopes narrow from org to project to agent")
+	}
+}

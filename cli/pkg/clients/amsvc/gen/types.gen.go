@@ -18,13 +18,13 @@ const (
 
 // Defines values for AgentDocumentApiVersion.
 const (
-	AiControlPlaneChoreolabsComv1 AgentDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+	AgentDocumentApiVersionAiControlPlaneChoreolabsComv1 AgentDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
 )
 
 // Valid indicates whether the value is a known member of the AgentDocumentApiVersion enum.
 func (e AgentDocumentApiVersion) Valid() bool {
 	switch e {
-	case AiControlPlaneChoreolabsComv1:
+	case AgentDocumentApiVersionAiControlPlaneChoreolabsComv1:
 		return true
 	default:
 		return false
@@ -322,6 +322,36 @@ func (e HealthCheckType) Valid() bool {
 	}
 }
 
+// Defines values for ProjectDocumentApiVersion.
+const (
+	ProjectDocumentApiVersionAiControlPlaneChoreolabsComv1 ProjectDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the ProjectDocumentApiVersion enum.
+func (e ProjectDocumentApiVersion) Valid() bool {
+	switch e {
+	case ProjectDocumentApiVersionAiControlPlaneChoreolabsComv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProjectDocumentKind.
+const (
+	ProjectDocumentKindProject ProjectDocumentKind = "Project"
+)
+
+// Valid indicates whether the value is a known member of the ProjectDocumentKind enum.
+func (e ProjectDocumentKind) Valid() bool {
+	switch e {
+	case ProjectDocumentKindProject:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProvisioningType.
 const (
 	ProvisioningTypeExternal ProvisioningType = "external"
@@ -366,19 +396,19 @@ func (e ListOrgEventDeliveriesParamsStatus) Valid() bool {
 
 // Defines values for ListEventTypesParamsScope.
 const (
-	Agent   ListEventTypesParamsScope = "agent"
-	Org     ListEventTypesParamsScope = "org"
-	Project ListEventTypesParamsScope = "project"
+	ListEventTypesParamsScopeAgent   ListEventTypesParamsScope = "agent"
+	ListEventTypesParamsScopeOrg     ListEventTypesParamsScope = "org"
+	ListEventTypesParamsScopeProject ListEventTypesParamsScope = "project"
 )
 
 // Valid indicates whether the value is a known member of the ListEventTypesParamsScope enum.
 func (e ListEventTypesParamsScope) Valid() bool {
 	switch e {
-	case Agent:
+	case ListEventTypesParamsScopeAgent:
 		return true
-	case Org:
+	case ListEventTypesParamsScopeOrg:
 		return true
-	case Project:
+	case ListEventTypesParamsScopeProject:
 		return true
 	default:
 		return false
@@ -765,16 +795,8 @@ type CreateGroupRequest struct {
 	Name string `json:"name"`
 }
 
-// CreateOrganizationRequest defines model for CreateOrganizationRequest.
-type CreateOrganizationRequest struct {
-	// Name Name of the organization
-	Name string `json:"name"`
-}
-
-// CreateProjectRequest defines model for CreateProjectRequest.
+// CreateProjectRequest The create input a Project document maps to.
 type CreateProjectRequest struct {
-	DeploymentPipeline *string `json:"deploymentPipeline,omitempty"`
-
 	// Description Description of the project
 	Description *string `json:"description,omitempty"`
 
@@ -818,6 +840,24 @@ type DockerBuildType string
 type DockerConfig struct {
 	// DockerfilePath Path to the Dockerfile relative to the app path (e.g. "Dockerfile" or "docker/Dockerfile")
 	DockerfilePath string `json:"dockerfilePath"`
+}
+
+// DocumentMetadata Metadata of a kind that lives directly in the organization.
+type DocumentMetadata struct {
+	// CreatedBy User ID of the creator, when known.
+	CreatedBy *string `json:"createdBy,omitempty"`
+
+	// CreationTimestamp When the resource was created.
+	CreationTimestamp *time.Time `json:"creationTimestamp,omitempty"`
+
+	// Name The resource's handle.
+	Name string `json:"name"`
+
+	// Uid Server-assigned UUID.
+	Uid *openapi_types.UUID `json:"uid,omitempty"`
+
+	// UpdateTimestamp When the resource last changed.
+	UpdateTimestamp *time.Time `json:"updateTimestamp,omitempty"`
 }
 
 // Environment defines model for Environment.
@@ -1320,8 +1360,8 @@ type Labels map[string]string
 
 // OrganizationListItem defines model for OrganizationListItem.
 type OrganizationListItem struct {
-	// CreatedAt Timestamp when the organization was created
-	CreatedAt time.Time `json:"createdAt"`
+	// CreatedAt When the organization was created. Not recorded, so omitted.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
 
 	// DisplayName Display name of the organization
 	DisplayName string `json:"displayName"`
@@ -1345,8 +1385,8 @@ type OrganizationListResponse struct {
 
 // OrganizationResponse defines model for OrganizationResponse.
 type OrganizationResponse struct {
-	// CreatedAt Timestamp when the organization was created
-	CreatedAt time.Time `json:"createdAt"`
+	// CreatedAt When the organization was created. Not recorded, so omitted.
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
 
 	// Description Description of the organization
 	Description string `json:"description"`
@@ -1373,52 +1413,32 @@ type Pagination struct {
 	Total *int32 `json:"total,omitempty"`
 }
 
-// ProjectListItem defines model for ProjectListItem.
-type ProjectListItem struct {
-	// CreatedAt Timestamp when the project was created
-	CreatedAt time.Time `json:"createdAt"`
+// ProjectDocument A project as a document; metadata.name is its handle, spec.displayName its label.
+type ProjectDocument struct {
+	ApiVersion ProjectDocumentApiVersion `json:"apiVersion"`
 
-	// DeploymentPipeline Name of the deployment pipeline associated with the project
-	DeploymentPipeline *string `json:"deploymentPipeline,omitempty"`
+	// Kind Must match the route; never ignored.
+	Kind ProjectDocumentKind `json:"kind"`
 
-	// Description Description of the project
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Display name of the project
-	DisplayName string `json:"displayName"`
-
-	// Name Name of the project
-	Name string `json:"name"`
-	Uuid string `json:"uuid"`
+	// Metadata Metadata of a kind that lives directly in the organization.
+	Metadata DocumentMetadata `json:"metadata"`
+	Spec     ProjectSpec      `json:"spec"`
 }
+
+// ProjectDocumentApiVersion defines model for ProjectDocument.ApiVersion.
+type ProjectDocumentApiVersion string
+
+// ProjectDocumentKind Must match the route; never ignored.
+type ProjectDocumentKind string
 
 // ProjectListResponse defines model for ProjectListResponse.
 type ProjectListResponse struct {
-	Limit    int               `json:"limit"`
-	Offset   int               `json:"offset"`
-	Projects []ProjectListItem `json:"projects"`
+	// Count Number of items in this page.
+	Count int32             `json:"count"`
+	List  []ProjectDocument `json:"list"`
 
-	// Total Total number of projects matching the query
-	Total int `json:"total"`
-}
-
-// ProjectResponse defines model for ProjectResponse.
-type ProjectResponse struct {
-	// CreatedAt Timestamp when the project was created
-	CreatedAt time.Time `json:"createdAt"`
-
-	// DeploymentPipeline Deployment pipeline associated with the project
-	DeploymentPipeline string `json:"deploymentPipeline"`
-
-	// Description Description of the project
-	Description string `json:"description"`
-
-	// DisplayName Display name of the project
-	DisplayName string `json:"displayName"`
-
-	// Name Name of the project
-	Name string `json:"name"`
-	Uuid string `json:"uuid"`
+	// Pagination Where this page sits in the collection.
+	Pagination Pagination `json:"pagination"`
 }
 
 // ProjectScopedDocumentMetadata Metadata of a kind that lives inside a project.
@@ -1440,6 +1460,15 @@ type ProjectScopedDocumentMetadata struct {
 
 	// UpdateTimestamp When the resource last changed.
 	UpdateTimestamp *time.Time `json:"updateTimestamp,omitempty"`
+}
+
+// ProjectSpec defines model for ProjectSpec.
+type ProjectSpec struct {
+	// Description Description of the project
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Display name of the project
+	DisplayName string `json:"displayName"`
 }
 
 // Provisioning defines model for Provisioning.
@@ -1617,12 +1646,10 @@ type UpdateGroupRequest struct {
 	Name *string `json:"name,omitempty"`
 }
 
-// UpdateProjectRequest defines model for UpdateProjectRequest.
+// UpdateProjectRequest The update input a Project document maps to.
 type UpdateProjectRequest struct {
-	DeploymentPipeline *string `json:"deploymentPipeline,omitempty"`
-
-	// Description Description of the project
-	Description string `json:"description"`
+	// Description Description of the project; absent keeps the stored value
+	Description *string `json:"description,omitempty"`
 
 	// DisplayName Display name of the project
 	DisplayName string `json:"displayName"`
@@ -1770,15 +1797,6 @@ type GenerateAgentTokenParams struct {
 	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
 }
 
-// ListOrganizationsParams defines parameters for ListOrganizations.
-type ListOrganizationsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
 // ListEnvironmentsParams defines parameters for ListEnvironments.
 type ListEnvironmentsParams struct {
 	// Limit Maximum number of results to return
@@ -1847,6 +1865,15 @@ type ListUsersParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// ListOrganizationsParams defines parameters for ListOrganizations.
+type ListOrganizationsParams struct {
+	// Limit Maximum number of results to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListProjectsParams defines parameters for ListProjects.
 type ListProjectsParams struct {
 	// Limit Maximum number of results to return
@@ -1913,9 +1940,6 @@ type RetryAgentIdentityProvisioningJSONRequestBody = AgentIdentityActionRequest
 // GenerateAgentTokenJSONRequestBody defines body for GenerateAgentToken for application/json ContentType.
 type GenerateAgentTokenJSONRequestBody = TokenRequest
 
-// CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
-type CreateOrganizationJSONRequestBody = CreateOrganizationRequest
-
 // CreateEventDestinationJSONRequestBody defines body for CreateEventDestination for application/json ContentType.
 type CreateEventDestinationJSONRequestBody = EventDestinationRequest
 
@@ -1950,10 +1974,10 @@ type UpdateUserJSONRequestBody = UpdateUserRequest
 type UpdateUserProfileJSONRequestBody = UpdateUserRequest
 
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
-type CreateProjectJSONRequestBody = CreateProjectRequest
+type CreateProjectJSONRequestBody = ProjectDocument
 
 // UpdateProjectJSONRequestBody defines body for UpdateProject for application/json ContentType.
-type UpdateProjectJSONRequestBody = UpdateProjectRequest
+type UpdateProjectJSONRequestBody = ProjectDocument
 
 // CreateAgentEventSubscriptionJSONRequestBody defines body for CreateAgentEventSubscription for application/json ContentType.
 type CreateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
@@ -1967,11 +1991,11 @@ type CreateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 // UpdateProjectEventSubscriptionJSONRequestBody defines body for UpdateProjectEventSubscription for application/json ContentType.
 type UpdateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
-// GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
-type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
-
 // ReportConsoleActionsJSONRequestBody defines body for ReportConsoleActions for application/json ContentType.
 type ReportConsoleActionsJSONRequestBody = ConsoleActionBatchRequest
+
+// GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
+type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
 
 // AsBuildpackBuild returns the union data inside the Build as a BuildpackBuild
 func (t Build) AsBuildpackBuild() (BuildpackBuild, error) {

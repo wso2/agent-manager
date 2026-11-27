@@ -14,7 +14,7 @@ Startup, in order:
 
 1. `amp-init` (the `amp-api` image, `amp init thunder … ai-gateway … fileauth …`) generates the secrets nothing sets (client secrets, the admin and gateway passwords) into the `amp-secrets` volume, then writes ThunderID's configuration and bootstrap resources and the AI Gateway's `config.toml` from `amp.yaml`: public URLs, client IDs and secrets, default users. Scope lists and role grants come from Agent Manager's own permission catalog. On the first run it also creates the gateway's encryption key, listener certificate and registration token, and keeps all of these afterwards.
 2. `thunder-setup` runs ThunderID's setup when the generated bootstrap differs from the one last applied. A rerun is additive: it updates AMP's clients, roles and settings and keeps everything else in ThunderID's database. It also sets the admin password to the one in `amp-secrets` again.
-3. `amp-api` (`amp serve --migrate`) migrates the core's and every module's tables, starts the module host, and creates the `default` organization and environment if needed (`DEFAULT_ORG_*`). The `ai-gateway` module, which `amp` installs at first boot, then registers the default gateway (`MODULE_AI_GATEWAY_DEFAULT_GATEWAY_*`) with the token from step 1 ([how the default gateway registers itself](../../docs/amp-lite/ai-gateway.md#how-the-default-gateway-registers-itself)).
+3. `amp-api` (`amp serve --migrate`) migrates the core's and every module's tables, starts the module host, and, with file sign-in, gives the trial organization (`DEFAULT_ORG_*`) its `default` environment if needed. The `ai-gateway` module, which `amp` installs at first boot, then registers the default gateway (`MODULE_AI_GATEWAY_DEFAULT_GATEWAY_*`) with the token from step 1 ([how the default gateway registers itself](../../docs/amp-lite/ai-gateway.md#how-the-default-gateway-registers-itself)).
 4. `gateway-controller` connects to `amp-api` with that token and receives its APIs.
 
 The stack runs no trace store: there is no OpenSearch, OpenTelemetry collector or trace query service, and the gateway serves no `/otel` trace-ingest API. Traces will return as an optional module.
@@ -52,7 +52,30 @@ Environment variables still win over `amp.yaml`, so a setting given on a service
 
 `auth.mode` decides how sign-in works and ships as `file`: the API checks the password against `/amp/fileauth/users.yaml` (`FILE_AUTH_USERS_PATH`) and issues its own tokens, with no identity provider involved. `amp-init` regenerates that file on every start from the admin password and `amp.default_users`, so edit `amp.yaml` and restart rather than the file itself. Sessions last `FILE_AUTH_TOKEN_TTL` (8 hours) and are not renewed.
 
-File mode suits local and single-operator installs. For anything shared, set `auth.mode: idp` to hand sign-in to ThunderID; the key set the API validates tokens with follows the mode. ThunderID runs either way, because agent identity uses it; `amctl` and the MCP endpoints need `idp`.
+File mode suits local and single-operator installs. It has no identity provider, so users, groups, roles, profiles and agent identities are off: the console hides them and the API answers their routes with 409 `IDENTITY_PROVIDER_REQUIRED`. For anything shared, set `auth.mode: idp` to hand sign-in to ThunderID; the key set the API validates tokens with follows the mode, and those features come on. `amctl` and the MCP endpoints need `idp` too. ThunderID still runs in the stack in either mode, but only `idp` uses it.
+
+Agent Manager keeps no table of organizations: a request's organization is the one its token names (`ouId`, `ouHandle`). File sign-in names a trial organization, `default.org_ou_id` (`00000000-0000-0000-0000-000000000001`) with handle `default.org_handle`, and the bundled gateway is registered to it. Switching to an identity provider starts in the provider's own organization, which gets its default environment on its first request and has no gateway until one is registered for it; the trial organization's projects, agents, secrets and gateway stay in the database under the trial id and come back if `auth.mode` returns to `file`. Treat the first run as a trial. An organization's handle should not change once it is in use: traces are found by it. A database created before this layout (it had an `organizations` table) needs `docker compose down -v`.
+
+### Starting with an identity provider
+
+The bundled gateway is registered to file sign-in's trial organization. A stack that signs in through an identity provider from its first start can register it to the provider's organization instead:
+
+1. Find the provider's organization id, the `ouId` its tokens carry. For the bundled ThunderID it is `01900000-0000-7000-8000-000000000001`; for your own ThunderID it is the id of the organization unit your users belong to (its console, `GET /organization-units`, or the `ouId` claim of one of its tokens).
+2. Before the first start, set the sign-in mode and the gateway's organization in `amp.yaml`:
+
+   ```yaml
+   auth:
+     mode: idp
+   modules:
+     - name: ai-gateway
+       config:
+         default_gateway_org_ou_id: 01900000-0000-7000-8000-000000000001   # the provider's organization id
+   ```
+
+   A `modules:` list is authoritative: a module it leaves out is turned off. `amp` installs only `ai-gateway` by default, so list any other module you have turned on as well. `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID` on `amp-api` does the same.
+3. Start the stack (`make up`), sign in through the provider, and check that **Infrastructure → Gateways** lists *Default AI Gateway* as active.
+
+This works only before the bundled gateway has registered elsewhere. After a trial with file sign-in its registration token belongs to the trial organization, and pointing it at another organization leaves the gateway unregistered: the gateway module keeps retrying and logs "its token's prefix belongs to another token". Register a new gateway for the provider's organization from the console instead (**Add gateway**).
 
 ### amp-core (no AI Gateway)
 

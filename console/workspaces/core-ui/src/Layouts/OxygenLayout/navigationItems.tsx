@@ -25,6 +25,7 @@ import {
   IdCard,
   Lock,
   Server,
+  Settings2,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, matchPath, useLocation, useParams } from "react-router-dom";
 import { useRouteAgent } from "@agent-management-platform/api-client";
@@ -59,6 +60,8 @@ const NAV_LAYOUT: Record<PluginLevel, NavSlot[]> = {
     { key: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
     { key: "infrastructure", title: "Infrastructure", icon: <Server /> },
     { key: "agent-identities", title: "Agent identities", icon: <IdCard /> },
+    // Organization-wide settings that modules contribute, such as subscription plans.
+    { key: "manage", title: "Manage", icon: <Settings2 /> },
   ],
   project: [{ key: "main" }, { key: "footer" }],
   agent: [

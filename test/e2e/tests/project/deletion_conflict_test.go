@@ -36,7 +36,7 @@ var _ = Describe("Project management:", Label("project", "deletion-conflict"), O
 		projName  string
 		agentName string
 
-		createProjReq framework.CreateProjectRequest
+		createProjReq framework.ProjectDocument
 		createReq     framework.CreateAgentRequest
 	)
 
@@ -45,7 +45,7 @@ var _ = Describe("Project management:", Label("project", "deletion-conflict"), O
 		projName = framework.E2EProjectPrefix + suffix
 		agentName = framework.E2EAgentPrefix + suffix
 
-		createProjReq = framework.NewCreateProjectRequest(projName, "E2E Deletion Conflict Project", "Project for testing deletion conflict scenarios", "default")
+		createProjReq = framework.NewProjectDocument(projName, "E2E Deletion Conflict Project", "Project for testing deletion conflict scenarios")
 		createReq = framework.NewExternalAgentRequest(agentName, "External agent for e2e project deletion conflict test")
 	})
 
@@ -55,9 +55,8 @@ var _ = Describe("Project management:", Label("project", "deletion-conflict"), O
 			OrgName: Cfg.DefaultOrg,
 			Request: createProjReq,
 		})
-		Expect(proj.Name).To(Equal(projName))
-		// Projects have no deployment pipeline: environments are internal.
-		Expect(proj.DeploymentPipeline).To(BeEmpty())
+		Expect(proj.Kind).To(Equal("Project"))
+		Expect(proj.Metadata.Name).To(Equal(projName))
 		GinkgoWriter.Printf("Project: %s\n", projName)
 	})
 

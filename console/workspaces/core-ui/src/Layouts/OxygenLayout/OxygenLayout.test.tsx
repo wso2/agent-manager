@@ -18,13 +18,13 @@
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { OxygenUIThemeProvider } from "@wso2/oxygen-ui";
+import { OxygenUIThemeProvider, PageContent } from "@wso2/oxygen-ui";
 import {
   PLUGIN_API_VERSION,
   type PluginNavItemContribution,
   type UIModuleManifest,
 } from "@agent-management-platform/types";
-import type { ExternalModule } from "@agent-management-platform/views";
+import { usePageFooter, type ExternalModule } from "@agent-management-platform/views";
 import { PluginActivators, PluginProvider } from "../../plugins";
 import { MountPoints } from "../../types";
 import { OxygenLayout } from "./OxygenLayout";
@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   agent: {} as { data?: unknown; isLoading: boolean },
   envs: {} as { environments: { name: string }[]; isLoading: boolean },
   profile: undefined as unknown,
+  profileOptions: [] as unknown[],
   canManageSecrets: true,
 }));
 
@@ -66,7 +67,10 @@ vi.mock("@agent-management-platform/api-client", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useUIManifest: () => uiManifest,
   useRouteAgent: () => mocks.agent,
-  useGetUserProfile: () => ({ data: mocks.profile }),
+  useGetUserProfile: (_params: unknown, options?: unknown) => {
+    mocks.profileOptions.push(options);
+    return { data: mocks.profile };
+  },
   useUpdateUserProfile: () => ({ mutateAsync: vi.fn(), isPending: false, error: null }),
   useListOrganizations: () => ({
     data: { organizations: [{ name: "ns-acme", handle: "acme", displayName: "Acme" }], total: 1 },
@@ -156,8 +160,14 @@ const panel = (mountPoint: string, text: string): ExternalModule => ({
 const runtimeConfig = (window as unknown as { __RUNTIME_CONFIG__: Record<string, unknown> })
   .__RUNTIME_CONFIG__;
 
+// Pages render the layout footer through PageContent (as PageLayout does).
 function Where() {
-  return <div data-testid="where">{useLocation().pathname}</div>;
+  const footer = usePageFooter();
+  return (
+    <PageContent footer={footer}>
+      <div data-testid="where">{useLocation().pathname}</div>
+    </PageContent>
+  );
 }
 
 function renderAt(path: string, externalModules: ExternalModule[] = []) {
@@ -198,6 +208,18 @@ beforeEach(() => {
   delete runtimeConfig.ampVersion;
   delete runtimeConfig.docsUrl;
   delete runtimeConfig.footerLinks;
+});
+
+describe("OxygenLayout profile", () => {
+  // The layout only shows the profile's picture, so a missing profile must not
+  // pop an error over a page that loaded fine.
+  it("reads the profile silently", () => {
+    mocks.profileOptions.length = 0;
+    renderAt("/org/acme/overview", []);
+    expect(mocks.profileOptions.length).toBeGreaterThan(0);
+    const silent = mocks.profileOptions.map((o) => (o as { silent?: boolean })?.silent);
+    expect(silent.every((s) => s === true)).toBe(true);
+  });
 });
 
 describe("OxygenLayout navigation", () => {

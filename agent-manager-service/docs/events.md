@@ -102,7 +102,7 @@ Project and agent callers see only the destinations available to them, as name, 
 
 ## Notification services
 
-`GET /orgs/{org}/events/destination-kinds` lists the kinds and, for `notify`, the offered services with their URL format and a link to Shoutrrr's documentation. The console builds its form from it.
+`GET /events/destination-kinds` lists the kinds and, for `notify`, the offered services with their URL format and a link to Shoutrrr's documentation. The console builds its form from it.
 
 Offered: Slack, Microsoft Teams, Google Chat, Discord, Telegram, Mattermost, Rocket.Chat, Zulip, Email (SMTP), PagerDuty, Opsgenie, ntfy, Gotify, Pushover and Twilio SMS.
 

@@ -57,7 +57,7 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 	f := &mcpFixture{proxyFixture: newProxyFixture(t)}
 	gormDB := db.GetDB()
 	gateways := gwrepo.NewGatewayRepo(gormDB)
-	kind := NewMCPProxyKind(gormDB, gateways, f.sync.repo)
+	kind := NewMCPProxyKind(gormDB, gateways, f.sync.repo, nil, nil)
 	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(core, slog.New(slog.DiscardHandler))

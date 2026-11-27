@@ -72,12 +72,12 @@ describeHttpCases("deployments API", mocks, [
   {
     name: "listEnvironments reads from the core API",
     call: () => listEnvironments({ orgName: "acme corp" }, getToken),
-    method: "GET", url: "/api/v1/orgs/acme%20corp/environments",
+    method: "GET", url: "/api/v1/environments",
   },
   {
     name: "getEnvironment",
     call: () => getEnvironment({ orgName: "acme corp", envName: "dev 1" }, getToken),
-    method: "GET", url: "/api/v1/orgs/acme%20corp/environments/dev%201",
+    method: "GET", url: "/api/v1/environments/dev%201",
   },
 ]);
 

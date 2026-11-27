@@ -20,6 +20,7 @@
 package identity
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -97,20 +98,20 @@ var _ = Describe("Audit trail", Label("identity", "audit"), func() {
 		})
 
 		keyName := "e2e-audit-key"
-		key := framework.CallObj(Default, Client, http.MethodPost, framework.GW(Cfg, "/llm-providers/%s/api-keys", providerID),
+		key := framework.CallObj(Default, Client, http.MethodPost, "/m/ai-gateway/llm-providers/"+providerID+"/api-keys",
 			framework.Obj{"name": keyName, "displayName": keyName}, http.StatusCreated)
 		secret := framework.Str(key, "apiKey")
 		Expect(secret).NotTo(BeEmpty())
 
-		rotated := framework.CallObj(Default, Client, http.MethodPut, framework.GW(Cfg, "/llm-providers/%s/api-keys/%s", providerID, keyName),
+		rotated := framework.CallObj(Default, Client, http.MethodPut, fmt.Sprintf("/m/ai-gateway/llm-providers/%s/api-keys/%s", providerID, keyName),
 			framework.Obj{}, http.StatusOK)
 		Expect(framework.Str(rotated, "apiKey")).NotTo(BeEmpty())
 		Expect(framework.Str(rotated, "apiKey")).NotTo(Equal(secret))
 		secret = framework.Str(rotated, "apiKey")
 
 		start := time.Now()
-		framework.Call(Default, Client, http.MethodDelete, framework.GW(Cfg, "/llm-providers/%s/api-keys/%s", providerID, keyName), nil, http.StatusNoContent)
-		keys := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/llm-providers/%s/api-keys", providerID), nil, http.StatusOK)
+		framework.Call(Default, Client, http.MethodDelete, fmt.Sprintf("/m/ai-gateway/llm-providers/%s/api-keys/%s", providerID, keyName), nil, http.StatusNoContent)
+		keys := framework.CallObj(Default, Client, http.MethodGet, "/m/ai-gateway/llm-providers/"+providerID+"/api-keys", nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(keys, "keys"), "name")).NotTo(ContainElement(keyName))
 
 		rec := awaitAudit(start, func(r framework.AuditRecord) bool {

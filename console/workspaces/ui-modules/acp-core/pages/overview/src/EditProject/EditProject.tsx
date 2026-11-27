@@ -31,12 +31,12 @@ import {
   useGetProject,
   useUpdateProject,
 } from "@agent-management-platform/api-client";
-import { absoluteRouteMap, ProjectResponse, UpdateProjectRequest, INPUT_LIMITS } from "@agent-management-platform/types";
+import { absoluteRouteMap, ProjectDocument, ProjectSpec, INPUT_LIMITS } from "@agent-management-platform/types";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { useState, useCallback, useMemo } from "react";
 
 interface EditProjectFormProps {
-  project: ProjectResponse;
+  project: ProjectDocument;
   orgId: string;
   projectHref: string;
 }
@@ -65,9 +65,9 @@ const editProjectSchema = z.object({
 function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState<EditProjectFormValues>({
-    name: project.name,
-    displayName: project.displayName,
-    description: project.description || '',
+    name: project.metadata.name,
+    displayName: project.spec.displayName,
+    description: project.spec.description || '',
   });
 
   const {
@@ -90,7 +90,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
 
   const { mutate: updateProject, isPending } = useUpdateProject({
     orgName: orgId,
-    projName: project.name,
+    projName: project.metadata.name,
   });
 
   const handleCancel = useCallback(() => {
@@ -104,8 +104,7 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
       return;
     }
 
-    const payload: UpdateProjectRequest = {
-      name: formData.name,
+    const payload: ProjectSpec = {
       displayName: formData.displayName,
       description: formData.description,
     };

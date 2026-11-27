@@ -27,13 +27,8 @@ import (
 func TestList_Success(t *testing.T) {
 	io, out, _ := newTestIO(true)
 	clientFn, captured, closeFn := newTestClient(t, http.StatusOK, amsvc.ProjectListResponse{
-		Limit:  20,
-		Offset: 0,
-		Total:  2,
-		Projects: []amsvc.ProjectListItem{
-			{Name: "alpha", DisplayName: "Alpha"},
-			{Name: "beta", DisplayName: "Beta"},
-		},
+		Count: 2,
+		List:  []amsvc.ProjectDocument{projectDoc("alpha", "Alpha"), projectDoc("beta", "Beta")},
 	})
 	defer closeFn()
 
@@ -46,12 +41,12 @@ func TestList_Success(t *testing.T) {
 	if !captured.called {
 		t.Fatal("server should have been called")
 	}
-	if captured.path != "/orgs/acme/projects" {
-		t.Errorf("path = %q, want /orgs/acme/projects", captured.path)
+	if captured.path != "/projects" {
+		t.Errorf("path = %q, want /projects", captured.path)
 	}
 	env := decodeEnvelope(t, out.String())
 	data := env["data"].(map[string]any)
-	projects := data["projects"].([]any)
+	projects := data["list"].([]any)
 	if len(projects) != 2 {
 		t.Errorf("len(projects) = %d, want 2", len(projects))
 	}

@@ -63,15 +63,13 @@ const renderPage = () =>
   );
 
 const project = (name: string, displayName: string, description = "") => ({
-  name,
-  displayName,
-  description,
-  createdAt: "2026-01-01T00:00:00Z",
+  metadata: { name, creationTimestamp: "2026-01-01T00:00:00Z" },
+  spec: { displayName, description },
 });
 
 const twoProjects = {
   data: {
-    projects: [
+    list: [
       project("shop", "Shop", "Storefront agents"),
       project("support", "Support Desk", "Ticket agents"),
     ],
@@ -157,7 +155,7 @@ describe("ProjectListing", () => {
   });
 
   it("shows an empty state with Add project when there are no projects", () => {
-    hoisted.projects = { data: { projects: [] }, isPending: false };
+    hoisted.projects = { data: { list: [] }, isPending: false };
     renderPage();
 
     expect(screen.getByText("No projects yet")).toBeInTheDocument();
@@ -167,7 +165,7 @@ describe("ProjectListing", () => {
 
   it("shows no create action in the empty state without write access", () => {
     hoisted.canWrite = false;
-    hoisted.projects = { data: { projects: [] }, isPending: false };
+    hoisted.projects = { data: { list: [] }, isPending: false };
     renderPage();
 
     const emptyState = screen.getByText("No projects yet").parentElement as HTMLElement;

@@ -18,6 +18,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
@@ -30,6 +31,20 @@ func NewIdentityDirectory(
 	resolver thundersvc.EnvThunderResolver, bindings repositories.AgentThunderClientRepository,
 ) identityv1.Directory {
 	return identityDirectory{resolver: resolver, bindings: bindings}
+}
+
+// NoIdentityDirectory is identity.directory/v1 with no identity provider (file sign-in): every environment answers
+// ErrNotProvisioned and no agent has an identity. The capability stays offered, as modules require it.
+func NoIdentityDirectory() identityv1.Directory { return noIdentityDirectory{} }
+
+type noIdentityDirectory struct{}
+
+func (noIdentityDirectory) ListProvisionedAgents(context.Context, string, string) ([]identityv1.ProvisionedAgent, error) {
+	return []identityv1.ProvisionedAgent{}, nil
+}
+
+func (noIdentityDirectory) For(context.Context, string, string) (identityv1.Client, error) {
+	return nil, fmt.Errorf("%w: no identity provider is connected (file sign-in)", identityv1.ErrNotProvisioned)
 }
 
 type identityDirectory struct {

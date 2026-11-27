@@ -6,6 +6,10 @@ export const baseURL =
   process.env.AMP_BASE_URL ?? `http://localhost:${process.env.AMP_API_PORT ?? '9000'}`;
 
 export const orgName = process.env.AMP_ORG ?? 'default';
+
+// How the stack signs people in: file (the standalone default) or idp. Users,
+// groups and roles live in the identity provider, so their journeys need idp.
+export const authMode = process.env.AMP_AUTH_MODE ?? 'file';
 export const adminUser = process.env.AMP_ADMIN_USER ?? 'admin';
 
 // The admin password: AMP_ADMIN_PASSWORD if set, else the one amp-init
@@ -38,6 +42,13 @@ export function adminPassword(): string {
   if (!pw) throw new Error('AMP_ADMIN_PASSWORD is not set; global setup resolves it');
   return pw;
 }
+
+// ThunderID as the browser and the suite reach it, and the API's machine
+// client, for idp mode. The defaults are the CI settings
+// (.github/scripts/standalone-ci-settings.sh) and the Go e2e suite's.
+export const thunderURL = process.env.AMP_THUNDER_URL ?? 'http://thunder.amp.localhost:8080';
+export const idpClientId = process.env.AMP_IDP_CLIENT_ID ?? 'amp-api-client';
+export const idpClientSecret = process.env.AMP_IDP_CLIENT_SECRET ?? 'amp-api-client-secret';
 
 // Names every resource the suite creates, so leftovers are easy to find.
 export const PREFIX = 'uie2e';

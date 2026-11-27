@@ -1,5 +1,5 @@
 module: ai-gateway
-# The AI Gateway's tables. They reference core rows (organizations, projects,
+# The AI Gateway's tables. They reference core rows (the organization, projects,
 # agents, environments) by id without foreign keys: the module's finalize
 # hooks remove or protect them when the core row goes. Credentials are kept
 # in the module's secret store under paths named after their rows (gwsecret).
@@ -550,3 +550,13 @@ tables:
     unique: [[agent_id, environment_id], [artifact_id]]
     foreign_keys:
       - {columns: [org_id, artifact_id], references: mod_ai_gateway_artifacts, ref_columns: [org_id, id]}
+
+  # Worker leases: the drift scan runs on one replica at a time.
+  - name: mod_ai_gateway_locks
+    columns:
+      - {name: name, type: text, size: 128}
+      - {name: owner, type: text, size: 255, nullable: true}
+      - {name: expires_at, type: time, nullable: true}
+    primary_key: [name]
+    seed:
+      - {name: drift_scan}

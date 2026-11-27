@@ -27,7 +27,7 @@ import (
 func registerEnvironmentRoutes(rr *middleware.RouteRegistrar, ctrl controllers.EnvironmentController) {
 	// A role that may use a feature listing environments, such as the AI
 	// Gateway's pages, holds environment:read for it.
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/environments", rbac.EnvironmentRead, ctrl.ListEnvironments)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/environments/{envID}", rbac.EnvironmentRead, ctrl.GetEnvironment)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/thunder-instances", rbac.EnvironmentRead, ctrl.ListThunderInstances)
+	rr.HandleFuncWithValidationAndAuthz("GET /environments", rbac.EnvironmentRead, ctrl.ListEnvironments)
+	rr.HandleFuncWithValidationAndAuthz("GET /environments/{envID}", rbac.EnvironmentRead, ctrl.GetEnvironment)
+	rr.HandleFuncWithValidationAndAuthz("GET /thunder-instances", rbac.EnvironmentRead, ctrl.ListThunderInstances)
 }

@@ -1,6 +1,8 @@
 # Runs the Playwright browser journeys in test/ui-e2e against the Docker
 # Compose stack built from the pull request, with the console built into
-# amp-api and file sign-in (the stack's default).
+# amp-api: once with file sign-in (the stack's default), and once signed in
+# through the bundled identity provider (ThunderID), which the journeys on
+# users, groups and roles need.
 name: UI E2E
 
 on:
@@ -26,9 +28,14 @@ concurrency:
 
 jobs:
   ui-e2e:
-    name: UI E2E
+    # The file run keeps the check's original name.
+    name: ${{ matrix.auth_mode == 'file' && 'UI E2E' || format('UI E2E ({0})', matrix.auth_mode) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        auth_mode: [file, idp]
     steps:
       - name: Clone the code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -37,7 +44,7 @@ jobs:
         uses: ./.github/actions/amp-dev-stack
         with:
           console: "true"
-          auth_mode: file
+          auth_mode: ${{ matrix.auth_mode }}
 
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
@@ -67,6 +74,7 @@ jobs:
         working-directory: test/ui-e2e
         env:
           AMP_ADMIN_PASSWORD: admin
+          AMP_AUTH_MODE: ${{ matrix.auth_mode }}
         run: npx playwright test
 
       - name: Stack logs on failure
@@ -78,7 +86,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.auth_mode }}
           path: |
             test/ui-e2e/playwright-report
             test/ui-e2e/test-results

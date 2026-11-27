@@ -128,8 +128,53 @@ func withRouteEvent(publisher events.Publisher, meta audit.RouteMeta, eventType 
 			if err := publisher.Publish(r.Context(), e); err != nil {
 				slog.ErrorContext(r.Context(), "Failed to persist route event", "eventId", e.ID, "orgId", e.OrgID, "error", err)
 			}
+			publishExtras(r, publisher, e, notes.Also())
 		}
 	}
+}
+
+// publishExtras publishes the events a handler raised next to its route's event, about the same
+// resource and caller. Only the route's own module's types are sent, and none narrower in scope
+// than the route's event, whose project and agent it takes; any other is logged and skipped.
+func publishExtras(r *http.Request, publisher events.Publisher, route events.Event, extras []events.Extra) {
+	module, _, _ := strings.Cut(route.Name(), ".")
+	for _, x := range extras {
+		def, ok := events.LookupModule(x.Type)
+		if !ok || !strings.HasPrefix(x.Type, module+".") {
+			slog.ErrorContext(r.Context(), "Skipped an event that is not one of the route module's types", "eventType", x.Type, "route", route.Name())
+			continue
+		}
+		if def.Scope.NarrowerThan(route.Scope) {
+			slog.ErrorContext(r.Context(), "Skipped an event narrower in scope than its route's", "eventType", x.Type, "scope", def.Scope, "route", route.Name())
+			continue
+		}
+		e := events.New("evt_"+uuid.NewString(), x.Type, def.Scope, route.OrgID, route.Project, route.Agent, route.Time)
+		e.OrgHandle, e.ActorType, e.ActorID = route.OrgHandle, route.ActorType, route.ActorID
+		e.Subject, e.Environment = route.Subject, route.Environment
+		if data, ok := events.Redact(plainJSON(x.Data)).(map[string]any); ok && len(data) > 0 {
+			e.Data = data
+		}
+		if err := publisher.Publish(r.Context(), e); err != nil {
+			slog.ErrorContext(r.Context(), "Failed to persist route event", "eventId", e.ID, "orgId", e.OrgID, "error", err)
+		}
+	}
+}
+
+// plainJSON round-trips data through JSON so Redact also reaches into typed maps and structs; data
+// that does not encode is dropped.
+func plainJSON(data map[string]any) any {
+	if len(data) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return nil
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
+	}
+	return out
 }
 
 // nameCreated points a create event at the resource it created. A create

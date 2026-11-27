@@ -69,7 +69,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   hoisted.canWrite = true;
   hoisted.project = {
-    data: { name: "shop", displayName: "Shop", description: "Storefront agents" },
+    data: { metadata: { name: "shop" }, spec: { displayName: "Shop", description: "Storefront agents" } },
     isLoading: false,
     error: null,
     refetch: vi.fn(),
@@ -104,7 +104,7 @@ describe("EditProject", () => {
     fireEvent.click(updateButton());
 
     expect(hoisted.update.mutate).toHaveBeenCalledWith(
-      { name: "shop", displayName: "Shop Floor", description: "In-store agents" },
+      { displayName: "Shop Floor", description: "In-store agents" },
       expect.anything(),
     );
     expect(screen.getByText("at /org/acme/project/shop")).toBeInTheDocument();

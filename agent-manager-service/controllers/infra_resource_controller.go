@@ -17,14 +17,13 @@
 package controllers
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -93,13 +92,10 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// The platform store has no notion of the org handle; the only one known here is the
-	// caller's, from the token. It can be attributed only when the list holds a
-	// single org — in cloud the list is always scoped to the caller's own org.
+	// The list is the request's organization, so its handle is the resolved org's: the
+	// token's, or the one an allowed org override switched to.
 	if total == 1 && len(orgs) == 1 && orgs[0] != nil {
-		if claims := jwtassertion.GetTokenClaims(ctx); claims != nil {
-			orgs[0].Handle = claims.OuHandle
-		}
+		orgs[0].Handle = middleware.OrgHandleFromRequest(r)
 	}
 
 	orgList := utils.ConvertToOrganizationListResponse(orgs)
@@ -172,28 +168,25 @@ func (c *infraResourceController) ListProjects(w http.ResponseWriter, r *http.Re
 		HandleCommonErrors(w, err, "Failed to list projects")
 		return
 	}
-	projectList := utils.ConvertToProjectListResponse(projects)
-	projectResponse := &spec.ProjectListResponse{
-		Projects: projectList,
-		Total:    total,
-		Limit:    int32(limit),
-		Offset:   int32(offset),
-	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, projectResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, projectList(projects, int32(limit), int32(offset), total))
 }
 
 func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	// Extract path parameters
 	ouID := middleware.OUIDFromRequest(r)
 
-	// Parse and validate request body
-	var payload spec.CreateProjectRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("CreateProject: failed to decode request body", "error", err)
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxDocumentBytes))
+	if err != nil {
+		log.Error("CreateProject: failed to read request body", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	payload, err := projectCreateFromDocument(body)
+	if err != nil {
+		log.Error("CreateProject: invalid document", "error", err)
+		writeDocumentError(w, err)
 		return
 	}
 
@@ -215,31 +208,27 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 		HandleCommonErrors(w, err, "Failed to create project")
 		return
 	}
-	projectResponse := spec.ProjectResponse{
-		Uuid:               project.UUID,
-		Name:               project.Name,
-		DisplayName:        project.DisplayName,
-		Description:        project.Description,
-		DeploymentPipeline: "",
-		CreatedAt:          project.CreatedAt,
-	}
 
-	httpx.WriteSuccessResponse(w, http.StatusAccepted, projectResponse)
+	httpx.WriteSuccessResponse(w, http.StatusAccepted, projectDocument(project))
 }
 
 func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	// Extract path parameters
 	ouID := middleware.OUIDFromRequest(r)
 	projectName := r.PathValue(utils.PathParamProjName)
 
-	// Parse and validate request body
-	var payload spec.UpdateProjectRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateProject: failed to decode request body", "error", err)
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxDocumentBytes))
+	if err != nil {
+		log.Error("UpdateProject: failed to read request body", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	payload, err := projectUpdateFromDocument(body, projectName)
+	if err != nil {
+		log.Error("UpdateProject: invalid document", "error", err)
+		writeDocumentError(w, err)
 		return
 	}
 
@@ -256,16 +245,7 @@ func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	projectResponse := spec.ProjectResponse{
-		Uuid:               project.UUID,
-		Name:               project.Name,
-		DisplayName:        project.DisplayName,
-		Description:        project.Description,
-		DeploymentPipeline: "",
-		CreatedAt:          project.CreatedAt,
-	}
-
-	httpx.WriteSuccessResponse(w, http.StatusOK, projectResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, projectDocument(project))
 }
 
 func (c *infraResourceController) DeleteProject(w http.ResponseWriter, r *http.Request) {
@@ -312,9 +292,7 @@ func (c *infraResourceController) GetProject(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	projectResponse := utils.ConvertToProjectResponse(project)
-
-	httpx.WriteSuccessResponse(w, http.StatusOK, projectResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, projectDocument(project))
 }
 
 func (c *infraResourceController) ListOrgEnvironments(w http.ResponseWriter, r *http.Request) {

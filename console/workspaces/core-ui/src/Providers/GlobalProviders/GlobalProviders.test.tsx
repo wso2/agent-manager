@@ -34,11 +34,15 @@ const mocks = vi.hoisted(() => ({
     isError: boolean;
   },
   analytics: [] as unknown[],
+  authMode: "thunder" as string,
 }));
 
 vi.mock("@agent-management-platform/auth", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   AuthProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
+  get authMode() {
+    return mocks.authMode;
+  },
 }));
 
 vi.mock("@agent-management-platform/api-client", async (importOriginal) => ({
@@ -89,9 +93,23 @@ beforeEach(() => {
 
 afterEach(() => {
   delete runtimeConfig.featureFlags;
+  mocks.authMode = "thunder";
 });
 
 describe("GlobalProviders", () => {
+  // Users, groups, roles, profiles and agent identities live in the identity
+  // provider; with file sign-in there is none, so their pages stay off whatever
+  // the runtime config or props say.
+  it.each(["file", "none"])("turns identity features off when sign-in is %s", (mode) => {
+    mocks.authMode = mode;
+    render(
+      <GlobalProviders featureFlags={{ enableAgentIdentity: true, enableProfileManagement: true }}>
+        <Probe />
+      </GlobalProviders>,
+    );
+    expect(probe()).toMatchObject({ agentIdentity: false, profiles: false });
+  });
+
   it("holds the app on a loader until runtime config discovery settles", () => {
     mocks.runtime = { isLoading: true, isError: false };
     render(
@@ -99,7 +117,7 @@ describe("GlobalProviders", () => {
         <Probe />
       </GlobalProviders>,
     );
-    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.queryByTestId("probe")).not.toBeInTheDocument();
     expect(mocks.analytics).toEqual([]);
   });
@@ -160,7 +178,7 @@ describe("GlobalProviders", () => {
       </GlobalProviders>,
     );
     expect(screen.queryByTestId("probe")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
 
     const denyGatewayWrite = () => ({ isLoading: false, featureAccess: { gateway_write: false } });
     rerender(

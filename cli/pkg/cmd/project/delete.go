@@ -99,7 +99,7 @@ func runDelete(ctx context.Context, o *DeleteOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.DeleteProjectWithResponse(ctx, o.Org, o.ProjectName)
+	resp, err := client.DeleteProjectWithResponse(ctx, o.ProjectName)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

@@ -42,22 +42,21 @@ import type {
   RolePathParams,
 } from "@agent-management-platform/types";
 
-const orgBase = (orgName: string) =>
-  `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/identities`;
+// The organization comes from the token.
+const IDENTITIES = `${SERVICE_BASE}/identities`;
 
 // --- Users ---
 
 export async function listUsers(
-  params: IdentityOrgPathParams,
+  _params: IdentityOrgPathParams,
   query?: { offset?: number; limit?: number },
   getToken?: () => Promise<string>,
 ): Promise<ThunderUserListResponse> {
-  const { orgName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
   const search = query
     ? { offset: String(query.offset ?? 0), limit: String(query.limit ?? 20) }
     : undefined;
-  const res = await httpGET(`${orgBase(orgName)}/users`, { searchParams: search, token });
+  const res = await httpGET(`${IDENTITIES}/users`, { searchParams: search, token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -66,9 +65,9 @@ export async function getUser(
   params: UserPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ThunderUser> {
-  const { orgName = "default", userId } = params;
+  const { userId } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(`${orgBase(orgName)}/users/${encodeURIComponent(userId)}`, { token });
+  const res = await httpGET(`${IDENTITIES}/users/${encodeURIComponent(userId)}`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -77,21 +76,20 @@ export async function getUserProfile(
   params: UserPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ThunderUser> {
-  const { orgName = "default", userId } = params;
+  const { userId } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(`${orgBase(orgName)}/users/${encodeURIComponent(userId)}/profile`, { token });
+  const res = await httpGET(`${IDENTITIES}/users/${encodeURIComponent(userId)}/profile`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
 export async function createUser(
-  params: IdentityOrgPathParams,
+  _params: IdentityOrgPathParams,
   body: CreateUserRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderUser> {
-  const { orgName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(`${orgBase(orgName)}/users`, body, { token });
+  const res = await httpPOST(`${IDENTITIES}/users`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -101,10 +99,10 @@ export async function updateUser(
   body: UpdateUserRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderUser> {
-  const { orgName = "default", userId } = params;
+  const { userId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPUT(
-    `${orgBase(orgName)}/users/${encodeURIComponent(userId)}`, body, { token },
+    `${IDENTITIES}/users/${encodeURIComponent(userId)}`, body, { token },
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -114,22 +112,21 @@ export async function deleteUser(
   params: UserPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", userId } = params;
+  const { userId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpDELETE(
-    `${orgBase(orgName)}/users/${encodeURIComponent(userId)}`, { token },
+    `${IDENTITIES}/users/${encodeURIComponent(userId)}`, { token },
   );
   if (!res.ok && res.status !== 204) throw await res.json();
 }
 
 export async function inviteUser(
-  params: IdentityOrgPathParams,
+  _params: IdentityOrgPathParams,
   body: InviteUserRequest,
   getToken?: () => Promise<string>,
 ): Promise<InviteUserResponse> {
-  const { orgName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(`${orgBase(orgName)}/users/invite`, body, { token });
+  const res = await httpPOST(`${IDENTITIES}/users/invite`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -138,10 +135,10 @@ export async function getUserGroups(
   params: UserPathParams,
   getToken?: () => Promise<string>,
 ): Promise<{ groups: ThunderGroup[] }> {
-  const { orgName = "default", userId } = params;
+  const { userId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
-    `${orgBase(orgName)}/users/${encodeURIComponent(userId)}/groups`, { token },
+    `${IDENTITIES}/users/${encodeURIComponent(userId)}/groups`, { token },
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -151,10 +148,10 @@ export async function getUserRoles(
   params: UserPathParams,
   getToken?: () => Promise<string>,
 ): Promise<{ roles: ThunderRole[] }> {
-  const { orgName = "default", userId } = params;
+  const { userId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
-    `${orgBase(orgName)}/users/${encodeURIComponent(userId)}/roles`, { token },
+    `${IDENTITIES}/users/${encodeURIComponent(userId)}/roles`, { token },
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -163,16 +160,15 @@ export async function getUserRoles(
 // --- Groups ---
 
 export async function listGroups(
-  params: IdentityOrgPathParams,
+  _params: IdentityOrgPathParams,
   query?: { offset?: number; limit?: number },
   getToken?: () => Promise<string>,
 ): Promise<ThunderGroupListResponse> {
-  const { orgName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
   const search = query
     ? { offset: String(query.offset ?? 0), limit: String(query.limit ?? 20) }
     : undefined;
-  const res = await httpGET(`${orgBase(orgName)}/groups`, { searchParams: search, token });
+  const res = await httpGET(`${IDENTITIES}/groups`, { searchParams: search, token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -181,21 +177,20 @@ export async function getGroup(
   params: GroupPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ThunderGroup> {
-  const { orgName = "default", groupId } = params;
+  const { groupId } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(`${orgBase(orgName)}/groups/${encodeURIComponent(groupId)}`, { token });
+  const res = await httpGET(`${IDENTITIES}/groups/${encodeURIComponent(groupId)}`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
 export async function createGroup(
-  params: IdentityOrgPathParams,
+  _params: IdentityOrgPathParams,
   body: CreateGroupRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderGroup> {
-  const { orgName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(`${orgBase(orgName)}/groups`, body, { token });
+  const res = await httpPOST(`${IDENTITIES}/groups`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -205,10 +200,10 @@ export async function updateGroup(
   body: UpdateGroupRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderGroup> {
-  const { orgName = "default", groupId } = params;
+  const { groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPUT(
-    `${orgBase(orgName)}/groups/${encodeURIComponent(groupId)}`, body, { token },
+    `${IDENTITIES}/groups/${encodeURIComponent(groupId)}`, body, { token },
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -218,10 +213,10 @@ export async function deleteGroup(
   params: GroupPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", groupId } = params;
+  const { groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpDELETE(
-    `${orgBase(orgName)}/groups/${encodeURIComponent(groupId)}`, { token },
+    `${IDENTITIES}/groups/${encodeURIComponent(groupId)}`, { token },
   );
   if (!res.ok && res.status !== 204) throw await res.json();
 }
@@ -231,10 +226,10 @@ export async function addGroupMembers(
   body: { userIds: string[] },
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", groupId } = params;
+  const { groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
-    `${orgBase(orgName)}/groups/${encodeURIComponent(groupId)}/members/add`, body, { token },
+    `${IDENTITIES}/groups/${encodeURIComponent(groupId)}/members/add`, body, { token },
   );
   if (!res.ok) throw await res.json();
 }
@@ -244,10 +239,10 @@ export async function removeGroupMembers(
   body: { userIds: string[] },
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", groupId } = params;
+  const { groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
-    `${orgBase(orgName)}/groups/${encodeURIComponent(groupId)}/members/remove`, body, { token },
+    `${IDENTITIES}/groups/${encodeURIComponent(groupId)}/members/remove`, body, { token },
   );
   if (!res.ok) throw await res.json();
 }
@@ -256,10 +251,10 @@ export async function getGroupRoles(
   params: GroupPathParams,
   getToken?: () => Promise<string>,
 ): Promise<{ roles: ThunderRole[] }> {
-  const { orgName = "default", groupId } = params;
+  const { groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
-    `${orgBase(orgName)}/groups/${encodeURIComponent(groupId)}/roles`, { token },
+    `${IDENTITIES}/groups/${encodeURIComponent(groupId)}/roles`, { token },
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -270,13 +265,13 @@ export async function getGroupMembers(
   query?: { offset?: number; limit?: number },
   getToken?: () => Promise<string>,
 ): Promise<ThunderUserListResponse> {
-  const { orgName = "default", groupId } = params;
+  const { groupId } = params;
   const token = getToken ? await getToken() : undefined;
   const search = query
     ? { offset: String(query.offset ?? 0), limit: String(query.limit ?? 20) }
     : undefined;
   const res = await httpGET(
-    `${orgBase(orgName)}/groups/${encodeURIComponent(groupId)}/members`,
+    `${IDENTITIES}/groups/${encodeURIComponent(groupId)}/members`,
     { searchParams: search, token },
   );
   if (!res.ok) throw await res.json();
@@ -286,16 +281,15 @@ export async function getGroupMembers(
 // --- Roles ---
 
 export async function listRoles(
-  params: IdentityOrgPathParams,
+  _params: IdentityOrgPathParams,
   query?: { offset?: number; limit?: number },
   getToken?: () => Promise<string>,
 ): Promise<ThunderRoleListResponse> {
-  const { orgName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
   const search = query
     ? { offset: String(query.offset ?? 0), limit: String(query.limit ?? 20) }
     : undefined;
-  const res = await httpGET(`${orgBase(orgName)}/roles`, { searchParams: search, token });
+  const res = await httpGET(`${IDENTITIES}/roles`, { searchParams: search, token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -304,21 +298,20 @@ export async function getRole(
   params: RolePathParams,
   getToken?: () => Promise<string>,
 ): Promise<ThunderRole> {
-  const { orgName = "default", roleId } = params;
+  const { roleId } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(`${orgBase(orgName)}/roles/${encodeURIComponent(roleId)}`, { token });
+  const res = await httpGET(`${IDENTITIES}/roles/${encodeURIComponent(roleId)}`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
 export async function createRole(
-  params: IdentityOrgPathParams,
+  _params: IdentityOrgPathParams,
   body: CreateRoleRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderRole> {
-  const { orgName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(`${orgBase(orgName)}/roles`, body, { token });
+  const res = await httpPOST(`${IDENTITIES}/roles`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -328,10 +321,10 @@ export async function updateRole(
   body: UpdateRoleRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderRole> {
-  const { orgName = "default", roleId } = params;
+  const { roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPUT(
-    `${orgBase(orgName)}/roles/${encodeURIComponent(roleId)}`, body, { token },
+    `${IDENTITIES}/roles/${encodeURIComponent(roleId)}`, body, { token },
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -341,10 +334,10 @@ export async function deleteRole(
   params: RolePathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", roleId } = params;
+  const { roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpDELETE(
-    `${orgBase(orgName)}/roles/${encodeURIComponent(roleId)}`, { token },
+    `${IDENTITIES}/roles/${encodeURIComponent(roleId)}`, { token },
   );
   if (!res.ok && res.status !== 204) throw await res.json();
 }
@@ -353,10 +346,10 @@ export async function getRoleAssignments(
   params: RolePathParams,
   getToken?: () => Promise<string>,
 ): Promise<ThunderRoleAssignments> {
-  const { orgName = "default", roleId } = params;
+  const { roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpGET(
-    `${orgBase(orgName)}/roles/${encodeURIComponent(roleId)}/assignments`, { token },
+    `${IDENTITIES}/roles/${encodeURIComponent(roleId)}/assignments`, { token },
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -367,10 +360,10 @@ export async function addRolePermissions(
   body: RolePermissionRequest,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", roleId } = params;
+  const { roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
-    `${orgBase(orgName)}/roles/${encodeURIComponent(roleId)}/permissions/add`, body, { token },
+    `${IDENTITIES}/roles/${encodeURIComponent(roleId)}/permissions/add`, body, { token },
   );
   if (!res.ok) throw await res.json();
 }
@@ -380,10 +373,10 @@ export async function removeRolePermissions(
   body: RolePermissionRequest,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", roleId } = params;
+  const { roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
-    `${orgBase(orgName)}/roles/${encodeURIComponent(roleId)}/permissions/remove`, body, { token },
+    `${IDENTITIES}/roles/${encodeURIComponent(roleId)}/permissions/remove`, body, { token },
   );
   if (!res.ok) throw await res.json();
 }
@@ -393,10 +386,10 @@ export async function addRoleAssignees(
   body: RoleUserGroupRequest,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", roleId } = params;
+  const { roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
-    `${orgBase(orgName)}/roles/${encodeURIComponent(roleId)}/assignees/add`, body, { token },
+    `${IDENTITIES}/roles/${encodeURIComponent(roleId)}/assignees/add`, body, { token },
   );
   if (!res.ok) throw await res.json();
 }
@@ -406,10 +399,10 @@ export async function removeRoleAssignees(
   body: RoleUserGroupRequest,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", roleId } = params;
+  const { roleId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPOST(
-    `${orgBase(orgName)}/roles/${encodeURIComponent(roleId)}/assignees/remove`, body, { token },
+    `${IDENTITIES}/roles/${encodeURIComponent(roleId)}/assignees/remove`, body, { token },
   );
   if (!res.ok) throw await res.json();
 }
@@ -421,10 +414,10 @@ export async function updateUserProfile(
   body: UpdateUserRequest,
   getToken?: () => Promise<string>,
 ): Promise<ThunderUser> {
-  const { orgName = "default", userId } = params;
+  const { userId } = params;
   const token = getToken ? await getToken() : undefined;
   const res = await httpPUT(
-    `${orgBase(orgName)}/users/${encodeURIComponent(userId)}/profile`, body, { token },
+    `${IDENTITIES}/users/${encodeURIComponent(userId)}/profile`, body, { token },
   );
   if (!res.ok) throw await res.json();
   return res.json();
@@ -433,12 +426,11 @@ export async function updateUserProfile(
 // --- Permissions catalog ---
 
 export async function listAMPPermissions(
-  params: IdentityOrgPathParams,
+  _params: IdentityOrgPathParams,
   getToken?: () => Promise<string>,
 ): Promise<AMPPermissionsResponse> {
-  const { orgName = "default" } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(`${orgBase(orgName)}/permissions`, { token });
+  const res = await httpGET(`${IDENTITIES}/permissions`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }

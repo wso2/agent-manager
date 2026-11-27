@@ -85,8 +85,7 @@ func newRouteAPIWith(t *testing.T, platform repositories.PlatformRepository) *ro
 	t.Helper()
 	gdb := db.GetDB()
 	org := dbtest.Org(t, gdb)
-	var handle string
-	require.NoError(t, gdb.Raw(`SELECT handle FROM organizations WHERE id = ?`, org).Scan(&handle).Error)
+	handle := "org-" + org[len(org)-12:]
 	h := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{
 		PlatformRepository: platform,
 		SecretMgmtClient:   apitestutils.CreateMockSecretManagementClient(),

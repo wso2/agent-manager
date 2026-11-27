@@ -37,7 +37,6 @@ import (
 )
 
 var (
-	testDeleteProjectOrgName  = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
 	testDeleteProjectProjName = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
 	testProjectWithAgents     = fmt.Sprintf("project-with-agents-%s", uuid.New().String()[:5])
 	testFailingProjectName    = fmt.Sprintf("failing-project-%s", uuid.New().String()[:5])
@@ -55,7 +54,7 @@ func TestDeleteProject(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the delete request
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", testDeleteProjectOrgName, testDeleteProjectProjName)
+		url := "/api/v1/projects/" + testDeleteProjectProjName
 		req := httptest.NewRequest(http.MethodDelete, url, nil)
 
 		rr := httptest.NewRecorder()
@@ -87,7 +86,7 @@ func TestDeleteProject(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the delete request
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", testDeleteProjectOrgName, testProjectWithAgents)
+		url := "/api/v1/projects/" + testProjectWithAgents
 		req := httptest.NewRequest(http.MethodDelete, url, nil)
 
 		rr := httptest.NewRecorder()
@@ -117,7 +116,7 @@ func TestDeleteProject(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Send the delete request for non-existent project
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/nonexistent-project", testDeleteProjectOrgName)
+		url := "/api/v1/projects/nonexistent-project"
 		req := httptest.NewRequest(http.MethodDelete, url, nil)
 
 		rr := httptest.NewRecorder()
@@ -143,7 +142,7 @@ func TestDeleteProject(t *testing.T) {
 			authMiddleware: jwtassertion.NewMockMiddlewareWithOUID(t, "nonexistent-org"),
 			wantStatus:     404,
 			wantErrMsg:     "Organization not found",
-			url:            fmt.Sprintf("/api/v1/orgs/nonexistent-org/projects/%s", testDeleteProjectProjName),
+			url:            "/api/v1/projects/" + testDeleteProjectProjName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},
@@ -157,7 +156,7 @@ func TestDeleteProject(t *testing.T) {
 			},
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects/%s", testDeleteProjectOrgName, testDeleteProjectProjName),
+			url:        "/api/v1/projects/" + testDeleteProjectProjName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				return apitestutils.CreateMockPlatformRepository()
 			},
@@ -167,7 +166,7 @@ func TestDeleteProject(t *testing.T) {
 			authMiddleware: authMiddleware,
 			wantStatus:     500,
 			wantErrMsg:     "Failed to delete project",
-			url:            fmt.Sprintf("/api/v1/orgs/%s/projects/%s", testDeleteProjectOrgName, testFailingProjectName),
+			url:            "/api/v1/projects/" + testFailingProjectName,
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
 				mock.DeleteProjectFunc = func(ctx context.Context, orgName string, projectName string) error {
@@ -225,7 +224,7 @@ func TestDeleteProjectIdempotency(t *testing.T) {
 
 		for i := 0; i < numRequests; i++ {
 			responses[i] = httptest.NewRecorder()
-			url := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", testDeleteProjectOrgName, projectName)
+			url := "/api/v1/projects/" + projectName
 			req := httptest.NewRequest(http.MethodDelete, url, nil)
 
 			// Execute request

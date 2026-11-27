@@ -111,8 +111,8 @@ sub("console", 318, 404, 190, 150,
 reg("console", 318, 404, 190, 150)
 reg("core", 520, 404, 226, 150)
 sub("core", 520, 404, 226, 150,
-    "<b>Core</b><br/>REST API and MCP server<br/>orgs, projects, external agents and their tokens<br/>"
-    "RBAC, audit log, events, secrets<br/>at startup: migrates the database and creates the default org",
+    "<b>Core</b><br/>REST API and MCP server<br/>projects, external agents and their tokens, per org (from the token)<br/>"
+    "RBAC, audit log, events, secrets<br/>at startup: migrates the database; with file sign-in, sets up the trial org",
     GREEN, "#F2FBF7")
 reg("modhost", 830, 404, 272, 150)
 sub("modhost", 830, 404, 272, 150,

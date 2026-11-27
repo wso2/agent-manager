@@ -295,6 +295,37 @@ describe("ViewMCPServerComponent page", () => {
       expect(screen.getByTestId("code").textContent).toBe("curl -N https://gw.example/weather/mcp");
     });
 
+    // subscription-validation on the endpoint: every call carries the subscriber's key too.
+    const withSubscriptions = (security: unknown, params: Record<string, unknown> = {}) => {
+      setSecurity(security);
+      const proxy = state.proxy as { data: { endpoints: { policies: unknown[] }[] } };
+      for (const ep of proxy.data.endpoints) {
+        ep.policies = [...ep.policies, { name: "subscription-validation", version: "v2", params }];
+      }
+    };
+
+    it("asks an unsecured proxy that takes subscriptions for the subscription key", () => {
+      withSubscriptions(noSecurity);
+      renderPage({ openEnvPanel: true });
+      expect(screen.getByText(/This MCP server takes subscriptions/)).toBeInTheDocument();
+      expect(screen.queryByText(/no header or API key is required/)).not.toBeInTheDocument();
+      expect(screen.getByDisplayValue("Subscription-Key")).toBeInTheDocument();
+      expect(screen.getByTestId("code").textContent).toBe(
+        'curl -N https://gw.example/weather/mcp \\\n  --header "Subscription-Key: <subscription-key>"',
+      );
+    });
+
+    it("adds the subscription key, in the header the policy names, beside the API key", () => {
+      withSubscriptions(apiKeySecurity, { subscriptionKeyHeader: "X-Sub" });
+      renderPage({ authInfoByEnv: { dev: { type: "apikey", in: "header", name: "ignored", value: "mcp-secret" } } });
+      expect(screen.getByDisplayValue("X-Sub")).toBeInTheDocument();
+      // The lines in order: the API key's header, then the subscription key's.
+      const lines = (screen.getByTestId("code").textContent ?? "").split(" \\\n");
+      expect(lines).toHaveLength(3);
+      expect(lines[1]).toContain("X-MCP-Key");
+      expect(lines[2]).toBe('  --header "X-Sub: <subscription-key>"');
+    });
+
     it("hands over client credentials, IdP endpoints and scopes for an OAuth proxy", async () => {
       setSecurity(identitySecurity);
       renderPage({ openEnvPanel: true });

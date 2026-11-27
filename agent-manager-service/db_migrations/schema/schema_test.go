@@ -164,7 +164,7 @@ func TestNullableColumnsRender(t *testing.T) {
 	ddl, err := s.Render(DialectPostgres)
 	require.NoError(t, err)
 	assert.Contains(t, ddl, "    description VARCHAR(1000),\n")
-	assert.True(t, strings.Contains(ddl, "    handle VARCHAR(63) NOT NULL,\n"))
+	assert.True(t, strings.Contains(ddl, "    name VARCHAR(63) NOT NULL,\n"))
 }
 
 // The committed module migrations must match each module's schema files. On failure, run `make schema`.

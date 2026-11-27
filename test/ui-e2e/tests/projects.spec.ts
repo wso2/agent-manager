@@ -20,7 +20,7 @@ test.describe('projects', () => {
       await expect(page).toHaveURL(new RegExp(`/project/${id}(/|$)`));
       const got = await api.getProject(id);
       expect(got.status).toBe(200);
-      expect(got.body.displayName).toBe(displayName);
+      expect(got.body.spec.displayName).toBe(displayName);
     });
 
     await test.step('listed', async () => {
@@ -42,11 +42,11 @@ test.describe('projects', () => {
       await edit.description.fill('Edited by the UI e2e suite');
       await edit.update.click();
       await expect(page).not.toHaveURL(/\/edit$/);
-      // The header names the project by its new name.
-      await expect(page.getByRole('link', { name: `Go to ${renamed}` })).toBeVisible();
+      // The header breadcrumb names the project by its new name.
+      await expect(page.getByRole('button', { name: renamed, exact: true })).toBeVisible();
       const got = await api.getProject(id);
-      expect(got.body.displayName).toBe(renamed);
-      expect(got.body.description).toBe('Edited by the UI e2e suite');
+      expect(got.body.spec.displayName).toBe(renamed);
+      expect(got.body.spec.description).toBe('Edited by the UI e2e suite');
     });
 
     await test.step('delete', async () => {

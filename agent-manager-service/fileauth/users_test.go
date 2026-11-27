@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -120,7 +121,7 @@ func pemFile(t *testing.T, blockType string, der []byte) string {
 
 func TestNewServiceFailsAtBootWithoutUsableInputs(t *testing.T) {
 	users := writeFile(t, "users.yaml", `
-organization: {handle: acme, uuid: u}
+organization: {handle: acme, uuid: 0192f0a0-0000-7000-8000-000000000001}
 users:
   - {username: alice, passwordHash: "`+bcryptHash(t)+`", roles: ["`+rbac.RoleDeveloper+`"]}
 `)
@@ -136,6 +137,7 @@ users:
 	build := func(usersPath, keyPath string) (Service, error) {
 		cfg := &config.Config{AuthMode: config.AuthModeFile}
 		cfg.FileAuth.UsersPath = usersPath
+		cfg.DefaultOrg = config.DefaultOrgConfig{OUID: "0192f0a0-0000-7000-8000-000000000001", Handle: "acme"}
 		cfg.JWTSigning.PrivateKeyPath = keyPath
 		return NewService(cfg, slog.New(slog.DiscardHandler))
 	}
@@ -167,4 +169,30 @@ users:
 		_, _, err = svc.Login(context.Background(), "alice", "wrong")
 		require.ErrorIs(t, err, ErrInvalidCredentials)
 	}
+}
+
+// File sign-in tokens name users.yaml's organization, and the server sets up DEFAULT_ORG_OU_ID's (its environment,
+// the platform-admin default, the bundled gateway): a mismatch would split them, so the service refuses to start.
+func TestNewServiceRefusesAnOrganizationOtherThanTheConfiguredOne(t *testing.T) {
+	path := writeFile(t, "users.yaml", `
+organization: {handle: default, uuid: 01900000-0000-7000-8000-000000000001}
+users:
+  - {username: alice, passwordHash: "`+bcryptHash(t)+`", roles: ["`+rbac.RoleAdmin+`"]}
+`)
+	cfg := &config.Config{AuthMode: config.AuthModeFile}
+	cfg.FileAuth.UsersPath = path
+	cfg.DefaultOrg = config.DefaultOrgConfig{OUID: config.DefaultTrialOrgOUID, Handle: "default"}
+	_, err := NewService(cfg, slog.Default())
+	require.ErrorContains(t, err, "DEFAULT_ORG_OU_ID")
+
+	cfg.DefaultOrg = config.DefaultOrgConfig{OUID: "01900000-0000-7000-8000-000000000001", Handle: "acme"}
+	_, err = NewService(cfg, slog.Default())
+	require.ErrorContains(t, err, "DEFAULT_ORG_HANDLE")
+
+	// The same organization, in another case, gets past the check (and fails later on the missing signing key).
+	cfg.DefaultOrg = config.DefaultOrgConfig{OUID: "01900000-0000-7000-8000-000000000001", Handle: "default"}
+	cfg.DefaultOrg.OUID = strings.ToUpper(cfg.DefaultOrg.OUID)
+	_, err = NewService(cfg, slog.Default())
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "DEFAULT_ORG")
 }

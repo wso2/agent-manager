@@ -65,7 +65,7 @@ func WaitForAPIReady(cfg *Config) {
 
 // VerifyDefaultOrg verifies the default organization exists.
 func VerifyDefaultOrg(client *AMPClient, orgName string) {
-	resp, err := client.Get("/api/v1/orgs")
+	resp, err := client.Get("/api/v1/organizations")
 	Expect(err).NotTo(HaveOccurred(), "list orgs")
 	defer resp.Body.Close()
 	Expect(resp.StatusCode).To(Equal(http.StatusOK), "list orgs status")
