@@ -215,29 +215,39 @@ func externalLockOwner() (string, error) {
 
 // externalPlanReady runs externalReady for each module installing name would
 // activate, before the lifecycle transaction, so a slow store never holds the
-// generation lock. It returns the modules it checked.
-func (h *Host) externalPlanReady(ctx context.Context, name string, withDeps bool) (map[string]bool, error) {
+// generation lock. It returns the modules it checked, and the active modules
+// Reload would leave out for their store.
+func (h *Host) externalPlanReady(ctx context.Context, name string, withDeps bool) (map[string]bool, map[string]error, error) {
 	rows, err := loadRows(h.db.WithContext(ctx))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	states := h.effectiveStates(rows)
 	if states[name] == StateActive {
 		// The transaction refuses it.
-		return map[string]bool{}, nil
+		return map[string]bool{}, nil, nil
 	}
 	steps, err := Plan(name, h.manifests, states, withDeps)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	checked := make(map[string]bool, len(steps))
 	for _, s := range steps {
 		if err := h.externalReady(ctx, s.Module); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		checked[s.Module] = true
 	}
-	return checked, nil
+	return checked, h.externalUnready(ctx, states, h.current().active), nil
+}
+
+// leftOut is the active modules Reload would leave out for their store.
+func (h *Host) leftOut(ctx context.Context) (map[string]error, error) {
+	rows, err := loadRows(h.db.WithContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return h.externalUnready(ctx, h.effectiveStates(rows), h.current().active), nil
 }
 
 // externalUnready runs externalReady for each active module not in loaded

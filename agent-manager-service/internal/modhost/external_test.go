@@ -528,3 +528,39 @@ func TestCheckExternalSchemaWaitsForPendingFiles(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, next.CheckExternalSchema(ctx))
 }
+
+// Install refuses a module whose required provider this replica leaves out
+// for its store, as the Reload after it would leave the module out too.
+func TestInstallRefusesAModuleWhoseProviderIsLeftOut(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store := &fakeStore{records: map[string]string{}}
+	provider := newExternal(store, externalFiles("001_spans.sql"), true, true)
+	provider.manifest.Provides = []string{"x/v1"}
+	provider.activate = func(rt modkit.Runtime) error {
+		rt.Provide("x/v1", struct{}{})
+		return nil
+	}
+	consumer := &testModule{manifest: manifest("t-consumer", []string{"x/v1"}, nil)}
+	mods := []modkit.Module{provider, consumer}
+	d := databases(t)[0]
+	hctx, stop := context.WithCancel(ctx)
+	h, g := replica(t, hctx, d, mods)
+	_, err := h.Install(ctx, "t-ext", false)
+	require.NoError(t, err)
+	stop()
+
+	store.mu.Lock()
+	store.down = true
+	store.mu.Unlock()
+	h2 := modhost.NewWith(g, d.driver, quiet, mods)
+	require.NoError(t, h2.Boot(ctx))
+	require.NotContains(t, h2.Active(), "t-ext")
+
+	_, err = h2.Install(ctx, "t-consumer", false)
+	var re *modhost.ResolveError
+	require.ErrorAs(t, err, &re)
+	assert.Contains(t, re.Msg, "t-consumer failed to activate")
+	assert.Contains(t, re.Hint, "t-ext left out")
+	assert.Zero(t, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-consumer'`), "nothing is committed")
+}

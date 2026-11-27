@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
 	"sort"
@@ -555,12 +556,18 @@ func (h *Host) commit(rt *runtime, v *view) error {
 
 // trial activates the module set next would produce and reports the first
 // of targets that would not activate, so a lifecycle change that leaves a
-// module recorded active but not running is refused instead of committed.
-func (h *Host) trial(ctx context.Context, next map[string]string, targets []string) (*view, error) {
-	v, failed := h.buildView(ctx, next)
+// module recorded active but not running is refused instead of committed. It
+// leaves out the modules of left, as Reload does.
+func (h *Host) trial(ctx context.Context, next map[string]string, targets []string, left map[string]error) (*view, error) {
+	v, failed := h.buildView(ctx, without(next, left))
 	for _, name := range targets {
 		if err := failed[name]; err != nil {
-			return nil, &ResolveError{Msg: fmt.Sprintf("%s failed to activate: %v", name, err)}
+			re := &ResolveError{Msg: fmt.Sprintf("%s failed to activate: %v", name, err)}
+			if len(left) > 0 {
+				names := slices.Sorted(maps.Keys(left))
+				re.Hint = strings.Join(names, ", ") + " left out until their store is usable"
+			}
+			return nil, re
 		}
 	}
 	// Nor may it stop a module that runs now, as a newcomer claiming an MCP
@@ -630,7 +637,7 @@ func setState(tx *gorm.DB, name, version, state string) (bool, error) {
 // committed unless every installed module activates. A failed catch-up
 // (OnInstall) is returned with the steps: the modules stay installed.
 func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step, error) {
-	checked, err := h.externalPlanReady(ctx, name, withDeps)
+	checked, left, err := h.externalPlanReady(ctx, name, withDeps)
 	if err != nil {
 		return nil, err
 	}
@@ -659,7 +666,7 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 		for _, s := range steps {
 			targets = append(targets, s.Module)
 		}
-		trial, err = h.trial(ctx, withActive(states, targets...), targets)
+		trial, err = h.trial(ctx, withActive(states, targets...), targets, left)
 		return err
 	})
 	if err != nil {
@@ -686,6 +693,10 @@ func (h *Host) Enable(ctx context.Context, name string) error {
 	if err := h.externalReady(ctx, name); err != nil {
 		return err
 	}
+	left, err := h.leftOut(ctx)
+	if err != nil {
+		return err
+	}
 	return h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
 		if states[name] != StateDisabled {
 			return &ResolveError{Msg: fmt.Sprintf("%s is %s, not disabled", name, stateOf(name, states))}
@@ -702,7 +713,7 @@ func (h *Host) Enable(ctx context.Context, name string) error {
 		if _, err := setState(tx, name, h.manifests[name].Version, StateActive); err != nil {
 			return err
 		}
-		_, err := h.trial(ctx, withActive(states, name), []string{name})
+		_, err := h.trial(ctx, withActive(states, name), []string{name}, left)
 		return err
 	})
 }
