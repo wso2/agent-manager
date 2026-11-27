@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -588,14 +589,9 @@ func appendMCPIdentityAuthPolicies(policies []models.MCPPolicy, security *models
 		return policies
 	}
 
-	// Invert scope->tools into one mcp-authz rule per tool. ONE rule per tool is
-	// load-bearing: the gateway ANDs multiple matching rules together but ORs the
-	// scopes inside a rule (checkScopes in wso2/gateway-controllers
-	// policies/mcp-authz/mcp-authz.go:515 passes on the FIRST matching token
-	// scope). A tool covered by several scopes must therefore carry them all in
-	// a single rule's requiredScopes. NOTE: that policy's definition YAML
-	// *describes* all-of semantics; the shipped code is any-of. Re-verify on any
-	// gateway policy version bump.
+	// The v1 gateway policy requires every matching rule to pass and accepts any
+	// listed scope within a rule. Emit one rule per tool and scope so a caller
+	// must hold every scope assigned to the tool.
 	toolScopes := map[string][]string{}
 	scopeSet := map[string]struct{}{}
 	for _, sc := range scopes {
@@ -614,7 +610,9 @@ func appendMCPIdentityAuthPolicies(policies []models.MCPPolicy, security *models
 	for _, tool := range toolNames {
 		reqs := toolScopes[tool]
 		sort.Strings(reqs)
-		toolRules = append(toolRules, map[string]interface{}{"name": tool, "requiredScopes": reqs})
+		for _, scope := range slices.Compact(reqs) {
+			toolRules = append(toolRules, map[string]interface{}{"name": tool, "requiredScopes": []string{scope}})
+		}
 	}
 
 	authParams := map[string]interface{}{

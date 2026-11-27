@@ -740,7 +740,7 @@ func TestGenerateMCPProxyDeploymentYAML_UpstreamURLPassthrough(t *testing.T) {
 
 // TestAppendMCPIdentityAuthPolicies_InvertsScopesToPerToolRules covers the Agent Identity
 // policy emission: mcp-auth (pinned issuer + the advertised scope union) plus one mcp-authz
-// rule per tool, inverted from the proxy's scope->tools rows.
+// rule per tool and scope, inverted from the proxy's scope->tools rows.
 func TestAppendMCPIdentityAuthPolicies_InvertsScopesToPerToolRules(t *testing.T) {
 	sec := identityEnabledSecurity()
 	scopes := []models.MCPProxyScope{
@@ -760,7 +760,8 @@ func TestAppendMCPIdentityAuthPolicies_InvertsScopesToPerToolRules(t *testing.T)
 	rules := authz.Params["tools"].([]map[string]interface{})
 	assert.Equal(t, []map[string]interface{}{
 		{"name": "delete_repo", "requiredScopes": []string{"gh-proxy:admin"}},
-		{"name": "get_repo", "requiredScopes": []string{"gh-proxy:admin", "gh-proxy:read"}},
+		{"name": "get_repo", "requiredScopes": []string{"gh-proxy:admin"}},
+		{"name": "get_repo", "requiredScopes": []string{"gh-proxy:read"}},
 		{"name": "list_repos", "requiredScopes": []string{"gh-proxy:read"}},
 	}, rules)
 }

@@ -103,8 +103,8 @@ type AfterLiveHook interface {
 	AfterLive(ctx context.Context, tx *gorm.DB, placement models.Placement, deploymentID uuid.UUID) error
 }
 
-// DriftChecker reports whether a DEPLOYED placement's inputs moved since it was rendered. The worker's drift loop
-// asks it and marks a drifted placement for a re-render.
+// DriftChecker reports whether a placement needs a fresh render. The worker's drift loop asks it and queues
+// a re-render when needed.
 type DriftChecker interface {
 	Drifted(ctx context.Context, placement models.Placement) (reason string, drifted bool, err error)
 }

@@ -28,9 +28,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -149,6 +151,130 @@ func TestMCPScopeChangeReRendersInline(t *testing.T) {
 	pulled, err := f.sync.repo.GetPullable(context.Background(), f.sync.ouID, f.artifact, gateway.String())
 	require.NoError(t, err)
 	assert.Contains(t, string(pulled.Content), "get_forecast")
+}
+
+func TestMCPWorkerRefreshesExistingToolScopePolicies(t *testing.T) {
+	f := newMCPFixture(t)
+	ctx := t.Context()
+	database := db.GetDB()
+	endpoint := &f.proxy.Endpoints[0]
+	endpoint.Configuration.Security = identityEnabledSecurity()
+	endpoint.Configuration.Upstream.Auth = nil
+	require.NoError(t, database.Model(endpoint).Update("configuration", endpoint.Configuration).Error)
+	const tool = "get_forecast"
+	scopes := []models.MCPProxyScope{
+		{MCPProxyUUID: f.proxy.UUID, Action: "read", Tools: []string{tool}},
+		{MCPProxyUUID: f.proxy.UUID, Action: "review", Tools: []string{tool}},
+	}
+	require.NoError(t, database.Create(&scopes).Error)
+	read, review := scopes[0].ScopeString(mcpSourceHandle(f.proxy)), scopes[1].ScopeString(mcpSourceHandle(f.proxy))
+
+	ref := models.ArtifactRef{ArtifactUUID: f.artifact, OUID: f.sync.ouID, Kind: models.KindMCPMapping}
+	current, err := f.svc.kind.Render(ctx, ref)
+	require.NoError(t, err)
+	var legacy MCPProxyDeploymentYAML
+	require.NoError(t, yaml.Unmarshal(current.Content, &legacy))
+	authz := findMCPPolicy(legacy.Spec.Policies, mcpAuthzPolicyName)
+	require.NotNil(t, authz)
+	authz.Params["tools"] = []map[string]any{{"name": tool, "requiredScopes": []string{read, review}}}
+	legacyContent, err := yaml.Marshal(legacy)
+	require.NoError(t, err)
+
+	type placement struct {
+		models.Placement
+		originalID uuid.UUID
+	}
+	seed := func(content []byte, ack string) placement {
+		t.Helper()
+		gateway := f.mapGateway(t, f.env)
+		t.Cleanup(func() {
+			database.Exec("DELETE FROM eventhub_gateway_states WHERE gateway_id = ?", gateway.String())
+		})
+		p := models.Placement{ArtifactRef: ref, GatewayUUID: gateway}
+		deployment := &models.Deployment{Name: current.Name, Content: content}
+		require.NoError(t, database.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			return f.sync.repo.StartDeploy(ctx, tx, p, deployment)
+		}))
+		if ack != "" {
+			applied, err := f.sync.repo.ApplyAck(ctx, gateway.String(), models.DeploymentAck{
+				DeploymentID: deployment.DeploymentID.String(), Action: models.DeploymentAckActionDeploy, Status: ack,
+			}, nil)
+			require.NoError(t, err)
+			require.True(t, applied)
+		}
+		return placement{Placement: p, originalID: deployment.DeploymentID}
+	}
+	deployed := seed(legacyContent, models.DeploymentAckStatusSuccess)
+	inProgress := seed(legacyContent, "")
+	failed := seed(legacyContent, models.DeploymentAckStatusFailed)
+	alreadyCurrent := seed(current.Content, models.DeploymentAckStatusSuccess)
+	removed := seed(legacyContent, models.DeploymentAckStatusSuccess)
+	_, err = f.sync.repo.BeginUndeploy(ctx, nil, removed.Placement)
+	require.NoError(t, err)
+
+	logger := slog.New(slog.DiscardHandler)
+	hub, err := eventhub.NewSQLBackend(database, logger, eventhub.DefaultSQLBackendConfig())
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, hub.Close()) })
+	core := reconcile.NewCore(database, f.sync.repo, hub, reconcile.Kinds{f.svc.kind}, reconcile.Config{
+		RenderInterval: 10 * time.Millisecond, PlaceInterval: time.Hour, DriftInterval: time.Second,
+		Lease: time.Minute, AttemptBudget: 3,
+	}, logger)
+	worker := reconcile.NewWorker(core, logger)
+	require.NoError(t, worker.Start(ctx))
+	t.Cleanup(func() { assert.NoError(t, worker.Stop()) })
+
+	refresh := []placement{deployed, inProgress, failed}
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		for _, p := range refresh {
+			row, err := f.sync.repo.GetStatusRecord(ctx, p.Placement)
+			if assert.NoError(c, err) && assert.NotNil(c, row) && assert.NotNil(c, row.DeploymentID) {
+				assert.NotEqual(c, p.originalID, *row.DeploymentID)
+			}
+		}
+	}, 8*time.Second, 25*time.Millisecond)
+	require.NoError(t, worker.Stop())
+
+	for _, p := range refresh {
+		pulled, err := f.sync.repo.GetPullable(ctx, p.OUID, p.ArtifactUUID, p.GatewayUUID.String())
+		require.NoError(t, err)
+		require.NotNil(t, pulled)
+		assert.Equal(t, current.Content, pulled.Content)
+		var eventData string
+		require.NoError(t, database.Raw(`SELECT event_data FROM eventhub_events
+			WHERE gateway_id = ? AND entity_type = 'mcpproxy.deployed' AND entity_id = ?`,
+			p.GatewayUUID.String(), p.ArtifactUUID.String()).Scan(&eventData).Error)
+		assert.Equal(t, pulled.DeploymentID.String(), eventPayload(t, eventData)["deploymentId"])
+		applied, err := f.sync.repo.ApplyAck(ctx, p.GatewayUUID.String(), models.DeploymentAck{
+			DeploymentID: pulled.DeploymentID.String(), Action: models.DeploymentAckActionDeploy, Status: models.DeploymentAckStatusSuccess,
+		}, nil)
+		require.NoError(t, err)
+		require.True(t, applied)
+	}
+	pulled, err := f.sync.svc.GetActiveMCPProxyDeploymentByGateway(ctx, ref.ArtifactUUID.String(), ref.OUID, deployed.GatewayUUID.String())
+	require.NoError(t, err)
+	var refreshed MCPProxyDeploymentYAML
+	require.NoError(t, yaml.Unmarshal([]byte(pulled[ref.ArtifactUUID.String()]), &refreshed))
+	refreshedPolicy := findMCPPolicy(refreshed.Spec.Policies, mcpAuthzPolicyName)
+	require.NotNil(t, refreshedPolicy)
+	assert.Equal(t, []any{
+		map[string]any{"name": tool, "requiredScopes": []any{read}},
+		map[string]any{"name": tool, "requiredScopes": []any{review}},
+	}, refreshedPolicy.Params["tools"])
+
+	_, err = worker.CheckDrift(ctx)
+	require.NoError(t, err)
+	for _, p := range refresh {
+		row := f.mcpRow(t, p.GatewayUUID)
+		assert.Equal(t, models.DeploymentStatusDeployed, row.Status)
+		assert.Nil(t, row.NextAttemptAt, "a refreshed placement stays settled")
+	}
+	for _, p := range []placement{alreadyCurrent, removed} {
+		row := f.mcpRow(t, p.GatewayUUID)
+		assert.Equal(t, p.originalID, *row.DeploymentID)
+		assert.Nil(t, row.NextAttemptAt)
+	}
+	assert.Equal(t, models.DeploymentStatusUndeployed, f.mcpRow(t, removed.GatewayUUID).StatusDesired)
 }
 
 // A scope change whose configuration doesn't render reaches the caller, and no gateway is sent anything.
