@@ -96,8 +96,6 @@ var _ = Describe("Project LLM proxies:", Label("llm-provider", "llm-proxy"), Ord
 			ids = append(ids, l.UUID)
 		}
 		Expect(ids).To(ContainElement(p.UUID))
-		byProvider := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/llm-providers/%s/llm-proxies", providerID), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(byProvider, "proxies"), "uuid")).To(ContainElement(p.UUID))
 
 		desc := "updated"
 		updated := llmproxy.UpdateLLMProxy(Default, Client, Cfg.DefaultOrg, proj, proxyID, framework.UpdateLLMProxyRequest{
@@ -169,7 +167,7 @@ var _ = Describe("Project LLM proxies:", Label("llm-provider", "llm-proxy"), Ord
 		agentProxy := cfg.Status.ProxyUuid
 		Expect(agentProxy).NotTo(BeEmpty())
 
-		consumers := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/llm-providers/%s/consumers", providerID), nil, http.StatusOK)
+		consumers := framework.CallObj(Default, Client, http.MethodGet, "/m/ai-gateway/llm-providers/"+providerID+"/consumers", nil, http.StatusOK)
 		Expect(consumers["total"]).To(BeNumerically(">=", 1))
 		Expect(cliagent.ListAgentLLM(Default, H, H.Org(), proj, agentName).Names()).To(ContainElement(configName))
 

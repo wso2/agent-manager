@@ -98,14 +98,16 @@ func runCreate(ctx context.Context, o *CreateOptions) error {
 	}
 
 	body := amsvc.CreateProjectJSONRequestBody{
-		Name:        o.Name,
-		DisplayName: o.DisplayName,
+		ApiVersion: amsvc.ProjectDocumentApiVersionAiControlPlaneChoreolabsComv1,
+		Kind:       amsvc.ProjectDocumentKindProject,
+		Metadata:   amsvc.DocumentMetadata{Name: o.Name},
+		Spec:       amsvc.ProjectSpec{DisplayName: o.DisplayName},
 	}
 	if o.Description != "" {
-		body.Description = &o.Description
+		body.Spec.Description = &o.Description
 	}
 
-	resp, err := client.CreateProjectWithResponse(ctx, o.Org, body)
+	resp, err := client.CreateProjectWithResponse(ctx, body)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

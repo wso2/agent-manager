@@ -72,7 +72,7 @@ const noAgents = { data: { agents: [] }, isSuccess: true, isFetching: false };
 beforeEach(() => {
   hoisted.canWriteProject = true;
   hoisted.canCreateAgent = true;
-  hoisted.project = { data: { name: "shop", displayName: "Shop", description: "Storefront agents" }, isLoading: false };
+  hoisted.project = { data: { metadata: { name: "shop" }, spec: { displayName: "Shop", description: "Storefront agents" } }, isLoading: false };
   hoisted.agents = someAgents;
   hoisted.panelProps = [];
 });

@@ -38,8 +38,8 @@ func TestShouldAuditByMethod(t *testing.T) {
 		{"ordinary get is not audited", http.MethodGet, "/orgs/{orgName}/projects", false},
 		{"head is not audited", http.MethodHead, "/orgs/{orgName}/projects", false},
 		{"options is not audited", http.MethodOptions, "/orgs/{orgName}/projects", false},
-		{"sensitive get is audited", http.MethodGet, "/orgs/{orgName}/identities/permissions", true},
-		{"exempt write is not audited", http.MethodPost, "/orgs/{orgName}/utils/generate-name", false},
+		{"sensitive get is audited", http.MethodGet, "/identities/permissions", true},
+		{"exempt write is not audited", http.MethodPost, "/utils/generate-name", false},
 	}
 
 	for _, tt := range tests {
@@ -69,7 +69,7 @@ func TestDeriveAction(t *testing.T) {
 		{
 			name:   "override wins over the permission",
 			method: http.MethodPost,
-			path:   "/orgs/{orgName}/identities/roles/{roleID}/permissions/add",
+			path:   "/identities/roles/{roleID}/permissions/add",
 			perms:  []rbac.Permission{rbac.RoleUpdate},
 			want:   "role:grant-permission",
 		},

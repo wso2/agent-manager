@@ -33,6 +33,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtrack"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -62,7 +63,6 @@ type LLMController interface {
 	// Proxy handlers
 	CreateLLMProxy(w http.ResponseWriter, r *http.Request)
 	ListLLMProxies(w http.ResponseWriter, r *http.Request)
-	ListLLMProxiesByProvider(w http.ResponseWriter, r *http.Request)
 	GetLLMProxy(w http.ResponseWriter, r *http.Request)
 	UpdateLLMProxy(w http.ResponseWriter, r *http.Request)
 	DeleteLLMProxy(w http.ResponseWriter, r *http.Request)
@@ -123,64 +123,50 @@ func (c *llmController) resolveProjectUUID(ctx context.Context, ouID, projectNam
 
 // ---- Template Handlers ----
 
+// CreateLLMProviderTemplate handles POST /m/ai-gateway/llm-provider-templates.
 func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := modkit.OrgID(r.Context())
+	ouID := modkit.OrgID(ctx)
 
-	var req gwspec.CreateLLMProviderTemplateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("CreateLLMProviderTemplate: failed to decode request", "error", err)
+	var doc gwspec.LlmProviderTemplateDocument
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxDocumentBytes)).Decode(&doc); err != nil {
+		log.Error("CreateLLMProviderTemplate: failed to decode the document", "ouID", ouID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-
-	// Convert spec request to model
-	template := gwconv.ConvertSpecToModelLLMProviderTemplate(&req, ouID)
+	template, err := gwconv.LLMProviderTemplateFromDocument(doc, ouID)
+	if err != nil {
+		writeDocumentError(w, ctx, "CreateLLMProviderTemplate", ouID, err)
+		return
+	}
 
 	created, err := c.templateService.Create(ouID, "system", template)
 	if err != nil {
 		switch {
 		case errors.Is(err, gwerr.ErrSystemTemplateOverride):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "Cannot use handle of built-in template")
-			return
 		case errors.Is(err, gwerr.ErrLLMProviderTemplateExists):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "LLM provider template already exists")
-			return
 		case errors.Is(err, httpx.ErrInvalidInput):
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
-			return
 		default:
 			log.Error("CreateLLMProviderTemplate: failed to create template", "error", err)
 			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider template")
-			return
 		}
+		return
 	}
 
-	// Convert model response to spec
-	response := gwconv.ConvertModelToSpecLLMProviderTemplateResponse(created)
-	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, gwconv.LLMProviderTemplateDocument(created))
 }
 
+// ListLLMProviderTemplates handles GET /m/ai-gateway/llm-provider-templates.
 func (c *llmController) ListLLMProviderTemplates(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := modkit.OrgID(r.Context())
+	ouID := modkit.OrgID(ctx)
 
-	// Parse pagination parameters
-	limit := getIntQueryParam(r, "limit", 20)
-	offset := getIntQueryParam(r, "offset", 0)
-
-	// Validate and cap limit
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	if offset < 0 {
-		offset = 0
-	}
+	limit, offset := listBounds(r)
 
 	templates, totalCount, err := c.templateService.List(ouID, limit, offset)
 	if err != nil {
@@ -189,21 +175,10 @@ func (c *llmController) ListLLMProviderTemplates(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Convert models to spec responses
-	specTemplates := make([]gwspec.LLMProviderTemplateResponse, len(templates))
-	for i, t := range templates {
-		specTemplates[i] = gwconv.ConvertModelToSpecLLMProviderTemplateResponse(t)
-	}
-
-	resp := gwspec.LLMProviderTemplateListResponse{
-		Templates: specTemplates,
-		Total:     int32(totalCount),
-		Limit:     int32(limit),
-		Offset:    int32(offset),
-	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, gwconv.LLMProviderTemplateList(templates, limit, offset, totalCount))
 }
 
+// GetLLMProviderTemplate handles GET /m/ai-gateway/llm-provider-templates/{templateId}.
 func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -226,38 +201,33 @@ func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	// Convert model to spec response
-	response := gwconv.ConvertModelToSpecLLMProviderTemplateResponse(template)
-	httpx.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, gwconv.LLMProviderTemplateDocument(template))
 }
 
+// UpdateLLMProviderTemplate handles PUT /m/ai-gateway/llm-provider-templates/{templateId}; the spec is replaced.
 func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := modkit.OrgID(r.Context())
+	ouID := modkit.OrgID(ctx)
 	templateID := r.PathValue(gwutil.PathParamTemplateId)
 
-	var req gwspec.UpdateLLMProviderTemplateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("UpdateLLMProviderTemplate: failed to decode request", "error", err)
+	var doc gwspec.LlmProviderTemplateDocument
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxDocumentBytes)).Decode(&doc); err != nil {
+		log.Error("UpdateLLMProviderTemplate: failed to decode the document", "ouID", ouID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-
-	// Convert spec request to model - create minimal template with only updatable fields
-	template := &gwspec.CreateLLMProviderTemplateRequest{
-		Id:               templateID,
-		Name:             gwconv.GetOrDefault(req.Name, ""),
-		Description:      req.Description,
-		Metadata:         req.Metadata,
-		PromptTokens:     req.PromptTokens,
-		CompletionTokens: req.CompletionTokens,
-		TotalTokens:      req.TotalTokens,
-		RemainingTokens:  req.RemainingTokens,
-		RequestModel:     req.RequestModel,
-		ResponseModel:    req.ResponseModel,
+	modelTemplate, err := gwconv.LLMProviderTemplateFromDocument(doc, ouID)
+	if err != nil {
+		writeDocumentError(w, ctx, "UpdateLLMProviderTemplate", ouID, err)
+		return
 	}
-	modelTemplate := gwconv.ConvertSpecToModelLLMProviderTemplate(template, ouID)
+	if doc.Metadata.Name != templateID {
+		log.Warn("UpdateLLMProviderTemplate: metadata.name does not match the template", "ouID", ouID,
+			"templateID", templateID, "metadataName", doc.Metadata.Name)
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "metadata.name does not match the LLM provider template in the path")
+		return
+	}
 
 	updated, err := c.templateService.Update(ouID, templateID, modelTemplate)
 	if err != nil {
@@ -278,11 +248,10 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 		}
 	}
 
-	// Convert model to spec response
-	response := gwconv.ConvertModelToSpecLLMProviderTemplateResponse(updated)
-	httpx.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, gwconv.LLMProviderTemplateDocument(updated))
 }
 
+// DeleteLLMProviderTemplate handles DELETE /m/ai-gateway/llm-provider-templates/{templateId}.
 func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -341,7 +310,7 @@ func writeCreateLLMProviderError(w http.ResponseWriter, r *http.Request, ouID, t
 	}
 }
 
-// ListAvailableLLMPolicies handles GET /orgs/{orgName}/llm-providers/policies.
+// ListAvailableLLMPolicies handles GET /m/ai-gateway/llm-providers/policies.
 func (c *llmController) ListAvailableLLMPolicies(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -509,6 +478,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 					"ouID", ouID, "gatewayID", result.GatewayID, "error", result.Error)
 			}
 		}
+		emitPlacementEvents(ctx, created, resp.Deployments, nil)
 	} else {
 		created, err = c.providerService.Create(ctx, ouID, "system", provider)
 		if err != nil {
@@ -704,6 +674,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 				log.Warn("UpdateLLMProvider: undeployment failed for gateway", "ouID", ouID, "gatewayID", result.GatewayID, "error", result.Error)
 			}
 		}
+		emitPlacementEvents(ctx, updated, resp.Deployments, resp.Undeployments)
 		log.Info("UpdateLLMProvider: sync results",
 			"ouID", ouID,
 			"successfulDeployments", successDeployCount,
@@ -865,6 +836,28 @@ func (c *llmController) applyCatalog(
 	provider.InCatalog = *declared
 	provider.Artifact.InCatalog = *declared
 	return provider, nil
+}
+
+// emitPlacementEvents raises a deployed event for each gateway the provider was newly placed on, and
+// an undeployed event for each gateway it was taken off, next to the route's own event.
+func emitPlacementEvents(ctx context.Context, provider *gwmodels.LLMProvider, deployed, undeployed []gwsvc.DeploymentResult) {
+	data := func(gatewayID string) map[string]any {
+		d := map[string]any{"providerId": provider.UUID.String(), "gatewayId": gatewayID}
+		if provider.Artifact != nil {
+			d["provider"] = provider.Artifact.Handle
+		}
+		return d
+	}
+	for _, r := range deployed {
+		if r.Success && r.Placed {
+			modkit.EmitAlso(ctx, gwaudit.LLMProviderDeployed, data(r.GatewayID))
+		}
+	}
+	for _, r := range undeployed {
+		if r.Success {
+			modkit.EmitAlso(ctx, gwaudit.LLMProviderUndeployed, data(r.GatewayID))
+		}
+	}
 }
 
 // writeDocumentError maps a refused document to 400 and anything else to 500.
@@ -1042,58 +1035,6 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
-func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	ouID := modkit.OrgID(r.Context())
-	providerID := r.PathValue(gwutil.PathParamProviderId)
-
-	// Parse pagination parameters
-	limit := getIntQueryParam(r, "limit", 20)
-	offset := getIntQueryParam(r, "offset", 0)
-
-	// Validate and cap limit
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	proxies, totalCount, err := c.proxyService.ListByProvider(ouID, providerID, limit, offset)
-	if err != nil {
-		switch {
-		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
-			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
-			return
-		case errors.Is(err, httpx.ErrInvalidInput):
-			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
-			return
-		default:
-			log.Error("ListLLMProxiesByProvider: failed to list proxies", "error", err)
-			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM proxies")
-			return
-		}
-	}
-
-	// Convert models to spec responses
-	specProxies := make([]gwspec.LLMProxyResponse, len(proxies))
-	for i, p := range proxies {
-		specProxies[i] = gwconv.ConvertModelToSpecLLMProxyResponse(p)
-	}
-
-	resp := gwspec.LLMProxyListResponse{
-		Proxies: specProxies,
-		Total:   int32(totalCount),
-		Limit:   int32(limit),
-		Offset:  int32(offset),
-	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
-}
-
 func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -1248,7 +1189,7 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
-// ListLLMProviderConsumers handles GET /orgs/{ouID}/llm-providers/{providerId}/consumers
+// ListLLMProviderConsumers handles GET /m/ai-gateway/llm-providers/{providerId}/consumers.
 func (c *llmController) ListLLMProviderConsumers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)

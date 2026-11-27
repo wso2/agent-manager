@@ -232,60 +232,6 @@ func providerDeploymentEvent(p gwmodels.Placement, deploymentID string, performe
 	}
 }
 
-// UndeployLLMProviderDeployment undeploys a deployment
-func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID string) (*gwmodels.Deployment, error) {
-	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: starting", "providerID", providerID,
-		"deploymentID", deploymentID, "gatewayID", gatewayID, "ouID", ouID)
-
-	provider, err := s.resolveProvider(providerID, ouID)
-	if err != nil {
-		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get provider", "providerID", providerID, "error", err)
-		return nil, fmt.Errorf("failed to get provider: %w", err)
-	}
-	if provider == nil {
-		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: provider not found", "providerID", providerID)
-		return nil, gwerr.ErrLLMProviderNotFound
-	}
-
-	deployment, err := s.deploymentRepo.GetWithState(deploymentID, provider.UUID.String(), ouID)
-	if err != nil {
-		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get deployment", "providerID", providerID, "deploymentID", deploymentID, "error", err)
-		return nil, fmt.Errorf("failed to get deployment: %w", err)
-	}
-	if deployment == nil {
-		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not found", "providerID", providerID, "deploymentID", deploymentID)
-		return nil, gwerr.ErrDeploymentNotFound
-	}
-	if deployment.GatewayUUID.String() != gatewayID {
-		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: gateway ID mismatch", "providerID", providerID,
-			"deploymentID", deploymentID, "expectedGatewayID", gatewayID, "actualGatewayID", deployment.GatewayUUID.String())
-		return nil, gwerr.ErrGatewayIDMismatch
-	}
-	if deployment.Status == nil || *deployment.Status == gwmodels.DeploymentStatusArchived {
-		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not current", "providerID", providerID,
-			"deploymentID", deploymentID, "status", deployment.Status)
-		return nil, gwerr.ErrDeploymentNotActive
-	}
-
-	ctx := context.Background()
-	placement := providerPlacement(provider, ouID, deployment.GatewayUUID)
-	row, err := undeployAndRead(ctx, s.tx, s.core, s.deploymentRepo, placement)
-	if errors.Is(err, gwerr.ErrDeploymentNotActive) {
-		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not active", "providerID", providerID,
-			"deploymentID", deploymentID, "status", deployment.Status)
-		return nil, err
-	}
-	if err != nil {
-		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to undeploy", "providerID", providerID, "deploymentID", deploymentID, "error", err)
-		return nil, fmt.Errorf("failed to undeploy: %w", err)
-	}
-
-	deployment.SetStatusRow(row)
-	deployment.UpdatedAt = &row.PerformedAt
-	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: undeploy started", "providerID", providerID, "deploymentID", deploymentID)
-	return deployment, nil
-}
-
 // UndeployFromGateway undeploys the provider from a gateway it is placed on, whatever the placement's status.
 func (s *LLMProviderDeploymentService) UndeployFromGateway(ctx context.Context, provider *gwmodels.LLMProvider, ouID, gatewayID string) error {
 	gatewayUUID, err := uuid.Parse(gatewayID)
@@ -419,62 +365,6 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouI
 	}
 
 	return deployments, nil
-}
-
-// GetLLMProviderDeployment retrieves a specific deployment
-func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, deploymentID, ouID string) (*gwmodels.Deployment, error) {
-	// Get provider
-	provider, err := s.resolveProvider(providerID, ouID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get provider: %w", err)
-	}
-	if provider == nil {
-		return nil, gwerr.ErrLLMProviderNotFound
-	}
-
-	// Get deployment
-	deployment, err := s.deploymentRepo.GetWithState(deploymentID, provider.UUID.String(), ouID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get deployment: %w", err)
-	}
-	if deployment == nil {
-		return nil, gwerr.ErrDeploymentNotFound
-	}
-
-	return deployment, nil
-}
-
-// DeleteLLMProviderDeployment deletes a deployment
-func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, deploymentID, ouID string) error {
-	// Get provider
-	provider, err := s.resolveProvider(providerID, ouID)
-	if err != nil {
-		return fmt.Errorf("failed to get provider: %w", err)
-	}
-	if provider == nil {
-		return gwerr.ErrLLMProviderNotFound
-	}
-
-	// Get deployment
-	deployment, err := s.deploymentRepo.GetWithState(deploymentID, provider.UUID.String(), ouID)
-	if err != nil {
-		return fmt.Errorf("failed to get deployment: %w", err)
-	}
-	if deployment == nil {
-		return gwerr.ErrDeploymentNotFound
-	}
-	// The gateway is to serve the current deployment, or may still hold it; deleting it would drop its status row
-	// and orphan it there.
-	if deployment.Current() {
-		return gwerr.ErrDeploymentIsDeployed
-	}
-
-	// Delete deployment
-	if err := s.deploymentRepo.Delete(deploymentID, provider.UUID.String(), ouID); err != nil {
-		return fmt.Errorf("failed to delete deployment: %w", err)
-	}
-
-	return nil
 }
 
 // generateLLMProviderDeploymentYAML generates deployment YAML for an LLM provider

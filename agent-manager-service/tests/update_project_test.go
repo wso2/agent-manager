@@ -27,16 +27,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
-
-var testUpdateProjectOrgName = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
 
 func TestUpdateProject(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
@@ -45,13 +41,9 @@ func TestUpdateProject(t *testing.T) {
 		platformRepo := apitestutils.CreateMockPlatformRepository()
 		app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{PlatformRepository: platformRepo}, authMiddleware)
 
-		payload := spec.UpdateProjectRequest{
-			DisplayName:        "Updated Project",
-			Description:        "updated description",
-			DeploymentPipeline: stringPtr("new-pipeline"),
-		}
+		payload := projectDocument("my-project", "Updated Project", stringPtr("updated description"))
 		body, _ := json.Marshal(payload)
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/my-project", testUpdateProjectOrgName)
+		url := "/api/v1/projects/my-project"
 		req := httptest.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
@@ -70,9 +62,9 @@ func TestUpdateProject(t *testing.T) {
 		platformRepo := apitestutils.CreateMockPlatformRepository()
 		app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{PlatformRepository: platformRepo}, authMiddleware)
 
-		payload := spec.UpdateProjectRequest{DisplayName: "", Description: "d", DeploymentPipeline: stringPtr("new-pipeline")}
+		payload := projectDocument("my-project", "", stringPtr("d"))
 		body, _ := json.Marshal(payload)
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/my-project", testUpdateProjectOrgName)
+		url := "/api/v1/projects/my-project"
 		req := httptest.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
@@ -89,9 +81,9 @@ func TestUpdateProject(t *testing.T) {
 		}
 		app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{PlatformRepository: platformRepo}, authMiddleware)
 
-		payload := spec.UpdateProjectRequest{DisplayName: "Updated", Description: "d", DeploymentPipeline: stringPtr("new-pipeline")}
+		payload := projectDocument("my-project", "Updated", stringPtr("d"))
 		body, _ := json.Marshal(payload)
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects/my-project", testUpdateProjectOrgName)
+		url := "/api/v1/projects/my-project"
 		req := httptest.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()

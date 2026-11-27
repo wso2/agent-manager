@@ -45,8 +45,8 @@ func TestDelete_Success(t *testing.T) {
 	if captured.method != "DELETE" {
 		t.Errorf("method = %q, want DELETE", captured.method)
 	}
-	if captured.path != "/orgs/acme/projects/alpha" {
-		t.Errorf("path = %q, want /orgs/acme/projects/alpha", captured.path)
+	if captured.path != "/projects/alpha" {
+		t.Errorf("path = %q, want /projects/alpha", captured.path)
 	}
 	if prompter.calls != 1 {
 		t.Errorf("prompter calls = %d, want 1", prompter.calls)

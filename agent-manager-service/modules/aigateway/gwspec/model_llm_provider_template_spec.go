@@ -14,15 +14,13 @@ import (
 	"encoding/json"
 )
 
-// checks if the CreateLLMProviderTemplateRequest type satisfies the MappedNullable interface at compile time
-var _ MappedNullable = &CreateLLMProviderTemplateRequest{}
+// checks if the LlmProviderTemplateSpec type satisfies the MappedNullable interface at compile time
+var _ MappedNullable = &LlmProviderTemplateSpec{}
 
-// CreateLLMProviderTemplateRequest struct for CreateLLMProviderTemplateRequest
-type CreateLLMProviderTemplateRequest struct {
-	// Unique handle for the template
-	Id string `json:"id"`
-	// Human-readable LLM Template name
-	Name string `json:"name"`
+// LlmProviderTemplateSpec struct for LlmProviderTemplateSpec
+type LlmProviderTemplateSpec struct {
+	// Human-readable template name
+	DisplayName string `json:"displayName"`
 	// Description of the LLM provider template
 	Description      *string                      `json:"description,omitempty"`
 	Metadata         *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
@@ -34,75 +32,50 @@ type CreateLLMProviderTemplateRequest struct {
 	ResponseModel    *ExtractionIdentifier        `json:"responseModel,omitempty"`
 }
 
-// NewCreateLLMProviderTemplateRequest instantiates a new CreateLLMProviderTemplateRequest object
+// NewLlmProviderTemplateSpec instantiates a new LlmProviderTemplateSpec object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewCreateLLMProviderTemplateRequest(id string, name string) *CreateLLMProviderTemplateRequest {
-	this := CreateLLMProviderTemplateRequest{}
-	this.Id = id
-	this.Name = name
+func NewLlmProviderTemplateSpec(displayName string) *LlmProviderTemplateSpec {
+	this := LlmProviderTemplateSpec{}
+	this.DisplayName = displayName
 	return &this
 }
 
-// NewCreateLLMProviderTemplateRequestWithDefaults instantiates a new CreateLLMProviderTemplateRequest object
+// NewLlmProviderTemplateSpecWithDefaults instantiates a new LlmProviderTemplateSpec object
 // This constructor will only assign default values to properties that have it defined,
 // but it doesn't guarantee that properties required by API are set
-func NewCreateLLMProviderTemplateRequestWithDefaults() *CreateLLMProviderTemplateRequest {
-	this := CreateLLMProviderTemplateRequest{}
+func NewLlmProviderTemplateSpecWithDefaults() *LlmProviderTemplateSpec {
+	this := LlmProviderTemplateSpec{}
 	return &this
 }
 
-// GetId returns the Id field value
-func (o *CreateLLMProviderTemplateRequest) GetId() string {
+// GetDisplayName returns the DisplayName field value
+func (o *LlmProviderTemplateSpec) GetDisplayName() string {
 	if o == nil {
 		var ret string
 		return ret
 	}
 
-	return o.Id
+	return o.DisplayName
 }
 
-// GetIdOk returns a tuple with the Id field value
+// GetDisplayNameOk returns a tuple with the DisplayName field value
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetIdOk() (*string, bool) {
+func (o *LlmProviderTemplateSpec) GetDisplayNameOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.Id, true
+	return &o.DisplayName, true
 }
 
-// SetId sets field value
-func (o *CreateLLMProviderTemplateRequest) SetId(v string) {
-	o.Id = v
-}
-
-// GetName returns the Name field value
-func (o *CreateLLMProviderTemplateRequest) GetName() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.Name
-}
-
-// GetNameOk returns a tuple with the Name field value
-// and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetNameOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Name, true
-}
-
-// SetName sets field value
-func (o *CreateLLMProviderTemplateRequest) SetName(v string) {
-	o.Name = v
+// SetDisplayName sets field value
+func (o *LlmProviderTemplateSpec) SetDisplayName(v string) {
+	o.DisplayName = v
 }
 
 // GetDescription returns the Description field value if set, zero value otherwise.
-func (o *CreateLLMProviderTemplateRequest) GetDescription() string {
+func (o *LlmProviderTemplateSpec) GetDescription() string {
 	if o == nil || IsNil(o.Description) {
 		var ret string
 		return ret
@@ -112,7 +85,7 @@ func (o *CreateLLMProviderTemplateRequest) GetDescription() string {
 
 // GetDescriptionOk returns a tuple with the Description field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetDescriptionOk() (*string, bool) {
+func (o *LlmProviderTemplateSpec) GetDescriptionOk() (*string, bool) {
 	if o == nil || IsNil(o.Description) {
 		return nil, false
 	}
@@ -120,7 +93,7 @@ func (o *CreateLLMProviderTemplateRequest) GetDescriptionOk() (*string, bool) {
 }
 
 // HasDescription returns a boolean if a field has been set.
-func (o *CreateLLMProviderTemplateRequest) HasDescription() bool {
+func (o *LlmProviderTemplateSpec) HasDescription() bool {
 	if o != nil && !IsNil(o.Description) {
 		return true
 	}
@@ -129,12 +102,12 @@ func (o *CreateLLMProviderTemplateRequest) HasDescription() bool {
 }
 
 // SetDescription gets a reference to the given string and assigns it to the Description field.
-func (o *CreateLLMProviderTemplateRequest) SetDescription(v string) {
+func (o *LlmProviderTemplateSpec) SetDescription(v string) {
 	o.Description = &v
 }
 
 // GetMetadata returns the Metadata field value if set, zero value otherwise.
-func (o *CreateLLMProviderTemplateRequest) GetMetadata() LLMProviderTemplateMetadata {
+func (o *LlmProviderTemplateSpec) GetMetadata() LLMProviderTemplateMetadata {
 	if o == nil || IsNil(o.Metadata) {
 		var ret LLMProviderTemplateMetadata
 		return ret
@@ -144,7 +117,7 @@ func (o *CreateLLMProviderTemplateRequest) GetMetadata() LLMProviderTemplateMeta
 
 // GetMetadataOk returns a tuple with the Metadata field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetMetadataOk() (*LLMProviderTemplateMetadata, bool) {
+func (o *LlmProviderTemplateSpec) GetMetadataOk() (*LLMProviderTemplateMetadata, bool) {
 	if o == nil || IsNil(o.Metadata) {
 		return nil, false
 	}
@@ -152,7 +125,7 @@ func (o *CreateLLMProviderTemplateRequest) GetMetadataOk() (*LLMProviderTemplate
 }
 
 // HasMetadata returns a boolean if a field has been set.
-func (o *CreateLLMProviderTemplateRequest) HasMetadata() bool {
+func (o *LlmProviderTemplateSpec) HasMetadata() bool {
 	if o != nil && !IsNil(o.Metadata) {
 		return true
 	}
@@ -161,12 +134,12 @@ func (o *CreateLLMProviderTemplateRequest) HasMetadata() bool {
 }
 
 // SetMetadata gets a reference to the given LLMProviderTemplateMetadata and assigns it to the Metadata field.
-func (o *CreateLLMProviderTemplateRequest) SetMetadata(v LLMProviderTemplateMetadata) {
+func (o *LlmProviderTemplateSpec) SetMetadata(v LLMProviderTemplateMetadata) {
 	o.Metadata = &v
 }
 
 // GetPromptTokens returns the PromptTokens field value if set, zero value otherwise.
-func (o *CreateLLMProviderTemplateRequest) GetPromptTokens() ExtractionIdentifier {
+func (o *LlmProviderTemplateSpec) GetPromptTokens() ExtractionIdentifier {
 	if o == nil || IsNil(o.PromptTokens) {
 		var ret ExtractionIdentifier
 		return ret
@@ -176,7 +149,7 @@ func (o *CreateLLMProviderTemplateRequest) GetPromptTokens() ExtractionIdentifie
 
 // GetPromptTokensOk returns a tuple with the PromptTokens field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetPromptTokensOk() (*ExtractionIdentifier, bool) {
+func (o *LlmProviderTemplateSpec) GetPromptTokensOk() (*ExtractionIdentifier, bool) {
 	if o == nil || IsNil(o.PromptTokens) {
 		return nil, false
 	}
@@ -184,7 +157,7 @@ func (o *CreateLLMProviderTemplateRequest) GetPromptTokensOk() (*ExtractionIdent
 }
 
 // HasPromptTokens returns a boolean if a field has been set.
-func (o *CreateLLMProviderTemplateRequest) HasPromptTokens() bool {
+func (o *LlmProviderTemplateSpec) HasPromptTokens() bool {
 	if o != nil && !IsNil(o.PromptTokens) {
 		return true
 	}
@@ -193,12 +166,12 @@ func (o *CreateLLMProviderTemplateRequest) HasPromptTokens() bool {
 }
 
 // SetPromptTokens gets a reference to the given ExtractionIdentifier and assigns it to the PromptTokens field.
-func (o *CreateLLMProviderTemplateRequest) SetPromptTokens(v ExtractionIdentifier) {
+func (o *LlmProviderTemplateSpec) SetPromptTokens(v ExtractionIdentifier) {
 	o.PromptTokens = &v
 }
 
 // GetCompletionTokens returns the CompletionTokens field value if set, zero value otherwise.
-func (o *CreateLLMProviderTemplateRequest) GetCompletionTokens() ExtractionIdentifier {
+func (o *LlmProviderTemplateSpec) GetCompletionTokens() ExtractionIdentifier {
 	if o == nil || IsNil(o.CompletionTokens) {
 		var ret ExtractionIdentifier
 		return ret
@@ -208,7 +181,7 @@ func (o *CreateLLMProviderTemplateRequest) GetCompletionTokens() ExtractionIdent
 
 // GetCompletionTokensOk returns a tuple with the CompletionTokens field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetCompletionTokensOk() (*ExtractionIdentifier, bool) {
+func (o *LlmProviderTemplateSpec) GetCompletionTokensOk() (*ExtractionIdentifier, bool) {
 	if o == nil || IsNil(o.CompletionTokens) {
 		return nil, false
 	}
@@ -216,7 +189,7 @@ func (o *CreateLLMProviderTemplateRequest) GetCompletionTokensOk() (*ExtractionI
 }
 
 // HasCompletionTokens returns a boolean if a field has been set.
-func (o *CreateLLMProviderTemplateRequest) HasCompletionTokens() bool {
+func (o *LlmProviderTemplateSpec) HasCompletionTokens() bool {
 	if o != nil && !IsNil(o.CompletionTokens) {
 		return true
 	}
@@ -225,12 +198,12 @@ func (o *CreateLLMProviderTemplateRequest) HasCompletionTokens() bool {
 }
 
 // SetCompletionTokens gets a reference to the given ExtractionIdentifier and assigns it to the CompletionTokens field.
-func (o *CreateLLMProviderTemplateRequest) SetCompletionTokens(v ExtractionIdentifier) {
+func (o *LlmProviderTemplateSpec) SetCompletionTokens(v ExtractionIdentifier) {
 	o.CompletionTokens = &v
 }
 
 // GetTotalTokens returns the TotalTokens field value if set, zero value otherwise.
-func (o *CreateLLMProviderTemplateRequest) GetTotalTokens() ExtractionIdentifier {
+func (o *LlmProviderTemplateSpec) GetTotalTokens() ExtractionIdentifier {
 	if o == nil || IsNil(o.TotalTokens) {
 		var ret ExtractionIdentifier
 		return ret
@@ -240,7 +213,7 @@ func (o *CreateLLMProviderTemplateRequest) GetTotalTokens() ExtractionIdentifier
 
 // GetTotalTokensOk returns a tuple with the TotalTokens field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetTotalTokensOk() (*ExtractionIdentifier, bool) {
+func (o *LlmProviderTemplateSpec) GetTotalTokensOk() (*ExtractionIdentifier, bool) {
 	if o == nil || IsNil(o.TotalTokens) {
 		return nil, false
 	}
@@ -248,7 +221,7 @@ func (o *CreateLLMProviderTemplateRequest) GetTotalTokensOk() (*ExtractionIdenti
 }
 
 // HasTotalTokens returns a boolean if a field has been set.
-func (o *CreateLLMProviderTemplateRequest) HasTotalTokens() bool {
+func (o *LlmProviderTemplateSpec) HasTotalTokens() bool {
 	if o != nil && !IsNil(o.TotalTokens) {
 		return true
 	}
@@ -257,12 +230,12 @@ func (o *CreateLLMProviderTemplateRequest) HasTotalTokens() bool {
 }
 
 // SetTotalTokens gets a reference to the given ExtractionIdentifier and assigns it to the TotalTokens field.
-func (o *CreateLLMProviderTemplateRequest) SetTotalTokens(v ExtractionIdentifier) {
+func (o *LlmProviderTemplateSpec) SetTotalTokens(v ExtractionIdentifier) {
 	o.TotalTokens = &v
 }
 
 // GetRemainingTokens returns the RemainingTokens field value if set, zero value otherwise.
-func (o *CreateLLMProviderTemplateRequest) GetRemainingTokens() ExtractionIdentifier {
+func (o *LlmProviderTemplateSpec) GetRemainingTokens() ExtractionIdentifier {
 	if o == nil || IsNil(o.RemainingTokens) {
 		var ret ExtractionIdentifier
 		return ret
@@ -272,7 +245,7 @@ func (o *CreateLLMProviderTemplateRequest) GetRemainingTokens() ExtractionIdenti
 
 // GetRemainingTokensOk returns a tuple with the RemainingTokens field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetRemainingTokensOk() (*ExtractionIdentifier, bool) {
+func (o *LlmProviderTemplateSpec) GetRemainingTokensOk() (*ExtractionIdentifier, bool) {
 	if o == nil || IsNil(o.RemainingTokens) {
 		return nil, false
 	}
@@ -280,7 +253,7 @@ func (o *CreateLLMProviderTemplateRequest) GetRemainingTokensOk() (*ExtractionId
 }
 
 // HasRemainingTokens returns a boolean if a field has been set.
-func (o *CreateLLMProviderTemplateRequest) HasRemainingTokens() bool {
+func (o *LlmProviderTemplateSpec) HasRemainingTokens() bool {
 	if o != nil && !IsNil(o.RemainingTokens) {
 		return true
 	}
@@ -289,12 +262,12 @@ func (o *CreateLLMProviderTemplateRequest) HasRemainingTokens() bool {
 }
 
 // SetRemainingTokens gets a reference to the given ExtractionIdentifier and assigns it to the RemainingTokens field.
-func (o *CreateLLMProviderTemplateRequest) SetRemainingTokens(v ExtractionIdentifier) {
+func (o *LlmProviderTemplateSpec) SetRemainingTokens(v ExtractionIdentifier) {
 	o.RemainingTokens = &v
 }
 
 // GetRequestModel returns the RequestModel field value if set, zero value otherwise.
-func (o *CreateLLMProviderTemplateRequest) GetRequestModel() ExtractionIdentifier {
+func (o *LlmProviderTemplateSpec) GetRequestModel() ExtractionIdentifier {
 	if o == nil || IsNil(o.RequestModel) {
 		var ret ExtractionIdentifier
 		return ret
@@ -304,7 +277,7 @@ func (o *CreateLLMProviderTemplateRequest) GetRequestModel() ExtractionIdentifie
 
 // GetRequestModelOk returns a tuple with the RequestModel field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetRequestModelOk() (*ExtractionIdentifier, bool) {
+func (o *LlmProviderTemplateSpec) GetRequestModelOk() (*ExtractionIdentifier, bool) {
 	if o == nil || IsNil(o.RequestModel) {
 		return nil, false
 	}
@@ -312,7 +285,7 @@ func (o *CreateLLMProviderTemplateRequest) GetRequestModelOk() (*ExtractionIdent
 }
 
 // HasRequestModel returns a boolean if a field has been set.
-func (o *CreateLLMProviderTemplateRequest) HasRequestModel() bool {
+func (o *LlmProviderTemplateSpec) HasRequestModel() bool {
 	if o != nil && !IsNil(o.RequestModel) {
 		return true
 	}
@@ -321,12 +294,12 @@ func (o *CreateLLMProviderTemplateRequest) HasRequestModel() bool {
 }
 
 // SetRequestModel gets a reference to the given ExtractionIdentifier and assigns it to the RequestModel field.
-func (o *CreateLLMProviderTemplateRequest) SetRequestModel(v ExtractionIdentifier) {
+func (o *LlmProviderTemplateSpec) SetRequestModel(v ExtractionIdentifier) {
 	o.RequestModel = &v
 }
 
 // GetResponseModel returns the ResponseModel field value if set, zero value otherwise.
-func (o *CreateLLMProviderTemplateRequest) GetResponseModel() ExtractionIdentifier {
+func (o *LlmProviderTemplateSpec) GetResponseModel() ExtractionIdentifier {
 	if o == nil || IsNil(o.ResponseModel) {
 		var ret ExtractionIdentifier
 		return ret
@@ -336,7 +309,7 @@ func (o *CreateLLMProviderTemplateRequest) GetResponseModel() ExtractionIdentifi
 
 // GetResponseModelOk returns a tuple with the ResponseModel field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *CreateLLMProviderTemplateRequest) GetResponseModelOk() (*ExtractionIdentifier, bool) {
+func (o *LlmProviderTemplateSpec) GetResponseModelOk() (*ExtractionIdentifier, bool) {
 	if o == nil || IsNil(o.ResponseModel) {
 		return nil, false
 	}
@@ -344,7 +317,7 @@ func (o *CreateLLMProviderTemplateRequest) GetResponseModelOk() (*ExtractionIden
 }
 
 // HasResponseModel returns a boolean if a field has been set.
-func (o *CreateLLMProviderTemplateRequest) HasResponseModel() bool {
+func (o *LlmProviderTemplateSpec) HasResponseModel() bool {
 	if o != nil && !IsNil(o.ResponseModel) {
 		return true
 	}
@@ -353,11 +326,11 @@ func (o *CreateLLMProviderTemplateRequest) HasResponseModel() bool {
 }
 
 // SetResponseModel gets a reference to the given ExtractionIdentifier and assigns it to the ResponseModel field.
-func (o *CreateLLMProviderTemplateRequest) SetResponseModel(v ExtractionIdentifier) {
+func (o *LlmProviderTemplateSpec) SetResponseModel(v ExtractionIdentifier) {
 	o.ResponseModel = &v
 }
 
-func (o CreateLLMProviderTemplateRequest) MarshalJSON() ([]byte, error) {
+func (o LlmProviderTemplateSpec) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
 		return []byte{}, err
@@ -365,10 +338,9 @@ func (o CreateLLMProviderTemplateRequest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(toSerialize)
 }
 
-func (o CreateLLMProviderTemplateRequest) ToMap() (map[string]interface{}, error) {
+func (o LlmProviderTemplateSpec) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["id"] = o.Id
-	toSerialize["name"] = o.Name
+	toSerialize["displayName"] = o.DisplayName
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
 	}
@@ -396,38 +368,38 @@ func (o CreateLLMProviderTemplateRequest) ToMap() (map[string]interface{}, error
 	return toSerialize, nil
 }
 
-type NullableCreateLLMProviderTemplateRequest struct {
-	value *CreateLLMProviderTemplateRequest
+type NullableLlmProviderTemplateSpec struct {
+	value *LlmProviderTemplateSpec
 	isSet bool
 }
 
-func (v NullableCreateLLMProviderTemplateRequest) Get() *CreateLLMProviderTemplateRequest {
+func (v NullableLlmProviderTemplateSpec) Get() *LlmProviderTemplateSpec {
 	return v.value
 }
 
-func (v *NullableCreateLLMProviderTemplateRequest) Set(val *CreateLLMProviderTemplateRequest) {
+func (v *NullableLlmProviderTemplateSpec) Set(val *LlmProviderTemplateSpec) {
 	v.value = val
 	v.isSet = true
 }
 
-func (v NullableCreateLLMProviderTemplateRequest) IsSet() bool {
+func (v NullableLlmProviderTemplateSpec) IsSet() bool {
 	return v.isSet
 }
 
-func (v *NullableCreateLLMProviderTemplateRequest) Unset() {
+func (v *NullableLlmProviderTemplateSpec) Unset() {
 	v.value = nil
 	v.isSet = false
 }
 
-func NewNullableCreateLLMProviderTemplateRequest(val *CreateLLMProviderTemplateRequest) *NullableCreateLLMProviderTemplateRequest {
-	return &NullableCreateLLMProviderTemplateRequest{value: val, isSet: true}
+func NewNullableLlmProviderTemplateSpec(val *LlmProviderTemplateSpec) *NullableLlmProviderTemplateSpec {
+	return &NullableLlmProviderTemplateSpec{value: val, isSet: true}
 }
 
-func (v NullableCreateLLMProviderTemplateRequest) MarshalJSON() ([]byte, error) {
+func (v NullableLlmProviderTemplateSpec) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.value)
 }
 
-func (v *NullableCreateLLMProviderTemplateRequest) UnmarshalJSON(src []byte) error {
+func (v *NullableLlmProviderTemplateSpec) UnmarshalJSON(src []byte) error {
 	v.isSet = true
 	return json.Unmarshal(src, &v.value)
 }

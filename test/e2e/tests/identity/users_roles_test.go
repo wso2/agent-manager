@@ -200,14 +200,14 @@ var _ = Describe("Users, groups and custom roles", Label("identity"), Ordered, f
 		Expect(err).NotTo(HaveOccurred())
 		holder := framework.NewAMPClientWithToken(Cfg, persona.Token)
 
-		framework.Call(Default, holder, http.MethodGet, framework.API(Cfg, "/projects"), nil, http.StatusOK)
+		framework.Call(Default, holder, http.MethodGet, framework.Projects(""), nil, http.StatusOK)
 
 		denied := "e2e-test-denied-" + suffix
-		resp, err := holder.Post(framework.API(Cfg, "/projects"), framework.NewCreateProjectRequest(denied, "Denied", "", "default"))
+		resp, err := holder.Post(framework.Projects(""), framework.NewProjectDocument(denied, "Denied", ""))
 		Expect(err).NotTo(HaveOccurred())
 		framework.ExpectForbidden(Default, resp, "creating a project with a read-only role")
 		resp.Body.Close()
-		framework.CallError(Default, Client, http.MethodGet, framework.API(Cfg, "/projects/%s", denied), nil, http.StatusNotFound)
+		framework.CallError(Default, Client, http.MethodGet, framework.Projects("/%s", denied), nil, http.StatusNotFound)
 
 		// Neither may the holder widen its own role.
 		resp, err = holder.Post(id("/roles/%s/permissions/add", roleID),
@@ -231,7 +231,7 @@ var _ = Describe("Users, groups and custom roles", Label("identity"), Ordered, f
 			g.Expect(scopes).NotTo(HaveKey(allowedScope))
 		}).WithTimeout(15 * time.Second).WithPolling(time.Second).Should(Succeed())
 
-		resp, err := framework.NewAMPClientWithToken(Cfg, token).Get(framework.API(Cfg, "/projects"))
+		resp, err := framework.NewAMPClientWithToken(Cfg, token).Get(framework.Projects(""))
 		Expect(err).NotTo(HaveOccurred())
 		framework.ExpectForbidden(Default, resp, "listing projects after the permission was revoked")
 		resp.Body.Close()

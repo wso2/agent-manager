@@ -25,7 +25,6 @@ type IdentityRolesAPIService service
 type ApiCreateRoleRequest struct {
 	ctx               context.Context
 	ApiService        *IdentityRolesAPIService
-	orgName           string
 	createRoleRequest *CreateRoleRequest
 }
 
@@ -42,14 +41,12 @@ func (r ApiCreateRoleRequest) Execute() (*RoleResponse, *http.Response, error) {
 CreateRole Create a new role
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiCreateRoleRequest
 */
-func (a *IdentityRolesAPIService) CreateRole(ctx context.Context, orgName string) ApiCreateRoleRequest {
+func (a *IdentityRolesAPIService) CreateRole(ctx context.Context) ApiCreateRoleRequest {
 	return ApiCreateRoleRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -69,8 +66,7 @@ func (a *IdentityRolesAPIService) CreateRoleExecute(r ApiCreateRoleRequest) (*Ro
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/roles"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/roles"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -170,7 +166,6 @@ func (a *IdentityRolesAPIService) CreateRoleExecute(r ApiCreateRoleRequest) (*Ro
 type ApiDeleteRoleRequest struct {
 	ctx        context.Context
 	ApiService *IdentityRolesAPIService
-	orgName    string
 	roleId     string
 }
 
@@ -182,15 +177,13 @@ func (r ApiDeleteRoleRequest) Execute() (*http.Response, error) {
 DeleteRole Delete role
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param roleId Role ID
 	@return ApiDeleteRoleRequest
 */
-func (a *IdentityRolesAPIService) DeleteRole(ctx context.Context, orgName string, roleId string) ApiDeleteRoleRequest {
+func (a *IdentityRolesAPIService) DeleteRole(ctx context.Context, roleId string) ApiDeleteRoleRequest {
 	return ApiDeleteRoleRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		roleId:     roleId,
 	}
 }
@@ -208,8 +201,7 @@ func (a *IdentityRolesAPIService) DeleteRoleExecute(r ApiDeleteRoleRequest) (*ht
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/roles/{roleId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/roles/{roleId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"roleId"+"}", url.PathEscape(parameterValueToString(r.roleId, "roleId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -307,7 +299,6 @@ func (a *IdentityRolesAPIService) DeleteRoleExecute(r ApiDeleteRoleRequest) (*ht
 type ApiGetRoleRequest struct {
 	ctx        context.Context
 	ApiService *IdentityRolesAPIService
-	orgName    string
 	roleId     string
 }
 
@@ -319,15 +310,13 @@ func (r ApiGetRoleRequest) Execute() (*RoleResponse, *http.Response, error) {
 GetRole Get role details
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param roleId Role ID
 	@return ApiGetRoleRequest
 */
-func (a *IdentityRolesAPIService) GetRole(ctx context.Context, orgName string, roleId string) ApiGetRoleRequest {
+func (a *IdentityRolesAPIService) GetRole(ctx context.Context, roleId string) ApiGetRoleRequest {
 	return ApiGetRoleRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		roleId:     roleId,
 	}
 }
@@ -348,8 +337,7 @@ func (a *IdentityRolesAPIService) GetRoleExecute(r ApiGetRoleRequest) (*RoleResp
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/roles/{roleId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/roles/{roleId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"roleId"+"}", url.PathEscape(parameterValueToString(r.roleId, "roleId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -445,7 +433,6 @@ func (a *IdentityRolesAPIService) GetRoleExecute(r ApiGetRoleRequest) (*RoleResp
 type ApiListRolesRequest struct {
 	ctx        context.Context
 	ApiService *IdentityRolesAPIService
-	orgName    string
 	offset     *int32
 	limit      *int32
 }
@@ -470,14 +457,12 @@ func (r ApiListRolesRequest) Execute() (*RoleListResponse, *http.Response, error
 ListRoles List roles in an organization
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiListRolesRequest
 */
-func (a *IdentityRolesAPIService) ListRoles(ctx context.Context, orgName string) ApiListRolesRequest {
+func (a *IdentityRolesAPIService) ListRoles(ctx context.Context) ApiListRolesRequest {
 	return ApiListRolesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -497,8 +482,7 @@ func (a *IdentityRolesAPIService) ListRolesExecute(r ApiListRolesRequest) (*Role
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/roles"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/roles"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -599,7 +583,6 @@ func (a *IdentityRolesAPIService) ListRolesExecute(r ApiListRolesRequest) (*Role
 type ApiUpdateRoleRequest struct {
 	ctx               context.Context
 	ApiService        *IdentityRolesAPIService
-	orgName           string
 	roleId            string
 	updateRoleRequest *UpdateRoleRequest
 }
@@ -617,15 +600,13 @@ func (r ApiUpdateRoleRequest) Execute() (*RoleResponse, *http.Response, error) {
 UpdateRole Update role
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param roleId Role ID
 	@return ApiUpdateRoleRequest
 */
-func (a *IdentityRolesAPIService) UpdateRole(ctx context.Context, orgName string, roleId string) ApiUpdateRoleRequest {
+func (a *IdentityRolesAPIService) UpdateRole(ctx context.Context, roleId string) ApiUpdateRoleRequest {
 	return ApiUpdateRoleRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		roleId:     roleId,
 	}
 }
@@ -646,8 +627,7 @@ func (a *IdentityRolesAPIService) UpdateRoleExecute(r ApiUpdateRoleRequest) (*Ro
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/roles/{roleId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/roles/{roleId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"roleId"+"}", url.PathEscape(parameterValueToString(r.roleId, "roleId")), -1)
 
 	localVarHeaderParams := make(map[string]string)

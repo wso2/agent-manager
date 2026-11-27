@@ -47,9 +47,9 @@ type permissionsResponse struct {
 var _ = Describe("SEC-ROLE-002: custom role mutation and revocation", Label("security", "roles"), func() {
 	It("applies grants and revocations to newly issued tokens", func(ctx SpecContext) {
 		admin := framework.NewAMPClientWithToken(cfg, personas["admin"].Token)
-		identityBase := "/api/v1/orgs/" + cfg.DefaultOrg + "/identities"
-		probePath := "/api/v1/orgs/" + cfg.DefaultOrg + "/environments"
-		retainedPath := "/api/v1/orgs/" + cfg.DefaultOrg + "/projects"
+		identityBase := "/api/v1/identities"
+		probePath := "/api/v1/environments"
+		retainedPath := "/api/v1/projects"
 
 		By("Resolving the deployed AMP resource server")
 		resp, err := admin.GetWithContext(ctx, identityBase+"/permissions")

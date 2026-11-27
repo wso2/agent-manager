@@ -21,22 +21,18 @@ import type { LLMProviderDocument, UpdateLLMProviderRequest } from "@agent-manag
 import { httpDELETE, httpGET, httpPOST, httpPUT } from "../../shared/utils";
 import { describeHttpCases, type HttpMocks } from "../../test-utils/http-cases";
 import {
-  createLLMDeployment,
   createLLMProviderAPIKey,
   createLLMProviderTemplate,
   createLLMProxy,
   createLLMProxyAPIKey,
-  deleteLLMDeployment,
   deleteLLMProviderTemplate,
   deleteLLMProxy,
-  getLLMDeployment,
   getLLMProviderTemplate,
   getLLMProxy,
   listAvailableLLMPolicies,
   listLLMDeployments,
   listLLMProviderAPIKeys,
   listLLMProviderConsumers,
-  listLLMProviderProxies,
   listLLMProviderTemplates,
   listLLMProxies,
   listLLMProxyAPIKeys,
@@ -45,7 +41,6 @@ import {
   revokeLLMProxyAPIKey,
   rotateLLMProviderAPIKey,
   rotateLLMProxyAPIKey,
-  undeployLLMProvider,
   updateLLMProviderTemplate,
   updateLLMProxy,
   createLLMProvider,
@@ -56,6 +51,9 @@ import {
   listLLMProviders,
   providerFromDocument,
   providerListFromDocuments,
+  templateDocumentFromRequest,
+  templateFromDocument,
+  templateListFromDocuments,
   updateLLMProvider,
 } from "./llm-providers";
 
@@ -231,13 +229,73 @@ describe("provider document conversion", () => {
   });
 });
 
+describe("template document conversion", () => {
+  const tdoc = {
+    apiVersion: "ai-control-plane.choreolabs.com/v1" as const,
+    kind: "LlmProviderTemplate" as const,
+    metadata: {
+      name: "openai",
+      uid: "3f2c1a9e-0000-4000-8000-000000000002",
+      creationTimestamp: "2026-11-01T10:00:00Z",
+      updateTimestamp: "2026-11-02T10:00:00Z",
+      createdBy: "admin",
+    },
+    spec: {
+      displayName: "OpenAI",
+      description: "Default OpenAI template",
+      metadata: { endpointUrl: "https://api.openai.com", logoUrl: "https://cdn/openai.svg" },
+      promptTokens: { location: "payload" as const, identifier: "$.usage.prompt_tokens" },
+    },
+  };
+
+  it("maps the handle and label onto the flat template", () => {
+    expect(templateFromDocument(tdoc)).toEqual({
+      uuid: "3f2c1a9e-0000-4000-8000-000000000002",
+      id: "openai",
+      name: "OpenAI",
+      description: "Default OpenAI template",
+      createdBy: "admin",
+      metadata: tdoc.spec.metadata,
+      promptTokens: tdoc.spec.promptTokens,
+      createdAt: "2026-11-01T10:00:00Z",
+      updatedAt: "2026-11-02T10:00:00Z",
+    });
+  });
+
+  it("falls back to empty server fields when the document leaves them out", () => {
+    const bare = templateFromDocument({ ...tdoc, metadata: { name: "t" } });
+    expect(bare).toMatchObject({ uuid: "", id: "t", createdAt: "", updatedAt: "" });
+  });
+
+  it("reads list pagination, falling back to the page when the server omits it", () => {
+    const paged = templateListFromDocuments({
+      list: [tdoc],
+      pagination: { total: 7, limit: 1, offset: 3 },
+    });
+    expect(paged).toMatchObject({ total: 7, limit: 1, offset: 3 });
+    expect(paged.templates[0].id).toBe("openai");
+    const unpaged = templateListFromDocuments({ list: [tdoc] });
+    expect(unpaged).toMatchObject({ total: 1, limit: 1, offset: 0 });
+  });
+
+  it("builds a document with the handle as metadata.name", () => {
+    const d = templateDocumentFromRequest({ id: "custom", name: "Custom", description: "d" });
+    expect(d).toEqual({
+      apiVersion: "ai-control-plane.choreolabs.com/v1",
+      kind: "LlmProviderTemplate",
+      metadata: { name: "custom" },
+      spec: { displayName: "Custom", description: "d" },
+    });
+  });
+});
+
 const ORG = "/m/ai-gateway/orgs/acme%20corp";
-const PROV = `${ORG}/llm-providers/open%2Fai`;
+const PROV = `${BASE}/open%2Fai`;
+const TEMPLATES = "/m/ai-gateway/llm-provider-templates";
 const PROXY = `${ORG}/projects/p%201/llm-proxies/px%2F1`;
 const org = { orgName: "acme corp" };
 const prov = { ...org, providerId: "open/ai" };
 const proxy = { ...org, projName: "p 1", proxyId: "px/1" };
-const dep = { ...prov, deploymentId: "d 1" };
 const httpMocks = {
   GET: vi.mocked(httpGET),
   POST: vi.mocked(httpPOST),
@@ -249,32 +307,32 @@ describeHttpCases("LLM provider template API", httpMocks, [
   {
     name: "listLLMProviderTemplates with paging",
     call: () => listLLMProviderTemplates(org, { limit: 5, offset: 10 }, getToken),
-    method: "GET", url: `${ORG}/llm-provider-templates`, searchParams: { limit: "5", offset: "10" },
+    method: "GET", url: `${TEMPLATES}`, searchParams: { limit: "5", offset: "10" },
   },
   {
     name: "listLLMProviderTemplates without paging",
     call: () => listLLMProviderTemplates(org, undefined, getToken),
-    method: "GET", url: `${ORG}/llm-provider-templates`,
+    method: "GET", url: `${TEMPLATES}`,
   },
   {
     name: "createLLMProviderTemplate",
     call: () => createLLMProviderTemplate(org, { id: "t" } as never, getToken),
-    method: "POST", url: `${ORG}/llm-provider-templates`, body: { id: "t" },
+    method: "POST", url: `${TEMPLATES}`, body: { id: "t" },
   },
   {
     name: "getLLMProviderTemplate",
     call: () => getLLMProviderTemplate({ ...org, templateId: "t/1" }, getToken),
-    method: "GET", url: `${ORG}/llm-provider-templates/t%2F1`,
+    method: "GET", url: `${TEMPLATES}/t%2F1`,
   },
   {
     name: "updateLLMProviderTemplate",
     call: () => updateLLMProviderTemplate({ ...org, templateId: "t/1" }, { name: "T" } as never, getToken),
-    method: "PUT", url: `${ORG}/llm-provider-templates/t%2F1`, body: { name: "T" },
+    method: "PUT", url: `${TEMPLATES}/t%2F1`, body: { name: "T" },
   },
   {
     name: "deleteLLMProviderTemplate",
     call: () => deleteLLMProviderTemplate({ ...org, templateId: "t/1" }, getToken),
-    method: "DELETE", url: `${ORG}/llm-provider-templates/t%2F1`, returnsBody: false,
+    method: "DELETE", url: `${TEMPLATES}/t%2F1`, returnsBody: false,
   },
   {
     name: "listLLMProviders without paging",
@@ -287,27 +345,17 @@ describeHttpCases("LLM policy availability API", httpMocks, [
   {
     name: "listAvailableLLMPolicies scoped to a provider",
     call: () => listAvailableLLMPolicies(org, { providerId: "openai" }, getToken),
-    method: "GET", url: `${ORG}/llm-providers/policies`, searchParams: { providerId: "openai" },
+    method: "GET", url: `${BASE}/policies`, searchParams: { providerId: "openai" },
     checksOk: false,
   },
   {
     name: "listAvailableLLMPolicies for the whole org",
     call: () => listAvailableLLMPolicies(org, undefined, getToken),
-    method: "GET", url: `${ORG}/llm-providers/policies`, checksOk: false,
+    method: "GET", url: `${BASE}/policies`, checksOk: false,
   },
 ]);
 
 describeHttpCases("LLM proxy API", httpMocks, [
-  {
-    name: "listLLMProviderProxies",
-    call: () => listLLMProviderProxies(prov, { limit: 1, offset: 2 }, getToken),
-    method: "GET", url: `${PROV}/llm-proxies`, searchParams: { limit: "1", offset: "2" },
-  },
-  {
-    name: "listLLMProviderProxies without paging",
-    call: () => listLLMProviderProxies(prov, undefined, getToken),
-    method: "GET", url: `${PROV}/llm-proxies`,
-  },
   {
     name: "listLLMProxies",
     call: () => listLLMProxies({ ...org, projName: "p 1" }, { limit: 50 }, getToken),
@@ -347,29 +395,10 @@ describeHttpCases("LLM deployment API", httpMocks, [
     method: "GET", url: `${PROV}/deployments`,
   },
   {
-    name: "createLLMDeployment",
-    call: () => createLLMDeployment(prov, { gatewayId: "gw" } as never, getToken),
-    method: "POST", url: `${PROV}/deployments`, body: { gatewayId: "gw" },
-  },
-  {
-    name: "undeployLLMProvider",
-    call: () => undeployLLMProvider(prov, { deploymentId: "d1", gatewayId: "gw" }, getToken),
-    method: "POST", url: `${PROV}/deployments/undeploy`, body: {},
-    searchParams: { deploymentId: "d1", gatewayId: "gw" }, returnsBody: false,
-  },
-  {
     name: "restoreLLMDeployment",
     call: () => restoreLLMDeployment(prov, { deploymentId: "d1", gatewayId: "gw" }, getToken),
     method: "POST", url: `${PROV}/deployments/restore`, body: {},
     searchParams: { deploymentId: "d1", gatewayId: "gw" },
-  },
-  {
-    name: "getLLMDeployment", call: () => getLLMDeployment(dep, getToken),
-    method: "GET", url: `${PROV}/deployments/d%201`,
-  },
-  {
-    name: "deleteLLMDeployment", call: () => deleteLLMDeployment(dep, getToken),
-    method: "DELETE", url: `${PROV}/deployments/d%201`, returnsBody: false,
   },
   {
     name: "listLLMProviderConsumers", call: () => listLLMProviderConsumers(prov, getToken),

@@ -199,8 +199,8 @@ func TestModuleContract(t *testing.T) {
 	})
 
 	t.Run("an extension block for an inactive module is rejected", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPost, "/api/v1/orgs/"+w.handle+"/projects",
-			map[string]any{"name": project, "displayName": "Module project"})
+		code, body := w.call(t, w.full, http.MethodPost, "/api/v1/projects",
+			projectDocument(project, "Module project", nil))
 		require.Equal(t, http.StatusAccepted, code, string(body))
 		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("early", map[string]any{"testmod": map[string]any{"tag": "x"}}))
 		assert.Equal(t, http.StatusBadRequest, code, string(body))
@@ -329,8 +329,8 @@ func TestModuleContract(t *testing.T) {
 	})
 
 	t.Run("a project finalize hook can refuse a project delete", func(t *testing.T) {
-		projects := "/api/v1/orgs/" + w.handle + "/projects"
-		code, body := w.call(t, w.full, http.MethodPost, projects, map[string]any{"name": "pinned", "displayName": "Pinned"})
+		projects := "/api/v1/projects"
+		code, body := w.call(t, w.full, http.MethodPost, projects, projectDocument("pinned", "Pinned", nil))
 		require.Equal(t, http.StatusAccepted, code, string(body))
 		code, body = w.call(t, w.full, http.MethodPost, "/m/testmod/projects/pinned/pin", nil)
 		require.Equal(t, http.StatusNoContent, code, string(body))
@@ -355,7 +355,7 @@ func TestModuleContract(t *testing.T) {
 	t.Run("route options name the audit action and the webhook event", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/widgets/w1/archive", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
-		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/orgs/"+w.handle+"/events/event-types", nil)
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/events/event-types", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.Contains(t, string(body), testmod.WidgetArchived, "a module's webhook event is in the catalog while it is active")
 		assert.NotContains(t, string(body), testmod.WidgetCreated, "an event without a scope is not")
@@ -490,12 +490,12 @@ func TestModuleContract(t *testing.T) {
 		t.Run("an environment hook that "+tc.name+" cannot block a new organization", func(t *testing.T) {
 			testmod.EnvironmentMode.Store(tc.mode)
 			defer testmod.EnvironmentMode.Store(testmod.EnvironmentOK)
-			fresh, handle := w.freshOrg()
+			fresh, _ := w.freshOrg()
 			start := time.Now()
-			code, body := w.call(t, fresh, http.MethodGet, "/api/v1/orgs/"+handle+"/projects", nil)
+			code, body := w.call(t, fresh, http.MethodGet, "/api/v1/projects", nil)
 			require.Equal(t, http.StatusOK, code, string(body))
 			assert.Less(t, time.Since(start), modkit.OperationTimeout+2*time.Second)
-			code, body = w.call(t, fresh, http.MethodGet, "/api/v1/orgs/"+handle+"/projects", nil)
+			code, body = w.call(t, fresh, http.MethodGet, "/api/v1/projects", nil)
 			require.Equal(t, http.StatusOK, code, string(body))
 			var n int64
 			require.NoError(t, db.DB(ctx).Raw(`SELECT count(*) FROM mod_testmod_agent_tags WHERE tag = ?`, testmod.EnvironmentTag).Scan(&n).Error)
@@ -615,7 +615,7 @@ func TestModuleContract(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, code, "a disabled module's fixed internal routes are gone")
 		assert.Zero(t, testmod.WorkerRunning.Load(), "and its workers stopped")
 		assert.Empty(t, w.host.MCPTools(), "and its MCP tools")
-		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/orgs/"+w.handle+"/events/event-types", nil)
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/events/event-types", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.NotContains(t, string(body), testmod.WidgetArchived, "and its webhook events")
 		code, body = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workloads/heartbeat",
@@ -646,7 +646,7 @@ func assertIssuerSeparation(t *testing.T, w moduleWorld, workloadToken string) {
 	cfg.KeyManagerConfigurations.Audience = []string{"amp-test-audience"}
 
 	real := api.MakeHTTPHandler(mustRealAuthParams(t), nil)
-	projects := "/api/v1/orgs/" + w.handle + "/projects"
+	projects := "/api/v1/projects"
 	code, _ := w.call(t, real, http.MethodGet, projects, nil, "Authorization", "Bearer "+workloadToken)
 	assert.Equal(t, http.StatusUnauthorized, code, "a workload token is not a sign-in")
 

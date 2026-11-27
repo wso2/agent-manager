@@ -91,14 +91,11 @@ export async function getAgentConfigurations(params: GetAgentConfigurationsPathP
 }
 
 // eslint-disable-next-line max-len
-export async function listEnvironments(params: ListEnvironmentsPathParams, getToken?: () => Promise<string>)
+export async function listEnvironments(_params: ListEnvironmentsPathParams, getToken?: () => Promise<string>)
 : Promise<EnvironmentListResponse> {
-    const { orgName = "default" } = params;
     const token = getToken ? await getToken() : undefined;
-    const res = await httpGET(
-        `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/environments`,
-        { token },
-    );
+    // The organization comes from the token.
+    const res = await httpGET(`${SERVICE_BASE}/environments`, { token });
     if (!res.ok) throw await res.json();
     return res.json();
 
@@ -107,7 +104,7 @@ export async function listEnvironments(params: ListEnvironmentsPathParams, getTo
 // eslint-disable-next-line max-len
 export async function getEnvironment(params: GetEnvironmentPathParams, getToken?: () => Promise<string>)
 : Promise<Environment> {
-    const { orgName = "default", envName } = params;
+    const { envName } = params;
 
     if (!envName) {
         throw new Error("envName is required");
@@ -115,7 +112,7 @@ export async function getEnvironment(params: GetEnvironmentPathParams, getToken?
 
     const token = getToken ? await getToken() : undefined;
     const res = await httpGET(
-        `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/environments/${encodeURIComponent(envName)}`,
+        `${SERVICE_BASE}/environments/${encodeURIComponent(envName)}`,
         { token },
     );
     if (!res.ok) throw await res.json();

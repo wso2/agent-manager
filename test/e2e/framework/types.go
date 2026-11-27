@@ -281,44 +281,33 @@ type TokenResponse struct {
 
 // ---------------------------------------------------------------------------
 
-type CreateProjectRequest struct {
-	Name               string  `json:"name"`
-	DisplayName        string  `json:"displayName"`
-	Description        *string `json:"description,omitempty"`
-	DeploymentPipeline string  `json:"deploymentPipeline"`
+// ProjectDocument is a project as the API reads and writes it.
+type ProjectDocument struct {
+	APIVersion string          `json:"apiVersion"`
+	Kind       string          `json:"kind"`
+	Metadata   ProjectMetadata `json:"metadata"`
+	Spec       ProjectSpec     `json:"spec"`
 }
 
-type UpdateProjectRequest struct {
-	DisplayName        string `json:"displayName"`
-	Description        string `json:"description"`
-	DeploymentPipeline string `json:"deploymentPipeline"`
+type ProjectMetadata struct {
+	Name              string     `json:"name"`
+	UID               string     `json:"uid,omitempty"`
+	CreationTimestamp *time.Time `json:"creationTimestamp,omitempty"`
 }
 
-type ProjectResponse struct {
-	UUID               string    `json:"uuid"`
-	Name               string    `json:"name"`
-	OrgName            string    `json:"orgName"`
-	DisplayName        string    `json:"displayName"`
-	Description        string    `json:"description"`
-	DeploymentPipeline string    `json:"deploymentPipeline"`
-	CreatedAt          time.Time `json:"createdAt"`
-}
-
-type ProjectListItem struct {
-	UUID               string    `json:"uuid"`
-	Name               string    `json:"name"`
-	OrgName            string    `json:"orgName"`
-	DisplayName        string    `json:"displayName"`
-	Description        string    `json:"description"`
-	DeploymentPipeline string    `json:"deploymentPipeline"`
-	CreatedAt          time.Time `json:"createdAt"`
+type ProjectSpec struct {
+	DisplayName string  `json:"displayName"`
+	Description *string `json:"description,omitempty"`
 }
 
 type ProjectListResponse struct {
-	Projects []ProjectListItem `json:"projects"`
-	Total    int               `json:"total"`
-	Limit    int               `json:"limit"`
-	Offset   int               `json:"offset"`
+	Count      int               `json:"count"`
+	List       []ProjectDocument `json:"list"`
+	Pagination struct {
+		Limit  int `json:"limit"`
+		Offset int `json:"offset"`
+		Total  int `json:"total"`
+	} `json:"pagination"`
 }
 
 // ---------------------------------------------------------------------------
@@ -460,12 +449,6 @@ type LLMPolicy struct {
 // LLM Provider Template
 // ---------------------------------------------------------------------------
 
-type CreateLLMProviderTemplateRequest struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-}
-
 type LLMProviderTemplateMetadataAuth struct {
 	Type        string `json:"type"`
 	Header      string `json:"header"`
@@ -477,20 +460,25 @@ type LLMProviderTemplateMetadata struct {
 	Auth        *LLMProviderTemplateMetadataAuth `json:"auth,omitempty"`
 }
 
-type LLMProviderTemplateResponse struct {
-	UUID        string                       `json:"uuid"`
-	ID          string                       `json:"id"`
-	Name        string                       `json:"name"`
-	Description string                       `json:"description"`
+// LLMProviderTemplateSpec is the spec of an LlmProviderTemplate document.
+type LLMProviderTemplateSpec struct {
+	DisplayName string                       `json:"displayName"`
+	Description string                       `json:"description,omitempty"`
 	Metadata    *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-	CreatedAt   time.Time                    `json:"createdAt,omitempty"`
 }
 
-type LLMProviderTemplateListResponse struct {
-	Templates []LLMProviderTemplateResponse `json:"templates"`
-	Total     int                           `json:"total"`
-	Limit     int                           `json:"limit"`
-	Offset    int                           `json:"offset"`
+// LLMProviderTemplateDocument is an LLM provider template as a document.
+type LLMProviderTemplateDocument struct {
+	APIVersion string                  `json:"apiVersion"`
+	Kind       string                  `json:"kind"`
+	Metadata   DocumentMetadata        `json:"metadata"`
+	Spec       LLMProviderTemplateSpec `json:"spec"`
+}
+
+// LLMProviderTemplateList is the list envelope of templates.
+type LLMProviderTemplateList struct {
+	Count int                           `json:"count"`
+	List  []LLMProviderTemplateDocument `json:"list"`
 }
 
 // ---------------------------------------------------------------------------

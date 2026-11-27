@@ -69,7 +69,7 @@ func runList(ctx context.Context, o *ListOptions) error {
 	}
 
 	// TODO: paginate
-	resp, err := client.ListProjectsWithResponse(ctx, o.Org, &amsvc.ListProjectsParams{})
+	resp, err := client.ListProjectsWithResponse(ctx, &amsvc.ListProjectsParams{})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -83,10 +83,10 @@ func runList(ctx context.Context, o *ListOptions) error {
 
 	tp := tableprinter.New(o.IO, "name", "display name", "created")
 	cs := o.IO.ColorScheme()
-	for _, p := range resp.JSON200.Projects {
-		tp.AddField(p.Name, tableprinter.WithColor(cs.Bold))
-		tp.AddField(p.DisplayName)
-		tp.AddField(p.CreatedAt.Format("2006-01-02"), tableprinter.WithColor(cs.Gray))
+	for _, p := range resp.JSON200.List {
+		tp.AddField(p.Metadata.Name, tableprinter.WithColor(cs.Bold))
+		tp.AddField(p.Spec.DisplayName)
+		tp.AddField(formatCreated(p.Metadata.CreationTimestamp, "2006-01-02"), tableprinter.WithColor(cs.Gray))
 		tp.EndRow()
 	}
 	return tp.Render()

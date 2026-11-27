@@ -20,10 +20,11 @@ import "context"
 
 // EventScope is the event a route emits after a successful response. The core
 // puts it on the request's context; a module adds to it with EventEnvironment
-// and EventData.
+// and EventData, and raises more events with EmitAlso.
 type EventScope interface {
 	EventEnvironment(name string)
 	EventData(key string, value any)
+	EventAlso(eventType string, data map[string]any)
 }
 
 type eventScopeKey struct{}
@@ -48,5 +49,15 @@ func EventEnvironment(ctx context.Context, name string) {
 func EventData(ctx context.Context, key string, value any) {
 	if s, _ := ctx.Value(eventScopeKey{}).(EventScope); s != nil {
 		s.EventData(key, value)
+	}
+}
+
+// EmitAlso raises one more webhook event after the current request's 2xx response, next to the
+// event its route emits: one of the module's own event types, no narrower in scope than the
+// route's event, with data as its data. Any other type is skipped. Outside an event-emitting
+// route it does nothing.
+func EmitAlso(ctx context.Context, eventType string, data map[string]any) {
+	if s, _ := ctx.Value(eventScopeKey{}).(EventScope); s != nil {
+		s.EventAlso(eventType, data)
 	}
 }

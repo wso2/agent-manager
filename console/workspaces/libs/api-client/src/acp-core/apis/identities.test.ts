@@ -34,7 +34,7 @@ import * as api from "./identities";
 
 const getToken = async () => "tok";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const BASE = "/api/v1/orgs/my%20org/identities";
+const BASE = "/api/v1/identities";
 const org = { orgName: "my org" };
 const user = { ...org, userId: "u/1" };
 const group = { ...org, groupId: "g 1" };
@@ -173,7 +173,7 @@ describe("default org", () => {
   it("uses the default org and sends no token when none is given", async () => {
     http.httpGET.mockResolvedValue(json({}));
     await api.listAMPPermissions({} as never);
-    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/orgs/default/identities/permissions", {
+    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/identities/permissions", {
       token: undefined,
     });
   });

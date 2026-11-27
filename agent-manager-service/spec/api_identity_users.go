@@ -25,7 +25,6 @@ type IdentityUsersAPIService service
 type ApiCreateUserRequest struct {
 	ctx               context.Context
 	ApiService        *IdentityUsersAPIService
-	orgName           string
 	createUserRequest *CreateUserRequest
 }
 
@@ -42,14 +41,12 @@ func (r ApiCreateUserRequest) Execute() (*UserResponse, *http.Response, error) {
 CreateUser Create a new user
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiCreateUserRequest
 */
-func (a *IdentityUsersAPIService) CreateUser(ctx context.Context, orgName string) ApiCreateUserRequest {
+func (a *IdentityUsersAPIService) CreateUser(ctx context.Context) ApiCreateUserRequest {
 	return ApiCreateUserRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -69,8 +66,7 @@ func (a *IdentityUsersAPIService) CreateUserExecute(r ApiCreateUserRequest) (*Us
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/users"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/users"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -170,7 +166,6 @@ func (a *IdentityUsersAPIService) CreateUserExecute(r ApiCreateUserRequest) (*Us
 type ApiDeleteUserRequest struct {
 	ctx        context.Context
 	ApiService *IdentityUsersAPIService
-	orgName    string
 	userId     string
 }
 
@@ -182,15 +177,13 @@ func (r ApiDeleteUserRequest) Execute() (*http.Response, error) {
 DeleteUser Delete user
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param userId User ID
 	@return ApiDeleteUserRequest
 */
-func (a *IdentityUsersAPIService) DeleteUser(ctx context.Context, orgName string, userId string) ApiDeleteUserRequest {
+func (a *IdentityUsersAPIService) DeleteUser(ctx context.Context, userId string) ApiDeleteUserRequest {
 	return ApiDeleteUserRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		userId:     userId,
 	}
 }
@@ -208,8 +201,7 @@ func (a *IdentityUsersAPIService) DeleteUserExecute(r ApiDeleteUserRequest) (*ht
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/users/{userId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/users/{userId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"userId"+"}", url.PathEscape(parameterValueToString(r.userId, "userId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -296,7 +288,6 @@ func (a *IdentityUsersAPIService) DeleteUserExecute(r ApiDeleteUserRequest) (*ht
 type ApiGetUserRequest struct {
 	ctx        context.Context
 	ApiService *IdentityUsersAPIService
-	orgName    string
 	userId     string
 }
 
@@ -308,15 +299,13 @@ func (r ApiGetUserRequest) Execute() (*UserResponse, *http.Response, error) {
 GetUser Get user details
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param userId User ID
 	@return ApiGetUserRequest
 */
-func (a *IdentityUsersAPIService) GetUser(ctx context.Context, orgName string, userId string) ApiGetUserRequest {
+func (a *IdentityUsersAPIService) GetUser(ctx context.Context, userId string) ApiGetUserRequest {
 	return ApiGetUserRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		userId:     userId,
 	}
 }
@@ -337,8 +326,7 @@ func (a *IdentityUsersAPIService) GetUserExecute(r ApiGetUserRequest) (*UserResp
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/users/{userId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/users/{userId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"userId"+"}", url.PathEscape(parameterValueToString(r.userId, "userId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -434,7 +422,6 @@ func (a *IdentityUsersAPIService) GetUserExecute(r ApiGetUserRequest) (*UserResp
 type ApiGetUserProfileRequest struct {
 	ctx        context.Context
 	ApiService *IdentityUsersAPIService
-	orgName    string
 	userId     string
 }
 
@@ -448,15 +435,13 @@ GetUserProfile Get authenticated user's own profile information
 Retrieves the profile information of the authenticated user. Users can only retrieve their own profile (self-service endpoint).
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param userId User ID - must match the authenticated user's identity
 	@return ApiGetUserProfileRequest
 */
-func (a *IdentityUsersAPIService) GetUserProfile(ctx context.Context, orgName string, userId string) ApiGetUserProfileRequest {
+func (a *IdentityUsersAPIService) GetUserProfile(ctx context.Context, userId string) ApiGetUserProfileRequest {
 	return ApiGetUserProfileRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		userId:     userId,
 	}
 }
@@ -477,8 +462,7 @@ func (a *IdentityUsersAPIService) GetUserProfileExecute(r ApiGetUserProfileReque
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/users/{userId}/profile"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/users/{userId}/profile"
 	localVarPath = strings.Replace(localVarPath, "{"+"userId"+"}", url.PathEscape(parameterValueToString(r.userId, "userId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -574,7 +558,6 @@ func (a *IdentityUsersAPIService) GetUserProfileExecute(r ApiGetUserProfileReque
 type ApiListUsersRequest struct {
 	ctx        context.Context
 	ApiService *IdentityUsersAPIService
-	orgName    string
 	offset     *int32
 	limit      *int32
 }
@@ -599,14 +582,12 @@ func (r ApiListUsersRequest) Execute() (*UserListResponse, *http.Response, error
 ListUsers List users in an organization
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiListUsersRequest
 */
-func (a *IdentityUsersAPIService) ListUsers(ctx context.Context, orgName string) ApiListUsersRequest {
+func (a *IdentityUsersAPIService) ListUsers(ctx context.Context) ApiListUsersRequest {
 	return ApiListUsersRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -626,8 +607,7 @@ func (a *IdentityUsersAPIService) ListUsersExecute(r ApiListUsersRequest) (*User
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/users"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/users"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -728,7 +708,6 @@ func (a *IdentityUsersAPIService) ListUsersExecute(r ApiListUsersRequest) (*User
 type ApiUpdateUserRequest struct {
 	ctx               context.Context
 	ApiService        *IdentityUsersAPIService
-	orgName           string
 	userId            string
 	updateUserRequest *UpdateUserRequest
 }
@@ -746,15 +725,13 @@ func (r ApiUpdateUserRequest) Execute() (*UserResponse, *http.Response, error) {
 UpdateUser Update user
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param userId User ID
 	@return ApiUpdateUserRequest
 */
-func (a *IdentityUsersAPIService) UpdateUser(ctx context.Context, orgName string, userId string) ApiUpdateUserRequest {
+func (a *IdentityUsersAPIService) UpdateUser(ctx context.Context, userId string) ApiUpdateUserRequest {
 	return ApiUpdateUserRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		userId:     userId,
 	}
 }
@@ -775,8 +752,7 @@ func (a *IdentityUsersAPIService) UpdateUserExecute(r ApiUpdateUserRequest) (*Us
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/users/{userId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/users/{userId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"userId"+"}", url.PathEscape(parameterValueToString(r.userId, "userId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -888,7 +864,6 @@ func (a *IdentityUsersAPIService) UpdateUserExecute(r ApiUpdateUserRequest) (*Us
 type ApiUpdateUserProfileRequest struct {
 	ctx               context.Context
 	ApiService        *IdentityUsersAPIService
-	orgName           string
 	userId            string
 	updateUserRequest *UpdateUserRequest
 }
@@ -908,15 +883,13 @@ UpdateUserProfile Update authenticated user's own profile and credentials
 Allows users to update their own profile information and credentials. Users can only update their own profile (self-service endpoint).
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param userId User ID - must match the authenticated user's identity
 	@return ApiUpdateUserProfileRequest
 */
-func (a *IdentityUsersAPIService) UpdateUserProfile(ctx context.Context, orgName string, userId string) ApiUpdateUserProfileRequest {
+func (a *IdentityUsersAPIService) UpdateUserProfile(ctx context.Context, userId string) ApiUpdateUserProfileRequest {
 	return ApiUpdateUserProfileRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		userId:     userId,
 	}
 }
@@ -937,8 +910,7 @@ func (a *IdentityUsersAPIService) UpdateUserProfileExecute(r ApiUpdateUserProfil
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/users/{userId}/profile"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/users/{userId}/profile"
 	localVarPath = strings.Replace(localVarPath, "{"+"userId"+"}", url.PathEscape(parameterValueToString(r.userId, "userId")), -1)
 
 	localVarHeaderParams := make(map[string]string)

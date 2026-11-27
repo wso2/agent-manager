@@ -24,19 +24,18 @@ import (
 // RegisterLLMRoutes registers all LLM-related routes
 func RegisterLLMRoutes(rr Router, ctrl gwctl.LLMController) {
 	// LLM Provider Templates
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-provider-templates", gwperm.LLMProviderTemplateCreate,
+	rr.HandleFuncWithValidationAndAuthz("POST /llm-provider-templates", gwperm.LLMProviderTemplateCreate,
 		rr.Track("amp.connections.create-llm-provider.template", actionDims("created-provider-template"), ctrl.CreateLLMProviderTemplate))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-provider-templates", gwperm.LLMProviderTemplateRead, ctrl.ListLLMProviderTemplates)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateRead, ctrl.GetLLMProviderTemplate)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateUpdate,
+	rr.HandleFuncWithValidationAndAuthz("GET /llm-provider-templates", gwperm.LLMProviderTemplateRead, ctrl.ListLLMProviderTemplates)
+	rr.HandleFuncWithValidationAndAuthz("GET /llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateRead, ctrl.GetLLMProviderTemplate)
+	rr.HandleFuncWithValidationAndAuthz("PUT /llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateUpdate,
 		rr.Track("amp.connections.create-llm-provider.template", actionDims("updated-provider-template"), ctrl.UpdateLLMProviderTemplate))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateDelete,
+	rr.HandleFuncWithValidationAndAuthz("DELETE /llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateDelete,
 		rr.Track("amp.connections.create-llm-provider.template", actionDims("deleted-provider-template"), ctrl.DeleteLLMProviderTemplate))
 
 	registerLLMProviderRoutes(rr, ctrl)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/policies", gwperm.LLMProviderRead, ctrl.ListAvailableLLMPolicies)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/llm-proxies", gwperm.LLMProxyRead, ctrl.ListLLMProxiesByProvider)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/consumers", gwperm.LLMProviderRead, ctrl.ListLLMProviderConsumers)
+	rr.HandleFuncWithValidationAndAuthz("GET /llm-providers/policies", gwperm.LLMProviderRead, ctrl.ListAvailableLLMPolicies)
+	rr.HandleFuncWithValidationAndAuthz("GET /llm-providers/{providerId}/consumers", gwperm.LLMProviderRead, ctrl.ListLLMProviderConsumers)
 
 	// LLM Proxies
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies", gwperm.LLMProxyCreate, ctrl.CreateLLMProxy)

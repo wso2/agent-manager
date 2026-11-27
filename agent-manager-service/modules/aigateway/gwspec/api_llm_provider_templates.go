@@ -23,47 +23,44 @@ import (
 type LLMProviderTemplatesAPIService service
 
 type ApiCreateLLMProviderTemplateRequest struct {
-	ctx                              context.Context
-	ApiService                       *LLMProviderTemplatesAPIService
-	orgName                          string
-	createLLMProviderTemplateRequest *CreateLLMProviderTemplateRequest
+	ctx                         context.Context
+	ApiService                  *LLMProviderTemplatesAPIService
+	llmProviderTemplateDocument *LlmProviderTemplateDocument
 }
 
-func (r ApiCreateLLMProviderTemplateRequest) CreateLLMProviderTemplateRequest(createLLMProviderTemplateRequest CreateLLMProviderTemplateRequest) ApiCreateLLMProviderTemplateRequest {
-	r.createLLMProviderTemplateRequest = &createLLMProviderTemplateRequest
+func (r ApiCreateLLMProviderTemplateRequest) LlmProviderTemplateDocument(llmProviderTemplateDocument LlmProviderTemplateDocument) ApiCreateLLMProviderTemplateRequest {
+	r.llmProviderTemplateDocument = &llmProviderTemplateDocument
 	return r
 }
 
-func (r ApiCreateLLMProviderTemplateRequest) Execute() (*LLMProviderTemplateResponse, *http.Response, error) {
+func (r ApiCreateLLMProviderTemplateRequest) Execute() (*LlmProviderTemplateDocument, *http.Response, error) {
 	return r.ApiService.CreateLLMProviderTemplateExecute(r)
 }
 
 /*
 CreateLLMProviderTemplate Create a new LLM provider template
 
-Create a new LLM provider template for the organization
+Create a new LLM provider template; metadata.name is its handle.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiCreateLLMProviderTemplateRequest
 */
-func (a *LLMProviderTemplatesAPIService) CreateLLMProviderTemplate(ctx context.Context, orgName string) ApiCreateLLMProviderTemplateRequest {
+func (a *LLMProviderTemplatesAPIService) CreateLLMProviderTemplate(ctx context.Context) ApiCreateLLMProviderTemplateRequest {
 	return ApiCreateLLMProviderTemplateRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return LLMProviderTemplateResponse
-func (a *LLMProviderTemplatesAPIService) CreateLLMProviderTemplateExecute(r ApiCreateLLMProviderTemplateRequest) (*LLMProviderTemplateResponse, *http.Response, error) {
+//	@return LlmProviderTemplateDocument
+func (a *LLMProviderTemplatesAPIService) CreateLLMProviderTemplateExecute(r ApiCreateLLMProviderTemplateRequest) (*LlmProviderTemplateDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *LLMProviderTemplateResponse
+		localVarReturnValue *LlmProviderTemplateDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMProviderTemplatesAPIService.CreateLLMProviderTemplate")
@@ -71,14 +68,13 @@ func (a *LLMProviderTemplatesAPIService) CreateLLMProviderTemplateExecute(r ApiC
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-provider-templates"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-provider-templates"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.createLLMProviderTemplateRequest == nil {
-		return localVarReturnValue, nil, reportError("createLLMProviderTemplateRequest is required and must be specified")
+	if r.llmProviderTemplateDocument == nil {
+		return localVarReturnValue, nil, reportError("llmProviderTemplateDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -99,7 +95,7 @@ func (a *LLMProviderTemplatesAPIService) CreateLLMProviderTemplateExecute(r ApiC
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.createLLMProviderTemplateRequest
+	localVarPostBody = r.llmProviderTemplateDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -183,7 +179,6 @@ func (a *LLMProviderTemplatesAPIService) CreateLLMProviderTemplateExecute(r ApiC
 type ApiDeleteLLMProviderTemplateRequest struct {
 	ctx        context.Context
 	ApiService *LLMProviderTemplatesAPIService
-	orgName    string
 	templateId string
 }
 
@@ -197,15 +192,13 @@ DeleteLLMProviderTemplate Delete LLM provider template
 Delete an LLM provider template
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param templateId Template UUID
+	@param templateId Template handle
 	@return ApiDeleteLLMProviderTemplateRequest
 */
-func (a *LLMProviderTemplatesAPIService) DeleteLLMProviderTemplate(ctx context.Context, orgName string, templateId string) ApiDeleteLLMProviderTemplateRequest {
+func (a *LLMProviderTemplatesAPIService) DeleteLLMProviderTemplate(ctx context.Context, templateId string) ApiDeleteLLMProviderTemplateRequest {
 	return ApiDeleteLLMProviderTemplateRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		templateId: templateId,
 	}
 }
@@ -223,8 +216,7 @@ func (a *LLMProviderTemplatesAPIService) DeleteLLMProviderTemplateExecute(r ApiD
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-provider-templates/{templateId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-provider-templates/{templateId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"templateId"+"}", url.PathEscape(parameterValueToString(r.templateId, "templateId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -292,6 +284,17 @@ func (a *LLMProviderTemplatesAPIService) DeleteLLMProviderTemplateExecute(r ApiD
 			newErr.model = v
 			return localVarHTTPResponse, newErr
 		}
+		if localVarHTTPResponse.StatusCode == 403 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
 		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
@@ -333,11 +336,10 @@ func (a *LLMProviderTemplatesAPIService) DeleteLLMProviderTemplateExecute(r ApiD
 type ApiGetLLMProviderTemplateRequest struct {
 	ctx        context.Context
 	ApiService *LLMProviderTemplatesAPIService
-	orgName    string
 	templateId string
 }
 
-func (r ApiGetLLMProviderTemplateRequest) Execute() (*LLMProviderTemplateResponse, *http.Response, error) {
+func (r ApiGetLLMProviderTemplateRequest) Execute() (*LlmProviderTemplateDocument, *http.Response, error) {
 	return r.ApiService.GetLLMProviderTemplateExecute(r)
 }
 
@@ -347,28 +349,26 @@ GetLLMProviderTemplate Get LLM provider template details
 Retrieve detailed information about a specific template
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param templateId Template UUID
+	@param templateId Template handle
 	@return ApiGetLLMProviderTemplateRequest
 */
-func (a *LLMProviderTemplatesAPIService) GetLLMProviderTemplate(ctx context.Context, orgName string, templateId string) ApiGetLLMProviderTemplateRequest {
+func (a *LLMProviderTemplatesAPIService) GetLLMProviderTemplate(ctx context.Context, templateId string) ApiGetLLMProviderTemplateRequest {
 	return ApiGetLLMProviderTemplateRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		templateId: templateId,
 	}
 }
 
 // Execute executes the request
 //
-//	@return LLMProviderTemplateResponse
-func (a *LLMProviderTemplatesAPIService) GetLLMProviderTemplateExecute(r ApiGetLLMProviderTemplateRequest) (*LLMProviderTemplateResponse, *http.Response, error) {
+//	@return LlmProviderTemplateDocument
+func (a *LLMProviderTemplatesAPIService) GetLLMProviderTemplateExecute(r ApiGetLLMProviderTemplateRequest) (*LlmProviderTemplateDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *LLMProviderTemplateResponse
+		localVarReturnValue *LlmProviderTemplateDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMProviderTemplatesAPIService.GetLLMProviderTemplate")
@@ -376,8 +376,7 @@ func (a *LLMProviderTemplatesAPIService) GetLLMProviderTemplateExecute(r ApiGetL
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-provider-templates/{templateId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-provider-templates/{templateId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"templateId"+"}", url.PathEscape(parameterValueToString(r.templateId, "templateId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -484,7 +483,6 @@ func (a *LLMProviderTemplatesAPIService) GetLLMProviderTemplateExecute(r ApiGetL
 type ApiListLLMProviderTemplatesRequest struct {
 	ctx        context.Context
 	ApiService *LLMProviderTemplatesAPIService
-	orgName    string
 	limit      *int32
 	offset     *int32
 }
@@ -508,17 +506,15 @@ func (r ApiListLLMProviderTemplatesRequest) Execute() (*LLMProviderTemplateListR
 /*
 ListLLMProviderTemplates List all LLM provider templates
 
-Retrieve a paginated list of LLM provider templates
+Retrieve a paginated list of LLM provider templates, built-in ones first.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiListLLMProviderTemplatesRequest
 */
-func (a *LLMProviderTemplatesAPIService) ListLLMProviderTemplates(ctx context.Context, orgName string) ApiListLLMProviderTemplatesRequest {
+func (a *LLMProviderTemplatesAPIService) ListLLMProviderTemplates(ctx context.Context) ApiListLLMProviderTemplatesRequest {
 	return ApiListLLMProviderTemplatesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -538,8 +534,7 @@ func (a *LLMProviderTemplatesAPIService) ListLLMProviderTemplatesExecute(r ApiLi
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-provider-templates"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-provider-templates"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -638,50 +633,47 @@ func (a *LLMProviderTemplatesAPIService) ListLLMProviderTemplatesExecute(r ApiLi
 }
 
 type ApiUpdateLLMProviderTemplateRequest struct {
-	ctx                              context.Context
-	ApiService                       *LLMProviderTemplatesAPIService
-	orgName                          string
-	templateId                       string
-	updateLLMProviderTemplateRequest *UpdateLLMProviderTemplateRequest
+	ctx                         context.Context
+	ApiService                  *LLMProviderTemplatesAPIService
+	templateId                  string
+	llmProviderTemplateDocument *LlmProviderTemplateDocument
 }
 
-func (r ApiUpdateLLMProviderTemplateRequest) UpdateLLMProviderTemplateRequest(updateLLMProviderTemplateRequest UpdateLLMProviderTemplateRequest) ApiUpdateLLMProviderTemplateRequest {
-	r.updateLLMProviderTemplateRequest = &updateLLMProviderTemplateRequest
+func (r ApiUpdateLLMProviderTemplateRequest) LlmProviderTemplateDocument(llmProviderTemplateDocument LlmProviderTemplateDocument) ApiUpdateLLMProviderTemplateRequest {
+	r.llmProviderTemplateDocument = &llmProviderTemplateDocument
 	return r
 }
 
-func (r ApiUpdateLLMProviderTemplateRequest) Execute() (*LLMProviderTemplateResponse, *http.Response, error) {
+func (r ApiUpdateLLMProviderTemplateRequest) Execute() (*LlmProviderTemplateDocument, *http.Response, error) {
 	return r.ApiService.UpdateLLMProviderTemplateExecute(r)
 }
 
 /*
 UpdateLLMProviderTemplate Update LLM provider template
 
-Update an existing LLM provider template
+Replace a template's spec; metadata.name must match the path. Built-in templates cannot be changed.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param templateId Template UUID
+	@param templateId Template handle
 	@return ApiUpdateLLMProviderTemplateRequest
 */
-func (a *LLMProviderTemplatesAPIService) UpdateLLMProviderTemplate(ctx context.Context, orgName string, templateId string) ApiUpdateLLMProviderTemplateRequest {
+func (a *LLMProviderTemplatesAPIService) UpdateLLMProviderTemplate(ctx context.Context, templateId string) ApiUpdateLLMProviderTemplateRequest {
 	return ApiUpdateLLMProviderTemplateRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		templateId: templateId,
 	}
 }
 
 // Execute executes the request
 //
-//	@return LLMProviderTemplateResponse
-func (a *LLMProviderTemplatesAPIService) UpdateLLMProviderTemplateExecute(r ApiUpdateLLMProviderTemplateRequest) (*LLMProviderTemplateResponse, *http.Response, error) {
+//	@return LlmProviderTemplateDocument
+func (a *LLMProviderTemplatesAPIService) UpdateLLMProviderTemplateExecute(r ApiUpdateLLMProviderTemplateRequest) (*LlmProviderTemplateDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPut
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *LLMProviderTemplateResponse
+		localVarReturnValue *LlmProviderTemplateDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMProviderTemplatesAPIService.UpdateLLMProviderTemplate")
@@ -689,15 +681,14 @@ func (a *LLMProviderTemplatesAPIService) UpdateLLMProviderTemplateExecute(r ApiU
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-provider-templates/{templateId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-provider-templates/{templateId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"templateId"+"}", url.PathEscape(parameterValueToString(r.templateId, "templateId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.updateLLMProviderTemplateRequest == nil {
-		return localVarReturnValue, nil, reportError("updateLLMProviderTemplateRequest is required and must be specified")
+	if r.llmProviderTemplateDocument == nil {
+		return localVarReturnValue, nil, reportError("llmProviderTemplateDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -718,7 +709,7 @@ func (a *LLMProviderTemplatesAPIService) UpdateLLMProviderTemplateExecute(r ApiU
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.updateLLMProviderTemplateRequest
+	localVarPostBody = r.llmProviderTemplateDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -753,6 +744,17 @@ func (a *LLMProviderTemplatesAPIService) UpdateLLMProviderTemplateExecute(r ApiU
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 403 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

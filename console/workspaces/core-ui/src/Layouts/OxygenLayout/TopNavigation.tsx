@@ -70,7 +70,7 @@ export function TopNavigation() {
   });
 
   const selectedProject = useMemo(() => {
-    return projects?.projects?.find((project) => project.name === projectId);
+    return projects?.list?.find((project) => project.metadata.name === projectId);
   }, [projects, projectId]);
 
   // Get all agents for the project
@@ -125,7 +125,7 @@ export function TopNavigation() {
           </LevelSwitcherCard>
         )}
 
-        {projects?.projects && (
+        {projects?.list && (
           <LevelSwitcherCard
             label="Projects"
             chevronLabel={selectedProject ? "Switch project" : "Select or create a project"}
@@ -139,7 +139,7 @@ export function TopNavigation() {
                     absoluteRouteMap.children.org.children.projects.path,
                     { orgId, projectId },
                   ) + (commonProjectPages ? `/${commonProjectPages}` : ""),
-                goToLabel: `Go to ${selectedProject.displayName}`,
+                goToLabel: `Go to ${selectedProject.spec.displayName}`,
                 closeLabel: "Close project",
                 onClose: () =>
                   navigate(
@@ -150,7 +150,7 @@ export function TopNavigation() {
                   ),
                 content: (
                   <Typography variant="body1" noWrap sx={{ maxWidth: "100%" }}>
-                    {selectedProject.displayName}
+                    {selectedProject.spec.displayName}
                   </Typography>
                 ),
               }
@@ -168,19 +168,19 @@ export function TopNavigation() {
               <Plus size={20} style={{ marginRight: theme.spacing(1) }} />
               Create a Project
             </MenuItem>
-            {projects.projects.map((project) => (
+            {projects.list.map((project) => (
               <MenuItem
-                key={project.name}
-                selected={project.name === projectId}
+                key={project.metadata.name}
+                selected={project.metadata.name === projectId}
                 onClick={() => setProjectAnchorEl(null)}
                 {...asLink(
                   generatePath(
                     absoluteRouteMap.children.org.children.projects.path,
-                    { orgId, projectId: project.name },
+                    { orgId, projectId: project.metadata.name },
                   ) + (commonProjectPages ? `/${commonProjectPages}` : ""),
                 )}
               >
-                {project.displayName}
+                {project.spec.displayName}
               </MenuItem>
             ))}
           </LevelSwitcherCard>

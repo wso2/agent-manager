@@ -27,11 +27,7 @@ import (
 
 func TestGet_Success(t *testing.T) {
 	io, out, _ := newTestIO(true)
-	clientFn, captured, closeFn := newTestClient(t, http.StatusOK, amsvc.ProjectResponse{
-		Name:               "alpha",
-		DisplayName:        "Alpha",
-		DeploymentPipeline: "default",
-	})
+	clientFn, captured, closeFn := newTestClient(t, http.StatusOK, projectDoc("alpha", "Alpha"))
 	defer closeFn()
 
 	err := runGet(context.Background(), &GetOptions{
@@ -43,13 +39,12 @@ func TestGet_Success(t *testing.T) {
 	if !captured.called {
 		t.Fatal("server should have been called")
 	}
-	if captured.path != "/orgs/acme/projects/alpha" {
-		t.Errorf("path = %q, want /orgs/acme/projects/alpha", captured.path)
+	if captured.path != "/projects/alpha" {
+		t.Errorf("path = %q, want /projects/alpha", captured.path)
 	}
 	env := decodeEnvelope(t, out.String())
-	data := env["data"].(map[string]any)
-	if data["name"] != "alpha" {
-		t.Errorf("name = %v, want alpha", data["name"])
+	if got := dataName(env); got != "alpha" {
+		t.Errorf("metadata.name = %v, want alpha", got)
 	}
 }
 

@@ -89,21 +89,6 @@ func TestConvertOrganizations(t *testing.T) {
 	assert.Equal(t, []spec.OrganizationListItem{}, ConvertToOrganizationListResponse(nil))
 }
 
-func TestConvertProjects(t *testing.T) {
-	p := &models.ProjectResponse{UUID: "p1", Name: "p", DisplayName: "P", Description: "d"}
-	got := ConvertToProjectResponse(p)
-	assert.Equal(t, "d", got.Description)
-	assert.Empty(t, got.DeploymentPipeline, "AMP Lite has no deployment pipelines")
-	assert.Equal(t, spec.ProjectResponse{}, ConvertToProjectResponse(nil))
-
-	items := ConvertToProjectListResponse([]*models.ProjectResponse{p, nil})
-	require.Len(t, items, 2)
-	require.NotNil(t, items[0].Description)
-	assert.Equal(t, "d", *items[0].Description)
-	assert.Equal(t, spec.ProjectListItem{}, items[1])
-	assert.Equal(t, []spec.ProjectListItem{}, ConvertToProjectListResponse(nil))
-}
-
 func TestAPIKeyHashing(t *testing.T) {
 	hash, err := HashAPIKey("key-123")
 	require.NoError(t, err)

@@ -19,6 +19,7 @@ package gwsvc
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
@@ -345,4 +346,14 @@ func TestLLMProviderService_UpdateAndSync_AllRedeploysFailedAfterSave(t *testing
 
 	require.ErrorIs(t, err, ErrAllGatewayDeploymentsFailed)
 	assert.True(t, updated, "the provider is saved before the redeploys run")
+}
+
+func TestUniqueGatewayIDs(t *testing.T) {
+	id := uuid.NewString()
+	other := uuid.NewString()
+	assert.Nil(t, uniqueGatewayIDs(nil), "an omitted list stays omitted")
+	assert.Equal(t, []string{}, uniqueGatewayIDs([]string{}))
+	assert.Equal(t, []string{id, other, "not-a-uuid"},
+		uniqueGatewayIDs([]string{strings.ToUpper(id), other, id, "not-a-uuid", id, "not-a-uuid"}),
+		"valid UUIDs are kept in canonical form and repeats dropped, in first-seen order")
 }

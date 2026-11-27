@@ -35,26 +35,33 @@ import { createProject, deleteProject, getProject, listProjects, updateProject }
 const getToken = async () => "tok";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const params = { orgName: "my org", projName: "p/1" };
-const PROJECT = "/api/v1/orgs/my%20org/projects/p%2F1";
+const PROJECTS = "/api/v1/projects";
+const PROJECT = "/api/v1/projects/p%2F1";
+const doc = (name: string, spec: object) => ({
+  apiVersion: "ai-control-plane.choreolabs.com/v1",
+  kind: "Project",
+  metadata: { name },
+  spec,
+});
 
 afterEach(() => vi.resetAllMocks());
 
 describe("listProjects", () => {
-  it("sends the defined paging values with the token", async () => {
-    http.httpGET.mockResolvedValue(json({ projects: [], total: 0 }));
+  it("sends the defined paging values with the token, without the org", async () => {
+    http.httpGET.mockResolvedValue(json({ list: [], pagination: { total: 0 } }));
     await expect(
       listProjects({ orgName: "my org" }, { limit: 100, offset: 0, x: undefined } as never, getToken),
-    ).resolves.toEqual({ projects: [], total: 0 });
-    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/orgs/my%20org/projects", {
+    ).resolves.toEqual({ list: [], pagination: { total: 0 } });
+    expect(http.httpGET).toHaveBeenCalledWith(PROJECTS, {
       searchParams: { limit: "100", offset: "0" },
       token: "tok",
     });
   });
 
-  it("uses the default org with no query", async () => {
+  it("sends no query when none is given", async () => {
     http.httpGET.mockResolvedValue(json({}));
     await listProjects({} as never);
-    expect(http.httpGET).toHaveBeenCalledWith("/api/v1/orgs/default/projects", {
+    expect(http.httpGET).toHaveBeenCalledWith(PROJECTS, {
       searchParams: undefined,
       token: undefined,
     });
@@ -62,21 +69,23 @@ describe("listProjects", () => {
 });
 
 type Method = keyof typeof http;
-const body = { displayName: "P" } as never;
+const created = { name: "p", displayName: "P", description: "d" };
+const spec = { displayName: "Q" };
 const calls: [string, Method, () => Promise<unknown>, string, unknown?][] = [
-  ["listProjects", "httpGET", () => listProjects({ orgName: "o" }), "/api/v1/orgs/o/projects"],
-  ["createProject", "httpPOST", () => createProject({ orgName: "my org" }, body, getToken),
-    "/api/v1/orgs/my%20org/projects", body],
+  ["listProjects", "httpGET", () => listProjects({ orgName: "o" }), PROJECTS],
+  ["createProject", "httpPOST", () => createProject({ orgName: "my org" }, created, getToken),
+    PROJECTS, doc("p", { displayName: "P", description: "d" })],
   ["getProject", "httpGET", () => getProject(params, getToken), PROJECT],
-  ["updateProject", "httpPUT", () => updateProject(params, body, getToken), PROJECT, body],
+  ["updateProject", "httpPUT", () => updateProject(params, spec, getToken), PROJECT,
+    doc("p/1", { displayName: "Q", description: undefined })],
 ];
 
 describe.each(calls)("%s", (_name, method, call, path, sentBody) => {
   it("sends the request and returns the body", async () => {
-    http[method].mockResolvedValue(json({ name: "p" }));
-    await expect(call()).resolves.toEqual({ name: "p" });
+    http[method].mockResolvedValue(json({ metadata: { name: "p" } }));
+    await expect(call()).resolves.toEqual({ metadata: { name: "p" } });
     expect(http[method].mock.calls[0][0]).toBe(path);
-    if (sentBody !== undefined) expect(http[method].mock.calls[0][1]).toBe(sentBody);
+    if (sentBody !== undefined) expect(http[method].mock.calls[0][1]).toEqual(sentBody);
   });
 
   it("throws the server's error body on a non-OK response", async () => {
@@ -85,17 +94,12 @@ describe.each(calls)("%s", (_name, method, call, path, sentBody) => {
   });
 });
 
-describe("defaults", () => {
-  it("falls back to the default org and project", async () => {
-    http.httpGET.mockResolvedValue(json({}));
-    http.httpPOST.mockResolvedValue(json({}));
-    http.httpPUT.mockResolvedValue(json({}));
-    await getProject({} as never);
-    await createProject({} as never, body);
-    await updateProject({} as never, body);
-    expect(http.httpGET.mock.calls[0][0]).toBe("/api/v1/orgs/default/projects/default");
-    expect(http.httpPOST.mock.calls[0][0]).toBe("/api/v1/orgs/default/projects");
-    expect(http.httpPUT.mock.calls[0][0]).toBe("/api/v1/orgs/default/projects/default");
+describe("a project route needs a project", () => {
+  it("throws before sending when projName is missing", async () => {
+    await expect(getProject({} as never)).rejects.toThrow("projName is required");
+    await expect(updateProject({} as never, spec)).rejects.toThrow("projName is required");
+    await expect(deleteProject({} as never)).rejects.toThrow("projName is required");
+    expect(http.httpGET).not.toHaveBeenCalled();
   });
 });
 
@@ -104,19 +108,6 @@ describe("deleteProject", () => {
     http.httpDELETE.mockResolvedValue(new Response(null, { status: 204 }));
     await expect(deleteProject(params, getToken)).resolves.toBeUndefined();
     expect(http.httpDELETE).toHaveBeenCalledWith(PROJECT, { token: "tok" });
-  });
-
-  it("resolves to nothing on an empty 200", async () => {
-    http.httpDELETE.mockResolvedValue(
-      new Response("", { status: 200, headers: { "content-length": "0" } }),
-    );
-    await expect(deleteProject({} as never)).resolves.toBeUndefined();
-    expect(http.httpDELETE.mock.calls[0][0]).toBe("/api/v1/orgs/default/projects/default");
-  });
-
-  it("returns a body the server sends", async () => {
-    http.httpDELETE.mockResolvedValue(json({ deleted: true }));
-    await expect(deleteProject(params)).resolves.toEqual({ deleted: true });
   });
 
   it("throws the server's error body on a non-OK response", async () => {

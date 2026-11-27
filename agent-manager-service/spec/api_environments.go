@@ -25,7 +25,6 @@ type EnvironmentsAPIService service
 type ApiGetEnvironmentRequest struct {
 	ctx        context.Context
 	ApiService *EnvironmentsAPIService
-	orgName    string
 	envID      string
 }
 
@@ -39,15 +38,13 @@ GetEnvironment Get environment details
 Retrieve detailed information about a specific environment
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param envID Environment UUID or name
 	@return ApiGetEnvironmentRequest
 */
-func (a *EnvironmentsAPIService) GetEnvironment(ctx context.Context, orgName string, envID string) ApiGetEnvironmentRequest {
+func (a *EnvironmentsAPIService) GetEnvironment(ctx context.Context, envID string) ApiGetEnvironmentRequest {
 	return ApiGetEnvironmentRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		envID:      envID,
 	}
 }
@@ -68,19 +65,12 @@ func (a *EnvironmentsAPIService) GetEnvironmentExecute(r ApiGetEnvironmentReques
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/environments/{envID}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/environments/{envID}"
 	localVarPath = strings.Replace(localVarPath, "{"+"envID"+"}", url.PathEscape(parameterValueToString(r.envID, "envID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -182,7 +172,6 @@ func (a *EnvironmentsAPIService) GetEnvironmentExecute(r ApiGetEnvironmentReques
 type ApiListEnvironmentsRequest struct {
 	ctx        context.Context
 	ApiService *EnvironmentsAPIService
-	orgName    string
 	limit      *int32
 	offset     *int32
 }
@@ -209,14 +198,12 @@ ListEnvironments List all environments
 Retrieve a paginated list of all environments for the organization
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiListEnvironmentsRequest
 */
-func (a *EnvironmentsAPIService) ListEnvironments(ctx context.Context, orgName string) ApiListEnvironmentsRequest {
+func (a *EnvironmentsAPIService) ListEnvironments(ctx context.Context) ApiListEnvironmentsRequest {
 	return ApiListEnvironmentsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -236,18 +223,11 @@ func (a *EnvironmentsAPIService) ListEnvironmentsExecute(r ApiListEnvironmentsRe
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/environments"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/environments"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 
 	if r.limit != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
