@@ -4,7 +4,6 @@ import { OrgOverviewPage } from '../pages/OrgOverviewPage';
 import { Shell } from '../pages/Shell';
 import { ThunderSignInPage } from '../pages/ThunderSignInPage';
 import { adminPassword, adminUser, authMode, orgName } from '../support/env';
-import { dropStaleRefreshTimer } from '../support/idp';
 
 // Signs in through the console's form, so it starts signed out (no stored
 // session). The form is file sign-in's; with an identity provider the console
@@ -47,7 +46,6 @@ test.describe('sign-in', () => {
 // Signs in through ThunderID, the identity provider, starting signed out.
 test.describe('sign-in through the identity provider', () => {
   test.skip(authMode !== 'idp', 'needs an identity provider (AMP_AUTH_MODE=idp)');
-  test.beforeEach(async ({ context }) => dropStaleRefreshTimer(context));
 
   test('a deep link while signed out goes to the identity provider and back', async ({ page }) => {
     await page.goto(`/org/${orgName}/projects`);

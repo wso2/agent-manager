@@ -22,14 +22,21 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 
 const sdk = vi.hoisted(() => ({
   providerProps: undefined as Record<string, unknown> | undefined,
+  // The SDK's temporary data as the provider first saw it.
+  temporaryDataAtStart: undefined as string | null | undefined,
   getAccessToken: undefined as unknown as () => Promise<string>,
 }));
 
 vi.mock("@thunderid/react", async () => {
   const { createElement: h, Fragment } = await import("react");
   return {
-    ThunderIDProvider: ({ children, ...props }: { children?: unknown }) => {
+    ThunderIDProvider: ({ children, ...props }: { children?: unknown; clientId?: string }) => {
       sdk.providerProps = props;
+      if (sdk.temporaryDataAtStart === undefined) {
+        sdk.temporaryDataAtStart = window.localStorage.getItem(
+          `temporary_data-instance_0-${props.clientId}`,
+        );
+      }
       return h(Fragment, null, children as never);
     },
     useThunderID: () => ({ getAccessToken: sdk.getAccessToken }),
@@ -94,6 +101,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   sdk.providerProps = undefined;
+  sdk.temporaryDataAtStart = undefined;
   sdk.getAccessToken = vi.fn(() => Promise.resolve("sdk-token"));
   window.localStorage.clear();
   window.sessionStorage.clear();
@@ -157,5 +165,17 @@ describe("ThunderID AuthProvider in the browser", () => {
 
     await session.fetchWithBackendToken("/api/thing");
     expect(sentAuthorization()).toBeNull();
+  });
+
+  it("drops the previous page's refresh timer before the SDK starts", async () => {
+    const tempKey = `temporary_data-instance_0-${CLIENT_ID}`;
+    window.localStorage.setItem(
+      tempKey,
+      JSON.stringify({ op_config_initiated: true, refresh_token_timer: "7" }),
+    );
+
+    await mount(browserAuthConfig);
+
+    expect(JSON.parse(sdk.temporaryDataAtStart!)).toEqual({ op_config_initiated: true });
   });
 });
