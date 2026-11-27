@@ -555,6 +555,9 @@ type ClientInterface interface {
 	// ListLLMProviderConsumers request
 	ListLLMProviderConsumers(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListLLMProviderDeploymentHistory request
+	ListLLMProviderDeploymentHistory(ctx context.Context, orgName string, providerId string, params *ListLLMProviderDeploymentHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetLLMProviderDeployments request
 	GetLLMProviderDeployments(ctx context.Context, orgName string, providerId string, params *GetLLMProviderDeploymentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3178,6 +3181,18 @@ func (c *Client) UpdateLLMProviderCatalogStatus(ctx context.Context, orgName str
 
 func (c *Client) ListLLMProviderConsumers(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListLLMProviderConsumersRequest(c.Server, orgName, providerId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListLLMProviderDeploymentHistory(ctx context.Context, orgName string, providerId string, params *ListLLMProviderDeploymentHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListLLMProviderDeploymentHistoryRequest(c.Server, orgName, providerId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -12291,6 +12306,101 @@ func NewListLLMProviderConsumersRequest(server string, orgName string, providerI
 	return req, nil
 }
 
+// NewListLLMProviderDeploymentHistoryRequest generates requests for ListLLMProviderDeploymentHistory
+func NewListLLMProviderDeploymentHistoryRequest(server string, orgName string, providerId string, params *ListLLMProviderDeploymentHistoryParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "providerId", providerId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/llm-providers/%s/deployment-history", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.GatewayId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", *params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetLLMProviderDeploymentsRequest generates requests for GetLLMProviderDeployments
 func NewGetLLMProviderDeploymentsRequest(server string, orgName string, providerId string, params *GetLLMProviderDeploymentsParams) (*http.Request, error) {
 	var err error
@@ -12326,22 +12436,6 @@ func NewGetLLMProviderDeploymentsRequest(server string, orgName string, provider
 
 	if params != nil {
 		queryValues := queryURL.Query()
-
-		if params.Offset != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
 
 		if params.GatewayId != nil {
 
@@ -23178,6 +23272,9 @@ type ClientWithResponsesInterface interface {
 	// ListLLMProviderConsumersWithResponse request
 	ListLLMProviderConsumersWithResponse(ctx context.Context, orgName string, providerId string, reqEditors ...RequestEditorFn) (*ListLLMProviderConsumersResp, error)
 
+	// ListLLMProviderDeploymentHistoryWithResponse request
+	ListLLMProviderDeploymentHistoryWithResponse(ctx context.Context, orgName string, providerId string, params *ListLLMProviderDeploymentHistoryParams, reqEditors ...RequestEditorFn) (*ListLLMProviderDeploymentHistoryResp, error)
+
 	// GetLLMProviderDeploymentsWithResponse request
 	GetLLMProviderDeploymentsWithResponse(ctx context.Context, orgName string, providerId string, params *GetLLMProviderDeploymentsParams, reqEditors ...RequestEditorFn) (*GetLLMProviderDeploymentsResp, error)
 
@@ -26921,6 +27018,32 @@ func (r ListLLMProviderConsumersResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListLLMProviderConsumersResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListLLMProviderDeploymentHistoryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]LLMDeploymentResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListLLMProviderDeploymentHistoryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListLLMProviderDeploymentHistoryResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -32466,6 +32589,15 @@ func (c *ClientWithResponses) ListLLMProviderConsumersWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseListLLMProviderConsumersResp(rsp)
+}
+
+// ListLLMProviderDeploymentHistoryWithResponse request returning *ListLLMProviderDeploymentHistoryResp
+func (c *ClientWithResponses) ListLLMProviderDeploymentHistoryWithResponse(ctx context.Context, orgName string, providerId string, params *ListLLMProviderDeploymentHistoryParams, reqEditors ...RequestEditorFn) (*ListLLMProviderDeploymentHistoryResp, error) {
+	rsp, err := c.ListLLMProviderDeploymentHistory(ctx, orgName, providerId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListLLMProviderDeploymentHistoryResp(rsp)
 }
 
 // GetLLMProviderDeploymentsWithResponse request returning *GetLLMProviderDeploymentsResp
@@ -40034,6 +40166,60 @@ func ParseListLLMProviderConsumersResp(rsp *http.Response) (*ListLLMProviderCons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest LLMProviderConsumerListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListLLMProviderDeploymentHistoryResp parses an HTTP response from a ListLLMProviderDeploymentHistoryWithResponse call
+func ParseListLLMProviderDeploymentHistoryResp(rsp *http.Response) (*ListLLMProviderDeploymentHistoryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListLLMProviderDeploymentHistoryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []LLMDeploymentResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

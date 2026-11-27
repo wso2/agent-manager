@@ -35,6 +35,13 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github/workflow-settings.json
           sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v6
+        if: inputs.section == 'amp_evaluation_release' || inputs.section == 'amp_instrumentation_release'
+        with:
+          python-version: "3.12"
+      - name: Install the Python version parser
+        if: inputs.section == 'amp_evaluation_release' || inputs.section == 'amp_instrumentation_release'
+        run: python -m pip install packaging==25.0
       - name: Resolve settings
         id: settings
         env:
@@ -66,6 +73,15 @@ jobs:
                   raise SystemExit(f"{section}.{key} must be a {type(default).__name__}")
               if isinstance(value, str) and any(ord(char) < 32 for char in value):
                   raise SystemExit(f"{section}.{key} must be a single line")
+
+          python_release = section in ("amp_evaluation_release", "amp_instrumentation_release")
+          if python_release:
+              from packaging.version import InvalidVersion, Version
+
+              try:
+                  values["target_version"] = str(Version(values["target_version"]))
+              except InvalidVersion:
+                  raise SystemExit(f"{section}.target_version must be a valid Python package version") from None
 
           for key in ("target_version", "source_version", "force_version"):
               version = values.get(key)

@@ -562,9 +562,9 @@ jobs:
   notify-google-chat:
     name: Notify Google Chat
     needs: [settings, compute-version, load-config, build-images, package-charts, e2e, publish-dev-tag]
-    # Report failed setup for publishing runs even when compute-version has no outputs.
+    # A settings failure has no dry-run output. Report it as a failed setup.
     if: >-
-      ${{ !cancelled() && (github.event_name == 'schedule' ||
+      ${{ !cancelled() && (github.event_name == 'schedule' || needs.settings.result == 'failure' ||
       (needs.settings.result == 'success' && !fromJSON(needs.settings.outputs.values).dry_run)) }}
     runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 10
@@ -575,6 +575,7 @@ jobs:
           DEV_VERSION: ${{ needs.compute-version.outputs.dev-version }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TEST_SUMMARY: ${{ needs.e2e.outputs.summary }}
+          SETTINGS_RESULT: ${{ needs.settings.result }}
           VERSION_RESULT: ${{ needs.compute-version.result }}
           CONFIG_RESULT: ${{ needs.load-config.result }}
           BUILD_RESULT: ${{ needs.build-images.result }}
@@ -582,7 +583,7 @@ jobs:
           E2E_RESULT: ${{ needs.e2e.result }}
           TAG_RESULT: ${{ needs.publish-dev-tag.result }}
         run: |
-          STAGES="version=${VERSION_RESULT} config=${CONFIG_RESULT} build=${BUILD_RESULT} package=${PACKAGE_RESULT} e2e=${E2E_RESULT} tag=${TAG_RESULT}"
+          STAGES="settings=${SETTINGS_RESULT} version=${VERSION_RESULT} config=${CONFIG_RESULT} build=${BUILD_RESULT} package=${PACKAGE_RESULT} e2e=${E2E_RESULT} tag=${TAG_RESULT}"
           echo "Stages: ${STAGES}"
           if [ -z "${GCHAT_WEBHOOK_URL}" ]; then
             echo "::warning::GCHAT_WEBHOOK_URL secret is not set; skipping Chat notification."
@@ -597,7 +598,8 @@ jobs:
             [ "${PACKAGE_RESULT}" != "success" ] && FAILED_STAGE="package"
             [ "${BUILD_RESULT}" != "success" ] && FAILED_STAGE="build"
             SETUP_FAILED=""
-            case "${VERSION_RESULT}" in failure|cancelled) SETUP_FAILED="compute-version" ;; esac
+            case "${SETTINGS_RESULT}" in failure|cancelled) SETUP_FAILED="settings" ;; esac
+            case "${VERSION_RESULT}" in failure|cancelled) SETUP_FAILED="${SETUP_FAILED:+${SETUP_FAILED} and }compute-version" ;; esac
             case "${CONFIG_RESULT}" in failure|cancelled) SETUP_FAILED="${SETUP_FAILED:+${SETUP_FAILED} and }load-config" ;; esac
             [ -n "${SETUP_FAILED}" ] && FAILED_STAGE="${SETUP_FAILED}"
             HEADLINE="*🔴 Nightly failed at ${FAILED_STAGE}* — \`${DEV_VERSION:-unknown version}\`"

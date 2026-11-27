@@ -25,11 +25,11 @@ vi.mock("../utils", async (importOriginal) => ({
   httpGET: vi.fn(),
 }));
 
-it("keeps the filters while following the deployment list's next offset", async () => {
+it("keeps the filters while following the deployment list's next cursor", async () => {
   const first = { id: "first" };
   const second = { id: "second" };
   vi.mocked(httpGET)
-    .mockResolvedValueOnce(Response.json([first], { headers: { "X-Next-Offset": "1000" } }))
+    .mockResolvedValueOnce(Response.json([first], { headers: { "X-Next-Cursor": "opaque-cursor" } }))
     .mockResolvedValueOnce(Response.json([second]));
 
   const filters = { gatewayId: "edge", status: "DEPLOYED" };
@@ -40,11 +40,11 @@ it("keeps the filters while following the deployment list's next offset", async 
   );
 
   expect(result).toEqual([first, second]);
-  const path = "/api/v1/orgs/acme/llm-providers/provider/deployments";
+  const path = "/api/v1/orgs/acme/llm-providers/provider/deployment-history";
   expect(httpGET).toHaveBeenNthCalledWith(1, path, { token: "test-token", searchParams: filters });
   expect(httpGET).toHaveBeenNthCalledWith(2, path, {
     token: "test-token",
-    searchParams: { ...filters, offset: "1000" },
+    searchParams: { ...filters, cursor: "opaque-cursor" },
   });
   expect(httpGET).toHaveBeenCalledTimes(2);
 });

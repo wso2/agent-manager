@@ -451,18 +451,18 @@ export async function listLLMDeployments(
   }
 
   const deployments: LLMDeploymentListResponse = [];
-  let nextOffset: string | null = null;
+  let nextCursor: string | null = null;
   do {
-    const pageParams = nextOffset === null ? searchParams : { ...searchParams, offset: nextOffset };
+    const pageParams = nextCursor === null ? searchParams : { ...searchParams, cursor: nextCursor };
     const res = await httpGET(
-      `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployments`,
+      `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployment-history`,
       { token, searchParams: pageParams },
     );
     if (!res.ok) throw await res.json();
     const page: LLMDeploymentListResponse = await res.json();
     for (const deployment of page) deployments.push(deployment);
-    nextOffset = res.headers.get("X-Next-Offset");
-  } while (nextOffset !== null);
+    nextCursor = res.headers.get("X-Next-Cursor");
+  } while (nextCursor !== null);
   return deployments;
 }
 

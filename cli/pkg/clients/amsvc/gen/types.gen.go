@@ -1738,6 +1738,36 @@ func (e ListGatewaysParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for ListLLMProviderDeploymentHistoryParamsStatus.
+const (
+	ListLLMProviderDeploymentHistoryParamsStatusARCHIVED    ListLLMProviderDeploymentHistoryParamsStatus = "ARCHIVED"
+	ListLLMProviderDeploymentHistoryParamsStatusDEPLOYED    ListLLMProviderDeploymentHistoryParamsStatus = "DEPLOYED"
+	ListLLMProviderDeploymentHistoryParamsStatusDEPLOYING   ListLLMProviderDeploymentHistoryParamsStatus = "DEPLOYING"
+	ListLLMProviderDeploymentHistoryParamsStatusFAILED      ListLLMProviderDeploymentHistoryParamsStatus = "FAILED"
+	ListLLMProviderDeploymentHistoryParamsStatusUNDEPLOYED  ListLLMProviderDeploymentHistoryParamsStatus = "UNDEPLOYED"
+	ListLLMProviderDeploymentHistoryParamsStatusUNDEPLOYING ListLLMProviderDeploymentHistoryParamsStatus = "UNDEPLOYING"
+)
+
+// Valid indicates whether the value is a known member of the ListLLMProviderDeploymentHistoryParamsStatus enum.
+func (e ListLLMProviderDeploymentHistoryParamsStatus) Valid() bool {
+	switch e {
+	case ListLLMProviderDeploymentHistoryParamsStatusARCHIVED:
+		return true
+	case ListLLMProviderDeploymentHistoryParamsStatusDEPLOYED:
+		return true
+	case ListLLMProviderDeploymentHistoryParamsStatusDEPLOYING:
+		return true
+	case ListLLMProviderDeploymentHistoryParamsStatusFAILED:
+		return true
+	case ListLLMProviderDeploymentHistoryParamsStatusUNDEPLOYED:
+		return true
+	case ListLLMProviderDeploymentHistoryParamsStatusUNDEPLOYING:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetLLMProviderDeploymentsParamsStatus.
 const (
 	GetLLMProviderDeploymentsParamsStatusARCHIVED    GetLLMProviderDeploymentsParamsStatus = "ARCHIVED"
@@ -1875,28 +1905,28 @@ func (e ListProjectEventDeliveriesParamsStatus) Valid() bool {
 
 // Defines values for GetLLMProxyDeploymentsParamsStatus.
 const (
-	ARCHIVED    GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
-	DEPLOYED    GetLLMProxyDeploymentsParamsStatus = "DEPLOYED"
-	DEPLOYING   GetLLMProxyDeploymentsParamsStatus = "DEPLOYING"
-	FAILED      GetLLMProxyDeploymentsParamsStatus = "FAILED"
-	UNDEPLOYED  GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYED"
-	UNDEPLOYING GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYING"
+	GetLLMProxyDeploymentsParamsStatusARCHIVED    GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
+	GetLLMProxyDeploymentsParamsStatusDEPLOYED    GetLLMProxyDeploymentsParamsStatus = "DEPLOYED"
+	GetLLMProxyDeploymentsParamsStatusDEPLOYING   GetLLMProxyDeploymentsParamsStatus = "DEPLOYING"
+	GetLLMProxyDeploymentsParamsStatusFAILED      GetLLMProxyDeploymentsParamsStatus = "FAILED"
+	GetLLMProxyDeploymentsParamsStatusUNDEPLOYED  GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYED"
+	GetLLMProxyDeploymentsParamsStatusUNDEPLOYING GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYING"
 )
 
 // Valid indicates whether the value is a known member of the GetLLMProxyDeploymentsParamsStatus enum.
 func (e GetLLMProxyDeploymentsParamsStatus) Valid() bool {
 	switch e {
-	case ARCHIVED:
+	case GetLLMProxyDeploymentsParamsStatusARCHIVED:
 		return true
-	case DEPLOYED:
+	case GetLLMProxyDeploymentsParamsStatusDEPLOYED:
 		return true
-	case DEPLOYING:
+	case GetLLMProxyDeploymentsParamsStatusDEPLOYING:
 		return true
-	case FAILED:
+	case GetLLMProxyDeploymentsParamsStatusFAILED:
 		return true
-	case UNDEPLOYED:
+	case GetLLMProxyDeploymentsParamsStatusUNDEPLOYED:
 		return true
-	case UNDEPLOYING:
+	case GetLLMProxyDeploymentsParamsStatusUNDEPLOYING:
 		return true
 	default:
 		return false
@@ -7407,11 +7437,23 @@ type ListAvailableLLMPoliciesParams struct {
 	ProviderId *openapi_types.UUID `form:"providerId,omitempty" json:"providerId,omitempty"`
 }
 
+// ListLLMProviderDeploymentHistoryParams defines parameters for ListLLMProviderDeploymentHistory.
+type ListLLMProviderDeploymentHistoryParams struct {
+	// Cursor Pass the previous response's X-Next-Cursor value with the same filters. Omit this parameter for the first page.
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// GatewayId Filter by gateway ID
+	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
+
+	// Status Filter by the gateway's stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING but filtered by the status the gateway holds.
+	Status *ListLLMProviderDeploymentHistoryParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// ListLLMProviderDeploymentHistoryParamsStatus defines parameters for ListLLMProviderDeploymentHistory.
+type ListLLMProviderDeploymentHistoryParamsStatus string
+
 // GetLLMProviderDeploymentsParams defines parameters for GetLLMProviderDeployments.
 type GetLLMProviderDeploymentsParams struct {
-	// Offset Number of deployments to skip after applying the filters and per-gateway limit.
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-
 	// GatewayId Filter by gateway ID
 	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
 

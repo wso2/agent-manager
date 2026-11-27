@@ -76,15 +76,27 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_ANTHROPIC_API_KEY }}
         run: nox -s emission -- --cell-id=${{ matrix.cell }}
-      # Artifact name is keyed by run-id + cell id so multiple manual runs
-      # don't collide. The trailing slashes pull cells/ and cassettes/ both.
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: manual-cell-${{ matrix.cell }}
-          path: |
-            test/instrumentation-matrix/reports/
-            test/instrumentation-matrix/cassettes/
+          path: test/instrumentation-matrix/reports/
+      - name: Capture recorded cassette changes
+        if: ${{ fromJSON(needs.settings.outputs.values).include_record_mode }}
+        env:
+          PATCH_FILE: ${{ runner.temp }}/cassette-${{ strategy.job-index }}.patch
+        run: |
+          set -euo pipefail
+          cassette_files='test/instrumentation-matrix/cassettes/*.yaml'
+          git add --intent-to-add -- "$cassette_files"
+          git diff --binary --no-ext-diff "$GITHUB_SHA" -- "$cassette_files" > "$PATCH_FILE"
+      - uses: actions/upload-artifact@v7
+        if: ${{ fromJSON(needs.settings.outputs.values).include_record_mode }}
+        with:
+          name: manual-cassette-patch-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/cassette-${{ strategy.job-index }}.patch
+          if-no-files-found: error
+          overwrite: true
 
   open-record-pr:
     runs-on:
@@ -101,20 +113,27 @@ jobs:
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
-          # Download every manual-cell-* artifact into a single staging dir.
-          # Each unpacks into manual-cell-<id>/cassettes/<framework>/...
-          path: /tmp/artifacts
-      - name: Merge re-recorded cassettes into the working tree
+          pattern: manual-cassette-patch-*
+          path: ${{ runner.temp }}/cassette-patches
+          merge-multiple: true
+      - name: Apply cassette changes to the PR base
+        env:
+          PATCH_DIR: ${{ runner.temp }}/cassette-patches
         run: |
           set -euo pipefail
           shopt -s nullglob
-          target="test/instrumentation-matrix/cassettes"
-          mkdir -p "$target"
-          for d in /tmp/artifacts/manual-cell-*/cassettes; do
-            echo "merging from $d"
-            rsync -a --include='*/' --include='*.yaml' --exclude='*' "$d"/ "$target"/
+          cassette_files='test/instrumentation-matrix/cassettes/*.yaml'
+          for patch in "$PATCH_DIR"/cassette-*.patch; do
+            [[ -s "$patch" ]] || continue
+            if git apply --check --index --reverse --include="$cassette_files" "$patch" 2>/dev/null; then
+              echo "Already applied: $patch"
+              continue
+            fi
+            if ! git apply --index --include="$cassette_files" "$patch"; then
+              echo "::error::Recorded cassette changes conflict with the PR base or another recording."
+              exit 1
+            fi
           done
-          git status -- "$target"
       - name: Open refresh PR
         uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
         with:

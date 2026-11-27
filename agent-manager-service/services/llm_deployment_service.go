@@ -37,8 +37,8 @@ import (
 
 const (
 	maxDeploymentsPerAPI = 20
-	// LLMProviderDeploymentPageSize is the hard limit for the deployment list response.
-	LLMProviderDeploymentPageSize = 1000
+	// llmProviderDeploymentPageSize is the hard limit for the deployment list response.
+	llmProviderDeploymentPageSize = 1000
 	apiVersionLLMProvider         = "gateway.api-platform.wso2.com/v1"
 	kindLLMProvider               = "LlmProvider"
 
@@ -396,17 +396,17 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouI
 }
 
 // GetLLMProviderDeploymentsPage retrieves one page and reports whether more deployments exist.
-func (s *LLMProviderDeploymentService) GetLLMProviderDeploymentsPage(ctx context.Context, providerID, ouID string, gatewayID, status *string, offset int) ([]*models.Deployment, bool, error) {
+func (s *LLMProviderDeploymentService) GetLLMProviderDeploymentsPage(ctx context.Context, providerID, ouID string, gatewayID, status *string, after *models.DeploymentPageCursor) ([]*models.Deployment, bool, error) {
 	provider, err := s.providerForDeploymentList(providerID, ouID, status)
 	if err != nil {
 		return nil, false, err
 	}
-	deployments, err := s.deploymentRepo.GetDeploymentsWithStatePage(ctx, provider.UUID.String(), ouID, gatewayID, status, maxDeploymentsPerAPI, offset, LLMProviderDeploymentPageSize+1)
+	deployments, err := s.deploymentRepo.GetDeploymentsWithStatePage(ctx, provider.UUID.String(), ouID, gatewayID, status, maxDeploymentsPerAPI, after, llmProviderDeploymentPageSize+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get deployments: %w", err)
 	}
-	if len(deployments) > LLMProviderDeploymentPageSize {
-		return deployments[:LLMProviderDeploymentPageSize], true, nil
+	if len(deployments) > llmProviderDeploymentPageSize {
+		return deployments[:llmProviderDeploymentPageSize], true, nil
 	}
 	return deployments, false, nil
 }

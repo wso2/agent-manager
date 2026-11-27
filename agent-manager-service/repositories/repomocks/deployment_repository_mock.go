@@ -53,7 +53,7 @@ import (
 //			GetDeploymentsWithStateFunc: func(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*models.Deployment, error) {
 //				panic("mock out the GetDeploymentsWithState method")
 //			},
-//			GetDeploymentsWithStatePageFunc: func(ctx context.Context, artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int, offset int, limit int) ([]*models.Deployment, error) {
+//			GetDeploymentsWithStatePageFunc: func(ctx context.Context, artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int, after *models.DeploymentPageCursor, limit int) ([]*models.Deployment, error) {
 //				panic("mock out the GetDeploymentsWithStatePage method")
 //			},
 //			GetPullableFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error) {
@@ -154,7 +154,7 @@ type DeploymentRepositoryMock struct {
 	GetDeploymentsWithStateFunc func(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*models.Deployment, error)
 
 	// GetDeploymentsWithStatePageFunc mocks the GetDeploymentsWithStatePage method.
-	GetDeploymentsWithStatePageFunc func(ctx context.Context, artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int, offset int, limit int) ([]*models.Deployment, error)
+	GetDeploymentsWithStatePageFunc func(ctx context.Context, artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int, after *models.DeploymentPageCursor, limit int) ([]*models.Deployment, error)
 
 	// GetPullableFunc mocks the GetPullable method.
 	GetPullableFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error)
@@ -340,8 +340,8 @@ type DeploymentRepositoryMock struct {
 			Status *string
 			// MaxPerAPIGW is the maxPerAPIGW argument value.
 			MaxPerAPIGW int
-			// Offset is the offset argument value.
-			Offset int
+			// After is the after argument value.
+			After *models.DeploymentPageCursor
 			// Limit is the limit argument value.
 			Limit int
 		}
@@ -1035,7 +1035,7 @@ func (mock *DeploymentRepositoryMock) GetDeploymentsWithStateCalls() []struct {
 }
 
 // GetDeploymentsWithStatePage calls GetDeploymentsWithStatePageFunc.
-func (mock *DeploymentRepositoryMock) GetDeploymentsWithStatePage(ctx context.Context, artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int, offset int, limit int) ([]*models.Deployment, error) {
+func (mock *DeploymentRepositoryMock) GetDeploymentsWithStatePage(ctx context.Context, artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int, after *models.DeploymentPageCursor, limit int) ([]*models.Deployment, error) {
 	if mock.GetDeploymentsWithStatePageFunc == nil {
 		panic("DeploymentRepositoryMock.GetDeploymentsWithStatePageFunc: method is nil but DeploymentRepository.GetDeploymentsWithStatePage was just called")
 	}
@@ -1046,7 +1046,7 @@ func (mock *DeploymentRepositoryMock) GetDeploymentsWithStatePage(ctx context.Co
 		GatewayID    *string
 		Status       *string
 		MaxPerAPIGW  int
-		Offset       int
+		After        *models.DeploymentPageCursor
 		Limit        int
 	}{
 		Ctx:          ctx,
@@ -1055,13 +1055,13 @@ func (mock *DeploymentRepositoryMock) GetDeploymentsWithStatePage(ctx context.Co
 		GatewayID:    gatewayID,
 		Status:       status,
 		MaxPerAPIGW:  maxPerAPIGW,
-		Offset:       offset,
+		After:        after,
 		Limit:        limit,
 	}
 	mock.lockGetDeploymentsWithStatePage.Lock()
 	mock.calls.GetDeploymentsWithStatePage = append(mock.calls.GetDeploymentsWithStatePage, callInfo)
 	mock.lockGetDeploymentsWithStatePage.Unlock()
-	return mock.GetDeploymentsWithStatePageFunc(ctx, artifactUUID, orgUUID, gatewayID, status, maxPerAPIGW, offset, limit)
+	return mock.GetDeploymentsWithStatePageFunc(ctx, artifactUUID, orgUUID, gatewayID, status, maxPerAPIGW, after, limit)
 }
 
 // GetDeploymentsWithStatePageCalls gets all the calls that were made to GetDeploymentsWithStatePage.
@@ -1075,7 +1075,7 @@ func (mock *DeploymentRepositoryMock) GetDeploymentsWithStatePageCalls() []struc
 	GatewayID    *string
 	Status       *string
 	MaxPerAPIGW  int
-	Offset       int
+	After        *models.DeploymentPageCursor
 	Limit        int
 } {
 	var calls []struct {
@@ -1085,7 +1085,7 @@ func (mock *DeploymentRepositoryMock) GetDeploymentsWithStatePageCalls() []struc
 		GatewayID    *string
 		Status       *string
 		MaxPerAPIGW  int
-		Offset       int
+		After        *models.DeploymentPageCursor
 		Limit        int
 	}
 	mock.lockGetDeploymentsWithStatePage.RLock()

@@ -274,9 +274,12 @@ func TestGetLLMProviderDeploymentsPage(t *testing.T) {
 	gateway := uuid.NewString()
 	deployed := string(models.DeploymentStatusDeployed)
 	ctx := context.Background()
+	after := &models.DeploymentPageCursor{
+		GatewayUUID: uuid.MustParse(gateway), CreatedAt: time.Now(), DeploymentID: uuid.New(),
+	}
 
-	for _, rows := range []int{0, LLMProviderDeploymentPageSize, LLMProviderDeploymentPageSize + 1} {
-		lastPage := rows <= LLMProviderDeploymentPageSize
+	for _, rows := range []int{0, llmProviderDeploymentPageSize, llmProviderDeploymentPageSize + 1} {
+		lastPage := rows <= llmProviderDeploymentPageSize
 		t.Run(fmt.Sprintf("rows=%d", rows), func(t *testing.T) {
 			service := &LLMProviderDeploymentService{
 				providerRepo: &repomocks.LLMProviderRepositoryMock{
@@ -287,23 +290,23 @@ func TestGetLLMProviderDeploymentsPage(t *testing.T) {
 					},
 				},
 				deploymentRepo: &repomocks.DeploymentRepositoryMock{
-					GetDeploymentsWithStatePageFunc: func(queryCtx context.Context, artifactID, ouID string, gatewayID, status *string, perGateway, offset, limit int) ([]*models.Deployment, error) {
+					GetDeploymentsWithStatePageFunc: func(queryCtx context.Context, artifactID, ouID string, gatewayID, status *string, perGateway int, cursor *models.DeploymentPageCursor, limit int) ([]*models.Deployment, error) {
 						assert.Equal(t, ctx, queryCtx)
 						assert.Equal(t, provider.UUID.String(), artifactID)
 						assert.Equal(t, "ou-acme", ouID)
 						assert.Equal(t, &gateway, gatewayID)
 						assert.Equal(t, &deployed, status)
 						assert.Equal(t, maxDeploymentsPerAPI, perGateway)
-						assert.Equal(t, 1000, offset)
+						assert.Equal(t, after, cursor)
 						assert.Equal(t, 1001, limit)
 						return make([]*models.Deployment, rows), nil
 					},
 				},
 			}
 
-			deployments, hasMore, err := service.GetLLMProviderDeploymentsPage(ctx, provider.UUID.String(), "ou-acme", &gateway, &deployed, 1000)
+			deployments, hasMore, err := service.GetLLMProviderDeploymentsPage(ctx, provider.UUID.String(), "ou-acme", &gateway, &deployed, after)
 			require.NoError(t, err)
-			assert.Len(t, deployments, min(rows, LLMProviderDeploymentPageSize))
+			assert.Len(t, deployments, min(rows, llmProviderDeploymentPageSize))
 			assert.Equal(t, !lastPage, hasMore)
 		})
 	}
