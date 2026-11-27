@@ -12,8 +12,13 @@ GRANT SELECT, INSERT ON otel.amp_schema_migrations TO amp_migrator;
 CREATE USER IF NOT EXISTS amp_ingest IDENTIFIED BY '<write password>';
 GRANT INSERT ON otel.otel_traces TO amp_ingest;
 
--- read (AMP_OBSERVABILITY_READ_PASSWORD): the module.
-CREATE USER IF NOT EXISTS amp_reader IDENTIFIED BY '<read password>';
+-- read (AMP_OBSERVABILITY_READ_PASSWORD): the module. Read-only, and a read
+-- stops after 25 s (the module's client gives up at 30 s), as in users.xml.
+CREATE SETTINGS PROFILE IF NOT EXISTS amp_reader_profile SETTINGS
+    readonly = 2,
+    max_execution_time = 25 MIN 1 MAX 25,
+    cancel_http_readonly_queries_on_client_close = 1;
+CREATE USER IF NOT EXISTS amp_reader IDENTIFIED BY '<read password>' SETTINGS PROFILE 'amp_reader_profile';
 GRANT SELECT ON otel.otel_traces TO amp_reader;
 GRANT SELECT ON otel.amp_schema_migrations TO amp_reader;
 
