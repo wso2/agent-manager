@@ -10,7 +10,7 @@ test.describe('gateways', () => {
   let gatewayId: string | undefined;
 
   test.afterAll(async ({ api }) => {
-    if (gatewayId) await api.delete(`${api.gw}/self-hosted-gateways/${gatewayId}`);
+    if (gatewayId) await api.delete(api.gatewayPath(gatewayId));
   });
 
   test('register a self-hosted gateway, issue a token and remove it', async ({ page, api }) => {
@@ -58,7 +58,7 @@ test.describe('gateways', () => {
       await gateways.goto();
       await gateways.remove(displayName);
       await expect(gateways.row(displayName)).toHaveCount(0);
-      await expect.poll(async () => (await api.get(`${api.gw}/self-hosted-gateways/${gatewayId}`)).status).toBe(404);
+      await expect.poll(async () => (await api.get(api.gatewayPath(gatewayId!))).status).toBe(404);
     });
   });
 });

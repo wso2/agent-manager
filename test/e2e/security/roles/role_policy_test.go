@@ -102,24 +102,19 @@ func roleProbes() []roleProbe {
 			return "/m/ai-gateway" + suffix
 		}
 	}
-	gwOrgPath := func(suffix string) func(*framework.Config) string {
-		return func(cfg *framework.Config) string {
-			return "/m/ai-gateway/orgs/" + cfg.DefaultOrg + suffix
-		}
-	}
 	return []roleProbe{
 		// Developer: owns project and agent development, not platform or IAM.
 		{"developer", "amp:project:create", true, http.MethodPost, fixedPath("/api/v1/projects")},
-		{"developer", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwOrgPath("/gateways")},
+		{"developer", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwPath("/gateways")},
 		{"developer", "amp:role:update", false, http.MethodPut, fixedPath("/api/v1/identities/roles/" + absentResourceName)},
 
 		// AI Lead: owns AI providers, not project/platform administration.
 		{"ai-lead", "amp:ai-gateway:llm-providers.create", true, http.MethodPost, gwPath("/llm-providers")},
 		{"ai-lead", "amp:project:create", false, http.MethodPost, fixedPath("/api/v1/projects")},
-		{"ai-lead", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwOrgPath("/gateways")},
+		{"ai-lead", "amp:ai-gateway:gateways.create", false, http.MethodPost, gwPath("/gateways")},
 
 		// Platform Engineer: owns infrastructure and production delivery, not agent authoring or IAM.
-		{"platform-engineer", "amp:ai-gateway:gateways.create", true, http.MethodPost, gwOrgPath("/gateways")},
+		{"platform-engineer", "amp:ai-gateway:gateways.create", true, http.MethodPost, gwPath("/gateways")},
 		{"platform-engineer", "amp:agent:create", false, http.MethodPost, fixedPath("/api/v1/agents")},
 		{"platform-engineer", "amp:role:update", false, http.MethodPut, fixedPath("/api/v1/identities/roles/" + absentResourceName)},
 

@@ -360,40 +360,25 @@ type CreateGatewayRequest struct {
 	EnvironmentIds []string `json:"environmentIds,omitempty"`
 }
 
-type UpdateGatewayRequest struct {
-	DisplayName *string `json:"displayName,omitempty"`
-	RuntimeUrl  *string `json:"runtimeUrl,omitempty"`
-	IsCritical  *bool   `json:"isCritical,omitempty"`
-}
-
-type GatewayResponse struct {
-	UUID             string          `json:"uuid"`
-	OrganizationName string          `json:"organizationName"`
-	Name             string          `json:"name"`
-	DisplayName      string          `json:"displayName"`
-	GatewayType      string          `json:"gatewayType"`
-	Vhost            string          `json:"vhost"`
-	RuntimeUrl       string          `json:"runtimeUrl,omitempty"`
-	Region           string          `json:"region,omitempty"`
-	IsCritical       bool            `json:"isCritical"`
-	Status           string          `json:"status"`
-	Environments     []GatewayEnvRef `json:"environments,omitempty"`
-	CreatedAt        time.Time       `json:"createdAt"`
-	UpdatedAt        time.Time       `json:"updatedAt"`
-}
-
-// GatewayEnvRef is an environment associated with a gateway, as returned in the
-// gateways list response.
-type GatewayEnvRef struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+// GatewayDocument is a Gateway resource document; only the fields the suites read are declared.
+type GatewayDocument struct {
+	Metadata struct {
+		Name string `json:"name"`
+		UID  string `json:"uid"`
+	} `json:"metadata"`
+	Spec struct {
+		DisplayName string `json:"displayName"`
+		Hosting     string `json:"hosting"`
+		Type        string `json:"type"`
+	} `json:"spec"`
+	Status struct {
+		State string `json:"state"`
+	} `json:"status"`
 }
 
 type GatewayListResponse struct {
-	Gateways []GatewayResponse `json:"gateways"`
-	Total    int               `json:"total"`
-	Limit    int               `json:"limit"`
-	Offset   int               `json:"offset"`
+	Count int               `json:"count"`
+	List  []GatewayDocument `json:"list"`
 }
 
 // ---------------------------------------------------------------------------

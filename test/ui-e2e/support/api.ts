@@ -1,5 +1,5 @@
 import { APIRequestContext, expect, request } from '@playwright/test';
-import { adminPassword, adminUser, authMode, baseURL, orgName } from './env';
+import { adminPassword, adminUser, authMode, baseURL } from './env';
 import { idpToken } from './idp';
 
 // A thin API client the specs use to set up their own resources and to read
@@ -32,8 +32,9 @@ export class AmpApi {
     return `/api/v1/agents/${encodeURIComponent(name)}?project=${encodeURIComponent(project)}`;
   }
 
-  get gw(): string {
-    return `/m/ai-gateway/orgs/${orgName}`;
+  /** Path of one AI Gateway gateway, by name or UUID. */
+  gatewayPath(ref: string): string {
+    return `/m/ai-gateway/gateways/${encodeURIComponent(ref)}`;
   }
 
   async createProject(name: string, displayName = name): Promise<void> {
@@ -139,17 +140,15 @@ export class AmpApi {
   }
 
   /**
-   * An active gateway serving the environment, with the environment's UUID, or undefined when none
-   * does. A proxy names the gateway, since an environment may have more than one.
+   * An active gateway with the environment's UUID, or undefined when none is active. Every gateway
+   * serves the organization's one environment; a proxy names the gateway.
    */
   async activeGateway(envName = 'default'): Promise<{ envUuid: string; gatewayId: string } | undefined> {
-    const { body } = await this.get(`${this.gw}/gateways`);
-    for (const gw of body?.gateways ?? []) {
-      if (gw.status !== 'ACTIVE') continue;
-      const env = (gw.environments ?? []).find((e: any) => e.name === envName);
-      if (env) return { envUuid: env.id, gatewayId: gw.uuid };
-    }
-    return undefined;
+    const env = await this.get(`/api/v1/environments/${encodeURIComponent(envName)}`);
+    if (env.status !== 200) return undefined;
+    const { body } = await this.get('/m/ai-gateway/gateways');
+    const gw = (body?.list ?? []).find((g: any) => g.status?.state === 'ACTIVE');
+    return gw ? { envUuid: env.body.id, gatewayId: gw.metadata.uid } : undefined;
   }
 
   /** Creates an org MCP proxy with one endpoint on the gateway, offering the plans. */

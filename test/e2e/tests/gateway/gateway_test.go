@@ -14,9 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// J6: a platform engineer registers gateways, issues the token a gateway
-// connects with, maps the gateway to an environment, and removes it again:
-// the token stops working, and a gateway still serving a deployment is kept.
+// J6: a platform engineer registers a self-hosted gateway, issues the token it
+// connects with, and removes it again: the token stops working, and a gateway
+// still serving a deployment is kept.
 
 package gatewaytests
 
@@ -56,65 +56,80 @@ func internalStatus(token string) int {
 	return resp.StatusCode
 }
 
-func envID() string {
-	for _, e := range framework.CallJSON[framework.EnvironmentListResponse](Default, Client, http.MethodGet, framework.API(Cfg, "/environments"), nil, http.StatusOK) {
-		if e.Name == Cfg.DefaultEnv {
-			return e.ID
-		}
+// gatewayDoc is a self-hosted Gateway document; the server places it in the organization's default environment.
+func gatewayDoc(name, displayName, hosting string) framework.Obj {
+	return framework.Obj{
+		"apiVersion": "ai-control-plane.choreolabs.com/v1", "kind": "Gateway",
+		"metadata": framework.Obj{"name": name},
+		"spec": framework.Obj{
+			"displayName": displayName, "hosting": hosting, "type": "EGRESS",
+			"endpoint": "http://" + name + ".example.test:19080",
+		},
 	}
-	Fail("no default environment")
-	return ""
+}
+
+func spec(o framework.Obj) framework.Obj { return o["spec"].(map[string]any) }
+func meta(o framework.Obj) framework.Obj { return o["metadata"].(map[string]any) }
+func state(o framework.Obj) any          { return o["status"].(map[string]any)["state"] }
+func names(list framework.Obj) []string {
+	var out []string
+	for _, item := range framework.Items(list, "list") {
+		out = append(out, framework.Str(item, "metadata", "name"))
+	}
+	return out
 }
 
 var _ = Describe("Self-hosted gateway", Label("gateway"), Ordered, func() {
-	var gwID, handle, token, tokenID string
-	sh := func(f string, a ...any) string { return framework.GW(Cfg, "/self-hosted-gateways"+f, a...) }
+	var name, providerName, token, tokenID string
+	gw := func(f string, a ...any) string { return framework.AIGW("/gateways"+f, a...) }
 
 	BeforeAll(func() {
-		handle = "e2e-test-shgw-" + uuid.NewString()[:8]
+		suffix := uuid.NewString()[:8]
+		name = "e2e-test-shgw-" + suffix
+		providerName = framework.E2ELLMProviderPrefix + "gw-" + suffix
 		DeferCleanup(func() {
-			if gwID != "" {
-				framework.Send(Default, Client, http.MethodDelete, sh("/%s", gwID), nil)
+			framework.Send(Default, Client, http.MethodDelete, "/m/ai-gateway/llm-providers/"+providerName, nil)
+			if name != "" {
+				framework.Send(Default, Client, http.MethodDelete, gw("/%s", name), nil)
 			}
 		})
 	})
 
-	It("registers a gateway in the environment", func() {
-		g := framework.CallObj(Default, Client, http.MethodPost, sh(""), framework.Obj{
-			"displayName": "E2E self-hosted", "handle": handle, "environment": Cfg.DefaultEnv,
-			"endpoints": []string{"http://" + handle + ".example.test:19080"},
-		}, http.StatusCreated)
-		gwID = framework.Str(g, "uuid")
-		Expect(g["hosting"]).To(Equal("SELF_HOSTED"))
-		Expect(framework.Field(framework.Items(g, "environments"), "name")).To(ConsistOf(Cfg.DefaultEnv))
+	It("registers a gateway document in the default environment", func() {
+		g := framework.CallObj(Default, Client, http.MethodPost, gw(""), gatewayDoc(name, "E2E self-hosted", "SELF_HOSTED"), http.StatusCreated)
+		Expect(g["kind"]).To(Equal("Gateway"))
+		Expect(meta(g)["name"]).To(Equal(name))
+		Expect(spec(g)["hosting"]).To(Equal("SELF_HOSTED"))
 		// It hasn't connected yet.
-		Expect(g["status"]).To(Equal("INACTIVE"))
+		Expect(state(g)).To(Equal("INACTIVE"))
 
-		got := framework.CallObj(Default, Client, http.MethodGet, sh("/%s", gwID), nil, http.StatusOK)
-		Expect(got["name"]).To(Equal(handle))
-		list := framework.CallObj(Default, Client, http.MethodGet, sh(""), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(list, "gateways"), "uuid")).To(ContainElement(gwID))
-		envGWs := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/environments/%s/gateways", envID()), nil, http.StatusOK)
-		Expect(envGWs).NotTo(BeEmpty())
+		got := framework.CallObj(Default, Client, http.MethodGet, gw("/%s", name), nil, http.StatusOK)
+		Expect(spec(got)["displayName"]).To(Equal("E2E self-hosted"))
+		Expect(names(framework.CallObj(Default, Client, http.MethodGet, gw("?hosting=SELF_HOSTED"), nil, http.StatusOK))).To(ContainElement(name))
+		Expect(names(framework.CallObj(Default, Client, http.MethodGet, gw("?hosting=MANAGED"), nil, http.StatusOK))).NotTo(ContainElement(name))
 
-		framework.CallError(Default, Client, http.MethodPost, sh(""), framework.Obj{
-			"displayName": "dup", "handle": handle, "environment": Cfg.DefaultEnv, "endpoints": []string{"http://x.example.test"},
-		}, http.StatusConflict)
-		framework.CallError(Default, Client, http.MethodPost, sh(""), framework.Obj{
-			"displayName": "no env", "handle": handle + "-x", "environment": "no-such-env", "endpoints": []string{"http://x.example.test"},
-		}, http.StatusNotFound)
+		framework.CallError(Default, Client, http.MethodPost, gw(""), gatewayDoc(name, "dup", "SELF_HOSTED"), http.StatusConflict)
+		framework.CallError(Default, Client, http.MethodPost, gw(""), gatewayDoc(name+"-m", "managed", "MANAGED"), http.StatusBadRequest)
 	})
 
-	It("updates its display name", func() {
-		framework.CallObj(Default, Client, http.MethodPut, sh("/%s", gwID), framework.Obj{"displayName": "Renamed"}, http.StatusOK)
-		Expect(framework.CallObj(Default, Client, http.MethodGet, sh("/%s", gwID), nil, http.StatusOK)["displayName"]).To(Equal("Renamed"))
+	It("replaces its editable fields, but not its endpoint", func() {
+		doc := gatewayDoc(name, "Renamed", "SELF_HOSTED")
+		framework.CallObj(Default, Client, http.MethodPut, gw("/%s", name), doc, http.StatusOK)
+		Expect(spec(framework.CallObj(Default, Client, http.MethodGet, gw("/%s", name), nil, http.StatusOK))["displayName"]).To(Equal("Renamed"))
+
+		spec(doc)["endpoint"] = "http://elsewhere.example.test"
+		framework.CallError(Default, Client, http.MethodPut, gw("/%s", name), doc, http.StatusBadRequest)
+
+		framework.Call(Default, Client, http.MethodGet, gw("/%s/health", name), nil, http.StatusOK)
+		framework.CallObj(Default, Client, http.MethodGet, gw("/status"), nil, http.StatusOK)
+		framework.Call(Default, Client, http.MethodGet, "/m/ai-gateway/platform/gateways/failure-summary", nil, http.StatusOK)
 	})
 
 	It("issues a token the gateway can call the platform with, until it's revoked", func() {
-		t := framework.CallObj(Default, Client, http.MethodPost, sh("/%s/tokens", gwID), framework.Obj{}, http.StatusCreated)
+		t := framework.CallObj(Default, Client, http.MethodPost, gw("/%s/tokens", name), framework.Obj{}, http.StatusCreated)
 		token, tokenID = framework.Str(t, "token"), framework.Str(t, "tokenId")
 		Expect(token).NotTo(BeEmpty())
-		tokens := framework.CallObj(Default, Client, http.MethodGet, sh("/%s/tokens", gwID), nil, http.StatusOK)
+		tokens := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/tokens", name), nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(tokens, "list"), "id")).To(ContainElement(tokenID))
 		Expect(tokens).NotTo(HaveKey("token"), "a token's value is shown only once")
 
@@ -125,91 +140,19 @@ var _ = Describe("Self-hosted gateway", Label("gateway"), Ordered, func() {
 		Expect(status).To(Equal(http.StatusOK))
 		Expect(internalStatus("not-a-token")).To(Equal(http.StatusUnauthorized))
 
-		framework.Call(Default, Client, http.MethodDelete, sh("/%s/tokens/%s", gwID, tokenID), nil, http.StatusNoContent)
+		framework.Call(Default, Client, http.MethodDelete, gw("/%s/tokens/%s", name, tokenID), nil, http.StatusNoContent)
 		Eventually(func() int { return internalStatus(token) }).WithPolling(time.Second).Should(Equal(http.StatusUnauthorized))
 	})
 
-	It("removes the gateway, which takes its tokens with it", func() {
-		t := framework.CallObj(Default, Client, http.MethodPost, sh("/%s/tokens", gwID), framework.Obj{}, http.StatusCreated)
-		framework.Call(Default, Client, http.MethodDelete, sh("/%s", gwID), nil, http.StatusNoContent)
-		framework.CallError(Default, Client, http.MethodGet, sh("/%s", gwID), nil, http.StatusNotFound)
-		if status := internalStatus(framework.Str(t, "token")); status != 0 {
-			Expect(status).To(Equal(http.StatusUnauthorized))
-		}
-		gwID = ""
-	})
-})
-
-var _ = Describe("Platform gateway", Label("gateway"), Ordered, func() {
-	var gwID, name, providerName, envUUID string
-	gw := func(f string, a ...any) string { return framework.GW(Cfg, "/gateways"+f, a...) }
-
-	BeforeAll(func() {
-		suffix := uuid.NewString()[:8]
-		name = "e2e-test-gw-" + suffix
-		providerName = framework.E2ELLMProviderPrefix + "gw-" + suffix
-		envUUID = envID()
-		DeferCleanup(func() {
-			framework.Send(Default, Client, http.MethodDelete, "/m/ai-gateway/llm-providers/"+providerName, nil)
-			if gwID != "" {
-				framework.Send(Default, Client, http.MethodDelete, gw("/%s", gwID), nil)
-			}
-		})
-	})
-
-	It("registers a gateway and maps it to the environment", func() {
-		g := framework.CallObj(Default, Client, http.MethodPost, gw(""), framework.Obj{
-			"name": name, "displayName": "E2E platform gateway", "gatewayType": "EGRESS",
-			"vhost": "http://" + name + ".gateway.localhost:19080",
-		}, http.StatusCreated)
-		gwID = framework.Str(g, "uuid")
-
-		// The environment already has its ingress gateway, so this one is egress-only.
-		framework.Call(Default, Client, http.MethodPost, gw("/%s/environments/%s", gwID, envUUID), framework.Obj{}, http.StatusCreated)
-		envs := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/environments", gwID), nil, http.StatusOK)
-		Expect(envs).NotTo(BeEmpty())
-		got := framework.CallObj(Default, Client, http.MethodGet, gw("/%s", gwID), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(got, "environments"), "id")).To(ContainElement(envUUID))
-
-		framework.CallObj(Default, Client, http.MethodPut, gw("/%s", gwID), framework.Obj{"displayName": "Renamed"}, http.StatusOK)
-		Expect(framework.CallObj(Default, Client, http.MethodGet, gw("/%s", gwID), nil, http.StatusOK)["displayName"]).To(Equal("Renamed"))
-		framework.Call(Default, Client, http.MethodGet, gw("/%s/health", gwID), nil, http.StatusOK)
-		status := framework.CallObj(Default, Client, http.MethodGet, gw("/status"), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(status, "list"), "id")).To(ContainElement(gwID))
-		framework.Call(Default, Client, http.MethodGet, "/m/ai-gateway/platform/gateways/failure-summary", nil, http.StatusOK)
-	})
-
-	It("manages the gateway's token and trusted identity providers", func() {
-		t := framework.CallObj(Default, Client, http.MethodPost, gw("/%s/tokens", gwID), framework.Obj{}, http.StatusOK)
-		tokenID := framework.Str(t, "tokenId")
-		tokens := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/tokens", gwID), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(tokens, "list"), "id")).To(ContainElement(tokenID))
-		framework.Call(Default, Client, http.MethodDelete, gw("/%s/tokens/%s", gwID, tokenID), nil, http.StatusNoContent)
-
-		idp := "e2e-test-idp"
-		issuer, jwks := "https://idp.example.test", "https://idp.example.test/jwks"
-		framework.Call(Default, Client, http.MethodPut, gw("/%s/identity-providers/%s", gwID, idp),
-			framework.Obj{"issuer": issuer, "jwksUri": jwks}, http.StatusOK)
-		idps := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/identity-providers", gwID), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(idps, "list"), "name")).To(ContainElement(idp))
-		org := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/identity-providers"), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(org, "list"), "name")).To(ContainElement(idp))
-		framework.Call(Default, Client, http.MethodGet, framework.GW(Cfg, "/environments/%s/identity-providers", envUUID), nil, http.StatusOK)
-		framework.CallError(Default, Client, http.MethodGet, framework.GW(Cfg, "/identity-providers/discover"), nil, http.StatusBadRequest)
-
-		framework.Call(Default, Client, http.MethodDelete, gw("/%s/identity-providers/%s", gwID, idp), nil, http.StatusNoContent)
-		idps = framework.CallObj(Default, Client, http.MethodGet, gw("/%s/identity-providers", gwID), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(idps, "list"), "name")).NotTo(ContainElement(idp))
-	})
-
-	It("keeps a gateway that serves a deployment, and removes it once that is gone", func() {
+	It("keeps a gateway that serves a deployment, and removes it, with its tokens, once that is gone", func() {
+		uid := framework.Str(meta(framework.CallObj(Default, Client, http.MethodGet, gw("/%s", name), nil, http.StatusOK)), "uid")
 		url, header, value := "https://api.openai.com/v1", "Authorization", "Bearer sk-e2e-placeholder"
 		prov := llmproviderop.CreateLLMProvider(Default, Client, providerName, framework.LLMProviderSpec{
 			DisplayName: providerName, Version: "v1.0", Context: "/" + providerName, Template: "openai",
 			Upstream: framework.UpstreamConfig{Main: &framework.UpstreamEndpoint{
 				URL: &url, Auth: &framework.UpstreamAuth{Type: "api-key", Header: &header, Value: &value},
 			}},
-			Gateways: []string{gwID},
+			Gateways: []string{uid},
 		})
 		deps := func() []framework.Obj {
 			return framework.CallJSON[[]framework.Obj](Default, Client, http.MethodGet,
@@ -217,30 +160,77 @@ var _ = Describe("Platform gateway", Label("gateway"), Ordered, func() {
 		}
 		var depID string
 		for _, d := range deps() {
-			if framework.Str(d, "gatewayId") == gwID {
+			if framework.Str(d, "gatewayId") == uid {
 				depID = framework.Str(d, "deploymentId")
 			}
 		}
 		Expect(depID).NotTo(BeEmpty(), "the provider wasn't deployed to the gateway")
 
 		By("Refusing to remove a gateway that still serves a deployment, and keeping both")
-		framework.CallError(Default, Client, http.MethodDelete, gw("/%s", gwID), nil, http.StatusConflict)
-		framework.Call(Default, Client, http.MethodGet, gw("/%s", gwID), nil, http.StatusOK)
+		framework.CallError(Default, Client, http.MethodDelete, gw("/%s", name), nil, http.StatusConflict)
+		framework.Call(Default, Client, http.MethodGet, gw("/%s", name), nil, http.StatusOK)
 		Expect(framework.Field(deps(), "deploymentId")).To(ContainElement(depID))
 
-		By("Unmapping it from the environment")
-		framework.Call(Default, Client, http.MethodDelete, gw("/%s/environments/%s", gwID, envUUID), nil, http.StatusNoContent)
-		got := framework.CallObj(Default, Client, http.MethodGet, gw("/%s", gwID), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(got, "environments"), "id")).NotTo(ContainElement(envUUID))
-
 		By("Removing it once the provider deployed to it is gone")
+		t := framework.CallObj(Default, Client, http.MethodPost, gw("/%s/tokens", name), framework.Obj{}, http.StatusCreated)
 		// The gateway never connected, so an undeploy would never be acknowledged;
 		// deleting the provider takes its deployments off every gateway.
 		framework.Call(Default, Client, http.MethodDelete, "/m/ai-gateway/llm-providers/"+providerName, nil, http.StatusNoContent)
 		Eventually(func(g Gomega) {
-			framework.Call(g, Client, http.MethodDelete, gw("/%s", gwID), nil, http.StatusNoContent)
+			framework.Call(g, Client, http.MethodDelete, gw("/%s", name), nil, http.StatusNoContent)
 		}).WithPolling(2 * time.Second).Should(Succeed())
-		framework.CallError(Default, Client, http.MethodGet, gw("/%s", gwID), nil, http.StatusNotFound)
-		gwID = ""
+		framework.CallError(Default, Client, http.MethodGet, gw("/%s", name), nil, http.StatusNotFound)
+		if status := internalStatus(framework.Str(t, "token")); status != 0 {
+			Expect(status).To(Equal(http.StatusUnauthorized))
+		}
+		name = ""
+	})
+})
+
+var _ = Describe("Managed gateway", Label("gateway"), Ordered, func() {
+	var name string
+	gw := func(f string, a ...any) string { return framework.AIGW("/gateways"+f, a...) }
+
+	BeforeAll(func() {
+		managed := framework.Items(framework.CallObj(Default, Client, http.MethodGet, gw("?hosting=MANAGED"), nil, http.StatusOK), "list")
+		if len(managed) == 0 {
+			Skip("the deployment has no managed gateway")
+		}
+		name = framework.Str(meta(managed[0]), "name")
+	})
+
+	It("is read-only", func() {
+		got := framework.CallObj(Default, Client, http.MethodGet, gw("/%s", name), nil, http.StatusOK)
+		Expect(spec(got)["hosting"]).To(Equal("MANAGED"))
+		framework.CallError(Default, Client, http.MethodPut, gw("/%s", name), framework.Obj{
+			"apiVersion": got["apiVersion"], "kind": "Gateway", "metadata": framework.Obj{"name": name}, "spec": spec(got),
+		}, http.StatusForbidden)
+		framework.CallError(Default, Client, http.MethodDelete, gw("/%s", name), nil, http.StatusForbidden)
+	})
+
+	It("manages its trusted identity providers", func() {
+		idp := "e2e-test-idp-" + uuid.NewString()[:8]
+		issuer, jwks := "https://idp.example.test", "https://idp.example.test/jwks"
+		DeferCleanup(func() {
+			framework.Send(Default, Client, http.MethodDelete, gw("/%s/identity-providers/%s", name, idp), nil)
+		})
+		framework.Call(Default, Client, http.MethodPut, gw("/%s/identity-providers/%s", name, idp),
+			framework.Obj{"issuer": issuer, "jwksUri": jwks}, http.StatusOK)
+		idps := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/identity-providers", name), nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(idps, "list"), "name")).To(ContainElement(idp))
+		org := framework.CallObj(Default, Client, http.MethodGet, framework.AIGW("/identity-providers"), nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(org, "list"), "name")).To(ContainElement(idp))
+		framework.CallError(Default, Client, http.MethodGet, framework.AIGW("/identity-providers/discover"), nil, http.StatusBadRequest)
+
+		framework.Call(Default, Client, http.MethodDelete, gw("/%s/identity-providers/%s", name, idp), nil, http.StatusNoContent)
+		idps = framework.CallObj(Default, Client, http.MethodGet, gw("/%s/identity-providers", name), nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(idps, "list"), "name")).NotTo(ContainElement(idp))
+	})
+
+	It("is gone from the old organization paths", func() {
+		status, _ := framework.Send(Default, Client, http.MethodGet, framework.GW(Cfg, "/gateways"), nil)
+		Expect(status).To(Equal(http.StatusNotFound))
+		status, _ = framework.Send(Default, Client, http.MethodGet, framework.GW(Cfg, "/self-hosted-gateways"), nil)
+		Expect(status).To(Equal(http.StatusNotFound))
 	})
 })
