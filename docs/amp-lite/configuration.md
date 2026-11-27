@@ -95,7 +95,6 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `THUNDER_RESOLVE_TO_HOST` | `thunder.resolve_to_host` |  | host:port the API dials ThunderID at (a container name), while THUNDER_BASE_URL stays the issuer. |
 | `THUNDER_CLIENT_ID` | `thunder.client_id` | `amp-system-client` | ThunderID client the API administers it with. Also read as `AMP_SYSTEM_CLIENT_ID`. |
 | `THUNDER_CLIENT_SECRET` | `thunder.client_secret` | `generated` | Its secret. Also read as `AMP_SYSTEM_CLIENT_SECRET`. **Secret.** |
-| `IDP_TOKEN_URL` | `idp.token_url` | `THUNDER_BASE_URL/oauth2/token` | Token endpoint for the API's own client credentials. |
 | `IDP_CLIENT_ID` | `idp.client_id` | `amp-api-client` | The API's client. Also read as `AMP_API_CLIENT_ID`. |
 | `IDP_CLIENT_SECRET` | `idp.client_secret` | `generated` | Its secret. Also read as `AMP_API_CLIENT_SECRET`. **Secret.** |
 | `AMP_CONSOLE_CLIENT_ID` | `amp.console_client_id` | `amp-console-client` | The console's client. |
