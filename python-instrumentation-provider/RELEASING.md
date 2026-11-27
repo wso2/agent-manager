@@ -13,7 +13,7 @@ One identifier — the **AMP instrumentation version** (an independent semver, e
 
 | Artifact | What it is | Versioned how |
 |---|---|---|
-| `amp-instrumentation` PyPI package | the externally-hosted auto-instrumentation library + the `init_otel()` helper | the `target_version` you type into the `AMP Instrumentation Release` workflow |
+| `amp-instrumentation` PyPI package | the externally-hosted auto-instrumentation library + the `init_otel()` helper | `amp_instrumentation_release.target_version` in `.github/workflow-settings.json` on the selected settings branch |
 | `ghcr.io/wso2/amp-python-instrumentation-provider:<version>-python<X.Y>` init-container images | the platform-hosted auto-instrumentation, one image per `(AMP-instr version × Python version)` | the `instrumentation_version` field in `.github/release-config.json` |
 | `agent-manager-service` platform default | the AMP-instr version a Python agent gets when it hasn't selected one | `defaultInstrumentationVersion` Helm value (renders into `OTEL_DEFAULT_INSTRUMENTATION_VERSION`); must be present in the embedded catalog or the server refuses to start |
 

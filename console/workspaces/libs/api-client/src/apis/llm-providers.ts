@@ -82,6 +82,7 @@ import {
   httpGET,
   httpPOST,
   httpPUT,
+  nullIfNotFound,
   SERVICE_BASE,
 } from "../utils";
 
@@ -450,14 +451,21 @@ export async function listLLMDeployments(
     searchParams.status = query.status;
   }
 
+  const providerPath = `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}`;
   const deployments: LLMDeploymentListResponse = [];
   let nextCursor: string | null = null;
   do {
-    const pageParams = nextCursor === null ? searchParams : { ...searchParams, cursor: nextCursor };
-    const res = await httpGET(
-      `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployment-history`,
-      { token, searchParams: pageParams },
+    const pageParams: Record<string, string> = nextCursor === null
+      ? searchParams
+      : { ...searchParams, cursor: nextCursor };
+    const res = await nullIfNotFound(
+      httpGET(`${providerPath}/deployment-history`, { token, searchParams: pageParams }),
     );
+    if (res === null) {
+      // A separately updated console may still be talking to an older server.
+      const legacy = await httpGET(`${providerPath}/deployments`, { token, searchParams });
+      return legacy.json();
+    }
     if (!res.ok) throw await res.json();
     const page: LLMDeploymentListResponse = await res.json();
     for (const deployment of page) deployments.push(deployment);

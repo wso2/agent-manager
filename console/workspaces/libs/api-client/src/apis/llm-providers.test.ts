@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 import { httpGET } from "../utils";
 import { listLLMDeployments } from "./llm-providers";
 
@@ -24,6 +24,10 @@ vi.mock("../utils", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../utils")>()),
   httpGET: vi.fn(),
 }));
+
+beforeEach(() => {
+  vi.mocked(httpGET).mockReset();
+});
 
 it("keeps the filters while following the deployment list's next cursor", async () => {
   const first = { id: "first" };
@@ -47,4 +51,36 @@ it("keeps the filters while following the deployment list's next cursor", async 
     searchParams: { ...filters, cursor: "opaque-cursor" },
   });
   expect(httpGET).toHaveBeenCalledTimes(2);
+});
+
+it("lists every deployment when an older server has no deployment history route", async () => {
+  const legacyDeployments = [{ id: "original" }, { id: "archived" }];
+  vi.mocked(httpGET)
+    .mockRejectedValueOnce(Object.assign(new Error("404 page not found"), { status: 404 }))
+    .mockResolvedValueOnce(Response.json(legacyDeployments));
+
+  const filters = { gatewayId: "edge", status: "ARCHIVED" };
+  const result = await listLLMDeployments(
+    { orgName: "acme", providerId: "provider" },
+    filters,
+    async () => "test-token",
+  );
+
+  expect(result).toEqual(legacyDeployments);
+  expect(httpGET).toHaveBeenNthCalledWith(1, "/api/v1/orgs/acme/llm-providers/provider/deployment-history", {
+    token: "test-token",
+    searchParams: filters,
+  });
+  expect(httpGET).toHaveBeenNthCalledWith(2, "/api/v1/orgs/acme/llm-providers/provider/deployments", {
+    token: "test-token",
+    searchParams: filters,
+  });
+});
+
+it("preserves non-404 deployment history errors", async () => {
+  const denied = Object.assign(new Error("Forbidden"), { status: 403 });
+  vi.mocked(httpGET).mockRejectedValueOnce(denied);
+
+  await expect(listLLMDeployments({ orgName: "acme", providerId: "provider" })).rejects.toBe(denied);
+  expect(httpGET).toHaveBeenCalledTimes(1);
 });

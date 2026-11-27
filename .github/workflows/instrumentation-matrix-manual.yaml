@@ -25,6 +25,8 @@ jobs:
     if: ${{ !fromJSON(needs.settings.outputs.values).heavy_only }}
     outputs:
       cell_ids: ${{ steps.expand.outputs.cell_ids }}
+      recording_cells: ${{ steps.expand.outputs.recording_cells }}
+      cassette_owners: ${{ steps.expand.outputs.cassette_owners }}
       count: ${{ steps.expand.outputs.count }}
     steps:
       - uses: actions/checkout@v6
@@ -47,17 +49,18 @@ jobs:
           echo "::error::filter resolved zero cells; check the input values."
           exit 1
 
-  run-cells:
+  # A cassette shared by Python or Traceloop versions is recorded once. All
+  # selected cells replay afterward with the result from that same recorder.
+  record-cassettes:
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
     needs: [settings, resolve-cells]
+    if: ${{ fromJSON(needs.settings.outputs.values).include_record_mode }}
     strategy:
       fail-fast: false
-      # GitHub caps matrix size at 256; budget below caps the parallelism so
-      # 200+ filtered cells don't queue runners for everyone else.
       max-parallel: 8
       matrix:
-        cell: ${{ fromJSON(needs.resolve-cells.outputs.cell_ids) }}
+        recorder: ${{ fromJSON(needs.resolve-cells.outputs.recording_cells) }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -68,35 +71,80 @@ jobs:
             3.12
             3.13
       - run: pip install nox pyyaml
-      - name: Run cell
+      - name: Record cassette
         working-directory: test/instrumentation-matrix
         env:
-          # `once` records missing interactions; `none` is replay-only.
-          VCR_RECORD_MODE: ${{ fromJSON(needs.settings.outputs.values).include_record_mode && 'once' || 'none' }}
+          CELL_ID: ${{ matrix.recorder.id }}
+          VCR_RECORD_MODE: once
           OPENAI_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.INSTRUMENTATION_TEST_ANTHROPIC_API_KEY }}
-        run: nox -s emission -- --cell-id=${{ matrix.cell }}
+        run: nox -s emission -- --cell-id="$CELL_ID"
+      - name: Capture recorded cassette changes
+        env:
+          CASSETTE: test/instrumentation-matrix/${{ matrix.recorder.cassette }}
+          PATCH_FILE: ${{ runner.temp }}/cassette-${{ matrix.recorder.id }}.patch
+        run: |
+          set -euo pipefail
+          if [[ -f "$CASSETTE" ]]; then
+            git add --intent-to-add -- "$CASSETTE"
+          fi
+          git diff --binary --no-ext-diff "$GITHUB_SHA" -- "$CASSETTE" > "$PATCH_FILE"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: manual-cassette-patch-${{ matrix.recorder.id }}
+          path: ${{ runner.temp }}/cassette-${{ matrix.recorder.id }}.patch
+          if-no-files-found: error
+          overwrite: true
+
+  run-cells:
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    needs: [settings, resolve-cells, record-cassettes]
+    if: >-
+      ${{ !cancelled() && needs.resolve-cells.result == 'success' &&
+      (needs.record-cassettes.result == 'success' ||
+      (needs.record-cassettes.result == 'skipped' && !fromJSON(needs.settings.outputs.values).include_record_mode)) }}
+    strategy:
+      fail-fast: false
+      # GitHub caps matrix size at 256; budget below caps the parallelism so
+      # 200+ filtered cells don't queue runners for everyone else.
+      max-parallel: 8
+      matrix:
+        cell: ${{ fromJSON(needs.resolve-cells.outputs.cell_ids) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        if: ${{ needs.record-cassettes.result == 'success' }}
+        with:
+          name: manual-cassette-patch-${{ fromJSON(needs.resolve-cells.outputs.cassette_owners)[matrix.cell] }}
+          path: ${{ runner.temp }}/cassette-patches
+      - name: Apply the recorded cassette for replay
+        if: ${{ needs.record-cassettes.result == 'success' }}
+        env:
+          PATCH_FILE: ${{ runner.temp }}/cassette-patches/cassette-${{ fromJSON(needs.resolve-cells.outputs.cassette_owners)[matrix.cell] }}.patch
+        run: |
+          if [[ -s "$PATCH_FILE" ]]; then
+            git apply --include='test/instrumentation-matrix/cassettes/*.yaml' "$PATCH_FILE"
+          fi
+      - uses: actions/setup-python@v6
+        with:
+          python-version: |
+            3.10
+            3.11
+            3.12
+            3.13
+      - run: pip install nox pyyaml
+      - name: Replay cell
+        working-directory: test/instrumentation-matrix
+        env:
+          CELL_ID: ${{ matrix.cell }}
+          VCR_RECORD_MODE: none
+        run: nox -s emission -- --cell-id="$CELL_ID"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: manual-cell-${{ matrix.cell }}
           path: test/instrumentation-matrix/reports/
-      - name: Capture recorded cassette changes
-        if: ${{ fromJSON(needs.settings.outputs.values).include_record_mode }}
-        env:
-          PATCH_FILE: ${{ runner.temp }}/cassette-${{ strategy.job-index }}.patch
-        run: |
-          set -euo pipefail
-          cassette_files='test/instrumentation-matrix/cassettes/*.yaml'
-          git add --intent-to-add -- "$cassette_files"
-          git diff --binary --no-ext-diff "$GITHUB_SHA" -- "$cassette_files" > "$PATCH_FILE"
-      - uses: actions/upload-artifact@v7
-        if: ${{ fromJSON(needs.settings.outputs.values).include_record_mode }}
-        with:
-          name: manual-cassette-patch-${{ strategy.job-index }}
-          path: ${{ runner.temp }}/cassette-${{ strategy.job-index }}.patch
-          if-no-files-found: error
-          overwrite: true
 
   open-record-pr:
     runs-on:
