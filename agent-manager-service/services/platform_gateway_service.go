@@ -613,26 +613,9 @@ func (s *PlatformGatewayService) VerifyToken(ctx context.Context, plainToken str
 		return nil, errors.New("invalid token")
 	}
 
-	if s.tokenCache.IsKnownMiss(tokenPrefix) {
-		return nil, errors.New("invalid token")
-	}
-
-	// Share only the error from an overlapping lookup. A successful lookup may
-	// have observed the token before this request began and before it was revoked.
-	var token *models.GatewayToken
-	_, err, _ := s.verifyTokenSfg.Do(tokenPrefix, func() (any, error) {
-		var lookupErr error
-		token, lookupErr = s.lookupActiveGatewayToken(ctx, tokenPrefix)
-		return struct{}{}, lookupErr
-	})
+	token, err := s.lookupTokenForVerification(ctx, tokenPrefix)
 	if err != nil {
 		return nil, err
-	}
-	if token == nil {
-		token, err = s.lookupActiveGatewayToken(ctx, tokenPrefix)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	if !verifyToken(plainToken, token.TokenHash, token.Salt) {
@@ -656,6 +639,46 @@ func (s *PlatformGatewayService) VerifyToken(ctx context.Context, plainToken str
 	s.tokenCache.SetGateway(gateway)
 	slog.Debug("token verified", "tokenPrefix", tokenPrefix, "gatewayUUID", gateway.UUID)
 	return gateway, nil
+}
+
+// lookupTokenForVerification lets callers share lookup failures while preserving
+// their own cancellation and requiring a fresh active result for each request.
+func (s *PlatformGatewayService) lookupTokenForVerification(ctx context.Context, tokenPrefix string) (*models.GatewayToken, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s.tokenCache.IsKnownMiss(tokenPrefix) {
+		return nil, errors.New("invalid token")
+	}
+
+	// Only the request that started the lookup may use its token. The callback
+	// publishes its result through the channel before the owner reads it.
+	type tokenLookup struct {
+		token *models.GatewayToken
+	}
+	own := new(tokenLookup)
+	pending := s.verifyTokenSfg.DoChan(tokenPrefix, func() (any, error) {
+		var err error
+		own.token, err = s.lookupActiveGatewayToken(ctx, tokenPrefix)
+		return own, err
+	})
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-pending:
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if result.Val == own {
+			return own.token, result.Err
+		}
+		if result.Err != nil && !errors.Is(result.Err, context.Canceled) && !errors.Is(result.Err, context.DeadlineExceeded) {
+			return nil, result.Err
+		}
+	}
+
+	// A follower reads the token itself after a successful or canceled lookup.
+	return s.lookupActiveGatewayToken(ctx, tokenPrefix)
 }
 
 // lookupActiveGatewayToken records misses so repeated requests for an absent

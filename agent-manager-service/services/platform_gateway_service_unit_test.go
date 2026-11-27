@@ -24,6 +24,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -273,29 +274,120 @@ func TestVerifyToken_ConcurrentRequestsForSameMissingPrefix_SingleDBCall(t *test
 	assert.Equal(t, int32(1), dbCalls.Load(), "concurrent requests for one missing prefix must produce only one repository call")
 }
 
-// A cancelled context must reach the repository call so an in-flight DB
-// lookup can actually be aborted — the fix threads ctx through VerifyToken
-// instead of the DB call running to completion regardless of the caller
-// having already given up.
 func TestVerifyToken_PropagatesContextToRepository(t *testing.T) {
-	fakeToken := fakeButValidShapedToken()
-	var receivedCtx context.Context
-	repo := &repomocks.GatewayRepositoryMock{
-		GetActiveTokenByPrefixFunc: func(ctx context.Context, _ string) (*models.GatewayToken, error) {
-			receivedCtx = ctx
-			return nil, gorm.ErrRecordNotFound
-		},
-	}
-	svc := NewPlatformGatewayService(repo, nil)
+	synctest.Test(t, func(t *testing.T) {
+		fakeToken := fakeButValidShapedToken()
+		var receivedCtx context.Context
+		release := make(chan struct{})
+		defer close(release)
+		repo := &repomocks.GatewayRepositoryMock{
+			GetActiveTokenByPrefixFunc: func(ctx context.Context, _ string) (*models.GatewayToken, error) {
+				receivedCtx = ctx
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-release:
+					return nil, gorm.ErrRecordNotFound
+				}
+			},
+		}
+		svc := NewPlatformGatewayService(repo, nil)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() {
+			_, err := svc.VerifyToken(ctx, fakeToken)
+			done <- err
+		}()
+		synctest.Wait()
+		require.Equal(t, ctx, receivedCtx)
 
-	_, err := svc.VerifyToken(ctx, fakeToken)
+		cancel()
+		synctest.Wait()
+		require.Len(t, done, 1)
+		assert.ErrorIs(t, <-done, context.Canceled)
+	})
+}
 
-	require.Error(t, err)
-	require.NotNil(t, receivedCtx, "GetActiveTokenByPrefix must be reached with the caller's context, not a detached one")
-	assert.ErrorIs(t, receivedCtx.Err(), context.Canceled, "the repository must receive the caller's (cancelled) context, not context.Background()")
+func TestLookupTokenForVerification_WaiterCanCancel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ownerCtx, cancelOwner := context.WithCancel(t.Context())
+		defer cancelOwner()
+		waiterCtx, cancelWaiter := context.WithCancel(t.Context())
+		defer cancelWaiter()
+		repo := &repomocks.GatewayRepositoryMock{
+			GetActiveTokenByPrefixFunc: func(ctx context.Context, _ string) (*models.GatewayToken, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+		}
+		svc := NewPlatformGatewayService(repo, nil)
+		prefix := uuid.NewString()
+		go func() {
+			_, _ = svc.lookupTokenForVerification(ownerCtx, prefix)
+		}()
+		synctest.Wait()
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := svc.lookupTokenForVerification(waiterCtx, prefix)
+			done <- err
+		}()
+		synctest.Wait()
+		require.Len(t, repo.GetActiveTokenByPrefixCalls(), 1)
+
+		cancelWaiter()
+		synctest.Wait()
+		require.Len(t, done, 1, "waiter returns while the first lookup is still running")
+		assert.ErrorIs(t, <-done, context.Canceled)
+		assert.NoError(t, ownerCtx.Err())
+	})
+}
+
+func TestLookupTokenForVerification_WaiterRetriesAfterOwnerCancels(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ownerCtx, cancelOwner := context.WithCancel(t.Context())
+		defer cancelOwner()
+		active := &models.GatewayToken{UUID: uuid.New()}
+		repo := &repomocks.GatewayRepositoryMock{
+			GetActiveTokenByPrefixFunc: func(ctx context.Context, _ string) (*models.GatewayToken, error) {
+				if ctx == ownerCtx {
+					<-ctx.Done()
+					return nil, ctx.Err()
+				}
+				return active, nil
+			},
+		}
+		svc := NewPlatformGatewayService(repo, nil)
+		prefix := uuid.NewString()
+		go func() {
+			_, _ = svc.lookupTokenForVerification(ownerCtx, prefix)
+		}()
+		synctest.Wait()
+
+		type result struct {
+			token *models.GatewayToken
+			err   error
+		}
+		done := make(chan result, 1)
+		go func() {
+			token, err := svc.lookupTokenForVerification(t.Context(), prefix)
+			done <- result{token: token, err: err}
+		}()
+		synctest.Wait()
+		require.Len(t, repo.GetActiveTokenByPrefixCalls(), 1)
+
+		cancelOwner()
+		synctest.Wait()
+		require.Len(t, done, 1)
+		got := <-done
+		require.NoError(t, got.err)
+		assert.Same(t, active, got.token)
+		calls := repo.GetActiveTokenByPrefixCalls()
+		require.Len(t, calls, 2)
+		assert.Equal(t, t.Context(), calls[1].Ctx)
+	})
 }
 
 func TestVerifyToken_RejectsRevokedTokenAcrossServiceInstances(t *testing.T) {
@@ -316,7 +408,7 @@ func TestVerifyToken_RejectsRevokedTokenAcrossServiceInstances(t *testing.T) {
 	revoked := false
 	repo := &repomocks.GatewayRepositoryMock{
 		GetActiveTokenByPrefixFunc: func(_ context.Context, tokenPrefix string) (*models.GatewayToken, error) {
-			require.Equal(t, prefix, tokenPrefix)
+			assert.Equal(t, prefix, tokenPrefix)
 			if revoked {
 				return nil, gorm.ErrRecordNotFound
 			}
