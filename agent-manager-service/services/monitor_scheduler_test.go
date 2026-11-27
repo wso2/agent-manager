@@ -40,11 +40,11 @@ import (
 
 // mockExecutor is a test mock for the MonitorExecutor interface
 type mockExecutor struct {
-	mu                    sync.Mutex
-	executeMonitorRunFunc func(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error)
-	updateNextRunTimeFunc func(ctx context.Context, monitorID uuid.UUID, nextRunTime time.Time) error
-	executeCalls          []ExecuteMonitorRunParams
-	updateCalls           []struct {
+	mu                     sync.Mutex
+	executeMonitorRunFunc  func(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error)
+	advanceNextRunTimeFunc func(ctx context.Context, monitorID uuid.UUID, from, to time.Time) (bool, error)
+	executeCalls           []ExecuteMonitorRunParams
+	updateCalls            []struct {
 		MonitorID   uuid.UUID
 		NextRunTime time.Time
 	}
@@ -63,17 +63,17 @@ func (m *mockExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteMoni
 	}, nil
 }
 
-func (m *mockExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.UUID, nextRunTime time.Time) error {
+func (m *mockExecutor) AdvanceNextRunTime(ctx context.Context, monitorID uuid.UUID, from, nextRunTime time.Time) (bool, error) {
 	m.mu.Lock()
 	m.updateCalls = append(m.updateCalls, struct {
 		MonitorID   uuid.UUID
 		NextRunTime time.Time
 	}{monitorID, nextRunTime})
 	m.mu.Unlock()
-	if m.updateNextRunTimeFunc != nil {
-		return m.updateNextRunTimeFunc(ctx, monitorID, nextRunTime)
+	if m.advanceNextRunTimeFunc != nil {
+		return m.advanceNextRunTimeFunc(ctx, monitorID, from, nextRunTime)
 	}
-	return nil
+	return true, nil
 }
 
 func newTestScheduler(executor MonitorExecutor) *monitorSchedulerService {
@@ -158,7 +158,7 @@ func TestTriggerMonitor_Success(t *testing.T) {
 	expectedEndApprox := time.Now().Add(-safetyDelta)
 	assert.WithinDuration(t, expectedEndApprox, call.EndTime, 2*time.Second)
 
-	// Verify UpdateNextRunTime was called
+	// Verify AdvanceNextRunTime was called
 	require.Len(t, executor.updateCalls, 1)
 	assert.Equal(t, monitorID, executor.updateCalls[0].MonitorID)
 
@@ -228,10 +228,10 @@ func TestTriggerMonitor_ExecutorError(t *testing.T) {
 		"expected the backoff to be capped at %s, got %s", triggerFailureBackoffCap, executor.updateCalls[0].NextRunTime)
 }
 
-func TestTriggerMonitor_UpdateNextRunTimeError(t *testing.T) {
+func TestTriggerMonitor_AdvanceNextRunTimeError(t *testing.T) {
 	executor := &mockExecutor{
-		updateNextRunTimeFunc: func(ctx context.Context, monitorID uuid.UUID, nextRunTime time.Time) error {
-			return fmt.Errorf("db error")
+		advanceNextRunTimeFunc: func(ctx context.Context, monitorID uuid.UUID, from, nextRunTime time.Time) (bool, error) {
+			return false, fmt.Errorf("db error")
 		},
 	}
 	s := newTestScheduler(executor)
@@ -505,4 +505,112 @@ func TestSchedulerCycle_TwoConcurrentCycles(t *testing.T) {
 	// skipped cycle, but the key assertion is it's at most 1.
 	assert.LessOrEqual(t, executeCalled.Load(), int32(1),
 		"at most one concurrent cycle should execute (advisory lock ensures mutual exclusion)")
+}
+
+// stopDuringRunExecutor is the real monitorExecutor, except that executing the run
+// stops the monitor the way StopMonitor does. That reproduces a user stopping the
+// monitor while the scheduler cycle that selected it is still executing it.
+type stopDuringRunExecutor struct {
+	*monitorExecutor
+	stop func() error
+}
+
+func (e stopDuringRunExecutor) ExecuteMonitorRun(_ context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
+	if err := e.stop(); err != nil {
+		return nil, err
+	}
+	return &ExecuteMonitorRunResult{Run: &models.MonitorRun{ID: uuid.New()}, Name: params.Monitor.Name + "-run"}, nil
+}
+
+// TestSchedulerCycle_StopDuringRunIsNotUndone: a monitor the user stops while a
+// scheduler cycle is executing it must stay stopped. Before the fix the cycle wrote
+// its next_run_time unconditionally after the run and re-activated the monitor.
+func TestSchedulerCycle_StopDuringRunIsNotUndone(t *testing.T) {
+	ctx := context.Background()
+	repo := repositories.NewMonitorRepo(db.GetDB())
+	monitor := newDueSchedulerMonitor(t, "stop-race")
+
+	executor := stopDuringRunExecutor{
+		monitorExecutor: &monitorExecutor{monitorRepo: repo, logger: slog.Default()},
+		stop:            func() error { return repo.UpdateNextRunTime(monitor.ID, nil) },
+	}
+	newTestScheduler(executor).runSchedulerCycle(ctx)
+
+	var after models.Monitor
+	require.NoError(t, db.DB(ctx).First(&after, "id = ?", monitor.ID).Error)
+	assert.Nil(t, after.NextRunTime, "a monitor stopped during its scheduled run must stay stopped, got next_run_time %v", after.NextRunTime)
+}
+
+// TestSchedulerCycle_RestartDuringRunIsKept: a stop followed by a start while the cycle
+// runs sets next_run_time to "now"; the cycle must keep the user's value, not its own.
+func TestSchedulerCycle_RestartDuringRunIsKept(t *testing.T) {
+	ctx := context.Background()
+	repo := repositories.NewMonitorRepo(db.GetDB())
+	monitor := newDueSchedulerMonitor(t, "restart-race")
+	restartedAt := time.Now().Add(5 * time.Minute).Truncate(time.Microsecond)
+
+	executor := stopDuringRunExecutor{
+		monitorExecutor: &monitorExecutor{monitorRepo: repo, logger: slog.Default()},
+		stop: func() error {
+			if err := repo.UpdateNextRunTime(monitor.ID, nil); err != nil {
+				return err
+			}
+			return repo.UpdateNextRunTime(monitor.ID, &restartedAt)
+		},
+	}
+	newTestScheduler(executor).runSchedulerCycle(ctx)
+
+	var after models.Monitor
+	require.NoError(t, db.DB(ctx).First(&after, "id = ?", monitor.ID).Error)
+	require.NotNil(t, after.NextRunTime)
+	assert.True(t, after.NextRunTime.Equal(restartedAt), "expected the user's restart time %v, got %v", restartedAt, *after.NextRunTime)
+}
+
+// TestSchedulerCycle_AdvancesUnchangedSchedule: with nobody touching the monitor, the
+// compare-and-set must still move next_run_time forward. This guards the timestamp
+// round-trip through Postgres: if the value the cycle read did not compare equal on the
+// way back, every monitor's schedule would silently stop advancing.
+func TestSchedulerCycle_AdvancesUnchangedSchedule(t *testing.T) {
+	ctx := context.Background()
+	repo := repositories.NewMonitorRepo(db.GetDB())
+	monitor := newDueSchedulerMonitor(t, "advance")
+	before := *monitor.NextRunTime
+
+	executor := stopDuringRunExecutor{
+		monitorExecutor: &monitorExecutor{monitorRepo: repo, logger: slog.Default()},
+		stop:            func() error { return nil },
+	}
+	newTestScheduler(executor).runSchedulerCycle(ctx)
+
+	var after models.Monitor
+	require.NoError(t, db.DB(ctx).First(&after, "id = ?", monitor.ID).Error)
+	require.NotNil(t, after.NextRunTime)
+	assert.True(t, after.NextRunTime.After(before.Add(30*time.Minute)),
+		"expected next_run_time to advance by about one interval from %v, got %v", before, *after.NextRunTime)
+}
+
+// newDueSchedulerMonitor stores a future monitor that is due now, scoped to the
+// scheduler fixture org, and deletes it when the test ends.
+func newDueSchedulerMonitor(t *testing.T, prefix string) models.Monitor {
+	t.Helper()
+	ctx := context.Background()
+	monitor := models.Monitor{
+		ID:              uuid.New(),
+		Name:            fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano()),
+		DisplayName:     "Scheduler Race Monitor",
+		Type:            models.MonitorTypeFuture,
+		OUID:            "lock-test-org",
+		ProjectName:     "test-project",
+		AgentName:       "test-agent",
+		AgentID:         "test-agent-id",
+		EnvironmentName: "dev",
+		EnvironmentID:   "test-env-id",
+		Evaluators:      []models.MonitorEvaluator{{Identifier: "eval-1", DisplayName: "eval-1", Config: map[string]interface{}{"level": "trace"}}},
+		IntervalMinutes: intPtr(60),
+		NextRunTime:     timePtr(time.Now().Add(-1 * time.Minute)), // due
+		SamplingRate:    1.0,
+	}
+	require.NoError(t, db.DB(ctx).Create(&monitor).Error)
+	t.Cleanup(func() { db.DB(ctx).Delete(&monitor) })
+	return monitor
 }

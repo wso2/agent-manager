@@ -61,8 +61,10 @@ type MonitorExecutor interface {
 	// ExecuteMonitorRun creates a WorkflowRun CR and a MonitorRun DB record
 	ExecuteMonitorRun(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error)
 
-	// UpdateNextRunTime updates the next_run_time for a future monitor
-	UpdateNextRunTime(ctx context.Context, monitorID uuid.UUID, nextRunTime time.Time) error
+	// AdvanceNextRunTime moves a future monitor's next_run_time from `from` (the value the
+	// scheduler selected it with) to `to`, unless a stop or start changed it meanwhile.
+	// Reports whether it moved.
+	AdvanceNextRunTime(ctx context.Context, monitorID uuid.UUID, from, to time.Time) (bool, error)
 }
 
 // ExecuteMonitorRunParams contains all inputs for executing a monitor run
@@ -206,14 +208,16 @@ func (e *monitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteM
 	}, nil
 }
 
-// UpdateNextRunTime updates the next_run_time for a future monitor
-func (e *monitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.UUID, nextRunTime time.Time) error {
-	if err := e.monitorRepo.UpdateNextRunTime(monitorID, &nextRunTime); err != nil {
-		return fmt.Errorf("failed to update next_run_time: %w", err)
+// AdvanceNextRunTime moves a future monitor's next_run_time from `from` to `to`, unless a
+// stop or start changed it after the scheduler selected the monitor.
+func (e *monitorExecutor) AdvanceNextRunTime(ctx context.Context, monitorID uuid.UUID, from, to time.Time) (bool, error) {
+	advanced, err := e.monitorRepo.AdvanceNextRunTime(monitorID, from, to)
+	if err != nil {
+		return false, fmt.Errorf("failed to update next_run_time: %w", err)
 	}
 
-	e.logger.Debug("Updated next_run_time", "monitorID", monitorID, "nextRunTime", nextRunTime)
-	return nil
+	e.logger.Debug("Advanced next_run_time", "monitorID", monitorID, "nextRunTime", to, "advanced", advanced)
+	return advanced, nil
 }
 
 // resolveLLMProxyConfig returns the SecretReference name, gateway proxy URL, and
