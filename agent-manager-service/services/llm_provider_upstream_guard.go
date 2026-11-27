@@ -21,8 +21,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
@@ -51,9 +53,19 @@ func validateProviderUpstreamShape(provider *models.LLMProvider) error {
 		return nil
 	}
 	if _, err := ssrf.ValidateURLShape(upstreamURL); err != nil {
-		return fmt.Errorf("%w: %w: upstream.main.url: %w", utils.ErrInvalidInput, utils.ErrInvalidURL, err)
+		return fmt.Errorf("%w: %w: upstream.main.url: %w", utils.ErrInvalidInput, utils.ErrInvalidURL, withoutURL(err))
 	}
 	return nil
+}
+
+// withoutURL drops the URL a *url.Error carries, keeping only its reason: the URL can hold userinfo (a credential),
+// and these errors are logged and returned to the caller.
+func withoutURL(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return urlErr.Err
+	}
+	return err
 }
 
 // requirePublicUpstreamOn refuses upstreamURL when gateway is managed and the URL's host is not public.
@@ -71,7 +83,7 @@ func requirePublicUpstreamOn(ctx context.Context, gateway *models.Gateway, upstr
 	}
 	if err := validatePublicUpstreamURL(ctx, upstreamURL); err != nil {
 		slog.Warn("LLM provider upstream refused for managed gateway",
-			"gatewayID", gateway.UUID, "error", utils.SanitizeForLog(err.Error()))
+			"gatewayID", gateway.UUID, "error", utils.SanitizeForLog(withoutURL(err).Error()))
 		return fmt.Errorf("%w: %w: upstream.main.url must be a public http(s) address to deploy on managed gateway %q",
 			utils.ErrInvalidInput, utils.ErrInvalidURL, gateway.Name)
 	}
@@ -102,6 +114,33 @@ func requirePublicUpstreamOnPlaced(
 		}
 	}
 	return nil
+}
+
+// requirePublicRenderedUpstream is requirePublicUpstreamOn for the upstream in a rendered provider deployment: the
+// configuration actually sent to the gateway, which a concurrent update may have changed since the provider was read.
+func requirePublicRenderedUpstream(ctx context.Context, gateway *models.Gateway, content []byte) error {
+	if gateway == nil || !gatewayNeedsPublicUpstream(gateway) {
+		return nil
+	}
+	upstreamURL, err := renderedUpstreamURL(content)
+	if err != nil {
+		return err
+	}
+	return requirePublicUpstreamOn(ctx, gateway, upstreamURL)
+}
+
+// requirePublicUpstreamOnRequested is requirePublicUpstreamOn for the gateways a request names, before anything is
+// saved. An id that is malformed, unknown or another organization's is skipped here: the deploy step reports it.
+func requirePublicUpstreamOnRequested(
+	ctx context.Context, gatewayRepo repositories.GatewayRepository, ouID string, gatewayIDs []string, upstreamURL string,
+) error {
+	valid := make([]string, 0, len(gatewayIDs))
+	for _, id := range gatewayIDs {
+		if _, err := uuid.Parse(id); err == nil {
+			valid = append(valid, id)
+		}
+	}
+	return requirePublicUpstreamOnPlaced(ctx, gatewayRepo, ouID, valid, upstreamURL)
 }
 
 // renderedUpstreamURL is the upstream URL in a rendered provider deployment, so a restore can be held to the same

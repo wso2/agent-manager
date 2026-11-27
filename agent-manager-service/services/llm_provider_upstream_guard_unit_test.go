@@ -276,3 +276,48 @@ func TestLLMProviderCreateAndDeploy_InternalUpstreamOnManagedGatewayIsRefused(t 
 
 	requireRefusedUpstream(t, err)
 }
+
+func TestValidateProviderUpstreamShape_ParseErrorDoesNotEchoCredentials(t *testing.T) {
+	err := validateProviderUpstreamShape(guardProvider("https://alice:s3cret@example.com/%zz"))
+
+	requireRefusedUpstream(t, err)
+	assert.NotContains(t, err.Error(), "alice")
+	assert.NotContains(t, err.Error(), "s3cret")
+}
+
+func TestRequirePublicRenderedUpstream(t *testing.T) {
+	internal, err := renderLLMProvider(renderableProviderAt(internalUpstreams["cloud metadata"]))
+	require.NoError(t, err)
+
+	requireRefusedUpstream(t, requirePublicRenderedUpstream(context.Background(), guardGateway(models.GatewayHostingManaged), []byte(internal)))
+	require.NoError(t, requirePublicRenderedUpstream(context.Background(), guardGateway(models.GatewayHostingSelfHosted), []byte(internal)))
+}
+
+func TestLLMProviderUpdateAndSync_InternalUpstreamForManagedGatewayIsRefusedBeforeSaving(t *testing.T) {
+	existing := guardProvider("https://8.8.8.8/v1")
+	gateway := guardGateway(models.GatewayHostingManaged)
+	svc, providers, deployments := updateGuardService(existing, gateway)
+	// Not yet placed anywhere: the update's own check has no placement to hold the URL to.
+	deployments.PlacedGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) { return nil, nil }
+	updates := guardProvider(internalUpstreams["private range"])
+	updates.Configuration.Template = ""
+
+	_, err := svc.UpdateAndSync(context.Background(), existing.UUID.String(), guardOUID, updates,
+		[]string{gateway.UUID.String()}, nil)
+
+	requireRefusedUpstream(t, err)
+	assert.Empty(t, providers.UpdateCalls(), "a refused upstream must not be saved")
+}
+
+func TestLLMProviderUpdateAndSync_InternalUpstreamForSelfHostedGatewayIsSaved(t *testing.T) {
+	existing := guardProvider("http://10.0.0.1/v1")
+	gateway := guardGateway(models.GatewayHostingSelfHosted)
+	svc, _, _ := updateGuardService(existing, gateway)
+	updates := guardProvider(internalUpstreams["private range"])
+	updates.Configuration.Template = ""
+
+	_, err := svc.UpdateAndSync(context.Background(), existing.UUID.String(), guardOUID, updates,
+		[]string{gateway.UUID.String()}, nil)
+
+	require.ErrorIs(t, err, errReachedDeploy)
+}

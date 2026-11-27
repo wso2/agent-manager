@@ -887,6 +887,12 @@ var ErrAllGatewayDeploymentsFailed = errors.New("all gateway deployments failed"
 func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID string, updates *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*UpdateAndSyncResponse, error) {
 	slog.Info("LLMProviderService.UpdateAndSync: starting", "providerID", providerID, "ouID", ouID, "gatewayCount", len(gatewayIDs))
 
+	// Held before the update is saved: a refusal from the deploy step below would come after the update committed,
+	// and would be reported as a deployment failure rather than as the caller's invalid input.
+	if err := requirePublicUpstreamOnRequested(ctx, s.gatewayRepo, ouID, gatewayIDs, providerUpstreamURL(updates)); err != nil {
+		return nil, err
+	}
+
 	// First, update the provider using the existing Update method
 	updated, err := s.Update(ctx, providerID, ouID, updates)
 	if err != nil {
