@@ -51,6 +51,9 @@ type AgentResponse struct {
 	// Nil when unknown — pre-existing agents, deployments without AgentID
 	// provisioning wired up, or when the id couldn't be resolved to a user.
 	CreatedBy *AgentCreatedBy `json:"createdBy,omitempty"`
+	// HasBuildWorkflow is internal ownership evidence from the Component, not
+	// inferred from Build: kind instances also expose their source build settings.
+	HasBuildWorkflow bool `json:"-"`
 }
 
 // AgentSummary is the lightweight, org-wide agent listing shape: just enough

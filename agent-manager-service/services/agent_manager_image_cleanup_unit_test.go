@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -80,7 +81,7 @@ func TestDeleteAgentCleansUpBuildImages(t *testing.T) {
 	cleaner := newRecordingImageCleaner(nil)
 	cleaner.entered = make(chan struct{}, 1)
 	cleaner.release = make(chan struct{})
-	manager := deletionManager(deletableAgentOC(func(context.Context) error { return nil }), nil)
+	manager := deletionManager(imageOwningAgentOC(func(context.Context) error { return nil }), nil)
 	manager.SetComponentImageCleaner(cleaner)
 
 	callerCtx, cancelCaller := context.WithCancel(auditableCtx(t))
@@ -103,7 +104,7 @@ func TestDeleteAgentCleansUpBuildImages(t *testing.T) {
 
 func TestDeleteAgentCleansUpBuildImagesWhenTheComponentIsAlreadyGone(t *testing.T) {
 	cleaner := newRecordingImageCleaner(nil)
-	manager := deletionManager(deletableAgentOC(func(context.Context) error { return utils.ErrNotFound }), nil)
+	manager := deletionManager(imageOwningAgentOC(func(context.Context) error { return utils.ErrNotFound }), nil)
 	manager.SetComponentImageCleaner(cleaner)
 
 	_, err := manager.DeleteAgent(auditableCtx(t), "org-a", "project-a", "agent-a")
@@ -114,7 +115,7 @@ func TestDeleteAgentCleansUpBuildImagesWhenTheComponentIsAlreadyGone(t *testing.
 
 func TestDeleteAgentSucceedsWhenImageCleanupFails(t *testing.T) {
 	cleaner := newRecordingImageCleaner(errors.New("registry unavailable"))
-	manager := deletionManager(deletableAgentOC(func(context.Context) error { return nil }), nil)
+	manager := deletionManager(imageOwningAgentOC(func(context.Context) error { return nil }), nil)
 	manager.SetComponentImageCleaner(cleaner)
 
 	_, err := manager.DeleteAgent(auditableCtx(t), "org-a", "project-a", "agent-a")
@@ -124,7 +125,7 @@ func TestDeleteAgentSucceedsWhenImageCleanupFails(t *testing.T) {
 
 func TestDeleteAgentSkipsImageCleanupForExternalAgents(t *testing.T) {
 	cleaner := newRecordingImageCleaner(nil)
-	oc := deletableAgentOC(func(context.Context) error { return nil })
+	oc := imageOwningAgentOC(func(context.Context) error { return nil })
 	oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(utils.ExternalAgent)}}, nil
 	}
@@ -138,7 +139,7 @@ func TestDeleteAgentSkipsImageCleanupForExternalAgents(t *testing.T) {
 
 func TestDeleteAgentSkipsImageCleanupWhenTheDeleteFails(t *testing.T) {
 	cleaner := newRecordingImageCleaner(nil)
-	manager := deletionManager(deletableAgentOC(func(context.Context) error { return errors.New("openchoreo unavailable") }), nil)
+	manager := deletionManager(imageOwningAgentOC(func(context.Context) error { return errors.New("openchoreo unavailable") }), nil)
 	manager.SetComponentImageCleaner(cleaner)
 
 	_, err := manager.DeleteAgent(auditableCtx(t), "org-a", "project-a", "agent-a")
@@ -148,10 +149,48 @@ func TestDeleteAgentSkipsImageCleanupWhenTheDeleteFails(t *testing.T) {
 
 // Without a cleaner (the open-source default) the delete behaves as before.
 func TestDeleteAgentWithoutImageCleaner(t *testing.T) {
-	oc := deletableAgentOC(func(context.Context) error { return nil })
+	oc := imageOwningAgentOC(func(context.Context) error { return nil })
 	manager := deletionManager(oc, nil)
 
 	_, err := manager.DeleteAgent(auditableCtx(t), "org-a", "project-a", "agent-a")
 	require.NoError(t, err)
 	require.Len(t, oc.DeleteComponentCalls(), 1)
+}
+
+// Existing delete fixtures carry no build workflow. Only tests of a confirmed
+// source-built agent opt into image ownership explicitly.
+func imageOwningAgentOC(deleteComponent func(context.Context) error) *clientmocks.OpenChoreoClientMock {
+	oc := deletableAgentOC(deleteComponent)
+	oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+		return &models.AgentResponse{HasBuildWorkflow: true}, nil
+	}
+	return oc
+}
+
+func TestDeleteAgentDoesNotDeleteSharedOrUnknownImages(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		agent     *models.AgentResponse
+		lookupErr error
+	}{
+		{name: "kind with source build settings", agent: &models.AgentResponse{KindName: "shared", Build: &models.Build{Type: "docker"}}},
+		{name: "legacy kind without kind label", agent: &models.AgentResponse{Build: &models.Build{Type: "docker"}}},
+		{name: "no workflow", agent: &models.AgentResponse{}},
+		{name: "missing component on retry", lookupErr: utils.ErrNotFound},
+		{name: "transient lookup failure", lookupErr: errors.New("read unavailable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cleaner := newRecordingImageCleaner(nil)
+			oc := deletableAgentOC(func(context.Context) error { return nil })
+			oc.GetComponentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
+				return tc.agent, tc.lookupErr
+			}
+			manager := deletionManager(oc, nil)
+			manager.SetComponentImageCleaner(cleaner)
+			_, err := manager.DeleteAgent(auditableCtx(t), "org-a", "project-a", "agent-a")
+			require.NoError(t, err)
+			require.Len(t, oc.DeleteComponentCalls(), 1)
+			cleaner.requireNoCall(t)
+		})
+	}
 }

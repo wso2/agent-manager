@@ -1859,16 +1859,14 @@ func (s *agentManagerService) SetComponentImageCleaner(cleaner ComponentImageCle
 // delete is accepted: a registry cleanup that finds images through the component's Workload
 // can still see it while OpenChoreo is removing the component.
 //
-// External agents are not built by Agent Manager, so they have no images to delete. An agent
-// whose type could not be read before the delete (the component was already gone on a retried
-// delete, or the read failed) is cleaned up as an internal agent on purpose: for an external
-// agent the cleaner finds nothing and returns nil, while skipping would leave an internal
-// agent's images behind. Failing the delete on that read instead would block every agent
-// delete on a transient OpenChoreo error, for nothing more than this optional cleanup.
-func (s *agentManagerService) cleanupAgentImagesAsync(ctx context.Context, ouID, projectName, agentName string, isExternalAgent bool) {
-	if s.imageCleaner == nil || isExternalAgent {
+// Only a component with its own build workflow owns build images. Kind instances
+// use their source agent's repository. If the component cannot be read (including
+// an already-gone retry), leave images for operator cleanup rather than guessing.
+func (s *agentManagerService) cleanupAgentImagesAsync(ctx context.Context, ouID, projectName, agentName string, ownsBuildImages bool) {
+	if s.imageCleaner == nil || !ownsBuildImages {
 		return
 	}
+
 	go func() {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), componentImageCleanupTimeout)
 		defer cancel()
@@ -1877,7 +1875,7 @@ func (s *agentManagerService) cleanupAgentImagesAsync(ctx context.Context, ouID,
 				"ouID", ouID, "projectName", projectName, "agentName", agentName, "error", err)
 			return
 		}
-		s.logger.Info("Deleted agent build images", "ouID", ouID, "projectName", projectName, "agentName", agentName)
+		s.logger.Info("Agent build image cleanup completed", "ouID", ouID, "projectName", projectName, "agentName", agentName)
 	}()
 }
 
@@ -3389,6 +3387,7 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 	// to call GetComponent after the component is gone.
 	isExternalAgent := false
 	isA2AAgent := false
+	ownsBuildImages := false
 	agentComp, compErr := s.ocClient.GetComponent(ctx, ouID, projectName, agentName)
 	if compErr != nil {
 		s.logger.Warn("Failed to determine agent type before deletion, assuming internal",
@@ -3396,6 +3395,7 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 	} else {
 		isExternalAgent = isExternalProvisioned(agentComp)
 		isA2AAgent = a2aCapable(agentComp)
+		ownsBuildImages = !isExternalAgent && agentComp.KindName == "" && agentComp.HasBuildWorkflow
 	}
 
 	// Recheck immediately before the actual delete call (the commit point) rather
@@ -3477,8 +3477,8 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 		translatedErr := translateAgentError(err)
 		if errors.Is(translatedErr, utils.ErrAgentNotFound) {
 			s.logger.Warn("Agent not found during deletion, delete is idempotent", "agentName", agentName, "ouID", ouID, "projectName", projectName)
-			// A previous delete may have removed the component before its images.
-			s.cleanupAgentImagesAsync(ctx, ouID, projectName, agentName, isExternalAgent)
+			// Retry cleanup only when this request still has positive ownership evidence.
+			s.cleanupAgentImagesAsync(ctx, ouID, projectName, agentName, ownsBuildImages)
 			s.cleanupGitHubAppSource(ctx, ouID, projectName, agentName)
 			// A previous delete, or a create rollback, may have removed the component
 			// without its secrets.
@@ -3506,7 +3506,7 @@ func (s *agentManagerService) deleteAgent(ctx context.Context, ouID string, proj
 	}
 
 	// First, while OpenChoreo may still hold the component's Workload.
-	s.cleanupAgentImagesAsync(ctx, ouID, projectName, agentName, isExternalAgent)
+	s.cleanupAgentImagesAsync(ctx, ouID, projectName, agentName, ownsBuildImages)
 
 	// Component confirmed deleted — clean up LLM proxy resources and DB records in the
 	// background, on a context that outlives the request but is still bounded

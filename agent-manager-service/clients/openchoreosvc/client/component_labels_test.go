@@ -354,6 +354,7 @@ func TestConvertComponentFromTyped_KindVersion(t *testing.T) {
 		}))
 		require.NoError(t, err)
 		assert.Equal(t, "kind-1", agent.KindName)
+		assert.False(t, agent.HasBuildWorkflow)
 		assert.Equal(t, "v1.2.0", agent.KindVersion)
 	})
 
@@ -365,6 +366,7 @@ func TestConvertComponentFromTyped_KindVersion(t *testing.T) {
 		}))
 		require.NoError(t, err)
 		assert.Equal(t, "kind-1", agent.KindName)
+		assert.False(t, agent.HasBuildWorkflow)
 		assert.Empty(t, agent.KindVersion)
 	})
 }
