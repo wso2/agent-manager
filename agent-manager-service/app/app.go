@@ -434,24 +434,12 @@ func ReconcileModules(ctx context.Context, host *modhost.Host, defaults []string
 	return err
 }
 
-// moduleSchema checks the module schemas waitForModuleSchema waits for.
-type moduleSchema interface {
-	CheckSchema(ctx context.Context) error
-	CheckExternalSchema(ctx context.Context) error
-}
-
 // waitForModuleSchema waits until another process has applied the migrations
-// of every module compiled into this binary. An external schema error other
-// than pending files is returned at once.
-func waitForModuleSchema(ctx context.Context, modules moduleSchema) error {
+// of every module compiled into this binary. It does not wait for external
+// stores: a module whose store lacks its schema is left out until it has it.
+func waitForModuleSchema(ctx context.Context, modules *modhost.Host) error {
 	for {
 		err := modules.CheckSchema(ctx)
-		if err == nil {
-			err = modules.CheckExternalSchema(ctx)
-			if err != nil && !errors.Is(err, modhost.ErrExternalBehind) {
-				return err
-			}
-		}
 		if err == nil {
 			return nil
 		}
@@ -472,6 +460,8 @@ func printMigrations(w io.Writer, results []modhost.MigrationResult) {
 		}
 		switch e := r.External; {
 		case e == nil:
+		case e.Error != "":
+			_, _ = fmt.Fprintf(w, "%s: external schema not applied, the module stays off until it is: %s\n", r.Module, e.Error)
 		case e.Skipped != "":
 			_, _ = fmt.Fprintf(w, "%s: skipped its external schema: %s\n", r.Module, e.Skipped)
 		default:

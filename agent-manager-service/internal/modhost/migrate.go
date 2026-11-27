@@ -188,6 +188,8 @@ type ExternalResult struct {
 	Total   int    `json:"total"`
 	// Skipped says why nothing was done, when the store is not configured.
 	Skipped string `json:"skipped,omitempty"`
+	// Error says why the schema was not applied; the module stays off until it is.
+	Error string `json:"error,omitempty"`
 }
 
 // Migrate applies the pending migrations of every compiled-in module,
@@ -197,8 +199,9 @@ type ExternalResult struct {
 //
 // Each module migrates in its own transaction, so a failing module leaves
 // nothing of itself half-applied. It also moves installed modules' recorded
-// version to the compiled one. Then it applies the module's external schema
-// (modkit.ExternalMigrator), if any.
+// version to the compiled one. External schemas (modkit.ExternalMigrator)
+// come after every module's migrations; one that fails is reported in its
+// result, not returned, so a store that is down fails no other module.
 func (h *Host) Migrate(ctx context.Context) ([]MigrationResult, error) {
 	if err := h.checkCoreTables(); err != nil {
 		return nil, err
@@ -209,12 +212,22 @@ func (h *Host) Migrate(ctx context.Context) ([]MigrationResult, error) {
 		if err != nil {
 			return out, err
 		}
-		if _, ok := h.mods[name].(modkit.ExternalMigrator); ok {
-			if r.External, err = h.migrateExternal(ctx, name); err != nil {
-				return out, err
-			}
-		}
 		out = append(out, r)
+	}
+	for i := range out {
+		name := out[i].Module
+		if _, ok := h.mods[name].(modkit.ExternalMigrator); !ok {
+			continue
+		}
+		res, err := h.migrateExternal(ctx, name)
+		if err != nil {
+			h.log.Error("modhost:external schema not applied; the module stays off until it is", "module", name, "error", err)
+			if res == nil {
+				res = &ExternalResult{}
+			}
+			res.Error = err.Error()
+		}
+		out[i].External = res
 	}
 	return out, nil
 }

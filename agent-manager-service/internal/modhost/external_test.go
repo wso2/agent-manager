@@ -186,25 +186,23 @@ func TestExternalSchema(t *testing.T) {
 		"001_spans.sql": &fstest.MapFile{Data: []byte("create 001_spans.sql, edited")},
 		"002_index.sql": &fstest.MapFile{Data: []byte("create 002_index.sql")},
 	}
-	_, err = host(newExternal(store, edited, true, true)).Migrate(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "module t-ext fake schema 001_spans changed after it was applied")
+	refused := func(files fs.FS) string {
+		t.Helper()
+		res, err := host(newExternal(store, files, true, true)).Migrate(ctx)
+		require.NoError(t, err, "an external schema error is reported, not returned")
+		return res[0].External.Error
+	}
+	assert.Contains(t, refused(edited), "module t-ext fake schema 001_spans changed after it was applied")
 	assert.Len(t, store.applied, 2)
 
 	// So is a store that holds a file this binary does not have.
-	_, err = host(newExternal(store, externalFiles("001_spans.sql"), true, true)).Migrate(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "newer than this build")
+	assert.Contains(t, refused(externalFiles("001_spans.sql")), "newer than this build")
 
 	// And a new file that sorts before an applied one.
-	_, err = host(newExternal(store, externalFiles("001_spans.sql", "002_index.sql", "001_early.sql"), true, true)).Migrate(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "sorts before the applied migration")
+	assert.Contains(t, refused(externalFiles("001_spans.sql", "002_index.sql", "001_early.sql")), "sorts before the applied migration")
 
 	// And two files of one version.
-	_, err = host(newExternal(store, externalFiles("001_spans.sql", "001_spans.txt", "002_index.sql"), true, true)).Migrate(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "more than one file is version 001_spans")
+	assert.Contains(t, refused(externalFiles("001_spans.sql", "001_spans.txt", "002_index.sql")), "more than one file is version 001_spans")
 }
 
 func TestExternalSchemaFailureIsRetried(t *testing.T) {
@@ -216,14 +214,14 @@ func TestExternalSchemaFailureIsRetried(t *testing.T) {
 	m := newExternal(store, externalFiles("001_spans.sql", "002_index.sql"), true, true)
 	h := modhost.NewWith(g, d.driver, quiet, []modkit.Module{m})
 
-	_, err := h.Migrate(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "module t-ext fake schema 002_index: syntax error")
+	res, err := h.Migrate(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, res[0].External.Error, "module t-ext fake schema 002_index: syntax error")
 	assert.Equal(t, map[string]string{"001_spans": store.records["001_spans"]}, store.records, "only the file that applied is recorded")
 	assert.Zero(t, store.settled)
 
 	store.failOn = ""
-	res, err := h.Migrate(ctx)
+	res, err = h.Migrate(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, res[0].External.Applied)
 }
@@ -492,41 +490,28 @@ func TestEventsQueueForEveryModuleLeftOut(t *testing.T) {
 	})
 }
 
-func TestCheckExternalSchemaWaitsForPendingFiles(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	store := &fakeStore{records: map[string]string{}}
+// A store that is down fails no other module: every module's migrations
+// run first, and the store's error is reported in its result.
+func TestExternalSchemaFailureFailsNoOtherModule(t *testing.T) {
+	ctx := context.Background()
 	d := databases(t)[0]
-	h, g := replica(t, ctx, d, []modkit.Module{newExternal(store, externalFiles("001_spans.sql"), true, true)})
+	g := d.open(t)
+	require.NoError(t, dbmigrations.MigrateBaseline(g, d.driver))
+	store := &fakeStore{records: map[string]string{}, down: true}
+	// t-ext sorts before t-later, so it would have stopped it.
+	ext := newExternal(store, externalFiles("001_spans.sql"), true, true)
+	later := &testModule{
+		manifest:   manifest("t-later", nil, nil),
+		migrations: rawSQL(map[string]string{"001_init.sql": "CREATE TABLE mod_t_later_items (id TEXT PRIMARY KEY)"}),
+	}
+	h := modhost.NewWith(g, d.driver, quiet, []modkit.Module{ext, later})
 
-	// A newer binary with a file the store lacks.
-	nm := newExternal(store, externalFiles("001_spans.sql", "002_more.sql"), true, true)
-	next := modhost.NewWith(g, d.driver, quiet, []modkit.Module{nm})
-	require.NoError(t, next.CheckExternalSchema(ctx), "a module that isn't active is not waited for")
-
-	_, err := h.Install(ctx, "t-ext", false)
+	res, err := h.Migrate(ctx)
 	require.NoError(t, err)
-	err = next.CheckExternalSchema(ctx)
-	require.ErrorIs(t, err, modhost.ErrExternalBehind)
-	assert.Contains(t, err.Error(), "t-ext: 1 fake file(s)")
-
-	nm.checkErr = errors.New("store address set but no reader login")
-	err = next.CheckExternalSchema(ctx)
-	require.Error(t, err)
-	assert.NotErrorIs(t, err, modhost.ErrExternalBehind, "a config error is not pending files")
-	nm.checkErr = nil
-
-	store.mu.Lock()
-	store.down = true
-	store.mu.Unlock()
-	require.NoError(t, next.CheckExternalSchema(ctx), "a store that can't be read is not waited for")
-	store.mu.Lock()
-	store.down = false
-	store.mu.Unlock()
-
-	_, err = next.Migrate(ctx)
-	require.NoError(t, err)
-	require.NoError(t, next.CheckExternalSchema(ctx))
+	require.Len(t, res, 2)
+	assert.Contains(t, res[0].External.Error, "connection refused")
+	assert.Equal(t, 1, res[1].Applied, "the later module's migration ran")
+	assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM mod_t_later_items`))
 }
 
 // Install refuses a module whose required provider this replica leaves out
