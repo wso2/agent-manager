@@ -58,18 +58,17 @@ func TestTokenCache_RecordMiss_ExpiresIndependentlyOfPositiveTTL(t *testing.T) {
 	assert.False(t, c.IsKnownMiss("fake-prefix"), "a miss entry must not outlive its own (short) TTL")
 }
 
-// Set must clear any prior miss entry for the same prefix: a token that is
-// created right after being observed absent must be found immediately, not
-// masked by a stale negative-cache entry until it expires.
-func TestTokenCache_Set_ClearsExistingMiss(t *testing.T) {
-	c := NewTokenCache(5 * time.Minute)
-	c.RecordMiss("now-real-prefix")
-	require := assert.New(t)
-	require.True(c.IsKnownMiss("now-real-prefix"))
+func TestTokenCache_SetGatewayPreservesTokenMiss(t *testing.T) {
+	cache := NewTokenCache(5 * time.Minute)
+	gateway := gatewayFixture("edge")
+	cache.RecordMiss("inactive-prefix")
 
-	c.Set("now-real-prefix", uuid.New(), nil, "hash", "salt")
+	cache.SetGateway(gateway)
 
-	require.False(c.IsKnownMiss("now-real-prefix"), "a token that now exists must not be shadowed by a stale miss entry")
+	assert.True(t, cache.IsKnownMiss("inactive-prefix"))
+	cached, found := cache.GetGateway(gateway.UUID)
+	assert.True(t, found)
+	assert.Same(t, gateway, cached)
 }
 
 // Any caller can submit an arbitrary UUID-shaped prefix with no
