@@ -12,11 +12,11 @@
 # read back through the module's trace route. A span with no x-org-id must not
 # be stored.
 #
-# AMP_API_PORT comes from the environment, else from .env next to the compose
-# files. The admin password is AMP_ADMIN_PASSWORD if set, else the one amp-init
-# generated, read from the amp-api container. Sign-in uses the admin account,
-# so the stack must run with file sign-in (auth.mode: file). Exits non-zero if
-# any check fails.
+# The API's host port is AMP_API_PORT if set, else the one Compose published
+# for amp-api. The admin password is AMP_ADMIN_PASSWORD if set, else the one
+# amp-init generated, read from the amp-api container. Sign-in uses the admin
+# account, so the stack must run with file sign-in (auth.mode: file). Exits
+# non-zero if any check fails.
 set -uo pipefail
 
 for tool in curl jq docker; do
@@ -24,15 +24,6 @@ for tool in curl jq docker; do
 done
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ENV_FILE="$DIR/.env"
-setting() { # NAME DEFAULT: the environment, else .env, else DEFAULT
-  local v="${!1:-}"
-  if [ -z "$v" ] && [ -f "$ENV_FILE" ]; then
-    v=$(grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2-)
-  fi
-  printf '%s' "${v:-$2}"
-}
-API=http://localhost:$(setting AMP_API_PORT 9000)
 
 pass=0 fail=0 skipped=0
 check() { # NAME WANT GOT
@@ -60,6 +51,13 @@ fi
 PASSWORD=${AMP_ADMIN_PASSWORD:-}
 [ -n "$PASSWORD" ] || PASSWORD=$(dc exec -T amp-api cat /var/lib/agent-manager/secrets/admin-password 2>/dev/null)
 [ -n "$PASSWORD" ] || { echo "AMP_ADMIN_PASSWORD is not set and the generated one could not be read" >&2; exit 2; }
+PORT=${AMP_API_PORT:-}
+if [ -z "$PORT" ]; then
+  PORT=$(dc port amp-api 8080 2>/dev/null | head -1)
+  PORT=${PORT##*:}
+fi
+[[ "$PORT" =~ ^[0-9]+$ ]] || { echo "amp-api's host port could not be read; set AMP_API_PORT" >&2; exit 2; }
+API=http://localhost:$PORT
 check clickhouse-published-ports none "$(docker port "$CH" | head -1 | grep . || echo none)"
 check collector-published-ports none "$(docker port "$COL" | head -1 | grep . || echo none)"
 PROJECT=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$CH")
