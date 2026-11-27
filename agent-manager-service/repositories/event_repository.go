@@ -91,7 +91,9 @@ type EventRepository interface {
 	// DestinationsByID returns those of ids that are the org's destinations.
 	DestinationsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error)
 	// CreateDestination saves a new destination. A name the org already uses,
-	// in any case, fails with utils.ErrEventDestinationNameTaken.
+	// in any case, fails with utils.ErrEventDestinationNameTaken, and an org
+	// that already has MaxEventDestinationsPerOrg destinations fails with
+	// utils.ErrEventDestinationLimitReached.
 	CreateDestination(ctx context.Context, d *models.EventDestination) error
 	// UpdateDestination saves d with its row locked. check gets the
 	// subscriptions that send to it, read under the lock so none can be added
@@ -215,10 +217,27 @@ func (r *eventRepository) DestinationsByID(ctx context.Context, ouID string, ids
 	return out, nil
 }
 
+// MaxEventDestinationsPerOrg is how many event destinations an organization can have.
+const MaxEventDestinationsPerOrg = 50
+
+// CreateDestination counts the org's destinations and inserts d in one transaction holding the org's advisory lock,
+// so concurrent creates are serialised and cannot each see room under the limit and all insert.
 func (r *eventRepository) CreateDestination(ctx context.Context, d *models.EventDestination) error {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	d.CreatedAt, d.UpdatedAt = now, now
-	err := r.db.WithContext(ctx).Create(d).Error
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := advisoryXactLock(tx, eventDestinationLockNamespace, d.OUID); err != nil {
+			return fmt.Errorf("failed to lock the organization's event destinations: %w", err)
+		}
+		var count int64
+		if err := tx.Model(&models.EventDestination{}).Where("ou_id = ?", d.OUID).Count(&count).Error; err != nil {
+			return fmt.Errorf("failed to count event destinations: %w", err)
+		}
+		if count >= MaxEventDestinationsPerOrg {
+			return utils.ErrEventDestinationLimitReached
+		}
+		return tx.Create(d).Error
+	})
 	if pgErrorCode(err) == pgUniqueViolation {
 		return utils.ErrEventDestinationNameTaken
 	}

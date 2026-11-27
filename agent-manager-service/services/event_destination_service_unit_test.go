@@ -245,10 +245,17 @@ func (m *memEventStore) mock() *repomocks.EventRepositoryMock {
 		CreateDestinationFunc: func(_ context.Context, d *models.EventDestination) error {
 			m.mu.Lock()
 			defer m.mu.Unlock()
+			inOrg := 0
 			for _, other := range m.destinations {
 				if other.OUID == d.OUID && strings.EqualFold(other.Name, d.Name) {
 					return utils.ErrEventDestinationNameTaken
 				}
+				if other.OUID == d.OUID {
+					inOrg++
+				}
+			}
+			if inOrg >= repositories.MaxEventDestinationsPerOrg {
+				return utils.ErrEventDestinationLimitReached
 			}
 			m.destinations[d.ID] = *d
 			return nil
@@ -445,6 +452,24 @@ func TestEventDestinationService_CreateNormalisesAndAudits(t *testing.T) {
 	assert.NotContains(t, string(d.SecretEncrypted), secret, "the secret is stored encrypted")
 	assert.Equal(t, []audit.Action{audit.ActionEventDestinationCreate, audit.ActionEventDestinationCreate}, rec.actions(),
 		"intent and outcome are recorded")
+}
+
+func TestEventDestinationService_CreateRefusedAtTheOrgLimit(t *testing.T) {
+	svc, store, _ := newTestDestinationService(&fakeDestinationDriver{hasSecret: true})
+	for i := 0; i < repositories.MaxEventDestinationsPerOrg; i++ {
+		id := uuid.New()
+		store.destinations[id] = models.EventDestination{ID: id, OUID: "ou-1", Name: id.String(), Kind: "fake"}
+	}
+
+	_, _, err := svc.Create(auditCtx(&recordingAuditor{}), "ou-1", validDestinationInput())
+
+	require.ErrorIs(t, err, utils.ErrInvalidInput, "the limit is reported as a bad request")
+	require.ErrorIs(t, err, utils.ErrEventDestinationLimitReached)
+	assert.Contains(t, err.Error(), "at most 50 event destinations")
+	assert.Len(t, store.destinations, repositories.MaxEventDestinationsPerOrg)
+
+	_, _, err = svc.Create(auditCtx(&recordingAuditor{}), "ou-2", validDestinationInput())
+	require.NoError(t, err, "the limit is per organization")
 }
 
 func TestEventDestinationService_Validation(t *testing.T) {
