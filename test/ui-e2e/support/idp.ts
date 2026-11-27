@@ -35,6 +35,8 @@ const ampScopes = [
   'amp:ai-gateway:agent-api-keys.manage amp:ai-gateway:deploy.non-production amp:ai-gateway:deploy.production',
   'amp:observability:traces-read',
   'amp:ai-hub:plan-read amp:ai-hub:plan-create amp:ai-hub:plan-update amp:ai-hub:plan-delete',
+  'amp:ai-hub:webhook-secret-read amp:ai-hub:webhook-secret-create',
+  'amp:ai-hub:webhook-secret-rotate amp:ai-hub:webhook-secret-delete',
 ].join(' ');
 
 /** A token for the API's machine client, from ThunderID's client_credentials grant. */
