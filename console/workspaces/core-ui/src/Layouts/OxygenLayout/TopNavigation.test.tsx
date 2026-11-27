@@ -124,7 +124,7 @@ describe("TopNavigation", () => {
 
   it("hides the org card for an org not in the list", () => {
     renderAt("/org/unknown");
-    expect(screen.queryAllByText("Organization")).toHaveLength(0);//.toBeInTheDocument();
+    expect(screen.queryAllByText("Organization")).toHaveLength(0);
   });
 
   it("offers to select or create a project when none is selected", () => {
@@ -132,7 +132,8 @@ describe("TopNavigation", () => {
     renderAt("/org/acme/projects");
     fireEvent.click(screen.getByRole("button", { name: "Select or create a project", hidden: true }));
     const menu = screen.getAllByRole("menu", { hidden: true })[0];
-    expect(screen.getByRole("menuitem", { name: /Create a Project/, hidden: true })).toHaveAttribute(
+    const actions = screen.getAllByRole("menu", { hidden: true })[1];
+    expect(within(actions).getByRole("menuitem", { name: /Create a Project/, hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/newProject",
     );
@@ -141,7 +142,7 @@ describe("TopNavigation", () => {
       "/org/acme/project/p1",
     );
     // The create page is told where it was opened from, so Cancel/Save return here.
-    fireEvent.click(screen.getByRole("menuitem", { name: /Create a Project/, hidden: true }));
+    fireEvent.click(within(actions).getByRole("menuitem", { name: /Create a Project/, hidden: true }));
     expect(screen.getByTestId("where")).toHaveTextContent("/org/acme/newProject");
     expect(screen.getByTestId("where")).toHaveAttribute("data-from", "/org/acme/projects");
   });
@@ -200,7 +201,8 @@ describe("TopNavigation", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Switch agent", hidden: true }));
     const menu = screen.getAllByRole("menu", { hidden: true })[0];
-    expect(screen.getByRole("menuitem", { name: /Create an Agent/, hidden: true })).toHaveAttribute(
+    const actions = screen.getAllByRole("menu", { hidden: true })[1];
+    expect(within(actions).getByRole("menuitem", { name: /Create an Agent/, hidden: true })).toHaveAttribute(
       "href",
       "/org/acme/project/p1/newAgent",
     );

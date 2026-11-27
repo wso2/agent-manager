@@ -111,10 +111,12 @@ export function OxygenLayout() {
   // Rendered inside each page's PageContent (see PageLayout) rather than as an
   // AppShell footer, so it sits at the bottom of short pages and scrolls with
   // long ones.
-  // The row is as tall as the sidebar's footer (1px divider + 8px padding +
-  // 44px item + 8px padding), so its top line lines up with the divider above
-  // "Collapse". The line is inset by the page padding, as in the Choreo console.
-  const footer = (
+  // The row is as tall as the sidebar's footer (divider, padding and the 36px
+  // Collapse item set in LeftNavigation), so its top line lines up with the
+  // divider above "Collapse". The line is inset by the page padding, as in the
+  // Choreo console. Memoised so unrelated layout state (e.g. the profile
+  // drawer) does not re-render every page reading the footer context.
+  const footer = useMemo(() => (
     <Box component="footer" sx={{ px: 3, width: "100%" }}>
     <Box
       sx={(theme) => ({
@@ -172,7 +174,11 @@ export function OxygenLayout() {
       </Box>
     </Box>
     </Box>
-  );
+  ), [
+    globalConfig,
+    externalBottomLeftComponentModules,
+    externalBottomRightComponentModules,
+  ]);
 
   return (
     <>

@@ -20,6 +20,7 @@ import { Box, Button, Card, CardContent, Stack, Typography } from "@wso2/oxygen-
 import { LogOut, RefreshCw, TriangleAlert } from "@wso2/oxygen-ui-icons-react";
 import type { ReactNode } from "react";
 import { withBasePath } from "@agent-management-platform/types";
+import { usePageFooter } from "@agent-management-platform/views";
 
 interface ErrorLayoutProps {
     /** Visual anchor shown above the title — an icon or a large glyph. */
@@ -37,7 +38,11 @@ interface ErrorLayoutProps {
  * error screens feel consistent with the rest of the product.
  */
 function ErrorLayout({ visual, title, message, subTitle, action }: ErrorLayoutProps) {
+    // Error pages render outside PageLayout, so show the app footer themselves
+    // (null when there is no layout, e.g. while signing in).
+    const footer = usePageFooter();
     return (
+        <>
         <Stack
             alignItems="center"
             justifyContent="center"
@@ -82,6 +87,8 @@ function ErrorLayout({ visual, title, message, subTitle, action }: ErrorLayoutPr
                 </CardContent>
             </Card>
         </Stack>
+        {footer}
+        </>
     );
 }
 
