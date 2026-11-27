@@ -150,5 +150,5 @@ docker compose --profile postgres --profile observability --profile observabilit
 - `thunder/entrypoint.sh` — installs the configuration `amp-init` generated into the ThunderID image and runs its setup or server. The templates live in `agent-manager-service/ampinit`.
 - `gateway/model_prices.json` — LLM pricing data for the gateway's cost policies.
 - `observability/clickhouse-users.xml` — ClickHouse's logins for the observability profile, a copy of `agent-manager-service/modules/observability/store/clickhouse/users.xml` (CI checks the two match).
-- `observability/clickhouse-users.sql` — the same logins as SQL, for your own ClickHouse (CI checks the grants match).
+- `observability/clickhouse-users.sql` — the same logins as SQL, for your own ClickHouse (CI checks each login's hosts and grants match).
 - `observability/otel-collector.yaml` — the collector's configuration: identity from the module's headers, spans to ClickHouse.
