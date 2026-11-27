@@ -74,7 +74,7 @@ export function TopNavigation() {
 
   const { data: projects } = useListProjects({ orgName: orgId });
   const selectedProject = useMemo(
-    () => projects?.projects?.find((project) => project.name === projectId),
+    () => projects?.list?.find((project) => project.metadata.name === projectId),
     [projects, projectId],
   );
 
@@ -127,7 +127,7 @@ export function TopNavigation() {
         navigate(href, { state: returnToState(location) });
       };
 
-    if (projects?.projects && orgId) {
+    if (projects?.list && orgId) {
       const newProjectPath = generatePath(
         absoluteRouteMap.children.org.children.newProject.path,
         { orgId },
@@ -136,18 +136,18 @@ export function TopNavigation() {
         id: "project",
         label: "Project",
         icon: <Box size={20} />,
-        items: projects.projects.map((project) => ({
-          id: project.name,
-          name: project.displayName,
+        items: projects.list.map((project) => ({
+          id: project.metadata.name,
+          name: project.spec.displayName,
           href: withSuffix(
             generatePath(absoluteRouteMap.children.org.children.projects.path, {
               orgId,
-              projectId: project.name,
+              projectId: project.metadata.name,
             }),
             commonProjectPages,
           ),
         })),
-        selectedId: selectedProject?.name,
+        selectedId: selectedProject?.metadata.name,
         openLabel: "Select or create a project",
         createAction: {
           label: "Create a Project",

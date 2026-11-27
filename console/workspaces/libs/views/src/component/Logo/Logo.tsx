@@ -32,5 +32,7 @@ export function Logo({ alt = 'Choreo AI Control Plane', style, ...props }: LogoP
   const src = withBasePath(colorScheme === 'dark' ? LOGO_FOR_DARK : LOGO_FOR_LIGHT);
   const hasOwnSize =
     props.width != null || props.height != null || style?.width != null || style?.height != null;
-  return <img {...props} src={src} alt={alt} style={hasOwnSize ? style : { height: 28, ...style }} />;
+  return (
+    <img {...props} src={src} alt={alt} style={hasOwnSize ? style : { height: 28, ...style }} />
+  );
 }

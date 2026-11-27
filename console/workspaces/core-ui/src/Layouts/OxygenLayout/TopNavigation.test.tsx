@@ -182,7 +182,7 @@ describe("TopNavigation", () => {
   });
 
   it("shows the selected agent and switches agents on the same page", () => {
-    mocks.projects = { projects: [{ name: "p1", displayName: "Project One" }] };
+    mocks.projects = { list: [{ metadata: { name: "p1" }, spec: { displayName: "Project One" } }] };
     mocks.agents = {
       agents: [
         { name: "a1", displayName: "Agent One" },
