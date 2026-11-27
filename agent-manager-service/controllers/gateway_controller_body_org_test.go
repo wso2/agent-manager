@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -108,7 +109,7 @@ func TestRotateGatewayToken_BodyOrgID(t *testing.T) {
 				GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
 					return &models.Gateway{OUID: bodyOrgTestCallerOUID}, nil
 				},
-				CountActiveTokensFunc: func(_ string) (int, error) { return 2, nil },
+				CreateTokenWithinLimitFunc: func(*models.GatewayToken, int) error { return utils.ErrGatewayTokenLimitReached },
 			}
 			ctrl := NewGatewayController(services.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
 

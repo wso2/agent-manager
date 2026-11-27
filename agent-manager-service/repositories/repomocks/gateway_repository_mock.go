@@ -25,9 +25,6 @@ import (
 //			AcquireGatewayLockFunc: func(tx *gorm.DB, gatewayID string) error {
 //				panic("mock out the AcquireGatewayLock method")
 //			},
-//			CountActiveTokensFunc: func(gatewayId string) (int, error) {
-//				panic("mock out the CountActiveTokens method")
-//			},
 //			CountFailureSummaryAllOrgsFunc: func(ctx context.Context, window repositories.GatewayFailureWindow) (repositories.GatewayFailureCounts, error) {
 //				panic("mock out the CountFailureSummaryAllOrgs method")
 //			},
@@ -46,8 +43,8 @@ import (
 //			CreateEnvironmentMappingTxFunc: func(tx *gorm.DB, mapping *models.GatewayEnvironmentMapping) error {
 //				panic("mock out the CreateEnvironmentMappingTx method")
 //			},
-//			CreateTokenFunc: func(token *models.GatewayToken) error {
-//				panic("mock out the CreateToken method")
+//			CreateTokenWithinLimitFunc: func(token *models.GatewayToken, maxActive int) error {
+//				panic("mock out the CreateTokenWithinLimit method")
 //			},
 //			CreateTxFunc: func(tx *gorm.DB, gateway *models.Gateway) error {
 //				panic("mock out the CreateTx method")
@@ -152,9 +149,6 @@ type GatewayRepositoryMock struct {
 	// AcquireGatewayLockFunc mocks the AcquireGatewayLock method.
 	AcquireGatewayLockFunc func(tx *gorm.DB, gatewayID string) error
 
-	// CountActiveTokensFunc mocks the CountActiveTokens method.
-	CountActiveTokensFunc func(gatewayId string) (int, error)
-
 	// CountFailureSummaryAllOrgsFunc mocks the CountFailureSummaryAllOrgs method.
 	CountFailureSummaryAllOrgsFunc func(ctx context.Context, window repositories.GatewayFailureWindow) (repositories.GatewayFailureCounts, error)
 
@@ -173,8 +167,8 @@ type GatewayRepositoryMock struct {
 	// CreateEnvironmentMappingTxFunc mocks the CreateEnvironmentMappingTx method.
 	CreateEnvironmentMappingTxFunc func(tx *gorm.DB, mapping *models.GatewayEnvironmentMapping) error
 
-	// CreateTokenFunc mocks the CreateToken method.
-	CreateTokenFunc func(token *models.GatewayToken) error
+	// CreateTokenWithinLimitFunc mocks the CreateTokenWithinLimit method.
+	CreateTokenWithinLimitFunc func(token *models.GatewayToken, maxActive int) error
 
 	// CreateTxFunc mocks the CreateTx method.
 	CreateTxFunc func(tx *gorm.DB, gateway *models.Gateway) error
@@ -282,11 +276,6 @@ type GatewayRepositoryMock struct {
 			// GatewayID is the gatewayID argument value.
 			GatewayID string
 		}
-		// CountActiveTokens holds details about calls to the CountActiveTokens method.
-		CountActiveTokens []struct {
-			// GatewayId is the gatewayId argument value.
-			GatewayId string
-		}
 		// CountFailureSummaryAllOrgs holds details about calls to the CountFailureSummaryAllOrgs method.
 		CountFailureSummaryAllOrgs []struct {
 			// Ctx is the ctx argument value.
@@ -323,10 +312,12 @@ type GatewayRepositoryMock struct {
 			// Mapping is the mapping argument value.
 			Mapping *models.GatewayEnvironmentMapping
 		}
-		// CreateToken holds details about calls to the CreateToken method.
-		CreateToken []struct {
+		// CreateTokenWithinLimit holds details about calls to the CreateTokenWithinLimit method.
+		CreateTokenWithinLimit []struct {
 			// Token is the token argument value.
 			Token *models.GatewayToken
+			// MaxActive is the maxActive argument value.
+			MaxActive int
 		}
 		// CreateTx holds details about calls to the CreateTx method.
 		CreateTx []struct {
@@ -511,14 +502,13 @@ type GatewayRepositoryMock struct {
 	}
 	lockAcquireEnvironmentLock                   sync.RWMutex
 	lockAcquireGatewayLock                       sync.RWMutex
-	lockCountActiveTokens                        sync.RWMutex
 	lockCountFailureSummaryAllOrgs               sync.RWMutex
 	lockCountIngressCapableInEnvironment         sync.RWMutex
 	lockCountWithFilters                         sync.RWMutex
 	lockCreate                                   sync.RWMutex
 	lockCreateEnvironmentMapping                 sync.RWMutex
 	lockCreateEnvironmentMappingTx               sync.RWMutex
-	lockCreateToken                              sync.RWMutex
+	lockCreateTokenWithinLimit                   sync.RWMutex
 	lockCreateTx                                 sync.RWMutex
 	lockDelete                                   sync.RWMutex
 	lockDeleteEnvironmentMapping                 sync.RWMutex
@@ -620,38 +610,6 @@ func (mock *GatewayRepositoryMock) AcquireGatewayLockCalls() []struct {
 	mock.lockAcquireGatewayLock.RLock()
 	calls = mock.calls.AcquireGatewayLock
 	mock.lockAcquireGatewayLock.RUnlock()
-	return calls
-}
-
-// CountActiveTokens calls CountActiveTokensFunc.
-func (mock *GatewayRepositoryMock) CountActiveTokens(gatewayId string) (int, error) {
-	if mock.CountActiveTokensFunc == nil {
-		panic("GatewayRepositoryMock.CountActiveTokensFunc: method is nil but GatewayRepository.CountActiveTokens was just called")
-	}
-	callInfo := struct {
-		GatewayId string
-	}{
-		GatewayId: gatewayId,
-	}
-	mock.lockCountActiveTokens.Lock()
-	mock.calls.CountActiveTokens = append(mock.calls.CountActiveTokens, callInfo)
-	mock.lockCountActiveTokens.Unlock()
-	return mock.CountActiveTokensFunc(gatewayId)
-}
-
-// CountActiveTokensCalls gets all the calls that were made to CountActiveTokens.
-// Check the length with:
-//
-//	len(mockedGatewayRepository.CountActiveTokensCalls())
-func (mock *GatewayRepositoryMock) CountActiveTokensCalls() []struct {
-	GatewayId string
-} {
-	var calls []struct {
-		GatewayId string
-	}
-	mock.lockCountActiveTokens.RLock()
-	calls = mock.calls.CountActiveTokens
-	mock.lockCountActiveTokens.RUnlock()
 	return calls
 }
 
@@ -859,35 +817,39 @@ func (mock *GatewayRepositoryMock) CreateEnvironmentMappingTxCalls() []struct {
 	return calls
 }
 
-// CreateToken calls CreateTokenFunc.
-func (mock *GatewayRepositoryMock) CreateToken(token *models.GatewayToken) error {
-	if mock.CreateTokenFunc == nil {
-		panic("GatewayRepositoryMock.CreateTokenFunc: method is nil but GatewayRepository.CreateToken was just called")
+// CreateTokenWithinLimit calls CreateTokenWithinLimitFunc.
+func (mock *GatewayRepositoryMock) CreateTokenWithinLimit(token *models.GatewayToken, maxActive int) error {
+	if mock.CreateTokenWithinLimitFunc == nil {
+		panic("GatewayRepositoryMock.CreateTokenWithinLimitFunc: method is nil but GatewayRepository.CreateTokenWithinLimit was just called")
 	}
 	callInfo := struct {
-		Token *models.GatewayToken
+		Token     *models.GatewayToken
+		MaxActive int
 	}{
-		Token: token,
+		Token:     token,
+		MaxActive: maxActive,
 	}
-	mock.lockCreateToken.Lock()
-	mock.calls.CreateToken = append(mock.calls.CreateToken, callInfo)
-	mock.lockCreateToken.Unlock()
-	return mock.CreateTokenFunc(token)
+	mock.lockCreateTokenWithinLimit.Lock()
+	mock.calls.CreateTokenWithinLimit = append(mock.calls.CreateTokenWithinLimit, callInfo)
+	mock.lockCreateTokenWithinLimit.Unlock()
+	return mock.CreateTokenWithinLimitFunc(token, maxActive)
 }
 
-// CreateTokenCalls gets all the calls that were made to CreateToken.
+// CreateTokenWithinLimitCalls gets all the calls that were made to CreateTokenWithinLimit.
 // Check the length with:
 //
-//	len(mockedGatewayRepository.CreateTokenCalls())
-func (mock *GatewayRepositoryMock) CreateTokenCalls() []struct {
-	Token *models.GatewayToken
+//	len(mockedGatewayRepository.CreateTokenWithinLimitCalls())
+func (mock *GatewayRepositoryMock) CreateTokenWithinLimitCalls() []struct {
+	Token     *models.GatewayToken
+	MaxActive int
 } {
 	var calls []struct {
-		Token *models.GatewayToken
+		Token     *models.GatewayToken
+		MaxActive int
 	}
-	mock.lockCreateToken.RLock()
-	calls = mock.calls.CreateToken
-	mock.lockCreateToken.RUnlock()
+	mock.lockCreateTokenWithinLimit.RLock()
+	calls = mock.calls.CreateTokenWithinLimit
+	mock.lockCreateTokenWithinLimit.RUnlock()
 	return calls
 }
 

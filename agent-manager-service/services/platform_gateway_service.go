@@ -715,6 +715,10 @@ func (s *PlatformGatewayService) VerifyToken(ctx context.Context, plainToken str
 	return gateway, nil
 }
 
+// maxActiveGatewayTokens is how many active tokens a gateway may hold at once: the current one and
+// its replacement while a rotation is rolled out.
+const maxActiveGatewayTokens = 2
+
 // RotateToken generates a new token for a gateway (max 2 active tokens)
 func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRotationResponse, error) {
 	// 1. Validate gateway exists
@@ -729,18 +733,7 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 		return nil, utils.ErrGatewayNotFound
 	}
 
-	// 2. Count active tokens
-	activeCount, err := s.gatewayRepo.CountActiveTokens(gatewayID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count active tokens: %w", err)
-	}
-
-	// 3. Check max 2 active tokens limit
-	if activeCount >= 2 {
-		return nil, utils.ErrGatewayTokenLimitReached
-	}
-
-	// 4. Generate new plain-text token with unique prefix and salt
+	// 2. Generate new plain-text token with unique prefix and salt
 	plainToken, tokenPrefix, err := generateToken()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %w", err)
@@ -751,15 +744,15 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 		return nil, fmt.Errorf("failed to generate salt: %w", err)
 	}
 
-	// 5. Hash new token
+	// 3. Hash new token
 	tokenHash := hashToken(plainToken, saltBytes)
 	saltHex := hex.EncodeToString(saltBytes)
 
-	// 6. Create new GatewayToken model with prefix for fast lookup
+	// 4. Create new GatewayToken model with prefix for fast lookup
 	tokenID := uuid.New()
 	gatewayToken := &models.GatewayToken{
 		UUID:        tokenID,
-		GatewayUUID: uuid.MustParse(gatewayID),
+		GatewayUUID: gateway.UUID,
 		TokenPrefix: tokenPrefix, // UUID prefix for indexed lookup
 		TokenHash:   tokenHash,
 		Salt:        saltHex,
@@ -768,12 +761,16 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 		RevokedAt:   nil,
 	}
 
-	// 7. Insert token using repository
-	if err := s.gatewayRepo.CreateToken(gatewayToken); err != nil {
+	// 5. Insert the token unless the gateway is already at the limit. The repository counts and
+	// inserts under one per-gateway lock, so concurrent rotations cannot all see room and insert.
+	if err := s.gatewayRepo.CreateTokenWithinLimit(gatewayToken, maxActiveGatewayTokens); err != nil {
+		if errors.Is(err, utils.ErrGatewayTokenLimitReached) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
 
-	// 8. Return TokenRotationResponse
+	// 6. Return TokenRotationResponse
 	response := &TokenRotationResponse{
 		ID:        tokenID.String(),
 		Token:     plainToken,

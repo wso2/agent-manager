@@ -124,7 +124,6 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 			return []*models.GatewayToken{f.token}, nil
 		},
 		GetTokenByUUIDFunc:        func(string) (*models.GatewayToken, error) { return f.token, nil },
-		CountActiveTokensFunc:     func(string) (int, error) { return 0, nil },
 		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error {
 			mutated("transaction")
@@ -135,10 +134,10 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 			byUUID[gw.UUID.String()] = gw
 			return nil
 		},
-		UpdateGatewayFunc: func(*models.Gateway) error { mutated("update"); return nil },
-		DeleteFunc:        func(string, string) error { mutated("delete"); return nil },
-		CreateTokenFunc:   func(*models.GatewayToken) error { mutated("create-token"); return nil },
-		RevokeTokenFunc:   func(string) error { mutated("revoke-token"); return nil },
+		UpdateGatewayFunc:          func(*models.Gateway) error { mutated("update"); return nil },
+		DeleteFunc:                 func(string, string) error { mutated("delete"); return nil },
+		CreateTokenWithinLimitFunc: func(*models.GatewayToken, int) error { mutated("create-token"); return nil },
+		RevokeTokenFunc:            func(string) error { mutated("revoke-token"); return nil },
 	}
 	repo.WithTxFunc = func(*gorm.DB) repositories.GatewayRepository { return repo }
 	repo.AcquireGatewayLockFunc = func(*gorm.DB, string) error { return nil }
