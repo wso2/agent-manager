@@ -114,6 +114,9 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 			log.Error("DeployLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 			return
+		case errors.Is(err, utils.ErrLLMIdentityUnsupported):
+			utils.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrLLMIdentityUnsupported.Error())
+			return
 		case errors.Is(err, utils.ErrInvalidInput):
 			log.Error("DeployLLMProvider: invalid input", "ouID", ouID, "providerID", providerID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")

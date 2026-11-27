@@ -524,6 +524,9 @@ func renderLLMProxy(proxy *models.LLMProxy, provider *models.LLMProvider) (strin
 	if provider == nil {
 		return "", utils.ErrLLMProviderNotFound
 	}
+	if err := validateLLMSecurity(proxy.Configuration.Security); err != nil {
+		return "", err
+	}
 
 	// Set default context if not provided
 	contextValue := "/"

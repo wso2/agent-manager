@@ -840,6 +840,9 @@ func ConvertSpecToModelSecurityConfig(sec spec.SecurityConfig) models.SecurityCo
 			Key:     ptrToString(sec.ApiKey.Key),
 		}
 	}
+	if sec.Identity != nil {
+		modelSec.Identity = &models.IdentitySecurity{Enabled: sec.Identity.Enabled}
+	}
 
 	return modelSec
 }
@@ -856,6 +859,9 @@ func ConvertModelToSpecSecurityConfig(sec models.SecurityConfig) spec.SecurityCo
 			In:      stringToPtr(sec.APIKey.In),
 			Key:     stringToPtr(sec.APIKey.Key),
 		}
+	}
+	if sec.Identity != nil {
+		specSec.Identity = &spec.IdentitySecurity{Enabled: sec.Identity.Enabled}
 	}
 
 	return specSec

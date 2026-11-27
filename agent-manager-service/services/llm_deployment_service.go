@@ -465,10 +465,23 @@ func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provide
 	return renderLLMProvider(provider)
 }
 
+// validateLLMSecurity rejects identity configurations unless explicitly disabled.
+// The LLM gateway renderers only translate API key authentication.
+func validateLLMSecurity(security *models.SecurityConfig) error {
+	if security != nil && security.Identity != nil &&
+		!isExplicitlyFalse(security.Enabled) && !isExplicitlyFalse(security.Identity.Enabled) {
+		return fmt.Errorf("%w: %w", utils.ErrInvalidInput, utils.ErrLLMIdentityUnsupported)
+	}
+	return nil
+}
+
 // renderLLMProvider is the provider's gateway configuration.
 func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 	if provider == nil {
 		return "", errors.New("provider is required")
+	}
+	if err := validateLLMSecurity(provider.Configuration.Security); err != nil {
+		return "", err
 	}
 
 	// Validate template handle exists

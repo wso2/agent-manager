@@ -308,6 +308,9 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *m
 		slog.Error("LLMProviderService.Create: provider is nil", "ouID", ouID)
 		return utils.ErrInvalidInput
 	}
+	if err := validateLLMSecurity(provider.Configuration.Security); err != nil {
+		return err
+	}
 
 	// Extract handle, name, and version from configuration
 	// Note: handle is not in Configuration, so we use name as handle
@@ -564,6 +567,9 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 	if providerID == "" || updates == nil {
 		slog.Error("LLMProviderService.Update: invalid input", "ouID", ouID, "providerID", providerID, "updatesIsNil", updates == nil)
 		return nil, utils.ErrInvalidInput
+	}
+	if err := validateLLMSecurity(updates.Configuration.Security); err != nil {
+		return nil, err
 	}
 
 	// Validate template exists (check both built-in and user templates)
