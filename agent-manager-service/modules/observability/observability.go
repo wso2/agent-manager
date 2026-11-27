@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/clickhouse"
 )
 
 const (
@@ -88,13 +89,14 @@ func (module) Manifest() modkit.Manifest {
 // settings are the keys openStores and ExternalSchema read.
 var settings = []modkit.Setting{
 	{Key: "clickhouse.url", Description: "ClickHouse HTTP URL traces are read from; unset, traces come from an empty in-memory store."},
+	{Key: "clickhouse.database", Default: clickhouse.DefaultDatabase, Description: "The database the span table is in. users.xml grants on otel; edit its grants for another name."},
 	{Key: "clickhouse.user", Description: "The reader login; required with url."},
 	{Key: "clickhouse.password", Description: "The reader login's password.", Secret: true},
 	{Key: "clickhouse.cleaner-user", Description: "The login that deletes a deleted agent's spans; unset, they are kept until the TTL."},
 	{Key: "clickhouse.cleaner-password", Description: "The cleaner login's password.", Secret: true},
 	{Key: "clickhouse.migrator-user", Description: "The login that applies the schema; used only by `amp migrate`."},
 	{Key: "clickhouse.migrator-password", Description: "The migrator login's password.", Secret: true},
-	{Key: "clickhouse.ttl-days", Default: "30", Description: "Days ClickHouse keeps spans; applied by `amp migrate`."},
+	{Key: "clickhouse.ttl-days", Default: "30", Description: "Days ClickHouse keeps spans; applied by `amp migrate`. A change applies only to spans written or merged after the next `amp migrate`."},
 }
 
 func (module) Migrations() fs.FS { return nil }

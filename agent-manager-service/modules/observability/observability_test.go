@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -151,6 +152,9 @@ func TestListTracesRequests(t *testing.T) {
 		if got := serve(t, h.exportTraces, "org-a", "/?"+tc.query); got != tc.want {
 			t.Errorf("%s: exportTraces = %d, want %d", tc.name, got, tc.want)
 		}
+	}
+	if got := serve(t, h.listSpans, "org-a", "/?project=shop&agent=bot&model=%zz&"+testWindow); got != http.StatusBadRequest {
+		t.Errorf("malformed query: listSpans = %d, want 400", got)
 	}
 }
 
@@ -340,8 +344,11 @@ func TestOpenStores(t *testing.T) {
 	if _, ok := cleaner.(*clickhouse.Store); err != nil || !ok || cleaner == agentCleaner(traces.(*clickhouse.Store)) {
 		t.Errorf("ClickHouse with a cleaner: openStores = %T, %T, %v; want a separate cleaner store", traces, cleaner, err)
 	}
-	if _, _, err := openStores(configRuntime{cfg: map[string]string{"clickhouse.url": "clickhouse:8123"}}); err == nil {
-		t.Error("openStores with a bad URL succeeded, want an error")
+	if _, _, err := openStores(configRuntime{cfg: map[string]string{"clickhouse.url": "clickhouse:8123", "clickhouse.user": "amp_reader"}}); err == nil || errors.Is(err, errNoReader) {
+		t.Errorf("openStores with a bad URL = %v, want a URL error", err)
+	}
+	if _, _, err := openStores(configRuntime{cfg: map[string]string{"clickhouse.url": "http://clickhouse:8123"}}); !errors.Is(err, errNoReader) {
+		t.Errorf("openStores with no reader login = %v, want errNoReader", err)
 	}
 }
 
@@ -365,8 +372,11 @@ func TestExternalSchemaConfig(t *testing.T) {
 	}
 	for _, bad := range []string{"0", "-1", "thirty"} {
 		ch["clickhouse.ttl-days"] = bad
-		if _, err := (module{}).ExternalSchema(cfg(ch), true); err == nil || errors.Is(err, modkit.ErrNotConfigured) {
-			t.Errorf("ttl-days %q: %v, want a config error", bad, err)
+		for _, apply := range []bool{true, false} {
+			_, err := (module{}).ExternalSchema(cfg(ch), apply)
+			if err == nil || errors.Is(err, modkit.ErrNotConfigured) || !strings.Contains(err.Error(), "MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS") {
+				t.Errorf("ttl-days %q, apply=%v: %v, want a config error naming the setting", bad, apply, err)
+			}
 		}
 	}
 }

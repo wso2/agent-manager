@@ -19,7 +19,13 @@ package clickhouse
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"slices"
 	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -64,6 +70,16 @@ func TestNewRejectsBadConfig(t *testing.T) {
 	} {
 		if _, err := New(cfg); err == nil {
 			t.Errorf("New(%+v) succeeded, want an error", cfg)
+		}
+	}
+}
+
+// A URL with a login is refused, and no refused URL's password is in the error.
+func TestNewRejectsURLWithLogin(t *testing.T) {
+	for _, raw := range []string{"http://amp:s3cret@clickhouse:8123", "clickhouse://amp:s3cret@clickhouse:9000"} {
+		_, err := New(Config{URL: raw, User: "amp"})
+		if err == nil || strings.Contains(err.Error(), "s3cret") || !strings.Contains(err.Error(), "MODULE_OBSERVABILITY_CLICKHOUSE_URL") {
+			t.Errorf("New(%q) error = %v, want one naming the setting without the password", raw, err)
 		}
 	}
 }
@@ -142,5 +158,66 @@ func TestTraceBounds(t *testing.T) {
 	if where, empty := timeFilter(f, e, "trace_from", "trace_to", params); empty || len(params) != 1 ||
 		params["trace_from"] != strconv.FormatInt(f.UnixNano(), 10) || where != " AND Timestamp >= fromUnixTimestamp64Nano({trace_from:Int64})" {
 		t.Errorf("timeFilter of a far end = %q, %v, %v; want only the start bound, as trace_from", where, empty, params)
+	}
+}
+
+// The reader, cleaner and schema clients all use the configured database.
+func TestConfiguredDatabase(t *testing.T) {
+	var mu sync.Mutex
+	var dbs []string
+	var bodies []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		defer mu.Unlock()
+		q := r.URL.Query()
+		if db := q.Get("database"); db != "" {
+			dbs = append(dbs, db)
+		} else {
+			dbs = append(dbs, q.Get("param_db"))
+		}
+		bodies = append(bodies, string(body))
+		_, _ = io.WriteString(w, `{"n":3}`+"\n")
+	}))
+	defer srv.Close()
+	ctx := context.Background()
+
+	s, err := New(Config{URL: srv.URL, Database: "traces", User: "amp_reader"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := store.Scope{OrgID: "org-a", Names: store.Names{Org: "acme"}}
+	if _, err := s.QueryTraces(ctx, sc, store.TraceQuery{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteAgent(ctx, "org-a", "a"); err != nil {
+		t.Fatal(err)
+	}
+	schema, err := NewSchema(SchemaConfig{URL: srv.URL, Database: "traces", User: "amp_migrator"}, Migrations())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schema.Apply(ctx, "001_test", "sum", []byte("SELECT 1")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := schema.Applied(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for i, db := range dbs {
+		if db != "traces" && !strings.HasPrefix(bodies[i], "CREATE DATABASE IF NOT EXISTS traces") {
+			t.Errorf("request %q went to database %q, want traces", bodies[i], db)
+		}
+	}
+	if !slices.Contains(bodies, "CREATE DATABASE IF NOT EXISTS traces") {
+		t.Errorf("requests %q create no database traces", bodies)
+	}
+
+	for _, bad := range []string{"otel; DROP TABLE x", "1db", "my-db"} {
+		if _, err := New(Config{URL: srv.URL, Database: bad, User: "amp_reader"}); err == nil || !strings.Contains(err.Error(), "MODULE_OBSERVABILITY_CLICKHOUSE_DATABASE") {
+			t.Errorf("New with database %q = %v, want a database error", bad, err)
+		}
+		if _, err := NewSchema(SchemaConfig{URL: srv.URL, Database: bad, User: "amp_migrator"}, Migrations()); err == nil {
+			t.Errorf("NewSchema with database %q succeeded, want an error", bad)
+		}
 	}
 }

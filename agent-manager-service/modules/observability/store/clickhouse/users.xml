@@ -17,6 +17,9 @@
                 cancels a read when the client disconnects.
   amp_cleaner   DELETE on the span table, for the observability module to
                 remove a deleted agent's spans.
+
+  The grants name the otel database. For another clickhouse.database
+  (MODULE_OBSERVABILITY_CLICKHOUSE_DATABASE), edit them to name it.
 -->
 <clickhouse>
   <profiles>

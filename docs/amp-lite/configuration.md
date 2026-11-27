@@ -293,10 +293,11 @@ modules:
 | Key | Variable | Default | Description |
 |---|---|---|---|
 | `clickhouse.url` | `MODULE_OBSERVABILITY_CLICKHOUSE_URL` |  | ClickHouse HTTP URL traces are read from; unset, traces come from an empty in-memory store. |
+| `clickhouse.database` | `MODULE_OBSERVABILITY_CLICKHOUSE_DATABASE` | `otel` | The database the span table is in. users.xml grants on otel; edit its grants for another name. |
 | `clickhouse.user` | `MODULE_OBSERVABILITY_CLICKHOUSE_USER` |  | The reader login; required with url. |
 | `clickhouse.password` | `MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD` |  | The reader login's password. **Secret.** |
 | `clickhouse.cleaner-user` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER` |  | The login that deletes a deleted agent's spans; unset, they are kept until the TTL. |
 | `clickhouse.cleaner-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD` |  | The cleaner login's password. **Secret.** |
 | `clickhouse.migrator-user` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER` |  | The login that applies the schema; used only by `amp migrate`. |
 | `clickhouse.migrator-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD` |  | The migrator login's password. **Secret.** |
-| `clickhouse.ttl-days` | `MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS` | `30` | Days ClickHouse keeps spans; applied by `amp migrate`. |
+| `clickhouse.ttl-days` | `MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS` | `30` | Days ClickHouse keeps spans; applied by `amp migrate`. A change applies only to spans written or merged after the next `amp migrate`. |

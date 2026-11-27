@@ -34,7 +34,7 @@ import (
 // Table is the span table, the exporter's default traces_table_name.
 const Table = "otel_traces"
 
-// DefaultDatabase is the database the table is in, the one users.xml grants on.
+// DefaultDatabase is the database the table is in unless configured, the one users.xml grants on.
 const DefaultDatabase = "otel"
 
 // Resource attributes on each span; the table materializes org_id,
@@ -52,6 +52,7 @@ var ErrMissingAgent = errors.New("clickhouse: no agent to delete")
 // Config locates ClickHouse and the user that reads the span table.
 type Config struct {
 	URL      string // HTTP interface, e.g. http://clickhouse:8123
+	Database string // "" is DefaultDatabase
 	User     string
 	Password string
 }
@@ -65,11 +66,19 @@ var _ store.TraceStore = (*Store)(nil)
 
 // New returns a Store for cfg. It does not connect.
 func New(cfg Config) (*Store, error) {
-	c, err := newClient(cfg.URL, DefaultDatabase, cfg.User, cfg.Password)
+	c, err := newClient(cfg.URL, databaseOr(cfg.Database), cfg.User, cfg.Password)
 	if err != nil {
 		return nil, err
 	}
 	return &Store{c: c}, nil
+}
+
+// databaseOr is db, or DefaultDatabase when db is "".
+func databaseOr(db string) string {
+	if db == "" {
+		return DefaultDatabase
+	}
+	return db
 }
 
 // scopeFilter is the WHERE clause for a Scope: always the org, and the

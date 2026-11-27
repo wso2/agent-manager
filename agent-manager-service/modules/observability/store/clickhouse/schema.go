@@ -51,10 +51,11 @@ const createHistory = `CREATE TABLE IF NOT EXISTS ` + HistoryTable + ` (
     applied_at DateTime64(3) DEFAULT now64(3)
 ) ENGINE = ReplacingMergeTree(applied_at) ORDER BY version`
 
-// SchemaConfig locates ClickHouse and the login that applies or reads the
-// schema of DefaultDatabase.
+// SchemaConfig locates ClickHouse, the database and the login that applies or
+// reads its schema.
 type SchemaConfig struct {
 	URL      string
+	Database string // "" is DefaultDatabase
 	User     string
 	Password string
 	// TTLDays is the span table's retention; zero leaves it as it is.
@@ -76,7 +77,8 @@ func NewSchema(cfg SchemaConfig, files fs.FS) (*Schema, error) {
 	if cfg.TTLDays < 0 {
 		return nil, fmt.Errorf("clickhouse: ttl-days must not be negative")
 	}
-	c, err := newClient(cfg.URL, DefaultDatabase, cfg.User, cfg.Password)
+	cfg.Database = databaseOr(cfg.Database)
+	c, err := newClient(cfg.URL, cfg.Database, cfg.User, cfg.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +99,7 @@ func (s *Schema) Files() fs.FS { return s.files }
 func (s *Schema) exists(ctx context.Context, table string) (bool, error) {
 	n := 0
 	err := s.server.query(ctx, "SELECT count() AS n FROM system.tables WHERE database = {db:String} AND name = {t:String}",
-		map[string]string{"db": DefaultDatabase, "t": table}, func(line []byte) error {
+		map[string]string{"db": s.cfg.Database, "t": table}, func(line []byte) error {
 			var r struct {
 				N int `json:"n"`
 			}
@@ -113,7 +115,7 @@ func (s *Schema) exists(ctx context.Context, table string) (bool, error) {
 func (s *Schema) checkTable(ctx context.Context) error {
 	n := 0
 	err := s.server.query(ctx, "SELECT count() AS n FROM system.columns WHERE database = {db:String} AND table = {t:String} AND name IN ('org_id', 'project_id', 'agent_id')",
-		map[string]string{"db": DefaultDatabase, "t": Table}, func(line []byte) error {
+		map[string]string{"db": s.cfg.Database, "t": Table}, func(line []byte) error {
 			var r struct {
 				N int `json:"n"`
 			}
@@ -125,7 +127,7 @@ func (s *Schema) checkTable(ctx context.Context) error {
 		return err
 	}
 	if n < 3 {
-		return fmt.Errorf("clickhouse: table %s.%s has no org_id, project_id and agent_id columns, so another writer created it; drop or rename that table, or point its writer elsewhere", DefaultDatabase, Table)
+		return fmt.Errorf("clickhouse: table %s.%s has no org_id, project_id and agent_id columns, so another writer created it; drop or rename that table, or point its writer elsewhere", s.cfg.Database, Table)
 	}
 	return nil
 }
@@ -157,7 +159,7 @@ func (s *Schema) Applied(ctx context.Context) (map[string]string, error) {
 
 // Apply runs one schema file and records it.
 func (s *Schema) Apply(ctx context.Context, version, checksum string, body []byte) error {
-	if err := s.server.exec(ctx, "CREATE DATABASE IF NOT EXISTS "+DefaultDatabase, nil); err != nil {
+	if err := s.server.exec(ctx, "CREATE DATABASE IF NOT EXISTS "+s.cfg.Database, nil); err != nil {
 		return err
 	}
 	if err := s.c.exec(ctx, createHistory, nil); err != nil {
@@ -183,7 +185,7 @@ func (s *Schema) Settle(ctx context.Context) error {
 	ttl := "toDateTime(Timestamp) + toIntervalDay(" + strconv.Itoa(s.cfg.TTLDays) + ")"
 	var engine string
 	err := s.server.query(ctx, "SELECT engine_full FROM system.tables WHERE database = {db:String} AND name = {t:String}",
-		map[string]string{"db": DefaultDatabase, "t": Table}, func(line []byte) error {
+		map[string]string{"db": s.cfg.Database, "t": Table}, func(line []byte) error {
 			var r struct {
 				Engine string `json:"engine_full"`
 			}
@@ -195,7 +197,7 @@ func (s *Schema) Settle(ctx context.Context) error {
 		return err
 	}
 	if engine == "" {
-		return fmt.Errorf("clickhouse: table %s.%s is missing", DefaultDatabase, Table)
+		return fmt.Errorf("clickhouse: table %s.%s is missing", s.cfg.Database, Table)
 	}
 	if strings.Contains(engine, "TTL "+ttl+" ") || strings.HasSuffix(engine, "TTL "+ttl) {
 		return nil

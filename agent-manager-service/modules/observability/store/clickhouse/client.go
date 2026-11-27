@@ -20,10 +20,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -38,10 +40,20 @@ type client struct {
 	http     *http.Client
 }
 
+// validDatabase is a database name safe to put in SQL unquoted.
+var validDatabase = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// newClient returns a client of database, or of no database when it is "".
 func newClient(rawURL, database, user, password string) (*client, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, fmt.Errorf("clickhouse: url %q must be http(s)://host:port", rawURL)
+		return nil, errors.New("clickhouse: url must be http(s)://host:port (MODULE_OBSERVABILITY_CLICKHOUSE_URL)")
+	}
+	if u.User != nil {
+		return nil, fmt.Errorf("clickhouse: url %s must not hold a login; set the user and password settings instead (MODULE_OBSERVABILITY_CLICKHOUSE_URL)", u.Redacted())
+	}
+	if database != "" && !validDatabase.MatchString(database) {
+		return nil, fmt.Errorf("clickhouse: database %q must match %s (MODULE_OBSERVABILITY_CLICKHOUSE_DATABASE)", database, validDatabase)
 	}
 	return &client{
 		url:      strings.TrimRight(rawURL, "/") + "/",

@@ -53,7 +53,7 @@ func openStores(rt modkit.Runtime) (store.TraceStore, agentCleaner, error) {
 		m := memory.New()
 		return m, m, nil
 	}
-	cfg := clickhouse.Config{URL: url}
+	cfg := clickhouse.Config{URL: url, Database: rt.Config("clickhouse.database")}
 	reader := cfg
 	reader.User, reader.Password = rt.Config("clickhouse.user"), rt.Config("clickhouse.password")
 	if reader.User == "" {
@@ -109,15 +109,15 @@ func (module) ExternalSchema(config func(string) string, apply bool) (modkit.Ext
 	if url == "" {
 		return nil, fmt.Errorf("%w: no ClickHouse (MODULE_OBSERVABILITY_CLICKHOUSE_URL)", modkit.ErrNotConfigured)
 	}
-	cfg := clickhouse.SchemaConfig{URL: url}
+	cfg := clickhouse.SchemaConfig{URL: url, Database: config("clickhouse.database")}
+	days, err := ttlDays(config("clickhouse.ttl-days"))
+	if err != nil {
+		return nil, err
+	}
 	if apply {
 		cfg.User, cfg.Password = config("clickhouse.migrator-user"), config("clickhouse.migrator-password")
 		if cfg.User == "" {
 			return nil, fmt.Errorf("%w: no ClickHouse migrator login (MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER)", modkit.ErrNotConfigured)
-		}
-		days, err := ttlDays(config("clickhouse.ttl-days"))
-		if err != nil {
-			return nil, err
 		}
 		cfg.TTLDays = days
 	} else {
@@ -140,7 +140,7 @@ func ttlDays(v string) (int, error) {
 	}
 	days, err := strconv.Atoi(v)
 	if err != nil || days <= 0 {
-		return 0, fmt.Errorf("observability: clickhouse.ttl-days must be a positive number of days, not %q", v)
+		return 0, fmt.Errorf("observability: clickhouse.ttl-days must be a positive number of days, not %q (MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS)", v)
 	}
 	return days, nil
 }
