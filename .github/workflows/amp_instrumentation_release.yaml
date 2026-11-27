@@ -2,18 +2,7 @@ name: AMP Instrumentation Release
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Branch to release from"
-        required: true
-        default: "main"
-        type: string
-      target_version:
-        description: "Target version for the release"
-        required: true
-        type: string
-
-run-name: Agent Instrumentation Release ${{inputs.target_version}}
+run-name: AMP Instrumentation Release (${{ github.ref_name }})
 
 # Default token scope is read-only; jobs that publish, push or deploy
 # request the extra scopes they need at job level.
@@ -21,7 +10,15 @@ permissions:
   contents: read
 
 jobs:
+  settings:
+    uses: ./.github/workflows/read-workflow-settings.yml
+    with:
+      section: amp_instrumentation_release
+      defaults: >-
+        {"branch": "main", "target_version": null}
+
   test:
+    needs: settings
     name: Test
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
@@ -32,7 +29,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ fromJSON(needs.settings.outputs.values).branch }}
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -59,7 +56,7 @@ jobs:
     name: Release
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
-    needs: test
+    needs: [settings, test]
     permissions:
       contents: write
     defaults:
@@ -69,12 +66,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ fromJSON(needs.settings.outputs.values).branch }}
 
       - name: Set release tag and version
+        env:
+          VERSION: ${{ fromJSON(needs.settings.outputs.values).target_version }}
         run: |
-          echo "RELEASE_TAG=amp-instrumentation/v${{ inputs.target_version }}" >> $GITHUB_ENV
-          echo "VERSION=${{ inputs.target_version }}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=amp-instrumentation/v$VERSION" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -84,18 +83,18 @@ jobs:
       - name: Commit package version update
         run: |
           # Update version in pyproject.toml
-          sed -i 's/^version = ".*"/version = "${{ inputs.target_version }}"/' pyproject.toml
-          echo "Updated version to ${{ inputs.target_version }} in pyproject.toml"
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" pyproject.toml
+          echo "Updated version to $VERSION in pyproject.toml"
 
           # Verify the update was successful
-          grep "version = \"${{ inputs.target_version }}\"" pyproject.toml || (echo "Failed to update version in pyproject.toml" && exit 1)
-          echo "Version ${{ inputs.target_version }} successfully set in pyproject.toml"
+          grep -Fx "version = \"$VERSION\"" pyproject.toml || (echo "Failed to update version in pyproject.toml" && exit 1)
+          echo "Version $VERSION successfully set in pyproject.toml"
 
           # Commit the version update
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml
-          git commit -m "Bump version to ${{ inputs.target_version }}"
+          git commit -m "Bump version to $VERSION"
 
       - name: Install build tools
         run: |
@@ -115,12 +114,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git rev-parse ${{ env.RELEASE_TAG }} >/dev/null 2>&1; then
-            echo "Error: Tag ${{ env.RELEASE_TAG }} already exists. Please use a different version."
+          if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Error: Tag $RELEASE_TAG already exists. Please use a different version."
             exit 1
           fi
-          git tag -a ${{ env.RELEASE_TAG }} -m "Release ${{ env.VERSION }}"
-          git push origin ${{ env.RELEASE_TAG }}
+          git tag -a "$RELEASE_TAG" -m "Release $VERSION"
+          git push origin "$RELEASE_TAG"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

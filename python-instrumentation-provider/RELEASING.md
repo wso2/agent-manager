@@ -27,7 +27,7 @@ stay on the version they were pinned to — bumping the default never moves them
 | `traceloop-sdk` pin for the **PyPI package** | `libs/amp-instrumentation/pyproject.toml` → `dependencies` → `"traceloop-sdk==<X>"` |
 | **PyPI package version** | the `target_version` input to `.github/workflows/amp_instrumentation_release.yaml` (it `sed`s `pyproject.toml`'s `version`; the repo value is the placeholder `0.0.0-dev`; `__init__.py.__version__` just reads it back from package metadata — don't hand-edit it) |
 | **Image build matrix** (which `(AMP-instr version × Python)` images to build, and the `traceloop-sdk` baked into each) | `.github/release-config.json` → `python-instrumentation-provider` → array of `{ "instrumentation_version", "traceloop_version", "python_versions" }` |
-| **Image build (primary)** | `.github/workflows/python_instrumentation_image_release.yaml` — standalone `workflow_dispatch` (inputs `branch`, `instrumentation_version`); reads `release-config.json`, filters to the requested version, builds & pushes that matrix. Use this to ship images independently of an AMP product release. |
+| **Image build (primary)** | `.github/workflows/python_instrumentation_image_release.yaml` — standalone `workflow_dispatch` (settings `branch`, `instrumentation_version`); reads `release-config.json`, filters to the requested version, builds & pushes that matrix. Use this to ship images independently of an AMP product release. |
 | **Image build (also runs on every AMP product release)** | `.github/workflows/release.yml` → `build-python-instrumentation-provider-images` job — same `release-config.json` matrix, but rebuilds **every** listed version on each product release (refreshes base-image layers). |
 | **Image build args / defaults** | `python-instrumentation-provider/Dockerfile` (`ARG TRACELOOP_VERSION`, `ARG PYTHON_VERSION`) and `python-instrumentation-provider/Makefile` — these defaults are only for local `docker build` / `make build`; CI always passes the real values from `release-config.json` |
 | **Loose dependency inputs** (extras beyond `traceloop-sdk`) | `python-instrumentation-provider/requirements.in` |
@@ -49,14 +49,15 @@ stay on the version they were pinned to — bumping the default never moves them
 **Neither artifact is published by a PR merge.** All three release workflows are
 `workflow_dispatch`-only — they run when someone *manually* dispatches them:
 
-- **PyPI package** — `.github/workflows/amp_instrumentation_release.yaml`. Type the
-  `target_version` (e.g. `0.4.0`) and the chosen `branch` (usually `main`); the
+- **PyPI package** — `.github/workflows/amp_instrumentation_release.yaml`. Set the
+  `target_version` (e.g. `0.4.0`) and the chosen `branch` (usually `main`) in the
+  [manual workflow settings](../.github/workflow-settings.md). The
   workflow `sed`s `pyproject.toml`'s `version`, builds, publishes to PyPI, and tags
   `amp-instrumentation/v<target_version>`. **Run this when** you've merged the
   `traceloop-sdk` pin update and want to publish a new PyPI version.
 - **Init-container images — standalone (primary path)**:
-  `.github/workflows/python_instrumentation_image_release.yaml`. Inputs: `branch`
-  and `instrumentation_version` (a specific version like `0.4.0`, or `all`). It reads
+  `.github/workflows/python_instrumentation_image_release.yaml`. Set `branch` and
+  `instrumentation_version` in the manual workflow settings. Choose a specific version like `0.4.0` or use `all`. It reads
   `release-config.json`, filters to the requested version, and builds & pushes the
   matching `(instr × python)` matrix as
   `amp-python-instrumentation-provider:<instr_version>-python<X.Y>`. **Use this
@@ -116,7 +117,8 @@ the advisory matrix run tell you exactly which framework/python combos regress. 
   still files the issue and just skips the Chat message.
 
 **Testing it:** dispatch the workflow manually (Actions tab → *Traceloop Release
-Watch* → *Run workflow*) with `force_version` set to a value higher than the current
+Watch* → *Run workflow*) against a settings branch with
+`traceloop-release-watch.force_version` set to a value higher than the current
 pin, e.g. `99.0.0`. It files a real issue and posts to Chat — **delete** the test
 issue afterwards (not just close it; the dedup check looks at closed issues too, so
 a leftover closed test issue would suppress a future real notification).
@@ -248,7 +250,8 @@ Example: AMP buildpack starts supporting Python `3.14`.
    cd agent-manager-service && make gen-instrumentation-baseline
    ```
 5. **Publish the images** by dispatching the **`AMP Python Instrumentation Image Release`**
-   workflow with the affected `instrumentation_version` (or `all`) to push the new
+   workflow using a settings branch whose `instrumentation_version` is the affected
+   version (or `all`) to push the new
    `(instr × 3.14)` images.
 6. **No PyPI change** — `amp-instrumentation` isn't Python-version-specific (the per-Python
    pre-install only matters for the init-container image; on the externally-hosted path the

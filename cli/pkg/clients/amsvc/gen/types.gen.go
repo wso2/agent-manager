@@ -7409,6 +7409,9 @@ type ListAvailableLLMPoliciesParams struct {
 
 // GetLLMProviderDeploymentsParams defines parameters for GetLLMProviderDeployments.
 type GetLLMProviderDeploymentsParams struct {
+	// Offset Number of deployments to skip after applying the filters and per-gateway limit.
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+
 	// GatewayId Filter by gateway ID
 	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
 

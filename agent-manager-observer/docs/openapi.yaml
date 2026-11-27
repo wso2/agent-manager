@@ -982,6 +982,7 @@ components:
               items: {}
         models:
           type: array
+          maxItems: 1000
           description: |
             Distinct model names across the trace's LLM spans, first-seen order.
             Only present when `include=models`, or when the LLM spans were

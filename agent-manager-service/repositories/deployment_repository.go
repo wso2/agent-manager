@@ -44,6 +44,7 @@ type DeploymentRepository interface {
 	// other existing caller.
 	GetWithStateCtx(ctx context.Context, deploymentID, artifactUUID, orgUUID string) (*models.Deployment, error)
 	GetDeploymentsWithState(artifactUUID, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*models.Deployment, error)
+	GetDeploymentsWithStatePage(ctx context.Context, artifactUUID, orgUUID string, gatewayID *string, status *string, maxPerAPIGW, offset, limit int) ([]*models.Deployment, error)
 	Delete(deploymentID, artifactUUID, orgUUID string) error
 
 	// Transition starters: StartDeploy, StartRestore and BeginUndeploy are the only writers that reset the
@@ -250,6 +251,10 @@ func (r *DeploymentRepo) GetWithStateCtx(ctx context.Context, deploymentID, arti
 
 // GetDeploymentsWithState retrieves deployments with their lifecycle states
 func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*models.Deployment, error) {
+	return r.GetDeploymentsWithStatePage(context.Background(), artifactUUID, orgUUID, gatewayID, status, maxPerAPIGW, 0, 0)
+}
+
+func (r *DeploymentRepo) GetDeploymentsWithStatePage(ctx context.Context, artifactUUID, orgUUID string, gatewayID *string, status *string, maxPerAPIGW, offset, limit int) ([]*models.Deployment, error) {
 	if status != nil && !models.IsDeploymentStatusFilter(*status) {
 		return nil, fmt.Errorf("invalid deployment status: %s", *status)
 	}
@@ -267,7 +272,7 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
                     PARTITION BY d.gateway_uuid
                     ORDER BY
                         (CASE WHEN s.status IS NOT NULL THEN 0 ELSE 1 END) ASC,
-                        d.created_at DESC
+                        d.created_at DESC, d.deployment_id DESC
                 ) as rank_idx
 			FROM deployments d
 			LEFT JOIN deployment_status s
@@ -306,9 +311,12 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
 	}
 
 	query += " ORDER BY gateway_uuid ASC, rank_idx ASC"
-
+	if limit > 0 {
+		query += " LIMIT ? OFFSET ?"
+		args = append(args, limit, offset)
+	}
 	var deployments []*models.Deployment
-	err := r.db.Raw(query, args...).Scan(&deployments).Error
+	err := r.db.WithContext(ctx).Raw(query, args...).Scan(&deployments).Error
 
 	// Map ARCHIVED status for records with NULL current_status
 	for _, d := range deployments {

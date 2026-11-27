@@ -844,8 +844,15 @@ type ApiGetLLMProviderDeploymentsRequest struct {
 	ApiService *LLMDeploymentsAPIService
 	orgName    string
 	providerId string
+	offset     *int32
 	gatewayId  *string
 	status     *string
+}
+
+// Number of deployments to skip after applying the filters and per-gateway limit.
+func (r ApiGetLLMProviderDeploymentsRequest) Offset(offset int32) ApiGetLLMProviderDeploymentsRequest {
+	r.offset = &offset
+	return r
 }
 
 // Filter by gateway ID
@@ -867,7 +874,7 @@ func (r ApiGetLLMProviderDeploymentsRequest) Execute() ([]LLMDeploymentResponse,
 /*
 GetLLMProviderDeployments Get LLM provider deployments
 
-Retrieve all deployments for an LLM provider
+Retrieve a page of deployments for an LLM provider.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle
@@ -907,6 +914,9 @@ func (a *LLMDeploymentsAPIService) GetLLMProviderDeploymentsExecute(r ApiGetLLMP
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
+	if r.offset != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
 	if r.gatewayId != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "gatewayId", r.gatewayId, "")
 	}

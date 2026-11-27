@@ -450,15 +450,20 @@ export async function listLLMDeployments(
     searchParams.status = query.status;
   }
 
-  const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployments`,
-    {
-      token,
-      searchParams: Object.keys(searchParams).length ? searchParams : undefined,
-    },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
+  const deployments: LLMDeploymentListResponse = [];
+  let nextOffset: string | null = null;
+  do {
+    const pageParams = nextOffset === null ? searchParams : { ...searchParams, offset: nextOffset };
+    const res = await httpGET(
+      `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployments`,
+      { token, searchParams: pageParams },
+    );
+    if (!res.ok) throw await res.json();
+    const page: LLMDeploymentListResponse = await res.json();
+    for (const deployment of page) deployments.push(deployment);
+    nextOffset = res.headers.get("X-Next-Offset");
+  } while (nextOffset !== null);
+  return deployments;
 }
 
 export async function createLLMDeployment(

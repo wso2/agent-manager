@@ -8648,9 +8648,16 @@ paths:
       tags:
         - LLM Deployments
       summary: Get LLM provider deployments
-      description: Retrieve all deployments for an LLM provider
+      description: Retrieve a page of deployments for an LLM provider.
       operationId: getLLMProviderDeployments
       parameters:
+        - name: offset
+          in: query
+          description: Number of deployments to skip after applying the filters and per-gateway limit.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
         - name: gatewayId
           in: query
           description: Filter by gateway ID
@@ -8673,12 +8680,18 @@ paths:
       responses:
         "200":
           description: >-
-            Successfully retrieved deployments. Each gateway contributes at most 20 deployments, so without a
-            gatewayId filter the list can hold up to 20 per gateway.
+            Retrieved up to 1000 deployments in gateway order. Each gateway contributes at most 20 deployments.
+          headers:
+            X-Next-Offset:
+              description: Offset for the next page when more deployments are available.
+              schema:
+                type: integer
+                minimum: 1
           content:
             application/json:
               schema:
                 type: array
+                maxItems: 1000
                 items:
                   $ref: "#/components/schemas/LLMDeploymentResponse"
         "400":

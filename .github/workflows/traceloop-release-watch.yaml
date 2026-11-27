@@ -13,19 +13,20 @@ on:
   schedule:
     - cron: "30 3 * * *" # daily at 09:00 IST (03:30 UTC)
   workflow_dispatch:
-    inputs:
-      force_version:
-        description: "Treat this string as the latest PyPI version (testing only; leave blank to query PyPI)"
-        required: false
-        default: ""
-        type: string
-
 permissions:
   issues: write
   contents: read
 
 jobs:
+  settings:
+    uses: ./.github/workflows/read-workflow-settings.yml
+    with:
+      section: traceloop-release-watch
+      defaults: >-
+        {"force_version": ""}
+
   watch:
+    needs: settings
     name: Check for new traceloop-sdk release
     runs-on: ubuntu-latest
     if: github.repository == 'wso2/agent-manager'
@@ -45,7 +46,7 @@ jobs:
       - name: Detect latest traceloop-sdk release
         id: detect
         env:
-          FORCE_VERSION: ${{ inputs.force_version }}
+          FORCE_VERSION: ${{ fromJSON(needs.settings.outputs.values).force_version }}
         run: |
           set -euo pipefail
 

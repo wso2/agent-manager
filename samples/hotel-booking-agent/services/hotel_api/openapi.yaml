@@ -570,6 +570,8 @@ components:
           type: object
         rooms:
           type: array
+          maxItems: 100
+          description: Up to 100 room types for the requested hotel.
           items:
             type: object
         recent_reviews:

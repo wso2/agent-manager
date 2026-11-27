@@ -12327,6 +12327,22 @@ func NewGetLLMProviderDeploymentsRequest(server string, orgName string, provider
 	if params != nil {
 		queryValues := queryURL.Query()
 
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		if params.GatewayId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", *params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {

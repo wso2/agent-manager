@@ -36,9 +36,11 @@ import (
 )
 
 const (
-	maxDeploymentsPerAPI  = 20
-	apiVersionLLMProvider = "gateway.api-platform.wso2.com/v1"
-	kindLLMProvider       = "LlmProvider"
+	maxDeploymentsPerAPI = 20
+	// LLMProviderDeploymentPageSize is the hard limit for the deployment list response.
+	LLMProviderDeploymentPageSize = 1000
+	apiVersionLLMProvider         = "gateway.api-platform.wso2.com/v1"
+	kindLLMProvider               = "LlmProvider"
 
 	// Policy names and versions
 	tokenBasedRateLimitPolicyName = "token-based-ratelimit"
@@ -380,9 +382,36 @@ func getRestorableDeployment(repo repositories.DeploymentRepository, deploymentI
 	return deployment, nil
 }
 
-// GetLLMProviderDeployments retrieves all deployments for a provider
+// GetLLMProviderDeployments retrieves all deployments for a provider.
 func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouID string, gatewayID *string, status *string) ([]*models.Deployment, error) {
-	// Get provider
+	provider, err := s.providerForDeploymentList(providerID, ouID, status)
+	if err != nil {
+		return nil, err
+	}
+	deployments, err := s.deploymentRepo.GetDeploymentsWithState(provider.UUID.String(), ouID, gatewayID, status, maxDeploymentsPerAPI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get deployments: %w", err)
+	}
+	return deployments, nil
+}
+
+// GetLLMProviderDeploymentsPage retrieves one page and reports whether more deployments exist.
+func (s *LLMProviderDeploymentService) GetLLMProviderDeploymentsPage(ctx context.Context, providerID, ouID string, gatewayID, status *string, offset int) ([]*models.Deployment, bool, error) {
+	provider, err := s.providerForDeploymentList(providerID, ouID, status)
+	if err != nil {
+		return nil, false, err
+	}
+	deployments, err := s.deploymentRepo.GetDeploymentsWithStatePage(ctx, provider.UUID.String(), ouID, gatewayID, status, maxDeploymentsPerAPI, offset, LLMProviderDeploymentPageSize+1)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get deployments: %w", err)
+	}
+	if len(deployments) > LLMProviderDeploymentPageSize {
+		return deployments[:LLMProviderDeploymentPageSize], true, nil
+	}
+	return deployments, false, nil
+}
+
+func (s *LLMProviderDeploymentService) providerForDeploymentList(providerID, ouID string, status *string) (*models.LLMProvider, error) {
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
@@ -390,18 +419,10 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouI
 	if provider == nil {
 		return nil, utils.ErrLLMProviderNotFound
 	}
-
 	if status != nil && !models.IsDeploymentStatusFilter(*status) {
 		return nil, utils.ErrInvalidDeploymentStatus
 	}
-
-	// Get deployments
-	deployments, err := s.deploymentRepo.GetDeploymentsWithState(provider.UUID.String(), ouID, gatewayID, status, maxDeploymentsPerAPI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get deployments: %w", err)
-	}
-
-	return deployments, nil
+	return provider, nil
 }
 
 // GetLLMProviderDeployment retrieves a specific deployment

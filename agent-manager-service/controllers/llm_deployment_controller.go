@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -379,9 +380,18 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 	ouID := middleware.OUIDFromRequest(r)
 	providerID := r.PathValue(utils.PathParamProviderId)
 
-	// Parse optional query parameters
-	gatewayID := r.URL.Query().Get(utils.PathParamGatewayId)
-	status := r.URL.Query().Get("status")
+	query := r.URL.Query()
+	gatewayID := query.Get(utils.PathParamGatewayId)
+	status := query.Get("status")
+	var offset int
+	if rawOffset := query.Get("offset"); rawOffset != "" {
+		var err error
+		offset, err = strconv.Atoi(rawOffset)
+		if err != nil || offset < 0 {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "Offset must be a non-negative integer")
+			return
+		}
+	}
 
 	log.Info("GetLLMProviderDeployments: starting", "ouID", ouID, "providerID", providerID,
 		"gatewayID", gatewayID, "status", status)
@@ -406,7 +416,7 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 	log.Info("GetLLMProviderDeployments: calling service layer", "ouID", ouID, "providerID", providerID,
 		"hasGatewayFilter", gatewayIDPtr != nil, "hasStatusFilter", statusPtr != nil)
 
-	deployments, err := c.deploymentService.GetLLMProviderDeployments(providerID, ouID, gatewayIDPtr, statusPtr)
+	deployments, hasMore, err := c.deploymentService.GetLLMProviderDeploymentsPage(ctx, providerID, ouID, gatewayIDPtr, statusPtr, offset)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
@@ -426,5 +436,9 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 
 	log.Info("GetLLMProviderDeployments: retrieved successfully", "ouID", ouID, "providerID", providerID, "count", len(deployments))
 
+	if hasMore {
+		w.Header().Set("X-Next-Offset", strconv.Itoa(offset+services.LLMProviderDeploymentPageSize))
+		w.Header().Add("Access-Control-Expose-Headers", "X-Next-Offset")
+	}
 	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponses(deployments))
 }

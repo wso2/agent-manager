@@ -2,12 +2,6 @@ name: E2E Tests
 
 on:
   workflow_dispatch:
-    inputs:
-      helm_chart_version:
-        description: "Helm chart version"
-        required: false
-        default: "0.0.0-latest-dev"
-
 permissions:
   contents: read
   checks: write
@@ -17,13 +11,22 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HELM_CHART_VERSION: ${{ github.event.inputs.helm_chart_version || '0.0.0-latest-dev' }}
   YQ_VERSION: v4.45.4
   YQ_SHA256: b96de04645707e14a12f52c37e6266832e03c29e95b9b139cddcae7314466e69
 
 jobs:
+  settings:
+    uses: ./.github/workflows/read-workflow-settings.yml
+    with:
+      section: e2e
+      defaults: >-
+        {"helm_chart_version": "0.0.0-latest-dev"}
+
   e2e:
+    needs: settings
     name: E2E
+    env:
+      HELM_CHART_VERSION: ${{ fromJSON(needs.settings.outputs.values).helm_chart_version }}
     runs-on: ubuntu-24.04
     # Bumped from 60 to accommodate the reduced test parallelism below: with
     # --procs=2 (was -p, i.e. one proc per vCPU) fewer suites run concurrently,
@@ -48,7 +51,7 @@ jobs:
       - name: Install platform
         id: install-platform
         run: |
-          cd deployments/quick-start && VERSION=${{ env.HELM_CHART_VERSION }} bash install.sh
+          cd deployments/quick-start && VERSION="$HELM_CHART_VERSION" bash install.sh
 
       - name: Enable A2A test upstream
         # A failure here must not skip the e2e run: the script exports the variable
