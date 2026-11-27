@@ -53,8 +53,9 @@ func EventData(ctx context.Context, key string, value any) {
 }
 
 // EmitAlso raises one more webhook event after the current request's 2xx response, next to the
-// event its route emits: one of the module's event types that has a scope, with data as its
-// data. Outside an event-emitting route it does nothing.
+// event its route emits: one of the module's own event types, no narrower in scope than the
+// route's event, with data as its data. Any other type is skipped. Outside an event-emitting
+// route it does nothing.
 func EmitAlso(ctx context.Context, eventType string, data map[string]any) {
 	if s, _ := ctx.Value(eventScopeKey{}).(EventScope); s != nil {
 		s.EventAlso(eventType, data)

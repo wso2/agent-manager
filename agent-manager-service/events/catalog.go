@@ -175,6 +175,18 @@ func Lookup(name string) (Type, bool) {
 	return Type{}, false
 }
 
+// LookupModule returns an active module's event type; core types are not returned.
+func LookupModule(name string) (Type, bool) {
+	if m := moduleTypes.Load(); m != nil {
+		t, ok := (*m)[name]
+		return t, ok
+	}
+	return Type{}, false
+}
+
+// NarrowerThan reports whether s sits below o: an agent scope is narrower than a project or org one.
+func (s Scope) NarrowerThan(o Scope) bool { return s.rank() > o.rank() }
+
 // rank orders scopes from the widest to the narrowest: an org holds
 // projects, a project holds agents. An unknown scope ranks -1.
 func (s Scope) rank() int {

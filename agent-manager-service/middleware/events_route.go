@@ -134,12 +134,18 @@ func withRouteEvent(publisher events.Publisher, meta audit.RouteMeta, eventType 
 }
 
 // publishExtras publishes the events a handler raised next to its route's event, about the same
-// resource and caller. A type not in the catalog is logged and skipped.
+// resource and caller. Only the route's own module's types are sent, and none narrower in scope
+// than the route's event, whose project and agent it takes; any other is logged and skipped.
 func publishExtras(r *http.Request, publisher events.Publisher, route events.Event, extras []events.Extra) {
+	module, _, _ := strings.Cut(route.Name(), ".")
 	for _, x := range extras {
-		def, ok := events.Lookup(x.Type)
-		if !ok {
-			slog.ErrorContext(r.Context(), "Skipped an event that is not in the catalog", "eventType", x.Type, "route", route.Name())
+		def, ok := events.LookupModule(x.Type)
+		if !ok || !strings.HasPrefix(x.Type, module+".") {
+			slog.ErrorContext(r.Context(), "Skipped an event that is not one of the route module's types", "eventType", x.Type, "route", route.Name())
+			continue
+		}
+		if def.Scope.NarrowerThan(route.Scope) {
+			slog.ErrorContext(r.Context(), "Skipped an event narrower in scope than its route's", "eventType", x.Type, "scope", def.Scope, "route", route.Name())
 			continue
 		}
 		e := events.New("evt_"+uuid.NewString(), x.Type, def.Scope, route.OrgID, route.Project, route.Agent, route.Time)

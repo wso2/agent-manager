@@ -270,42 +270,67 @@ func TestWithEvents_CreateEventsNameADocumentByMetadataName(t *testing.T) {
 }
 
 func TestWithEvents_EmitAlsoRaisesMoreEvents(t *testing.T) {
+	events.SetModuleTypes([]events.Type{
+		{Name: "testmod.widget_deployed", Scope: events.ScopeAgent},
+		{Name: "testmod.widget_counted", Scope: events.ScopeOrg},
+		{Name: "othermod.widget_deployed", Scope: events.ScopeAgent},
+	})
+	t.Cleanup(func() { events.SetModuleTypes(nil) })
+
 	pub := serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x?project=p1",
 		map[string]string{"agentName": "a1"}, func(w http.ResponseWriter, r *http.Request) {
-			modkit.EmitAlso(r.Context(), "agent.created", map[string]any{
+			modkit.EmitAlso(r.Context(), "testmod.widget_deployed", map[string]any{
 				"gatewayId": "gw-1", "apiKey": "secret",
 				"nested": map[string]string{"token": "secret", "name": "n"},
 				"typed":  struct{ Password, Kind string }{"secret", "k"},
 			})
 			modkit.EmitAlso(r.Context(), "testmod.not_declared", map[string]any{"x": 1})
-			modkit.EmitAlso(r.Context(), "agent.deleted", nil)
+			modkit.EmitAlso(r.Context(), "project.deleted", nil)
+			modkit.EmitAlso(r.Context(), "othermod.widget_deployed", nil)
+			modkit.EmitAlso(r.Context(), "testmod.widget_counted", nil)
 			w.WriteHeader(http.StatusOK)
 		})
 
-	require.Len(t, pub.got, 3, "the route's event and the two catalogued extras; an unknown type is skipped")
-	route, deployed, deleted := pub.got[0], pub.got[1], pub.got[2]
+	require.Len(t, pub.got, 3, "the route's event and its module's two extras; undeclared, core and other modules' types are skipped")
+	route, deployed, counted := pub.got[0], pub.got[1], pub.got[2]
 	assert.Equal(t, "testmod.widget_updated", route.Name())
-	assert.Equal(t, "agent.created", deployed.Name())
+	assert.Equal(t, "testmod.widget_deployed", deployed.Name())
 	assert.Equal(t, map[string]any{
 		"gatewayId": "gw-1",
 		"nested":    map[string]any{"name": "n"},
 		"typed":     map[string]any{"Kind": "k"},
 	}, deployed.Data, "credential-looking fields are redacted, in typed values too")
-	for _, e := range []events.Event{deployed, deleted} {
+	assert.Equal(t, events.ScopeOrg, counted.Scope, "an extra keeps its own catalog scope")
+	for _, e := range []events.Event{deployed, counted} {
 		assert.Equal(t, route.Subject, e.Subject)
 		assert.Equal(t, route.OrgID, e.OrgID)
 		assert.Equal(t, "p1", e.Project)
 		assert.NotEqual(t, route.ID, e.ID)
 	}
-	assert.Nil(t, deleted.Data, "an extra with no data carries none")
+	assert.Nil(t, counted.Data, "an extra with no data carries none")
 
 	failed := serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x",
 		map[string]string{"agentName": "a1"}, func(w http.ResponseWriter, r *http.Request) {
-			modkit.EmitAlso(r.Context(), "agent.created", nil)
+			modkit.EmitAlso(r.Context(), "testmod.widget_deployed", nil)
 			w.WriteHeader(http.StatusConflict)
 		})
 	assert.Empty(t, failed.got, "nothing is raised on a failed request")
 
+	// An org-level route cannot raise an agent-scoped extra: it would carry no agent.
+	orgPub := &capturePublisher{}
+	meta := audit.RouteMeta{Pattern: "PUT /m/testmod/widgets/{widgetId}", Method: http.MethodPut, Path: "/m/testmod/widgets/{widgetId}", Params: []string{"widgetId"}}
+	h := withRouteEvent(orgPub, meta, "testmod.widget_updated", events.ScopeOrg, false)(func(w http.ResponseWriter, r *http.Request) {
+		modkit.EmitAlso(r.Context(), "testmod.widget_deployed", nil)
+		modkit.EmitAlso(r.Context(), "testmod.widget_counted", nil)
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodPut, "/x", nil)
+	req.SetPathValue("widgetId", "w1")
+	req = req.WithContext(orgctx.WithResolvedOrg(req.Context(), orgctx.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"}))
+	h(httptest.NewRecorder(), req)
+	require.Len(t, orgPub.got, 2, "the narrower agent-scoped extra is skipped")
+	assert.Equal(t, "testmod.widget_counted", orgPub.got[1].Name())
+
 	// Outside an event-emitting route, EmitAlso does nothing.
-	modkit.EmitAlso(context.Background(), "agent.created", nil)
+	modkit.EmitAlso(context.Background(), "testmod.widget_deployed", nil)
 }
