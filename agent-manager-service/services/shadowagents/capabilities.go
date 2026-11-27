@@ -125,12 +125,12 @@ var providerCapabilities = map[string][]CapabilitySpec{
 	},
 }
 
-// customCapabilities is what a Custom platform's scan lists.
+// customCapabilities is what a Bring your own inventory platform lists.
 var customCapabilities = []CapabilitySpec{
 	{
-		Key: "custom.agents", Title: "Agents in your inventory",
-		Description: "Lists the agents your service returns via GET {Agents URL} (Authorization: Bearer <API key>), " +
-			"100 per page, following nextCursor.",
+		Key: "custom.agents", Title: "Agents in your inventory file",
+		Description: "Lists the agents of the newest uploaded inventory file (JSON, CSV or Excel): one row or " +
+			"object per agent.",
 		Signals: []string{SigCustomAgent},
 	},
 }

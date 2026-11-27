@@ -36,6 +36,7 @@ import {
   type ShadowOwnerHint,
   type ShadowProvider,
   type ShadowReviewedBy,
+  type ShadowScanResponse,
   type ShadowScanStatus,
 } from "@agent-management-platform/types";
 
@@ -68,8 +69,26 @@ export const PROVIDER_LABELS: Record<ShadowProvider, string> = {
 /** Source repository hosts: scanned by the scan command on the customer's machine. */
 export const SOURCE_HOSTS: string[] = ["github"];
 
-/** The customer's own agent inventory API: neither an AI platform nor a source host. */
+/**
+ * Bring your own inventory: agents from files the customer uploads. Neither an AI
+ * platform nor a source host, and never scanned or tested.
+ */
 export const CUSTOM_PLATFORM = "custom";
+
+/** Sources whose agents come from uploaded inventory files. */
+export const FILE_UPLOAD_SOURCES: string[] = [CUSTOM_PLATFORM];
+
+/**
+ * The summary's latest scan when it is a cloud scan. An inventory upload records an
+ * already-finished scan; the server leaves it out of latestScan, and it is never
+ * the scan to show as running or as the last scan.
+ */
+export function latestCloudScan(
+  summary: { latestScan?: ShadowScanResponse } | undefined,
+): ShadowScanResponse | undefined {
+  const s = summary?.latestScan;
+  return s && !s.inventoryUpload ? s : undefined;
+}
 
 /** The platforms whose agent listings a scan reads, in display order. */
 export const AGENT_PLATFORMS: ShadowProvider[] = [
@@ -88,8 +107,7 @@ export const DISCOVERS: Record<string, string> = {
   bedrock: "Bedrock agents and AgentCore runtimes",
   google: "Agent Runtime engines and Agent Registry agents",
   foundry: "Agents in your Foundry projects",
-  custom:
-    "Your own API that lists your agents. Implement the Agent Manager contract, then add its URL and an API key.",
+  custom: "Agents listed in a JSON, CSV or Excel file you upload, in the Agent Manager format",
   github: "Agents in your repositories' code",
 };
 

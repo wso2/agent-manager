@@ -31,7 +31,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ChevronDown, ChevronRight, Download, Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
+import { ChevronDown, ChevronRight, Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { PageLayout, TextInput, useReturnTo } from "@agent-management-platform/views";
 import {
@@ -40,6 +40,7 @@ import {
   useShadowConnection,
   useShadowProviders,
   useUpdateShadowConnection,
+  useUploadShadowInventory,
 } from "@agent-management-platform/api-client";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import {
@@ -48,6 +49,7 @@ import {
   type ShadowConnectionResponse,
   type ShadowEndpointSpec,
   type ShadowFieldSpec,
+  type ShadowInventoryUploadResponse,
   type ShadowProvider,
   type ShadowProviderSpec,
   type ShadowRunnerScanResponse,
@@ -66,6 +68,11 @@ import { AnalyzeSection } from "./AnalyzeSection";
 import { SourceScanGuide } from "./SourceScanGuide";
 import { ScanCommandPanel } from "./ScanCommandPanel";
 import type { ScanCommandInput } from "../scanCommand";
+import {
+  InventoryFilePanel,
+  inventoryUploadErrorMessage,
+  useInventoryFile,
+} from "./InventoryFilePanel";
 
 type KeyMapRow = { id: string; key: string };
 
@@ -701,21 +708,6 @@ function EndpointInput({
 }
 
 /** Create (connections/new) or edit (connections/:connectionId/edit) a provider connection. */
-/** The file name of the Bring your own inventory OpenAPI contract download. */
-export const CUSTOM_CONTRACT_FILE = "agent-manager-inventory-openapi.yaml";
-
-/** Saves the Bring your own inventory OpenAPI contract as a file. */
-export function downloadContract(contract: string) {
-  const url = URL.createObjectURL(new Blob([contract], { type: "application/yaml" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = CUSTOM_CONTRACT_FILE;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
 export function ConnectionEditor({
   orgName,
   listPath,
@@ -731,6 +723,7 @@ export function ConnectionEditor({
   const create = useCreateShadowConnection(orgName);
   const update = useUpdateShadowConnection(orgName, connectionId);
   const runner = useCreateShadowRunnerScan(orgName);
+  const inventoryUpload = useUploadShadowInventory(orgName);
   const isEdit = !!connectionId;
   const [draft, setDraft] = useState<ConnectionDraft | null>(null);
   const [initial, setInitial] = useState<string>("");
@@ -748,6 +741,10 @@ export function ConnectionEditor({
   // What was saved: the issued command is built from it, not from the form.
   const [savedInput, setSavedInput] = useState<ScanCommandInput | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  // Bring your own inventory: the file to upload once the source is saved, and what it gave.
+  const inventoryFile = useInventoryFile();
+  const [uploaded, setUploaded] = useState<ShadowInventoryUploadResponse | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const spec = useMemo(
     () =>
@@ -785,8 +782,12 @@ export function ConnectionEditor({
         spec.endpoints.some((e) => e.advanced && !!errors[`endpoint:${e.key}`])));
 
   const isDirty = !!draft && JSON.stringify(draft) !== initial;
-  const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+  // A chosen inventory file not uploaded yet is an unsaved change too.
+  const { allowNavigation } = useUnsavedChangesGuard(
+    isDirty || (!!inventoryFile.file && !uploaded),
+  );
   const saving = create.isPending || update.isPending;
+  const uploading = inventoryUpload.isPending;
   const locked = !!savedId || saving;
 
   const choose = (p: ShadowProviderSpec) => {
@@ -818,6 +819,24 @@ export function ConnectionEditor({
     );
   };
 
+  // Uploads the chosen inventory file to the saved source; Upload repeats only this.
+  const uploadInventory = (id: string) => {
+    const file = inventoryFile.file;
+    if (!file) return;
+    setUploadError(null);
+    inventoryUpload.mutate(
+      { connectionId: id, file },
+      {
+        onSuccess: (r) => {
+          setUploaded(r);
+          inventoryUpload.reset();
+        },
+        onError: (e) =>
+          setUploadError(`The source is saved. ${inventoryUploadErrorMessage(e)}`),
+      },
+    );
+  };
+
   const save = () => {
     if (!draft || !spec) return;
     const found = validateDraft(spec, draft, existing.data);
@@ -837,6 +856,18 @@ export function ConnectionEditor({
         (e as { message?: string })?.message ??
           "The connector could not be saved. Check the values and try again.",
       );
+    if (spec.fileUpload && inventoryFile.file) {
+      // Saved: lock the form, then upload the file to it.
+      const onSaved = (id: string) => {
+        setInitial(JSON.stringify(draft));
+        setSavedId(id);
+        uploadInventory(id);
+      };
+      if (!connectionId) create.mutate(body, { onSuccess: (c) => onSaved(c.id), onError });
+      else if (!isDirty) onSaved(connectionId);
+      else update.mutate(body, { onSuccess: () => onSaved(connectionId), onError });
+      return;
+    }
     if (spec.sourceHost) {
       // Saved: lock the form, then issue the scan command for it.
       const onSaved = (id: string) => {
@@ -869,6 +900,88 @@ export function ConnectionEditor({
     <PageLayout title={title} disableIcon {...back}>
       {!spec ? (
         <PlatformPicker providers={providers.data?.providers ?? []} onChoose={choose} />
+      ) : spec.fileUpload ? (
+        <Stack spacing={2.5}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <ProviderLogoTile provider={spec.provider} size={36} />
+            <Typography variant="subtitle1">{spec.displayName}</Typography>
+          </Stack>
+          {spec.setupSteps && spec.setupSteps.length > 0 && (
+            <Stack component="ol" spacing={0.5} sx={{ m: 0, pl: 2.5 }}>
+              {spec.setupSteps.map((step) => (
+                <Typography key={step} component="li" variant="body2" color="text.secondary">
+                  {step}
+                </Typography>
+              ))}
+            </Stack>
+          )}
+          <Grid container>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }}>
+              <TextInput
+                label="Name"
+                placeholder="e.g. HR agent inventory"
+                value={draft.name}
+                maxLength={INPUT_LIMITS.NAME}
+                hideCharacterCount
+                disabled={locked}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                error={!!errors.name}
+                helperText={errors.name}
+              />
+            </Grid>
+          </Grid>
+          <InventoryFilePanel
+            orgName={orgName}
+            fields={spec.inventoryFields ?? []}
+            state={inventoryFile}
+            result={uploaded}
+            error={uploadError}
+            disabled={saving || uploading || !!uploaded}
+          />
+          {serverError && <Alert severity="error">{serverError}</Alert>}
+          <Stack direction="row" spacing={1.5} justifyContent="flex-start">
+            {savedId && uploaded ? (
+              <Button variant="contained" onClick={() => allowNavigation(() => navigate(returnTo))}>
+                Done
+              </Button>
+            ) : savedId ? (
+              <>
+                <Button
+                  variant="contained"
+                  onClick={() => uploadInventory(savedId)}
+                  disabled={!inventoryFile.file || uploading}
+                >
+                  {uploading ? "Uploading…" : "Upload"}
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => allowNavigation(() => navigate(returnTo))}
+                  disabled={uploading}
+                >
+                  Done
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="contained" onClick={save} disabled={saving}>
+                  {inventoryFile.file
+                    ? isEdit
+                      ? "Save and upload"
+                      : "Add source and upload"
+                    : isEdit
+                      ? "Save"
+                      : "Add source"}
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => allowNavigation(() => navigate(returnTo))}
+                >
+                  Cancel
+                </Button>
+              </>
+            )}
+          </Stack>
+        </Stack>
       ) : (
         <Grid container spacing={3}>
           {/* One field per row. An agent platform's form spans the page; a source host keeps
@@ -880,41 +993,10 @@ export function ConnectionEditor({
                 <Typography variant="subtitle1">{spec.displayName}</Typography>
                 {spec.sourceHost && <SourceScanGuide spec={spec} />}
               </Stack>
-              {spec.apiContract && (
-                <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={1.5}
-                    alignItems={{ sm: "center" }}
-                    justifyContent="space-between"
-                  >
-                    <Box>
-                      <Typography variant="subtitle2">Build your inventory API</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Implement the OpenAPI contract in a service you run, then enter its Agents
-                        URL and API key below.
-                      </Typography>
-                    </Box>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<Download size={16} />}
-                      onClick={() => downloadContract(spec.apiContract ?? "")}
-                      sx={{ flexShrink: 0 }}
-                    >
-                      Download contract
-                    </Button>
-                  </Stack>
-                </Box>
-              )}
               <AnalyzeSection
-                providerName={
-                  spec.provider === CUSTOM_PLATFORM ? "your inventory API" : spec.displayName
-                }
+                providerName={spec.displayName}
                 statuses={statuses}
                 notListed={spec.notListed}
-                setupSteps={spec.setupSteps}
-                apiContract={spec.apiContract}
                 sourceHost={!!spec.sourceHost}
               />
               {/* Locked while saving, and once a source host is saved. */}
@@ -935,9 +1017,7 @@ export function ConnectionEditor({
                     placeholder={
                       spec.sourceHost
                         ? `e.g. ${spec.displayName} my-org`
-                        : spec.provider === CUSTOM_PLATFORM
-                          ? "e.g. HR agent inventory"
-                          : "e.g. OpenAI production"
+                        : "e.g. OpenAI production"
                     }
                     value={draft.name}
                     maxLength={INPUT_LIMITS.NAME}

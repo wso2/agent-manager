@@ -44,7 +44,7 @@ func validInternalReq(t *testing.T) amsvc.CreateAgentRequest {
 		DisplayName: "My Agent",
 		AgentType:   &amsvc.AgentType{Type: "agent-api", SubType: &subType},
 		Provisioning: amsvc.Provisioning{
-			Type: amsvc.ProvisioningTypeInternal,
+			Type: amsvc.Internal,
 			Repository: &amsvc.RepositoryConfig{
 				Url:     "https://github.com/example/repo",
 				Branch:  "main",
@@ -64,7 +64,7 @@ func validExternalReq() amsvc.CreateAgentRequest {
 		Name:         "my-agent",
 		DisplayName:  "My Agent",
 		AgentType:    &amsvc.AgentType{Type: "external-agent-api"},
-		Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+		Provisioning: amsvc.Provisioning{Type: amsvc.External},
 	}
 }
 
@@ -97,7 +97,7 @@ func TestValidateRequest_ValidAgentKind(t *testing.T) {
 	req := validExternalReq()
 	req.AgentType = nil
 	req.Provisioning = amsvc.Provisioning{
-		Type: amsvc.ProvisioningTypeInternal,
+		Type: amsvc.Internal,
 		AgentKind: &struct {
 			Name    string `json:"name"`
 			Version string `json:"version"`
@@ -162,7 +162,7 @@ func TestValidateRequest_AgentKindRequiredFields(t *testing.T) {
 	req := validExternalReq()
 	req.AgentType = nil
 	req.Provisioning = amsvc.Provisioning{
-		Type: amsvc.ProvisioningTypeInternal,
+		Type: amsvc.Internal,
 		AgentKind: &struct {
 			Name    string `json:"name"`
 			Version string `json:"version"`
@@ -412,7 +412,7 @@ func TestValidateRequest_ModelConfigProviderRequired(t *testing.T) {
 
 func TestValidateRequest_ExternalRejectsInternalSections(t *testing.T) {
 	req := validInternalReq(t)
-	req.Provisioning.Type = amsvc.ProvisioningTypeExternal
+	req.Provisioning.Type = amsvc.External
 	req.AgentType.Type = "external-agent-api"
 	req.AgentType.SubType = nil
 	req.Configurations = &amsvc.Configurations{}
@@ -439,7 +439,7 @@ func TestValidateRequest_ExternalRejectsAgentKind(t *testing.T) {
 func TestValidateRequest_Aggregates(t *testing.T) {
 	req := amsvc.CreateAgentRequest{
 		Provisioning: amsvc.Provisioning{
-			Type:       amsvc.ProvisioningTypeInternal,
+			Type:       amsvc.Internal,
 			Repository: &amsvc.RepositoryConfig{},
 		},
 	}
