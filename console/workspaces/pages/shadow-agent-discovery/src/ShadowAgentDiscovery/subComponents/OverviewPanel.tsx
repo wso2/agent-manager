@@ -220,7 +220,7 @@ export function OverviewPanel({
     },
     {
       title: "Run a scan",
-      description: "Scan all connectors or the ones you choose.",
+      description: "Scan your AI platform connectors. Source code repositories are scanned by a command you run.",
       done: scanned,
       action: canManage && connected ? <RunScanButton orgName={orgName} /> : undefined,
     },

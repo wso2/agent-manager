@@ -16,11 +16,14 @@
  * under the License.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
+  Alert,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -40,6 +43,7 @@ import {
   SquareTerminal,
   Trash2,
   TriangleAlert,
+  X,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   isShadowScanActive,
@@ -56,9 +60,11 @@ import {
   ResourceListShell,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
+import { returnToState } from "@agent-management-platform/views";
 import type {
   ShadowConnectionResponse,
   ShadowConnectionTest,
+  ShadowScanResponse,
 } from "@agent-management-platform/types";
 import {
   CUSTOM_PLATFORM,
@@ -71,6 +77,8 @@ import {
 import { scopedKeyCount } from "../capabilities";
 import { ProviderLogo } from "../providerLogos";
 import { GenerateCommandDialog } from "./GenerateCommandDialog";
+import { RunScanButton } from "./RunScanButton";
+import { scanFindingsPath } from "./ScansTab";
 
 /** The number of keys an OpenAI or Anthropic platform lists agents with. */
 export function ScopedKeysChip({
@@ -91,14 +99,95 @@ export function ScopedKeysChip({
 }
 
 /** A section of the Platforms tab, with what scans that kind of platform. */
-function SectionHeading({ title, description }: { title: string; description: string }) {
+function SectionHeading({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <Box>
-      <Typography variant="subtitle1">{title}</Typography>
-      <Typography variant="body2" color="text.secondary">
-        {description}
-      </Typography>
-    </Box>
+    <Stack direction="row" spacing={2} alignItems="flex-end">
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="subtitle1">{title}</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {description}
+        </Typography>
+      </Box>
+      {action && <Box sx={{ flexShrink: 0 }}>{action}</Box>}
+    </Stack>
+  );
+}
+
+/** The connectors a scan covers: their names when there are few, else how many. */
+function scanTargets(ids: string[], connections: ShadowConnectionResponse[]): string {
+  const names = ids
+    .map((id) => connections.find((c) => c.id === id)?.name)
+    .filter((n): n is string => !!n);
+  const n = ids.length;
+  if (names.length === n && n > 0 && n <= 2) return names.join(" and ");
+  return `${n} ${n === 1 ? "connector" : "connectors"}`;
+}
+
+/**
+ * Above the tables while a scan runs, so a disabled Scan button is explained: what is
+ * being scanned, since when, and a way to the scan. Once a scan seen running here
+ * finishes, it says how it went until dismissed.
+ */
+function ScanProgressNotice({
+  scan,
+  running,
+  connections,
+  onView,
+  onDismiss,
+}: {
+  scan: ShadowScanResponse;
+  running: boolean;
+  connections: ShadowConnectionResponse[];
+  onView: () => void;
+  onDismiss: () => void;
+}) {
+  const view = (
+    <Button color="inherit" size="small" onClick={onView}>
+      View scan
+    </Button>
+  );
+  const targets = scanTargets(scan.connectionIds, connections);
+  if (running) {
+    return (
+      <Alert severity="info" icon={<CircularProgress size={18} color="inherit" />} action={view}>
+        Scanning {targets}, started{" "}
+        {formatRelativeTime(scan.startedAt ?? scan.createdAt).replace(/^Just now$/, "just now")}.
+        The agents found show up as each connector finishes.
+      </Alert>
+    );
+  }
+  const found = `${scan.findingsCount} ${scan.findingsCount === 1 ? "agent" : "agents"} found`;
+  const outcome =
+    scan.status === "succeeded"
+      ? { severity: "success" as const, text: `Scan of ${targets} finished: ${found}.` }
+      : scan.status === "partial"
+        ? {
+            severity: "warning" as const,
+            text: `Scan of ${targets} finished, but some calls failed: ${found}.`,
+          }
+        : { severity: "error" as const, text: `Scan of ${targets} failed.` };
+  return (
+    <Alert
+      severity={outcome.severity}
+      action={
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          {view}
+          <IconButton size="small" color="inherit" aria-label="Dismiss" onClick={onDismiss}>
+            <X size={16} />
+          </IconButton>
+        </Stack>
+      }
+    >
+      {outcome.text}
+    </Alert>
   );
 }
 
@@ -126,7 +215,25 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
   const test = useTestShadowConnection(orgName);
   const scan = useStartShadowScan(orgName);
   const summary = useShadowSummary(orgName);
-  const scanActive = isShadowScanActive(summary.data?.latestScan?.status);
+  const latestScan = summary.data?.latestScan;
+  const scanActive = isShadowScanActive(latestScan?.status);
+  // A scan started or seen running on this tab: the notice follows it until it ends,
+  // then says how it went. Until the summary catches up, it is the scan just started.
+  const [watchedScan, setWatchedScan] = useState<ShadowScanResponse | null>(null);
+  useEffect(() => {
+    if (scanActive && latestScan) setWatchedScan((w) => (w?.id === latestScan.id ? w : latestScan));
+  }, [scanActive, latestScan]);
+  const showScan = scanActive
+    ? latestScan
+    : watchedScan && latestScan?.id === watchedScan.id
+      ? latestScan
+      : (watchedScan ?? undefined);
+  const scanRunning = !!showScan && isShadowScanActive(showScan.status);
+  // The connectors of a scan this tab is starting, until the request returns.
+  const [starting, setStarting] = useState<string[] | null>(null);
+  const scanning = new Set([...(scanRunning ? showScan.connectionIds : []), ...(starting ?? [])]);
+  const navigate = useNavigate();
+  const location = useLocation();
   const providers = useShadowProviders(orgName);
   const signalNames = useMemo(
     () => new Map((providers.data?.signals ?? []).map((d) => [d.code, d.name])),
@@ -154,6 +261,9 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
   );
   const customPlatforms = filtered.filter((c) => c.provider === CUSTOM_PLATFORM);
   const sourceHosts = filtered.filter((c) => SOURCE_HOSTS.includes(c.provider));
+  // Run scan sits with the connectors a scan calls: the AI platforms, or Bring your
+  // own inventory when there is no AI platform. Never with the source code repositories.
+  const runScan = canManage ? <RunScanButton orgName={orgName} /> : undefined;
 
   const handleDelete = (c: ShadowConnectionResponse) =>
     addConfirmation({
@@ -190,6 +300,15 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                   <Typography variant="body2" fontWeight={500}>
                     {c.name}
                   </Typography>
+                  {scanning.has(c.id) && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      color="info"
+                      icon={<CircularProgress size={12} color="inherit" />}
+                      label="Scanning"
+                    />
+                  )}
                   {c.endpointWarnings.length > 0 && (
                     <Tooltip title={c.endpointWarnings.join(". ")}>
                       <Box
@@ -239,14 +358,29 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                 {canManage && (
                   <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                     <Tooltip
-                      title={scanActive ? "A scan is running" : "Scan this connector"}
+                      title={
+                        scanning.has(c.id)
+                          ? "Scanning this connector"
+                          : scanRunning
+                            ? "Another scan is running. Wait for it to finish."
+                            : "Scan this connector"
+                      }
                     >
                       <span>
                         <IconButton
                           size="small"
                           aria-label={`Scan ${c.name}`}
-                          disabled={scanActive || scan.isPending}
-                          onClick={() => scan.mutate({ connectionIds: [c.id] })}
+                          disabled={scanRunning || scan.isPending}
+                          onClick={() => {
+                            setStarting([c.id]);
+                            scan.mutate(
+                              { connectionIds: [c.id] },
+                              {
+                                onSuccess: (started) => setWatchedScan(started),
+                                onSettled: () => setStarting(null),
+                              },
+                            );
+                          }}
                         >
                           <Radar size={18} />
                         </IconButton>
@@ -337,11 +471,31 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
         }}
       >
         <Stack spacing={4}>
+          {starting && !scanRunning ? (
+            <Alert severity="info" icon={<CircularProgress size={18} color="inherit" />}>
+              Starting a scan of {scanTargets(starting, connections)}…
+            </Alert>
+          ) : (
+            showScan && (
+              <ScanProgressNotice
+                scan={showScan}
+                running={scanRunning}
+                connections={connections}
+                onView={() =>
+                  navigate(scanFindingsPath(orgName ?? "", showScan.id), {
+                    state: returnToState(location),
+                  })
+                }
+                onDismiss={() => setWatchedScan(null)}
+              />
+            )
+          )}
           {aiPlatforms.length > 0 && (
             <Stack spacing={1.5}>
               <SectionHeading
                 title="AI platforms"
                 description="Agent Manager reads their agent listings with a read-only credential when you run a scan."
+                action={runScan}
               />
               {cloudTable(aiPlatforms)}
             </Stack>
@@ -430,6 +584,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
               <SectionHeading
                 title="Bring your own inventory"
                 description="Your own agent inventory APIs. Agent Manager calls each one's Agents URL with its API key when you run a scan."
+                action={aiPlatforms.length === 0 ? runScan : undefined}
               />
               {cloudTable(customPlatforms)}
             </Stack>

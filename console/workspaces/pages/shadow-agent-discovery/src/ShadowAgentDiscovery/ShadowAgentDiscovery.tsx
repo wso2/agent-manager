@@ -34,7 +34,6 @@ import { absoluteRouteMap } from "@agent-management-platform/types";
 import { ConnectionEditor, editConnectionPath } from "./subComponents/ConnectionEditor";
 import { ConnectionsTab } from "./subComponents/ConnectionsTab";
 import { OverviewPanel } from "./subComponents/OverviewPanel";
-import { RunScanButton } from "./subComponents/RunScanButton";
 import { ScanFindings } from "./subComponents/ScanFindings";
 import { ScansTab } from "./subComponents/ScansTab";
 import { useShadowAccess } from "./useShadowAccess";
@@ -80,7 +79,6 @@ function ShadowOverview({
       title={PAGE_TITLE}
       description={PAGE_DESCRIPTION}
       disableIcon
-      actions={canManage ? <RunScanButton orgName={orgName} /> : undefined}
     >
       <ListingTable.Container>
         <Stack spacing={2.5}>
