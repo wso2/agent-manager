@@ -32,24 +32,20 @@ vi.mock("../../acp-core/hooks/telemetry", () => ({
 vi.mock("../apis/llm-providers", async (importOriginal) => ({
   // The document conversions stay real; only the requests are mocked.
   ...(await importOriginal<object>()),
-  createLLMDeployment: vi.fn(),
   createLLMProvider: vi.fn(),
   createLLMProviderAPIKey: vi.fn(),
   createLLMProviderTemplate: vi.fn(),
   createLLMProxy: vi.fn(),
   createLLMProxyAPIKey: vi.fn(),
-  deleteLLMDeployment: vi.fn(),
   deleteLLMProvider: vi.fn(),
   deleteLLMProviderTemplate: vi.fn(),
   deleteLLMProxy: vi.fn(),
-  getLLMDeployment: vi.fn(),
   getLLMProvider: vi.fn(),
   getLLMProviderTemplate: vi.fn(),
   getLLMProxy: vi.fn(),
   listLLMDeployments: vi.fn(),
   listLLMProviderAPIKeys: vi.fn(),
   listLLMProviderConsumers: vi.fn(),
-  listLLMProviderProxies: vi.fn(),
   listLLMProviders: vi.fn(),
   listLLMProviderTemplates: vi.fn(),
   listLLMProxies: vi.fn(),
@@ -59,7 +55,6 @@ vi.mock("../apis/llm-providers", async (importOriginal) => ({
   revokeLLMProxyAPIKey: vi.fn(),
   rotateLLMProviderAPIKey: vi.fn(),
   rotateLLMProxyAPIKey: vi.fn(),
-  undeployLLMProvider: vi.fn(),
   updateLLMProvider: vi.fn(),
   updateLLMProviderTemplate: vi.fn(),
   updateLLMProxy: vi.fn(),
@@ -69,24 +64,20 @@ import * as api from "../apis/llm-providers";
 import { describeMutationHooks, describeQueryHooks } from "../../test-utils/hook-cases";
 import { cleanupHooks, runMutation } from "../../test-utils/query-hooks";
 import {
-  useCreateLLMDeployment,
   useCreateLLMProvider,
   useCreateLLMProviderAPIKey,
   useCreateLLMProviderTemplate,
   useCreateLLMProxy,
   useCreateLLMProxyAPIKey,
-  useDeleteLLMDeployment,
   useDeleteLLMProvider,
   useDeleteLLMProviderTemplate,
   useDeleteLLMProxy,
-  useGetLLMDeployment,
   useGetLLMProvider,
   useGetLLMProviderTemplate,
   useGetLLMProxy,
   useListLLMDeployments,
   useListLLMProviderAPIKeys,
   useListLLMProviderConsumers,
-  useListLLMProviderProxies,
   useListLLMProviders,
   useListLLMProviderTemplates,
   useListLLMProxies,
@@ -96,7 +87,6 @@ import {
   useRevokeLLMProxyAPIKey,
   useRotateLLMProviderAPIKey,
   useRotateLLMProxyAPIKey,
-  useUndeployLLMProvider,
   useUpdateLLMProvider,
   useUpdateLLMProviderTemplate,
   useUpdateLLMProxy,
@@ -112,7 +102,6 @@ const org = { orgName: "o" };
 const prov = { orgName: "o", providerId: "openai" };
 const proj = { orgName: "o", projName: "p" };
 const proxy = { ...proj, proxyId: "px" };
-const dep = { ...prov, deploymentId: "d1" };
 const tpl = { orgName: "o", templateId: "t1" };
 const page = { limit: 10, offset: 0 };
 const doc = {
@@ -122,18 +111,27 @@ const doc = {
   spec: { displayName: "OpenAI", version: "v1", context: "/openai", gateways: ["gw"] },
 };
 const flat = api.providerFromDocument(doc as never);
+const tdoc = {
+  apiVersion: "ai-control-plane.choreolabs.com/v1",
+  kind: "LlmProviderTemplate",
+  metadata: { name: "t1", uid: "u-2" },
+  spec: { displayName: "T1" },
+};
+const tflat = api.templateFromDocument(tdoc as never);
 
 describeQueryHooks("LLM provider queries", [
   {
-    name: "useListLLMProviderTemplates",
+    name: "useListLLMProviderTemplates flattens the documents",
     use: () => useListLLMProviderTemplates(org, page),
     api: m.listLLMProviderTemplates, args: [org, page], key: ["llm-provider-templates", org, page],
+    data: { list: [tdoc], pagination: { total: 4, limit: 10, offset: 0 } },
+    expected: { templates: [tflat], total: 4, limit: 10, offset: 0 },
     idle: [() => useListLLMProviderTemplates({ orgName: "" })],
   },
   {
-    name: "useGetLLMProviderTemplate",
+    name: "useGetLLMProviderTemplate flattens the document",
     use: () => useGetLLMProviderTemplate(tpl),
-    api: m.getLLMProviderTemplate, args: [tpl], key: ["llm-provider-template", tpl],
+    api: m.getLLMProviderTemplate, args: [tpl], key: ["llm-provider-template", tpl], data: tdoc, expected: tflat,
     idle: [() => useGetLLMProviderTemplate({ ...tpl, templateId: "" })],
   },
   {
@@ -149,12 +147,6 @@ describeQueryHooks("LLM provider queries", [
     use: () => useGetLLMProvider(prov),
     api: m.getLLMProvider, args: [prov], key: ["llm-provider", prov], data: doc, expected: flat,
     idle: [() => useGetLLMProvider({ ...prov, providerId: "" })],
-  },
-  {
-    name: "useListLLMProviderProxies",
-    use: () => useListLLMProviderProxies(prov),
-    api: m.listLLMProviderProxies, args: [prov, undefined], key: ["llm-provider-proxies", prov, undefined],
-    idle: [() => useListLLMProviderProxies({ ...prov, providerId: "" })],
   },
   {
     name: "useListLLMProxies",
@@ -174,12 +166,6 @@ describeQueryHooks("LLM provider queries", [
     api: m.listLLMDeployments, args: [prov, { status: "DEPLOYED" }], key: ["llm-deployments", prov, { status: "DEPLOYED" }],
     data: [{ status: "DEPLOYED" }],
     idle: [() => useListLLMDeployments({ ...prov, providerId: "" })],
-  },
-  {
-    name: "useGetLLMDeployment",
-    use: () => useGetLLMDeployment(dep),
-    api: m.getLLMDeployment, args: [dep], key: ["llm-deployment", dep],
-    idle: [() => useGetLLMDeployment({ ...dep, deploymentId: "" })],
   },
   {
     name: "useListLLMProviderConsumers",
@@ -207,7 +193,6 @@ const SEEDED = {
   providers: ["llm-providers", org],
   provider: ["llm-provider", prov],
   catalog: ["catalog", "llm-providers"],
-  providerProxies: ["llm-provider-proxies", prov],
   proxies: ["llm-proxies", proj],
   proxy: ["llm-proxy", proxy],
   deployments: ["llm-deployments", prov],
@@ -223,12 +208,16 @@ const depQuery = { deploymentId: "d1", gatewayId: "gw" };
 
 describeMutationHooks("LLM provider mutations", SEEDED, [
   {
-    name: "useCreateLLMProviderTemplate", use: useCreateLLMProviderTemplate, api: m.createLLMProviderTemplate,
-    variables: { params: org, body: { id: "t" } }, args: [org, { id: "t" }], invalidates: ["templates"],
+    name: "useCreateLLMProviderTemplate posts a document", use: useCreateLLMProviderTemplate, api: m.createLLMProviderTemplate,
+    variables: { params: org, body: { id: "t1", name: "T1" } },
+    args: [org, api.templateDocumentFromRequest({ id: "t1", name: "T1" })],
+    response: tdoc, expected: tflat, invalidates: ["templates"],
   },
   {
-    name: "useUpdateLLMProviderTemplate", use: useUpdateLLMProviderTemplate, api: m.updateLLMProviderTemplate,
-    variables: { params: tpl, body: { name: "T" } }, args: [tpl, { name: "T" }], invalidates: ["templates", "template"],
+    name: "useUpdateLLMProviderTemplate puts a document", use: useUpdateLLMProviderTemplate, api: m.updateLLMProviderTemplate,
+    variables: { params: tpl, body: { id: "t1", name: "T1" } },
+    args: [tpl, api.templateDocumentFromRequest({ id: "t1", name: "T1" })],
+    response: tdoc, expected: tflat, invalidates: ["templates", "template"],
   },
   {
     name: "useDeleteLLMProviderTemplate", use: useDeleteLLMProviderTemplate, api: m.deleteLLMProviderTemplate,
@@ -254,32 +243,20 @@ describeMutationHooks("LLM provider mutations", SEEDED, [
   },
   {
     name: "useCreateLLMProxy", use: useCreateLLMProxy, api: m.createLLMProxy,
-    variables: { params: proj, body: { name: "px" } }, args: [proj, { name: "px" }], invalidates: ["proxies", "providerProxies"],
+    variables: { params: proj, body: { name: "px" } }, args: [proj, { name: "px" }], invalidates: ["proxies"],
   },
   {
     name: "useUpdateLLMProxy", use: useUpdateLLMProxy, api: m.updateLLMProxy,
     variables: { params: proxy, body: { name: "px" } }, args: [proxy, { name: "px" }],
-    invalidates: ["proxies", "proxy", "providerProxies"],
+    invalidates: ["proxies", "proxy"],
   },
   {
     name: "useDeleteLLMProxy", use: useDeleteLLMProxy, api: m.deleteLLMProxy,
-    variables: proxy, args: [proxy], invalidates: ["proxies", "providerProxies"],
-  },
-  {
-    name: "useCreateLLMDeployment", use: useCreateLLMDeployment, api: m.createLLMDeployment,
-    variables: { params: prov, body: { gatewayId: "gw" } }, args: [prov, { gatewayId: "gw" }], invalidates: ["deployments"],
-  },
-  {
-    name: "useUndeployLLMProvider", use: useUndeployLLMProvider, api: m.undeployLLMProvider,
-    variables: { params: prov, query: depQuery }, args: [prov, depQuery], invalidates: ["deployments", "provider"],
+    variables: proxy, args: [proxy], invalidates: ["proxies"],
   },
   {
     name: "useRestoreLLMDeployment", use: useRestoreLLMDeployment, api: m.restoreLLMDeployment,
     variables: { params: prov, query: depQuery }, args: [prov, depQuery], invalidates: ["deployments", "provider"],
-  },
-  {
-    name: "useDeleteLLMDeployment", use: useDeleteLLMDeployment, api: m.deleteLLMDeployment,
-    variables: dep, args: [dep], invalidates: ["deployments"],
   },
   {
     name: "useCreateLLMProviderAPIKey", use: useCreateLLMProviderAPIKey, api: m.createLLMProviderAPIKey,

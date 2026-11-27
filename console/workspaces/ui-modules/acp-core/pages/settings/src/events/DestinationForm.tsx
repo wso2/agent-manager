@@ -258,7 +258,7 @@ export function DestinationForm({
   };
 
   const projectOptions = useMemo(
-    () => (projectList?.projects ?? []).map((p) => p.name).sort(),
+    () => (projectList?.list ?? []).map((p) => p.metadata.name).sort(),
     [projectList],
   );
 

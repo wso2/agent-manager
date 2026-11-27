@@ -124,6 +124,52 @@ describe("useMCPPoliciesCatalog", () => {
     ]);
   });
 
+  it("adds the subscription policies the gateways run that the hub doesn't list", async () => {
+    vi.mocked(listAvailableMCPPolicies).mockResolvedValue({
+      list: [
+        { name: "mcp-auth", version: "1.2.7" },
+        { name: "subscription-validation", version: "v2.0.1" },
+        { name: "subscription-tool-ratelimit", version: "1.0.0" },
+      ],
+    } as never);
+    fetchMock.mockResolvedValue(ok({ count: 1, data: [hubPolicy("mcp-auth", "v1.2")] }));
+
+    const { qc } = await settle(() => useMCPPoliciesCatalog("o"));
+
+    const data = qc.getQueryData<MCPPoliciesCatalogResponse>(["MCP policies catalog", MCP_URL, "o"]);
+    expect(data?.count).toBe(3);
+    expect(data?.data.map((p) => [p.name, p.version, p.policyHubVersion, p.displayName])).toEqual([
+      ["mcp-auth", "v1", "v1.2", "mcp-auth"],
+      ["subscription-validation", "v2", undefined, "Subscription Validation"],
+      ["subscription-tool-ratelimit", "v1", undefined, "Subscription Tool Rate Limit"],
+    ]);
+  });
+
+  it("adds a subscription policy only at the major version it is described for", async () => {
+    // v1 of subscription-validation records no plan, so the rate-limit policy can't use it.
+    vi.mocked(listAvailableMCPPolicies).mockResolvedValue({
+      list: [{ name: "subscription-validation", version: "1.0.0" }],
+    } as never);
+    fetchMock.mockResolvedValue(ok({ count: 0, data: [] }));
+
+    const { qc } = await settle(() => useMCPPoliciesCatalog("o"));
+
+    expect(qc.getQueryData(["MCP policies catalog", MCP_URL, "o"])).toEqual({ count: 0, data: [] });
+  });
+
+  it("uses the hub's entry for a subscription policy once the hub lists it", async () => {
+    vi.mocked(listAvailableMCPPolicies).mockResolvedValue({
+      list: [{ name: "subscription-validation", version: "2.0.0" }],
+    } as never);
+    fetchMock.mockResolvedValue(ok({ count: 1, data: [hubPolicy("subscription-validation", "v2.0")] }));
+
+    const { qc } = await settle(() => useMCPPoliciesCatalog("o"));
+
+    const data = qc.getQueryData<MCPPoliciesCatalogResponse>(["MCP policies catalog", MCP_URL, "o"]);
+    expect(data?.data).toHaveLength(1);
+    expect(data?.data[0]).toMatchObject({ provider: "hub", version: "v2", policyHubVersion: "v2.0" });
+  });
+
   it("keeps a limit already present in the configured hub URL", async () => {
     globalConfig.guardrailsCatalogUrl = "https://hub.example/policies?limit=5";
     vi.mocked(listAvailableMCPPolicies).mockResolvedValue({ list: [{ name: "a", version: "1.0" }] } as never);

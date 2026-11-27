@@ -94,6 +94,7 @@ import { MCPServerDisplay } from "./Configure/subComponents/MCPServerDisplay";
 import { MCPProxyAPIKeysSection } from "./Configure/subComponents/MCPProxyAPIKeysSection";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CONFIGURE_TAB_PARAM } from "./configureTabs";
+import { subscriptionKeyCurlLine, subscriptionKeyHeaderOf } from "./subscriptionKey";
 
 type AuthInfoEntry = {
   type: string;
@@ -463,6 +464,28 @@ export const ViewMCPServerComponent = () => {
     selectedEnvUuid,
   );
   const apiKeyHeaderName = getMCPAPIKeyHeaderName(sourceProxyEndpoint?.security);
+  // With subscription-validation attached, every call also carries the subscriber's key from the
+  // developer portal, whatever the endpoint's own security.
+  const subscriptionHeader = subscriptionKeyHeaderOf(sourceProxyEndpoint);
+  const subscriptionNote = subscriptionHeader ? (
+    <Alert severity="info">
+      <Typography variant="body2">
+        This MCP server takes subscriptions. Subscribe to it on one of its plans in the developer
+        portal, then send the subscription key you get in the{" "}
+        <code>{subscriptionHeader}</code> header on every call. Without it, calls get 403.
+      </Typography>
+    </Alert>
+  ) : null;
+  const subscriptionHeaderField = subscriptionHeader ? (
+    <TextInput
+      label="Subscription Key Header"
+      value={subscriptionHeader}
+      copyable
+      copyTooltipText="Copy Subscription Key Header"
+      slotProps={{ input: { readOnly: true } }}
+      size="small"
+    />
+  ) : null;
   // Same rule the MCP Servers Security tab renders and the creation flow derives
   // its variables from, so all three surfaces agree on API key vs OAuth vs None.
   const authenticationType = resolveAuthenticationType(sourceProxyEndpoint);
@@ -708,18 +731,22 @@ export const ViewMCPServerComponent = () => {
                   the token as a Bearer header.
                 </Typography>
               </Alert>
+              {subscriptionNote}
 
-              {Boolean(providerConfig.url) && (
+              {(Boolean(providerConfig.url) || subscriptionHeaderField) && (
                 <Form.Section>
                   <Form.Subheader>Connection</Form.Subheader>
-                  <TextInput
-                    label="MCP URL"
-                    value={providerConfig.url ?? ""}
-                    copyable
-                    copyTooltipText="Copy MCP URL"
-                    slotProps={{ input: { readOnly: true } }}
-                    size="small"
-                  />
+                  {Boolean(providerConfig.url) && (
+                    <TextInput
+                      label="MCP URL"
+                      value={providerConfig.url ?? ""}
+                      copyable
+                      copyTooltipText="Copy MCP URL"
+                      slotProps={{ input: { readOnly: true } }}
+                      size="small"
+                    />
+                  )}
+                  {subscriptionHeaderField}
                 </Form.Section>
               )}
 
@@ -790,6 +817,7 @@ export const ViewMCPServerComponent = () => {
             const curlCode = [
               `curl -N ${providerConfig.url || "<endpoint-url>"}`,
               `  --header "${headerName}: ${headerValue}"`,
+              ...(subscriptionHeader ? [subscriptionKeyCurlLine(subscriptionHeader)] : []),
             ].join(" \\\n");
             return (
               <Stack spacing={3}>
@@ -817,6 +845,7 @@ export const ViewMCPServerComponent = () => {
                     </Typography>
                   </Alert>
                 )}
+                {subscriptionNote}
                 <Form.Section>
                   <Form.Subheader>Connection</Form.Subheader>
                   {Boolean(providerConfig.url) && (
@@ -848,6 +877,7 @@ export const ViewMCPServerComponent = () => {
                       size="small"
                     />
                   )}
+                  {subscriptionHeaderField}
                 </Form.Section>
                 <Form.Section>
                   <Form.Subheader>Example cURL</Form.Subheader>
@@ -864,12 +894,14 @@ export const ViewMCPServerComponent = () => {
             // shown at creation" copy — that phrasing implies a credential that
             // was never minted, since this server takes none (issue #1597).
             <Stack spacing={3}>
-              <Alert severity="info">
-                <Typography variant="body2">
-                  This tool has no security configured. Call the endpoint
-                  directly — no header or API key is required.
-                </Typography>
-              </Alert>
+              {subscriptionNote ?? (
+                <Alert severity="info">
+                  <Typography variant="body2">
+                    This tool has no security configured. Call the endpoint
+                    directly — no header or API key is required.
+                  </Typography>
+                </Alert>
+              )}
               <Form.Section>
                 <Form.Subheader>Connection</Form.Subheader>
                 {Boolean(providerConfig.url) && (
@@ -882,11 +914,15 @@ export const ViewMCPServerComponent = () => {
                     size="small"
                   />
                 )}
+                {subscriptionHeaderField}
               </Form.Section>
               <Form.Section>
                 <Form.Subheader>Example cURL</Form.Subheader>
                 <CodeBlock
-                  code={`curl -N ${providerConfig.url || "<endpoint-url>"}`}
+                  code={[
+                    `curl -N ${providerConfig.url || "<endpoint-url>"}`,
+                    ...(subscriptionHeader ? [subscriptionKeyCurlLine(subscriptionHeader)] : []),
+                  ].join(" \\\n")}
                   language="bash"
                   fieldId="mcp-curl"
                 />

@@ -94,8 +94,8 @@ func TestCoreEventsAPI(t *testing.T) {
 	hook := httptest.NewServer(rcv)
 	t.Cleanup(hook.Close)
 
-	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, w.path("/projects"), spec.CreateProjectRequest{Name: "shop", DisplayName: "Shop"})
-	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, w.path("/projects"), spec.CreateProjectRequest{Name: "lab", DisplayName: "Lab"})
+	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, projectsPath(""), projectDocument("shop", "Shop", nil))
+	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, projectsPath(""), projectDocument("lab", "Lab", nil))
 	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, agentsPath(""), agentDocument("shop", externalA2A("cashier", "Cashier", nil)))
 
 	t.Run("catalog", func(t *testing.T) {

@@ -24,8 +24,6 @@ import { POLL_INTERVAL, transitionRefetchInterval } from "../../shared/utils";
 import type {
   CreateLLMAPIKeyRequest,
   CreateLLMAPIKeyResponse,
-  CreateLLMDeploymentPathParams,
-  DeployLLMProviderRequest,
   CreateLLMProviderAPIKeyPathParams,
   CreateLLMProviderPathParams,
   CreateLLMProviderRequest,
@@ -34,11 +32,9 @@ import type {
   CreateLLMProxyAPIKeyPathParams,
   CreateLLMProxyPathParams,
   CreateLLMProxyRequest,
-  DeleteLLMDeploymentPathParams,
   DeleteLLMProviderPathParams,
   DeleteLLMProviderTemplatePathParams,
   DeleteLLMProxyPathParams,
-  GetLLMDeploymentPathParams,
   GetLLMProviderPathParams,
   GetLLMProviderTemplatePathParams,
   GetLLMProxyPathParams,
@@ -47,7 +43,6 @@ import type {
   ListLLMProviderAPIKeysPathParams,
   ListLLMProxyAPIKeysPathParams,
   ListLLMProviderConsumersPathParams,
-  ListLLMProviderProxiesPathParams,
   ListLLMProviderTemplatesPathParams,
   ListLLMProvidersPathParams,
   ListLLMProxiesPathParams,
@@ -68,34 +63,27 @@ import type {
   RotateLLMAPIKeyResponse,
   RotateLLMProviderAPIKeyPathParams,
   RotateLLMProxyAPIKeyPathParams,
-  UndeployLLMProviderPathParams,
-  UndeployLLMProviderQuery,
   UpdateLLMProviderPathParams,
   UpdateLLMProviderRequest,
   UpdateLLMProviderTemplatePathParams,
-  UpdateLLMProviderTemplateRequest,
   UpdateLLMProxyPathParams,
   UpdateLLMProxyRequest,
 } from "@agent-management-platform/types";
 import {
-  createLLMDeployment,
   createLLMProvider,
   createLLMProviderAPIKey,
   createLLMProviderTemplate,
   createLLMProxy,
   createLLMProxyAPIKey,
-  deleteLLMDeployment,
   deleteLLMProvider,
   deleteLLMProviderTemplate,
   deleteLLMProxy,
-  getLLMDeployment,
   getLLMProvider,
   getLLMProviderTemplate,
   getLLMProxy,
   listLLMDeployments,
   listLLMProviderAPIKeys,
   listLLMProviderConsumers,
-  listLLMProviderProxies,
   listLLMProviders,
   listLLMProviderTemplates,
   listLLMProxies,
@@ -105,12 +93,14 @@ import {
   revokeLLMProxyAPIKey,
   rotateLLMProviderAPIKey,
   rotateLLMProxyAPIKey,
-  undeployLLMProvider,
   updateLLMProvider,
   documentFromCreateRequest,
   documentFromUpdateRequest,
   providerFromDocument,
   providerListFromDocuments,
+  templateDocumentFromRequest,
+  templateFromDocument,
+  templateListFromDocuments,
   updateLLMProviderTemplate,
   updateLLMProxy,
 } from "../apis/llm-providers";
@@ -130,7 +120,8 @@ export function useListLLMProviderTemplates(
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProviderTemplateListResponse>({
     queryKey: ["llm-provider-templates", params, query],
-    queryFn: () => listLLMProviderTemplates(params, query, getToken),
+    queryFn: async () =>
+      templateListFromDocuments(await listLLMProviderTemplates(params, query, getToken)),
     enabled: gatewayPresent && !!params.orgName,
   });
 }
@@ -140,7 +131,7 @@ export function useGetLLMProviderTemplate(params: GetLLMProviderTemplatePathPara
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProviderTemplateResponse>({
     queryKey: ["llm-provider-template", params],
-    queryFn: () => getLLMProviderTemplate(params, getToken),
+    queryFn: async () => templateFromDocument(await getLLMProviderTemplate(params, getToken)),
     enabled: gatewayPresent && !!params.orgName && !!params.templateId,
   });
 }
@@ -154,8 +145,10 @@ export function useCreateLLMProviderTemplate() {
     { params: CreateLLMProviderTemplatePathParams; body: CreateLLMProviderTemplateRequest }
   >({
     action: { verb: 'create', target: 'llm provider template' },
-    mutationFn: ({ params, body }) =>
-      createLLMProviderTemplate(params, body, getToken),
+    mutationFn: async ({ params, body }) =>
+      templateFromDocument(
+        await createLLMProviderTemplate(params, templateDocumentFromRequest(body), getToken),
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-provider-templates"] });
     },
@@ -168,11 +161,13 @@ export function useUpdateLLMProviderTemplate() {
   return useApiMutation<
     LLMProviderTemplateResponse,
     unknown,
-    { params: UpdateLLMProviderTemplatePathParams; body: UpdateLLMProviderTemplateRequest }
+    { params: UpdateLLMProviderTemplatePathParams; body: CreateLLMProviderTemplateRequest }
   >({
     action: { verb: 'update', target: 'llm provider template' },
-    mutationFn: ({ params, body }) =>
-      updateLLMProviderTemplate(params, body, getToken),
+    mutationFn: async ({ params, body }) =>
+      templateFromDocument(
+        await updateLLMProviderTemplate(params, templateDocumentFromRequest(body), getToken),
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-provider-templates"] });
       queryClient.invalidateQueries({ queryKey: ["llm-provider-template"] });
@@ -284,19 +279,6 @@ export function useDeleteLLMProvider() {
 
 // Proxies
 
-export function useListLLMProviderProxies(
-  params: ListLLMProviderProxiesPathParams,
-  query?: PaginationQuery,
-) {
-  const gatewayPresent = useUIModulePresent("ai-gateway");
-  const { getToken } = useAuthHooks();
-  return useApiQuery<LLMProxyListResponse>({
-    queryKey: ["llm-provider-proxies", params, query],
-    queryFn: () => listLLMProviderProxies(params, query, getToken),
-    enabled: gatewayPresent && !!params.orgName && !!params.providerId,
-  });
-}
-
 export function useListLLMProxies(
   params: ListLLMProxiesPathParams,
   query?: PaginationQuery,
@@ -332,7 +314,6 @@ export function useCreateLLMProxy() {
     mutationFn: ({ params, body }) => createLLMProxy(params, body, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-proxies"] });
-      queryClient.invalidateQueries({ queryKey: ["llm-provider-proxies"] });
     },
   });
 }
@@ -350,7 +331,6 @@ export function useUpdateLLMProxy() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-proxies"] });
       queryClient.invalidateQueries({ queryKey: ["llm-proxy"] });
-      queryClient.invalidateQueries({ queryKey: ["llm-provider-proxies"] });
     },
   });
 }
@@ -363,7 +343,6 @@ export function useDeleteLLMProxy() {
     mutationFn: (params) => deleteLLMProxy(params, getToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-proxies"] });
-      queryClient.invalidateQueries({ queryKey: ["llm-provider-proxies"] });
     },
   });
 }
@@ -387,50 +366,6 @@ export function useListLLMDeployments(
   });
 }
 
-export function useGetLLMDeployment(params: GetLLMDeploymentPathParams) {
-  const gatewayPresent = useUIModulePresent("ai-gateway");
-  const { getToken } = useAuthHooks();
-  return useApiQuery<LLMDeploymentResponse>({
-    queryKey: ["llm-deployment", params],
-    queryFn: () => getLLMDeployment(params, getToken),
-    enabled: gatewayPresent && !!params.orgName && !!params.providerId && !!params.deploymentId,
-  });
-}
-
-export function useCreateLLMDeployment() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    LLMDeploymentResponse,
-    unknown,
-    { params: CreateLLMDeploymentPathParams; body: DeployLLMProviderRequest }
-  >({
-    action: { verb: 'deploy', target: 'llm provider' },
-    mutationFn: ({ params, body }) =>
-      createLLMDeployment(params, body, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["llm-deployments"] });
-    },
-  });
-}
-
-export function useUndeployLLMProvider() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    void,
-    unknown,
-    { params: UndeployLLMProviderPathParams; query: UndeployLLMProviderQuery }
-  >({
-    action: { verb: 'undeploy', target: 'llm provider' },
-    mutationFn: ({ params, query }) => undeployLLMProvider(params, query, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["llm-deployments"] });
-      queryClient.invalidateQueries({ queryKey: ["llm-provider"] });
-    },
-  });
-}
-
 export function useRestoreLLMDeployment() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
@@ -444,18 +379,6 @@ export function useRestoreLLMDeployment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["llm-deployments"] });
       queryClient.invalidateQueries({ queryKey: ["llm-provider"] });
-    },
-  });
-}
-
-export function useDeleteLLMDeployment() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<void, unknown, DeleteLLMDeploymentPathParams>({
-    action: { verb: 'delete', target: 'llm deployment' },
-    mutationFn: (params) => deleteLLMDeployment(params, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["llm-deployments"] });
     },
   });
 }

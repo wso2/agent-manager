@@ -24,7 +24,7 @@ the registered routes as the table and the hit ones as covered, leaves out
 the exempted routes, and prints a markdown report: the coverage, then the
 routes no request reached, grouped.
 
-A route is named by its pattern, e.g. "POST /orgs/{orgName}/projects" (core,
+A route is named by its pattern, e.g. "POST /projects" (core,
 below /api/v1) or "GET /m/ai-gateway/orgs/{orgName}/gateways" (a module's).
 Routes of the internal surface are below /api/internal/v1 and are named with
 that prefix. A request that matched no route is not logged, so it counts

@@ -25,7 +25,6 @@ type EventsAPIService service
 type ApiCreateAgentEventSubscriptionRequest struct {
 	ctx                      context.Context
 	ApiService               *EventsAPIService
-	orgName                  string
 	projName                 string
 	agentName                string
 	eventSubscriptionRequest *EventSubscriptionRequest
@@ -44,16 +43,14 @@ func (r ApiCreateAgentEventSubscriptionRequest) Execute() (*EventSubscriptionRes
 CreateAgentEventSubscription Create an agent event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param agentName Agent name
 	@return ApiCreateAgentEventSubscriptionRequest
 */
-func (a *EventsAPIService) CreateAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string) ApiCreateAgentEventSubscriptionRequest {
+func (a *EventsAPIService) CreateAgentEventSubscription(ctx context.Context, projName string, agentName string) ApiCreateAgentEventSubscriptionRequest {
 	return ApiCreateAgentEventSubscriptionRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		projName:   projName,
 		agentName:  agentName,
 	}
@@ -75,8 +72,7 @@ func (a *EventsAPIService) CreateAgentEventSubscriptionExecute(r ApiCreateAgentE
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/agents/{agentName}/events/subscriptions"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
@@ -178,7 +174,6 @@ func (a *EventsAPIService) CreateAgentEventSubscriptionExecute(r ApiCreateAgentE
 type ApiCreateEventDestinationRequest struct {
 	ctx                     context.Context
 	ApiService              *EventsAPIService
-	orgName                 string
 	eventDestinationRequest *EventDestinationRequest
 }
 
@@ -200,14 +195,12 @@ subscriptions may. A generated secret, if the kind uses one, is
 returned only in this response.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiCreateEventDestinationRequest
 */
-func (a *EventsAPIService) CreateEventDestination(ctx context.Context, orgName string) ApiCreateEventDestinationRequest {
+func (a *EventsAPIService) CreateEventDestination(ctx context.Context) ApiCreateEventDestinationRequest {
 	return ApiCreateEventDestinationRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -227,8 +220,7 @@ func (a *EventsAPIService) CreateEventDestinationExecute(r ApiCreateEventDestina
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/destinations"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/destinations"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -328,7 +320,6 @@ func (a *EventsAPIService) CreateEventDestinationExecute(r ApiCreateEventDestina
 type ApiCreateOrgEventSubscriptionRequest struct {
 	ctx                      context.Context
 	ApiService               *EventsAPIService
-	orgName                  string
 	eventSubscriptionRequest *EventSubscriptionRequest
 }
 
@@ -345,14 +336,12 @@ func (r ApiCreateOrgEventSubscriptionRequest) Execute() (*EventSubscriptionRespo
 CreateOrgEventSubscription Create an organization event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiCreateOrgEventSubscriptionRequest
 */
-func (a *EventsAPIService) CreateOrgEventSubscription(ctx context.Context, orgName string) ApiCreateOrgEventSubscriptionRequest {
+func (a *EventsAPIService) CreateOrgEventSubscription(ctx context.Context) ApiCreateOrgEventSubscriptionRequest {
 	return ApiCreateOrgEventSubscriptionRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -372,8 +361,7 @@ func (a *EventsAPIService) CreateOrgEventSubscriptionExecute(r ApiCreateOrgEvent
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/subscriptions"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -462,7 +450,6 @@ func (a *EventsAPIService) CreateOrgEventSubscriptionExecute(r ApiCreateOrgEvent
 type ApiCreateProjectEventSubscriptionRequest struct {
 	ctx                      context.Context
 	ApiService               *EventsAPIService
-	orgName                  string
 	projName                 string
 	eventSubscriptionRequest *EventSubscriptionRequest
 }
@@ -480,15 +467,13 @@ func (r ApiCreateProjectEventSubscriptionRequest) Execute() (*EventSubscriptionR
 CreateProjectEventSubscription Create a project event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@return ApiCreateProjectEventSubscriptionRequest
 */
-func (a *EventsAPIService) CreateProjectEventSubscription(ctx context.Context, orgName string, projName string) ApiCreateProjectEventSubscriptionRequest {
+func (a *EventsAPIService) CreateProjectEventSubscription(ctx context.Context, projName string) ApiCreateProjectEventSubscriptionRequest {
 	return ApiCreateProjectEventSubscriptionRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		projName:   projName,
 	}
 }
@@ -509,8 +494,7 @@ func (a *EventsAPIService) CreateProjectEventSubscriptionExecute(r ApiCreateProj
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/events/subscriptions"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -611,7 +595,6 @@ func (a *EventsAPIService) CreateProjectEventSubscriptionExecute(r ApiCreateProj
 type ApiDeleteAgentEventSubscriptionRequest struct {
 	ctx            context.Context
 	ApiService     *EventsAPIService
-	orgName        string
 	projName       string
 	agentName      string
 	subscriptionId string
@@ -625,17 +608,15 @@ func (r ApiDeleteAgentEventSubscriptionRequest) Execute() (*http.Response, error
 DeleteAgentEventSubscription Delete an event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param agentName Agent name
 	@param subscriptionId Event subscription ID
 	@return ApiDeleteAgentEventSubscriptionRequest
 */
-func (a *EventsAPIService) DeleteAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string) ApiDeleteAgentEventSubscriptionRequest {
+func (a *EventsAPIService) DeleteAgentEventSubscription(ctx context.Context, projName string, agentName string, subscriptionId string) ApiDeleteAgentEventSubscriptionRequest {
 	return ApiDeleteAgentEventSubscriptionRequest{
 		ApiService:     a,
 		ctx:            ctx,
-		orgName:        orgName,
 		projName:       projName,
 		agentName:      agentName,
 		subscriptionId: subscriptionId,
@@ -655,8 +636,7 @@ func (a *EventsAPIService) DeleteAgentEventSubscriptionExecute(r ApiDeleteAgentE
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
@@ -723,7 +703,6 @@ func (a *EventsAPIService) DeleteAgentEventSubscriptionExecute(r ApiDeleteAgentE
 type ApiDeleteEventDestinationRequest struct {
 	ctx           context.Context
 	ApiService    *EventsAPIService
-	orgName       string
 	destinationId string
 }
 
@@ -737,15 +716,13 @@ DeleteEventDestination Delete an event destination
 Refused while subscriptions send to it: delete them, or move them to another destination, first.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param destinationId Event destination ID
 	@return ApiDeleteEventDestinationRequest
 */
-func (a *EventsAPIService) DeleteEventDestination(ctx context.Context, orgName string, destinationId string) ApiDeleteEventDestinationRequest {
+func (a *EventsAPIService) DeleteEventDestination(ctx context.Context, destinationId string) ApiDeleteEventDestinationRequest {
 	return ApiDeleteEventDestinationRequest{
 		ApiService:    a,
 		ctx:           ctx,
-		orgName:       orgName,
 		destinationId: destinationId,
 	}
 }
@@ -763,8 +740,7 @@ func (a *EventsAPIService) DeleteEventDestinationExecute(r ApiDeleteEventDestina
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/destinations/{destinationId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/destinations/{destinationId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"destinationId"+"}", url.PathEscape(parameterValueToString(r.destinationId, "destinationId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -840,7 +816,6 @@ func (a *EventsAPIService) DeleteEventDestinationExecute(r ApiDeleteEventDestina
 type ApiDeleteOrgEventSubscriptionRequest struct {
 	ctx            context.Context
 	ApiService     *EventsAPIService
-	orgName        string
 	subscriptionId string
 }
 
@@ -852,15 +827,13 @@ func (r ApiDeleteOrgEventSubscriptionRequest) Execute() (*http.Response, error) 
 DeleteOrgEventSubscription Delete an event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param subscriptionId Event subscription ID
 	@return ApiDeleteOrgEventSubscriptionRequest
 */
-func (a *EventsAPIService) DeleteOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string) ApiDeleteOrgEventSubscriptionRequest {
+func (a *EventsAPIService) DeleteOrgEventSubscription(ctx context.Context, subscriptionId string) ApiDeleteOrgEventSubscriptionRequest {
 	return ApiDeleteOrgEventSubscriptionRequest{
 		ApiService:     a,
 		ctx:            ctx,
-		orgName:        orgName,
 		subscriptionId: subscriptionId,
 	}
 }
@@ -878,8 +851,7 @@ func (a *EventsAPIService) DeleteOrgEventSubscriptionExecute(r ApiDeleteOrgEvent
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions/{subscriptionId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/subscriptions/{subscriptionId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -944,7 +916,6 @@ func (a *EventsAPIService) DeleteOrgEventSubscriptionExecute(r ApiDeleteOrgEvent
 type ApiDeleteProjectEventSubscriptionRequest struct {
 	ctx            context.Context
 	ApiService     *EventsAPIService
-	orgName        string
 	projName       string
 	subscriptionId string
 }
@@ -957,16 +928,14 @@ func (r ApiDeleteProjectEventSubscriptionRequest) Execute() (*http.Response, err
 DeleteProjectEventSubscription Delete an event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param subscriptionId Event subscription ID
 	@return ApiDeleteProjectEventSubscriptionRequest
 */
-func (a *EventsAPIService) DeleteProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string) ApiDeleteProjectEventSubscriptionRequest {
+func (a *EventsAPIService) DeleteProjectEventSubscription(ctx context.Context, projName string, subscriptionId string) ApiDeleteProjectEventSubscriptionRequest {
 	return ApiDeleteProjectEventSubscriptionRequest{
 		ApiService:     a,
 		ctx:            ctx,
-		orgName:        orgName,
 		projName:       projName,
 		subscriptionId: subscriptionId,
 	}
@@ -985,8 +954,7 @@ func (a *EventsAPIService) DeleteProjectEventSubscriptionExecute(r ApiDeleteProj
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/events/subscriptions/{subscriptionId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
 
@@ -1052,7 +1020,6 @@ func (a *EventsAPIService) DeleteProjectEventSubscriptionExecute(r ApiDeleteProj
 type ApiGetAgentEventSubscriptionRequest struct {
 	ctx            context.Context
 	ApiService     *EventsAPIService
-	orgName        string
 	projName       string
 	agentName      string
 	subscriptionId string
@@ -1066,17 +1033,15 @@ func (r ApiGetAgentEventSubscriptionRequest) Execute() (*EventSubscriptionRespon
 GetAgentEventSubscription Get an event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param agentName Agent name
 	@param subscriptionId Event subscription ID
 	@return ApiGetAgentEventSubscriptionRequest
 */
-func (a *EventsAPIService) GetAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string) ApiGetAgentEventSubscriptionRequest {
+func (a *EventsAPIService) GetAgentEventSubscription(ctx context.Context, projName string, agentName string, subscriptionId string) ApiGetAgentEventSubscriptionRequest {
 	return ApiGetAgentEventSubscriptionRequest{
 		ApiService:     a,
 		ctx:            ctx,
-		orgName:        orgName,
 		projName:       projName,
 		agentName:      agentName,
 		subscriptionId: subscriptionId,
@@ -1099,8 +1064,7 @@ func (a *EventsAPIService) GetAgentEventSubscriptionExecute(r ApiGetAgentEventSu
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
@@ -1176,7 +1140,6 @@ func (a *EventsAPIService) GetAgentEventSubscriptionExecute(r ApiGetAgentEventSu
 type ApiGetEventDestinationRequest struct {
 	ctx           context.Context
 	ApiService    *EventsAPIService
-	orgName       string
 	destinationId string
 }
 
@@ -1188,15 +1151,13 @@ func (r ApiGetEventDestinationRequest) Execute() (*EventDestinationResponse, *ht
 GetEventDestination Get an event destination
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param destinationId Event destination ID
 	@return ApiGetEventDestinationRequest
 */
-func (a *EventsAPIService) GetEventDestination(ctx context.Context, orgName string, destinationId string) ApiGetEventDestinationRequest {
+func (a *EventsAPIService) GetEventDestination(ctx context.Context, destinationId string) ApiGetEventDestinationRequest {
 	return ApiGetEventDestinationRequest{
 		ApiService:    a,
 		ctx:           ctx,
-		orgName:       orgName,
 		destinationId: destinationId,
 	}
 }
@@ -1217,8 +1178,7 @@ func (a *EventsAPIService) GetEventDestinationExecute(r ApiGetEventDestinationRe
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/destinations/{destinationId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/destinations/{destinationId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"destinationId"+"}", url.PathEscape(parameterValueToString(r.destinationId, "destinationId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -1292,7 +1252,6 @@ func (a *EventsAPIService) GetEventDestinationExecute(r ApiGetEventDestinationRe
 type ApiGetOrgEventSubscriptionRequest struct {
 	ctx            context.Context
 	ApiService     *EventsAPIService
-	orgName        string
 	subscriptionId string
 }
 
@@ -1304,15 +1263,13 @@ func (r ApiGetOrgEventSubscriptionRequest) Execute() (*EventSubscriptionResponse
 GetOrgEventSubscription Get an event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param subscriptionId Event subscription ID
 	@return ApiGetOrgEventSubscriptionRequest
 */
-func (a *EventsAPIService) GetOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string) ApiGetOrgEventSubscriptionRequest {
+func (a *EventsAPIService) GetOrgEventSubscription(ctx context.Context, subscriptionId string) ApiGetOrgEventSubscriptionRequest {
 	return ApiGetOrgEventSubscriptionRequest{
 		ApiService:     a,
 		ctx:            ctx,
-		orgName:        orgName,
 		subscriptionId: subscriptionId,
 	}
 }
@@ -1333,8 +1290,7 @@ func (a *EventsAPIService) GetOrgEventSubscriptionExecute(r ApiGetOrgEventSubscr
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions/{subscriptionId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/subscriptions/{subscriptionId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -1408,7 +1364,6 @@ func (a *EventsAPIService) GetOrgEventSubscriptionExecute(r ApiGetOrgEventSubscr
 type ApiGetProjectEventSubscriptionRequest struct {
 	ctx            context.Context
 	ApiService     *EventsAPIService
-	orgName        string
 	projName       string
 	subscriptionId string
 }
@@ -1421,16 +1376,14 @@ func (r ApiGetProjectEventSubscriptionRequest) Execute() (*EventSubscriptionResp
 GetProjectEventSubscription Get an event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param subscriptionId Event subscription ID
 	@return ApiGetProjectEventSubscriptionRequest
 */
-func (a *EventsAPIService) GetProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string) ApiGetProjectEventSubscriptionRequest {
+func (a *EventsAPIService) GetProjectEventSubscription(ctx context.Context, projName string, subscriptionId string) ApiGetProjectEventSubscriptionRequest {
 	return ApiGetProjectEventSubscriptionRequest{
 		ApiService:     a,
 		ctx:            ctx,
-		orgName:        orgName,
 		projName:       projName,
 		subscriptionId: subscriptionId,
 	}
@@ -1452,8 +1405,7 @@ func (a *EventsAPIService) GetProjectEventSubscriptionExecute(r ApiGetProjectEve
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/events/subscriptions/{subscriptionId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
 
@@ -1528,7 +1480,6 @@ func (a *EventsAPIService) GetProjectEventSubscriptionExecute(r ApiGetProjectEve
 type ApiListAgentEventDeliveriesRequest struct {
 	ctx            context.Context
 	ApiService     *EventsAPIService
-	orgName        string
 	projName       string
 	agentName      string
 	destinationId  *string
@@ -1578,16 +1529,14 @@ ListAgentEventDeliveries List the agent's event deliveries
 Deliveries of the agent's events.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param agentName Agent name
 	@return ApiListAgentEventDeliveriesRequest
 */
-func (a *EventsAPIService) ListAgentEventDeliveries(ctx context.Context, orgName string, projName string, agentName string) ApiListAgentEventDeliveriesRequest {
+func (a *EventsAPIService) ListAgentEventDeliveries(ctx context.Context, projName string, agentName string) ApiListAgentEventDeliveriesRequest {
 	return ApiListAgentEventDeliveriesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		projName:   projName,
 		agentName:  agentName,
 	}
@@ -1609,8 +1558,7 @@ func (a *EventsAPIService) ListAgentEventDeliveriesExecute(r ApiListAgentEventDe
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/deliveries"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/agents/{agentName}/events/deliveries"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
@@ -1700,7 +1648,6 @@ func (a *EventsAPIService) ListAgentEventDeliveriesExecute(r ApiListAgentEventDe
 type ApiListAgentEventDestinationsRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
-	orgName    string
 	projName   string
 	agentName  string
 }
@@ -1715,16 +1662,14 @@ ListAgentEventDestinations List the event destinations the agent's subscriptions
 Only destinations available to the project, without their settings.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param agentName Agent name
 	@return ApiListAgentEventDestinationsRequest
 */
-func (a *EventsAPIService) ListAgentEventDestinations(ctx context.Context, orgName string, projName string, agentName string) ApiListAgentEventDestinationsRequest {
+func (a *EventsAPIService) ListAgentEventDestinations(ctx context.Context, projName string, agentName string) ApiListAgentEventDestinationsRequest {
 	return ApiListAgentEventDestinationsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		projName:   projName,
 		agentName:  agentName,
 	}
@@ -1746,8 +1691,7 @@ func (a *EventsAPIService) ListAgentEventDestinationsExecute(r ApiListAgentEvent
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/destinations"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/agents/{agentName}/events/destinations"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
@@ -1812,7 +1756,6 @@ func (a *EventsAPIService) ListAgentEventDestinationsExecute(r ApiListAgentEvent
 type ApiListAgentEventSubscriptionsRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
-	orgName    string
 	projName   string
 	agentName  string
 }
@@ -1829,16 +1772,14 @@ inherited lists the wider levels' subscriptions that also send this
 level's events; they are managed where they belong.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param agentName Agent name
 	@return ApiListAgentEventSubscriptionsRequest
 */
-func (a *EventsAPIService) ListAgentEventSubscriptions(ctx context.Context, orgName string, projName string, agentName string) ApiListAgentEventSubscriptionsRequest {
+func (a *EventsAPIService) ListAgentEventSubscriptions(ctx context.Context, projName string, agentName string) ApiListAgentEventSubscriptionsRequest {
 	return ApiListAgentEventSubscriptionsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		projName:   projName,
 		agentName:  agentName,
 	}
@@ -1860,8 +1801,7 @@ func (a *EventsAPIService) ListAgentEventSubscriptionsExecute(r ApiListAgentEven
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/agents/{agentName}/events/subscriptions"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 
@@ -1936,7 +1876,6 @@ func (a *EventsAPIService) ListAgentEventSubscriptionsExecute(r ApiListAgentEven
 type ApiListEventDestinationKindsRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
-	orgName    string
 }
 
 func (r ApiListEventDestinationKindsRequest) Execute() (*EventDestinationKindListResponse, *http.Response, error) {
@@ -1950,14 +1889,12 @@ The console builds its destination form from this list, so a service
 added to a kind's driver needs no console change.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiListEventDestinationKindsRequest
 */
-func (a *EventsAPIService) ListEventDestinationKinds(ctx context.Context, orgName string) ApiListEventDestinationKindsRequest {
+func (a *EventsAPIService) ListEventDestinationKinds(ctx context.Context) ApiListEventDestinationKindsRequest {
 	return ApiListEventDestinationKindsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -1977,8 +1914,7 @@ func (a *EventsAPIService) ListEventDestinationKindsExecute(r ApiListEventDestin
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/destination-kinds"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/destination-kinds"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -2041,7 +1977,6 @@ func (a *EventsAPIService) ListEventDestinationKindsExecute(r ApiListEventDestin
 type ApiListEventDestinationsRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
-	orgName    string
 }
 
 func (r ApiListEventDestinationsRequest) Execute() (*EventDestinationListResponse, *http.Response, error) {
@@ -2056,14 +1991,12 @@ deliveries went. Callers who cannot manage destinations see their
 settings masked.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiListEventDestinationsRequest
 */
-func (a *EventsAPIService) ListEventDestinations(ctx context.Context, orgName string) ApiListEventDestinationsRequest {
+func (a *EventsAPIService) ListEventDestinations(ctx context.Context) ApiListEventDestinationsRequest {
 	return ApiListEventDestinationsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -2083,8 +2016,7 @@ func (a *EventsAPIService) ListEventDestinationsExecute(r ApiListEventDestinatio
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/destinations"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/destinations"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -2157,7 +2089,6 @@ func (a *EventsAPIService) ListEventDestinationsExecute(r ApiListEventDestinatio
 type ApiListEventTypesRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
-	orgName    string
 	scope      *string
 }
 
@@ -2175,14 +2106,12 @@ func (r ApiListEventTypesRequest) Execute() (*EventTypeListResponse, *http.Respo
 ListEventTypes List the event types subscriptions can name
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiListEventTypesRequest
 */
-func (a *EventsAPIService) ListEventTypes(ctx context.Context, orgName string) ApiListEventTypesRequest {
+func (a *EventsAPIService) ListEventTypes(ctx context.Context) ApiListEventTypesRequest {
 	return ApiListEventTypesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -2202,8 +2131,7 @@ func (a *EventsAPIService) ListEventTypesExecute(r ApiListEventTypesRequest) (*E
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/event-types"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/event-types"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -2279,7 +2207,6 @@ func (a *EventsAPIService) ListEventTypesExecute(r ApiListEventTypesRequest) (*E
 type ApiListOrgEventDeliveriesRequest struct {
 	ctx            context.Context
 	ApiService     *EventsAPIService
-	orgName        string
 	destinationId  *string
 	subscriptionId *string
 	status         *string
@@ -2327,14 +2254,12 @@ ListOrgEventDeliveries List the organization's event deliveries
 Every delivery in the organization.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiListOrgEventDeliveriesRequest
 */
-func (a *EventsAPIService) ListOrgEventDeliveries(ctx context.Context, orgName string) ApiListOrgEventDeliveriesRequest {
+func (a *EventsAPIService) ListOrgEventDeliveries(ctx context.Context) ApiListOrgEventDeliveriesRequest {
 	return ApiListOrgEventDeliveriesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -2354,8 +2279,7 @@ func (a *EventsAPIService) ListOrgEventDeliveriesExecute(r ApiListOrgEventDelive
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/deliveries"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/deliveries"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -2443,7 +2367,6 @@ func (a *EventsAPIService) ListOrgEventDeliveriesExecute(r ApiListOrgEventDelive
 type ApiListOrgEventSubscriptionsRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
-	orgName    string
 }
 
 func (r ApiListOrgEventSubscriptionsRequest) Execute() (*EventSubscriptionListResponse, *http.Response, error) {
@@ -2456,14 +2379,12 @@ ListOrgEventSubscriptions List the organization's event subscriptions
 Organization subscriptions receive the events of every project and agent.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiListOrgEventSubscriptionsRequest
 */
-func (a *EventsAPIService) ListOrgEventSubscriptions(ctx context.Context, orgName string) ApiListOrgEventSubscriptionsRequest {
+func (a *EventsAPIService) ListOrgEventSubscriptions(ctx context.Context) ApiListOrgEventSubscriptionsRequest {
 	return ApiListOrgEventSubscriptionsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -2483,8 +2404,7 @@ func (a *EventsAPIService) ListOrgEventSubscriptionsExecute(r ApiListOrgEventSub
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/subscriptions"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -2557,7 +2477,6 @@ func (a *EventsAPIService) ListOrgEventSubscriptionsExecute(r ApiListOrgEventSub
 type ApiListProjectEventDeliveriesRequest struct {
 	ctx            context.Context
 	ApiService     *EventsAPIService
-	orgName        string
 	projName       string
 	destinationId  *string
 	subscriptionId *string
@@ -2606,15 +2525,13 @@ ListProjectEventDeliveries List the project's event deliveries
 Deliveries of the project's events and its agents' events.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@return ApiListProjectEventDeliveriesRequest
 */
-func (a *EventsAPIService) ListProjectEventDeliveries(ctx context.Context, orgName string, projName string) ApiListProjectEventDeliveriesRequest {
+func (a *EventsAPIService) ListProjectEventDeliveries(ctx context.Context, projName string) ApiListProjectEventDeliveriesRequest {
 	return ApiListProjectEventDeliveriesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		projName:   projName,
 	}
 }
@@ -2635,8 +2552,7 @@ func (a *EventsAPIService) ListProjectEventDeliveriesExecute(r ApiListProjectEve
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/deliveries"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/events/deliveries"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -2725,7 +2641,6 @@ func (a *EventsAPIService) ListProjectEventDeliveriesExecute(r ApiListProjectEve
 type ApiListProjectEventDestinationsRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
-	orgName    string
 	projName   string
 }
 
@@ -2739,15 +2654,13 @@ ListProjectEventDestinations List the event destinations the project's subscript
 Only destinations available to the project, without their settings.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@return ApiListProjectEventDestinationsRequest
 */
-func (a *EventsAPIService) ListProjectEventDestinations(ctx context.Context, orgName string, projName string) ApiListProjectEventDestinationsRequest {
+func (a *EventsAPIService) ListProjectEventDestinations(ctx context.Context, projName string) ApiListProjectEventDestinationsRequest {
 	return ApiListProjectEventDestinationsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		projName:   projName,
 	}
 }
@@ -2768,8 +2681,7 @@ func (a *EventsAPIService) ListProjectEventDestinationsExecute(r ApiListProjectE
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/destinations"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/events/destinations"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -2833,7 +2745,6 @@ func (a *EventsAPIService) ListProjectEventDestinationsExecute(r ApiListProjectE
 type ApiListProjectEventSubscriptionsRequest struct {
 	ctx        context.Context
 	ApiService *EventsAPIService
-	orgName    string
 	projName   string
 }
 
@@ -2849,15 +2760,13 @@ inherited lists the wider levels' subscriptions that also send this
 level's events; they are managed where they belong.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@return ApiListProjectEventSubscriptionsRequest
 */
-func (a *EventsAPIService) ListProjectEventSubscriptions(ctx context.Context, orgName string, projName string) ApiListProjectEventSubscriptionsRequest {
+func (a *EventsAPIService) ListProjectEventSubscriptions(ctx context.Context, projName string) ApiListProjectEventSubscriptionsRequest {
 	return ApiListProjectEventSubscriptionsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		projName:   projName,
 	}
 }
@@ -2878,8 +2787,7 @@ func (a *EventsAPIService) ListProjectEventSubscriptionsExecute(r ApiListProject
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/events/subscriptions"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -2953,7 +2861,6 @@ func (a *EventsAPIService) ListProjectEventSubscriptionsExecute(r ApiListProject
 type ApiRotateEventDestinationSecretRequest struct {
 	ctx           context.Context
 	ApiService    *EventsAPIService
-	orgName       string
 	destinationId string
 }
 
@@ -2965,15 +2872,13 @@ func (r ApiRotateEventDestinationSecretRequest) Execute() (*EventDestinationSecr
 RotateEventDestinationSecret Rotate an event destination's signing secret
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param destinationId Event destination ID
 	@return ApiRotateEventDestinationSecretRequest
 */
-func (a *EventsAPIService) RotateEventDestinationSecret(ctx context.Context, orgName string, destinationId string) ApiRotateEventDestinationSecretRequest {
+func (a *EventsAPIService) RotateEventDestinationSecret(ctx context.Context, destinationId string) ApiRotateEventDestinationSecretRequest {
 	return ApiRotateEventDestinationSecretRequest{
 		ApiService:    a,
 		ctx:           ctx,
-		orgName:       orgName,
 		destinationId: destinationId,
 	}
 }
@@ -2994,8 +2899,7 @@ func (a *EventsAPIService) RotateEventDestinationSecretExecute(r ApiRotateEventD
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/destinations/{destinationId}/rotate-secret"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/destinations/{destinationId}/rotate-secret"
 	localVarPath = strings.Replace(localVarPath, "{"+"destinationId"+"}", url.PathEscape(parameterValueToString(r.destinationId, "destinationId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -3091,7 +2995,6 @@ func (a *EventsAPIService) RotateEventDestinationSecretExecute(r ApiRotateEventD
 type ApiTestEventDestinationRequest struct {
 	ctx           context.Context
 	ApiService    *EventsAPIService
-	orgName       string
 	destinationId string
 }
 
@@ -3105,15 +3008,13 @@ TestEventDestination Send a test event to an event destination
 Sends a destination.test event straight to the destination and reports the result.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param destinationId Event destination ID
 	@return ApiTestEventDestinationRequest
 */
-func (a *EventsAPIService) TestEventDestination(ctx context.Context, orgName string, destinationId string) ApiTestEventDestinationRequest {
+func (a *EventsAPIService) TestEventDestination(ctx context.Context, destinationId string) ApiTestEventDestinationRequest {
 	return ApiTestEventDestinationRequest{
 		ApiService:    a,
 		ctx:           ctx,
-		orgName:       orgName,
 		destinationId: destinationId,
 	}
 }
@@ -3134,8 +3035,7 @@ func (a *EventsAPIService) TestEventDestinationExecute(r ApiTestEventDestination
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/destinations/{destinationId}/test"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/destinations/{destinationId}/test"
 	localVarPath = strings.Replace(localVarPath, "{"+"destinationId"+"}", url.PathEscape(parameterValueToString(r.destinationId, "destinationId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -3209,7 +3109,6 @@ func (a *EventsAPIService) TestEventDestinationExecute(r ApiTestEventDestination
 type ApiUpdateAgentEventSubscriptionRequest struct {
 	ctx                      context.Context
 	ApiService               *EventsAPIService
-	orgName                  string
 	projName                 string
 	agentName                string
 	subscriptionId           string
@@ -3229,17 +3128,15 @@ func (r ApiUpdateAgentEventSubscriptionRequest) Execute() (*EventSubscriptionRes
 UpdateAgentEventSubscription Update an event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param agentName Agent name
 	@param subscriptionId Event subscription ID
 	@return ApiUpdateAgentEventSubscriptionRequest
 */
-func (a *EventsAPIService) UpdateAgentEventSubscription(ctx context.Context, orgName string, projName string, agentName string, subscriptionId string) ApiUpdateAgentEventSubscriptionRequest {
+func (a *EventsAPIService) UpdateAgentEventSubscription(ctx context.Context, projName string, agentName string, subscriptionId string) ApiUpdateAgentEventSubscriptionRequest {
 	return ApiUpdateAgentEventSubscriptionRequest{
 		ApiService:     a,
 		ctx:            ctx,
-		orgName:        orgName,
 		projName:       projName,
 		agentName:      agentName,
 		subscriptionId: subscriptionId,
@@ -3262,8 +3159,7 @@ func (a *EventsAPIService) UpdateAgentEventSubscriptionExecute(r ApiUpdateAgentE
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"agentName"+"}", url.PathEscape(parameterValueToString(r.agentName, "agentName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
@@ -3355,7 +3251,6 @@ func (a *EventsAPIService) UpdateAgentEventSubscriptionExecute(r ApiUpdateAgentE
 type ApiUpdateEventDestinationRequest struct {
 	ctx                     context.Context
 	ApiService              *EventsAPIService
-	orgName                 string
 	destinationId           string
 	eventDestinationRequest *EventDestinationRequest
 }
@@ -3376,15 +3271,13 @@ The kind cannot change. Narrowing availability so that subscriptions
 using the destination could no longer use it is refused.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param destinationId Event destination ID
 	@return ApiUpdateEventDestinationRequest
 */
-func (a *EventsAPIService) UpdateEventDestination(ctx context.Context, orgName string, destinationId string) ApiUpdateEventDestinationRequest {
+func (a *EventsAPIService) UpdateEventDestination(ctx context.Context, destinationId string) ApiUpdateEventDestinationRequest {
 	return ApiUpdateEventDestinationRequest{
 		ApiService:    a,
 		ctx:           ctx,
-		orgName:       orgName,
 		destinationId: destinationId,
 	}
 }
@@ -3405,8 +3298,7 @@ func (a *EventsAPIService) UpdateEventDestinationExecute(r ApiUpdateEventDestina
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/destinations/{destinationId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/destinations/{destinationId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"destinationId"+"}", url.PathEscape(parameterValueToString(r.destinationId, "destinationId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -3507,7 +3399,6 @@ func (a *EventsAPIService) UpdateEventDestinationExecute(r ApiUpdateEventDestina
 type ApiUpdateOrgEventSubscriptionRequest struct {
 	ctx                      context.Context
 	ApiService               *EventsAPIService
-	orgName                  string
 	subscriptionId           string
 	eventSubscriptionRequest *EventSubscriptionRequest
 }
@@ -3525,15 +3416,13 @@ func (r ApiUpdateOrgEventSubscriptionRequest) Execute() (*EventSubscriptionRespo
 UpdateOrgEventSubscription Update an event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param subscriptionId Event subscription ID
 	@return ApiUpdateOrgEventSubscriptionRequest
 */
-func (a *EventsAPIService) UpdateOrgEventSubscription(ctx context.Context, orgName string, subscriptionId string) ApiUpdateOrgEventSubscriptionRequest {
+func (a *EventsAPIService) UpdateOrgEventSubscription(ctx context.Context, subscriptionId string) ApiUpdateOrgEventSubscriptionRequest {
 	return ApiUpdateOrgEventSubscriptionRequest{
 		ApiService:     a,
 		ctx:            ctx,
-		orgName:        orgName,
 		subscriptionId: subscriptionId,
 	}
 }
@@ -3554,8 +3443,7 @@ func (a *EventsAPIService) UpdateOrgEventSubscriptionExecute(r ApiUpdateOrgEvent
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/events/subscriptions/{subscriptionId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/events/subscriptions/{subscriptionId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -3645,7 +3533,6 @@ func (a *EventsAPIService) UpdateOrgEventSubscriptionExecute(r ApiUpdateOrgEvent
 type ApiUpdateProjectEventSubscriptionRequest struct {
 	ctx                      context.Context
 	ApiService               *EventsAPIService
-	orgName                  string
 	projName                 string
 	subscriptionId           string
 	eventSubscriptionRequest *EventSubscriptionRequest
@@ -3664,16 +3551,14 @@ func (r ApiUpdateProjectEventSubscriptionRequest) Execute() (*EventSubscriptionR
 UpdateProjectEventSubscription Update an event subscription
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param projName Project name
 	@param subscriptionId Event subscription ID
 	@return ApiUpdateProjectEventSubscriptionRequest
 */
-func (a *EventsAPIService) UpdateProjectEventSubscription(ctx context.Context, orgName string, projName string, subscriptionId string) ApiUpdateProjectEventSubscriptionRequest {
+func (a *EventsAPIService) UpdateProjectEventSubscription(ctx context.Context, projName string, subscriptionId string) ApiUpdateProjectEventSubscriptionRequest {
 	return ApiUpdateProjectEventSubscriptionRequest{
 		ApiService:     a,
 		ctx:            ctx,
-		orgName:        orgName,
 		projName:       projName,
 		subscriptionId: subscriptionId,
 	}
@@ -3695,8 +3580,7 @@ func (a *EventsAPIService) UpdateProjectEventSubscriptionExecute(r ApiUpdateProj
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/projects/{projName}/events/subscriptions/{subscriptionId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"projName"+"}", url.PathEscape(parameterValueToString(r.projName, "projName")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"subscriptionId"+"}", url.PathEscape(parameterValueToString(r.subscriptionId, "subscriptionId")), -1)
 

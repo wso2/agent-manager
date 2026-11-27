@@ -23,18 +23,7 @@ import (
 
 // RegisterLLMDeploymentRoutes registers all LLM deployment-related routes
 func RegisterLLMDeploymentRoutes(rr Router, ctrl gwctl.LLMDeploymentController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/deployments", gwperm.LLMProviderDeploy,
-		rr.Track("amp.connections.deploy-llm-provider", actionDims("deployed-llm-provider"), ctrl.DeployLLMProvider))
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/deployments/undeploy", gwperm.LLMProviderDeploy,
-		rr.Track("amp.connections.deploy-llm-provider", actionDims("undeployed-llm-provider"), ctrl.UndeployLLMProviderDeployment))
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/deployments/restore", gwperm.LLMProviderDeploy,
+	rr.HandleFuncWithValidationAndAuthz("POST /llm-providers/{providerId}/deployments/restore", gwperm.LLMProviderDeploy,
 		rr.Track("amp.connections.deploy-llm-provider", actionDims("restored-llm-provider-deployment"), ctrl.RestoreLLMProviderDeployment))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/deployments", gwperm.LLMProviderRead, ctrl.GetLLMProviderDeployments)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/deployments/{deploymentId}", gwperm.LLMProviderRead, ctrl.GetLLMProviderDeployment)
-	// DeleteLLMProviderDeployment removes a deployment record outright; the
-	// taxonomy's action enum has no "delete" value for this feature, so it's
-	// reported as "undeployed-llm-provider" — the closest existing
-	// lifecycle-terminal value.
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-providers/{providerId}/deployments/{deploymentId}", gwperm.LLMProviderDeploy,
-		rr.Track("amp.connections.deploy-llm-provider", actionDims("undeployed-llm-provider"), ctrl.DeleteLLMProviderDeployment))
+	rr.HandleFuncWithValidationAndAuthz("GET /llm-providers/{providerId}/deployments", gwperm.LLMProviderRead, ctrl.GetLLMProviderDeployments)
 }

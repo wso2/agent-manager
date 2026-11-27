@@ -18,7 +18,6 @@ package gwconv
 
 import (
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -189,70 +188,6 @@ func TestConvertSpecToModelUpstreamConfigIgnoresRedactedCredential(t *testing.T)
 			assert.Equal(t, "r", got.Sandbox.Ref)
 		})
 	}
-}
-
-// A provider template request maps every field to the model and back to the response.
-func TestLLMProviderTemplateRoundTrips(t *testing.T) {
-	ei := func(id string) *gwspec.ExtractionIdentifier {
-		return &gwspec.ExtractionIdentifier{Location: "payload", Identifier: id}
-	}
-	req := &gwspec.CreateLLMProviderTemplateRequest{
-		Id: "openai", Name: "OpenAI", Description: mapPtr("desc"),
-		Metadata: &gwspec.LLMProviderTemplateMetadata{
-			EndpointUrl: mapPtr("https://api"), LogoUrl: mapPtr("https://logo"), OpenapiSpecUrl: mapPtr("https://spec"),
-			Auth: &gwspec.LLMProviderTemplateAuth{Type: mapPtr("apiKey"), Header: mapPtr("Authorization"), ValuePrefix: mapPtr("Bearer ")},
-		},
-		PromptTokens: ei("$.usage.prompt"), CompletionTokens: ei("$.usage.completion"), TotalTokens: ei("$.usage.total"),
-		RemainingTokens: ei("$.remaining"), RequestModel: ei("$.model"), ResponseModel: ei("$.resp.model"),
-	}
-
-	model := ConvertSpecToModelLLMProviderTemplate(req, "ou-1")
-
-	assert.NotEqual(t, uuid.Nil, model.UUID)
-	assert.Equal(t, "ou-1", model.OUID)
-	assert.Equal(t, "openai", model.Handle)
-	assert.Equal(t, "Bearer ", model.Metadata.Auth.ValuePrefix)
-	assert.Equal(t, "$.usage.total", model.TotalTokens.Identifier)
-
-	model.CreatedBy = "alice"
-	model.CreatedAt = time.Unix(100, 0)
-	resp := ConvertModelToSpecLLMProviderTemplateResponse(model)
-
-	assert.Equal(t, model.UUID.String(), resp.Uuid)
-	assert.Equal(t, "openai", resp.Id)
-	assert.Equal(t, "OpenAI", resp.Name)
-	assert.Equal(t, req.Description, resp.Description)
-	assert.Equal(t, "alice", *resp.CreatedBy)
-	assert.Equal(t, time.Unix(100, 0), *resp.CreatedAt)
-	assert.Equal(t, req.Metadata, resp.Metadata)
-	assert.Equal(t, req.PromptTokens, resp.PromptTokens)
-	assert.Equal(t, req.CompletionTokens, resp.CompletionTokens)
-	assert.Equal(t, req.TotalTokens, resp.TotalTokens)
-	assert.Equal(t, req.RemainingTokens, resp.RemainingTokens)
-	assert.Equal(t, req.RequestModel, resp.RequestModel)
-	assert.Equal(t, req.ResponseModel, resp.ResponseModel)
-}
-
-// A bare template has no metadata or extraction identifiers, and empty strings come back as absent.
-func TestLLMProviderTemplateWithoutOptionalFields(t *testing.T) {
-	model := ConvertSpecToModelLLMProviderTemplate(&gwspec.CreateLLMProviderTemplateRequest{
-		Id: "t", Name: "T", Metadata: &gwspec.LLMProviderTemplateMetadata{},
-	}, "ou")
-
-	require.NotNil(t, model.Metadata)
-	assert.Nil(t, model.Metadata.Auth)
-	assert.Nil(t, model.PromptTokens)
-
-	resp := ConvertModelToSpecLLMProviderTemplateResponse(model)
-
-	assert.Nil(t, resp.Description)
-	assert.Nil(t, resp.CreatedBy)
-	assert.Equal(t, &gwspec.LLMProviderTemplateMetadata{}, resp.Metadata)
-	assert.Nil(t, resp.PromptTokens)
-	assert.Nil(t, ConvertSpecToModelExtractionIdentifier(nil))
-	assert.Nil(t, ConvertModelToSpecExtractionIdentifier(nil))
-	assert.Nil(t, ConvertSpecToModelLLMProviderTemplateMetadata(nil))
-	assert.Nil(t, ConvertModelToSpecLLMProviderTemplateMetadata(nil))
 }
 
 // A proxy request maps to the model (UUIDs parsed) and its config comes back unchanged in the response.

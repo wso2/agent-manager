@@ -110,7 +110,7 @@ func CompleteProjects(cmd *cobra.Command, f *Factory) []string {
 		logCompletionErr("CompleteProjects", map[string]string{"org": org}, err)
 		return nil
 	}
-	resp, err := client.ListProjectsWithResponse(ctx, org, &amsvc.ListProjectsParams{})
+	resp, err := client.ListProjectsWithResponse(ctx, &amsvc.ListProjectsParams{})
 	if err != nil {
 		logCompletionErr("CompleteProjects", map[string]string{"org": org}, err)
 		return nil
@@ -119,9 +119,9 @@ func CompleteProjects(cmd *cobra.Command, f *Factory) []string {
 		logCompletionErr("CompleteProjects", map[string]string{"org": org}, fmt.Errorf("status %d", resp.StatusCode()))
 		return nil
 	}
-	out := make([]string, 0, len(resp.JSON200.Projects))
-	for _, p := range resp.JSON200.Projects {
-		out = append(out, p.Name)
+	out := make([]string, 0, len(resp.JSON200.List))
+	for _, p := range resp.JSON200.List {
+		out = append(out, p.Metadata.Name)
 	}
 	sort.Strings(out)
 	return out
@@ -223,7 +223,7 @@ func CompleteLLMProviderTemplates(cmd *cobra.Command, f *Factory) []string {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
 	}
-	resp, err := client.ListLLMProviderTemplatesWithResponse(ctx, org, &aigateway.ListLLMProviderTemplatesParams{})
+	resp, err := client.ListLLMProviderTemplatesWithResponse(ctx, &aigateway.ListLLMProviderTemplatesParams{})
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
@@ -232,9 +232,9 @@ func CompleteLLMProviderTemplates(cmd *cobra.Command, f *Factory) []string {
 		logCompletionErr(op, map[string]string{"org": org}, fmt.Errorf("status %d", resp.StatusCode()))
 		return nil
 	}
-	out := make([]string, 0, len(resp.JSON200.Templates))
-	for _, t := range resp.JSON200.Templates {
-		out = append(out, t.Id)
+	out := make([]string, 0, len(resp.JSON200.List))
+	for _, t := range resp.JSON200.List {
+		out = append(out, t.Metadata.Name)
 	}
 	sort.Strings(out)
 	return out

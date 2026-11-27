@@ -20,7 +20,6 @@
 package tokens
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -39,7 +38,7 @@ var Cfg *framework.Config
 
 // guardedPath is the endpoint every spec drives. It needs a single scope, needs
 // no fixtures, and is side-effect free, so the only variable is the token.
-const guardedPath = "/api/v1/orgs/%s/projects"
+const guardedPath = "/api/v1/projects"
 
 func TestSecurityTokens(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -66,7 +65,7 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 // against a broken endpoint, an unreachable service, or a wrong path — the
 // suite would report that authentication is airtight while testing nothing.
 func verifyPositiveControl(ctx SpecContext) {
-	resp, err := Client.GetWithContext(ctx, fmt.Sprintf(guardedPath, Cfg.DefaultOrg))
+	resp, err := Client.GetWithContext(ctx, guardedPath)
 	Expect(err).NotTo(HaveOccurred(), "positive control request failed")
 	defer resp.Body.Close()
 
@@ -74,13 +73,13 @@ func verifyPositiveControl(ctx SpecContext) {
 		"ABORTING: %s returned %d for a genuine full-privilege token. Every 401 assertion in "+
 			"this suite would pass against a broken or unreachable endpoint, so the suite would "+
 			"be vacuous. Fix the endpoint or the path before trusting these results.",
-		fmt.Sprintf(guardedPath, Cfg.DefaultOrg), resp.StatusCode)
+		guardedPath, resp.StatusCode)
 }
 
 // get drives guardedPath with the given token, returning the response.
 func get(ctx SpecContext, token string) *http.Response {
 	resp, err := framework.NewAMPClientWithToken(Cfg, token).
-		GetWithContext(ctx, fmt.Sprintf(guardedPath, Cfg.DefaultOrg))
+		GetWithContext(ctx, guardedPath)
 	Expect(err).NotTo(HaveOccurred(), "request failed")
 	return resp
 }

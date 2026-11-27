@@ -34,7 +34,7 @@ const hoisted = vi.hoisted(() => {
 vi.mock("@agent-management-platform/api-client", () => ({
   useDestinationKinds: () => ({ data: hoisted.kinds }),
   useListAllProjects: () => ({
-    data: { projects: [{ name: "shop" }, { name: "billing" }] },
+    data: { list: [{ metadata: { name: "shop" } }, { metadata: { name: "billing" } }] },
   }),
 }));
 

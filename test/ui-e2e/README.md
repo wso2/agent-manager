@@ -14,6 +14,7 @@ This package has its own `package.json` and lockfile; it is not part of the cons
 | `llm-provider.spec.ts` | Add an organization LLM provider and attach it to an agent; the LLM proxy that creates issues an API key and the provider lists the agent as a consumer |
 | `gateways.spec.ts` | Register a self-hosted gateway, issue and revoke a registration token, remove the gateway |
 | `members.spec.ts` | Invite a user by email; add a user, assign a role, see both in the member list |
+| `subscription-plans.spec.ts` | Create a plan with a tool-call limit; edit its description and switch its status; an MCP server offers it but never a deprecated plan; deprecate it, after which it is read only and its offer stays. Skipped when the AI Hub module isn't installed; the MCP server step is skipped when no active gateway serves the default environment |
 
 The console has no page of its own that creates a project-level LLM proxy; attaching a provider to an agent creates one, so `llm-provider.spec.ts` covers it there.
 

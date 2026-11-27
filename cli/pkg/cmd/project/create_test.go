@@ -18,6 +18,7 @@ package project
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -33,12 +34,7 @@ import (
 
 func TestCreate_Success(t *testing.T) {
 	io, out, _ := newTestIO(true)
-	clientFn, captured, closeFn := newTestClient(t, http.StatusAccepted, amsvc.ProjectResponse{
-		Name:               "alpha",
-		DisplayName:        "Alpha Project",
-		DeploymentPipeline: "default",
-		Description:        "a test project",
-	})
+	clientFn, captured, closeFn := newTestClient(t, http.StatusAccepted, projectDoc("alpha", "Alpha Project"))
 	defer closeFn()
 
 	desc := "a test project"
@@ -55,13 +51,19 @@ func TestCreate_Success(t *testing.T) {
 	if captured.method != "POST" {
 		t.Errorf("method = %q, want POST", captured.method)
 	}
-	if captured.path != "/orgs/acme/projects" {
-		t.Errorf("path = %q, want /orgs/acme/projects", captured.path)
+	if captured.path != "/projects" {
+		t.Errorf("path = %q, want /projects", captured.path)
+	}
+	var sent amsvc.ProjectDocument
+	if err := json.Unmarshal(captured.body, &sent); err != nil {
+		t.Fatalf("decode request: %v", err)
+	}
+	if sent.Kind != amsvc.ProjectDocumentKindProject || sent.Metadata.Name != "alpha" || sent.Spec.Description == nil || *sent.Spec.Description != desc {
+		t.Errorf("request = %+v", sent)
 	}
 	env := decodeEnvelope(t, out.String())
-	data := env["data"].(map[string]any)
-	if data["name"] != "alpha" {
-		t.Errorf("name = %v, want alpha", data["name"])
+	if got := dataName(env); got != "alpha" {
+		t.Errorf("metadata.name = %v, want alpha", got)
 	}
 }
 
@@ -89,11 +91,7 @@ func TestCreate_Conflict(t *testing.T) {
 
 func TestCreate_NoDescription(t *testing.T) {
 	io, out, _ := newTestIO(true)
-	clientFn, _, closeFn := newTestClient(t, http.StatusAccepted, amsvc.ProjectResponse{
-		Name:               "alpha",
-		DisplayName:        "Alpha",
-		DeploymentPipeline: "default",
-	})
+	clientFn, _, closeFn := newTestClient(t, http.StatusAccepted, projectDoc("alpha", "Alpha"))
 	defer closeFn()
 
 	err := runCreate(context.Background(), &CreateOptions{
@@ -195,11 +193,7 @@ func TestCreate_NameWithSlash(t *testing.T) {
 
 func TestCreate_PositionalName(t *testing.T) {
 	ios, out, _ := newTestIO(true)
-	clientFn, captured, closeFn := newTestClient(t, http.StatusAccepted, amsvc.ProjectResponse{
-		Name:               "alpha",
-		DisplayName:        "Alpha Project",
-		DeploymentPipeline: "default",
-	})
+	clientFn, captured, closeFn := newTestClient(t, http.StatusAccepted, projectDoc("alpha", "Alpha Project"))
 	defer closeFn()
 
 	cmd := testProjectCreateCmd(t, ios, clientFn)
@@ -211,9 +205,8 @@ func TestCreate_PositionalName(t *testing.T) {
 		t.Fatal("server should have been called")
 	}
 	env := decodeEnvelope(t, out.String())
-	data := env["data"].(map[string]any)
-	if data["name"] != "alpha" {
-		t.Errorf("name = %v, want alpha", data["name"])
+	if got := dataName(env); got != "alpha" {
+		t.Errorf("metadata.name = %v, want alpha", got)
 	}
 }
 

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import type { DocumentMetadata, EnvironmentVariable, OrgPathParams, OrgProjPathParams } from "./common";
+import type { DocumentMetadata, OrgPathParams, OrgProjPathParams } from "./common";
 
 // -----------------------------------------------------------------------------
 // ExtractionIdentifier — used for token/model extraction in templates
@@ -83,8 +83,10 @@ export interface CreateLLMProviderTemplateRequest {
   responseModel?: ExtractionIdentifier;
 }
 
-export interface UpdateLLMProviderTemplateRequest {
-  name?: string;
+
+/** The spec of an LLM provider template document; displayName is the flat body's `name`. */
+export interface LLMProviderTemplateSpec {
+  displayName: string;
   description?: string;
   metadata?: LLMProviderTemplateMetadata;
   promptTokens?: ExtractionIdentifier;
@@ -93,6 +95,19 @@ export interface UpdateLLMProviderTemplateRequest {
   remainingTokens?: ExtractionIdentifier;
   requestModel?: ExtractionIdentifier;
   responseModel?: ExtractionIdentifier;
+}
+
+export interface LLMProviderTemplateDocument {
+  apiVersion: "ai-control-plane.choreolabs.com/v1";
+  kind: "LlmProviderTemplate";
+  metadata: DocumentMetadata;
+  spec: LLMProviderTemplateSpec;
+}
+
+export interface LLMProviderTemplateDocumentList {
+  count?: number;
+  list: LLMProviderTemplateDocument[];
+  pagination?: { limit?: number; offset?: number; total?: number };
 }
 
 export type ListLLMProviderTemplatesPathParams = OrgPathParams;
@@ -426,7 +441,6 @@ export interface LLMProviderPathParams extends OrgPathParams {
 export type GetLLMProviderPathParams = LLMProviderPathParams;
 export type UpdateLLMProviderPathParams = LLMProviderPathParams;
 export type DeleteLLMProviderPathParams = LLMProviderPathParams;
-export type ListLLMProviderProxiesPathParams = LLMProviderPathParams;
 
 // -----------------------------------------------------------------------------
 // LLM proxies
@@ -526,41 +540,13 @@ export type GatewayDeploymentStatus = {
 
 export type LLMDeploymentListResponse = LLMDeploymentResponse[];
 
-/** @deprecated Use DeployLLMProviderRequest for LLM provider deployments */
-export interface CreateLLMDeploymentRequest {
-  imageId: string;
-  env?: EnvironmentVariable[];
-  enableAutoInstrumentation?: boolean;
-}
-
-/** Request body for deploying an LLM provider to a gateway */
-export interface DeployLLMProviderRequest {
-  name: string;
-  gatewayId: string;
-  base?: string;
-}
-
-export interface UndeployLLMProviderQuery {
-  deploymentId: string;
-  gatewayId: string;
-}
-
 export interface RestoreLLMDeploymentQuery {
   deploymentId: string;
   gatewayId: string;
 }
 
 export type ListLLMDeploymentsPathParams = LLMProviderPathParams;
-export type CreateLLMDeploymentPathParams = LLMProviderPathParams;
-export type UndeployLLMProviderPathParams = LLMProviderPathParams;
 export type RestoreLLMDeploymentPathParams = LLMProviderPathParams;
-
-export interface LLMDeploymentPathParams extends LLMProviderPathParams {
-  deploymentId: string | undefined;
-}
-
-export type GetLLMDeploymentPathParams = LLMDeploymentPathParams;
-export type DeleteLLMDeploymentPathParams = LLMDeploymentPathParams;
 
 // -----------------------------------------------------------------------------
 // LLM API keys (provider)

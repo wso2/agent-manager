@@ -105,6 +105,21 @@ func decodeEnvelope(t *testing.T, raw string) map[string]any {
 	return m
 }
 
+// projectDoc is a Project document as the service returns it.
+func projectDoc(name, displayName string) amsvc.ProjectDocument {
+	return amsvc.ProjectDocument{
+		ApiVersion: amsvc.ProjectDocumentApiVersionAiControlPlaneChoreolabsComv1,
+		Kind:       amsvc.ProjectDocumentKindProject,
+		Metadata:   amsvc.DocumentMetadata{Name: name},
+		Spec:       amsvc.ProjectSpec{DisplayName: displayName},
+	}
+}
+
+// dataName is the metadata.name of the document in a JSON envelope's data.
+func dataName(env map[string]any) any {
+	return env["data"].(map[string]any)["metadata"].(map[string]any)["name"]
+}
+
 func baseScope() render.Scope {
 	return render.Scope{Instance: "default", Org: "acme"}
 }

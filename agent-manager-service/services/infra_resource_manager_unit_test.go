@@ -169,7 +169,7 @@ func TestInfraResourceManager_UpdateProject(t *testing.T) {
 	const org, proj = "acme", "proj-a"
 	payload := spec.UpdateProjectRequest{
 		DisplayName: "New Name",
-		Description: "new desc",
+		Description: utils.StrAsStrPointer("new desc"),
 	}
 
 	t.Run("propagates patch error (refetch not reached)", func(t *testing.T) {
@@ -199,6 +199,22 @@ func TestInfraResourceManager_UpdateProject(t *testing.T) {
 		assert.Equal(t, "New Name", got.DisplayName)
 		assert.Equal(t, "New Name", gotDisplayName)
 		assert.Equal(t, "new desc", gotDescription)
+	})
+
+	t.Run("leaves an absent description to the store", func(t *testing.T) {
+		var gotDescription *string
+		oc := &repomocks.PlatformRepositoryMock{
+			PatchProjectFunc: func(_ context.Context, _, _ string, _, description *string) error {
+				gotDescription = description
+				return nil
+			},
+			GetProjectFunc: func(_ context.Context, _, _ string) (*models.ProjectResponse, error) {
+				return &models.ProjectResponse{Name: proj}, nil
+			},
+		}
+		_, err := newInfraManager(oc).UpdateProject(context.Background(), org, proj, spec.UpdateProjectRequest{DisplayName: "N"})
+		require.NoError(t, err)
+		assert.Nil(t, gotDescription)
 	})
 }
 

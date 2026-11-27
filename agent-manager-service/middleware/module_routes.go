@@ -103,8 +103,8 @@ func (rr *RouteRegistrar) HandleModuleRoute(pattern string, perm rbac.Permission
 	rr.install(pattern, meta, handler)
 }
 
-// HandleModuleInternalRoute registers a module's route at a fixed path on the
-// internal server (HandleInternalAt). It authenticates its callers itself, so
+// HandleModuleInternalRoute registers a module's route on the internal server
+// that authenticates its callers itself (HandleInternalAt, HandleWebhook), so
 // only the audit wrapper applies.
 func (rr *RouteRegistrar) HandleModuleInternalRoute(pattern string, policy ModuleRoutePolicy, handler http.HandlerFunc) {
 	meta := audit.NewRouteMetaWithPolicy(pattern, extractPathParams(pattern), nil, rr.surface, policy.Audit)

@@ -43,10 +43,8 @@ vi.mock("@agent-management-platform/feature-management", () => ({
 import { OrganizationOverview } from "./OrganizationOverview";
 
 const project = (name: string) => ({
-  name,
-  displayName: `${name} project`,
-  description: `${name} description`,
-  createdAt: "2026-01-01T00:00:00Z",
+  metadata: { name, creationTimestamp: "2026-01-01T00:00:00Z" },
+  spec: { displayName: `${name} project`, description: `${name} description` },
 });
 
 const summary = (title: string, state: ResourceSummaryState): ResourceSummaryOption =>
@@ -75,7 +73,7 @@ const renderPage = (summaries: ResourceSummaryOption[] = []) =>
 beforeEach(() => {
   hoisted.givenName = "Ada";
   hoisted.canWriteProject = true;
-  hoisted.projects = { data: { projects: [], total: 0 }, isLoading: false };
+  hoisted.projects = { data: { list: [], pagination: { total: 0 } }, isLoading: false };
 });
 
 describe("OrganizationOverview", () => {
@@ -94,7 +92,7 @@ describe("OrganizationOverview", () => {
 
   it("lists the first three projects, each linking to its overview, and links to the rest", () => {
     const projects = ["alpha", "beta", "gamma", "delta"].map(project);
-    hoisted.projects = { data: { projects, total: 4 }, isLoading: false };
+    hoisted.projects = { data: { list: projects, pagination: { total: 4 } }, isLoading: false };
     renderPage();
 
     expect(screen.getByRole("link", { name: /alpha project/ })).toHaveAttribute("href", "/org/acme/project/alpha");

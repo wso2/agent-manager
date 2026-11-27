@@ -86,7 +86,7 @@ func TestWithEvents_PublishesAgentEvent(t *testing.T) {
 }
 
 func TestWithEvents_SkipsFailuresAndUncataloguedRoutes(t *testing.T) {
-	pub := serveEvent(t, "POST /orgs/{orgName}/projects", map[string]string{"orgName": "acme"},
+	pub := serveEvent(t, "POST /projects", map[string]string{},
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadRequest) })
 	assert.Empty(t, pub.got, "a failed request emits nothing")
 
@@ -143,7 +143,7 @@ func TestWithEvents_APIKeyEventNamesKeyAndEnvironment(t *testing.T) {
 }
 
 func TestWithEvents_HandlerAnnotations(t *testing.T) {
-	pub := serveEvent(t, "PUT /orgs/{orgName}/projects/{projName}", map[string]string{"orgName": "acme", "projName": "p1"},
+	pub := serveEvent(t, "PUT /projects/{projName}", map[string]string{"projName": "p1"},
 		func(w http.ResponseWriter, r *http.Request) {
 			events.AddData(r.Context(), "changed", []string{"description"})
 			w.WriteHeader(http.StatusNoContent)
@@ -168,10 +168,10 @@ func TestWithEvents_CreateEventsNameTheCreatedResource(t *testing.T) {
 	assert.Equal(t, "a1", e.Agent)
 	assert.Equal(t, "/agent-manager/orgs/ou-1/projects/p1/agents/a1", e.Source)
 
-	pub = serveEvent(t, "POST /orgs/{orgName}/projects", map[string]string{"orgName": "acme"},
+	pub = serveEvent(t, "POST /projects", map[string]string{},
 		func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusAccepted)
-			_, _ = w.Write([]byte(`{"name":"p2"}`))
+			_, _ = w.Write([]byte(`{"kind":"Project","metadata":{"name":"p2"}}`))
 		})
 	require.Len(t, pub.got, 1)
 	e = pub.got[0]
@@ -205,15 +205,14 @@ func TestWithEvents_SendsResponseBeforePersistingEvent(t *testing.T) {
 	w := httptest.NewRecorder()
 	pub := &flushCheckPublisher{w: w}
 	meta := audit.RouteMeta{
-		Pattern: "POST /orgs/{orgName}/projects", Method: http.MethodPost,
-		Path: "/orgs/{orgName}/projects", Params: []string{"orgName"},
+		Pattern: "POST /projects", Method: http.MethodPost,
+		Path: "/projects",
 	}
 	h := WithEvents(pub, meta)(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"name":"p1"}`))
 	})
 	req := httptest.NewRequest(http.MethodPost, "/x", nil)
-	req.SetPathValue("orgName", "acme")
 	req = req.WithContext(orgctx.WithResolvedOrg(req.Context(), orgctx.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"}))
 	h(w, req)
 	assert.True(t, pub.flushed, "the client must not wait on the outbox insert")
@@ -268,4 +267,70 @@ func TestWithEvents_CreateEventsNameADocumentByMetadataName(t *testing.T) {
 	require.Len(t, pub.got, 1)
 	assert.Equal(t, "a1", pub.got[0].Subject)
 	assert.Equal(t, "a1", pub.got[0].Agent)
+}
+
+func TestWithEvents_EmitAlsoRaisesMoreEvents(t *testing.T) {
+	events.SetModuleTypes([]events.Type{
+		{Name: "testmod.widget_deployed", Scope: events.ScopeAgent},
+		{Name: "testmod.widget_counted", Scope: events.ScopeOrg},
+		{Name: "othermod.widget_deployed", Scope: events.ScopeAgent},
+	})
+	t.Cleanup(func() { events.SetModuleTypes(nil) })
+
+	pub := serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x?project=p1",
+		map[string]string{"agentName": "a1"}, func(w http.ResponseWriter, r *http.Request) {
+			modkit.EmitAlso(r.Context(), "testmod.widget_deployed", map[string]any{
+				"gatewayId": "gw-1", "apiKey": "secret",
+				"nested": map[string]string{"token": "secret", "name": "n"},
+				"typed":  struct{ Password, Kind string }{"secret", "k"},
+			})
+			modkit.EmitAlso(r.Context(), "testmod.not_declared", map[string]any{"x": 1})
+			modkit.EmitAlso(r.Context(), "project.deleted", nil)
+			modkit.EmitAlso(r.Context(), "othermod.widget_deployed", nil)
+			modkit.EmitAlso(r.Context(), "testmod.widget_counted", nil)
+			w.WriteHeader(http.StatusOK)
+		})
+
+	require.Len(t, pub.got, 3, "the route's event and its module's two extras; undeclared, core and other modules' types are skipped")
+	route, deployed, counted := pub.got[0], pub.got[1], pub.got[2]
+	assert.Equal(t, "testmod.widget_updated", route.Name())
+	assert.Equal(t, "testmod.widget_deployed", deployed.Name())
+	assert.Equal(t, map[string]any{
+		"gatewayId": "gw-1",
+		"nested":    map[string]any{"name": "n"},
+		"typed":     map[string]any{"Kind": "k"},
+	}, deployed.Data, "credential-looking fields are redacted, in typed values too")
+	assert.Equal(t, events.ScopeOrg, counted.Scope, "an extra keeps its own catalog scope")
+	for _, e := range []events.Event{deployed, counted} {
+		assert.Equal(t, route.Subject, e.Subject)
+		assert.Equal(t, route.OrgID, e.OrgID)
+		assert.Equal(t, "p1", e.Project)
+		assert.NotEqual(t, route.ID, e.ID)
+	}
+	assert.Nil(t, counted.Data, "an extra with no data carries none")
+
+	failed := serveRouteEventAt(t, "PUT /m/testmod/agents/{agentName}", "/x",
+		map[string]string{"agentName": "a1"}, func(w http.ResponseWriter, r *http.Request) {
+			modkit.EmitAlso(r.Context(), "testmod.widget_deployed", nil)
+			w.WriteHeader(http.StatusConflict)
+		})
+	assert.Empty(t, failed.got, "nothing is raised on a failed request")
+
+	// An org-level route cannot raise an agent-scoped extra: it would carry no agent.
+	orgPub := &capturePublisher{}
+	meta := audit.RouteMeta{Pattern: "PUT /m/testmod/widgets/{widgetId}", Method: http.MethodPut, Path: "/m/testmod/widgets/{widgetId}", Params: []string{"widgetId"}}
+	h := withRouteEvent(orgPub, meta, "testmod.widget_updated", events.ScopeOrg, false)(func(w http.ResponseWriter, r *http.Request) {
+		modkit.EmitAlso(r.Context(), "testmod.widget_deployed", nil)
+		modkit.EmitAlso(r.Context(), "testmod.widget_counted", nil)
+		w.WriteHeader(http.StatusOK)
+	})
+	req := httptest.NewRequest(http.MethodPut, "/x", nil)
+	req.SetPathValue("widgetId", "w1")
+	req = req.WithContext(orgctx.WithResolvedOrg(req.Context(), orgctx.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"}))
+	h(httptest.NewRecorder(), req)
+	require.Len(t, orgPub.got, 2, "the narrower agent-scoped extra is skipped")
+	assert.Equal(t, "testmod.widget_counted", orgPub.got[1].Name())
+
+	// Outside an event-emitting route, EmitAlso does nothing.
+	modkit.EmitAlso(context.Background(), "testmod.widget_deployed", nil)
 }

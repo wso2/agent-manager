@@ -34,12 +34,14 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwapi"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwinit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmcp"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/resources"
@@ -58,13 +60,16 @@ func (module) Manifest() modkit.Manifest {
 		perms = append(perms, modkit.Permission{Name: a.Name, DisplayName: a.DisplayName, Description: a.Description})
 	}
 	return modkit.Manifest{
-		Name:         Name,
-		DisplayName:  "AI Gateway",
-		Version:      "1.0.0",
-		Description:  "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
-		CoreAPI:      modkit.CoreAPIVersion,
+		Name:        Name,
+		DisplayName: "AI Gateway",
+		Version:     "1.0.0",
+		Description: "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
+		CoreAPI:     modkit.CoreAPIVersion,
+		// The subscriptions its gateways pull, and whose changes it pushes to them with their plans, from the
+		// module that owns them when it is active.
 		Provides:     []string{llmv1.ID, mcpv1.ID},
 		Requires:     []string{identityv1.ID},
+		Optional:     []string{subplanv1.ID},
 		Permissions:  perms,
 		RoleGrants:   gwperm.RoleGrants,
 		Events:       gwaudit.Events,
@@ -161,6 +166,22 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	gw.Secrets.Use(rt.Secrets())
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
+	gw.SubscriptionPlans.Use(func() (subplanv1.Source, bool) {
+		return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID)
+	})
+	// Subscription changes are pushed while the plans module is active, on the event it names. Activate runs
+	// again whenever the set of active modules changes (providers first), so enabling that module later
+	// subscribes then; meanwhile gateways pull when they reconnect. A plan made or changed here is not pushed:
+	// plans are subscribed to in the developer portal, so a plan reaches the gateways with its subscriptions.
+	if source, ok := gw.SubscriptionPlans.Source(); ok {
+		// The plans module reports how many MCP proxies offer a plan (offering doesn't lock it): it asks this module.
+		source.CountOffersWith(gwsvc.NewPlanOffers(rt.DB()).ProxiesOffering)
+		broadcaster := gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()),
+			gwsvc.NewGatewayEventsService(gw.EventHub))
+		// Each change is pushed to the organization's gateways, for the MCP proxy it is to, after its plan.
+		rt.Subscribe(source.SubscriptionChangeEvent(), gwsvc.SubscriptionChangeHandler(gw.SubscriptionPlans.Source,
+			gwsvc.NewSubscriptionArtifacts(rt.DB()), broadcaster, broadcaster))
+	}
 	registerHooks(rt, gw.AgentGateway)
 	gwapi.RegisterRoutes(gwapi.NewModuleRouter(rt), gw)
 	gwapi.RegisterInternalRoutes(gwapi.NewModuleInternalRouter(rt), gw)

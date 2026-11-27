@@ -39,18 +39,14 @@ async function tokenOf(getToken?: () => Promise<string>) {
   return getToken ? await getToken() : undefined;
 }
 
-/** The organization's events path. */
-function orgEventsBase(orgName: string | undefined): string {
-  return `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName ?? "default")}/events`;
-}
+/** The organization's events path; the organization comes from the token. */
+const ORG_EVENTS = `${SERVICE_BASE}/events`;
 
 /** The events path of a target: the organization, a project or an agent. */
 export function eventsBase(target: EventTargetParams): string {
-  if (target.scope === "org") return orgEventsBase(target.orgName);
+  if (target.scope === "org") return ORG_EVENTS;
   if (!target.projName) throw new Error("projName is required");
-  const project =
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(target.orgName ?? "default")}` +
-    `/projects/${encodeURIComponent(target.projName)}`;
+  const project = `${SERVICE_BASE}/projects/${encodeURIComponent(target.projName)}`;
   if (target.scope === "project") return `${project}/events`;
   if (!target.agentName) throw new Error("agentName is required");
   return `${project}/agents/${encodeURIComponent(target.agentName)}/events`;
@@ -62,7 +58,7 @@ export async function listEventTypes(
   getToken?: () => Promise<string>,
 ): Promise<EventTypeListResponse> {
   const token = await tokenOf(getToken);
-  const res = await httpGET(`${orgEventsBase(orgName)}/event-types`, {
+  const res = await httpGET(`${ORG_EVENTS}/event-types`, {
     searchParams: { scope },
     token,
   });
@@ -74,7 +70,7 @@ export async function listDestinationKinds(
   getToken?: () => Promise<string>,
 ): Promise<DestinationKindListResponse> {
   const token = await tokenOf(getToken);
-  const res = await httpGET(`${orgEventsBase(orgName)}/destination-kinds`, { token });
+  const res = await httpGET(`${ORG_EVENTS}/destination-kinds`, { token });
   return res.json();
 }
 
@@ -83,7 +79,7 @@ export async function listEventDestinations(
   getToken?: () => Promise<string>,
 ): Promise<EventDestinationListResponse> {
   const token = await tokenOf(getToken);
-  const res = await httpGET(`${orgEventsBase(orgName)}/destinations`, { token });
+  const res = await httpGET(`${ORG_EVENTS}/destinations`, { token });
   return res.json();
 }
 
@@ -103,7 +99,7 @@ export async function getEventDestination(
   getToken?: () => Promise<string>,
 ): Promise<EventDestinationResponse> {
   const token = await tokenOf(getToken);
-  const res = await httpGET(`${orgEventsBase(orgName)}/destinations/${encodeURIComponent(id)}`, {
+  const res = await httpGET(`${ORG_EVENTS}/destinations/${encodeURIComponent(id)}`, {
     token,
   });
   return res.json();
@@ -115,7 +111,7 @@ export async function createEventDestination(
   getToken?: () => Promise<string>,
 ): Promise<EventDestinationResponse> {
   const token = await tokenOf(getToken);
-  const res = await httpPOST(`${orgEventsBase(orgName)}/destinations`, body, { token });
+  const res = await httpPOST(`${ORG_EVENTS}/destinations`, body, { token });
   return res.json();
 }
 
@@ -127,7 +123,7 @@ export async function updateEventDestination(
 ): Promise<EventDestinationResponse> {
   const token = await tokenOf(getToken);
   const res = await httpPUT(
-    `${orgEventsBase(orgName)}/destinations/${encodeURIComponent(id)}`,
+    `${ORG_EVENTS}/destinations/${encodeURIComponent(id)}`,
     body,
     { token },
   );
@@ -140,7 +136,7 @@ export async function deleteEventDestination(
   getToken?: () => Promise<string>,
 ): Promise<void> {
   const token = await tokenOf(getToken);
-  await httpDELETE(`${orgEventsBase(orgName)}/destinations/${encodeURIComponent(id)}`, { token });
+  await httpDELETE(`${ORG_EVENTS}/destinations/${encodeURIComponent(id)}`, { token });
 }
 
 export async function rotateEventDestinationSecret(
@@ -150,7 +146,7 @@ export async function rotateEventDestinationSecret(
 ): Promise<EventDestinationSecretResponse> {
   const token = await tokenOf(getToken);
   const res = await httpPOST(
-    `${orgEventsBase(orgName)}/destinations/${encodeURIComponent(id)}/rotate-secret`,
+    `${ORG_EVENTS}/destinations/${encodeURIComponent(id)}/rotate-secret`,
     {},
     { token },
   );
@@ -164,7 +160,7 @@ export async function testEventDestination(
 ): Promise<EventDestinationTestResponse> {
   const token = await tokenOf(getToken);
   const res = await httpPOST(
-    `${orgEventsBase(orgName)}/destinations/${encodeURIComponent(id)}/test`,
+    `${ORG_EVENTS}/destinations/${encodeURIComponent(id)}/test`,
     {},
     { token },
   );

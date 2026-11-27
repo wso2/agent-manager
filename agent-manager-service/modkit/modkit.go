@@ -536,6 +536,15 @@ type Runtime interface {
 	// (wso2/agent-manager#2493), and goes away then; new modules use
 	// HandleInternal.
 	HandleInternalAt(method, absPath string, h http.HandlerFunc, opts ...RouteOption)
+	// HandleWebhook mounts a route at /m/<module>/webhooks<path> on the
+	// internal server for a sender outside the installation that signs each
+	// delivery (a developer portal's webhook) rather than presenting a
+	// workload token. The core does not authenticate its callers: the handler
+	// verifies the signature and names the sender with AuditInternalCaller. A
+	// route that changes state names its audit action with Audit. While the
+	// module is inactive it answers 401 module_inactive, as HandleInternal
+	// does.
+	HandleWebhook(method, path string, h http.HandlerFunc, opts ...RouteOption)
 	// MCPTool adds a tool to the core's MCP server at /mcp while the module
 	// is active. perm is the permission a caller needs, as for Handle; the
 	// call is audited under its name unless an Audit option names the action.

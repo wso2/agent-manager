@@ -27,7 +27,7 @@ func registerAgentRoutes(rr *middleware.RouteRegistrar, ctrl controllers.AgentCo
 	rr.HandleFuncWithValidationAndAuthz("POST /agents", rbac.AgentCreate,
 		growthanalytics.Track("amp.agent-development.create-agent", actionDims("created-agent"), ctrl.CreateAgent))
 	rr.HandleFuncWithValidationAndAuthz("GET /agents", rbac.AgentRead, ctrl.ListAgents)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/utils/generate-name", rbac.AgentCreate, ctrl.GenerateName)
+	rr.HandleFuncWithValidationAndAuthz("POST /utils/generate-name", rbac.AgentCreate, ctrl.GenerateName)
 	rr.HandleFuncWithValidationAndAuthz("GET /agents/{agentName}", rbac.AgentRead, ctrl.GetAgent)
 	rr.HandleFuncWithValidationAndAuthz("PUT /agents/{agentName}", rbac.AgentUpdate,
 		growthanalytics.Track("amp.agent-development.update-agent", updateTargetDims("basic-info"), ctrl.UpdateAgentBasicInfo))

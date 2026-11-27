@@ -31,9 +31,14 @@ import (
 // the decoded body. Operations with a stable, widely reused shape still belong
 // in operations/<resource>.
 
-// API returns a core API path below the organization: API(cfg, "/projects/%s", p).
-func API(cfg *Config, format string, args ...any) string {
-	return "/api/v1/orgs/" + cfg.DefaultOrg + fmt.Sprintf(format, args...)
+// Projects returns a project API path; the organization comes from the token: Projects("/%s", p).
+func Projects(format string, args ...any) string {
+	return "/api/v1/projects" + fmt.Sprintf(format, args...)
+}
+
+// API returns a core API path; the organization comes from the token: API(cfg, "/events/destinations").
+func API(_ *Config, format string, args ...any) string {
+	return "/api/v1" + fmt.Sprintf(format, args...)
 }
 
 // GW returns an AI Gateway module path below the organization.

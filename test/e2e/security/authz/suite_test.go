@@ -23,7 +23,6 @@
 package authz
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -44,7 +43,7 @@ var Cfg *framework.Config
 // is used because it needs no fixtures.
 const (
 	rbacProbeScope = "amp:environment:read"
-	rbacProbePath  = "/api/v1/orgs/%s/environments"
+	rbacProbePath  = "/api/v1/environments"
 )
 
 func TestSecurityAuthz(t *testing.T) {
@@ -122,7 +121,7 @@ func verifyScopeEnforcement(ctx SpecContext) {
 	Expect(err).NotTo(HaveOccurred(), "failed to fetch an unscoped token")
 
 	resp, err := framework.NewAMPClientWithToken(Cfg, unscoped).
-		GetWithContext(ctx, fmt.Sprintf(rbacProbePath, Cfg.DefaultOrg))
+		GetWithContext(ctx, rbacProbePath)
 	Expect(err).NotTo(HaveOccurred(), "RBAC probe request failed")
 	defer resp.Body.Close()
 

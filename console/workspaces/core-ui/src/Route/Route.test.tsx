@@ -170,7 +170,7 @@ beforeEach(() => {
     isLoading: false,
     error: null,
   };
-  mocks.projects = { data: { projects: [{ name: "default" }] }, isLoading: false };
+  mocks.projects = { data: { list: [{ metadata: { name: "default" } }] }, isLoading: false };
   mocks.project = { data: {}, isLoading: false, isError: false };
   mocks.agent = { data: {}, isLoading: false, isError: false };
   delete runtimeConfig.uiModules;

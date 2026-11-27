@@ -20,6 +20,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
@@ -48,6 +49,13 @@ func MakeAppClientWithHost(t *testing.T, testClients wiring.TestClients, authMid
 	return makeAppClient(t, testClients, authMiddleware, false)
 }
 
+// MakeAppClientWithModules is MakeAppClientWithHost with more of the linked modules on the host (by name),
+// beside the AI Gateway, for tests of how modules work together. A module is installed only when the test
+// installs it.
+func MakeAppClientWithModules(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware, names ...string) (http.Handler, *modhost.Host) {
+	return makeAppClient(t, testClients, authMiddleware, false, names...)
+}
+
 // MakeAppClientWithWorkers is MakeAppClientWithHost with the modules'
 // background workers running, for tests of a module's lifecycle. Such a test
 // should run only where packages do not share the database in parallel.
@@ -55,7 +63,7 @@ func MakeAppClientWithWorkers(t *testing.T, testClients wiring.TestClients, auth
 	return makeAppClient(t, testClients, authMiddleware, true)
 }
 
-func makeAppClient(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware, workers bool) (http.Handler, *modhost.Host) {
+func makeAppClient(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware, workers bool, also ...string) (http.Handler, *modhost.Host) {
 	// Use wire to initialize the app parameters with test clients. The plain
 	// handle, as the server uses: db.DB(ctx) carries an operation timeout
 	// that starts now, which would expire under the module host's workers.
@@ -69,7 +77,7 @@ func makeAppClient(t *testing.T, testClients wiring.TestClients, authMiddleware 
 	// (its finalize hooks remove its rows of a deleted agent).
 	var mods []modkit.Module
 	for _, m := range modkit.Registered() {
-		if m.Manifest().Name == aigateway.Name {
+		if name := m.Manifest().Name; name == aigateway.Name || slices.Contains(also, name) {
 			mods = append(mods, m)
 		}
 	}

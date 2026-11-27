@@ -19,8 +19,6 @@
 import type {
   CreateLLMAPIKeyRequest,
   CreateLLMAPIKeyResponse,
-  CreateLLMDeploymentPathParams,
-  DeployLLMProviderRequest,
   CreateLLMProviderAPIKeyPathParams,
   CreateLLMProviderPathParams,
   CreateLLMProviderRequest,
@@ -29,11 +27,9 @@ import type {
   CreateLLMProxyAPIKeyPathParams,
   CreateLLMProxyPathParams,
   CreateLLMProxyRequest,
-  DeleteLLMDeploymentPathParams,
   DeleteLLMProviderPathParams,
   DeleteLLMProviderTemplatePathParams,
   DeleteLLMProxyPathParams,
-  GetLLMDeploymentPathParams,
   GetLLMProviderPathParams,
   GetLLMProviderTemplatePathParams,
   GetLLMProxyPathParams,
@@ -43,7 +39,6 @@ import type {
   ListLLMProviderAPIKeysPathParams,
   ListLLMProxyAPIKeysPathParams,
   ListLLMProviderConsumersPathParams,
-  ListLLMProviderProxiesPathParams,
   ListLLMProviderTemplatesPathParams,
   ListLLMProvidersPathParams,
   ListLLMProxiesPathParams,
@@ -56,6 +51,8 @@ import type {
   LLMProviderUpdateSpec,
   LLMProviderListResponse,
   LLMProviderResponse,
+  LLMProviderTemplateDocument,
+  LLMProviderTemplateDocumentList,
   LLMProviderTemplateListResponse,
   LLMProviderTemplateResponse,
   LLMProxyListResponse,
@@ -68,18 +65,16 @@ import type {
   RotateLLMAPIKeyResponse,
   RotateLLMProviderAPIKeyPathParams,
   RotateLLMProxyAPIKeyPathParams,
-  UndeployLLMProviderPathParams,
-  UndeployLLMProviderQuery,
   UpdateLLMProviderPathParams,
   UpdateLLMProviderRequest,
   UpdateLLMProviderTemplatePathParams,
-  UpdateLLMProviderTemplateRequest,
   UpdateLLMProxyPathParams,
   UpdateLLMProxyRequest,
 } from "@agent-management-platform/types";
 import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 
 const PROVIDERS = `${GATEWAY_BASE}/llm-providers`;
+const TEMPLATES = `${GATEWAY_BASE}/llm-provider-templates`;
 const API_VERSION = "ai-control-plane.choreolabs.com/v1";
 const KIND = "LlmProvider";
 
@@ -89,11 +84,10 @@ interface PaginationQuery {
 }
 
 export async function listLLMProviderTemplates(
-  params: ListLLMProviderTemplatesPathParams,
+  _params: ListLLMProviderTemplatesPathParams,
   query?: PaginationQuery,
   getToken?: () => Promise<string>,
-): Promise<LLMProviderTemplateListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<LLMProviderTemplateDocumentList> {
   const token = getToken ? await getToken() : undefined;
 
   const searchParams: Record<string, string> = {};
@@ -105,7 +99,7 @@ export async function listLLMProviderTemplates(
   }
 
   const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates`,
+    `${TEMPLATES}`,
     {
       token,
       searchParams: Object.keys(searchParams).length ? searchParams : undefined,
@@ -116,15 +110,14 @@ export async function listLLMProviderTemplates(
 }
 
 export async function createLLMProviderTemplate(
-  params: CreateLLMProviderTemplatePathParams,
-  body: CreateLLMProviderTemplateRequest,
+  _params: CreateLLMProviderTemplatePathParams,
+  body: LLMProviderTemplateDocument,
   getToken?: () => Promise<string>,
-): Promise<LLMProviderTemplateResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<LLMProviderTemplateDocument> {
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates`,
+    `${TEMPLATES}`,
     body,
     { token },
   );
@@ -135,13 +128,12 @@ export async function createLLMProviderTemplate(
 export async function getLLMProviderTemplate(
   params: GetLLMProviderTemplatePathParams,
   getToken?: () => Promise<string>,
-): Promise<LLMProviderTemplateResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<LLMProviderTemplateDocument> {
   const id = encodeRequired(params.templateId, "templateId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates/${id}`,
+    `${TEMPLATES}/${id}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -150,15 +142,14 @@ export async function getLLMProviderTemplate(
 
 export async function updateLLMProviderTemplate(
   params: UpdateLLMProviderTemplatePathParams,
-  body: UpdateLLMProviderTemplateRequest,
+  body: LLMProviderTemplateDocument,
   getToken?: () => Promise<string>,
-): Promise<LLMProviderTemplateResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<LLMProviderTemplateDocument> {
   const id = encodeRequired(params.templateId, "templateId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates/${id}`,
+    `${TEMPLATES}/${id}`,
     body,
     { token },
   );
@@ -170,12 +161,11 @@ export async function deleteLLMProviderTemplate(
   params: DeleteLLMProviderTemplatePathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.templateId, "templateId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates/${id}`,
+    `${TEMPLATES}/${id}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -205,11 +195,10 @@ export async function listLLMProviders(
 }
 
 export async function listAvailableLLMPolicies(
-  params: ListAvailableLLMPoliciesPathParams,
+  _params: ListAvailableLLMPoliciesPathParams,
   query?: { providerId?: string },
   getToken?: () => Promise<string>,
 ): Promise<LLMPolicyAvailabilityResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
   const searchParams: Record<string, string> = {};
@@ -218,7 +207,7 @@ export async function listAvailableLLMPolicies(
   }
 
   // httpGET already throws on a non-OK response, so no !res.ok branch is needed.
-  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/llm-providers/policies`, {
+  const res = await httpGET(`${PROVIDERS}/policies`, {
     token,
     searchParams: Object.keys(searchParams).length ? searchParams : undefined,
   });
@@ -351,32 +340,46 @@ export function documentFromUpdateRequest(
   };
 }
 
-export async function listLLMProviderProxies(
-  params: ListLLMProviderProxiesPathParams,
-  query?: PaginationQuery,
-  getToken?: () => Promise<string>,
-): Promise<LLMProxyListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.providerId, "providerId");
-  const token = getToken ? await getToken() : undefined;
+// The UI works on a flat template; these convert it to and from the document the API serves.
 
-  const searchParams: Record<string, string> = {};
-  if (query?.limit !== undefined) {
-    searchParams.limit = String(query.limit);
-  }
-  if (query?.offset !== undefined) {
-    searchParams.offset = String(query.offset);
-  }
+export function templateFromDocument(
+  doc: LLMProviderTemplateDocument,
+): LLMProviderTemplateResponse {
+  const { metadata, spec } = doc;
+  const { displayName, ...rest } = spec;
+  return {
+    ...rest,
+    uuid: metadata.uid ?? "",
+    id: metadata.name,
+    name: displayName,
+    createdBy: metadata.createdBy,
+    createdAt: metadata.creationTimestamp ?? "",
+    updatedAt: metadata.updateTimestamp ?? "",
+  };
+}
 
-  const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/llm-proxies`,
-    {
-      token,
-      searchParams: Object.keys(searchParams).length ? searchParams : undefined,
-    },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
+export function templateListFromDocuments(
+  list: LLMProviderTemplateDocumentList,
+): LLMProviderTemplateListResponse {
+  const templates = list.list.map(templateFromDocument);
+  return {
+    templates,
+    total: list.pagination?.total ?? templates.length,
+    limit: list.pagination?.limit ?? templates.length,
+    offset: list.pagination?.offset ?? 0,
+  };
+}
+
+export function templateDocumentFromRequest(
+  body: CreateLLMProviderTemplateRequest,
+): LLMProviderTemplateDocument {
+  const { id, name, ...spec } = body;
+  return {
+    apiVersion: API_VERSION,
+    kind: "LlmProviderTemplate",
+    metadata: { name: id },
+    spec: { ...spec, displayName: name },
+  };
 }
 
 export async function listLLMProxies(
@@ -482,7 +485,6 @@ export async function listLLMDeployments(
   query?: { gatewayId?: string; status?: string },
   getToken?: () => Promise<string>,
 ): Promise<LLMDeploymentListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
@@ -495,7 +497,7 @@ export async function listLLMDeployments(
   }
 
   const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments`,
+    `${PROVIDERS}/${id}/deployments`,
     {
       token,
       searchParams: Object.keys(searchParams).length ? searchParams : undefined,
@@ -505,52 +507,11 @@ export async function listLLMDeployments(
   return res.json();
 }
 
-export async function createLLMDeployment(
-  params: CreateLLMDeploymentPathParams,
-  body: DeployLLMProviderRequest,
-  getToken?: () => Promise<string>,
-): Promise<LLMDeploymentResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.providerId, "providerId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments`,
-    body,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
-export async function undeployLLMProvider(
-  params: UndeployLLMProviderPathParams,
-  query: UndeployLLMProviderQuery,
-  getToken?: () => Promise<string>,
-): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.providerId, "providerId");
-  const token = getToken ? await getToken() : undefined;
-
-  const searchParams: Record<string, string> = {
-    deploymentId: query.deploymentId,
-    gatewayId: query.gatewayId,
-  };
-
-  const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments/undeploy`,
-    {},
-    { token, searchParams },
-  );
-  if (!res.ok) throw await res.json();
-}
-
 export async function restoreLLMDeployment(
   params: RestoreLLMDeploymentPathParams,
   query: RestoreLLMDeploymentQuery,
   getToken?: () => Promise<string>,
 ): Promise<LLMDeploymentResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
@@ -560,45 +521,12 @@ export async function restoreLLMDeployment(
   };
 
   const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments/restore`,
+    `${PROVIDERS}/${id}/deployments/restore`,
     {},
     { token, searchParams },
   );
   if (!res.ok) throw await res.json();
   return res.json();
-}
-
-export async function getLLMDeployment(
-  params: GetLLMDeploymentPathParams,
-  getToken?: () => Promise<string>,
-): Promise<LLMDeploymentResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.providerId, "providerId");
-  const deploymentId = encodeRequired(params.deploymentId, "deploymentId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments/${deploymentId}`,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
-export async function deleteLLMDeployment(
-  params: DeleteLLMDeploymentPathParams,
-  getToken?: () => Promise<string>,
-): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.providerId, "providerId");
-  const deploymentId = encodeRequired(params.deploymentId, "deploymentId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments/${deploymentId}`,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
 }
 
 // -----------------------------------------------------------------------------
@@ -609,12 +537,11 @@ export async function listLLMProviderAPIKeys(
   params: ListLLMProviderAPIKeysPathParams,
   getToken?: () => Promise<string>,
 ): Promise<ListAPIKeysResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/api-keys`,
+    `${PROVIDERS}/${id}/api-keys`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -626,12 +553,11 @@ export async function createLLMProviderAPIKey(
   body: CreateLLMAPIKeyRequest,
   getToken?: () => Promise<string>,
 ): Promise<CreateLLMAPIKeyResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/api-keys`,
+    `${PROVIDERS}/${id}/api-keys`,
     body,
     { token },
   );
@@ -644,13 +570,12 @@ export async function rotateLLMProviderAPIKey(
   body: RotateLLMAPIKeyRequest,
   getToken?: () => Promise<string>,
 ): Promise<RotateLLMAPIKeyResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.providerId, "providerId");
   const keyName = encodeRequired(params.keyName, "keyName");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/api-keys/${keyName}`,
+    `${PROVIDERS}/${id}/api-keys/${keyName}`,
     body,
     { token },
   );
@@ -662,13 +587,12 @@ export async function revokeLLMProviderAPIKey(
   params: RevokeLLMProviderAPIKeyPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.providerId, "providerId");
   const keyName = encodeRequired(params.keyName, "keyName");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/api-keys/${keyName}`,
+    `${PROVIDERS}/${id}/api-keys/${keyName}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -755,12 +679,11 @@ export async function listLLMProviderConsumers(
   params: ListLLMProviderConsumersPathParams,
   getToken?: () => Promise<string>,
 ): Promise<LLMProviderConsumerListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/consumers`,
+    `${PROVIDERS}/${id}/consumers`,
     { token },
   );
   if (!res.ok) throw await res.json();

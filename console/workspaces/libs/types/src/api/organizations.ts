@@ -18,11 +18,6 @@
 
 import { type ListQuery, type PaginationMeta } from './common';
 
-// Requests
-export interface CreateOrganizationRequest {
-  name: string;
-}
-
 // Responses
 export interface OrganizationResponse {
   name: string;

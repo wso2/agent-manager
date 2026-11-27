@@ -34,9 +34,9 @@ import * as api from "./events";
 
 const getToken = async () => "tok";
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const ORG = "/api/v1/orgs/my%20org/events";
-const PROJECT = "/api/v1/orgs/my%20org/projects/p%2F1/events";
-const AGENT = "/api/v1/orgs/my%20org/projects/p%2F1/agents/a%201/events";
+const ORG = "/api/v1/events";
+const PROJECT = "/api/v1/projects/p%2F1/events";
+const AGENT = "/api/v1/projects/p%2F1/agents/a%201/events";
 const orgTarget = { scope: "org", orgName: "my org" } as const;
 const projectTarget = { scope: "project", orgName: "my org", projName: "p/1" } as const;
 const agentTarget = { scope: "agent", orgName: "my org", projName: "p/1", agentName: "a 1" } as const;
@@ -49,7 +49,7 @@ describe("eventsBase", () => {
     expect(api.eventsBase(orgTarget)).toBe(ORG);
     expect(api.eventsBase(projectTarget)).toBe(PROJECT);
     expect(api.eventsBase(agentTarget)).toBe(AGENT);
-    expect(api.eventsBase({ scope: "org" } as never)).toBe("/api/v1/orgs/default/events");
+    expect(api.eventsBase({ scope: "org" } as never)).toBe("/api/v1/events");
   });
 
   it("refuses a project or agent target that is missing its names", () => {
@@ -119,7 +119,7 @@ describe("deletes", () => {
     await expect(api.deleteEventDestination(undefined, "d/1", getToken)).resolves.toBeUndefined();
     await expect(api.deleteEventSubscription(agentTarget, "s/1")).resolves.toBeUndefined();
     expect(http.httpDELETE.mock.calls).toEqual([
-      ["/api/v1/orgs/default/events/destinations/d%2F1", { token: "tok" }],
+      ["/api/v1/events/destinations/d%2F1", { token: "tok" }],
       [`${AGENT}/subscriptions/s%2F1`, { token: undefined }],
     ]);
   });

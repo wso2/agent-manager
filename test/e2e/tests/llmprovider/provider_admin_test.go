@@ -21,6 +21,8 @@
 package llmprovider
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -36,9 +38,18 @@ import (
 
 var _ = Describe("LLM provider administration:", Label("llm-provider", "admin"), Ordered, func() {
 	var suffix, templateID, providerName, providerID, gatewayID string
-	tpl := func(f string, a ...any) string { return framework.GW(Cfg, "/llm-provider-templates"+f, a...) }
+	tpl := func(f string, a ...any) string { return fmt.Sprintf("/m/ai-gateway/llm-provider-templates"+f, a...) }
 	dep := func(f string, a ...any) string {
-		return framework.GW(Cfg, "/llm-providers/%s/deployments"+f, append([]any{providerID}, a...)...)
+		return fmt.Sprintf("/m/ai-gateway/llm-providers/%s/deployments"+f, append([]any{providerID}, a...)...)
+	}
+	// place declares the provider's gateways; an empty list undeploys it everywhere.
+	place := func(gateways []string) {
+		raw, err := json.Marshal(llmproviderop.GetLLMProvider(Default, Client, providerName))
+		Expect(err).NotTo(HaveOccurred())
+		var body framework.Obj
+		Expect(json.Unmarshal(raw, &body)).To(Succeed())
+		body["spec"].(framework.Obj)["gateways"] = gateways
+		framework.Call(Default, Client, http.MethodPut, "/m/ai-gateway/llm-providers/"+providerName, body, http.StatusOK)
 	}
 
 	BeforeAll(func() {
@@ -53,30 +64,38 @@ var _ = Describe("LLM provider administration:", Label("llm-provider", "admin"),
 	})
 
 	It("adds, reads and updates a custom provider template", func() {
-		framework.CallObj(Default, Client, http.MethodPost, tpl(""), framework.Obj{
-			"id": templateID, "name": "E2E template " + suffix, "description": "custom",
+		doc := func(spec framework.Obj) framework.Obj {
+			return framework.Obj{
+				"apiVersion": "ai-control-plane.choreolabs.com/v1", "kind": "LlmProviderTemplate",
+				"metadata": framework.Obj{"name": templateID}, "spec": spec,
+			}
+		}
+		framework.CallObj(Default, Client, http.MethodPost, tpl(""), doc(framework.Obj{
+			"displayName": "E2E template " + suffix, "description": "custom",
 			"metadata": framework.Obj{"endpointUrl": "https://llm.example.test/v1", "auth": framework.Obj{"type": "api-key", "header": "Authorization", "valuePrefix": "Bearer "}},
-		}, http.StatusCreated)
+		}), http.StatusCreated)
 		got := framework.CallObj(Default, Client, http.MethodGet, tpl("/%s", templateID), nil, http.StatusOK)
-		Expect(got["name"]).To(Equal("E2E template " + suffix))
-		Expect(framework.Str(got, "metadata", "endpointUrl")).To(Equal("https://llm.example.test/v1"))
+		Expect(framework.Str(got, "kind")).To(Equal("LlmProviderTemplate"))
+		Expect(framework.Str(got, "spec", "displayName")).To(Equal("E2E template " + suffix))
+		Expect(framework.Str(got, "spec", "metadata", "endpointUrl")).To(Equal("https://llm.example.test/v1"))
 
-		framework.CallObj(Default, Client, http.MethodPut, tpl("/%s", templateID), framework.Obj{
-			"id": templateID, "name": "E2E template " + suffix, "description": "renamed",
+		framework.CallObj(Default, Client, http.MethodPut, tpl("/%s", templateID), doc(framework.Obj{
+			"displayName": "E2E template " + suffix, "description": "renamed",
 			"metadata": framework.Obj{"endpointUrl": "https://llm.example.test/v2"},
-		}, http.StatusOK)
-		Expect(framework.CallObj(Default, Client, http.MethodGet, tpl("/%s", templateID), nil, http.StatusOK)["description"]).To(Equal("renamed"))
-		list := llmproviderop.ListLLMProviderTemplates(Default, Client, Cfg.DefaultOrg)
+		}), http.StatusOK)
+		got = framework.CallObj(Default, Client, http.MethodGet, tpl("/%s", templateID), nil, http.StatusOK)
+		Expect(framework.Str(got, "spec", "description")).To(Equal("renamed"))
+		list := llmproviderop.ListLLMProviderTemplates(Default, Client)
 		ids := []string{}
-		for _, t := range list.Templates {
-			ids = append(ids, t.ID)
+		for _, t := range list.List {
+			ids = append(ids, t.Metadata.Name)
 		}
 		Expect(ids).To(ContainElements(templateID, "openai"))
 
 		// Built-in templates are read-only.
 		status, _ := framework.Send(Default, Client, http.MethodDelete, tpl("/openai"), nil)
 		Expect(status).To(BeNumerically(">=", 400))
-		framework.CallError(Default, Client, http.MethodPost, tpl(""), framework.Obj{"id": templateID, "name": "dup"}, http.StatusConflict)
+		framework.CallError(Default, Client, http.MethodPost, tpl(""), doc(framework.Obj{"displayName": "dup"}), http.StatusConflict)
 	})
 
 	It("builds a provider from the template, which amctl lists", func() {
@@ -91,7 +110,7 @@ var _ = Describe("LLM provider administration:", Label("llm-provider", "admin"),
 		Expect(clillmprovider.ListLLMProviders(Default, H, H.Org()).Ids()).To(ContainElement(providerName))
 		list := framework.CallObj(Default, Client, http.MethodGet, "/m/ai-gateway/llm-providers", nil, http.StatusOK)
 		Expect(list["count"]).To(BeNumerically(">=", 1))
-		policies := framework.CallObj(Default, Client, http.MethodGet, framework.GW(Cfg, "/llm-providers/policies"), nil, http.StatusOK)
+		policies := framework.CallObj(Default, Client, http.MethodGet, "/m/ai-gateway/llm-providers/policies", nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(policies, "list"), "name")).To(ContainElement("content-length-guardrail"))
 	})
 
@@ -106,22 +125,21 @@ var _ = Describe("LLM provider administration:", Label("llm-provider", "admin"),
 		Expect(string(raw)).NotTo(ContainSubstring("sk-e2e-rotated-"), "the upstream key must not be returned")
 	})
 
-	It("deploys the provider to a gateway, undeploys and restores it", func() {
-		d := framework.CallObj(Default, Client, http.MethodPost, dep(""),
-			framework.Obj{"name": "e2e-dep-" + suffix, "base": "current", "gatewayId": gatewayID}, http.StatusCreated)
-		depID := framework.Str(d, "deploymentId")
+	It("deploys the provider through spec.gateways, undeploys and restores it", func() {
+		place([]string{gatewayID})
+		var depID string
+		for _, d := range framework.CallJSON[[]framework.Obj](Default, Client, http.MethodGet, dep(""), nil, http.StatusOK) {
+			if framework.Str(d, "gatewayId") == gatewayID {
+				depID = framework.Str(d, "deploymentId")
+			}
+		}
+		Expect(depID).NotTo(BeEmpty(), "the provider wasn't deployed to the gateway")
+
+		place([]string{})
+		framework.Call(Default, Client, http.MethodPost, dep("/restore?deploymentId=%s&gatewayId=%s", depID, gatewayID), nil, http.StatusOK)
 		Expect(framework.Field(framework.CallJSON[[]framework.Obj](Default, Client, http.MethodGet, dep(""), nil, http.StatusOK), "deploymentId")).
 			To(ContainElement(depID))
-		Expect(framework.CallObj(Default, Client, http.MethodGet, dep("/%s", depID), nil, http.StatusOK)["gatewayId"]).To(Equal(gatewayID))
-
-		framework.Call(Default, Client, http.MethodPost, dep("/undeploy?deploymentId=%s&gatewayId=%s", depID, gatewayID), nil, http.StatusOK)
-		framework.Call(Default, Client, http.MethodPost, dep("/restore?deploymentId=%s&gatewayId=%s", depID, gatewayID), nil, http.StatusOK)
-		framework.Call(Default, Client, http.MethodPost, dep("/undeploy?deploymentId=%s&gatewayId=%s", depID, gatewayID), nil, http.StatusOK)
-		Eventually(func(g Gomega) {
-			framework.Call(g, Client, http.MethodDelete, dep("/%s", depID), nil, http.StatusNoContent)
-		}).WithTimeout(time.Minute).WithPolling(2 * time.Second).Should(Succeed())
-		Expect(framework.Field(framework.CallJSON[[]framework.Obj](Default, Client, http.MethodGet, dep(""), nil, http.StatusOK), "deploymentId")).
-			NotTo(ContainElement(depID))
+		place([]string{})
 	})
 
 	It("deletes the provider and then the template", func() {
