@@ -188,7 +188,7 @@ func TestExternalSchema(t *testing.T) {
 	refused := func(files fs.FS) string {
 		t.Helper()
 		res, err := host(newExternal(store, files, true, true)).Migrate(ctx)
-		require.NoError(t, err, "an external schema error is reported, not returned")
+		require.Error(t, err, "an external schema error fails the run")
 		return res[0].External.Error
 	}
 	assert.Contains(t, refused(edited), "module t-ext fake schema 001_spans changed after it was applied")
@@ -214,7 +214,7 @@ func TestExternalSchemaFailureIsRetried(t *testing.T) {
 	h := modhost.NewWith(g, d.driver, quiet, []modkit.Module{m})
 
 	res, err := h.Migrate(ctx)
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Contains(t, res[0].External.Error, "module t-ext fake schema 002_index: syntax error")
 	assert.Equal(t, map[string]string{"001_spans": store.records["001_spans"]}, store.records, "only the file that applied is recorded")
 	assert.Zero(t, store.settled)
@@ -418,8 +418,8 @@ func TestReloadLeavesOutAnUnreadableStore(t *testing.T) {
 	waitFor(t, "t-ext to load once its store is back", func() bool { return slices.Contains(h2.Active(), "t-ext") })
 }
 
-// A store that is down is skipped: the modules after it still migrate, and
-// the store's error is reported in its result.
+// A store that is down stops no other module: the modules after it still
+// migrate, and the run fails with the store's error, also in its result.
 func TestExternalSchemaFailureFailsNoOtherModule(t *testing.T) {
 	ctx := context.Background()
 	d := databases(t)[0]
@@ -435,7 +435,7 @@ func TestExternalSchemaFailureFailsNoOtherModule(t *testing.T) {
 	h := modhost.NewWith(g, d.driver, quiet, []modkit.Module{ext, later})
 
 	res, err := h.Migrate(ctx)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "connection refused")
 	require.Len(t, res, 2)
 	assert.Contains(t, res[0].External.Error, "connection refused")
 	assert.Equal(t, 1, res[1].Applied, "the later module's migration ran")

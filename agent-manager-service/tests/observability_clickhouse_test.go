@@ -82,8 +82,8 @@ func TestClickHouseMigrate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &modhost.ExternalResult{Store: "clickhouse", Total: len(files(t))}, res[0].External)
 
-	// A binary whose applied schema file was edited is refused: reported in
-	// the result, not returned, so it fails no other module.
+	// A binary whose applied schema file was edited is refused: the run
+	// fails, and the module's result says why.
 	edited := fstest.MapFS{}
 	for _, f := range files(t) {
 		body, err := fs.ReadFile(clickhouse.Migrations(), f)
@@ -91,7 +91,7 @@ func TestClickHouseMigrate(t *testing.T) {
 		edited[f] = &fstest.MapFile{Data: append(body, []byte("\n-- edited")...)}
 	}
 	res, err = observabilityHost(withFiles{Module: observability.New(nil), files: edited}).Migrate(ctx)
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Contains(t, res[0].External.Error, "module observability clickhouse schema 001_otel_traces changed after it was applied")
 }
 

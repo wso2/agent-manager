@@ -147,11 +147,11 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 			os.Exit(1)
 		}
 		results, err := moduleHost().Migrate(context.Background())
+		printMigrations(os.Stdout, results)
 		if err != nil {
 			slog.Error("error occurred while migrating modules", "error", err)
 			os.Exit(1)
 		}
-		printMigrations(os.Stdout, results)
 	}
 
 	if opts.WaitForMigrations {
