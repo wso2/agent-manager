@@ -120,6 +120,9 @@ func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *
 			log.Error("DeployLLMProxy: referenced provider not found", "ouID", ouID, "proxyID", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced LLM provider not found")
 			return
+		case errors.Is(err, utils.ErrLLMIdentityUnsupported):
+			utils.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrLLMIdentityUnsupported.Error())
+			return
 		case errors.Is(err, utils.ErrInvalidInput):
 			log.Error("DeployLLMProxy: invalid input", "ouID", ouID, "proxyID", proxyID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")

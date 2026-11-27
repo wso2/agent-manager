@@ -118,6 +118,9 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 			log.Warn("DeployLLMProvider: invalid upstream url", "ouID", ouID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
+		case errors.Is(err, utils.ErrLLMIdentityUnsupported):
+			utils.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrLLMIdentityUnsupported.Error())
+			return
 		case errors.Is(err, utils.ErrInvalidInput):
 			log.Error("DeployLLMProvider: invalid input", "ouID", ouID, "providerID", providerID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")

@@ -57,6 +57,9 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 	if proxy == nil {
 		return nil, utils.ErrInvalidInput
 	}
+	if err := validateLLMSecurity(proxy.Configuration.Security); err != nil {
+		return nil, err
+	}
 
 	// Extract handle, name, and version from configuration
 	// Note: handle is not in Configuration, so we use name as handle
@@ -199,6 +202,9 @@ func (s *LLMProxyService) Get(proxyID, ouID string) (*models.LLMProxy, error) {
 func (s *LLMProxyService) Update(proxyID, ouID string, updates *models.LLMProxy) (*models.LLMProxy, error) {
 	if proxyID == "" || updates == nil {
 		return nil, utils.ErrInvalidInput
+	}
+	if err := validateLLMSecurity(updates.Configuration.Security); err != nil {
+		return nil, err
 	}
 
 	// Fetch existing proxy to preserve sensitive fields
