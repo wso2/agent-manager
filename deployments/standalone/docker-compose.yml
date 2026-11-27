@@ -286,6 +286,11 @@ services:
         fi
         out=$$(/go/bin/amp migrate 2>&1)
         rc=$$?
+        # amp migrate skips a store with no URL (from .env or amp.yaml) and still succeeds.
+        if printf '%s' "$$out" | grep -q 'observability: skipped its external schema'; then
+          echo "No ClickHouse URL is set: set AMP_OBSERVABILITY_STORE_URL in .env or clickhouse.url in amp.yaml. See docs/amp-lite/observability.md." >&2
+          exit 1
+        fi
         if [ "$$rc" -ne 0 ] && printf '%s' "$$out" | grep -q 'Code: 516'; then
           echo "ClickHouse refused the amp_migrator login. With your own ClickHouse, create the observability logins first: see docs/amp-lite/observability.md." >&2
           exit 1
