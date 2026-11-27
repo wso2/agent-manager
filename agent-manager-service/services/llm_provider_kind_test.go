@@ -45,6 +45,7 @@ type providerFixture struct {
 func newProviderFixture(t *testing.T) *providerFixture {
 	t.Helper()
 	f := &providerFixture{sync: newSyncFixture(t), hub: &recordingEventHub{}}
+	allowAnyProviderUpstream(t) // the golden provider's upstream is a real hostname; deploys must not need DNS
 	gormDB := db.GetDB()
 	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind()}, reconcile.Config{},
 		slog.New(slog.DiscardHandler))

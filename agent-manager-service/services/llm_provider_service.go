@@ -378,6 +378,11 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *m
 
 	applyTemplateUpstreamDefaults(provider, resolvedTemplate)
 
+	if err := validateProviderUpstreamShape(provider); err != nil {
+		slog.Warn("LLMProviderService.Create: invalid upstream url", "ouID", ouID, "handle", handle, "error", err)
+		return err
+	}
+
 	if err := validateProviderVersion(version); err != nil {
 		slog.Warn("LLMProviderService.Create: invalid version", "ouID", ouID, "handle", handle, "version", version)
 		return err
@@ -645,6 +650,23 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 		return nil, utils.ErrLLMProviderNotFound
 	}
 	apiKeyAuthWasEnabled := isAPIKeyAuthEnabled(existing.Configuration.Security)
+
+	// A changed upstream is held to the rule its deploys are: an update alone pushes nothing, but a render the
+	// provider's placed gateways are owed would carry it there. An unchanged one is left alone, so a row stored
+	// before the rule stays editable.
+	if newURL := providerUpstreamURL(updates); newURL != "" && newURL != providerUpstreamURL(existing) {
+		if err := validateProviderUpstreamShape(updates); err != nil {
+			slog.Warn("LLMProviderService.Update: invalid upstream url", "ouID", ouID, "providerID", providerID, "error", err)
+			return nil, err
+		}
+		placed, err := s.deploymentRepo.PlacedGateways(ctx, ouID, existing.UUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list the gateways the provider is placed on: %w", err)
+		}
+		if err := requirePublicUpstreamOnPlaced(ctx, s.gatewayRepo, ouID, placed, newURL); err != nil {
+			return nil, err
+		}
+	}
 
 	// Only vet the location when the update touches security — a legacy row stored with
 	// an unsupported one would otherwise be uneditable.
@@ -1442,6 +1464,7 @@ func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdB
 	// Validate gateway UUIDs
 	deploymentResults := make([]DeploymentResult, 0, len(gatewayIDs))
 	validGatewayIDs := make([]string, 0, len(gatewayIDs))
+	validGateways := make([]*models.Gateway, 0, len(gatewayIDs))
 
 	for _, gatewayID := range gatewayIDs {
 		_, err := uuid.Parse(gatewayID)
@@ -1489,6 +1512,7 @@ func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdB
 		}
 
 		validGatewayIDs = append(validGatewayIDs, gatewayID)
+		validGateways = append(validGateways, gateway)
 	}
 
 	// Return error if ALL gateway IDs are invalid
@@ -1500,6 +1524,14 @@ func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdB
 	if err := s.prepareProvider(ouID, createdBy, provider); err != nil {
 		slog.Error("LLMProviderService.CreateAndDeploy: failed to create provider", "ouID", ouID, "error", err)
 		return nil, err
+	}
+
+	// Held before anything is written, like the placement check: the upstream (with any template default
+	// applied) must be public for every managed gateway named.
+	for _, gateway := range validGateways {
+		if err := requirePublicUpstreamOn(ctx, gateway, providerUpstreamURL(provider)); err != nil {
+			return nil, err
+		}
 	}
 
 	// The provider and its deployments commit together: if no gateway takes it, nothing is left behind. Gateways

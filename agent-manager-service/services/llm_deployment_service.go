@@ -161,6 +161,9 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 	}
 
 	ctx := context.Background()
+	if err := requirePublicUpstreamOn(ctx, gateway, providerUpstreamURL(provider)); err != nil {
+		return nil, err
+	}
 	existing, err := s.deploymentRepo.PlacedGateways(ctx, ouID, provider.UUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the gateways the provider is placed on: %w", err)
@@ -332,6 +335,20 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 	}
 
 	ctx := context.Background()
+	gateway, err := s.gatewayRepo.GetByUUID(deployment.GatewayUUID.String())
+	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && (gateway == nil || gateway.OUID != ouID)) {
+		return nil, utils.ErrGatewayNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gateway: %w", err)
+	}
+	restoredURL, err := renderedUpstreamURL(deployment.Content)
+	if err != nil {
+		return nil, err
+	}
+	if err := requirePublicUpstreamOn(ctx, gateway, restoredURL); err != nil {
+		return nil, err
+	}
 	placement := providerPlacement(provider, ouID, deployment.GatewayUUID)
 	current, err := s.deploymentRepo.GetStatusRecord(ctx, placement)
 	if err != nil {
