@@ -73,7 +73,6 @@ func (module) Manifest() modkit.Manifest {
 		Permissions:  perms,
 		RoleGrants:   gwperm.RoleGrants,
 		Events:       gwaudit.Events,
-		Subscribes:   []string{modkit.EventAgentCreated, gwaudit.AgentBindingsChanged, modkit.EventAgentDeleted},
 		AuditActions: gwaudit.Actions,
 		UI:           &ui,
 		Workloads:    workloads,

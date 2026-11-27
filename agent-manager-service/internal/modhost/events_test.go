@@ -35,7 +35,6 @@ import (
 // subscriber is a module that handles agent.created with fn.
 func subscriber(name string, fn modkit.EventHandler) *testModule {
 	mf := manifest(name, nil, nil)
-	mf.Subscribes = []string{modkit.EventAgentCreated}
 	return &testModule{manifest: mf, activate: func(rt modkit.Runtime) error {
 		rt.Subscribe(modkit.EventAgentCreated, fn)
 		return nil

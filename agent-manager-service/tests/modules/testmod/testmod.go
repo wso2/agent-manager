@@ -116,7 +116,6 @@ func (module) Manifest() modkit.Manifest {
 			{Name: WidgetCreated, Description: "A widget was created."},
 			{Name: WidgetArchived, Scope: "org", Description: "A widget was archived."},
 		},
-		Subscribes: []string{modkit.EventAgentCreated, modkit.EventAgentDeleted, modkit.EventEnvironmentCreated, WidgetCreated},
 		AuditActions: []modkit.AuditAction{
 			{Name: "widget-archive", Description: "Archive a widget"},
 			{Name: "secret-write", Class: "credential", Description: "Store a secret"},

@@ -82,9 +82,6 @@ type Manifest struct {
 
 	// Events lists the event types this module publishes.
 	Events []EventType `json:"events,omitempty"`
-	// Subscribes lists the event types the module handles; Subscribe refuses
-	// others. They are queued for the module while it is active but not loaded.
-	Subscribes []string `json:"subscribes,omitempty"`
 	// AuditActions lists the audit actions the module's routes and tools
 	// name with Audit, and classifies any of its permissions that name one.
 	AuditActions []AuditAction `json:"auditActions,omitempty"`
@@ -597,8 +594,8 @@ type Runtime interface {
 	// Hook registers a synchronous hook on a core resource (ResourceAgent,
 	// ResourceEnvironment or ResourceProject).
 	Hook(resource string, phase Phase, h HookFunc)
-	// Subscribe registers an asynchronous event handler for an event type in
-	// the manifest's Subscribes: a core event, or one a module declares.
+	// Subscribe registers an asynchronous event handler for an event type:
+	// a core event, or one a module declares in its manifest.
 	Subscribe(eventType string, h EventHandler)
 	// Publish records an event declared in the manifest for the organization
 	// of ctx, or of data's "orgId" when ctx has none.

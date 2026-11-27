@@ -84,18 +84,12 @@ func (h *Host) knownEvent(t string) bool {
 	return false
 }
 
-// subscribers lists the modules of v that handle an event type, and those
-// held for it, sorted.
+// subscribers lists the modules of v that handle an event type, sorted.
 func (v *view) subscribers(eventType string) []string {
 	var out []string
 	for _, s := range v.subs[eventType] {
 		if !slices.Contains(out, s.module) {
 			out = append(out, s.module)
-		}
-	}
-	for _, m := range v.held[eventType] {
-		if !slices.Contains(out, m) {
-			out = append(out, m)
 		}
 	}
 	sort.Strings(out)

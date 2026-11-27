@@ -268,16 +268,6 @@ func (h *Host) externalUnready(ctx context.Context, states map[string]string, lo
 	return out
 }
 
-// holdEvents adds each module of left to v.held for the event types its
-// manifest subscribes to.
-func (h *Host) holdEvents(v *view, left map[string]error) {
-	for name := range left {
-		for _, e := range h.manifests[name].Subscribes {
-			v.held[e] = append(v.held[e], name)
-		}
-	}
-}
-
 // without is states with the modules of drop left out.
 func without(states map[string]string, drop map[string]error) map[string]string {
 	if len(drop) == 0 {

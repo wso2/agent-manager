@@ -127,9 +127,6 @@ type view struct {
 	// hooks are by resource and phase, in activation order.
 	hooks map[string]map[modkit.Phase][]hookEntry
 	subs  map[string][]subEntry
-	// held are the modules left out for their store, by the event types they
-	// subscribe to; their deliveries queue for a replica that runs them.
-	held map[string][]string
 	// workers are each active module's background workers.
 	workers map[string][]workerEntry
 	// at holds every HandleInternalAt route, served by internalAt.
@@ -145,7 +142,7 @@ func newView() *view {
 	return &view{
 		caps: map[string]any{}, capBy: map[string]string{}, perms: rbac.NewRegistry(),
 		public: map[string]*http.ServeMux{}, internal: map[string]*http.ServeMux{},
-		hooks: map[string]map[modkit.Phase][]hookEntry{}, subs: map[string][]subEntry{}, held: map[string][]string{},
+		hooks: map[string]map[modkit.Phase][]hookEntry{}, subs: map[string][]subEntry{},
 		workers: map[string][]workerEntry{}, routes: map[string][]Route{},
 	}
 }
@@ -378,14 +375,12 @@ func (h *Host) Reload(ctx context.Context) error {
 	v, failed := newView(), map[string]error{}
 	if !h.Passive {
 		// A module not yet loaded whose external store is unusable is left
-		// out and retried; a loaded one stays. Events queue for every active
-		// module left out.
+		// out and retried; a loaded one stays.
 		unready := h.externalUnready(ctx, states, h.current().active)
 		v, failed = h.buildView(ctx, without(states, unready))
 		for name, err := range unready {
 			failed[name] = err
 		}
-		h.holdEvents(v, failed)
 		for name, err := range failed {
 			h.log.Error("modhost:module failed to activate", "module", name, "error", err)
 		}

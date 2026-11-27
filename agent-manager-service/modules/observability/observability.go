@@ -70,7 +70,6 @@ func (module) Manifest() modkit.Manifest {
 		Description: "Traces of the organization's agents",
 		CoreAPI:     modkit.CoreAPIVersion,
 		Provides:    []string{tracesv1.ID},
-		Subscribes:  []string{modkit.EventAgentDeleted},
 		Permissions: []modkit.Permission{
 			{Name: PermTracesRead, DisplayName: "Read Traces", Description: "Read the organization's traces"},
 		},
