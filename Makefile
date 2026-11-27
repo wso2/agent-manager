@@ -91,9 +91,12 @@ OBS_PROFILE := --profile observability $(if $(filter postgres,$(DB)),--profile p
 OBS_COMPOSE := $(OBS_ENV) $(COMPOSE) $(OBS_PROFILE)
 DEV_OBS_COMPOSE := $(OBS_ENV) $(DEV_COMPOSE) $(OBS_PROFILE)
 # Installs the observability module once; one an operator disabled stays
-# disabled. $(1) is the compose command, $(2) the amp CLI in amp-api.
+# disabled, and a failed module list stops make. $(1) is the compose command,
+# $(2) the amp CLI in amp-api.
 define install-observability
-	@if $(1) exec -T amp-api $(2) module list | grep -Eq '^observability +[^ ]+ +available'; then \
+	@modules=$$($(1) exec -T amp-api $(2) module list) || { \
+		echo "❌ Listing amp-api's modules failed; the observability module was not installed" >&2; exit 1; }; \
+	if printf '%s\n' "$$modules" | grep -Eq '^observability +[^ ]+ +available'; then \
 		$(1) exec -T amp-api $(2) module install observability; fi
 endef
 # The stop targets name every profile, so they also stop PostgreSQL from a
