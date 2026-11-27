@@ -193,6 +193,7 @@ type GatewayListResponse struct {
 // TokenRotationResponse represents the response for token rotation
 type TokenRotationResponse struct {
 	ID        string    `json:"id"`
+	GatewayID string    `json:"gatewayId"`
 	Token     string    `json:"token"`
 	CreatedAt time.Time `json:"createdAt"`
 	Message   string    `json:"message"`
@@ -458,6 +459,18 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 	return toGatewayResponse(gateway), nil
 }
 
+// orgGateway returns the organization's gateway named by a name or UUID.
+func (s *PlatformGatewayService) orgGateway(gatewayID, ouID string) (*gwmodels.Gateway, error) {
+	gateway, err := s.resolveGateway(strings.TrimSpace(gatewayID), ouID)
+	if err != nil {
+		return nil, err
+	}
+	if gateway.OUID != ouID {
+		return nil, gwerr.ErrGatewayNotFound
+	}
+	return gateway, nil
+}
+
 // SaveGatewayPolicyManifest stores the policy manifest a gateway pushed in the manifest
 // cache. A gateway pushes its full manifest each time its control-plane WebSocket
 // (re)connects; the manifest is large and replaced by the next connect, so it is not
@@ -710,16 +723,11 @@ func (s *PlatformGatewayService) VerifyToken(ctx context.Context, plainToken str
 // RotateToken generates a new token for a gateway (max 2 active tokens)
 func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRotationResponse, error) {
 	// 1. Validate gateway exists
-	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
+	gateway, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query gateway: %w", err)
+		return nil, err
 	}
-	if gateway == nil {
-		return nil, gwerr.ErrGatewayNotFound
-	}
-	if gateway.OUID != ouID {
-		return nil, gwerr.ErrGatewayNotFound
-	}
+	gatewayID = gateway.UUID.String()
 
 	// 2. Count active tokens
 	activeCount, err := s.gatewayRepo.CountActiveTokens(gatewayID)
@@ -768,6 +776,7 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 	// 8. Return TokenRotationResponse
 	response := &TokenRotationResponse{
 		ID:        tokenID.String(),
+		GatewayID: gatewayID,
 		Token:     plainToken,
 		CreatedAt: gatewayToken.CreatedAt,
 		Message:   "New token generated successfully. Old token remains active until revoked.",
@@ -779,16 +788,11 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 // ListTokens retrieves all active tokens for a gateway (metadata only - no secret values)
 func (s *PlatformGatewayService) ListTokens(gatewayID, ouID string) (*GatewayTokenListResponse, error) {
 	// 1. Validate gateway exists and belongs to organization
-	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
+	gateway, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query gateway: %w", err)
+		return nil, err
 	}
-	if gateway == nil {
-		return nil, gwerr.ErrGatewayNotFound
-	}
-	if gateway.OUID != ouID {
-		return nil, gwerr.ErrGatewayNotFound
-	}
+	gatewayID = gateway.UUID.String()
 
 	// 2. Fetch all active tokens for the gateway
 	activeTokens, err := s.gatewayRepo.GetActiveTokensByGatewayUUID(gatewayID)
@@ -816,16 +820,11 @@ func (s *PlatformGatewayService) ListTokens(gatewayID, ouID string) (*GatewayTok
 // RevokeTokenByID revokes a token and invalidates it from cache
 func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, ouID string) error {
 	// 1. Validate gateway exists and belongs to organization
-	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
+	gateway, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {
-		return fmt.Errorf("failed to query gateway: %w", err)
+		return err
 	}
-	if gateway == nil {
-		return gwerr.ErrGatewayNotFound
-	}
-	if gateway.OUID != ouID {
-		return gwerr.ErrGatewayNotFound
-	}
+	gatewayID = gateway.UUID.String()
 
 	// 2. Get token details before revocation (for cache invalidation)
 	token, err := s.gatewayRepo.GetTokenByUUID(tokenID)

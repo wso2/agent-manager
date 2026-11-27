@@ -60,9 +60,9 @@ var (
 		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again",
 	)
 	// Gateway-related errors
-	ErrGatewayNotFound          = errors.New("gateway not found")
+	ErrGatewayNotFound = errors.New("gateway not found")
 	// ErrGatewayManaged is a change to a managed gateway, which the platform runs and the organization only reads.
-	ErrGatewayManaged = errors.New("a managed gateway is read-only")
+	ErrGatewayManaged           = errors.New("a managed gateway is read-only")
 	ErrGatewayTokenLimitReached = errors.New("maximum 2 active tokens allowed. Revoke old tokens before rotating") // 409: rotating would exceed two active tokens
 	ErrGatewayTokenNotFound     = errors.New("gateway token not found")                                            // 404: an unknown token, or a token of another gateway
 	ErrGatewayAlreadyExists     = errors.New("gateway already exists")

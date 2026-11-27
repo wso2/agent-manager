@@ -440,7 +440,7 @@ func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Re
 
 	// Convert to spec response
 	response := gwspec.GatewayTokenResponse{
-		GatewayId: gatewayID,
+		GatewayId: tokenResp.GatewayID,
 		Token:     tokenResp.Token,
 		TokenId:   tokenResp.ID,
 		CreatedAt: tokenResp.CreatedAt,

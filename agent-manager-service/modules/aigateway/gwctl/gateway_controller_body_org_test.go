@@ -78,6 +78,9 @@ func assertBodyOrgDenied(t *testing.T, w *httptest.ResponseRecorder, ctx context
 	assert.Equal(t, requestedOrg, denial.Details["requestedOrgId"])
 }
 
+// bodyOrgTestGatewayUUID is the gateway the rotation names; the token routes resolve a UUID by UUID.
+const bodyOrgTestGatewayUUID = "0b8f3f5e-6a51-4c1e-9d7e-2f4a8c6b1d3e"
+
 func TestRotateGatewayToken_BodyOrgID(t *testing.T) {
 	for _, tt := range bodyOrgCases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -91,8 +94,8 @@ func TestRotateGatewayToken_BodyOrgID(t *testing.T) {
 			}
 			ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(gatewayRepo), nil, nil)
 
-			req, recorder := bodyOrgTestRequest(http.MethodPost, "/gateways/gw-uuid/tokens", withBodyOrg("", tt.orgID))
-			req.SetPathValue("gatewayID", "gw-uuid")
+			req, recorder := bodyOrgTestRequest(http.MethodPost, "/gateways/"+bodyOrgTestGatewayUUID+"/tokens", withBodyOrg("", tt.orgID))
+			req.SetPathValue("gatewayID", bodyOrgTestGatewayUUID)
 			w := httptest.NewRecorder()
 			ctrl.RotateGatewayToken(w, req)
 
