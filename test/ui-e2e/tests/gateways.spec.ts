@@ -1,4 +1,4 @@
-import { AddGatewayDrawer, GatewaysPage, GatewayViewPage } from '../pages/GatewayPages';
+import { AddGatewayPage, GatewaysPage, GatewayViewPage, SetupGatewayPage } from '../pages/GatewayPages';
 import { uniqueName } from '../support/env';
 import { expect, test } from '../support/fixtures';
 
@@ -15,24 +15,29 @@ test.describe('gateways', () => {
 
   test('register a self-hosted gateway, issue a token and remove it', async ({ page, api }) => {
     const gateways = new GatewaysPage(page);
-    const drawer = new AddGatewayDrawer(page);
+    const addPage = new AddGatewayPage(page);
+    const setup = new SetupGatewayPage(page);
 
     await test.step('register', async () => {
       await gateways.goto();
       await expect(gateways.heading).toBeVisible();
       await gateways.add.click();
-      await drawer.displayName.fill(displayName);
-      await drawer.name.fill(name);
-      await drawer.publicUrl.fill('https://uie2e-gateway.example.com');
-      await drawer.description.fill('Registered by the UI e2e suite');
-      await drawer.create.click();
-      await expect(drawer.created).toBeVisible();
+      await addPage.displayName.fill(displayName);
+      await addPage.name.fill(name);
+      await addPage.publicUrl.fill('https://uie2e-gateway.example.com');
+      await addPage.description.fill('Registered by the UI e2e suite');
+      await addPage.create.click();
+      await expect(page).toHaveURL(/\/gateways\/setup\/[^/]+$/);
+      gatewayId = page.url().split('/').pop();
+      await expect(setup.created).toBeVisible();
 
       // The configure command carries the registration token.
-      await drawer.copyConfigure.click();
+      await setup.copyConfigure.click();
       const command = await page.evaluate(() => navigator.clipboard.readText());
       expect(command.length).toBeGreaterThan(20);
-      await drawer.done.click();
+      await setup.finishLater.click();
+      await expect(page).toHaveURL(/\/gateways\/view\/[^/]+$/);
+      await gateways.goto();
       await expect(gateways.row(displayName)).toBeVisible();
     });
 

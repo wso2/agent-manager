@@ -30,25 +30,34 @@ export class GatewaysPage {
   }
 }
 
-export class AddGatewayDrawer {
+/** The Add gateway page; creating a gateway opens its setup page. */
+export class AddGatewayPage {
   readonly displayName: Locator;
   readonly name: Locator;
   readonly publicUrl: Locator;
   readonly description: Locator;
   readonly create: Locator;
-  readonly created: Locator;
-  readonly copyConfigure: Locator;
-  readonly done: Locator;
 
   constructor(readonly page: Page) {
     this.displayName = page.getByRole('textbox', { name: 'Display Name' });
     this.name = page.getByRole('textbox', { name: 'Name', exact: true });
     this.publicUrl = page.getByRole('textbox', { name: 'Public URL' });
     this.description = page.getByRole('textbox', { name: 'Description' });
-    this.create = page.getByRole('button', { name: 'Create', exact: true });
+    this.create = page.getByRole('button', { name: 'Create gateway', exact: true });
+  }
+}
+
+/** The setup page a new self-hosted gateway opens on, with its one-time token. */
+export class SetupGatewayPage {
+  readonly created: Locator;
+  readonly copyConfigure: Locator;
+  readonly finishLater: Locator;
+
+  constructor(readonly page: Page) {
     this.created = page.getByText(/Gateway created\./);
     this.copyConfigure = page.getByRole('button', { name: 'Copy configure command' });
-    this.done = page.getByRole('button', { name: 'Done' });
+    // Done stays disabled until the gateway connects, which it never does here.
+    this.finishLater = page.getByRole('button', { name: 'Finish later' });
   }
 }
 

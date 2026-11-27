@@ -124,26 +124,31 @@ func TestGWRoutesIdentityProviderRejections(t *testing.T) {
 	rec = a.do(http.MethodDelete, base+"/"+gwmodels.ReservedIdentityProviderName, nil)
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
-	// Unknown, foreign and self-hosted gateways are all not found.
+	// Unknown and foreign gateways are not found.
 	other := newRouteAPI(t)
 	foreign := gwtest.Gateway(t, other.db, other.org, gwmodels.GatewayRoleIngress)
-	self := gwRegisterUID(t, a, unique("sh"))
-	for _, id := range []string{uuid.NewString(), "no-such-gateway", foreign.UUID.String(), self} {
+	for _, id := range []string{uuid.NewString(), "no-such-gateway", foreign.UUID.String()} {
 		path := "/gateways/" + id + "/identity-providers"
 		rec = a.do(http.MethodPut, path+"/corp-idp", gwIdPBody("https://idp.example.com"))
 		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
 		require.Equal(t, "Gateway not found", errorMessage(t, rec))
 		rec = a.do(http.MethodDelete, path+"/corp-idp", nil)
 		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
-		if id != self {
-			rec = a.do(http.MethodGet, path, nil)
-			require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
-		}
+		rec = a.do(http.MethodGet, path, nil)
+		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
 	}
 
-	// The self-hosted gateway's providers can be listed, though not written.
-	list := expectInto[gwspec.IdentityProviderListResponse](t,
-		a.do(http.MethodGet, "/gateways/"+self+"/identity-providers", nil), http.StatusOK)
+	// A self-hosted gateway's providers are recorded too (MANUAL mode: its owner
+	// applies them to the gateway's config.toml).
+	self := gwRegisterUID(t, a, unique("sh"))
+	selfBase := "/gateways/" + self + "/identity-providers"
+	p := expectInto[gwspec.IdentityProvider](t, a.do(http.MethodPut, selfBase+"/corp-idp", gwIdPBody("https://idp.example.com")), http.StatusOK)
+	require.Equal(t, "corp-idp", p.Name)
+	list := expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, selfBase, nil), http.StatusOK)
+	require.Equal(t, []string{"corp-idp"}, gwIdPNames(list))
+	rec = a.do(http.MethodDelete, selfBase+"/corp-idp", nil)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	list = expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, selfBase, nil), http.StatusOK)
 	require.EqualValues(t, 0, list.Count)
 
 	// An organization with no providers lists none.
