@@ -27,7 +27,7 @@ import (
 
 func TestGet_SuccessJSON(t *testing.T) {
 	io, out, _ := newTestIO()
-	gw := sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH, "default")
+	gw := sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH)
 	clientFn, captured, closeFn := newTestClient(t, http.StatusOK, gw)
 	defer closeFn()
 
@@ -37,12 +37,12 @@ func TestGet_SuccessJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if captured.path != "/orgs/acme/gateways/edge" {
-		t.Errorf("path = %q, want /orgs/acme/gateways/edge", captured.path)
+	if captured.path != "/gateways/edge" {
+		t.Errorf("path = %q, want /gateways/edge", captured.path)
 	}
 	env := decodeEnvelope(t, out.String())
-	if env["data"].(map[string]any)["uuid"] != "11111111-1111-1111-1111-111111111111" {
-		t.Errorf("uuid = %v", env["data"].(map[string]any)["uuid"])
+	if uid := env["data"].(map[string]any)["metadata"].(map[string]any)["uid"]; uid != "11111111-1111-1111-1111-111111111111" {
+		t.Errorf("uid = %v", uid)
 	}
 }
 
@@ -61,7 +61,7 @@ func TestGet_AcceptsUUIDAndName(t *testing.T) {
 		if err != nil {
 			t.Fatalf("runGet(%q): %v", identifier, err)
 		}
-		if want := "/orgs/acme/gateways/" + identifier; captured.path != want {
+		if want := "/gateways/" + identifier; captured.path != want {
 			t.Errorf("path = %q, want %q", captured.path, want)
 		}
 	}
@@ -70,7 +70,7 @@ func TestGet_AcceptsUUIDAndName(t *testing.T) {
 func TestGet_TextOutputShowsUUIDAndType(t *testing.T) {
 	io, out, _ := newTextTestIO(true)
 	clientFn, _, closeFn := newTestClient(t, http.StatusOK,
-		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeEGRESS, "default"))
+		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeEGRESS))
 	defer closeFn()
 
 	if err := runGet(context.Background(), &GetOptions{
@@ -78,7 +78,7 @@ func TestGet_TextOutputShowsUUIDAndType(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, want := range []string{"11111111-1111-1111-1111-111111111111", "EGRESS", "edge.example.com"} {
+	for _, want := range []string{"11111111-1111-1111-1111-111111111111", "EGRESS", "MANAGED", "edge.example.com"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output missing %q; got:\n%s", want, out.String())
 		}

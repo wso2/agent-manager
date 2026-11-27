@@ -26,19 +26,18 @@ func pagedGatewayServer(t *testing.T, total int) (*aigateway.ClientWithResponses
 		offset, _ := strconv.Atoi(query.Get("offset"))
 		limit, _ := strconv.Atoi(query.Get("limit"))
 
-		page := []aigateway.GatewayResponse{}
+		page := []aigateway.GatewayDocument{}
 		for i := offset; i < offset+limit && i < total; i++ {
-			page = append(page, aigateway.GatewayResponse{
-				Name: "gw-" + strconv.Itoa(i),
-				Uuid: "id-" + strconv.Itoa(i),
+			page = append(page, aigateway.GatewayDocument{
+				Metadata: aigateway.DocumentMetadata{Name: "gw-" + strconv.Itoa(i)},
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
+		n, all, l, o := int32(len(page)), int32(total), int32(limit), int32(offset)
 		_ = json.NewEncoder(w).Encode(aigateway.GatewayListResponse{
-			Gateways: page,
-			Total:    int32(total),
-			Limit:    int32(limit),
-			Offset:   int32(offset),
+			Count:      &n,
+			List:       page,
+			Pagination: &aigateway.Pagination{Total: &all, Limit: &l, Offset: &o},
 		})
 	}))
 	t.Cleanup(srv.Close)
@@ -63,8 +62,8 @@ func TestListAllGateways_FollowsEveryPage(t *testing.T) {
 	if len(got) != total {
 		t.Fatalf("len = %d, want %d", len(got), total)
 	}
-	if got[0].Name != "gw-0" || got[total-1].Name != "gw-"+strconv.Itoa(total-1) {
-		t.Errorf("bounds = %q..%q, want gw-0..gw-%d", got[0].Name, got[total-1].Name, total-1)
+	if got[0].Metadata.Name != "gw-0" || got[total-1].Metadata.Name != "gw-"+strconv.Itoa(total-1) {
+		t.Errorf("bounds = %q..%q, want gw-0..gw-%d", got[0].Metadata.Name, got[total-1].Metadata.Name, total-1)
 	}
 	want := []string{"0", "200", "400"}
 	if len(*offsets) != len(want) {
@@ -114,9 +113,10 @@ func TestListAllGateways_StopsOnEmptyPageDespiteOverstatedTotal(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls++
 		w.Header().Set("Content-Type", "application/json")
+		total := int32(99)
 		_ = json.NewEncoder(w).Encode(aigateway.GatewayListResponse{
-			Gateways: []aigateway.GatewayResponse{},
-			Total:    99,
+			List:       []aigateway.GatewayDocument{},
+			Pagination: &aigateway.Pagination{Total: &total},
 		})
 	}))
 	defer srv.Close()
@@ -149,14 +149,15 @@ func TestListAllGateways_ReturnsPagesGatheredBeforeAFailure(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		page := make([]aigateway.GatewayResponse, 0, int(gatewayPageLimit))
+		page := make([]aigateway.GatewayDocument, 0, int(gatewayPageLimit))
 		for i := range int(gatewayPageLimit) {
-			page = append(page, aigateway.GatewayResponse{Name: "gw-" + strconv.Itoa(i)})
+			page = append(page, aigateway.GatewayDocument{Metadata: aigateway.DocumentMetadata{Name: "gw-" + strconv.Itoa(i)}})
 		}
 		w.Header().Set("Content-Type", "application/json")
+		total := gatewayPageLimit * 2
 		_ = json.NewEncoder(w).Encode(aigateway.GatewayListResponse{
-			Gateways: page,
-			Total:    gatewayPageLimit * 2,
+			List:       page,
+			Pagination: &aigateway.Pagination{Total: &total},
 		})
 	}))
 	defer srv.Close()

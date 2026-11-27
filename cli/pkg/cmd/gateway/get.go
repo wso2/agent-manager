@@ -81,13 +81,13 @@ func runGet(ctx context.Context, o *GetOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	resp, err := client.GetGatewayWithResponse(ctx, o.Org, o.Gateway)
+	resp, err := client.GetGatewayWithResponse(ctx, o.Gateway)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
 	if resp.JSON200 == nil {
 		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse,
-			cmdutil.FirstNonNil(resp.JSON400, resp.JSON401, resp.JSON404, resp.JSON500)))
+			cmdutil.FirstNonNil(resp.JSON401, resp.JSON404, resp.JSON500)))
 	}
 
 	if o.IO.JSON {
@@ -95,22 +95,23 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	}
 
 	g := resp.JSON200
+	v := viewOf(g)
 	w := o.IO.Out
 	cs := o.IO.ColorScheme()
-	fmt.Fprintf(w, "name:          %s\n", cs.Bold(g.Name))
-	fmt.Fprintf(w, "display name:  %s\n", g.DisplayName)
-	fmt.Fprintf(w, "uuid:          %s\n", g.Uuid)
-	fmt.Fprintf(w, "type:          %s\n", string(g.GatewayType))
-	fmt.Fprintf(w, "status:        %s\n", string(g.Status))
-	fmt.Fprintf(w, "vhost:         %s\n", g.Vhost)
-	if g.Region != nil && *g.Region != "" {
-		fmt.Fprintf(w, "region:        %s\n", *g.Region)
+	fmt.Fprintf(w, "name:          %s\n", cs.Bold(v.name))
+	fmt.Fprintf(w, "display name:  %s\n", v.displayName)
+	fmt.Fprintf(w, "uuid:          %s\n", v.uid)
+	fmt.Fprintf(w, "type:          %s\n", v.gwType)
+	fmt.Fprintf(w, "hosting:       %s\n", v.hosting)
+	fmt.Fprintf(w, "status:        %s\n", v.status)
+	fmt.Fprintf(w, "endpoint:      %s\n", v.endpoint)
+	if g.Spec.RuntimeUrl != nil && *g.Spec.RuntimeUrl != "" {
+		fmt.Fprintf(w, "runtime url:   %s\n", *g.Spec.RuntimeUrl)
 	}
-	if g.RuntimeUrl != nil && *g.RuntimeUrl != "" {
-		fmt.Fprintf(w, "runtime url:   %s\n", *g.RuntimeUrl)
-	}
-	fmt.Fprintf(w, "critical:      %t\n", g.IsCritical)
+	fmt.Fprintf(w, "critical:      %t\n", g.Spec.IsCritical != nil && *g.Spec.IsCritical)
 	fmt.Fprintf(w, "org:           %s\n", o.Org)
-	fmt.Fprintf(w, "created:       %s\n", cs.Gray(g.CreatedAt.Format("2006-01-02T15:04:05Z07:00")))
+	if g.Metadata.CreationTimestamp != nil {
+		fmt.Fprintf(w, "created:       %s\n", cs.Gray(g.Metadata.CreationTimestamp.Format("2006-01-02T15:04:05Z07:00")))
+	}
 	return nil
 }

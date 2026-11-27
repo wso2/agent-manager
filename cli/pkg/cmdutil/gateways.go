@@ -37,11 +37,11 @@ const gatewayPageLimit = int32(200)
 // gathered before it. Callers that need the complete set must treat a non-nil error
 // as fatal; a best-effort caller such as shell completion can still use the partial
 // result, which beats offering nothing when a later page times out.
-func ListAllGateways(ctx context.Context, client *aigateway.ClientWithResponses, org string) ([]aigateway.GatewayResponse, error) {
-	var all []aigateway.GatewayResponse
+func ListAllGateways(ctx context.Context, client *aigateway.ClientWithResponses, org string) ([]aigateway.GatewayDocument, error) {
+	var all []aigateway.GatewayDocument
 	for {
 		limit, offset := gatewayPageLimit, int32(len(all))
-		resp, err := client.ListGatewaysWithResponse(ctx, org, &aigateway.ListGatewaysParams{
+		resp, err := client.ListGatewaysWithResponse(ctx, &aigateway.ListGatewaysParams{
 			Limit:  &limit,
 			Offset: &offset,
 		})
@@ -52,10 +52,12 @@ func ListAllGateways(ctx context.Context, client *aigateway.ClientWithResponses,
 			return all, ErrorFromServer(resp.HTTPResponse,
 				FirstNonNil(resp.JSON400, resp.JSON401, resp.JSON500))
 		}
-		all = append(all, resp.JSON200.Gateways...)
+		page := resp.JSON200.List
+		all = append(all, page...)
 		// An empty page terminates regardless of Total: a Total the server
 		// over-reports would otherwise loop forever.
-		if len(resp.JSON200.Gateways) == 0 || int32(len(all)) >= resp.JSON200.Total {
+		if len(page) == 0 || resp.JSON200.Pagination == nil || resp.JSON200.Pagination.Total == nil ||
+			int32(len(all)) >= *resp.JSON200.Pagination.Total {
 			return all, nil
 		}
 	}

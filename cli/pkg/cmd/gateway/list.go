@@ -64,7 +64,7 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 		Use:   "list",
 		Short: "List gateways in an organization",
 		Long: "List gateways in an organization.\n\n" +
-			"The uuid column is the value to pass to 'amctl llm-provider create --gateways'.\n" +
+			"The name column is the value to pass to 'amctl llm-provider create --gateways'.\n" +
 			"Only EGRESS and BOTH gateways can host an LLM proxy, and no two of a\n" +
 			"provider's gateways may share an environment.",
 		Args: cobra.NoArgs,
@@ -143,7 +143,7 @@ func runList(ctx context.Context, o *ListOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	resp, err := client.ListGatewaysWithResponse(ctx, o.Org, params)
+	resp, err := client.ListGatewaysWithResponse(ctx, params)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -156,18 +156,19 @@ func runList(ctx context.Context, o *ListOptions) error {
 		return render.JSONSuccess(o.IO, o.Scope, resp.JSON200)
 	}
 
-	if len(resp.JSON200.Gateways) == 0 {
+	if len(resp.JSON200.List) == 0 {
 		return render.EmptyList(o.IO, o.emptyMessage())
 	}
 
-	tp := tableprinter.New(o.IO, "name", "uuid", "type", "status", "vhost")
+	tp := tableprinter.New(o.IO, "name", "type", "hosting", "status", "endpoint")
 	cs := o.IO.ColorScheme()
-	for _, g := range resp.JSON200.Gateways {
-		tp.AddField(g.Name, tableprinter.WithColor(cs.Bold))
-		tp.AddField(g.Uuid)
-		tp.AddField(string(g.GatewayType))
-		tp.AddField(string(g.Status))
-		tp.AddField(g.Vhost, tableprinter.WithColor(cs.Gray))
+	for i := range resp.JSON200.List {
+		v := viewOf(&resp.JSON200.List[i])
+		tp.AddField(v.name, tableprinter.WithColor(cs.Bold))
+		tp.AddField(v.gwType)
+		tp.AddField(v.hosting)
+		tp.AddField(v.status)
+		tp.AddField(v.endpoint, tableprinter.WithColor(cs.Gray))
 		tp.EndRow()
 	}
 	return tp.Render()

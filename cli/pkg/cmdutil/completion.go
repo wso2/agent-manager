@@ -275,7 +275,11 @@ func CompleteGateways(cmd *cobra.Command, f *Factory) []string {
 	}
 	out := make([]string, 0, len(gateways))
 	for _, g := range gateways {
-		out = append(out, fmt.Sprintf("%s\t%s (%s)", g.Name, g.Uuid, g.GatewayType))
+		gwType := ""
+		if g.Spec.Type != nil {
+			gwType = string(*g.Spec.Type)
+		}
+		out = append(out, fmt.Sprintf("%s\t%s (%s)", g.Metadata.Name, g.Spec.DisplayName, gwType))
 	}
 	sort.Strings(out)
 	return out
