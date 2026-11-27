@@ -140,6 +140,8 @@ func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, gwerr.ErrGatewayEnvironmentFixed):
 		httpx.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", gwerr.ErrCodeGatewayEnvironmentFixed)
+	case errors.Is(err, gwerr.ErrGatewayIdentityProviderUnsupported):
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", gwerr.ErrCodeIdentityProviderUnsupported)
 	case errors.Is(err, gwerr.ErrGatewayTokenLimitReached):
 		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, gwerr.ErrGatewayTokenNotFound):

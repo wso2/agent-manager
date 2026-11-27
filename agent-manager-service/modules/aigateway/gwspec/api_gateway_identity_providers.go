@@ -39,9 +39,9 @@ DeleteGatewayIdentityProvider Delete a gateway identity provider
 Remove an identity provider recorded for a gateway. System identity providers
 (e.g. ThunderKeyManager) cannot be deleted.
 
-As with upsert, only the record is removed: use the manage-identity-provider
-script (ACTION=delete) for a managed gateway, or remove the key manager from a
-self-hosted gateway's config.toml and restart it.
+Only the record is removed, for any gateway. For a self-hosted gateway, its
+owner also removes the key manager from the gateway's config.toml and restarts
+it.
 
 Sharp edge: removing only the record leaves the issuer trusted by the gateway
 at runtime.
@@ -606,11 +606,16 @@ UpsertGatewayIdentityProvider Upsert a gateway identity provider
 Create or update an identity provider (token issuer) recorded for a gateway.
 The console and agent OAuth configuration read this record.
 
-Only the record is written; the gateway's own configuration is changed out of
-band. For a managed gateway, use the manage-identity-provider script. For a
-self-hosted gateway, its owner adds the matching key manager to the gateway's
-config.toml under [[policy_configurations.jwtauth_v1.keymanagers]] and
-restarts it.
+Only the record is written. What applies it to the gateway follows the
+gateway's identityProviderMode:
+
+  - MANUAL (self-hosted): its owner adds the matching key manager to the
+    gateway's config.toml under [[policy_configurations.jwtauth_v1.keymanagers]]
+    and restarts it.
+  - UNSUPPORTED (managed): nothing applies a custom provider to the gateway, so
+    a custom provider is refused with 409. System providers (e.g.
+    ThunderKeyManager) are configured with the platform and can still be
+    recorded.
 
 Sharp edge: a successful response does not by itself mean the gateway trusts
 the issuer. Agent OAuth deploy-time validation only checks the record, so an
@@ -722,6 +727,17 @@ func (a *GatewayIdentityProvidersAPIService) UpsertGatewayIdentityProviderExecut
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

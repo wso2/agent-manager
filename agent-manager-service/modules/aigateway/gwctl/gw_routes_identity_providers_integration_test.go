@@ -46,11 +46,13 @@ func gwIdPNames(list gwspec.IdentityProviderListResponse) []string {
 	return out
 }
 
-// TestGWRoutesGatewayIdentityProviders upserts, lists and deletes a gateway's identity providers.
+// TestGWRoutesGatewayIdentityProviders upserts, lists and deletes a gateway's identity
+// providers. The gateway is self-hosted (MANUAL): a managed one refuses custom providers.
 func TestGWRoutesGatewayIdentityProviders(t *testing.T) {
 	a := newRouteAPI(t)
-	gw := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleIngress)
-	base := "/gateways/" + gw.UUID.String() + "/identity-providers"
+	gw := gwRegister(t, a, unique("sh"))
+	gwUID := gw.Metadata.GetUid()
+	base := "/gateways/" + gwUID + "/identity-providers"
 
 	p := expectInto[gwspec.IdentityProvider](t, a.do(http.MethodPut, base+"/corp-idp", gwIdPBody("https://idp.example.com")), http.StatusOK)
 	require.Equal(t, "corp-idp", p.Name)
@@ -61,7 +63,7 @@ func TestGWRoutesGatewayIdentityProviders(t *testing.T) {
 	require.Equal(t, "idp at https://idp.example.com", *p.Description)
 
 	// Upserting again replaces it; the gateway can be named instead of its id.
-	p = expectInto[gwspec.IdentityProvider](t, a.do(http.MethodPut, "/gateways/"+gw.Name+"/identity-providers/corp-idp",
+	p = expectInto[gwspec.IdentityProvider](t, a.do(http.MethodPut, "/gateways/"+gw.Metadata.Name+"/identity-providers/corp-idp",
 		map[string]any{"issuer": "https://idp2.example.com", "jwksUri": "https://idp2.example.com/keys"}), http.StatusOK)
 	require.Equal(t, "https://idp2.example.com", *p.Issuer)
 	require.False(t, *p.SkipTlsVerify)
@@ -84,8 +86,8 @@ func TestGWRoutesGatewayIdentityProviders(t *testing.T) {
 	org := expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, "/identity-providers", nil), http.StatusOK)
 	require.EqualValues(t, 2, org.Count)
 	for _, item := range org.List {
-		require.Equal(t, gw.UUID.String(), *item.GatewayId)
-		require.Equal(t, gw.Name, *item.GatewayName)
+		require.Equal(t, gwUID, *item.GatewayId)
+		require.Equal(t, gw.Metadata.Name, *item.GatewayName)
 		require.NotNil(t, item.EnvironmentName)
 		require.Equal(t, gwmodels.DefaultEnvironmentName, *item.EnvironmentName)
 	}
@@ -138,23 +140,24 @@ func TestGWRoutesIdentityProviderRejections(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
 	}
 
-	// A self-hosted gateway's providers are recorded too (MANUAL mode: its owner
-	// applies them to the gateway's config.toml).
-	self := gwRegisterUID(t, a, unique("sh"))
-	selfBase := "/gateways/" + self + "/identity-providers"
-	p := expectInto[gwspec.IdentityProvider](t, a.do(http.MethodPut, selfBase+"/corp-idp", gwIdPBody("https://idp.example.com")), http.StatusOK)
-	require.Equal(t, "corp-idp", p.Name)
-	list := expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, selfBase, nil), http.StatusOK)
-	require.Equal(t, []string{"corp-idp"}, gwIdPNames(list))
-	rec = a.do(http.MethodDelete, selfBase+"/corp-idp", nil)
-	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
-	list = expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, selfBase, nil), http.StatusOK)
+	// Nothing applies a custom provider to a managed gateway (UNSUPPORTED), so adding
+	// one is refused and nothing is recorded, whether the gateway is named by id or name.
+	for _, id := range []string{gw.UUID.String(), gw.Name} {
+		rec = a.do(http.MethodPut, "/gateways/"+id+"/identity-providers/corp-idp", gwIdPBody("https://idp.example.com"))
+		require.Equal(t, http.StatusConflict, rec.Code, "%s: %s", id, rec.Body.String())
+		require.Contains(t, errorMessage(t, rec), "managed outside Agent Manager")
+	}
+	list := expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, base, nil), http.StatusOK)
 	require.EqualValues(t, 0, list.Count)
 
 	// An organization with no providers lists none.
 	org := expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, "/identity-providers", nil), http.StatusOK)
 	require.EqualValues(t, 0, org.Count)
 	require.Empty(t, org.List)
+
+	// A system provider is configured with the platform, so it is still recorded.
+	sys := expectInto[gwspec.IdentityProvider](t, a.do(http.MethodPut, base+"/ThunderKeyManager", gwIdPBody("https://thunder.example.com")), http.StatusOK)
+	require.Equal(t, gwmodels.IdentityProviderTypeSystem, *sys.Type)
 }
 
 // TestGWRoutesDiscoverOidcConfiguration refuses a missing or unsafe discovery URL without fetching it.

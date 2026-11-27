@@ -29,6 +29,9 @@ const (
 	ErrCodeProjectNotFound         = "PROJECT_NOT_FOUND"
 	ErrCodeAgentNotFound           = "AGENT_NOT_FOUND"
 	ErrCodeEnvironmentNotFound     = "ENVIRONMENT_NOT_FOUND"
+	// ErrCodeIdentityProviderUnsupported: a custom identity provider was added to a gateway
+	// whose identityProviderMode is UNSUPPORTED.
+	ErrCodeIdentityProviderUnsupported = "IDENTITY_PROVIDER_UNSUPPORTED"
 )
 
 // The core resources a gateway route addresses by name, when they do not
@@ -72,6 +75,10 @@ var (
 	// ErrGatewayEnvironmentFixed is returned when registering or assigning a gateway would map it
 	// to a second environment. Maps to 409.
 	ErrGatewayEnvironmentFixed = errors.New("gateway already serves another environment")
+	// ErrGatewayIdentityProviderUnsupported is returned when a custom identity provider is
+	// added to a gateway that nothing applies one to (identityProviderMode UNSUPPORTED):
+	// recording it would let agent OAuth accept an issuer the gateway rejects. Maps to 409.
+	ErrGatewayIdentityProviderUnsupported = errors.New("custom identity providers can't be added to this gateway: its configuration is managed outside Agent Manager")
 	// ErrGatewayServesEnvironment is returned when unmapping a gateway from an environment whose
 	// agents, MCP proxies or LLM proxies are still placed on it. Maps to 409.
 	ErrGatewayServesEnvironment    = errors.New("gateway still serves the environment's artifacts")

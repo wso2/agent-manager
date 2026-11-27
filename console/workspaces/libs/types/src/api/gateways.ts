@@ -24,9 +24,9 @@ export type GatewayHosting = "MANAGED" | "SELF_HOSTED";
 
 /**
  * How a change to a gateway's custom identity providers reaches the gateway, as the
- * service reports it: it patches the gateway's config (APPLIED), the gateway's owner
- * edits it (MANUAL), or the service only records it and does not apply it to the
- * gateway (UNSUPPORTED).
+ * service reports it: it patches the gateway's config (APPLIED; reserved, no current
+ * service sends it), the gateway's owner edits it (MANUAL), or nothing applies it, so
+ * the service refuses to add a custom provider (UNSUPPORTED; removing one still works).
  */
 export type GatewayIdentityProviderMode = "APPLIED" | "MANUAL" | "UNSUPPORTED";
 

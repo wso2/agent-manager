@@ -173,7 +173,7 @@ const (
 	// IdentityProviderModeManual: the gateway's owner edits its config.toml (self-hosted).
 	IdentityProviderModeManual = "MANUAL"
 	// IdentityProviderModeUnsupported: nothing applies a custom identity provider to the
-	// gateway (managed), so the console offers removing one but not adding one.
+	// gateway (managed), so adding one is refused; removing one is allowed.
 	IdentityProviderModeUnsupported = "UNSUPPORTED"
 )
 
@@ -973,9 +973,10 @@ func (s *PlatformGatewayService) resolveGatewayUUID(gatewayID, ouID string) (str
 // UpsertIdentityProvider creates or updates an identity provider mirror row for a
 // gateway. System provenance is derived from the well-known provider names.
 //
-// Only the mirror is written: a gateway's runtime configuration is applied out of band
-// (a self-hosted gateway's owner adds the key manager to its config.toml; the console
-// shows the entry). Both managed and self-hosted gateways are supported.
+// Only the mirror is written: a self-hosted gateway's owner adds the key manager to its
+// config.toml (the console shows the entry). A custom provider is refused for a gateway
+// whose mode is UNSUPPORTED (managed): nothing would apply it, yet agent OAuth
+// validation would accept its issuer. System providers are recorded for any gateway.
 func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gatewayID, ouID, name, issuer, jwksURI, description string, skipTLS bool) (*gwmodels.GatewayIdentityProvider, error) {
 	if name == gwmodels.ReservedIdentityProviderName {
 		return nil, httpx.ErrInvalidInput
@@ -988,6 +989,9 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 	providerType := gwmodels.IdentityProviderTypeCustom
 	if gwmodels.IsSystemIdentityProvider(name) {
 		providerType = gwmodels.IdentityProviderTypeSystem
+	}
+	if providerType == gwmodels.IdentityProviderTypeCustom && identityProviderMode(gw) == IdentityProviderModeUnsupported {
+		return nil, gwerr.ErrGatewayIdentityProviderUnsupported
 	}
 	now := time.Now()
 	provider := &gwmodels.GatewayIdentityProvider{

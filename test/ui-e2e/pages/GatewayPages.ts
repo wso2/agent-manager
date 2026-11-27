@@ -64,13 +64,56 @@ export class SetupGatewayPage {
 export class GatewayViewPage {
   readonly newToken: Locator;
   readonly tokenCreated: Locator;
+  /** A listed token: only its start, then a mask. */
+  readonly tokenPrefixes: Locator;
+  readonly addIdentityProvider: Locator;
 
   constructor(readonly page: Page) {
     this.newToken = page.getByRole('button', { name: 'New token' });
     this.tokenCreated = page.getByText(/Token created\. Copy it now/);
+    this.tokenPrefixes = page.getByTitle('Only the start of the token is shown');
+    this.addIdentityProvider = page.getByRole('button', { name: 'Add identity provider' });
   }
 
   revoke(): Locator {
     return this.page.getByRole('button', { name: 'Revoke token' });
+  }
+
+  identityProviderRow(name: string): Locator {
+    return this.page.getByRole('row').filter({ hasText: name });
+  }
+
+  async removeIdentityProvider(name: string): Promise<void> {
+    // The row's remove action shows on hover.
+    const row = this.identityProviderRow(name);
+    await row.hover();
+    await row.getByRole('button', { name: 'Remove identity provider' }).click();
+  }
+}
+
+/** The drawer that adds or removes a gateway's identity provider. */
+export class IdentityProviderDrawer {
+  readonly name: Locator;
+  readonly issuer: Locator;
+  readonly jwksUri: Locator;
+  /** A self-hosted gateway's owner applies the change to its config.toml. */
+  readonly addManualNote: Locator;
+  readonly removeManualNote: Locator;
+  readonly add: Locator;
+  readonly remove: Locator;
+
+  constructor(readonly page: Page) {
+    this.name = page.getByPlaceholder('e.g., AcmeIdP');
+    this.issuer = page.getByPlaceholder('https://idp.example.com', { exact: true });
+    this.jwksUri = page.getByPlaceholder('https://idp.example.com/oauth2/jwks');
+    this.addManualNote = page.getByText("Add this entry to the gateway's configs/config.toml");
+    this.removeManualNote = page.getByText("Remove this entry from the gateway's configs/config.toml");
+    this.add = page.getByRole('button', { name: 'Add', exact: true });
+    this.remove = page.getByRole('button', { name: 'Remove', exact: true });
+  }
+
+  /** The config.toml entry the drawer shows for the gateway's owner. */
+  snippet(text: string): Locator {
+    return this.page.getByText(text).last();
   }
 }

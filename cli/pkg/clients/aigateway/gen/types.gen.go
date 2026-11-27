@@ -1864,11 +1864,12 @@ type GatewayDocumentKind string
 // GatewayDocumentStatus Observed state. Server-populated and ignored on input.
 type GatewayDocumentStatus struct {
 	// IdentityProviderMode How a change to the gateway's custom identity providers reaches the gateway.
-	// - APPLIED: the service patches the gateway's runtime configuration.
+	// - APPLIED: the service patches the gateway's runtime configuration. Reserved
+	//   for a service with a gateway config applier; no current service sends it.
 	// - MANUAL: the service only records the provider; the gateway's owner edits its
 	//   config.toml and restarts it (a self-hosted gateway).
-	// - UNSUPPORTED: the service only records the provider and nothing applies it to
-	//   the gateway (a managed gateway: its configuration is changed out of band).
+	// - UNSUPPORTED: nothing applies a custom provider to the gateway (a managed
+	//   gateway), so the service refuses to add one (409); one can still be removed.
 	IdentityProviderMode *GatewayIdentityProviderMode `json:"identityProviderMode,omitempty"`
 
 	// State Gateway operational status:
@@ -1883,11 +1884,12 @@ type GatewayDocumentStatus struct {
 type GatewayHosting string
 
 // GatewayIdentityProviderMode How a change to the gateway's custom identity providers reaches the gateway.
-//   - APPLIED: the service patches the gateway's runtime configuration.
+//   - APPLIED: the service patches the gateway's runtime configuration. Reserved
+//     for a service with a gateway config applier; no current service sends it.
 //   - MANUAL: the service only records the provider; the gateway's owner edits its
 //     config.toml and restarts it (a self-hosted gateway).
-//   - UNSUPPORTED: the service only records the provider and nothing applies it to
-//     the gateway (a managed gateway: its configuration is changed out of band).
+//   - UNSUPPORTED: nothing applies a custom provider to the gateway (a managed
+//     gateway), so the service refuses to add one (409); one can still be removed.
 type GatewayIdentityProviderMode string
 
 // GatewayListResponse defines model for GatewayListResponse.

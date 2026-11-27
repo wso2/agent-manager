@@ -68,15 +68,31 @@ func gatewayDoc(name, displayName, hosting string) framework.Obj {
 	}
 }
 
-func spec(o framework.Obj) framework.Obj { return o["spec"].(map[string]any) }
-func meta(o framework.Obj) framework.Obj { return o["metadata"].(map[string]any) }
-func state(o framework.Obj) any          { return o["status"].(map[string]any)["state"] }
+func spec(o framework.Obj) framework.Obj      { return o["spec"].(map[string]any) }
+func meta(o framework.Obj) framework.Obj      { return o["metadata"].(map[string]any) }
+func docStatus(o framework.Obj) framework.Obj { return o["status"].(map[string]any) }
+func state(o framework.Obj) any               { return docStatus(o)["state"] }
 func names(list framework.Obj) []string {
 	var out []string
 	for _, item := range framework.Items(list, "list") {
 		out = append(out, framework.Str(item, "metadata", "name"))
 	}
 	return out
+}
+
+// expectTokenPrefix checks that a token listing shows the start of the token,
+// enough to match a token in use to its entry, but never the whole token.
+func expectTokenPrefix(tokens framework.Obj, tokenID, token string) {
+	for _, t := range framework.Items(tokens, "list") {
+		if framework.Str(t, "id") != tokenID {
+			continue
+		}
+		prefix := framework.Str(t, "prefix")
+		Expect(prefix).To(HaveLen(8))
+		Expect(token).To(HavePrefix(prefix))
+		return
+	}
+	Fail("token " + tokenID + " is not listed")
 }
 
 var _ = Describe("Self-hosted gateway", Label("gateway"), Ordered, func() {
@@ -100,11 +116,14 @@ var _ = Describe("Self-hosted gateway", Label("gateway"), Ordered, func() {
 		Expect(g["kind"]).To(Equal("Gateway"))
 		Expect(meta(g)["name"]).To(Equal(name))
 		Expect(spec(g)["hosting"]).To(Equal("SELF_HOSTED"))
+		// Its owner applies identity providers to its config.toml.
+		Expect(docStatus(g)["identityProviderMode"]).To(Equal("MANUAL"))
 		// It hasn't connected yet.
 		Expect(state(g)).To(Equal("INACTIVE"))
 
 		got := framework.CallObj(Default, Client, http.MethodGet, gw("/%s", name), nil, http.StatusOK)
 		Expect(spec(got)["displayName"]).To(Equal("E2E self-hosted"))
+		Expect(docStatus(got)["identityProviderMode"]).To(Equal("MANUAL"))
 		Expect(names(framework.CallObj(Default, Client, http.MethodGet, gw("?hosting=SELF_HOSTED"), nil, http.StatusOK))).To(ContainElement(name))
 		Expect(names(framework.CallObj(Default, Client, http.MethodGet, gw("?hosting=MANAGED"), nil, http.StatusOK))).NotTo(ContainElement(name))
 
@@ -132,6 +151,7 @@ var _ = Describe("Self-hosted gateway", Label("gateway"), Ordered, func() {
 		tokens := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/tokens", name), nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(tokens, "list"), "id")).To(ContainElement(tokenID))
 		Expect(tokens).NotTo(HaveKey("token"), "a token's value is shown only once")
+		expectTokenPrefix(tokens, tokenID, token)
 
 		status := internalStatus(token)
 		if status == 0 {
@@ -142,6 +162,28 @@ var _ = Describe("Self-hosted gateway", Label("gateway"), Ordered, func() {
 
 		framework.Call(Default, Client, http.MethodDelete, gw("/%s/tokens/%s", name, tokenID), nil, http.StatusNoContent)
 		Eventually(func() int { return internalStatus(token) }).WithPolling(time.Second).Should(Equal(http.StatusUnauthorized))
+	})
+
+	It("records trusted identity providers for its owner to apply", func() {
+		idp := "e2e-test-idp-" + uuid.NewString()[:8]
+		issuer := "https://" + idp + ".example.test"
+		DeferCleanup(func() {
+			framework.Send(Default, Client, http.MethodDelete, gw("/%s/identity-providers/%s", name, idp), nil)
+		})
+		p := framework.CallObj(Default, Client, http.MethodPut, gw("/%s/identity-providers/%s", name, idp),
+			framework.Obj{"issuer": issuer, "jwksUri": issuer + "/jwks"}, http.StatusOK)
+		Expect(p["name"]).To(Equal(idp))
+		Expect(p["issuer"]).To(Equal(issuer))
+
+		idps := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/identity-providers", name), nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(idps, "list"), "name")).To(ContainElement(idp))
+		org := framework.CallObj(Default, Client, http.MethodGet, framework.AIGW("/identity-providers"), nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(org, "list"), "name")).To(ContainElement(idp))
+		framework.CallError(Default, Client, http.MethodGet, framework.AIGW("/identity-providers/discover"), nil, http.StatusBadRequest)
+
+		framework.Call(Default, Client, http.MethodDelete, gw("/%s/identity-providers/%s", name, idp), nil, http.StatusNoContent)
+		idps = framework.CallObj(Default, Client, http.MethodGet, gw("/%s/identity-providers", name), nil, http.StatusOK)
+		Expect(framework.Field(framework.Items(idps, "list"), "name")).NotTo(ContainElement(idp))
 	})
 
 	It("keeps a gateway that serves a deployment, and removes it, with its tokens, once that is gone", func() {
@@ -208,22 +250,20 @@ var _ = Describe("Managed gateway", Label("gateway"), Ordered, func() {
 		framework.CallError(Default, Client, http.MethodDelete, gw("/%s", name), nil, http.StatusForbidden)
 	})
 
-	It("manages its trusted identity providers", func() {
+	It("refuses a custom identity provider it can't apply", func() {
+		got := framework.CallObj(Default, Client, http.MethodGet, gw("/%s", name), nil, http.StatusOK)
+		// Nothing applies a custom identity provider to a managed gateway's config.
+		Expect(docStatus(got)["identityProviderMode"]).To(Equal("UNSUPPORTED"))
+
+		// Refused and not recorded: agent OAuth would otherwise trust an issuer the
+		// gateway rejects. Self-hosted gateways record them (see above).
 		idp := "e2e-test-idp-" + uuid.NewString()[:8]
-		issuer, jwks := "https://idp.example.test", "https://idp.example.test/jwks"
 		DeferCleanup(func() {
 			framework.Send(Default, Client, http.MethodDelete, gw("/%s/identity-providers/%s", name, idp), nil)
 		})
-		framework.Call(Default, Client, http.MethodPut, gw("/%s/identity-providers/%s", name, idp),
-			framework.Obj{"issuer": issuer, "jwksUri": jwks}, http.StatusOK)
+		framework.CallError(Default, Client, http.MethodPut, gw("/%s/identity-providers/%s", name, idp),
+			framework.Obj{"issuer": "https://idp.example.test", "jwksUri": "https://idp.example.test/jwks"}, http.StatusConflict)
 		idps := framework.CallObj(Default, Client, http.MethodGet, gw("/%s/identity-providers", name), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(idps, "list"), "name")).To(ContainElement(idp))
-		org := framework.CallObj(Default, Client, http.MethodGet, framework.AIGW("/identity-providers"), nil, http.StatusOK)
-		Expect(framework.Field(framework.Items(org, "list"), "name")).To(ContainElement(idp))
-		framework.CallError(Default, Client, http.MethodGet, framework.AIGW("/identity-providers/discover"), nil, http.StatusBadRequest)
-
-		framework.Call(Default, Client, http.MethodDelete, gw("/%s/identity-providers/%s", name, idp), nil, http.StatusNoContent)
-		idps = framework.CallObj(Default, Client, http.MethodGet, gw("/%s/identity-providers", name), nil, http.StatusOK)
 		Expect(framework.Field(framework.Items(idps, "list"), "name")).NotTo(ContainElement(idp))
 	})
 
