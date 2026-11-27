@@ -34,7 +34,7 @@ import {
   ListFilter,
   X as RemoveIcon,
 } from "@wso2/oxygen-ui-icons-react";
-import type { AgentRegistryRegistration } from "@agent-management-platform/types";
+import type { AgentRegistryManagement } from "@agent-management-platform/types";
 import {
   ALL,
   type AgentRegistryFilterOptions,
@@ -44,7 +44,7 @@ import {
   PANEL_FILTER_KEYS,
   type PanelFilters,
   filterChips,
-  withRegistration,
+  withManagement,
 } from "../agentRegistryFilters";
 import { AgentRegistryFiltersPanel, FILTERS_PANEL_ID } from "./AgentRegistryFiltersPanel";
 
@@ -63,34 +63,35 @@ function panelFiltersOf(filters: AgentRegistryFilters): PanelFilters {
     llmProvider: filters.llmProvider,
     mcpServer: filters.mcpServer,
     foundOn: filters.foundOn,
+    connection: filters.connection,
   };
 }
 
-interface RegistrationToggleProps {
-  value: AgentRegistryRegistration;
-  counts: Record<AgentRegistryRegistration, number>;
-  onChange: (value: AgentRegistryRegistration) => void;
+interface ManagementToggleProps {
+  value: AgentRegistryManagement;
+  counts: Record<AgentRegistryManagement, number>;
+  onChange: (value: AgentRegistryManagement) => void;
 }
 
 /**
- * Registered agents, or shadow agents found outside Agent Manager. One at a time: the
+ * Managed agents, or shadow agents found outside Agent Manager. One at a time: the
  * two have almost no fields in common, so they don't share a table.
  */
-function RegistrationToggle({ value, counts, onChange }: RegistrationToggleProps) {
+function ManagementToggle({ value, counts, onChange }: ManagementToggleProps) {
   return (
     <ToggleButtonGroup
       exclusive
       size="small"
       value={value}
-      aria-label="Registration"
-      onChange={(_, next: AgentRegistryRegistration | null) => {
+      aria-label="Managed or unmanaged"
+      onChange={(_, next: AgentRegistryManagement | null) => {
         if (next !== null) onChange(next);
       }}
       sx={{ "& .MuiToggleButton-root": { px: 1.75, textTransform: "none" } }}
     >
-      <ToggleButton value="registered">Registered ({counts.registered})</ToggleButton>
+      <ToggleButton value="managed">Managed ({counts.managed})</ToggleButton>
       <Tooltip title="Shadow agents: found outside Agent Manager and not onboarded yet">
-        <ToggleButton value="unregistered">Unregistered ({counts.unregistered})</ToggleButton>
+        <ToggleButton value="unmanaged">Unmanaged ({counts.unmanaged})</ToggleButton>
       </Tooltip>
     </ToggleButtonGroup>
   );
@@ -179,12 +180,12 @@ export interface AgentRegistryToolbarProps {
   onChange: (filters: AgentRegistryFilters) => void;
   view: AgentRegistryView;
   onViewChange: (view: AgentRegistryView) => void;
-  counts: Record<AgentRegistryRegistration, number>;
+  counts: Record<AgentRegistryManagement, number>;
   shownCount: number;
 }
 
 /**
- * First row: search and the registration toggle on the left, Filters and the view
+ * First row: search and the management toggle on the left, Filters and the view
  * toggle on the right. Second row, when anything is filtered: the applied filters as chips.
  */
 export function AgentRegistryToolbar({
@@ -217,34 +218,34 @@ export function AgentRegistryToolbar({
     onChange({ ...filters, [chip.key]: ALL });
     setDraft((d) => ({ ...d, [chip.key]: ALL }));
   };
-  /** Sets this registration's panel filters back to ALL in the draft; Filter applies it. */
+  /** Sets this management's panel filters back to ALL in the draft; Filter applies it. */
   const resetDraft = () => {
     const next = { ...draft };
-    for (const key of PANEL_FILTER_KEYS[filters.registration]) next[key] = ALL;
+    for (const key of PANEL_FILTER_KEYS[filters.management]) next[key] = ALL;
     setDraft(next);
   };
-  /** Clears search and the panel filters; the registration toggle stays. */
+  /** Clears search and the panel filters; the management toggle stays. */
   const clearAll = () => {
-    const cleared = { ...EMPTY_FILTERS, registration: filters.registration };
+    const cleared = { ...EMPTY_FILTERS, management: filters.management };
     onChange(cleared);
     setDraft(panelFiltersOf(cleared));
   };
-  /** Switching drops the other registration's filters, which mean nothing here. */
-  const switchRegistration = (registration: AgentRegistryRegistration) => {
-    const next = withRegistration(filters, registration);
+  /** Switching drops the other management's filters, which mean nothing here. */
+  const switchRegistration = (management: AgentRegistryManagement) => {
+    const next = withManagement(filters, management);
     onChange(next);
     setDraft(panelFiltersOf(next));
     setPanelOpen(false);
   };
 
-  const total = counts[filters.registration];
+  const total = counts[filters.management];
 
   return (
     <Stack spacing={1.5}>
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
         <SearchBar
           placeholder={
-            filters.registration === "registered"
+            filters.management === "managed"
               ? "Search by name, project, owner or tag"
               : "Search by name, source or connector"
           }
@@ -255,8 +256,8 @@ export function AgentRegistryToolbar({
             onChange({ ...filters, search: e.target.value })
           }
         />
-        <RegistrationToggle
-          value={filters.registration}
+        <ManagementToggle
+          value={filters.management}
           counts={counts}
           onChange={switchRegistration}
         />
@@ -299,7 +300,7 @@ export function AgentRegistryToolbar({
       {panelOpen && filtersButton && (
         <AgentRegistryFiltersPanel
           anchorEl={filtersButton}
-          registration={filters.registration}
+          management={filters.management}
           draft={draft}
           options={options}
           onDraftChange={setDraft}

@@ -151,7 +151,7 @@ function Sidebar({
 }
 
 /**
- * Org-level overview of one registered agent, laid out like an unregistered agent's page:
+ * Org-level overview of one managed agent, laid out like an unmanaged agent's page:
  * a main column with what changes per environment (chosen in the header) and a sidebar
  * with what does not. Links on to its project page.
  */

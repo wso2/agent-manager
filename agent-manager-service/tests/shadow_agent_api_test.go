@@ -220,7 +220,7 @@ func TestShadowAgentDiscoveryAPI_Catalog(t *testing.T) {
 
 // TestShadowAgentDiscoveryAPI covers the whole flow against a fake OpenAI:
 // platforms, tests, scans of one platform and of all, the deduplicated
-// unregistered agents with the platform filter, onboarding as an external
+// unmanaged agents with the platform filter, onboarding as an external
 // agent, agents no longer listed, deleting, clearing scans, retention and
 // isolation.
 func TestShadowAgentDiscoveryAPI(t *testing.T) {

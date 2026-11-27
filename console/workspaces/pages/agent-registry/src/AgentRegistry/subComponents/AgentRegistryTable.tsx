@@ -23,7 +23,7 @@ import { formatRelativeTime } from "@agent-management-platform/shared-component"
 import { ProviderLogo } from "@agent-management-platform/shadow-agent-discovery";
 import type {
   AgentRegistryEntry,
-  AgentRegistryRegistration,
+  AgentRegistryManagement,
 } from "@agent-management-platform/types";
 import { lastDeployedAt } from "../agentRegistryFilters";
 import { agentTypeText, shadowSourceText, useOpenAgent } from "./agentRow";
@@ -71,8 +71,8 @@ function TimeText({ value, empty }: { value: string | null | undefined; empty: s
   );
 }
 
-/** Registered agents: name, project, owner (the creator) and when it was last deployed. */
-function RegisteredRows({ orgId, agents }: { orgId: string; agents: AgentRegistryEntry[] }) {
+/** Managed agents: name, project, owner (the creator) and when it was last deployed. */
+function ManagedRows({ orgId, agents }: { orgId: string; agents: AgentRegistryEntry[] }) {
   const openAgent = useOpenAgent(orgId);
   return (
     <ListingTable variant="card">
@@ -121,11 +121,10 @@ function RegisteredRows({ orgId, agents }: { orgId: string; agents: AgentRegistr
 }
 
 /**
- * Unregistered (shadow) agents, with the same columns as Shadow Agent Discovery's own
- * list: the agent (its scope under it), its source (the platform), the connectors that found
- * it and when a scan last saw it.
+ * Unmanaged (shadow) agents: the agent (its scope under it), its source (the platform it
+ * was found on), the connectors that found it (Connector) and when a scan last saw it.
  */
-function UnregisteredRows({ orgId, agents }: { orgId: string; agents: AgentRegistryEntry[] }) {
+function UnmanagedRows({ orgId, agents }: { orgId: string; agents: AgentRegistryEntry[] }) {
   const openAgent = useOpenAgent(orgId);
   return (
     <ListingTable variant="card">
@@ -184,12 +183,12 @@ function UnregisteredRows({ orgId, agents }: { orgId: string; agents: AgentRegis
 
 export interface AgentRegistryTableProps {
   orgId: string;
-  registration: AgentRegistryRegistration;
+  management: AgentRegistryManagement;
   agents: AgentRegistryEntry[];
 }
 
-/** The registry's agents, one row each, with the columns of the chosen registration. */
-export function AgentRegistryTable({ orgId, registration, agents }: AgentRegistryTableProps) {
+/** The registry's agents, one row each, with the columns of the chosen management. */
+export function AgentRegistryTable({ orgId, management, agents }: AgentRegistryTableProps) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(ROWS_PER_PAGE_OPTIONS[0]);
 
@@ -207,10 +206,10 @@ export function AgentRegistryTable({ orgId, registration, agents }: AgentRegistr
     // Scrolls inside its own box on narrow screens, so the page never scrolls sideways.
     <Box sx={{ overflowX: "auto" }}>
       <Box sx={{ minWidth: 720 }}>
-        {registration === "registered" ? (
-          <RegisteredRows orgId={orgId} agents={pageOfAgents} />
+        {management === "managed" ? (
+          <ManagedRows orgId={orgId} agents={pageOfAgents} />
         ) : (
-          <UnregisteredRows orgId={orgId} agents={pageOfAgents} />
+          <UnmanagedRows orgId={orgId} agents={pageOfAgents} />
         )}
       </Box>
       {agents.length > ROWS_PER_PAGE_OPTIONS[0] && (

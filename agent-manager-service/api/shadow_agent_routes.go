@@ -27,7 +27,7 @@ import (
 
 // registerShadowAgentRoutes registers Shadow Agent Discovery. It is an org
 // admin feature: connections hold platform credentials, and the agents they
-// find are the org's unregistered agents.
+// find are the org's unmanaged agents.
 func registerShadowAgentRoutes(rr *middleware.RouteRegistrar, controller controllers.ShadowAgentController) {
 	base := "/orgs/{orgName}/shadow-agents"
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/providers"), rbac.ShadowAgentRead, controller.ListProviders)

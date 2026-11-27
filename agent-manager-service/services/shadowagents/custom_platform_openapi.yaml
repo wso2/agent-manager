@@ -5,7 +5,7 @@ info:
   description: |
     Implement this API to let WSO2 Agent Manager's Shadow Agent Discovery list
     the agents that your own systems know about. Agent Manager shows each agent
-    it lists under Unregistered Agents.
+    it lists as an unmanaged agent in the agent registry.
 
     How Agent Manager calls it:
 

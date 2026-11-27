@@ -1206,7 +1206,7 @@ func TestShadowGoogleProjectIDs(t *testing.T) {
 	}
 }
 
-// An onboarded agent can be removed from the Unregistered Agents list and put
+// An onboarded agent can be removed from the unmanaged agents list and put
 // back; an agent that is not onboarded cannot be removed.
 func TestShadowSetFindingHidden(t *testing.T) {
 	id := uuid.New()

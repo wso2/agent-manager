@@ -875,7 +875,7 @@ func (r ApiDeleteShadowFindingRequest) Execute() (*http.Response, error) {
 }
 
 /*
-DeleteShadowFinding Delete an unregistered agent
+DeleteShadowFinding Delete an unmanaged agent
 
 Deletes the agent, with its evidence, on every connection that found
 it. A later scan lists it again if a platform still has it.
@@ -992,7 +992,7 @@ func (r ApiDeleteShadowFindingsRequest) Execute() (*ShadowFindingClearResponse, 
 }
 
 /*
-DeleteShadowFindings Delete every unregistered agent
+DeleteShadowFindings Delete every unmanaged agent
 
 Deletes every agent of the organization, with its evidence, on every
 connection that found it. Platforms and scans are kept. A later scan
@@ -1108,7 +1108,7 @@ func (r ApiGetShadowAgentSummaryRequest) Execute() (*ShadowAgentSummary, *http.R
 }
 
 /*
-GetShadowAgentSummary Summarize the unregistered agents found in the organization
+GetShadowAgentSummary Summarize the unmanaged agents found in the organization
 
 Counts of the agents found (each agent once, however many connections
 found it) by platform and review status, and the latest scan.
@@ -1353,7 +1353,7 @@ func (r ApiGetShadowFindingRequest) Execute() (*ShadowFindingDetail, *http.Respo
 }
 
 /*
-GetShadowFinding Get an unregistered agent
+GetShadowFinding Get an unmanaged agent
 
 The agent as its platform lists it, its evidence, every connection that
 found it, and possible duplicates on other platforms.
@@ -1888,7 +1888,7 @@ func (r ApiListShadowFindingsRequest) Execute() (*ShadowFindingListResponse, *ht
 }
 
 /*
-ListShadowFindings List unregistered agents
+ListShadowFindings List unmanaged agents
 
 The agents the platforms list, one row per agent however many
 connections found it (the same platform, kind and platform ID), most
@@ -2168,7 +2168,7 @@ func (r ApiOnboardShadowFindingRequest) Execute() (*ShadowFindingDetail, *http.R
 }
 
 /*
-OnboardShadowFinding Onboard an unregistered agent as an external agent
+OnboardShadowFinding Onboard an unmanaged agent as an external agent
 
 Links the agent, on every connection that found it, to the
 externally-hosted agent registered for it in a project of the
@@ -2332,9 +2332,9 @@ func (r ApiSetShadowFindingHiddenRequest) Execute() (*ShadowFindingDetail, *http
 }
 
 /*
-SetShadowFindingHidden Remove an onboarded agent from the Unregistered Agents list, or put it back
+SetShadowFindingHidden Remove an onboarded agent from the unmanaged agents list, or put it back
 
-hidden true removes an onboarded agent from the Unregistered Agents
+hidden true removes an onboarded agent from the unmanaged agents
 list, on every connection that found it; later scans keep it out.
 hidden false puts it back. Only an onboarded agent can be removed.
 

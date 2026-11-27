@@ -335,8 +335,8 @@ type ShadowFinding struct {
 	LinkedAgent   string     `gorm:"column:linked_agent;not null"`
 	OnboardedAt   *time.Time `gorm:"column:onboarded_at"`
 	OnboardedBy   string     `gorm:"column:onboarded_by;not null"`
-	// HiddenAt is when the onboarded agent was removed from the Unregistered
-	// Agents list (nil while it is listed), and HiddenBy who removed it.
+	// HiddenAt is when the onboarded agent was removed from the unmanaged
+	// agents list (nil while it is listed), and HiddenBy who removed it.
 	// Every connection's finding of the agent carries it, and scans keep it.
 	HiddenAt  *time.Time `gorm:"column:hidden_at"`
 	HiddenBy  string     `gorm:"column:hidden_by;not null"`

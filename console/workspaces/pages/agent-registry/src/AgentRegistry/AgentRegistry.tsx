@@ -22,14 +22,14 @@ import { Bot } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import {
   useListAgentRegistry,
-  useListUnregisteredAgents,
+  useListUnmanagedAgents,
 } from "@agent-management-platform/api-client";
 import { ResourceListShell } from "@agent-management-platform/shared-component";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   type AgentRegistryFilters,
   buildFilterOptions,
-  countByRegistration,
+  countByManagement,
   filterAgents,
   filtersFromSearchParams,
   filtersToSearchParams,
@@ -61,8 +61,8 @@ function AgentRegistrySkeleton() {
  */
 export function AgentRegistry() {
   const { orgId = "" } = useParams<{ orgId: string }>();
-  const registered = useListAgentRegistry({ orgName: orgId });
-  const unregistered = useListUnregisteredAgents({ orgName: orgId });
+  const managed = useListAgentRegistry({ orgName: orgId });
+  const unmanaged = useListUnmanagedAgents({ orgName: orgId });
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters = useMemo(() => filtersFromSearchParams(searchParams), [searchParams]);
@@ -83,16 +83,16 @@ export function AgentRegistry() {
     );
 
   // The two lists come from different APIs; each tab waits for and reports only its own.
-  const shownList = filters.registration === "unregistered" ? unregistered : registered;
+  const shownList = filters.management === "unmanaged" ? unmanaged : managed;
   const agents = useMemo(
-    () => [...(registered.data?.agents ?? []), ...(unregistered.data?.agents ?? [])],
-    [registered.data?.agents, unregistered.data?.agents],
+    () => [...(managed.data?.agents ?? []), ...(unmanaged.data?.agents ?? [])],
+    [managed.data?.agents, unmanaged.data?.agents],
   );
   const filterOptions = useMemo(() => buildFilterOptions(agents), [agents]);
   const shownAgents = useMemo(() => filterAgents(agents, filters), [agents, filters]);
-  const counts = useMemo(() => countByRegistration(agents), [agents]);
-  // With nothing filtered, an empty Unregistered list means discovery found nothing.
-  const noShadowAgents = filters.registration === "unregistered" && !isFiltered(filters);
+  const counts = useMemo(() => countByManagement(agents), [agents]);
+  // With nothing filtered, an empty Unmanaged list means discovery found nothing.
+  const noShadowAgents = filters.management === "unmanaged" && !isFiltered(filters);
 
   return (
     <PageLayout
@@ -128,7 +128,7 @@ export function AgentRegistry() {
           noShadowAgents
             ? {
                 illustration: <Bot size={64} />,
-                title: "No unregistered agents",
+                title: "No unmanaged agents",
                 description:
                   "Shadow Agent Discovery has not found any agents outside Agent Manager.",
               }
@@ -144,7 +144,7 @@ export function AgentRegistry() {
         ) : (
           <AgentRegistryTable
             orgId={orgId}
-            registration={filters.registration}
+            management={filters.management}
             agents={shownAgents}
           />
         )}

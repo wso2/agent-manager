@@ -30,7 +30,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { X as CloseIcon } from "@wso2/oxygen-ui-icons-react";
-import type { AgentRegistryRegistration } from "@agent-management-platform/types";
+import type { AgentRegistryManagement } from "@agent-management-platform/types";
 import { TextInput } from "@agent-management-platform/views";
 import {
   ALL,
@@ -43,10 +43,10 @@ import {
 
 export const FILTERS_PANEL_ID = "agent-registry-filters-panel";
 
-// Two columns of fields for registered agents; one short column for unregistered ones.
-const PANEL_WIDTH: Record<AgentRegistryRegistration, number> = {
-  registered: 680,
-  unregistered: 360,
+// Two columns of fields for managed agents; one short column for unmanaged ones.
+const PANEL_WIDTH: Record<AgentRegistryManagement, number> = {
+  managed: 680,
+  unmanaged: 360,
 };
 
 // Space between the Filters button and the panel.
@@ -130,8 +130,8 @@ interface FieldsProps {
   onDraftChange: (draft: PanelFilters) => void;
 }
 
-/** Registered agents: what they are and who has them on the left; where they run on the right. */
-function RegisteredFields(fieldProps: FieldsProps) {
+/** Managed agents: what they are and who has them on the left; where they run on the right. */
+function ManagedFields(fieldProps: FieldsProps) {
   const column = { flex: 1, minWidth: 0 };
   return (
     <Stack
@@ -167,11 +167,12 @@ function RegisteredFields(fieldProps: FieldsProps) {
   );
 }
 
-/** Unregistered agents carry only where Shadow Agent Discovery found them. */
-function UnregisteredFields(fieldProps: FieldsProps) {
+/** Unmanaged agents carry where Shadow Agent Discovery found them, and by which connection. */
+function UnmanagedFields(fieldProps: FieldsProps) {
   return (
     <FilterSection title="Discovery">
       <PanelSelect filterKey="foundOn" {...fieldProps} />
+      <PanelSelect filterKey="connection" {...fieldProps} />
     </FilterSection>
   );
 }
@@ -179,7 +180,7 @@ function UnregisteredFields(fieldProps: FieldsProps) {
 export interface AgentRegistryFiltersPanelProps {
   /** The Filters button the panel hangs from. */
   anchorEl: HTMLElement;
-  registration: AgentRegistryRegistration;
+  management: AgentRegistryManagement;
   draft: PanelFilters;
   options: AgentRegistryFilterOptions;
   onDraftChange: (draft: PanelFilters) => void;
@@ -191,7 +192,7 @@ export interface AgentRegistryFiltersPanelProps {
 /** Panel under the Filters button that edits a draft; Filter applies it, Escape discards it. */
 export function AgentRegistryFiltersPanel({
   anchorEl,
-  registration,
+  management,
   draft,
   options,
   onDraftChange,
@@ -236,7 +237,7 @@ export function AgentRegistryFiltersPanel({
             tabIndex={-1}
             elevation={8}
             sx={{
-              width: PANEL_WIDTH[registration],
+              width: PANEL_WIDTH[management],
               maxWidth: "calc(100vw - 32px)",
               // Scrolls inside on short windows, so Filter stays reachable.
               maxHeight: "var(--registry-filters-max-height)",
@@ -266,10 +267,10 @@ export function AgentRegistryFiltersPanel({
               </IconButton>
             </Stack>
             <Stack sx={{ flex: 1, minHeight: 0, overflowY: "auto", px: 2.5, py: 2 }}>
-              {registration === "registered" ? (
-                <RegisteredFields {...fieldProps} />
+              {management === "managed" ? (
+                <ManagedFields {...fieldProps} />
               ) : (
-                <UnregisteredFields {...fieldProps} />
+                <UnmanagedFields {...fieldProps} />
               )}
             </Stack>
             <Stack

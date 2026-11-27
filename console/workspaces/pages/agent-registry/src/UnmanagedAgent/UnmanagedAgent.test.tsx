@@ -267,17 +267,17 @@ describe("FindingDetail", () => {
     router(
       <Routes>
         <Route
-          path="/organizations/:orgId/agent-registry/unregistered/:findingId"
+          path="/organizations/:orgId/agent-registry/unmanaged/:findingId"
           element={
             <FindingDetail
               orgName="acme"
               canManage={canManage}
-              listPath="/organizations/acme/agent-registry?registration=unregistered"
+              listPath="/organizations/acme/agent-registry?management=unmanaged"
             />
           }
         />
       </Routes>,
-      "/organizations/acme/agent-registry/unregistered/f1",
+      "/organizations/acme/agent-registry/unmanaged/f1",
     );
   const sidebar = () => screen.getByRole("complementary", { name: "Properties" });
   const summary = () => screen.getByRole("region", { name: "Summary" });
@@ -332,7 +332,7 @@ describe("FindingDetail", () => {
     expect(screen.queryByRole("button", { name: /from list|in list/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Onboard as external agent" })).toHaveAttribute(
       "href",
-      "/organizations/acme/agent-registry/unregistered/f1/onboard",
+      "/organizations/acme/agent-registry/unmanaged/f1/onboard",
     );
     expect(screen.queryByText(/score|verdict|reviewed|dismiss/i)).not.toBeInTheDocument();
     expect(screen.queryByText("No longer found")).not.toBeInTheDocument();
@@ -539,7 +539,7 @@ describe("FindingDetail", () => {
     expect(screen.queryByText(/It is shown once/)).not.toBeInTheDocument();
   });
 
-  it("links an onboarded agent to the registered agent, without a banner", () => {
+  it("links an onboarded agent to the managed agent, without a banner", () => {
     hoisted.detail = detail({
       onboarded: true,
       linkedProject: "default",
@@ -557,7 +557,7 @@ describe("FindingDetail", () => {
       "/organizations/acme/projects/default/agents/support-bot",
     );
     expect(linked).toHaveClass("MuiLink-root");
-    expect(screen.getByRole("link", { name: "Open registered agent" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open managed agent" })).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Onboard as external agent" }),
     ).not.toBeInTheDocument();
@@ -604,7 +604,7 @@ describe("FindingDetail", () => {
     );
     expect(within(sidebar()).getByText("Might be the same agent")).toBeInTheDocument();
     const related = within(sidebar()).getByRole("link", { name: "support-bot" });
-    expect(related).toHaveAttribute("href", "/organizations/acme/agent-registry/unregistered/f7");
+    expect(related).toHaveAttribute("href", "/organizations/acme/agent-registry/unmanaged/f7");
     expect(related).toHaveClass("MuiLink-root");
     expect(
       within(sidebar()).getByText("Possible duplicate · Microsoft Foundry · same name"),
@@ -675,12 +675,12 @@ describe("Onboarding a code agent", () => {
       <FeatureManagementProvider featureAccess={{ agent_create: canCreateAgent }}>
         <Routes>
           <Route
-            path="/organizations/:orgId/agent-registry/unregistered/:findingId"
+            path="/organizations/:orgId/agent-registry/unmanaged/:findingId"
             element={
               <FindingDetail
                 orgName="acme"
                 canManage
-                listPath="/organizations/acme/agent-registry?registration=unregistered"
+                listPath="/organizations/acme/agent-registry?management=unmanaged"
               />
             }
           />
@@ -690,7 +690,7 @@ describe("Onboarding a code agent", () => {
           />
         </Routes>
       </FeatureManagementProvider>,
-      "/organizations/acme/agent-registry/unregistered/f1",
+      "/organizations/acme/agent-registry/unmanaged/f1",
     );
 
   const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Onboard" }));
@@ -708,7 +708,7 @@ describe("Onboarding a code agent", () => {
     expect(deployItem()).not.toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByRole("menuitem", { name: /^Register as external agent/ }));
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/organizations/acme/agent-registry/unregistered/f1/onboard",
+      "/organizations/acme/agent-registry/unmanaged/f1/onboard",
     );
   });
 
@@ -777,7 +777,7 @@ describe("Onboarding a code agent", () => {
       "/organizations/acme/projects/default/newAgent/create/source",
     );
     const state = JSON.parse(screen.getByTestId("state").textContent ?? "{}");
-    expect(state.from).toBe("/organizations/acme/agent-registry/unregistered/f1");
+    expect(state.from).toBe("/organizations/acme/agent-registry/unmanaged/f1");
     expect(state.agentSourceSeed).toEqual({
       displayName: "Customer Support Agent",
       name: "customer-support-agent",
@@ -820,13 +820,13 @@ describe("OnboardFinding", () => {
     router(
       <Routes>
         <Route
-          path="/organizations/:orgId/agent-registry/unregistered/:findingId/onboard"
+          path="/organizations/:orgId/agent-registry/unmanaged/:findingId/onboard"
           element={
-            <OnboardFinding orgName="acme" listPath="/organizations/acme/agent-registry?registration=unregistered" />
+            <OnboardFinding orgName="acme" listPath="/organizations/acme/agent-registry?management=unmanaged" />
           }
         />
       </Routes>,
-      "/organizations/acme/agent-registry/unregistered/f1/onboard",
+      "/organizations/acme/agent-registry/unmanaged/f1/onboard",
     );
 
   it("explains onboarding as an external agent, then registers and links it", () => {
@@ -854,7 +854,7 @@ describe("OnboardFinding", () => {
       { projectName: "default", agentName: "support-bot" },
       expect.anything(),
     );
-    // Once linked, it asks nothing more: the registry lists it as registered now.
+    // Once linked, it asks nothing more: the registry lists it as managed now.
     act(() => hoisted.onboard.mock.calls[0][1].onSuccess());
     expect(hoisted.addConfirmation).not.toHaveBeenCalled();
     expect(hoisted.setHidden).not.toHaveBeenCalled();
@@ -874,17 +874,17 @@ describe("FindingDetail (listing and identifiers)", () => {
     router(
       <Routes>
         <Route
-          path="/organizations/:orgId/agent-registry/unregistered/:findingId"
+          path="/organizations/:orgId/agent-registry/unmanaged/:findingId"
           element={
             <FindingDetail
               orgName="acme"
               canManage
-              listPath="/organizations/acme/agent-registry?registration=unregistered"
+              listPath="/organizations/acme/agent-registry?management=unmanaged"
             />
           }
         />
       </Routes>,
-      "/organizations/acme/agent-registry/unregistered/f1",
+      "/organizations/acme/agent-registry/unmanaged/f1",
     );
   const onboarded = (hidden: boolean) =>
     detail({ onboarded: true, linkedProject: "default", linkedAgent: "support-bot", hidden });
@@ -894,8 +894,8 @@ describe("FindingDetail (listing and identifiers)", () => {
     renderDetail();
     expect(screen.queryByRole("button", { name: "Remove from list" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Show in list" })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Removed from the Unregistered Agents list/)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Open registered agent/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Removed from the Unmanaged Agents list/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Open managed agent/ })).toBeInTheDocument();
   });
 
   it("shows long identifiers with a copy button, and Your inventory's labels", () => {

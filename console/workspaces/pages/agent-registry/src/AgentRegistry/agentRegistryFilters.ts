@@ -21,7 +21,7 @@ import type {
   AgentRegistryEntry,
   AgentRegistryEnvironment,
   AgentRegistryInterface,
-  AgentRegistryRegistration,
+  AgentRegistryManagement,
 } from "@agent-management-platform/types";
 
 /** Value of a filter that is not narrowing anything. */
@@ -34,14 +34,14 @@ export const ALL = "__all__";
 export const NONE = "none";
 
 /**
- * The registry's filters. Each one is a single value; ALL (or, for registration,
- * "registered") narrows nothing.
+ * The registry's filters. Each one is a single value; ALL (or, for the managed/unmanaged
+ * toggle, "managed") narrows nothing.
  */
 export interface AgentRegistryFilters {
   search: string;
-  /** The toggle at the top: registered agents, or shadow agents found outside. */
-  registration: AgentRegistryRegistration;
-  // Filters panel, registered agents.
+  /** The toggle at the top: managed agents, or shadow agents found outside. */
+  management: AgentRegistryManagement;
+  // Filters panel, managed agents.
   hosting: string;
   interface: string;
   project: string;
@@ -52,15 +52,17 @@ export interface AgentRegistryFilters {
   status: string;
   llmProvider: string;
   mcpServer: string;
-  // Filters panel, unregistered agents.
+  // Filters panel, unmanaged agents.
   foundOn: string;
+  /** A connection's ID: the agents it found. */
+  connection: string;
 }
 
-export type PanelFilterKey = Exclude<keyof AgentRegistryFilters, "search" | "registration">;
+export type PanelFilterKey = Exclude<keyof AgentRegistryFilters, "search" | "management">;
 
-/** The panel filters each registration shows. Unregistered: only where it was found. */
-export const PANEL_FILTER_KEYS: Record<AgentRegistryRegistration, PanelFilterKey[]> = {
-  registered: [
+/** The panel filters each view shows. Unmanaged: its source and its connection. */
+export const PANEL_FILTER_KEYS: Record<AgentRegistryManagement, PanelFilterKey[]> = {
+  managed: [
     "hosting",
     "interface",
     "project",
@@ -71,14 +73,14 @@ export const PANEL_FILTER_KEYS: Record<AgentRegistryRegistration, PanelFilterKey
     "llmProvider",
     "mcpServer",
   ],
-  unregistered: ["foundOn"],
+  unmanaged: ["foundOn", "connection"],
 };
 
 export type PanelFilters = Pick<AgentRegistryFilters, PanelFilterKey>;
 
 export const EMPTY_FILTERS: AgentRegistryFilters = {
   search: "",
-  registration: "registered",
+  management: "managed",
   hosting: ALL,
   interface: ALL,
   project: ALL,
@@ -89,6 +91,7 @@ export const EMPTY_FILTERS: AgentRegistryFilters = {
   llmProvider: ALL,
   mcpServer: ALL,
   foundOn: ALL,
+  connection: ALL,
 };
 
 /** Name shown on a panel filter's field and chip. */
@@ -103,6 +106,7 @@ export const PANEL_FILTER_NAMES: Record<PanelFilterKey, string> = {
   llmProvider: "LLM provider",
   mcpServer: "MCP server",
   foundOn: "Source",
+  connection: "Connector",
 };
 
 /** The option that filters nothing. */
@@ -117,6 +121,7 @@ export const ALL_LABELS: Record<PanelFilterKey, string> = {
   llmProvider: "All LLM providers",
   mcpServer: "All MCP servers",
   foundOn: "All sources",
+  connection: "All connectors",
 };
 
 /**
@@ -140,12 +145,12 @@ const INTERFACE_LABELS: Record<AgentRegistryInterface, string> = {
 };
 
 /**
- * Whether the registry lists the agent at all. Every registered agent is listed. A shadow
+ * Whether the registry lists the agent at all. Every managed agent is listed. A shadow
  * agent is not once its platform stops listing it (gone), or once it is onboarded: it is
  * then a registered external agent and would otherwise appear twice.
  */
 export function isListed(agent: AgentRegistryEntry): boolean {
-  if (agent.registration === "registered") return true;
+  if (agent.management === "managed") return true;
   return !!agent.discovery && agent.discovery.present && !agent.discovery.onboarded;
 }
 
@@ -154,14 +159,14 @@ function isDefault(key: keyof AgentRegistryFilters, value: string): boolean {
   return key === "search" ? value.trim() === "" : value === EMPTY_FILTERS[key];
 }
 
-/** The filters with every panel filter of the other registration set back to ALL. */
-export function withRegistration(
+/** The filters with every panel filter of the other view set back to ALL. */
+export function withManagement(
   filters: AgentRegistryFilters,
-  registration: AgentRegistryRegistration,
+  management: AgentRegistryManagement,
 ): AgentRegistryFilters {
-  const next = { ...filters, registration };
+  const next = { ...filters, management };
   for (const key of Object.keys(PANEL_FILTER_NAMES) as PanelFilterKey[]) {
-    if (!PANEL_FILTER_KEYS[registration].includes(key)) next[key] = ALL;
+    if (!PANEL_FILTER_KEYS[management].includes(key)) next[key] = ALL;
   }
   return next;
 }
@@ -171,7 +176,7 @@ export function withRegistration(
 /** Query parameter for each filter. Filters at their default are left out of the URL. */
 const URL_PARAMS: Record<keyof AgentRegistryFilters, string> = {
   search: "q",
-  registration: "registration",
+  management: "management",
   hosting: "hosting",
   interface: "type",
   project: "project",
@@ -182,16 +187,19 @@ const URL_PARAMS: Record<keyof AgentRegistryFilters, string> = {
   llmProvider: "llm",
   mcpServer: "mcp",
   foundOn: "foundOn",
+  connection: "connection",
 };
 
 export function filtersFromSearchParams(params: URLSearchParams): AgentRegistryFilters {
   const filters = { ...EMPTY_FILTERS };
+  // Links from before the rename (?registration=unregistered) still open the unmanaged view.
+  if (params.get("registration") === "unregistered") filters.management = "unmanaged";
   for (const [key, param] of Object.entries(URL_PARAMS) as [keyof AgentRegistryFilters, string][]) {
     const value = params.get(param);
     if (!value) continue;
-    if (key === "registration") {
+    if (key === "management") {
       // Anything else in the link falls back to the default.
-      if (value === "unregistered") filters.registration = value;
+      if (value === "unmanaged") filters.management = value;
     } else {
       filters[key] = value;
     }
@@ -246,13 +254,15 @@ export function buildFilterOptions(agents: AgentRegistryEntry[]): AgentRegistryF
   const llmProviders = new Map<string, string>();
   const mcpServers = new Map<string, string>();
   const platforms = new Map<string, string>();
+  const connections = new Map<string, string>();
   let hasUnknownOwner = false;
 
   for (const agent of agents) {
     if (!isListed(agent)) continue;
-    if (agent.registration === "unregistered") {
+    if (agent.management === "unmanaged") {
       if (agent.discovery) {
         platforms.set(agent.discovery.provider, agent.discovery.providerDisplayName);
+        agent.discovery.foundBy.forEach((s) => connections.set(s.connectionId, s.connectionName));
       }
       continue;
     }
@@ -290,6 +300,7 @@ export function buildFilterOptions(agents: AgentRegistryEntry[]): AgentRegistryF
     llmProvider: [{ value: NONE, label: "No LLM provider" }, ...sortedOptions(llmProviders)],
     mcpServer: [{ value: NONE, label: "No MCP server" }, ...sortedOptions(mcpServers)],
     foundOn: sortedOptions(platforms),
+    connection: sortedOptions(connections),
   };
 }
 
@@ -302,12 +313,12 @@ export interface FilterChip {
   value: string;
 }
 
-/** A chip for each panel filter of the current registration that is set, in panel order. */
+/** A chip for each panel filter of the current view that is set, in panel order. */
 export function filterChips(
   filters: AgentRegistryFilters,
   options: AgentRegistryFilterOptions,
 ): FilterChip[] {
-  return PANEL_FILTER_KEYS[filters.registration]
+  return PANEL_FILTER_KEYS[filters.management]
     .filter((key) => filters[key] !== ALL)
     .map((key) => ({
       key,
@@ -317,9 +328,9 @@ export function filterChips(
     }));
 }
 
-// ---- Matching: registered agents ----------------------------------------
+// ---- Matching: managed agents ----------------------------------------
 
-function matchesRegisteredSearch(agent: AgentRegistryEntry, term: string): boolean {
+function matchesManagedSearch(agent: AgentRegistryEntry, term: string): boolean {
   const searchable = [
     agent.displayName,
     agent.name,
@@ -382,10 +393,10 @@ function canReachMcpServer(agent: AgentRegistryEntry, environment: string, mcpSe
   return envs.some((env) => env.mcpServers.some((s) => s.id === mcpServer));
 }
 
-function matchesRegistered(agent: AgentRegistryEntry, filters: AgentRegistryFilters): boolean {
+function matchesManaged(agent: AgentRegistryEntry, filters: AgentRegistryFilters): boolean {
   const term = filters.search.trim().toLowerCase();
   return (
-    (!term || matchesRegisteredSearch(agent, term)) &&
+    (!term || matchesManagedSearch(agent, term)) &&
     (filters.hosting === ALL || agent.hosting === filters.hosting) &&
     (filters.interface === ALL || agent.interface === filters.interface) &&
     (filters.project === ALL || agent.projectName === filters.project) &&
@@ -397,9 +408,9 @@ function matchesRegistered(agent: AgentRegistryEntry, filters: AgentRegistryFilt
   );
 }
 
-// ---- Matching: unregistered agents --------------------------------------
+// ---- Matching: unmanaged agents --------------------------------------
 
-function matchesUnregistered(agent: AgentRegistryEntry, filters: AgentRegistryFilters): boolean {
+function matchesUnmanaged(agent: AgentRegistryEntry, filters: AgentRegistryFilters): boolean {
   const term = filters.search.trim().toLowerCase();
   const searchable = [
     agent.displayName,
@@ -410,30 +421,32 @@ function matchesUnregistered(agent: AgentRegistryEntry, filters: AgentRegistryFi
   ];
   return (
     (!term || searchable.some((text) => text.toLowerCase().includes(term))) &&
-    (filters.foundOn === ALL || agent.discovery?.provider === filters.foundOn)
+    (filters.foundOn === ALL || agent.discovery?.provider === filters.foundOn) &&
+    (filters.connection === ALL ||
+      !!agent.discovery?.foundBy.some((s) => s.connectionId === filters.connection))
   );
 }
 
-/** Keeps the agents of the chosen registration that match every filter. */
+/** Keeps the agents of the chosen view that match every filter. */
 export function filterAgents(
   agents: AgentRegistryEntry[],
   filters: AgentRegistryFilters,
 ): AgentRegistryEntry[] {
   return agents.filter((agent) => {
-    if (!isListed(agent) || agent.registration !== filters.registration) return false;
-    return agent.registration === "registered"
-      ? matchesRegistered(agent, filters)
-      : matchesUnregistered(agent, filters);
+    if (!isListed(agent) || agent.management !== filters.management) return false;
+    return agent.management === "managed"
+      ? matchesManaged(agent, filters)
+      : matchesUnmanaged(agent, filters);
   });
 }
 
-/** How many agents of each registration there are, for the toggle's labels. */
-export function countByRegistration(
+/** How many agents each view has, for the toggle's labels. */
+export function countByManagement(
   agents: AgentRegistryEntry[],
-): Record<AgentRegistryRegistration, number> {
-  const counts = { registered: 0, unregistered: 0 };
+): Record<AgentRegistryManagement, number> {
+  const counts = { managed: 0, unmanaged: 0 };
   for (const agent of agents) {
-    if (isListed(agent)) counts[agent.registration] += 1;
+    if (isListed(agent)) counts[agent.management] += 1;
   }
   return counts;
 }
@@ -447,8 +460,8 @@ export function lastDeployedAt(agent: AgentRegistryEntry): string | null {
   return times.reduce((latest, t) => (t > latest ? t : latest));
 }
 
-/** True when the search or any panel filter of the current registration is narrowing the list. */
+/** True when the search or any panel filter of the current view is narrowing the list. */
 export function isFiltered(filters: AgentRegistryFilters): boolean {
   if (filters.search.trim() !== "") return true;
-  return PANEL_FILTER_KEYS[filters.registration].some((key) => filters[key] !== ALL);
+  return PANEL_FILTER_KEYS[filters.management].some((key) => filters[key] !== ALL);
 }

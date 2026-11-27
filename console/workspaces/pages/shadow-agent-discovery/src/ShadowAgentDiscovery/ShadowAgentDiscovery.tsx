@@ -38,15 +38,15 @@ import { RunScanButton } from "./subComponents/RunScanButton";
 import { ScanFindings } from "./subComponents/ScanFindings";
 import { ScansTab } from "./subComponents/ScansTab";
 import { useShadowAccess } from "./useShadowAccess";
-import { unregisteredAgentsPath } from "./shadowUi";
+import { unmanagedAgentsPath } from "./shadowUi";
 
-// The unregistered agents it finds are listed in the agent registry, not here.
+// The unmanaged agents it finds are listed in the agent registry, not here.
 export type ShadowTab = "overview" | "scans" | "platforms";
 const TABS: ShadowTab[] = ["overview", "scans", "platforms"];
 
 const PAGE_TITLE = "Shadow Agent Discovery";
 const PAGE_DESCRIPTION =
-  "Find the agents your organization runs on AI platforms outside Agent Manager: the unregistered agents.";
+  "Find the agents your organization runs on AI platforms outside Agent Manager: the unmanaged agents.";
 
 function ShadowOverview({
   orgName,
@@ -63,7 +63,7 @@ function ShadowOverview({
   const setTab = (t: ShadowTab) => setSearchParams({ tab: t }, { replace: true });
   const [tabActions, setTabActions] = useState<HTMLElement | null>(null);
   const openAgents = (provider?: string) =>
-    navigate(unregisteredAgentsPath(orgName ?? "", provider));
+    navigate(unmanagedAgentsPath(orgName ?? "", provider));
   const newConnection = () =>
     navigate(
       generatePath(
@@ -136,7 +136,7 @@ function ShadowOverview({
 }
 
 /**
- * Shadow Agent Discovery (org level): overview, the unregistered agents,
+ * Shadow Agent Discovery (org level): overview, the unmanaged agents,
  * scans (each with the agents it found) and platforms, with the scan,
  * agent and platform form pages below it. Mount it on a "/*" route.
  */

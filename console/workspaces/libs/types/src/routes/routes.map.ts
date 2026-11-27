@@ -297,8 +297,8 @@ export const rootRouteMap: AppRoute = {
                             children: {},
                         },
                         // A shadow agent: no project, so it is found by its discovery finding.
-                        unregisteredAgent: {
-                            path: 'unregistered/:findingId',
+                        unmanagedAgent: {
+                            path: 'unmanaged/:findingId',
                             index: true,
                             children: {
                                 onboard: {

@@ -302,7 +302,7 @@ describe("ShadowAgentDiscovery page", () => {
     expect(screen.getByText("You don't have access to Shadow Agent Discovery")).toBeInTheDocument();
   });
 
-  it("has the Overview, Scans and Platforms tabs: the unregistered agents are in the registry", () => {
+  it("has the Overview, Scans and Platforms tabs: the unmanaged agents are in the registry", () => {
     page();
     expect(screen.getByRole("heading", { name: "Shadow Agent Discovery" })).toBeInTheDocument();
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
@@ -311,7 +311,7 @@ describe("ShadowAgentDiscovery page", () => {
     expect(screen.queryByRole("tab", { name: "Findings" })).not.toBeInTheDocument();
   });
 
-  it("opens the Overview for an old link to the Unregistered Agents tab", () => {
+  it("opens the Overview for an old link to the Unmanaged Agents tab", () => {
     page("/organizations/acme/shadow-agent-discovery?tab=agents&platform=bedrock");
     expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
   });
@@ -343,7 +343,7 @@ describe("OverviewPanel", () => {
       "Add a source",
       "Test the connector",
       "Run a scan",
-      "Onboard the unregistered agents",
+      "Onboard the unmanaged agents",
     ]) {
       expect(screen.getAllByText(step).length).toBeGreaterThan(0);
     }
@@ -368,7 +368,7 @@ describe("OverviewPanel", () => {
       latestScan: scan({ connectionIds: ["c1", "c2"] }),
     };
     router(<OverviewPanel {...props} />);
-    expect(screen.getByText("Unregistered agents")).toBeInTheDocument();
+    expect(screen.getByText("Unmanaged agents")).toBeInTheDocument();
     expect(screen.getByText("Onboarded")).toBeInTheDocument();
     expect(screen.getByText("Connectors")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
@@ -501,7 +501,7 @@ describe("FindingsTab", () => {
     router(<FindingsTab orgName="acme" canManage />);
     fireEvent.click(screen.getByRole("button", { name: "Delete all" }));
     const opts = hoisted.addConfirmation.mock.calls[0][0];
-    expect(opts.title).toBe("Delete all unregistered agents?");
+    expect(opts.title).toBe("Delete all unmanaged agents?");
     expect(opts.description).toContain("for every connector, whatever the filters show");
     expect(opts.description).toContain("including the agents their platforms no longer list");
     expect(opts.description).toContain("Connectors and scan history are kept");
@@ -524,7 +524,7 @@ describe("FindingsTab", () => {
     expect(screen.getByText("No longer listed")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Support Bot"));
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/organizations/acme/agent-registry/unregistered/f1",
+      "/organizations/acme/agent-registry/unmanaged/f1",
     );
   });
 
@@ -553,14 +553,14 @@ describe("FindingsTab", () => {
 
   it("shows the empty state, not an error, when there are no agents", () => {
     router(<FindingsTab orgName="acme" />);
-    expect(screen.getByText("No unregistered agents yet")).toBeInTheDocument();
+    expect(screen.getByText("No unmanaged agents yet")).toBeInTheDocument();
   });
 
   it("shows only the error when loading fails", () => {
     hoisted.findingsError = new Error("boom");
     router(<FindingsTab orgName="acme" />);
     expect(screen.getByText(/Couldn't load the agents/)).toBeInTheDocument();
-    expect(screen.queryByText("No unregistered agents yet")).not.toBeInTheDocument();
+    expect(screen.queryByText("No unmanaged agents yet")).not.toBeInTheDocument();
   });
 });
 
@@ -756,14 +756,14 @@ describe("ScansTab", () => {
     );
   });
 
-  it("opens the unregistered agents in the agent registry, even without the manage permission", () => {
+  it("opens the unmanaged agents in the agent registry, even without the manage permission", () => {
     hoisted.scans = [scan()];
     router(<ScansTab orgName="acme" canManage={false} />);
     expect(screen.queryByRole("button", { name: "Upload results" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Clear scans" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "View unregistered agents" }));
+    fireEvent.click(screen.getByRole("button", { name: "View unmanaged agents" }));
     expect(screen.getByTestId("location")).toHaveTextContent(
-      "/organizations/acme/agent-registry?registration=unregistered",
+      "/organizations/acme/agent-registry?management=unmanaged",
     );
   });
 
@@ -773,7 +773,7 @@ describe("ScansTab", () => {
     document.body.appendChild(slot);
     router(<ScansTab orgName="acme" canManage actionsSlot={slot} />);
     const inSlot = within(slot);
-    expect(inSlot.getByRole("button", { name: "View unregistered agents" })).toBeInTheDocument();
+    expect(inSlot.getByRole("button", { name: "View unmanaged agents" })).toBeInTheDocument();
     expect(inSlot.getByRole("button", { name: "Upload results" })).toBeInTheDocument();
     expect(inSlot.getByRole("button", { name: "Clear scans" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Upload results" })).toHaveLength(1);
@@ -787,7 +787,7 @@ describe("ScansTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear scans" }));
     const opts = hoisted.addConfirmation.mock.calls[0][0];
     expect(opts.title).toBe("Clear all scans?");
-    expect(opts.description).toContain("Unregistered Agents and their evidence are kept");
+    expect(opts.description).toContain("Unmanaged Agents and their evidence are kept");
     opts.onConfirm();
     expect(hoisted.clear).toHaveBeenCalledTimes(1);
   });

@@ -21,7 +21,7 @@ import {
   EMPTY_FILTERS,
   NONE,
   buildFilterOptions,
-  countByRegistration,
+  countByManagement,
   filterAgents,
   filterChips,
   filtersFromSearchParams,
@@ -29,7 +29,7 @@ import {
   isFiltered,
   isListed,
   lastDeployedAt,
-  withRegistration,
+  withManagement,
 } from "./agentRegistryFilters";
 
 const payments = { id: "payments-mcp", displayName: "Payments", tools: ["get_invoice"] };
@@ -38,7 +38,7 @@ function agent(overrides: Partial<AgentRegistryEntry>): AgentRegistryEntry {
   return {
     name: "a",
     displayName: "A",
-    registration: "registered",
+    management: "managed",
     projectName: "p",
     projectDisplayName: "P",
     hosting: "platform",
@@ -89,7 +89,7 @@ const owned = agent({
 
 const shadow = agent({
   name: "shadow",
-  registration: "unregistered",
+  management: "unmanaged",
   projectName: "",
   projectDisplayName: "",
   hosting: "external",
@@ -115,26 +115,26 @@ const shadow = agent({
 const all = [devOnly, owned, shadow];
 const names = (agents: AgentRegistryEntry[]) => agents.map((a) => a.name);
 
-describe("registration toggle", () => {
-  it("lists registered agents by default, and only unregistered ones when switched", () => {
+describe("management toggle", () => {
+  it("lists managed agents by default, and only unmanaged ones when switched", () => {
     expect(names(filterAgents(all, EMPTY_FILTERS))).toEqual(["dev-only", "owned"]);
-    const unregistered = withRegistration(EMPTY_FILTERS, "unregistered");
-    expect(names(filterAgents(all, unregistered))).toEqual(["shadow"]);
+    const unmanaged = withManagement(EMPTY_FILTERS, "unmanaged");
+    expect(names(filterAgents(all, unmanaged))).toEqual(["shadow"]);
   });
 
-  it("drops the other registration's filters when switching", () => {
+  it("drops the other management's filters when switching", () => {
     const filters = { ...EMPTY_FILTERS, mcpServer: payments.id, search: "x" };
-    const switched = withRegistration(filters, "unregistered");
+    const switched = withManagement(filters, "unmanaged");
     expect(switched.mcpServer).toBe(EMPTY_FILTERS.mcpServer);
     expect(switched.search).toBe("x");
   });
 
   it("counts both, for the toggle's labels", () => {
-    expect(countByRegistration(all)).toEqual({ registered: 2, unregistered: 1 });
+    expect(countByManagement(all)).toEqual({ managed: 2, unmanaged: 1 });
   });
 });
 
-describe("registered filters", () => {
+describe("managed filters", () => {
   it("filters by hosting and by type", () => {
     expect(names(filterAgents(all, { ...EMPTY_FILTERS, hosting: "external" }))).toEqual([
       "owned",
@@ -169,12 +169,19 @@ describe("registered filters", () => {
   });
 });
 
-describe("unregistered filters", () => {
+describe("unmanaged filters", () => {
   it("filters by the platform the agent was found on, and searches it", () => {
-    const base = withRegistration(EMPTY_FILTERS, "unregistered");
+    const base = withManagement(EMPTY_FILTERS, "unmanaged");
     expect(names(filterAgents(all, { ...base, foundOn: "openai" }))).toEqual(["shadow"]);
     expect(filterAgents(all, { ...base, foundOn: "bedrock" })).toEqual([]);
     expect(names(filterAgents(all, { ...base, search: "proj_cs" }))).toEqual(["shadow"]);
+  });
+
+  it("filters by a connection that found the agent, by the connection's ID", () => {
+    const base = withManagement(EMPTY_FILTERS, "unmanaged");
+    expect(names(filterAgents(all, { ...base, connection: "c1" }))).toEqual(["shadow"]);
+    expect(filterAgents(all, { ...base, connection: "c-other" })).toEqual([]);
+    expect(buildFilterOptions(all).connection).toEqual([{ value: "c1", label: "OpenAI prod" }]);
   });
 });
 
@@ -186,7 +193,7 @@ describe("options and chips", () => {
     expect(options.foundOn).toEqual([{ value: "openai", label: "OpenAI" }]);
   });
 
-  it("names only the current registration's applied filters", () => {
+  it("names only the current management's applied filters", () => {
     const options = buildFilterOptions(all);
     const filters = { ...EMPTY_FILTERS, status: "suspended", foundOn: "openai" };
     expect(filterChips(filters, options)).toEqual([
@@ -194,8 +201,8 @@ describe("options and chips", () => {
     ]);
   });
 
-  it("is not filtered by the registration toggle alone", () => {
-    expect(isFiltered(withRegistration(EMPTY_FILTERS, "unregistered"))).toBe(false);
+  it("is not filtered by the management toggle alone", () => {
+    expect(isFiltered(withManagement(EMPTY_FILTERS, "unmanaged"))).toBe(false);
     expect(isFiltered({ ...EMPTY_FILTERS, hosting: "platform" })).toBe(true);
   });
 });
@@ -209,13 +216,21 @@ describe("URL", () => {
     expect(params.toString()).toBe("view=tiles&env=production&mcp=payments-mcp");
   });
 
-  it("reads back what it wrote, and ignores an unknown registration", () => {
+  it("reads back what it wrote, and ignores an unknown view", () => {
     const filters = { ...EMPTY_FILTERS, search: "bot", owner: NONE, interface: "chat-api" };
     expect(filtersFromSearchParams(filtersToSearchParams(filters, new URLSearchParams()))).toEqual(
       filters,
     );
-    const odd = new URLSearchParams("registration=both");
-    expect(filtersFromSearchParams(odd).registration).toBe("registered");
+    const odd = new URLSearchParams("management=both");
+    expect(filtersFromSearchParams(odd).management).toBe("managed");
+  });
+
+  it("opens the unmanaged view for a link from before the rename", () => {
+    const old = new URLSearchParams("registration=unregistered");
+    expect(filtersFromSearchParams(old).management).toBe("unmanaged");
+    expect(filtersFromSearchParams(new URLSearchParams("management=unmanaged")).management).toBe(
+      "unmanaged",
+    );
   });
 });
 
@@ -236,13 +251,13 @@ describe("which shadow agents are listed", () => {
 
   it("leaves out the ones gone from their platform and the ones already onboarded", () => {
     expect([shadow, gone, onboarded].map(isListed)).toEqual([true, false, false]);
-    const unregistered = withRegistration(EMPTY_FILTERS, "unregistered");
-    expect(names(filterAgents([shadow, gone, onboarded], unregistered))).toEqual(["shadow"]);
-    expect(countByRegistration([shadow, gone, onboarded]).unregistered).toBe(1);
+    const unmanaged = withManagement(EMPTY_FILTERS, "unmanaged");
+    expect(names(filterAgents([shadow, gone, onboarded], unmanaged))).toEqual(["shadow"]);
+    expect(countByManagement([shadow, gone, onboarded]).unmanaged).toBe(1);
   });
 
   it("searches the connections that found it (Source)", () => {
-    const filters = { ...withRegistration(EMPTY_FILTERS, "unregistered"), search: "openai prod" };
+    const filters = { ...withManagement(EMPTY_FILTERS, "unmanaged"), search: "openai prod" };
     expect(names(filterAgents(all, filters))).toEqual(["shadow"]);
   });
 });

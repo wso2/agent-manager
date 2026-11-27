@@ -44,7 +44,7 @@ interface OverviewPanelProps {
   onConnect: () => void;
   onOpenScans: () => void;
   onOpenPlatforms: () => void;
-  /** Opens Unregistered Agents, filtered to one platform when given. */
+  /** Opens Unmanaged Agents, filtered to one platform when given. */
   onOpenAgents: (provider?: string) => void;
 }
 
@@ -176,7 +176,7 @@ function PlatformBreakdown({
   );
 }
 
-/** The unregistered agents found, by platform, and the latest scan. */
+/** The unmanaged agents found, by platform, and the latest scan. */
 export function OverviewPanel({
   orgName,
   canManage,
@@ -195,7 +195,7 @@ export function OverviewPanel({
   const scanned = latest?.status === "succeeded" || latest?.status === "partial";
   const total = s?.totalFindings ?? 0;
   const onboarded = s?.onboarded ?? 0;
-  const unregistered = Math.max(0, total - onboarded);
+  const unmanaged = Math.max(0, total - onboarded);
   const steps: Step[] = [
     {
       title: "Add a source",
@@ -225,9 +225,9 @@ export function OverviewPanel({
       action: canManage && connected ? <RunScanButton orgName={orgName} /> : undefined,
     },
     {
-      title: "Onboard the unregistered agents",
+      title: "Onboard the unmanaged agents",
       description: "Review each agent found and onboard it as an external agent.",
-      done: total > 0 && unregistered === 0,
+      done: total > 0 && unmanaged === 0,
     },
   ];
 
@@ -284,7 +284,7 @@ export function OverviewPanel({
               />
             }
           >
-            <Stat label="Unregistered agents" value={formatCount(unregistered)} />
+            <Stat label="Unmanaged agents" value={formatCount(unmanaged)} />
             <Stat label="Onboarded" value={formatCount(onboarded)} />
             <Stat label="Connectors" value={formatCount(s?.connections)} />
           </Stack>
