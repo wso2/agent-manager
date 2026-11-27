@@ -225,10 +225,10 @@ func TestCompleteLLMProvidersTemplatesGateways(t *testing.T) {
 	if got := CompleteLLMProviders(cmd, f); !reflect.DeepEqual(got, []string{"alpha", "zeta"}) {
 		t.Errorf("CompleteLLMProviders = %v (want sorted)", got)
 	}
-	// The fake platform has no template or gateway routes: 404 => nil, not a panic.
-	if got := CompleteLLMProviderTemplates(cmd, f); got != nil {
-		t.Errorf("templates on 404 = %v", got)
+	if got := CompleteLLMProviderTemplates(cmd, f); !reflect.DeepEqual(got, []string{"anthropic", "openai"}) {
+		t.Errorf("CompleteLLMProviderTemplates = %v (want sorted)", got)
 	}
+	// The fake platform has no gateway routes: 404 => nil, not a panic.
 	if got := CompleteGateways(cmd, f); got != nil {
 		t.Errorf("gateways on 404 = %v", got)
 	}

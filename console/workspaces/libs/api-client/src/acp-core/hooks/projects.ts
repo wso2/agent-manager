@@ -25,16 +25,16 @@ import {
   updateProject,
 } from "../apis/projects";
 import type {
-  ProjectListResponse,
-  ProjectResponse,
+  CreateProjectInput,
+  ProjectDocument,
+  ProjectDocumentList,
+  ProjectSpec,
   ListProjectsPathParams,
   GetProjectPathParams,
   ListProjectsQuery,
   CreateProjectPathParams,
-  CreateProjectRequest,
   DeleteProjectPathParams,
   UpdateProjectPathParams,
-  UpdateProjectRequest,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
@@ -44,7 +44,7 @@ export function useListProjects(
   query?: ListProjectsQuery,
 ) {
   const { getToken } = useAuthHooks();
-  return useApiQuery<ProjectListResponse>({
+  return useApiQuery<ProjectDocumentList>({
     queryKey: ['projects', params, query],
     queryFn: () => listProjects(params, query, getToken),
     enabled: !!params.orgName,
@@ -58,20 +58,25 @@ const PROJECT_PAGE_SIZE = 100;
 export async function listAllProjects(
   params: ListProjectsPathParams,
   getToken?: () => Promise<string>,
-): Promise<ProjectListResponse> {
+): Promise<ProjectDocumentList> {
   const first = await listProjects(params, { limit: PROJECT_PAGE_SIZE, offset: 0 }, getToken);
-  const projects = [...first.projects];
-  while (projects.length < first.total) {
+  const projects = [...first.list];
+  const total = first.pagination?.total ?? projects.length;
+  while (projects.length < total) {
     const page = await listProjects(
       params,
       { limit: PROJECT_PAGE_SIZE, offset: projects.length },
       getToken,
     );
     // Projects deleted meanwhile can leave total short of what is there.
-    if (page.projects.length === 0) break;
-    projects.push(...page.projects);
+    if (page.list.length === 0) break;
+    projects.push(...page.list);
   }
-  return { ...first, projects, limit: projects.length };
+  return {
+    count: projects.length,
+    list: projects,
+    pagination: { ...first.pagination, limit: projects.length, offset: 0 },
+  };
 }
 
 /**
@@ -80,7 +85,7 @@ export async function listAllProjects(
  */
 export function useListAllProjects(params: ListProjectsPathParams) {
   const { getToken } = useAuthHooks();
-  return useApiQuery<ProjectListResponse>({
+  return useApiQuery<ProjectDocumentList>({
     queryKey: ['projects', params, 'all'],
     queryFn: () => listAllProjects(params, getToken),
     enabled: !!params.orgName,
@@ -89,7 +94,7 @@ export function useListAllProjects(params: ListProjectsPathParams) {
 
 export function useGetProject(params: GetProjectPathParams) {
   const { getToken } = useAuthHooks();
-  return useApiQuery<ProjectResponse>({
+  return useApiQuery<ProjectDocument>({
     queryKey: ['project', params],
     queryFn: () => getProject(params, getToken),
     enabled: !!params.orgName && !!params.projName,
@@ -100,9 +105,9 @@ export function useCreateProject(params: CreateProjectPathParams) {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
   return useApiMutation<
-    ProjectResponse,
+    ProjectDocument,
     unknown,
-    CreateProjectRequest
+    CreateProjectInput
   >({
     action: { verb: 'create', target: 'project' },
     mutationFn: (body) => createProject(params, body, getToken),
@@ -127,7 +132,7 @@ export function useDeleteProject() {
 export function useUpdateProject(params: UpdateProjectPathParams) {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
-  return useApiMutation<ProjectResponse, unknown, UpdateProjectRequest>({
+  return useApiMutation<ProjectDocument, unknown, ProjectSpec>({
     action: { verb: 'update', target: 'project' },
     mutationFn: (body) => updateProject(params, body, getToken),
     onSuccess: () => {

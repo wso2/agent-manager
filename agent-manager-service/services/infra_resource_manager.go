@@ -114,7 +114,7 @@ func (s *infraResourceManager) CreateProject(ctx context.Context, ouID string, p
 }
 
 func (s *infraResourceManager) UpdateProject(ctx context.Context, ouID string, projectName string, payload spec.UpdateProjectRequest) (*models.ProjectResponse, error) {
-	if err := s.platform.PatchProject(ctx, ouID, projectName, &payload.DisplayName, &payload.Description); err != nil {
+	if err := s.platform.PatchProject(ctx, ouID, projectName, &payload.DisplayName, payload.Description); err != nil {
 		return nil, err
 	}
 	return s.platform.GetProject(ctx, ouID, projectName)

@@ -42,7 +42,7 @@ pnpm run test-watch      # vitest watch
 
 ## Golden path: add an API-backed feature
 
-1. **Pick the module** by what the API call is about, not by which page calls it: `libs/api-client/src/<module>/`, one of `acp-core` (orgs, projects, agents, identities, events, config), `agent-runtime` (environments, and an agent's deploy settings, configurations, LLM and MCP configs, agent card and A2A proxy), `ai-gateway` (gateways, LLM providers, MCP proxies, guardrails, API keys), `ai-observability` (traces, logs, metrics, monitors, evaluators), `agent-identity`. Environment calls live in `agent-runtime` even though many pages use them.
+1. **Pick the module** by what the API call is about, not by which page calls it: `libs/api-client/src/<module>/`, one of `acp-core` (orgs, projects, agents, identities, events, config), `agent-runtime` (environments, and an agent's deploy settings, configurations, LLM and MCP configs, agent card and A2A proxy), `ai-gateway` (gateways, LLM providers, MCP proxies, guardrails, API keys), `ai-observability` (traces, logs, metrics, monitors, evaluators), `agent-identity`, `ai-hub` (subscription plans). Environment calls live in `agent-runtime` even though many pages use them.
 2. **Add the fetch fn** in `libs/api-client/src/<module>/apis/<resource>.ts`.
 3. **Add the hook** in `libs/api-client/src/<module>/hooks/<resource>.ts`, and export both from `<module>/index.ts`. Pages keep importing everything from `@agent-management-platform/api-client`.
 4. **Gate the hook** if the module is not `acp-core`: AND its `enabled` with `useUIModulePresent("<module>")`, so it stays idle while the module is off.
@@ -111,7 +111,7 @@ Feature pages are not wired in `Route.tsx`: they come from plugin manifests (bel
 
 ## UI modules and plugins
 
-The console is split into four **UI modules** under `workspaces/ui-modules/`, each a product area:
+The console is split into five **UI modules** under `workspaces/ui-modules/`, each a product area:
 
 | Module | Pages |
 |---|---|
@@ -119,6 +119,7 @@ The console is split into four **UI modules** under `workspaces/ui-modules/`, ea
 | `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too) |
 | `ai-observability` | traces, logs, metrics, eval |
 | `agent-identity` | env-thunders (Agent ID, groups, roles) |
+| `ai-hub` | subscription-plans (an organization's subscription plans: list, create, edit, deprecate). An installable module, not on by default: its pages show only once the backend `ai-hub` module is installed (`amp module install ai-hub`) |
 
 ### Pluggable structure: the rules
 
@@ -179,6 +180,7 @@ If a change needs `if (module X is installed)` inside another module's page, sto
   | Module | Query hooks gated | Still pending |
   |---|---|---|
   | `agent-identity` | all (roles, groups, thunder instances, an agent's identity) | none |
+  | `ai-hub` | all (subscription plans) | none |
   | `ai-gateway` | all except `useTestAgentAPIKey`, which no page uses | Outside UI still shown with the module off (rule 6): ai-observability's evaluator and monitor LLM provider pickers (`EvaluatorLlmProviderSection`, `MonitorLLMProviderDrawer`, `SelectPresetMonitors`). These now load nothing instead of calling the API, but should be hidden. |
   | `agent-runtime` | none | deployments, configurations, deploy settings, model and MCP configs, agent card, A2A proxy (all served by the AI Gateway module). Environments stay ungated on purpose: every module needs them. |
   | `ai-observability` | none | traces, metrics, runtime logs, monitors, monitor alerts, evaluators |

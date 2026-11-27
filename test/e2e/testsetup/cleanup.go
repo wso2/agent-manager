@@ -37,8 +37,7 @@ import (
 const cutoff = 1 * time.Hour
 
 func CleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
-
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects", orgName)
+	path := "/api/v1/projects"
 	resp, err := client.Get(path)
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list projects: %v\n", err)
@@ -63,46 +62,47 @@ func CleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 		return
 	}
 
-	for _, proj := range projects.Projects {
+	for _, proj := range projects.List {
+		name := proj.Metadata.Name
 		// e2e-cli-* is the CLI suite's own project, swept here as a backstop
 		// when a run dies before its teardown.
-		if !strings.HasPrefix(proj.Name, framework.E2EProjectPrefix) &&
-			!strings.HasPrefix(proj.Name, framework.E2ECLIProjectPrefix) {
+		if !strings.HasPrefix(name, framework.E2EProjectPrefix) &&
+			!strings.HasPrefix(name, framework.E2ECLIProjectPrefix) {
 			continue
 		}
-		if time.Since(proj.CreatedAt) < cutoff {
+		if proj.Metadata.CreationTimestamp == nil || time.Since(*proj.Metadata.CreationTimestamp) < cutoff {
 			continue
 		}
 
 		ginkgo.GinkgoWriter.Printf("stale cleanup: removing stale project %q (created %s)\n",
-			proj.Name, proj.CreatedAt.Format(time.RFC3339))
+			name, proj.Metadata.CreationTimestamp.Format(time.RFC3339))
 
-		deleteAgentsInProject(client, orgName, proj.Name)
+		deleteAgentsInProject(client, orgName, name)
 
 		// Retry project deletion — agent cleanup is async, project may still
 		// report associated agents briefly after agent DELETE returns 204.
-		projPath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", orgName, proj.Name)
+		projPath := "/api/v1/projects/" + name
 		for attempt := 0; attempt < 5; attempt++ {
 			if attempt > 0 {
 				time.Sleep(3 * time.Second)
 			}
 			delResp, err := client.Delete(projPath)
 			if err != nil {
-				ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete project %s: %v\n", proj.Name, err)
+				ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete project %s: %v\n", name, err)
 				break
 			}
 			delResp.Body.Close()
 			if delResp.StatusCode == http.StatusNoContent || delResp.StatusCode == http.StatusNotFound {
 				ginkgo.GinkgoWriter.Printf("stale cleanup: deleted project %s (status %d)\n",
-					proj.Name, delResp.StatusCode)
+					name, delResp.StatusCode)
 				break
 			}
 			if delResp.StatusCode == http.StatusConflict && attempt < 4 {
-				ginkgo.GinkgoWriter.Printf("stale cleanup: project %s still has resources, retrying...\n", proj.Name)
+				ginkgo.GinkgoWriter.Printf("stale cleanup: project %s still has resources, retrying...\n", name)
 				continue
 			}
 			ginkgo.GinkgoWriter.Printf("stale cleanup: delete project %s returned status %d\n",
-				proj.Name, delResp.StatusCode)
+				name, delResp.StatusCode)
 			break
 		}
 	}
@@ -136,7 +136,6 @@ func logDeleteResult(kind, name string, status int) {
 // deletion, so they orphan unless removed explicitly. Runs after project cleanup so
 // the platform's "pipeline referenced by a project" guard does not block deletion.
 func cleanupStaleDeploymentPipelines(client *framework.AMPClient, orgName string) {
-
 	path := fmt.Sprintf("/api/v1/orgs/%s/deployment-pipelines", orgName)
 	resp, err := client.Get(path)
 	if err != nil {
@@ -185,7 +184,6 @@ func cleanupStaleDeploymentPipelines(client *framework.AMPClient, orgName string
 // "e2e", case-insensitive) created more than the cutoff ago. These are org-scoped and
 // are not cascaded by project or environment deletion.
 func cleanupStaleLLMProviders(client *framework.AMPClient) {
-
 	resp, err := client.Get("/m/ai-gateway/llm-providers?limit=100")
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list LLM providers: %v\n", err)

@@ -69,7 +69,7 @@ var _ = Describe("Module lifecycle", Label("modules"), Serial, Ordered, func() {
 			}
 			Eventually(gatewaysStatus).WithTimeout(30 * time.Second).WithPolling(time.Second).Should(Equal(http.StatusOK))
 			framework.Send(Default, Client, http.MethodDelete, "/m/ai-gateway/llm-providers/"+providerName, nil)
-			framework.Send(Default, Client, http.MethodDelete, framework.API(Cfg, "/projects/%s", projectName), nil)
+			framework.Send(Default, Client, http.MethodDelete, framework.Projects("/%s", projectName), nil)
 		})
 	})
 
@@ -104,10 +104,10 @@ var _ = Describe("Module lifecycle", Label("modules"), Serial, Ordered, func() {
 	})
 
 	It("keeps the core working while the module is off", func() {
-		framework.CallJSON[framework.ProjectResponse](Default, Client, http.MethodPost, framework.API(Cfg, "/projects"),
-			framework.NewCreateProjectRequest(projectName, "Module lifecycle", "", "default"), http.StatusAccepted)
+		framework.CallJSON[framework.ProjectDocument](Default, Client, http.MethodPost, framework.Projects(""),
+			framework.NewProjectDocument(projectName, "Module lifecycle", ""), http.StatusAccepted)
 		Eventually(func(g Gomega) {
-			framework.Call(g, Client, http.MethodGet, framework.API(Cfg, "/projects/%s", projectName), nil, http.StatusOK)
+			framework.Call(g, Client, http.MethodGet, framework.Projects("/%s", projectName), nil, http.StatusOK)
 		}).WithTimeout(30 * time.Second).WithPolling(time.Second).Should(Succeed())
 		framework.Call(Default, Client, http.MethodGet, framework.API(Cfg, "/environments"), nil, http.StatusOK)
 	})

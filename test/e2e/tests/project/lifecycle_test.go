@@ -37,7 +37,7 @@ import (
 var _ = Describe("Project lifecycle", Label("project", "lifecycle"), Ordered, func() {
 	var name, agentName string
 	proj := func(f string, a ...any) string {
-		return framework.API(Cfg, "/projects/%s"+f, append([]any{name}, a...)...)
+		return framework.Projects("/%s"+f, append([]any{name}, a...)...)
 	}
 
 	BeforeAll(func() {
@@ -51,34 +51,34 @@ var _ = Describe("Project lifecycle", Label("project", "lifecycle"), Ordered, fu
 	})
 
 	It("creates a project that amctl then lists and reads", func() {
-		created := framework.CallJSON[framework.ProjectResponse](Default, Client, http.MethodPost, framework.API(Cfg, "/projects"),
-			framework.NewCreateProjectRequest(name, "Lifecycle", "Project lifecycle journey", "default"), http.StatusAccepted)
-		Expect(created.Name).To(Equal(name))
+		created := framework.CallJSON[framework.ProjectDocument](Default, Client, http.MethodPost, framework.Projects(""),
+			framework.NewProjectDocument(name, "Lifecycle", "Project lifecycle journey"), http.StatusAccepted)
+		Expect(created.Metadata.Name).To(Equal(name))
 
 		Eventually(func(g Gomega) {
-			g.Expect(cliproject.ListProjects(g, H, H.Org()).Names()).To(ContainElement(name))
+			g.Expect(cliproject.ProjectNames(cliproject.ListProjects(g, H, H.Org()))).To(ContainElement(name))
 		}).WithTimeout(30 * time.Second).WithPolling(2 * time.Second).Should(Succeed())
 		got := cliproject.GetProject(Default, H, H.Org(), name)
-		Expect(got.DisplayName).To(Equal("Lifecycle"))
-		Expect(got.Description).To(Equal("Project lifecycle journey"))
+		Expect(got.Spec.DisplayName).To(Equal("Lifecycle"))
+		Expect(got.Spec.Description).To(HaveValue(Equal("Project lifecycle journey")))
 	})
 
 	It("refuses a duplicate or malformed project", func() {
-		framework.CallError(Default, Client, http.MethodPost, framework.API(Cfg, "/projects"),
-			framework.NewCreateProjectRequest(name, "Again", "", "default"), http.StatusConflict)
-		framework.CallError(Default, Client, http.MethodPost, framework.API(Cfg, "/projects"),
-			framework.NewCreateProjectRequest("Not A Valid Name!", "Bad", "", "default"), http.StatusBadRequest)
-		framework.CallError(Default, Client, http.MethodGet, framework.API(Cfg, "/projects/%s", framework.E2EProjectPrefix+"absent-"+uuid.NewString()[:8]), nil, http.StatusNotFound)
+		framework.CallError(Default, Client, http.MethodPost, framework.Projects(""),
+			framework.NewProjectDocument(name, "Again", ""), http.StatusConflict)
+		framework.CallError(Default, Client, http.MethodPost, framework.Projects(""),
+			framework.NewProjectDocument("Not A Valid Name!", "Bad", ""), http.StatusBadRequest)
+		framework.CallError(Default, Client, http.MethodGet, framework.Projects("/%s", framework.E2EProjectPrefix+"absent-"+uuid.NewString()[:8]), nil, http.StatusNotFound)
 	})
 
 	It("renames the project", func() {
 		framework.Call(Default, Client, http.MethodPut, proj(""),
-			framework.UpdateProjectRequest{DisplayName: "Lifecycle renamed", Description: "updated", DeploymentPipeline: "default"}, http.StatusOK)
-		Expect(cliproject.GetProject(Default, H, H.Org(), name).DisplayName).To(Equal("Lifecycle renamed"))
-		list := framework.CallJSON[framework.ProjectListResponse](Default, Client, http.MethodGet, framework.API(Cfg, "/projects?limit=100"), nil, http.StatusOK)
+			framework.NewProjectDocument(name, "Lifecycle renamed", "updated"), http.StatusOK)
+		Expect(cliproject.GetProject(Default, H, H.Org(), name).Spec.DisplayName).To(Equal("Lifecycle renamed"))
+		list := framework.CallJSON[framework.ProjectListResponse](Default, Client, http.MethodGet, framework.Projects("?limit=100"), nil, http.StatusOK)
 		names := []string{}
-		for _, p := range list.Projects {
-			names = append(names, p.Name)
+		for _, p := range list.List {
+			names = append(names, p.Metadata.Name)
 		}
 		Expect(names).To(ContainElement(name))
 	})
@@ -90,7 +90,7 @@ var _ = Describe("Project lifecycle", Label("project", "lifecycle"), Ordered, fu
 		e := framework.CallError(Default, Client, http.MethodDelete, proj(""), nil, http.StatusConflict)
 		Expect(e.Message).To(ContainSubstring("agent"))
 
-		Expect(cliproject.GetProject(Default, H, H.Org(), name).Name).To(Equal(name))
+		Expect(cliproject.GetProject(Default, H, H.Org(), name).Metadata.Name).To(Equal(name))
 		Expect(cliagent.ListAgents(Default, H, H.Org(), name).Names()).To(ContainElement(agentName))
 		framework.Call(Default, Client, http.MethodGet, agentops.AgentPath(name, agentName), nil, http.StatusOK)
 		org := framework.CallJSON[framework.AgentListResponse](Default, Client, http.MethodGet, "/api/v1/agents?limit=100", nil, http.StatusOK)

@@ -250,7 +250,7 @@ func TestAuditMiddlewareIsPassThroughForUnauditedRoutes(t *testing.T) {
 }
 
 func TestAuditMiddlewareRecordsSensitiveRead(t *testing.T) {
-	pattern := "GET /orgs/{orgName}/identities/permissions"
+	pattern := "GET /identities/permissions"
 	meta := audit.NewRouteMeta(pattern, audit.ExtractPathParams(pattern), []rbac.Permission{rbac.RoleRead})
 
 	rec := &captureRecorder{}

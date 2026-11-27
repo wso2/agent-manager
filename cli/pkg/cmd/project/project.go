@@ -17,6 +17,8 @@
 package project
 
 import (
+	"time"
+
 	"github.com/spf13/cobra"
 
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
@@ -32,4 +34,20 @@ func NewProjectCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.AddCommand(NewCreateCmd(f))
 	cmd.AddCommand(NewDeleteCmd(f))
 	return cmd
+}
+
+// formatCreated formats a creation time, or returns "" when the server sent none.
+func formatCreated(t *time.Time, layout string) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format(layout)
+}
+
+// deref returns the string s points to, or "".
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

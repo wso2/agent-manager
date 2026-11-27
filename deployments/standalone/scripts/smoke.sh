@@ -78,11 +78,12 @@ if [ -n "$TOKEN" ]; then check login ok ok; else check login ok "no token (is AU
 A=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
 
 # --- Core API ------------------------------------------------------------------------
-check orgs 200 "$(code "${A[@]}" "$API/api/v1/orgs")"
+check organizations 200 "$(code "${A[@]}" "$API/api/v1/organizations")"
 # A fresh install lists its default organization before anything is written to it.
 ORG=$(jq -r '.organizations[0].name // empty' "$BODY" 2>/dev/null)
 if [ -n "$ORG" ]; then check orgs-listed ok ok; else check orgs-listed ok "none"; fi
 ORG=${ORG:-default}
+check organization-current 200 "$(code "${A[@]}" "$API/api/v1/organizations/current")"
 B=$API/api/v1/orgs/$ORG
 # The AI Gateway module's API.
 GW=$API/m/ai-gateway/orgs/$ORG
@@ -90,12 +91,15 @@ GW=$API/m/ai-gateway/orgs/$ORG
 GWR=$API/m/ai-gateway
 P=smoke-$RANDOM
 AG=ext-$RANDOM
+# Projects are documents at /api/v1/projects; the org comes from the token.
+PRS=$API/api/v1/projects
 # Agents are documents at /api/v1/agents; the project is metadata.project, or ?project= on an agent's own path.
 AGS=$API/api/v1/agents
 EXT='"provisioning":{"type":"external"},"agentType":{"type":"external-agent-api","subType":"custom-api"}'
 agent_doc() { echo "{\"apiVersion\":\"ai-control-plane.choreolabs.com/v1\",\"kind\":\"Agent\",\"metadata\":{\"name\":\"$1\",\"project\":\"$P\"},\"spec\":{\"displayName\":\"$2\",$EXT${3:-}}}"; }
-check project-create 202 "$(code "${A[@]}" -X POST "$B/projects" -d "{\"name\":\"$P\",\"displayName\":\"Smoke $P\"}")"
-check project-get 200 "$(code "${A[@]}" "$B/projects/$P")"
+check project-create 202 "$(code "${A[@]}" -X POST "$PRS" -d "{\"apiVersion\":\"ai-control-plane.choreolabs.com/v1\",\"kind\":\"Project\",\"metadata\":{\"name\":\"$P\"},\"spec\":{\"displayName\":\"Smoke $P\"}}")"
+check project-get 200 "$(code "${A[@]}" "$PRS/$P")"
+check project-old-path 404 "$(code "${A[@]}" "$B/projects/$P")"
 check agent-create 202 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "$AG" "Ext $AG")")"
 check agent-get 200 "$(code "${A[@]}" "$AGS/$AG?project=$P")"
 check agent-list 200 "$(code "${A[@]}" "$AGS?project=$P")"
@@ -108,9 +112,10 @@ check unknown-extension 400 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "x$
 # that name, and amp-core no ai-gateway module.
 check agent-with-llm-config-refused 400 "$(code "${A[@]}" -X POST "$AGS" -d "$(agent_doc "llm$AG" "L" ',"extensions":{"ai-gateway":{"modelConfig":[{"providerName":"nosuch-provider"}]}}')")"
 check agent-llm-not-created 404 "$(code "${A[@]}" "$AGS/llm$AG?project=$P")"
-check environments 200 "$(code "${A[@]}" "$B/environments")"
-check identity-roles 200 "$(code "${A[@]}" "$B/identities/roles")"
-check events-types 200 "$(code "${A[@]}" "$B/events/event-types")"
+check environments 200 "$(code "${A[@]}" "$API/api/v1/environments")"
+check identity-roles 200 "$(code "${A[@]}" "$API/api/v1/identities/roles")"
+check events-types 200 "$(code "${A[@]}" "$API/api/v1/events/event-types")"
+check events-old-path 404 "$(code "${A[@]}" "$B/events/event-types")"
 
 # --- Gateway routes: served by amp, absent from amp-core -----------------------------------
 check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
@@ -154,7 +159,7 @@ check workload-heartbeat-bad 401 "$(code -k -X POST "$INT/api/internal/v1/worklo
 
 check agent-delete 204 "$(code "${A[@]}" -X DELETE "$AGS/$AG?project=$P")"
 check agent-gone 404 "$(code "${A[@]}" "$AGS/$AG?project=$P")"
-check project-delete 204 "$(code "${A[@]}" -X DELETE "$B/projects/$P")"
+check project-delete 204 "$(code "${A[@]}" -X DELETE "$PRS/$P")"
 
 # --- Console, served by the API ---------------------------------------------------------
 if [ "$CONSOLE" = yes ]; then

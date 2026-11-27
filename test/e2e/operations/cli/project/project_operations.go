@@ -19,31 +19,17 @@
 package cliproject
 
 import (
-	"time"
-
 	. "github.com/onsi/gomega"
 
+	"github.com/wso2/agent-manager/test/e2e/framework"
 	"github.com/wso2/agent-manager/test/e2e/framework/amctl"
 )
 
-// Project is the subset of the CLI's project envelope data we assert on
-// (matches the server's ProjectResponse / ProjectListItem shapes).
-type Project struct {
-	Name               string    `json:"name"`
-	DisplayName        string    `json:"displayName"`
-	Description        string    `json:"description"`
-	DeploymentPipeline string    `json:"deploymentPipeline"`
-	UUID               string    `json:"uuid"`
-	CreatedAt          time.Time `json:"createdAt"`
-}
+// Project is the Project document `amctl project create|get --json` prints.
+type Project = framework.ProjectDocument
 
-// ProjectList is the data shape of `amctl project list --json`.
-type ProjectList struct {
-	Limit    int       `json:"limit"`
-	Offset   int       `json:"offset"`
-	Total    int       `json:"total"`
-	Projects []Project `json:"projects"`
-}
+// ProjectList is the list envelope `amctl project list --json` prints.
+type ProjectList = framework.ProjectListResponse
 
 // DeleteResult is the data shape of `amctl project delete --json`.
 type DeleteResult struct {
@@ -81,11 +67,11 @@ func ListProjects(g Gomega, h *amctl.Harness, org string) ProjectList {
 	return amctl.DecodeData[ProjectList](g, h.Run("project", "list", "--org", org, "--json"))
 }
 
-// Names returns the project names in the list, for membership assertions.
-func (l ProjectList) Names() []string {
-	names := make([]string, 0, len(l.Projects))
-	for _, p := range l.Projects {
-		names = append(names, p.Name)
+// ProjectNames returns the project names in the list, for membership assertions.
+func ProjectNames(l ProjectList) []string {
+	names := make([]string, 0, len(l.List))
+	for _, p := range l.List {
+		names = append(names, p.Metadata.Name)
 	}
 	return names
 }

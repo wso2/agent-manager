@@ -365,7 +365,7 @@ export const AgentDetailPage: React.FC = () => {
       title={title}
       backHref={agentsPath}
       backLabel="Back to agents"
-      description={projectData?.displayName || projectName}
+      description={projectData?.spec.displayName || projectName}
       disableIcon
     >
       <Stack spacing={3}>

@@ -67,13 +67,18 @@ type MCPProxyKind struct {
 	db             *gorm.DB
 	gatewayRepo    gwrepo.GatewayRepository
 	deploymentRepo gwrepo.DeploymentRepository
-	load           func(ctx context.Context, artifact gwmodels.ArtifactRef) (*mcpArtifact, error)
+	// plans and events send a deployment's subscriptions to its gateway once it serves it (AfterLive).
+	plans  *SubscriptionPlans
+	events *GatewayEventsService
+	load   func(ctx context.Context, artifact gwmodels.ArtifactRef) (*mcpArtifact, error)
 }
 
 // NewMCPProxyKind reads MCP proxies through the request's transaction when there is one.
-func NewMCPProxyKind(db *gorm.DB, gatewayRepo gwrepo.GatewayRepository, deploymentRepo gwrepo.DeploymentRepository) *MCPProxyKind {
+func NewMCPProxyKind(db *gorm.DB, gatewayRepo gwrepo.GatewayRepository, deploymentRepo gwrepo.DeploymentRepository,
+	plans *SubscriptionPlans, events *GatewayEventsService,
+) *MCPProxyKind {
 	return &MCPProxyKind{
-		db: db, gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo,
+		db: db, gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, plans: plans, events: events,
 		load: func(ctx context.Context, a gwmodels.ArtifactRef) (*mcpArtifact, error) {
 			return loadMCPArtifact(ctx, gwtx.Or(ctx, db), a)
 		},
@@ -153,6 +158,21 @@ func (k *MCPProxyKind) DeployEvent(ref reconcile.EventRef) eventhub.Event {
 		ProxyID: ref.ArtifactUUID.String(), DeploymentID: ref.DeploymentID, PerformedAt: ref.PerformedAt,
 	}
 	return eventhub.NewGatewayEvent("mcpproxy.deployed", "CREATE", payload.ProxyID, payload)
+}
+
+// AfterLive sends the subscriptions to the proxy, each after its plan, to the gateway that now serves this
+// artifact. A gateway pulls subscriptions only when it connects, so one already connected would otherwise refuse
+// every subscriber on a new endpoint or environment until it reconnected. The gateway stores or replaces each,
+// so a redeploy that sends them again changes nothing.
+func (k *MCPProxyKind) AfterLive(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, _ uuid.UUID) error {
+	if k.plans == nil || k.events == nil {
+		return nil
+	}
+	source, ok := k.plans.Source()
+	if !ok {
+		return nil
+	}
+	return replaySubscriptions(ctx, tx, source, NewSubscriptionArtifacts(tx), k.events, p)
 }
 
 // UndeployEvent is sent only when the core undeploys a row whose binding went away before it rendered.

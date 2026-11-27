@@ -67,8 +67,8 @@ export const ProjectOverview: React.FC = () => {
 
   return (
     <PageLayout
-      title={project?.displayName ?? "Project Overview"}
-      description={project?.description}
+      title={project?.spec.displayName ?? "Project Overview"}
+      description={project?.spec.description}
       isLoading={isLoading}
       actions={
         canWriteProject && (

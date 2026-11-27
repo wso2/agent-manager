@@ -81,6 +81,22 @@ export const generatedRouteMap =  {
             }
           }
         },
+        "subscriptionPlans": {
+          "path": "/org/:orgId/subscription-plans",
+          "wildPath": "/org/:orgId/subscription-plans/*",
+          "children": {
+            "add": {
+              "path": "/org/:orgId/subscription-plans/add",
+              "wildPath": "/org/:orgId/subscription-plans/add/*",
+              "children": {}
+            },
+            "edit": {
+              "path": "/org/:orgId/subscription-plans/edit/:planId",
+              "wildPath": "/org/:orgId/subscription-plans/edit/:planId/*",
+              "children": {}
+            }
+          }
+        },
         "llmProviders": {
           "path": "/org/:orgId/llm-providers",
           "wildPath": "/org/:orgId/llm-providers/*",

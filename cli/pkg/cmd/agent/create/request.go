@@ -299,7 +299,7 @@ func droppedExternalFlags(opts *CreateOptions) []string {
 // agentDocument wraps a create request in the Agent document the server takes.
 func agentDocument(project string, req amsvc.CreateAgentRequest) amsvc.AgentDocument {
 	doc := amsvc.AgentDocument{
-		ApiVersion: amsvc.AiControlPlaneChoreolabsComv1,
+		ApiVersion: amsvc.AgentDocumentApiVersionAiControlPlaneChoreolabsComv1,
 		Kind:       amsvc.AgentDocumentKindAgent,
 		Metadata:   amsvc.ProjectScopedDocumentMetadata{Name: req.Name, Project: project},
 		Spec: amsvc.AgentSpec{

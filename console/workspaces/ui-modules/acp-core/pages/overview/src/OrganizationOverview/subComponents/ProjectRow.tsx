@@ -19,17 +19,20 @@
 import { Link as RouterLink, generatePath } from "react-router-dom";
 import { Box, Stack, Typography } from "@wso2/oxygen-ui";
 import { Clock, Package } from "@wso2/oxygen-ui-icons-react";
-import { absoluteRouteMap, type ProjectResponse } from "@agent-management-platform/types";
+import { absoluteRouteMap, type ProjectDocument } from "@agent-management-platform/types";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import { IconTile } from "@agent-management-platform/views";
 
 const orgRoutes = absoluteRouteMap.children.org;
 
-export function ProjectRow({ project, orgId }: { project: ProjectResponse; orgId: string }) {
+export function ProjectRow({ project, orgId }: { project: ProjectDocument; orgId: string }) {
   return (
     <Stack
       component={RouterLink}
-      to={generatePath(orgRoutes.children.projects.path, { orgId, projectId: project.name })}
+      to={generatePath(orgRoutes.children.projects.path, {
+        orgId,
+        projectId: project.metadata.name,
+      })}
       direction="row"
       alignItems="center"
       spacing={2}
@@ -46,11 +49,11 @@ export function ProjectRow({ project, orgId }: { project: ProjectResponse; orgId
       </IconTile>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="subtitle2" noWrap>
-          {project.displayName}
+          {project.spec.displayName}
         </Typography>
-        {project.description && (
+        {project.spec.description && (
           <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
-            {project.description}
+            {project.spec.description}
           </Typography>
         )}
       </Box>
@@ -62,7 +65,7 @@ export function ProjectRow({ project, orgId }: { project: ProjectResponse; orgId
       >
         <Clock size={14} />
         <Typography variant="body2" noWrap>
-          {formatRelativeTime(project.createdAt)}
+          {formatRelativeTime(project.metadata.creationTimestamp ?? "")}
         </Typography>
       </Stack>
     </Stack>

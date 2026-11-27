@@ -25,7 +25,6 @@ type IdentityGroupsAPIService service
 type ApiCreateGroupRequest struct {
 	ctx                context.Context
 	ApiService         *IdentityGroupsAPIService
-	orgName            string
 	createGroupRequest *CreateGroupRequest
 }
 
@@ -42,14 +41,12 @@ func (r ApiCreateGroupRequest) Execute() (*GroupResponse, *http.Response, error)
 CreateGroup Create a new group
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiCreateGroupRequest
 */
-func (a *IdentityGroupsAPIService) CreateGroup(ctx context.Context, orgName string) ApiCreateGroupRequest {
+func (a *IdentityGroupsAPIService) CreateGroup(ctx context.Context) ApiCreateGroupRequest {
 	return ApiCreateGroupRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -69,8 +66,7 @@ func (a *IdentityGroupsAPIService) CreateGroupExecute(r ApiCreateGroupRequest) (
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/groups"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/groups"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -170,7 +166,6 @@ func (a *IdentityGroupsAPIService) CreateGroupExecute(r ApiCreateGroupRequest) (
 type ApiDeleteGroupRequest struct {
 	ctx        context.Context
 	ApiService *IdentityGroupsAPIService
-	orgName    string
 	groupId    string
 }
 
@@ -182,15 +177,13 @@ func (r ApiDeleteGroupRequest) Execute() (*http.Response, error) {
 DeleteGroup Delete group
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param groupId Group ID
 	@return ApiDeleteGroupRequest
 */
-func (a *IdentityGroupsAPIService) DeleteGroup(ctx context.Context, orgName string, groupId string) ApiDeleteGroupRequest {
+func (a *IdentityGroupsAPIService) DeleteGroup(ctx context.Context, groupId string) ApiDeleteGroupRequest {
 	return ApiDeleteGroupRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		groupId:    groupId,
 	}
 }
@@ -208,8 +201,7 @@ func (a *IdentityGroupsAPIService) DeleteGroupExecute(r ApiDeleteGroupRequest) (
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/groups/{groupId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/groups/{groupId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"groupId"+"}", url.PathEscape(parameterValueToString(r.groupId, "groupId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -296,7 +288,6 @@ func (a *IdentityGroupsAPIService) DeleteGroupExecute(r ApiDeleteGroupRequest) (
 type ApiGetGroupRequest struct {
 	ctx        context.Context
 	ApiService *IdentityGroupsAPIService
-	orgName    string
 	groupId    string
 }
 
@@ -308,15 +299,13 @@ func (r ApiGetGroupRequest) Execute() (*GroupResponse, *http.Response, error) {
 GetGroup Get group details
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param groupId Group ID
 	@return ApiGetGroupRequest
 */
-func (a *IdentityGroupsAPIService) GetGroup(ctx context.Context, orgName string, groupId string) ApiGetGroupRequest {
+func (a *IdentityGroupsAPIService) GetGroup(ctx context.Context, groupId string) ApiGetGroupRequest {
 	return ApiGetGroupRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		groupId:    groupId,
 	}
 }
@@ -337,8 +326,7 @@ func (a *IdentityGroupsAPIService) GetGroupExecute(r ApiGetGroupRequest) (*Group
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/groups/{groupId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/groups/{groupId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"groupId"+"}", url.PathEscape(parameterValueToString(r.groupId, "groupId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -434,7 +422,6 @@ func (a *IdentityGroupsAPIService) GetGroupExecute(r ApiGetGroupRequest) (*Group
 type ApiListGroupsRequest struct {
 	ctx        context.Context
 	ApiService *IdentityGroupsAPIService
-	orgName    string
 	offset     *int32
 	limit      *int32
 }
@@ -459,14 +446,12 @@ func (r ApiListGroupsRequest) Execute() (*GroupListResponse, *http.Response, err
 ListGroups List groups in an organization
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@return ApiListGroupsRequest
 */
-func (a *IdentityGroupsAPIService) ListGroups(ctx context.Context, orgName string) ApiListGroupsRequest {
+func (a *IdentityGroupsAPIService) ListGroups(ctx context.Context) ApiListGroupsRequest {
 	return ApiListGroupsRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -486,8 +471,7 @@ func (a *IdentityGroupsAPIService) ListGroupsExecute(r ApiListGroupsRequest) (*G
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/groups"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/groups"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -588,7 +572,6 @@ func (a *IdentityGroupsAPIService) ListGroupsExecute(r ApiListGroupsRequest) (*G
 type ApiUpdateGroupRequest struct {
 	ctx                context.Context
 	ApiService         *IdentityGroupsAPIService
-	orgName            string
 	groupId            string
 	updateGroupRequest *UpdateGroupRequest
 }
@@ -606,15 +589,13 @@ func (r ApiUpdateGroupRequest) Execute() (*GroupResponse, *http.Response, error)
 UpdateGroup Update group
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name
 	@param groupId Group ID
 	@return ApiUpdateGroupRequest
 */
-func (a *IdentityGroupsAPIService) UpdateGroup(ctx context.Context, orgName string, groupId string) ApiUpdateGroupRequest {
+func (a *IdentityGroupsAPIService) UpdateGroup(ctx context.Context, groupId string) ApiUpdateGroupRequest {
 	return ApiUpdateGroupRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		groupId:    groupId,
 	}
 }
@@ -635,8 +616,7 @@ func (a *IdentityGroupsAPIService) UpdateGroupExecute(r ApiUpdateGroupRequest) (
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identities/groups/{groupId}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identities/groups/{groupId}"
 	localVarPath = strings.Replace(localVarPath, "{"+"groupId"+"}", url.PathEscape(parameterValueToString(r.groupId, "groupId")), -1)
 
 	localVarHeaderParams := make(map[string]string)

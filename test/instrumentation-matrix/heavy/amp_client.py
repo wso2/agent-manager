@@ -172,8 +172,14 @@ class AmpClient:
         An external agent runs wherever its owner runs it; Agent Manager only
         issues the token its spans are accepted with at the AI Gateway."""
         self._request(
-            "POST", f"/api/v1/orgs/{org}/projects",
-            json={"name": name, "displayName": name}, expect=(202,),
+            "POST", "/api/v1/projects",
+            json={
+                "apiVersion": "ai-control-plane.choreolabs.com/v1",
+                "kind": "Project",
+                "metadata": {"name": name},
+                "spec": {"displayName": name},
+            },
+            expect=(202,),
         )
         self._request(
             "POST", "/api/v1/agents",
@@ -201,7 +207,7 @@ class AmpClient:
         actual result."""
         for path in (
             f"/api/v1/agents/{deployed.agent_name}?project={deployed.project_name}",
-            f"/api/v1/orgs/{deployed.org}/projects/{deployed.project_name}",
+            f"/api/v1/projects/{deployed.project_name}",
         ):
             try:
                 self._request("DELETE", path, expect=(200, 202, 204, 404))

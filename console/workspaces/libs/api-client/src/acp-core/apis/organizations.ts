@@ -20,7 +20,6 @@ import { httpGET, httpPOST, SERVICE_BASE } from "../../shared/utils";
 import type {
   OrganizationListResponse,
   OrganizationResponse,
-  CreateOrganizationRequest,
   ListOrganizationsQuery,
   GetOrganizationPathParams,
   ResourceNameRequest,
@@ -41,7 +40,7 @@ export async function listOrganizations(
       )
     : undefined;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(`${SERVICE_BASE}/orgs`, {
+  const res = await httpGET(`${SERVICE_BASE}/organizations`, {
     searchParams: search,
     token,
   });
@@ -50,50 +49,24 @@ export async function listOrganizations(
   return res.json();
 }
 
-export async function createOrganization(
-  body: CreateOrganizationRequest,
-  getToken?: () => Promise<string>
-): Promise<OrganizationResponse> {
-  const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(`${SERVICE_BASE}/orgs`, body, { token });
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
 export async function getOrganization(
-  params: GetOrganizationPathParams,
+  _params: GetOrganizationPathParams,
   getToken?: () => Promise<string>
 ): Promise<OrganizationResponse> {
-  const { orgName } = params;
-  
-  if (!orgName) {
-    throw new Error("orgName is required");
-  }
-  
   const token = getToken ? await getToken() : undefined;
-  const url = `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}`;
-  const res = await httpGET(url, { token });
+  // The caller's organization, from the token.
+  const res = await httpGET(`${SERVICE_BASE}/organizations/current`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
 export async function generateResourceName(
-  params: GenerateResourceNamePathParams,
+  _params: GenerateResourceNamePathParams,
   body: ResourceNameRequest,
   getToken?: () => Promise<string>
 ): Promise<ResourceNameResponse> {
-  const { orgName } = params;
-  
-  if (!orgName) {
-    throw new Error("orgName is required");
-  }
-  
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/utils/generate-name`,
-    body,
-    { token }
-  );
+  const res = await httpPOST(`${SERVICE_BASE}/utils/generate-name`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }

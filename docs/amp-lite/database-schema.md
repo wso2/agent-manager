@@ -11,7 +11,7 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 ## Decisions that shape the schema
 
 - Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) are deferred, and evaluation (evaluators, monitors, runs, scores, alerts) is removed from Lite; if they come back, they come as modules with their own tables.
-- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 33 tables are listed under [Gateway module tables](#gateway-module-tables); `amp-core` (no modules) doesn't have them.
+- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 33 tables are listed under [Gateway module tables](#gateway-module-tables) and the AI Hub's three under [AI Hub module tables](#ai-hub-module-tables); `amp-core` (no modules) doesn't have them.
 - Multi-tenant. `organizations` is the root.
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
 - Console login is file-based to start with: a default username and password belong to a default org; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
@@ -464,6 +464,59 @@ Two of its tables track agent bindings:
 
 Organizations are not deleted in Lite.
 
+
+### AI Hub module tables
+
+The `ai-hub` module (`modules/aihub`) creates its three tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` and `002_subscriptions.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
+
+**mod_ai_hub_subscription_plans**: one row per plan of an organization. A plan is never deleted, only deprecated (`deprecated_at`).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK. Gateways key plans by it. |
+| org_id | ID | no | The organization's id (no foreign key) |
+| handle | short text (40) | no | The API's `id`. Unique per organization. |
+| display_name | short text (255) | no | |
+| display_name_folded | short text (765) | no | The name case-folded (Unicode), which the list’s search matches: SQLite’s `LOWER` folds ASCII only. Folding can lengthen a name up to three times. |
+| description | short text (1023) | yes | |
+| status | short text (16) | no | `ACTIVE` or `INACTIVE` |
+| expiry_time | time | yes | |
+| created_by, updated_by | short text (255) | yes | Empty for plans copied in by the webhook |
+| created_at, updated_at | time | no | A plan copied in by the webhook is dated when it was made at its source. |
+| source_changed_at | time | yes | When the plan last changed at the developer portal it was copied from, by the portal's clock; a webhook delivery of an earlier change changes nothing. Null for a plan made here. |
+| origin | short text (255) | no | Where the plan was made: `ai-control-plane`, or the name of the developer portal that copied it in (`webhook_source_name`, `developer-portal` by default) |
+| deprecated_at | time | yes | When the plan was deprecated (by the portal's clock for a deletion there). A deprecated plan is kept, read only, for the subscriptions on it. Null while it is current. |
+
+Unique (org_id, handle) and (org_id, id).
+
+**mod_ai_hub_subscription_plan_conditions**: the plan's conditions, in order.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| org_id, plan_id | ID | no | FK (org_id, plan_id) → mod_ai_hub_subscription_plans(org_id, id) ON DELETE CASCADE |
+| condition_id | short text (63) | no | `requests`, `tool-calls`, `tokens`, or a custom id |
+| condition_type | short text (32) | no | `request-count`, `tool-call-count`, `token-count` or `custom` |
+| params | JSON | no | Limit windows and `onExceed` for built-in types; the values of a custom condition |
+| sort_order | whole number | no | |
+
+PK (plan_id, condition_id).
+
+**mod_ai_hub_subscriptions**: subscriptions to an MCP proxy on a plan, copied in from the developer portal where the subscriber subscribed. One per subscriber and MCP proxy. The subscription key is not in this table: it is in the core's `secrets` table at `subscriptions/<id>/token`, encrypted with the core's key, and gateways get it to hash.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK. Gateways know the subscription by it |
+| org_id | ID | no | The organization's id (no foreign key) |
+| source_id | short text (64) | no | The subscription's id at the portal. Unique per organization |
+| artifact_kind | short text (32) | no | `Mcp` |
+| artifact_handle | short text (255) | no | The MCP proxy's handle (the portal's `referenceId`) |
+| plan_id | ID | no | The plan's id |
+| subscriber_id | short text (255) | no | The subscriber at the portal. Unique per organization, artifact kind and handle |
+| status | short text (16) | no | `ACTIVE` or `INACTIVE` |
+| created_at, updated_at | time | no | |
+| source_changed_at | time | no | When the subscription last changed at the portal, by its clock; an older event changes nothing |
+
+Unique (org_id, source_id), (org_id, artifact_kind, artifact_handle, subscriber_id) and (org_id, id).
 
 ## Known differences from the code
 

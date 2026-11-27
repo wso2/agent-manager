@@ -17,7 +17,6 @@
 package tokens
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -174,7 +173,7 @@ var _ = Describe("SEC-AUTH-001: token rejection", Label("security"), func() {
 	})
 
 	It("rejects a request with no Authorization header", func(ctx SpecContext) {
-		resp, err := Client.GetUnauthenticatedWithContext(ctx, fmt.Sprintf(guardedPath, Cfg.DefaultOrg))
+		resp, err := Client.GetUnauthenticatedWithContext(ctx, guardedPath)
 		Expect(err).NotTo(HaveOccurred(), "request failed")
 		defer resp.Body.Close()
 		framework.ExpectUnauthorized(Default, resp, "no Authorization header")
@@ -185,7 +184,7 @@ var _ = Describe("SEC-AUTH-001: token rejection", Label("security"), func() {
 	// here deliberately: the point is that even a VALID token must not
 	// authenticate when presented this way.
 	It("does not accept a valid token passed as a query parameter", func(ctx SpecContext) {
-		path := fmt.Sprintf(guardedPath, Cfg.DefaultOrg) + "?access_token=" + Client.Token()
+		path := guardedPath + "?access_token=" + Client.Token()
 		resp, err := Client.GetUnauthenticatedWithContext(ctx, path)
 		Expect(err).NotTo(HaveOccurred(), "request failed")
 		defer resp.Body.Close()

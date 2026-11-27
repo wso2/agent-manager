@@ -36,6 +36,8 @@ func RegisterGatewayInternalRoutes(rr InternalRouter, ctrl gwctl.GatewayInternal
 	// REST agent endpoint. The gateway fetches this after an api.deployed event and expects a ZIP containing the
 	// RestApi YAML.
 	rr.HandleFuncWithValidation("GET /apis/{apiId}", ctrl.GetAPI)
+	// The subscriptions to an MCP proxy, which the gateway syncs on connect.
+	rr.HandleFuncWithValidation("GET /apis/{apiId}/subscriptions", ctrl.GetAPISubscriptions)
 
 	// Subscription plans endpoint
 	rr.HandleFuncWithValidation("GET /subscription-plans", ctrl.GetSubscriptionPlans)

@@ -16,15 +16,18 @@
 
 package framework
 
-// NewCreateProjectRequest returns a project creation request bound to the given
-// deployment pipeline.
-func NewCreateProjectRequest(name, displayName, description, deploymentPipeline string) CreateProjectRequest {
-	return CreateProjectRequest{
-		Name:               name,
-		DisplayName:        displayName,
-		Description:        &description,
-		DeploymentPipeline: deploymentPipeline,
+// NewProjectDocument returns a Project document; an empty description is left out.
+func NewProjectDocument(name, displayName, description string) ProjectDocument {
+	doc := ProjectDocument{
+		APIVersion: AgentDocumentAPIVersion,
+		Kind:       "Project",
+		Metadata:   ProjectMetadata{Name: name},
+		Spec:       ProjectSpec{DisplayName: displayName},
 	}
+	if description != "" {
+		doc.Spec.Description = &description
+	}
+	return doc
 }
 
 // NewExternalAgentRequest returns a request for creating an external agent.

@@ -16,50 +16,33 @@
  * under the License.
  */
 
-import { type ListQuery, type PaginationMeta } from './common';
+import { type DocumentMetadata, type ListQuery } from './common';
 
-// Requests
-export interface CreateProjectRequest {
-  name: string;
+export interface ProjectSpec {
   displayName: string;
   description?: string;
 }
 
-export interface UpdateProjectRequest {
-  name: string;
-  displayName: string;
-  description?: string;
+export interface ProjectDocument {
+  apiVersion: string;
+  kind: 'Project';
+  metadata: DocumentMetadata;
+  spec: ProjectSpec;
 }
 
-// Responses
-export interface ProjectResponse {
-  name: string;
-  orgName: string;
-  displayName: string;
-  description: string;
-  deploymentPipeline: string;
-  createdAt: string; // ISO date-time
-  uuid?: string;
+export interface ProjectDocumentList {
+  count?: number;
+  list: ProjectDocument[];
+  pagination?: { limit?: number; offset?: number; total?: number };
 }
 
-export interface ProjectListItem {
-  name: string;
-  orgName: string;
-  displayName: string;
-  deploymentPipeline?: string;
-  createdAt: string; // ISO date-time
-  uuid?: string;
-}
+/** The create input a Project document is built from. */
+export type CreateProjectInput = ProjectSpec & { name: string };
 
-export interface ProjectListResponse extends PaginationMeta {
-  projects: ProjectResponse[];
-}
-
-// Path/Query helpers
+// Path/Query helpers; orgName only keys the cache, the token decides the org.
 export type ListProjectsPathParams = { orgName: string | undefined };
 export type CreateProjectPathParams = { orgName: string | undefined };
 export type GetProjectPathParams = { orgName: string | undefined; projName: string | undefined };
 export type ListProjectsQuery = ListQuery;
 export type DeleteProjectPathParams = { orgName: string | undefined; projName: string | undefined };
 export type UpdateProjectPathParams = { orgName: string | undefined; projName: string | undefined };
-

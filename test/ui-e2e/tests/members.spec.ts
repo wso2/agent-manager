@@ -36,7 +36,7 @@ test.describe('members', () => {
     await expect(users.row(username)).toBeVisible();
 
     // Assign a role from the role's page.
-    const roles = await api.get(`${api.org}/identities/roles`);
+    const roles = await api.get(`${api.identities}/roles`);
     expect(roles.status).toBe(200);
     const list: any[] = roles.body.roles ?? roles.body;
     const role = list.find((r) => r.name === 'Developer') ?? list.find((r) => !/admin/i.test(r.name));

@@ -91,6 +91,32 @@ func TestUse_OrgNotFound(t *testing.T) {
 	}
 }
 
+func TestUse_OtherThanTokenOrg(t *testing.T) {
+	io, out := newTestIO()
+	cfgFn := writeConfig(t, &config.Config{
+		CurrentInstance: "prod",
+		Instances: map[string]config.Instance{
+			"prod": {URL: "https://prod.example.com", CurrentOrg: "old-org"},
+		},
+	})
+	handle := "acme"
+	clientFn, closeFn := newTestClient(t, http.StatusOK, amsvc.OrganizationResponse{Name: "Acme Corp", Handle: &handle})
+	defer closeFn()
+
+	err := runUse(context.Background(), &UseOptions{IO: io, Config: cfgFn, Client: clientFn, Name: "globex"})
+	if err == nil {
+		t.Fatal("expected an error for an org the token is not for")
+	}
+	errBody := decodeEnvelope(t, out.String())["error"].(map[string]any)
+	if errBody["code"] != clierr.NotFound {
+		t.Errorf("code = %v, want %s", errBody["code"], clierr.NotFound)
+	}
+	cfg, _ := cfgFn()
+	if cfg.Instances["prod"].CurrentOrg != "old-org" {
+		t.Errorf("current_org changed to %q", cfg.Instances["prod"].CurrentOrg)
+	}
+}
+
 func TestUse_NoInstance(t *testing.T) {
 	io, out := newTestIO()
 	cfgFn := writeConfig(t, &config.Config{})

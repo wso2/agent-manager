@@ -21,6 +21,7 @@ import { acpCoreModule } from "@agent-management-platform/ui-module-acp-core";
 import { aiGatewayModule } from "@agent-management-platform/ui-module-ai-gateway";
 import { aiObservabilityModule } from "@agent-management-platform/ui-module-ai-observability";
 import { agentIdentityModule } from "@agent-management-platform/ui-module-agent-identity";
+import { aihubModule } from "@agent-management-platform/ui-module-ai-hub";
 
 /**
  * UI modules that ship with the console, in the order the Module manager lists
@@ -33,4 +34,5 @@ export const builtinModules: UIModuleManifest[] = [
   aiGatewayModule,
   aiObservabilityModule,
   agentIdentityModule,
+  aihubModule,
 ];

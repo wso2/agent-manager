@@ -75,8 +75,8 @@ func agentNames(list spec.AgentListResponse) []string {
 // delete, with each refusal's status and code and the organization boundary.
 func TestCoreAgentsAPI(t *testing.T) {
 	w := newCoreWorld(t)
-	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, w.path("/projects"), spec.CreateProjectRequest{Name: "apps", DisplayName: "Apps"})
-	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, w.path("/projects"), spec.CreateProjectRequest{Name: "tools", DisplayName: "Tools"})
+	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, projectsPath(""), projectDocument("apps", "Apps", nil))
+	mustCall(t, w.admin, http.StatusAccepted, http.MethodPost, projectsPath(""), projectDocument("tools", "Tools", nil))
 	agents := agentsPath("")
 	inApps := func(name string) string { return agentsPath("/%s?project=apps", name) }
 
@@ -229,7 +229,7 @@ func TestCoreAgentsAPI(t *testing.T) {
 		list := decodeAs[spec.AgentListResponse](t, mustCall(t, w.reader, http.StatusOK, http.MethodGet, agents+"?project=apps", nil))
 		assert.Equal(t, int32(2), list.Pagination.GetTotal())
 
-		status, body := call(t, w.admin, http.MethodDelete, w.path("/projects/apps"), nil)
+		status, body := call(t, w.admin, http.MethodDelete, projectsPath("/apps"), nil)
 		assert.Equal(t, http.StatusConflict, status, "a project with agents is not deleted")
 		assert.Equal(t, "Project has associated agents", errorOf(t, body).Message)
 	})

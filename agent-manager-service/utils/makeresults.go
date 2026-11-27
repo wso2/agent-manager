@@ -134,47 +134,6 @@ func ConvertToOrganizationListResponse(orgs []*models.OrganizationResponse) []sp
 	return responses
 }
 
-func ConvertToProjectResponse(project *models.ProjectResponse) spec.ProjectResponse {
-	if project == nil {
-		return spec.ProjectResponse{}
-	}
-	return spec.ProjectResponse{
-		Uuid:               project.UUID,
-		Name:               project.Name,
-		DisplayName:        project.DisplayName,
-		Description:        project.Description,
-		CreatedAt:          project.CreatedAt,
-		DeploymentPipeline: "",
-	}
-}
-
-func ConvertToProjectListItem(project *models.ProjectResponse) spec.ProjectListItem {
-	if project == nil {
-		return spec.ProjectListItem{}
-	}
-
-	return spec.ProjectListItem{
-		Uuid:        project.UUID,
-		Name:        project.Name,
-		DisplayName: project.DisplayName,
-		Description: &project.Description,
-		CreatedAt:   project.CreatedAt,
-	}
-}
-
-func ConvertToProjectListResponse(projects []*models.ProjectResponse) []spec.ProjectListItem {
-	if len(projects) == 0 {
-		return []spec.ProjectListItem{}
-	}
-
-	responses := make([]spec.ProjectListItem, len(projects))
-	for i, project := range projects {
-		responses[i] = ConvertToProjectListItem(project)
-	}
-
-	return responses
-}
-
 func stringToPtr(s string) *string {
 	if s == "" {
 		return nil

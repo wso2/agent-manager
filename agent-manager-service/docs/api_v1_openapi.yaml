@@ -47,7 +47,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-  /orgs:
+  /organizations:
     get:
       summary: List all organizations
       operationId: listOrganizations
@@ -88,45 +88,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-    post:
-      summary: Create a new organization
-      operationId: createOrganization
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateOrganizationRequest"
-      responses:
-        "202":
-          description: Organization creation initiated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrganizationResponse"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}:
+  /organizations/current:
     get:
       summary: Get organization details
       operationId: getOrganization
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "200":
           description: Organization details
@@ -147,29 +112,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects:
+  /projects:
     post:
       summary: Create a new project
       operationId: createProject
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateProjectRequest"
+              $ref: "#/components/schemas/ProjectDocument"
       responses:
         "202":
           description: Project creation initiated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProjectResponse"
+                $ref: "#/components/schemas/ProjectDocument"
         "400":
           description: Invalid request
           content:
@@ -195,14 +154,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     get:
-      summary: List all projects in an organization
+      summary: List the projects of the organization
       operationId: listProjects
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
         - name: limit
           in: query
           description: Maximum number of results to return
@@ -246,28 +200,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}:
+  /projects/{projName}:
+    parameters:
+      - name: projName
+        in: path
+        required: true
+        schema:
+          type: string
     get:
       summary: Get project details
       operationId: getProject
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "200":
           description: Project details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProjectResponse"
+                $ref: "#/components/schemas/ProjectDocument"
         "404":
           description: Project not found
           content:
@@ -281,32 +230,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
-      summary: Update project
+      summary: Update a project
+      description: >-
+        Changes spec.displayName and spec.description. metadata.name must name the
+        project addressed. An absent description keeps its stored value.
       operationId: updateProject
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateProjectRequest"
+              $ref: "#/components/schemas/ProjectDocument"
       responses:
         "200":
           description: Project updated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProjectResponse"
+                $ref: "#/components/schemas/ProjectDocument"
         "400":
           description: Invalid request
           content:
@@ -328,17 +269,6 @@ paths:
     delete:
       summary: Delete a project
       operationId: deleteProject
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "204":
           description: Project deleted successfully
@@ -562,18 +492,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/utils/generate-name:
+  /utils/generate-name:
     post:
       summary: Get name by display name
       description: Retrieve name using display name for a specific resource
       operationId: getNameByDisplayName
-      parameters:
-        - name: orgName
-          in: path
-          description: Organization name
-          required: true
-          schema:
-            type: string
       requestBody:
         required: true
         content:
@@ -663,17 +586,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/environments:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
+  /environments:
 
     get:
       tags:
@@ -725,17 +638,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/environments/{envID}:
+  /environments/{envID}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
       - name: envID
         in: path
         required: true
@@ -1302,19 +1206,13 @@ paths:
   # CATALOG ENDPOINTS
   # ============================================
 
-  /orgs/{orgName}/identities/users:
+  /identities/users:
     get:
       summary: List users in an organization
       operationId: listUsers
       tags:
         - Identity - Users
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: offset
           in: query
           description: Number of results to skip
@@ -1362,13 +1260,6 @@ paths:
       operationId: createUser
       tags:
         - Identity - Users
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
       requestBody:
         required: true
         content:
@@ -1401,19 +1292,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/identities/users/{userId}:
+  /identities/users/{userId}:
     get:
       summary: Get user details
       operationId: getUser
       tags:
         - Identity - Users
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: userId
           in: path
           required: true
@@ -1451,12 +1336,6 @@ paths:
       tags:
         - Identity - Users
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: userId
           in: path
           required: true
@@ -1506,12 +1385,6 @@ paths:
       tags:
         - Identity - Users
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: userId
           in: path
           required: true
@@ -1540,7 +1413,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/identities/users/{userId}/profile:
+  /identities/users/{userId}/profile:
     get:
       summary: Get authenticated user's own profile information
       description: Retrieves the profile information of the authenticated user. Users can only retrieve their own profile (self-service endpoint).
@@ -1548,12 +1421,6 @@ paths:
       tags:
         - Identity - Users
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: userId
           in: path
           required: true
@@ -1592,12 +1459,6 @@ paths:
       tags:
         - Identity - Users
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: userId
           in: path
           required: true
@@ -1642,19 +1503,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/identities/groups:
+  /identities/groups:
     get:
       summary: List groups in an organization
       operationId: listGroups
       tags:
         - Identity - Groups
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: offset
           in: query
           description: Number of results to skip
@@ -1702,13 +1557,6 @@ paths:
       operationId: createGroup
       tags:
         - Identity - Groups
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
       requestBody:
         required: true
         content:
@@ -1741,19 +1589,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/identities/groups/{groupId}:
+  /identities/groups/{groupId}:
     get:
       summary: Get group details
       operationId: getGroup
       tags:
         - Identity - Groups
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: groupId
           in: path
           required: true
@@ -1791,12 +1633,6 @@ paths:
       tags:
         - Identity - Groups
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: groupId
           in: path
           required: true
@@ -1846,12 +1682,6 @@ paths:
       tags:
         - Identity - Groups
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: groupId
           in: path
           required: true
@@ -1880,19 +1710,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/identities/roles:
+  /identities/roles:
     get:
       summary: List roles in an organization
       operationId: listRoles
       tags:
         - Identity - Roles
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: offset
           in: query
           description: Number of results to skip
@@ -1940,13 +1764,6 @@ paths:
       operationId: createRole
       tags:
         - Identity - Roles
-      parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
       requestBody:
         required: true
         content:
@@ -1979,19 +1796,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/identities/roles/{roleId}:
+  /identities/roles/{roleId}:
     get:
       summary: Get role details
       operationId: getRole
       tags:
         - Identity - Roles
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: roleId
           in: path
           required: true
@@ -2029,12 +1840,6 @@ paths:
       tags:
         - Identity - Roles
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: roleId
           in: path
           required: true
@@ -2084,12 +1889,6 @@ paths:
       tags:
         - Identity - Roles
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          description: Organization name
-          schema:
-            type: string
         - name: roleId
           in: path
           required: true
@@ -2124,14 +1923,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/events/event-types:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
+  /events/event-types:
     get:
       tags:
         - Events
@@ -2162,14 +1954,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/events/destination-kinds:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
+  /events/destination-kinds:
     get:
       tags:
         - Events
@@ -2186,14 +1971,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/EventDestinationKindListResponse"
 
-  /orgs/{orgName}/events/destinations:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
+  /events/destinations:
     get:
       tags:
         - Events
@@ -2258,14 +2036,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/events/destinations/{destinationId}:
+  /events/destinations/{destinationId}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: destinationId
         in: path
         required: true
@@ -2352,14 +2124,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/events/destinations/{destinationId}/rotate-secret:
+  /events/destinations/{destinationId}/rotate-secret:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: destinationId
         in: path
         required: true
@@ -2397,14 +2163,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/events/destinations/{destinationId}/test:
+  /events/destinations/{destinationId}/test:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: destinationId
         in: path
         required: true
@@ -2432,14 +2192,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/events/subscriptions:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
+  /events/subscriptions:
     get:
       tags:
         - Events
@@ -2491,14 +2244,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/events/subscriptions/{subscriptionId}:
+  /events/subscriptions/{subscriptionId}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: subscriptionId
         in: path
         required: true
@@ -2568,14 +2315,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/events/deliveries:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
+  /events/deliveries:
     get:
       tags:
         - Events
@@ -2632,14 +2372,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/events/destinations:
+  /projects/{projName}/events/destinations:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: projName
         in: path
         required: true
@@ -2661,14 +2395,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/EventDestinationSummaryListResponse"
 
-  /orgs/{orgName}/projects/{projName}/events/subscriptions:
+  /projects/{projName}/events/subscriptions:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: projName
         in: path
         required: true
@@ -2734,14 +2462,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}:
+  /projects/{projName}/events/subscriptions/{subscriptionId}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: projName
         in: path
         required: true
@@ -2817,14 +2539,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/events/deliveries:
+  /projects/{projName}/events/deliveries:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: projName
         in: path
         required: true
@@ -2887,14 +2603,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/destinations:
+  /projects/{projName}/agents/{agentName}/events/destinations:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: projName
         in: path
         required: true
@@ -2922,14 +2632,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/EventDestinationSummaryListResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions:
+  /projects/{projName}/agents/{agentName}/events/subscriptions:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: projName
         in: path
         required: true
@@ -3001,14 +2705,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}:
+  /projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: projName
         in: path
         required: true
@@ -3090,14 +2788,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/deliveries:
+  /projects/{projName}/agents/{agentName}/events/deliveries:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name
-        schema:
-          type: string
       - name: projName
         in: path
         required: true
@@ -3236,6 +2928,67 @@ components:
         state:
           type: string
           description: Current status of the agent
+    ProjectDocument:
+      type: object
+      description: A project as a document; metadata.name is its handle, spec.displayName its label.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+      properties:
+        apiVersion:
+          type: string
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
+          type: string
+          description: Must match the route; never ignored.
+          enum:
+            - Project
+        metadata:
+          $ref: "#/components/schemas/DocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/ProjectSpec"
+    ProjectSpec:
+      type: object
+      required:
+        - displayName
+      properties:
+        displayName:
+          type: string
+          description: Display name of the project
+        description:
+          type: string
+          description: Description of the project
+    DocumentMetadata:
+      type: object
+      description: Metadata of a kind that lives directly in the organization.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: The resource's handle.
+        uid:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Server-assigned UUID.
+        creationTimestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When the resource was created.
+        updateTimestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When the resource last changed.
+        createdBy:
+          type: string
+          readOnly: true
+          description: User ID of the creator, when known.
     ProjectScopedDocumentMetadata:
       type: object
       description: Metadata of a kind that lives inside a project.
@@ -3381,17 +3134,9 @@ components:
             not off). The console hides Events when false. Absent is treated as
             false.
 
-    CreateOrganizationRequest:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          description: Name of the organization
-
     CreateProjectRequest:
       type: object
+      description: The create input a Project document maps to.
       required:
         - name
         - displayName
@@ -3405,8 +3150,6 @@ components:
         description:
           type: string
           description: Description of the project
-        deploymentPipeline:
-          type: string
 
     Provisioning:
       type: object
@@ -3627,18 +3370,16 @@ components:
 
     UpdateProjectRequest:
       type: object
+      description: The update input a Project document maps to.
       properties:
         displayName:
           type: string
           description: Display name of the project
         description:
           type: string
-          description: Description of the project
-        deploymentPipeline:
-          type: string
+          description: Description of the project; absent keeps the stored value
       required:
         - displayName
-        - description
     AgentResponse:
       type: object
       properties:
@@ -4037,82 +3778,23 @@ components:
         - limit
         - offset
 
-    ProjectResponse:
-      type: object
-      properties:
-        uuid:
-          type: string
-        name:
-          type: string
-          description: Name of the project
-        displayName:
-          type: string
-          description: Display name of the project
-        description:
-          type: string
-          description: Description of the project
-        deploymentPipeline:
-          type: string
-          description: Deployment pipeline associated with the project
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the project was created
-      required:
-        - uuid
-        - name
-        - displayName
-        - description
-        - deploymentPipeline
-        - createdAt
-
-    ProjectListItem:
-      type: object
-      properties:
-        uuid:
-          type: string
-        name:
-          type: string
-          description: Name of the project
-        displayName:
-          type: string
-          description: Display name of the project
-        description:
-          type: string
-          description: Description of the project
-        deploymentPipeline:
-          type: string
-          description: Name of the deployment pipeline associated with the project
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the project was created
-      required:
-        - uuid
-        - name
-        - displayName
-        - createdAt
-
     ProjectListResponse:
       type: object
+      required:
+        - count
+        - list
+        - pagination
       properties:
-        projects:
+        count:
+          type: integer
+          format: int32
+          description: Number of items in this page.
+        list:
           type: array
           items:
-            $ref: "#/components/schemas/ProjectListItem"
-        total:
-          type: integer
-          description: Total number of projects matching the query
-        limit:
-          type: integer
-        offset:
-          type: integer
-      required:
-        - projects
-        - total
-        - limit
-        - offset
-
+            $ref: "#/components/schemas/ProjectDocument"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
     ErrorResponse:
       type: object
       properties:

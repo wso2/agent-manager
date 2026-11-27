@@ -294,8 +294,8 @@ func TestInfraResourceController_UpstreamFailures(t *testing.T) {
 		"GetOrganization":   {ctrl.GetOrganization, "", "Failed to get organization"},
 		"ListProjects":      {ctrl.ListProjects, "", "Failed to list projects"},
 		"GetProject":        {ctrl.GetProject, "", "Failed to get project"},
-		"CreateProject":     {ctrl.CreateProject, `{"name":"p","displayName":"P"}`, "Failed to create project"},
-		"UpdateProject":     {ctrl.UpdateProject, `{"displayName":"P"}`, "Failed to update project"},
+		"CreateProject":     {ctrl.CreateProject, projectDoc("p", `{"displayName":"P"}`), "Failed to create project"},
+		"UpdateProject":     {ctrl.UpdateProject, projectDoc("proj", `{"displayName":"P"}`), "Failed to update project"},
 		"DeleteProject":     {ctrl.DeleteProject, "", "Failed to delete project"},
 	} {
 		w := httptest.NewRecorder()

@@ -157,7 +157,7 @@ describe("listOrgAgents", () => {
         const pages = [[agentDoc("a1", "p1"), agentDoc("a2", "p2")], [agentDoc("a3", "p1")]];
         return json({ list: offset === 0 ? pages[0] : pages[1], pagination: { total: 3 } });
       }
-      return json({ projects: [{ name: "p1", displayName: "Project 1" }], total: 1 });
+      return json({ list: [{ metadata: { name: "p1" }, spec: { displayName: "Project 1" } }], pagination: { total: 1 } });
     });
 
     const got = await listOrgAgents({ orgName: "o" }, getToken);

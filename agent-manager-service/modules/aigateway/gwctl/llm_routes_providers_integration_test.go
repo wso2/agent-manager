@@ -134,7 +134,7 @@ func TestLLMRoutesProviderGatewaysPlacement(t *testing.T) {
 	uid := *created.Metadata.Uid
 
 	deployments := expectInto[[]gwspec.LLMDeploymentResponse](t,
-		a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+handle+"/deployments", nil), http.StatusOK)
+		a.do(http.MethodGet, "/llm-providers/"+handle+"/deployments", nil), http.StatusOK)
 	require.Len(t, deployments, 1)
 	require.Equal(t, gw.UUID.String(), deployments[0].GatewayId)
 
@@ -146,7 +146,7 @@ func TestLLMRoutesProviderGatewaysPlacement(t *testing.T) {
 	require.Equal(t, "Provider "+handle, updated.Spec.DisplayName)
 
 	undeploying := expectInto[[]gwspec.LLMDeploymentResponse](t,
-		a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+handle+"/deployments?status=UNDEPLOYING", nil), http.StatusOK)
+		a.do(http.MethodGet, "/llm-providers/"+handle+"/deployments?status=UNDEPLOYING", nil), http.StatusOK)
 	require.Len(t, undeploying, 1, "the empty gateway list undeploys the provider")
 }
 
@@ -299,60 +299,46 @@ func TestLLMRoutesProviderPolicies(t *testing.T) {
 		"policies": []any{map[string]any{"name": "word-count-guardrail", "version": "v1.0.0", "displayName": "Word count"}},
 	}}).Error)
 
-	all := expect(t, a.do(http.MethodGet, "/orgs/{org}/llm-providers/policies", nil), http.StatusOK)
+	all := expect(t, a.do(http.MethodGet, "/llm-providers/policies", nil), http.StatusOK)
 	require.EqualValues(t, 1, all["count"])
 	require.Equal(t, "word-count-guardrail", all["list"].([]any)[0].(map[string]any)["name"])
 
 	handle := unique("pol")
 	llmCreateProvider(t, a, handle)
-	none := expect(t, a.do(http.MethodGet, "/orgs/{org}/llm-providers/policies?providerId="+handle, nil), http.StatusOK)
+	none := expect(t, a.do(http.MethodGet, "/llm-providers/policies?providerId="+handle, nil), http.StatusOK)
 	require.EqualValues(t, 0, none["count"], "a provider placed nowhere has no policies")
 
-	rec := a.do(http.MethodGet, "/orgs/{org}/llm-providers/policies?providerId="+unique("missing"), nil)
+	rec := a.do(http.MethodGet, "/llm-providers/policies?providerId="+unique("missing"), nil)
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	require.Equal(t, "LLM provider not found", errorMessage(t, rec))
 }
 
-// The proxies on a provider and the agents that consume them are listed per provider.
-func TestLLMRoutesProviderProxiesAndConsumers(t *testing.T) {
+// The agents that consume a provider through its proxies are listed per provider.
+func TestLLMRoutesProviderConsumers(t *testing.T) {
 	a := newRouteAPI(t)
 	handle := unique("cons")
 	created := llmCreateProvider(t, a, handle)
 	uid := *created.Metadata.Uid
 
 	empty := expectInto[gwspec.LLMProviderConsumerListResponse](t,
-		a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+handle+"/consumers", nil), http.StatusOK)
+		a.do(http.MethodGet, "/llm-providers/"+handle+"/consumers", nil), http.StatusOK)
 	require.Empty(t, empty.Consumers)
 
 	agentID := a.agent("llm-cons", "cons-agent")
 	proxy := llmCreateProxy(t, a, "llm-cons", uid, unique("px"))
-	llmCreateProxy(t, a, "llm-cons", uid, unique("px"))
 	gwtest.LLMConfig(t, a.db, a.org, agentID, a.defaultEnv(), llmProxyUUID(t, proxy))
 
-	byProvider := expectInto[gwspec.LLMProxyListResponse](t,
-		a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+uid+"/llm-proxies?limit=1&offset=-2", nil), http.StatusOK)
-	require.EqualValues(t, 2, byProvider.Total)
-	require.Len(t, byProvider.Proxies, 1)
-	require.EqualValues(t, 1, byProvider.Limit)
-	require.Equal(t, uid, byProvider.Proxies[0].ProviderUuid)
-
 	consumers := expectInto[gwspec.LLMProviderConsumerListResponse](t,
-		a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+uid+"/consumers", nil), http.StatusOK)
+		a.do(http.MethodGet, "/llm-providers/"+uid+"/consumers", nil), http.StatusOK)
 	require.EqualValues(t, 1, consumers.Total)
 	require.Equal(t, "agent", consumers.Consumers[0].ConsumerType)
 	require.Equal(t, "llm-cons", consumers.Consumers[0].ProjectName)
 
-	byHandle := expectInto[gwspec.LLMProxyListResponse](t,
-		a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+handle+"/llm-proxies", nil), http.StatusOK)
-	require.EqualValues(t, 2, byHandle.Total)
-
 	// An unknown provider is a 404 whether it is named by UUID or by handle.
 	for _, id := range []string{uuid.NewString(), unique("missing")} {
-		for _, p := range []string{"/llm-proxies", "/consumers"} {
-			rec := a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+id+p, nil)
-			require.Equal(t, http.StatusNotFound, rec.Code, "%s%s: %s", id, p, rec.Body.String())
-			require.Equal(t, "LLM provider not found", errorMessage(t, rec))
-		}
+		rec := a.do(http.MethodGet, "/llm-providers/"+id+"/consumers", nil)
+		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
+		require.Equal(t, "LLM provider not found", errorMessage(t, rec))
 	}
 }
 
@@ -366,14 +352,12 @@ func TestLLMRoutesProviderNeedsScope(t *testing.T) {
 		{http.MethodGet, "/llm-providers/x"},
 		{http.MethodPut, "/llm-providers/x"},
 		{http.MethodDelete, "/llm-providers/x"},
-		{http.MethodGet, "/orgs/{org}/llm-providers/policies"},
-		{http.MethodGet, "/orgs/{org}/llm-providers/x/consumers"},
+		{http.MethodGet, "/llm-providers/policies"},
+		{http.MethodGet, "/llm-providers/x/consumers"},
 	} {
 		rec := a.do(tc.method, tc.path, nil, other)
 		require.Equal(t, http.StatusForbidden, rec.Code, "%s %s: %s", tc.method, tc.path, rec.Body.String())
 	}
-	rec := a.do(http.MethodGet, "/orgs/{org}/llm-providers/x/llm-proxies", nil, withScopes(scope(gwperm.LLMProviderRead)))
-	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }
 
 // A PUT that declares gateways deploys the provider to them, and deleting the provider takes it off them.
