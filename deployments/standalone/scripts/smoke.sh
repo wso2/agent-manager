@@ -120,10 +120,12 @@ check events-types 200 "$(code "${A[@]}" "$API/api/v1/events/event-types")"
 check events-old-path 404 "$(code "${A[@]}" "$B/events/event-types")"
 
 # --- Gateway routes: served by amp, absent from amp-core -----------------------------------
-check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
+check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GWR/gateways")"
+check gateways-old-path 404 "$(code "${A[@]}" "$GW/gateways")"
+check self-hosted-gateways-old-path 404 "$(code "${A[@]}" "$GW/self-hosted-gateways")"
 check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GWR/llm-providers")"
 check llm-providers-old-path 404 "$(code "${A[@]}" "$GW/llm-providers")"
-check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/environments/default/gateways")"
+check env-gateways-old-path 404 "$(code "${A[@]}" "$GW/environments/default/gateways")"
 check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GWR/agents/$AG/deployments?project=$P")"
 check agent-config "$(pick 200 404)" "$(code "${A[@]}" "$GWR/agents/$AG/configurations?project=$P")"
 check agent-config-old-path 404 "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/configurations")"
@@ -132,8 +134,8 @@ check catalog "$(pick 200 404)" "$(code "${A[@]}" "$GW/catalog")"
 if [ "$DIST" = amp ]; then
   connected=no
   for _ in $(seq 30); do
-    code "${A[@]}" "$GW/gateways" >/dev/null
-    connected=$(has '"status":"ACTIVE"')
+    code "${A[@]}" "$GWR/gateways" >/dev/null
+    connected=$(has '"state":"ACTIVE"')
     [ "$connected" = yes ] && break
     sleep 2
   done

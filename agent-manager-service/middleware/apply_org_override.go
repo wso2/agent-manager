@@ -49,10 +49,10 @@ var ErrOverrideOrgNotFound = errors.New("organization not found")
 //   - header present but no resolver installed, or the resolver refuses (or
 //     names no org): 403, recorded as an authz deny. An attempt to impersonate
 //     is never silently downgraded to the caller's own org;
-//   - the {orgName} path segment must be the target org's handle: an
-//     impersonating request names the tenant in its path as a user of that
-//     tenant would, and one naming any other org is refused with 403, so the
-//     path never says one org while the request acts on another;
+//   - a route whose path names {orgName} must name the target org's handle
+//     there, or the request is refused with 403, so the path never says one
+//     org while the request acts on another. A route without the segment
+//     takes its org from the header alone;
 //   - resolver allows it: the whole ResolvedOrg — OUID and handle — is
 //     rewritten to the target, the handle being looked up because the header
 //     carries the UUID only. Handlers and the platform repository then
@@ -138,10 +138,10 @@ func ApplyOrgOverride(lookup OUHandleLookup) func(http.HandlerFunc) http.Handler
 }
 
 // pathNamesOrg refuses (403) an impersonating request whose {orgName} path segment is not handle, the handle of
-// the org it acts on. A route without the segment is refused too: it cannot show which org it acts on.
+// the org it acts on. A route without the segment passes: the audit record names the org it acts on.
 func pathNamesOrg(w http.ResponseWriter, r *http.Request, handle string) bool {
 	pathOrg := r.PathValue("orgName")
-	if pathOrg == handle {
+	if pathOrg == "" || pathOrg == handle {
 		return true
 	}
 	slog.WarnContext(r.Context(), "org override refused: path org is not the impersonated org",

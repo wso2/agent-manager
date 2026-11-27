@@ -20,7 +20,6 @@ package tests
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -57,7 +56,7 @@ func TestGatewayModuleSwitchesOffAndOn(t *testing.T) {
 		SecretMgmtClient:   apitestutils.CreateMockSecretManagementClient(),
 	}, jwtassertion.NewMockMiddleware(t))
 	list := func() int {
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/m/ai-gateway/orgs/%s/gateways", testOrgName), nil)
+		req := httptest.NewRequest(http.MethodGet, "/m/ai-gateway/gateways", nil)
 		rr := httptest.NewRecorder()
 		app.ServeHTTP(rr, req)
 		return rr.Code

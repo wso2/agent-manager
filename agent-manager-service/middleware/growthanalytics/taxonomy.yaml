@@ -422,26 +422,6 @@ features:
         - type: "count"
           label: "Gateway Changes"
     sub_features:
-      - code: "amp.deployment-ops.register-gateway.assign-environment"
-        name: "Gateway-to-Environment Assignment"
-        description: "Assign or remove a gateway from an environment."
-        category: "deployment-ops"
-        tier: "core"
-        status: "stable"
-        availability:
-          introduced_in: "1.0.0"
-        tracking:
-          event_name: "amp.deployment-ops.register-gateway.assign-environment"
-          event_category: "engagement"
-          platforms: ["web", "api"]
-          dimensions:
-            - name: "action"
-              type: "enum"
-              values: ["assigned-gateway-to-environment", "removed-gateway-from-environment"]
-              required: true
-          aggregations:
-            - type: "count"
-              label: "Gateway-Environment Assignment Changes"
       - code: "amp.deployment-ops.register-gateway.identity-provider"
         name: "Gateway Identity Provider Configuration"
         description: "Configure or remove an OIDC identity provider on a gateway. OIDC discovery is a read and is not tracked."
