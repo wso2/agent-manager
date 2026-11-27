@@ -38,6 +38,10 @@ const defaultTTLDays = 30
 // ClickHouse would otherwise take as its default user.
 var errNoReader = errors.New("observability: clickhouse.url is set but clickhouse.user is not (MODULE_OBSERVABILITY_CLICKHOUSE_USER)")
 
+// errHalfCleaner refuses a cleaner login without its password, or a password
+// without its login, which would fail only at the first span delete.
+var errHalfCleaner = errors.New("observability: set both clickhouse.cleaner-user and clickhouse.cleaner-password, or neither (MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER, MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD)")
+
 // agentCleaner deletes an agent's spans.
 type agentCleaner interface {
 	DeleteAgent(ctx context.Context, orgID, agentID string) error
@@ -64,13 +68,16 @@ func openStores(rt modkit.Runtime) (store.TraceStore, agentCleaner, error) {
 		return nil, nil, err
 	}
 	rt.Logger().Info("observability: reading traces from ClickHouse", "host", hostOf(url))
-	user := rt.Config("clickhouse.cleaner-user")
-	if user == "" {
+	user, password := rt.Config("clickhouse.cleaner-user"), rt.Config("clickhouse.cleaner-password")
+	if user == "" && password == "" {
 		rt.Logger().Warn("observability: no ClickHouse cleaner login (MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER); a deleted agent's spans stay until they expire")
 		return traces, nil, nil
 	}
+	if user == "" || password == "" {
+		return nil, nil, errHalfCleaner
+	}
 	cleaning := cfg
-	cleaning.User, cleaning.Password = user, rt.Config("clickhouse.cleaner-password")
+	cleaning.User, cleaning.Password = user, password
 	cleaner, err := clickhouse.New(cleaning)
 	if err != nil {
 		return nil, nil, err

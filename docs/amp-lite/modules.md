@@ -102,6 +102,7 @@ return modkit.Manifest{
 		{Name: WidgetCreated, Description: "A widget was created."},
 		{Name: WidgetArchived, Scope: "org", Description: "A widget was archived."},
 	},
+	Subscribes: []string{modkit.EventAgentCreated, modkit.EventAgentDeleted, modkit.EventEnvironmentCreated, WidgetCreated},
 	AuditActions: []modkit.AuditAction{
 		{Name: "widget-archive", Description: "Archive a widget"},
 		{Name: "secret-read", Class: "credential", Description: "Read a secret"},
@@ -117,6 +118,7 @@ return modkit.Manifest{
 - **Permissions:** an action (`widget-read`) or a resource and an action (`widgets.read`), each lowercase letters, digits and dashes. `widget-read` in module `testmod` becomes the permission `testmod:widget-read` and the token scope `amp:testmod:widget-read`; the AI Gateway's `llm-providers.read` becomes `ai-gateway:llm-providers.read` and `amp:ai-gateway:llm-providers.read`. A permission's `DisplayName` names its action in ThunderID (`Name` when empty).
 - **RoleGrants:** predefined role name (`rbac.RoleAdmin` is `"Agent Manager Admin"`, also `Developer`, `AI Lead`, `Platform Engineer`) to the module's permission names. File sign-in grants them while the module is active. ThunderID roles are rendered by `amp init thunder` from every compiled-in module, so a new module's permissions reach ThunderID on the next `amp init`.
 - **Events:** the event types the module publishes, named `<module>.<event>`, each with a description. An event with a `Scope` (`org`, `project` or `agent`, the narrowest resource it is about) is also a webhook event: while the module is active it is listed in the event catalog (`GET /api/v1/events/event-types`) and organizations can subscribe to it. Routes raise it with `modkit.Emits` (see [Route options](#route-options)). An event without a scope only reaches module subscribers.
+- **Subscribes:** the event types the module handles with `rt.Subscribe` (see [Events](#events)).
 - **AuditActions:** the audit actions the module's routes and tools name with `modkit.Audit`, each recorded as `<module>:<name>`, with a class (`credential`, `identity`, `deployment`, `config` or `read`; `config` when empty) and a severity (`info`, `notice`, `warning` or `critical`; `critical` for credential and identity actions and `info` otherwise when empty). An entry named after one of the module's permissions classifies the action that permission names. `Details` lists the detail keys the action's records may carry, each with its kind (see [Audit records](#audit-records)).
 - **Workloads:** the parts of the module that run outside the binary. See [Workloads](#workloads).
 - **Settings:** the settings the module reads with `rt.Config` (and `InitRequest.Config`): key, default, description, and whether it is a secret. They go into the [configuration reference](configuration.md) (`make config-docs`); a test in the module should check them against what it reads, as `modules/aigateway/settings_test.go` does.
@@ -326,6 +328,7 @@ return rt.PublishTx(r.Context(), tx, WidgetCreated, map[string]string{"name": bo
 ```
 
 - Core events: `agent.created`, `agent.deleted`, `environment.created`. A module can also subscribe to any event a compiled-in module declares.
+- List every type you subscribe to in the manifest's `Subscribes`; `Subscribe` refuses others. A replica that can't load an active module (its store is unusable, a required provider is missing, or `Activate` fails) still queues these events for it, and they are delivered once it loads.
 - `PublishTx` writes the event in your transaction, so it is delivered only if the transaction commits. `Publish` writes it on its own, or through the hook's transaction when called with a hook's `ctx`. Both refuse an event type the manifest doesn't declare.
 - Delivery is asynchronous and **at least once**: one `module_event_deliveries` row per subscribing module, claimed by a replica that runs the module, with a 30-second deadline per delivery. A failed delivery is retried with backoff (2 seconds, doubling, at most 5 minutes) up to 10 attempts, then kept as failed. A handler that overruns may still be running when the retry starts, so handlers must be idempotent and safe to run concurrently; `testmod` checks for the event id before inserting.
 - Deliveries are kept for 7 days. A disabled module's queued deliveries wait for it within that window; uninstalling drops them.

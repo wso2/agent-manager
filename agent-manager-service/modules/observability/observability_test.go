@@ -340,9 +340,17 @@ func TestOpenStores(t *testing.T) {
 		t.Errorf("ClickHouse with no cleaner: openStores = %T, %T, %v; want the ClickHouse store and no cleaner", traces, cleaner, err)
 	}
 	ch["clickhouse.cleaner-user"] = "amp_cleaner"
+	if _, _, err := openStores(configRuntime{cfg: ch}); !errors.Is(err, errHalfCleaner) {
+		t.Errorf("cleaner login without a password: openStores = %v, want errHalfCleaner", err)
+	}
+	ch["clickhouse.cleaner-password"] = "secret"
 	traces, cleaner, err = openStores(configRuntime{cfg: ch})
 	if _, ok := cleaner.(*clickhouse.Store); err != nil || !ok || cleaner == agentCleaner(traces.(*clickhouse.Store)) {
 		t.Errorf("ClickHouse with a cleaner: openStores = %T, %T, %v; want a separate cleaner store", traces, cleaner, err)
+	}
+	delete(ch, "clickhouse.cleaner-user")
+	if _, _, err := openStores(configRuntime{cfg: ch}); !errors.Is(err, errHalfCleaner) {
+		t.Errorf("cleaner password without a login: openStores = %v, want errHalfCleaner", err)
 	}
 	if _, _, err := openStores(configRuntime{cfg: map[string]string{"clickhouse.url": "clickhouse:8123", "clickhouse.user": "amp_reader"}}); err == nil || errors.Is(err, errNoReader) {
 		t.Errorf("openStores with a bad URL = %v, want a URL error", err)

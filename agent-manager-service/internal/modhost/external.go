@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"maps"
 	"os"
 	"path"
 	"regexp"
@@ -259,26 +258,11 @@ func (h *Host) externalUnready(ctx context.Context, states map[string]string, lo
 	return out
 }
 
-// holdEvents adds each module of unready to v.held for the event types it
-// subscribes to, learnt once by activating it into a scratch view.
-func (h *Host) holdEvents(ctx context.Context, v *view, unready map[string]error) {
-	if h.heldEvents == nil {
-		h.heldEvents = map[string][]string{}
-	}
-	for name := range unready {
-		events, ok := h.heldEvents[name]
-		if !ok {
-			scratch := newView()
-			maps.Copy(scratch.caps, v.caps)
-			maps.Copy(scratch.capBy, v.capBy)
-			if err := h.activate(ctx, name, scratch); err != nil {
-				h.log.Warn("modhost:events for a module left out are not queued", "module", name, "error", err)
-				continue
-			}
-			events = slices.Sorted(maps.Keys(scratch.subs))
-			h.heldEvents[name] = events
-		}
-		for _, e := range events {
+// holdEvents adds each module of left to v.held for the event types its
+// manifest subscribes to.
+func (h *Host) holdEvents(v *view, left map[string]error) {
+	for name := range left {
+		for _, e := range h.manifests[name].Subscribes {
 			v.held[e] = append(v.held[e], name)
 		}
 	}

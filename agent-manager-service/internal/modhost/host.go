@@ -93,9 +93,6 @@ type Host struct {
 	warned sync.Map
 
 	reloadMu sync.Mutex // one Reload at a time (poller and local changes)
-	// heldEvents are the event types each module left out for its store
-	// subscribes to; Reload fills it, under reloadMu.
-	heldEvents map[string][]string
 
 	mu     sync.RWMutex
 	gen    int64
@@ -380,13 +377,14 @@ func (h *Host) Reload(ctx context.Context) error {
 	v, failed := newView(), map[string]error{}
 	if !h.Passive {
 		// A module not yet loaded whose external store is unusable is left
-		// out and retried; a loaded one stays, so its events keep queuing.
+		// out and retried; a loaded one stays. Events queue for every active
+		// module left out.
 		unready := h.externalUnready(ctx, states, h.current().active)
 		v, failed = h.buildView(ctx, without(states, unready))
-		h.holdEvents(ctx, v, unready)
 		for name, err := range unready {
 			failed[name] = err
 		}
+		h.holdEvents(v, failed)
 		for name, err := range failed {
 			h.log.Error("modhost:module failed to activate", "module", name, "error", err)
 		}

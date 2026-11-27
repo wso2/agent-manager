@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -385,6 +386,7 @@ func TestReloadLeavesOutAnUnreadableStore(t *testing.T) {
 		store.mu.Unlock()
 	}
 	m := newExternal(store, externalFiles("001_spans.sql"), true, true)
+	m.manifest.Subscribes = []string{modkit.EventAgentDeleted}
 	// The handler fails while the store is down, as a span delete would.
 	m.activate = func(rt modkit.Runtime) error {
 		rt.Subscribe(modkit.EventAgentDeleted, func(context.Context, modkit.Event) error {
@@ -425,6 +427,69 @@ func TestReloadLeavesOutAnUnreadableStore(t *testing.T) {
 	setDown(false)
 	waitFor(t, "t-ext to load once its store is back", func() bool { return slices.Contains(h2.Active(), "t-ext") })
 	waitFor(t, "the queued delivery to be made", func() bool { return count(t, g, held) == 0 })
+}
+
+// Events queue for every active module a replica leaves out: one whose
+// Activate fails, and one whose required provider is left out for its store.
+func TestEventsQueueForEveryModuleLeftOut(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	store := &fakeStore{records: map[string]string{}}
+	provider := newExternal(store, externalFiles("001_spans.sql"), true, true)
+	provider.manifest.Provides = []string{"x/v1"}
+	provider.activate = func(rt modkit.Runtime) error {
+		rt.Provide("x/v1", struct{}{})
+		return nil
+	}
+	nop := func(context.Context, modkit.Event) error { return nil }
+	consumer := subscriber("t-consumer", nop)
+	consumer.manifest.Requires = []string{"x/v1"}
+	var broken atomic.Bool
+	failing := subscriber("t-failing", nop)
+	subscribe := failing.activate
+	failing.activate = func(rt modkit.Runtime) error {
+		if broken.Load() {
+			return errors.New("bad config")
+		}
+		return subscribe(rt)
+	}
+	mods := []modkit.Module{provider, consumer, failing}
+	d := databases(t)[0]
+	// The first replica only installs; stopping it leaves delivery to the second.
+	hctx, stop := context.WithCancel(ctx)
+	h, g := replica(t, hctx, d, mods)
+	for _, name := range []string{"t-ext", "t-consumer", "t-failing"} {
+		_, err := h.Install(ctx, name, false)
+		require.NoError(t, err)
+	}
+	stop()
+
+	store.mu.Lock()
+	store.down = true
+	store.mu.Unlock()
+	broken.Store(true)
+	h2 := modhost.NewWith(g, d.driver, quiet, mods)
+	h2.PollInterval = 20 * time.Millisecond
+	require.NoError(t, h2.Boot(ctx))
+	assert.Empty(t, h2.Active())
+
+	org := newOrg(t, g)
+	require.NoError(t, h2.Begin(ctx, modkit.ResourceAgent).Emit(ctx, nil,
+		modkit.Event{Type: modkit.EventAgentCreated, OrgID: org, Subject: "a1", Data: []byte(`{}`)}))
+	queued := `SELECT count(*) FROM module_event_deliveries WHERE module = ?`
+	assert.EqualValues(t, 1, count(t, g, queued, "t-consumer"), "a module whose provider is left out")
+	assert.EqualValues(t, 1, count(t, g, queued, "t-failing"), "a module whose Activate fails")
+
+	store.mu.Lock()
+	store.down = false
+	store.mu.Unlock()
+	broken.Store(false)
+	waitFor(t, "both modules to load", func() bool {
+		return slices.Contains(h2.Active(), "t-consumer") && slices.Contains(h2.Active(), "t-failing")
+	})
+	waitFor(t, "the queued deliveries to be made", func() bool {
+		return count(t, g, `SELECT count(*) FROM module_event_deliveries`) == 0
+	})
 }
 
 func TestCheckExternalSchemaWaitsForPendingFiles(t *testing.T) {

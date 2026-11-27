@@ -391,6 +391,10 @@ func (r *runtime) Subscribe(eventType string, h modkit.EventHandler) {
 		r.fail(fmt.Errorf("Subscribe: no core event or module manifest declares %q", eventType))
 		return
 	}
+	if !slices.Contains(r.mf.Subscribes, eventType) {
+		r.fail(fmt.Errorf("Subscribe: %q is not in the manifest's Subscribes", eventType))
+		return
+	}
 	if h == nil {
 		r.fail(fmt.Errorf("Subscribe %s: nil handler", eventType))
 		return
