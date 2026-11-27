@@ -39,10 +39,9 @@ import (
 )
 
 const (
-	maxEventDestinationsPerOrg = 50
-	maxEventNameLength         = 100
-	maxEventDescriptionLength  = 500
-	destinationTestMessage     = "Test event from WSO2 Agent Manager. No action is needed."
+	maxEventNameLength        = 100
+	maxEventDescriptionLength = 500
+	destinationTestMessage    = "Test event from WSO2 Agent Manager. No action is needed."
 	// maxNamedSubscriptions bounds how many subscriptions an error names.
 	maxNamedSubscriptions = 5
 )
@@ -251,14 +250,6 @@ func (s *eventDestinationService) Create(
 	if _, ok := driver.(eventdestinations.CredentialDriver); ok && credential == "" {
 		return nil, "", fmt.Errorf("%w: url is required", utils.ErrInvalidInput)
 	}
-	existing, err := s.repo.ListDestinations(ctx, ouID)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to list event destinations: %w", err)
-	}
-	if len(existing) >= maxEventDestinationsPerOrg {
-		return nil, "", fmt.Errorf("%w: an organization can have at most %d event destinations",
-			utils.ErrInvalidInput, maxEventDestinationsPerOrg)
-	}
 	secret, encrypted, err := s.newSecret(driver)
 	if err != nil {
 		return nil, "", err
@@ -284,8 +275,14 @@ func (s *eventDestinationService) Create(
 	if err != nil {
 		return nil, "", err
 	}
+	// The limit is checked by the repository, under the lock its insert holds: a count taken here could be stale by
+	// the time of the insert, letting concurrent creates all pass it.
 	if err := s.repo.CreateDestination(ctx, d); err != nil {
-		if !errors.Is(err, utils.ErrEventDestinationNameTaken) {
+		switch {
+		case errors.Is(err, utils.ErrEventDestinationLimitReached):
+			err = fmt.Errorf("%w: %w: an organization can have at most %d event destinations",
+				utils.ErrInvalidInput, err, repositories.MaxEventDestinationsPerOrg)
+		case !errors.Is(err, utils.ErrEventDestinationNameTaken):
 			err = fmt.Errorf("failed to create event destination: %w", err)
 		}
 		attempt.Complete(ctx, err)

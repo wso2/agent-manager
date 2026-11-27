@@ -21,6 +21,8 @@ package repositories
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -176,4 +178,54 @@ func TestEventDeliveryFailStaleDeliveries(t *testing.T) {
 			assert.Equal(t, "job lost", saved.LastError)
 		}
 	}
+}
+
+// TestCreateDestinationHoldsTheOrgLimitUnderConcurrency is the race the limit used to lose: with room for one more
+// destination, concurrent creates must store exactly one.
+func TestCreateDestinationHoldsTheOrgLimitUnderConcurrency(t *testing.T) {
+	ctx := context.Background()
+	repo := NewEventRepository(db.GetDB())
+	ouID := "ou-" + uuid.NewString()
+	newDestination := func(name string) *models.EventDestination {
+		return &models.EventDestination{
+			ID: uuid.New(), OUID: ouID, Name: name, Kind: models.DestinationKindWebhook,
+			Config: json.RawMessage(`{"url":"https://example.com"}`), SecretEncrypted: []byte("secret"),
+			Availability: models.DestinationAvailableAll, Projects: []string{},
+		}
+	}
+	t.Cleanup(func() {
+		assert.NoError(t, db.GetDB().Where("ou_id = ?", ouID).Delete(&models.EventDestination{}).Error)
+	})
+	for i := 0; i < MaxEventDestinationsPerOrg-1; i++ {
+		require.NoError(t, repo.CreateDestination(ctx, newDestination(fmt.Sprintf("existing-%d", i))))
+	}
+
+	// Released together so the creates overlap rather than run one after another.
+	const attempts = 40
+	errs := make([]error, attempts)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			errs[i] = repo.CreateDestination(ctx, newDestination(fmt.Sprintf("racer-%d", i)))
+		}(i)
+	}
+	close(start)
+	wg.Wait()
+
+	created := 0
+	for _, err := range errs {
+		if err == nil {
+			created++
+			continue
+		}
+		assert.ErrorIs(t, err, utils.ErrEventDestinationLimitReached)
+	}
+	assert.Equal(t, 1, created, "only the one free slot may be taken")
+	stored, err := repo.ListDestinations(ctx, ouID)
+	require.NoError(t, err)
+	assert.Len(t, stored, MaxEventDestinationsPerOrg)
 }
