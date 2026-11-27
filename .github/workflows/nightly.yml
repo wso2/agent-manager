@@ -561,8 +561,11 @@ jobs:
   # Posts the result of every run, except cancelled runs and dry runs.
   notify-google-chat:
     name: Notify Google Chat
-    needs: [compute-version, load-config, build-images, package-charts, e2e, publish-dev-tag]
-    if: ${{ !cancelled() && (github.event_name == 'schedule' || needs.compute-version.outputs.dry-run == 'false') }}
+    needs: [settings, compute-version, load-config, build-images, package-charts, e2e, publish-dev-tag]
+    # Report failed setup for publishing runs even when compute-version has no outputs.
+    if: >-
+      ${{ !cancelled() && (github.event_name == 'schedule' ||
+      (needs.settings.result == 'success' && !fromJSON(needs.settings.outputs.values).dry_run)) }}
     runs-on: [self-hosted, amp-nightly-e2e]
     timeout-minutes: 10
     steps:
