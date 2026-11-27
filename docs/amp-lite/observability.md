@@ -109,7 +109,7 @@ Each password is a file in the `observability-secrets` volume, named for its job
 | `observability-migrate` | setup |
 | the collector | write |
 
-No password is in a container's environment or `docker inspect`.
+No password is in a container's configuration or `docker inspect`. ClickHouse holds all four in its own process environment, since `users.xml` reads them from there.
 
 To read one, for example to sign in with `clickhouse-client`:
 
