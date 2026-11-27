@@ -585,7 +585,14 @@ func secretFiles() (map[string]string, error) {
 			continue
 		}
 		name := config.GeneratedSecrets[s.Setting]
-		if info, err := os.Stat(filepath.Join(own, name)); err == nil && info.Mode().IsRegular() {
+		info, err := os.Stat(filepath.Join(own, name))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", s.Setting, err)
+		}
+		if info.Mode().IsRegular() {
 			files[name] = own
 		}
 	}
