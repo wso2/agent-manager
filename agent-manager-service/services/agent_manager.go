@@ -4004,6 +4004,10 @@ func (s *agentManagerService) DeployAgent(ctx context.Context, ouID string, proj
 	if err != nil {
 		return "", err
 	}
+	// The caller read the pipeline separately, and its env vars and files are meant for the environment it expected.
+	if expected := req.GetExpectedEnvironment(); expected != "" && expected != lowestEnv {
+		return "", fmt.Errorf("%w: it is %q, not %q", utils.ErrDeployEnvironmentMismatch, lowestEnv, expected)
+	}
 	if agent.Type.Type == string(utils.AgentTypeAPI) {
 		if err := s.requireIngressGateway(ouID, targetEnv); err != nil {
 			return "", err
