@@ -935,6 +935,10 @@ func (c *agentConfigurationController) writeConfigAPIKeyError(w http.ResponseWri
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 	case errors.Is(err, utils.ErrAgentConfigNotExternal):
 		utils.WriteErrorResponse(w, http.StatusForbidden, "API key management is only available for external agents")
+	case errors.Is(err, utils.ErrForbidden):
+		utils.WriteErrorResponse(w, http.StatusForbidden, err.Error())
+	case errors.Is(err, utils.ErrEnvironmentNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 	case errors.Is(err, utils.ErrGatewayNotFound):
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 	default:

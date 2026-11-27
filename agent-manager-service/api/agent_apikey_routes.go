@@ -25,15 +25,19 @@ import (
 
 // RegisterAgentAPIKeyRoutes registers API key routes for agents
 func RegisterAgentAPIKeyRoutes(rr *middleware.RouteRegistrar, ctrl controllers.AgentAPIKeyController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", rbac.AgentAPIKeyManage,
-		growthanalytics.Track("amp.security-access.issue-api-key", keyPurposeDims("production"), ctrl.CreateAPIKey))
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test", rbac.AgentAPIKeyManage,
-		growthanalytics.Track("amp.security-access.issue-api-key", keyPurposeDims("test"), ctrl.IssueTestAPIKey))
+	rr.HandleFuncWithValidationAndAllAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys",
+		growthanalytics.Track("amp.security-access.issue-api-key", keyPurposeDims("production"), ctrl.CreateAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction)
+	rr.HandleFuncWithValidationAndAllAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test",
+		growthanalytics.Track("amp.security-access.issue-api-key", keyPurposeDims("test"), ctrl.IssueTestAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", rbac.AgentAPIKeyManage, ctrl.ListAPIKeys)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}", rbac.AgentAPIKeyManage,
-		growthanalytics.Track("amp.security-access.issue-api-key.rotate", actionDims("revoked-agent-api-key"), ctrl.RevokeAPIKey))
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}", rbac.AgentAPIKeyManage,
-		growthanalytics.Track("amp.security-access.issue-api-key.rotate", actionDims("rotated-agent-api-key"), ctrl.RotateAPIKey))
+	rr.HandleFuncWithValidationAndAllAuthz("DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}",
+		growthanalytics.Track("amp.security-access.issue-api-key.rotate", actionDims("revoked-agent-api-key"), ctrl.RevokeAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction)
+	rr.HandleFuncWithValidationAndAllAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}",
+		growthanalytics.Track("amp.security-access.issue-api-key.rotate", actionDims("rotated-agent-api-key"), ctrl.RotateAPIKey),
+		rbac.AgentAPIKeyManage, rbac.AgentEnvNonProduction)
 }
 
 // keyPurposeDims builds the growth-analytics dimensions for

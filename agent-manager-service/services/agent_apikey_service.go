@@ -133,6 +133,23 @@ func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, 
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get environment: %w", translateEnvironmentError(err))
 	}
+	return s.agentAPIArtifactIn(ctx, ouID, projectName, agentName, environment)
+}
+
+// resolveAgentAPIArtifactForKeyChange is resolveAgentAPIArtifact for operations
+// that mint, replace or revoke a key. A key is a credential for the agent's
+// endpoint in that environment, so changing one lands in the environment the
+// same way a deploy does and needs the caller's environment tier: production
+// keys need agent:env-production on top of agent:api-key-manage.
+func (s *AgentAPIKeyService) resolveAgentAPIArtifactForKeyChange(ctx context.Context, ouID, projectName, agentName, envID string) (*models.Artifact, string, error) {
+	environment, err := requireEnvironmentTier(ctx, s.ocClient, logger.GetLogger(ctx), ouID, envID)
+	if err != nil {
+		return nil, "", err
+	}
+	return s.agentAPIArtifactIn(ctx, ouID, projectName, agentName, environment)
+}
+
+func (s *AgentAPIKeyService) agentAPIArtifactIn(ctx context.Context, ouID, projectName, agentName string, environment *models.EnvironmentResponse) (*models.Artifact, string, error) {
 	// envID may be a name or a UUID; events always carry the name.
 	events.SetEnvironment(ctx, environment.Name)
 
@@ -172,7 +189,7 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 	if req != nil && (strings.HasPrefix(req.Name, models.APIKeyTestKeyPrefix) || req.Name == legacyTestKeyName) {
 		return nil, fmt.Errorf("%w: names starting with %q are reserved for console test keys", utils.ErrBadRequest, models.APIKeyTestKeyPrefix)
 	}
-	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
+	artifact, envUUID, err := s.resolveAgentAPIArtifactForKeyChange(ctx, ouID, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
 	}
@@ -224,7 +241,7 @@ func (s *AgentAPIKeyService) RevokeAPIKey(
 	ctx context.Context,
 	ouID, projectName, agentName, envID, keyName string,
 ) error {
-	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
+	artifact, envUUID, err := s.resolveAgentAPIArtifactForKeyChange(ctx, ouID, projectName, agentName, envID)
 	if err != nil {
 		return err
 	}
@@ -259,7 +276,7 @@ func (s *AgentAPIKeyService) RotateAPIKey(
 	ouID, projectName, agentName, envID, keyName string,
 	req *models.RotateAPIKeyRequest,
 ) (*models.CreateAPIKeyResponse, error) {
-	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
+	artifact, envUUID, err := s.resolveAgentAPIArtifactForKeyChange(ctx, ouID, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +337,7 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 	ctx context.Context,
 	ouID, projectName, agentName, envID, userSub string,
 ) (*models.IssueTestAPIKeyResponse, error) {
-	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
+	artifact, envUUID, err := s.resolveAgentAPIArtifactForKeyChange(ctx, ouID, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
 	}

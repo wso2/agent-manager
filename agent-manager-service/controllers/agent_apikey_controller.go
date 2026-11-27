@@ -115,6 +115,9 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("CreateAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
+		case errors.Is(err, utils.ErrForbidden):
+			utils.WriteErrorResponse(w, http.StatusForbidden, err.Error())
+			return
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
 			log.Warn("CreateAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
@@ -189,6 +192,9 @@ func (c *agentAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("RevokeAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
+		case errors.Is(err, utils.ErrForbidden):
+			utils.WriteErrorResponse(w, http.StatusForbidden, err.Error())
+			return
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
 			log.Warn("RevokeAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
@@ -241,6 +247,9 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("RotateAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
+		case errors.Is(err, utils.ErrForbidden):
+			utils.WriteErrorResponse(w, http.StatusForbidden, err.Error())
+			return
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
 			log.Warn("RotateAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
@@ -289,6 +298,9 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 		case errors.Is(err, utils.ErrArtifactNotFound):
 			log.Warn("IssueTestAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			return
+		case errors.Is(err, utils.ErrForbidden):
+			utils.WriteErrorResponse(w, http.StatusForbidden, err.Error())
 			return
 		case errors.Is(err, utils.ErrEnvironmentNotFound):
 			log.Warn("IssueTestAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)

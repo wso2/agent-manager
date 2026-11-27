@@ -814,6 +814,9 @@ func (s *agentConfigurationService) CreateMCPConfigAPIKey(
 	if err := s.ensureExternalAgentForAPIKey(ctx, ouID, projectName, agentName); err != nil {
 		return nil, err
 	}
+	if _, err := requireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName); err != nil {
+		return nil, err
+	}
 	storageUUID, apiID, err := s.resolveMCPMappingKeyBinding(ctx, ouID, projectName, agentName, configUUID, envName)
 	if err != nil {
 		return nil, err
@@ -832,6 +835,9 @@ func (s *agentConfigurationService) RotateMCPConfigAPIKey(
 	if err := s.ensureExternalAgentForAPIKey(ctx, ouID, projectName, agentName); err != nil {
 		return nil, err
 	}
+	if _, err := requireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName); err != nil {
+		return nil, err
+	}
 	storageUUID, apiID, err := s.resolveMCPMappingKeyBinding(ctx, ouID, projectName, agentName, configUUID, envName)
 	if err != nil {
 		return nil, err
@@ -847,6 +853,9 @@ func (s *agentConfigurationService) RevokeMCPConfigAPIKey(
 		return fmt.Errorf("API key service is not configured")
 	}
 	if err := s.ensureExternalAgentForAPIKey(ctx, ouID, projectName, agentName); err != nil {
+		return err
+	}
+	if _, err := requireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName); err != nil {
 		return err
 	}
 	storageUUID, apiID, err := s.resolveMCPMappingKeyBinding(ctx, ouID, projectName, agentName, configUUID, envName)
@@ -900,6 +909,9 @@ func (s *agentConfigurationService) CreateLLMConfigAPIKey(
 	if err := s.ensureExternalAgentForAPIKey(ctx, ouID, projectName, agentName); err != nil {
 		return nil, err
 	}
+	if _, err := requireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName); err != nil {
+		return nil, err
+	}
 	handle, err := s.resolveLLMProxyHandleForConfig(ctx, ouID, projectName, agentName, configUUID, envName)
 	if err != nil {
 		return nil, err
@@ -918,6 +930,9 @@ func (s *agentConfigurationService) RotateLLMConfigAPIKey(
 	if err := s.ensureExternalAgentForAPIKey(ctx, ouID, projectName, agentName); err != nil {
 		return nil, err
 	}
+	if _, err := requireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName); err != nil {
+		return nil, err
+	}
 	handle, err := s.resolveLLMProxyHandleForConfig(ctx, ouID, projectName, agentName, configUUID, envName)
 	if err != nil {
 		return nil, err
@@ -933,6 +948,9 @@ func (s *agentConfigurationService) RevokeLLMConfigAPIKey(
 		return fmt.Errorf("API key service is not configured")
 	}
 	if err := s.ensureExternalAgentForAPIKey(ctx, ouID, projectName, agentName); err != nil {
+		return err
+	}
+	if _, err := requireEnvironmentTier(ctx, s.ocClient, s.logger, ouID, envName); err != nil {
 		return err
 	}
 	handle, err := s.resolveLLMProxyHandleForConfig(ctx, ouID, projectName, agentName, configUUID, envName)
