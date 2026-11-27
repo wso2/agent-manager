@@ -36,8 +36,7 @@ const gateway = (uuid: string, hosting: "MANAGED" | "SELF_HOSTED") => ({
 });
 
 const hoisted = vi.hoisted(() => ({
-  deleteManaged: vi.fn(),
-  deleteSelfHosted: vi.fn(),
+  deleteGateway: vi.fn(),
   addConfirmation: vi.fn(),
   gateways: [] as ReturnType<typeof gateway>[],
 }));
@@ -51,8 +50,7 @@ vi.mock("@agent-management-platform/api-client", () => {
       refetch: vi.fn(),
     }),
     useListEnvironments: () => ({ data: [], isLoading: false, error: null }),
-    useDeleteGateway: () => ({ mutateAsync: hoisted.deleteManaged }),
-    useDeleteSelfHostedGateway: () => ({ mutateAsync: hoisted.deleteSelfHosted }),
+    useDeleteGateway: () => ({ mutateAsync: hoisted.deleteGateway }),
     useTrack: () => ({ track: vi.fn() }),
     ConsoleAction: {},
   };
@@ -142,32 +140,17 @@ describe("AIGatewaysTable self-hosted gating", () => {
   });
 
   describe.each([true, false])("row actions with enableSelfHostedGateways=%s", (enabled) => {
-    it("lets managed rows delete through the managed hooks", async () => {
+    it("offers Delete on self-hosted rows only: a managed gateway is read-only", async () => {
       featureFlags = { enableSelfHostedGateways: enabled };
       renderTable();
 
-      fireEvent.click(screen.getAllByRole("button", { name: "Delete", hidden: true })[0]);
+      const buttons = screen.getAllByRole("button", { name: "Delete", hidden: true });
+      expect(buttons).toHaveLength(1);
+      fireEvent.click(buttons[0]);
       await hoisted.addConfirmation.mock.calls[0][0].onConfirm();
-      expect(hoisted.deleteManaged).toHaveBeenCalledWith({ orgName: "", gatewayId: "managed-1" });
-      expect(hoisted.deleteSelfHosted).not.toHaveBeenCalled();
+      await waitFor(() =>
+        expect(hoisted.deleteGateway).toHaveBeenCalledWith({ orgName: "", gatewayId: "self-1" }),
+      );
     });
-  });
-
-  it("lets self-hosted rows delete through the self-hosted hooks", async () => {
-    featureFlags = { enableSelfHostedGateways: true };
-    renderTable();
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Delete", hidden: true })[1]);
-    await hoisted.addConfirmation.mock.calls[0][0].onConfirm();
-    await waitFor(() =>
-      expect(hoisted.deleteSelfHosted).toHaveBeenCalledWith({ orgName: "", gatewayId: "self-1" }),
-    );
-    expect(hoisted.deleteManaged).not.toHaveBeenCalled();
-  });
-
-  it("shows Delete on every row when disabled", () => {
-    featureFlags = { enableSelfHostedGateways: false };
-    renderTable();
-    expect(screen.getAllByRole("button", { name: "Delete", hidden: true })).toHaveLength(2);
   });
 });

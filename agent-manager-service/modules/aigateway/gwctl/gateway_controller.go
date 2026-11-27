@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -28,7 +28,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -47,9 +46,9 @@ const (
 	// Default offset for pagination
 	defaultOffset = 0
 
-	// mcpBindingReconcileTimeout bounds the post-assignment MCP binding reconcile, which
+	// mcpBindingReconcileTimeout bounds the MCP binding reconcile after a proxy update, which
 	// runs in the background detached from the request context (see
-	// AssignGatewayToEnvironment). Detaching removes the caller's cancellation as a stop
+	// UpdateMCPProxy). Detaching removes the caller's cancellation as a stop
 	// condition, so the work needs one of its own or a wedged gateway or database call
 	// would leak the goroutine indefinitely.
 	mcpBindingReconcileTimeout = 2 * time.Minute
@@ -90,24 +89,11 @@ type GatewayController interface {
 	ListGateways(w http.ResponseWriter, r *http.Request)
 	UpdateGateway(w http.ResponseWriter, r *http.Request)
 	DeleteGateway(w http.ResponseWriter, r *http.Request)
-	AssignGatewayToEnvironment(w http.ResponseWriter, r *http.Request)
-	RemoveGatewayFromEnvironment(w http.ResponseWriter, r *http.Request)
-	GetGatewayEnvironments(w http.ResponseWriter, r *http.Request)
 	CheckGatewayHealth(w http.ResponseWriter, r *http.Request)
 	ListGatewayTokens(w http.ResponseWriter, r *http.Request)
 	RotateGatewayToken(w http.ResponseWriter, r *http.Request)
 	RevokeGatewayToken(w http.ResponseWriter, r *http.Request)
 	GetGatewayStatus(w http.ResponseWriter, r *http.Request)
-
-	// Self-hosted gateway handlers
-	ListSelfHostedGateways(w http.ResponseWriter, r *http.Request)
-	RegisterSelfHostedGateway(w http.ResponseWriter, r *http.Request)
-	GetSelfHostedGateway(w http.ResponseWriter, r *http.Request)
-	UpdateSelfHostedGateway(w http.ResponseWriter, r *http.Request)
-	DeleteSelfHostedGateway(w http.ResponseWriter, r *http.Request)
-	ListSelfHostedGatewayTokens(w http.ResponseWriter, r *http.Request)
-	RotateSelfHostedGatewayToken(w http.ResponseWriter, r *http.Request)
-	RevokeSelfHostedGatewayToken(w http.ResponseWriter, r *http.Request)
 
 	// Cross-organization, platform-admin only. Not org-scoped like everything
 	// else on this interface — see the handler.
@@ -118,7 +104,6 @@ type GatewayController interface {
 	ListGatewayIdentityProviders(w http.ResponseWriter, r *http.Request)
 	UpsertGatewayIdentityProvider(w http.ResponseWriter, r *http.Request)
 	DeleteGatewayIdentityProvider(w http.ResponseWriter, r *http.Request)
-	ListEnvironmentIdentityProviders(w http.ResponseWriter, r *http.Request)
 	DiscoverOidcConfiguration(w http.ResponseWriter, r *http.Request)
 }
 
@@ -141,40 +126,12 @@ func NewGatewayController(
 	}
 }
 
-// resolveEnvironmentUUID resolves an environment name or UUID to the UUID of an
-// environment in ouID. A UUID is looked up like any other identifier rather than
-// trusted on shape: a well-formed UUID belonging to another organization is as
-// unknown to this caller as a typo, and returning it unchecked let a cross-org
-// value through as a list filter and as the target of an environment assignment.
-func (c *gatewayController) resolveEnvironmentUUID(ctx context.Context, ouID, envIdentifier string) (string, error) {
-	env, err := c.resolveEnvironment(ctx, ouID, envIdentifier)
-	if err != nil {
-		return "", err
-	}
-	return env.ID, nil
-}
-
-// resolveEnvironment is resolveEnvironmentUUID returning the whole environment, for
-// callers that also need its name.
-func (c *gatewayController) resolveEnvironment(ctx context.Context, ouID, envIdentifier string) (*modkit.Environment, error) {
-	environments, err := gwsvc.ListEnvironments(ctx, c.ocClient, ouID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list environments: %w", err)
-	}
-
-	for _, env := range environments {
-		if env.Name == envIdentifier || strings.EqualFold(env.ID, envIdentifier) {
-			return env, nil
-		}
-	}
-
-	return nil, fmt.Errorf("%w: %s", gwerr.ErrEnvironmentNotFound, envIdentifier)
-}
-
 func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	case errors.Is(err, gwerr.ErrGatewayNotFound):
 		httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
+	case errors.Is(err, gwerr.ErrGatewayManaged):
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "A managed gateway is read-only")
 	case errors.Is(err, gwerr.ErrGatewayAlreadyExists):
 		httpx.WriteErrorResponse(w, http.StatusConflict, "A gateway with this name already exists")
 	case errors.Is(err, gwerr.ErrGatewayHasDeployments):
@@ -216,165 +173,157 @@ func refusedForeignBodyOrg(w http.ResponseWriter, r *http.Request, bodyOrg *stri
 	return true
 }
 
+// RegisterGateway registers a self-hosted gateway, from its document, in the organization's default environment.
 func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	var req gwspec.CreateGatewayRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("RegisterGateway: failed to decode request", "error", err)
+	ouID := modkit.OrgID(ctx)
+
+	var doc gwspec.GatewayDocument
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxDocumentBytes)).Decode(&doc); err != nil {
+		log.Error("RegisterGateway: failed to decode the document", "ouID", ouID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-
-	ouID := modkit.OrgID(r.Context())
-	if refusedForeignBodyOrg(w, r, req.OrgId, ouID) {
+	input, err := selfHostedFromDocument(doc, "")
+	if err != nil {
+		writeDocumentError(w, ctx, "RegisterGateway", ouID, err)
 		return
 	}
-
-	// Validate environments if present
-	if len(req.EnvironmentIds) > 0 {
-		envs, err := gwsvc.ListEnvironments(ctx, c.ocClient, ouID)
-		if err != nil {
-			log.Error("environment validation failed: failed to list environments")
-			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "environment validation erro")
-			return
-		}
-		if len(envs) == 0 {
-			httpx.WriteErrorResponse(w, http.StatusBadRequest, "no environments registered")
-			return
-		}
-		envMap := make(map[string]string)
-		for _, env := range envs {
-			envMap[env.ID] = env.Name
-		}
-		for _, envId := range req.EnvironmentIds {
-			if _, ok := envMap[envId]; !ok {
-				log.Error("environment validation failed: environment not found", "envId", envId)
-				httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment validation failed")
-				return
-			}
-		}
-	}
-
-	// Create gateway using local service
-	description := "" // Description not in spec, use empty string
-	functionalityType := string(req.GatewayType)
-	isCritical := false
-	if req.IsCritical != nil {
-		isCritical = *req.IsCritical
-	}
-	var properties map[string]interface{}
-
-	runtimeURL := ""
-	if req.RuntimeUrl != nil {
-		runtimeURL = *req.RuntimeUrl
-	}
-
-	gateway, err := c.gatewayService.RegisterGateway(
-		ouID,
-		req.Name,
-		req.DisplayName,
-		description,
-		req.Vhost,
-		runtimeURL,
-		isCritical,
-		functionalityType,
-		properties,
-		req.EnvironmentIds,
-		gwmodels.GatewayHostingManaged,
-	)
-	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayResponseID(gateway), req.Name)
-	modkit.AuditDetail(ctx, "gatewayName", req.Name)
-	modkit.AuditDetail(ctx, "gatewayType", functionalityType)
-	modkit.AuditDetail(ctx, "vhost", req.Vhost)
+	env, err := gwsvc.LookupEnvironment(ctx, c.ocClient, ouID, gwmodels.DefaultEnvironmentName)
 	if err != nil {
-		log.Error("RegisterGateway: failed to create gateway", "error", err)
+		log.Error("RegisterGateway: failed to resolve the default environment", "ouID", ouID, "error", err)
+		handleGatewayErrors(w, err, "Failed to resolve the default environment")
+		return
+	}
+	input.Environment = env.ID
+
+	gateway, err := c.gatewayService.RegisterSelfHostedGateway(ouID, input)
+	vhost := ""
+	if gateway != nil {
+		vhost = gateway.Vhost
+	}
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayResponseID(gateway), input.DisplayName)
+	modkit.AuditDetail(ctx, "gatewayName", input.DisplayName)
+	modkit.AuditDetail(ctx, "gatewayType", gwsvc.SelfHostedFunctionalityType(input.FunctionalityType))
+	modkit.AuditDetail(ctx, "vhost", vhost)
+	if err != nil {
+		log.Error("RegisterGateway: failed to register gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to register gateway")
 		return
 	}
-
-	// Get environments for response
-	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gateway.ID)
-
-	// Convert to spec response
-	response := convertGatewayToSpecResponse(gateway, ouID, environments)
-	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, gatewayDocument(gateway))
 }
 
+// GetGateway returns a gateway, managed or self-hosted, by name or UUID.
 func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
+	log := logger.GetLogger(r.Context())
 	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	// Get gateway from local service
 	gateway, err := c.gatewayService.GetGateway(gatewayID, ouID)
 	if err != nil {
 		log.Error("GetGateway: failed to get gateway", "error", err)
 		handleGatewayErrors(w, err, "Failed to get gateway")
 		return
 	}
-
-	// Key the mapping lookup off the resolved UUID: gatewayID may be a name, and
-	// environment mappings are indexed by UUID only.
-	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gateway.ID)
-
-	response := convertGatewayToSpecResponse(gateway, ouID, environments)
-	httpx.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, gatewayDocument(gateway))
 }
 
+// ListGateways lists the organization's gateways, filtered by type, status and hosting.
 func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
+	log := logger.GetLogger(r.Context())
 	ouID := modkit.OrgID(r.Context())
-
 	limit, offset := gatewayPagination(r)
 
-	// Parse filter parameters
+	// Alias normalization (REGULAR/AI) and lowercasing happen in the service layer.
 	filters := &gwsvc.GatewayListFilters{}
-
-	// Filter by type (functionality type). Alias normalization (REGULAR/AI) and
-	// lowercasing happen in the service layer via normalizeGatewayRole.
-	if typeParam := r.URL.Query().Get("type"); typeParam != "" {
+	query := r.URL.Query()
+	if typeParam := query.Get("type"); typeParam != "" {
 		filters.FunctionalityType = &typeParam
 	}
-
-	// Filter by status
-	if statusParam := r.URL.Query().Get("status"); statusParam != "" {
-		isActive := statusParam == "ACTIVE"
+	if statusParam := query.Get("status"); statusParam != "" {
+		isActive := statusParam == string(gwspec.GATEWAYSTATUS_ACTIVE)
 		filters.Status = &isActive
 	}
-
-	// Filter by environment. envParam may be a UUID or a name; an unresolvable one
-	// is a client error, not a reason to drop the filter — silently returning the
-	// unfiltered list makes a typo look like "every gateway matches".
-	if envParam := r.URL.Query().Get("environment"); envParam != "" {
-		envUUID, err := c.resolveEnvironmentUUID(ctx, ouID, envParam)
-		switch {
-		case errors.Is(err, gwerr.ErrEnvironmentNotFound):
-			// A 400 rather than a 404: the collection exists, the filter value does
-			// not. listGateways declares 400 but no 404.
-			log.Error("ListGateways: unknown environment filter", "environment", envParam)
-			httpx.WriteErrorResponse(w, http.StatusBadRequest,
-				fmt.Sprintf("Unknown environment %q in 'environment' filter", envParam))
-			return
-		case err != nil:
-			log.Error("ListGateways: failed to resolve environment", "environment", envParam, "error", err)
-			handleGatewayErrors(w, err, "Failed to resolve environment filter")
-			return
-		}
-		filters.EnvironmentID = &envUUID
+	switch hosting := query.Get("hosting"); hosting {
+	case "":
+	case string(gwspec.GATEWAYHOSTING_MANAGED):
+		filters.Hosting = gwmodels.GatewayHostingManaged
+	case string(gwspec.GATEWAYHOSTING_SELF_HOSTED):
+		filters.Hosting = gwmodels.GatewayHostingSelfHosted
+	default:
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "hosting must be MANAGED or SELF_HOSTED")
+		return
 	}
 
-	// Get gateways from local service with filters and DB-level pagination
-	gatewaysResp, err := c.gatewayService.ListGateways(&ouID, filters, limit, offset)
+	page, err := c.gatewayService.ListGateways(&ouID, filters, limit, offset)
 	if err != nil {
 		log.Error("ListGateways: failed to list gateways", "error", err)
 		handleGatewayErrors(w, err, "Failed to list gateways")
 		return
 	}
+	httpx.WriteSuccessResponse(w, http.StatusOK, gatewayList(page, limit, offset))
+}
 
-	httpx.WriteSuccessResponse(w, http.StatusOK, c.toSpecGatewayList(ctx, ouID, gatewaysResp, limit, offset))
+// UpdateGateway replaces the editable fields of a self-hosted gateway from its document.
+func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	ouID := modkit.OrgID(ctx)
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
+
+	var doc gwspec.GatewayDocument
+	if err := json.NewDecoder(io.LimitReader(r.Body, maxDocumentBytes)).Decode(&doc); err != nil {
+		log.Error("UpdateGateway: failed to decode the document", "ouID", ouID, "error", err)
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
+	existing, err := c.gatewayService.RequireSelfHosted(gatewayID, ouID)
+	if err != nil {
+		log.Warn("UpdateGateway: gateway cannot be updated", "gatewayID", gatewayID, "error", err)
+		handleGatewayErrors(w, err, "Failed to update gateway")
+		return
+	}
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, existing.UUID.String(), "")
+	upd, err := gatewayUpdateFromDocument(doc, existing)
+	if err != nil {
+		writeDocumentError(w, ctx, "UpdateGateway", ouID, err)
+		return
+	}
+
+	gateway, err := c.gatewayService.UpdateGateway(existing.UUID.String(), ouID, &upd.Description, &upd.DisplayName,
+		&upd.IsCritical, &upd.Properties, nil)
+	if err != nil {
+		log.Error("UpdateGateway: failed to update gateway", "error", err)
+		handleGatewayErrors(w, err, "Failed to update gateway")
+		return
+	}
+	httpx.WriteSuccessResponse(w, http.StatusOK, gatewayDocument(gateway))
+}
+
+// DeleteGateway deregisters a self-hosted gateway.
+func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+	ouID := modkit.OrgID(ctx)
+	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
+
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
+	existing, err := c.gatewayService.RequireSelfHosted(gatewayID, ouID)
+	if err != nil {
+		log.Warn("DeleteGateway: gateway cannot be deleted", "gatewayID", gatewayID, "error", err)
+		handleGatewayErrors(w, err, "Failed to delete gateway")
+		return
+	}
+	modkit.AuditResource(ctx, gwaudit.ResourceGateway, existing.UUID.String(), "")
+	if err := c.gatewayService.DeleteGateway(existing.UUID.String(), ouID); err != nil {
+		log.Error("DeleteGateway: failed to delete gateway", "error", err)
+		handleGatewayErrors(w, err, "Failed to delete gateway")
+		return
+	}
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
 // gatewayPagination reads limit and offset, falling back to the defaults for negative
@@ -392,224 +341,6 @@ func gatewayPagination(r *http.Request) (limit, offset int) {
 		limit = 1000
 	}
 	return limit, offset
-}
-
-// toSpecGatewayList converts a service gateway page to its wire form. Environments are
-// fetched once for the whole page rather than per gateway.
-func (c *gatewayController) toSpecGatewayList(ctx context.Context, ouID string, gatewaysResp *gwsvc.GatewayListResponse, limit, offset int) gwspec.GatewayListResponse {
-	log := logger.GetLogger(ctx)
-	// Fetch environments ONCE for the entire organization (not per-gateway)
-	ocEnvironments, err := gwsvc.ListEnvironments(ctx, c.ocClient, ouID)
-	if err != nil {
-		log.Warn("failed to list environments", "error", err)
-		ocEnvironments = nil // Continue with empty environments
-	}
-
-	// Bulk fetch environment mappings for all gateways to avoid N+1 query
-	gatewayIDs := make([]string, len(gatewaysResp.List))
-	for i, gw := range gatewaysResp.List {
-		gatewayIDs[i] = gw.ID
-	}
-	allMappings := c.getGatewayEnvironmentMappingsBulk(ctx, gatewayIDs)
-
-	// Convert to spec responses with pre-fetched environment data
-	specGateways := make([]gwspec.GatewayResponse, 0, len(gatewaysResp.List))
-	for _, gw := range gatewaysResp.List {
-		// Use pre-fetched mappings and environments (no additional DB/RPC calls)
-		environments := c.matchGatewayEnvironments(allMappings[gw.ID], ocEnvironments, ouID)
-		specGateways = append(specGateways, convertGatewayToSpecResponse(&gw, ouID, environments))
-	}
-
-	return gwspec.GatewayListResponse{
-		Gateways: specGateways,
-		Total:    int32(gatewaysResp.Pagination.Total),
-		Limit:    int32(limit),
-		Offset:   int32(offset),
-	}
-}
-
-func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	ouID := modkit.OrgID(r.Context())
-	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
-
-	var req gwspec.UpdateGatewayRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Error("UpdateGateway: failed to decode request", "error", err)
-		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-
-	// Update using local service
-	var properties *map[string]interface{}
-	var description *string // Description not in spec
-	gateway, err := c.gatewayService.UpdateGateway(gatewayID, ouID, description, req.DisplayName, req.IsCritical, properties, req.RuntimeUrl)
-	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
-	if err != nil {
-		log.Error("UpdateGateway: failed to update gateway", "error", err)
-		handleGatewayErrors(w, err, "Failed to update gateway")
-		return
-	}
-
-	// Key the mapping lookup off the resolved UUID rather than the raw path value.
-	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gateway.ID)
-
-	response := convertGatewayToSpecResponse(gateway, ouID, environments)
-	httpx.WriteSuccessResponse(w, http.StatusOK, response)
-}
-
-func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	ouID := modkit.OrgID(r.Context())
-	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
-
-	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
-
-	if err := c.gatewayService.DeleteGateway(gatewayID, ouID); err != nil {
-		log.Error("DeleteGateway: failed to delete gateway", "error", err)
-		handleGatewayErrors(w, err, "Failed to delete gateway")
-		return
-	}
-
-	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
-}
-
-func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	ouID := modkit.OrgID(r.Context())
-	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
-	envID := strings.TrimSpace(r.PathValue("envID"))
-
-	// Verify gateway exists
-	if _, err := c.gatewayService.GetGateway(gatewayID, ouID); err != nil {
-		log.Error("AssignGatewayToEnvironment: gateway not found", "error", err)
-		handleGatewayErrors(w, err, "Failed to assign gateway")
-		return
-	}
-
-	resolvedEnvID, err := c.resolveEnvironmentUUID(ctx, ouID, envID)
-	if err != nil {
-		log.Error("AssignGatewayToEnvironment: failed to resolve environment", "envID", envID, "error", err)
-		handleGatewayErrors(w, err, "Failed to resolve environment")
-		return
-	}
-
-	// Assign via service
-	assignErr := c.gatewayService.AssignGatewayToEnvironment(gatewayID, resolvedEnvID)
-	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
-	modkit.AuditDetail(ctx, "environment", resolvedEnvID)
-	if err := assignErr; err != nil {
-		log.Error("AssignGatewayToEnvironment: failed to assign", "error", err)
-		handleGatewayErrors(w, err, "Failed to assign gateway to environment")
-		return
-	}
-
-	// An environment with no egress gateway can host no MCP proxy artifact, so every agent
-	// whose MCP connection points into it was left with its URL and API-key variables
-	// injected but empty — a binding nothing could write. Mapping a gateway here is what
-	// makes those environments bindable, and it is the only signal that says so: the proxy
-	// itself did not change, so no proxy update will follow to trigger the reconcile.
-	//
-	// Best-effort: a failure leaves the assignment intact — promotion self-heals the same
-	// state per agent, so a missed reconcile costs a retry, not a stuck agent.
-	//
-	// Runs in the background on a context detached from the request. The assignment is
-	// already committed, and the reconcile writes real resources — mapping rows, API keys,
-	// injected variables — so a client disconnect must not tear it off halfway. It also must
-	// not hold the response: it can take as long as mcpBindingReconcileTimeout, which is past
-	// the server's HTTP write timeout (90s by default), and a response dropped after the
-	// assignment committed leaves the client seeing an error for something that succeeded —
-	// and a retry hits "already assigned" without re-running the reconcile. Its result is only
-	// ever logged, so nothing the caller needs is lost by not waiting for it.
-	if c.agentConfigService != nil {
-		if envUUID, parseErr := uuid.Parse(resolvedEnvID); parseErr != nil {
-			log.Warn("AssignGatewayToEnvironment: skipping MCP binding reconcile; unparseable environment id",
-				"envID", resolvedEnvID, "error", parseErr)
-		} else {
-			reconcileMCPBindingsInBackground(ctx, log, "AssignGatewayToEnvironment",
-				func(reconcileCtx context.Context) error {
-					return c.agentConfigService.ReconcileMCPBindingsForEnvironment(reconcileCtx, ouID, envUUID)
-				},
-				"ouID", ouID, "envID", resolvedEnvID)
-		}
-	}
-
-	httpx.WriteSuccessResponse(w, http.StatusCreated, map[string]string{"message": "Gateway assigned successfully"})
-}
-
-func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	ouID := modkit.OrgID(r.Context())
-	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
-	envID := strings.TrimSpace(r.PathValue("envID"))
-
-	// Verify gateway exists and belongs to the caller's org
-	if _, err := c.gatewayService.GetGateway(gatewayID, ouID); err != nil {
-		log.Error("RemoveGatewayFromEnvironment: gateway not found", "error", err)
-		handleGatewayErrors(w, err, "Failed to remove gateway from environment")
-		return
-	}
-
-	resolvedEnvID, err := c.resolveEnvironmentUUID(ctx, ouID, envID)
-	if err != nil {
-		log.Error("RemoveGatewayFromEnvironment: failed to resolve environment", "envID", envID, "error", err)
-		handleGatewayErrors(w, err, "Failed to resolve environment")
-		return
-	}
-
-	// Remove via service
-	removeErr := c.gatewayService.RemoveGatewayFromEnvironment(ctx, gatewayID, resolvedEnvID)
-	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
-	modkit.AuditDetail(ctx, "environment", resolvedEnvID)
-	if err := removeErr; err != nil {
-		log.Error("RemoveGatewayFromEnvironment: failed to remove mapping", "error", err)
-		if errors.Is(err, gwerr.ErrGatewayServesEnvironment) {
-			httpx.WriteErrorResponse(w, http.StatusConflict,
-				"The gateway still serves this environment's agents or proxies; undeploy them from this gateway, or remove the LLM configuration from the agents and monitors in this environment, first")
-			return
-		}
-		if errors.Is(err, gwerr.ErrGatewayEnvironmentFixed) {
-			handleGatewayErrors(w, err, "Failed to remove gateway from environment")
-			return
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "mapping not found") {
-			httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway-environment mapping not found")
-			return
-		}
-		if strings.Contains(err.Error(), "invalid") {
-			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove gateway from environment")
-		return
-	}
-
-	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
-}
-
-func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	ouID := modkit.OrgID(r.Context())
-	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
-
-	// Get environments from DB
-	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gatewayID)
-
-	// Convert to spec responses
-	specEnvs := make([]gwspec.GatewayEnvironmentResponse, len(environments))
-	for i, env := range environments {
-		specEnvs[i] = convertGatewayEnvironmentToSpecResponse(&env)
-	}
-
-	response := gwspec.GetGatewayEnvironments200Response{
-		Environments: specEnvs,
-	}
-
-	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Request) {
@@ -672,11 +403,8 @@ func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Req
 	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
+// RotateGatewayToken issues a new token for the gateway.
 func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Request) {
-	c.rotateGatewayToken(w, r, http.StatusOK)
-}
-
-func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Request, successStatus int) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := modkit.OrgID(r.Context())
@@ -712,14 +440,14 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 
 	// Convert to spec response
 	response := gwspec.GatewayTokenResponse{
-		GatewayId: gatewayID,
+		GatewayId: tokenResp.GatewayID,
 		Token:     tokenResp.Token,
 		TokenId:   tokenResp.ID,
 		CreatedAt: tokenResp.CreatedAt,
 		ExpiresAt: nil, // Token doesn't have expiry in current implementation
 	}
 
-	httpx.WriteSuccessResponse(w, successStatus, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Request) {
@@ -766,162 +494,11 @@ func (c *gatewayController) GetGatewayStatus(w http.ResponseWriter, r *http.Requ
 	httpx.WriteSuccessResponse(w, http.StatusOK, statusResp)
 }
 
-// getGatewayEnvironmentsFromDB retrieves environments associated with a gateway
-// Fetches environment UUIDs from service layer, then gets environment details
-func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, ouID, gatewayID string) []gwmodels.GatewayEnvironmentResponse {
-	log := logger.GetLogger(ctx)
-
-	// Get environment mappings via service
-	mappings, err := c.gatewayService.GetGatewayEnvironmentMappings(gatewayID)
-	if err != nil {
-		log.Warn("getGatewayEnvironmentsFromDB: failed to get environment mappings", "error", err)
-		return []gwmodels.GatewayEnvironmentResponse{}
-	}
-
-	if len(mappings) == 0 {
-		return []gwmodels.GatewayEnvironmentResponse{}
-	}
-
-	// Fetch all environments for this organization
-	ocEnvironments, err := gwsvc.ListEnvironments(ctx, c.ocClient, ouID)
-	if err != nil {
-		log.Warn("getGatewayEnvironmentsFromDB: failed to list environments", "error", err)
-		return []gwmodels.GatewayEnvironmentResponse{}
-	}
-
-	return c.matchGatewayEnvironments(mappings, ocEnvironments, ouID)
-}
-
-// getGatewayEnvironmentMappingsBulk retrieves environment mappings for multiple gateways in bulk
-// This avoids N+1 DB queries when listing gateways
-func (c *gatewayController) getGatewayEnvironmentMappingsBulk(ctx context.Context, gatewayIDs []string) map[string][]gwmodels.GatewayEnvironmentMapping {
-	if len(gatewayIDs) == 0 {
-		return make(map[string][]gwmodels.GatewayEnvironmentMapping)
-	}
-
-	log := logger.GetLogger(ctx)
-
-	// Bulk fetch all mappings in a single query
-	allMappings, err := c.gatewayService.GetGatewayEnvironmentMappingsBulk(gatewayIDs)
-	if err != nil {
-		log.Warn("getGatewayEnvironmentMappingsBulk: failed to get environment mappings", "error", err)
-		return make(map[string][]gwmodels.GatewayEnvironmentMapping)
-	}
-
-	return allMappings
-}
-
-// matchGatewayEnvironments matches gateway environment mappings with environment details
-// This function is used by both single-gateway and bulk-gateway queries
-func (c *gatewayController) matchGatewayEnvironments(
-	mappings []gwmodels.GatewayEnvironmentMapping,
-	ocEnvironments []*modkit.Environment,
-	ouID string,
-) []gwmodels.GatewayEnvironmentResponse {
-	if len(mappings) == 0 {
-		return []gwmodels.GatewayEnvironmentResponse{}
-	}
-
-	if ocEnvironments == nil {
-		return []gwmodels.GatewayEnvironmentResponse{}
-	}
-
-	// Create a map of environment UUIDs for quick lookup
-	envMap := make(map[string]*modkit.Environment)
-	for _, env := range ocEnvironments {
-		envMap[env.ID] = env
-	}
-
-	// Match mapped environments with environment data
-	var environments []gwmodels.GatewayEnvironmentResponse
-	for _, mapping := range mappings {
-		envUUIDStr := mapping.EnvironmentUUID.String()
-		if ocEnv, found := envMap[envUUIDStr]; found {
-			environments = append(environments, gatewayEnvironmentResponse(ocEnv, ouID))
-		}
-	}
-
-	return environments
-}
-
-// gatewayEnvironmentResponse is an environment as a gateway response lists it.
-func gatewayEnvironmentResponse(env *modkit.Environment, ouID string) gwmodels.GatewayEnvironmentResponse {
-	return gwmodels.GatewayEnvironmentResponse{
-		UUID:             env.ID,
-		OrganizationName: ouID,
-		Name:             env.Name,
-		DisplayName:      env.DisplayName,
-		Description:      "",
-		IsProduction:     env.IsProduction,
-		CreatedAt:        env.CreatedAt,
-		UpdatedAt:        env.CreatedAt,
-	}
-}
-
 // Helper conversion functions
 
 // canonicalGatewayType uppercases the stored lowercase role for the wire enum.
 func canonicalGatewayType(role string) gwspec.GatewayType {
 	return gwspec.GatewayType(strings.ToUpper(role))
-}
-
-func convertGatewayToSpecResponse(gw *gwsvc.GatewayResponse, ouID string, environments []gwmodels.GatewayEnvironmentResponse) gwspec.GatewayResponse {
-	response := gwspec.GatewayResponse{
-		Uuid:        gw.ID,
-		Name:        gw.Name,
-		DisplayName: gw.DisplayName,
-		GatewayType: canonicalGatewayType(gw.FunctionalityType),
-		Hosting:     gwspec.GatewayHosting(gw.Hosting),
-		Vhost:       gw.Vhost,
-		RuntimeUrl:  runtimeURLPtr(gw.RuntimeURL),
-		IsCritical:  gw.IsCritical,
-		Status:      convertStatusToGatewayStatus(gw.IsActive),
-		CreatedAt:   gw.CreatedAt,
-		UpdatedAt:   gw.UpdatedAt,
-	}
-
-	// Convert environments
-	if len(environments) > 0 {
-		envs := make([]gwspec.GatewayEnvironmentResponse, len(environments))
-		for i, env := range environments {
-			envs[i] = convertGatewayEnvironmentToSpecResponse(&env)
-		}
-		response.Environments = envs
-	}
-
-	return response
-}
-
-// runtimeURLPtr omits an unset runtime URL from the response rather than emitting "".
-func runtimeURLPtr(runtimeURL string) *string {
-	if runtimeURL == "" {
-		return nil
-	}
-	return &runtimeURL
-}
-
-func convertStatusToGatewayStatus(isActive bool) gwspec.GatewayStatus {
-	if isActive {
-		return "ACTIVE"
-	}
-	return "INACTIVE"
-}
-
-func convertGatewayEnvironmentToSpecResponse(env *gwmodels.GatewayEnvironmentResponse) gwspec.GatewayEnvironmentResponse {
-	response := gwspec.GatewayEnvironmentResponse{
-		Id:           env.UUID,
-		Name:         env.Name,
-		DisplayName:  env.DisplayName,
-		DataplaneRef: env.DataplaneRef,
-		DnsPrefix:    env.DNSPrefix,
-		IsProduction: env.IsProduction,
-		CreatedAt:    env.CreatedAt,
-		UpdatedAt:    env.UpdatedAt,
-	}
-	if env.Description != "" {
-		response.Description = &env.Description
-	}
-	return response
 }
 
 // gatewayResponseID returns a registered gateway's identifier for an audit

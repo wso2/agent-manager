@@ -22,49 +22,28 @@ import (
 )
 
 func RegisterGatewayRoutes(rr Router, ctrl gwctl.GatewayController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/gateways", gwperm.Create,
+	rr.HandleFuncWithValidationAndAuthz("POST /gateways", gwperm.Create,
 		rr.Track("amp.deployment-ops.register-gateway", actionDims("registered-gateway"), ctrl.RegisterGateway))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/gateways", gwperm.Read, ctrl.ListGateways)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/gateways/{gatewayID}", gwperm.Read, ctrl.GetGateway)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/gateways/{gatewayID}", gwperm.Update,
+	rr.HandleFuncWithValidationAndAuthz("GET /gateways", gwperm.Read, ctrl.ListGateways)
+	rr.HandleFuncWithValidationAndAuthz("GET /gateways/{gatewayID}", gwperm.Read, ctrl.GetGateway)
+	rr.HandleFuncWithValidationAndAuthz("PUT /gateways/{gatewayID}", gwperm.Update,
 		rr.Track("amp.deployment-ops.register-gateway", actionDims("updated-gateway"), ctrl.UpdateGateway))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/gateways/{gatewayID}", gwperm.Delete,
+	rr.HandleFuncWithValidationAndAuthz("DELETE /gateways/{gatewayID}", gwperm.Delete,
 		rr.Track("amp.deployment-ops.register-gateway", actionDims("deleted-gateway"), ctrl.DeleteGateway))
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}", gwperm.Update,
-		rr.Track("amp.deployment-ops.register-gateway.assign-environment", actionDims("assigned-gateway-to-environment"), ctrl.AssignGatewayToEnvironment))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}", gwperm.Update,
-		rr.Track("amp.deployment-ops.register-gateway.assign-environment", actionDims("removed-gateway-from-environment"), ctrl.RemoveGatewayFromEnvironment))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/gateways/{gatewayID}/environments", gwperm.Read, ctrl.GetGatewayEnvironments)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/gateways/{gatewayID}/health", gwperm.Read, ctrl.CheckGatewayHealth)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/gateways/{gatewayID}/tokens", gwperm.TokenManage, ctrl.ListGatewayTokens)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/gateways/{gatewayID}/tokens", gwperm.TokenManage,
+	rr.HandleFuncWithValidationAndAuthz("GET /gateways/{gatewayID}/health", gwperm.Read, ctrl.CheckGatewayHealth)
+	rr.HandleFuncWithValidationAndAuthz("GET /gateways/{gatewayID}/tokens", gwperm.TokenManage, ctrl.ListGatewayTokens)
+	rr.HandleFuncWithValidationAndAuthz("POST /gateways/{gatewayID}/tokens", gwperm.TokenManage,
 		rr.Track("amp.deployment-ops.register-gateway.token", actionDims("rotated-gateway-token"), ctrl.RotateGatewayToken))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}", gwperm.TokenManage,
+	rr.HandleFuncWithValidationAndAuthz("DELETE /gateways/{gatewayID}/tokens/{tokenID}", gwperm.TokenManage,
 		rr.Track("amp.deployment-ops.register-gateway.token", actionDims("revoked-gateway-token"), ctrl.RevokeGatewayToken))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/gateways/status", gwperm.Read, ctrl.GetGatewayStatus)
-
-	// Self-hosted gateways: the same operations, restricted to gateways the customer runs.
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/self-hosted-gateways", gwperm.Read, ctrl.ListSelfHostedGateways)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/self-hosted-gateways", gwperm.Create,
-		rr.Track("amp.deployment-ops.register-gateway", actionDims("registered-gateway"), ctrl.RegisterSelfHostedGateway))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/self-hosted-gateways/{gatewayID}", gwperm.Read, ctrl.GetSelfHostedGateway)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/self-hosted-gateways/{gatewayID}", gwperm.Update,
-		rr.Track("amp.deployment-ops.register-gateway", actionDims("updated-gateway"), ctrl.UpdateSelfHostedGateway))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/self-hosted-gateways/{gatewayID}", gwperm.Delete,
-		rr.Track("amp.deployment-ops.register-gateway", actionDims("deleted-gateway"), ctrl.DeleteSelfHostedGateway))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens", gwperm.TokenManage, ctrl.ListSelfHostedGatewayTokens)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens", gwperm.TokenManage,
-		rr.Track("amp.deployment-ops.register-gateway.token", actionDims("rotated-gateway-token"), ctrl.RotateSelfHostedGatewayToken))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens/{tokenID}", gwperm.TokenManage,
-		rr.Track("amp.deployment-ops.register-gateway.token", actionDims("revoked-gateway-token"), ctrl.RevokeSelfHostedGatewayToken))
+	rr.HandleFuncWithValidationAndAuthz("GET /gateways/status", gwperm.Read, ctrl.GetGatewayStatus)
 
 	// Identity providers (token issuers mirrored from the gateway runtime config)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/identity-providers", gwperm.Read, ctrl.ListIdentityProviders)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/identity-providers/discover", gwperm.Update, ctrl.DiscoverOidcConfiguration)
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/gateways/{gatewayID}/identity-providers", gwperm.Read, ctrl.ListGatewayIdentityProviders)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}", gwperm.Update,
+	rr.HandleFuncWithValidationAndAuthz("GET /identity-providers", gwperm.Read, ctrl.ListIdentityProviders)
+	rr.HandleFuncWithValidationAndAuthz("GET /identity-providers/discover", gwperm.Update, ctrl.DiscoverOidcConfiguration)
+	rr.HandleFuncWithValidationAndAuthz("GET /gateways/{gatewayID}/identity-providers", gwperm.Read, ctrl.ListGatewayIdentityProviders)
+	rr.HandleFuncWithValidationAndAuthz("PUT /gateways/{gatewayID}/identity-providers/{name}", gwperm.Update,
 		rr.Track("amp.deployment-ops.register-gateway.identity-provider", actionDims("configured-gateway-identity-provider"), ctrl.UpsertGatewayIdentityProvider))
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}", gwperm.Update,
+	rr.HandleFuncWithValidationAndAuthz("DELETE /gateways/{gatewayID}/identity-providers/{name}", gwperm.Update,
 		rr.Track("amp.deployment-ops.register-gateway.identity-provider", actionDims("removed-gateway-identity-provider"), ctrl.DeleteGatewayIdentityProvider))
-	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/environments/{environmentId}/identity-providers", gwperm.Read, ctrl.ListEnvironmentIdentityProviders)
 }

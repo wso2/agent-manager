@@ -47,6 +47,7 @@ func TestHandleGatewayErrors_Status(t *testing.T) {
 	}{
 		{"token limit", fmt.Errorf("rotate: %w", gwerr.ErrGatewayTokenLimitReached), http.StatusConflict, "Revoke"},
 		{"token not found", gwerr.ErrGatewayTokenNotFound, http.StatusNotFound, "Token not found"},
+		{"managed gateway", fmt.Errorf("internal detail: %w", gwerr.ErrGatewayManaged), http.StatusForbidden, "read-only"},
 		{
 			"validation error",
 			httpx.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must not exceed 64 characters"),

@@ -66,7 +66,6 @@ var gatewayControllerConstructors = []any{
 	gwctl.NewMCPProxyScopeController,
 	gwctl.NewAgentIdentityController,
 	gwctl.NewAgentGatewayController,
-	gwctl.NewEnvironmentGatewayController,
 	gwctl.NewGatewayInternalController,
 	gwctl.NewWebSocketController,
 }

@@ -35,7 +35,6 @@ import {
 } from "@agent-management-platform/views";
 import {
   useGetGateway,
-  useUpdateGateway,
   useUpdateSelfHostedGateway,
 } from "@agent-management-platform/api-client";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
@@ -43,7 +42,7 @@ import {
   absoluteRouteMap,
   type GatewayResponse,
   isSelfHostedGateway,
-  type UpdateGatewayRequest,
+  type SelfHostedGatewayUpdateRequest,
 } from "@agent-management-platform/types";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { editGatewaySchema, type EditGatewayFormValues, GATEWAY_DISPLAY_NAME_MAX_LENGTH } from "../form/schema";
@@ -68,15 +67,11 @@ function EditGatewayForm({ gateway, orgId, viewHref }: EditGatewayFormProps) {
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] =
     useState<Partial<Record<keyof EditGatewayFormValues, string>>>({});
 
-  const isSelfHosted = isSelfHostedGateway(gateway);
-
-  const managedUpdate = useUpdateGateway();
-  const selfHostedUpdate = useUpdateSelfHostedGateway();
   const {
     mutateAsync: updateGateway,
     isPending: isUpdating,
     error: updateError,
-  } = isSelfHosted ? selfHostedUpdate : managedUpdate;
+  } = useUpdateSelfHostedGateway();
 
   const isPending = isUpdating;
 
@@ -122,7 +117,7 @@ function EditGatewayForm({ gateway, orgId, viewHref }: EditGatewayFormProps) {
       }
       setLastSubmittedValidationErrors({});
 
-      const payload: UpdateGatewayRequest = {
+      const payload: SelfHostedGatewayUpdateRequest = {
         displayName: formData.displayName.trim(),
         isCritical: formData.isCritical,
       };
@@ -134,7 +129,7 @@ function EditGatewayForm({ gateway, orgId, viewHref }: EditGatewayFormProps) {
         });
         allowNavigation(() => navigate(viewHref));
       } catch {
-        // Error is handled by updateError from useUpdateGateway
+        // Error is handled by updateError from useUpdateSelfHostedGateway
       }
     },
     [
@@ -241,6 +236,10 @@ export function EditGateway() {
           backHref={generatePath(absoluteRouteMap.children.org.children.gateways.path, { orgId })}
           backLabel="Back to gateways"
         />
+      ) : !isSelfHostedGateway(gateway) ? (
+        <Alert severity="info">
+          This gateway is managed by the platform and can&apos;t be edited.
+        </Alert>
       ) : (
         <EditGatewayForm gateway={gateway} orgId={orgId} viewHref={viewHref} />
       )}

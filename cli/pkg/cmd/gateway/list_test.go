@@ -23,43 +23,47 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
-func sampleGateway(name, uuid string, gwType aigateway.GatewayType, envs ...string) aigateway.GatewayResponse {
-	g := aigateway.GatewayResponse{
-		Name:        name,
-		DisplayName: strings.ToUpper(name),
-		Uuid:        uuid,
-		GatewayType: gwType,
-		Status:      aigateway.GatewayStatus("ACTIVE"),
-		Vhost:       name + ".example.com",
-		CreatedAt:   time.Unix(0, 0).UTC(),
-		UpdatedAt:   time.Unix(0, 0).UTC(),
+func sampleGateway(name, uid string, gwType aigateway.GatewayType) aigateway.GatewayDocument {
+	id := uuid.MustParse(uid)
+	created := time.Unix(0, 0).UTC()
+	hosting := aigateway.MANAGED
+	endpoint := name + ".example.com"
+	state := aigateway.GatewayStatus("ACTIVE")
+	return aigateway.GatewayDocument{
+		ApiVersion: "ai-control-plane.choreolabs.com/v1",
+		Kind:       "Gateway",
+		Metadata:   aigateway.DocumentMetadata{Name: name, Uid: &id, CreationTimestamp: &created},
+		Spec: aigateway.GatewaySpec{
+			DisplayName: strings.ToUpper(name),
+			Type:        &gwType,
+			Hosting:     &hosting,
+			Endpoint:    &endpoint,
+		},
+		Status: &aigateway.GatewayDocumentStatus{State: &state},
 	}
-	if len(envs) > 0 {
-		bindings := make([]aigateway.GatewayEnvironmentResponse, 0, len(envs))
-		for _, env := range envs {
-			bindings = append(bindings, aigateway.GatewayEnvironmentResponse{Name: env})
-		}
-		g.Environments = &bindings
-	}
-	return g
 }
 
-func sampleListResponse(gateways ...aigateway.GatewayResponse) aigateway.GatewayListResponse {
+func sampleListResponse(gateways ...aigateway.GatewayDocument) aigateway.GatewayListResponse {
+	count, total := int32(len(gateways)), int32(len(gateways))
+	if gateways == nil {
+		gateways = []aigateway.GatewayDocument{}
+	}
 	return aigateway.GatewayListResponse{
-		Gateways: gateways,
-		Total:    int32(len(gateways)),
-		Limit:    100,
-		Offset:   0,
+		Count:      &count,
+		List:       gateways,
+		Pagination: &aigateway.Pagination{Total: &total},
 	}
 }
 
 func TestList_SuccessJSON(t *testing.T) {
 	io, out, _ := newTestIO()
 	clientFn, captured, closeFn := newTestClient(t, http.StatusOK, sampleListResponse(
-		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH, "default"),
+		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH),
 	))
 	defer closeFn()
 
@@ -72,16 +76,16 @@ func TestList_SuccessJSON(t *testing.T) {
 	if captured.method != "GET" {
 		t.Errorf("method = %q, want GET", captured.method)
 	}
-	if captured.path != "/orgs/acme/gateways" {
-		t.Errorf("path = %q, want /orgs/acme/gateways", captured.path)
+	if captured.path != "/gateways" {
+		t.Errorf("path = %q, want /gateways", captured.path)
 	}
 	env := decodeEnvelope(t, out.String())
-	gateways := env["data"].(map[string]any)["gateways"].([]any)
+	gateways := env["data"].(map[string]any)["list"].([]any)
 	if len(gateways) != 1 {
 		t.Fatalf("gateways len = %d, want 1", len(gateways))
 	}
-	if gateways[0].(map[string]any)["uuid"] != "11111111-1111-1111-1111-111111111111" {
-		t.Errorf("uuid = %v", gateways[0].(map[string]any)["uuid"])
+	if uid := gateways[0].(map[string]any)["metadata"].(map[string]any)["uid"]; uid != "11111111-1111-1111-1111-111111111111" {
+		t.Errorf("uid = %v", uid)
 	}
 }
 
@@ -202,10 +206,10 @@ func TestList_EmptyStaysSilentWhenPiped(t *testing.T) {
 	}
 }
 
-func TestList_TableShowsUUID(t *testing.T) {
+func TestList_TableShowsNameTypeAndHosting(t *testing.T) {
 	io, out, _ := newTextTestIO(true)
 	clientFn, _, closeFn := newTestClient(t, http.StatusOK, sampleListResponse(
-		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH, "prod", "default"),
+		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH),
 		sampleGateway("inbound", "22222222-2222-2222-2222-222222222222", aigateway.GatewayTypeINGRESS),
 	))
 	defer closeFn()
@@ -216,7 +220,7 @@ func TestList_TableShowsUUID(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	rendered := out.String()
-	for _, want := range []string{"UUID", "11111111-1111-1111-1111-111111111111", "BOTH", "INGRESS"} {
+	for _, want := range []string{"HOSTING", "edge", "inbound", "BOTH", "INGRESS", "MANAGED", "edge.example.com"} {
 		if !strings.Contains(rendered, want) {
 			t.Errorf("table missing %q; got:\n%s", want, rendered)
 		}

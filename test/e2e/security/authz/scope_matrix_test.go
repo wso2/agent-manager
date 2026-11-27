@@ -157,11 +157,10 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodDelete, identityBase + "/groups/" + absentName, []string{"amp:group:delete"}},
 
 		// --- Gateways --------------------------------------------------------
-		{http.MethodPost, gwOrgBase + "/gateways", []string{"amp:ai-gateway:gateways.create"}},
-		{http.MethodDelete, gwOrgBase + "/gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
-		{http.MethodPost, gwOrgBase + "/gateways/" + absentName + "/tokens", []string{"amp:ai-gateway:gateways.token-manage"}},
-
-		{http.MethodDelete, gwOrgBase + "/self-hosted-gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
+		{http.MethodPost, gwBase + "/gateways", []string{"amp:ai-gateway:gateways.create"}},
+		{http.MethodPut, gwBase + "/gateways/" + absentName, []string{"amp:ai-gateway:gateways.update"}},
+		{http.MethodDelete, gwBase + "/gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
+		{http.MethodPost, gwBase + "/gateways/" + absentName + "/tokens", []string{"amp:ai-gateway:gateways.token-manage"}},
 
 		// --- Events: delivery to external endpoints and their secrets ---------
 		{http.MethodDelete, eventsBase + "/destinations/" + absentName, []string{"amp:events:manage"}},

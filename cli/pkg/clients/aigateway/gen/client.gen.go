@@ -218,6 +218,59 @@ type ClientInterface interface {
 
 	RotateLLMConfigAPIKey(ctx context.Context, agentName string, configId openapi_types.UUID, keyName string, params *RotateLLMConfigAPIKeyParams, body RotateLLMConfigAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListGateways request
+	ListGateways(ctx context.Context, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RegisterGatewayWithBody request with any body
+	RegisterGatewayWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RegisterGateway(ctx context.Context, body RegisterGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetGatewayStatus request
+	GetGatewayStatus(ctx context.Context, params *GetGatewayStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteGateway request
+	DeleteGateway(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetGateway request
+	GetGateway(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateGatewayWithBody request with any body
+	UpdateGatewayWithBody(ctx context.Context, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateGateway(ctx context.Context, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CheckGatewayHealth request
+	CheckGatewayHealth(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListGatewayIdentityProviders request
+	ListGatewayIdentityProviders(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteGatewayIdentityProvider request
+	DeleteGatewayIdentityProvider(ctx context.Context, gatewayID string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpsertGatewayIdentityProviderWithBody request with any body
+	UpsertGatewayIdentityProviderWithBody(ctx context.Context, gatewayID string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpsertGatewayIdentityProvider(ctx context.Context, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListGatewayTokens request
+	ListGatewayTokens(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RotateGatewayTokenWithBody request with any body
+	RotateGatewayTokenWithBody(ctx context.Context, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	RotateGatewayToken(ctx context.Context, gatewayID string, body RotateGatewayTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevokeGatewayToken request
+	RevokeGatewayToken(ctx context.Context, gatewayID string, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListIdentityProviders request
+	ListIdentityProviders(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DiscoverOidcConfiguration request
+	DiscoverOidcConfiguration(ctx context.Context, params *DiscoverOidcConfigurationParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListLLMProviderTemplates request
 	ListLLMProviderTemplates(ctx context.Context, params *ListLLMProviderTemplatesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -330,9 +383,6 @@ type ClientInterface interface {
 	// ListCatalogResources request
 	ListCatalogResources(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetEnvironmentGateways request
-	GetEnvironmentGateways(ctx context.Context, orgName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListAgentIdentityAgents request
 	ListAgentIdentityAgents(ctx context.Context, orgName AgentIdentityOrgName, envName AgentIdentityEnvName, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -406,71 +456,6 @@ type ClientInterface interface {
 	// ListAgentIdentityScopes request
 	ListAgentIdentityScopes(ctx context.Context, orgName string, envName string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListEnvironmentIdentityProviders request
-	ListEnvironmentIdentityProviders(ctx context.Context, orgName string, environmentId string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListGateways request
-	ListGateways(ctx context.Context, orgName string, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RegisterGatewayWithBody request with any body
-	RegisterGatewayWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	RegisterGateway(ctx context.Context, orgName string, body RegisterGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetGatewayStatus request
-	GetGatewayStatus(ctx context.Context, orgName string, params *GetGatewayStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteGateway request
-	DeleteGateway(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetGateway request
-	GetGateway(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateGatewayWithBody request with any body
-	UpdateGatewayWithBody(ctx context.Context, orgName string, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateGateway(ctx context.Context, orgName string, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetGatewayEnvironments request
-	GetGatewayEnvironments(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RemoveGatewayFromEnvironment request
-	RemoveGatewayFromEnvironment(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// AssignGatewayToEnvironment request
-	AssignGatewayToEnvironment(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CheckGatewayHealth request
-	CheckGatewayHealth(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListGatewayIdentityProviders request
-	ListGatewayIdentityProviders(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteGatewayIdentityProvider request
-	DeleteGatewayIdentityProvider(ctx context.Context, orgName string, gatewayID string, name string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpsertGatewayIdentityProviderWithBody request with any body
-	UpsertGatewayIdentityProviderWithBody(ctx context.Context, orgName string, gatewayID string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpsertGatewayIdentityProvider(ctx context.Context, orgName string, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListGatewayTokens request
-	ListGatewayTokens(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RotateGatewayTokenWithBody request with any body
-	RotateGatewayTokenWithBody(ctx context.Context, orgName string, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	RotateGatewayToken(ctx context.Context, orgName string, gatewayID string, body RotateGatewayTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RevokeGatewayToken request
-	RevokeGatewayToken(ctx context.Context, orgName string, gatewayID string, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListIdentityProviders request
-	ListIdentityProviders(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DiscoverOidcConfiguration request
-	DiscoverOidcConfiguration(ctx context.Context, orgName string, params *DiscoverOidcConfigurationParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// ListLLMProxies request
 	ListLLMProxies(ctx context.Context, orgName string, projName string, params *ListLLMProxiesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -525,34 +510,6 @@ type ClientInterface interface {
 	UpdateLLMProxyWithBody(ctx context.Context, orgName string, projName string, proxyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateLLMProxy(ctx context.Context, orgName string, projName string, proxyId string, body UpdateLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListSelfHostedGateways request
-	ListSelfHostedGateways(ctx context.Context, orgName string, params *ListSelfHostedGatewaysParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RegisterSelfHostedGatewayWithBody request with any body
-	RegisterSelfHostedGatewayWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	RegisterSelfHostedGateway(ctx context.Context, orgName string, body RegisterSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteSelfHostedGateway request
-	DeleteSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetSelfHostedGateway request
-	GetSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateSelfHostedGatewayWithBody request with any body
-	UpdateSelfHostedGatewayWithBody(ctx context.Context, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListSelfHostedGatewayTokens request
-	ListSelfHostedGatewayTokens(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateSelfHostedGatewayToken request
-	CreateSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RevokeSelfHostedGatewayToken request
-	RevokeSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetPlatformGatewayFailureSummary request
 	GetPlatformGatewayFailureSummary(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1122,6 +1079,234 @@ func (c *Client) RotateLLMConfigAPIKey(ctx context.Context, agentName string, co
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListGateways(ctx context.Context, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGatewaysRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RegisterGatewayWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterGatewayRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RegisterGateway(ctx context.Context, body RegisterGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterGatewayRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetGatewayStatus(ctx context.Context, params *GetGatewayStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGatewayStatusRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteGateway(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGatewayRequest(c.Server, gatewayID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetGateway(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGatewayRequest(c.Server, gatewayID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGatewayWithBody(ctx context.Context, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGatewayRequestWithBody(c.Server, gatewayID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateGateway(ctx context.Context, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGatewayRequest(c.Server, gatewayID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CheckGatewayHealth(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCheckGatewayHealthRequest(c.Server, gatewayID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListGatewayIdentityProviders(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGatewayIdentityProvidersRequest(c.Server, gatewayID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteGatewayIdentityProvider(ctx context.Context, gatewayID string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGatewayIdentityProviderRequest(c.Server, gatewayID, name)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertGatewayIdentityProviderWithBody(ctx context.Context, gatewayID string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertGatewayIdentityProviderRequestWithBody(c.Server, gatewayID, name, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpsertGatewayIdentityProvider(ctx context.Context, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpsertGatewayIdentityProviderRequest(c.Server, gatewayID, name, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListGatewayTokens(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGatewayTokensRequest(c.Server, gatewayID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateGatewayTokenWithBody(ctx context.Context, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateGatewayTokenRequestWithBody(c.Server, gatewayID, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RotateGatewayToken(ctx context.Context, gatewayID string, body RotateGatewayTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRotateGatewayTokenRequest(c.Server, gatewayID, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) RevokeGatewayToken(ctx context.Context, gatewayID string, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevokeGatewayTokenRequest(c.Server, gatewayID, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListIdentityProviders(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListIdentityProvidersRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DiscoverOidcConfiguration(ctx context.Context, params *DiscoverOidcConfigurationParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDiscoverOidcConfigurationRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListLLMProviderTemplates(ctx context.Context, params *ListLLMProviderTemplatesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListLLMProviderTemplatesRequest(c.Server, params)
 	if err != nil {
@@ -1614,18 +1799,6 @@ func (c *Client) ListCatalogResources(ctx context.Context, orgName string, param
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetEnvironmentGateways(ctx context.Context, orgName string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetEnvironmentGatewaysRequest(c.Server, orgName, envID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) ListAgentIdentityAgents(ctx context.Context, orgName AgentIdentityOrgName, envName AgentIdentityEnvName, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAgentIdentityAgentsRequest(c.Server, orgName, envName)
 	if err != nil {
@@ -1950,282 +2123,6 @@ func (c *Client) ListAgentIdentityScopes(ctx context.Context, orgName string, en
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListEnvironmentIdentityProviders(ctx context.Context, orgName string, environmentId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListEnvironmentIdentityProvidersRequest(c.Server, orgName, environmentId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListGateways(ctx context.Context, orgName string, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListGatewaysRequest(c.Server, orgName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RegisterGatewayWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRegisterGatewayRequestWithBody(c.Server, orgName, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RegisterGateway(ctx context.Context, orgName string, body RegisterGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRegisterGatewayRequest(c.Server, orgName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetGatewayStatus(ctx context.Context, orgName string, params *GetGatewayStatusParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetGatewayStatusRequest(c.Server, orgName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteGateway(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteGatewayRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetGateway(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetGatewayRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateGatewayWithBody(ctx context.Context, orgName string, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateGatewayRequestWithBody(c.Server, orgName, gatewayID, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateGateway(ctx context.Context, orgName string, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateGatewayRequest(c.Server, orgName, gatewayID, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetGatewayEnvironments(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetGatewayEnvironmentsRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RemoveGatewayFromEnvironment(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRemoveGatewayFromEnvironmentRequest(c.Server, orgName, gatewayID, envID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) AssignGatewayToEnvironment(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAssignGatewayToEnvironmentRequest(c.Server, orgName, gatewayID, envID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CheckGatewayHealth(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCheckGatewayHealthRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListGatewayIdentityProviders(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListGatewayIdentityProvidersRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteGatewayIdentityProvider(ctx context.Context, orgName string, gatewayID string, name string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteGatewayIdentityProviderRequest(c.Server, orgName, gatewayID, name)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpsertGatewayIdentityProviderWithBody(ctx context.Context, orgName string, gatewayID string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpsertGatewayIdentityProviderRequestWithBody(c.Server, orgName, gatewayID, name, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpsertGatewayIdentityProvider(ctx context.Context, orgName string, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpsertGatewayIdentityProviderRequest(c.Server, orgName, gatewayID, name, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListGatewayTokens(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListGatewayTokensRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RotateGatewayTokenWithBody(ctx context.Context, orgName string, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRotateGatewayTokenRequestWithBody(c.Server, orgName, gatewayID, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RotateGatewayToken(ctx context.Context, orgName string, gatewayID string, body RotateGatewayTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRotateGatewayTokenRequest(c.Server, orgName, gatewayID, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RevokeGatewayToken(ctx context.Context, orgName string, gatewayID string, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRevokeGatewayTokenRequest(c.Server, orgName, gatewayID, tokenID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListIdentityProviders(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListIdentityProvidersRequest(c.Server, orgName)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DiscoverOidcConfiguration(ctx context.Context, orgName string, params *DiscoverOidcConfigurationParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDiscoverOidcConfigurationRequest(c.Server, orgName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) ListLLMProxies(ctx context.Context, orgName string, projName string, params *ListLLMProxiesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListLLMProxiesRequest(c.Server, orgName, projName, params)
 	if err != nil {
@@ -2456,126 +2353,6 @@ func (c *Client) UpdateLLMProxyWithBody(ctx context.Context, orgName string, pro
 
 func (c *Client) UpdateLLMProxy(ctx context.Context, orgName string, projName string, proxyId string, body UpdateLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateLLMProxyRequest(c.Server, orgName, projName, proxyId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListSelfHostedGateways(ctx context.Context, orgName string, params *ListSelfHostedGatewaysParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListSelfHostedGatewaysRequest(c.Server, orgName, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RegisterSelfHostedGatewayWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRegisterSelfHostedGatewayRequestWithBody(c.Server, orgName, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RegisterSelfHostedGateway(ctx context.Context, orgName string, body RegisterSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRegisterSelfHostedGatewayRequest(c.Server, orgName, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteSelfHostedGatewayRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetSelfHostedGatewayRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateSelfHostedGatewayWithBody(ctx context.Context, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateSelfHostedGatewayRequestWithBody(c.Server, orgName, gatewayID, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateSelfHostedGateway(ctx context.Context, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateSelfHostedGatewayRequest(c.Server, orgName, gatewayID, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ListSelfHostedGatewayTokens(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListSelfHostedGatewayTokensRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateSelfHostedGatewayTokenRequest(c.Server, orgName, gatewayID)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) RevokeSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRevokeSelfHostedGatewayTokenRequest(c.Server, orgName, gatewayID, tokenID)
 	if err != nil {
 		return nil, err
 	}
@@ -4739,6 +4516,680 @@ func NewRotateLLMConfigAPIKeyRequestWithBody(server string, agentName string, co
 	return req, nil
 }
 
+// NewListGatewaysRequest generates requests for ListGateways
+func NewListGatewaysRequest(server string, params *ListGatewaysParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Type != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "type", *params.Type, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Hosting != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "hosting", *params.Hosting, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRegisterGatewayRequest calls the generic RegisterGateway builder with application/json body
+func NewRegisterGatewayRequest(server string, body RegisterGatewayJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRegisterGatewayRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewRegisterGatewayRequestWithBody generates requests for RegisterGateway with any type of body
+func NewRegisterGatewayRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetGatewayStatusRequest generates requests for GetGatewayStatus
+func NewGetGatewayStatusRequest(server string, params *GetGatewayStatusParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/status")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.GatewayId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", *params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteGatewayRequest generates requests for DeleteGateway
+func NewDeleteGatewayRequest(server string, gatewayID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetGatewayRequest generates requests for GetGateway
+func NewGetGatewayRequest(server string, gatewayID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateGatewayRequest calls the generic UpdateGateway builder with application/json body
+func NewUpdateGatewayRequest(server string, gatewayID string, body UpdateGatewayJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateGatewayRequestWithBody(server, gatewayID, "application/json", bodyReader)
+}
+
+// NewUpdateGatewayRequestWithBody generates requests for UpdateGateway with any type of body
+func NewUpdateGatewayRequestWithBody(server string, gatewayID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCheckGatewayHealthRequest generates requests for CheckGatewayHealth
+func NewCheckGatewayHealthRequest(server string, gatewayID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s/health", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListGatewayIdentityProvidersRequest generates requests for ListGatewayIdentityProviders
+func NewListGatewayIdentityProvidersRequest(server string, gatewayID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s/identity-providers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteGatewayIdentityProviderRequest generates requests for DeleteGatewayIdentityProvider
+func NewDeleteGatewayIdentityProviderRequest(server string, gatewayID string, name string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s/identity-providers/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpsertGatewayIdentityProviderRequest calls the generic UpsertGatewayIdentityProvider builder with application/json body
+func NewUpsertGatewayIdentityProviderRequest(server string, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpsertGatewayIdentityProviderRequestWithBody(server, gatewayID, name, "application/json", bodyReader)
+}
+
+// NewUpsertGatewayIdentityProviderRequestWithBody generates requests for UpsertGatewayIdentityProvider with any type of body
+func NewUpsertGatewayIdentityProviderRequestWithBody(server string, gatewayID string, name string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s/identity-providers/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListGatewayTokensRequest generates requests for ListGatewayTokens
+func NewListGatewayTokensRequest(server string, gatewayID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s/tokens", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRotateGatewayTokenRequest calls the generic RotateGatewayToken builder with application/json body
+func NewRotateGatewayTokenRequest(server string, gatewayID string, body RotateGatewayTokenJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRotateGatewayTokenRequestWithBody(server, gatewayID, "application/json", bodyReader)
+}
+
+// NewRotateGatewayTokenRequestWithBody generates requests for RotateGatewayToken with any type of body
+func NewRotateGatewayTokenRequestWithBody(server string, gatewayID string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s/tokens", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRevokeGatewayTokenRequest generates requests for RevokeGatewayToken
+func NewRevokeGatewayTokenRequest(server string, gatewayID string, tokenID string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "tokenID", tokenID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/gateways/%s/tokens/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListIdentityProvidersRequest generates requests for ListIdentityProviders
+func NewListIdentityProvidersRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/identity-providers")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDiscoverOidcConfigurationRequest generates requests for DiscoverOidcConfiguration
+func NewDiscoverOidcConfigurationRequest(server string, params *DiscoverOidcConfigurationParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/identity-providers/discover")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "url", params.Url, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListLLMProviderTemplatesRequest generates requests for ListLLMProviderTemplates
 func NewListLLMProviderTemplatesRequest(server string, params *ListLLMProviderTemplatesParams) (*http.Request, error) {
 	var err error
@@ -6173,47 +6624,6 @@ func NewListCatalogResourcesRequest(server string, orgName string, params *ListC
 	return req, nil
 }
 
-// NewGetEnvironmentGatewaysRequest generates requests for GetEnvironmentGateways
-func NewGetEnvironmentGatewaysRequest(server string, orgName string, envID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/environments/%s/gateways", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewListAgentIdentityAgentsRequest generates requests for ListAgentIdentityAgents
 func NewListAgentIdentityAgentsRequest(server string, orgName AgentIdentityOrgName, envName AgentIdentityEnvName) (*http.Request, error) {
 	var err error
@@ -7302,963 +7712,6 @@ func NewListAgentIdentityScopesRequest(server string, orgName string, envName st
 	return req, nil
 }
 
-// NewListEnvironmentIdentityProvidersRequest generates requests for ListEnvironmentIdentityProviders
-func NewListEnvironmentIdentityProvidersRequest(server string, orgName string, environmentId string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "environmentId", environmentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/environments/%s/identity-providers", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListGatewaysRequest generates requests for ListGateways
-func NewListGatewaysRequest(server string, orgName string, params *ListGatewaysParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Offset != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Type != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "type", *params.Type, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Status != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Environment != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "environment", *params.Environment, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewRegisterGatewayRequest calls the generic RegisterGateway builder with application/json body
-func NewRegisterGatewayRequest(server string, orgName string, body RegisterGatewayJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRegisterGatewayRequestWithBody(server, orgName, "application/json", bodyReader)
-}
-
-// NewRegisterGatewayRequestWithBody generates requests for RegisterGateway with any type of body
-func NewRegisterGatewayRequestWithBody(server string, orgName string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetGatewayStatusRequest generates requests for GetGatewayStatus
-func NewGetGatewayStatusRequest(server string, orgName string, params *GetGatewayStatusParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/status", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.GatewayId != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "gatewayId", *params.GatewayId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDeleteGatewayRequest generates requests for DeleteGateway
-func NewDeleteGatewayRequest(server string, orgName string, gatewayID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetGatewayRequest generates requests for GetGateway
-func NewGetGatewayRequest(server string, orgName string, gatewayID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateGatewayRequest calls the generic UpdateGateway builder with application/json body
-func NewUpdateGatewayRequest(server string, orgName string, gatewayID string, body UpdateGatewayJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateGatewayRequestWithBody(server, orgName, gatewayID, "application/json", bodyReader)
-}
-
-// NewUpdateGatewayRequestWithBody generates requests for UpdateGateway with any type of body
-func NewUpdateGatewayRequestWithBody(server string, orgName string, gatewayID string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetGatewayEnvironmentsRequest generates requests for GetGatewayEnvironments
-func NewGetGatewayEnvironmentsRequest(server string, orgName string, gatewayID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/environments", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewRemoveGatewayFromEnvironmentRequest generates requests for RemoveGatewayFromEnvironment
-func NewRemoveGatewayFromEnvironmentRequest(server string, orgName string, gatewayID string, envID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/environments/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewAssignGatewayToEnvironmentRequest generates requests for AssignGatewayToEnvironment
-func NewAssignGatewayToEnvironmentRequest(server string, orgName string, gatewayID string, envID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "envID", envID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/environments/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCheckGatewayHealthRequest generates requests for CheckGatewayHealth
-func NewCheckGatewayHealthRequest(server string, orgName string, gatewayID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/health", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListGatewayIdentityProvidersRequest generates requests for ListGatewayIdentityProviders
-func NewListGatewayIdentityProvidersRequest(server string, orgName string, gatewayID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/identity-providers", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDeleteGatewayIdentityProviderRequest generates requests for DeleteGatewayIdentityProvider
-func NewDeleteGatewayIdentityProviderRequest(server string, orgName string, gatewayID string, name string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/identity-providers/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpsertGatewayIdentityProviderRequest calls the generic UpsertGatewayIdentityProvider builder with application/json body
-func NewUpsertGatewayIdentityProviderRequest(server string, orgName string, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpsertGatewayIdentityProviderRequestWithBody(server, orgName, gatewayID, name, "application/json", bodyReader)
-}
-
-// NewUpsertGatewayIdentityProviderRequestWithBody generates requests for UpsertGatewayIdentityProvider with any type of body
-func NewUpsertGatewayIdentityProviderRequestWithBody(server string, orgName string, gatewayID string, name string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/identity-providers/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListGatewayTokensRequest generates requests for ListGatewayTokens
-func NewListGatewayTokensRequest(server string, orgName string, gatewayID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/tokens", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewRotateGatewayTokenRequest calls the generic RotateGatewayToken builder with application/json body
-func NewRotateGatewayTokenRequest(server string, orgName string, gatewayID string, body RotateGatewayTokenJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRotateGatewayTokenRequestWithBody(server, orgName, gatewayID, "application/json", bodyReader)
-}
-
-// NewRotateGatewayTokenRequestWithBody generates requests for RotateGatewayToken with any type of body
-func NewRotateGatewayTokenRequestWithBody(server string, orgName string, gatewayID string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/tokens", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewRevokeGatewayTokenRequest generates requests for RevokeGatewayToken
-func NewRevokeGatewayTokenRequest(server string, orgName string, gatewayID string, tokenID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "tokenID", tokenID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/gateways/%s/tokens/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListIdentityProvidersRequest generates requests for ListIdentityProviders
-func NewListIdentityProvidersRequest(server string, orgName string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/identity-providers", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDiscoverOidcConfigurationRequest generates requests for DiscoverOidcConfiguration
-func NewDiscoverOidcConfigurationRequest(server string, orgName string, params *DiscoverOidcConfigurationParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/identity-providers/discover", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "url", params.Url, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewListLLMProxiesRequest generates requests for ListLLMProxies
 func NewListLLMProxiesRequest(server string, orgName string, projName string, params *ListLLMProxiesParams) (*http.Request, error) {
 	var err error
@@ -9194,391 +8647,6 @@ func NewUpdateLLMProxyRequestWithBody(server string, orgName string, projName st
 	return req, nil
 }
 
-// NewListSelfHostedGatewaysRequest generates requests for ListSelfHostedGateways
-func NewListSelfHostedGatewaysRequest(server string, orgName string, params *ListSelfHostedGatewaysParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		if params.Offset != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
-				return nil, err
-			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-				return nil, err
-			} else {
-				for k, v := range parsed {
-					for _, v2 := range v {
-						queryValues.Add(k, v2)
-					}
-				}
-			}
-
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewRegisterSelfHostedGatewayRequest calls the generic RegisterSelfHostedGateway builder with application/json body
-func NewRegisterSelfHostedGatewayRequest(server string, orgName string, body RegisterSelfHostedGatewayJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRegisterSelfHostedGatewayRequestWithBody(server, orgName, "application/json", bodyReader)
-}
-
-// NewRegisterSelfHostedGatewayRequestWithBody generates requests for RegisterSelfHostedGateway with any type of body
-func NewRegisterSelfHostedGatewayRequestWithBody(server string, orgName string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteSelfHostedGatewayRequest generates requests for DeleteSelfHostedGateway
-func NewDeleteSelfHostedGatewayRequest(server string, orgName string, gatewayID openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetSelfHostedGatewayRequest generates requests for GetSelfHostedGateway
-func NewGetSelfHostedGatewayRequest(server string, orgName string, gatewayID openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewUpdateSelfHostedGatewayRequest calls the generic UpdateSelfHostedGateway builder with application/json body
-func NewUpdateSelfHostedGatewayRequest(server string, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateSelfHostedGatewayRequestWithBody(server, orgName, gatewayID, "application/json", bodyReader)
-}
-
-// NewUpdateSelfHostedGatewayRequestWithBody generates requests for UpdateSelfHostedGateway with any type of body
-func NewUpdateSelfHostedGatewayRequestWithBody(server string, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListSelfHostedGatewayTokensRequest generates requests for ListSelfHostedGatewayTokens
-func NewListSelfHostedGatewayTokensRequest(server string, orgName string, gatewayID openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s/tokens", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateSelfHostedGatewayTokenRequest generates requests for CreateSelfHostedGatewayToken
-func NewCreateSelfHostedGatewayTokenRequest(server string, orgName string, gatewayID openapi_types.UUID) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s/tokens", pathParam0, pathParam1)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewRevokeSelfHostedGatewayTokenRequest generates requests for RevokeSelfHostedGatewayToken
-func NewRevokeSelfHostedGatewayTokenRequest(server string, orgName string, gatewayID openapi_types.UUID, tokenID string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam1 string
-
-	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "gatewayID", gatewayID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	var pathParam2 string
-
-	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "tokenID", tokenID, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/orgs/%s/self-hosted-gateways/%s/tokens/%s", pathParam0, pathParam1, pathParam2)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetPlatformGatewayFailureSummaryRequest generates requests for GetPlatformGatewayFailureSummary
 func NewGetPlatformGatewayFailureSummaryRequest(server string) (*http.Request, error) {
 	var err error
@@ -9777,6 +8845,59 @@ type ClientWithResponsesInterface interface {
 
 	RotateLLMConfigAPIKeyWithResponse(ctx context.Context, agentName string, configId openapi_types.UUID, keyName string, params *RotateLLMConfigAPIKeyParams, body RotateLLMConfigAPIKeyJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateLLMConfigAPIKeyResp, error)
 
+	// ListGatewaysWithResponse request
+	ListGatewaysWithResponse(ctx context.Context, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*ListGatewaysResp, error)
+
+	// RegisterGatewayWithBodyWithResponse request with any body
+	RegisterGatewayWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterGatewayResp, error)
+
+	RegisterGatewayWithResponse(ctx context.Context, body RegisterGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterGatewayResp, error)
+
+	// GetGatewayStatusWithResponse request
+	GetGatewayStatusWithResponse(ctx context.Context, params *GetGatewayStatusParams, reqEditors ...RequestEditorFn) (*GetGatewayStatusResp, error)
+
+	// DeleteGatewayWithResponse request
+	DeleteGatewayWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*DeleteGatewayResp, error)
+
+	// GetGatewayWithResponse request
+	GetGatewayWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*GetGatewayResp, error)
+
+	// UpdateGatewayWithBodyWithResponse request with any body
+	UpdateGatewayWithBodyWithResponse(ctx context.Context, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGatewayResp, error)
+
+	UpdateGatewayWithResponse(ctx context.Context, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGatewayResp, error)
+
+	// CheckGatewayHealthWithResponse request
+	CheckGatewayHealthWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*CheckGatewayHealthResp, error)
+
+	// ListGatewayIdentityProvidersWithResponse request
+	ListGatewayIdentityProvidersWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*ListGatewayIdentityProvidersResp, error)
+
+	// DeleteGatewayIdentityProviderWithResponse request
+	DeleteGatewayIdentityProviderWithResponse(ctx context.Context, gatewayID string, name string, reqEditors ...RequestEditorFn) (*DeleteGatewayIdentityProviderResp, error)
+
+	// UpsertGatewayIdentityProviderWithBodyWithResponse request with any body
+	UpsertGatewayIdentityProviderWithBodyWithResponse(ctx context.Context, gatewayID string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertGatewayIdentityProviderResp, error)
+
+	UpsertGatewayIdentityProviderWithResponse(ctx context.Context, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertGatewayIdentityProviderResp, error)
+
+	// ListGatewayTokensWithResponse request
+	ListGatewayTokensWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*ListGatewayTokensResp, error)
+
+	// RotateGatewayTokenWithBodyWithResponse request with any body
+	RotateGatewayTokenWithBodyWithResponse(ctx context.Context, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateGatewayTokenResp, error)
+
+	RotateGatewayTokenWithResponse(ctx context.Context, gatewayID string, body RotateGatewayTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateGatewayTokenResp, error)
+
+	// RevokeGatewayTokenWithResponse request
+	RevokeGatewayTokenWithResponse(ctx context.Context, gatewayID string, tokenID string, reqEditors ...RequestEditorFn) (*RevokeGatewayTokenResp, error)
+
+	// ListIdentityProvidersWithResponse request
+	ListIdentityProvidersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListIdentityProvidersResp, error)
+
+	// DiscoverOidcConfigurationWithResponse request
+	DiscoverOidcConfigurationWithResponse(ctx context.Context, params *DiscoverOidcConfigurationParams, reqEditors ...RequestEditorFn) (*DiscoverOidcConfigurationResp, error)
+
 	// ListLLMProviderTemplatesWithResponse request
 	ListLLMProviderTemplatesWithResponse(ctx context.Context, params *ListLLMProviderTemplatesParams, reqEditors ...RequestEditorFn) (*ListLLMProviderTemplatesResp, error)
 
@@ -9889,9 +9010,6 @@ type ClientWithResponsesInterface interface {
 	// ListCatalogResourcesWithResponse request
 	ListCatalogResourcesWithResponse(ctx context.Context, orgName string, params *ListCatalogResourcesParams, reqEditors ...RequestEditorFn) (*ListCatalogResourcesResp, error)
 
-	// GetEnvironmentGatewaysWithResponse request
-	GetEnvironmentGatewaysWithResponse(ctx context.Context, orgName string, envID string, reqEditors ...RequestEditorFn) (*GetEnvironmentGatewaysResp, error)
-
 	// ListAgentIdentityAgentsWithResponse request
 	ListAgentIdentityAgentsWithResponse(ctx context.Context, orgName AgentIdentityOrgName, envName AgentIdentityEnvName, reqEditors ...RequestEditorFn) (*ListAgentIdentityAgentsResp, error)
 
@@ -9965,71 +9083,6 @@ type ClientWithResponsesInterface interface {
 	// ListAgentIdentityScopesWithResponse request
 	ListAgentIdentityScopesWithResponse(ctx context.Context, orgName string, envName string, reqEditors ...RequestEditorFn) (*ListAgentIdentityScopesResp, error)
 
-	// ListEnvironmentIdentityProvidersWithResponse request
-	ListEnvironmentIdentityProvidersWithResponse(ctx context.Context, orgName string, environmentId string, reqEditors ...RequestEditorFn) (*ListEnvironmentIdentityProvidersResp, error)
-
-	// ListGatewaysWithResponse request
-	ListGatewaysWithResponse(ctx context.Context, orgName string, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*ListGatewaysResp, error)
-
-	// RegisterGatewayWithBodyWithResponse request with any body
-	RegisterGatewayWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterGatewayResp, error)
-
-	RegisterGatewayWithResponse(ctx context.Context, orgName string, body RegisterGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterGatewayResp, error)
-
-	// GetGatewayStatusWithResponse request
-	GetGatewayStatusWithResponse(ctx context.Context, orgName string, params *GetGatewayStatusParams, reqEditors ...RequestEditorFn) (*GetGatewayStatusResp, error)
-
-	// DeleteGatewayWithResponse request
-	DeleteGatewayWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*DeleteGatewayResp, error)
-
-	// GetGatewayWithResponse request
-	GetGatewayWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*GetGatewayResp, error)
-
-	// UpdateGatewayWithBodyWithResponse request with any body
-	UpdateGatewayWithBodyWithResponse(ctx context.Context, orgName string, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGatewayResp, error)
-
-	UpdateGatewayWithResponse(ctx context.Context, orgName string, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGatewayResp, error)
-
-	// GetGatewayEnvironmentsWithResponse request
-	GetGatewayEnvironmentsWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*GetGatewayEnvironmentsResp, error)
-
-	// RemoveGatewayFromEnvironmentWithResponse request
-	RemoveGatewayFromEnvironmentWithResponse(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*RemoveGatewayFromEnvironmentResp, error)
-
-	// AssignGatewayToEnvironmentWithResponse request
-	AssignGatewayToEnvironmentWithResponse(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*AssignGatewayToEnvironmentResp, error)
-
-	// CheckGatewayHealthWithResponse request
-	CheckGatewayHealthWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*CheckGatewayHealthResp, error)
-
-	// ListGatewayIdentityProvidersWithResponse request
-	ListGatewayIdentityProvidersWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*ListGatewayIdentityProvidersResp, error)
-
-	// DeleteGatewayIdentityProviderWithResponse request
-	DeleteGatewayIdentityProviderWithResponse(ctx context.Context, orgName string, gatewayID string, name string, reqEditors ...RequestEditorFn) (*DeleteGatewayIdentityProviderResp, error)
-
-	// UpsertGatewayIdentityProviderWithBodyWithResponse request with any body
-	UpsertGatewayIdentityProviderWithBodyWithResponse(ctx context.Context, orgName string, gatewayID string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertGatewayIdentityProviderResp, error)
-
-	UpsertGatewayIdentityProviderWithResponse(ctx context.Context, orgName string, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertGatewayIdentityProviderResp, error)
-
-	// ListGatewayTokensWithResponse request
-	ListGatewayTokensWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*ListGatewayTokensResp, error)
-
-	// RotateGatewayTokenWithBodyWithResponse request with any body
-	RotateGatewayTokenWithBodyWithResponse(ctx context.Context, orgName string, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateGatewayTokenResp, error)
-
-	RotateGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID string, body RotateGatewayTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateGatewayTokenResp, error)
-
-	// RevokeGatewayTokenWithResponse request
-	RevokeGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID string, tokenID string, reqEditors ...RequestEditorFn) (*RevokeGatewayTokenResp, error)
-
-	// ListIdentityProvidersWithResponse request
-	ListIdentityProvidersWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListIdentityProvidersResp, error)
-
-	// DiscoverOidcConfigurationWithResponse request
-	DiscoverOidcConfigurationWithResponse(ctx context.Context, orgName string, params *DiscoverOidcConfigurationParams, reqEditors ...RequestEditorFn) (*DiscoverOidcConfigurationResp, error)
-
 	// ListLLMProxiesWithResponse request
 	ListLLMProxiesWithResponse(ctx context.Context, orgName string, projName string, params *ListLLMProxiesParams, reqEditors ...RequestEditorFn) (*ListLLMProxiesResp, error)
 
@@ -10084,34 +9137,6 @@ type ClientWithResponsesInterface interface {
 	UpdateLLMProxyWithBodyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateLLMProxyResp, error)
 
 	UpdateLLMProxyWithResponse(ctx context.Context, orgName string, projName string, proxyId string, body UpdateLLMProxyJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateLLMProxyResp, error)
-
-	// ListSelfHostedGatewaysWithResponse request
-	ListSelfHostedGatewaysWithResponse(ctx context.Context, orgName string, params *ListSelfHostedGatewaysParams, reqEditors ...RequestEditorFn) (*ListSelfHostedGatewaysResp, error)
-
-	// RegisterSelfHostedGatewayWithBodyWithResponse request with any body
-	RegisterSelfHostedGatewayWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterSelfHostedGatewayResp, error)
-
-	RegisterSelfHostedGatewayWithResponse(ctx context.Context, orgName string, body RegisterSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterSelfHostedGatewayResp, error)
-
-	// DeleteSelfHostedGatewayWithResponse request
-	DeleteSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteSelfHostedGatewayResp, error)
-
-	// GetSelfHostedGatewayWithResponse request
-	GetSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetSelfHostedGatewayResp, error)
-
-	// UpdateSelfHostedGatewayWithBodyWithResponse request with any body
-	UpdateSelfHostedGatewayWithBodyWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSelfHostedGatewayResp, error)
-
-	UpdateSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSelfHostedGatewayResp, error)
-
-	// ListSelfHostedGatewayTokensWithResponse request
-	ListSelfHostedGatewayTokensWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*ListSelfHostedGatewayTokensResp, error)
-
-	// CreateSelfHostedGatewayTokenWithResponse request
-	CreateSelfHostedGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*CreateSelfHostedGatewayTokenResp, error)
-
-	// RevokeSelfHostedGatewayTokenWithResponse request
-	RevokeSelfHostedGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*RevokeSelfHostedGatewayTokenResp, error)
 
 	// GetPlatformGatewayFailureSummaryWithResponse request
 	GetPlatformGatewayFailureSummaryWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPlatformGatewayFailureSummaryResp, error)
@@ -10974,6 +9999,388 @@ func (r RotateLLMConfigAPIKeyResp) StatusCode() int {
 	return 0
 }
 
+type ListGatewaysResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GatewayListResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGatewaysResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGatewaysResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RegisterGatewayResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *GatewayDocument
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RegisterGatewayResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RegisterGatewayResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetGatewayStatusResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *map[string]interface{}
+	JSONDefault  *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetGatewayStatusResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetGatewayStatusResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteGatewayResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGatewayResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGatewayResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetGatewayResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GatewayDocument
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetGatewayResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetGatewayResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateGatewayResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GatewayDocument
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateGatewayResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateGatewayResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CheckGatewayHealthResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *HealthStatusResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CheckGatewayHealthResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CheckGatewayHealthResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListGatewayIdentityProvidersResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *IdentityProviderListResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGatewayIdentityProvidersResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGatewayIdentityProvidersResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteGatewayIdentityProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGatewayIdentityProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGatewayIdentityProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpsertGatewayIdentityProviderResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *IdentityProvider
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpsertGatewayIdentityProviderResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpsertGatewayIdentityProviderResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListGatewayTokensResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *GatewayTokenListResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGatewayTokensResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGatewayTokensResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RotateGatewayTokenResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *GatewayTokenResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON403      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RotateGatewayTokenResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RotateGatewayTokenResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type RevokeGatewayTokenResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r RevokeGatewayTokenResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevokeGatewayTokenResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListIdentityProvidersResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *IdentityProviderListResponse
+	JSON401      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListIdentityProvidersResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListIdentityProvidersResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DiscoverOidcConfigurationResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *OidcDiscoveryResponse
+	JSON400      *ErrorResponse
+	JSON401      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DiscoverOidcConfigurationResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DiscoverOidcConfigurationResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListLLMProviderTemplatesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11745,34 +11152,6 @@ func (r ListCatalogResourcesResp) StatusCode() int {
 	return 0
 }
 
-type GetEnvironmentGatewaysResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Gateways *[]GatewayResponse `json:"gateways,omitempty"`
-	}
-	JSON400 *ErrorResponse
-	JSON401 *ErrorResponse
-	JSON404 *ErrorResponse
-	JSON500 *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetEnvironmentGatewaysResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetEnvironmentGatewaysResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type ListAgentIdentityAgentsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -12224,492 +11603,6 @@ func (r ListAgentIdentityScopesResp) StatusCode() int {
 	return 0
 }
 
-type ListEnvironmentIdentityProvidersResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *IdentityProviderListResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r ListEnvironmentIdentityProvidersResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListEnvironmentIdentityProvidersResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListGatewaysResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GatewayListResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r ListGatewaysResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListGatewaysResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type RegisterGatewayResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *GatewayResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r RegisterGatewayResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RegisterGatewayResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetGatewayStatusResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *map[string]interface{}
-	JSONDefault  *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetGatewayStatusResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetGatewayStatusResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteGatewayResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteGatewayResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteGatewayResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetGatewayResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GatewayResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetGatewayResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetGatewayResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateGatewayResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GatewayResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateGatewayResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateGatewayResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetGatewayEnvironmentsResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		Environments *[]GatewayEnvironmentResponse `json:"environments,omitempty"`
-	}
-	JSON400 *ErrorResponse
-	JSON401 *ErrorResponse
-	JSON404 *ErrorResponse
-	JSON500 *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetGatewayEnvironmentsResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetGatewayEnvironmentsResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type RemoveGatewayFromEnvironmentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r RemoveGatewayFromEnvironmentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RemoveGatewayFromEnvironmentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type AssignGatewayToEnvironmentResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *GatewayResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r AssignGatewayToEnvironmentResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r AssignGatewayToEnvironmentResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CheckGatewayHealthResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *HealthStatusResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r CheckGatewayHealthResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CheckGatewayHealthResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListGatewayIdentityProvidersResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *IdentityProviderListResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r ListGatewayIdentityProvidersResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListGatewayIdentityProvidersResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteGatewayIdentityProviderResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteGatewayIdentityProviderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteGatewayIdentityProviderResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpsertGatewayIdentityProviderResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *IdentityProvider
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r UpsertGatewayIdentityProviderResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpsertGatewayIdentityProviderResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListGatewayTokensResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GatewayTokenListResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r ListGatewayTokensResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListGatewayTokensResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type RotateGatewayTokenResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GatewayTokenResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r RotateGatewayTokenResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RotateGatewayTokenResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type RevokeGatewayTokenResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r RevokeGatewayTokenResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RevokeGatewayTokenResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListIdentityProvidersResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *IdentityProviderListResponse
-	JSON401      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r ListIdentityProvidersResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListIdentityProvidersResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DiscoverOidcConfigurationResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *OidcDiscoveryResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r DiscoverOidcConfigurationResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DiscoverOidcConfigurationResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type ListLLMProxiesResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13099,208 +11992,6 @@ func (r UpdateLLMProxyResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateLLMProxyResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListSelfHostedGatewaysResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GatewayListResponse
-	JSON401      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r ListSelfHostedGatewaysResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListSelfHostedGatewaysResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type RegisterSelfHostedGatewayResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *GatewayResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r RegisterSelfHostedGatewayResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RegisterSelfHostedGatewayResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteSelfHostedGatewayResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteSelfHostedGatewayResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteSelfHostedGatewayResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetSelfHostedGatewayResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GatewayResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetSelfHostedGatewayResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetSelfHostedGatewayResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateSelfHostedGatewayResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GatewayResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateSelfHostedGatewayResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateSelfHostedGatewayResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ListSelfHostedGatewayTokensResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *GatewayTokenListResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r ListSelfHostedGatewayTokensResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListSelfHostedGatewayTokensResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateSelfHostedGatewayTokenResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON201      *GatewayTokenResponse
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON409      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateSelfHostedGatewayTokenResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateSelfHostedGatewayTokenResp) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type RevokeSelfHostedGatewayTokenResp struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON401      *ErrorResponse
-	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r RevokeSelfHostedGatewayTokenResp) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RevokeSelfHostedGatewayTokenResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13741,6 +12432,173 @@ func (c *ClientWithResponses) RotateLLMConfigAPIKeyWithResponse(ctx context.Cont
 	return ParseRotateLLMConfigAPIKeyResp(rsp)
 }
 
+// ListGatewaysWithResponse request returning *ListGatewaysResp
+func (c *ClientWithResponses) ListGatewaysWithResponse(ctx context.Context, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*ListGatewaysResp, error) {
+	rsp, err := c.ListGateways(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGatewaysResp(rsp)
+}
+
+// RegisterGatewayWithBodyWithResponse request with arbitrary body returning *RegisterGatewayResp
+func (c *ClientWithResponses) RegisterGatewayWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterGatewayResp, error) {
+	rsp, err := c.RegisterGatewayWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterGatewayResp(rsp)
+}
+
+func (c *ClientWithResponses) RegisterGatewayWithResponse(ctx context.Context, body RegisterGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterGatewayResp, error) {
+	rsp, err := c.RegisterGateway(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterGatewayResp(rsp)
+}
+
+// GetGatewayStatusWithResponse request returning *GetGatewayStatusResp
+func (c *ClientWithResponses) GetGatewayStatusWithResponse(ctx context.Context, params *GetGatewayStatusParams, reqEditors ...RequestEditorFn) (*GetGatewayStatusResp, error) {
+	rsp, err := c.GetGatewayStatus(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGatewayStatusResp(rsp)
+}
+
+// DeleteGatewayWithResponse request returning *DeleteGatewayResp
+func (c *ClientWithResponses) DeleteGatewayWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*DeleteGatewayResp, error) {
+	rsp, err := c.DeleteGateway(ctx, gatewayID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGatewayResp(rsp)
+}
+
+// GetGatewayWithResponse request returning *GetGatewayResp
+func (c *ClientWithResponses) GetGatewayWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*GetGatewayResp, error) {
+	rsp, err := c.GetGateway(ctx, gatewayID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGatewayResp(rsp)
+}
+
+// UpdateGatewayWithBodyWithResponse request with arbitrary body returning *UpdateGatewayResp
+func (c *ClientWithResponses) UpdateGatewayWithBodyWithResponse(ctx context.Context, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGatewayResp, error) {
+	rsp, err := c.UpdateGatewayWithBody(ctx, gatewayID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGatewayResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateGatewayWithResponse(ctx context.Context, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGatewayResp, error) {
+	rsp, err := c.UpdateGateway(ctx, gatewayID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGatewayResp(rsp)
+}
+
+// CheckGatewayHealthWithResponse request returning *CheckGatewayHealthResp
+func (c *ClientWithResponses) CheckGatewayHealthWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*CheckGatewayHealthResp, error) {
+	rsp, err := c.CheckGatewayHealth(ctx, gatewayID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCheckGatewayHealthResp(rsp)
+}
+
+// ListGatewayIdentityProvidersWithResponse request returning *ListGatewayIdentityProvidersResp
+func (c *ClientWithResponses) ListGatewayIdentityProvidersWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*ListGatewayIdentityProvidersResp, error) {
+	rsp, err := c.ListGatewayIdentityProviders(ctx, gatewayID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGatewayIdentityProvidersResp(rsp)
+}
+
+// DeleteGatewayIdentityProviderWithResponse request returning *DeleteGatewayIdentityProviderResp
+func (c *ClientWithResponses) DeleteGatewayIdentityProviderWithResponse(ctx context.Context, gatewayID string, name string, reqEditors ...RequestEditorFn) (*DeleteGatewayIdentityProviderResp, error) {
+	rsp, err := c.DeleteGatewayIdentityProvider(ctx, gatewayID, name, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGatewayIdentityProviderResp(rsp)
+}
+
+// UpsertGatewayIdentityProviderWithBodyWithResponse request with arbitrary body returning *UpsertGatewayIdentityProviderResp
+func (c *ClientWithResponses) UpsertGatewayIdentityProviderWithBodyWithResponse(ctx context.Context, gatewayID string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertGatewayIdentityProviderResp, error) {
+	rsp, err := c.UpsertGatewayIdentityProviderWithBody(ctx, gatewayID, name, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertGatewayIdentityProviderResp(rsp)
+}
+
+func (c *ClientWithResponses) UpsertGatewayIdentityProviderWithResponse(ctx context.Context, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertGatewayIdentityProviderResp, error) {
+	rsp, err := c.UpsertGatewayIdentityProvider(ctx, gatewayID, name, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpsertGatewayIdentityProviderResp(rsp)
+}
+
+// ListGatewayTokensWithResponse request returning *ListGatewayTokensResp
+func (c *ClientWithResponses) ListGatewayTokensWithResponse(ctx context.Context, gatewayID string, reqEditors ...RequestEditorFn) (*ListGatewayTokensResp, error) {
+	rsp, err := c.ListGatewayTokens(ctx, gatewayID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGatewayTokensResp(rsp)
+}
+
+// RotateGatewayTokenWithBodyWithResponse request with arbitrary body returning *RotateGatewayTokenResp
+func (c *ClientWithResponses) RotateGatewayTokenWithBodyWithResponse(ctx context.Context, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateGatewayTokenResp, error) {
+	rsp, err := c.RotateGatewayTokenWithBody(ctx, gatewayID, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateGatewayTokenResp(rsp)
+}
+
+func (c *ClientWithResponses) RotateGatewayTokenWithResponse(ctx context.Context, gatewayID string, body RotateGatewayTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateGatewayTokenResp, error) {
+	rsp, err := c.RotateGatewayToken(ctx, gatewayID, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRotateGatewayTokenResp(rsp)
+}
+
+// RevokeGatewayTokenWithResponse request returning *RevokeGatewayTokenResp
+func (c *ClientWithResponses) RevokeGatewayTokenWithResponse(ctx context.Context, gatewayID string, tokenID string, reqEditors ...RequestEditorFn) (*RevokeGatewayTokenResp, error) {
+	rsp, err := c.RevokeGatewayToken(ctx, gatewayID, tokenID, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevokeGatewayTokenResp(rsp)
+}
+
+// ListIdentityProvidersWithResponse request returning *ListIdentityProvidersResp
+func (c *ClientWithResponses) ListIdentityProvidersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListIdentityProvidersResp, error) {
+	rsp, err := c.ListIdentityProviders(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListIdentityProvidersResp(rsp)
+}
+
+// DiscoverOidcConfigurationWithResponse request returning *DiscoverOidcConfigurationResp
+func (c *ClientWithResponses) DiscoverOidcConfigurationWithResponse(ctx context.Context, params *DiscoverOidcConfigurationParams, reqEditors ...RequestEditorFn) (*DiscoverOidcConfigurationResp, error) {
+	rsp, err := c.DiscoverOidcConfiguration(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiscoverOidcConfigurationResp(rsp)
+}
+
 // ListLLMProviderTemplatesWithResponse request returning *ListLLMProviderTemplatesResp
 func (c *ClientWithResponses) ListLLMProviderTemplatesWithResponse(ctx context.Context, params *ListLLMProviderTemplatesParams, reqEditors ...RequestEditorFn) (*ListLLMProviderTemplatesResp, error) {
 	rsp, err := c.ListLLMProviderTemplates(ctx, params, reqEditors...)
@@ -14099,15 +12957,6 @@ func (c *ClientWithResponses) ListCatalogResourcesWithResponse(ctx context.Conte
 	return ParseListCatalogResourcesResp(rsp)
 }
 
-// GetEnvironmentGatewaysWithResponse request returning *GetEnvironmentGatewaysResp
-func (c *ClientWithResponses) GetEnvironmentGatewaysWithResponse(ctx context.Context, orgName string, envID string, reqEditors ...RequestEditorFn) (*GetEnvironmentGatewaysResp, error) {
-	rsp, err := c.GetEnvironmentGateways(ctx, orgName, envID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetEnvironmentGatewaysResp(rsp)
-}
-
 // ListAgentIdentityAgentsWithResponse request returning *ListAgentIdentityAgentsResp
 func (c *ClientWithResponses) ListAgentIdentityAgentsWithResponse(ctx context.Context, orgName AgentIdentityOrgName, envName AgentIdentityEnvName, reqEditors ...RequestEditorFn) (*ListAgentIdentityAgentsResp, error) {
 	rsp, err := c.ListAgentIdentityAgents(ctx, orgName, envName, reqEditors...)
@@ -14343,209 +13192,6 @@ func (c *ClientWithResponses) ListAgentIdentityScopesWithResponse(ctx context.Co
 	return ParseListAgentIdentityScopesResp(rsp)
 }
 
-// ListEnvironmentIdentityProvidersWithResponse request returning *ListEnvironmentIdentityProvidersResp
-func (c *ClientWithResponses) ListEnvironmentIdentityProvidersWithResponse(ctx context.Context, orgName string, environmentId string, reqEditors ...RequestEditorFn) (*ListEnvironmentIdentityProvidersResp, error) {
-	rsp, err := c.ListEnvironmentIdentityProviders(ctx, orgName, environmentId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListEnvironmentIdentityProvidersResp(rsp)
-}
-
-// ListGatewaysWithResponse request returning *ListGatewaysResp
-func (c *ClientWithResponses) ListGatewaysWithResponse(ctx context.Context, orgName string, params *ListGatewaysParams, reqEditors ...RequestEditorFn) (*ListGatewaysResp, error) {
-	rsp, err := c.ListGateways(ctx, orgName, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListGatewaysResp(rsp)
-}
-
-// RegisterGatewayWithBodyWithResponse request with arbitrary body returning *RegisterGatewayResp
-func (c *ClientWithResponses) RegisterGatewayWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterGatewayResp, error) {
-	rsp, err := c.RegisterGatewayWithBody(ctx, orgName, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRegisterGatewayResp(rsp)
-}
-
-func (c *ClientWithResponses) RegisterGatewayWithResponse(ctx context.Context, orgName string, body RegisterGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterGatewayResp, error) {
-	rsp, err := c.RegisterGateway(ctx, orgName, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRegisterGatewayResp(rsp)
-}
-
-// GetGatewayStatusWithResponse request returning *GetGatewayStatusResp
-func (c *ClientWithResponses) GetGatewayStatusWithResponse(ctx context.Context, orgName string, params *GetGatewayStatusParams, reqEditors ...RequestEditorFn) (*GetGatewayStatusResp, error) {
-	rsp, err := c.GetGatewayStatus(ctx, orgName, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetGatewayStatusResp(rsp)
-}
-
-// DeleteGatewayWithResponse request returning *DeleteGatewayResp
-func (c *ClientWithResponses) DeleteGatewayWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*DeleteGatewayResp, error) {
-	rsp, err := c.DeleteGateway(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteGatewayResp(rsp)
-}
-
-// GetGatewayWithResponse request returning *GetGatewayResp
-func (c *ClientWithResponses) GetGatewayWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*GetGatewayResp, error) {
-	rsp, err := c.GetGateway(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetGatewayResp(rsp)
-}
-
-// UpdateGatewayWithBodyWithResponse request with arbitrary body returning *UpdateGatewayResp
-func (c *ClientWithResponses) UpdateGatewayWithBodyWithResponse(ctx context.Context, orgName string, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGatewayResp, error) {
-	rsp, err := c.UpdateGatewayWithBody(ctx, orgName, gatewayID, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateGatewayResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateGatewayWithResponse(ctx context.Context, orgName string, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGatewayResp, error) {
-	rsp, err := c.UpdateGateway(ctx, orgName, gatewayID, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateGatewayResp(rsp)
-}
-
-// GetGatewayEnvironmentsWithResponse request returning *GetGatewayEnvironmentsResp
-func (c *ClientWithResponses) GetGatewayEnvironmentsWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*GetGatewayEnvironmentsResp, error) {
-	rsp, err := c.GetGatewayEnvironments(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetGatewayEnvironmentsResp(rsp)
-}
-
-// RemoveGatewayFromEnvironmentWithResponse request returning *RemoveGatewayFromEnvironmentResp
-func (c *ClientWithResponses) RemoveGatewayFromEnvironmentWithResponse(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*RemoveGatewayFromEnvironmentResp, error) {
-	rsp, err := c.RemoveGatewayFromEnvironment(ctx, orgName, gatewayID, envID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRemoveGatewayFromEnvironmentResp(rsp)
-}
-
-// AssignGatewayToEnvironmentWithResponse request returning *AssignGatewayToEnvironmentResp
-func (c *ClientWithResponses) AssignGatewayToEnvironmentWithResponse(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*AssignGatewayToEnvironmentResp, error) {
-	rsp, err := c.AssignGatewayToEnvironment(ctx, orgName, gatewayID, envID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseAssignGatewayToEnvironmentResp(rsp)
-}
-
-// CheckGatewayHealthWithResponse request returning *CheckGatewayHealthResp
-func (c *ClientWithResponses) CheckGatewayHealthWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*CheckGatewayHealthResp, error) {
-	rsp, err := c.CheckGatewayHealth(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCheckGatewayHealthResp(rsp)
-}
-
-// ListGatewayIdentityProvidersWithResponse request returning *ListGatewayIdentityProvidersResp
-func (c *ClientWithResponses) ListGatewayIdentityProvidersWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*ListGatewayIdentityProvidersResp, error) {
-	rsp, err := c.ListGatewayIdentityProviders(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListGatewayIdentityProvidersResp(rsp)
-}
-
-// DeleteGatewayIdentityProviderWithResponse request returning *DeleteGatewayIdentityProviderResp
-func (c *ClientWithResponses) DeleteGatewayIdentityProviderWithResponse(ctx context.Context, orgName string, gatewayID string, name string, reqEditors ...RequestEditorFn) (*DeleteGatewayIdentityProviderResp, error) {
-	rsp, err := c.DeleteGatewayIdentityProvider(ctx, orgName, gatewayID, name, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteGatewayIdentityProviderResp(rsp)
-}
-
-// UpsertGatewayIdentityProviderWithBodyWithResponse request with arbitrary body returning *UpsertGatewayIdentityProviderResp
-func (c *ClientWithResponses) UpsertGatewayIdentityProviderWithBodyWithResponse(ctx context.Context, orgName string, gatewayID string, name string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpsertGatewayIdentityProviderResp, error) {
-	rsp, err := c.UpsertGatewayIdentityProviderWithBody(ctx, orgName, gatewayID, name, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpsertGatewayIdentityProviderResp(rsp)
-}
-
-func (c *ClientWithResponses) UpsertGatewayIdentityProviderWithResponse(ctx context.Context, orgName string, gatewayID string, name string, body UpsertGatewayIdentityProviderJSONRequestBody, reqEditors ...RequestEditorFn) (*UpsertGatewayIdentityProviderResp, error) {
-	rsp, err := c.UpsertGatewayIdentityProvider(ctx, orgName, gatewayID, name, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpsertGatewayIdentityProviderResp(rsp)
-}
-
-// ListGatewayTokensWithResponse request returning *ListGatewayTokensResp
-func (c *ClientWithResponses) ListGatewayTokensWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*ListGatewayTokensResp, error) {
-	rsp, err := c.ListGatewayTokens(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListGatewayTokensResp(rsp)
-}
-
-// RotateGatewayTokenWithBodyWithResponse request with arbitrary body returning *RotateGatewayTokenResp
-func (c *ClientWithResponses) RotateGatewayTokenWithBodyWithResponse(ctx context.Context, orgName string, gatewayID string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RotateGatewayTokenResp, error) {
-	rsp, err := c.RotateGatewayTokenWithBody(ctx, orgName, gatewayID, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRotateGatewayTokenResp(rsp)
-}
-
-func (c *ClientWithResponses) RotateGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID string, body RotateGatewayTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateGatewayTokenResp, error) {
-	rsp, err := c.RotateGatewayToken(ctx, orgName, gatewayID, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRotateGatewayTokenResp(rsp)
-}
-
-// RevokeGatewayTokenWithResponse request returning *RevokeGatewayTokenResp
-func (c *ClientWithResponses) RevokeGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID string, tokenID string, reqEditors ...RequestEditorFn) (*RevokeGatewayTokenResp, error) {
-	rsp, err := c.RevokeGatewayToken(ctx, orgName, gatewayID, tokenID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRevokeGatewayTokenResp(rsp)
-}
-
-// ListIdentityProvidersWithResponse request returning *ListIdentityProvidersResp
-func (c *ClientWithResponses) ListIdentityProvidersWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListIdentityProvidersResp, error) {
-	rsp, err := c.ListIdentityProviders(ctx, orgName, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListIdentityProvidersResp(rsp)
-}
-
-// DiscoverOidcConfigurationWithResponse request returning *DiscoverOidcConfigurationResp
-func (c *ClientWithResponses) DiscoverOidcConfigurationWithResponse(ctx context.Context, orgName string, params *DiscoverOidcConfigurationParams, reqEditors ...RequestEditorFn) (*DiscoverOidcConfigurationResp, error) {
-	rsp, err := c.DiscoverOidcConfiguration(ctx, orgName, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDiscoverOidcConfigurationResp(rsp)
-}
-
 // ListLLMProxiesWithResponse request returning *ListLLMProxiesResp
 func (c *ClientWithResponses) ListLLMProxiesWithResponse(ctx context.Context, orgName string, projName string, params *ListLLMProxiesParams, reqEditors ...RequestEditorFn) (*ListLLMProxiesResp, error) {
 	rsp, err := c.ListLLMProxies(ctx, orgName, projName, params, reqEditors...)
@@ -14719,94 +13365,6 @@ func (c *ClientWithResponses) UpdateLLMProxyWithResponse(ctx context.Context, or
 		return nil, err
 	}
 	return ParseUpdateLLMProxyResp(rsp)
-}
-
-// ListSelfHostedGatewaysWithResponse request returning *ListSelfHostedGatewaysResp
-func (c *ClientWithResponses) ListSelfHostedGatewaysWithResponse(ctx context.Context, orgName string, params *ListSelfHostedGatewaysParams, reqEditors ...RequestEditorFn) (*ListSelfHostedGatewaysResp, error) {
-	rsp, err := c.ListSelfHostedGateways(ctx, orgName, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListSelfHostedGatewaysResp(rsp)
-}
-
-// RegisterSelfHostedGatewayWithBodyWithResponse request with arbitrary body returning *RegisterSelfHostedGatewayResp
-func (c *ClientWithResponses) RegisterSelfHostedGatewayWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterSelfHostedGatewayResp, error) {
-	rsp, err := c.RegisterSelfHostedGatewayWithBody(ctx, orgName, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRegisterSelfHostedGatewayResp(rsp)
-}
-
-func (c *ClientWithResponses) RegisterSelfHostedGatewayWithResponse(ctx context.Context, orgName string, body RegisterSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterSelfHostedGatewayResp, error) {
-	rsp, err := c.RegisterSelfHostedGateway(ctx, orgName, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRegisterSelfHostedGatewayResp(rsp)
-}
-
-// DeleteSelfHostedGatewayWithResponse request returning *DeleteSelfHostedGatewayResp
-func (c *ClientWithResponses) DeleteSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteSelfHostedGatewayResp, error) {
-	rsp, err := c.DeleteSelfHostedGateway(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteSelfHostedGatewayResp(rsp)
-}
-
-// GetSelfHostedGatewayWithResponse request returning *GetSelfHostedGatewayResp
-func (c *ClientWithResponses) GetSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetSelfHostedGatewayResp, error) {
-	rsp, err := c.GetSelfHostedGateway(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetSelfHostedGatewayResp(rsp)
-}
-
-// UpdateSelfHostedGatewayWithBodyWithResponse request with arbitrary body returning *UpdateSelfHostedGatewayResp
-func (c *ClientWithResponses) UpdateSelfHostedGatewayWithBodyWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSelfHostedGatewayResp, error) {
-	rsp, err := c.UpdateSelfHostedGatewayWithBody(ctx, orgName, gatewayID, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateSelfHostedGatewayResp(rsp)
-}
-
-func (c *ClientWithResponses) UpdateSelfHostedGatewayWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, body UpdateSelfHostedGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSelfHostedGatewayResp, error) {
-	rsp, err := c.UpdateSelfHostedGateway(ctx, orgName, gatewayID, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateSelfHostedGatewayResp(rsp)
-}
-
-// ListSelfHostedGatewayTokensWithResponse request returning *ListSelfHostedGatewayTokensResp
-func (c *ClientWithResponses) ListSelfHostedGatewayTokensWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*ListSelfHostedGatewayTokensResp, error) {
-	rsp, err := c.ListSelfHostedGatewayTokens(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListSelfHostedGatewayTokensResp(rsp)
-}
-
-// CreateSelfHostedGatewayTokenWithResponse request returning *CreateSelfHostedGatewayTokenResp
-func (c *ClientWithResponses) CreateSelfHostedGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, reqEditors ...RequestEditorFn) (*CreateSelfHostedGatewayTokenResp, error) {
-	rsp, err := c.CreateSelfHostedGatewayToken(ctx, orgName, gatewayID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateSelfHostedGatewayTokenResp(rsp)
-}
-
-// RevokeSelfHostedGatewayTokenWithResponse request returning *RevokeSelfHostedGatewayTokenResp
-func (c *ClientWithResponses) RevokeSelfHostedGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*RevokeSelfHostedGatewayTokenResp, error) {
-	rsp, err := c.RevokeSelfHostedGatewayToken(ctx, orgName, gatewayID, tokenID, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRevokeSelfHostedGatewayTokenResp(rsp)
 }
 
 // GetPlatformGatewayFailureSummaryWithResponse request returning *GetPlatformGatewayFailureSummaryResp
@@ -16465,6 +15023,760 @@ func ParseRotateLLMConfigAPIKeyResp(rsp *http.Response) (*RotateLLMConfigAPIKeyR
 	return response, nil
 }
 
+// ParseListGatewaysResp parses an HTTP response from a ListGatewaysWithResponse call
+func ParseListGatewaysResp(rsp *http.Response) (*ListGatewaysResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGatewaysResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GatewayListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRegisterGatewayResp parses an HTTP response from a RegisterGatewayWithResponse call
+func ParseRegisterGatewayResp(rsp *http.Response) (*RegisterGatewayResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RegisterGatewayResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest GatewayDocument
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetGatewayStatusResp parses an HTTP response from a GetGatewayStatusWithResponse call
+func ParseGetGatewayStatusResp(rsp *http.Response) (*GetGatewayStatusResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetGatewayStatusResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGatewayResp parses an HTTP response from a DeleteGatewayWithResponse call
+func ParseDeleteGatewayResp(rsp *http.Response) (*DeleteGatewayResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGatewayResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetGatewayResp parses an HTTP response from a GetGatewayWithResponse call
+func ParseGetGatewayResp(rsp *http.Response) (*GetGatewayResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetGatewayResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GatewayDocument
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateGatewayResp parses an HTTP response from a UpdateGatewayWithResponse call
+func ParseUpdateGatewayResp(rsp *http.Response) (*UpdateGatewayResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateGatewayResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GatewayDocument
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCheckGatewayHealthResp parses an HTTP response from a CheckGatewayHealthWithResponse call
+func ParseCheckGatewayHealthResp(rsp *http.Response) (*CheckGatewayHealthResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CheckGatewayHealthResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HealthStatusResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListGatewayIdentityProvidersResp parses an HTTP response from a ListGatewayIdentityProvidersWithResponse call
+func ParseListGatewayIdentityProvidersResp(rsp *http.Response) (*ListGatewayIdentityProvidersResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGatewayIdentityProvidersResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest IdentityProviderListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGatewayIdentityProviderResp parses an HTTP response from a DeleteGatewayIdentityProviderWithResponse call
+func ParseDeleteGatewayIdentityProviderResp(rsp *http.Response) (*DeleteGatewayIdentityProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGatewayIdentityProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpsertGatewayIdentityProviderResp parses an HTTP response from a UpsertGatewayIdentityProviderWithResponse call
+func ParseUpsertGatewayIdentityProviderResp(rsp *http.Response) (*UpsertGatewayIdentityProviderResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpsertGatewayIdentityProviderResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest IdentityProvider
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListGatewayTokensResp parses an HTTP response from a ListGatewayTokensWithResponse call
+func ParseListGatewayTokensResp(rsp *http.Response) (*ListGatewayTokensResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGatewayTokensResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GatewayTokenListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRotateGatewayTokenResp parses an HTTP response from a RotateGatewayTokenWithResponse call
+func ParseRotateGatewayTokenResp(rsp *http.Response) (*RotateGatewayTokenResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RotateGatewayTokenResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest GatewayTokenResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRevokeGatewayTokenResp parses an HTTP response from a RevokeGatewayTokenWithResponse call
+func ParseRevokeGatewayTokenResp(rsp *http.Response) (*RevokeGatewayTokenResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevokeGatewayTokenResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListIdentityProvidersResp parses an HTTP response from a ListIdentityProvidersWithResponse call
+func ParseListIdentityProvidersResp(rsp *http.Response) (*ListIdentityProvidersResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListIdentityProvidersResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest IdentityProviderListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDiscoverOidcConfigurationResp parses an HTTP response from a DiscoverOidcConfigurationWithResponse call
+func ParseDiscoverOidcConfigurationResp(rsp *http.Response) (*DiscoverOidcConfigurationResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DiscoverOidcConfigurationResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest OidcDiscoveryResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListLLMProviderTemplatesResp parses an HTTP response from a ListLLMProviderTemplatesWithResponse call
 func ParseListLLMProviderTemplatesResp(rsp *http.Response) (*ListLLMProviderTemplatesResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -18022,62 +17334,6 @@ func ParseListCatalogResourcesResp(rsp *http.Response) (*ListCatalogResourcesRes
 	return response, nil
 }
 
-// ParseGetEnvironmentGatewaysResp parses an HTTP response from a GetEnvironmentGatewaysWithResponse call
-func ParseGetEnvironmentGatewaysResp(rsp *http.Response) (*GetEnvironmentGatewaysResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetEnvironmentGatewaysResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Gateways *[]GatewayResponse `json:"gateways,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseListAgentIdentityAgentsResp parses an HTTP response from a ListAgentIdentityAgentsWithResponse call
 func ParseListAgentIdentityAgentsResp(rsp *http.Response) (*ListAgentIdentityAgentsResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -18797,964 +18053,6 @@ func ParseListAgentIdentityScopesResp(rsp *http.Response) (*ListAgentIdentitySco
 			return nil, err
 		}
 		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListEnvironmentIdentityProvidersResp parses an HTTP response from a ListEnvironmentIdentityProvidersWithResponse call
-func ParseListEnvironmentIdentityProvidersResp(rsp *http.Response) (*ListEnvironmentIdentityProvidersResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListEnvironmentIdentityProvidersResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest IdentityProviderListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListGatewaysResp parses an HTTP response from a ListGatewaysWithResponse call
-func ParseListGatewaysResp(rsp *http.Response) (*ListGatewaysResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListGatewaysResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GatewayListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRegisterGatewayResp parses an HTTP response from a RegisterGatewayWithResponse call
-func ParseRegisterGatewayResp(rsp *http.Response) (*RegisterGatewayResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RegisterGatewayResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest GatewayResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetGatewayStatusResp parses an HTTP response from a GetGatewayStatusWithResponse call
-func ParseGetGatewayStatusResp(rsp *http.Response) (*GetGatewayStatusResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetGatewayStatusResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest map[string]interface{}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteGatewayResp parses an HTTP response from a DeleteGatewayWithResponse call
-func ParseDeleteGatewayResp(rsp *http.Response) (*DeleteGatewayResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteGatewayResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetGatewayResp parses an HTTP response from a GetGatewayWithResponse call
-func ParseGetGatewayResp(rsp *http.Response) (*GetGatewayResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetGatewayResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GatewayResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateGatewayResp parses an HTTP response from a UpdateGatewayWithResponse call
-func ParseUpdateGatewayResp(rsp *http.Response) (*UpdateGatewayResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateGatewayResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GatewayResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetGatewayEnvironmentsResp parses an HTTP response from a GetGatewayEnvironmentsWithResponse call
-func ParseGetGatewayEnvironmentsResp(rsp *http.Response) (*GetGatewayEnvironmentsResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetGatewayEnvironmentsResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Environments *[]GatewayEnvironmentResponse `json:"environments,omitempty"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRemoveGatewayFromEnvironmentResp parses an HTTP response from a RemoveGatewayFromEnvironmentWithResponse call
-func ParseRemoveGatewayFromEnvironmentResp(rsp *http.Response) (*RemoveGatewayFromEnvironmentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RemoveGatewayFromEnvironmentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseAssignGatewayToEnvironmentResp parses an HTTP response from a AssignGatewayToEnvironmentWithResponse call
-func ParseAssignGatewayToEnvironmentResp(rsp *http.Response) (*AssignGatewayToEnvironmentResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &AssignGatewayToEnvironmentResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest GatewayResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCheckGatewayHealthResp parses an HTTP response from a CheckGatewayHealthWithResponse call
-func ParseCheckGatewayHealthResp(rsp *http.Response) (*CheckGatewayHealthResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CheckGatewayHealthResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest HealthStatusResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListGatewayIdentityProvidersResp parses an HTTP response from a ListGatewayIdentityProvidersWithResponse call
-func ParseListGatewayIdentityProvidersResp(rsp *http.Response) (*ListGatewayIdentityProvidersResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListGatewayIdentityProvidersResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest IdentityProviderListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteGatewayIdentityProviderResp parses an HTTP response from a DeleteGatewayIdentityProviderWithResponse call
-func ParseDeleteGatewayIdentityProviderResp(rsp *http.Response) (*DeleteGatewayIdentityProviderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteGatewayIdentityProviderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpsertGatewayIdentityProviderResp parses an HTTP response from a UpsertGatewayIdentityProviderWithResponse call
-func ParseUpsertGatewayIdentityProviderResp(rsp *http.Response) (*UpsertGatewayIdentityProviderResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpsertGatewayIdentityProviderResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest IdentityProvider
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListGatewayTokensResp parses an HTTP response from a ListGatewayTokensWithResponse call
-func ParseListGatewayTokensResp(rsp *http.Response) (*ListGatewayTokensResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListGatewayTokensResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GatewayTokenListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRotateGatewayTokenResp parses an HTTP response from a RotateGatewayTokenWithResponse call
-func ParseRotateGatewayTokenResp(rsp *http.Response) (*RotateGatewayTokenResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RotateGatewayTokenResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GatewayTokenResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRevokeGatewayTokenResp parses an HTTP response from a RevokeGatewayTokenWithResponse call
-func ParseRevokeGatewayTokenResp(rsp *http.Response) (*RevokeGatewayTokenResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RevokeGatewayTokenResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListIdentityProvidersResp parses an HTTP response from a ListIdentityProvidersWithResponse call
-func ParseListIdentityProvidersResp(rsp *http.Response) (*ListIdentityProvidersResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListIdentityProvidersResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest IdentityProviderListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDiscoverOidcConfigurationResp parses an HTTP response from a DiscoverOidcConfigurationWithResponse call
-func ParseDiscoverOidcConfigurationResp(rsp *http.Response) (*DiscoverOidcConfigurationResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DiscoverOidcConfigurationResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest OidcDiscoveryResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
 
 	}
 
@@ -20568,396 +18866,6 @@ func ParseUpdateLLMProxyResp(rsp *http.Response) (*UpdateLLMProxyResp, error) {
 		}
 		response.JSON400 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListSelfHostedGatewaysResp parses an HTTP response from a ListSelfHostedGatewaysWithResponse call
-func ParseListSelfHostedGatewaysResp(rsp *http.Response) (*ListSelfHostedGatewaysResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListSelfHostedGatewaysResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GatewayListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRegisterSelfHostedGatewayResp parses an HTTP response from a RegisterSelfHostedGatewayWithResponse call
-func ParseRegisterSelfHostedGatewayResp(rsp *http.Response) (*RegisterSelfHostedGatewayResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RegisterSelfHostedGatewayResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest GatewayResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteSelfHostedGatewayResp parses an HTTP response from a DeleteSelfHostedGatewayWithResponse call
-func ParseDeleteSelfHostedGatewayResp(rsp *http.Response) (*DeleteSelfHostedGatewayResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteSelfHostedGatewayResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetSelfHostedGatewayResp parses an HTTP response from a GetSelfHostedGatewayWithResponse call
-func ParseGetSelfHostedGatewayResp(rsp *http.Response) (*GetSelfHostedGatewayResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetSelfHostedGatewayResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GatewayResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateSelfHostedGatewayResp parses an HTTP response from a UpdateSelfHostedGatewayWithResponse call
-func ParseUpdateSelfHostedGatewayResp(rsp *http.Response) (*UpdateSelfHostedGatewayResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateSelfHostedGatewayResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GatewayResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListSelfHostedGatewayTokensResp parses an HTTP response from a ListSelfHostedGatewayTokensWithResponse call
-func ParseListSelfHostedGatewayTokensResp(rsp *http.Response) (*ListSelfHostedGatewayTokensResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListSelfHostedGatewayTokensResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GatewayTokenListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateSelfHostedGatewayTokenResp parses an HTTP response from a CreateSelfHostedGatewayTokenWithResponse call
-func ParseCreateSelfHostedGatewayTokenResp(rsp *http.Response) (*CreateSelfHostedGatewayTokenResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateSelfHostedGatewayTokenResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest GatewayTokenResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON201 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON409 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRevokeSelfHostedGatewayTokenResp parses an HTTP response from a RevokeSelfHostedGatewayTokenWithResponse call
-func ParseRevokeSelfHostedGatewayTokenResp(rsp *http.Response) (*RevokeSelfHostedGatewayTokenResp, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RevokeSelfHostedGatewayTokenResp{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

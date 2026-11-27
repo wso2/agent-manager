@@ -419,18 +419,30 @@ func (e ExtractionIdentifierLocation) Valid() bool {
 	}
 }
 
-// Defines values for GatewayEnvironmentResponseIsolationTier.
+// Defines values for GatewayDocumentApiVersion.
 const (
-	Gvisor GatewayEnvironmentResponseIsolationTier = "gvisor"
-	Kata   GatewayEnvironmentResponseIsolationTier = "kata"
+	GatewayDocumentApiVersionAiControlPlaneChoreolabsComv1 GatewayDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
 )
 
-// Valid indicates whether the value is a known member of the GatewayEnvironmentResponseIsolationTier enum.
-func (e GatewayEnvironmentResponseIsolationTier) Valid() bool {
+// Valid indicates whether the value is a known member of the GatewayDocumentApiVersion enum.
+func (e GatewayDocumentApiVersion) Valid() bool {
 	switch e {
-	case Gvisor:
+	case GatewayDocumentApiVersionAiControlPlaneChoreolabsComv1:
 		return true
-	case Kata:
+	default:
+		return false
+	}
+}
+
+// Defines values for GatewayDocumentKind.
+const (
+	GatewayDocumentKindGateway GatewayDocumentKind = "Gateway"
+)
+
+// Valid indicates whether the value is a known member of the GatewayDocumentKind enum.
+func (e GatewayDocumentKind) Valid() bool {
+	switch e {
+	case GatewayDocumentKindGateway:
 		return true
 	default:
 		return false
@@ -455,12 +467,40 @@ func (e GatewayHosting) Valid() bool {
 	}
 }
 
+// Defines values for GatewayRegistrationDocumentApiVersion.
+const (
+	GatewayRegistrationDocumentApiVersionAiControlPlaneChoreolabsComv1 GatewayRegistrationDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the GatewayRegistrationDocumentApiVersion enum.
+func (e GatewayRegistrationDocumentApiVersion) Valid() bool {
+	switch e {
+	case GatewayRegistrationDocumentApiVersionAiControlPlaneChoreolabsComv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatewayRegistrationDocumentKind.
+const (
+	GatewayRegistrationDocumentKindGateway GatewayRegistrationDocumentKind = "Gateway"
+)
+
+// Valid indicates whether the value is a known member of the GatewayRegistrationDocumentKind enum.
+func (e GatewayRegistrationDocumentKind) Valid() bool {
+	switch e {
+	case GatewayRegistrationDocumentKindGateway:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GatewayStatus.
 const (
-	GatewayStatusACTIVE       GatewayStatus = "ACTIVE"
-	GatewayStatusERROR        GatewayStatus = "ERROR"
-	GatewayStatusINACTIVE     GatewayStatus = "INACTIVE"
-	GatewayStatusPROVISIONING GatewayStatus = "PROVISIONING"
+	GatewayStatusACTIVE   GatewayStatus = "ACTIVE"
+	GatewayStatusINACTIVE GatewayStatus = "INACTIVE"
 )
 
 // Valid indicates whether the value is a known member of the GatewayStatus enum.
@@ -468,11 +508,7 @@ func (e GatewayStatus) Valid() bool {
 	switch e {
 	case GatewayStatusACTIVE:
 		return true
-	case GatewayStatusERROR:
-		return true
 	case GatewayStatusINACTIVE:
-		return true
-	case GatewayStatusPROVISIONING:
 		return true
 	default:
 		return false
@@ -890,21 +926,6 @@ func (e RateLimitResetWindowUnit) Valid() bool {
 	}
 }
 
-// Defines values for SelfHostedGatewayRequestFunctionalityType.
-const (
-	Ai SelfHostedGatewayRequestFunctionalityType = "ai"
-)
-
-// Valid indicates whether the value is a known member of the SelfHostedGatewayRequestFunctionalityType enum.
-func (e SelfHostedGatewayRequestFunctionalityType) Valid() bool {
-	switch e {
-	case Ai:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for UpstreamAuthType.
 const (
 	ApiKey UpstreamAuthType = "api-key"
@@ -917,6 +938,24 @@ func (e UpstreamAuthType) Valid() bool {
 	case ApiKey:
 		return true
 	case None:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListGatewaysParamsStatus.
+const (
+	ListGatewaysParamsStatusACTIVE   ListGatewaysParamsStatus = "ACTIVE"
+	ListGatewaysParamsStatusINACTIVE ListGatewaysParamsStatus = "INACTIVE"
+)
+
+// Valid indicates whether the value is a known member of the ListGatewaysParamsStatus enum.
+func (e ListGatewaysParamsStatus) Valid() bool {
+	switch e {
+	case ListGatewaysParamsStatusACTIVE:
+		return true
+	case ListGatewaysParamsStatusINACTIVE:
 		return true
 	default:
 		return false
@@ -971,30 +1010,6 @@ func (e ListCatalogResourcesParamsKind) Valid() bool {
 	case ListCatalogResourcesParamsKindLlmProvider:
 		return true
 	case ListCatalogResourcesParamsKindMcp:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListGatewaysParamsStatus.
-const (
-	ListGatewaysParamsStatusACTIVE       ListGatewaysParamsStatus = "ACTIVE"
-	ListGatewaysParamsStatusERROR        ListGatewaysParamsStatus = "ERROR"
-	ListGatewaysParamsStatusINACTIVE     ListGatewaysParamsStatus = "INACTIVE"
-	ListGatewaysParamsStatusPROVISIONING ListGatewaysParamsStatus = "PROVISIONING"
-)
-
-// Valid indicates whether the value is a known member of the ListGatewaysParamsStatus enum.
-func (e ListGatewaysParamsStatus) Valid() bool {
-	switch e {
-	case ListGatewaysParamsStatusACTIVE:
-		return true
-	case ListGatewaysParamsStatusERROR:
-		return true
-	case ListGatewaysParamsStatusINACTIVE:
-		return true
-	case ListGatewaysParamsStatusPROVISIONING:
 		return true
 	default:
 		return false
@@ -1617,39 +1632,6 @@ type CostRateLimit struct {
 	Reset   RateLimitResetWindow `json:"reset"`
 }
 
-// CreateGatewayRequest defines model for CreateGatewayRequest.
-type CreateGatewayRequest struct {
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// EnvironmentIds The environment UUID to assign the gateway to during creation. A gateway serves exactly one environment, so at most one is allowed.
-	EnvironmentIds *[]string `json:"environmentIds,omitempty"`
-
-	// GatewayType Gateway placement role accepted on input. `REGULAR` and `AI` are deprecated
-	// aliases kept for gateway charts pinned to an older version (REGULAR -> BOTH,
-	// AI -> EGRESS); prefer INGRESS/EGRESS/BOTH. Responses and the canonical
-	// `GatewayType` schema never emit REGULAR/AI.
-	GatewayType GatewayTypeInput `json:"gatewayType"`
-
-	// IsCritical Flag indicating if this is a critical production gateway
-	IsCritical *bool `json:"isCritical,omitempty"`
-
-	// Name Unique gateway name (lowercase, alphanumeric with hyphens)
-	Name string `json:"name"`
-
-	// OrgId Optional. OU ID of the caller's organization. The organization always comes from the token; a different value is refused with 403.
-	OrgId *string `json:"orgId,omitempty"`
-
-	// Region Deployment region (optional)
-	Region *string `json:"region,omitempty"`
-
-	// RuntimeUrl In-cluster base URL of the gateway runtime, used by sandboxed platform-hosted agents. Empty means no internal address is registered and the vhost is used instead. Must carry an explicit port other than 80 or 443 and a cluster-local host.
-	RuntimeUrl *string `json:"runtimeUrl,omitempty"`
-
-	// Vhost Virtual host for the gateway (FQDN or IP)
-	Vhost string `json:"vhost"`
-}
-
 // CreateLLMAPIKeyRequest defines model for CreateLLMAPIKeyRequest.
 type CreateLLMAPIKeyRequest struct {
 	// DisplayName Human-readable display name for the API key. When name is omitted, the name generated from it (lowercase letters, digits and hyphens) must be at least 3 characters long.
@@ -1839,56 +1821,32 @@ type ExtractionIdentifier struct {
 // ExtractionIdentifierLocation Where to find the token information
 type ExtractionIdentifierLocation string
 
-// GatewayEndpointSpec Gateway resource endpoint configuration
-type GatewayEndpointSpec struct {
-	// Http Gateway listener configuration
-	Http *GatewayListenerSpec `json:"http,omitempty"`
+// GatewayDocument A gateway as a document; metadata.name is its name, spec.displayName its label.
+type GatewayDocument struct {
+	ApiVersion GatewayDocumentApiVersion `json:"apiVersion"`
 
-	// Https Gateway listener configuration
-	Https *GatewayListenerSpec `json:"https,omitempty"`
+	// Kind Must match the route; never ignored.
+	Kind     GatewayDocumentKind `json:"kind"`
+	Metadata DocumentMetadata    `json:"metadata"`
+	Spec     GatewaySpec         `json:"spec"`
 
-	// Tls Gateway listener configuration
-	Tls *GatewayListenerSpec `json:"tls,omitempty"`
+	// Status Observed state. Server-populated and ignored on input.
+	Status *GatewayDocumentStatus `json:"status,omitempty"`
 }
 
-// GatewayEnvironmentResponse defines model for GatewayEnvironmentResponse.
-type GatewayEnvironmentResponse struct {
-	// CreatedAt Timestamp when the environment was created
-	CreatedAt time.Time `json:"createdAt"`
+// GatewayDocumentApiVersion defines model for GatewayDocument.ApiVersion.
+type GatewayDocumentApiVersion string
 
-	// DataplaneRef Reference to the dataplane
-	DataplaneRef string `json:"dataplaneRef"`
+// GatewayDocumentKind Must match the route; never ignored.
+type GatewayDocumentKind string
 
-	// Description Optional description of the environment
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// DnsPrefix DNS prefix for the environment
-	DnsPrefix string `json:"dnsPrefix"`
-
-	// Gateway Gateway configuration with ingress and egress network specs
-	Gateway *GatewaySpec `json:"gateway,omitempty"`
-
-	// Id Unique identifier for the environment
-	Id string `json:"id"`
-
-	// IsProduction Whether this is a production environment
-	IsProduction bool `json:"isProduction"`
-
-	// IsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
-	IsolationTier *GatewayEnvironmentResponseIsolationTier `json:"isolationTier,omitempty"`
-
-	// Name Unique environment name (lowercase, alphanumeric with hyphens)
-	Name string `json:"name"`
-
-	// UpdatedAt Timestamp when the environment was last updated
-	UpdatedAt time.Time `json:"updatedAt"`
+// GatewayDocumentStatus Observed state. Server-populated and ignored on input.
+type GatewayDocumentStatus struct {
+	// State Gateway operational status:
+	// - ACTIVE: the gateway is connected and ready
+	// - INACTIVE: the gateway is registered but not connected
+	State *GatewayStatus `json:"state,omitempty"`
 }
-
-// GatewayEnvironmentResponseIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
-type GatewayEnvironmentResponseIsolationTier string
 
 // GatewayHosting Who runs the gateway runtime.
 // - MANAGED: the platform provisions and runs it.
@@ -1897,48 +1855,58 @@ type GatewayHosting string
 
 // GatewayListResponse defines model for GatewayListResponse.
 type GatewayListResponse struct {
-	Gateways []GatewayResponse `json:"gateways"`
+	// Count Number of items in this page.
+	Count *int32            `json:"count,omitempty"`
+	List  []GatewayDocument `json:"list"`
 
-	// Limit Number of results per page
-	Limit int32 `json:"limit"`
-
-	// Offset Number of results skipped
-	Offset int32 `json:"offset"`
-
-	// Total Total number of gateways matching the filter
-	Total int32 `json:"total"`
+	// Pagination Where this page sits in the collection.
+	Pagination *Pagination `json:"pagination,omitempty"`
 }
 
-// GatewayListenerSpec Gateway listener configuration
-type GatewayListenerSpec struct {
-	// Host Virtual host for the listener
-	Host *string `json:"host,omitempty"`
+// GatewayRegistrationDocument A gateway to register; as GatewayDocument, with spec.endpoint required.
+type GatewayRegistrationDocument struct {
+	ApiVersion GatewayRegistrationDocumentApiVersion `json:"apiVersion"`
 
-	// Port Port number
-	Port *int32 `json:"port,omitempty"`
+	// Kind Must match the route; never ignored.
+	Kind     GatewayRegistrationDocumentKind `json:"kind"`
+	Metadata DocumentMetadata                `json:"metadata"`
+
+	// Spec The spec of a gateway to register; spec.endpoint is required.
+	Spec GatewayRegistrationSpec `json:"spec"`
 }
 
-// GatewayNetworkSpec External and internal gateway endpoints
-type GatewayNetworkSpec struct {
-	// External Gateway resource endpoint configuration
-	External *GatewayEndpointSpec `json:"external,omitempty"`
+// GatewayRegistrationDocumentApiVersion defines model for GatewayRegistrationDocument.ApiVersion.
+type GatewayRegistrationDocumentApiVersion string
 
-	// Internal Gateway resource endpoint configuration
-	Internal *GatewayEndpointSpec `json:"internal,omitempty"`
-}
+// GatewayRegistrationDocumentKind Must match the route; never ignored.
+type GatewayRegistrationDocumentKind string
 
-// GatewayResponse defines model for GatewayResponse.
-type GatewayResponse struct {
-	// CreatedAt Timestamp when the gateway was registered
-	CreatedAt time.Time `json:"createdAt"`
+// GatewayRegistrationSpec defines model for GatewayRegistrationSpec.
+type GatewayRegistrationSpec struct {
+	// Description What the gateway is for
+	Description *string `json:"description,omitempty"`
 
 	// DisplayName Human-readable display name
 	DisplayName string `json:"displayName"`
 
-	// Environments List of environments mapped to this gateway
-	Environments *[]GatewayEnvironmentResponse `json:"environments,omitempty"`
+	// Endpoint Where the gateway is reached: the base http or https URL of a self-hosted gateway, or the virtual host of a managed one. Required to register a gateway; fixed once registered.
+	Endpoint string `json:"endpoint"`
 
-	// GatewayType Gateway placement role. Naming and placement policy, not capability — every
+	// Hosting Who runs the gateway runtime.
+	// - MANAGED: the platform provisions and runs it.
+	// - SELF_HOSTED: the customer runs it and connects it to the platform.
+	Hosting *GatewayHosting `json:"hosting,omitempty"`
+
+	// IsCritical Flag indicating if this is a critical production gateway
+	IsCritical *bool `json:"isCritical,omitempty"`
+
+	// Properties Free-form properties of a self-hosted gateway
+	Properties *map[string]interface{} `json:"properties,omitempty"`
+
+	// RuntimeUrl In-cluster base URL of a managed gateway's runtime, used by sandboxed platform-hosted agents. Absent when none is registered.
+	RuntimeUrl *string `json:"runtimeUrl,omitempty"`
+
+	// Type Gateway placement role. Naming and placement policy, not capability — every
 	// gateway has identical runtime capabilities regardless of role.
 	// - INGRESS: handles inbound agent traffic. At most one per environment.
 	// - EGRESS: hosts outbound LLM/MCP artifacts. Uncapped per environment.
@@ -1947,56 +1915,49 @@ type GatewayResponse struct {
 	// Immutable once registered. `REGULAR` and `AI` are accepted on input as
 	// deprecated aliases (REGULAR -> BOTH, AI -> EGRESS) so gateway charts pinned to
 	// an older version keep registering; responses always emit canonical values.
-	GatewayType GatewayType `json:"gatewayType"`
+	Type *GatewayType `json:"type,omitempty"`
+}
+
+// GatewaySpec defines model for GatewaySpec.
+type GatewaySpec struct {
+	// Description What the gateway is for
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable display name
+	DisplayName string `json:"displayName"`
+
+	// Endpoint Where the gateway is reached: the base http or https URL of a self-hosted gateway, or the virtual host of a managed one. Required to register a gateway; fixed once registered.
+	Endpoint *string `json:"endpoint,omitempty"`
 
 	// Hosting Who runs the gateway runtime.
 	// - MANAGED: the platform provisions and runs it.
 	// - SELF_HOSTED: the customer runs it and connects it to the platform.
-	Hosting GatewayHosting `json:"hosting"`
+	Hosting *GatewayHosting `json:"hosting,omitempty"`
 
 	// IsCritical Flag indicating if this is a critical production gateway
-	IsCritical bool `json:"isCritical"`
+	IsCritical *bool `json:"isCritical,omitempty"`
 
-	// Name Unique gateway name (lowercase, alphanumeric with hyphens)
-	Name string `json:"name"`
+	// Properties Free-form properties of a self-hosted gateway
+	Properties *map[string]interface{} `json:"properties,omitempty"`
 
-	// Region Deployment region
-	Region *string `json:"region,omitempty"`
-
-	// RuntimeUrl In-cluster base URL of the gateway runtime, used by sandboxed platform-hosted agents. Empty means no internal address is registered and the vhost is used instead. Must carry an explicit port other than 80 or 443 and a cluster-local host.
+	// RuntimeUrl In-cluster base URL of a managed gateway's runtime, used by sandboxed platform-hosted agents. Absent when none is registered.
 	RuntimeUrl *string `json:"runtimeUrl,omitempty"`
 
-	// Status Gateway operational status:
-	// - ACTIVE: Gateway is operational and ready
-	// - INACTIVE: Gateway is registered but not active
-	// - PROVISIONING: Gateway is being set up
-	// - ERROR: Gateway has encountered an error
-	Status GatewayStatus `json:"status"`
-
-	// UpdatedAt Timestamp when the gateway was last updated
-	UpdatedAt time.Time `json:"updatedAt"`
-
-	// Uuid Unique identifier for the gateway
-	Uuid string `json:"uuid"`
-
-	// Vhost Virtual host for the gateway
-	Vhost string `json:"vhost"`
-}
-
-// GatewaySpec Gateway configuration with ingress and egress network specs
-type GatewaySpec struct {
-	// Egress External and internal gateway endpoints
-	Egress *GatewayNetworkSpec `json:"egress,omitempty"`
-
-	// Ingress External and internal gateway endpoints
-	Ingress *GatewayNetworkSpec `json:"ingress,omitempty"`
+	// Type Gateway placement role. Naming and placement policy, not capability — every
+	// gateway has identical runtime capabilities regardless of role.
+	// - INGRESS: handles inbound agent traffic. At most one per environment.
+	// - EGRESS: hosts outbound LLM/MCP artifacts. Uncapped per environment.
+	// - BOTH: does both. Counts against the ingress cap.
+	//
+	// Immutable once registered. `REGULAR` and `AI` are accepted on input as
+	// deprecated aliases (REGULAR -> BOTH, AI -> EGRESS) so gateway charts pinned to
+	// an older version keep registering; responses always emit canonical values.
+	Type *GatewayType `json:"type,omitempty"`
 }
 
 // GatewayStatus Gateway operational status:
-// - ACTIVE: Gateway is operational and ready
-// - INACTIVE: Gateway is registered but not active
-// - PROVISIONING: Gateway is being set up
-// - ERROR: Gateway has encountered an error
+// - ACTIVE: the gateway is connected and ready
+// - INACTIVE: the gateway is registered but not connected
 type GatewayStatus string
 
 // GatewayTokenInfo defines model for GatewayTokenInfo.
@@ -3027,40 +2988,6 @@ type SecuritySummary struct {
 	Enabled *bool `json:"enabled,omitempty"`
 }
 
-// SelfHostedGatewayRequest defines model for SelfHostedGatewayRequest.
-type SelfHostedGatewayRequest struct {
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// Endpoints At least one http(s) endpoint URL. The first is the gateway's address.
-	Endpoints []string `json:"endpoints"`
-
-	// Environment Name of the environment to bind the gateway to. Must exist.
-	Environment       string                                     `json:"environment"`
-	FunctionalityType *SelfHostedGatewayRequestFunctionalityType `json:"functionalityType,omitempty"`
-
-	// Handle The gateway's name, unique in the organization and fixed once created. Lowercase letters, numbers and hyphens, not starting or ending with a hyphen.
-	Handle     string                  `json:"handle"`
-	IsCritical *bool                   `json:"isCritical,omitempty"`
-	Properties *map[string]interface{} `json:"properties,omitempty"`
-
-	// Version Gateway version, `major.minor` or CalVer `YYYY.MM.DD`.
-	Version *string `json:"version,omitempty"`
-}
-
-// SelfHostedGatewayRequestFunctionalityType defines model for SelfHostedGatewayRequest.FunctionalityType.
-type SelfHostedGatewayRequestFunctionalityType string
-
-// SelfHostedGatewayUpdateRequest defines model for SelfHostedGatewayUpdateRequest.
-type SelfHostedGatewayUpdateRequest struct {
-	Description *string                 `json:"description,omitempty"`
-	DisplayName *string                 `json:"displayName,omitempty"`
-	IsCritical  *bool                   `json:"isCritical,omitempty"`
-	Properties  *map[string]interface{} `json:"properties,omitempty"`
-}
-
 // SetA2AProxyRequest defines model for SetA2AProxyRequest.
 type SetA2AProxyRequest struct {
 	// UpstreamAuth A static header the gateway adds to every call to the agent, card fetch included.
@@ -3141,25 +3068,6 @@ type UpdateAgentDeploySettingsRequest struct {
 
 	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Omit to keep the current value.
 	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
-}
-
-// UpdateGatewayRequest Update request for gateway properties (all fields optional, but at least one must be provided)
-type UpdateGatewayRequest struct {
-	// DisplayName Updated display name
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// IsCritical Updated critical flag
-	IsCritical *bool `json:"isCritical,omitempty"`
-
-	// RuntimeUrl In-cluster base URL of the gateway runtime, used by sandboxed platform-hosted agents. Empty means no internal address is registered and the vhost is used instead. Must carry an explicit port other than 80 or 443 and a cluster-local host.
-	RuntimeUrl *string `json:"runtimeUrl,omitempty"`
-
-	// Status Gateway operational status:
-	// - ACTIVE: Gateway is operational and ready
-	// - INACTIVE: Gateway is registered but not active
-	// - PROVISIONING: Gateway is being set up
-	// - ERROR: Gateway has encountered an error
-	Status *GatewayStatus `json:"status,omitempty"`
 }
 
 // UpdateLLMProxyRequest defines model for UpdateLLMProxyRequest.
@@ -3457,6 +3365,40 @@ type RotateLLMConfigAPIKeyParams struct {
 	Project string `form:"project" json:"project"`
 }
 
+// ListGatewaysParams defines parameters for ListGateways.
+type ListGatewaysParams struct {
+	// Limit Maximum number of results to return
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Type Filter by gateway type. `REGULAR` and `AI` are deprecated aliases
+	// (REGULAR -> BOTH, AI -> EGRESS) kept for backward compatibility.
+	Type *GatewayTypeInput `form:"type,omitempty" json:"type,omitempty"`
+
+	// Status Filter by gateway status
+	Status *ListGatewaysParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Hosting Filter by who runs the gateway.
+	Hosting *GatewayHosting `form:"hosting,omitempty" json:"hosting,omitempty"`
+}
+
+// ListGatewaysParamsStatus defines parameters for ListGateways.
+type ListGatewaysParamsStatus string
+
+// GetGatewayStatusParams defines parameters for GetGatewayStatus.
+type GetGatewayStatusParams struct {
+	// GatewayId Report only this gateway.
+	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
+}
+
+// DiscoverOidcConfigurationParams defines parameters for DiscoverOidcConfiguration.
+type DiscoverOidcConfigurationParams struct {
+	// Url Issuer base URL or full .well-known/openid-configuration URL.
+	Url string `form:"url" json:"url"`
+}
+
 // ListLLMProviderTemplatesParams defines parameters for ListLLMProviderTemplates.
 type ListLLMProviderTemplatesParams struct {
 	// Limit Maximum number of results to return
@@ -3563,40 +3505,6 @@ type ListAgentIdentityRolesParams struct {
 	Limit *AgentIdentityLimit `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// ListGatewaysParams defines parameters for ListGateways.
-type ListGatewaysParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Type Filter by gateway type. `REGULAR` and `AI` are deprecated aliases
-	// (REGULAR -> BOTH, AI -> EGRESS) kept for backward compatibility.
-	Type *GatewayTypeInput `form:"type,omitempty" json:"type,omitempty"`
-
-	// Status Filter by gateway status
-	Status *ListGatewaysParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-
-	// Environment Filter by environment name
-	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
-}
-
-// ListGatewaysParamsStatus defines parameters for ListGateways.
-type ListGatewaysParamsStatus string
-
-// GetGatewayStatusParams defines parameters for GetGatewayStatus.
-type GetGatewayStatusParams struct {
-	// GatewayId Report only this gateway.
-	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
-}
-
-// DiscoverOidcConfigurationParams defines parameters for DiscoverOidcConfiguration.
-type DiscoverOidcConfigurationParams struct {
-	// Url Issuer base URL or full .well-known/openid-configuration URL.
-	Url string `form:"url" json:"url"`
-}
-
 // ListLLMProxiesParams defines parameters for ListLLMProxies.
 type ListLLMProxiesParams struct {
 	// Limit Maximum number of results to return
@@ -3634,15 +3542,6 @@ type UndeployLLMProxyDeploymentParams struct {
 
 	// GatewayId Gateway UUID
 	GatewayId string `form:"gatewayId" json:"gatewayId"`
-}
-
-// ListSelfHostedGatewaysParams defines parameters for ListSelfHostedGateways.
-type ListSelfHostedGatewaysParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // SetA2AProxyJSONRequestBody defines body for SetA2AProxy for application/json ContentType.
@@ -3683,6 +3582,18 @@ type CreateLLMConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
 
 // RotateLLMConfigAPIKeyJSONRequestBody defines body for RotateLLMConfigAPIKey for application/json ContentType.
 type RotateLLMConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
+
+// RegisterGatewayJSONRequestBody defines body for RegisterGateway for application/json ContentType.
+type RegisterGatewayJSONRequestBody = GatewayRegistrationDocument
+
+// UpdateGatewayJSONRequestBody defines body for UpdateGateway for application/json ContentType.
+type UpdateGatewayJSONRequestBody = GatewayDocument
+
+// UpsertGatewayIdentityProviderJSONRequestBody defines body for UpsertGatewayIdentityProvider for application/json ContentType.
+type UpsertGatewayIdentityProviderJSONRequestBody = UpsertIdentityProviderRequest
+
+// RotateGatewayTokenJSONRequestBody defines body for RotateGatewayToken for application/json ContentType.
+type RotateGatewayTokenJSONRequestBody = RotateGatewayTokenRequest
 
 // CreateLLMProviderTemplateJSONRequestBody defines body for CreateLLMProviderTemplate for application/json ContentType.
 type CreateLLMProviderTemplateJSONRequestBody = LlmProviderTemplateDocument
@@ -3741,18 +3652,6 @@ type AddAgentIdentityRoleAssigneesJSONRequestBody = AgentIdentityAssignmentsRequ
 // RemoveAgentIdentityRoleAssigneesJSONRequestBody defines body for RemoveAgentIdentityRoleAssignees for application/json ContentType.
 type RemoveAgentIdentityRoleAssigneesJSONRequestBody = AgentIdentityAssignmentsRequest
 
-// RegisterGatewayJSONRequestBody defines body for RegisterGateway for application/json ContentType.
-type RegisterGatewayJSONRequestBody = CreateGatewayRequest
-
-// UpdateGatewayJSONRequestBody defines body for UpdateGateway for application/json ContentType.
-type UpdateGatewayJSONRequestBody = UpdateGatewayRequest
-
-// UpsertGatewayIdentityProviderJSONRequestBody defines body for UpsertGatewayIdentityProvider for application/json ContentType.
-type UpsertGatewayIdentityProviderJSONRequestBody = UpsertIdentityProviderRequest
-
-// RotateGatewayTokenJSONRequestBody defines body for RotateGatewayToken for application/json ContentType.
-type RotateGatewayTokenJSONRequestBody = RotateGatewayTokenRequest
-
 // CreateLLMProxyJSONRequestBody defines body for CreateLLMProxy for application/json ContentType.
 type CreateLLMProxyJSONRequestBody = CreateLLMProxyRequest
 
@@ -3767,12 +3666,6 @@ type DeployLLMProxyJSONRequestBody = LLMDeployRequest
 
 // UpdateLLMProxyJSONRequestBody defines body for UpdateLLMProxy for application/json ContentType.
 type UpdateLLMProxyJSONRequestBody = UpdateLLMProxyRequest
-
-// RegisterSelfHostedGatewayJSONRequestBody defines body for RegisterSelfHostedGateway for application/json ContentType.
-type RegisterSelfHostedGatewayJSONRequestBody = SelfHostedGatewayRequest
-
-// UpdateSelfHostedGatewayJSONRequestBody defines body for UpdateSelfHostedGateway for application/json ContentType.
-type UpdateSelfHostedGatewayJSONRequestBody = SelfHostedGatewayUpdateRequest
 
 // Getter for additional properties for ResourceStatus. Returns the specified
 // element and whether it was found

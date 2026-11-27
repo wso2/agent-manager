@@ -25,7 +25,6 @@ type GatewayTokensAPIService service
 type ApiListGatewayTokensRequest struct {
 	ctx        context.Context
 	ApiService *GatewayTokensAPIService
-	orgName    string
 	gatewayID  string
 }
 
@@ -39,15 +38,13 @@ ListGatewayTokens List gateway tokens
 Retrieve all active authentication tokens for a specific gateway.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@return ApiListGatewayTokensRequest
 */
-func (a *GatewayTokensAPIService) ListGatewayTokens(ctx context.Context, orgName string, gatewayID string) ApiListGatewayTokensRequest {
+func (a *GatewayTokensAPIService) ListGatewayTokens(ctx context.Context, gatewayID string) ApiListGatewayTokensRequest {
 	return ApiListGatewayTokensRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 	}
 }
@@ -68,19 +65,12 @@ func (a *GatewayTokensAPIService) ListGatewayTokensExecute(r ApiListGatewayToken
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}/tokens"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}/tokens"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -171,7 +161,6 @@ func (a *GatewayTokensAPIService) ListGatewayTokensExecute(r ApiListGatewayToken
 type ApiRevokeGatewayTokenRequest struct {
 	ctx        context.Context
 	ApiService *GatewayTokensAPIService
-	orgName    string
 	gatewayID  string
 	tokenID    string
 }
@@ -196,16 +185,14 @@ Revoke a specific gateway authentication token.
 - Security incident response
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@param tokenID Token identifier to revoke
 	@return ApiRevokeGatewayTokenRequest
 */
-func (a *GatewayTokensAPIService) RevokeGatewayToken(ctx context.Context, orgName string, gatewayID string, tokenID string) ApiRevokeGatewayTokenRequest {
+func (a *GatewayTokensAPIService) RevokeGatewayToken(ctx context.Context, gatewayID string, tokenID string) ApiRevokeGatewayTokenRequest {
 	return ApiRevokeGatewayTokenRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 		tokenID:    tokenID,
 	}
@@ -224,20 +211,13 @@ func (a *GatewayTokensAPIService) RevokeGatewayTokenExecute(r ApiRevokeGatewayTo
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}/tokens/{tokenID}"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"tokenID"+"}", url.PathEscape(parameterValueToString(r.tokenID, "tokenID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -330,7 +310,6 @@ func (a *GatewayTokensAPIService) RevokeGatewayTokenExecute(r ApiRevokeGatewayTo
 type ApiRotateGatewayTokenRequest struct {
 	ctx                       context.Context
 	ApiService                *GatewayTokensAPIService
-	orgName                   string
 	gatewayID                 string
 	rotateGatewayTokenRequest *RotateGatewayTokenRequest
 }
@@ -347,29 +326,23 @@ func (r ApiRotateGatewayTokenRequest) Execute() (*GatewayTokenResponse, *http.Re
 /*
 RotateGatewayToken Rotate gateway token
 
-Generate a new authentication token for the gateway and invalidate the old one.
+Issues a new authentication token for the gateway. A gateway has at most two active tokens.
 
-**Security Note:**
-- The new token is only returned once in this response
-- Store the token securely - it cannot be retrieved later
-- The old token will be immediately invalidated
-- Update your gateway configuration with the new token
+**Rotation does not revoke the old token.** Both stay valid, so the gateway can move to the new
+token without downtime. Once it uses the new one, revoke the old token with
+`DELETE /gateways/{gatewayID}/tokens/{tokenID}`. After a suspected compromise, revoke the old
+token straight away.
 
-**Use Cases:**
-- Regular token rotation for security compliance
-- Token compromise recovery
-- Periodic security maintenance
+The token is returned only in this response and cannot be read again.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@return ApiRotateGatewayTokenRequest
 */
-func (a *GatewayTokensAPIService) RotateGatewayToken(ctx context.Context, orgName string, gatewayID string) ApiRotateGatewayTokenRequest {
+func (a *GatewayTokensAPIService) RotateGatewayToken(ctx context.Context, gatewayID string) ApiRotateGatewayTokenRequest {
 	return ApiRotateGatewayTokenRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 	}
 }
@@ -390,19 +363,12 @@ func (a *GatewayTokensAPIService) RotateGatewayTokenExecute(r ApiRotateGatewayTo
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}/tokens"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}/tokens"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{"application/json"}
@@ -479,6 +445,17 @@ func (a *GatewayTokensAPIService) RotateGatewayTokenExecute(r ApiRotateGatewayTo
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

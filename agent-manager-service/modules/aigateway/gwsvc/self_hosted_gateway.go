@@ -22,8 +22,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
-	"github.com/google/uuid"
-
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
@@ -57,25 +55,15 @@ func (s *PlatformGatewayService) RegisterSelfHostedGateway(ouID string, in SelfH
 		gwmodels.GatewayRoleEgress, in.Properties, []string{in.Environment}, gwmodels.GatewayHostingSelfHosted)
 }
 
-// ListSelfHostedGateways lists the organization's self-hosted gateways.
-func (s *PlatformGatewayService) ListSelfHostedGateways(ouID string, limit, offset int) (*GatewayListResponse, error) {
-	return s.ListGateways(&ouID, &GatewayListFilters{Hosting: gwmodels.GatewayHostingSelfHosted}, limit, offset)
-}
-
-// RequireSelfHosted returns the gateway when it belongs to the organization and is
-// self-hosted. The self-hosted routes address a gateway by UUID only, so a name is not found
-// without a lookup. A missing, other-organization or managed gateway is reported as not found,
-// so a self-hosted route never reveals or touches a managed gateway.
-func (s *PlatformGatewayService) RequireSelfHosted(gatewayID, ouID string) (*gwmodels.Gateway, error) {
-	if _, err := uuid.Parse(gatewayID); err != nil {
-		return nil, gwerr.ErrGatewayNotFound
-	}
-	gateway, err := normalizeGatewayLookup(s.gatewayRepo.GetByUUID(gatewayID))
+// RequireSelfHosted returns the organization's gateway named by ref, a name or UUID. A managed gateway is
+// refused with ErrGatewayManaged: the platform runs it, so the organization cannot change or remove it.
+func (s *PlatformGatewayService) RequireSelfHosted(ref, ouID string) (*gwmodels.Gateway, error) {
+	gateway, err := s.orgGateway(ref, ouID)
 	if err != nil {
 		return nil, err
 	}
-	if gateway.OUID != ouID || gateway.IsManaged() {
-		return nil, gwerr.ErrGatewayNotFound
+	if gateway.IsManaged() {
+		return nil, gwerr.ErrGatewayManaged
 	}
 	return gateway, nil
 }

@@ -25,7 +25,6 @@ type GatewayIdentityProvidersAPIService service
 type ApiDeleteGatewayIdentityProviderRequest struct {
 	ctx        context.Context
 	ApiService *GatewayIdentityProvidersAPIService
-	orgName    string
 	gatewayID  string
 	name       string
 }
@@ -47,16 +46,14 @@ the manage-identity-provider script (ACTION=delete) so the mirror and the
 gateway runtime stay in sync.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@param name Unique identity provider name within the gateway
 	@return ApiDeleteGatewayIdentityProviderRequest
 */
-func (a *GatewayIdentityProvidersAPIService) DeleteGatewayIdentityProvider(ctx context.Context, orgName string, gatewayID string, name string) ApiDeleteGatewayIdentityProviderRequest {
+func (a *GatewayIdentityProvidersAPIService) DeleteGatewayIdentityProvider(ctx context.Context, gatewayID string, name string) ApiDeleteGatewayIdentityProviderRequest {
 	return ApiDeleteGatewayIdentityProviderRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 		name:       name,
 	}
@@ -75,20 +72,13 @@ func (a *GatewayIdentityProvidersAPIService) DeleteGatewayIdentityProviderExecut
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}/identity-providers/{name}"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"name"+"}", url.PathEscape(parameterValueToString(r.name, "name")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -181,7 +171,6 @@ func (a *GatewayIdentityProvidersAPIService) DeleteGatewayIdentityProviderExecut
 type ApiDiscoverOidcConfigurationRequest struct {
 	ctx        context.Context
 	ApiService *GatewayIdentityProvidersAPIService
-	orgName    string
 	url        *string
 }
 
@@ -206,14 +195,12 @@ available. The backend fetches the document server-side over an SSRF-protected
 client, so it works regardless of browser CORS.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiDiscoverOidcConfigurationRequest
 */
-func (a *GatewayIdentityProvidersAPIService) DiscoverOidcConfiguration(ctx context.Context, orgName string) ApiDiscoverOidcConfigurationRequest {
+func (a *GatewayIdentityProvidersAPIService) DiscoverOidcConfiguration(ctx context.Context) ApiDiscoverOidcConfigurationRequest {
 	return ApiDiscoverOidcConfigurationRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -233,18 +220,11 @@ func (a *GatewayIdentityProvidersAPIService) DiscoverOidcConfigurationExecute(r 
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identity-providers/discover"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identity-providers/discover"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 	if r.url == nil {
 		return localVarReturnValue, nil, reportError("url is required and must be specified")
 	}
@@ -336,159 +316,9 @@ func (a *GatewayIdentityProvidersAPIService) DiscoverOidcConfigurationExecute(r 
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type ApiListEnvironmentIdentityProvidersRequest struct {
-	ctx           context.Context
-	ApiService    *GatewayIdentityProvidersAPIService
-	orgName       string
-	environmentId string
-}
-
-func (r ApiListEnvironmentIdentityProvidersRequest) Execute() (*IdentityProviderListResponse, *http.Response, error) {
-	return r.ApiService.ListEnvironmentIdentityProvidersExecute(r)
-}
-
-/*
-ListEnvironmentIdentityProviders List identity providers available in an environment
-
-Retrieve the union of identity providers configured on the gateways mapped to
-an environment. These are the issuer options offered when applying OAuth
-security to an agent endpoint in this environment. The reserved internal
-identity provider used for platform trace ingestion is never included.
-
-	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param environmentId Environment UUID or name
-	@return ApiListEnvironmentIdentityProvidersRequest
-*/
-func (a *GatewayIdentityProvidersAPIService) ListEnvironmentIdentityProviders(ctx context.Context, orgName string, environmentId string) ApiListEnvironmentIdentityProvidersRequest {
-	return ApiListEnvironmentIdentityProvidersRequest{
-		ApiService:    a,
-		ctx:           ctx,
-		orgName:       orgName,
-		environmentId: environmentId,
-	}
-}
-
-// Execute executes the request
-//
-//	@return IdentityProviderListResponse
-func (a *GatewayIdentityProvidersAPIService) ListEnvironmentIdentityProvidersExecute(r ApiListEnvironmentIdentityProvidersRequest) (*IdentityProviderListResponse, *http.Response, error) {
-	var (
-		localVarHTTPMethod  = http.MethodGet
-		localVarPostBody    interface{}
-		formFiles           []formFile
-		localVarReturnValue *IdentityProviderListResponse
-	)
-
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "GatewayIdentityProvidersAPIService.ListEnvironmentIdentityProviders")
-	if err != nil {
-		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
-	}
-
-	localVarPath := localBasePath + "/orgs/{orgName}/environments/{environmentId}/identity-providers"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"environmentId"+"}", url.PathEscape(parameterValueToString(r.environmentId, "environmentId")), -1)
-
-	localVarHeaderParams := make(map[string]string)
-	localVarQueryParams := url.Values{}
-	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
-
-	// to determine the Content-Type header
-	localVarHTTPContentTypes := []string{}
-
-	// set Content-Type header
-	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
-	if localVarHTTPContentType != "" {
-		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
-	}
-
-	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
-
-	// set Accept header
-	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
-	if localVarHTTPHeaderAccept != "" {
-		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
-	}
-	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
-	if err != nil {
-		return localVarReturnValue, nil, err
-	}
-
-	localVarHTTPResponse, err := a.client.callAPI(req)
-	if err != nil || localVarHTTPResponse == nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
-	localVarHTTPResponse.Body.Close()
-	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
-	if err != nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	if localVarHTTPResponse.StatusCode >= 300 {
-		newErr := &GenericOpenAPIError{
-			body:  localVarBody,
-			error: localVarHTTPResponse.Status,
-		}
-		if localVarHTTPResponse.StatusCode == 401 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarReturnValue, localVarHTTPResponse, newErr
-		}
-		if localVarHTTPResponse.StatusCode == 404 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarReturnValue, localVarHTTPResponse, newErr
-		}
-		if localVarHTTPResponse.StatusCode == 500 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-	if err != nil {
-		newErr := &GenericOpenAPIError{
-			body:  localVarBody,
-			error: err.Error(),
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
 type ApiListGatewayIdentityProvidersRequest struct {
 	ctx        context.Context
 	ApiService *GatewayIdentityProvidersAPIService
-	orgName    string
 	gatewayID  string
 }
 
@@ -507,15 +337,13 @@ applying OAuth security to an agent endpoint. The reserved internal identity
 provider used for platform trace ingestion is never included.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@return ApiListGatewayIdentityProvidersRequest
 */
-func (a *GatewayIdentityProvidersAPIService) ListGatewayIdentityProviders(ctx context.Context, orgName string, gatewayID string) ApiListGatewayIdentityProvidersRequest {
+func (a *GatewayIdentityProvidersAPIService) ListGatewayIdentityProviders(ctx context.Context, gatewayID string) ApiListGatewayIdentityProvidersRequest {
 	return ApiListGatewayIdentityProvidersRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 	}
 }
@@ -536,19 +364,12 @@ func (a *GatewayIdentityProvidersAPIService) ListGatewayIdentityProvidersExecute
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}/identity-providers"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}/identity-providers"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -639,7 +460,6 @@ func (a *GatewayIdentityProvidersAPIService) ListGatewayIdentityProvidersExecute
 type ApiListIdentityProvidersRequest struct {
 	ctx        context.Context
 	ApiService *GatewayIdentityProvidersAPIService
-	orgName    string
 }
 
 func (r ApiListIdentityProvidersRequest) Execute() (*IdentityProviderListResponse, *http.Response, error) {
@@ -656,14 +476,12 @@ The reserved internal provider used for platform trace ingestion is never
 included.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiListIdentityProvidersRequest
 */
-func (a *GatewayIdentityProvidersAPIService) ListIdentityProviders(ctx context.Context, orgName string) ApiListIdentityProvidersRequest {
+func (a *GatewayIdentityProvidersAPIService) ListIdentityProviders(ctx context.Context) ApiListIdentityProvidersRequest {
 	return ApiListIdentityProvidersRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -683,18 +501,11 @@ func (a *GatewayIdentityProvidersAPIService) ListIdentityProvidersExecute(r ApiL
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/identity-providers"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/identity-providers"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -774,7 +585,6 @@ func (a *GatewayIdentityProvidersAPIService) ListIdentityProvidersExecute(r ApiL
 type ApiUpsertGatewayIdentityProviderRequest struct {
 	ctx                           context.Context
 	ApiService                    *GatewayIdentityProvidersAPIService
-	orgName                       string
 	gatewayID                     string
 	name                          string
 	upsertIdentityProviderRequest *UpsertIdentityProviderRequest
@@ -807,16 +617,14 @@ while the gateway rejects every token at runtime. Use the
 manage-identity-provider script to keep them in sync.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@param name Unique identity provider name within the gateway
 	@return ApiUpsertGatewayIdentityProviderRequest
 */
-func (a *GatewayIdentityProvidersAPIService) UpsertGatewayIdentityProvider(ctx context.Context, orgName string, gatewayID string, name string) ApiUpsertGatewayIdentityProviderRequest {
+func (a *GatewayIdentityProvidersAPIService) UpsertGatewayIdentityProvider(ctx context.Context, gatewayID string, name string) ApiUpsertGatewayIdentityProviderRequest {
 	return ApiUpsertGatewayIdentityProviderRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 		name:       name,
 	}
@@ -838,20 +646,13 @@ func (a *GatewayIdentityProvidersAPIService) UpsertGatewayIdentityProviderExecut
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}/identity-providers/{name}"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 	localVarPath = strings.Replace(localVarPath, "{"+"name"+"}", url.PathEscape(parameterValueToString(r.name, "name")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 	if r.upsertIdentityProviderRequest == nil {
 		return localVarReturnValue, nil, reportError("upsertIdentityProviderRequest is required and must be specified")
 	}

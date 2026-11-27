@@ -84,7 +84,7 @@ export const ViewGateway: React.FC = () => {
         isLoading={isLoading}
         disableIcon
         actions={
-          canWrite && (
+          canWrite && gateway && isSelfHostedGateway(gateway) && (
           <Button
             variant="outlined"
             size="small"

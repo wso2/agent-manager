@@ -24,7 +24,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
     data: { provisioning: { type: "external" }, agentType: { type: "external-agent-api" } },
   })),
   useGetAgentConfigurations: vi.fn(),
-  useListEnvironmentIdentityProviders: vi.fn(() => ({ data: undefined })),
+  useListIdentityProviders: vi.fn(() => ({ data: undefined })),
   useUpdateAgentDeploySettings: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 

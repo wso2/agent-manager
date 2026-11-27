@@ -17,18 +17,31 @@ import (
 // checks if the GatewaySpec type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &GatewaySpec{}
 
-// GatewaySpec Gateway configuration with ingress and egress network specs
+// GatewaySpec struct for GatewaySpec
 type GatewaySpec struct {
-	Ingress *GatewayNetworkSpec `json:"ingress,omitempty"`
-	Egress  *GatewayNetworkSpec `json:"egress,omitempty"`
+	// Human-readable display name
+	DisplayName string `json:"displayName"`
+	// What the gateway is for
+	Description *string         `json:"description,omitempty"`
+	Hosting     *GatewayHosting `json:"hosting,omitempty"`
+	Type        *GatewayType    `json:"type,omitempty"`
+	// Where the gateway is reached: the base http or https URL of a self-hosted gateway, or the virtual host of a managed one. Required to register a gateway; fixed once registered.
+	Endpoint *string `json:"endpoint,omitempty"`
+	// In-cluster base URL of a managed gateway's runtime, used by sandboxed platform-hosted agents. Absent when none is registered.
+	RuntimeUrl *string `json:"runtimeUrl,omitempty"`
+	// Flag indicating if this is a critical production gateway
+	IsCritical *bool `json:"isCritical,omitempty"`
+	// Free-form properties of a self-hosted gateway
+	Properties map[string]interface{} `json:"properties,omitempty"`
 }
 
 // NewGatewaySpec instantiates a new GatewaySpec object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGatewaySpec() *GatewaySpec {
+func NewGatewaySpec(displayName string) *GatewaySpec {
 	this := GatewaySpec{}
+	this.DisplayName = displayName
 	return &this
 }
 
@@ -40,68 +53,252 @@ func NewGatewaySpecWithDefaults() *GatewaySpec {
 	return &this
 }
 
-// GetIngress returns the Ingress field value if set, zero value otherwise.
-func (o *GatewaySpec) GetIngress() GatewayNetworkSpec {
-	if o == nil || IsNil(o.Ingress) {
-		var ret GatewayNetworkSpec
+// GetDisplayName returns the DisplayName field value
+func (o *GatewaySpec) GetDisplayName() string {
+	if o == nil {
+		var ret string
 		return ret
 	}
-	return *o.Ingress
+
+	return o.DisplayName
 }
 
-// GetIngressOk returns a tuple with the Ingress field value if set, nil otherwise
+// GetDisplayNameOk returns a tuple with the DisplayName field value
 // and a boolean to check if the value has been set.
-func (o *GatewaySpec) GetIngressOk() (*GatewayNetworkSpec, bool) {
-	if o == nil || IsNil(o.Ingress) {
+func (o *GatewaySpec) GetDisplayNameOk() (*string, bool) {
+	if o == nil {
 		return nil, false
 	}
-	return o.Ingress, true
+	return &o.DisplayName, true
 }
 
-// HasIngress returns a boolean if a field has been set.
-func (o *GatewaySpec) HasIngress() bool {
-	if o != nil && !IsNil(o.Ingress) {
+// SetDisplayName sets field value
+func (o *GatewaySpec) SetDisplayName(v string) {
+	o.DisplayName = v
+}
+
+// GetDescription returns the Description field value if set, zero value otherwise.
+func (o *GatewaySpec) GetDescription() string {
+	if o == nil || IsNil(o.Description) {
+		var ret string
+		return ret
+	}
+	return *o.Description
+}
+
+// GetDescriptionOk returns a tuple with the Description field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GatewaySpec) GetDescriptionOk() (*string, bool) {
+	if o == nil || IsNil(o.Description) {
+		return nil, false
+	}
+	return o.Description, true
+}
+
+// HasDescription returns a boolean if a field has been set.
+func (o *GatewaySpec) HasDescription() bool {
+	if o != nil && !IsNil(o.Description) {
 		return true
 	}
 
 	return false
 }
 
-// SetIngress gets a reference to the given GatewayNetworkSpec and assigns it to the Ingress field.
-func (o *GatewaySpec) SetIngress(v GatewayNetworkSpec) {
-	o.Ingress = &v
+// SetDescription gets a reference to the given string and assigns it to the Description field.
+func (o *GatewaySpec) SetDescription(v string) {
+	o.Description = &v
 }
 
-// GetEgress returns the Egress field value if set, zero value otherwise.
-func (o *GatewaySpec) GetEgress() GatewayNetworkSpec {
-	if o == nil || IsNil(o.Egress) {
-		var ret GatewayNetworkSpec
+// GetHosting returns the Hosting field value if set, zero value otherwise.
+func (o *GatewaySpec) GetHosting() GatewayHosting {
+	if o == nil || IsNil(o.Hosting) {
+		var ret GatewayHosting
 		return ret
 	}
-	return *o.Egress
+	return *o.Hosting
 }
 
-// GetEgressOk returns a tuple with the Egress field value if set, nil otherwise
+// GetHostingOk returns a tuple with the Hosting field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *GatewaySpec) GetEgressOk() (*GatewayNetworkSpec, bool) {
-	if o == nil || IsNil(o.Egress) {
+func (o *GatewaySpec) GetHostingOk() (*GatewayHosting, bool) {
+	if o == nil || IsNil(o.Hosting) {
 		return nil, false
 	}
-	return o.Egress, true
+	return o.Hosting, true
 }
 
-// HasEgress returns a boolean if a field has been set.
-func (o *GatewaySpec) HasEgress() bool {
-	if o != nil && !IsNil(o.Egress) {
+// HasHosting returns a boolean if a field has been set.
+func (o *GatewaySpec) HasHosting() bool {
+	if o != nil && !IsNil(o.Hosting) {
 		return true
 	}
 
 	return false
 }
 
-// SetEgress gets a reference to the given GatewayNetworkSpec and assigns it to the Egress field.
-func (o *GatewaySpec) SetEgress(v GatewayNetworkSpec) {
-	o.Egress = &v
+// SetHosting gets a reference to the given GatewayHosting and assigns it to the Hosting field.
+func (o *GatewaySpec) SetHosting(v GatewayHosting) {
+	o.Hosting = &v
+}
+
+// GetType returns the Type field value if set, zero value otherwise.
+func (o *GatewaySpec) GetType() GatewayType {
+	if o == nil || IsNil(o.Type) {
+		var ret GatewayType
+		return ret
+	}
+	return *o.Type
+}
+
+// GetTypeOk returns a tuple with the Type field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GatewaySpec) GetTypeOk() (*GatewayType, bool) {
+	if o == nil || IsNil(o.Type) {
+		return nil, false
+	}
+	return o.Type, true
+}
+
+// HasType returns a boolean if a field has been set.
+func (o *GatewaySpec) HasType() bool {
+	if o != nil && !IsNil(o.Type) {
+		return true
+	}
+
+	return false
+}
+
+// SetType gets a reference to the given GatewayType and assigns it to the Type field.
+func (o *GatewaySpec) SetType(v GatewayType) {
+	o.Type = &v
+}
+
+// GetEndpoint returns the Endpoint field value if set, zero value otherwise.
+func (o *GatewaySpec) GetEndpoint() string {
+	if o == nil || IsNil(o.Endpoint) {
+		var ret string
+		return ret
+	}
+	return *o.Endpoint
+}
+
+// GetEndpointOk returns a tuple with the Endpoint field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GatewaySpec) GetEndpointOk() (*string, bool) {
+	if o == nil || IsNil(o.Endpoint) {
+		return nil, false
+	}
+	return o.Endpoint, true
+}
+
+// HasEndpoint returns a boolean if a field has been set.
+func (o *GatewaySpec) HasEndpoint() bool {
+	if o != nil && !IsNil(o.Endpoint) {
+		return true
+	}
+
+	return false
+}
+
+// SetEndpoint gets a reference to the given string and assigns it to the Endpoint field.
+func (o *GatewaySpec) SetEndpoint(v string) {
+	o.Endpoint = &v
+}
+
+// GetRuntimeUrl returns the RuntimeUrl field value if set, zero value otherwise.
+func (o *GatewaySpec) GetRuntimeUrl() string {
+	if o == nil || IsNil(o.RuntimeUrl) {
+		var ret string
+		return ret
+	}
+	return *o.RuntimeUrl
+}
+
+// GetRuntimeUrlOk returns a tuple with the RuntimeUrl field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GatewaySpec) GetRuntimeUrlOk() (*string, bool) {
+	if o == nil || IsNil(o.RuntimeUrl) {
+		return nil, false
+	}
+	return o.RuntimeUrl, true
+}
+
+// HasRuntimeUrl returns a boolean if a field has been set.
+func (o *GatewaySpec) HasRuntimeUrl() bool {
+	if o != nil && !IsNil(o.RuntimeUrl) {
+		return true
+	}
+
+	return false
+}
+
+// SetRuntimeUrl gets a reference to the given string and assigns it to the RuntimeUrl field.
+func (o *GatewaySpec) SetRuntimeUrl(v string) {
+	o.RuntimeUrl = &v
+}
+
+// GetIsCritical returns the IsCritical field value if set, zero value otherwise.
+func (o *GatewaySpec) GetIsCritical() bool {
+	if o == nil || IsNil(o.IsCritical) {
+		var ret bool
+		return ret
+	}
+	return *o.IsCritical
+}
+
+// GetIsCriticalOk returns a tuple with the IsCritical field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GatewaySpec) GetIsCriticalOk() (*bool, bool) {
+	if o == nil || IsNil(o.IsCritical) {
+		return nil, false
+	}
+	return o.IsCritical, true
+}
+
+// HasIsCritical returns a boolean if a field has been set.
+func (o *GatewaySpec) HasIsCritical() bool {
+	if o != nil && !IsNil(o.IsCritical) {
+		return true
+	}
+
+	return false
+}
+
+// SetIsCritical gets a reference to the given bool and assigns it to the IsCritical field.
+func (o *GatewaySpec) SetIsCritical(v bool) {
+	o.IsCritical = &v
+}
+
+// GetProperties returns the Properties field value if set, zero value otherwise.
+func (o *GatewaySpec) GetProperties() map[string]interface{} {
+	if o == nil || IsNil(o.Properties) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.Properties
+}
+
+// GetPropertiesOk returns a tuple with the Properties field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GatewaySpec) GetPropertiesOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.Properties) {
+		return map[string]interface{}{}, false
+	}
+	return o.Properties, true
+}
+
+// HasProperties returns a boolean if a field has been set.
+func (o *GatewaySpec) HasProperties() bool {
+	if o != nil && !IsNil(o.Properties) {
+		return true
+	}
+
+	return false
+}
+
+// SetProperties gets a reference to the given map[string]interface{} and assigns it to the Properties field.
+func (o *GatewaySpec) SetProperties(v map[string]interface{}) {
+	o.Properties = v
 }
 
 func (o GatewaySpec) MarshalJSON() ([]byte, error) {
@@ -114,11 +311,27 @@ func (o GatewaySpec) MarshalJSON() ([]byte, error) {
 
 func (o GatewaySpec) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.Ingress) {
-		toSerialize["ingress"] = o.Ingress
+	toSerialize["displayName"] = o.DisplayName
+	if !IsNil(o.Description) {
+		toSerialize["description"] = o.Description
 	}
-	if !IsNil(o.Egress) {
-		toSerialize["egress"] = o.Egress
+	if !IsNil(o.Hosting) {
+		toSerialize["hosting"] = o.Hosting
+	}
+	if !IsNil(o.Type) {
+		toSerialize["type"] = o.Type
+	}
+	if !IsNil(o.Endpoint) {
+		toSerialize["endpoint"] = o.Endpoint
+	}
+	if !IsNil(o.RuntimeUrl) {
+		toSerialize["runtimeUrl"] = o.RuntimeUrl
+	}
+	if !IsNil(o.IsCritical) {
+		toSerialize["isCritical"] = o.IsCritical
+	}
+	if !IsNil(o.Properties) {
+		toSerialize["properties"] = o.Properties
 	}
 	return toSerialize, nil
 }

@@ -17,44 +17,112 @@
  */
 
 import type {
-  CreateGatewayPathParams,
-  CreateGatewayRequest,
+  CreateSelfHostedGatewayPathParams,
   DeleteGatewayPathParams,
+  DeleteIdentityProviderPathParams,
   DiscoverOidcPathParams,
   DiscoverOidcQuery,
-  GetGatewayPathParams,
-  IdentityProviderListResponse,
-  OidcDiscoveryResponse,
-  ListEnvironmentIdentityProvidersPathParams,
-  ListGatewaysPathParams,
-  ListGatewaysQuery,
-  ListIdentityProvidersPathParams,
-  UpsertIdentityProviderPathParams,
-  UpsertIdentityProviderRequest,
-  DeleteIdentityProviderPathParams,
-  IdentityProvider,
+  Environment,
+  GatewayDocument,
+  GatewayDocumentList,
+  GatewayEnvironmentResponse,
   GatewayListResponse,
   GatewayResponse,
   GatewayTokenListResponse,
   GatewayTokenResponse,
-  UpdateGatewayPathParams,
-  UpdateGatewayRequest,
-  CreateSelfHostedGatewayPathParams,
-  DeleteSelfHostedGatewayPathParams,
-  RevokeSelfHostedGatewayTokenPathParams,
+  GetGatewayPathParams,
+  IdentityProvider,
+  IdentityProviderListResponse,
+  ListGatewaysPathParams,
+  ListGatewaysQuery,
+  ListIdentityProvidersPathParams,
+  OidcDiscoveryResponse,
   SelfHostedGatewayRequest,
-  SelfHostedGatewayTokensPathParams,
   SelfHostedGatewayUpdateRequest,
   UpdateSelfHostedGatewayPathParams,
+  UpsertIdentityProviderPathParams,
+  UpsertIdentityProviderRequest,
 } from "@agent-management-platform/types";
 import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 
+const API_VERSION = "ai-control-plane.choreolabs.com/v1";
+const GATEWAYS = `${GATEWAY_BASE}/gateways`;
+
+/** A core environment in the shape a gateway response lists it. */
+export function gatewayEnvironment(env: Environment): GatewayEnvironmentResponse {
+  return {
+    id: env.id ?? "",
+    organizationName: "",
+    name: env.name,
+    displayName: env.displayName ?? env.name,
+    dataplaneRef: env.dataplaneRef,
+    dnsPrefix: env.dnsPrefix ?? "",
+    isProduction: env.isProduction,
+    createdAt: env.createdAt,
+    updatedAt: env.createdAt,
+  };
+}
+
+/** The flat gateway the pages use; every gateway serves the organization's environments. */
+export function gatewayFromDocument(
+  doc: GatewayDocument,
+  environments: GatewayEnvironmentResponse[] = [],
+): GatewayResponse {
+  const { metadata, spec, status } = doc;
+  return {
+    uuid: metadata.uid ?? "",
+    organizationName: "",
+    name: metadata.name,
+    displayName: spec.displayName,
+    description: spec.description,
+    gatewayType: spec.type ?? "EGRESS",
+    hosting: spec.hosting ?? "MANAGED",
+    vhost: spec.endpoint ?? "",
+    runtimeUrl: spec.runtimeUrl,
+    isCritical: spec.isCritical ?? false,
+    properties: spec.properties,
+    status: status?.state ?? "INACTIVE",
+    createdAt: metadata.creationTimestamp ?? "",
+    updatedAt: metadata.updateTimestamp ?? "",
+    environments,
+  };
+}
+
+export function gatewayListFromDocuments(
+  list: GatewayDocumentList,
+  environments: GatewayEnvironmentResponse[] = [],
+): GatewayListResponse {
+  const gateways = list.list.map((doc) => gatewayFromDocument(doc, environments));
+  return {
+    gateways,
+    total: list.pagination?.total ?? gateways.length,
+    limit: list.pagination?.limit ?? gateways.length,
+    offset: list.pagination?.offset ?? 0,
+  };
+}
+
+/** The document that registers a self-hosted gateway from the add-gateway form. */
+export function selfHostedGatewayDocument(body: SelfHostedGatewayRequest): GatewayDocument {
+  return {
+    apiVersion: API_VERSION,
+    kind: "Gateway",
+    metadata: { name: body.handle },
+    spec: {
+      displayName: body.displayName,
+      description: body.description,
+      hosting: "SELF_HOSTED",
+      endpoint: body.endpoints[0],
+      isCritical: body.isCritical,
+      properties: body.properties,
+    },
+  };
+}
+
 export async function listGateways(
-  params: ListGatewaysPathParams,
+  _params: ListGatewaysPathParams,
   query?: ListGatewaysQuery,
   getToken?: () => Promise<string>,
-): Promise<GatewayListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<GatewayDocumentList> {
   const token = getToken ? await getToken() : undefined;
 
   const searchParams: Record<string, string> = {};
@@ -70,11 +138,11 @@ export async function listGateways(
   if (query?.status) {
     searchParams.status = query.status;
   }
-  if (query?.environment) {
-    searchParams.environment = query.environment;
+  if (query?.hosting) {
+    searchParams.hosting = query.hosting;
   }
 
-  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/gateways`, {
+  const res = await httpGET(GATEWAYS, {
     token,
     searchParams: Object.keys(searchParams).length ? searchParams : undefined,
   });
@@ -82,53 +150,50 @@ export async function listGateways(
   return res.json();
 }
 
-export async function createGateway(
-  params: CreateGatewayPathParams,
-  body: CreateGatewayRequest,
-  getToken?: () => Promise<string>,
-): Promise<GatewayResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/gateways`,
-    body,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
 export async function getGateway(
   params: GetGatewayPathParams,
   getToken?: () => Promise<string>,
-): Promise<GatewayResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
+): Promise<GatewayDocument> {
   const id = encodeRequired(params.gatewayId, "gatewayId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}`,
-    { token },
-  );
+  const res = await httpGET(`${GATEWAYS}/${id}`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
-export async function updateGateway(
-  params: UpdateGatewayPathParams,
-  body: UpdateGatewayRequest,
+export async function createSelfHostedGateway(
+  _params: CreateSelfHostedGatewayPathParams,
+  body: SelfHostedGatewayRequest,
   getToken?: () => Promise<string>,
-): Promise<GatewayResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.gatewayId, "gatewayId");
+): Promise<GatewayDocument> {
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPUT(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}`,
-    body,
-    { token },
-  );
+  const res = await httpPOST(GATEWAYS, selfHostedGatewayDocument(body), { token });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+/**
+ * A PUT replaces the gateway's editable fields, so the stored document is read and the changes
+ * laid over it.
+ */
+export async function updateSelfHostedGateway(
+  params: UpdateSelfHostedGatewayPathParams,
+  body: SelfHostedGatewayUpdateRequest,
+  getToken?: () => Promise<string>,
+): Promise<GatewayDocument> {
+  const id = encodeRequired(params.gatewayId, "gatewayId");
+  const current = await getGateway(params, getToken);
+  const token = getToken ? await getToken() : undefined;
+
+  const doc: GatewayDocument = {
+    apiVersion: API_VERSION,
+    kind: "Gateway",
+    metadata: { name: current.metadata.name },
+    spec: { ...current.spec, ...body, displayName: body.displayName ?? current.spec.displayName },
+  };
+  const res = await httpPUT(`${GATEWAYS}/${id}`, doc, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -137,80 +202,26 @@ export async function deleteGateway(
   params: DeleteGatewayPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.gatewayId, "gatewayId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}`,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-}
-
-export interface AssignGatewayToEnvironmentParams {
-  orgName: string;
-  gatewayId: string;
-  envId: string;
-}
-
-export async function assignGatewayToEnvironment(
-  params: AssignGatewayToEnvironmentParams,
-  getToken?: () => Promise<string>,
-): Promise<GatewayResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const gatewayId = encodeRequired(params.gatewayId, "gatewayId");
-  const envId = encodeRequired(params.envId, "envId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${gatewayId}/environments/${envId}`,
-    {},
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
-export interface RemoveGatewayFromEnvironmentParams {
-  orgName: string;
-  gatewayId: string;
-  envId: string;
-}
-
-export async function removeGatewayFromEnvironment(
-  params: RemoveGatewayFromEnvironmentParams,
-  getToken?: () => Promise<string>,
-): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const gatewayId = encodeRequired(params.gatewayId, "gatewayId");
-  const envId = encodeRequired(params.envId, "envId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${gatewayId}/environments/${envId}`,
-    { token },
-  );
+  const res = await httpDELETE(`${GATEWAYS}/${id}`, { token });
   if (!res.ok) throw await res.json();
 }
 
 export interface ListGatewayTokensParams {
-  orgName: string;
-  gatewayId: string;
+  orgName: string | undefined;
+  gatewayId: string | undefined;
 }
 
 export async function listGatewayTokens(
   params: ListGatewayTokensParams,
   getToken?: () => Promise<string>,
 ): Promise<GatewayTokenListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.gatewayId, "gatewayId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/tokens`,
-    { token },
-  );
+  const res = await httpGET(`${GATEWAYS}/${id}/tokens`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -219,83 +230,52 @@ export async function rotateGatewayToken(
   params: ListGatewayTokensParams,
   getToken?: () => Promise<string>,
 ): Promise<GatewayTokenResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.gatewayId, "gatewayId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/tokens`,
-    {},
-    { token },
-  );
+  const res = await httpPOST(`${GATEWAYS}/${id}/tokens`, {}, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
-export interface RevokeGatewayTokenParams {
-  orgName: string;
-  gatewayId: string;
-  tokenId: string;
+export interface RevokeGatewayTokenParams extends ListGatewayTokensParams {
+  tokenId: string | undefined;
 }
 
 export async function revokeGatewayToken(
   params: RevokeGatewayTokenParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.gatewayId, "gatewayId");
   const tokenId = encodeRequired(params.tokenId, "tokenId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/tokens/${tokenId}`,
-    { token },
-  );
+  const res = await httpDELETE(`${GATEWAYS}/${id}/tokens/${tokenId}`, { token });
   if (!res.ok && res.status !== 204) throw await res.json();
 }
 
 export async function listIdentityProviders(
-  params: ListIdentityProvidersPathParams,
+  _params: ListIdentityProvidersPathParams,
   getToken?: () => Promise<string>,
 ): Promise<IdentityProviderListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/identity-providers`, {
-    token,
-  });
+  const res = await httpGET(`${GATEWAY_BASE}/identity-providers`, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
 export async function discoverOidc(
-  params: DiscoverOidcPathParams,
+  _params: DiscoverOidcPathParams,
   query: DiscoverOidcQuery,
   getToken?: () => Promise<string>,
 ): Promise<OidcDiscoveryResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/identity-providers/discover`, {
+  const res = await httpGET(`${GATEWAY_BASE}/identity-providers/discover`, {
     token,
     searchParams: { url: query.url },
   });
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
-export async function listEnvironmentIdentityProviders(
-  params: ListEnvironmentIdentityProvidersPathParams,
-  getToken?: () => Promise<string>,
-): Promise<IdentityProviderListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const envId = encodeRequired(params.environmentId, "environmentId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/environments/${envId}/identity-providers`,
-    { token },
-  );
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -305,16 +285,11 @@ export async function upsertIdentityProvider(
   body: UpsertIdentityProviderRequest,
   getToken?: () => Promise<string>,
 ): Promise<IdentityProvider> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.gatewayId, "gatewayId");
   const name = encodeRequired(params.name, "name");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPUT(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/identity-providers/${name}`,
-    body,
-    { token },
-  );
+  const res = await httpPUT(`${GATEWAYS}/${id}/identity-providers/${name}`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -323,114 +298,10 @@ export async function deleteIdentityProvider(
   params: DeleteIdentityProviderPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
   const id = encodeRequired(params.gatewayId, "gatewayId");
   const name = encodeRequired(params.name, "name");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/identity-providers/${name}`,
-    { token },
-  );
-  if (!res.ok && res.status !== 204) throw await res.json();
-}
-
-export async function createSelfHostedGateway(
-  params: CreateSelfHostedGatewayPathParams,
-  body: SelfHostedGatewayRequest,
-  getToken?: () => Promise<string>,
-): Promise<GatewayResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways`,
-    body,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
-export async function updateSelfHostedGateway(
-  params: UpdateSelfHostedGatewayPathParams,
-  body: SelfHostedGatewayUpdateRequest,
-  getToken?: () => Promise<string>,
-): Promise<GatewayResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.gatewayId, "gatewayId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpPUT(
-    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}`,
-    body,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
-export async function deleteSelfHostedGateway(
-  params: DeleteSelfHostedGatewayPathParams,
-  getToken?: () => Promise<string>,
-): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.gatewayId, "gatewayId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}`,
-    { token },
-  );
-  if (!res.ok && res.status !== 204) throw await res.json();
-}
-
-export async function listSelfHostedGatewayTokens(
-  params: SelfHostedGatewayTokensPathParams,
-  getToken?: () => Promise<string>,
-): Promise<GatewayTokenListResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.gatewayId, "gatewayId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpGET(
-    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens`,
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
-/** The token value is returned only in this response. */
-export async function createSelfHostedGatewayToken(
-  params: SelfHostedGatewayTokensPathParams,
-  getToken?: () => Promise<string>,
-): Promise<GatewayTokenResponse> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.gatewayId, "gatewayId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpPOST(
-    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens`,
-    {},
-    { token },
-  );
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
-export async function revokeSelfHostedGatewayToken(
-  params: RevokeSelfHostedGatewayTokenPathParams,
-  getToken?: () => Promise<string>,
-): Promise<void> {
-  const org = encodeRequired(params.orgName, "orgName");
-  const id = encodeRequired(params.gatewayId, "gatewayId");
-  const tokenId = encodeRequired(params.tokenId, "tokenId");
-  const token = getToken ? await getToken() : undefined;
-
-  const res = await httpDELETE(
-    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens/${tokenId}`,
-    { token },
-  );
+  const res = await httpDELETE(`${GATEWAYS}/${id}/identity-providers/${name}`, { token });
   if (!res.ok && res.status !== 204) throw await res.json();
 }

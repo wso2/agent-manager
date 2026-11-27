@@ -44,7 +44,7 @@ func manifestModules(g Gomega) []string {
 }
 
 func gatewaysStatus(g Gomega) int {
-	status, _ := framework.Send(g, Client, http.MethodGet, framework.GW(Cfg, "/gateways"), nil)
+	status, _ := framework.Send(g, Client, http.MethodGet, framework.AIGW("/gateways"), nil)
 	return status
 }
 

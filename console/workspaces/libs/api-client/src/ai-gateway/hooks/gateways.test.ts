@@ -33,14 +33,15 @@ vi.mock("../../acp-core/hooks/telemetry", () => ({
 }));
 vi.mock("../apis/gateways", () => ({
   updateSelfHostedGateway: vi.fn(async () => ({})),
-  deleteSelfHostedGateway: vi.fn(async () => undefined),
-  createSelfHostedGatewayToken: vi.fn(async () => ({})),
-  revokeSelfHostedGatewayToken: vi.fn(async () => undefined),
+  gatewayFromDocument: vi.fn(() => ({})),
+  deleteGateway: vi.fn(async () => undefined),
+  rotateGatewayToken: vi.fn(async () => ({})),
+  revokeGatewayToken: vi.fn(async () => undefined),
 }));
 
 import {
   useCreateSelfHostedGatewayToken,
-  useDeleteSelfHostedGateway,
+  useDeleteGateway,
   useRevokeSelfHostedGatewayToken,
   useUpdateSelfHostedGateway,
 } from "./gateways";
@@ -84,7 +85,7 @@ describe("self-hosted gateway mutations", () => {
   });
 
   it("delete invalidates the list and detail views, not tokens", async () => {
-    expect(await invalidatedAfter(useDeleteSelfHostedGateway, params))
+    expect(await invalidatedAfter(useDeleteGateway, params))
       .toEqual(["gateways", "gateway"]);
   });
 

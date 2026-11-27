@@ -50,7 +50,7 @@ func gwIdPNames(list gwspec.IdentityProviderListResponse) []string {
 func TestGWRoutesGatewayIdentityProviders(t *testing.T) {
 	a := newRouteAPI(t)
 	gw := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleIngress)
-	base := "/orgs/{org}/gateways/" + gw.UUID.String() + "/identity-providers"
+	base := "/gateways/" + gw.UUID.String() + "/identity-providers"
 
 	p := expectInto[gwspec.IdentityProvider](t, a.do(http.MethodPut, base+"/corp-idp", gwIdPBody("https://idp.example.com")), http.StatusOK)
 	require.Equal(t, "corp-idp", p.Name)
@@ -61,7 +61,7 @@ func TestGWRoutesGatewayIdentityProviders(t *testing.T) {
 	require.Equal(t, "idp at https://idp.example.com", *p.Description)
 
 	// Upserting again replaces it; the gateway can be named instead of its id.
-	p = expectInto[gwspec.IdentityProvider](t, a.do(http.MethodPut, "/orgs/{org}/gateways/"+gw.Name+"/identity-providers/corp-idp",
+	p = expectInto[gwspec.IdentityProvider](t, a.do(http.MethodPut, "/gateways/"+gw.Name+"/identity-providers/corp-idp",
 		map[string]any{"issuer": "https://idp2.example.com", "jwksUri": "https://idp2.example.com/keys"}), http.StatusOK)
 	require.Equal(t, "https://idp2.example.com", *p.Issuer)
 	require.False(t, *p.SkipTlsVerify)
@@ -81,7 +81,7 @@ func TestGWRoutesGatewayIdentityProviders(t *testing.T) {
 	}
 
 	// The organization-wide list names the gateway and the environment.
-	org := expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, "/orgs/{org}/identity-providers", nil), http.StatusOK)
+	org := expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, "/identity-providers", nil), http.StatusOK)
 	require.EqualValues(t, 2, org.Count)
 	for _, item := range org.List {
 		require.Equal(t, gw.UUID.String(), *item.GatewayId)
@@ -90,10 +90,7 @@ func TestGWRoutesGatewayIdentityProviders(t *testing.T) {
 		require.Equal(t, gwmodels.DefaultEnvironmentName, *item.EnvironmentName)
 	}
 
-	// The environment's providers are those of its gateways.
-	env := expectInto[gwspec.IdentityProviderListResponse](t,
-		a.do(http.MethodGet, "/orgs/{org}/environments/default/identity-providers", nil), http.StatusOK)
-	require.ElementsMatch(t, []string{"corp-idp", "ThunderKeyManager"}, gwIdPNames(env))
+	require.ElementsMatch(t, []string{"corp-idp", "ThunderKeyManager"}, gwIdPNames(org))
 
 	// A system provider cannot be deleted.
 	rec := a.do(http.MethodDelete, base+"/ThunderKeyManager", nil)
@@ -114,7 +111,7 @@ func TestGWRoutesGatewayIdentityProviders(t *testing.T) {
 func TestGWRoutesIdentityProviderRejections(t *testing.T) {
 	a := newRouteAPI(t)
 	gw := gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleIngress)
-	base := "/orgs/{org}/gateways/" + gw.UUID.String() + "/identity-providers"
+	base := "/gateways/" + gw.UUID.String() + "/identity-providers"
 
 	rec := a.do(http.MethodPut, base+"/corp-idp", "{bad")
 	require.Equal(t, http.StatusBadRequest, rec.Code)
@@ -130,15 +127,15 @@ func TestGWRoutesIdentityProviderRejections(t *testing.T) {
 	// Unknown, foreign and self-hosted gateways are all not found.
 	other := newRouteAPI(t)
 	foreign := gwtest.Gateway(t, other.db, other.org, gwmodels.GatewayRoleIngress)
-	self := gwRegisterSelfHosted(t, a, unique("sh"))
-	for _, id := range []string{uuid.NewString(), "no-such-gateway", foreign.UUID.String(), self.Uuid} {
-		path := "/orgs/{org}/gateways/" + id + "/identity-providers"
+	self := gwRegisterUID(t, a, unique("sh"))
+	for _, id := range []string{uuid.NewString(), "no-such-gateway", foreign.UUID.String(), self} {
+		path := "/gateways/" + id + "/identity-providers"
 		rec = a.do(http.MethodPut, path+"/corp-idp", gwIdPBody("https://idp.example.com"))
 		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
 		require.Equal(t, "Gateway not found", errorMessage(t, rec))
 		rec = a.do(http.MethodDelete, path+"/corp-idp", nil)
 		require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
-		if id != self.Uuid {
+		if id != self {
 			rec = a.do(http.MethodGet, path, nil)
 			require.Equal(t, http.StatusNotFound, rec.Code, "%s: %s", id, rec.Body.String())
 		}
@@ -146,11 +143,11 @@ func TestGWRoutesIdentityProviderRejections(t *testing.T) {
 
 	// The self-hosted gateway's providers can be listed, though not written.
 	list := expectInto[gwspec.IdentityProviderListResponse](t,
-		a.do(http.MethodGet, "/orgs/{org}/gateways/"+self.Uuid+"/identity-providers", nil), http.StatusOK)
+		a.do(http.MethodGet, "/gateways/"+self+"/identity-providers", nil), http.StatusOK)
 	require.EqualValues(t, 0, list.Count)
 
 	// An organization with no providers lists none.
-	org := expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, "/orgs/{org}/identity-providers", nil), http.StatusOK)
+	org := expectInto[gwspec.IdentityProviderListResponse](t, a.do(http.MethodGet, "/identity-providers", nil), http.StatusOK)
 	require.EqualValues(t, 0, org.Count)
 	require.Empty(t, org.List)
 }
@@ -159,12 +156,12 @@ func TestGWRoutesIdentityProviderRejections(t *testing.T) {
 func TestGWRoutesDiscoverOidcConfiguration(t *testing.T) {
 	a := newRouteAPI(t)
 
-	rec := a.do(http.MethodGet, "/orgs/{org}/identity-providers/discover", nil)
+	rec := a.do(http.MethodGet, "/identity-providers/discover", nil)
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	require.Equal(t, "Query parameter 'url' is required", errorMessage(t, rec))
 
 	for _, u := range []string{"not-a-url", "http://127.0.0.1:9000", "http://169.254.169.254/latest", "http://localhost/realms/x"} {
-		rec = a.do(http.MethodGet, "/orgs/{org}/identity-providers/discover?url="+u, nil)
+		rec = a.do(http.MethodGet, "/identity-providers/discover?url="+u, nil)
 		require.Equal(t, http.StatusBadRequest, rec.Code, "%s: %s", u, rec.Body.String())
 		require.Equal(t, "Could not discover OIDC configuration from the provided URL", errorMessage(t, rec))
 	}

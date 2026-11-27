@@ -23,8 +23,6 @@ import {
   Form,
   FormControl,
   FormLabel,
-  MenuItem,
-  Select,
   Stack,
   TextField,
   Typography,
@@ -39,9 +37,8 @@ import {
 import {
   useCreateSelfHostedGateway,
   useCreateSelfHostedGatewayToken,
-  useListEnvironments,
 } from "@agent-management-platform/api-client";
-import { getErrorMessage, onlyEnvironmentName } from "@agent-management-platform/shared-component";
+import { getErrorMessage } from "@agent-management-platform/shared-component";
 import type { GatewayResponse } from "@agent-management-platform/types";
 import {
   addSelfHostedGatewaySchema,
@@ -61,7 +58,6 @@ interface AddSelfHostedGatewayDrawerProps {
 const EMPTY_FORM: AddSelfHostedGatewayFormValues = {
   displayName: "",
   name: "",
-  environment: "",
   publicUrl: "",
   description: "",
 };
@@ -86,7 +82,6 @@ export function AddSelfHostedGatewayDrawer({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedGateway | null>(null);
 
-  const { data: environments } = useListEnvironments({ orgName: orgId });
   const { mutateAsync: createGateway, isPending: creating } = useCreateSelfHostedGateway();
   const { mutateAsync: createToken, isPending: minting } = useCreateSelfHostedGatewayToken();
   const isPending = creating || minting;
@@ -103,15 +98,9 @@ export function AddSelfHostedGatewayDrawer({
     setCreated(null);
   }, [open, clearErrors]);
 
-  // With a single environment there is nothing to choose: the field is hidden
-  // and the form uses that environment (see onlyEnvironmentName).
-  const onlyEnvironment = onlyEnvironmentName(environments);
-  const withEnvironment = (form: AddSelfHostedGatewayFormValues) =>
-    form.environment || !onlyEnvironment ? form : { ...form, environment: onlyEnvironment };
-
   const update = (next: AddSelfHostedGatewayFormValues) => {
     setValues(next);
-    if (submitted) validateForm(withEnvironment(next));
+    if (submitted) validateForm(next);
   };
 
   const setField = (field: keyof AddSelfHostedGatewayFormValues, value: string) =>
@@ -131,10 +120,9 @@ export function AddSelfHostedGatewayDrawer({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    const submittedValues = withEnvironment(values);
-    if (!validateForm(submittedValues)) return;
+    if (!validateForm(values)) return;
     setSubmitError(null);
-    const { displayName, name, environment, publicUrl, description } = submittedValues;
+    const { displayName, name, publicUrl, description } = values;
 
     let gateway: GatewayResponse;
     try {
@@ -144,9 +132,7 @@ export function AddSelfHostedGatewayDrawer({
           displayName: displayName.trim(),
           handle: name.trim(),
           description: description.trim() || undefined,
-          environment,
           endpoints: [publicUrl.trim()],
-          functionalityType: "ai",
         },
       });
     } catch (err) {
@@ -237,30 +223,6 @@ export function AddSelfHostedGatewayDrawer({
                       disabled={isPending}
                     />
                   </FormControl>
-                  {!onlyEnvironment && (
-                  <FormControl fullWidth error={Boolean(errors.environment)}>
-                    <FormLabel required>Environment</FormLabel>
-                    <Select
-                      size="small"
-                      value={values.environment}
-                      onChange={(e) => setField("environment", String(e.target.value))}
-                      displayEmpty
-                      disabled={isPending}
-                      inputProps={{ "aria-label": "Environment" }}
-                    >
-                      {(environments ?? []).map((env) => (
-                        <MenuItem key={env.name} value={env.name}>
-                          {env.displayName || env.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                    {errors.environment && (
-                      <Typography variant="caption" color="error">
-                        {errors.environment}
-                      </Typography>
-                    )}
-                  </FormControl>
-                  )}
                   <FormControl fullWidth error={Boolean(errors.publicUrl)}>
                     <FormLabel required>Public URL</FormLabel>
                     <TextField

@@ -91,9 +91,6 @@ func (rr *RouteRegistrar) HandleModuleRoute(pattern string, perm rbac.Permission
 		handler = authz(handler)
 	}
 	if policy.OrgOverride != nil {
-		if !strings.Contains(pattern, orgNamePlaceholder) {
-			panic("middleware: an org-override route must be org-scoped: " + pattern)
-		}
 		handler = policy.OrgOverride(handler)
 	}
 	handler = resolveOrgFromToken()(handler)

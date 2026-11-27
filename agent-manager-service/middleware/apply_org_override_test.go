@@ -63,6 +63,13 @@ func serveOverride(t *testing.T, header string, lookup OUHandleLookup) overrideO
 // serveOverrideAt is serveOverride with pathOrg as the {orgName} path segment.
 func serveOverrideAt(t *testing.T, pathOrg, header string, lookup OUHandleLookup) overrideOutcome {
 	t.Helper()
+	return serveOverrideOn(t, "PUT /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}",
+		"/orgs/"+pathOrg+"/projects/p1/mcp-proxies/h1", header, lookup)
+}
+
+// serveOverrideOn runs a request to target through pattern.
+func serveOverrideOn(t *testing.T, pattern, target, header string, lookup OUHandleLookup) overrideOutcome {
+	t.Helper()
 
 	var logBuf bytes.Buffer
 	prev := slog.Default()
@@ -76,14 +83,13 @@ func serveOverrideAt(t *testing.T, pathOrg, header string, lookup OUHandleLookup
 		w.WriteHeader(http.StatusOK)
 	}
 
-	pattern := "PUT /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}"
 	meta := audit.NewRouteMeta(pattern, audit.ExtractPathParams(pattern), []rbac.Permission{rbac.ProjectUpdate})
 	rec := &captureRecorder{}
 	handler := WithAudit(rec, meta)(RequireOrgMatch(stubResolver{})(ApplyOrgOverride(lookup)(next)))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(pattern, handler)
-	req := httptest.NewRequest(http.MethodPut, "/orgs/"+pathOrg+"/projects/p1/mcp-proxies/h1", nil)
+	req := httptest.NewRequest(http.MethodPut, target, nil)
 	if header != "" {
 		req.Header.Set(HeaderImpersonateOrg, header)
 	}
@@ -275,6 +281,18 @@ func TestApplyOrgOverride_OwnOrg_PathChecked(t *testing.T) {
 	assertDenied(t, out, "org-override-path-mismatch")
 }
 
+// A route without {orgName} takes the org from the header alone; the override is applied and audited.
+func TestApplyOrgOverride_PathWithoutOrg_Applied(t *testing.T) {
+	installOrgOverrideResolver(t, trustingResolver)
+	lookup, _ := staticLookup(overrideTargetHandle, nil)
+
+	out := serveOverrideOn(t, "PUT /mcp-proxies/{proxyId}", "/mcp-proxies/h1", overrideTargetOUID, lookup)
+	require.Equal(t, http.StatusOK, out.status)
+	assert.Equal(t, overrideTargetOUID, out.resolved.OUID)
+	assert.Equal(t, overrideTargetHandle, out.resolved.OuHandle)
+	assert.NotNil(t, findEvent(out.events, audit.ActionAuthzOrgOverride), "the switch is audited")
+}
+
 // A request without the header keeps today's behavior: the token decides the org, whatever the path says.
 func TestApplyOrgOverride_NoHeader_PathNotChecked(t *testing.T) {
 	installOrgOverrideResolver(t, trustingResolver)
@@ -290,9 +308,8 @@ func TestApplyOrgOverride_NoHeader_PathNotChecked(t *testing.T) {
 func TestHandleModuleRouteOrgOverride(t *testing.T) {
 	installOrgOverrideResolver(t, func(r *http.Request) (string, bool) { return ImpersonatedOrgHeader(r) })
 	lookup, _ := staticLookup(overrideTargetHandle, nil)
-	serve := func(override bool) ResolvedOrg {
+	serve := func(override bool, pattern, target string) ResolvedOrg {
 		var got ResolvedOrg
-		pattern := "GET /m/t/orgs/{orgName}/x"
 		policy := ModuleRoutePolicy{}
 		if override {
 			policy.OrgOverride = ApplyOrgOverride(lookup)
@@ -303,7 +320,7 @@ func TestHandleModuleRouteOrgOverride(t *testing.T) {
 			got, _ = GetResolvedOrg(r.Context())
 			w.WriteHeader(http.StatusOK)
 		})
-		req := httptest.NewRequest(http.MethodGet, "/m/t/orgs/"+overrideTargetHandle+"/x", nil)
+		req := httptest.NewRequest(http.MethodGet, target, nil)
 		req.Header.Set(HeaderImpersonateOrg, overrideTargetOUID)
 		claims := &jwtassertion.TokenClaims{
 			Sub: overrideClientID, ClientID: overrideClientID,
@@ -314,6 +331,8 @@ func TestHandleModuleRouteOrgOverride(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code)
 		return got
 	}
-	assert.Equal(t, overrideTargetOUID, serve(true).OUID, "the override switches the route's org")
-	assert.Equal(t, overrideTokenOUID, serve(false).OUID, "without the option the token's org stands")
+	named, namedTarget := "GET /m/t/orgs/{orgName}/x", "/m/t/orgs/"+overrideTargetHandle+"/x"
+	assert.Equal(t, overrideTargetOUID, serve(true, named, namedTarget).OUID, "the override switches the route's org")
+	assert.Equal(t, overrideTokenOUID, serve(false, named, namedTarget).OUID, "without the option the token's org stands")
+	assert.Equal(t, overrideTargetOUID, serve(true, "GET /m/t/x", "/m/t/x").OUID, "a route without {orgName} can allow it too")
 }

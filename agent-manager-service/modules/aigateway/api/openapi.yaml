@@ -141,91 +141,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/environments/{envID}/gateways:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-      - name: envID
-        in: path
-        required: true
-        description: Environment UUID or name
-        schema:
-          type: string
-
-    get:
-      tags:
-        - Environments
-      summary: Get environment gateways
-      description: |
-        List all gateways mapped to a specific environment.
-
-        This endpoint returns all gateways that are available in this environment,
-        useful for understanding which gateways can be used by agents in this environment.
-      operationId: getEnvironmentGateways
-      responses:
-        "200":
-          description: Successfully retrieved gateway list
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  gateways:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/GatewayResponse"
-        "400":
-          description: Bad request - invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/gateways:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-
+  /gateways:
     get:
       tags:
         - Gateways
-      summary: List all gateways
-      description: |
-        Retrieve a paginated list of all gateways for the organization.
-
-        Supports filtering by gateway type, status, and environment.
+      summary: List gateways
+      description: Lists the organization's gateways, managed and self-hosted, as Gateway documents.
       operationId: listGateways
       parameters:
         - name: limit
@@ -260,16 +181,14 @@ paths:
             enum:
               - ACTIVE
               - INACTIVE
-              - PROVISIONING
-              - ERROR
-        - name: environment
+        - name: hosting
           in: query
-          description: Filter by environment name
+          description: Filter by who runs the gateway.
           schema:
-            type: string
+            $ref: "#/components/schemas/GatewayHosting"
       responses:
         "200":
-          description: Successfully retrieved gateway list
+          description: A page of gateways
           content:
             application/json:
               schema:
@@ -296,36 +215,28 @@ paths:
     post:
       tags:
         - Gateways
-      summary: Register a new gateway
+      summary: Register a self-hosted gateway
       description: |
-        Register a new AI gateway with the platform.
-
-        **Gateway Types:**
-        - REGULAR: Handles incoming API traffic
-        - AI: Handles outgoing LLM/MCP traffic (used for AI agents)
-
-        **Security Note:**
-        - Gateway credentials are encrypted before storage
-        - Credentials are never returned in API responses
-        - Use a strong encryption key configured in GATEWAY_ENCRYPTION_KEY
-
-        A gateway serves exactly one environment: `environmentIds` takes at most one environment.
+        Registers a gateway the organization runs itself, in the organization's default environment.
+        Managed gateways are provisioned by the platform and cannot be created here: `spec.hosting`
+        must be absent or `SELF_HOSTED`. `spec.endpoint` is the gateway's base http or https URL, and
+        `spec.type`, when given, must be `EGRESS`.
       operationId: registerGateway
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateGatewayRequest"
+              $ref: "#/components/schemas/GatewayRegistrationDocument"
       responses:
         "201":
-          description: Gateway registered successfully
+          description: Gateway registered
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GatewayResponse"
+                $ref: "#/components/schemas/GatewayDocument"
         "400":
-          description: Bad request - invalid parameters
+          description: Bad request - an invalid document, a managed gateway, or an endpoint that is not a base URL
           content:
             application/json:
               schema:
@@ -337,17 +248,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: >-
-            Forbidden - insufficient permissions, or `orgId` names an organization other than the
-            caller's
+          description: Forbidden - insufficient permissions
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: >-
-            Conflict - the gateway already exists, or `environmentIds` names more than one environment
-            (code `GATEWAY_ENVIRONMENT_FIXED`)
+          description: Conflict - a gateway with this name already exists
           content:
             application/json:
               schema:
@@ -359,17 +266,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/gateways/{gatewayID}:
+  /gateways/{gatewayID}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
       - name: gatewayID
         in: path
         required: true
@@ -380,25 +278,15 @@ paths:
     get:
       tags:
         - Gateways
-      summary: Get gateway details
-      description: |
-        Retrieve detailed information about a specific gateway, including mapped environments.
-
-        **Security Note:** Credentials are never returned in the response.
+      summary: Get a gateway
       operationId: getGateway
       responses:
         "200":
-          description: Successfully retrieved gateway
+          description: The gateway
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GatewayResponse"
-        "400":
-          description: Bad request - invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/GatewayDocument"
         "401":
           description: Unauthorized - invalid or missing authentication
           content:
@@ -406,7 +294,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Resource not found
+          description: Gateway not found
           content:
             application/json:
               schema:
@@ -421,38 +309,28 @@ paths:
     put:
       tags:
         - Gateways
-      summary: Update gateway
+      summary: Update a self-hosted gateway
       description: |
-        Update an existing gateway's properties.
-
-        **Updatable Fields:**
-        - Display name
-        - Critical flag
-        - Status
-        - Adapter configuration
-        - Credentials (re-encrypted on update)
-
-        **Immutable Fields:**
-        - Gateway name
-        - Gateway type
-        - VHost
-        - Organization
+        Replaces the editable fields of a self-hosted gateway: `spec.displayName`, `spec.description`,
+        `spec.isCritical` and `spec.properties`. An absent description or properties is cleared.
+        `metadata.name`, `spec.hosting`, `spec.type` and `spec.endpoint` cannot change, and a managed
+        gateway is read-only.
       operationId: updateGateway
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateGatewayRequest"
+              $ref: "#/components/schemas/GatewayDocument"
       responses:
         "200":
-          description: Gateway updated successfully
+          description: Gateway updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GatewayResponse"
+                $ref: "#/components/schemas/GatewayDocument"
         "400":
-          description: Bad request - invalid parameters
+          description: Bad request - an invalid document, or a change to a fixed field
           content:
             application/json:
               schema:
@@ -463,8 +341,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions, or the gateway is managed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Resource not found
+          description: Gateway not found
           content:
             application/json:
               schema:
@@ -479,173 +363,32 @@ paths:
     delete:
       tags:
         - Gateways
-      summary: Deregister gateway
-      description: |
-        Soft delete a gateway. This will:
-        - Mark the gateway as deleted
-        - Remove all gateway-environment mappings
-        - Preserve gateway data for audit/recovery
-
-        The gateway can be restored if needed by contacting support.
-
-        **Warning:** This operation will affect all environments using this gateway.
+      summary: Deregister a self-hosted gateway
+      description: Deletes a self-hosted gateway and its environment mapping. A managed gateway is read-only.
       operationId: deleteGateway
       responses:
         "204":
-          description: Gateway deregistered successfully
-        "400":
-          description: Bad request - invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          description: Gateway deregistered
         "401":
           description: Unauthorized - invalid or missing authentication
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/gateways/{gatewayID}/environments:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-      - name: gatewayID
-        in: path
-        required: true
-        description: Gateway UUID or name
-        schema:
-          type: string
-
-    get:
-      tags:
-        - Gateway-Environment Mappings
-      summary: Get gateway environments
-      description: |
-        List all environments mapped to a specific gateway.
-
-        This shows which environments can use this gateway for routing traffic.
-      operationId: getGatewayEnvironments
-      responses:
-        "200":
-          description: Successfully retrieved environment list
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  environments:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/GatewayEnvironmentResponse"
-        "400":
-          description: Bad request - invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
+        "403":
+          description: Forbidden - insufficient permissions, or the gateway is managed
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-      - name: gatewayID
-        in: path
-        required: true
-        description: Gateway UUID or name
-        schema:
-          type: string
-      - name: envID
-        in: path
-        required: true
-        description: Environment UUID or name
-        schema:
-          type: string
-
-    post:
-      tags:
-        - Gateway-Environment Mappings
-      summary: Assign gateway to environment
-      description: |
-        Create a mapping between a gateway and an environment.
-
-        This makes the gateway available for use in the specified environment.
-        A gateway serves exactly one environment: once mapped, it can be assigned again only to
-        that same environment, which succeeds without change.
-      operationId: assignGatewayToEnvironment
-      responses:
-        "201":
-          description: Mapping created successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GatewayResponse"
-        "400":
-          description: Bad request - invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Resource not found
+          description: Gateway not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
-          description: >-
-            Conflict - the gateway is already mapped to another environment (code
-            `GATEWAY_ENVIRONMENT_FIXED`), or the environment already has an ingress gateway
+          description: Conflict - resources are still deployed to the gateway
           content:
             application/json:
               schema:
@@ -657,64 +400,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-    delete:
-      tags:
-        - Gateway-Environment Mappings
-      summary: Remove gateway from environment
-      description: |
-        Remove the mapping between a gateway and an environment.
-
-        This makes the gateway unavailable in the specified environment.
-
-        The mapping is not removed while any of the environment's agents, MCP proxies or
-        agent and monitor LLM proxies is deployed, or being deployed, on the gateway.
-        Undeploy them from this gateway first.
-      operationId: removeGatewayFromEnvironment
-      responses:
-        "204":
-          description: Mapping removed successfully
-        "400":
-          description: Bad request - invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Gateway, environment, or mapping not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: The gateway still serves this environment's agents or proxies; undeploy them from this gateway, or remove the LLM configuration from the agents and monitors in this environment, first
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/gateways/{gatewayID}/health:
+  /gateways/{gatewayID}/health:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
       - name: gatewayID
         in: path
         required: true
@@ -767,17 +454,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/gateways/{gatewayID}/tokens:
+  /gateways/{gatewayID}/tokens:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
       - name: gatewayID
         in: path
         required: true
@@ -822,18 +500,14 @@ paths:
         - Gateway Tokens
       summary: Rotate gateway token
       description: |
-        Generate a new authentication token for the gateway and invalidate the old one.
+        Issues a new authentication token for the gateway. A gateway has at most two active tokens.
 
-        **Security Note:**
-        - The new token is only returned once in this response
-        - Store the token securely - it cannot be retrieved later
-        - The old token will be immediately invalidated
-        - Update your gateway configuration with the new token
+        **Rotation does not revoke the old token.** Both stay valid, so the gateway can move to the new
+        token without downtime. Once it uses the new one, revoke the old token with
+        `DELETE /gateways/{gatewayID}/tokens/{tokenID}`. After a suspected compromise, revoke the old
+        token straight away.
 
-        **Use Cases:**
-        - Regular token rotation for security compliance
-        - Token compromise recovery
-        - Periodic security maintenance
+        The token is returned only in this response and cannot be read again.
       operationId: rotateGatewayToken
       requestBody:
         required: false
@@ -842,7 +516,7 @@ paths:
             schema:
               $ref: "#/components/schemas/RotateGatewayTokenRequest"
       responses:
-        "200":
+        "201":
           description: Token rotated successfully
           content:
             application/json:
@@ -868,6 +542,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: >-
+            The gateway already has two active tokens. Revoke one it no longer uses, then retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Gateway not found
           content:
@@ -881,17 +562,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}:
+  /gateways/{gatewayID}/tokens/{tokenID}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
       - name: gatewayID
         in: path
         required: true
@@ -950,406 +622,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/self-hosted-gateways:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-
-    get:
-      tags:
-        - Self-Hosted Gateways
-      summary: List self-hosted gateways
-      description: Retrieve a paginated list of the organization's self-hosted gateways. Managed gateways are not listed.
-      operationId: listSelfHostedGateways
-      parameters:
-        - name: limit
-          in: query
-          description: Maximum number of results to return
-          schema:
-            type: integer
-            format: int32
-            minimum: 1
-            maximum: 100
-            default: 20
-        - name: offset
-          in: query
-          description: Number of results to skip
-          schema:
-            type: integer
-            format: int32
-            minimum: 0
-            default: 0
-      responses:
-        "200":
-          description: Successfully retrieved self-hosted gateway list
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GatewayListResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    post:
-      tags:
-        - Self-Hosted Gateways
-      summary: Register a self-hosted gateway
-      description: |
-        Registers a gateway the customer runs, in the named environment, and binds it there.
-        No cloud infrastructure is created and no token is returned: the gateway becomes active
-        when its own controller connects with a registration token
-        (`POST /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens`).
-
-        The gateway's name is the `handle` given, unique in the organization.
-      operationId: registerSelfHostedGateway
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SelfHostedGatewayRequest"
-      responses:
-        "201":
-          description: Self-hosted gateway registered
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GatewayResponse"
-        "400":
-          description: Bad request - invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Environment not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: A gateway with that handle already exists in the organization
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/self-hosted-gateways/{gatewayID}:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-      - name: gatewayID
-        in: path
-        required: true
-        description: Gateway UUID
-        schema:
-          type: string
-          format: uuid
-
-    get:
-      tags:
-        - Self-Hosted Gateways
-      summary: Get a self-hosted gateway
-      description: Retrieve one self-hosted gateway. A managed gateway is reported as not found.
-      operationId: getSelfHostedGateway
-      responses:
-        "200":
-          description: Successfully retrieved the gateway
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GatewayResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Gateway not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    put:
-      tags:
-        - Self-Hosted Gateways
-      summary: Update a self-hosted gateway
-      description: |
-        Updates a self-hosted gateway's display name, description, criticality and properties.
-        The handle, environment and kind are fixed at registration. A managed gateway is reported as not found.
-      operationId: updateSelfHostedGateway
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SelfHostedGatewayUpdateRequest"
-      responses:
-        "200":
-          description: Gateway updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GatewayResponse"
-        "400":
-          description: Bad request - invalid parameters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Gateway not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    delete:
-      tags:
-        - Self-Hosted Gateways
-      summary: Delete a self-hosted gateway
-      description: Deletes a self-hosted gateway and its environment binding. A managed gateway is reported as not found.
-      operationId: deleteSelfHostedGateway
-      responses:
-        "204":
-          description: Gateway deleted
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Gateway not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: The gateway still has deployments
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-      - name: gatewayID
-        in: path
-        required: true
-        description: Gateway UUID
-        schema:
-          type: string
-          format: uuid
-
-    get:
-      tags:
-        - Self-Hosted Gateways
-      summary: List self-hosted gateway tokens
-      description: Lists the gateway's registration tokens, without their values.
-      operationId: listSelfHostedGatewayTokens
-      responses:
-        "200":
-          description: List of gateway tokens
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GatewayTokenListResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Gateway not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-    post:
-      tags:
-        - Self-Hosted Gateways
-      summary: Generate a self-hosted gateway registration token
-      description: |
-        Issues a new registration token. The token value is returned only in this response.
-        A gateway holds at most two active tokens; a third is refused with 409 until one is revoked.
-      operationId: createSelfHostedGatewayToken
-      responses:
-        "201":
-          description: Token issued
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GatewayTokenResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Gateway not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "409":
-          description: The gateway already holds the maximum of two active tokens
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/self-hosted-gateways/{gatewayID}/tokens/{tokenID}:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-      - name: gatewayID
-        in: path
-        required: true
-        description: Gateway UUID
-        schema:
-          type: string
-          format: uuid
-      - name: tokenID
-        in: path
-        required: true
-        description: Token identifier to revoke
-        schema:
-          type: string
-
-    delete:
-      tags:
-        - Self-Hosted Gateways
-      summary: Revoke a self-hosted gateway token
-      description: |
-        Revokes one registration token. A controller already connected with it keeps its
-        connection until it reconnects.
-      operationId: revokeSelfHostedGatewayToken
-      responses:
-        "204":
-          description: Token revoked
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Gateway or token not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/identity-providers:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
+  /identity-providers:
 
     get:
       tags:
@@ -1382,17 +655,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/identity-providers/discover:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
+  /identity-providers/discover:
 
     get:
       tags:
@@ -1439,17 +702,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/gateways/{gatewayID}/identity-providers:
+  /gateways/{gatewayID}/identity-providers:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
       - name: gatewayID
         in: path
         required: true
@@ -1495,17 +749,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}:
+  /gateways/{gatewayID}/identity-providers/{name}:
     parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
       - name: gatewayID
         in: path
         required: true
@@ -1607,60 +852,6 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Gateway or identity provider not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /orgs/{orgName}/environments/{environmentId}/identity-providers:
-    parameters:
-      - name: orgName
-        in: path
-        required: true
-        description: Organization name/handle
-        schema:
-          type: string
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-      - name: environmentId
-        in: path
-        required: true
-        description: Environment UUID or name
-        schema:
-          type: string
-
-    get:
-      tags:
-        - Gateway Identity Providers
-      summary: List identity providers available in an environment
-      description: |
-        Retrieve the union of identity providers configured on the gateways mapped to
-        an environment. These are the issuer options offered when applying OAuth
-        security to an agent endpoint in this environment. The reserved internal
-        identity provider used for platform trace ingestion is never included.
-      operationId: listEnvironmentIdentityProviders
-      responses:
-        "200":
-          description: List of identity providers available in the environment
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/IdentityProviderListResponse"
-        "401":
-          description: Unauthorized - invalid or missing authentication
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Environment not found
           content:
             application/json:
               schema:
@@ -5890,18 +5081,13 @@ paths:
                 $ref: "#/components/schemas/AgentIdentityScopeListResponse"
         "404":
           description: Environment not found
-  /orgs/{orgName}/gateways/status:
+  /gateways/status:
     get:
       summary: Get the connection status of the organization's gateways
       operationId: getGatewayStatus
       tags:
         - Gateways
       parameters:
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
         - name: gatewayId
           in: query
           required: false
@@ -7325,114 +6511,126 @@ components:
         - message
         - code
 
-    GatewayEnvironmentResponse:
+    GatewayDocument:
       type: object
+      description: A gateway as a document; metadata.name is its name, spec.displayName its label.
       required:
-        - id
-        - name
-        - displayName
-        - dataplaneRef
-        - dnsPrefix
-        - isProduction
-        - createdAt
-        - updatedAt
+        - apiVersion
+        - kind
+        - metadata
+        - spec
       properties:
-        id:
+        apiVersion:
           type: string
-          description: Unique identifier for the environment
-          example: 550e8400-e29b-41d4-a716-446655440000
-        name:
-          type: string
-          description: Unique environment name (lowercase, alphanumeric with hyphens)
-          pattern: "^[a-z0-9-]+$"
-          maxLength: 64
-          example: production
-        displayName:
-          type: string
-          description: Human-readable display name
-          maxLength: 128
-          example: Production Environment
-        description:
-          type: string
-          description: Optional description of the environment
-          example: Production environment for critical AI agents
-        isolationTier:
-          type: string
-          description: Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
           enum:
-            - gvisor
-            - kata
-          example: gvisor
-        dataplaneRef:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
           type: string
-          description: Reference to the dataplane
-          maxLength: 100
-          example: default
-        dnsPrefix:
-          type: string
-          description: DNS prefix for the environment
-          maxLength: 100
-          example: default
-        isProduction:
-          type: boolean
-          description: Whether this is a production environment
-          example: false
-        gateway:
-          description: Gateway configuration with ingress and egress network specs.
+          description: Must match the route; never ignored.
+          enum:
+            - Gateway
+        metadata:
+          $ref: "#/components/schemas/DocumentMetadata"
+        spec:
           $ref: "#/components/schemas/GatewaySpec"
-        createdAt:
+        status:
+          $ref: "#/components/schemas/GatewayDocumentStatus"
+
+    GatewayRegistrationDocument:
+      type: object
+      description: A gateway to register; as GatewayDocument, with spec.endpoint required.
+      required:
+        - apiVersion
+        - kind
+        - metadata
+        - spec
+      properties:
+        apiVersion:
           type: string
-          format: date-time
-          description: Timestamp when the environment was created
-          example: "2026-01-15T10:30:00Z"
-        updatedAt:
+          enum:
+            - ai-control-plane.choreolabs.com/v1
+        kind:
           type: string
-          format: date-time
-          description: Timestamp when the environment was last updated
-          example: "2026-01-20T14:45:00Z"
+          description: Must match the route; never ignored.
+          enum:
+            - Gateway
+        metadata:
+          $ref: "#/components/schemas/DocumentMetadata"
+        spec:
+          $ref: "#/components/schemas/GatewayRegistrationSpec"
+
+    GatewayRegistrationSpec:
+      description: The spec of a gateway to register; spec.endpoint is required.
+      allOf:
+        - $ref: "#/components/schemas/GatewaySpec"
+        - type: object
+          required:
+            - endpoint
 
     GatewaySpec:
       type: object
-      description: Gateway configuration with ingress and egress network specs
+      required:
+        - displayName
       properties:
-        ingress:
-          $ref: "#/components/schemas/GatewayNetworkSpec"
-        egress:
-          $ref: "#/components/schemas/GatewayNetworkSpec"
+        displayName:
+          type: string
+          description: Human-readable display name
+          minLength: 1
+          maxLength: 128
+          example: Edge Gateway
+        description:
+          type: string
+          description: What the gateway is for
+        hosting:
+          $ref: "#/components/schemas/GatewayHosting"
+        type:
+          $ref: "#/components/schemas/GatewayType"
+        endpoint:
+          type: string
+          description: >-
+            Where the gateway is reached: the base http or https URL of a self-hosted gateway, or
+            the virtual host of a managed one. Required to register a gateway; fixed once registered.
+          maxLength: 253
+          example: https://gateway.example.com
+        runtimeUrl:
+          type: string
+          readOnly: true
+          description: >-
+            In-cluster base URL of a managed gateway's runtime, used by sandboxed platform-hosted
+            agents. Absent when none is registered.
+          example: http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893
+        isCritical:
+          type: boolean
+          description: Flag indicating if this is a critical production gateway
+          example: false
+        properties:
+          type: object
+          additionalProperties: true
+          description: Free-form properties of a self-hosted gateway
 
-    GatewayNetworkSpec:
+    GatewayDocumentStatus:
       type: object
-      description: External and internal gateway endpoints
+      readOnly: true
+      description: Observed state. Server-populated and ignored on input.
       properties:
-        external:
-          $ref: "#/components/schemas/GatewayEndpointSpec"
-        internal:
-          $ref: "#/components/schemas/GatewayEndpointSpec"
+        state:
+          $ref: "#/components/schemas/GatewayStatus"
 
-    GatewayEndpointSpec:
+    GatewayListResponse:
       type: object
-      description: Gateway resource endpoint configuration
+      required:
+        - list
       properties:
-        http:
-          $ref: "#/components/schemas/GatewayListenerSpec"
-        https:
-          $ref: "#/components/schemas/GatewayListenerSpec"
-        tls:
-          $ref: "#/components/schemas/GatewayListenerSpec"
-
-    GatewayListenerSpec:
-      type: object
-      description: Gateway listener configuration
-      properties:
-        port:
+        count:
           type: integer
           format: int32
-          description: Port number
-          minimum: 1
-          maximum: 65535
-        host:
-          type: string
-          description: Virtual host for the listener
+          description: Number of items in this page.
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/GatewayDocument"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
 
     UpdateAgentDeploySettingsRequest:
       type: object
@@ -7511,14 +6709,10 @@ components:
       enum:
         - ACTIVE
         - INACTIVE
-        - PROVISIONING
-        - ERROR
       description: |
         Gateway operational status:
-        - ACTIVE: Gateway is operational and ready
-        - INACTIVE: Gateway is registered but not active
-        - PROVISIONING: Gateway is being set up
-        - ERROR: Gateway has encountered an error
+        - ACTIVE: the gateway is connected and ready
+        - INACTIVE: the gateway is registered but not connected
       example: ACTIVE
 
     GatewayHosting:
@@ -7530,79 +6724,6 @@ components:
         Who runs the gateway runtime.
         - MANAGED: the platform provisions and runs it.
         - SELF_HOSTED: the customer runs it and connects it to the platform.
-
-    GatewayResponse:
-      type: object
-      required:
-        - uuid
-        - name
-        - displayName
-        - gatewayType
-        - hosting
-        - vhost
-        - isCritical
-        - status
-        - createdAt
-        - updatedAt
-      properties:
-        uuid:
-          type: string
-          description: Unique identifier for the gateway
-          example: 7c4a8d09-ca3f-4b0a-82e9-2e85b96dd8a7
-        name:
-          type: string
-          description: Unique gateway name (lowercase, alphanumeric with hyphens)
-          pattern: "^[a-z0-9-]+$"
-          maxLength: 64
-          example: ai-gateway-prod
-        displayName:
-          type: string
-          description: Human-readable display name
-          maxLength: 128
-          example: Production AI Gateway
-        gatewayType:
-          $ref: "#/components/schemas/GatewayType"
-        hosting:
-          $ref: "#/components/schemas/GatewayHosting"
-        vhost:
-          type: string
-          description: Virtual host for the gateway
-          maxLength: 253
-          example: api.production.example.com
-        runtimeUrl:
-          type: string
-          description: >-
-            In-cluster base URL of the gateway runtime, used by sandboxed
-            platform-hosted agents. Empty means no internal address is
-            registered and the vhost is used instead. Must carry an explicit
-            port other than 80 or 443 and a cluster-local host.
-          maxLength: 512
-          example: http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893
-        region:
-          type: string
-          description: Deployment region
-          example: us-east-1
-        isCritical:
-          type: boolean
-          description: Flag indicating if this is a critical production gateway
-          example: true
-        status:
-          $ref: "#/components/schemas/GatewayStatus"
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when the gateway was registered
-          example: "2026-01-15T10:30:00Z"
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when the gateway was last updated
-          example: "2026-02-01T08:00:00Z"
-        environments:
-          type: array
-          description: List of environments mapped to this gateway
-          items:
-            $ref: "#/components/schemas/GatewayEnvironmentResponse"
 
     GatewayTokenResponse:
       type: object
@@ -7787,133 +6908,6 @@ components:
           type: string
           description: Optional human-readable description (mirror-only).
 
-    CreateGatewayRequest:
-      type: object
-      required:
-        - name
-        - displayName
-        - gatewayType
-        - vhost
-      properties:
-        name:
-          type: string
-          description: Unique gateway name (lowercase, alphanumeric with hyphens)
-          pattern: "^[a-z0-9-]+$"
-          minLength: 1
-          maxLength: 64
-          example: ai-gateway-prod
-        displayName:
-          type: string
-          description: Human-readable display name
-          minLength: 1
-          maxLength: 128
-          example: Production AI Gateway
-        gatewayType:
-          $ref: "#/components/schemas/GatewayTypeInput"
-        vhost:
-          type: string
-          description: Virtual host for the gateway (FQDN or IP)
-          minLength: 1
-          maxLength: 253
-          example: api.production.example.com
-        runtimeUrl:
-          type: string
-          description: >-
-            In-cluster base URL of the gateway runtime, used by sandboxed
-            platform-hosted agents. Empty means no internal address is
-            registered and the vhost is used instead. Must carry an explicit
-            port other than 80 or 443 and a cluster-local host.
-          maxLength: 512
-          example: http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893
-        region:
-          type: string
-          description: Deployment region (optional)
-          example: us-east-1
-        isCritical:
-          type: boolean
-          description: Flag indicating if this is a critical production gateway
-          default: false
-          example: true
-        environmentIds:
-          type: array
-          description: >-
-            The environment UUID to assign the gateway to during creation. A gateway serves exactly one
-            environment, so at most one is allowed.
-          maxItems: 1
-          items:
-            type: string
-          example:
-            - 550e8400-e29b-41d4-a716-446655440000
-        orgId:
-          type: string
-          description: >-
-            Optional. OU ID of the caller's organization. The organization
-            always comes from the token; a different value is refused with 403.
-          example: 550e8400-e29b-41d4-a716-446655440000
-
-    SelfHostedGatewayRequest:
-      type: object
-      required:
-        - displayName
-        - handle
-        - environment
-        - endpoints
-      properties:
-        displayName:
-          type: string
-          description: Human-readable display name
-          minLength: 1
-          maxLength: 128
-        handle:
-          type: string
-          description: >-
-            The gateway's name, unique in the organization and fixed once created. Lowercase
-            letters, numbers and hyphens, not starting or ending with a hyphen.
-          pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
-          minLength: 3
-          maxLength: 64
-          example: edge-gateway
-        description:
-          type: string
-        environment:
-          type: string
-          description: Name of the environment to bind the gateway to. Must exist.
-        functionalityType:
-          type: string
-          enum:
-            - ai
-          default: ai
-        version:
-          type: string
-          description: Gateway version, `major.minor` or CalVer `YYYY.MM.DD`.
-        isCritical:
-          type: boolean
-        endpoints:
-          type: array
-          minItems: 1
-          description: >-
-            At least one http(s) endpoint URL. The first is the gateway's address.
-          items:
-            type: string
-        properties:
-          type: object
-          additionalProperties: true
-
-    SelfHostedGatewayUpdateRequest:
-      type: object
-      properties:
-        displayName:
-          type: string
-          minLength: 1
-          maxLength: 128
-        description:
-          type: string
-        isCritical:
-          type: boolean
-        properties:
-          type: object
-          additionalProperties: true
-
     RotateGatewayTokenRequest:
       type: object
       properties:
@@ -7923,61 +6917,6 @@ components:
             Optional. OU ID of the caller's organization. The organization
             always comes from the token; a different value is refused with 403.
           example: 550e8400-e29b-41d4-a716-446655440000
-
-    UpdateGatewayRequest:
-      type: object
-      minProperties: 1
-      description: Update request for gateway properties (all fields optional, but at least one must be provided)
-      properties:
-        displayName:
-          type: string
-          description: Updated display name
-          minLength: 1
-          maxLength: 128
-          example: Production AI Gateway (Updated)
-        isCritical:
-          type: boolean
-          description: Updated critical flag
-          example: false
-        runtimeUrl:
-          type: string
-          description: >-
-            In-cluster base URL of the gateway runtime, used by sandboxed
-            platform-hosted agents. Empty means no internal address is
-            registered and the vhost is used instead. Must carry an explicit
-            port other than 80 or 443 and a cluster-local host.
-          maxLength: 512
-          example: http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893
-        status:
-          $ref: "#/components/schemas/GatewayStatus"
-
-    GatewayListResponse:
-      type: object
-      required:
-        - gateways
-        - total
-        - limit
-        - offset
-      properties:
-        gateways:
-          type: array
-          items:
-            $ref: "#/components/schemas/GatewayResponse"
-        total:
-          type: integer
-          format: int32
-          description: Total number of gateways matching the filter
-          example: 5
-        limit:
-          type: integer
-          format: int32
-          description: Number of results per page
-          example: 20
-        offset:
-          type: integer
-          format: int32
-          description: Number of results skipped
-          example: 0
 
     HealthStatusResponse:
       type: object

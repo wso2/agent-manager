@@ -6,7 +6,7 @@
  * in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,30 +17,26 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { GatewayDocument } from "@agent-management-platform/types";
 import { httpDELETE, httpGET, httpPOST, httpPUT } from "../../shared/utils";
 import { describeHttpCases, type HttpMocks } from "../../test-utils/http-cases";
 import {
-  assignGatewayToEnvironment,
-  createGateway,
+  createSelfHostedGateway,
   deleteGateway,
   deleteIdentityProvider,
   discoverOidc,
+  gatewayEnvironment,
+  gatewayFromDocument,
+  gatewayListFromDocuments,
   getGateway,
-  listEnvironmentIdentityProviders,
   listGateways,
   listGatewayTokens,
   listIdentityProviders,
-  removeGatewayFromEnvironment,
   revokeGatewayToken,
   rotateGatewayToken,
-  updateGateway,
-  upsertIdentityProvider,
-  createSelfHostedGateway,
-  createSelfHostedGatewayToken,
-  deleteSelfHostedGateway,
-  listSelfHostedGatewayTokens,
-  revokeSelfHostedGatewayToken,
+  selfHostedGatewayDocument,
   updateSelfHostedGateway,
+  upsertIdentityProvider,
 } from "./gateways";
 
 vi.mock("../../shared/utils", async (importOriginal) => ({
@@ -51,13 +47,24 @@ vi.mock("../../shared/utils", async (importOriginal) => ({
   httpDELETE: vi.fn(),
 }));
 
-const GW = "/m/ai-gateway/orgs/acme/self-hosted-gateways";
+const GW = "/m/ai-gateway/gateways";
 const ID = "3f2c1a9e-0000-4000-8000-000000000001";
 const params = { orgName: "acme", gatewayId: ID };
 const getToken = async () => "jwt";
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const noContent = () => new Response(null, { status: 204 });
+
+const stored: GatewayDocument = {
+  apiVersion: "ai-control-plane.choreolabs.com/v1",
+  kind: "Gateway",
+  metadata: { name: "edge", uid: ID, creationTimestamp: "2026-01-01T00:00:00Z", updateTimestamp: "2026-01-02T00:00:00Z" },
+  spec: {
+    displayName: "Edge", description: "rack 4", hosting: "SELF_HOSTED", type: "EGRESS",
+    endpoint: "https://gw.example.com", isCritical: false, properties: { site: "berlin" },
+  },
+  status: { state: "ACTIVE" },
+};
 
 beforeEach(() => {
   vi.mocked(httpGET).mockReset().mockImplementation(async () => json({}));
@@ -66,47 +73,81 @@ beforeEach(() => {
   vi.mocked(httpDELETE).mockReset().mockImplementation(async () => noContent());
 });
 
-describe("self-hosted gateway API", () => {
-  it("registers a gateway with POST", async () => {
-    const body = { displayName: "Edge", handle: "edge", environment: "dev", endpoints: ["https://gw.example.com"] };
+describe("gateway documents", () => {
+  it("flattens a document for the pages, with the organization's environments", () => {
+    const env = gatewayEnvironment({ id: "e1", name: "default", dataplaneRef: "dp", isProduction: false, createdAt: "t" });
+    expect(gatewayFromDocument(stored, [env])).toEqual({
+      uuid: ID, organizationName: "", name: "edge", displayName: "Edge", description: "rack 4",
+      gatewayType: "EGRESS", hosting: "SELF_HOSTED", vhost: "https://gw.example.com", runtimeUrl: undefined,
+      isCritical: false, properties: { site: "berlin" }, status: "ACTIVE",
+      createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-02T00:00:00Z", environments: [env],
+    });
+    expect(env).toMatchObject({ id: "e1", name: "default", displayName: "default", dnsPrefix: "", updatedAt: "t" });
+  });
+
+  it("defaults the fields a bare document leaves out", () => {
+    const bare = gatewayFromDocument({ ...stored, metadata: { name: "g" }, spec: { displayName: "G" }, status: undefined });
+    expect(bare).toMatchObject({
+      uuid: "", gatewayType: "EGRESS", hosting: "MANAGED", vhost: "", isCritical: false, status: "INACTIVE",
+      createdAt: "", updatedAt: "", environments: [],
+    });
+  });
+
+  it("reads the list envelope", () => {
+    const list = gatewayListFromDocuments({
+      count: 1,
+      list: [stored],
+      pagination: { limit: 20, offset: 0, total: 7 },
+    });
+    expect(list.gateways).toHaveLength(1);
+    expect(list).toMatchObject({ total: 7, limit: 20, offset: 0 });
+    expect(gatewayListFromDocuments({ list: [stored] }))
+      .toMatchObject({ total: 1, limit: 1, offset: 0 });
+  });
+
+  it("builds a self-hosted registration from the add-gateway form", () => {
+    expect(selfHostedGatewayDocument({
+      displayName: "Edge", handle: "edge", endpoints: ["https://gw.example.com"], isCritical: true,
+    })).toEqual({
+      apiVersion: "ai-control-plane.choreolabs.com/v1", kind: "Gateway", metadata: { name: "edge" },
+      spec: {
+        displayName: "Edge", description: undefined, hosting: "SELF_HOSTED", endpoint: "https://gw.example.com",
+        isCritical: true, properties: undefined,
+      },
+    });
+  });
+});
+
+describe("self-hosted gateway writes", () => {
+  it("registers a gateway with a POSTed document", async () => {
+    const body = { displayName: "Edge", handle: "edge", endpoints: ["https://gw.example.com"] };
     await createSelfHostedGateway({ orgName: "acme" }, body, getToken);
-    expect(httpPOST).toHaveBeenCalledWith(GW, body, { token: "jwt" });
+    expect(httpPOST).toHaveBeenCalledWith(GW, selfHostedGatewayDocument(body), { token: "jwt" });
   });
 
-  it("updates a gateway with PUT", async () => {
-    await updateSelfHostedGateway(params, { displayName: "Edge 2" }, getToken);
-    expect(httpPUT).toHaveBeenCalledWith(`${GW}/${ID}`, { displayName: "Edge 2" }, { token: "jwt" });
+  it("updates by laying the changes over the stored document", async () => {
+    vi.mocked(httpGET).mockImplementation(async () => json(stored));
+    await updateSelfHostedGateway(params, { displayName: "Edge 2", isCritical: true }, getToken);
+    expect(httpGET).toHaveBeenCalledWith(`${GW}/${ID}`, { token: "jwt" });
+    expect(httpPUT).toHaveBeenCalledWith(`${GW}/${ID}`, {
+      apiVersion: "ai-control-plane.choreolabs.com/v1", kind: "Gateway", metadata: { name: "edge" },
+      spec: { ...stored.spec, displayName: "Edge 2", isCritical: true },
+    }, { token: "jwt" });
   });
 
-  it("deletes a gateway and accepts 204", async () => {
-    await expect(deleteSelfHostedGateway(params, getToken)).resolves.toBeUndefined();
-    expect(httpDELETE).toHaveBeenCalledWith(`${GW}/${ID}`, { token: "jwt" });
-  });
-
-  it("lists tokens", async () => {
-    await listSelfHostedGatewayTokens(params, getToken);
-    expect(httpGET).toHaveBeenCalledWith(`${GW}/${ID}/tokens`, { token: "jwt" });
-  });
-
-  it("issues a token with POST and returns it", async () => {
-    vi.mocked(httpPOST).mockImplementation(async () => json({ token: "secret", tokenId: "t1" }, 201));
-    const res = await createSelfHostedGatewayToken(params, getToken);
-    expect(httpPOST).toHaveBeenCalledWith(`${GW}/${ID}/tokens`, {}, { token: "jwt" });
-    expect(res.token).toBe("secret");
-  });
-
-  it("revokes a token and accepts 204", async () => {
-    await revokeSelfHostedGatewayToken({ ...params, tokenId: "t1" }, getToken);
-    expect(httpDELETE).toHaveBeenCalledWith(`${GW}/${ID}/tokens/t1`, { token: "jwt" });
+  it("keeps the stored label when the update leaves it out", async () => {
+    vi.mocked(httpGET).mockImplementation(async () => json(stored));
+    await updateSelfHostedGateway(params, { description: "rack 5" }, getToken);
+    const sent = vi.mocked(httpPUT).mock.calls[0][1] as GatewayDocument;
+    expect(sent.spec).toMatchObject({ displayName: "Edge", description: "rack 5" });
   });
 
   it("throws the error body on failure", async () => {
     vi.mocked(httpDELETE).mockImplementation(async () => json({ message: "has deployments" }, 409));
-    await expect(deleteSelfHostedGateway(params, getToken)).rejects.toEqual({ message: "has deployments" });
+    await expect(deleteGateway(params, getToken)).rejects.toEqual({ message: "has deployments" });
   });
 });
 
-const ORG = "/m/ai-gateway/orgs/acme%20corp";
 const gw = { orgName: "acme corp", gatewayId: "gw/1" };
 const httpMocks = {
   GET: vi.mocked(httpGET),
@@ -115,81 +156,56 @@ const httpMocks = {
   DELETE: vi.mocked(httpDELETE),
 } as unknown as HttpMocks;
 
-describeHttpCases("managed gateway API", httpMocks, [
+describeHttpCases("gateway API", httpMocks, [
   {
     name: "listGateways forwards every filter",
     call: () => listGateways({ orgName: "acme corp" }, {
-      limit: 10, offset: 0, type: "managed", status: "ACTIVE", environment: "dev",
-    } as never, getToken),
-    method: "GET", url: `${ORG}/gateways`,
-    searchParams: { limit: "10", offset: "0", type: "managed", status: "ACTIVE", environment: "dev" },
+      limit: 10, offset: 0, type: "EGRESS", status: "ACTIVE", hosting: "SELF_HOSTED",
+    }, getToken),
+    method: "GET", url: GW,
+    searchParams: { limit: "10", offset: "0", type: "EGRESS", status: "ACTIVE", hosting: "SELF_HOSTED" },
   },
   {
     name: "listGateways without filters sends no search params",
     call: () => listGateways({ orgName: "acme corp" }, {}, getToken),
-    method: "GET", url: `${ORG}/gateways`,
+    method: "GET", url: GW,
   },
-  {
-    name: "createGateway",
-    call: () => createGateway({ orgName: "acme corp" }, { name: "edge" } as never, getToken),
-    method: "POST", url: `${ORG}/gateways`, body: { name: "edge" },
-  },
-  { name: "getGateway", call: () => getGateway(gw, getToken), method: "GET", url: `${ORG}/gateways/gw%2F1` },
-  {
-    name: "updateGateway",
-    call: () => updateGateway(gw, { displayName: "Edge" } as never, getToken),
-    method: "PUT", url: `${ORG}/gateways/gw%2F1`, body: { displayName: "Edge" },
-  },
+  { name: "getGateway", call: () => getGateway(gw, getToken), method: "GET", url: `${GW}/gw%2F1` },
   {
     name: "deleteGateway", call: () => deleteGateway(gw, getToken),
-    method: "DELETE", url: `${ORG}/gateways/gw%2F1`, returnsBody: false,
-  },
-  {
-    name: "assignGatewayToEnvironment",
-    call: () => assignGatewayToEnvironment({ ...gw, envId: "dev 1" }, getToken),
-    method: "POST", url: `${ORG}/gateways/gw%2F1/environments/dev%201`, body: {},
-  },
-  {
-    name: "removeGatewayFromEnvironment",
-    call: () => removeGatewayFromEnvironment({ ...gw, envId: "dev 1" }, getToken),
-    method: "DELETE", url: `${ORG}/gateways/gw%2F1/environments/dev%201`, returnsBody: false,
+    method: "DELETE", url: `${GW}/gw%2F1`, returnsBody: false,
   },
   {
     name: "listGatewayTokens", call: () => listGatewayTokens(gw, getToken),
-    method: "GET", url: `${ORG}/gateways/gw%2F1/tokens`,
+    method: "GET", url: `${GW}/gw%2F1/tokens`,
   },
   {
     name: "rotateGatewayToken", call: () => rotateGatewayToken(gw, getToken),
-    method: "POST", url: `${ORG}/gateways/gw%2F1/tokens`, body: {},
+    method: "POST", url: `${GW}/gw%2F1/tokens`, body: {},
   },
   {
     name: "revokeGatewayToken", call: () => revokeGatewayToken({ ...gw, tokenId: "t 1" }, getToken),
-    method: "DELETE", url: `${ORG}/gateways/gw%2F1/tokens/t%201`, returnsBody: false,
+    method: "DELETE", url: `${GW}/gw%2F1/tokens/t%201`, returnsBody: false,
   },
   {
     name: "listIdentityProviders", call: () => listIdentityProviders({ orgName: "acme corp" }, getToken),
-    method: "GET", url: `${ORG}/identity-providers`,
+    method: "GET", url: "/m/ai-gateway/identity-providers",
   },
   {
     name: "discoverOidc passes the discovery URL as a query param",
     call: () => discoverOidc({ orgName: "acme corp" }, { url: "https://idp.example/.well-known" }, getToken),
-    method: "GET", url: `${ORG}/identity-providers/discover`,
+    method: "GET", url: "/m/ai-gateway/identity-providers/discover",
     searchParams: { url: "https://idp.example/.well-known" },
-  },
-  {
-    name: "listEnvironmentIdentityProviders",
-    call: () => listEnvironmentIdentityProviders({ orgName: "acme corp", environmentId: "env/1" }, getToken),
-    method: "GET", url: `${ORG}/environments/env%2F1/identity-providers`,
   },
   {
     name: "upsertIdentityProvider",
     call: () => upsertIdentityProvider({ ...gw, name: "my idp" }, { issuer: "https://idp" } as never, getToken),
-    method: "PUT", url: `${ORG}/gateways/gw%2F1/identity-providers/my%20idp`, body: { issuer: "https://idp" },
+    method: "PUT", url: `${GW}/gw%2F1/identity-providers/my%20idp`, body: { issuer: "https://idp" },
   },
   {
     name: "deleteIdentityProvider",
     call: () => deleteIdentityProvider({ ...gw, name: "my idp" }, getToken),
-    method: "DELETE", url: `${ORG}/gateways/gw%2F1/identity-providers/my%20idp`, returnsBody: false,
+    method: "DELETE", url: `${GW}/gw%2F1/identity-providers/my%20idp`, returnsBody: false,
   },
 ]);
 

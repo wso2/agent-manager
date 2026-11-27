@@ -18,6 +18,7 @@ package gwsvc
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -146,7 +147,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 	})
 }
 
-func TestListSelfHostedGatewaysFiltersByHostingAndOrg(t *testing.T) {
+func TestListGatewaysFiltersByHostingAndOrg(t *testing.T) {
 	var counted, listed gwrepo.GatewayFilterOptions
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		CountWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) (int64, error) {
@@ -160,7 +161,7 @@ func TestListSelfHostedGatewaysFiltersByHostingAndOrg(t *testing.T) {
 	}
 	svc := NewPlatformGatewayService(repo)
 
-	_, err := svc.ListSelfHostedGateways("org-1", 10, 5)
+	_, err := svc.ListGateways(strPtr("org-1"), &GatewayListFilters{Hosting: gwmodels.GatewayHostingSelfHosted}, 10, 5)
 
 	require.NoError(t, err)
 	for _, f := range []gwrepo.GatewayFilterOptions{counted, listed} {
@@ -176,36 +177,58 @@ func storedGateway(hosting, ouID string) *gwmodels.Gateway {
 }
 
 func TestRequireSelfHosted(t *testing.T) {
+	dbDown := errors.New("connection refused")
 	tests := []struct {
 		name    string
 		stored  *gwmodels.Gateway
-		wantErr bool
+		byName  bool
+		repoErr error
+		wantErr error
 	}{
-		{name: "self-hosted", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "org")},
-		{name: "managed", stored: storedGateway(gwmodels.GatewayHostingManaged, "org"), wantErr: true},
-		{name: "other org", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "other"), wantErr: true},
-		{name: "missing", wantErr: true},
+		{name: "self-hosted by UUID", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "org")},
+		{name: "self-hosted by name", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "org"), byName: true},
+		{name: "managed", stored: storedGateway(gwmodels.GatewayHostingManaged, "org"), wantErr: gwerr.ErrGatewayManaged},
+		{name: "other org", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "other"), wantErr: gwerr.ErrGatewayNotFound},
+		{name: "missing", wantErr: gwerr.ErrGatewayNotFound},
+		{name: "repository failure is not a missing gateway", repoErr: dbDown, wantErr: dbDown},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			lookup := func() (*gwmodels.Gateway, error) {
+				if tt.repoErr != nil {
+					return nil, tt.repoErr
+				}
+				if tt.stored == nil {
+					return nil, gwerr.ErrGatewayNotFound
+				}
+				return tt.stored, nil
+			}
 			repo := &gwrepomocks.GatewayRepositoryMock{
-				GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) {
-					if tt.stored == nil {
-						return nil, gwerr.ErrGatewayNotFound
-					}
-					return tt.stored, nil
-				},
+				GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return lookup() },
+				GetByUUIDFunc:         func(string) (*gwmodels.Gateway, error) { return lookup() },
 			}
 			svc := NewPlatformGatewayService(repo)
+			ref := " " + uuid.NewString() + " "
+			if tt.byName {
+				ref = " edge "
+			}
 
-			got, err := svc.RequireSelfHosted(uuid.NewString(), "org")
+			got, err := svc.RequireSelfHosted(ref, "org")
 
-			if tt.wantErr {
-				require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				if tt.repoErr != nil {
+					require.NotErrorIs(t, err, gwerr.ErrGatewayNotFound)
+				}
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.stored, got)
+			if tt.byName {
+				require.Empty(t, repo.GetByUUIDCalls(), "a name is not looked up as a UUID")
+			} else {
+				require.Empty(t, repo.GetByNameAndOrgIDCalls(), "a UUID is looked up only as a UUID")
+			}
 		})
 	}
 }
@@ -226,7 +249,7 @@ func TestRemoveGatewayFromEnvironment_SelfHostedRefused(t *testing.T) {
 func TestIdentityProvider_SelfHostedIsNotFound(t *testing.T) {
 	gw := storedGateway(gwmodels.GatewayHostingSelfHosted, "org")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return gw, nil },
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		// Every other func left nil: a repository mutation panics.
 	}
 	svc := NewPlatformGatewayService(repo)

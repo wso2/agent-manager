@@ -197,35 +197,6 @@ func (c *gatewayController) DeleteGatewayIdentityProvider(w http.ResponseWriter,
 	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
-// ListEnvironmentIdentityProviders lists the identity providers available in an
-// environment (union over the environment's gateways) — the agent OAuth options.
-func (c *gatewayController) ListEnvironmentIdentityProviders(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-	ouID := modkit.OrgID(r.Context())
-	environmentID := strings.TrimSpace(r.PathValue("environmentId"))
-
-	envUUID, err := c.resolveEnvironmentUUID(ctx, ouID, environmentID)
-	if err != nil {
-		log.Error("ListEnvironmentIdentityProviders: failed to resolve environment", "error", err)
-		httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
-		return
-	}
-
-	providers, err := c.gatewayService.ListIdentityProvidersByEnvironment(envUUID)
-	if err != nil {
-		log.Error("ListEnvironmentIdentityProviders: failed to list", "error", err)
-		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list environment identity providers")
-		return
-	}
-
-	specProviders := make([]gwspec.IdentityProvider, 0, len(providers))
-	for _, p := range providers {
-		specProviders = append(specProviders, toSpecIdentityProvider(p))
-	}
-	httpx.WriteSuccessResponse(w, http.StatusOK, identityProviderListResponse(specProviders))
-}
-
 // DiscoverOidcConfiguration fetches an OpenID Connect discovery document for the
 // URL in the `url` query parameter and returns the issuer and JWKS URI, used to
 // auto-populate the Add Identity Provider dialog. Manual entry remains available.

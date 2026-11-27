@@ -175,10 +175,15 @@ describe("ViewGateway details", () => {
     expect(screen.getByText("prod")).toBeInTheDocument();
   });
 
-  it("opens the edit page", () => {
-    renderGateway("MANAGED", { data: detailed });
+  it("opens the edit page of a self-hosted gateway", () => {
+    renderGateway("SELF_HOSTED", { data: { ...detailed, hosting: "SELF_HOSTED" } });
     fireEvent.click(screen.getByRole("button", { name: "Edit gateway" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/org/acme/gateways/edit/gw-1");
+  });
+
+  it("offers no edit for a managed gateway: it is read-only", () => {
+    renderGateway("MANAGED", { data: detailed });
+    expect(screen.queryByRole("button", { name: "Edit gateway" })).not.toBeInTheDocument();
   });
 
   it("offers no edit without gateway write access", () => {
@@ -192,7 +197,7 @@ describe("ViewGateway details", () => {
 
     expect(screen.getByText(/Failed to load gateway\. gateway not found/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "gw-1" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit gateway" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Edit gateway" })).not.toBeInTheDocument();
     expect(screen.queryByText("identity providers card")).not.toBeInTheDocument();
   });
 

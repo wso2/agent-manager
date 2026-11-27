@@ -253,10 +253,10 @@ func unique(prefix string) string { return prefix + "-" + uuid.NewString()[:8] }
 func TestRouteHarnessServesTheGatewayForTheTokensOrg(t *testing.T) {
 	a := newRouteAPI(t)
 
-	list := expect(t, a.do(http.MethodGet, "/orgs/{org}/gateways", nil), http.StatusOK)
-	require.Contains(t, list, "gateways")
-	require.EqualValues(t, 0, list["total"], "a fresh organization has no gateways")
+	list := expect(t, a.do(http.MethodGet, "/gateways", nil), http.StatusOK)
+	require.Contains(t, list, "list")
+	require.EqualValues(t, 0, list["count"], "a fresh organization has no gateways")
 
-	rec := a.do(http.MethodGet, "/orgs/{org}/gateways", nil, withScopes(scope(gwperm.LLMProviderRead)))
+	rec := a.do(http.MethodGet, "/gateways", nil, withScopes(scope(gwperm.LLMProviderRead)))
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }

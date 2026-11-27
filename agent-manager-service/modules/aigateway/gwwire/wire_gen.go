@@ -111,8 +111,6 @@ func Initialize(db *gorm.DB, logger *slog.Logger, coreAPI modkit.CoreAPI, settin
 	agentIdentityController := gwctl.NewAgentIdentityController(identityDirectory, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
 	agentGatewayService := gwsvc.NewAgentGatewayService(db, coreAPI, agentConfigRepository, agentConfigurationService, artifactRepository, aiApplicationService, gatewayRepository, a2APublisher, a2AAgentCardRepository, agentExposurePublisher, logger, permissions, store)
 	agentGatewayController := gwctl.NewAgentGatewayController(agentGatewayService)
-	environmentGatewayService := gwsvc.NewEnvironmentGatewayService(logger, gatewayRepository, coreAPI)
-	environmentGatewayController := gwctl.NewEnvironmentGatewayController(environmentGatewayService)
 	a2ACardReconcilerService := gwsvc.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, coreAPI, logger)
 	deploymentTimeoutSweeper := gwsvc.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, settings)
 	defaultGatewaySeeder := ProvideDefaultGatewaySeeder(settings, platformGatewayService, gatewayRepository, coreAPI, logger)
@@ -134,7 +132,6 @@ func Initialize(db *gorm.DB, logger *slog.Logger, coreAPI modkit.CoreAPI, settin
 		MCPProxyScopeController:      mcpProxyScopeController,
 		AgentIdentityController:      agentIdentityController,
 		AgentGatewayController:       agentGatewayController,
-		EnvironmentGatewayController: environmentGatewayController,
 		A2ACardReconciler:            a2ACardReconcilerService,
 		DeploymentTimeoutSweeper:     deploymentTimeoutSweeper,
 		ReconcileWorker:              worker,
@@ -173,10 +170,10 @@ var repositoryProviderSet = wire.NewSet(
 )
 
 var serviceProviderSet = wire.NewSet(gwsvc.NewA2ACardFetcher, gwsvc.NewA2ACardReconcilerService, gwsvc.NewConfiguredDeploymentTimeoutSweeper, gwsvc.NewA2AAgentCardService, ProvideTxRunner, gwsvc.NewAgentExposurePublisher, gwsvc.NewA2APublisher, gwsvc.NewA2AProxyService, ProvideA2AProxyHooks,
-	ProvidePlatformGatewayService, gwsvc.NewLLMProviderTemplateService, gwsvc.NewLLMProviderService, gwsvc.NewLLMProxyService, gwsvc.NewLLMProviderDeploymentService, gwsvc.NewLLMProviderAPIKeyService, gwsvc.NewLLMProxyAPIKeyService, gwsvc.NewAgentAPIKeyService, gwsvc.NewLLMProxyDeploymentService, gwsvc.NewMCPProxyService, gwsvc.NewIdentityDirectory, gwsvc.NewSubscriptionPlans, gwsvc.NewSubscriptionArtifacts, gwsvc.NewPermissions, gwsecret.NewStore, wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)), wire.Bind(new(modkit.Secrets), new(*gwsecret.Store)), gwsvc.NewMCPProxyScopeService, wire.Bind(new(gwsvc.MCPProxyRedeployer), new(*gwsvc.MCPProxyService)), wire.Bind(new(gwctl.MCPResourceServerIdentifierResolver), new(*gwsvc.MCPProxyService)), gwsvc.NewGatewayInternalAPIService, gwsvc.NewCatalogService, gwsvc.NewAgentConfigurationService, gwsvc.NewLLMTemplateStore, gwsvc.NewAIApplicationService, gwsvc.NewAgentGatewayService, gwsvc.NewEnvironmentGatewayService,
+	ProvidePlatformGatewayService, gwsvc.NewLLMProviderTemplateService, gwsvc.NewLLMProviderService, gwsvc.NewLLMProxyService, gwsvc.NewLLMProviderDeploymentService, gwsvc.NewLLMProviderAPIKeyService, gwsvc.NewLLMProxyAPIKeyService, gwsvc.NewAgentAPIKeyService, gwsvc.NewLLMProxyDeploymentService, gwsvc.NewMCPProxyService, gwsvc.NewIdentityDirectory, gwsvc.NewSubscriptionPlans, gwsvc.NewSubscriptionArtifacts, gwsvc.NewPermissions, gwsecret.NewStore, wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)), wire.Bind(new(modkit.Secrets), new(*gwsecret.Store)), gwsvc.NewMCPProxyScopeService, wire.Bind(new(gwsvc.MCPProxyRedeployer), new(*gwsvc.MCPProxyService)), wire.Bind(new(gwctl.MCPResourceServerIdentifierResolver), new(*gwsvc.MCPProxyService)), gwsvc.NewGatewayInternalAPIService, gwsvc.NewCatalogService, gwsvc.NewAgentConfigurationService, gwsvc.NewLLMTemplateStore, gwsvc.NewAIApplicationService, gwsvc.NewAgentGatewayService,
 )
 
-var controllerProviderSet = wire.NewSet(gwctl.NewGatewayController, gwctl.NewLLMController, gwctl.NewLLMDeploymentController, gwctl.NewLLMProviderAPIKeyController, gwctl.NewLLMProxyAPIKeyController, gwctl.NewAgentAPIKeyController, gwctl.NewA2AAgentCardController, gwctl.NewA2AProxyController, gwctl.NewLLMProxyDeploymentController, gwctl.NewMCPProxyController, ProvideWebSocketController, gwctl.NewGatewayInternalController, gwctl.NewCatalogController, gwctl.NewAgentConfigurationController, gwctl.NewMCPProxyScopeController, gwctl.NewAgentIdentityController, gwctl.NewAgentGatewayController, gwctl.NewEnvironmentGatewayController)
+var controllerProviderSet = wire.NewSet(gwctl.NewGatewayController, gwctl.NewLLMController, gwctl.NewLLMDeploymentController, gwctl.NewLLMProviderAPIKeyController, gwctl.NewLLMProxyAPIKeyController, gwctl.NewAgentAPIKeyController, gwctl.NewA2AAgentCardController, gwctl.NewA2AProxyController, gwctl.NewLLMProxyDeploymentController, gwctl.NewMCPProxyController, ProvideWebSocketController, gwctl.NewGatewayInternalController, gwctl.NewCatalogController, gwctl.NewAgentConfigurationController, gwctl.NewMCPProxyScopeController, gwctl.NewAgentIdentityController, gwctl.NewAgentGatewayController)
 
 // ProvideGatewayManifestCacheBackend builds the gateway-manifest cache backend the settings select (gwconfig.Load
 // has refused any other). Not part of the wire provider sets: the cache is a package-level backend (see

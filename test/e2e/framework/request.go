@@ -41,6 +41,11 @@ func API(_ *Config, format string, args ...any) string {
 	return "/api/v1" + fmt.Sprintf(format, args...)
 }
 
+// AIGW returns an AI Gateway module path; the organization comes from the token: AIGW("/gateways/%s", name).
+func AIGW(format string, args ...any) string {
+	return "/m/ai-gateway" + fmt.Sprintf(format, args...)
+}
+
 // GW returns an AI Gateway module path below the organization.
 func GW(cfg *Config, format string, args ...any) string {
 	return "/m/ai-gateway/orgs/" + cfg.DefaultOrg + fmt.Sprintf(format, args...)

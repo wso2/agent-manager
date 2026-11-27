@@ -25,7 +25,6 @@ type GatewaysAPIService service
 type ApiDeleteGatewayRequest struct {
 	ctx        context.Context
 	ApiService *GatewaysAPIService
-	orgName    string
 	gatewayID  string
 }
 
@@ -34,27 +33,18 @@ func (r ApiDeleteGatewayRequest) Execute() (*http.Response, error) {
 }
 
 /*
-DeleteGateway Deregister gateway
+DeleteGateway Deregister a self-hosted gateway
 
-Soft delete a gateway. This will:
-- Mark the gateway as deleted
-- Remove all gateway-environment mappings
-- Preserve gateway data for audit/recovery
-
-The gateway can be restored if needed by contacting support.
-
-**Warning:** This operation will affect all environments using this gateway.
+Deletes a self-hosted gateway and its environment mapping. A managed gateway is read-only.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@return ApiDeleteGatewayRequest
 */
-func (a *GatewaysAPIService) DeleteGateway(ctx context.Context, orgName string, gatewayID string) ApiDeleteGatewayRequest {
+func (a *GatewaysAPIService) DeleteGateway(ctx context.Context, gatewayID string) ApiDeleteGatewayRequest {
 	return ApiDeleteGatewayRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 	}
 }
@@ -72,19 +62,12 @@ func (a *GatewaysAPIService) DeleteGatewayExecute(r ApiDeleteGatewayRequest) (*h
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -125,17 +108,6 @@ func (a *GatewaysAPIService) DeleteGatewayExecute(r ApiDeleteGatewayRequest) (*h
 			body:  localVarBody,
 			error: localVarHTTPResponse.Status,
 		}
-		if localVarHTTPResponse.StatusCode == 400 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarHTTPResponse, newErr
-		}
 		if localVarHTTPResponse.StatusCode == 401 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
@@ -147,7 +119,29 @@ func (a *GatewaysAPIService) DeleteGatewayExecute(r ApiDeleteGatewayRequest) (*h
 			newErr.model = v
 			return localVarHTTPResponse, newErr
 		}
+		if localVarHTTPResponse.StatusCode == 403 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
 		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 409 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {
@@ -177,44 +171,37 @@ func (a *GatewaysAPIService) DeleteGatewayExecute(r ApiDeleteGatewayRequest) (*h
 type ApiGetGatewayRequest struct {
 	ctx        context.Context
 	ApiService *GatewaysAPIService
-	orgName    string
 	gatewayID  string
 }
 
-func (r ApiGetGatewayRequest) Execute() (*GatewayResponse, *http.Response, error) {
+func (r ApiGetGatewayRequest) Execute() (*GatewayDocument, *http.Response, error) {
 	return r.ApiService.GetGatewayExecute(r)
 }
 
 /*
-GetGateway Get gateway details
-
-Retrieve detailed information about a specific gateway, including mapped environments.
-
-**Security Note:** Credentials are never returned in the response.
+GetGateway Get a gateway
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@return ApiGetGatewayRequest
 */
-func (a *GatewaysAPIService) GetGateway(ctx context.Context, orgName string, gatewayID string) ApiGetGatewayRequest {
+func (a *GatewaysAPIService) GetGateway(ctx context.Context, gatewayID string) ApiGetGatewayRequest {
 	return ApiGetGatewayRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 	}
 }
 
 // Execute executes the request
 //
-//	@return GatewayResponse
-func (a *GatewaysAPIService) GetGatewayExecute(r ApiGetGatewayRequest) (*GatewayResponse, *http.Response, error) {
+//	@return GatewayDocument
+func (a *GatewaysAPIService) GetGatewayExecute(r ApiGetGatewayRequest) (*GatewayDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *GatewayResponse
+		localVarReturnValue *GatewayDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "GatewaysAPIService.GetGateway")
@@ -222,19 +209,12 @@ func (a *GatewaysAPIService) GetGatewayExecute(r ApiGetGatewayRequest) (*Gateway
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -274,17 +254,6 @@ func (a *GatewaysAPIService) GetGatewayExecute(r ApiGetGatewayRequest) (*Gateway
 		newErr := &GenericOpenAPIError{
 			body:  localVarBody,
 			error: localVarHTTPResponse.Status,
-		}
-		if localVarHTTPResponse.StatusCode == 400 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 401 {
 			var v ErrorResponse
@@ -336,7 +305,6 @@ func (a *GatewaysAPIService) GetGatewayExecute(r ApiGetGatewayRequest) (*Gateway
 type ApiGetGatewayStatusRequest struct {
 	ctx        context.Context
 	ApiService *GatewaysAPIService
-	orgName    string
 	gatewayId  *string
 }
 
@@ -354,14 +322,12 @@ func (r ApiGetGatewayStatusRequest) Execute() (map[string]interface{}, *http.Res
 GetGatewayStatus Get the connection status of the organization's gateways
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName
 	@return ApiGetGatewayStatusRequest
 */
-func (a *GatewaysAPIService) GetGatewayStatus(ctx context.Context, orgName string) ApiGetGatewayStatusRequest {
+func (a *GatewaysAPIService) GetGatewayStatus(ctx context.Context) ApiGetGatewayStatusRequest {
 	return ApiGetGatewayStatusRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -381,8 +347,7 @@ func (a *GatewaysAPIService) GetGatewayStatusExecute(r ApiGetGatewayStatusReques
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/status"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/status"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -575,14 +540,13 @@ func (a *GatewaysAPIService) GetPlatformGatewayFailureSummaryExecute(r ApiGetPla
 }
 
 type ApiListGatewaysRequest struct {
-	ctx         context.Context
-	ApiService  *GatewaysAPIService
-	orgName     string
-	limit       *int32
-	offset      *int32
-	type_       *GatewayTypeInput
-	status      *string
-	environment *string
+	ctx        context.Context
+	ApiService *GatewaysAPIService
+	limit      *int32
+	offset     *int32
+	type_      *GatewayTypeInput
+	status     *string
+	hosting    *GatewayHosting
 }
 
 // Maximum number of results to return
@@ -609,9 +573,9 @@ func (r ApiListGatewaysRequest) Status(status string) ApiListGatewaysRequest {
 	return r
 }
 
-// Filter by environment name
-func (r ApiListGatewaysRequest) Environment(environment string) ApiListGatewaysRequest {
-	r.environment = &environment
+// Filter by who runs the gateway.
+func (r ApiListGatewaysRequest) Hosting(hosting GatewayHosting) ApiListGatewaysRequest {
+	r.hosting = &hosting
 	return r
 }
 
@@ -620,21 +584,17 @@ func (r ApiListGatewaysRequest) Execute() (*GatewayListResponse, *http.Response,
 }
 
 /*
-ListGateways List all gateways
+ListGateways List gateways
 
-Retrieve a paginated list of all gateways for the organization.
-
-Supports filtering by gateway type, status, and environment.
+Lists the organization's gateways, managed and self-hosted, as Gateway documents.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiListGatewaysRequest
 */
-func (a *GatewaysAPIService) ListGateways(ctx context.Context, orgName string) ApiListGatewaysRequest {
+func (a *GatewaysAPIService) ListGateways(ctx context.Context) ApiListGatewaysRequest {
 	return ApiListGatewaysRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -654,18 +614,11 @@ func (a *GatewaysAPIService) ListGatewaysExecute(r ApiListGatewaysRequest) (*Gat
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
 
 	if r.limit != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
@@ -679,8 +632,8 @@ func (a *GatewaysAPIService) ListGatewaysExecute(r ApiListGatewaysRequest) (*Gat
 	if r.status != nil {
 		parameterAddToHeaderOrQuery(localVarQueryParams, "status", r.status, "")
 	}
-	if r.environment != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "environment", r.environment, "")
+	if r.hosting != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "hosting", r.hosting, "")
 	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -769,58 +722,47 @@ func (a *GatewaysAPIService) ListGatewaysExecute(r ApiListGatewaysRequest) (*Gat
 }
 
 type ApiRegisterGatewayRequest struct {
-	ctx                  context.Context
-	ApiService           *GatewaysAPIService
-	orgName              string
-	createGatewayRequest *CreateGatewayRequest
+	ctx                         context.Context
+	ApiService                  *GatewaysAPIService
+	gatewayRegistrationDocument *GatewayRegistrationDocument
 }
 
-func (r ApiRegisterGatewayRequest) CreateGatewayRequest(createGatewayRequest CreateGatewayRequest) ApiRegisterGatewayRequest {
-	r.createGatewayRequest = &createGatewayRequest
+func (r ApiRegisterGatewayRequest) GatewayRegistrationDocument(gatewayRegistrationDocument GatewayRegistrationDocument) ApiRegisterGatewayRequest {
+	r.gatewayRegistrationDocument = &gatewayRegistrationDocument
 	return r
 }
 
-func (r ApiRegisterGatewayRequest) Execute() (*GatewayResponse, *http.Response, error) {
+func (r ApiRegisterGatewayRequest) Execute() (*GatewayDocument, *http.Response, error) {
 	return r.ApiService.RegisterGatewayExecute(r)
 }
 
 /*
-RegisterGateway Register a new gateway
+RegisterGateway Register a self-hosted gateway
 
-Register a new AI gateway with the platform.
-
-**Gateway Types:**
-- REGULAR: Handles incoming API traffic
-- AI: Handles outgoing LLM/MCP traffic (used for AI agents)
-
-**Security Note:**
-- Gateway credentials are encrypted before storage
-- Credentials are never returned in API responses
-- Use a strong encryption key configured in GATEWAY_ENCRYPTION_KEY
-
-A gateway serves exactly one environment: `environmentIds` takes at most one environment.
+Registers a gateway the organization runs itself, in the organization's default environment.
+Managed gateways are provisioned by the platform and cannot be created here: `spec.hosting`
+must be absent or `SELF_HOSTED`. `spec.endpoint` is the gateway's base http or https URL, and
+`spec.type`, when given, must be `EGRESS`.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiRegisterGatewayRequest
 */
-func (a *GatewaysAPIService) RegisterGateway(ctx context.Context, orgName string) ApiRegisterGatewayRequest {
+func (a *GatewaysAPIService) RegisterGateway(ctx context.Context) ApiRegisterGatewayRequest {
 	return ApiRegisterGatewayRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
 // Execute executes the request
 //
-//	@return GatewayResponse
-func (a *GatewaysAPIService) RegisterGatewayExecute(r ApiRegisterGatewayRequest) (*GatewayResponse, *http.Response, error) {
+//	@return GatewayDocument
+func (a *GatewaysAPIService) RegisterGatewayExecute(r ApiRegisterGatewayRequest) (*GatewayDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *GatewayResponse
+		localVarReturnValue *GatewayDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "GatewaysAPIService.RegisterGateway")
@@ -828,20 +770,13 @@ func (a *GatewaysAPIService) RegisterGatewayExecute(r ApiRegisterGatewayRequest)
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
-	if r.createGatewayRequest == nil {
-		return localVarReturnValue, nil, reportError("createGatewayRequest is required and must be specified")
+	if r.gatewayRegistrationDocument == nil {
+		return localVarReturnValue, nil, reportError("gatewayRegistrationDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -862,7 +797,7 @@ func (a *GatewaysAPIService) RegisterGatewayExecute(r ApiRegisterGatewayRequest)
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.createGatewayRequest
+	localVarPostBody = r.gatewayRegistrationDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -955,63 +890,50 @@ func (a *GatewaysAPIService) RegisterGatewayExecute(r ApiRegisterGatewayRequest)
 }
 
 type ApiUpdateGatewayRequest struct {
-	ctx                  context.Context
-	ApiService           *GatewaysAPIService
-	orgName              string
-	gatewayID            string
-	updateGatewayRequest *UpdateGatewayRequest
+	ctx             context.Context
+	ApiService      *GatewaysAPIService
+	gatewayID       string
+	gatewayDocument *GatewayDocument
 }
 
-func (r ApiUpdateGatewayRequest) UpdateGatewayRequest(updateGatewayRequest UpdateGatewayRequest) ApiUpdateGatewayRequest {
-	r.updateGatewayRequest = &updateGatewayRequest
+func (r ApiUpdateGatewayRequest) GatewayDocument(gatewayDocument GatewayDocument) ApiUpdateGatewayRequest {
+	r.gatewayDocument = &gatewayDocument
 	return r
 }
 
-func (r ApiUpdateGatewayRequest) Execute() (*GatewayResponse, *http.Response, error) {
+func (r ApiUpdateGatewayRequest) Execute() (*GatewayDocument, *http.Response, error) {
 	return r.ApiService.UpdateGatewayExecute(r)
 }
 
 /*
-UpdateGateway Update gateway
+UpdateGateway Update a self-hosted gateway
 
-Update an existing gateway's properties.
-
-**Updatable Fields:**
-- Display name
-- Critical flag
-- Status
-- Adapter configuration
-- Credentials (re-encrypted on update)
-
-**Immutable Fields:**
-- Gateway name
-- Gateway type
-- VHost
-- Organization
+Replaces the editable fields of a self-hosted gateway: `spec.displayName`, `spec.description`,
+`spec.isCritical` and `spec.properties`. An absent description or properties is cleared.
+`metadata.name`, `spec.hosting`, `spec.type` and `spec.endpoint` cannot change, and a managed
+gateway is read-only.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param gatewayID Gateway UUID or name
 	@return ApiUpdateGatewayRequest
 */
-func (a *GatewaysAPIService) UpdateGateway(ctx context.Context, orgName string, gatewayID string) ApiUpdateGatewayRequest {
+func (a *GatewaysAPIService) UpdateGateway(ctx context.Context, gatewayID string) ApiUpdateGatewayRequest {
 	return ApiUpdateGatewayRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		gatewayID:  gatewayID,
 	}
 }
 
 // Execute executes the request
 //
-//	@return GatewayResponse
-func (a *GatewaysAPIService) UpdateGatewayExecute(r ApiUpdateGatewayRequest) (*GatewayResponse, *http.Response, error) {
+//	@return GatewayDocument
+func (a *GatewaysAPIService) UpdateGatewayExecute(r ApiUpdateGatewayRequest) (*GatewayDocument, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPut
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *GatewayResponse
+		localVarReturnValue *GatewayDocument
 	)
 
 	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "GatewaysAPIService.UpdateGateway")
@@ -1019,21 +941,14 @@ func (a *GatewaysAPIService) UpdateGatewayExecute(r ApiUpdateGatewayRequest) (*G
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/gateways/{gatewayID}"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/gateways/{gatewayID}"
 	localVarPath = strings.Replace(localVarPath, "{"+"gatewayID"+"}", url.PathEscape(parameterValueToString(r.gatewayID, "gatewayID")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if strlen(r.orgName) < 1 {
-		return localVarReturnValue, nil, reportError("orgName must have at least 1 elements")
-	}
-	if strlen(r.orgName) > 64 {
-		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
-	}
-	if r.updateGatewayRequest == nil {
-		return localVarReturnValue, nil, reportError("updateGatewayRequest is required and must be specified")
+	if r.gatewayDocument == nil {
+		return localVarReturnValue, nil, reportError("gatewayDocument is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -1054,7 +969,7 @@ func (a *GatewaysAPIService) UpdateGatewayExecute(r ApiUpdateGatewayRequest) (*G
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.updateGatewayRequest
+	localVarPostBody = r.gatewayDocument
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -1089,6 +1004,17 @@ func (a *GatewaysAPIService) UpdateGatewayExecute(r ApiUpdateGatewayRequest) (*G
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 401 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 403 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

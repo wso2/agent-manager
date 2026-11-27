@@ -24,9 +24,8 @@ import { EditGateway } from "./EditGateway";
 const hoisted = vi.hoisted(() => ({
   gatewayQuery: {} as Record<string, unknown>,
   refetch: vi.fn(),
-  updateManaged: vi.fn(),
   updateSelfHosted: vi.fn(),
-  managedError: null as Error | null,
+  updateError: null as Error | null,
 }));
 
 // MUI renders are slow on a busy machine; leave headroom over the 5s default.
@@ -34,15 +33,10 @@ vi.setConfig({ testTimeout: 30_000 });
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetGateway: () => ({ refetch: hoisted.refetch, ...hoisted.gatewayQuery }),
-  useUpdateGateway: () => ({
-    mutateAsync: hoisted.updateManaged,
-    isPending: false,
-    error: hoisted.managedError,
-  }),
   useUpdateSelfHostedGateway: () => ({
     mutateAsync: hoisted.updateSelfHosted,
     isPending: false,
-    error: null,
+    error: hoisted.updateError,
   }),
 }));
 
@@ -50,7 +44,7 @@ vi.mock("@agent-management-platform/shared-component", () => ({
   useUnsavedChangesGuard: () => ({ allowNavigation: (go: () => void) => go() }),
 }));
 
-const gateway = (hosting: "MANAGED" | "SELF_HOSTED" = "MANAGED") => ({
+const gateway = (hosting: "MANAGED" | "SELF_HOSTED" = "SELF_HOSTED") => ({
   uuid: "gw-uuid",
   name: "edge",
   displayName: "Edge Gateway",
@@ -80,9 +74,8 @@ const VIEW_PATH = "/org/acme/gateways/view/gw-uuid";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  hoisted.managedError = null;
+  hoisted.updateError = null;
   hoisted.gatewayQuery = { data: gateway(), isLoading: false, error: null };
-  hoisted.updateManaged.mockResolvedValue({});
   hoisted.updateSelfHosted.mockResolvedValue({});
 });
 
@@ -118,26 +111,17 @@ describe("EditGateway", () => {
       () => expect(screen.getByTestId("location")).toHaveTextContent(VIEW_PATH),
       { timeout: 10_000 },
     );
-    expect(hoisted.updateManaged).toHaveBeenCalledWith({
+    expect(hoisted.updateSelfHosted).toHaveBeenCalledWith({
       params: { orgName: "acme", gatewayId: "gw-uuid" },
       body: { displayName: "Renamed Gateway", isCritical: true },
     });
-    expect(hoisted.updateSelfHosted).not.toHaveBeenCalled();
   });
 
-  it("updates a self-hosted gateway through the self-hosted API", async () => {
-    hoisted.gatewayQuery = { data: gateway("SELF_HOSTED"), isLoading: false, error: null };
+  it("shows a managed gateway as read-only, with no form", () => {
+    hoisted.gatewayQuery = { data: gateway("MANAGED"), isLoading: false, error: null };
     renderEdit();
-    fireEvent.change(nameField(), { target: { value: "Edge Two" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() =>
-      expect(hoisted.updateSelfHosted).toHaveBeenCalledWith({
-        params: { orgName: "acme", gatewayId: "gw-uuid" },
-        body: { displayName: "Edge Two", isCritical: true },
-      }),
-    );
-    expect(hoisted.updateManaged).not.toHaveBeenCalled();
+    expect(screen.getByText(/managed by the platform and can't be edited/)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("e.g., Production Gateway")).not.toBeInTheDocument();
   });
 
   it("blocks saving an empty display name", async () => {
@@ -146,21 +130,21 @@ describe("EditGateway", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect((await screen.findAllByText("Display name is required")).length).toBeGreaterThan(0);
-    expect(hoisted.updateManaged).not.toHaveBeenCalled();
+    expect(hoisted.updateSelfHosted).not.toHaveBeenCalled();
     expect(screen.getByTestId("location")).toHaveTextContent("/org/acme/gateways/edit/gw-uuid");
   });
 
   it("stays on the form when saving fails", async () => {
-    hoisted.updateManaged.mockRejectedValue(new Error("conflict"));
+    hoisted.updateSelfHosted.mockRejectedValue(new Error("conflict"));
     renderEdit();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(hoisted.updateManaged).toHaveBeenCalled());
+    await waitFor(() => expect(hoisted.updateSelfHosted).toHaveBeenCalled());
     expect(screen.getByTestId("location")).toHaveTextContent("/org/acme/gateways/edit/gw-uuid");
   });
 
   it("shows the update error", () => {
-    hoisted.managedError = new Error("Display name already taken");
+    hoisted.updateError = new Error("Display name already taken");
     renderEdit();
     expect(screen.getByText("Display name already taken")).toBeInTheDocument();
   });

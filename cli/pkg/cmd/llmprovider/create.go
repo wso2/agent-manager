@@ -62,7 +62,7 @@ var versionRegex = regexp.MustCompile(`^v\d+\.\d+$`)
 
 type CreateOptions struct {
 	IO *iostreams.IOStreams
-	// Client resolves --gateways names; gateways are still a v1 resource.
+	// Client resolves --gateways names.
 	Client         func(context.Context) (*aigateway.ClientWithResponses, error)
 	ProviderClient func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope   func(*cobra.Command, bool, bool) (string, string, error)
@@ -419,14 +419,13 @@ func resolveGatewayNames(
 
 	byName := make(map[string]openapi_types.UUID, len(gateways))
 	for _, g := range gateways {
-		id, err := uuid.Parse(g.Uuid)
-		if err != nil {
+		if g.Metadata.Uid == nil {
 			// Skipping the entry would report the gateway as unknown, blaming the
-			// user's input for a malformed UUID the server sent.
+			// user's input for a uid the server left out.
 			return nil, clierr.Newf(clierr.Internal,
-				"server returned gateway %q with an unparseable uuid %q", g.Name, g.Uuid)
+				"server returned gateway %q without a uid", g.Metadata.Name)
 		}
-		byName[g.Name] = id
+		byName[g.Metadata.Name] = *g.Metadata.Uid
 	}
 	return byName, nil
 }

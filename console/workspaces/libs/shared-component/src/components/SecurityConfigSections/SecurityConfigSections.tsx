@@ -18,7 +18,7 @@
 
 import {
   useGetAgent,
-  useListEnvironmentIdentityProviders,
+  useListIdentityProviders,
 } from "@agent-management-platform/api-client";
 import {
   type ConfigurationResponse,
@@ -121,7 +121,7 @@ interface SecurityConfigSectionsProps {
 // via the imperative handle on Apply.
 export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityConfigSectionsProps>(
   (
-    { orgName, projName, agentName, environment, open, disabled, configurations, onValidityChange },
+    { orgName, projName, agentName, open, disabled, configurations, onValidityChange },
     ref,
   ) => {
     // GetAgent is used only for the env-independent agent type; CORS + Auth are seeded from the
@@ -133,9 +133,9 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
     // A proxied external agent is a third-party origin, so it never receives our IdP's tokens.
     const canForwardToken = !isExternalAgent(agent);
 
-    const { data: idpResp } = useListEnvironmentIdentityProviders({
-      orgName,
-      environmentId: open && hasGatewayPolicies ? environment : undefined,
+    // The organization's identity providers serve its one environment; no org name holds the query.
+    const { data: idpResp } = useListIdentityProviders({
+      orgName: open && hasGatewayPolicies ? orgName : "",
     });
     const identityProviderOptions = useMemo(
       () => (idpResp?.list ?? []).map((p) => p.name),
@@ -376,7 +376,7 @@ export const SecurityConfigSections = forwardRef<SecurityConfigHandle, SecurityC
                 {!hasIdentityProviders && (
                   <Alert severity="warning">
                     <Typography variant="caption">
-                      No identity providers for this environment. Add one under Security &rarr;
+                      No identity providers yet. Add one under Security &rarr;
                       Identity Providers first.
                     </Typography>
                   </Alert>

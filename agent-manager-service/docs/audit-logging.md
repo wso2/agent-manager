@@ -251,7 +251,7 @@ Refusals are recorded on every surface, because a denied attempt is often more i
 
 Authorization is always enforced: every audited route carries the `requiredPermission` that was checked, so a record names the decision that was made rather than the one that might have been.
 
-Two ways past the ordinary check are recorded even when the request succeeds, alongside the route's own record: `authz:root-ou-bypass`, a token admitted through the root-OU bypass whatever scopes it carries, and `authz:org-override`, a request switched to another organization by `X-Impersonate-Org`. The second is filed under the target organization, with the caller's `clientId`, the token's `tokenOuID` and the `targetOuID`; it happens only on routes that allow it (`modkit.AllowOrgOverride`, today the AI Gateway's `GET /m/ai-gateway/orgs/{orgName}/gateways` and `PUT /m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}`) and only when the deployment installs an `OrgOverrideResolver` (`app.Options`). The stock binary installs none, so it never emits one.
+Two ways past the ordinary check are recorded even when the request succeeds, alongside the route's own record: `authz:root-ou-bypass`, a token admitted through the root-OU bypass whatever scopes it carries, and `authz:org-override`, a request switched to another organization by `X-Impersonate-Org`. The second is filed under the target organization, with the caller's `clientId`, the token's `tokenOuID` and the `targetOuID`; it happens only on routes that allow it (`modkit.AllowOrgOverride`, today the AI Gateway's `GET /m/ai-gateway/gateways` and `PUT /m/ai-gateway/gateways/{gatewayID}/identity-providers/{name}`) and only when the deployment installs an `OrgOverrideResolver` (`app.Options`). The stock binary installs none, so it never emits one.
 
 `system:startup` is recorded when the service starts, which bounds any gap in the trail to a restart — a reader can tell "nothing happened" apart from "the service was not running".
 
@@ -340,7 +340,7 @@ The operations below emit a record describing what actually changed, not just th
 | Event destinations | `event-destination:create` / `:update` / `:delete` / `:rotate-secret` | Fail-closed |
 | Event subscriptions | `event-subscription:create` / `:update` / `:delete` (organization, project and agent scope) | Fail-closed |
 | Gateways | `ai-gateway:gateways.delete`, `ai-gateway:gateways.set-identity-provider`, `ai-gateway:gateways.remove-identity-provider` | Fail-closed |
-| Gateways | `ai-gateway:gateways.create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
+| Gateways | `ai-gateway:gateways.create` / `:update` | Fail-open |
 | Internal | `ai-gateway:gateways.push-manifest`, `ai-gateway:api-keys.sync` (bulk sync, coalesced per gateway) | Fail-open |
 | Agent config | `ai-gateway:agent-configs.update` / `:delete` | Fail-open |
 | A2A card source | `ai-gateway:agents.set-card-source` | Fail-open |
@@ -436,11 +436,9 @@ AI Gateway actions (`modules/aigateway/gwaudit/gwaudit.go`), all 66 the module's
 | `ai-gateway:artifacts.check-exists` | read | 1 info | — |
 | `ai-gateway:deployments.read` | read | 1 info | — |
 | `ai-gateway:deployments.sync` | read | 2 notice | — |
-| `ai-gateway:environments.list-identity-providers` | read | 1 info | — |
 | `ai-gateway:gateway-tokens.list` | read | 2 notice | — |
 | `ai-gateway:gateway-tokens.revoke` | credential | 4 critical | `gatewayName`, `tokenId` |
 | `ai-gateway:gateway-tokens.rotate` | credential | 4 critical | `expiresAt`, `gatewayName`, `requestedOrgId`, `tokenId` |
-| `ai-gateway:gateways.assign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
 | `ai-gateway:gateways.create` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
 | `ai-gateway:gateways.delete` | config | 3 warning | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
 | `ai-gateway:gateways.list-identity-providers` | read | 1 info | — |
@@ -448,7 +446,6 @@ AI Gateway actions (`modules/aigateway/gwaudit/gwaudit.go`), all 66 the module's
 | `ai-gateway:gateways.read` | read | 1 info | — |
 | `ai-gateway:gateways.remove-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
 | `ai-gateway:gateways.set-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
-| `ai-gateway:gateways.unassign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
 | `ai-gateway:gateways.update` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `requestedOrgId`, `vhost` |
 | `ai-gateway:llm-provider-templates.create` | config | 1 info | — |
 | `ai-gateway:llm-provider-templates.delete` | config | 2 notice | — |
@@ -1221,7 +1218,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateway-tokens.revoke</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_controller.go:734`</summary>
+<summary><code>ai-gateway:gateway-tokens.revoke</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_controller.go:453`</summary>
 
 ```json
 {
@@ -1243,7 +1240,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}",
+    "requestPath": "/m/ai-gateway/gateways/{gatewayID}/tokens/{tokenID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1261,7 +1258,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateway-tokens.rotate</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_controller.go:702`</summary>
+<summary><code>ai-gateway:gateway-tokens.rotate</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_controller.go:407`</summary>
 
 ```json
 {
@@ -1283,7 +1280,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/tokens",
+    "requestPath": "/m/ai-gateway/gateways/{gatewayID}/tokens",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1301,47 +1298,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.assign-environment</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:502`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "ai-gateway:gateways.assign-environment",
-    "actionClass": "config",
-    "severity": 2,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/environments/{envID}",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "gateway",
-    "resourceId": "gw-3c9e",
-    "environment": "e7a1c3d2-4b5f-4e6a-9c8d-1f2e3a4b5c6d",
-    "outcome": "success",
-    "requiredPermission": "amp:ai-gateway:gateways.update",
-    "details": {
-      "environment": "e7a1c3d2-4b5f-4e6a-9c8d-1f2e3a4b5c6d"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>ai-gateway:gateways.create</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:286`</summary>
+<summary><code>ai-gateway:gateways.create</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:177`</summary>
 
 ```json
 {
@@ -1363,7 +1320,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways",
+    "requestPath": "/m/ai-gateway/gateways",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1383,7 +1340,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.delete</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_controller.go:468`</summary>
+<summary><code>ai-gateway:gateways.delete</code> — Fail-closed route record · `modules/aigateway/gwctl/gateway_controller.go:307`</summary>
 
 ```json
 {
@@ -1405,7 +1362,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}",
+    "requestPath": "/m/ai-gateway/gateways/{gatewayID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1479,7 +1436,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}",
+    "requestPath": "/m/ai-gateway/gateways/{gatewayID}/identity-providers/{name}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1522,7 +1479,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "PUT",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}",
+    "requestPath": "/m/ai-gateway/gateways/{gatewayID}/identity-providers/{name}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1544,47 +1501,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>ai-gateway:gateways.unassign-environment</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:566`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "ai-gateway:gateways.unassign-environment",
-    "actionClass": "config",
-    "severity": 2,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "DELETE",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/environments/{envID}",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "gateway",
-    "resourceId": "gw-3c9e",
-    "environment": "e7a1c3d2-4b5f-4e6a-9c8d-1f2e3a4b5c6d",
-    "outcome": "success",
-    "requiredPermission": "amp:ai-gateway:gateways.update",
-    "details": {
-      "environment": "e7a1c3d2-4b5f-4e6a-9c8d-1f2e3a4b5c6d"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>ai-gateway:gateways.update</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:448`</summary>
+<summary><code>ai-gateway:gateways.update</code> — Route record · `modules/aigateway/gwctl/gateway_controller.go:270`</summary>
 
 ```json
 {
@@ -1606,7 +1523,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "PUT",
-    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}",
+    "requestPath": "/m/ai-gateway/gateways/{gatewayID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",

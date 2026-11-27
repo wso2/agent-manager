@@ -35,7 +35,6 @@ import {
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   useDeleteGateway,
-  useDeleteSelfHostedGateway,
   useListEnvironments,
   useListGateways,
 } from "@agent-management-platform/api-client";
@@ -118,14 +117,9 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
   const isLoading = gatewaysLoading || environmentsLoading;
   const error = gatewaysError || environmentsError;
 
-  const { mutateAsync: deleteManagedGateway } = useDeleteGateway();
-  const { mutateAsync: deleteSelfHostedGateway } = useDeleteSelfHostedGateway();
-  const deleteGateway = (gateway: GatewayResponse) => {
-    const params = { orgName: orgId ?? "", gatewayId: gateway.uuid };
-    return isSelfHostedGateway(gateway)
-      ? deleteSelfHostedGateway(params)
-      : deleteManagedGateway(params);
-  };
+  const { mutateAsync: deleteGatewayMutation } = useDeleteGateway();
+  const deleteGateway = (gateway: GatewayResponse) =>
+    deleteGatewayMutation({ orgName: orgId ?? "", gatewayId: gateway.uuid });
 
   const gateways = useMemo(() => gatewaysData?.gateways ?? [], [gatewaysData]);
   const showHosting = showGatewayHosting(selfHostedEnabled, gateways);
@@ -273,7 +267,8 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
             >
               {lastUpdated}
             </Typography>
-            {canDelete && (
+            {/* A managed gateway is run by the platform and read-only. */}
+            {canDelete && isSelfHostedGateway(gateway) && (
             <Box className="row-actions">
             <Button
                 variant="outlined"

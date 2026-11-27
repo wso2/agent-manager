@@ -340,6 +340,54 @@ func TestRevokeToken_OtherGatewaysTokenIsNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, gwerr.ErrGatewayTokenNotFound)
 }
 
+// Token routes take a gateway's name as well as its UUID, and act on its UUID.
+func TestTokens_ResolveGatewayByName(t *testing.T) {
+	gateway := gatewayFixture("edge")
+	var counted, listed string
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByNameAndOrgIDFunc: func(name, ouID string) (*gwmodels.Gateway, error) {
+			if name == "edge" && ouID == gatewayTestOUID {
+				return gateway, nil
+			}
+			return nil, gwerr.ErrGatewayNotFound
+		},
+		CountActiveTokensFunc: func(id string) (int, error) { counted = id; return 0, nil },
+		CreateTokenFunc:       func(*gwmodels.GatewayToken) error { return nil },
+		GetActiveTokensByGatewayUUIDFunc: func(id string) ([]*gwmodels.GatewayToken, error) {
+			listed = id
+			return nil, nil
+		},
+	}
+	svc := NewPlatformGatewayService(repo)
+
+	rotated, err := svc.RotateToken("edge", gatewayTestOUID)
+	require.NoError(t, err)
+	assert.Equal(t, gateway.UUID.String(), rotated.GatewayID)
+	assert.Equal(t, gateway.UUID.String(), counted)
+
+	_, err = svc.ListTokens("edge", gatewayTestOUID)
+	require.NoError(t, err)
+	assert.Equal(t, gateway.UUID.String(), listed)
+
+	_, err = svc.RotateToken("edge", "another-org")
+	assert.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
+}
+
+func TestRevokeToken_ByGatewayName(t *testing.T) {
+	gateway := gatewayFixture("edge")
+	token := &gwmodels.GatewayToken{UUID: uuid.New(), GatewayUUID: gateway.UUID, TokenPrefix: "p"}
+	var revoked string
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return gateway, nil },
+		GetTokenByUUIDFunc:    func(string) (*gwmodels.GatewayToken, error) { return token, nil },
+		RevokeTokenFunc:       func(id string) error { revoked = id; return nil },
+	}
+	svc := NewPlatformGatewayService(repo)
+
+	require.NoError(t, svc.RevokeTokenByID(token.UUID.String(), "edge", gatewayTestOUID))
+	assert.Equal(t, token.UUID.String(), revoked)
+}
+
 func TestValidateGatewayInput_IsInvalidInput(t *testing.T) {
 	svc := NewPlatformGatewayService(&gwrepomocks.GatewayRepositoryMock{})
 
@@ -349,6 +397,17 @@ func TestValidateGatewayInput_IsInvalidInput(t *testing.T) {
 	ve := httpx.IsValidationError(err)
 	require.NotNil(t, ve)
 	assert.Equal(t, "Gateway name must be 3 to 64 characters", ve.Message)
+}
+
+// A UUID-shaped name would be read as a UUID by every route, so it would name two gateways.
+func TestValidateGatewayInput_RefusesUUIDShapedName(t *testing.T) {
+	svc := NewPlatformGatewayService(&gwrepomocks.GatewayRepositoryMock{})
+
+	err := svc.validateGatewayInput(gatewayTestOUID, "11111111-1111-4111-8111-111111111111", "Edge", "edge.example.com")
+
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
+	assert.Equal(t, "Gateway name cannot be a UUID", httpx.IsValidationError(err).Message)
+	require.NoError(t, svc.validateGatewayInput(gatewayTestOUID, "edge-1111", "Edge", "edge.example.com"))
 }
 
 func updateRepo(gw *gwmodels.Gateway) *gwrepomocks.GatewayRepositoryMock {

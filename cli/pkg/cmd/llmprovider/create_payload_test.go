@@ -211,10 +211,10 @@ func newRoutingTestClient(
 func TestCreate_ResolvesGatewayNameToUUID(t *testing.T) {
 	ios, _, _ := newTestIO(true)
 	const edgeUUID = "22222222-2222-2222-2222-222222222222"
+	edgeID := uuid.MustParse(edgeUUID)
 	clientFn, providerFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
-		"/orgs/acme/gateways": aigateway.GatewayListResponse{
-			Gateways: []aigateway.GatewayResponse{{Name: "edge", Uuid: edgeUUID}},
-			Total:    1,
+		"/gateways": aigateway.GatewayListResponse{
+			List: []aigateway.GatewayDocument{{Metadata: aigateway.DocumentMetadata{Name: "edge", Uid: &edgeID}}},
 		},
 		"/llm-providers": sampleProviderResponse(),
 	})
@@ -236,7 +236,7 @@ func TestCreate_ResolvesGatewayNameToUUID(t *testing.T) {
 func TestCreate_UnknownGatewayNameFailsBeforeCreating(t *testing.T) {
 	ios, _, _ := newTestIO(true)
 	clientFn, providerFn, captured, closeFn := newRoutingTestClient(t, map[string]any{
-		"/orgs/acme/gateways": aigateway.GatewayListResponse{Gateways: []aigateway.GatewayResponse{}},
+		"/gateways": aigateway.GatewayListResponse{List: []aigateway.GatewayDocument{}},
 	})
 	defer closeFn()
 
