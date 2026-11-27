@@ -483,6 +483,21 @@ func TestRegistrationsThatFailActivationG1(t *testing.T) {
 		"org override on a workload route": func(rt modkit.Runtime) {
 			rt.HandleInternal(http.MethodGet, "/orgs/{orgName}/x", "s", ok, modkit.AllowOrgOverride())
 		},
+		"webhook write without an audit action": func(rt modkit.Runtime) {
+			rt.HandleWebhook(http.MethodPost, "/events", ok)
+		},
+		"platform-admin on a webhook": func(rt modkit.Runtime) {
+			rt.HandleWebhook(http.MethodPost, "/events", ok, modkit.Audit("act"), modkit.PlatformAdmin())
+		},
+		"also-requires on a webhook": func(rt modkit.Runtime) {
+			rt.HandleWebhook(http.MethodPost, "/events", ok, modkit.Audit("act"), modkit.AlsoRequires("p"))
+		},
+		"org override on a webhook": func(rt modkit.Runtime) {
+			rt.HandleWebhook(http.MethodPost, "/orgs/{orgName}/events", ok, modkit.Audit("act"), modkit.AllowOrgOverride())
+		},
+		"webhook with no handler": func(rt modkit.Runtime) {
+			rt.HandleWebhook(http.MethodPost, "/events", nil, modkit.Audit("act"))
+		},
 	}
 	for name, register := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -527,6 +542,90 @@ func TestRegistrationsThatFailActivationG1(t *testing.T) {
 // list is empty again, HandleInternalAt goes.
 var internalAtUsers = map[string]bool{
 	"aigateway": true, // its controller API at /api/internal/v1
+}
+
+// webhookUsers are the modules allowed to call Runtime.HandleWebhook, whose routes the core doesn't
+// authenticate: each handler must verify its sender's signature. A new caller fails this test, so adding one
+// is a reviewed decision.
+var webhookUsers = map[string]bool{
+	// The developer portal's plan and subscription webhook at /m/ai-hub/webhooks/events: the portal signs each
+	// delivery with a shared secret (HMAC-SHA256) and can't present a workload token.
+	"aihub": true,
+}
+
+func TestHandleWebhookUsers(t *testing.T) {
+	root := filepath.Join("..", "..", "modules")
+	found := map[string]bool{}
+	err := filepath.WalkDir(root, func(path string, e os.DirEntry, err error) error {
+		if err != nil || e.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(src), "HandleWebhook(") {
+			rel, _ := filepath.Rel(root, path)
+			found[strings.Split(filepath.ToSlash(rel), "/")[0]] = true
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	for dir := range found {
+		assert.True(t, webhookUsers[dir], "modules/%s calls HandleWebhook: list it in webhookUsers, with why its sender can't use a workload token", dir)
+	}
+	for dir := range webhookUsers {
+		assert.True(t, found[dir], "modules/%s no longer calls HandleWebhook: drop it from webhookUsers", dir)
+	}
+}
+
+// TestWebhooks serves a module's webhook on the internal server without a workload token, and answers
+// module_inactive while the module is off, as its workload routes do.
+func TestWebhooks(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mf := manifest("t-hook", nil, nil)
+	mf.AuditActions = []modkit.AuditAction{{Name: "sync"}}
+	m := &testModule{manifest: mf, activate: func(rt modkit.Runtime) error {
+		rt.HandleWebhook(http.MethodPost, "/events", func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-Signature") != "good" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}, modkit.Audit("sync"))
+		return nil
+	}}
+	h, _ := booted(t, ctx, databases(t)[0], []modkit.Module{m})
+	installAll(t, h, "t-hook")
+	srv := h.ServeInternal()
+	post := func(signature string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/m/t-hook/webhooks/events", strings.NewReader("{}"))
+		req.Header.Set("X-Signature", signature)
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		return rec
+	}
+
+	t.Run("the handler authenticates the sender; the core asks for no token", func(t *testing.T) {
+		assert.Equal(t, http.StatusOK, post("good").Code)
+		assert.Equal(t, http.StatusUnauthorized, post("bad").Code)
+	})
+
+	t.Run("a route outside the module's webhooks is not served", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/m/t-hook/webhooks/other", nil))
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("while the module is off it answers module_inactive", func(t *testing.T) {
+		require.NoError(t, h.Disable(ctx, "t-hook"))
+		rec := post("good")
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		assert.Contains(t, rec.Body.String(), modhost.ErrModuleInactive)
+		require.NoError(t, h.Enable(ctx, "t-hook"))
+		assert.Equal(t, http.StatusOK, post("good").Code)
+	})
 }
 
 func TestHandleInternalAtUsers(t *testing.T) {

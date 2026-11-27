@@ -54,6 +54,42 @@ function getMCPPoliciesCatalogUrl(): string {
   }
 }
 
+/**
+ * Subscription policies the gateways ship but the policy hub doesn't list under MCP. Each is added
+ * to the catalog only when every gateway of the organization reports it at this major version;
+ * once the hub lists it, the hub's entry is used instead.
+ */
+const GATEWAY_ONLY_MCP_POLICIES: {
+  name: string;
+  major: string;
+  definition: Omit<MCPPolicyDefinition, "name" | "version" | "policyHubVersion">;
+}[] = [
+  {
+    name: "subscription-validation",
+    major: "v2",
+    definition: {
+      displayName: "Subscription Validation",
+      description:
+        "Checks that the caller holds an active subscription to this MCP server " +
+        "(the Subscription-Key header) and records its plan for the rate-limit policies after it.",
+      provider: "WSO2",
+      categories: ["MCP", "Subscription"],
+      isLatest: true,
+    },
+  },
+  {
+    name: "subscription-tool-ratelimit",
+    major: "v1",
+    definition: {
+      displayName: "Subscription Tool Rate Limit",
+      description: "Limits tool calls to the tool-call limits of the caller's subscription plan.",
+      provider: "WSO2",
+      categories: ["MCP", "Subscription"],
+      isLatest: true,
+    },
+  },
+];
+
 export function useMCPPoliciesCatalog(orgName?: string) {
   const gatewayPresent = useUIModulePresent("ai-gateway");
   const url = getMCPPoliciesCatalogUrl();
@@ -102,7 +138,7 @@ export function useMCPPoliciesCatalog(orgName?: string) {
         );
       }
       const catalog = (await res.json()) as MCPPoliciesCatalogResponse;
-      const data = (catalog.data ?? [])
+      const data: MCPPolicyDefinition[] = (catalog.data ?? [])
         .filter((policy) =>
           availableVersions.has(
             `${policy.name}:${normalizePolicyVersionToMinor(policy.version)}`,
@@ -121,6 +157,23 @@ export function useMCPPoliciesCatalog(orgName?: string) {
             policyHubVersion,
           };
         });
+      // Policies the gateways report that the policy hub doesn't list for MCP yet, described here
+      // and shown only while the gateways have them (with the gateways' version).
+      for (const known of GATEWAY_ONLY_MCP_POLICIES) {
+        if (data.some((policy) => policy.name === known.name)) continue;
+        const gatewayVersion = (available.list ?? []).find(
+          (policy) =>
+            policy.name === known.name &&
+            normalizePolicyVersionToMajor(policy.version) === known.major,
+        )?.version;
+        if (!gatewayVersion) continue;
+        data.push({
+          ...known.definition,
+          name: known.name,
+          version: normalizePolicyVersionToMajor(gatewayVersion),
+          policyHubVersion: undefined,
+        });
+      }
       return {
         ...catalog,
         count: data.length,

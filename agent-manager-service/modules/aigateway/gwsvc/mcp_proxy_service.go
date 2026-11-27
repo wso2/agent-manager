@@ -102,12 +102,14 @@ type MCPProxyService struct {
 	gatewayEventsService *GatewayEventsService
 	apiKeyBroadcaster    apiKeyBroadcaster
 	client               *http.Client
-	logger               *slog.Logger
-	secrets              modkit.Secrets
-	resolver             identityv1.Directory
-	core                 *reconcile.Core
-	kind                 *MCPProxyKind
-	isExternalAgent      externalAgentLookup
+	// plans is how the proxy finds the subscription plans it may offer (subscription.plans/v1).
+	plans           *SubscriptionPlans
+	logger          *slog.Logger
+	secrets         modkit.Secrets
+	resolver        identityv1.Directory
+	core            *reconcile.Core
+	kind            *MCPProxyKind
+	isExternalAgent externalAgentLookup
 	// getProject resolves a project by name; nil treats every project as existing.
 	getProject func(ctx context.Context, ouID, projectName string) (*modkit.Project, error)
 }
@@ -134,6 +136,7 @@ func NewMCPProxyService(
 	core *reconcile.Core,
 	kind *MCPProxyKind,
 	ocClient modkit.CoreAPI,
+	plans *SubscriptionPlans,
 ) *MCPProxyService {
 	var getProject func(ctx context.Context, ouID, projectName string) (*modkit.Project, error)
 	if ocClient != nil {
@@ -164,6 +167,7 @@ func NewMCPProxyService(
 			apiKeyRepo:     apiKeyRepo,
 		},
 		client:   ssrf.NewClient(mcpRequestTimeout),
+		plans:    plans,
 		logger:   logger,
 		secrets:  secrets,
 		resolver: resolver,
@@ -267,6 +271,11 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 		return nil, err
 	}
 
+	plans, err := s.offeredPlans(ctx, orgUUID, req.SubscriptionPlans, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	exists, err := s.repo.Exists(ctx, handle, orgUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check MCP proxy existence: %w", err)
@@ -285,6 +294,8 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 			Context:     req.Context,
 			Vhost:       req.Vhost,
 			SpecVersion: valueOrEmpty(req.McpSpecVersion),
+			// Offered here; enforced at the gateway once agents subscribe.
+			SubscriptionPlans: plans,
 		},
 	}
 
@@ -552,6 +563,14 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		return nil, err
 	}
 	deployEndpoints := pinExemptGateways(req.Endpoints, exempt)
+	var currentPlans []string
+	if existingProxy != nil {
+		currentPlans = existingProxy.Configuration.SubscriptionPlans
+	}
+	plans, err := s.offeredPlans(ctx, orgUUID, req.SubscriptionPlans, currentPlans)
+	if err != nil {
+		return nil, err
+	}
 
 	// Captured inside the transaction so removed-(endpoint,env) artifacts can be torn down
 	// from their gateways after the update commits. Keyed by environment UUID because
@@ -586,12 +605,17 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		proxy.Description = valueOrEmpty(req.Description)
 		proxy.Name = name
 		proxy.Version = version
+		// Left out of the request, the offered plans stay as they are.
+		if req.SubscriptionPlans == nil {
+			plans = proxy.Configuration.SubscriptionPlans
+		}
 		proxy.Configuration = gwmodels.MCPProxyConfig{
-			Name:        name,
-			Version:     version,
-			Context:     req.Context,
-			Vhost:       req.Vhost,
-			SpecVersion: valueOrEmpty(req.McpSpecVersion),
+			Name:              name,
+			Version:           version,
+			Context:           req.Context,
+			Vhost:             req.Vhost,
+			SpecVersion:       valueOrEmpty(req.McpSpecVersion),
+			SubscriptionPlans: plans,
 		}
 
 		if err := s.repo.Update(ctx, tx, proxy, orgUUID); err != nil {
@@ -1237,6 +1261,8 @@ func convertModelMCPProxyToSpec(proxy *gwmodels.MCPProxy) *gwmodels.MCPProxyDTO 
 		UpdatedAt:      timePtrIfNotZero(updatedAt),
 		Version:        version,
 		Vhost:          proxy.Configuration.Vhost,
+		// Project proxies are published from a component and offer no plans.
+		SubscriptionPlans: offeredPlansDTO(proxy.Configuration.SubscriptionPlans),
 	}
 }
 

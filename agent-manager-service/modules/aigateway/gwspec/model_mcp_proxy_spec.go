@@ -19,6 +19,8 @@ var _ MappedNullable = &McpProxySpec{}
 
 // McpProxySpec Desired state of an MCP proxy. displayName, version, context, vhost and mcpSpecVersion are shared metadata; the deployable configuration lives on each endpoint, and the proxy itself deploys nothing to any gateway.
 type McpProxySpec struct {
+	// Handles of the subscription plans the MCP proxy offers, for every endpoint. Each added plan must be an active plan of the organization that isn't deprecated. A plan the proxy already offers stays after it is deactivated or deprecated while the list is sent back unchanged; a deprecated one must be removed before the list can change otherwise. On update, leaving it out keeps the offered plans and an empty list offers none. Needs the ai-hub module. A plan is enforced only where subscription-validation v2 (and subscription-tool-ratelimit for tool-call limits) are attached to the endpoint; once they are, calls without an active subscription get 403. Omitted from list rows.
+	SubscriptionPlans []string `json:"subscriptionPlans,omitempty"`
 	// Human-readable name of the MCP proxy
 	DisplayName string `json:"displayName"`
 	// Description of the MCP proxy
@@ -56,6 +58,38 @@ func NewMcpProxySpec(displayName string, version string) *McpProxySpec {
 func NewMcpProxySpecWithDefaults() *McpProxySpec {
 	this := McpProxySpec{}
 	return &this
+}
+
+// GetSubscriptionPlans returns the SubscriptionPlans field value if set, zero value otherwise.
+func (o *McpProxySpec) GetSubscriptionPlans() []string {
+	if o == nil || IsNil(o.SubscriptionPlans) {
+		var ret []string
+		return ret
+	}
+	return o.SubscriptionPlans
+}
+
+// GetSubscriptionPlansOk returns a tuple with the SubscriptionPlans field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *McpProxySpec) GetSubscriptionPlansOk() ([]string, bool) {
+	if o == nil || IsNil(o.SubscriptionPlans) {
+		return nil, false
+	}
+	return o.SubscriptionPlans, true
+}
+
+// HasSubscriptionPlans returns a boolean if a field has been set.
+func (o *McpProxySpec) HasSubscriptionPlans() bool {
+	if o != nil && !IsNil(o.SubscriptionPlans) {
+		return true
+	}
+
+	return false
+}
+
+// SetSubscriptionPlans gets a reference to the given []string and assigns it to the SubscriptionPlans field.
+func (o *McpProxySpec) SetSubscriptionPlans(v []string) {
+	o.SubscriptionPlans = v
 }
 
 // GetDisplayName returns the DisplayName field value
@@ -340,6 +374,9 @@ func (o McpProxySpec) MarshalJSON() ([]byte, error) {
 
 func (o McpProxySpec) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	if !IsNil(o.SubscriptionPlans) {
+		toSerialize["subscriptionPlans"] = o.SubscriptionPlans
+	}
 	toSerialize["displayName"] = o.DisplayName
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description

@@ -178,6 +178,7 @@ export function proxyFromDocument(doc: MCPProxyDocument): MCPProxy {
     mcpSpecVersion: spec.mcpSpecVersion,
     inCatalog: spec.inCatalog,
     endpoints: spec.endpoints,
+    subscriptionPlans: spec.subscriptionPlans,
     projectName: spec.projectName,
     createdBy: metadata.createdBy,
     createdAt: metadata.creationTimestamp,
@@ -226,8 +227,10 @@ export function documentFromProxy(body: MCPProxy): MCPProxyDocument {
     inCatalog: body.inCatalog,
     projectName: body.projectName,
   };
-  // An absent endpoints key leaves the stored endpoints alone; an empty one clears them.
+  // An absent endpoints key leaves the stored endpoints alone; an empty one clears them. The
+  // offered plans work the same way: absent keeps them, [] offers none.
   if (body.endpoints !== undefined) spec.endpoints = body.endpoints;
+  if (body.subscriptionPlans !== undefined) spec.subscriptionPlans = body.subscriptionPlans;
   return { apiVersion: API_VERSION, kind: KIND, metadata: { name: body.id }, spec };
 }
 

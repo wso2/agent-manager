@@ -16,7 +16,10 @@
 
 package framework
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ---------------------------------------------------------------------------
 // Error
@@ -612,6 +615,8 @@ type MCPProxyCapabilities struct {
 type MCPEndpointEnvironment struct {
 	EnvironmentUUID  string `json:"environmentUuid"`
 	DeploymentStatus string `json:"deploymentStatus,omitempty"`
+	// GatewayID picks the gateway when the environment has more than one egress gateway.
+	GatewayID string `json:"gatewayId,omitempty"`
 }
 
 // MCPProxyEndpoint is one deployable endpoint of an MCP proxy. It carries the upstream
@@ -648,6 +653,8 @@ type MCPProxySpec struct {
 	// environments listed in its Environments block on create/update.
 	Endpoints   []MCPProxyEndpoint `json:"endpoints,omitempty"`
 	ProjectName *string            `json:"projectName,omitempty"`
+	// SubscriptionPlans are the handles of the plans the proxy offers (needs the ai-hub module).
+	SubscriptionPlans []string `json:"subscriptionPlans,omitempty"`
 }
 
 type MCPProxyDocument struct {
@@ -1109,4 +1116,147 @@ type PromoteAgentResponse struct {
 	ProjectName       string `json:"projectName"`
 	SourceEnvironment string `json:"sourceEnvironment"`
 	TargetEnvironment string `json:"targetEnvironment"`
+}
+
+// --- Subscription plans (AI Hub module, /m/ai-hub/subscription-plans) ---
+
+// PlanLimit is one window of a built-in condition: count per timeAmount timeUnit.
+type PlanLimit struct {
+	Count      int64  `json:"count"`
+	TimeAmount int    `json:"timeAmount,omitempty"`
+	TimeUnit   string `json:"timeUnit"`
+}
+
+// PlanConditionParams are a built-in condition's settings.
+type PlanConditionParams struct {
+	Limits   []PlanLimit `json:"limits,omitempty"`
+	OnExceed string      `json:"onExceed,omitempty"`
+}
+
+// PlanCondition is one condition of a subscription plan.
+type PlanCondition struct {
+	ID     string              `json:"id,omitempty"`
+	Type   string              `json:"type"`
+	Params PlanConditionParams `json:"params"`
+}
+
+// PlanAPIVersion and PlanKind are the envelope of a subscription plan document.
+const (
+	PlanAPIVersion = "ai-control-plane.choreolabs.com/v1"
+	PlanKind       = "SubscriptionPlan"
+)
+
+// SubscriptionPlanRequest creates (POST) or updates (PUT) a subscription plan. It is sent as a document: ID is
+// metadata.name (on PUT, the plan's handle), the rest is spec. Omitted spec fields are kept on update.
+type SubscriptionPlanRequest struct {
+	ID          string
+	DisplayName string
+	Description *string
+	Status      string
+	Conditions  []PlanCondition
+	Pricing     map[string]any
+}
+
+// MarshalJSON sends the request as a plan document.
+func (r SubscriptionPlanRequest) MarshalJSON() ([]byte, error) {
+	type spec struct {
+		DisplayName string          `json:"displayName,omitempty"`
+		Description *string         `json:"description,omitempty"`
+		Status      string          `json:"status,omitempty"`
+		Conditions  []PlanCondition `json:"conditions,omitempty"`
+		Pricing     map[string]any  `json:"pricing,omitempty"`
+	}
+	return json.Marshal(map[string]any{
+		"apiVersion": PlanAPIVersion, "kind": PlanKind,
+		"metadata": map[string]any{"name": r.ID},
+		"spec": spec{
+			DisplayName: r.DisplayName, Description: r.Description, Status: r.Status,
+			Conditions: r.Conditions, Pricing: r.Pricing,
+		},
+	})
+}
+
+// SubscriptionPlanResponse is a subscription plan document as the API returns it, read flat: ID is
+// metadata.name, Usage is status.usage.
+type SubscriptionPlanResponse struct {
+	APIVersion  string
+	Kind        string
+	ID          string
+	UID         string
+	DisplayName string
+	Description string
+	Status      string
+	Conditions  []PlanCondition
+	// Usage is what offers or uses the plan; the plan read returns it, the list doesn't.
+	Usage     *SubscriptionPlanUsage
+	CreatedAt string
+	UpdatedAt string
+	// Origin is where the plan was made (metadata.origin).
+	Origin string
+	// Deprecated is status.deprecated: the plan is read only, kept for its subscriptions.
+	Deprecated bool
+}
+
+// UnmarshalJSON reads a plan document.
+func (p *SubscriptionPlanResponse) UnmarshalJSON(b []byte) error {
+	var doc struct {
+		APIVersion string `json:"apiVersion"`
+		Kind       string `json:"kind"`
+		Metadata   struct {
+			Name              string `json:"name"`
+			UID               string `json:"uid"`
+			CreationTimestamp string `json:"creationTimestamp"`
+			UpdateTimestamp   string `json:"updateTimestamp"`
+			Origin            string `json:"origin"`
+		} `json:"metadata"`
+		Spec struct {
+			DisplayName string          `json:"displayName"`
+			Description string          `json:"description"`
+			Status      string          `json:"status"`
+			Conditions  []PlanCondition `json:"conditions"`
+		} `json:"spec"`
+		Status *struct {
+			Usage      *SubscriptionPlanUsage `json:"usage"`
+			Deprecated bool                   `json:"deprecated"`
+		} `json:"status"`
+	}
+	if err := json.Unmarshal(b, &doc); err != nil {
+		return err
+	}
+	*p = SubscriptionPlanResponse{
+		APIVersion: doc.APIVersion, Kind: doc.Kind, ID: doc.Metadata.Name, UID: doc.Metadata.UID,
+		DisplayName: doc.Spec.DisplayName, Description: doc.Spec.Description, Status: doc.Spec.Status,
+		Conditions: doc.Spec.Conditions, CreatedAt: doc.Metadata.CreationTimestamp, UpdatedAt: doc.Metadata.UpdateTimestamp,
+		Origin: doc.Metadata.Origin,
+	}
+	if doc.Status != nil {
+		p.Usage, p.Deprecated = doc.Status.Usage, doc.Status.Deprecated
+	}
+	return nil
+}
+
+// SubscriptionPlanUsage is what offers or uses a plan. A plan in use (one with subscriptions) keeps its name,
+// conditions and expiry; an offer alone doesn't lock it.
+type SubscriptionPlanUsage struct {
+	InUse         bool `json:"inUse"`
+	MCPProxies    int  `json:"mcpProxies"`
+	Subscriptions int  `json:"subscriptions"`
+}
+
+// SubscriptionPlanListResponse is a page of subscription plans.
+type SubscriptionPlanListResponse struct {
+	List       []SubscriptionPlanResponse `json:"list"`
+	Count      int                        `json:"count"`
+	Pagination struct {
+		Total  int `json:"total"`
+		Offset int `json:"offset"`
+		Limit  int `json:"limit"`
+	} `json:"pagination"`
+}
+
+// APIErrorResponse is the plans API's error body.
+type APIErrorResponse struct {
+	Status  string `json:"status"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }

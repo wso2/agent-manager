@@ -25,5 +25,6 @@ export * from "./agent-runtime";
 export * from "./ai-gateway";
 export * from "./ai-observability";
 export * from "./agent-identity";
+export * from "./ai-hub";
 export * from "./shared";
 export * from "./ClientProvider";

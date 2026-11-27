@@ -114,6 +114,11 @@ export interface MCPProxy {
    * project route, see ProjectMCPProxy.
    */
   endpoints?: MCPProxyEndpoint[];
+  /**
+   * Handles of the subscription plans the proxy offers (needs the AI Hub module). Org proxies
+   * only.
+   */
+  subscriptionPlans?: string[];
   /** Set for a project-owned proxy (read only on the org routes). Absent for an org proxy. */
   projectName?: string;
   createdAt?: string;

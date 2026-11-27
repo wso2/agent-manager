@@ -113,6 +113,50 @@ describe("ConfirmationDialogProvider", () => {
     expect(first).toHaveBeenCalled();
   });
 
+  it("enables Confirm only once the confirmation text is typed exactly", () => {
+    const onConfirm = vi.fn();
+    renderWith([
+      {
+        title: "Delete plan",
+        description: "Gone for good.",
+        confirmButtonText: "Delete",
+        confirmationInputLabel: "Type the plan name to confirm",
+        confirmationText: "Gold",
+        onConfirm,
+      },
+    ]);
+    fireEvent.click(screen.getByText("ask"));
+    expect(screen.getByText("Type the plan name to confirm")).toBeInTheDocument();
+    const confirm = screen.getByRole("button", { name: "Delete" });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "gold" } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Gold" } });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows Confirm disabled, with no confirmation field, when the action can't be taken", () => {
+    const onConfirm = vi.fn();
+    renderWith([
+      {
+        title: "Delete plan",
+        description: '"Gold" is in use and can’t be deleted.',
+        confirmButtonText: "Delete",
+        confirmationText: "Gold",
+        confirmDisabled: true,
+        onConfirm,
+      },
+    ]);
+    fireEvent.click(screen.getByText("ask"));
+    expect(screen.getByText('"Gold" is in use and can’t be deleted.')).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
   it("is a no-op outside a provider", () => {
     function Outside() {
       const { addConfirmation } = useConfirmationDialog();

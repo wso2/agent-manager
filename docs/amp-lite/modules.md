@@ -14,14 +14,14 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, and `observability` (traces) another. Its store is in memory and per replica, and nothing writes to it yet, so it serves no traces until a real backend replaces it. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
+- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one, `observability` (traces) another, and `ai-hub` (the AI Hub) a third; only `ai-gateway` is a default. The `observability` store is in memory and per replica, and nothing writes to it yet, so it serves no traces until a real backend replaces it. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
 - **Distribution defaults.** A distribution's `main` passes its default modules to `cli.Main` (`cmd/amp`: `cli.Main("amp", "ai-gateway")`; `cmd/amp-core` none). With no modules list declared, the server installs each default at boot, with its providers, only if it was never installed (or was purged), and changes nothing else, so a default an operator disabled or uninstalled stays that way across restarts. A declared list replaces the defaults.
 
 A distribution is a `main` package that chooses its modules with blank imports:
 
 | Distribution | `main` | Modules |
 |---|---|---|
-| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway` (installed by default), `observability` |
+| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway` (installed by default), `observability`, and `ai-hub` (installed with `amp module install ai-hub`) |
 | `amp-core` | `cmd/amp-core/main.go` imports nothing | none |
 
 Both call `cli.Main`, so they share every command. The Dockerfile builds one or the other with `--build-arg DISTRIBUTION=amp|amp-core`.
@@ -34,8 +34,8 @@ Both call `cli.Main`, so they share every command. The Dockerfile builds one or 
 |---|---|
 | Organizations (including the default org created at startup), projects, environments, the agent registry | The AI Gateway (`ai-gateway`): gateways, LLM and MCP proxies, A2A, agent API keys, agent identity pages |
 | Users, roles and RBAC, the permission registry | `observability`: traces, and the `traces.query/v1` capability (no trace data yet, see above) |
-| Audit log, settings, secrets, agent tokens and JWKS | Later: evaluation, agent identity, A2A and other product areas as they are split out |
-| HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | |
+| Audit log, settings, secrets, agent tokens and JWKS | The AI Hub (`ai-hub`, optional): subscription plans and subscriptions, copied in from a developer portal and synced to the gateways |
+| HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | Later: evaluation, agent identity, A2A and other product areas as they are split out |
 
 Before putting something in the core, ask:
 
@@ -240,7 +240,11 @@ The same calls work in an MCP tool, where they add to the tool call's record, an
 
 `HandleInternalAt(method, absPath, h, opts...)` mounts a route at a fixed path below `/api/internal/v1` on the internal server, while the module is active (404 otherwise). The core doesn't authenticate its callers: the handler does, and a route that changes state names its audit action with `modkit.Audit`. It exists only so the AI Gateway can keep the paths its released controllers call (`/api/internal/v1/...`, with an `api-key` header) until they can register as workloads ([#2493](https://github.com/wso2/agent-manager/issues/2493)); it goes away then. `TestHandleInternalAtUsers` in `internal/modhost` lists the modules allowed to call it. Use `HandleInternal` instead.
 
-Since the core doesn't know who called such a route, the handler tells it with `modkit.AuditInternalCaller(ctx, modkit.InternalCaller{...})` once it has authenticated the caller, so the route's record names it. With `Refused` set it records an authentication failure instead, at most once a minute per source and reason; the credential itself is never passed. It goes away with `HandleInternalAt`.
+Since the core doesn't know who called such a route, the handler tells it with `modkit.AuditInternalCaller(ctx, modkit.InternalCaller{...})` once it has authenticated the caller, so the route's record names it. With `Refused` set it records an authentication failure instead, at most once a minute per source and reason; the credential itself is never passed. Webhooks (below) use it the same way.
+
+#### Webhooks
+
+`HandleWebhook(method, path, h, opts...)` mounts `/m/<name>/webhooks<path>` on the internal server for a sender outside the installation that signs each delivery, such as a developer portal, rather than presenting a workload token. The core doesn't authenticate its callers: the handler verifies the signature and names the sender with `AuditInternalCaller`, and a route that changes state names its audit action with `modkit.Audit`. While the module is inactive these routes answer `401 {"error":"module_inactive"}`, as `HandleInternal`'s do. The AI Hub receives subscription plans and subscriptions from a developer portal at `POST /m/ai-hub/webhooks/events`. `TestHandleWebhookUsers` in `internal/modhost` lists the modules allowed to call it.
 
 ### Background workers
 
@@ -427,6 +431,7 @@ reports each installed module (or one) as `ok`, `degraded` or `inactive`, with i
 | Keep a secret value | `rt.Secrets()` |
 | Serve your own API | `rt.Handle`, described in your own OpenAPI document |
 | Let your own workloads call you | `rt.HandleInternal`, with the workload declared in the manifest |
+| Receive signed deliveries from a sender outside the installation | `rt.HandleWebhook` |
 | Run something in the background | `rt.Go` |
 | Offer tools to MCP clients | `rt.MCPTool` |
 
@@ -502,6 +507,7 @@ Capabilities today:
 | `identity.directory/v1` (`modkit/contracts/identityv1`) | 1 | the core | `For(org, environment)` opens an environment's directory; the client lists, gets, creates, updates and deletes groups and roles, changes group members, role permissions and role assignments, and ensures or removes MCP resource servers. `ListProvisionedAgents(org, environment)` lists the agents the core provisions identities for there, from the core's own records. In Lite only the default environment has one (the platform ThunderID); any other answers `ErrNotProvisioned`. | `ai-gateway` (agent-identity pages, MCP proxy scopes) |
 | `llm.proxy/v1` (`modkit/contracts/llmv1`) | 1 | `ai-gateway` | `ValidateProviders` | none in this repository |
 | `mcp.proxy/v1` (`modkit/contracts/mcpv1`) | 1 | `ai-gateway` | `ValidateProxies` | none in this repository |
+| `subscription.plans/v1` (`modkit/contracts/subplanv1`) | 1 | `ai-hub` | `ListPlans(org)` and `GetPlan(org, id)`: plans, deprecated ones included (`Deprecated`), with their conditions and the single throttle limit older gateways read. `ListSubscriptions(org, kind, handle)` and `GetSubscription(org, id)`: subscriptions to an artifact (an MCP proxy, kind `Mcp`), with their keys. `SubscribedPlanIDs(org, kind, handles)`: the plans a subscription to those artifacts is on, without reading any key. `SubscriptionChangeEvent()`: the event published with a `SubscriptionChange` (`ai-hub.subscription_changed`). `CountOffersWith(counter)`: the consumer hands over its count of the MCP proxies offering a plan, which the plan reports as its usage | `ai-gateway`: the subscriptions, and the plans they are on, that its controllers pull on connect, and, on the subscription change event it subscribes to, what it pushes to the organization's gateways: the subscription's plan, then the subscription. A plan change alone is not pushed. It refuses to add a deprecated plan to an MCP proxy. It hands over its count of offers on every activation. The dependency runs one way (the gateway lists it as `Optional`); AI Hub depends on no gateway, since two modules that list each other's capabilities form a cycle the host refuses. |
 | `traces.query/v1` (`modkit/contracts/tracesv1`) | 1 | `observability` | `QueryTraces`, `QueryTraceSpans` and `GetSpanDetails`, for a `Scope` of IDs (organization required; project, agent and environment optional). Each refuses a `Scope` of another organization than the ctx's with `ErrForeignOrg`, and answers an unknown project, agent or environment with `ErrNotFound`. | none in this repository |
 
 ## Testing
@@ -592,7 +598,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [`AuditAction.Details`, `modkit.AuditResource`, `AuditDetail`](#audit-records) | A module's records say what was acted on and how, as the core's do; declaring each key with its kind keeps redaction working for module records. |
 | [`modkit.AuditEnvironment`](#audit-records) | The gateway's agent routes carry no environment in the path and act on the default one; without it their records name no environment, and reports filtered by environment miss them. |
 | [Route option `modkit.AuditFailClosed`](#route-options) | Routes that mint or revoke credentials a runtime receives must not run unrecorded; the core writes the intent record because only it holds the recorder. |
-| [`modkit.AuditInternalCaller`](#fixed-internal-paths-temporary) | Time-boxed, with `HandleInternalAt`: those routes authenticate their callers themselves, so only the handler can name the caller or report a refused credential. |
+| [`modkit.AuditInternalCaller`](#fixed-internal-paths-temporary) | `HandleInternalAt` and `HandleWebhook` routes authenticate their callers themselves, so only the handler can name the caller or report a refused credential. |
 | [Scoped `Manifest.Events`](#events) and the route options `modkit.Emits`, `EmitsWithoutData` | Module events can be offered as webhooks, which needs a scope and a description per event. |
 | Route options [`AlsoRequires`, `AnyPermission`, `PlatformAdmin`](#route-options) | Some gateway routes need several permissions, one of several, or the platform-admin organization; one permission per route could not express them. |
 | Route option [`AllowOrgOverride`](#route-options) | A deployment's control plane lists gateways and sets gateway identity providers on a tenant's behalf. The core already lets its own routes opt into the org override; the gateway did the same inside its handlers, which bypassed the core's checks (path must name the target, a refused override is a 403) and its audit record. |
@@ -605,6 +611,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [`Runtime.PublishTx`](#events) | An event written in the module's own transaction is delivered only if that transaction commits. |
 | [`Runtime.Track`](#routes) | The core reports feature usage per route; module routes report theirs the same way. It does nothing when reporting is off. |
 | [`Runtime.IssueCredential`, `RevokeCredential`](#credentials) | A module mints workload credentials for the runtimes it registers itself, not only through `amp module credential`. |
+| [`Runtime.HandleWebhook`](#webhooks) | A module receives signed deliveries from a sender outside the installation (the AI Hub's developer portal webhook), which can't present a workload token. |
 | [`Runtime.HandleInternalAt`](#fixed-internal-paths-temporary) | Time-boxed: keeps the AI Gateway's released controllers working on their fixed `/api/internal/v1` paths until they can register as workloads (#2493). A test lists the modules allowed to call it. |
 | [Wider `CoreAPI`](#data): organizations, projects and environments, lookups by name, `LockAgent`, `EnsureOrg` | The proof of concept reads agents only; the gateway addresses projects, agents and environments by name and must lock an agent or create an organization inside a hook. |
 | [`modkit.OrgID(ctx)`](#routes); `OrgID` on `HookRequest`, `Event` and `TokenRequest` | Lite is multi-organization, so every call and event is org-scoped. |
