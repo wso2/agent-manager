@@ -218,8 +218,6 @@ services:
       MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD_FILE: ${AMP_OBSERVABILITY_STORE_URL:+/amp/observability/read-password}
       MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER: amp_cleaner
       MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD_FILE: ${AMP_OBSERVABILITY_STORE_URL:+/amp/observability/delete-password}
-      # Where the module forwards agents' spans (OTLP/HTTP): the collector, with a store.
-      MODULE_OBSERVABILITY_COLLECTOR_URL: ${AMP_OBSERVABILITY_COLLECTOR_URL:-${AMP_OBSERVABILITY_STORE_URL:+http://otel-collector:4318}}
     volumes:
       - ./amp.yaml:/etc/amp/amp.yaml:ro
       - amp-data:/var/lib/agent-manager
