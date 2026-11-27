@@ -86,7 +86,7 @@ func (module) Manifest() modkit.Manifest {
 	}
 }
 
-// settings are the keys openStores and ExternalSchema read.
+// settings are the keys openStores and ExternalSchema read, and initOnly.
 var settings = []modkit.Setting{
 	{Key: "clickhouse.url", Description: "ClickHouse HTTP URL traces are read from; unset, traces come from an empty in-memory store."},
 	{Key: "clickhouse.database", Default: clickhouse.DefaultDatabase, Description: "The database the span table is in. users.xml grants on otel; edit its grants for another name."},
@@ -96,8 +96,13 @@ var settings = []modkit.Setting{
 	{Key: "clickhouse.cleaner-password", Description: "The cleaner login's password.", Secret: true},
 	{Key: "clickhouse.migrator-user", Description: "The login that applies the schema; used only by `amp migrate`."},
 	{Key: "clickhouse.migrator-password", Description: "The migrator login's password.", Secret: true},
+	{Key: "clickhouse.ingest-password", Description: "amp init: the collector's login's (amp_ingest) password; generated and kept when unset.", Secret: true},
 	{Key: "clickhouse.ttl-days", Default: "30", Description: "Days ClickHouse keeps spans; applied by `amp migrate`. A change applies only to spans written or merged after the next `amp migrate`."},
 }
+
+// initOnly are settings amp init reads for the module's other containers;
+// the module itself never does.
+var initOnly = []string{"clickhouse.ingest-password"}
 
 func (module) Migrations() fs.FS { return nil }
 func (module) UI() fs.FS         { return nil }

@@ -305,4 +305,5 @@ modules:
 | `clickhouse.cleaner-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD` |  | The cleaner login's password. **Secret.** |
 | `clickhouse.migrator-user` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER` |  | The login that applies the schema; used only by `amp migrate`. |
 | `clickhouse.migrator-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD` |  | The migrator login's password. **Secret.** |
+| `clickhouse.ingest-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_INGEST_PASSWORD` |  | amp init: the collector's login's (amp_ingest) password; generated and kept when unset. **Secret.** |
 | `clickhouse.ttl-days` | `MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS` | `30` | Days ClickHouse keeps spans; applied by `amp migrate`. A change applies only to spans written or merged after the next `amp migrate`. |
