@@ -28,13 +28,21 @@ x-thunder: &thunder
 # observability-secrets, and the two amp-api uses into
 # amp-observability-secrets. A password set in .env (a secret below) is
 # written as is; else a missing one is generated, and reruns keep it.
+# It runs first in either profile, so it also stops the start when .env
+# has no store URL.
 x-observability-secrets: &observability-secrets
   image: ${AMP_API_IMAGE:-amp-api:lite}
   user: "0:0"
+  environment:
+    AMP_OBSERVABILITY_STORE_URL: ${AMP_OBSERVABILITY_STORE_URL:-}
   entrypoint:
     - /bin/sh
     - -c
     - |
+      if [ -z "$$AMP_OBSERVABILITY_STORE_URL" ]; then
+        echo "AMP_OBSERVABILITY_STORE_URL is not set: add it to .env (http://clickhouse:8123 for the bundled ClickHouse). See docs/amp-lite/observability.md." >&2
+        exit 1
+      fi
       for job in read write delete setup; do
         f=/out/all/$$job-password set=/run/secrets/observability-$$job-password
         if [ -e "$$set" ]; then
@@ -255,8 +263,8 @@ services:
   #   observability-external  uses your ClickHouse at AMP_OBSERVABILITY_STORE_URL,
   #                           with the passwords you set in .env.
   # Both run the collector on the internal observability network and a step
-  # that applies the trace schema with `amp migrate` once amp-api is up, before
-  # the collector starts. ClickHouse creates no tables itself. Each password is
+  # that applies the trace schema with `amp migrate` once amp-api is up (before
+  # the bundled collector starts). ClickHouse creates no tables itself. Each password is
   # a file named for its job (read, write, delete, setup); each container
   # mounts only the ones it uses.
   observability-secrets:
@@ -319,7 +327,7 @@ services:
       - AMP_CONFIG=/etc/amp/amp.yaml
       - AMP_DATA_DIR=/var/lib/agent-manager
       - DB_SSL_MODE=disable
-      - MODULE_OBSERVABILITY_CLICKHOUSE_URL=${AMP_OBSERVABILITY_STORE_URL:-http://clickhouse:8123}
+      - MODULE_OBSERVABILITY_CLICKHOUSE_URL${AMP_OBSERVABILITY_STORE_URL:+=${AMP_OBSERVABILITY_STORE_URL:-}}
       - MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER=amp_migrator
       - MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD_FILE=/run/secrets/observability/setup-password
       # Left out when .env has no TTL, so amp.yaml's clickhouse.ttl-days applies.
@@ -357,6 +365,12 @@ services:
     profiles: [observability-external]
     environment:
       AMP_CLICKHOUSE_ENDPOINT: ${AMP_OBSERVABILITY_STORE_URL:-}
+    # Waits only for the first step, so a failed one stops the start before
+    # amp-api, as clickhouse does. Spans reach it only once the module is
+    # installed, which needs the schema.
+    depends_on:
+      observability-secrets-external:
+        condition: service_completed_successfully
     networks:
       observability:
         aliases: [otel-collector]

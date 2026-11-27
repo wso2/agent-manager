@@ -19,7 +19,7 @@ Without any of this, the module keeps traces in memory, and Lite runs no ClickHo
 |---|---|
 | `observability-secrets` | Writes the four passwords, one file per job, before anything else in the profile starts. |
 | `clickhouse` | Bundled profile only. Stores spans in `otel.otel_traces`. Creates no tables itself; its four logins come from [`users.xml`](../../agent-manager-service/modules/observability/store/clickhouse/users.xml). |
-| `observability-migrate` | Runs `amp migrate` as the migrator login once ClickHouse and `amp-api` are healthy (`amp-api`'s first start creates the encryption key, which needs an empty database), so the schema is applied before the collector starts and before the module is installed. |
+| `observability-migrate` | Runs `amp migrate` as the migrator login once ClickHouse and `amp-api` are healthy (`amp-api`'s first start creates the encryption key, which needs an empty database), so the schema is applied before the module is installed (and, with the bundled ClickHouse, before the collector starts). |
 | `otel-collector` | Receives OTLP/HTTP, sets each span's identity from the request headers, and writes to ClickHouse as the insert-only login. |
 | `observability` network | Internal: holds `amp-api`, ClickHouse and the collector (and the migrate step while it runs), with no route out and no published ports. With your own ClickHouse, the collector also joins a network of its own to reach it. |
 
