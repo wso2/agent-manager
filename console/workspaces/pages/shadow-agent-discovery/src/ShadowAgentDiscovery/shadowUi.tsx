@@ -133,10 +133,13 @@ export const KIND_LABELS: Record<ShadowFindingKind, string> = {
   code_agent: "Agent in code",
 };
 
-/** What an agent is at its platform, in the platform's own words. */
+/**
+ * What an agent is at its platform. Anthropic's is a "Claude agent", not its product name
+ * "Managed Agent", which would read as Agent Manager's Managed status.
+ */
 const PLATFORM_KIND_LABELS: Record<string, Partial<Record<ShadowFindingKind, string>>> = {
   openai: { platform_agent: "Agent" },
-  anthropic: { platform_agent: "Managed Agent" },
+  anthropic: { platform_agent: "Claude agent" },
   bedrock: { runtime: "AgentCore runtime", platform_agent: "Bedrock agent" },
   google: { runtime: "Agent Runtime engine", platform_agent: "Agent Registry agent" },
   foundry: { platform_agent: "Foundry agent" },

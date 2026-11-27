@@ -57,7 +57,7 @@ var defs = append([]SignalDef{
 		Condition: `GET /v1/agents (OpenAI-Beta: agents=v1, project key): an item in data`,
 	},
 	{
-		Code: SigAnthropicManagedAgent, Provider: models.ShadowProviderAnthropic, Name: "Managed Agent",
+		Code: SigAnthropicManagedAgent, Provider: models.ShadowProviderAnthropic, Name: "Claude agent",
 		Condition: `GET /v1/agents?include_archived=true (managed-agents beta, workspace key): an item in data (archived_at == null means active)`,
 	},
 	{

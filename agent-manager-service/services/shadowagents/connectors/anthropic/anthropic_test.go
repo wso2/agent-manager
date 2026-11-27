@@ -425,7 +425,7 @@ func TestConnectionTest(t *testing.T) {
 			t.Fatalf("test = %+v", info)
 		}
 		ag, ok := checkNamed(info, agentsCheck)
-		if !ok || ag.Outcome != models.ShadowCallOK || fmt.Sprint(ag.Unlocks) != "[Managed Agent]" {
+		if !ok || ag.Outcome != models.ShadowCallOK || fmt.Sprint(ag.Unlocks) != "[Claude agent]" {
 			t.Errorf("agents check = %+v", ag)
 		}
 		for _, r := range h.m.all() {
