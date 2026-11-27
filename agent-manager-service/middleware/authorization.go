@@ -21,7 +21,6 @@ import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -70,13 +69,6 @@ func RequireOrgMatch(_ OrgResolver) func(http.HandlerFunc) http.HandlerFunc {
 	return resolveOrgFromToken()
 }
 
-// RequireOrgMatchAllowRootOU is retained for the route registrar's system-client
-// variant. Path-based (root-OU cross-org) resolution has been removed, so it now
-// behaves identically to RequireOrgMatch: the org is always taken from the token.
-func RequireOrgMatchAllowRootOU(_ OrgResolver) func(http.HandlerFunc) http.HandlerFunc {
-	return resolveOrgFromToken()
-}
-
 // resolveOrgFromToken validates the token's org identity and injects ResolvedOrg
 // (taken from the token) into the request context. It never reads the {orgName}
 // path segment.
@@ -110,16 +102,7 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 // RequirePermission returns a middleware that checks the request token carries the
 // required amp: scope.
 func RequirePermission(perm rbac.Permission) func(http.HandlerFunc) http.HandlerFunc {
-	return requireScopes(allPermissions, false, perm)
-}
-
-// RequirePermissionAllowRootOU behaves like RequirePermission but additionally
-// allows a client-credentials token issued to the configured root/admin OU
-// (config.RootOUHandle) through regardless of scope. Use only for system-client
-// endpoints (currently: gateway registration during org bootstrap) — do not
-// apply broadly to user-facing routes.
-func RequirePermissionAllowRootOU(perm rbac.Permission) func(http.HandlerFunc) http.HandlerFunc {
-	return requireScopes(allPermissions, true, perm)
+	return requireScopes(allPermissions, perm)
 }
 
 // RequireAnyPermission returns a middleware that passes if the token carries at least
@@ -127,7 +110,7 @@ func RequirePermissionAllowRootOU(perm rbac.Permission) func(http.HandlerFunc) h
 // legitimately reachable via multiple roles (e.g. environments read needed by both
 // the environment manager and the LLM-provider viewer).
 func RequireAnyPermission(perms ...rbac.Permission) func(http.HandlerFunc) http.HandlerFunc {
-	return requireScopes(anyPermission, false, perms...)
+	return requireScopes(anyPermission, perms...)
 }
 
 // RequireAllPermissions returns a middleware that passes only if the token carries
@@ -136,7 +119,7 @@ func RequireAnyPermission(perms ...rbac.Permission) func(http.HandlerFunc) http.
 // the capability (agent:suspend) and the environment tier
 // (agent:env-non-production) — so holding one axis does not admit the other.
 func RequireAllPermissions(perms ...rbac.Permission) func(http.HandlerFunc) http.HandlerFunc {
-	return requireScopes(allPermissions, false, perms...)
+	return requireScopes(allPermissions, perms...)
 }
 
 // scopeMode says how a route's permissions combine.
@@ -151,10 +134,10 @@ const (
 
 // requireScopes is the one gate behind RequirePermission, RequireAnyPermission
 // and RequireAllPermissions. They differ only in how the permissions combine and
-// in what the refusal names; everything around that — the root-OU bypass, the
-// audited denial, the 403 — is the same gate, and was three copies of it before. A fourth combining rule should be a
-// scopeMode, not a fourth copy.
-func requireScopes(mode scopeMode, allowRootOU bool, perms ...rbac.Permission) func(http.HandlerFunc) http.HandlerFunc {
+// in what the refusal names; everything around that — the audited denial, the
+// 403 — is the same gate, and was three copies of it before. A fourth combining
+// rule should be a scopeMode, not a fourth copy.
+func requireScopes(mode scopeMode, perms ...rbac.Permission) func(http.HandlerFunc) http.HandlerFunc {
 	// An empty list is refused where the route table is built, not where a
 	// request arrives, because in allPermissions mode there would be no request
 	// to refuse: nothing is missing from a list of nothing, so FirstMissingScope
@@ -167,25 +150,6 @@ func requireScopes(mode scopeMode, allowRootOU bool, perms ...rbac.Permission) f
 	}
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
-			if allowRootOU {
-				if claims := jwtassertion.GetTokenClaims(r.Context()); claims != nil && claims.OuHandle == config.GetConfig().RootOUHandle {
-					// A root-OU token is admitted regardless of its scopes. That
-					// bypass is a first-class audited fact, not an implementation
-					// detail — it is the one path where a caller reaches a
-					// protected route without holding its permission.
-					//
-					// Recorded without suppressing the envelope: this event says
-					// how the caller got in, the envelope says what they then did.
-					audit.RecordAncillary(
-						r.Context(), audit.ActionAuthzRootOUBypass,
-						audit.RequiredPermissions(perms...),
-						audit.Detail("rootOUBypass", true),
-					)
-					next(w, r)
-					return
-				}
-			}
-
 			reason := "missing-scope"
 			opts := []audit.Option{
 				audit.RequiredPermissions(perms...),

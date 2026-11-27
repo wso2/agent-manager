@@ -54,7 +54,6 @@ import (
 // authenticated caller.
 var authzBearingRegistrars = map[string]bool{
 	"HandleFuncWithValidationAndAuthz":               true,
-	"HandleFuncWithValidationAndAuthzAllowRootOU":    true,
 	"HandleFuncWithValidationAndAuthzAndOrgOverride": true,
 	"HandleFuncWithValidationAndAnyAuthz":            true,
 	"HandleFuncWithValidationAndAllAuthz":            true,
@@ -555,7 +554,7 @@ func registrarPermissions(call *ast.CallExpr) []string {
 
 	var args []ast.Expr
 	switch sel.Sel.Name {
-	case "HandleFuncWithValidationAndAuthz", "HandleFuncWithValidationAndAuthzAllowRootOU":
+	case "HandleFuncWithValidationAndAuthz":
 		if len(call.Args) > 1 {
 			args = call.Args[1:2]
 		}

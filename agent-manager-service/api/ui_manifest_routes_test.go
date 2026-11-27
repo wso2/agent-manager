@@ -22,7 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -66,15 +65,14 @@ func TestUIManifestWithoutModules(t *testing.T) {
 	assert.Len(t, got.Modules, 1)
 }
 
-func TestUIManifestRootOUSeesEverything(t *testing.T) {
+// The organization a token names grants no pages: an identity provider decides
+// handles, so an "admin" one is as unprivileged as any other.
+func TestUIManifestIgnoresTheOrganizationHandle(t *testing.T) {
 	src := fakeUI{{Name: "gateway", Pages: []modhost.UIEntry{{ID: "ai-gateway/gateways", Permission: "gateway:read"}}}}
 	req := httptest.NewRequest("GET", "/ui-manifest", nil)
-	ctx := jwtassertion.ContextWithScopeList(req.Context(), nil)
-	ctx = jwtassertion.ContextWithTokenClaims(ctx, &jwtassertion.TokenClaims{OuHandle: config.GetConfig().RootOUHandle})
-	got := uiManifest(req.WithContext(ctx), src)
-	assert.Equal(t, []string{"acp-core/external-agent", "ai-gateway/gateways"}, got.Pages)
-
-	ctx = jwtassertion.ContextWithTokenClaims(req.Context(), &jwtassertion.TokenClaims{OuHandle: "default"})
-	ctx = jwtassertion.ContextWithScopeList(ctx, nil)
-	assert.Empty(t, uiManifest(req.WithContext(ctx), src).Pages)
+	for _, handle := range []string{"admin", "default"} {
+		ctx := jwtassertion.ContextWithTokenClaims(req.Context(), &jwtassertion.TokenClaims{OuHandle: handle})
+		ctx = jwtassertion.ContextWithScopeList(ctx, nil)
+		assert.Empty(t, uiManifest(req.WithContext(ctx), src).Pages, handle)
+	}
 }

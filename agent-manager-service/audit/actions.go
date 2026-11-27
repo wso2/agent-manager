@@ -66,11 +66,6 @@ const (
 	// escalation is the single most important thing a security reviewer looks
 	// for, and it is invisible today.
 	ActionAuthzDeny Action = "authz:deny"
-	// ActionAuthzRootOUBypass records a request admitted through the root-OU
-	// bypass, which accepts a token regardless of the scopes it carries. It is
-	// the one path to a protected route that does not require its permission,
-	// so it is recorded even though the request succeeded.
-	ActionAuthzRootOUBypass Action = "authz:root-ou-bypass"
 	// ActionAuthzOrgOverride records a request whose organization was switched
 	// from its token's to the one named in X-Impersonate-Org, as permitted by
 	// the deployment's OrgOverrideResolver. The handler then reads and writes
@@ -97,7 +92,6 @@ type actionMeta struct {
 var registry = map[Action]actionMeta{
 	ActionAuthnFailure:       {class: ClassAuthn, severity: SeverityWarning},
 	ActionAuthzDeny:          {class: ClassAuthz, severity: SeverityWarning},
-	ActionAuthzRootOUBypass:  {class: ClassAuthz, severity: SeverityCritical},
 	ActionAuthzOrgOverride:   {class: ClassAuthz, severity: SeverityCritical},
 	ActionSystemStartup:      {class: ClassSystem, severity: SeverityNotice},
 	ActionSystemAuditDropped: {class: ClassSystem, severity: SeverityCritical},

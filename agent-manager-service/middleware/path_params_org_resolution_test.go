@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // Org resolution follows the route's surface, not whether its pattern contains {orgName}.
@@ -79,39 +78,6 @@ func TestAPISurfaceRejectsMissingOrgWithoutOrgNameInPattern(t *testing.T) {
 	}
 	if ran {
 		t.Fatal("handler must not run for a token with no org identity")
-	}
-}
-
-// The root-OU registration path resolves the org the same way.
-func TestRootOURegistrationResolvesOrgWithoutOrgNameInPattern(t *testing.T) {
-	mux := http.NewServeMux()
-	rr := NewRouteRegistrar(mux, stubResolver{}, nil)
-	claims := &jwtassertion.TokenClaims{
-		Sub: "user-a", OuId: "ou-a", OuHandle: "orga",
-		Scope: rbac.ProjectRead.Scope(),
-	}
-
-	var ran, ok bool
-	var resolved ResolvedOrg
-	rr.HandleFuncWithValidationAndAuthzAllowRootOU("GET /api/v1/projects", rbac.ProjectRead,
-		func(w http.ResponseWriter, r *http.Request) {
-			ran = true
-			resolved, ok = GetResolvedOrg(r.Context())
-			w.WriteHeader(http.StatusOK)
-		})
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects", nil)
-	ctx := jwtassertion.ContextWithTokenClaims(req.Context(), claims)
-	ctx = jwtassertion.ContextWithScopes(ctx, claims.Scope)
-	req = req.WithContext(ctx)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK || !ran {
-		t.Fatalf("want 200 and handler run, got %d ran=%v", rec.Code, ran)
-	}
-	if !ok || resolved.OUID != "ou-a" {
-		t.Fatalf("root-OU registration must resolve the org from the token, ok=%v got %q", ok, resolved.OUID)
 	}
 }
 

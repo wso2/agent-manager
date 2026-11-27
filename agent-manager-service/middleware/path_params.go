@@ -197,21 +197,6 @@ func (rr *RouteRegistrar) HandleFuncWithValidationAndAuthzAndOrgOverride(
 	rr.registerWithOrgOverride(pattern, []rbac.Permission{perm}, RequirePermission(perm), orgOverride, handler)
 }
 
-// HandleFuncWithValidationAndAuthzAllowRootOU is identical to
-// HandleFuncWithValidationAndAuthz except it also bypasses the scope check for
-// a client-credentials token issued to the configured root/admin OU. Org
-// resolution is unchanged from the normal path: under the token-trust model
-// the org always comes from the token, so this does NOT let a root-OU token
-// act on a different org named in the path — see RequireOrgMatchAllowRootOU /
-// RequirePermissionAllowRootOU. Use only for system-client bootstrap endpoints.
-func (rr *RouteRegistrar) HandleFuncWithValidationAndAuthzAllowRootOU(pattern string, perm rbac.Permission, handler http.HandlerFunc) {
-	// The root-OU bypass admits a token regardless of its scopes, so the audit
-	// record for these routes needs to show that the normal check did not decide
-	// the outcome. RequirePermissionAllowRootOU marks the request when it takes
-	// that path; see auditRootOUBypass in authorization.go.
-	rr.registerRootOU(pattern, []rbac.Permission{perm}, RequirePermissionAllowRootOU(perm), handler)
-}
-
 // HandleFuncWithValidationAndPlatformAdminAuthz registers a route that reads
 // across every organization, admitting only the platform-admin OU.
 //
@@ -246,32 +231,6 @@ func (rr *RouteRegistrar) HandleFuncWithValidationAndAnyAuthz(pattern string, ha
 // on nothing.
 func (rr *RouteRegistrar) HandleFuncWithValidationAndAllAuthz(pattern string, handler http.HandlerFunc, perms ...rbac.Permission) {
 	rr.register(pattern, perms, RequireAllPermissions(perms...), handler)
-}
-
-// registerRootOU mirrors register but uses the root-OU org resolution variant.
-func (rr *RouteRegistrar) registerRootOU(
-	pattern string,
-	perms []rbac.Permission,
-	authz func(http.HandlerFunc) http.HandlerFunc,
-	handler http.HandlerFunc,
-) {
-	params := extractPathParams(pattern)
-	meta := audit.NewRouteMetaForSurface(pattern, params, perms, rr.surface)
-	// Innermost, so the resolved org and the caller are on its context.
-	handler = WithEvents(rr.events, meta)(handler)
-	if len(params) > 0 {
-		handler = WithPathParamValidation(handler, params...)
-	}
-	handler = authz(handler)
-	// Every API-surface route, as in registerWithOrgOverride.
-	if rr.surface == audit.SurfaceAPI {
-		handler = RequireOrgMatchAllowRootOU(rr.orgResolver)(handler)
-	}
-
-	rr.routes = append(rr.routes, meta)
-	handler = WithAudit(rr.auditor, meta)(handler)
-
-	rr.mux.HandleFunc(pattern, handler)
 }
 
 // WithPathParamValidation wraps a handler and validates required path parameters

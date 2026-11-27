@@ -87,9 +87,6 @@ var detailSchema = map[Action]map[string]FieldKind{
 		// A request whose body named an org other than the caller's token org.
 		"requestedOrgId": KindIdentifier,
 	},
-	ActionAuthzRootOUBypass: {
-		"rootOUBypass": KindFlag,
-	},
 	ActionAuthzOrgOverride: {
 		"clientId":   KindIdentifier,
 		"tokenOuID":  KindIdentifier,

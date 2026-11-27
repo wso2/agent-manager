@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -56,13 +55,8 @@ func uiManifest(r *http.Request, src UISource) spec.UIManifestResponse {
 	if src != nil {
 		mods = append(mods, src.UI()...)
 	}
-	// A root-OU token passes every permission check the routes that allow
-	// it make (RequirePermissionAllowRootOU), so it sees every entry, the
-	// same way the authorization middleware would treat it.
-	claims := jwtassertion.GetTokenClaims(r.Context())
-	rootOU := claims != nil && claims.OuHandle != "" && claims.OuHandle == config.GetConfig().RootOUHandle
 	allowed := func(e modhost.UIEntry) bool {
-		return rootOU || e.Permission == "" || jwtassertion.HoldsAnyScope(r.Context(), e.Permission)
+		return e.Permission == "" || jwtassertion.HoldsAnyScope(r.Context(), e.Permission)
 	}
 	out := spec.UIManifestResponse{Modules: []spec.UIManifestModule{}, Pages: []string{}}
 	seen := map[string]bool{}
