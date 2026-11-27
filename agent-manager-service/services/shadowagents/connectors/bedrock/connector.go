@@ -77,6 +77,7 @@ func (c *Connector) Provider() string { return models.ShadowProviderBedrock }
 // Scan implements sa.Connector.
 func (c *Connector) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
 	s := newScan(c, conn)
+	s.calls = sa.NewCallsFor(ctx)
 	s.run(ctx)
 	res := &sa.Result{Findings: s.fs.All(), Calls: s.calls.Results()}
 	c.logger.Info("Shadow agent discovery Bedrock scan finished",

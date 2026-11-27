@@ -57,6 +57,13 @@ type ShadowConnectionApply struct {
 	// repositories) the scan could not finish; when Complete, their agents
 	// and evidence are left as they are. Empty for cloud scans.
 	UnfinishedScopes []string
+	// Result, when set, is the connection's final result in a running cloud
+	// scan, stored at ResultIndex of the scan's results in the same
+	// transaction (its FindingsCount set to the agents written). The scan
+	// must still be running: otherwise nothing is written and
+	// ApplyConnectionResult fails with utils.ErrShadowScanNotRunning.
+	Result      *models.ShadowScanConnectionResult
+	ResultIndex int
 }
 
 // ShadowScanPublish is what a source code scan command published for its
@@ -149,6 +156,14 @@ type ShadowAgentRepository interface {
 	// published or uploaded for it. Each connection of the scan gets a failed
 	// result saying so. It returns false when the org has no pending scan id.
 	CancelPendingScan(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error)
+	// CancelActiveScan fails the org's queued or running cloud scan id at
+	// once. Connections that finished keep their results and agents (counted
+	// in findings_count); each connection still queued or running fails with
+	// models.ShadowConnectionCancelledMessage and keeps what it recorded so
+	// far. It returns false when the org has no queued or running scan id, and
+	// when every connection of a running scan has finished (its worker
+	// records it).
+	CancelActiveScan(ctx context.Context, ouID string, id uuid.UUID, now time.Time) (bool, error)
 	// LatestScan returns the org's newest scan that is not pending (a pending
 	// source code scan must not hide a cloud scan that is running), or
 	// gorm.ErrRecordNotFound when it has none.
@@ -157,7 +172,15 @@ type ShadowAgentRepository interface {
 	// out (their worker died), across orgs.
 	ClaimDueScans(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]models.ShadowScan, error)
 	RenewScanLease(ctx context.Context, id uuid.UUID, until time.Time) error
-	FinishScan(ctx context.Context, s *models.ShadowScan) error
+	// UpdateScanProgress writes the results of a running scan so far. It
+	// returns false, and changes nothing, when the scan is no longer running
+	// (it was cancelled).
+	UpdateScanProgress(ctx context.Context, id uuid.UUID, results []models.ShadowScanConnectionResult) (bool, error)
+	// ScanRunning reports whether scan id is still running.
+	ScanRunning(ctx context.Context, id uuid.UUID) (bool, error)
+	// FinishScan records the outcome of a running scan. It returns false, and
+	// changes nothing, when the scan is no longer running (it was cancelled).
+	FinishScan(ctx context.Context, s *models.ShadowScan) (bool, error)
 
 	// ApplyConnectionResult writes one connection's scan in one transaction
 	// and returns how many agents it wrote.
@@ -392,19 +415,136 @@ func (r *shadowAgentRepository) CancelPendingScan(
 	return res.RowsAffected > 0, res.Error
 }
 
+func (r *shadowAgentRepository) CancelActiveScan(
+	ctx context.Context, ouID string, id uuid.UUID, now time.Time,
+) (bool, error) {
+	cancelled := false
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// The row lock orders the cancel with the worker's claim, progress
+		// and finish, which all change only a queued or running scan.
+		var scan models.ShadowScan
+		if err := tx.Raw(`SELECT * FROM shadow_scans WHERE ou_id = ? AND id = ? AND status IN (?, ?) FOR UPDATE`,
+			ouID, id, models.ShadowScanQueued, models.ShadowScanRunning).Scan(&scan).Error; err != nil {
+			return fmt.Errorf("locking the scan: %w", err)
+		}
+		if scan.ID == uuid.Nil {
+			return nil
+		}
+		var conns []models.ShadowConnection
+		if err := tx.Where("ou_id = ? AND id::text IN ?", ouID, scan.ConnectionIDs).
+			Find(&conns).Error; err != nil {
+			return fmt.Errorf("listing the scan's connections: %w", err)
+		}
+		results, unfinished := FailUnfinishedScanResults(&scan, conns, models.ShadowConnectionCancelledMessage)
+		if scan.Status == models.ShadowScanRunning && unfinished == 0 {
+			// Every connection has finished: the worker records the scan.
+			return nil
+		}
+		js, err := toJSON(results)
+		if err != nil {
+			return err
+		}
+		res := tx.Exec(`UPDATE shadow_scans SET status = ?, results = ?::jsonb, findings_count = ?, finished_at = ?,
+				claimed_until = NULL, updated_at = ?
+			WHERE ou_id = ? AND id = ? AND status IN (?, ?)`,
+			models.ShadowScanFailed, js, ShadowResultsFindingsCount(results), now, now,
+			ouID, id, models.ShadowScanQueued, models.ShadowScanRunning)
+		if res.Error != nil {
+			return fmt.Errorf("cancelling the scan: %w", res.Error)
+		}
+		cancelled = res.RowsAffected > 0
+		return nil
+	})
+	return cancelled, err
+}
+
+// ShadowResultsFindingsCount is the number of agents the connections of
+// results found.
+func ShadowResultsFindingsCount(results []models.ShadowScanConnectionResult) int {
+	n := 0
+	for _, r := range results {
+		n += r.FindingsCount
+	}
+	return n
+}
+
+// FailUnfinishedScanResults returns the results of a scan that stopped
+// before it finished (cancelled, or given up): one per connection, in order,
+// and how many connections had not finished. A connection that finished
+// keeps its result; one still queued or running fails with message and
+// keeps the calls it made so far. conns fill in the name and platform of a
+// connection that has none yet.
+func FailUnfinishedScanResults(
+	scan *models.ShadowScan, conns []models.ShadowConnection, message string,
+) ([]models.ShadowScanConnectionResult, int) {
+	byID := make(map[string]models.ShadowScanConnectionResult, len(scan.Results))
+	for _, r := range scan.Results {
+		byID[r.ConnectionID] = r
+	}
+	connByID := make(map[string]models.ShadowConnection, len(conns))
+	for _, c := range conns {
+		connByID[c.ID.String()] = c
+	}
+	out := make([]models.ShadowScanConnectionResult, 0, len(scan.ConnectionIDs))
+	unfinished := 0
+	for _, id := range scan.ConnectionIDs {
+		r, ok := byID[id]
+		if ok && r.Outcome != models.ShadowConnectionQueued && r.Outcome != models.ShadowConnectionRunning {
+			out = append(out, r)
+			continue
+		}
+		unfinished++
+		r.ConnectionID = id
+		if c, found := connByID[id]; found {
+			if r.ConnectionName == "" {
+				r.ConnectionName = c.Name
+			}
+			if r.Provider == "" {
+				r.Provider = c.Provider
+			}
+		}
+		r.Outcome, r.Message, r.FindingsCount, r.FinishedAt = models.ShadowScanFailed, message, 0, nil
+		if r.Calls == nil {
+			r.Calls = []models.ShadowScanCallResult{}
+		}
+		out = append(out, r)
+	}
+	return out, unfinished
+}
+
 func (r *shadowAgentRepository) RenewScanLease(ctx context.Context, id uuid.UUID, until time.Time) error {
 	return r.db.WithContext(ctx).Model(&models.ShadowScan{}).
 		Where("id = ? AND status = 'running'", id).Update("claimed_until", until).Error
 }
 
-func (r *shadowAgentRepository) FinishScan(ctx context.Context, s *models.ShadowScan) error {
+func (r *shadowAgentRepository) UpdateScanProgress(
+	ctx context.Context, id uuid.UUID, results []models.ShadowScanConnectionResult,
+) (bool, error) {
+	js, err := toJSON(results)
+	if err != nil {
+		return false, err
+	}
+	res := r.db.WithContext(ctx).Exec(`UPDATE shadow_scans SET results = ?::jsonb, updated_at = ?
+		WHERE id = ? AND status = ?`,
+		js, time.Now().UTC().Truncate(time.Microsecond), id, models.ShadowScanRunning)
+	return res.RowsAffected > 0, res.Error
+}
+
+func (r *shadowAgentRepository) ScanRunning(ctx context.Context, id uuid.UUID) (bool, error) {
+	var running bool
+	err := r.db.WithContext(ctx).Raw(`SELECT EXISTS (SELECT 1 FROM shadow_scans WHERE id = ? AND status = ?)`,
+		id, models.ShadowScanRunning).Scan(&running).Error
+	return running, err
+}
+
+func (r *shadowAgentRepository) FinishScan(ctx context.Context, s *models.ShadowScan) (bool, error) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	results, err := toJSON(s.Results)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return r.db.WithContext(ctx).Model(&models.ShadowScan{}).
-		Where("ou_id = ? AND id = ?", s.OUID, s.ID).
+	res := r.db.WithContext(ctx).Model(&models.ShadowScan{}).
+		Where("ou_id = ? AND id = ? AND status = ?", s.OUID, s.ID, models.ShadowScanRunning).
 		Updates(map[string]any{
 			"status":         s.Status,
 			"results":        gorm.Expr("?::jsonb", results),
@@ -412,7 +552,8 @@ func (r *shadowAgentRepository) FinishScan(ctx context.Context, s *models.Shadow
 			"finished_at":    s.FinishedAt,
 			"claimed_until":  nil,
 			"updated_at":     now,
-		}).Error
+		})
+	return res.RowsAffected > 0, res.Error
 }
 
 // ---- scan results ----
@@ -420,11 +561,62 @@ func (r *shadowAgentRepository) FinishScan(ctx context.Context, s *models.Shadow
 func (r *shadowAgentRepository) ApplyConnectionResult(ctx context.Context, in ShadowConnectionApply) (int, error) {
 	written := 0
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var scan models.ShadowScan
+		if in.Result != nil {
+			// The row lock orders this with a cancel: after a cancel nothing
+			// is written, and a cancel after this sees the final result.
+			if err := tx.Raw(`SELECT * FROM shadow_scans WHERE ou_id = ? AND id = ? AND status = ? FOR UPDATE`,
+				in.OUID, in.ScanID, models.ShadowScanRunning).Scan(&scan).Error; err != nil {
+				return fmt.Errorf("locking the scan: %w", err)
+			}
+			if scan.ID == uuid.Nil {
+				return utils.ErrShadowScanNotRunning
+			}
+		}
 		n, err := applyConnectionResult(tx, in)
 		written = n
-		return err
+		if err != nil || in.Result == nil {
+			return err
+		}
+		results := scanResultsWith(&scan, in.ResultIndex, *in.Result, n)
+		js, err := toJSON(results)
+		if err != nil {
+			return err
+		}
+		if err := tx.Exec(`UPDATE shadow_scans SET results = ?::jsonb, updated_at = ? WHERE ou_id = ? AND id = ?`,
+			js, time.Now().UTC().Truncate(time.Microsecond), in.OUID, in.ScanID).Error; err != nil {
+			return fmt.Errorf("recording the connection's result: %w", err)
+		}
+		return nil
 	})
 	return written, err
+}
+
+// scanResultsWith returns scan's results, one per connection, with result
+// (finding n agents) at index i. A connection with no stored result yet is
+// queued.
+func scanResultsWith(
+	scan *models.ShadowScan, i int, result models.ShadowScanConnectionResult, n int,
+) []models.ShadowScanConnectionResult {
+	byID := make(map[string]models.ShadowScanConnectionResult, len(scan.Results))
+	for _, r := range scan.Results {
+		byID[r.ConnectionID] = r
+	}
+	out := make([]models.ShadowScanConnectionResult, len(scan.ConnectionIDs))
+	for j, id := range scan.ConnectionIDs {
+		r, ok := byID[id]
+		if !ok {
+			r = models.ShadowScanConnectionResult{
+				ConnectionID: id, Outcome: models.ShadowConnectionQueued, Calls: []models.ShadowScanCallResult{},
+			}
+		}
+		out[j] = r
+	}
+	if i >= 0 && i < len(out) {
+		result.FindingsCount = n
+		out[i] = result
+	}
+	return out
 }
 
 // applyConnectionResult writes one connection's scan in tx and returns how

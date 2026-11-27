@@ -210,12 +210,26 @@ export interface ShadowScanCallResult {
 
 export interface ShadowScanConnectionResult {
   connectionId: string;
+  /** May be empty while the connection is queued. */
   connectionName: string;
+  /** May be empty while the connection is queued. */
   provider: string;
+  /**
+   * While the scan is queued or running: "queued" (not started) or "running";
+   * otherwise how the connection's scan ended (ok, partial, failed...).
+   */
   outcome: string;
   message?: string;
   findingsCount: number;
+  /**
+   * The provider calls finished so far. While the connection is being scanned
+   * (outcome "running") the last one is the latest step done.
+   */
   calls: ShadowScanCallResult[];
+  /** When the scan of this connection started. */
+  startedAt?: string;
+  /** When the scan of this connection finished. */
+  finishedAt?: string;
   /** Repositories a source code scan scanned. Only on GET a scan, never the list. */
   scannedRepositories?: string[];
   /** Repositories a source code scan could not scan. Only on GET a scan, never the list. */

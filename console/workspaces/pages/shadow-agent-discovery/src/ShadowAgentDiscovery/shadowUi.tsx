@@ -19,6 +19,7 @@
 import { useState } from "react";
 import { Box, Chip, IconButton, Tooltip } from "@wso2/oxygen-ui";
 import {
+  Ban,
   Check,
   CircleCheck,
   CircleDashed,
@@ -255,7 +256,20 @@ export const SCAN_STATUS_LABELS: Record<ShadowScanStatus, string> = {
   failed: "Failed",
 };
 
-export function ScanStatusChip({ status }: { status: ShadowScanStatus }) {
+/**
+ * A scan's status. A cancelled scan is Failed in the API; `cancelled` shows it
+ * as Cancelled, since the user stopped it.
+ */
+export function ScanStatusChip({
+  status,
+  cancelled = false,
+}: {
+  status: ShadowScanStatus;
+  cancelled?: boolean;
+}) {
+  if (cancelled) {
+    return <Chip size="small" variant="outlined" icon={<Ban size={14} />} label="Cancelled" />;
+  }
   const color =
     status === "succeeded"
       ? "success"
@@ -299,6 +313,13 @@ const OUTCOME_LABELS: Record<ShadowCallOutcome, string> = {
   failed: "Failed",
 };
 
+/** The label of a call's or a connection's outcome. */
+export function outcomeLabel(outcome: string): string {
+  return outcome === "partial"
+    ? "Partly failed"
+    : (OUTCOME_LABELS[outcome as ShadowCallOutcome] ?? outcome);
+}
+
 export function OutcomeChip({ outcome }: { outcome: string }) {
   const color =
     outcome === "ok"
@@ -308,11 +329,7 @@ export function OutcomeChip({ outcome }: { outcome: string }) {
         : outcome === "partial" || outcome === "rate_limited" || outcome === "not_found"
           ? "warning"
           : "error";
-  const label =
-    outcome === "partial"
-      ? "Partly failed"
-      : (OUTCOME_LABELS[outcome as ShadowCallOutcome] ?? outcome);
-  return <Chip size="small" variant="outlined" color={color} label={label} />;
+  return <Chip size="small" variant="outlined" color={color} label={outcomeLabel(outcome)} />;
 }
 
 /** The best single line to name who created an agent. */

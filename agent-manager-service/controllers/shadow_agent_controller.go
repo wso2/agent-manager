@@ -467,7 +467,7 @@ func (c *shadowAgentController) GetScan(w http.ResponseWriter, r *http.Request) 
 	utils.WriteSuccessResponse(w, http.StatusOK, toShadowScanResponse(scan, true))
 }
 
-// CancelScan fails a pending source code scan that will get no results.
+// CancelScan cancels a pending, queued or running scan.
 func (c *shadowAgentController) CancelScan(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue(PathParamShadowScanID))
 	if err != nil {
@@ -662,7 +662,7 @@ func writeShadowError(w http.ResponseWriter, r *http.Request, err error, fallbac
 	case errors.Is(err, utils.ErrShadowScanInProgress):
 		utils.WriteErrorResponse(w, http.StatusConflict, "A scan is already queued or running")
 	case errors.Is(err, utils.ErrShadowScanNotPending), errors.Is(err, utils.ErrShadowScanSuperseded),
-		errors.Is(err, utils.ErrShadowScanTokenExpired):
+		errors.Is(err, utils.ErrShadowScanTokenExpired), errors.Is(err, utils.ErrShadowScanFinished):
 		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrShadowNoConnections):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Add a platform before running a scan")
@@ -745,6 +745,7 @@ func toShadowScanResponse(s *models.ShadowScan, withRepositories bool) spec.Shad
 			Outcome: r.Outcome, Message: optionalString(r.Message),
 			FindingsCount: int32(r.FindingsCount), //nolint:gosec // bounded by row counts
 			Calls:         make([]spec.ShadowScanCallResult, 0, len(r.Calls)),
+			StartedAt:     r.StartedAt, FinishedAt: r.FinishedAt,
 		}
 		if withRepositories {
 			if len(r.ScannedRepositories) > 0 {

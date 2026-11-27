@@ -70,6 +70,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useShadowScans: () => ({ data: { scans: hoisted.scans }, isLoading: false, error: null }),
+  useShadowConnections: () => ({ data: { connections: [] }, isLoading: false, error: null }),
   useShadowScan: (_org: string | undefined, id: string | undefined) => {
     hoisted.lookupIds.push(id);
     return id ? hoisted.lookup : { data: undefined, isLoading: false, error: null };

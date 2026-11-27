@@ -35,7 +35,7 @@ type scan struct {
 
 // Scan lists the agents of every project with a project key.
 func (c *Connector) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
-	s := &scan{c: c, conn: conn, calls: sa.NewCalls(), fs: sa.NewFindings()}
+	s := &scan{c: c, conn: conn, calls: sa.NewCallsFor(ctx), fs: sa.NewFindings()}
 	s.run(ctx)
 	return s.result()
 }

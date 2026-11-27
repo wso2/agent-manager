@@ -79,6 +79,8 @@ import { ProviderLogo } from "../providerLogos";
 import { GenerateCommandDialog } from "./GenerateCommandDialog";
 import { RunScanButton } from "./RunScanButton";
 import { scanFindingsPath } from "./ScansTab";
+import { isCancelledScan, progressLine } from "./ScanProgress";
+import { useConfirmCancelScan } from "./UploadResultsDialog";
 
 /** The number of keys an OpenAI or Anthropic platform lists agents with. */
 export function ScopedKeysChip({
@@ -133,20 +135,23 @@ function scanTargets(ids: string[], connections: ShadowConnectionResponse[]): st
 
 /**
  * Above the tables while a scan runs, so a disabled Scan button is explained: what is
- * being scanned, since when, and a way to the scan. Once a scan seen running here
- * finishes, it says how it went until dismissed.
+ * being scanned, since when, how far it got, and a way to the scan or to cancel it.
+ * Once a scan seen running here finishes, it says how it went until dismissed.
  */
 function ScanProgressNotice({
   scan,
   running,
   connections,
   onView,
+  onCancel,
   onDismiss,
 }: {
   scan: ShadowScanResponse;
   running: boolean;
   connections: ShadowConnectionResponse[];
   onView: () => void;
+  /** Set when the user may cancel the scan. */
+  onCancel?: () => void;
   onDismiss: () => void;
 }) {
   const view = (
@@ -157,16 +162,37 @@ function ScanProgressNotice({
   const targets = scanTargets(scan.connectionIds, connections);
   if (running) {
     return (
-      <Alert severity="info" icon={<CircularProgress size={18} color="inherit" />} action={view}>
+      <Alert
+        severity="info"
+        icon={<CircularProgress size={18} color="inherit" />}
+        action={
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            {view}
+            {onCancel && (
+              <Button color="error" size="small" onClick={onCancel}>
+                Cancel scan
+              </Button>
+            )}
+          </Stack>
+        }
+      >
         Scanning {targets}, started{" "}
         {formatRelativeTime(scan.startedAt ?? scan.createdAt).replace(/^Just now$/, "just now")}.
-        The agents found show up as each connector finishes.
+        {/* Inline, so it shares the line when it fits and wraps only when it doesn't. */}{" "}
+        {progressLine(scan, connections)}
       </Alert>
     );
   }
   const found = `${scan.findingsCount} ${scan.findingsCount === 1 ? "agent" : "agents"} found`;
-  const outcome =
-    scan.status === "succeeded"
+  const outcome = isCancelledScan(scan)
+    ? {
+        severity: "info" as const,
+        text:
+          scan.findingsCount > 0
+            ? `Scan of ${targets} cancelled: ${found} before it stopped.`
+            : `Scan of ${targets} cancelled.`,
+      }
+    : scan.status === "succeeded"
       ? { severity: "success" as const, text: `Scan of ${targets} finished: ${found}.` }
       : scan.status === "partial"
         ? {
@@ -231,7 +257,14 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
   const scanRunning = !!showScan && isShadowScanActive(showScan.status);
   // The connectors of a scan this tab is starting, until the request returns.
   const [starting, setStarting] = useState<string[] | null>(null);
-  const scanning = new Set([...(scanRunning ? showScan.connectionIds : []), ...(starting ?? [])]);
+  // Only the connectors still waiting or being scanned: a finished one loses its chip.
+  const unfinished = scanRunning
+    ? showScan.connectionIds.filter((id) => {
+        const o = showScan.results.find((r) => r.connectionId === id)?.outcome;
+        return !o || o === "queued" || o === "running";
+      })
+    : [];
+  const scanning = new Set([...unfinished, ...(starting ?? [])]);
   const navigate = useNavigate();
   const location = useLocation();
   const providers = useShadowProviders(orgName);
@@ -240,6 +273,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
     [providers.data],
   );
   const { addConfirmation } = useConfirmationDialog();
+  const confirmCancel = useConfirmCancelScan(orgName);
   const connections = useMemo(() => data?.connections ?? [], [data]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -486,6 +520,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                     state: returnToState(location),
                   })
                 }
+                onCancel={canManage && scanRunning ? () => confirmCancel(showScan) : undefined}
                 onDismiss={() => setWatchedScan(null)}
               />
             )

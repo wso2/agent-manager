@@ -369,6 +369,8 @@ func TestShadowCancelScan(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict,
 		cancel(&uploadScanService{err: fmt.Errorf("%w: already published", utils.ErrShadowScanNotPending)}, id).Code)
+	assert.Equal(t, http.StatusConflict,
+		cancel(&uploadScanService{err: fmt.Errorf("%w: succeeded", utils.ErrShadowScanFinished)}, id).Code)
 	assert.Equal(t, http.StatusNotFound, cancel(&uploadScanService{err: utils.ErrShadowScanNotFound}, id).Code)
 	notCalled := &uploadScanService{}
 	assert.Equal(t, http.StatusNotFound, cancel(notCalled, "nope").Code)
@@ -388,6 +390,41 @@ func (s *scanReadService) GetScan(context.Context, string, uuid.UUID) (*models.S
 
 func (s *scanReadService) ListScans(context.Context, string, int) ([]models.ShadowScan, error) {
 	return []models.ShadowScan{s.scan}, nil
+}
+
+// A running scan shows each connection's progress, with when it started and
+// ended.
+func TestShadowScanShowsProgress(t *testing.T) {
+	started := time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC)
+	finished := started.Add(time.Minute)
+	svc := &scanReadService{scan: models.ShadowScan{
+		ID: uuid.New(), Status: models.ShadowScanRunning, ConnectionIDs: []string{"a", "b", "c"},
+		Results: []models.ShadowScanConnectionResult{
+			{
+				ConnectionID: "a", ConnectionName: "A", Provider: "openai", Outcome: "ok", FindingsCount: 1,
+				Calls: []models.ShadowScanCallResult{{Call: "GET /v1/agents", Outcome: "ok", Items: 1}}, StartedAt: &started, FinishedAt: &finished,
+			},
+			{
+				ConnectionID: "b", ConnectionName: "B", Provider: "anthropic", Outcome: models.ShadowConnectionRunning,
+				Calls: []models.ShadowScanCallResult{{Call: "GET /v1/agents", Outcome: "ok"}}, StartedAt: &started,
+			},
+			{ConnectionID: "c", Outcome: models.ShadowConnectionQueued, Calls: []models.ShadowScanCallResult{}},
+		},
+	}}
+	r := httptest.NewRequest(http.MethodGet, "/orgs/acme/shadow-agents/scans/"+svc.scan.ID.String(), nil)
+	r.SetPathValue(PathParamShadowScanID, svc.scan.ID.String())
+	w := httptest.NewRecorder()
+	NewShadowAgentController(svc).GetScan(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+	resp := decodeJSON[spec.ShadowScanResponse](t, w.Body.Bytes())
+	require.Len(t, resp.Results, 3)
+	assert.Equal(t, started, resp.Results[0].GetStartedAt())
+	assert.Equal(t, finished, resp.Results[0].GetFinishedAt())
+	assert.Equal(t, models.ShadowConnectionRunning, resp.Results[1].Outcome)
+	assert.Len(t, resp.Results[1].Calls, 1)
+	assert.Nil(t, resp.Results[1].FinishedAt)
+	assert.Equal(t, models.ShadowConnectionQueued, resp.Results[2].Outcome)
+	assert.Nil(t, resp.Results[2].StartedAt)
 }
 
 // Only the scan detail carries the repository lists, which can run to

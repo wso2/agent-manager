@@ -95,6 +95,7 @@ type scan struct {
 // Scan implements sa.Connector.
 func (c *Connector) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
 	s := c.newScan(conn)
+	s.calls = sa.NewCallsFor(ctx)
 	s.firstParty(ctx)
 	res := s.result()
 	c.logger.Info("Anthropic shadow agent scan finished",

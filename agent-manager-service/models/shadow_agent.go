@@ -82,6 +82,16 @@ const ShadowScanExpiredMessage = "expired: no results within 1 hour"
 // cancelled before any results were published or uploaded.
 const ShadowScanCancelledMessage = "cancelled: no results uploaded"
 
+// ShadowConnectionCancelledMessage is the result of a connection of a queued
+// or running cloud scan the user cancelled before the connection finished.
+const ShadowConnectionCancelledMessage = "cancelled"
+
+// Outcomes of a connection while its cloud scan runs.
+const (
+	ShadowConnectionQueued  = "queued"
+	ShadowConnectionRunning = "running"
+)
+
 // Outcomes of one provider call (or one connection) within a scan.
 const (
 	ShadowCallOK               = "ok"
@@ -256,6 +266,10 @@ type ShadowScanConnectionResult struct {
 	Message        string                 `json:"message,omitempty"`
 	FindingsCount  int                    `json:"findingsCount"`
 	Calls          []ShadowScanCallResult `json:"calls"`
+	// StartedAt and FinishedAt are when the scan worker started and ended
+	// this connection of a cloud scan.
+	StartedAt  *time.Time `json:"startedAt,omitempty"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 	// ScannedRepositories and FailedRepositories are the repositories a
 	// source code scan command scanned and could not scan. Cloud scans have
 	// none.

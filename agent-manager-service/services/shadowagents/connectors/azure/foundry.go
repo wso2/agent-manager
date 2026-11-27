@@ -244,7 +244,7 @@ type foundryScan struct {
 
 // Scan implements sa.Connector.
 func (c *Foundry) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
-	calls := sa.NewCalls()
+	calls := sa.NewCallsFor(ctx)
 	res := &sa.Result{}
 	s, err := c.newSession(conn)
 	if err != nil {

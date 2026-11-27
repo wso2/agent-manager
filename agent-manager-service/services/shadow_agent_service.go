@@ -104,8 +104,8 @@ type ShadowAgentService interface {
 	// uploaded by a signed-in user, as PublishRunnerScan saves a publish.
 	UploadRunnerScanResults(ctx context.Context, ouID string, scanID uuid.UUID,
 		req *models.PublishShadowScanRequest) (*models.PublishShadowScanResponse, error)
-	// CancelRunnerScan fails a pending source code scan that will get no
-	// results.
+	// CancelRunnerScan cancels a pending source code scan that will get no
+	// results, or a queued or running cloud scan.
 	CancelRunnerScan(ctx context.Context, ouID string, scanID uuid.UUID) (*models.ShadowScan, error)
 
 	// CreateScan queues a scan of the given connections, or of every

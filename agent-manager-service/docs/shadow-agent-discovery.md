@@ -49,6 +49,10 @@ The console shows, for each AI platform, what Agent Manager does with each crede
 
 **Run scan** scans every AI platform, or the platforms you choose in its dialog; **Scan** on a platform's row in **Platforms** scans that platform only (`POST .../scans`, with `connectionIds` for a choice). A scan lists each connection's agents in the background. One scan per organization can be queued or running at a time; scans are leased in the database, so any service replica can run them and a scan whose worker stopped is picked up again. Each connection runs on its own: a platform that fails, refuses a permission or rate limits fails only its own calls, and the scan result lists the outcome of every call. Retries honour `Retry-After`. GitHub connections are never part of these scans: naming one in `connectionIds` is refused, and they are scanned by their scan command instead.
 
+**Progress.** While a scan runs, its `results` hold one entry per connection, in order, and the scan worker writes them as it goes (at most every 2 seconds, and at once when a connection starts or ends): `queued` until the connection starts, then `running` with its name, provider, `startedAt` and the calls it has made so far (scrubbed like the final result), then its final outcome with `finishedAt`.
+
+**Cancel.** **Cancel scan** on a queued or running scan (`POST .../scans/{scanId}/cancel`) fails it at once, so a new scan can start. A queued scan fails with every connection *cancelled*. A running scan keeps the results and the agents of the connections that finished (they count in its agents); each connection still queued or running fails with *cancelled* and keeps the calls it made. A connection's agents and its final result are saved in one transaction, and only while the scan is running, so a connection the cancel marked *cancelled* never saves agents. The worker notices within a few seconds, stops the connections' calls, and does not overwrite the cancelled scan. A running scan whose connections have all finished is not cancelled (409): its worker is recording it.
+
 Each scan records the agents it found, so **Scans** > **View agents** lists one scan's agents (`GET .../findings?scanId=`).
 
 **Scans** > **Clear scans** (`DELETE .../scans`) deletes the finished scans and their per-scan agent lists. A queued, running or pending scan is kept, and the agents and their evidence are not changed.
@@ -189,7 +193,7 @@ Response (200): `{"scanId": "…", "status": "partial", "findingsCount": 1}`, th
 
 **`POST .../scans/{scanId}/results`** (`amp:shadow-agent:manage`) uploads the `results` object of a results file, as the signed-in user, for a pending source code scan of the organization in the path. The body, limits, checks, response and errors are those of the publish endpoint above; only the authentication differs, and there is no scan token time limit.
 
-**`POST .../scans/{scanId}/cancel`** (`amp:shadow-agent:manage`) fails a pending source code scan with *cancelled: no results uploaded* and returns the scan (200). 404 for an unknown scan; 409 when it is not pending.
+**`POST .../scans/{scanId}/cancel`** (`amp:shadow-agent:manage`) cancels a scan and returns it (200). A pending source code scan fails with *cancelled: no results uploaded*; a queued or running scan fails as described in [Scans](#scans). 404 for an unknown scan; 409 when it has already finished.
 
 ## Configuration
 

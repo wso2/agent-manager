@@ -152,7 +152,7 @@ func (c *Connector) page(ctx context.Context, api *sa.API, u string, limit int, 
 
 // Scan lists every agent the Agents URL returns.
 func (c *Connector) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
-	calls := sa.NewCalls()
+	calls := sa.NewCallsFor(ctx)
 	fs := sa.NewFindings()
 	read, left := c.listAgents(ctx, conn, calls, fs)
 	findings := fs.All()

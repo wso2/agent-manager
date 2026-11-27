@@ -529,6 +529,28 @@ func TestAuthorizeErrorIsAuthFailed(t *testing.T) {
 
 // ---- calls, findings, usage ----
 
+// A recorder made for a context with an observer reports a copy of its
+// calls after each change; without one it records as NewCalls does.
+func TestCallsReportToTheObserver(t *testing.T) {
+	var seen [][]models.ShadowScanCallResult
+	c := NewCallsFor(WithCallObserver(context.Background(), func(calls []models.ShadowScanCallResult) {
+		seen = append(seen, calls)
+	}))
+	c.Record("GET /x", 1, nil)
+	c.Record("GET /x", 2, nil)
+	c.Skip("GET /y", ReasonServiceOff)
+	c.Note("GET /x", "first page only")
+	require.Len(t, seen, 4)
+	assert.Len(t, seen[0], 1)
+	assert.Equal(t, 1, seen[0][0].Items, "each report is a copy")
+	assert.Len(t, seen[2], 2)
+	assert.Equal(t, "first page only", seen[3][0].Message)
+
+	plain := NewCallsFor(context.Background())
+	plain.Record("GET /x", 1, nil)
+	assert.Len(t, plain.Results(), 1)
+}
+
 func TestCallsMergeScopesWorstOutcome(t *testing.T) {
 	c := NewCalls()
 	c.Record("GET /x", 2, nil)

@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   cancelShadowScan,
@@ -114,7 +115,10 @@ export function useShadowConnection(orgName: string | undefined, connectionId: s
   });
 }
 
-/** Hook to list scans; polls while the newest one is active. */
+/**
+ * Hook to list scans; polls while one is active. A newer scan waiting for
+ * results can sit above the running one, so every scan is checked.
+ */
 export function useShadowScans(orgName: string | undefined) {
   const { getToken } = useAuthHooks();
   return useApiQuery<ShadowScanListResponse>({
@@ -122,10 +126,11 @@ export function useShadowScans(orgName: string | undefined) {
     queryFn: () => listShadowScans(orgName, getToken),
     enabled: !!orgName,
     refetchInterval: (q) =>
-      isShadowScanActive(q.state.data?.scans?.[0]?.status) ? SHADOW_SCAN_POLL_MS : false,
+      q.state.data?.scans?.some((s) => isShadowScanActive(s.status)) ? SHADOW_SCAN_POLL_MS : false,
   });
 }
 
+/** Hook to read one scan; polls while it is queued or running, for its progress. */
 export function useShadowScan(orgName: string | undefined, scanId: string | undefined) {
   const { getToken } = useAuthHooks();
   return useApiQuery<ShadowScanResponse>({
@@ -159,6 +164,18 @@ export function useShadowFinding(orgName: string | undefined, findingId: string 
 function useInvalidateShadow() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: ["shadow-agents"] });
+}
+
+/**
+ * Refreshes the agents lists and the summary. A running scan's page calls it as
+ * each connector finishes, since only the scan itself is polled.
+ */
+export function useRefreshShadowFindings(orgName: string | undefined) {
+  const queryClient = useQueryClient();
+  return useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["shadow-agents", "findings", orgName] });
+    void queryClient.invalidateQueries({ queryKey: ["shadow-agents", "summary", orgName] });
+  }, [queryClient, orgName]);
 }
 
 export function useCreateShadowConnection(orgName: string | undefined) {
@@ -274,7 +291,10 @@ export function useUploadShadowScanResults(orgName: string | undefined) {
   });
 }
 
-/** Cancels a source code scan that is waiting for results. */
+/**
+ * Cancels a scan that is waiting for results, queued or running. The agents
+ * already found stay; unfinished connections are not scanned.
+ */
 export function useCancelShadowScan(orgName: string | undefined) {
   const { getToken } = useAuthHooks();
   const invalidate = useInvalidateShadow();
@@ -282,10 +302,11 @@ export function useCancelShadowScan(orgName: string | undefined) {
     successMessage: () => "Scan cancelled",
     errorMessage: (e) =>
       (e as { status?: number })?.status === 409
-        ? "The scan is no longer waiting for results."
+        ? "The scan has already finished."
         : "The scan could not be cancelled. Try again.",
     mutationFn: (scanId) => cancelShadowScan(orgName, scanId, getToken),
-    // A 409 means the scan changed meanwhile: refresh it either way.
+    // Refreshes the summary, the scans and the scan detail. A 409 means the
+    // scan finished meanwhile: refresh it either way.
     onSettled: () => invalidate(),
   });
 }

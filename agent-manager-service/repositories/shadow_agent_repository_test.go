@@ -484,7 +484,9 @@ func TestShadowScansOneActivePerOrgAndLeases(t *testing.T) {
 	finished := time.Now().UTC()
 	s1.Status, s1.FinishedAt = models.ShadowScanSucceeded, &finished
 	s1.Results = []models.ShadowScanConnectionResult{{ConnectionID: "x", Outcome: "ok", Calls: []models.ShadowScanCallResult{}}}
-	require.NoError(t, repo.FinishScan(ctx, s1))
+	ok, err := repo.FinishScan(ctx, s1)
+	require.NoError(t, err)
+	assert.True(t, ok, "a running scan is finished")
 	s2 := &models.ShadowScan{ID: uuid.New(), OUID: ou, Status: models.ShadowScanQueued, ConnectionIDs: []string{"c"}}
 	require.NoError(t, repo.CreateScan(ctx, s2), "a new scan can be queued once the last one finished")
 	latest, err := repo.LatestScan(ctx, ou)
@@ -559,6 +561,155 @@ func TestShadowPendingScans(t *testing.T) {
 	assert.False(t, stillQueued, "only a pending scan is cancelled")
 }
 
+// A queued or running cloud scan can be cancelled: it fails at once, so a new
+// scan can start, and the worker's progress and finish no longer change it.
+func TestShadowCancelActiveScans(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	a := newShadowConnection(t, repo, ou, "OpenAI a")
+	b := newShadowConnection(t, repo, ou, "OpenAI b")
+	t.Cleanup(func() { db.GetDB().Exec("DELETE FROM shadow_scans WHERE ou_id = ?", ou) })
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	queued := &models.ShadowScan{ID: uuid.New(), OUID: ou, Status: models.ShadowScanQueued, ConnectionIDs: []string{a.ID.String(), b.ID.String()}}
+	require.NoError(t, repo.CreateScan(ctx, queued))
+	cancelled, err := repo.CancelActiveScan(ctx, "ou-"+uuid.NewString(), queued.ID, now)
+	require.NoError(t, err)
+	assert.False(t, cancelled, "another org cannot cancel the scan")
+	cancelled, err = repo.CancelActiveScan(ctx, ou, queued.ID, now)
+	require.NoError(t, err)
+	assert.True(t, cancelled)
+	got, err := repo.GetScan(ctx, ou, queued.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanFailed, got.Status)
+	require.NotNil(t, got.FinishedAt)
+	require.Len(t, got.Results, 2)
+	for i, c := range []*models.ShadowConnection{a, b} {
+		assert.Equal(t, c.ID.String(), got.Results[i].ConnectionID)
+		assert.Equal(t, c.Name, got.Results[i].ConnectionName)
+		assert.Equal(t, models.ShadowScanFailed, got.Results[i].Outcome)
+		assert.Equal(t, models.ShadowConnectionCancelledMessage, got.Results[i].Message)
+	}
+	cancelled, err = repo.CancelActiveScan(ctx, ou, queued.ID, now)
+	require.NoError(t, err)
+	assert.False(t, cancelled, "a finished scan is not cancelled again")
+
+	running := &models.ShadowScan{ID: uuid.New(), OUID: ou, Status: models.ShadowScanRunning, ConnectionIDs: []string{a.ID.String(), b.ID.String()}}
+	require.NoError(t, repo.CreateScan(ctx, running), "the cancelled scan no longer blocks a new one")
+	pendingCancelled, err := repo.CancelPendingScan(ctx, ou, running.ID, now)
+	require.NoError(t, err)
+	assert.False(t, pendingCancelled, "a running scan is not a pending one")
+	started := now.Add(-time.Minute)
+	finishedAt := now.Add(-time.Second)
+	progress := []models.ShadowScanConnectionResult{
+		{
+			ConnectionID: a.ID.String(), ConnectionName: a.Name, Provider: a.Provider, Outcome: "ok", FindingsCount: 2,
+			Calls: []models.ShadowScanCallResult{{Call: "GET /v1/agents", Outcome: "ok", Items: 2}}, StartedAt: &started, FinishedAt: &finishedAt,
+		},
+		{
+			ConnectionID: b.ID.String(), ConnectionName: b.Name, Provider: b.Provider, Outcome: models.ShadowConnectionRunning,
+			Calls: []models.ShadowScanCallResult{{Call: "GET /v1/agents", Outcome: "ok", Items: 1}}, StartedAt: &started,
+		},
+	}
+	ok, err := repo.UpdateScanProgress(ctx, running.ID, progress)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	ok, err = repo.ScanRunning(ctx, running.ID)
+	require.NoError(t, err)
+	assert.True(t, ok)
+
+	cancelled, err = repo.CancelActiveScan(ctx, ou, running.ID, now)
+	require.NoError(t, err)
+	assert.True(t, cancelled)
+	got, err = repo.GetScan(ctx, ou, running.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanFailed, got.Status)
+	require.Len(t, got.Results, 2)
+	assert.Equal(t, "ok", got.Results[0].Outcome, "a finished connection keeps its result")
+	assert.Equal(t, 2, got.Results[0].FindingsCount)
+	assert.Equal(t, models.ShadowScanFailed, got.Results[1].Outcome)
+	assert.Equal(t, models.ShadowConnectionCancelledMessage, got.Results[1].Message)
+	assert.Len(t, got.Results[1].Calls, 1, "the calls made so far are kept")
+	require.NotNil(t, got.Results[1].StartedAt)
+	assert.Nil(t, got.Results[1].FinishedAt)
+	assert.Equal(t, 2, got.FindingsCount, "the agents of the connection that finished are counted")
+
+	ok, err = repo.ScanRunning(ctx, running.ID)
+	require.NoError(t, err)
+	assert.False(t, ok)
+	ok, err = repo.UpdateScanProgress(ctx, running.ID, []models.ShadowScanConnectionResult{})
+	require.NoError(t, err)
+	assert.False(t, ok, "progress no longer changes a cancelled scan")
+	ok, err = repo.FinishScan(ctx, &models.ShadowScan{
+		ID: running.ID, OUID: ou, Status: models.ShadowScanSucceeded,
+		Results: []models.ShadowScanConnectionResult{}, FinishedAt: &now,
+	})
+	require.NoError(t, err)
+	assert.False(t, ok, "the worker does not overwrite a cancelled scan")
+	got, err = repo.GetScan(ctx, ou, running.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanFailed, got.Status)
+	assert.Len(t, got.Results, 2)
+
+	// A connection's agents and final result are saved together.
+	done := &models.ShadowScan{ID: uuid.New(), OUID: ou, Status: models.ShadowScanRunning, ConnectionIDs: []string{a.ID.String(), b.ID.String()}}
+	require.NoError(t, repo.CreateScan(ctx, done))
+	n, err := repo.ApplyConnectionResult(ctx, ShadowConnectionApply{
+		OUID: ou, ConnectionID: a.ID, ScanID: done.ID, ScanStartedAt: now,
+		Findings:    []ShadowFindingInput{agentInput("agent_a", "A", now)},
+		Result:      &models.ShadowScanConnectionResult{ConnectionID: a.ID.String(), Outcome: "ok", Calls: []models.ShadowScanCallResult{}},
+		ResultIndex: 0,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	got, err = repo.GetScan(ctx, ou, done.ID)
+	require.NoError(t, err)
+	require.Len(t, got.Results, 2)
+	assert.Equal(t, "ok", got.Results[0].Outcome)
+	assert.Equal(t, 1, got.Results[0].FindingsCount)
+	assert.Equal(t, models.ShadowConnectionQueued, got.Results[1].Outcome, "a connection with no result yet is queued")
+	_, err = repo.ApplyConnectionResult(ctx, ShadowConnectionApply{
+		OUID: ou, ConnectionID: b.ID, ScanID: done.ID, ScanStartedAt: now,
+		Result:      &models.ShadowScanConnectionResult{ConnectionID: b.ID.String(), Outcome: "ok", Calls: []models.ShadowScanCallResult{}},
+		ResultIndex: 1,
+	})
+	require.NoError(t, err)
+	cancelled, err = repo.CancelActiveScan(ctx, ou, done.ID, now)
+	require.NoError(t, err)
+	assert.False(t, cancelled, "a scan whose connections all finished is left to its worker")
+	got, err = repo.GetScan(ctx, ou, done.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanRunning, got.Status)
+	ok, err = repo.FinishScan(ctx, &models.ShadowScan{
+		ID: done.ID, OUID: ou, Status: models.ShadowScanSucceeded, Results: got.Results, FindingsCount: 1, FinishedAt: &now,
+	})
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	// A result saved after the cancel committed writes nothing.
+	late := &models.ShadowScan{ID: uuid.New(), OUID: ou, Status: models.ShadowScanRunning, ConnectionIDs: []string{b.ID.String()}}
+	require.NoError(t, repo.CreateScan(ctx, late))
+	cancelled, err = repo.CancelActiveScan(ctx, ou, late.ID, now)
+	require.NoError(t, err)
+	require.True(t, cancelled)
+	_, err = repo.ApplyConnectionResult(ctx, ShadowConnectionApply{
+		OUID: ou, ConnectionID: b.ID, ScanID: late.ID, ScanStartedAt: now, Complete: true,
+		Findings:    []ShadowFindingInput{agentInput("agent_b", "B", now)},
+		Result:      &models.ShadowScanConnectionResult{ConnectionID: b.ID.String(), Outcome: "ok", Calls: []models.ShadowScanCallResult{}},
+		ResultIndex: 0,
+	})
+	require.ErrorIs(t, err, utils.ErrShadowScanNotRunning)
+	_, total, err := repo.ListFindings(ctx, ou, ShadowFindingFilter{ScanID: &late.ID, Limit: 10})
+	require.NoError(t, err)
+	assert.Zero(t, total, "nothing is applied after the cancel")
+	got, err = repo.GetScan(ctx, ou, late.ID)
+	require.NoError(t, err)
+	require.Len(t, got.Results, 1)
+	assert.Equal(t, models.ShadowConnectionCancelledMessage, got.Results[0].Message)
+	assert.Zero(t, got.FindingsCount)
+}
+
 // Clearing deletes only finished scans with their per-scan agent lists;
 // the agents and their evidence stay, and nothing points at a deleted scan.
 func TestShadowDeleteFinishedScans(t *testing.T) {
@@ -575,8 +726,11 @@ func TestShadowDeleteFinishedScans(t *testing.T) {
 		Findings: []ShadowFindingInput{agentInput("agent_1", "Bot", t0)},
 	})
 	require.NoError(t, err)
+	require.NoError(t, db.GetDB().Exec("UPDATE shadow_scans SET status = 'running' WHERE id = ?", done.ID).Error)
 	done.Status = models.ShadowScanSucceeded
-	require.NoError(t, repo.FinishScan(ctx, done))
+	ok, err := repo.FinishScan(ctx, done)
+	require.NoError(t, err)
+	require.True(t, ok)
 	running := &models.ShadowScan{ID: uuid.New(), OUID: ou, Status: models.ShadowScanRunning, ConnectionIDs: []string{}}
 	require.NoError(t, repo.CreateScan(ctx, running))
 

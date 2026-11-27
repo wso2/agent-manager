@@ -931,10 +931,15 @@ func TestConnectionOutcome(t *testing.T) {
 type fakeShadowConnector struct {
 	provider string
 	scan     func(conn sa.Connection) *sa.Result
+	// scanCtx, when set, is used instead of scan.
+	scanCtx func(ctx context.Context, conn sa.Connection) *sa.Result
 }
 
 func (f *fakeShadowConnector) Provider() string { return f.provider }
-func (f *fakeShadowConnector) Scan(_ context.Context, conn sa.Connection) *sa.Result {
+func (f *fakeShadowConnector) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
+	if f.scanCtx != nil {
+		return f.scanCtx(ctx, conn)
+	}
 	return f.scan(conn)
 }
 
@@ -946,7 +951,17 @@ type shadowScannerHarness struct {
 	mu       sync.Mutex
 	applied  map[string]repositories.ShadowConnectionApply
 	finished *models.ShadowScan
-	repo     *repomocks.ShadowAgentRepositoryMock
+	// progress is every progress write, in order.
+	progress [][]models.ShadowScanConnectionResult
+	// cancelled makes the scan no longer running, as a user's cancel does.
+	cancelled bool
+	repo      *repomocks.ShadowAgentRepositoryMock
+}
+
+func (h *shadowScannerHarness) cancel() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.cancelled = true
 }
 
 // newShadowScannerHarness runs one claimed scan over conns with an in-memory
@@ -969,9 +984,17 @@ func newShadowScannerHarness(scan models.ShadowScan, conns ...models.ShadowConne
 			return &c, nil
 		},
 		// Connections run concurrently, so the mock's callbacks are too.
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return conns, nil
+		},
+		// As the repository does, a result of a scan no longer running is
+		// refused and nothing is written.
 		ApplyConnectionResultFunc: func(_ context.Context, in repositories.ShadowConnectionApply) (int, error) {
 			h.mu.Lock()
 			defer h.mu.Unlock()
+			if in.Result != nil && h.cancelled {
+				return 0, utils.ErrShadowScanNotRunning
+			}
 			h.applied[in.ConnectionID.String()] = in
 			return len(in.Findings), nil
 		},
@@ -981,11 +1004,30 @@ func newShadowScannerHarness(scan models.ShadowScan, conns ...models.ShadowConne
 		) error {
 			return nil
 		},
-		FinishScanFunc: func(_ context.Context, s *models.ShadowScan) error {
+		FinishScanFunc: func(_ context.Context, s *models.ShadowScan) (bool, error) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			if h.cancelled {
+				return false, nil
+			}
 			h.finished = s
-			return nil
+			return true, nil
 		},
 		RenewScanLeaseFunc: func(context.Context, uuid.UUID, time.Time) error { return nil },
+		UpdateScanProgressFunc: func(_ context.Context, _ uuid.UUID, results []models.ShadowScanConnectionResult) (bool, error) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			if h.cancelled {
+				return false, nil
+			}
+			h.progress = append(h.progress, results)
+			return true, nil
+		},
+		ScanRunningFunc: func(context.Context, uuid.UUID) (bool, error) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			return !h.cancelled, nil
+		},
 	}
 	return h
 }
@@ -1081,9 +1123,12 @@ func TestShadowScannerGivesUpAfterMaxAttempts(t *testing.T) {
 		ClaimDueScansFunc: func(context.Context, time.Time, time.Duration, int) ([]models.ShadowScan, error) {
 			return []models.ShadowScan{scan}, nil
 		},
-		FinishScanFunc: func(_ context.Context, s *models.ShadowScan) error {
+		FinishScanFunc: func(_ context.Context, s *models.ShadowScan) (bool, error) {
 			finished = s
-			return nil
+			return true, nil
+		},
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{}, nil
 		},
 	}
 	NewShadowAgentScanner(repo, ShadowConnectors{}, shadowTestKey, discardLogger()).RunOnce(context.Background())

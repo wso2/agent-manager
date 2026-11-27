@@ -35,6 +35,7 @@ import { useShadowSummary } from "@agent-management-platform/api-client";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import { ProviderLogo } from "../providerLogos";
 import { formatCount, providerLabel, ScanStatusChip } from "../shadowUi";
+import { isCancelledScan } from "./ScanProgress";
 import { RunScanButton } from "./RunScanButton";
 import { scanFindingsPath } from "./ScansTab";
 
@@ -298,7 +299,7 @@ export function OverviewPanel({
               alignItems={{ sm: "center" }}
             >
               <Stack direction="row" spacing={1} alignItems="center" sx={{ flex: 1 }}>
-                <ScanStatusChip status={latest.status} />
+                <ScanStatusChip status={latest.status} cancelled={isCancelledScan(latest)} />
                 <Typography variant="body2" color="text.secondary">
                   Latest scan {formatRelativeTime(latest.startedAt ?? latest.createdAt)} ·{" "}
                   {platformCount} {platformCount === 1 ? "connector" : "connectors"}
