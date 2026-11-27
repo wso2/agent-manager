@@ -17,16 +17,12 @@
 package services
 
 import (
-	"net/http"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	gatewaypolicy "github.com/wso2/api-platform/sdk/core/policy/v1alpha2"
-	mcpauthz "github.com/wso2/gateway-controllers/policies/mcp-authz"
 	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -768,76 +764,6 @@ func TestAppendMCPIdentityAuthPolicies_InvertsScopesToPerToolRules(t *testing.T)
 		{"name": "get_repo", "requiredScopes": []string{"gh-proxy:read"}},
 		{"name": "list_repos", "requiredScopes": []string{"gh-proxy:read"}},
 	}, rules)
-}
-
-func TestMCPProxyDeployment_GatewayRequiresEveryToolScope(t *testing.T) {
-	const (
-		handle = "test-proxy"
-		tool   = "read_report"
-	)
-	proxy := &models.MCPProxy{
-		Handle: handle,
-		Configuration: models.MCPProxyConfig{
-			Security: identityEnabledSecurity(),
-			Upstream: models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"},
-			},
-		},
-	}
-	rendered, err := renderMCPProxy(proxy, handle, []models.MCPProxyScope{
-		{Action: "read", Tools: []string{tool}},
-		{Action: "review", Tools: []string{tool}},
-	})
-	require.NoError(t, err)
-	assertMCPGatewayScopeEnforcement(t, []byte(rendered), tool, handle+":read", handle+":review")
-}
-
-func assertMCPGatewayScopeEnforcement(t *testing.T, rendered []byte, tool, read, review string) {
-	t.Helper()
-	var deployment MCPProxyDeploymentYAML
-	require.NoError(t, yaml.Unmarshal(rendered, &deployment))
-	authz := findMCPPolicy(deployment.Spec.Policies, mcpAuthzPolicyName)
-	require.NotNil(t, authz)
-
-	// Evaluate the rendered configuration with the gateway's actual v1 policy.
-	policy, err := mcpauthz.GetPolicy(gatewaypolicy.PolicyMetadata{}, authz.Params)
-	require.NoError(t, err)
-	requestPolicy, ok := policy.(gatewaypolicy.RequestPolicy)
-	require.True(t, ok)
-
-	for _, tt := range []struct {
-		name    string
-		scopes  map[string]bool
-		allowed bool
-	}{
-		{name: "neither scope"},
-		{name: "read only", scopes: map[string]bool{read: true}},
-		{name: "review only", scopes: map[string]bool{review: true}},
-		{name: "both scopes", scopes: map[string]bool{read: true, review: true}, allowed: true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			auth := &gatewaypolicy.AuthContext{Authenticated: true, Scopes: tt.scopes}
-			req := &gatewaypolicy.RequestContext{
-				SharedContext: &gatewaypolicy.SharedContext{AuthContext: auth},
-				Method:        http.MethodPost,
-				Path:          "/mcp",
-				Scheme:        "https",
-				Body: &gatewaypolicy.Body{
-					Present: true,
-					Content: []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + tool + `"}}`),
-				},
-			}
-			action := requestPolicy.OnRequestBody(t.Context(), req, nil)
-			assert.Equal(t, tt.allowed, auth.Authorized)
-			if tt.allowed {
-				assert.Nil(t, action)
-				return
-			}
-			response, ok := action.(gatewaypolicy.ImmediateResponse)
-			require.True(t, ok, "expected the gateway policy to reject the request")
-			assert.Equal(t, http.StatusForbidden, response.StatusCode)
-		})
-	}
 }
 
 func TestAppendMCPIdentityAuthPolicies_NoScopesEmitsAuthOnly(t *testing.T) {

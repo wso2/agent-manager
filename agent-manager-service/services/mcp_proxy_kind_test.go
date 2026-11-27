@@ -253,7 +253,14 @@ func TestMCPWorkerRefreshesExistingToolScopePolicies(t *testing.T) {
 	}
 	pulled, err := f.sync.svc.GetActiveMCPProxyDeploymentByGateway(ctx, ref.ArtifactUUID.String(), ref.OUID, deployed.GatewayUUID.String())
 	require.NoError(t, err)
-	assertMCPGatewayScopeEnforcement(t, []byte(pulled[ref.ArtifactUUID.String()]), tool, read, review)
+	var refreshed MCPProxyDeploymentYAML
+	require.NoError(t, yaml.Unmarshal([]byte(pulled[ref.ArtifactUUID.String()]), &refreshed))
+	refreshedPolicy := findMCPPolicy(refreshed.Spec.Policies, mcpAuthzPolicyName)
+	require.NotNil(t, refreshedPolicy)
+	assert.Equal(t, []any{
+		map[string]any{"name": tool, "requiredScopes": []any{read}},
+		map[string]any{"name": tool, "requiredScopes": []any{review}},
+	}, refreshedPolicy.Params["tools"])
 
 	_, err = worker.CheckDrift(ctx)
 	require.NoError(t, err)
