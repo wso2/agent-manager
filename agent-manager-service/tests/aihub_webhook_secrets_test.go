@@ -68,6 +68,21 @@ func signedDelivery(t *testing.T, secret, ref, eventType string, data map[string
 	return req
 }
 
+// legacyDelivery is a plan delivery signed with secret, from a portal that predates secret_hash: it names no secret.
+func legacyDelivery(t *testing.T, secret, ref, handle string) *http.Request {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"event_id": uuid.NewString(), "event_type": "subscription_plan.created",
+		"occurred_at": time.Now().UTC().Format(time.RFC3339Nano), "org": map[string]any{"ref_id": ref},
+		"aggregate_type": "subscription_plan", "encrypted_fields": []string{}, "data": portalPlan(handle),
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, aihub.WebhookRoutePath, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(aihub.DefaultWebhookSignatureHeader, aihub.Sign(secret, body, time.Now()))
+	return req
+}
+
 func portalPlan(handle string) map[string]any {
 	return map[string]any{"handle": handle, "display_name": handle, "pricing": nil}
 }
@@ -229,5 +244,78 @@ func TestWebhookSecrets(t *testing.T) {
 		assert.Contains(t, ids, acmeSecond)
 		assert.NotContains(t, ids, acmePortal)
 		assert.NotContains(t, ids, globexPortal, "only the caller's organization")
+	})
+}
+
+// TestWebhookSecretsLegacyAndBadRequests covers deliveries from portals that predate secret_hash, accepted with
+// webhook_legacy_shared_secret on, and the requests the webhook secrets API refuses.
+func TestWebhookSecretsLegacyAndBadRequests(t *testing.T) {
+	t.Setenv("MODULE_AI_HUB_WEBHOOK_SECRET", "")
+	t.Setenv("MODULE_AI_HUB_WEBHOOK_LEGACY_SHARED_SECRET", "true")
+	w := newPlansWorld(t)
+	ctx := context.Background()
+	deactivatePlans(ctx, t, w)
+	installPlans(ctx, t, w)
+	suffix := uuid.NewString()[:6]
+	ref := "legacy-ref-" + suffix
+
+	create := func(id, orgRef string) webhookSecretBody {
+		t.Helper()
+		code, body := w.call(t, w.full, http.MethodPost, webhookSecretsPath, map[string]any{"id": id, "name": id, "orgRef": orgRef})
+		require.Equal(t, http.StatusCreated, code, string(body))
+		return decodeAs[webhookSecretBody](t, body)
+	}
+	mapped := create("legacy-mapped-"+suffix, ref)
+	plain := create("legacy-plain-"+suffix, "")
+
+	t.Run("legacy deliveries are tried against the secrets of the organization they name", func(t *testing.T) {
+		code, body := send(t, w.internal, legacyDelivery(t, mapped.Secret, ref, "legacy-by-ref-"+suffix))
+		require.Equal(t, http.StatusOK, code, "by the secret's orgRef: "+body)
+		code, body = send(t, w.internal, legacyDelivery(t, plain.Secret, w.org, "legacy-by-id-"+suffix))
+		require.Equal(t, http.StatusOK, code, "by the organization's id: "+body)
+
+		code, plan := w.call(t, w.full, http.MethodGet, plansPath+"/legacy-by-ref-"+suffix, nil)
+		assert.Equal(t, http.StatusOK, code, string(plan))
+		code, _ = w.call(t, w.other, http.MethodGet, plansPath+"/legacy-by-ref-"+suffix, nil)
+		assert.Equal(t, http.StatusNotFound, code, "not the other organization")
+
+		for name, req := range map[string]*http.Request{
+			"another organization's id": legacyDelivery(t, plain.Secret, w.otherOrg, "legacy-x-"+suffix),
+			"an unmapped reference":     legacyDelivery(t, plain.Secret, "unmapped-"+suffix, "legacy-x-"+suffix),
+			"an unknown secret":         legacyDelivery(t, "whsec_unknown", w.org, "legacy-x-"+suffix),
+		} {
+			code, body := send(t, w.internal, req)
+			assert.Equal(t, http.StatusUnauthorized, code, name+": "+body)
+		}
+	})
+
+	t.Run("the API refuses bad requests", func(t *testing.T) {
+		raw := func(method, path, body string) (int, string) {
+			t.Helper()
+			req := httptest.NewRequest(method, path, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			return send(t, w.full, req)
+		}
+		code, body := raw(http.MethodPost, webhookSecretsPath, "{not json")
+		assert.Equal(t, http.StatusBadRequest, code, body)
+		code, body = raw(http.MethodPost, webhookSecretsPath, `{"id":"big","name":"`+strings.Repeat("a", 20<<10)+`"}`)
+		assert.Equal(t, http.StatusRequestEntityTooLarge, code, body)
+
+		for _, v := range []string{"abc", "0"} {
+			code, body := w.call(t, w.full, http.MethodDelete, webhookSecretsPath+"/"+plain.ID+"/versions/"+v, nil)
+			assert.Equal(t, http.StatusBadRequest, code, v+": "+string(body))
+		}
+
+		missing := webhookSecretsPath + "/missing-" + suffix
+		for _, c := range []struct{ method, path string }{
+			{http.MethodGet, missing},
+			{http.MethodPost, missing + "/rotate"},
+			{http.MethodDelete, missing},
+			{http.MethodDelete, missing + "/versions/1"},
+		} {
+			code, body := w.call(t, w.full, c.method, c.path, nil)
+			assert.Equal(t, http.StatusNotFound, code, c.method+" "+c.path+": "+string(body))
+			assert.Contains(t, string(body), "WEBHOOK_SECRET_NOT_FOUND")
+		}
 	})
 }
