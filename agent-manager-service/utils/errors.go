@@ -161,6 +161,7 @@ var (
 	ErrEventDestinationNotFound       = errors.New("event destination not found")
 	ErrEventDestinationInUse          = errors.New("event destination is used by one or more subscriptions")
 	ErrEventDestinationNameTaken      = errors.New("an event destination with this name already exists")
+	ErrEventDestinationLimitReached   = errors.New("event destination limit reached")
 	ErrEventSubscriptionNotFound      = errors.New("event subscription not found")
 	ErrEvaluatorNotFound              = errors.New("evaluator not found")
 	ErrCustomEvaluatorNotFound        = errors.New("custom evaluator not found")

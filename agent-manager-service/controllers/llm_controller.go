@@ -322,6 +322,9 @@ func writeCreateLLMProviderError(w http.ResponseWriter, r *http.Request, ouID, t
 	case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 		log.Error("CreateLLMProvider: template not found", "ouID", ouID, "templateHandle", templateHandle, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+	case errors.Is(err, utils.ErrInvalidURL):
+		log.Warn("CreateLLMProvider: invalid upstream url", "ouID", ouID, "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrLLMIdentityUnsupported):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrLLMIdentityUnsupported.Error())
 	case errors.Is(err, utils.ErrInvalidInput):
@@ -688,6 +691,10 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 				log.Error("UpdateLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
 				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 				return
+			case errors.Is(err, utils.ErrInvalidURL):
+				log.Warn("UpdateLLMProvider: invalid upstream url", "ouID", ouID, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+				return
 			case errors.Is(err, utils.ErrLLMIdentityUnsupported):
 				utils.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrLLMIdentityUnsupported.Error())
 				return
@@ -746,6 +753,10 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 				log.Error("UpdateLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
 				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+				return
+			case errors.Is(err, utils.ErrInvalidURL):
+				log.Warn("UpdateLLMProvider: invalid upstream url", "ouID", ouID, "error", err)
+				utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 				return
 			case errors.Is(err, utils.ErrLLMIdentityUnsupported):
 				utils.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrLLMIdentityUnsupported.Error())

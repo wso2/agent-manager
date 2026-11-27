@@ -681,6 +681,7 @@ const (
 	agentThunderBindingLockNamespace = 4716
 	llmProviderSyncLockNamespace     = 4717
 	orgCredentialLockNamespace       = 4718
+	eventDestinationLockNamespace    = 4719
 )
 
 // advisoryXactLock takes a transaction-scoped advisory lock on key within namespace, released on

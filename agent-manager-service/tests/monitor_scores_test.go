@@ -137,6 +137,11 @@ func (s *stubMonitorRepo) ListMonitorsByAgentEnvironment(_, _, _, _ string) ([]m
 func (s *stubMonitorRepo) UpdateMonitor(_ *models.Monitor) error             { return nil }
 func (s *stubMonitorRepo) DeleteMonitor(_ *models.Monitor) error             { return nil }
 func (s *stubMonitorRepo) UpdateNextRunTime(_ uuid.UUID, _ *time.Time) error { return nil }
+
+func (s *stubMonitorRepo) AdvanceNextRunTime(_ uuid.UUID, _, _ time.Time) (bool, error) {
+	return true, nil
+}
+
 func (s *stubMonitorRepo) ListDueMonitors(_ string, _ time.Time) ([]models.Monitor, error) {
 	return nil, nil
 }

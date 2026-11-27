@@ -20,6 +20,9 @@ import (
 //
 //		// make and configure a mocked repositories.MonitorRepository
 //		mockedMonitorRepository := &MonitorRepositoryMock{
+//			AdvanceNextRunTimeFunc: func(monitorID uuid.UUID, from time.Time, to time.Time) (bool, error) {
+//				panic("mock out the AdvanceNextRunTime method")
+//			},
 //			CountMonitorRunsFunc: func(monitorID uuid.UUID) (int64, error) {
 //				panic("mock out the CountMonitorRuns method")
 //			},
@@ -96,6 +99,9 @@ import (
 //
 //	}
 type MonitorRepositoryMock struct {
+	// AdvanceNextRunTimeFunc mocks the AdvanceNextRunTime method.
+	AdvanceNextRunTimeFunc func(monitorID uuid.UUID, from time.Time, to time.Time) (bool, error)
+
 	// CountMonitorRunsFunc mocks the CountMonitorRuns method.
 	CountMonitorRunsFunc func(monitorID uuid.UUID) (int64, error)
 
@@ -167,6 +173,15 @@ type MonitorRepositoryMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// AdvanceNextRunTime holds details about calls to the AdvanceNextRunTime method.
+		AdvanceNextRunTime []struct {
+			// MonitorID is the monitorID argument value.
+			MonitorID uuid.UUID
+			// From is the from argument value.
+			From time.Time
+			// To is the to argument value.
+			To time.Time
+		}
 		// CountMonitorRuns holds details about calls to the CountMonitorRuns method.
 		CountMonitorRuns []struct {
 			// MonitorID is the monitorID argument value.
@@ -317,6 +332,7 @@ type MonitorRepositoryMock struct {
 			Tx *gorm.DB
 		}
 	}
+	lockAdvanceNextRunTime                      sync.RWMutex
 	lockCountMonitorRuns                        sync.RWMutex
 	lockCreateMonitor                           sync.RWMutex
 	lockCreateMonitorRun                        sync.RWMutex
@@ -340,6 +356,46 @@ type MonitorRepositoryMock struct {
 	lockUpdateMonitorRun                        sync.RWMutex
 	lockUpdateNextRunTime                       sync.RWMutex
 	lockWithTx                                  sync.RWMutex
+}
+
+// AdvanceNextRunTime calls AdvanceNextRunTimeFunc.
+func (mock *MonitorRepositoryMock) AdvanceNextRunTime(monitorID uuid.UUID, from time.Time, to time.Time) (bool, error) {
+	if mock.AdvanceNextRunTimeFunc == nil {
+		panic("MonitorRepositoryMock.AdvanceNextRunTimeFunc: method is nil but MonitorRepository.AdvanceNextRunTime was just called")
+	}
+	callInfo := struct {
+		MonitorID uuid.UUID
+		From      time.Time
+		To        time.Time
+	}{
+		MonitorID: monitorID,
+		From:      from,
+		To:        to,
+	}
+	mock.lockAdvanceNextRunTime.Lock()
+	mock.calls.AdvanceNextRunTime = append(mock.calls.AdvanceNextRunTime, callInfo)
+	mock.lockAdvanceNextRunTime.Unlock()
+	return mock.AdvanceNextRunTimeFunc(monitorID, from, to)
+}
+
+// AdvanceNextRunTimeCalls gets all the calls that were made to AdvanceNextRunTime.
+// Check the length with:
+//
+//	len(mockedMonitorRepository.AdvanceNextRunTimeCalls())
+func (mock *MonitorRepositoryMock) AdvanceNextRunTimeCalls() []struct {
+	MonitorID uuid.UUID
+	From      time.Time
+	To        time.Time
+} {
+	var calls []struct {
+		MonitorID uuid.UUID
+		From      time.Time
+		To        time.Time
+	}
+	mock.lockAdvanceNextRunTime.RLock()
+	calls = mock.calls.AdvanceNextRunTime
+	mock.lockAdvanceNextRunTime.RUnlock()
+	return calls
 }
 
 // CountMonitorRuns calls CountMonitorRunsFunc.

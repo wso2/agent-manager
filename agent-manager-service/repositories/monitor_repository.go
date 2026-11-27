@@ -43,6 +43,10 @@ type MonitorRepository interface {
 	UpdateMonitor(monitor *models.Monitor) error
 	DeleteMonitor(monitor *models.Monitor) error
 	UpdateNextRunTime(monitorID uuid.UUID, nextRunTime *time.Time) error
+	// AdvanceNextRunTime moves a scheduled monitor's next_run_time from `from` to `to` only if
+	// it still equals `from`, and reports whether it moved. false means a stop or start changed
+	// the schedule after the caller read it.
+	AdvanceNextRunTime(monitorID uuid.UUID, from, to time.Time) (bool, error)
 	ListDueMonitors(monitorType string, dueBy time.Time) ([]models.Monitor, error)
 	FindActiveMonitorsByEvaluatorIdentifier(ouID string, identifier string) ([]models.Monitor, error)
 
@@ -139,6 +143,18 @@ func (r *MonitorRepo) DeleteMonitor(monitor *models.Monitor) error {
 // UpdateNextRunTime updates the next_run_time field for a monitor
 func (r *MonitorRepo) UpdateNextRunTime(monitorID uuid.UUID, nextRunTime *time.Time) error {
 	return r.db.Model(&models.Monitor{}).Where("id = ?", monitorID).Update("next_run_time", nextRunTime).Error
+}
+
+// AdvanceNextRunTime moves next_run_time from `from` to `to` only if it still equals `from`
+// (compare-and-set), and reports whether it moved.
+func (r *MonitorRepo) AdvanceNextRunTime(monitorID uuid.UUID, from, to time.Time) (bool, error) {
+	result := r.db.Model(&models.Monitor{}).
+		Where("id = ? AND next_run_time = ?", monitorID, from).
+		Update("next_run_time", to)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
 }
 
 // ListDueMonitors returns monitors of the given type whose next_run_time is at or before dueBy

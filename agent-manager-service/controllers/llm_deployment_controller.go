@@ -114,6 +114,10 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 			log.Error("DeployLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 			return
+		case errors.Is(err, utils.ErrInvalidURL):
+			log.Warn("DeployLLMProvider: invalid upstream url", "ouID", ouID, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			return
 		case errors.Is(err, utils.ErrLLMIdentityUnsupported):
 			utils.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrLLMIdentityUnsupported.Error())
 			return
@@ -257,6 +261,10 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 		case errors.Is(err, utils.ErrGatewayNotFound):
 			log.Warn("RestoreLLMProviderDeployment: gateway not found", "ouID", ouID, "gatewayID", gatewayID)
 			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
+			return
+		case errors.Is(err, utils.ErrInvalidURL):
+			log.Warn("RestoreLLMProviderDeployment: invalid upstream url", "ouID", ouID, "error", err)
+			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		case errors.Is(err, utils.ErrDeploymentAlreadyDeployed):
 			log.Warn("RestoreLLMProviderDeployment: deployment already deployed", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
