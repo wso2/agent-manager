@@ -125,7 +125,14 @@ The collector and the schema step run here, against your ClickHouse; no ClickHou
 3. **Create the logins.** Fill in each `<... password>` in [`clickhouse-users.sql`](../../deployments/standalone/observability/clickhouse-users.sql) and run it on your ClickHouse as an admin. It grants the same hosts and rights as `users.xml`.
 4. **Start and install:** `docker compose up -d --wait`, then `docker compose exec amp-api /go/bin/amp module install observability`.
 
-If a login is missing or its password differs, `observability-migrate` stops with "ClickHouse refused the amp_migrator login … create the observability logins first", the collector does not start, and installing the module is refused; `amp-api` keeps running. Create or fix the login, then run `docker compose up -d --wait` again.
+If a login is missing or its password differs, `amp-api` keeps running and only the step that uses it fails:
+
+- `amp_migrator`: `observability-migrate` stops with "ClickHouse refused the amp_migrator login … create the observability logins first", the collector does not start, and installing the module is refused.
+- `amp_reader`: installing the module is refused.
+- `amp_cleaner`: deleting an agent leaves its spans; `amp-api`'s logs say why.
+- `amp_ingest`: spans are not stored; `docker compose logs otel-collector-external` says why.
+
+Create or fix the login, then run `docker compose up -d --wait` again.
 
 ## Passwords
 
@@ -155,12 +162,21 @@ To rotate one, from `deployments/standalone` with the profile and store URL in `
    docker compose run --rm --no-deps --entrypoint rm amp-init /out/clickhouse/read-password
    ```
 
-2. With your own ClickHouse, set the new password on it: `ALTER USER amp_reader IDENTIFIED BY '...'`, with the value from `amp secret show`.
-3. Rerun amp-init and recreate what reads it (`clickhouse` only with the bundled one; `otel-collector-external` with your own):
+2. Rerun amp-init, which writes the new password, and read it:
 
    ```bash
-   docker compose up -d --wait --no-deps --force-recreate amp-init clickhouse amp-api otel-collector
+   docker compose run --rm amp-init
+   docker compose run --rm amp-init secret show read-password
    ```
+
+3. With your own ClickHouse, set it on the login: `ALTER USER amp_reader IDENTIFIED BY '...'`.
+4. Recreate what reads it. With the bundled ClickHouse:
+
+   ```bash
+   docker compose up -d --wait --no-deps --force-recreate clickhouse amp-api otel-collector
+   ```
+
+   With your own: `docker compose up -d --wait --no-deps --force-recreate amp-api otel-collector-external`.
 
 ## Your own ClickHouse, without Compose
 
