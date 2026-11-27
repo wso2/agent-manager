@@ -43,6 +43,13 @@ export function adminPassword(): string {
   return pw;
 }
 
+// ThunderID as the browser and the suite reach it, and the API's machine
+// client, for idp mode. The defaults are the CI settings
+// (.github/scripts/standalone-ci-settings.sh) and the Go e2e suite's.
+export const thunderURL = process.env.AMP_THUNDER_URL ?? 'http://thunder.amp.localhost:8080';
+export const idpClientId = process.env.AMP_IDP_CLIENT_ID ?? 'amp-api-client';
+export const idpClientSecret = process.env.AMP_IDP_CLIENT_SECRET ?? 'amp-api-client-secret';
+
 // Names every resource the suite creates, so leftovers are easy to find.
 export const PREFIX = 'uie2e';
 export function uniqueName(kind: string): string {

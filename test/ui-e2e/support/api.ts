@@ -1,19 +1,15 @@
 import { APIRequestContext, expect, request } from '@playwright/test';
-import { adminPassword, adminUser, baseURL, orgName } from './env';
+import { adminPassword, adminUser, authMode, baseURL, orgName } from './env';
+import { idpToken } from './idp';
 
 // A thin API client the specs use to set up their own resources and to read
-// back what the UI did, through a second channel.
+// back what the UI did, through a second channel. With file sign-in it signs in
+// as the admin; with an identity provider it is the API's machine client.
 export class AmpApi {
   private constructor(readonly ctx: APIRequestContext, readonly token: string) {}
 
   static async signIn(): Promise<AmpApi> {
-    const anon = await request.newContext({ baseURL });
-    const res = await anon.post('/auth/login', {
-      data: { username: adminUser, password: adminPassword() },
-    });
-    expect(res.status(), 'admin sign-in through the API').toBe(200);
-    const { access_token: token } = await res.json();
-    await anon.dispose();
+    const token = authMode === 'idp' ? await idpToken() : await fileToken();
     const ctx = await request.newContext({
       baseURL,
       extraHTTPHeaders: { Authorization: `Bearer ${token}` },
@@ -185,4 +181,16 @@ export class AmpApi {
   async dispose(): Promise<void> {
     await this.ctx.dispose();
   }
+}
+
+/** The admin's token from file sign-in, through the API. */
+async function fileToken(): Promise<string> {
+  const anon = await request.newContext({ baseURL });
+  const res = await anon.post('/auth/login', {
+    data: { username: adminUser, password: adminPassword() },
+  });
+  expect(res.status(), 'admin sign-in through the API').toBe(200);
+  const { access_token: token } = await res.json();
+  await anon.dispose();
+  return token;
 }
