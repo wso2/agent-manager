@@ -29,7 +29,7 @@ Each login does one job, and its password is a file named for that job:
 |---|---|---|---|
 | setup | `amp_migrator` | DDL on `otel`, the schema history | `amp migrate` only |
 | write | `amp_ingest` | `INSERT` on the span table | the collector |
-| read | `amp_reader` | `SELECT` on the span table and the schema history | the module |
+| read | `amp_reader` | `SELECT` on the span table and the schema history; a read-only profile that stops a read after 25 s | the module |
 | delete | `amp_cleaner` | `DELETE` on the span table | the module, for a deleted agent's spans |
 
 ### Identity
@@ -125,15 +125,13 @@ To rotate one:
 ## Your own ClickHouse, without Compose
 
 1. **Create the logins** with [`clickhouse-users.sql`](../../deployments/standalone/observability/clickhouse-users.sql), or mount `users.xml` into the server's `users.d/` with the four `AMP_CLICKHOUSE_*_PASSWORD` variables in its environment.
-2. **Set the addresses on `amp`**, in its environment or `amp.yaml`. Give each password as a file: `<SETTING>_FILE` in the environment, or `${file:/path}` in `amp.yaml`.
+2. **Set the addresses on `amp`**, in its environment or `amp.yaml`. Give each password as a file: `<SETTING>_FILE` in the environment, or `${file:/path}` in `amp.yaml`. Every key is listed in [Module: observability](configuration.md#module-observability).
 
    | Setting | Value |
    |---|---|
    | `MODULE_OBSERVABILITY_CLICKHOUSE_URL` | ClickHouse's HTTP address, e.g. `http://clickhouse.internal:8123` |
    | `MODULE_OBSERVABILITY_CLICKHOUSE_USER`, `_PASSWORD` | `amp_reader` and the read password |
    | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER`, `_CLEANER_PASSWORD` | `amp_cleaner` and the delete password; unset, a deleted agent's spans stay until they expire |
-   | `MODULE_OBSERVABILITY_CLICKHOUSE_DATABASE` | `otel` (the default) |
-   | `MODULE_OBSERVABILITY_COLLECTOR_URL` | the collector's OTLP/HTTP address |
 
 3. **Run `amp migrate`** with the setup login, set for this run only:
 
