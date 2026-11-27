@@ -434,13 +434,23 @@ func ReconcileModules(ctx context.Context, host *modhost.Host, defaults []string
 	return err
 }
 
+// moduleSchema checks the module schemas waitForModuleSchema waits for.
+type moduleSchema interface {
+	CheckSchema(ctx context.Context) error
+	CheckExternalSchema(ctx context.Context) error
+}
+
 // waitForModuleSchema waits until another process has applied the migrations
-// of every module compiled into this binary.
-func waitForModuleSchema(ctx context.Context, modules *modhost.Host) error {
+// of every module compiled into this binary. An external schema error other
+// than pending files is returned at once.
+func waitForModuleSchema(ctx context.Context, modules moduleSchema) error {
 	for {
 		err := modules.CheckSchema(ctx)
 		if err == nil {
 			err = modules.CheckExternalSchema(ctx)
+			if err != nil && !errors.Is(err, modhost.ErrExternalBehind) {
+				return err
+			}
 		}
 		if err == nil {
 			return nil

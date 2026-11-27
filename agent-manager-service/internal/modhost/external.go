@@ -349,6 +349,10 @@ func externalPending(ctx context.Context, name string, s modkit.ExternalSchema) 
 	return p, nil, err
 }
 
+// ErrExternalBehind is CheckExternalSchema's error when an active module's
+// store lacks schema files of this binary.
+var ErrExternalBehind = errors.New("external schemas are behind this binary")
+
 // CheckExternalSchema reports the active modules whose configured external
 // store lacks schema files of this binary. A store it can't read is logged,
 // not reported: boot leaves that module out and retries it.
@@ -380,7 +384,7 @@ func (h *Host) CheckExternalSchema(ctx context.Context) error {
 		}
 	}
 	if len(behind) > 0 {
-		return fmt.Errorf("external schemas are behind this binary (%s); run `amp migrate` with each store's migrator login", strings.Join(behind, ", "))
+		return fmt.Errorf("%w (%s); run `amp migrate` with each store's migrator login", ErrExternalBehind, strings.Join(behind, ", "))
 	}
 	return nil
 }

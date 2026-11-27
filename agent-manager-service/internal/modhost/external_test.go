@@ -105,11 +105,16 @@ type externalModule struct {
 	files      fs.FS
 	configured bool
 	canApply   bool
+	// checkErr, when set, is the error of reading the schema to check it.
+	checkErr error
 }
 
 func (m *externalModule) ExternalSchema(_ func(string) string, apply bool) (modkit.ExternalSchema, error) {
 	if !m.configured {
 		return nil, fmt.Errorf("%w: no store address", modkit.ErrNotConfigured)
+	}
+	if !apply && m.checkErr != nil {
+		return nil, m.checkErr
 	}
 	if apply && !m.canApply {
 		return nil, fmt.Errorf("%w: no migrator login", modkit.ErrNotConfigured)
@@ -430,14 +435,21 @@ func TestCheckExternalSchemaWaitsForPendingFiles(t *testing.T) {
 	h, g := replica(t, ctx, d, []modkit.Module{newExternal(store, externalFiles("001_spans.sql"), true, true)})
 
 	// A newer binary with a file the store lacks.
-	next := modhost.NewWith(g, d.driver, quiet, []modkit.Module{newExternal(store, externalFiles("001_spans.sql", "002_more.sql"), true, true)})
+	nm := newExternal(store, externalFiles("001_spans.sql", "002_more.sql"), true, true)
+	next := modhost.NewWith(g, d.driver, quiet, []modkit.Module{nm})
 	require.NoError(t, next.CheckExternalSchema(ctx), "a module that isn't active is not waited for")
 
 	_, err := h.Install(ctx, "t-ext", false)
 	require.NoError(t, err)
 	err = next.CheckExternalSchema(ctx)
-	require.Error(t, err)
+	require.ErrorIs(t, err, modhost.ErrExternalBehind)
 	assert.Contains(t, err.Error(), "t-ext: 1 fake file(s)")
+
+	nm.checkErr = errors.New("store address set but no reader login")
+	err = next.CheckExternalSchema(ctx)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, modhost.ErrExternalBehind, "a config error is not pending files")
+	nm.checkErr = nil
 
 	store.mu.Lock()
 	store.down = true

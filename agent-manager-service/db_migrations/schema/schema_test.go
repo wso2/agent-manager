@@ -122,6 +122,30 @@ tables:
 	assert.Less(t, p1, c1, "the parent's rows come before the child's")
 }
 
+// A migration's seed rows come before the tables it creates, whose seeds may reference them.
+func TestMigrationSeedsBeforeItsTables(t *testing.T) {
+	s, err := Parse([]byte(`
+migrations:
+  - {id: "002", name: more, seed: {parents: [{id: p1}]}}
+tables:
+  - name: parents
+    columns: [{name: id, type: text, size: 10}]
+    primary_key: [id]
+  - name: children
+    migration: "002"
+    columns: [{name: id, type: text, size: 10}, {name: parent_id, type: text, size: 10}]
+    primary_key: [id]
+    foreign_keys: [{columns: [parent_id], references: parents, ref_columns: [id]}]
+    seed: [{id: c1, parent_id: p1}]`))
+	require.NoError(t, err)
+	later, err := s.RenderMigration(DialectSQLite, "002")
+	require.NoError(t, err)
+	p1 := strings.Index(later, "INSERT INTO parents (id) VALUES ('p1')")
+	c1 := strings.Index(later, "INSERT INTO children")
+	require.True(t, p1 >= 0 && c1 >= 0, later)
+	assert.Less(t, p1, c1, "the parent's row comes before the child's")
+}
+
 func TestValidateRejectsRuleBreaks(t *testing.T) {
 	tests := map[string]string{
 		"nullable unique key": `
