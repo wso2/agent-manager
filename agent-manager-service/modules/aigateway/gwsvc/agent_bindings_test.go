@@ -108,7 +108,6 @@ func bindingsDB(t *testing.T) (db *gorm.DB, orgID, agentID string) {
 
 	orgID, projectID, agentID := uuid.NewString(), uuid.NewString(), uuid.NewString()
 	now := time.Now().UTC()
-	require.NoError(t, db.Exec(`INSERT INTO organizations (id, handle, display_name, created_at, updated_at) VALUES (?, 'o', 'O', ?, ?)`, orgID, now, now).Error)
 	require.NoError(t, db.Exec(`INSERT INTO projects (id, org_id, name, display_name, created_at, updated_at) VALUES (?, ?, 'p', 'P', ?, ?)`, projectID, orgID, now, now).Error)
 	require.NoError(t, db.Exec(`INSERT INTO agents (id, org_id, project_id, name, display_name, provisioning_type, created_at, updated_at)
 		VALUES (?, ?, ?, 'a', 'A', 'external', ?, ?)`, agentID, orgID, projectID, now, now).Error)
@@ -156,7 +155,7 @@ func bindingStates(t *testing.T, s *AgentGatewayService) map[string]AgentBinding
 func orgOf(t *testing.T, s *AgentGatewayService) string {
 	t.Helper()
 	var org string
-	require.NoError(t, s.db.Raw(`SELECT id FROM organizations`).Scan(&org).Error)
+	require.NoError(t, s.db.Raw(`SELECT org_id FROM projects LIMIT 1`).Scan(&org).Error)
 	return org
 }
 

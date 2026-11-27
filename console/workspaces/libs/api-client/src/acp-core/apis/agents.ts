@@ -156,9 +156,9 @@ async function readProjectDisplayNames(
   const names = new Map<string, string>();
   for (let offset = 0; ; ) {
     const page = await listProjects({ orgName: params.orgName }, { limit: 100, offset }, getToken);
-    page.projects.forEach((p) => names.set(p.name, p.displayName));
-    offset += page.projects.length;
-    if (page.projects.length === 0 || offset >= page.total) return names;
+    page.list.forEach((p) => names.set(p.metadata.name, p.spec.displayName));
+    offset += page.list.length;
+    if (page.list.length === 0 || offset >= (page.pagination?.total ?? offset)) return names;
   }
 }
 

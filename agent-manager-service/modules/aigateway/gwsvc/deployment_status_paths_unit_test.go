@@ -237,39 +237,6 @@ func TestRestoreOfAnUnknownDeploymentIsNotFound(t *testing.T) {
 	assert.Empty(t, f.repo.StartRestoreCalls())
 }
 
-func TestUndeployLLMProviderSendsAnEmptyDeploymentID(t *testing.T) {
-	provider := &gwmodels.LLMProvider{UUID: uuid.New()}
-	f := newStatusPathFixture(t, provider.UUID)
-	deploying := gwmodels.DeploymentStatusDeploying
-	f.deployment.Status = &deploying
-	f.row.Status = deploying
-
-	got, err := f.providerService(provider).UndeployLLMProviderDeployment("provider-handle",
-		f.deployment.DeploymentID.String(), f.gateway.UUID.String(), "ou-1")
-
-	require.NoError(t, err)
-	assert.Equal(t, gwmodels.DeploymentStatusUndeploying, *got.Status)
-	event, payload := f.payload(t)
-	assert.Equal(t, eventhub.EventType("llmprovider.undeployed"), event.EventType)
-	assert.Equal(t, provider.UUID.String(), payload["providerId"])
-	assert.Contains(t, payload, "deploymentId")
-	assert.Empty(t, payload["deploymentId"])
-	assertPerformedAt(t, f.row.PerformedAt, payload)
-}
-
-func TestUndeployOfAnArchivedDeploymentIsNotActive(t *testing.T) {
-	provider := &gwmodels.LLMProvider{UUID: uuid.New()}
-	f := newStatusPathFixture(t, provider.UUID)
-	archived := gwmodels.DeploymentStatusArchived
-	f.deployment.Status = &archived
-
-	_, err := f.providerService(provider).UndeployLLMProviderDeployment("provider-handle",
-		f.deployment.DeploymentID.String(), f.gateway.UUID.String(), "ou-1")
-
-	assert.ErrorIs(t, err, gwerr.ErrDeploymentNotActive)
-	assert.Empty(t, f.repo.BeginUndeployCalls())
-}
-
 func TestRestoreLLMProviderSendsTheUUID(t *testing.T) {
 	provider := &gwmodels.LLMProvider{UUID: uuid.New()}
 	f := newStatusPathFixture(t, provider.UUID)
@@ -405,32 +372,28 @@ func TestDeleteRefusesThePlacedOrHeldDeployment(t *testing.T) {
 		}
 		f.deployment.SetStatusRow(row)
 	}
-	deleteBoth := func(t *testing.T, shape rowShape) (deletes int, providerErr, proxyErr error) {
-		provider := &gwmodels.LLMProvider{UUID: uuid.New()}
-		f := newStatusPathFixture(t, provider.UUID)
+	deleteProxyDeployment := func(t *testing.T, shape rowShape) (deletes int, err error) {
+		proxyID := uuid.New()
+		f := newStatusPathFixture(t, proxyID)
 		withRow(f, shape)
 		f.repo.DeleteFunc = func(string, string, string) error { return nil }
-		providerErr = f.providerService(provider).DeleteLLMProviderDeployment("provider-handle",
+		err = f.proxyService(&gwmodels.LLMProxy{UUID: proxyID}).DeleteLLMProxyDeployment("proxy-handle",
 			f.deployment.DeploymentID.String(), "ou-1")
-		proxyErr = f.proxyService(&gwmodels.LLMProxy{UUID: provider.UUID}).DeleteLLMProxyDeployment("proxy-handle",
-			f.deployment.DeploymentID.String(), "ou-1")
-		return len(f.repo.DeleteCalls()), providerErr, proxyErr
+		return len(f.repo.DeleteCalls()), err
 	}
 
 	for name, shape := range placed {
 		t.Run(name, func(t *testing.T) {
-			deletes, providerErr, proxyErr := deleteBoth(t, shape)
-			assert.ErrorIs(t, providerErr, gwerr.ErrDeploymentIsDeployed)
-			assert.ErrorIs(t, proxyErr, gwerr.ErrDeploymentIsDeployed)
+			deletes, err := deleteProxyDeployment(t, shape)
+			assert.ErrorIs(t, err, gwerr.ErrDeploymentIsDeployed)
 			assert.Zero(t, deletes)
 		})
 	}
 	for name, shape := range notPlaced {
 		t.Run(name, func(t *testing.T) {
-			deletes, providerErr, proxyErr := deleteBoth(t, shape)
-			assert.NoError(t, providerErr)
-			assert.NoError(t, proxyErr)
-			assert.Equal(t, 2, deletes)
+			deletes, err := deleteProxyDeployment(t, shape)
+			assert.NoError(t, err)
+			assert.Equal(t, 1, deletes)
 		})
 	}
 }

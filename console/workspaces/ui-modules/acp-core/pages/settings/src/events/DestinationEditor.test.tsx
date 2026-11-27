@@ -45,7 +45,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useCreateEventDestination: () => ({ mutate: hoisted.create, isPending: false }),
   useUpdateEventDestination: () => ({ mutate: hoisted.update, isPending: false }),
   useDestinationKinds: () => ({ data: kinds }),
-  useListAllProjects: () => ({ data: { projects: [] } }),
+  useListAllProjects: () => ({ data: { list: [] } }),
 }));
 vi.mock("@agent-management-platform/shared-component", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@agent-management-platform/shared-component")>()),

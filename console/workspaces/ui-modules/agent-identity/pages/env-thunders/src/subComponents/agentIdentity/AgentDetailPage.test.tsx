@@ -67,7 +67,7 @@ beforeEach(() => {
   resetApiState();
   resetAccessState();
   apiState.queries.useGetAgent = { data: { name: "support-bot", displayName: "Support Bot" } };
-  apiState.queries.useGetProject = { data: { name: "shop", displayName: "Shop" } };
+  apiState.queries.useGetProject = { data: { metadata: { name: "shop" }, spec: { displayName: "Shop" } } };
   apiState.queries.useGetAgentRoles = {
     data: { roles: [{ id: "r1", name: "admin", description: "Full access" }] },
   };

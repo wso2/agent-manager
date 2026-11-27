@@ -121,8 +121,8 @@ func (r guardedRoute) allowCases() []scopeCase {
 func guardedRoutes(org string) []guardedRoute {
 	agentBase := "/api/v1/agents"
 	inProject := "?project=" + absentName
-	orgBase := fmt.Sprintf("/api/v1/orgs/%s", org)
-	identityBase := orgBase + "/identities"
+	identityBase := "/api/v1/identities"
+	eventsBase := "/api/v1/events"
 	// The AI Gateway module's API. Migrated resources take the org from the token, so
 	// their routes hang off the module base with no org segment.
 	gwBase := "/m/ai-gateway"
@@ -141,9 +141,9 @@ func guardedRoutes(org string) []guardedRoute {
 		},
 
 		// --- Projects --------------------------------------------------------
-		{http.MethodPost, orgBase + "/projects", []string{"amp:project:create"}},
-		{http.MethodPut, orgBase + "/projects/" + absentName, []string{"amp:project:update"}},
-		{http.MethodDelete, orgBase + "/projects/" + absentName, []string{"amp:project:delete"}},
+		{http.MethodPost, "/api/v1/projects", []string{"amp:project:create"}},
+		{http.MethodPut, "/api/v1/projects/" + absentName, []string{"amp:project:update"}},
+		{http.MethodDelete, "/api/v1/projects/" + absentName, []string{"amp:project:delete"}},
 
 		// --- Identity — privilege granting -----------------------------------
 		{http.MethodPost, identityBase + "/users/invite", []string{"amp:org:invite-member"}},
@@ -164,13 +164,13 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodDelete, gwOrgBase + "/self-hosted-gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
 
 		// --- Events: delivery to external endpoints and their secrets ---------
-		{http.MethodDelete, orgBase + "/events/destinations/" + absentName, []string{"amp:events:manage"}},
-		{http.MethodPost, orgBase + "/events/destinations/" + absentName + "/rotate-secret", []string{"amp:events:manage"}},
-		{http.MethodDelete, orgBase + "/events/subscriptions/" + absentName, []string{"amp:events:manage"}},
+		{http.MethodDelete, eventsBase + "/destinations/" + absentName, []string{"amp:events:manage"}},
+		{http.MethodPost, eventsBase + "/destinations/" + absentName + "/rotate-secret", []string{"amp:events:manage"}},
+		{http.MethodDelete, eventsBase + "/subscriptions/" + absentName, []string{"amp:events:manage"}},
 
 		// --- LLM and MCP catalog: removal and key revocation ------------------
-		{http.MethodDelete, gwOrgBase + "/llm-provider-templates/" + absentName, []string{"amp:ai-gateway:llm-provider-templates.delete"}},
-		{http.MethodDelete, gwOrgBase + "/llm-providers/" + absentName + "/api-keys/" + absentName, []string{"amp:ai-gateway:llm-providers.api-key-manage"}},
+		{http.MethodDelete, gwBase + "/llm-provider-templates/" + absentName, []string{"amp:ai-gateway:llm-provider-templates.delete"}},
+		{http.MethodDelete, gwBase + "/llm-providers/" + absentName + "/api-keys/" + absentName, []string{"amp:ai-gateway:llm-providers.api-key-manage"}},
 		{http.MethodDelete, gwOrgBase + "/projects/" + absentName + "/llm-proxies/" + absentName, []string{"amp:ai-gateway:llm-proxies.delete"}},
 		{http.MethodDelete, gwBase + "/mcp-proxies/" + absentName, []string{"amp:ai-gateway:mcp-servers.delete"}},
 

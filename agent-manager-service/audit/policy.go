@@ -189,7 +189,7 @@ func shouldAudit(method, path string) bool {
 // stays audited.
 var nonMutatingWritePaths = map[string]bool{
 	// Suggests an available agent name. Pure function, no persistence.
-	"/orgs/{orgName}/utils/generate-name": true,
+	"/utils/generate-name": true,
 	// Reports console UI activity (page views, dialogs opened) to the
 	// analytics collector. Changes no platform state, and is emitted
 	// continuously by every open browser tab — auditing it would bury the
@@ -217,8 +217,8 @@ var sensitiveReadPaths = map[string]bool{
 	"/agents/{agentName}/identities": true,
 
 	// Security configuration — who holds which privilege.
-	"/orgs/{orgName}/identities/permissions":                true,
-	"/orgs/{orgName}/identities/roles/{roleID}/assignments": true,
+	"/identities/permissions":                true,
+	"/identities/roles/{roleID}/assignments": true,
 }
 
 // actionOverrides maps a route path to the action it actually performs, for
@@ -239,20 +239,20 @@ var actionOverrides = map[string]Action{
 	// Event destinations and subscriptions are gated by the permission of
 	// the scope they belong to (events, project or agent), which says nothing
 	// about the operation.
-	"POST /orgs/{orgName}/events/destinations":                                                            "event-destination:create",
-	"PUT /orgs/{orgName}/events/destinations/{destinationId}":                                             "event-destination:update",
-	"DELETE /orgs/{orgName}/events/destinations/{destinationId}":                                          "event-destination:delete",
-	"POST /orgs/{orgName}/events/destinations/{destinationId}/rotate-secret":                              "event-destination:rotate-secret",
-	"POST /orgs/{orgName}/events/destinations/{destinationId}/test":                                       "event-destination:test",
-	"POST /orgs/{orgName}/events/subscriptions":                                                           "event-subscription:create",
-	"PUT /orgs/{orgName}/events/subscriptions/{subscriptionId}":                                           "event-subscription:update",
-	"DELETE /orgs/{orgName}/events/subscriptions/{subscriptionId}":                                        "event-subscription:delete",
-	"POST /orgs/{orgName}/projects/{projName}/events/subscriptions":                                       "event-subscription:create",
-	"PUT /orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}":                       "event-subscription:update",
-	"DELETE /orgs/{orgName}/projects/{projName}/events/subscriptions/{subscriptionId}":                    "event-subscription:delete",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions":                    "event-subscription:create",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}":    "event-subscription:update",
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}": "event-subscription:delete",
+	"POST /events/destinations":                                                            "event-destination:create",
+	"PUT /events/destinations/{destinationId}":                                             "event-destination:update",
+	"DELETE /events/destinations/{destinationId}":                                          "event-destination:delete",
+	"POST /events/destinations/{destinationId}/rotate-secret":                              "event-destination:rotate-secret",
+	"POST /events/destinations/{destinationId}/test":                                       "event-destination:test",
+	"POST /events/subscriptions":                                                           "event-subscription:create",
+	"PUT /events/subscriptions/{subscriptionId}":                                           "event-subscription:update",
+	"DELETE /events/subscriptions/{subscriptionId}":                                        "event-subscription:delete",
+	"POST /projects/{projName}/events/subscriptions":                                       "event-subscription:create",
+	"PUT /projects/{projName}/events/subscriptions/{subscriptionId}":                       "event-subscription:update",
+	"DELETE /projects/{projName}/events/subscriptions/{subscriptionId}":                    "event-subscription:delete",
+	"POST /projects/{projName}/agents/{agentName}/events/subscriptions":                    "event-subscription:create",
+	"PUT /projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}":    "event-subscription:update",
+	"DELETE /projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}": "event-subscription:delete",
 
 	// One permission, several operations — agent OAuth identity.
 	"PUT /agents/{agentName}/identities":        "agent-identity:provision",
@@ -265,24 +265,24 @@ var actionOverrides = map[string]Action{
 
 	// The privilege-escalation path. All four are gated by role:update, and
 	// telling them apart is the whole point of an audit trail.
-	"POST /orgs/{orgName}/identities/roles/{roleID}/permissions/add":    "role:grant-permission",
-	"POST /orgs/{orgName}/identities/roles/{roleID}/permissions/remove": "role:revoke-permission",
-	"POST /orgs/{orgName}/identities/roles/{roleID}/assignees/add":      "role:assign",
-	"POST /orgs/{orgName}/identities/roles/{roleID}/assignees/remove":   "role:unassign",
-	"POST /orgs/{orgName}/identities/groups/{groupID}/members/add":      "group:add-member",
-	"POST /orgs/{orgName}/identities/groups/{groupID}/members/remove":   "group:remove-member",
+	"POST /identities/roles/{roleID}/permissions/add":    "role:grant-permission",
+	"POST /identities/roles/{roleID}/permissions/remove": "role:revoke-permission",
+	"POST /identities/roles/{roleID}/assignees/add":      "role:assign",
+	"POST /identities/roles/{roleID}/assignees/remove":   "role:unassign",
+	"POST /identities/groups/{groupID}/members/add":      "group:add-member",
+	"POST /identities/groups/{groupID}/members/remove":   "group:remove-member",
 
 	// Org membership. Gated by org:invite-member / org:remove-member, which
 	// describe the grant rather than the operation.
-	"POST /orgs/{orgName}/identities/users/invite":     "user:invite",
-	"POST /orgs/{orgName}/identities/users":            "user:create",
-	"PUT /orgs/{orgName}/identities/users/{userID}":    "user:update",
-	"DELETE /orgs/{orgName}/identities/users/{userID}": "user:delete",
+	"POST /identities/users/invite":     "user:invite",
+	"POST /identities/users":            "user:create",
+	"PUT /identities/users/{userID}":    "user:update",
+	"DELETE /identities/users/{userID}": "user:delete",
 
 	// Sensitive reads.
-	"GET /agents/{agentName}/identities":                        "agent-identity:read",
-	"GET /orgs/{orgName}/identities/permissions":                "permission:list",
-	"GET /orgs/{orgName}/identities/roles/{roleID}/assignments": "role:list-assignments",
+	"GET /agents/{agentName}/identities":         "agent-identity:read",
+	"GET /identities/permissions":                "permission:list",
+	"GET /identities/roles/{roleID}/assignments": "role:list-assignments",
 }
 
 // methodVerbs map an HTTP method to a verb, used as the last fallback for

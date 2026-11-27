@@ -827,6 +827,7 @@ var ErrAllGatewayDeploymentsFailed = errors.New("all gateway deployments failed"
 // UpdateAndSync updates an LLM provider and syncs its gateway deployments
 func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID string, updates *gwmodels.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*UpdateAndSyncResponse, error) {
 	slog.Info("LLMProviderService.UpdateAndSync: starting", "providerID", providerID, "ouID", ouID, "gatewayCount", len(gatewayIDs))
+	gatewayIDs = uniqueGatewayIDs(gatewayIDs)
 
 	// First, update the provider using the existing Update method
 	updated, err := s.Update(ctx, providerID, ouID, updates)
@@ -948,6 +949,7 @@ func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID
 				deploymentResults = append(deploymentResults, DeploymentResult{
 					GatewayID: gatewayID,
 					Success:   true,
+					Placed:    true,
 				})
 			}
 		} else {
@@ -1355,38 +1357,30 @@ func (s *LLMProviderService) syncProxyAuthHeader(
 	return true, nil
 }
 
-// ListProxiesByProvider lists all LLM proxies for a provider
-func (s *LLMProviderService) ListProxiesByProvider(providerID, ouID string, limit, offset int) ([]*gwmodels.LLMProxy, int, error) {
-	if providerID == "" {
-		return nil, 0, httpx.ErrInvalidInput
+// uniqueGatewayIDs canonicalizes valid UUIDs and drops repeats, so each gateway is placed at most once.
+func uniqueGatewayIDs(ids []string) []string {
+	if ids == nil {
+		return nil
 	}
-
-	// Get provider to get its UUID
-	provider, err := s.resolveProvider(providerID, ouID)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get provider: %w", err)
+	seen := make(map[string]bool, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if u, err := uuid.Parse(id); err == nil {
+			id = u.String()
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
 	}
-	if provider == nil {
-		return nil, 0, gwerr.ErrLLMProviderNotFound
-	}
-
-	// List proxies by provider UUID
-	proxies, err := s.proxyRepo.ListByProvider(ouID, provider.UUID.String(), limit, offset)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list proxies by provider: %w", err)
-	}
-
-	totalCount, err := s.proxyRepo.CountByProvider(ouID, provider.UUID.String())
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to count proxies by provider: %w", err)
-	}
-
-	return proxies, totalCount, nil
+	return out
 }
 
 // CreateAndDeploy creates an LLM provider and deploys it to the specified gateways
 func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdBy string, provider *gwmodels.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*CreateAndDeployResponse, error) {
 	slog.Info("LLMProviderService.CreateAndDeploy: starting", "ouID", ouID, "createdBy", createdBy, "gatewayCount", len(gatewayIDs))
+	gatewayIDs = uniqueGatewayIDs(gatewayIDs)
 
 	// Validate gateway UUIDs
 	deploymentResults := make([]DeploymentResult, 0, len(gatewayIDs))
@@ -1468,7 +1462,7 @@ func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdB
 				continue
 			}
 			successfulDeployments++
-			deploymentResults = append(deploymentResults, DeploymentResult{GatewayID: gatewayID, Success: true})
+			deploymentResults = append(deploymentResults, DeploymentResult{GatewayID: gatewayID, Success: true, Placed: true})
 		}
 		if len(validGatewayIDs) > 0 && successfulDeployments == 0 {
 			return &providerDeployFailure{message: fmt.Sprintf("all %d gateway deployments failed: %s",

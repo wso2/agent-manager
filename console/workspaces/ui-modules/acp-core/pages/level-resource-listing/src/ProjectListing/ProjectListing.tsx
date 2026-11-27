@@ -25,7 +25,7 @@ import {
 import { generatePath, Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
-  type ProjectResponse,
+  type ProjectDocument,
 } from "@agent-management-platform/types";
 import {
   Box,
@@ -61,8 +61,8 @@ const projectGridTemplate = {
 
 
 function ProjectCard(props: {
-  project: ProjectResponse;
-  handleDeleteProject?: (project: ProjectResponse) => void;
+  project: ProjectDocument;
+  handleDeleteProject?: (project: ProjectDocument) => void;
 }) {
   const { project, handleDeleteProject } = props;
   const { orgId } = useParams();
@@ -70,7 +70,7 @@ function ProjectCard(props: {
 
   const projectPath = generatePath(
     absoluteRouteMap.children.org.children.projects.path,
-    { orgId, projectId: project.name }
+    { orgId, projectId: project.metadata.name }
   );
 
   const handleDeleteClick = useCallback(
@@ -85,12 +85,12 @@ function ProjectCard(props: {
   return (
     // `onClick` keeps navigation client-side and avoids nesting the delete button in an anchor.
     <ListingCard
-      title={project.displayName}
-      description={project.description}
+      title={project.spec.displayName}
+      description={project.spec.description}
       icon={<Package size={20} />}
       updatedLabel="Created"
-      updatedTime={formatRelativeTime(project.createdAt)}
-      updatedDateTime={project.createdAt}
+      updatedTime={formatRelativeTime(project.metadata.creationTimestamp ?? "")}
+      updatedDateTime={project.metadata.creationTimestamp ?? ""}
       onClick={() => navigate(projectPath)}
       onDelete={handleDeleteProject ? handleDeleteClick : undefined}
       deleteLabel="Delete project"
@@ -116,13 +116,13 @@ export function ProjectListing() {
   const { mutate: deleteProject, isPending: isDeletingProject } = useDeleteProject();
 
   const handleDeleteProject = useCallback(
-    (project: ProjectResponse) => {
+    (project: ProjectDocument) => {
       addConfirmation({
         analytics: { entity: "project", action: "delete" },
         title: "Delete Project?",
-        description: `Are you sure you want to delete the project "${project.displayName}"? This action cannot be undone.`,
+        description: `Are you sure you want to delete the project "${project.spec.displayName}"? This action cannot be undone.`,
         onConfirm: () => {
-          deleteProject({ orgName: orgId, projName: project.name });
+          deleteProject({ orgName: orgId, projName: project.metadata.name });
         },
         confirmButtonColor: "error",
         confirmButtonIcon: <TrashOutline size={16} />,
@@ -136,8 +136,8 @@ export function ProjectListing() {
 
   const filteredProjects = useMemo(
     () =>
-      projects?.projects?.filter((p) =>
-        p.displayName.toLowerCase().includes(search.toLowerCase())
+      projects?.list?.filter((p) =>
+        p.spec.displayName.toLowerCase().includes(search.toLowerCase())
       ) ?? [],
     [projects, search]
   );
@@ -157,7 +157,7 @@ export function ProjectListing() {
 
   const isEmpty = isListEmpty({
     isLoading: isLoadingProjects,
-    count: projects?.projects?.length ?? 0,
+    count: projects?.list?.length ?? 0,
     isFiltered: Boolean(search),
   });
 
@@ -166,7 +166,7 @@ export function ProjectListing() {
     <PageLayout
       title="All Projects"
       disableIcon
-      actions={projects?.projects?.length ? createButton : undefined}
+      actions={projects?.list?.length ? createButton : undefined}
     >
       {isEmpty ? (
         <ListingTable.Container>
@@ -201,7 +201,7 @@ export function ProjectListing() {
                 ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
                 : filteredProjects.map((project) => (
                   <ProjectCard
-                    key={project.name}
+                    key={project.metadata.name}
                     project={project}
                     handleDeleteProject={canWrite ? handleDeleteProject : undefined}
                   />

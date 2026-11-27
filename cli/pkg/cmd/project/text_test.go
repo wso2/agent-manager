@@ -35,19 +35,31 @@ func serverError(t *testing.T, status int, code, msg string) (func(context.Conte
 	return fn, closeFn
 }
 
+// createdOn is a Project document created on the given day of 2026.
+func createdOn(name, displayName string, month time.Month, day int) amsvc.ProjectDocument {
+	doc := projectDoc(name, displayName)
+	created := time.Date(2026, month, day, 0, 0, 0, 0, time.UTC)
+	doc.Metadata.CreationTimestamp = &created
+	return doc
+}
+
 func TestGet_TextOutput(t *testing.T) {
 	io, out, _ := newTestIO(false)
 	io.JSON = false
 	created := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
-	clientFn, _, closeFn := newTestClient(t, http.StatusOK, amsvc.ProjectResponse{
-		Name: "alpha", DisplayName: "Alpha One", Description: "first", DeploymentPipeline: "default", CreatedAt: created,
-	})
+	clientFn, _, closeFn := newTestClient(t, http.StatusOK, func() amsvc.ProjectDocument {
+		doc := projectDoc("alpha", "Alpha One")
+		desc := "first"
+		doc.Spec.Description = &desc
+		doc.Metadata.CreationTimestamp = &created
+		return doc
+	}())
 	defer closeFn()
 
 	if err := runGet(context.Background(), &GetOptions{IO: io, Client: clientFn, Org: "acme", Scope: baseScope(), ProjectName: "alpha"}); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"alpha", "Alpha One", "first", "default", "acme", "2026-03-04T05:06:07Z"} {
+	for _, want := range []string{"alpha", "Alpha One", "first", "acme", "2026-03-04T05:06:07Z"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output missing %q:\n%s", want, out.String())
 		}
@@ -94,18 +106,15 @@ func TestList_TextTable(t *testing.T) {
 	io, out, _ := newTestIO(false)
 	io.JSON = false
 	clientFn, captured, closeFn := newTestClient(t, http.StatusOK, amsvc.ProjectListResponse{
-		Projects: []amsvc.ProjectListItem{
-			{Name: "alpha", DisplayName: "Alpha", CreatedAt: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)},
-			{Name: "beta", DisplayName: "Beta", CreatedAt: time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC)},
-		},
-		Total: 2,
+		Count: 2,
+		List:  []amsvc.ProjectDocument{createdOn("alpha", "Alpha", 1, 2), createdOn("beta", "Beta", 2, 3)},
 	})
 	defer closeFn()
 
 	if err := runList(context.Background(), &ListOptions{IO: io, Client: clientFn, Org: "acme", Scope: baseScope()}); err != nil {
 		t.Fatal(err)
 	}
-	if captured.path != "/orgs/acme/projects" {
+	if captured.path != "/projects" {
 		t.Errorf("path = %q", captured.path)
 	}
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
@@ -169,13 +178,13 @@ func TestCreate_TextOutputAndFailures(t *testing.T) {
 	t.Run("text", func(t *testing.T) {
 		io, _, errOut := newTestIO(false)
 		io.JSON = false
-		clientFn, captured, closeFn := newTestClient(t, http.StatusAccepted, amsvc.ProjectResponse{Name: "alpha"})
+		clientFn, captured, closeFn := newTestClient(t, http.StatusAccepted, projectDoc("alpha", "Alpha"))
 		defer closeFn()
 		if err := runCreate(context.Background(), &CreateOptions{IO: io, Client: clientFn, Org: "acme", Scope: baseScope(),
 			Name: "alpha", DisplayName: "Alpha"}); err != nil {
 			t.Fatal(err)
 		}
-		if captured.method != "POST" || captured.path != "/orgs/acme/projects" {
+		if captured.method != "POST" || captured.path != "/projects" {
 			t.Errorf("request = %s %s", captured.method, captured.path)
 		}
 		if !strings.Contains(errOut.String(), "Created project alpha") {

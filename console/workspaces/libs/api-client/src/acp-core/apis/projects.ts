@@ -16,27 +16,47 @@
  * under the License.
  */
 
+import { cloneDeep } from 'lodash';
 import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from '../../shared/utils';
 import type {
-  ProjectListResponse,
-  ProjectResponse,
+  CreateProjectInput,
+  ProjectDocument,
+  ProjectDocumentList,
+  ProjectSpec,
   ListProjectsPathParams,
   GetProjectPathParams,
   ListProjectsQuery,
   CreateProjectPathParams,
-  CreateProjectRequest,
   DeleteProjectPathParams,
   UpdateProjectPathParams,
-  UpdateProjectRequest,
 } from '@agent-management-platform/types';
 
+const PROJECTS = `${SERVICE_BASE}/projects`;
+const API_VERSION = 'ai-control-plane.choreolabs.com/v1';
+
+// projectURL addresses one project.
+function projectURL(projName: string | undefined): string {
+  if (!projName) {
+    throw new Error('projName is required');
+  }
+  return `${PROJECTS}/${encodeURIComponent(projName)}`;
+}
+
+/** Builds a Project document from its handle and spec. */
+export function projectDocument(name: string, spec: ProjectSpec): ProjectDocument {
+  return {
+    apiVersion: API_VERSION,
+    kind: 'Project',
+    metadata: { name },
+    spec: { displayName: spec.displayName, description: spec.description },
+  };
+}
+
 export async function listProjects(
-  params: ListProjectsPathParams,
+  _params: ListProjectsPathParams,
   query?: ListProjectsQuery,
   getToken?: () => Promise<string>,
-): Promise<ProjectListResponse> {
-  const { orgName = "default" } = params;
-
+): Promise<ProjectDocumentList> {
   const search = query
     ? Object.fromEntries(
         Object.entries(query)
@@ -46,27 +66,18 @@ export async function listProjects(
       )
     : undefined;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects`,
-    { searchParams: search, token },
-  );
-
+  const res = await httpGET(PROJECTS, { searchParams: search, token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
 export async function createProject(
-  params: CreateProjectPathParams,
-  body: CreateProjectRequest,
+  _params: CreateProjectPathParams,
+  body: CreateProjectInput,
   getToken?: () => Promise<string>,
-): Promise<ProjectResponse> {
-  const { orgName = "default" } = params;
+): Promise<ProjectDocument> {
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects`,
-    body,
-    { token },
-  );
+  const res = await httpPOST(PROJECTS, projectDocument(body.name, body), { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -74,46 +85,32 @@ export async function createProject(
 export async function getProject(
   params: GetProjectPathParams,
   getToken?: () => Promise<string>,
-): Promise<ProjectResponse> {
-  const { orgName = "default", projName = "default" } = params;
+): Promise<ProjectDocument> {
+  const url = projectURL(params.projName);
   const token = getToken ? await getToken() : undefined;
-  const url =
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +
-    `/projects/${encodeURIComponent(projName)}`;
   const res = await httpGET(url, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
 
 export async function deleteProject(
-    params: DeleteProjectPathParams,
+  params: DeleteProjectPathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", projName = "default" } = params;
+  const url = projectURL(params.projName);
   const token = getToken ? await getToken() : undefined;
-  const url =
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +
-    `/projects/${encodeURIComponent(projName)}`;
   const res = await httpDELETE(url, { token });
   if (!res.ok) throw await res.json();
-    // DELETE may return 204 No Content
-  if (res.status === 204 || res.headers.get('content-length') === '0') {
-    return;
-  }
-  return res.json();
 }
 
 export async function updateProject(
   params: UpdateProjectPathParams,
-  body: UpdateProjectRequest,
+  body: ProjectSpec,
   getToken?: () => Promise<string>,
-): Promise<ProjectResponse> {
-  const { orgName = 'default', projName = 'default' } = params;
+): Promise<ProjectDocument> {
+  const url = projectURL(params.projName);
   const token = getToken ? await getToken() : undefined;
-  const url =
-    `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}` +
-    `/projects/${encodeURIComponent(projName)}`;
-  const res = await httpPUT(url, body, { token });
+  const res = await httpPUT(url, cloneDeep(projectDocument(params.projName ?? '', body)), { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }

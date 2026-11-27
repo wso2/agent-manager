@@ -30,6 +30,10 @@ YAML
 echo "  amp-api:"
 echo "    environment:"
 echo "      <<: *ci"
+# With an identity provider the organization is the provider's (ThunderID's
+# built-in OU here), not file sign-in's trial one, so the bundled gateway is
+# registered there.
+[ "$AUTH_MODE" = "idp" ] && echo "      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID: 01900000-0000-7000-8000-000000000001"
 [ "${LOG_ROUTE_HITS:-false}" = "true" ] && echo '      LOG_ROUTE_HITS: "true"'
 if [ "${PRIVATE_EVENTS:-false}" = "true" ]; then
   echo '      EVENTS_ALLOW_PRIVATE_DESTINATIONS: "true"'

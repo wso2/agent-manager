@@ -17,3 +17,5 @@ a37d7c58c02781395f57076cbbb2f71d52545e30:deployments/standalone/.env.example:gen
 f789e53ae813057ab0c8fa8bfa1b488ccafd9158:agent-manager-service/internal/cli/firstrun_test.go:generic-api-key:90
 # Dummy "mcp-secret" key in a test of the curl command the MCP proxy page shows, not a credential.
 2227a02856da4b3e18c8e5b3614732c9dbf036f5:console/workspaces/ui-modules/ai-gateway/pages/configure-agent/src/ViewMCPServer.Guide.test.tsx:curl-auth-header:278
+# The same dummy "mcp-secret" key in a test of the curl command with a subscription key header, not a credential.
+45de7d1f0a10951f7168b697473fb91750a5c4f2:console/workspaces/ui-modules/ai-gateway/pages/configure-agent/src/ViewMCPServer.Guide.test.tsx:curl-auth-header:323

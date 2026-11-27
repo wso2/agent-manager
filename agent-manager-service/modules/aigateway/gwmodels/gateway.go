@@ -209,4 +209,6 @@ type GatewayDeploymentResult struct {
 	GatewayID string `json:"gateway_id"`
 	Success   bool   `json:"success"`
 	Error     string `json:"error,omitempty"`
+	// Placed is true when the call put the artifact on a gateway it was not on before.
+	Placed bool `json:"-"`
 }

@@ -79,7 +79,7 @@ def test_access_token_raises_on_failure():
 def test_register_external_agent_creates_project_agent_and_token():
     _mock_token()
     name = "traceloop-0-60-0-langchain"
-    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects", json={"name": name}, status=202)
+    responses.add(responses.POST, f"{BASE}/api/v1/projects", json={"name": name}, status=202)
     responses.add(responses.POST, f"{BASE}/api/v1/agents", json={"metadata": {"name": name}}, status=202)
     responses.add(responses.POST, f"{BASE}/api/v1/agents/{name}/token", json={"token": "agent-tok"}, status=200)
 
@@ -97,7 +97,7 @@ def test_register_external_agent_creates_project_agent_and_token():
 @responses.activate
 def test_register_external_agent_surfaces_unexpected_status():
     _mock_token()
-    responses.add(responses.POST, f"{BASE}/api/v1/orgs/default/projects",
+    responses.add(responses.POST, f"{BASE}/api/v1/projects",
                   json={"code": "VALIDATION_ERROR"}, status=400)
     with pytest.raises(AmpError, match="400"):
         _client().register_external_agent("default", "x")
@@ -110,7 +110,7 @@ def test_teardown_is_best_effort():
 
     # DELETE returns 500 — teardown must swallow it, not raise.
     responses.add(responses.DELETE, f"{BASE}/api/v1/agents/a", status=500)
-    responses.add(responses.DELETE, f"{BASE}/api/v1/orgs/default/projects/p", status=500)
+    responses.add(responses.DELETE, f"{BASE}/api/v1/projects/p", status=500)
     d = DeployedAgent(org="default", project_name="p", agent_name="a", environment="default")
     _client().teardown_agent(d)  # must not raise
 

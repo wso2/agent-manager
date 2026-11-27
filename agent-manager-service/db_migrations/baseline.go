@@ -93,6 +93,13 @@ func MigrateBaseline(dbConn *gorm.DB, driver string) error {
 	if len(list) == 0 {
 		return fmt.Errorf("no SQL migrations for %s", driver)
 	}
+	// The baseline is edited in place while AMP Lite is in development, so a database created before
+	// organizations left the schema is never migrated to the current one: it keeps the organizations table
+	// and its foreign keys, and every new organization's first write would fail on them.
+	if dbConn.Migrator().HasTable("organizations") {
+		return fmt.Errorf("this database was created by an earlier AMP Lite build (it has an organizations table) " +
+			"and cannot be migrated; reset it (with Compose, docker compose down -v) and start again")
+	}
 	latest := list[len(list)-1].ID
 	slog.Info("dbmigrations:starting migration", "driver", driver, "latest", latest)
 	if err := gormigrate.New(dbConn, migrateOptions, list).Migrate(); err != nil {

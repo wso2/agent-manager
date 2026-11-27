@@ -101,7 +101,6 @@ func ConvertToOrganizationResponse(org *models.OrganizationResponse) spec.Organi
 
 	return spec.OrganizationResponse{
 		Name:        org.Name,
-		CreatedAt:   org.CreatedAt,
 		DisplayName: org.DisplayName,
 		Description: org.Description,
 		Handle:      stringToPtr(org.Handle),
@@ -117,7 +116,6 @@ func ConvertToOrganizationListItems(org *models.OrganizationResponse) spec.Organ
 		Name:        org.Name,
 		DisplayName: org.DisplayName,
 		Handle:      stringToPtr(org.Handle),
-		CreatedAt:   org.CreatedAt,
 	}
 }
 
@@ -129,47 +127,6 @@ func ConvertToOrganizationListResponse(orgs []*models.OrganizationResponse) []sp
 	responses := make([]spec.OrganizationListItem, len(orgs))
 	for i, org := range orgs {
 		responses[i] = ConvertToOrganizationListItems(org)
-	}
-
-	return responses
-}
-
-func ConvertToProjectResponse(project *models.ProjectResponse) spec.ProjectResponse {
-	if project == nil {
-		return spec.ProjectResponse{}
-	}
-	return spec.ProjectResponse{
-		Uuid:               project.UUID,
-		Name:               project.Name,
-		DisplayName:        project.DisplayName,
-		Description:        project.Description,
-		CreatedAt:          project.CreatedAt,
-		DeploymentPipeline: "",
-	}
-}
-
-func ConvertToProjectListItem(project *models.ProjectResponse) spec.ProjectListItem {
-	if project == nil {
-		return spec.ProjectListItem{}
-	}
-
-	return spec.ProjectListItem{
-		Uuid:        project.UUID,
-		Name:        project.Name,
-		DisplayName: project.DisplayName,
-		Description: &project.Description,
-		CreatedAt:   project.CreatedAt,
-	}
-}
-
-func ConvertToProjectListResponse(projects []*models.ProjectResponse) []spec.ProjectListItem {
-	if len(projects) == 0 {
-		return []spec.ProjectListItem{}
-	}
-
-	responses := make([]spec.ProjectListItem, len(projects))
-	for i, project := range projects {
-		responses[i] = ConvertToProjectListItem(project)
 	}
 
 	return responses

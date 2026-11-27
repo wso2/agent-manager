@@ -118,7 +118,6 @@ func TestFinalizeHooks(t *testing.T) {
 		return n
 	}
 	org, project, agent, env := id(), id(), id(), id()
-	exec(`INSERT INTO organizations (id, handle, display_name, created_at, updated_at) VALUES (?, 'o', 'O', ?, ?)`, org, now, now)
 	exec(`INSERT INTO projects (id, org_id, name, display_name, created_at, updated_at) VALUES (?, ?, 'p', 'P', ?, ?)`, project, org, now, now)
 	exec(`INSERT INTO environments (id, org_id, name, display_name, is_production, created_at, updated_at) VALUES (?, ?, 'e', 'E', ?, ?, ?)`, env, org, false, now, now)
 

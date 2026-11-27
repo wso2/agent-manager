@@ -31,7 +31,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -61,6 +60,7 @@ type runtime struct {
 	subs     []subEntry
 	workers  []workerEntry
 	at       []Route
+	webhooks []Route
 	tools    []toolEntry
 }
 
@@ -97,7 +97,7 @@ func (r *runtime) DB() *gorm.DB         { return r.h.db }
 func (r *runtime) Logger() *slog.Logger { return r.log }
 
 func (r *runtime) Config(key string) string {
-	return config.Value(config.ModuleConfigKey(r.name, key))
+	return moduleConfig(r.name)(key)
 }
 
 func (r *runtime) Core() modkit.CoreAPI {
@@ -145,7 +145,7 @@ func (r *runtime) options(rt *Route, opts []modkit.RouteOption) error {
 		}
 		rt.Event, rt.EventScope, rt.EventWithoutData = o.Event, e.Scope, o.EventWithoutData
 	}
-	if (len(o.AlsoRequires) > 0 || len(o.AnyPermission) > 0 || o.PlatformAdmin) && (rt.Scope != "" || rt.At != "") {
+	if (len(o.AlsoRequires) > 0 || len(o.AnyPermission) > 0 || o.PlatformAdmin) && (rt.Scope != "" || rt.At != "" || rt.Webhook) {
 		return errors.New("AlsoRequires, AnyPermission and PlatformAdmin apply to public routes only")
 	}
 	for _, list := range []struct {
@@ -167,7 +167,7 @@ func (r *runtime) options(rt *Route, opts []modkit.RouteOption) error {
 		return errors.New("a PlatformAdmin route reads across organizations and must not name one")
 	}
 	rt.PlatformAdmin = o.PlatformAdmin
-	if o.AllowOrgOverride && (rt.Scope != "" || rt.At != "" || !strings.Contains(rt.Path, "{orgName}")) {
+	if o.AllowOrgOverride && (rt.Scope != "" || rt.At != "" || rt.Webhook || !strings.Contains(rt.Path, "{orgName}")) {
 		return errors.New("AllowOrgOverride applies to public routes whose path names {orgName}")
 	}
 	rt.AllowOrgOverride = o.AllowOrgOverride
@@ -272,6 +272,33 @@ func (r *runtime) HandleInternalAt(method, absPath string, h http.HandlerFunc, o
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.at = append(r.at, route)
+}
+
+// webhooksPrefix is where a module's HandleWebhook routes live, below
+// /m/<module> on the internal server.
+const webhooksPrefix = "/webhooks"
+
+func (r *runtime) HandleWebhook(method, path string, h http.HandlerFunc, opts ...modkit.RouteOption) {
+	if !r.registering("HandleWebhook") {
+		return
+	}
+	if err := r.checkRoute("HandleWebhook", method, path, h); err != nil {
+		r.fail(err)
+		return
+	}
+	route := Route{Module: r.name, Method: method, Path: path, Webhook: true, Handler: h}
+	if err := r.options(&route, opts); err != nil {
+		r.fail(fmt.Errorf("HandleWebhook %s %s: %w", method, path, err))
+		return
+	}
+	if method != http.MethodGet && route.AuditAction == "" {
+		// Nothing else names it: the route has no permission.
+		r.fail(fmt.Errorf("HandleWebhook %s %s: a %s route names its audit action with modkit.Audit", method, path, method))
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.webhooks = append(r.webhooks, route)
 }
 
 var toolNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)

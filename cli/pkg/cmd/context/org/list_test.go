@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
@@ -148,5 +149,26 @@ func TestList_NoInstance(t *testing.T) {
 	errBody := env["error"].(map[string]any)
 	if errBody["code"] != clierr.NoInstance {
 		t.Errorf("code = %v, want %s", errBody["code"], clierr.NoInstance)
+	}
+}
+
+// The server records no creation date for an organization, so the table shows none rather than a zero date.
+func TestList_TableWithoutCreatedAt(t *testing.T) {
+	io, _, out, _ := iostreams.Test()
+	cfgFn := writeConfig(t, &config.Config{
+		CurrentInstance: "prod",
+		Instances:       map[string]config.Instance{"prod": {URL: "https://prod.example.com"}},
+	})
+	clientFn, closeFn := newTestClient(t, http.StatusOK, map[string]any{
+		"limit": 20, "offset": 0, "total": 1,
+		"organizations": []map[string]any{{"name": "acme", "displayName": "acme"}},
+	})
+	defer closeFn()
+
+	if err := runList(context.Background(), &ListOptions{IO: io, Config: cfgFn, Client: clientFn}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, "acme") || strings.Contains(got, "0001-01-01") {
+		t.Errorf("table = %q, want acme and no zero date", got)
 	}
 }

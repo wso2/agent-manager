@@ -7,17 +7,16 @@ import {
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
   Header,
-  MenuItem,
-  Stack,
-  Typography,
-  useTheme,
+  HeaderBreadcrumbs,
+  type HeaderBreadcrumbsItem,
+  type HeaderBreadcrumbsLevel,
 } from "@wso2/oxygen-ui";
-import { Plus } from "@wso2/oxygen-ui-icons-react";
-import { useMemo, useState } from "react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { asLink, LevelSwitcherCard } from "./LevelSwitcherCard";
+import { AppWindow, Box, Building2 } from "@wso2/oxygen-ui-icons-react";
+import { forwardRef, useMemo, type ComponentPropsWithoutRef } from "react";
+import { generatePath, Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useActiveAgentPage, useActiveOrgPage, useActiveProjectPage } from "./path-map";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { returnToState } from "@agent-management-platform/views";
 
 const orgLabel = (
   org?: { name: string; displayName: string },
@@ -29,10 +28,25 @@ const orgLabel = (
   return fallbackName || org?.name;
 };
 
+/**
+ * HeaderBreadcrumbs hands link targets over as `href`; react-router's Link
+ * wants `to`. Adapting here keeps menu entries real anchors (middle-click,
+ * open-in-new-tab) while navigating client-side.
+ */
+const RouterLink = forwardRef<
+  HTMLAnchorElement,
+  Omit<ComponentPropsWithoutRef<typeof Link>, "to"> & { href: string }
+>(function RouterLink({ href, ...rest }, ref) {
+  return <Link ref={ref} to={href} {...rest} />;
+});
+
+const withSuffix = (path: string, suffix?: string | null) =>
+  suffix ? `${path}/${suffix}` : path;
+
 export function TopNavigation() {
-  const navigate = useNavigate();
   const { userInfo } = useAuthHooks();
-  const theme = useTheme();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { orgId, projectId, agentId } = useParams<{
     orgId: string;
     projectId: string;
@@ -42,21 +56,15 @@ export function TopNavigation() {
   const commonOrgPages = useActiveOrgPage();
   const commonProjectPages = useActiveProjectPage();
   const commonAgentPages = useActiveAgentPage();
-  const [orgAnchorEl, setOrgAnchorEl] = useState<null | HTMLElement>(null);
 
-  const [projectAnchorEl, setProjectAnchorEl] = useState<null | HTMLElement>(
-    null,
-  );
-
-  const [agentAnchorEl, setAgentAnchorEl] = useState<null | HTMLElement>(null);
-
-  // Get all organizations
   const { data: organizations } = useListOrganizations();
-  const selectedOrganization = useMemo(() => {
-    return organizations?.organizations?.find(
-      (organization) => orgRouteId(organization) === orgId,
-    );
-  }, [organizations, orgId]);
+  const selectedOrganization = useMemo(
+    () =>
+      organizations?.organizations?.find(
+        (organization) => orgRouteId(organization) === orgId,
+      ),
+    [organizations, orgId],
+  );
   const hasOtherOrgs = (organizations?.total ?? 0) > 1;
   // With a single org, its displayName may not be set yet — fall back to the
   // org name/handle from the user's own IDP claims rather than the raw org id.
@@ -64,201 +72,156 @@ export function TopNavigation() {
     ? userInfo?.ouName || userInfo?.ouHandle
     : undefined;
 
-  // Get all projects for the organization
-  const { data: projects } = useListProjects({
-    orgName: orgId,
-  });
+  const { data: projects } = useListProjects({ orgName: orgId });
+  const selectedProject = useMemo(
+    () => projects?.list?.find((project) => project.metadata.name === projectId),
+    [projects, projectId],
+  );
 
-  const selectedProject = useMemo(() => {
-    return projects?.projects?.find((project) => project.name === projectId);
-  }, [projects, projectId]);
-
-  // Get all agents for the project
   const { data: agents } = useListAgents({
     orgName: orgId,
     projName: projectId,
   });
+  const selectedAgent = useMemo(
+    () => agents?.agents?.find((agent) => agent.name === agentId),
+    [agents, agentId],
+  );
 
-  const selectedAgent = useMemo(() => {
-    return agents?.agents?.find((agent) => agent.name === agentId);
-  }, [agents, agentId]);
+  const levels = useMemo(() => {
+    const result: HeaderBreadcrumbsLevel[] = [];
+
+    if (organizations?.organizations && selectedOrganization) {
+      const toItem = (
+        org: (typeof organizations.organizations)[number],
+        fallback?: string,
+      ): HeaderBreadcrumbsItem => ({
+        id: orgRouteId(org),
+        name: orgLabel(org, fallback) ?? orgRouteId(org),
+        href: withSuffix(
+          generatePath(absoluteRouteMap.children.org.path, {
+            orgId: orgRouteId(org),
+          }),
+          commonOrgPages,
+        ),
+      });
+      result.push({
+        id: "organization",
+        label: "Organization",
+        icon: <Building2 size={20} />,
+        pluralLabel: "Organizations",
+        // A single org has nothing to switch to, so the menu lists only it.
+        items: hasOtherOrgs
+          ? organizations.organizations.map((org) => toItem(org))
+          : [toItem(selectedOrganization, soloOrgFallbackName)],
+        selectedId: orgRouteId(selectedOrganization),
+        createAction: false,
+        manageAction: false,
+      });
+    }
+
+    // Create pages return to where they were opened from, so the link is
+    // followed in code with the current location as router state.
+    const openCreatePage =
+      (href: string) => (event: { preventDefault: () => void }) => {
+        event.preventDefault();
+        navigate(href, { state: returnToState(location) });
+      };
+
+    if (projects?.list && orgId) {
+      const newProjectPath = generatePath(
+        absoluteRouteMap.children.org.children.newProject.path,
+        { orgId },
+      );
+      result.push({
+        id: "project",
+        label: "Project",
+        icon: <Box size={20} />,
+        items: projects.list.map((project) => ({
+          id: project.metadata.name,
+          name: project.spec.displayName,
+          href: withSuffix(
+            generatePath(absoluteRouteMap.children.org.children.projects.path, {
+              orgId,
+              projectId: project.metadata.name,
+            }),
+            commonProjectPages,
+          ),
+        })),
+        selectedId: selectedProject?.metadata.name,
+        openLabel: "Select or create a project",
+        createAction: {
+          label: "Create a Project",
+          href: newProjectPath,
+          onClick: openCreatePage(newProjectPath),
+        },
+        manageAction: false,
+      });
+    }
+
+    if (agents?.agents && orgId && projectId) {
+      const newAgentPath = generatePath(
+        absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+        { orgId, projectId },
+      );
+      result.push({
+        id: "agent",
+        label: "Agent",
+        icon: <AppWindow size={20} />,
+        items: agents.agents.map((agent) => ({
+          id: agent.name,
+          name: agent.displayName,
+          href: withSuffix(
+            generatePath(
+              absoluteRouteMap.children.org.children.projects.children.agents
+                .path,
+              { orgId, projectId, agentId: agent.name },
+            ),
+            commonAgentPages,
+          ),
+        })),
+        selectedId: selectedAgent?.name,
+        openLabel: "Select or create an agent",
+        createAction: {
+          label: "Create an Agent",
+          href: newAgentPath,
+          onClick: openCreatePage(newAgentPath),
+        },
+        manageAction: false,
+      });
+    }
+
+    return result;
+  }, [
+    organizations,
+    selectedOrganization,
+    hasOtherOrgs,
+    soloOrgFallbackName,
+    projects,
+    selectedProject,
+    agents,
+    selectedAgent,
+    orgId,
+    projectId,
+    commonOrgPages,
+    commonProjectPages,
+    commonAgentPages,
+    navigate,
+    location,
+  ]);
 
   return (
-    <>
-      <Header.Switchers showDivider={false}>
-        {organizations?.organizations && selectedOrganization && (
-          <LevelSwitcherCard
-            label={hasOtherOrgs ? "Organizations" : "Organization"}
-            chevronLabel="Switch organization"
-            canSwitch={hasOtherOrgs}
-            anchorEl={orgAnchorEl}
-            onOpenMenu={(e) => setOrgAnchorEl(e.currentTarget)}
-            onCloseMenu={() => setOrgAnchorEl(null)}
-            selected={{
-              to:
-                generatePath(absoluteRouteMap.children.org.path, {
-                  orgId: orgRouteId(selectedOrganization),
-                }) + (commonOrgPages ? `/${commonOrgPages}` : ""),
-              goToLabel: `Go to ${orgLabel(selectedOrganization, soloOrgFallbackName)}`,
-              content: (
-                <Typography variant="body1" noWrap sx={{ maxWidth: "100%" }}>
-                  {orgLabel(selectedOrganization, soloOrgFallbackName)}
-                </Typography>
-              ),
-            }}
-          >
-            {hasOtherOrgs &&
-              organizations.organizations.map((organization) => (
-                <MenuItem
-                  key={organization.name}
-                  selected={orgRouteId(organization) === orgId}
-                  onClick={() => setOrgAnchorEl(null)}
-                  {...asLink(
-                    generatePath(absoluteRouteMap.children.org.path, {
-                      orgId: orgRouteId(organization),
-                    }) + (commonOrgPages ? `/${commonOrgPages}` : ""),
-                  )}
-                >
-                  {orgLabel(organization)}
-                </MenuItem>
-              ))}
-          </LevelSwitcherCard>
-        )}
-
-        {projects?.projects && (
-          <LevelSwitcherCard
-            label="Projects"
-            chevronLabel={selectedProject ? "Switch project" : "Select or create a project"}
-            anchorEl={projectAnchorEl}
-            onOpenMenu={(e) => setProjectAnchorEl(e.currentTarget)}
-            onCloseMenu={() => setProjectAnchorEl(null)}
-            selected={
-              selectedProject && {
-                to:
-                  generatePath(
-                    absoluteRouteMap.children.org.children.projects.path,
-                    { orgId, projectId },
-                  ) + (commonProjectPages ? `/${commonProjectPages}` : ""),
-                goToLabel: `Go to ${selectedProject.displayName}`,
-                closeLabel: "Close project",
-                onClose: () =>
-                  navigate(
-                    generatePath(
-                      absoluteRouteMap.children.org.children.projectListing.path,
-                      { orgId },
-                    ),
-                  ),
-                content: (
-                  <Typography variant="body1" noWrap sx={{ maxWidth: "100%" }}>
-                    {selectedProject.displayName}
-                  </Typography>
-                ),
-              }
-            }
-          >
-            <MenuItem
-              onClick={() => setProjectAnchorEl(null)}
-              {...asLink(
-                generatePath(
-                  absoluteRouteMap.children.org.children.newProject.path,
-                  { orgId },
-                ),
-              )}
-            >
-              <Plus size={20} style={{ marginRight: theme.spacing(1) }} />
-              Create a Project
-            </MenuItem>
-            {projects.projects.map((project) => (
-              <MenuItem
-                key={project.name}
-                selected={project.name === projectId}
-                onClick={() => setProjectAnchorEl(null)}
-                {...asLink(
-                  generatePath(
-                    absoluteRouteMap.children.org.children.projects.path,
-                    { orgId, projectId: project.name },
-                  ) + (commonProjectPages ? `/${commonProjectPages}` : ""),
-                )}
-              >
-                {project.displayName}
-              </MenuItem>
-            ))}
-          </LevelSwitcherCard>
-        )}
-
-        {agents?.agents && (
-          <LevelSwitcherCard
-            label="Agents"
-            chevronLabel={selectedAgent ? "Switch agent" : "Select or create an agent"}
-            anchorEl={agentAnchorEl}
-            onOpenMenu={(e) => setAgentAnchorEl(e.currentTarget)}
-            onCloseMenu={() => setAgentAnchorEl(null)}
-            selected={
-              selectedAgent && {
-                to:
-                  generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.path,
-                    { orgId, projectId, agentId },
-                  ) + (commonAgentPages ? `/${commonAgentPages}` : ""),
-                goToLabel: `Go to ${selectedAgent.displayName}`,
-                closeLabel: "Close agent",
-                onClose: () =>
-                  navigate(
-                    generatePath(
-                      absoluteRouteMap.children.org.children.projects.path,
-                      { orgId, projectId },
-                    ),
-                  ),
-                content: (
-                  <Stack
-                    direction="row"
-                    gap={1}
-                    alignItems="center"
-                    sx={{ maxWidth: "100%", minWidth: 0 }}
-                  >
-                    <Typography variant="body1" noWrap sx={{ minWidth: 0 }}>
-                      {selectedAgent.displayName}
-                    </Typography>
-                  </Stack>
-                ),
-              }
-            }
-          >
-            <MenuItem
-              onClick={() => setAgentAnchorEl(null)}
-              {...asLink(
-                generatePath(
-                  absoluteRouteMap.children.org.children.projects.children
-                    .newAgent.path,
-                  { orgId, projectId },
-                ),
-              )}
-            >
-              <Plus size={20} style={{ marginRight: theme.spacing(1) }} />
-              Create an Agent
-            </MenuItem>
-            {agents.agents.map((agent) => (
-              <MenuItem
-                key={agent.name}
-                selected={agent.name === agentId}
-                onClick={() => setAgentAnchorEl(null)}
-                {...asLink(
-                  generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.path,
-                    { orgId, projectId, agentId: agent.name },
-                  ) + (commonAgentPages ? `/${commonAgentPages}` : ""),
-                )}
-              >
-                <Stack direction="row" gap={1} alignItems="center">
-                  {agent.displayName}
-                </Stack>
-              </MenuItem>
-            ))}
-          </LevelSwitcherCard>
-        )}
-      </Header.Switchers>
-    </>
+    <Header.Switchers showDivider={false}>
+      <HeaderBreadcrumbs
+        levels={levels}
+        linkComponent={RouterLink}
+        onNavigate={(_levelId, item) => {
+          if (item.href) {
+            navigate(item.href);
+          }
+        }}
+        showIcons
+        aria-label="Organization, project and agent"
+      />
+    </Header.Switchers>
   );
 }

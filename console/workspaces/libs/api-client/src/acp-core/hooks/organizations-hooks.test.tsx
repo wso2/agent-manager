@@ -19,7 +19,7 @@
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  invalidatedKeys, renderHook, seed, testQueryClient, waitFor, type RenderedHook,
+  renderHook, testQueryClient, waitFor, type RenderedHook,
 } from "../../test-utils/render-hook";
 
 const ui = vi.hoisted(() => ({
@@ -30,7 +30,6 @@ const ui = vi.hoisted(() => ({
 const api = vi.hoisted(() => ({
   listOrganizations: vi.fn(),
   getOrganization: vi.fn(),
-  createOrganization: vi.fn(),
   generateResourceName: vi.fn(),
 }));
 
@@ -96,33 +95,6 @@ describe("useGetOrganization", () => {
     const hook = await render(() => hooks.useGetOrganization({} as never));
     expect(hook.result.current.fetchStatus).toBe("idle");
     expect(api.getOrganization).not.toHaveBeenCalled();
-  });
-});
-
-describe("useCreateOrganization", () => {
-  const SEEDED = [["organizations", undefined, true, "user-1"], ["organization", {}]] as const;
-
-  it("creates the org, announces it and refreshes the org list", async () => {
-    api.createOrganization.mockResolvedValue({ name: "acme" });
-    const client = testQueryClient();
-    seed(client, SEEDED);
-    const hook = await renderHook(hooks.useCreateOrganization, { client });
-    rendered = hook as RenderedHook<unknown>;
-    await act(async () => { await hook.result.current.mutateAsync({ name: "acme" } as never); });
-    expect(api.createOrganization).toHaveBeenCalledWith({ name: "acme" }, ui.getToken);
-    expect(ui.pushSnackBar).toHaveBeenCalledWith({
-      message: "Organization created successfully", type: "success",
-    });
-    expect(invalidatedKeys(client, SEEDED)).toEqual([["organizations", undefined, true, "user-1"]]);
-  });
-
-  it("shows the server's message on failure", async () => {
-    api.createOrganization.mockRejectedValue(Object.assign(new Error("Name taken"), { status: 409 }));
-    const hook = await render(hooks.useCreateOrganization);
-    await act(async () => {
-      await hook.result.current.mutateAsync({ name: "acme" } as never).catch(() => undefined);
-    });
-    expect(ui.pushSnackBar).toHaveBeenCalledWith({ message: "Name taken", type: "error" });
   });
 });
 

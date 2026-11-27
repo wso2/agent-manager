@@ -17,6 +17,7 @@
  */
 
 import { useMemo, type ReactNode } from "react";
+import { authMode } from "@agent-management-platform/auth";
 import { globalConfig } from "@agent-management-platform/types";
 import {
   FeatureManagementProvider,
@@ -26,6 +27,17 @@ import { FullPageLoader } from "@agent-management-platform/views";
 import type { UseFeatureAccess } from "../../types/featureAccess";
 
 const allowAll: UseFeatureAccess = () => ({ isLoading: false });
+
+/**
+ * Users, groups, roles, profiles and agent identities live in the identity
+ * provider. With file sign-in there is none, so these stay off whatever the
+ * config says: the API refuses them, and their pages would only show errors.
+ */
+const NEEDS_IDENTITY_PROVIDER: Partial<FeatureFlags> = {
+  enableAgentIdentity: false,
+  enableProfileManagement: false,
+  enableUserManagement: false,
+};
 
 interface FeatureAccessBridgeProps {
   featureFlags?: Partial<FeatureFlags>;
@@ -43,7 +55,11 @@ export function FeatureAccessBridge({
   const { featureAccess, isLoading } = useAccess();
   // Props from the embedding app win over the runtime config.
   const resolvedFeatureFlags = useMemo(
-    () => ({ ...globalConfig.featureFlags, ...featureFlags }),
+    () => ({
+      ...globalConfig.featureFlags,
+      ...featureFlags,
+      ...(authMode === "thunder" ? {} : NEEDS_IDENTITY_PROVIDER),
+    }),
     [featureFlags],
   );
   // Hold the app until access is known: hasAccess allows unset keys, so rendering

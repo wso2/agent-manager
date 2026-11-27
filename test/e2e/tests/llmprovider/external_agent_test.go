@@ -74,11 +74,11 @@ var _ = Describe("LLM provider configured for an external agent:", Label("llm-pr
 
 	It("creates an OpenAI-backed LLM provider from the built-in template", func() {
 		By("Fetching the OpenAI template to get endpoint URL and auth config")
-		templates := llmproviderop.ListLLMProviderTemplates(Default, Client, Cfg.DefaultOrg)
-		var openaiTpl *framework.LLMProviderTemplateResponse
-		for i, t := range templates.Templates {
-			if t.ID == "openai" {
-				openaiTpl = &templates.Templates[i]
+		templates := llmproviderop.ListLLMProviderTemplates(Default, Client)
+		var openaiTpl *framework.LLMProviderTemplateSpec
+		for i, t := range templates.List {
+			if t.Metadata.Name == "openai" {
+				openaiTpl = &templates.List[i].Spec
 				break
 			}
 		}

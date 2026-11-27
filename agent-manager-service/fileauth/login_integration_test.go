@@ -148,14 +148,15 @@ users:
 	// the test mutates it in place and restores it, as the other middleware
 	// tests do.
 	cfg := config.GetConfig()
-	origAuthMode, origFileAuth := cfg.AuthMode, cfg.FileAuth
+	origAuthMode, origFileAuth, origDefaultOrg := cfg.AuthMode, cfg.FileAuth, cfg.DefaultOrg
 	origSigning, origKeyManager := cfg.JWTSigning, cfg.KeyManagerConfigurations
 	t.Cleanup(func() {
-		cfg.AuthMode, cfg.FileAuth = origAuthMode, origFileAuth
+		cfg.AuthMode, cfg.FileAuth, cfg.DefaultOrg = origAuthMode, origFileAuth, origDefaultOrg
 		cfg.JWTSigning, cfg.KeyManagerConfigurations = origSigning, origKeyManager
 	})
 
 	cfg.AuthMode = config.AuthModeFile
+	cfg.DefaultOrg = config.DefaultOrgConfig{OUID: testOrgUUID, Handle: testOrgName}
 	cfg.FileAuth = config.FileAuthConfig{
 		UsersPath: usersPath,
 		Issuer:    testIssuer,

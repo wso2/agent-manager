@@ -40,10 +40,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
-var (
-	testCreateProjectOrgName = fmt.Sprintf("test-org-%s", uuid.New().String()[:5])
-	testCreateProjectName    = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
-)
+var testCreateProjectName = fmt.Sprintf("test-project-%s", uuid.New().String()[:5])
 
 func TestCreateProject(t *testing.T) {
 	authMiddleware := jwtassertion.NewMockMiddleware(t)
@@ -60,18 +57,13 @@ func TestCreateProject(t *testing.T) {
 		app := apitestutils.MakeAppClientWithDeps(t, testClients, authMiddleware)
 
 		// Create request payload
-		payload := spec.CreateProjectRequest{
-			Name:               testCreateProjectName,
-			DisplayName:        "Test Project Display",
-			Description:        stringPtr("Test project description"),
-			DeploymentPipeline: stringPtr("default"),
-		}
+		payload := projectDocument(testCreateProjectName, "Test Project Display", stringPtr("Test project description"))
 
 		body, err := json.Marshal(payload)
 		require.NoError(t, err)
 
 		// Send the create request
-		url := fmt.Sprintf("/api/v1/orgs/%s/projects", testCreateProjectOrgName)
+		url := "/api/v1/projects"
 		req := httptest.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 
@@ -82,22 +74,22 @@ func TestCreateProject(t *testing.T) {
 		require.Equal(t, http.StatusAccepted, rr.Code)
 
 		// Parse response
-		var response spec.ProjectResponse
+		var response spec.ProjectDocument
 		err = json.Unmarshal(rr.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		// Validate response fields
-		require.Equal(t, payload.Name, response.Name)
-		require.Equal(t, payload.DisplayName, response.DisplayName)
-		require.NotZero(t, response.CreatedAt)
+		require.Equal(t, payload.Metadata.Name, response.Metadata.Name)
+		require.Equal(t, payload.Spec.DisplayName, response.Spec.DisplayName)
+		require.NotZero(t, response.Metadata.GetCreationTimestamp())
 
 		// Validate service calls
 		require.Len(t, platformRepo.CreateProjectCalls(), 1)
 
 		// Validate call parameters
 		createCall := platformRepo.CreateProjectCalls()[0]
-		require.Equal(t, payload.Name, createCall.In.Name)
-		require.Equal(t, payload.DisplayName, createCall.In.DisplayName)
+		require.Equal(t, payload.Metadata.Name, createCall.In.Name)
+		require.Equal(t, payload.Spec.DisplayName, createCall.In.DisplayName)
 	})
 
 	validationTests := []struct {
@@ -114,12 +106,8 @@ func TestCreateProject(t *testing.T) {
 			authMiddleware: authMiddleware,
 			wantStatus:     400,
 			wantErrMsg:     "Project name must contain only lowercase alphanumeric characters or '-'",
-			url:            fmt.Sprintf("/api/v1/orgs/%s/projects", testCreateProjectOrgName),
-			payload: spec.CreateProjectRequest{
-				Name:               "INVALID-PROJECT-NAME!",
-				DisplayName:        "Test Project",
-				DeploymentPipeline: stringPtr("default"),
-			},
+			url:            "/api/v1/projects",
+			payload:        projectDocument("INVALID-PROJECT-NAME!", "Test Project", nil),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
 				mock.GetProjectFunc = func(ctx context.Context, ouID string, projectName string) (*models.ProjectResponse, error) {
@@ -133,13 +121,8 @@ func TestCreateProject(t *testing.T) {
 			authMiddleware: authMiddleware,
 			wantStatus:     409,
 			wantErrMsg:     "Project already exists",
-			url:            fmt.Sprintf("/api/v1/orgs/%s/projects", testCreateProjectOrgName),
-			payload: spec.CreateProjectRequest{
-				Name:               "existing-project",
-				DisplayName:        "Existing Project",
-				DeploymentPipeline: stringPtr("default"),
-				Description:        stringPtr(""),
-			},
+			url:            "/api/v1/projects",
+			payload:        projectDocument("existing-project", "Existing Project", stringPtr("")),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
 				// Override CreateProject to fail with project already exists
@@ -159,13 +142,8 @@ func TestCreateProject(t *testing.T) {
 			},
 			wantStatus: 401,
 			wantErrMsg: "missing header: Authorization",
-			url:        fmt.Sprintf("/api/v1/orgs/%s/projects", testCreateProjectOrgName),
-			payload: spec.CreateProjectRequest{
-				Name:               "test-project",
-				DisplayName:        "Test Project",
-				DeploymentPipeline: stringPtr("default"),
-				Description:        stringPtr(""),
-			},
+			url:        "/api/v1/projects",
+			payload:    projectDocument("test-project", "Test Project", stringPtr("")),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
 				mock.GetProjectFunc = func(ctx context.Context, ouID string, projectName string) (*models.ProjectResponse, error) {
@@ -179,13 +157,8 @@ func TestCreateProject(t *testing.T) {
 			authMiddleware: authMiddleware,
 			wantStatus:     500,
 			wantErrMsg:     "Failed to create project",
-			url:            fmt.Sprintf("/api/v1/orgs/%s/projects", testCreateProjectOrgName),
-			payload: spec.CreateProjectRequest{
-				Name:               "failing-project",
-				DisplayName:        "Failing Project",
-				DeploymentPipeline: stringPtr("default"),
-				Description:        stringPtr(""),
-			},
+			url:            "/api/v1/projects",
+			payload:        projectDocument("failing-project", "Failing Project", stringPtr("")),
 			setupMock: func() *repomocks.PlatformRepositoryMock {
 				mock := apitestutils.CreateMockPlatformRepository()
 				mock.GetProjectFunc = func(ctx context.Context, ouID string, projectName string) (*models.ProjectResponse, error) {

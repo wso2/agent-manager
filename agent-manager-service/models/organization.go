@@ -23,21 +23,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Organization is the root of every tenant-owned row. ThunderOUID links it to
-// the Thunder organization unit carried in callers' tokens.
-type Organization struct {
-	ID          uuid.UUID `gorm:"column:id;primaryKey"`
-	Handle      string    `gorm:"column:handle"`
-	DisplayName string    `gorm:"column:display_name"`
-	Description *string   `gorm:"column:description"`
-	ThunderOUID *string   `gorm:"column:thunder_ou_id"`
-	CreatedBy   *string   `gorm:"column:created_by"`
-	CreatedAt   time.Time `gorm:"column:created_at"`
-	UpdatedAt   time.Time `gorm:"column:updated_at"`
-}
-
-func (Organization) TableName() string { return "organizations" }
-
 // Project groups agents within an organization.
 type Project struct {
 	ID          uuid.UUID `gorm:"column:id;primaryKey"`
@@ -107,10 +92,9 @@ func (AgentLabel) TableName() string { return "agent_labels" }
 
 // OrganizationResponse is the API shape of an organization.
 type OrganizationResponse struct {
-	Name        string    `json:"name"`
-	DisplayName string    `json:"displayName,omitempty"`
-	Description string    `json:"description,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	Status      string    `json:"status,omitempty"`
-	Handle      string    `json:"handle,omitempty"` // caller's OU handle, for console URLs; set from the token
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName,omitempty"`
+	Description string `json:"description,omitempty"`
+	Status      string `json:"status,omitempty"`
+	Handle      string `json:"handle,omitempty"` // caller's OU handle, for console URLs; set from the token
 }

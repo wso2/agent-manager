@@ -136,7 +136,7 @@ func Load(get func(key string) string) (Settings, error) {
 			DisplayName:       r.str("DEFAULT_GATEWAY_DISPLAY_NAME", "Default AI Gateway"),
 			Vhost:             r.str("DEFAULT_GATEWAY_VHOST", ""),
 			FunctionalityType: r.str("DEFAULT_GATEWAY_TYPE", "BOTH"),
-			OrgOUID:           r.str("DEFAULT_GATEWAY_ORG_OU_ID", "01900000-0000-7000-8000-000000000001"),
+			OrgOUID:           r.str("DEFAULT_GATEWAY_ORG_OU_ID", "00000000-0000-0000-0000-000000000001"),
 			Token:             strings.TrimSpace(r.str("DEFAULT_GATEWAY_TOKEN", "")),
 			TokenFile:         r.str("DEFAULT_GATEWAY_TOKEN_FILE", ""),
 			SecretDelivery:    strings.TrimSpace(r.str("DEFAULT_GATEWAY_SECRET_DELIVERY", "inline")),

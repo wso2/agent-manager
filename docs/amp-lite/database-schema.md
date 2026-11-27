@@ -11,12 +11,12 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 ## Decisions that shape the schema
 
 - Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) are deferred, and evaluation (evaluators, monitors, runs, scores, alerts) is removed from Lite; if they come back, they come as modules with their own tables.
-- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 33 tables are listed under [Gateway module tables](#gateway-module-tables); `amp-core` (no modules) doesn't have them.
-- Multi-tenant. `organizations` is the root.
+- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 33 tables are listed under [Gateway module tables](#gateway-module-tables) and the AI Hub's three under [AI Hub module tables](#ai-hub-module-tables); `amp-core` (no modules) doesn't have them.
+- Multi-tenant, with the organization taken from the caller's token. No table holds organizations: every tenant-owned row carries its `org_id`, and an organization exists in the database through its `default` environment, created on its first request.
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
-- Console login is file-based to start with: a default username and password belong to a default org; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
-- Thunder ships with Lite and gives every external agent its agent ID. Thunder keeps its own separate database; ours stores only IDs returned by Thunder's API.
-- Gateways belong to an org, with no limit per org, and are managed by the `ai-gateway` module. With `amp`, the default org's bundled gateway is running out of the box; users add more (managed or self-hosted).
+- Console login is file-based to start with: a default username and password belong to a trial org (`DEFAULT_ORG_OU_ID`); connecting an identity provider starts in the provider's own org, and the trial org's rows stay behind under its id; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
+- Thunder ships with Lite. With an identity provider (`auth.mode: idp`) it gives every external agent its agent ID; with file sign-in agent identities are not provisioned. Thunder keeps its own separate database; ours stores only IDs returned by Thunder's API.
+- Gateways belong to an org, with no limit per org, and are managed by the `ai-gateway` module. With `amp`, the trial org's bundled gateway is running out of the box; users add more (managed or self-hosted).
 - Secrets live in our database, encrypted. Production can plug in an external vault.
 - Audit log (console actions) and console usage tracking are stored in our database.
 - Traces, runtime logs, build logs and metrics are not stored in Lite; they come back with an observability module and its own store.
@@ -44,8 +44,8 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 3. "Not set" is always NULL. No empty-string defaults (Oracle stores `''` as NULL).
 4. Hard deletes. No soft-delete columns. The audit log keeps history.
 5. Names of tables, columns, indexes and constraints: lowercase snake_case, at most 63 characters. Text that is unique or indexed stays within 4,000 bytes; long text and JSON are never unique or indexed.
-6. Every tenant-owned table has `org_id`. A child points at its parent through a composite key that includes `org_id` (for example (`org_id`, `project_id`) → `projects(org_id, id)`), so a row can never point at another org's data. A module's tenant-owned tables carry `org_id` too, holding the organization's id with no foreign key to `organizations`, since module tables never reference core tables. Foreign keys between a module's own tables stay; most include `org_id`, as (`org_id`, `gateway_id`) → `gateways` does, and only those make the database check that a child is in its parent's organization. A few use the parent's key alone (for example (`gateway_id`, `environment_id`) → `gateway_environments` from `environment_default_gateways`), so the service keeps those in one organization.
-7. One cascade path per table (SQL Server rejects more). Cascades follow org › project › agent; anything else is deleted by the service.
+6. Every tenant-owned table has `org_id`: the organization's id, which is the `ouId` of its callers' tokens. No table references an organization, as none stores one, so core and module tables alike hold the id with no foreign key. A child points at its parent through a composite key that includes `org_id` (for example (`org_id`, `project_id`) → `projects(org_id, id)`, or (`org_id`, `gateway_id`) → `mod_ai_gateway_gateways` in a module), so a row can never point at another org's data. A few module keys use the parent's key alone (for example (`gateway_id`, `environment_id`) → `gateway_environments` from `environment_default_gateways`), so the service keeps those in one organization.
+7. One cascade path per table (SQL Server rejects more). Cascades follow project › agent; anything else is deleted by the service.
 8. No unique keys on nullable columns (SQL Server allows only one NULL in a unique key).
 9. Comparisons are case-sensitive on all four databases. On SQL Server, key text columns use a case-sensitive collation.
 10. No database-specific SQL in queries: every query is written once and runs unchanged on all four databases, with no per-database repositories. Upserts are an insert in a savepoint, then an update (or nothing) on a duplicate-key error. Job claims are lease updates: select candidate ids, then `UPDATE … SET claimed_by, claimed_until WHERE id IN (…)` and the lease is free or expired, then read back the claimed rows. A row is locked for a transaction by updating it first. Singleton workers take a lease row in `locks`. Only connection setup, DDL (rule 11) and the mapping of Oracle errors differ per database. SQLite needs foreign keys switched on per connection and every transaction started as `BEGIN IMMEDIATE`. GORM's own upsert and row-lock clauses are not used: its SQL Server dialect renders `FOR UPDATE` (rejected) and `MERGE`, SQLite silently drops row locks, and the Oracle dialect has no `FOR SHARE` and doesn't translate duplicate-key errors.
@@ -62,7 +62,7 @@ Replaces Postgres advisory locks for the core's workers. A module that needs a l
 | owner | short text (255) | yes | Instance holding it. NULL = free. |
 | expires_at | time | yes | Lease end; an expired lease can be taken over. |
 
-Taken with the same lease update as job claims (rule 10). Rows are seeded by migrations, so taking a lock never inserts.
+Taken with the same lease update as job claims (rule 10). Rows are seeded by migrations, so taking a lock never inserts. `modhost.external_schema` serialises `amp migrate`'s external schema runs.
 
 ### Queue tables
 
@@ -70,24 +70,16 @@ Every table a worker claims rows from carries `claimed_by` (short text (255), nu
 
 ## Orgs and projects
 
-### organizations
+### Organizations
 
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| id | ID | no | PK |
-| handle | short text (63) | no | Unique. URL name. `^[a-z0-9]+(-[a-z0-9]+)*$`, checked by the app. |
-| display_name | short text (255) | no | |
-| description | short text (1000) | yes | |
-| thunder_ou_id | short text (64) | yes | Thunder org unit holding this org's agent identities. Not unique (rule 8); Thunder guarantees it. |
-| created_by | short text (255) | yes | Username. NULL for system-created rows. |
-| created_at, updated_at | time | no | |
+There is no organizations table. An organization is the caller's token's: its id is the token's `ouId` and its handle the token's `ouHandle`, which is also how the API and modules name it (`GET /orgs` answers with the request's organization). A handle is expected not to change once in use: observability finds an organization's traces by it. The database knows an organization only through its rows, first of all its `default` environment; `EnsureOrg` creates that environment on the organization's first request, and a module's `Core().GetOrg` answers not found until it exists.
 
 ### projects
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id | ID | no | PK. Returned as the API's project `uuid`. |
-| org_id | ID | no | FK → organizations(id), no cascade. |
+| org_id | ID | no | The organization's id; no foreign key. |
 | name | short text (63) | no | Same pattern as `handle`. Immutable. |
 | display_name | short text (255) | no | |
 | description | short text (1000) | yes | |
@@ -98,8 +90,8 @@ Unique: (org_id, name); (org_id, id) for child composite keys.
 
 ### Behaviour
 
-- Every start makes sure the default org exists (`DEFAULT_ORG_HANDLE`, `DEFAULT_ORG_OU_ID`) with its `default` environment; the core does this before modules activate, so it works with or without modules and modules can rely on it. With `amp`, the gateway module then seeds the configured default gateway with its registration token, attached to the default environment, and keeps an existing gateway and token.
-- Orgs are never renamed or deleted. Creating an org creates its `default` environment in the same transaction, and its Thunder org unit; if Thunder fails, the org is not saved.
+- With file sign-in, every start makes sure the trial org (`DEFAULT_ORG_OU_ID`, `DEFAULT_ORG_HANDLE`) has its `default` environment; the core does this before modules activate, so it works with or without modules and modules can rely on it. With an identity provider nothing is set up at startup: the provider's org gets its environment on its first request. With `amp`, the gateway module then seeds the configured default gateway (`MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID`, the trial org by default) with its registration token, attached to that org's default environment, and keeps an existing gateway and token.
+- Orgs are never renamed or deleted here; they belong to the identity provider. Connecting one starts in its own org, with no gateway until one is registered; the trial org's rows stay under the trial id and come back if sign-in returns to file.
 - Deleting a project is refused while it still has agents, LLM proxies or MCP servers; the conflict names what is left. Its event subscriptions and its entries in event destinations' project lists are removed in the same transaction, before the project row.
 - Dropped from today's API: org `namespace`, project `deploymentPipeline`. There is no pipeline table.
 
@@ -110,7 +102,7 @@ Unique: (org_id, name); (org_id, id) for child composite keys.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id | ID | no | PK |
-| org_id | ID | no | FK → organizations(id), no cascade. |
+| org_id | ID | no | The organization's id; no foreign key. |
 | name | short text (63) | no | `default` in Lite. Same pattern as project `name`. Immutable. |
 | display_name | short text (255) | no | |
 | is_production | yes/no | no | `0` for the seeded default. Kept for the full product. |
@@ -189,7 +181,7 @@ One row per agent per environment, in the `ai-gateway` module (`mod_ai_gateway_a
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id | ID | no | PK |
-| org_id | ID | no | FK → organizations, no cascade |
+| org_id | ID | no | The organization's id; no foreign key. |
 | owner_kind | short text (32) | no | What uses it: a core kind (`event_destination`, ...), or `mod:<module>` for a module's secrets (`mod:ai-gateway`). For cleanup; not an FK. `named_secret` rows are addressed by name through the secret management client and are their own owner. |
 | owner_id | ID | no | For a module secret, derived from the module and its path (`llm-providers/<id>/upstream-auth`), so a module only reaches its own. |
 | provider | short text (16) | no | The vault that protects the value: `local`, or an external vault's name |
@@ -252,7 +244,6 @@ In both workflows a delete, or a write that replaces an external value, queues a
 
 ### secret_jobs
 
-Created by migration `002_secret_jobs`, not the baseline, so a database the baseline already ran on gets it too.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -454,7 +445,7 @@ Module migrations run after the core's, module by module in name order. Startup 
 
 Events for modules: core events (`agent.created`, `agent.deleted`, `environment.created`) that a module subscribes to, and events modules publish. They are kept apart from `event_outbox`, which feeds external destinations.
 
-- `module_events`: id, org_id (FK → organizations, cascade), type (short text (128)), source (core or a module name), subject (nullable), data JSON, created_at. Written in the same transaction as the change it describes.
+- `module_events`: id, org_id (the organization's id, no foreign key), type (short text (128)), source (core or a module name), subject (nullable), data JSON, created_at. Written in the same transaction as the change it describes.
 - `module_event_deliveries`: PK (event_id, module), event_id FK → module_events cascade. One row per subscribing module, until that module has handled it. attempts, available_at, claimed_by, last_error, failed_at. A failed delivery is retried with backoff; after the last attempt `failed_at` is set and the row is kept. Index (available_at).
 - Events and deliveries are deleted after a retention period (7 days by default); uninstalling a module deletes its deliveries.
 
@@ -467,7 +458,7 @@ Credentials a module's service workloads present in their heartbeats (`POST /api
 | id | ID | no | PK |
 | module | short text (63) | no | Indexed with workload. |
 | workload | short text (63) | no | A service workload the module declares. |
-| org_id | ID | yes | FK → organizations, cascade. |
+| org_id | ID | yes | The organization's id, no foreign key. |
 | subject | short text (255) | no | Who uses it, e.g. `default` or `gateway:<id>`. |
 | secret_hash | short text (64) | no | sha256 of the secret; the credential (`<id>.<secret>`) is shown once. |
 | created_at | time | no | |
@@ -498,7 +489,7 @@ Its finalize hooks do what the dropped keys did, in the core's delete transactio
 - **Project deleted:** refused (409) while the project has LLM proxies or MCP servers.
 - **Environment deleted:** refused (409) while a gateway mapped to it serves artifacts; otherwise its rows in the module's per-environment tables are deleted.
 
-`locks` (from `002_drift_scan_lock.yaml`) holds the drift scan's lease, row `drift_scan`, with the columns of the core's [locks](#locks) table, so only one replica scans at a time.
+`locks` (in `001_init.yaml`) holds the drift scan's lease, row `drift_scan`, with the columns of the core's [locks](#locks) table, so only one replica scans at a time.
 
 Two of its tables track agent bindings:
 
@@ -507,6 +498,59 @@ Two of its tables track agent bindings:
 
 Organizations are not deleted in Lite.
 
+
+### AI Hub module tables
+
+The `ai-hub` module (`modules/aihub`) creates its three tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` and `002_subscriptions.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them. In `amp` they are created by `amp migrate` like every compiled-in module's tables, whether or not the module is installed.
+
+**mod_ai_hub_subscription_plans**: one row per plan of an organization. A plan is never deleted, only deprecated (`deprecated_at`).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK. Gateways key plans by it. |
+| org_id | ID | no | The organization's id (no foreign key) |
+| handle | short text (40) | no | The API's `id`. Unique per organization. |
+| display_name | short text (255) | no | |
+| display_name_folded | short text (765) | no | The name case-folded (Unicode), which the list’s search matches: SQLite’s `LOWER` folds ASCII only. Folding can lengthen a name up to three times. |
+| description | short text (1023) | yes | |
+| status | short text (16) | no | `ACTIVE` or `INACTIVE` |
+| expiry_time | time | yes | |
+| created_by, updated_by | short text (255) | yes | Empty for plans copied in by the webhook |
+| created_at, updated_at | time | no | A plan copied in by the webhook is dated when it was made at its source. |
+| source_changed_at | time | yes | When the plan last changed at the developer portal it was copied from, by the portal's clock; a webhook delivery of an earlier change changes nothing. Null for a plan made here. |
+| origin | short text (255) | no | Where the plan was made: `ai-control-plane`, or the name of the developer portal that copied it in (`webhook_source_name`, `developer-portal` by default) |
+| deprecated_at | time | yes | When the plan was deprecated (by the portal's clock for a deletion there). A deprecated plan is kept, read only, for the subscriptions on it. Null while it is current. |
+
+Unique (org_id, handle) and (org_id, id).
+
+**mod_ai_hub_subscription_plan_conditions**: the plan's conditions, in order.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| org_id, plan_id | ID | no | FK (org_id, plan_id) → mod_ai_hub_subscription_plans(org_id, id) ON DELETE CASCADE |
+| condition_id | short text (63) | no | `requests`, `tool-calls`, `tokens`, or a custom id |
+| condition_type | short text (32) | no | `request-count`, `tool-call-count`, `token-count` or `custom` |
+| params | JSON | no | Limit windows and `onExceed` for built-in types; the values of a custom condition |
+| sort_order | whole number | no | |
+
+PK (plan_id, condition_id).
+
+**mod_ai_hub_subscriptions**: subscriptions to an MCP proxy on a plan, copied in from the developer portal where the subscriber subscribed. One per subscriber and MCP proxy. The subscription key is not in this table: it is in the core's `secrets` table at `subscriptions/<id>/token`, encrypted with the core's key, and gateways get it to hash.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK. Gateways know the subscription by it |
+| org_id | ID | no | The organization's id (no foreign key) |
+| source_id | short text (64) | no | The subscription's id at the portal. Unique per organization |
+| artifact_kind | short text (32) | no | `Mcp` |
+| artifact_handle | short text (255) | no | The MCP proxy's handle (the portal's `referenceId`) |
+| plan_id | ID | no | The plan's id |
+| subscriber_id | short text (255) | no | The subscriber at the portal. Unique per organization, artifact kind and handle |
+| status | short text (16) | no | `ACTIVE` or `INACTIVE` |
+| created_at, updated_at | time | no | |
+| source_changed_at | time | no | When the subscription last changed at the portal, by its clock; an older event changes nothing |
+
+Unique (org_id, source_id), (org_id, artifact_kind, artifact_handle, subscriber_id) and (org_id, id).
 
 ## Known differences from the code
 

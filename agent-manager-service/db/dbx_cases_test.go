@@ -37,10 +37,7 @@ func newID() string { return uuid.Must(uuid.NewV7()).String() }
 
 func seedOrg(t *testing.T, db *gorm.DB) string {
 	t.Helper()
-	org, now := newID(), dbx.Now()
-	require.NoError(t, db.Exec("INSERT INTO organizations (id, handle, display_name, created_at, updated_at) VALUES (?, ?, 'Org', ?, ?)",
-		org, "org-"+org[len(org)-8:], now, now).Error)
-	return org
+	return newID()
 }
 
 type outboxRow struct {
@@ -189,10 +186,13 @@ func runLocks(t *testing.T, db *gorm.DB) {
 func runLockRowAndKeyset(t *testing.T, db *gorm.DB) {
 	org := seedOrg(t, db)
 	now := dbx.Now()
+	locked := newID()
+	require.NoError(t, db.Exec("INSERT INTO projects (id, org_id, name, display_name, created_at, updated_at) VALUES (?, ?, 'locked', 'P', ?, ?)",
+		locked, seedOrg(t, db), now, now).Error)
 	require.NoError(t, db.Transaction(func(tx *gorm.DB) error {
-		return dbx.LockRow(tx, "organizations", "id", "id = ?", org)
+		return dbx.LockRow(tx, "projects", "id", "id = ?", locked)
 	}))
-	assert.ErrorIs(t, dbx.LockRow(db, "organizations", "id", "id = ?", newID()), gorm.ErrRecordNotFound)
+	assert.ErrorIs(t, dbx.LockRow(db, "projects", "id", "id = ?", newID()), gorm.ErrRecordNotFound)
 
 	for _, name := range []string{"a", "b", "c"} {
 		require.NoError(t, db.Exec("INSERT INTO projects (id, org_id, name, display_name, created_at, updated_at) VALUES (?, ?, ?, 'P', ?, ?)",

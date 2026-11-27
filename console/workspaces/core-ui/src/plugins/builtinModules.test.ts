@@ -26,6 +26,7 @@ describe("builtinModules", () => {
       "ai-gateway",
       "ai-observability",
       "agent-identity",
+      "ai-hub",
     ]);
   });
 

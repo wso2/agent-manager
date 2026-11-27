@@ -124,7 +124,7 @@ func newOrgServer(t *testing.T, status int, names []string) (*Factory, func()) {
 		if status == http.StatusOK {
 			items := make([]amsvc.OrganizationListItem, 0, len(names))
 			for _, n := range names {
-				items = append(items, amsvc.OrganizationListItem{Name: n, CreatedAt: time.Now().UTC()})
+				items = append(items, amsvc.OrganizationListItem{Name: n})
 			}
 			_ = json.NewEncoder(w).Encode(amsvc.OrganizationListResponse{
 				Organizations: items, Limit: 20, Offset: 0, Total: len(items),
@@ -186,20 +186,18 @@ func TestCompleteOrgs_ClientFactoryErrorReturnsNil(t *testing.T) {
 func newProjectServer(t *testing.T, expectedOrg string, status int, names []string) (*Factory, func()) {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// generated client builds paths like /orgs/<org>/projects — assert the org is present.
-		if !strings.Contains(r.URL.Path, expectedOrg) {
-			t.Errorf("path = %q, want to contain org %q", r.URL.Path, expectedOrg)
+		// The organization comes from the token, so it is never in the path.
+		if r.URL.Path != "/projects" {
+			t.Errorf("path = %q, want /projects", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		if status == http.StatusOK {
-			items := make([]amsvc.ProjectListItem, 0, len(names))
+			items := make([]amsvc.ProjectDocument, 0, len(names))
 			for _, n := range names {
-				items = append(items, amsvc.ProjectListItem{Name: n, DisplayName: n, CreatedAt: time.Now().UTC()})
+				items = append(items, amsvc.ProjectDocument{Metadata: amsvc.DocumentMetadata{Name: n}, Spec: amsvc.ProjectSpec{DisplayName: n}})
 			}
-			_ = json.NewEncoder(w).Encode(amsvc.ProjectListResponse{
-				Projects: items, Limit: 20, Offset: 0, Total: len(items),
-			})
+			_ = json.NewEncoder(w).Encode(amsvc.ProjectListResponse{Count: int32(len(items)), List: items})
 		}
 	}))
 	client, err := amsvc.NewClientWithResponses(server.URL)

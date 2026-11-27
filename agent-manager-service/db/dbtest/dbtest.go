@@ -14,8 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Package dbtest seeds the rows integration tests build on. Every row hangs off an organization, so each test
-// creates its own and the foreign keys keep tests apart. It imports only models and GORM, so any package's tests
+// Package dbtest seeds the rows integration tests build on. Every row belongs to an organization, so each test
+// creates its own and the composite keys keep tests apart. It imports only models and GORM, so any package's tests
 // can use it.
 package dbtest
 
@@ -32,21 +32,17 @@ import (
 
 func now() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }
 
-// Org creates an organization with its default environment and returns the organization's id, which is also its
-// Thunder OU id.
+// Org creates an organization's default environment, which is all the database holds of an organization, and
+// returns the organization's id, which is also its Thunder OU id.
 func Org(t *testing.T, db *gorm.DB) string {
 	t.Helper()
 	id := uuid.Must(uuid.NewV7())
-	ou := id.String()
 	ts := now()
-	require.NoError(t, db.Create(&models.Organization{
-		ID: id, Handle: "org-" + ou[len(ou)-12:], DisplayName: "Test org", ThunderOUID: &ou, CreatedAt: ts, UpdatedAt: ts,
-	}).Error)
 	require.NoError(t, db.Create(&models.Environment{
 		ID: uuid.Must(uuid.NewV7()), OrgID: id, Name: models.DefaultEnvironmentName, DisplayName: "Default",
 		CreatedAt: ts, UpdatedAt: ts,
 	}).Error)
-	return ou
+	return id.String()
 }
 
 // Environment returns the id of the organization's default environment.

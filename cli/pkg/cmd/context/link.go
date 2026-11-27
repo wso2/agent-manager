@@ -101,7 +101,7 @@ func runLink(ctx context.Context, o *LinkOptions, org, project string, scope ren
 	if err := cmdutil.ValidatePathParam("project", project); err != nil {
 		return render.Error(o.IO, scope, err)
 	}
-	projResp, err := client.GetProjectWithResponse(ctx, org, project)
+	projResp, err := client.GetProjectWithResponse(ctx, project)
 	if err != nil {
 		return render.Error(o.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

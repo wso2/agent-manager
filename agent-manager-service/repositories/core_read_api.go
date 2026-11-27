@@ -68,6 +68,7 @@ func notFound(err error) error {
 	return err
 }
 
+// GetOrg is the organization if it exists, that is if it has its default environment. A read: it never creates it.
 func (c *coreReadAPI) GetOrg(ctx context.Context, orgID string) (modkit.Org, error) {
 	if foreign(ctx, orgID) {
 		return modkit.Org{}, modkit.ErrNotFound
@@ -77,11 +78,14 @@ func (c *coreReadAPI) GetOrg(ctx context.Context, orgID string) (modkit.Org, err
 	if err != nil {
 		return modkit.Org{}, err
 	}
-	var o models.Organization
-	if err := c.db.WithContext(ctx).Where("id = ?", ids[0]).First(&o).Error; err != nil {
-		return modkit.Org{}, notFound(err)
+	exists, err := hasDefaultEnvironment(c.db.WithContext(ctx), ids[0])
+	if err != nil {
+		return modkit.Org{}, err
 	}
-	return modkit.Org{ID: o.ID.String(), Handle: o.Handle, DisplayName: o.DisplayName, CreatedAt: o.CreatedAt}, nil
+	if !exists {
+		return modkit.Org{}, modkit.ErrNotFound
+	}
+	return modkit.Org{ID: ids[0].String(), Handle: orgHandle(ctx, ids[0].String())}, nil
 }
 
 func toProject(p *models.Project) modkit.Project {
@@ -293,7 +297,7 @@ func (c *coreReadAPI) LockAgent(ctx context.Context, tx *gorm.DB, orgID, agentID
 	return toAgent(&rows[0]), nil
 }
 
-// EnsureOrg creates the organization as the core does on its first request.
+// EnsureOrg makes the organization ready, creating its default environment, as the core does on its first request.
 func (c *coreReadAPI) EnsureOrg(ctx context.Context, orgID string) (modkit.Org, error) {
 	if foreign(ctx, orgID) {
 		return modkit.Org{}, modkit.ErrNotFound
@@ -301,9 +305,9 @@ func (c *coreReadAPI) EnsureOrg(ctx context.Context, orgID string) (modkit.Org, 
 	if _, err := parseIDs(orgID); err != nil {
 		return modkit.Org{}, err
 	}
-	o, err := EnsureOrg(ctx, c.db, orgID)
+	id, err := EnsureOrg(ctx, c.db, orgID)
 	if err != nil {
 		return modkit.Org{}, err
 	}
-	return modkit.Org{ID: o.ID.String(), Handle: o.Handle, DisplayName: o.DisplayName, CreatedAt: o.CreatedAt}, nil
+	return modkit.Org{ID: id.String(), Handle: orgHandle(ctx, id.String())}, nil
 }

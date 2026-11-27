@@ -487,7 +487,6 @@ func (a *LLMProvidersAPIService) GetLLMProviderExecute(r ApiGetLLMProviderReques
 type ApiListAvailableLLMPoliciesRequest struct {
 	ctx        context.Context
 	ApiService *LLMProvidersAPIService
-	orgName    string
 	providerId *string
 }
 
@@ -507,14 +506,12 @@ ListAvailableLLMPolicies List available LLM guardrail policies
 Returns full guardrail policy definitions (including parameter schemas) reported by active gateways in the organization. When providerId is given, the result is scoped to the gateways that provider is currently deployed to; otherwise it covers every active gateway in the organization.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@return ApiListAvailableLLMPoliciesRequest
 */
-func (a *LLMProvidersAPIService) ListAvailableLLMPolicies(ctx context.Context, orgName string) ApiListAvailableLLMPoliciesRequest {
+func (a *LLMProvidersAPIService) ListAvailableLLMPolicies(ctx context.Context) ApiListAvailableLLMPoliciesRequest {
 	return ApiListAvailableLLMPoliciesRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 	}
 }
 
@@ -534,8 +531,7 @@ func (a *LLMProvidersAPIService) ListAvailableLLMPoliciesExecute(r ApiListAvaila
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/policies"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-providers/policies"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -633,7 +629,6 @@ func (a *LLMProvidersAPIService) ListAvailableLLMPoliciesExecute(r ApiListAvaila
 type ApiListLLMProviderConsumersRequest struct {
 	ctx        context.Context
 	ApiService *LLMProvidersAPIService
-	orgName    string
 	providerId string
 }
 
@@ -647,15 +642,13 @@ ListLLMProviderConsumers List consumers of an LLM provider
 Returns a flat list of agents that consume any LLM proxy pointing to this provider. Each item identifies the proxy, the project it belongs to, and the agent that is using it.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
 	@param providerId Provider UUID or handle
 	@return ApiListLLMProviderConsumersRequest
 */
-func (a *LLMProvidersAPIService) ListLLMProviderConsumers(ctx context.Context, orgName string, providerId string) ApiListLLMProviderConsumersRequest {
+func (a *LLMProvidersAPIService) ListLLMProviderConsumers(ctx context.Context, providerId string) ApiListLLMProviderConsumersRequest {
 	return ApiListLLMProviderConsumersRequest{
 		ApiService: a,
 		ctx:        ctx,
-		orgName:    orgName,
 		providerId: providerId,
 	}
 }
@@ -676,8 +669,7 @@ func (a *LLMProvidersAPIService) ListLLMProviderConsumersExecute(r ApiListLLMPro
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{providerId}/consumers"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath := localBasePath + "/llm-providers/{providerId}/consumers"
 	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -900,177 +892,6 @@ func (a *LLMProvidersAPIService) ListLLMProvidersExecute(r ApiListLLMProvidersRe
 			return localVarReturnValue, localVarHTTPResponse, newErr
 		}
 		if localVarHTTPResponse.StatusCode == 401 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarReturnValue, localVarHTTPResponse, newErr
-		}
-		if localVarHTTPResponse.StatusCode == 500 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-	if err != nil {
-		newErr := &GenericOpenAPIError{
-			body:  localVarBody,
-			error: err.Error(),
-		}
-		return localVarReturnValue, localVarHTTPResponse, newErr
-	}
-
-	return localVarReturnValue, localVarHTTPResponse, nil
-}
-
-type ApiListLLMProxiesByProviderRequest struct {
-	ctx        context.Context
-	ApiService *LLMProvidersAPIService
-	orgName    string
-	providerId string
-	limit      *int32
-	offset     *int32
-}
-
-// Maximum number of results to return
-func (r ApiListLLMProxiesByProviderRequest) Limit(limit int32) ApiListLLMProxiesByProviderRequest {
-	r.limit = &limit
-	return r
-}
-
-// Number of results to skip
-func (r ApiListLLMProxiesByProviderRequest) Offset(offset int32) ApiListLLMProxiesByProviderRequest {
-	r.offset = &offset
-	return r
-}
-
-func (r ApiListLLMProxiesByProviderRequest) Execute() (*LLMProxyListResponse, *http.Response, error) {
-	return r.ApiService.ListLLMProxiesByProviderExecute(r)
-}
-
-/*
-ListLLMProxiesByProvider List LLM proxies by provider
-
-Retrieve all proxies associated with a specific provider
-
-	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@param orgName Organization name/handle
-	@param providerId Provider UUID
-	@return ApiListLLMProxiesByProviderRequest
-*/
-func (a *LLMProvidersAPIService) ListLLMProxiesByProvider(ctx context.Context, orgName string, providerId string) ApiListLLMProxiesByProviderRequest {
-	return ApiListLLMProxiesByProviderRequest{
-		ApiService: a,
-		ctx:        ctx,
-		orgName:    orgName,
-		providerId: providerId,
-	}
-}
-
-// Execute executes the request
-//
-//	@return LLMProxyListResponse
-func (a *LLMProvidersAPIService) ListLLMProxiesByProviderExecute(r ApiListLLMProxiesByProviderRequest) (*LLMProxyListResponse, *http.Response, error) {
-	var (
-		localVarHTTPMethod  = http.MethodGet
-		localVarPostBody    interface{}
-		formFiles           []formFile
-		localVarReturnValue *LLMProxyListResponse
-	)
-
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "LLMProvidersAPIService.ListLLMProxiesByProvider")
-	if err != nil {
-		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
-	}
-
-	localVarPath := localBasePath + "/orgs/{orgName}/llm-providers/{providerId}/llm-proxies"
-	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
-	localVarPath = strings.Replace(localVarPath, "{"+"providerId"+"}", url.PathEscape(parameterValueToString(r.providerId, "providerId")), -1)
-
-	localVarHeaderParams := make(map[string]string)
-	localVarQueryParams := url.Values{}
-	localVarFormParams := url.Values{}
-
-	if r.limit != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "limit", r.limit, "")
-	}
-	if r.offset != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
-	}
-	// to determine the Content-Type header
-	localVarHTTPContentTypes := []string{}
-
-	// set Content-Type header
-	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
-	if localVarHTTPContentType != "" {
-		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
-	}
-
-	// to determine the Accept header
-	localVarHTTPHeaderAccepts := []string{"application/json"}
-
-	// set Accept header
-	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
-	if localVarHTTPHeaderAccept != "" {
-		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
-	}
-	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
-	if err != nil {
-		return localVarReturnValue, nil, err
-	}
-
-	localVarHTTPResponse, err := a.client.callAPI(req)
-	if err != nil || localVarHTTPResponse == nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
-	localVarHTTPResponse.Body.Close()
-	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
-	if err != nil {
-		return localVarReturnValue, localVarHTTPResponse, err
-	}
-
-	if localVarHTTPResponse.StatusCode >= 300 {
-		newErr := &GenericOpenAPIError{
-			body:  localVarBody,
-			error: localVarHTTPResponse.Status,
-		}
-		if localVarHTTPResponse.StatusCode == 400 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarReturnValue, localVarHTTPResponse, newErr
-		}
-		if localVarHTTPResponse.StatusCode == 401 {
-			var v ErrorResponse
-			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
-			if err != nil {
-				newErr.error = err.Error()
-				return localVarReturnValue, localVarHTTPResponse, newErr
-			}
-			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
-			newErr.model = v
-			return localVarReturnValue, localVarHTTPResponse, newErr
-		}
-		if localVarHTTPResponse.StatusCode == 404 {
 			var v ErrorResponse
 			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
 			if err != nil {

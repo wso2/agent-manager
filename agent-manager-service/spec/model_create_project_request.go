@@ -17,15 +17,14 @@ import (
 // checks if the CreateProjectRequest type satisfies the MappedNullable interface at compile time
 var _ MappedNullable = &CreateProjectRequest{}
 
-// CreateProjectRequest struct for CreateProjectRequest
+// CreateProjectRequest The create input a Project document maps to.
 type CreateProjectRequest struct {
 	// Name of the project
 	Name string `json:"name"`
 	// Display name of the project
 	DisplayName string `json:"displayName"`
 	// Description of the project
-	Description        *string `json:"description,omitempty"`
-	DeploymentPipeline *string `json:"deploymentPipeline,omitempty"`
+	Description *string `json:"description,omitempty"`
 }
 
 // NewCreateProjectRequest instantiates a new CreateProjectRequest object
@@ -127,38 +126,6 @@ func (o *CreateProjectRequest) SetDescription(v string) {
 	o.Description = &v
 }
 
-// GetDeploymentPipeline returns the DeploymentPipeline field value if set, zero value otherwise.
-func (o *CreateProjectRequest) GetDeploymentPipeline() string {
-	if o == nil || IsNil(o.DeploymentPipeline) {
-		var ret string
-		return ret
-	}
-	return *o.DeploymentPipeline
-}
-
-// GetDeploymentPipelineOk returns a tuple with the DeploymentPipeline field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *CreateProjectRequest) GetDeploymentPipelineOk() (*string, bool) {
-	if o == nil || IsNil(o.DeploymentPipeline) {
-		return nil, false
-	}
-	return o.DeploymentPipeline, true
-}
-
-// HasDeploymentPipeline returns a boolean if a field has been set.
-func (o *CreateProjectRequest) HasDeploymentPipeline() bool {
-	if o != nil && !IsNil(o.DeploymentPipeline) {
-		return true
-	}
-
-	return false
-}
-
-// SetDeploymentPipeline gets a reference to the given string and assigns it to the DeploymentPipeline field.
-func (o *CreateProjectRequest) SetDeploymentPipeline(v string) {
-	o.DeploymentPipeline = &v
-}
-
 func (o CreateProjectRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -173,9 +140,6 @@ func (o CreateProjectRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize["displayName"] = o.DisplayName
 	if !IsNil(o.Description) {
 		toSerialize["description"] = o.Description
-	}
-	if !IsNil(o.DeploymentPipeline) {
-		toSerialize["deploymentPipeline"] = o.DeploymentPipeline
 	}
 	return toSerialize, nil
 }

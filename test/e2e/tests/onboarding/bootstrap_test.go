@@ -33,21 +33,21 @@ import (
 
 var _ = Describe("Sign-in and first-org bootstrap", Label("onboarding"), func() {
 	It("refuses the API without a token, and with a token it didn't issue", func() {
-		resp, err := Client.GetUnauthenticated("/api/v1/orgs")
+		resp, err := Client.GetUnauthenticated("/api/v1/organizations")
 		Expect(err).NotTo(HaveOccurred())
-		framework.ExpectUnauthorized(Default, resp, "GET /orgs without a token")
+		framework.ExpectUnauthorized(Default, resp, "GET /organizations without a token")
 		resp.Body.Close()
 
 		forged, err := framework.HS256Token(framework.PlausibleClaims(Cfg, nil), "not-the-signing-key")
 		Expect(err).NotTo(HaveOccurred())
-		resp, err = framework.NewAMPClientWithToken(Cfg, forged).Get("/api/v1/orgs")
+		resp, err = framework.NewAMPClientWithToken(Cfg, forged).Get("/api/v1/organizations")
 		Expect(err).NotTo(HaveOccurred())
-		framework.ExpectUnauthorized(Default, resp, "GET /orgs with a forged token")
+		framework.ExpectUnauthorized(Default, resp, "GET /organizations with a forged token")
 		resp.Body.Close()
 	})
 
 	It("lists the bootstrapped organization to the signed-in client", func() {
-		orgs := framework.CallJSON[framework.OrganizationListResponse](Default, Client, http.MethodGet, "/api/v1/orgs", nil, http.StatusOK)
+		orgs := framework.CallJSON[framework.OrganizationListResponse](Default, Client, http.MethodGet, "/api/v1/organizations", nil, http.StatusOK)
 		Expect(orgs.Total).To(BeNumerically(">=", 1))
 		names := make([]string, 0, len(orgs.Organizations))
 		for _, o := range orgs.Organizations {
@@ -55,9 +55,10 @@ var _ = Describe("Sign-in and first-org bootstrap", Label("onboarding"), func() 
 		}
 		Expect(names).To(ContainElement(Cfg.DefaultOrg))
 
-		org := framework.CallObj(Default, Client, http.MethodGet, "/api/v1/orgs/"+Cfg.DefaultOrg, nil, http.StatusOK)
+		org := framework.CallObj(Default, Client, http.MethodGet, "/api/v1/organizations/current", nil, http.StatusOK)
 		Expect(org["name"]).To(Equal(Cfg.DefaultOrg))
-		Expect(org["createdAt"]).NotTo(BeEmpty())
+		// The organization is the token's; nothing records when it was created.
+		Expect(org).NotTo(HaveKey("createdAt"))
 	})
 
 	It("has a default environment, readable by list and by id", func() {
@@ -116,10 +117,10 @@ var _ = Describe("Sign-in and first-org bootstrap", Label("onboarding"), func() 
 	It("turns a display name into a free resource name", func() {
 		// The stack starts with no project, so the spec makes the one it names.
 		project := framework.E2EProjectPrefix + "name-" + uuid.NewString()[:8]
-		framework.Call(Default, Client, http.MethodPost, framework.API(Cfg, "/projects"),
-			framework.NewCreateProjectRequest(project, "Name generation", "", "default"), http.StatusAccepted)
+		framework.Call(Default, Client, http.MethodPost, framework.Projects(""),
+			framework.NewProjectDocument(project, "Name generation", ""), http.StatusAccepted)
 		DeferCleanup(func() {
-			framework.Send(Default, Client, http.MethodDelete, framework.API(Cfg, "/projects/%s", project), nil)
+			framework.Send(Default, Client, http.MethodDelete, framework.Projects("/%s", project), nil)
 		})
 
 		gen := framework.CallObj(Default, Client, http.MethodPost, framework.API(Cfg, "/utils/generate-name"),

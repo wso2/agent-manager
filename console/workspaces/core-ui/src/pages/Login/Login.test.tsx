@@ -92,7 +92,7 @@ describe("Login", () => {
     renderLogin();
     expect(login).toHaveBeenCalledTimes(1);
     expect(assign).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("waits while auth state is loading", () => {

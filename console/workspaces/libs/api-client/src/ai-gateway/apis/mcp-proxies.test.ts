@@ -158,6 +158,7 @@ describe("MCP proxy document conversions", () => {
         environments: [{ environmentUuid: "env-1", deploymentStatus: "Deployed" as const }],
       },
     ],
+    subscriptionPlans: ["gold", "silver"],
   };
 
   it("maps the handle to metadata.name and the label to spec.displayName", () => {
@@ -168,6 +169,13 @@ describe("MCP proxy document conversions", () => {
     expect(document.spec.displayName).toBe("Orders MCP");
     expect(document.spec).not.toHaveProperty("id");
     expect(document.spec).not.toHaveProperty("name");
+  });
+
+  it("leaves the offered plans out when the body has none, so an update keeps them", () => {
+    const withoutPlans = { ...full, subscriptionPlans: undefined };
+    expect(documentFromProxy(withoutPlans as never).spec).not.toHaveProperty("subscriptionPlans");
+    const none = documentFromProxy({ ...full, subscriptionPlans: [] } as never);
+    expect(none.spec.subscriptionPlans).toEqual([]);
   });
 
   it("carries every spec key back through a round trip", () => {

@@ -62,23 +62,23 @@ const proj = { orgName: "o", projName: "p" };
 
 describe("project queries", () => {
   it("useListProjects lists one page under its key", async () => {
-    api.listProjects.mockResolvedValue({ projects: [{ name: "p" }], total: 1 });
+    api.listProjects.mockResolvedValue({ list: [{ metadata: { name: "p" } }], pagination: { total: 1 } });
     const hook = await render(() => hooks.useListProjects(org, { limit: 10 } as never));
     await waitFor(() => hook.result.current.data !== undefined);
     expect(api.listProjects).toHaveBeenCalledWith(org, { limit: 10 }, ui.getToken);
     expect(hook.client.getQueryData(["projects", org, { limit: 10 }])).toEqual({
-      projects: [{ name: "p" }], total: 1,
+      list: [{ metadata: { name: "p" } }], pagination: { total: 1 },
     });
   });
 
   it("useListAllProjects gathers every page", async () => {
     api.listProjects
-      .mockResolvedValueOnce({ projects: Array(100).fill({ name: "x" }), total: 101, limit: 100, offset: 0 })
-      .mockResolvedValueOnce({ projects: [{ name: "last" }], total: 101, limit: 100, offset: 100 });
+      .mockResolvedValueOnce({ list: Array(100).fill({ metadata: { name: "x" } }), pagination: { total: 101, limit: 100, offset: 0 } })
+      .mockResolvedValueOnce({ list: [{ metadata: { name: "last" } }], pagination: { total: 101, limit: 100, offset: 100 } });
     const hook = await render(() => hooks.useListAllProjects(org));
     await waitFor(() => hook.result.current.data !== undefined);
-    expect(hook.result.current.data!.projects).toHaveLength(101);
-    expect(hook.result.current.data!.limit).toBe(101);
+    expect(hook.result.current.data!.list).toHaveLength(101);
+    expect(hook.result.current.data!.pagination?.limit).toBe(101);
     expect(api.listProjects.mock.calls[1]).toEqual([org, { limit: 100, offset: 100 }, ui.getToken]);
     expect(hook.client.getQueryData(["projects", org, "all"])).toBeDefined();
   });

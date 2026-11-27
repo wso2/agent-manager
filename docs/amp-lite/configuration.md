@@ -68,7 +68,7 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 
 | Setting | amp.yaml | Default | Description |
 |---|---|---|---|
-| `AUTH_MODE` | `auth.mode` | `idp` | How operators sign in: file (accounts in FILE_AUTH_USERS_PATH, the API issues tokens) or idp (ThunderID). |
+| `AUTH_MODE` | `auth.mode` | `idp` | How operators sign in: file (accounts in FILE_AUTH_USERS_PATH, the API issues tokens; no identity provider, so no users, groups, roles or agent identities) or idp (ThunderID). |
 | `FILE_AUTH_USERS_PATH` | `file.auth_users_path` | `<data dir>/fileauth/users.yaml` | The file sign-in accounts; written on first start from the admin password and AMP_DEFAULT_USERS. |
 | `FILE_AUTH_ISSUER` | `file.auth_issuer` | `amp-file-auth` | Issuer of file sign-in tokens. |
 | `FILE_AUTH_AUDIENCE` | `file.auth_audience` | `urn:wso2:amp` | Audience of file sign-in tokens. |
@@ -85,6 +85,8 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `JWT_SIGNING_DEFAULT_EXPIRY` | `jwt.signing_default_expiry` | `2160h` | Lifetime of an agent token. |
 | `JWT_SIGNING_ISSUER` | `jwt.signing_issuer` | `agent-manager-service` | Issuer of agent tokens. |
 | `JWT_SIGNING_DEFAULT_ENVIRONMENT` | `jwt.signing_default_environment` | `default` | Environment an agent token names when none is given. |
+| `DEFAULT_ORG_OU_ID` | `default.org_ou_id` | `00000000-0000-0000-0000-000000000001` | The trial organization file sign-in tokens name. Connecting an identity provider starts in its own organization. Change it together with the AI Gateway's default_gateway_org_ou_id. |
+| `DEFAULT_ORG_HANDLE` | `default.org_handle` | `default` | The trial organization's handle. Do not change it once in use: traces are found by it. |
 
 ## Identity provider (ThunderID)
 
@@ -100,10 +102,8 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `AMP_CONSOLE_CLIENT_SECRET` | `amp.console_client_secret` | `generated` | Its secret. **Secret.** |
 | `AMP_USE_THUNDER_DEFAULT_RESOURCE_SERVER` | `amp.use_thunder_default_resource_server` | `false` | Request administrative tokens for ThunderID's default resource server. |
 | `AMP_THUNDER_SYSTEM_RESOURCE_IDENTIFIER` | `amp.thunder_system_resource_identifier` | `THUNDER_BASE_URL/mcp` | Resource server administrative tokens are requested for. |
-| `PLATFORM_ADMIN_OU_ID` | `platform.admin_ou_id` | `01900000-0000-7000-8000-000000000001` | The platform organization; cross-organization routes accept only its tokens. |
+| `PLATFORM_ADMIN_OU_ID` | `platform.admin_ou_id` | `DEFAULT_ORG_OU_ID (file), 01900000-0000-7000-8000-000000000001 (idp)` | The platform organization; cross-organization routes accept only its tokens. |
 | `ROOT_OU_HANDLE` | `root.ou_handle` | `admin` | Handle of ThunderID's root organization unit. |
-| `DEFAULT_ORG_OU_ID` | `default.org_ou_id` | `01900000-0000-7000-8000-000000000001` | The default organization's unit id. |
-| `DEFAULT_ORG_HANDLE` | `default.org_handle` | `default` | The default organization's handle. |
 | `AMP_ORG_NAMESPACE` | `amp.org_namespace` | `default` | The organization ThunderID instances are addressed by. |
 
 ## Secrets and state
@@ -198,7 +198,6 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `AMP_ADMIN_USERNAME` | `amp.admin_username` | `admin` | The console admin account. |
 | `AMP_ADMIN_PASSWORD` | `amp.admin_password` | `generated` | Its password, for file sign-in and ThunderID alike. **Secret.** |
 | `AMP_DEFAULT_USERS` | `amp.default_users` |  | More console users: name:password[:admin], comma-separated. **Secret.** |
-| `AMP_DEFAULT_ORG_HANDLE` | `amp.default_org_handle` | `default` | Handle of the organization file sign-in tokens name. |
 | `CONSOLE_URL` | `console.url` | `SERVER_PUBLIC_URL` | Where the console runs, for its sign-in client. |
 | `CONSOLE_REDIRECT_URIS` | `console.redirect_uris` | `CONSOLE_URL/login` | More sign-in redirects for the console client, comma-separated; CONSOLE_URL/login is always one. |
 | `AMCTL_CLIENT_ID` | `amctl.client_id` | `amctl` | The CLI's client. |
@@ -248,7 +247,7 @@ modules:
 | `default_gateway_display_name` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_DISPLAY_NAME` | `Default AI Gateway` | The registered gateway's display name. |
 | `default_gateway_vhost` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST` |  | The registered gateway's virtual host, the URL agents reach it at. |
 | `default_gateway_type` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TYPE` | `BOTH` | What the registered gateway handles: INGRESS, EGRESS or BOTH. |
-| `default_gateway_org_ou_id` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID` | `01900000-0000-7000-8000-000000000001` | The organization unit the registered gateway belongs to. |
+| `default_gateway_org_ou_id` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_ORG_OU_ID` | `00000000-0000-0000-0000-000000000001` | The organization the registered gateway belongs to: by default the trial organization file sign-in names. Change it together with the core's default.org_ou_id. |
 | `default_gateway_token` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN` |  | The registered gateway's registration token; generated and kept by amp init when unset. **Secret.** |
 | `default_gateway_token_file` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN_FILE` |  | A file holding the registration token, read when DEFAULT_GATEWAY_TOKEN is unset. |
 | `default_gateway_secret_delivery` | `MODULE_AI_GATEWAY_DEFAULT_GATEWAY_SECRET_DELIVERY` | `inline` | How the registered gateway receives credentials: inline in its artifacts, or reference, fetched into its encrypted secret store. |
@@ -284,3 +283,26 @@ modules:
 | `host` | `MODULE_AI_GATEWAY_HOST` |  | amp init: the gateway's public host name, for MCP auth metadata and its listener certificate. |
 | `listener_port` | `MODULE_AI_GATEWAY_LISTENER_PORT` | `19080` | amp init: the gateway's listener port. |
 | `file_owner` | `MODULE_AI_GATEWAY_FILE_OWNER` |  | amp init: uid:gid the gateway's files are given. |
+
+## Module: observability
+
+Set as `MODULE_OBSERVABILITY_<KEY>`, or under `config:` in the module's `modules:` entry in `amp.yaml`:
+
+```yaml
+modules:
+  - name: observability
+    config:
+      clickhouse.url: ...
+```
+
+| Key | Variable | Default | Description |
+|---|---|---|---|
+| `clickhouse.url` | `MODULE_OBSERVABILITY_CLICKHOUSE_URL` |  | ClickHouse HTTP URL traces are read from; unset, traces come from an empty in-memory store. |
+| `clickhouse.database` | `MODULE_OBSERVABILITY_CLICKHOUSE_DATABASE` | `otel` | The database the span table is in. users.xml grants on otel; edit its grants for another name. |
+| `clickhouse.user` | `MODULE_OBSERVABILITY_CLICKHOUSE_USER` |  | The reader login; required with url. |
+| `clickhouse.password` | `MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD` |  | The reader login's password. **Secret.** |
+| `clickhouse.cleaner-user` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER` |  | The login that deletes a deleted agent's spans; unset, they are kept until the TTL. |
+| `clickhouse.cleaner-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD` |  | The cleaner login's password. **Secret.** |
+| `clickhouse.migrator-user` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER` |  | The login that applies the schema; used only by `amp migrate`. |
+| `clickhouse.migrator-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD` |  | The migrator login's password. **Secret.** |
+| `clickhouse.ttl-days` | `MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS` | `30` | Days ClickHouse keeps spans; applied by `amp migrate`. A change applies only to spans written or merged after the next `amp migrate`. |

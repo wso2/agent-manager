@@ -30,14 +30,14 @@ import (
 // EnsureProject creates the named project in the default org unless it
 // already exists, and waits until it is visible.
 func EnsureProject(client *framework.AMPClient, cfg *framework.Config, name, displayName, description string) {
-	projPath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s", cfg.DefaultOrg, name)
+	projPath := "/api/v1/projects/" + name
 	if framework.ResourceExists(client, projPath) {
 		return
 	}
 	ginkgo.By(fmt.Sprintf("Creating project %q", name))
 	project.CreateProject(Default, client, &project.CreateProjectParams{
 		OrgName: cfg.DefaultOrg,
-		Request: framework.NewCreateProjectRequest(name, displayName, description, "default"),
+		Request: framework.NewProjectDocument(name, displayName, description),
 	})
 	Eventually(func() bool {
 		return framework.ResourceExists(client, projPath)

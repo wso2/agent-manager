@@ -31,7 +31,7 @@ When a semantic event describes a successful request, the coverage tier stands d
 - **Every non-GET route.** A test (`api/audit_coverage_test.go`) fails the build if a mutating route is not audited, so this cannot drift.
 - **Every MCP tool that changes state.** `addTool` requires an `audit.Action` alongside its permissions and panics without one, so a new mutating tool cannot ship unattributed — the same registration-time guarantee the route registrar gives REST. Read-only tools declare a read action and are not recorded.
 - **Reads only when they disclose credentials or security configuration** — API-key listings, gateway tokens, agent identities, role assignments, identity-provider configuration. Auditing every GET would multiply volume several-fold for little forensic gain.
-- One documented exemption: `POST /orgs/{orgName}/utils/generate-name`, which suggests a name and persists nothing.
+- One documented exemption: `POST /utils/generate-name`, which suggests a name and persists nothing.
 - **Module routes and tools follow the same rules.** A module's mutating route (`/m/<module>/...`) is recorded under its permission, or under an action its manifest declares and the route names with `modkit.Audit`; the manifest gives that action its class and severity, and `modkit.Audit` on a read records the read. `api/module_routes_invariant_test.go` checks it for the test module and the AI Gateway.
 
 ### Record shape
@@ -95,7 +95,7 @@ Every record carries these fields where they apply; empty fields are omitted.
 | `severity` | `1` info · `2` notice · `3` warning · `4` critical. |
 | `outcome` | `success`, `failure`, `deny`, or `unknown` for an intent record whose outcome never arrived. |
 | `actorType` | `user` · `service` · `agent` · `gateway` · `system` · `anonymous`. |
-| `actorId` | Who did it. For a user, the token subject — a Thunder user id, not an email or username (resolve it with `GET /api/v1/orgs/{orgName}/identities/users/{userId}`). For other actors: a gateway id or `system:<component>`. |
+| `actorId` | Who did it. For a user, the token subject — a Thunder user id, not an email or username (resolve it with `GET /api/v1/identities/users/{userId}`). For other actors: a gateway id or `system:<component>`. |
 | `actorOuId` | The actor's organization unit, from the token. |
 | `actorTokenId` | The token's `jti` — the join key to Thunder's login records (see [The authentication gap](#the-authentication-gap)). |
 | `actorDisplay` | Reserved for a human-readable name. No emit site populates it today, so records carry the id alone. |
@@ -174,7 +174,7 @@ jq 'select(.event.actorId=="8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147")
 Turning an actor id into a person — records carry the id only; the name lives in Thunder:
 
 ```
-GET /api/v1/orgs/{orgName}/identities/users/{actorId}   # → attributes.username, attributes.email
+GET /api/v1/identities/users/{actorId}   # → attributes.username, attributes.email
 ```
 
 Every privilege change, and exactly what was granted:
@@ -456,11 +456,8 @@ AI Gateway actions (`modules/aigateway/gwaudit/gwaudit.go`), all 66 the module's
 | `ai-gateway:llm-provider-templates.update` | config | 1 info | — |
 | `ai-gateway:llm-providers.create` | config | 1 info | — |
 | `ai-gateway:llm-providers.delete` | config | 2 notice | — |
-| `ai-gateway:llm-providers.delete-deployment` | config | 1 info | — |
-| `ai-gateway:llm-providers.deploy` | deployment | 2 notice | — |
 | `ai-gateway:llm-providers.read` | read | 1 info | — |
 | `ai-gateway:llm-providers.restore` | deployment | 2 notice | — |
-| `ai-gateway:llm-providers.undeploy` | deployment | 2 notice | — |
 | `ai-gateway:llm-providers.update` | config | 1 info | — |
 | `ai-gateway:llm-providers.update-catalog` | config | 1 info | — |
 | `ai-gateway:llm-proxies.create` | config | 1 info | — |
@@ -1172,7 +1169,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/roles/{roleID}/permissions/add",
+    "requestPath": "/identities/roles/{roleID}/permissions/add",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "outcome": "deny",
@@ -1212,7 +1209,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/roles/{roleID}/permissions/add",
+    "requestPath": "/identities/roles/{roleID}/permissions/add",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "outcome": "success",
@@ -1648,7 +1645,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/groups/{groupID}/members/add",
+    "requestPath": "/identities/groups/{groupID}/members/add",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "group",
@@ -1693,7 +1690,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/groups/{groupID}/members/remove",
+    "requestPath": "/identities/groups/{groupID}/members/remove",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "group",
@@ -1775,7 +1772,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/projects/{projName}",
+    "requestPath": "/projects/{projName}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "project",
@@ -1817,7 +1814,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/roles/{roleID}/assignees/add",
+    "requestPath": "/identities/roles/{roleID}/assignees/add",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "role",
@@ -1865,7 +1862,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/roles/{roleID}/permissions/add",
+    "requestPath": "/identities/roles/{roleID}/permissions/add",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "role",
@@ -1911,7 +1908,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/roles/{roleID}/permissions/remove",
+    "requestPath": "/identities/roles/{roleID}/permissions/remove",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "role",
@@ -1957,7 +1954,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/roles/{roleID}/assignees/remove",
+    "requestPath": "/identities/roles/{roleID}/assignees/remove",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "role",
@@ -2108,7 +2105,7 @@ The request's attribute map held `username`, `email`, `password` and `department
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/users",
+    "requestPath": "/identities/users",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "user",
@@ -2158,7 +2155,7 @@ The request's attribute map held `username`, `email`, `password` and `department
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/identities/users/{userID}",
+    "requestPath": "/identities/users/{userID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "user",
@@ -2199,7 +2196,7 @@ The request's attribute map held `username`, `email`, `password` and `department
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/identities/users/invite",
+    "requestPath": "/identities/users/invite",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "user",
@@ -2243,7 +2240,7 @@ No semantic emit: the coverage envelope for the route.
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "PUT",
-    "requestPath": "/orgs/{orgName}/identities/users/{userID}",
+    "requestPath": "/identities/users/{userID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "outcome": "success",

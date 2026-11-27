@@ -181,7 +181,7 @@ func TestHasPlaceholders(t *testing.T) {
 	if hasPlaceholders("/orgs/default/projects/default/agents") {
 		t.Error("literal path should report no placeholders")
 	}
-	if hasPlaceholders("/orgs") {
+	if hasPlaceholders("/projects") {
 		t.Error("plain path should report no placeholders")
 	}
 }
@@ -224,8 +224,7 @@ func TestSubstituteContext_EmptyValueErrors(t *testing.T) {
 }
 
 // TestAPIExamplesUseRealEndpoints guards against documenting endpoints that do
-// not exist: every core "amctl api <endpoint>" example must address an /orgs path,
-// since the core API has no flat top-level resources. Module routes take the org from the token.
+// not exist: every core "amctl api <endpoint>" example must address a core collection that exists.
 func TestAPIExamplesUseRealEndpoints(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
 	cmd := NewAPICmd(&cmdutil.Factory{IOStreams: ios})
@@ -237,6 +236,7 @@ func TestAPIExamplesUseRealEndpoints(t *testing.T) {
 			continue
 		}
 		for _, tok := range strings.Fields(line) {
+			tok = strings.Trim(tok, `"`)
 			if strings.HasPrefix(tok, "/") {
 				endpoints = append(endpoints, tok)
 			}
@@ -252,8 +252,10 @@ func TestAPIExamplesUseRealEndpoints(t *testing.T) {
 			}
 			continue
 		}
-		if !strings.HasPrefix(ep, "/orgs") {
-			t.Errorf("example endpoint %q must begin with /orgs (this API has no flat resources)", ep)
+		root, _, _ := strings.Cut(strings.TrimPrefix(ep, "/"), "/")
+		root, _, _ = strings.Cut(root, "?")
+		if root != "organizations" && root != "projects" && root != "agents" {
+			t.Errorf("example endpoint %q must begin with /organizations, /projects or /agents", ep)
 		}
 	}
 }

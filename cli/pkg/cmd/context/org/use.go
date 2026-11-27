@@ -88,12 +88,17 @@ func runUse(ctx context.Context, o *UseOptions) error {
 		return render.Error(o.IO, scope, err)
 	}
 
-	resp, err := client.GetOrganizationWithResponse(ctx, o.Name)
+	resp, err := client.GetOrganizationWithResponse(ctx)
 	if err != nil {
 		return render.Error(o.IO, scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
 	if resp.HTTPResponse == nil || resp.HTTPResponse.StatusCode != http.StatusOK {
 		return render.Error(o.IO, scope, cmdutil.ErrorFromServer(resp.HTTPResponse, cmdutil.FirstNonNil(resp.JSON404, resp.JSON500)))
+	}
+	// The server acts on the token's organization, so only that one can be used.
+	if tokenOrg := tokenOrgHandle(resp.JSON200); tokenOrg != o.Name {
+		return render.Error(o.IO, scope, clierr.Newf(clierr.NotFound,
+			"organization %q is not the one this login is for (%q); log in to that organization instead", o.Name, tokenOrg))
 	}
 
 	inst, err := cfg.Current()
@@ -116,4 +121,15 @@ func runUse(ctx context.Context, o *UseOptions) error {
 	cs := o.IO.StderrColorScheme()
 	fmt.Fprintf(o.IO.ErrOut, "%s Switched to organization %s\n", cs.SuccessIcon(), o.Name)
 	return nil
+}
+
+// tokenOrgHandle is the handle of the caller's organization, falling back to its name.
+func tokenOrgHandle(org *amsvc.OrganizationResponse) string {
+	if org == nil {
+		return ""
+	}
+	if org.Handle != nil && *org.Handle != "" {
+		return *org.Handle
+	}
+	return org.Name
 }

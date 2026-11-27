@@ -20,14 +20,11 @@ package tests
 
 import (
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
@@ -39,23 +36,7 @@ import (
 func seedIngressGatewayForDefaultEnvironment(t *testing.T, ouID string) uuid.UUID {
 	t.Helper()
 	gdb := db.GetDB()
-	ensureOrgRow(t, ouID)
 	env := uuid.MustParse(apitestutils.DefaultEnvironmentUUID)
 	dbtest.EnvironmentNamed(t, gdb, ouID, env, "default-"+env.String()[:8])
 	return gwtest.GatewayIn(t, gdb, ouID, gwmodels.GatewayRoleIngress, env).UUID
-}
-
-// ensureOrgRow makes sure the organization the mocked tokens name exists.
-func ensureOrgRow(t *testing.T, ouID string) {
-	t.Helper()
-	gdb := db.GetDB()
-	var n int64
-	require.NoError(t, gdb.Model(&models.Organization{}).Where("id = ?", ouID).Count(&n).Error)
-	if n > 0 {
-		return
-	}
-	now := time.Now().UTC()
-	require.NoError(t, gdb.Create(&models.Organization{
-		ID: uuid.MustParse(ouID), Handle: "mock-org", DisplayName: "Mock org", ThunderOUID: &ouID, CreatedAt: now, UpdatedAt: now,
-	}).Error)
 }

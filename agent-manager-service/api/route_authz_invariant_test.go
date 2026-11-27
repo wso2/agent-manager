@@ -118,8 +118,10 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",
 	{"MakeHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module routes; the module host registers each one through " +
 		"RouteRegistrar.HandleModuleRoute, which applies the permission check.",
-	{"MakeInternalHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module workload routes; the module host requires a " +
-		"workload token issued for that module and carrying the route's scope.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module workload routes and webhooks; the module host " +
+		"requires a workload token issued for that module and carrying the route's scope on its workload routes " +
+		"(/m/<module>/internal/...), while a webhook (/m/<module>/webhooks/..., Runtime.HandleWebhook) authenticates " +
+		"its sender itself and is allowed only for the modules TestHandleWebhookUsers lists.",
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "/"}: "routes modules mount at fixed internal paths with " +
 		"HandleInternalAt (time-boxed to wso2/agent-manager#2493); each authenticates its callers itself, as the " +
 		"gateway's internal routes do, and is audited through the internal route registrar.",
@@ -134,6 +136,7 @@ var gatewayInternalRoutes = []string{
 	"GET /llm-proxies/api-keys",
 	"GET /apis/api-keys",
 	"GET /apis/{apiId}",
+	"GET /apis/{apiId}/subscriptions",
 	"GET /subscription-plans",
 	"GET /deployments",
 	"POST /deployments/fetch-batch",
@@ -293,13 +296,16 @@ func TestSecurityInvariantPermissionsReachRolesAndIDP(t *testing.T) {
 		}
 	}
 
+	// The manifest-only modules have no permission package to walk; their scopes are those of their manifest,
+	// which TestAIHubPermissionsGateRoutes holds to the same rules.
+	manifestScopes := manifestOnlyScopes()
 	for scope := range idpScopes {
-		if !containsMapValue(declared, scope) {
+		if !containsMapValue(declared, scope) && !manifestScopes[scope] {
 			t.Errorf("Thunder bootstrap ampScopes contains stale or unknown AMP scope %q", scope)
 		}
 	}
 	for scope := range e2eScopes {
-		if !containsMapValue(declared, scope) {
+		if !containsMapValue(declared, scope) && !manifestScopes[scope] {
 			t.Errorf("E2E client scope catalog contains stale or unknown scope %q", scope)
 		}
 	}

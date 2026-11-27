@@ -728,6 +728,36 @@ func (e LlmProviderDocumentKind) Valid() bool {
 	}
 }
 
+// Defines values for LlmProviderTemplateDocumentApiVersion.
+const (
+	LlmProviderTemplateDocumentApiVersionAiControlPlaneChoreolabsComv1 LlmProviderTemplateDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+)
+
+// Valid indicates whether the value is a known member of the LlmProviderTemplateDocumentApiVersion enum.
+func (e LlmProviderTemplateDocumentApiVersion) Valid() bool {
+	switch e {
+	case LlmProviderTemplateDocumentApiVersionAiControlPlaneChoreolabsComv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LlmProviderTemplateDocumentKind.
+const (
+	LlmProviderTemplate LlmProviderTemplateDocumentKind = "LlmProviderTemplate"
+)
+
+// Valid indicates whether the value is a known member of the LlmProviderTemplateDocumentKind enum.
+func (e LlmProviderTemplateDocumentKind) Valid() bool {
+	switch e {
+	case LlmProviderTemplate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MCPEndpointEnvironmentDeploymentStatus.
 const (
 	Deployed    MCPEndpointEnvironmentDeploymentStatus = "Deployed"
@@ -787,13 +817,13 @@ func (e McpProxyDocumentKind) Valid() bool {
 
 // Defines values for McpProxyScopeDocumentApiVersion.
 const (
-	AiControlPlaneChoreolabsComv1 McpProxyScopeDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
+	McpProxyScopeDocumentApiVersionAiControlPlaneChoreolabsComv1 McpProxyScopeDocumentApiVersion = "ai-control-plane.choreolabs.com/v1"
 )
 
 // Valid indicates whether the value is a known member of the McpProxyScopeDocumentApiVersion enum.
 func (e McpProxyScopeDocumentApiVersion) Valid() bool {
 	switch e {
-	case AiControlPlaneChoreolabsComv1:
+	case McpProxyScopeDocumentApiVersionAiControlPlaneChoreolabsComv1:
 		return true
 	default:
 		return false
@@ -893,6 +923,36 @@ func (e UpstreamAuthType) Valid() bool {
 	}
 }
 
+// Defines values for GetLLMProviderDeploymentsParamsStatus.
+const (
+	GetLLMProviderDeploymentsParamsStatusARCHIVED    GetLLMProviderDeploymentsParamsStatus = "ARCHIVED"
+	GetLLMProviderDeploymentsParamsStatusDEPLOYED    GetLLMProviderDeploymentsParamsStatus = "DEPLOYED"
+	GetLLMProviderDeploymentsParamsStatusDEPLOYING   GetLLMProviderDeploymentsParamsStatus = "DEPLOYING"
+	GetLLMProviderDeploymentsParamsStatusFAILED      GetLLMProviderDeploymentsParamsStatus = "FAILED"
+	GetLLMProviderDeploymentsParamsStatusUNDEPLOYED  GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYED"
+	GetLLMProviderDeploymentsParamsStatusUNDEPLOYING GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYING"
+)
+
+// Valid indicates whether the value is a known member of the GetLLMProviderDeploymentsParamsStatus enum.
+func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
+	switch e {
+	case GetLLMProviderDeploymentsParamsStatusARCHIVED:
+		return true
+	case GetLLMProviderDeploymentsParamsStatusDEPLOYED:
+		return true
+	case GetLLMProviderDeploymentsParamsStatusDEPLOYING:
+		return true
+	case GetLLMProviderDeploymentsParamsStatusFAILED:
+		return true
+	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYED:
+		return true
+	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYING:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListCatalogResourcesParamsKind.
 const (
 	ListCatalogResourcesParamsKindAgent       ListCatalogResourcesParamsKind = "agent"
@@ -935,36 +995,6 @@ func (e ListGatewaysParamsStatus) Valid() bool {
 	case ListGatewaysParamsStatusINACTIVE:
 		return true
 	case ListGatewaysParamsStatusPROVISIONING:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetLLMProviderDeploymentsParamsStatus.
-const (
-	GetLLMProviderDeploymentsParamsStatusARCHIVED    GetLLMProviderDeploymentsParamsStatus = "ARCHIVED"
-	GetLLMProviderDeploymentsParamsStatusDEPLOYED    GetLLMProviderDeploymentsParamsStatus = "DEPLOYED"
-	GetLLMProviderDeploymentsParamsStatusDEPLOYING   GetLLMProviderDeploymentsParamsStatus = "DEPLOYING"
-	GetLLMProviderDeploymentsParamsStatusFAILED      GetLLMProviderDeploymentsParamsStatus = "FAILED"
-	GetLLMProviderDeploymentsParamsStatusUNDEPLOYED  GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYED"
-	GetLLMProviderDeploymentsParamsStatusUNDEPLOYING GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYING"
-)
-
-// Valid indicates whether the value is a known member of the GetLLMProviderDeploymentsParamsStatus enum.
-func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
-	switch e {
-	case GetLLMProviderDeploymentsParamsStatusARCHIVED:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusDEPLOYED:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusDEPLOYING:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusFAILED:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYED:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYING:
 		return true
 	default:
 		return false
@@ -1651,26 +1681,6 @@ type CreateLLMAPIKeyResponse struct {
 
 	// Status Result of the operation ("success" or "error").
 	Status string `json:"status"`
-}
-
-// CreateLLMProviderTemplateRequest defines model for CreateLLMProviderTemplateRequest.
-type CreateLLMProviderTemplateRequest struct {
-	CompletionTokens *ExtractionIdentifier `json:"completionTokens,omitempty"`
-
-	// Description Description of the LLM provider template
-	Description *string `json:"description,omitempty"`
-
-	// Id Unique handle for the template
-	Id       string                       `json:"id"`
-	Metadata *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-
-	// Name Human-readable LLM Template name
-	Name            string                `json:"name"`
-	PromptTokens    *ExtractionIdentifier `json:"promptTokens,omitempty"`
-	RemainingTokens *ExtractionIdentifier `json:"remainingTokens,omitempty"`
-	RequestModel    *ExtractionIdentifier `json:"requestModel,omitempty"`
-	ResponseModel   *ExtractionIdentifier `json:"responseModel,omitempty"`
-	TotalTokens     *ExtractionIdentifier `json:"totalTokens,omitempty"`
 }
 
 // CreateLLMProxyRequest defines model for CreateLLMProxyRequest.
@@ -2363,15 +2373,12 @@ type LLMProviderTemplateAuth struct {
 
 // LLMProviderTemplateListResponse defines model for LLMProviderTemplateListResponse.
 type LLMProviderTemplateListResponse struct {
-	// Limit Number of results per page
-	Limit int32 `json:"limit"`
+	// Count Number of items in this page.
+	Count *int32                        `json:"count,omitempty"`
+	List  []LlmProviderTemplateDocument `json:"list"`
 
-	// Offset Number of results skipped
-	Offset    int32                         `json:"offset"`
-	Templates []LLMProviderTemplateResponse `json:"templates"`
-
-	// Total Total number of templates
-	Total int32 `json:"total"`
+	// Pagination Where this page sits in the collection.
+	Pagination *Pagination `json:"pagination,omitempty"`
 }
 
 // LLMProviderTemplateMetadata defines model for LLMProviderTemplateMetadata.
@@ -2386,38 +2393,6 @@ type LLMProviderTemplateMetadata struct {
 
 	// OpenapiSpecUrl URL to the OpenAPI specification for the provider
 	OpenapiSpecUrl *string `json:"openapiSpecUrl,omitempty"`
-}
-
-// LLMProviderTemplateResponse defines model for LLMProviderTemplateResponse.
-type LLMProviderTemplateResponse struct {
-	CompletionTokens *ExtractionIdentifier `json:"completionTokens,omitempty"`
-
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy Username of the creator
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Description Description of the LLM provider template
-	Description *string `json:"description,omitempty"`
-
-	// Id Unique handle for the template
-	Id       string                       `json:"id"`
-	Metadata *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-
-	// Name Human-readable LLM Template name
-	Name            string                `json:"name"`
-	PromptTokens    *ExtractionIdentifier `json:"promptTokens,omitempty"`
-	RemainingTokens *ExtractionIdentifier `json:"remainingTokens,omitempty"`
-	RequestModel    *ExtractionIdentifier `json:"requestModel,omitempty"`
-	ResponseModel   *ExtractionIdentifier `json:"responseModel,omitempty"`
-	TotalTokens     *ExtractionIdentifier `json:"totalTokens,omitempty"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-
-	// Uuid UUID of the template
-	Uuid *openapi_types.UUID `json:"uuid,omitempty"`
 }
 
 // LLMProxyConfig defines model for LLMProxyConfig.
@@ -2554,6 +2529,39 @@ type LlmProviderSpec struct {
 
 	// Version Version of the LLM provider
 	Version string `json:"version"`
+}
+
+// LlmProviderTemplateDocument An LLM provider template as a document; metadata.name is its handle, spec.displayName its label.
+type LlmProviderTemplateDocument struct {
+	ApiVersion LlmProviderTemplateDocumentApiVersion `json:"apiVersion"`
+
+	// Kind Must match the route; never ignored.
+	Kind     LlmProviderTemplateDocumentKind `json:"kind"`
+	Metadata DocumentMetadata                `json:"metadata"`
+	Spec     LlmProviderTemplateSpec         `json:"spec"`
+}
+
+// LlmProviderTemplateDocumentApiVersion defines model for LlmProviderTemplateDocument.ApiVersion.
+type LlmProviderTemplateDocumentApiVersion string
+
+// LlmProviderTemplateDocumentKind Must match the route; never ignored.
+type LlmProviderTemplateDocumentKind string
+
+// LlmProviderTemplateSpec defines model for LlmProviderTemplateSpec.
+type LlmProviderTemplateSpec struct {
+	CompletionTokens *ExtractionIdentifier `json:"completionTokens,omitempty"`
+
+	// Description Description of the LLM provider template
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName Human-readable template name
+	DisplayName     string                       `json:"displayName"`
+	Metadata        *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
+	PromptTokens    *ExtractionIdentifier        `json:"promptTokens,omitempty"`
+	RemainingTokens *ExtractionIdentifier        `json:"remainingTokens,omitempty"`
+	RequestModel    *ExtractionIdentifier        `json:"requestModel,omitempty"`
+	ResponseModel   *ExtractionIdentifier        `json:"responseModel,omitempty"`
+	TotalTokens     *ExtractionIdentifier        `json:"totalTokens,omitempty"`
 }
 
 // MCPEndpointEnvironment One endpoint→environment binding.
@@ -2750,6 +2758,16 @@ type McpProxySpec struct {
 
 	// ProjectName Set for a project-owned proxy, which these routes serve read only; absent for an org-level one.
 	ProjectName *string `json:"projectName,omitempty"`
+
+	// SubscriptionPlans Handles of the subscription plans the MCP proxy offers, for every endpoint. Each added plan must be an
+	// active plan of the organization that isn't deprecated. A plan the proxy already offers stays after it is
+	// deactivated or deprecated while the list is sent back unchanged; a deprecated one must be removed before
+	// the list can change otherwise. On
+	// update, leaving it out keeps the offered plans and an empty list offers none. Needs the ai-hub module.
+	// A plan is enforced only where subscription-validation v2 (and subscription-tool-ratelimit for tool-call
+	// limits) are attached to the endpoint; once they are, calls without an active subscription get 403.
+	// Omitted from list rows.
+	SubscriptionPlans *[]string `json:"subscriptionPlans,omitempty"`
 
 	// Version Version of the MCP proxy
 	Version string `json:"version"`
@@ -3144,23 +3162,6 @@ type UpdateGatewayRequest struct {
 	Status *GatewayStatus `json:"status,omitempty"`
 }
 
-// UpdateLLMProviderTemplateRequest defines model for UpdateLLMProviderTemplateRequest.
-type UpdateLLMProviderTemplateRequest struct {
-	CompletionTokens *ExtractionIdentifier `json:"completionTokens,omitempty"`
-
-	// Description Updated description
-	Description *string                      `json:"description,omitempty"`
-	Metadata    *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-
-	// Name Updated name of the template
-	Name            *string               `json:"name,omitempty"`
-	PromptTokens    *ExtractionIdentifier `json:"promptTokens,omitempty"`
-	RemainingTokens *ExtractionIdentifier `json:"remainingTokens,omitempty"`
-	RequestModel    *ExtractionIdentifier `json:"requestModel,omitempty"`
-	ResponseModel   *ExtractionIdentifier `json:"responseModel,omitempty"`
-	TotalTokens     *ExtractionIdentifier `json:"totalTokens,omitempty"`
-}
-
 // UpdateLLMProxyRequest defines model for UpdateLLMProxyRequest.
 type UpdateLLMProxyRequest struct {
 	Configuration *LLMProxyConfig `json:"configuration,omitempty"`
@@ -3456,6 +3457,15 @@ type RotateLLMConfigAPIKeyParams struct {
 	Project string `form:"project" json:"project"`
 }
 
+// ListLLMProviderTemplatesParams defines parameters for ListLLMProviderTemplates.
+type ListLLMProviderTemplatesParams struct {
+	// Limit Maximum number of results to return
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListLLMProvidersParams defines parameters for ListLLMProviders.
 type ListLLMProvidersParams struct {
 	// Limit Maximum number of results to return
@@ -3463,6 +3473,33 @@ type ListLLMProvidersParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListAvailableLLMPoliciesParams defines parameters for ListAvailableLLMPolicies.
+type ListAvailableLLMPoliciesParams struct {
+	// ProviderId When set, scope the result to the gateways this LLM provider is deployed to, instead of every active gateway in the organization.
+	ProviderId *openapi_types.UUID `form:"providerId,omitempty" json:"providerId,omitempty"`
+}
+
+// GetLLMProviderDeploymentsParams defines parameters for GetLLMProviderDeployments.
+type GetLLMProviderDeploymentsParams struct {
+	// GatewayId Filter by gateway ID
+	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
+
+	// Status Filter by the gateway's stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING but filtered by the status the gateway holds.
+	Status *GetLLMProviderDeploymentsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// GetLLMProviderDeploymentsParamsStatus defines parameters for GetLLMProviderDeployments.
+type GetLLMProviderDeploymentsParamsStatus string
+
+// RestoreLLMProviderDeploymentParams defines parameters for RestoreLLMProviderDeployment.
+type RestoreLLMProviderDeploymentParams struct {
+	// DeploymentId Deployment UUID to restore
+	DeploymentId string `form:"deploymentId" json:"deploymentId"`
+
+	// GatewayId Gateway UUID
+	GatewayId string `form:"gatewayId" json:"gatewayId"`
 }
 
 // ListMCPProxiesParams defines parameters for ListMCPProxies.
@@ -3560,60 +3597,6 @@ type DiscoverOidcConfigurationParams struct {
 	Url string `form:"url" json:"url"`
 }
 
-// ListLLMProviderTemplatesParams defines parameters for ListLLMProviderTemplates.
-type ListLLMProviderTemplatesParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListAvailableLLMPoliciesParams defines parameters for ListAvailableLLMPolicies.
-type ListAvailableLLMPoliciesParams struct {
-	// ProviderId When set, scope the result to the gateways this LLM provider is deployed to, instead of every active gateway in the organization.
-	ProviderId *openapi_types.UUID `form:"providerId,omitempty" json:"providerId,omitempty"`
-}
-
-// GetLLMProviderDeploymentsParams defines parameters for GetLLMProviderDeployments.
-type GetLLMProviderDeploymentsParams struct {
-	// GatewayId Filter by gateway ID
-	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
-
-	// Status Filter by the gateway's stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING but filtered by the status the gateway holds.
-	Status *GetLLMProviderDeploymentsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-}
-
-// GetLLMProviderDeploymentsParamsStatus defines parameters for GetLLMProviderDeployments.
-type GetLLMProviderDeploymentsParamsStatus string
-
-// RestoreLLMProviderDeploymentParams defines parameters for RestoreLLMProviderDeployment.
-type RestoreLLMProviderDeploymentParams struct {
-	// DeploymentId Deployment UUID to restore
-	DeploymentId string `form:"deploymentId" json:"deploymentId"`
-
-	// GatewayId Gateway UUID
-	GatewayId string `form:"gatewayId" json:"gatewayId"`
-}
-
-// UndeployLLMProviderDeploymentParams defines parameters for UndeployLLMProviderDeployment.
-type UndeployLLMProviderDeploymentParams struct {
-	// DeploymentId Deployment UUID to undeploy
-	DeploymentId string `form:"deploymentId" json:"deploymentId"`
-
-	// GatewayId Gateway UUID
-	GatewayId string `form:"gatewayId" json:"gatewayId"`
-}
-
-// ListLLMProxiesByProviderParams defines parameters for ListLLMProxiesByProvider.
-type ListLLMProxiesByProviderParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
 // ListLLMProxiesParams defines parameters for ListLLMProxies.
 type ListLLMProxiesParams struct {
 	// Limit Maximum number of results to return
@@ -3701,11 +3684,23 @@ type CreateLLMConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
 // RotateLLMConfigAPIKeyJSONRequestBody defines body for RotateLLMConfigAPIKey for application/json ContentType.
 type RotateLLMConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
+// CreateLLMProviderTemplateJSONRequestBody defines body for CreateLLMProviderTemplate for application/json ContentType.
+type CreateLLMProviderTemplateJSONRequestBody = LlmProviderTemplateDocument
+
+// UpdateLLMProviderTemplateJSONRequestBody defines body for UpdateLLMProviderTemplate for application/json ContentType.
+type UpdateLLMProviderTemplateJSONRequestBody = LlmProviderTemplateDocument
+
 // CreateLLMProviderJSONRequestBody defines body for CreateLLMProvider for application/json ContentType.
 type CreateLLMProviderJSONRequestBody = LlmProviderDocument
 
 // UpdateLLMProviderJSONRequestBody defines body for UpdateLLMProvider for application/json ContentType.
 type UpdateLLMProviderJSONRequestBody = LlmProviderDocument
+
+// CreateLLMProviderAPIKeyJSONRequestBody defines body for CreateLLMProviderAPIKey for application/json ContentType.
+type CreateLLMProviderAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
+
+// RotateLLMProviderAPIKeyJSONRequestBody defines body for RotateLLMProviderAPIKey for application/json ContentType.
+type RotateLLMProviderAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
 // CreateMCPProxyJSONRequestBody defines body for CreateMCPProxy for application/json ContentType.
 type CreateMCPProxyJSONRequestBody = McpProxyDocument
@@ -3757,21 +3752,6 @@ type UpsertGatewayIdentityProviderJSONRequestBody = UpsertIdentityProviderReques
 
 // RotateGatewayTokenJSONRequestBody defines body for RotateGatewayToken for application/json ContentType.
 type RotateGatewayTokenJSONRequestBody = RotateGatewayTokenRequest
-
-// CreateLLMProviderTemplateJSONRequestBody defines body for CreateLLMProviderTemplate for application/json ContentType.
-type CreateLLMProviderTemplateJSONRequestBody = CreateLLMProviderTemplateRequest
-
-// UpdateLLMProviderTemplateJSONRequestBody defines body for UpdateLLMProviderTemplate for application/json ContentType.
-type UpdateLLMProviderTemplateJSONRequestBody = UpdateLLMProviderTemplateRequest
-
-// CreateLLMProviderAPIKeyJSONRequestBody defines body for CreateLLMProviderAPIKey for application/json ContentType.
-type CreateLLMProviderAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
-
-// RotateLLMProviderAPIKeyJSONRequestBody defines body for RotateLLMProviderAPIKey for application/json ContentType.
-type RotateLLMProviderAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
-
-// DeployLLMProviderJSONRequestBody defines body for DeployLLMProvider for application/json ContentType.
-type DeployLLMProviderJSONRequestBody = LLMDeployRequest
 
 // CreateLLMProxyJSONRequestBody defines body for CreateLLMProxy for application/json ContentType.
 type CreateLLMProxyJSONRequestBody = CreateLLMProxyRequest

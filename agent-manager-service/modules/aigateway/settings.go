@@ -24,7 +24,7 @@ var settings = []modkit.Setting{
 	{Key: "DEFAULT_GATEWAY_DISPLAY_NAME", Default: "Default AI Gateway", Description: "The registered gateway's display name."},
 	{Key: "DEFAULT_GATEWAY_VHOST", Description: "The registered gateway's virtual host, the URL agents reach it at."},
 	{Key: "DEFAULT_GATEWAY_TYPE", Default: "BOTH", Description: "What the registered gateway handles: INGRESS, EGRESS or BOTH."},
-	{Key: "DEFAULT_GATEWAY_ORG_OU_ID", Default: "01900000-0000-7000-8000-000000000001", Description: "The organization unit the registered gateway belongs to."},
+	{Key: "DEFAULT_GATEWAY_ORG_OU_ID", Default: "00000000-0000-0000-0000-000000000001", Description: "The organization the registered gateway belongs to: by default the trial organization file sign-in names. Change it together with the core's default.org_ou_id."},
 	{Key: "DEFAULT_GATEWAY_TOKEN", Description: "The registered gateway's registration token; generated and kept by amp init when unset.", Secret: true},
 	{Key: "DEFAULT_GATEWAY_TOKEN_FILE", Description: "A file holding the registration token, read when DEFAULT_GATEWAY_TOKEN is unset."},
 	{Key: "DEFAULT_GATEWAY_SECRET_DELIVERY", Default: "inline", Description: "How the registered gateway receives credentials: inline in its artifacts, or reference, fetched into its encrypted secret store."},

@@ -266,6 +266,46 @@ type InitRequest struct {
 	CoreOwner string
 }
 
+// ExternalMigrator is implemented by modules that keep data in a store outside
+// the core database, such as ClickHouse. `amp migrate` applies the store's
+// schema files after the module's SQL migrations. Installing and enabling the
+// module never apply them: they only check that they were applied.
+type ExternalMigrator interface {
+	// ExternalSchema returns the external store's schema. config reads the
+	// module's settings, as Runtime.Config does. apply is true for
+	// `amp migrate`, which applies files, and false for install and enable,
+	// which only read what was applied. An error wrapping ErrNotConfigured
+	// means there is no store to migrate or check: the core logs its message
+	// and carries on.
+	ExternalSchema(config func(key string) string, apply bool) (ExternalSchema, error)
+}
+
+// ErrNotConfigured is returned by ExternalMigrator.ExternalSchema when the
+// module's external store, or the login it needs, is not configured.
+var ErrNotConfigured = errors.New("modkit: not configured")
+
+// ExternalSchema is the versioned schema of a module's external store. The core
+// orders the files, checksums them and refuses what it refuses for SQL
+// migrations (an edited applied file, an unknown applied version, a new file
+// that sorts before an applied one). The store keeps the record of what it
+// applied, next to the data it describes.
+type ExternalSchema interface {
+	// Store names the store in logs and errors ("clickhouse").
+	Store() string
+	// Files are the schema files, named NNN_description.<ext>.
+	Files() fs.FS
+	// Applied returns the version and checksum of every file the store has
+	// recorded as applied.
+	Applied(ctx context.Context) (map[string]string, error)
+	// Apply applies one file and records its version and checksum. A file
+	// that was applied but not recorded is applied again, so it must be safe
+	// to repeat.
+	Apply(ctx context.Context, version, checksum string, body []byte) error
+	// Settle runs after the files on every `amp migrate`, for settings that
+	// come from config, such as a retention TTL. It must be idempotent.
+	Settle(ctx context.Context) error
+}
+
 // HealthReporter is implemented by modules that report their own health.
 type HealthReporter interface {
 	Health(ctx context.Context, rt Runtime) map[string]any
@@ -391,12 +431,14 @@ type EventHandler func(ctx context.Context, e Event) error
 // in the organization.
 var ErrNotFound = errors.New("modkit: not found")
 
-// Org is an organization.
+// Org is an organization: its id and handle, as the request's token names it. The core keeps no other record of it.
 type Org struct {
-	ID          string    `json:"id"`
-	Handle      string    `json:"handle"`
-	DisplayName string    `json:"displayName"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID string `json:"id"`
+	// Handle is the organization's handle as the request's token names it. Outside a request (a worker, or a
+	// hook or event with no request behind it) the core knows it only for the configured file sign-in
+	// organization; for any other it is the organization's id. A caller that looks something up by handle,
+	// such as traces, should do so from a request.
+	Handle string `json:"handle"`
 }
 
 // Project is a project in an organization.
@@ -536,6 +578,15 @@ type Runtime interface {
 	// (wso2/agent-manager#2493), and goes away then; new modules use
 	// HandleInternal.
 	HandleInternalAt(method, absPath string, h http.HandlerFunc, opts ...RouteOption)
+	// HandleWebhook mounts a route at /m/<module>/webhooks<path> on the
+	// internal server for a sender outside the installation that signs each
+	// delivery (a developer portal's webhook) rather than presenting a
+	// workload token. The core does not authenticate its callers: the handler
+	// verifies the signature and names the sender with AuditInternalCaller. A
+	// route that changes state names its audit action with Audit. While the
+	// module is inactive it answers 401 module_inactive, as HandleInternal
+	// does.
+	HandleWebhook(method, path string, h http.HandlerFunc, opts ...RouteOption)
 	// MCPTool adds a tool to the core's MCP server at /mcp while the module
 	// is active. perm is the permission a caller needs, as for Handle; the
 	// call is audited under its name unless an Audit option names the action.

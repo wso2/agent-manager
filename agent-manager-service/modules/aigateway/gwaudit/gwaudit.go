@@ -93,11 +93,8 @@ var Actions = withDetails([]modkit.AuditAction{
 	{Name: "llm-provider-templates.update", Class: "config", Severity: "info", Description: "Update (llm provider templates)"},
 	{Name: "llm-providers.create", Class: "config", Severity: "info", Description: "Create (llm providers)"},
 	{Name: "llm-providers.delete", Class: "config", Severity: "notice", Description: "Delete (llm providers)"},
-	{Name: "llm-providers.delete-deployment", Class: "config", Severity: "info", Description: "Delete deployment (llm providers)"},
-	{Name: "llm-providers.deploy", Class: "deployment", Severity: "notice", Description: "Deploy (llm providers)"},
 	{Name: "llm-providers.read", Class: "read", Severity: "info", Description: "Read (llm providers)"},
 	{Name: "llm-providers.restore", Class: "deployment", Severity: "notice", Description: "Restore (llm providers)"},
-	{Name: "llm-providers.undeploy", Class: "deployment", Severity: "notice", Description: "Undeploy (llm providers)"},
 	{Name: "llm-providers.update", Class: "config", Severity: "info", Description: "Update (llm providers)"},
 	// No route records this since catalog membership moved to spec.inCatalog; kept to classify older records.
 	{Name: "llm-providers.update-catalog", Class: "config", Severity: "info", Description: "Update catalog (llm providers)"},

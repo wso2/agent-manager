@@ -72,7 +72,7 @@ func TestLLMRoutesProviderAPIKeyLifecycle(t *testing.T) {
 	a := newRouteAPI(t)
 	gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleEgress)
 	uid := *llmCreateProvider(t, a, unique("keys")).Metadata.Uid
-	llmAPIKeyLifecycle(t, a, "/orgs/{org}/llm-providers/"+uid+"/api-keys")
+	llmAPIKeyLifecycle(t, a, "/llm-providers/"+uid+"/api-keys")
 }
 
 // A proxy's API keys are issued, listed, rotated and revoked.
@@ -94,7 +94,7 @@ func TestLLMRoutesAPIKeyErrors(t *testing.T) {
 	providerHandle := unique("prov")
 	providerUID := *llmCreateProvider(t, a, providerHandle).Metadata.Uid
 	proxy := llmCreateProxy(t, a, project, providerUID, unique("px"))
-	providerKeys := "/orgs/{org}/llm-providers/" + providerUID + "/api-keys"
+	providerKeys := "/llm-providers/" + providerUID + "/api-keys"
 	proxyKeys := llmProxiesPath(project) + "/" + *proxy.Configuration.Name + "/api-keys"
 
 	type keyCase struct {
@@ -155,7 +155,7 @@ func TestLLMRoutesAPIKeyErrors(t *testing.T) {
 	}
 	// An unknown provider is a 404 whether it is named by UUID or by handle.
 	for _, id := range []string{uuid.NewString(), unique("missing")} {
-		keys := "/orgs/{org}/llm-providers/" + id + "/api-keys"
+		keys := "/llm-providers/" + id + "/api-keys"
 		tests = append(tests,
 			keyCase{"list on unknown provider " + id, http.MethodGet, keys, nil, http.StatusNotFound, "LLM provider not found"},
 			keyCase{"create on unknown provider " + id, http.MethodPost, keys, map[string]any{"name": "ci-key"}, http.StatusNotFound, "LLM provider not found"},
@@ -172,7 +172,7 @@ func TestLLMRoutesAPIKeyErrors(t *testing.T) {
 	}
 
 	// The provider's handle names it as well as its UUID.
-	rec := a.do(http.MethodGet, "/orgs/{org}/llm-providers/"+providerHandle+"/api-keys", nil)
+	rec := a.do(http.MethodGet, "/llm-providers/"+providerHandle+"/api-keys", nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	gwtest.Gateway(t, a.db, a.org, gwmodels.GatewayRoleEgress)
@@ -196,7 +196,7 @@ func TestLLMRoutesAPIKeyErrors(t *testing.T) {
 // API key routes need the API-key permission of their owner.
 func TestLLMRoutesAPIKeyNeedsScope(t *testing.T) {
 	a := newRouteAPI(t)
-	providerKeys := "/orgs/{org}/llm-providers/x/api-keys"
+	providerKeys := "/llm-providers/x/api-keys"
 	proxyKeys := llmProxiesPath("p") + "/x/api-keys"
 	for _, tc := range []struct {
 		method, path string

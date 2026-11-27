@@ -31,6 +31,7 @@ const hoisted = vi.hoisted(() => ({
   pushSnackBar: vi.fn(),
   copyToClipboard: vi.fn(),
   securityProps: [] as Record<string, unknown>[],
+  aihub: false,
 }));
 
 vi.mock("@agent-management-platform/api-client", async (orig) => ({
@@ -46,6 +47,7 @@ vi.mock("@agent-management-platform/feature-management", () => ({
 vi.mock("@agent-management-platform/views", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   useSnackBar: () => ({ pushSnackBar: hoisted.pushSnackBar }),
+  useIsUIModuleInstalled: (name: string) => (name === "ai-hub" ? hoisted.aihub : false),
 }));
 vi.mock("@agent-management-platform/shared-component", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -90,6 +92,20 @@ vi.mock("./MCPProxySecurityTab", () => ({
 }));
 vi.mock("./MCPProxyRewriteTab", () => ({
   MCPProxyRewriteTab: () => <div>rewrite tab</div>,
+}));
+vi.mock("./MCPProxySubscriptionPlansTab", () => ({
+  MCPProxySubscriptionPlansTab: ({
+    onSave,
+  }: {
+    onSave: (plans: string[], endpoints?: unknown[]) => Promise<unknown>;
+  }) => (
+    <div>
+      <button onClick={() => void onSave(["gold"])}>save plans</button>
+      <button onClick={() => void onSave(["gold"], [{ id: "primary", policies: [] }])}>
+        save plans and policies
+      </button>
+    </div>
+  ),
 }));
 vi.mock("./MCPProxyPoliciesTab", () => ({
   MCPProxyPoliciesTab: () => <div>policies tab</div>,
@@ -151,6 +167,7 @@ const proxy = {
 };
 
 beforeEach(() => {
+  hoisted.aihub = false;
   hoisted.canWrite = true;
   hoisted.proxy = { data: proxy, isLoading: false, error: null };
   hoisted.environments = {
@@ -337,6 +354,30 @@ describe("ViewMCPProxy", () => {
         message: "Failed to copy Context",
         type: "error",
       }),
+    );
+  });
+
+  it("has no Subscription Plans tab without the AI Hub", () => {
+    renderPage("?tab=subscription-plans");
+    expect(screen.queryByRole("tab", { name: "Subscription Plans" })).not.toBeInTheDocument();
+  });
+
+  it("saves the offered plans, and the endpoints when their policies changed", async () => {
+    hoisted.aihub = true;
+    hoisted.update.mutateAsync.mockResolvedValue(undefined);
+    renderPage("?tab=subscription-plans");
+    fireEvent.click(await screen.findByRole("button", { name: "save plans" }));
+    await waitFor(() => expect(hoisted.update.mutateAsync).toHaveBeenCalled());
+    const first = hoisted.update.mutateAsync.mock.lastCall?.[0];
+    expect(first.params).toEqual({ orgName: "acme", proxyId: "github" });
+    expect(first.body.subscriptionPlans).toEqual(["gold"]);
+    expect(first.body.endpoints).toEqual(proxy.endpoints);
+
+    fireEvent.click(screen.getByRole("button", { name: "save plans and policies" }));
+    await waitFor(() =>
+      expect(hoisted.update.mutateAsync.mock.lastCall?.[0].body.endpoints).toEqual([
+        { id: "primary", policies: [] },
+      ]),
     );
   });
 });

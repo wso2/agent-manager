@@ -6,19 +6,9 @@ Module tables (`mod_<module>_<table>`, such as the AI Gateway's), column rules a
 
 ```mermaid
 erDiagram
-    organizations {
-        id id PK
-        text handle
-        text display_name
-        text description "nullable"
-        text thunder_ou_id "nullable"
-        text created_by "nullable"
-        time created_at
-        time updated_at
-    }
     projects {
         id id PK
-        id org_id FK
+        id org_id
         text name
         text display_name
         text description "nullable"
@@ -28,7 +18,7 @@ erDiagram
     }
     environments {
         id id PK
-        id org_id FK
+        id org_id
         text name
         text display_name
         bool is_production
@@ -72,7 +62,7 @@ erDiagram
     }
     secrets {
         id id PK
-        id org_id FK
+        id org_id
         text owner_kind
         id owner_id
         text provider
@@ -82,6 +72,24 @@ erDiagram
         int version
         time created_at
         time updated_at
+    }
+    secret_jobs {
+        id id PK
+        id org_id
+        id secret_id
+        text owner_kind
+        text action
+        text provider "nullable"
+        text external_ref "nullable"
+        text staged_provider "nullable"
+        text staged_ref "nullable"
+        int version "nullable"
+        int attempts
+        longtext last_error "nullable"
+        time available_at
+        text claimed_by "nullable"
+        time claimed_until "nullable"
+        time created_at
     }
     event_destinations {
         id id PK
@@ -127,7 +135,7 @@ erDiagram
     }
     event_outbox {
         id id PK
-        id org_id FK
+        id org_id
         json body
         time available_at
         text claimed_by "nullable"
@@ -226,7 +234,7 @@ erDiagram
     }
     module_events {
         id id PK
-        id org_id FK
+        id org_id
         text type
         text source
         text subject "nullable"
@@ -246,7 +254,7 @@ erDiagram
         id id PK
         text module
         text workload
-        id org_id FK "nullable"
+        id org_id "nullable"
         text subject
         text secret_hash
         time created_at
@@ -262,14 +270,10 @@ erDiagram
         time first_seen
         time last_seen
     }
-    organizations ||--o{ projects : has
-    organizations ||--o{ environments : has
     projects ||--o{ agents : has
     agents ||--o{ agent_labels : owns
     agents ||--o{ agent_identities : owns
     environments ||--o{ agent_identities : has
-    organizations ||--o{ secrets : has
-    organizations ||--o{ event_destinations : has
     secrets ||--o{ event_destinations : has
     event_destinations ||--o{ event_destination_projects : owns
     projects ||--o{ event_destination_projects : has
@@ -279,11 +283,8 @@ erDiagram
     event_subscriptions ||--o{ event_subscription_types : owns
     event_subscriptions ||--o{ event_subscription_environments : owns
     environments ||--o{ event_subscription_environments : has
-    organizations ||--o{ event_outbox : has
     event_destinations ||--o{ event_deliveries : owns
     event_deliveries ||--o{ event_delivery_subscriptions : owns
-    organizations ||--o{ module_events : owns
     module_events ||--o{ module_event_deliveries : owns
-    organizations ||--o{ workload_credentials : owns
     workload_credentials ||--o{ workload_instances : owns
 ```

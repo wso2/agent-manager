@@ -1,42 +1,39 @@
 package llmprovider
 
 import (
-	"fmt"
+	"net/url"
 
 	. "github.com/onsi/gomega"
 
 	"github.com/wso2/agent-manager/test/e2e/framework"
 )
 
-// CreateLLMProviderTemplate creates an LLM provider template.
-func CreateLLMProviderTemplate(g Gomega, client *framework.AMPClient, orgName string, req framework.CreateLLMProviderTemplateRequest) framework.LLMProviderTemplateResponse {
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-provider-templates", orgName)
+// templatesPath is the LLM provider template collection.
+const templatesPath = "/m/ai-gateway/llm-provider-templates"
 
-	resp, err := client.Post(path, req)
+// CreateLLMProviderTemplate creates an LLM provider template from its document.
+func CreateLLMProviderTemplate(g Gomega, client *framework.AMPClient, doc framework.LLMProviderTemplateDocument) framework.LLMProviderTemplateDocument {
+	resp, err := client.Post(templatesPath, doc)
 	g.Expect(err).NotTo(HaveOccurred(), "create LLM provider template request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 201)
 
-	return framework.DecodeBody[framework.LLMProviderTemplateResponse](g, resp)
+	return framework.DecodeBody[framework.LLMProviderTemplateDocument](g, resp)
 }
 
 // ListLLMProviderTemplates returns all LLM provider templates.
-func ListLLMProviderTemplates(g Gomega, client *framework.AMPClient, orgName string) framework.LLMProviderTemplateListResponse {
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-provider-templates", orgName)
-
-	resp, err := client.Get(path)
+func ListLLMProviderTemplates(g Gomega, client *framework.AMPClient) framework.LLMProviderTemplateList {
+	resp, err := client.Get(templatesPath)
 	g.Expect(err).NotTo(HaveOccurred(), "list LLM provider templates request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 200)
 
-	return framework.DecodeBody[framework.LLMProviderTemplateListResponse](g, resp)
+	return framework.DecodeBody[framework.LLMProviderTemplateList](g, resp)
 }
 
-// DeleteLLMProviderTemplate deletes an LLM provider template by ID.
-func DeleteLLMProviderTemplate(g Gomega, client *framework.AMPClient, orgName, templateID string) {
-	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-provider-templates/%s", orgName, templateID)
-
-	resp, err := client.Delete(path)
+// DeleteLLMProviderTemplate deletes an LLM provider template by handle.
+func DeleteLLMProviderTemplate(g Gomega, client *framework.AMPClient, templateID string) {
+	resp, err := client.Delete(templatesPath + "/" + url.PathEscape(templateID))
 	g.Expect(err).NotTo(HaveOccurred(), "delete LLM provider template request failed")
 	defer resp.Body.Close()
 	framework.ExpectStatus(g, resp, 204)
