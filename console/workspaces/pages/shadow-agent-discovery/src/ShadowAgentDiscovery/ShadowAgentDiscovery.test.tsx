@@ -306,7 +306,7 @@ describe("ShadowAgentDiscovery page", () => {
     page();
     expect(screen.getByRole("heading", { name: "Shadow Agent Discovery" })).toBeInTheDocument();
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-    expect(tabs).toEqual(["Overview", "Scans", "Sources"]);
+    expect(tabs).toEqual(["Overview", "Sources", "Scans"]);
     expect(screen.queryByRole("tab", { name: "Connections" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Findings" })).not.toBeInTheDocument();
   });

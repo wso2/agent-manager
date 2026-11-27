@@ -42,7 +42,7 @@ import { unmanagedAgentsPath } from "./shadowUi";
 
 // The unmanaged agents it finds are listed in the agent registry, not here.
 export type ShadowTab = "overview" | "scans" | "platforms";
-const TABS: ShadowTab[] = ["overview", "scans", "platforms"];
+const TABS: ShadowTab[] = ["overview", "platforms", "scans"];
 
 const PAGE_TITLE = "Shadow Agent Discovery";
 const PAGE_DESCRIPTION =
@@ -94,8 +94,8 @@ function ShadowOverview({
                 sx={{ flex: 1, minWidth: 0 }}
               >
                 <Tab value="overview" label="Overview" />
-                <Tab value="scans" label="Scans" />
                 <Tab value="platforms" label="Sources" />
+                <Tab value="scans" label="Scans" />
               </Tabs>
               {/* The open tab's actions, in line with the tabs (the Scans tab fills it). */}
               <Box ref={setTabActions} sx={{ flexShrink: 0 }} />
