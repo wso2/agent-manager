@@ -132,7 +132,7 @@ If a login is missing or its password differs, `amp-api` keeps running and only 
 - `amp_cleaner`: deleting an agent leaves its spans; `amp-api`'s logs say why.
 - `amp_ingest`: spans are not stored; `docker compose logs otel-collector-external` says why.
 
-Create or fix the login, then run `docker compose up -d --wait` again.
+Create or fix the login, run `docker compose up -d --wait` again, then rerun the install from step 4 if it was refused.
 
 ## Passwords
 
