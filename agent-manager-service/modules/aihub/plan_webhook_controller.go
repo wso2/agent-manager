@@ -45,9 +45,13 @@ import (
 //   - a signature header "t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">", with the
 //     timestamp within the tolerance (replay guard);
 //   - the envelope's secret_hash, the hex SHA3-256 of "<label>:<secret>", names the secret that signed
-//     the delivery; it is only trusted once the signature verifies;
-//   - org.ref_id is the organization's id (the ouId in its tokens), which the portal organization's control
-//     plane reference holds;
+//     the delivery; it is only trusted once the signature verifies. The secret is the module setting
+//     webhook_secret (MODULE_AI_HUB_WEBHOOK_SECRET), shared by every organization, or one of an organization's
+//     webhook secrets (webhook_secret_service.go), one per portal that sends to it;
+//   - org.ref_id names the organization: with the shared secret, its id (the ouId in its tokens); with an
+//     organization's webhook secret, that organization's id or the reference the secret was given (orgRef),
+//     such as the organization handle the portal organization's reference holds for another control plane.
+//     A secret of one organization never signs for another;
 //   - events subscription_plan.created / .updated (both upsert) and subscription_plan.deleted;
 //   - events subscription.created / .updated / .plan_changed / .token_regenerated / .deleted, for
 //     subscriptions to MCP servers (subscription_service.go); subscription.billing_updated is accepted
@@ -55,7 +59,7 @@ import (
 //
 // A delivery the sender got wrong (signature, envelope, organization, event) is answered alike (401), so a
 // caller learns nothing from the response; a failure on this side (the database, publishing the change, a
-// panic) answers 503: the delivery wasn't applied (the developer portal sends each delivery once). The reason is logged. The secret is the module setting webhook_secret (MODULE_AI_HUB_WEBHOOK_SECRET).
+// panic) answers 503: the delivery wasn't applied (the developer portal sends each delivery once). The reason is logged.
 
 // webhookPath is the receiver's route below the module's webhooks (Runtime.HandleWebhook).
 const webhookPath = "/events"
@@ -103,16 +107,17 @@ var (
 	errInvalidEnvelope         = errors.New("invalid webhook envelope")
 	errUnsupportedEvent        = errors.New("unsupported webhook event type")
 	errOrganizationNotFound    = errors.New("organization not found")
-	// errWebhookDisabled refuses every delivery while no webhook_secret is set: a retry can't succeed.
-	errWebhookDisabled = errors.New("the subscription plan webhook is disabled (no webhook_secret is set)")
+	// errWebhookDisabled refuses every delivery while webhook_enabled is false: a retry can't succeed.
+	errWebhookDisabled = errors.New("the subscription plan webhook is disabled (webhook_enabled is false)")
 )
 
 // webhookConfig is the receiver's configuration, from the module's settings.
 type webhookConfig struct {
-	// Enabled registers nothing new: with it off (the default when no secret is set), every delivery
-	// is refused.
+	// Enabled registers nothing new: with it off (webhook_enabled false), every delivery is refused. It is on by
+	// default: a delivery is still refused unless it is signed with a secret held here.
 	Enabled bool
-	// Secret is the secret shared with the sender. It signs each delivery.
+	// Secret is the module's own secret (webhook_secret), shared with senders for every organization. Empty
+	// when only the organizations' webhook secrets are used; an empty secret never verifies a delivery.
 	Secret string
 	// SignatureHeader carries "t=...,v1=...".
 	SignatureHeader string
@@ -121,10 +126,12 @@ type webhookConfig struct {
 	// MaxBodyBytes caps the request body.
 	MaxBodyBytes int64
 	// LegacySharedSecret accepts a delivery with no secret_hash (a sender that predates it), verified
-	// against Secret. Off by default.
+	// against Secret and the webhook secrets of the organization it names. Off by default.
 	LegacySharedSecret bool
 	// SourceName names the developer portal that sends the deliveries: the origin of the plans it creates.
 	SourceName string
+	// SecretMaxVersions is how many versions an organization's webhook secret keeps (webhook_secret_max_versions).
+	SecretMaxVersions int
 }
 
 // webhookConfigFrom reads the module settings (amp.yaml modules[].config, or MODULE_AI_HUB_<KEY>).
@@ -135,14 +142,24 @@ func webhookConfigFrom(get func(key string) string, log *slog.Logger) webhookCon
 		SignatureTolerance: defaultSignatureTolerance,
 		MaxBodyBytes:       defaultMaxBodyBytes,
 		SourceName:         DefaultWebhookSourceName,
+		SecretMaxVersions:  DefaultWebhookSecretMaxVersions,
+		Enabled:            true,
 	}
 	if v := strings.TrimSpace(get("webhook_source_name")); v != "" {
 		cfg.SourceName = v
 	}
-	cfg.Enabled = cfg.Secret != ""
 	if v := strings.TrimSpace(get("webhook_enabled")); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
-			cfg.Enabled = b && cfg.Secret != ""
+			cfg.Enabled = b
+		} else {
+			log.Warn("ignoring an invalid webhook_enabled", "value", v)
+		}
+	}
+	if v := strings.TrimSpace(get("webhook_secret_max_versions")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.SecretMaxVersions = n
+		} else {
+			log.Warn("ignoring an invalid webhook_secret_max_versions", "value", v)
 		}
 	}
 	if v := strings.TrimSpace(get("webhook_signature_header")); v != "" {
@@ -336,9 +353,11 @@ type webhookReceiver struct {
 	plans *planService
 	// subscriptions copies in the subscriptions made at the portal.
 	subscriptions *subscriptionService
-	core          modkit.CoreAPI
-	log           *slog.Logger
-	now           func() time.Time
+	// secrets are the organizations' webhook secrets, besides the shared one in cfg.
+	secrets webhookSecrets
+	core    modkit.CoreAPI
+	log     *slog.Logger
+	now     func() time.Time
 }
 
 // webhookCaller is how the audit record names the sender: no user signs in, the signature authenticates it.
@@ -416,7 +435,8 @@ func (r *webhookReceiver) receive(w http.ResponseWriter, req *http.Request) erro
 		return fmt.Errorf("%w: body too large or unreadable: %w", errInvalidEnvelope, err)
 	}
 	// 1. The signature, over the raw body, with the secret the envelope names.
-	if err := r.authenticate(req.Header.Get(r.cfg.SignatureHeader), body); err != nil {
+	signer, err := r.authenticate(req.Context(), req.Header.Get(r.cfg.SignatureHeader), body)
+	if err != nil {
 		return err
 	}
 	modkit.AuditInternalCaller(req.Context(), webhookCaller("", true))
@@ -428,14 +448,15 @@ func (r *webhookReceiver) receive(w http.ResponseWriter, req *http.Request) erro
 	if err != nil {
 		return err
 	}
-	log := r.log.With("eventId", env.EventID, "eventType", env.EventType, "orgId", env.OrgID)
-	// 3. The organization, by its id.
-	orgID, err := r.orgOf(req.Context(), env.OrgID)
+	log := r.log.With("eventId", env.EventID, "eventType", env.EventType, "orgRef", env.OrgID)
+	// 3. The organization: the one the secret is for, or, with the shared secret, the one the envelope names by id.
+	orgID, err := r.orgOf(req.Context(), env.OrgID, signer)
 	if err != nil {
 		return err
 	}
-	// 4. The event. Handlers are idempotent by the plan's handle, so a repeated delivery is safe.
-	if err := r.dispatch(req.Context(), orgID, env); err != nil {
+	// 4. The event. Handlers are idempotent by the plan's handle, so a repeated delivery is safe. Sealed fields
+	// are opened with the secret that signed the delivery.
+	if err := r.dispatch(req.Context(), orgID, signer.Secret, env); err != nil {
 		return fmt.Errorf("event %s %s: %w", env.EventType, env.EventID, err)
 	}
 	log.Info("webhook event processed", "orgId", orgID)
@@ -443,27 +464,97 @@ func (r *webhookReceiver) receive(w http.ResponseWriter, req *http.Request) erro
 	return nil
 }
 
-// authenticate verifies the signature. A delivery naming a secret_hash is checked against exactly
-// the secret with that hash, and refused when no such secret is held. The envelope is read before
-// anything is verified, so its fields only select the secret and are never trusted.
-func (r *webhookReceiver) authenticate(header string, body []byte) error {
+// authenticate verifies the signature and returns the secret that made it. A delivery naming a secret_hash is
+// checked against exactly the secret with that hash: the shared one, or an organization's webhook secret, and
+// refused when no such secret is held. One with no secret_hash (legacy, when allowed) is checked against the
+// shared secret and the webhook secrets of the organization it names, at most maxLegacyCandidates. The envelope
+// is read before anything is verified, so its fields only select the secret and are never trusted. An empty
+// secret never verifies: anyone can sign with it.
+func (r *webhookReceiver) authenticate(ctx context.Context, header string, body []byte) (webhookSigner, error) {
 	env, err := decodeEnvelope(body)
 	if err != nil {
 		env = &envelope{}
 	}
 	if env.SecretHash != "" {
-		if env.SecretHash != SecretHash(r.cfg.Secret) {
-			return fmt.Errorf("%w: unknown secret_hash", errSignatureInvalid)
+		signer, err := r.signerByHash(ctx, env.SecretHash)
+		if err != nil {
+			return webhookSigner{}, err
 		}
-	} else if !r.cfg.LegacySharedSecret {
-		return fmt.Errorf("%w: the delivery names no secret_hash", errSignatureInvalid)
+		return signer, verifySignature(signer.Secret, header, body, r.cfg.SignatureTolerance, r.now())
 	}
-	return verifySignature(r.cfg.Secret, header, body, r.cfg.SignatureTolerance, r.now())
+	if !r.cfg.LegacySharedSecret {
+		return webhookSigner{}, fmt.Errorf("%w: the delivery names no secret_hash", errSignatureInvalid)
+	}
+	candidates, err := r.legacyCandidates(ctx, strings.TrimSpace(env.OrgID))
+	if err != nil {
+		return webhookSigner{}, err
+	}
+	if len(candidates) == 0 {
+		return webhookSigner{}, fmt.Errorf("%w: no secret for a delivery without secret_hash", errSignatureInvalid)
+	}
+	var lastErr error
+	for _, c := range candidates {
+		if lastErr = verifySignature(c.Secret, header, body, r.cfg.SignatureTolerance, r.now()); lastErr == nil {
+			return c, nil
+		}
+		if !errors.Is(lastErr, errSignatureInvalid) {
+			// A missing header or a stale timestamp fails alike for every secret.
+			return webhookSigner{}, lastErr
+		}
+	}
+	return webhookSigner{}, lastErr
 }
 
-// orgOf checks that the organization a delivery names (org.ref_id, its id) is one the core knows, and returns
-// its id.
-func (r *webhookReceiver) orgOf(ctx context.Context, id string) (string, error) {
+// signerByHash finds the secret a secret_hash names: the shared secret, or an organization's webhook secret.
+func (r *webhookReceiver) signerByHash(ctx context.Context, hash string) (webhookSigner, error) {
+	if r.cfg.Secret != "" && hash == SecretHash(r.cfg.Secret) {
+		return webhookSigner{Secret: r.cfg.Secret}, nil
+	}
+	if r.secrets != nil {
+		signer, found, err := r.secrets.signerByHash(ctx, hash)
+		if err != nil {
+			return webhookSigner{}, err
+		}
+		if found && signer.Secret != "" {
+			return signer, nil
+		}
+	}
+	return webhookSigner{}, fmt.Errorf("%w: unknown secret_hash", errSignatureInvalid)
+}
+
+// legacyCandidates are the secrets a delivery with no secret_hash may have been signed with: the shared secret,
+// then the webhook secrets of the organization it names.
+func (r *webhookReceiver) legacyCandidates(ctx context.Context, ref string) ([]webhookSigner, error) {
+	var candidates []webhookSigner
+	if r.cfg.Secret != "" {
+		candidates = append(candidates, webhookSigner{Secret: r.cfg.Secret})
+	}
+	if r.secrets == nil || ref == "" {
+		return candidates, nil
+	}
+	signers, err := r.secrets.signersForRef(ctx, ref, maxLegacyCandidates-len(candidates))
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range signers {
+		if s.Secret != "" {
+			candidates = append(candidates, s)
+		}
+	}
+	return candidates, nil
+}
+
+// orgOf returns the organization a delivery is for. With an organization's webhook secret, it is that secret's
+// organization, and org.ref_id must name it (its id, or the reference the secret was given); with the shared
+// secret, org.ref_id must be the id of an organization the core knows.
+func (r *webhookReceiver) orgOf(ctx context.Context, ref string, signer webhookSigner) (string, error) {
+	id := ref
+	if signer.OrgID != "" {
+		if ref != signer.OrgID && (signer.OrgRef == "" || ref != signer.OrgRef) {
+			return "", fmt.Errorf("%w: %q is not the organization the secret is for", errOrganizationNotFound, ref)
+		}
+		id = signer.OrgID
+	}
 	if !validID(id) {
 		return "", fmt.Errorf("%w: %q is not an organization id", errOrganizationNotFound, id)
 	}
@@ -477,11 +568,11 @@ func (r *webhookReceiver) orgOf(ctx context.Context, id string) (string, error) 
 	return org.ID, nil
 }
 
-func (r *webhookReceiver) dispatch(ctx context.Context, orgID string, env *envelope) error {
+func (r *webhookReceiver) dispatch(ctx context.Context, orgID, secret string, env *envelope) error {
 	switch env.EventType {
 	case EventSubscriptionCreated, EventSubscriptionUpdated, EventSubscriptionPlanChanged,
 		EventSubscriptionTokenRegenerated, EventSubscriptionDeleted:
-		ch, err := r.subscriptionChange(env)
+		ch, err := r.subscriptionChange(env, secret)
 		if err != nil {
 			return err
 		}
@@ -528,8 +619,9 @@ type subscriptionEventData struct {
 }
 
 // subscriptionChange reads a subscription event: its artifact must be an MCP server (api.type Mcp, api.ref_id
-// its handle here), its plan a plan handle (subscription_plan.ref_id), and a token, when present, sealed.
-func (r *webhookReceiver) subscriptionChange(env *envelope) (subscriptionChange, error) {
+// its handle here), its plan a plan handle (subscription_plan.ref_id), and a token, when present, sealed with
+// secret, the secret that signed the delivery.
+func (r *webhookReceiver) subscriptionChange(env *envelope, secret string) (subscriptionChange, error) {
 	if len(env.Data) == 0 {
 		return subscriptionChange{}, fmt.Errorf("%w: data is required for event %s", errInvalidEnvelope, env.EventType)
 	}
@@ -560,7 +652,7 @@ func (r *webhookReceiver) subscriptionChange(env *envelope) (subscriptionChange,
 		return ch, fmt.Errorf("%w: data.subscription_plan.ref_id is required", errInvalidEnvelope)
 	}
 	if len(d.Token) > 0 && string(d.Token) != "null" {
-		token, err := decryptField(r.cfg.Secret, d.Token)
+		token, err := decryptField(secret, d.Token)
 		if err != nil {
 			return ch, err
 		}

@@ -74,7 +74,16 @@ status:                      # observed by the server, ignored on input
 5. **Subscribe** in the portal. The portal sends `subscription.created` to the ACP with the key sealed; the ACP stores it (the key in the core's secret store) and sends its plan, then the subscription, to the gateways. A subscribed plan is in use. A subscription to a deprecated plan is refused.
 6. **Call** the MCP server with the key in the `Subscription-Key` header.
 
-The developer portal's webhook subscriber for the ACP must take `subscription_plan.*` and `subscription.*` events, at `https://<internal server>/m/ai-hub/webhooks/events`, with the shared secret the `ai-hub` module reads as `MODULE_AI_HUB_WEBHOOK_SECRET`. Each delivery names the organization by its id (`org.ref_id`, the `ouId` in the organization's tokens), so the portal organization's control plane reference must be the ACP organization's id; a delivery naming any other organization is refused (`401`).
+The developer portal's webhook subscriber for the ACP must take `subscription_plan.*` and `subscription.*` events, at `https://<internal server>/m/ai-hub/webhooks/events`, signed with one of these secrets. Each delivery names its secret by `secret_hash`, and the organization by `org.ref_id`; anything else is refused (`401`).
+
+| Secret | Made with | The delivery is for |
+|---|---|---|
+| The organization's **webhook secret** (one per portal, or per portal organization) | `POST /m/ai-hub/webhook-secrets` with `id`, `name` and, when the portal sends something other than the ACP organization's id, `orgRef` (permission `ai-hub:webhook-secret-create`). The value is returned once. | The organization that made the secret. `org.ref_id` must be its id or the secret's `orgRef`, so a portal organization whose control plane reference is set for another control plane (such as that control plane's organization handle) can still send here. A secret never signs for another organization. |
+| The **shared secret** (optional) | The `ai-hub` module setting `webhook_secret` (`MODULE_AI_HUB_WEBHOOK_SECRET`) | Any organization, named by its id (`org.ref_id`, the `ouId` in the organization's tokens). |
+
+So one organization can take deliveries from several portals (a secret each), each organization of one portal can send to its own organization here, and two organizations here can each map the same portal reference with their own secret.
+
+**Rotate** a webhook secret with `POST /m/ai-hub/webhook-secrets/{id}/rotate`: it adds a version and returns its value once. The older versions keep verifying deliveries, so the portal can switch to the new value with no refused delivery; then delete the old version (`DELETE …/{id}/versions/{version}`). A secret keeps at most `webhook_secret_max_versions` versions (3 by default; `409 WEBHOOK_SECRET_VERSION_LIMIT` until one is deleted), and its last version can't be deleted on its own (delete the secret). The values are kept in the core's secret store; the module's tables hold only their hashes and masked forms. Deliveries with no `secret_hash`, from a portal that predates it, are refused unless `webhook_legacy_shared_secret` is `true`; they are then checked against the shared secret and the webhook secrets of the organization they name. Set `webhook_enabled` to `false` to refuse every delivery.
 
 ## What must be in place, and what happens if it isn't
 

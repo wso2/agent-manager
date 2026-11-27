@@ -57,6 +57,7 @@ type plansWorld struct {
 	moduleWorld
 	reader      http.Handler // may read plans only
 	other       http.Handler // another organization, with every plan permission
+	otherOrg    string
 	otherHandle string
 	gateways    *planGateways // what the stand-in gateway module was sent, once installed
 }
@@ -217,10 +218,15 @@ func newPlansWorld(t *testing.T) plansWorld {
 	}
 	org, handle := newOrg()
 	otherOrg, otherHandle := newOrg()
-	full := params(moduleAuth(org, handle, "amp:ai-hub:plan-read", "amp:ai-hub:plan-create", "amp:ai-hub:plan-update", "amp:ai-hub:plan-delete"))
+	fullScopes := []string{
+		"amp:ai-hub:plan-read", "amp:ai-hub:plan-create", "amp:ai-hub:plan-update", "amp:ai-hub:plan-delete",
+		"amp:ai-hub:webhook-secret-read", "amp:ai-hub:webhook-secret-create", "amp:ai-hub:webhook-secret-rotate",
+		"amp:ai-hub:webhook-secret-delete",
+	}
+	full := params(moduleAuth(org, handle, fullScopes...))
 	reader := params(moduleAuth(org, handle, "amp:ai-hub:plan-read"))
 	limited := params(moduleAuth(org, handle))
-	other := params(moduleAuth(otherOrg, otherHandle, "amp:ai-hub:plan-read", "amp:ai-hub:plan-create", "amp:ai-hub:plan-update", "amp:ai-hub:plan-delete"))
+	other := params(moduleAuth(otherOrg, otherHandle, fullScopes...))
 
 	stop, err := app.StartModules(ctx, host, database, full)
 	require.NoError(t, err)
@@ -239,6 +245,7 @@ func newPlansWorld(t *testing.T) plansWorld {
 		},
 		reader:      handler(reader),
 		other:       handler(other),
+		otherOrg:    otherOrg,
 		otherHandle: otherHandle,
 		gateways:    gateways,
 	}
