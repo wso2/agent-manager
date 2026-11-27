@@ -111,7 +111,7 @@ export function uploadErrorMessage(e: unknown): string {
   switch (status) {
     case 409:
       return /newer/i.test(message)
-        ? "A newer scan of this platform has already uploaded its results, so these are out " +
+        ? "A newer scan of this connector has already uploaded its results, so these are out " +
             "of date. Run a new scan."
         : "This scan is no longer waiting for results.";
     case 413:

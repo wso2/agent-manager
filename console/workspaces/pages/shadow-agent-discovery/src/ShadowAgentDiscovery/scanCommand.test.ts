@@ -23,7 +23,7 @@ const github = {
   provider: "github" as const,
   endpoints: [{ key: "api", label: "GitHub API URL", default: "https://api.github.com", placeholders: [] }],
 };
-const off = { aiReview: false, llmJudge: false, directUpload: false };
+const off = { aiReview: false, directUpload: false };
 const direct = { ...off, directUpload: true };
 // The connection's options: the lines after --scan-id, one option per line.
 const lastLine = (cmd: string) => {
@@ -118,13 +118,10 @@ describe("buildScanCommand", () => {
       readCiFiles: true,
     };
     const input = { settings, endpoints: {} };
-    const ai = { ...off, aiReview: true, llmJudge: true };
+    const ai = { ...off, aiReview: true };
+    // The LLM judge (--judge) is not offered.
     expect(lastLine(buildScanCommand(github, input, ai))).toBe(
-      "--github-org acme --all-repos --include-private --read-ci --ai-review --judge",
-    );
-    // The judge needs AI review.
-    expect(lastLine(buildScanCommand(github, input, { ...off, llmJudge: true }))).toBe(
-      "--github-org acme --all-repos --include-private --read-ci",
+      "--github-org acme --all-repos --include-private --read-ci --ai-review",
     );
   });
 

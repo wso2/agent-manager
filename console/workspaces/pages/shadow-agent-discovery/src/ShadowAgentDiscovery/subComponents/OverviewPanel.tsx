@@ -131,7 +131,7 @@ function PlatformBreakdown({
   return (
     <Box>
       <Typography variant="subtitle1" sx={{ mb: 1 }}>
-        Agents by platform
+        Agents by source
       </Typography>
       <Stack spacing={0.5}>
         {rows.map(([p, n]) => (
@@ -198,29 +198,29 @@ export function OverviewPanel({
   const unregistered = Math.max(0, total - onboarded);
   const steps: Step[] = [
     {
-      title: "Add a platform",
-      description: "Connect an AI platform or a source code repository host.",
+      title: "Add a source",
+      description: "Add a connector for an AI platform or a source code repository host.",
       done: connected,
-      // With no platform, the empty state above already has Add platform.
+      // With no connector, the empty state above already has Add source.
       action: canManage && connected ? (
         <Button size="small" variant="outlined" onClick={onConnect}>
-          Add platform
+          Add source
         </Button>
       ) : undefined,
     },
     {
-      title: "Test the connection",
+      title: "Test the connector",
       description: "Check that Agent Manager can read the agent listings.",
       done: false,
       action: connected ? (
         <Button size="small" variant="text" onClick={onOpenPlatforms}>
-          Open platforms
+          Open sources
         </Button>
       ) : undefined,
     },
     {
       title: "Run a scan",
-      description: "Scan all platforms or the ones you choose.",
+      description: "Scan all connectors or the ones you choose.",
       done: scanned,
       action: canManage && connected ? <RunScanButton orgName={orgName} /> : undefined,
     },
@@ -251,12 +251,12 @@ export function OverviewPanel({
       <Stack spacing={3}>
         <StateNotice
           icon={PlugZap}
-          title="Add a platform to start"
+          title="Add a source to start"
           description="Shadow Agent Discovery finds agents that run outside Agent Manager."
           actions={
             canManage ? (
               <Button variant="contained" onClick={onConnect}>
-                Add platform
+                Add source
               </Button>
             ) : undefined
           }
@@ -286,7 +286,7 @@ export function OverviewPanel({
           >
             <Stat label="Unregistered agents" value={formatCount(unregistered)} />
             <Stat label="Onboarded" value={formatCount(onboarded)} />
-            <Stat label="Platforms connected" value={formatCount(s?.connections)} />
+            <Stat label="Connectors" value={formatCount(s?.connections)} />
           </Stack>
         </CardContent>
         <Divider />
@@ -301,7 +301,7 @@ export function OverviewPanel({
                 <ScanStatusChip status={latest.status} />
                 <Typography variant="body2" color="text.secondary">
                   Latest scan {formatRelativeTime(latest.startedAt ?? latest.createdAt)} ·{" "}
-                  {platformCount} {platformCount === 1 ? "platform" : "platforms"}
+                  {platformCount} {platformCount === 1 ? "connector" : "connectors"}
                 </Typography>
               </Stack>
               <Stack direction="row" spacing={1}>

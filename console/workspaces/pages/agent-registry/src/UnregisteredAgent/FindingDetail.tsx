@@ -139,7 +139,7 @@ const ID_ATTRIBUTES = [
 const NOT_IN_DETAILS = ["description", "reviewedBy"];
 
 export const AI_REVIEW_WARNING = "AI review can make mistakes, so check the evidence.";
-const MERGED_HINT = "Results from these connections were merged into one agent.";
+const MERGED_HINT = "Results from these connectors were merged into one agent.";
 
 function isEmptyValue(v: unknown): boolean {
   if (v === null || v === undefined || v === "") return true;
@@ -839,7 +839,7 @@ function Sidebar({ f, orgName }: { f: ShadowFindingDetail; orgName: string }) {
       }}
     >
       <SectionCard
-        title={`Found by ${n} ${n === 1 ? "connection" : "connections"}`}
+        title={`Found by ${n} ${n === 1 ? "connector" : "connectors"}`}
         hint={n > 1 ? MERGED_HINT : undefined}
       >
         <Stack spacing={2.5} divider={<Divider flexItem />}>
@@ -885,7 +885,7 @@ export function FindingDetail({
           icon={SearchX}
           tone="error"
           title="Couldn't load this agent"
-          description="It may have been deleted with its platform. Go back to Unregistered Agents."
+          description="It may have been deleted with its connector. Go back to Unregistered Agents."
         />
       </PageLayout>
     );

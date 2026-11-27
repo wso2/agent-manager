@@ -29,7 +29,6 @@ export interface ScanCommandInput {
 
 export interface ScanCommandOptions {
   aiReview: boolean;
-  llmJudge: boolean;
   /**
    * The command uploads its results with a scan token. Off, it has no Agent
    * Manager address or token and only saves the results file.
@@ -94,10 +93,8 @@ export function buildScanCommand(
   if (s.privateRepositories === true) lines.push("--include-private");
   if (s.readCiFiles === true) lines.push("--read-ci");
   if (url) lines.push(`--github-api-url ${shellQuote(url)}`);
-  if (options.aiReview) {
-    lines.push("--ai-review");
-    if (options.llmJudge) lines.push("--judge");
-  }
+  // The LLM judge (--judge) is not offered until the command runs it.
+  if (options.aiReview) lines.push("--ai-review");
   const upload = options.directUpload
     ? [
         `-e AMP_URL=${issued ? shellQuote(issued.ampUrl) : "<amp-url>"}`,

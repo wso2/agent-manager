@@ -321,7 +321,7 @@ describe("FindingDetail", () => {
     fireEvent.click(screen.getByRole("button", { name: "Technical IDs" }));
     expect(screen.getByText("Platform ID")).toBeInTheDocument();
     expect(screen.getByText("agent_abc")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Found by 1 connection")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 1 connector")).toBeInTheDocument();
     expect(within(sidebar()).getByText("OpenAI prod")).toBeInTheDocument();
     expect(within(sidebar()).getByText("Listed")).toBeInTheDocument();
     expect(screen.queryByLabelText(/merged into one agent/)).not.toBeInTheDocument();
@@ -505,7 +505,7 @@ describe("FindingDetail", () => {
       "The latest scans no longer find this agent.",
     );
     expect(screen.getByText("No longer found")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Found by 2 connections")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 2 connectors")).toBeInTheDocument();
     expect(within(sidebar()).getAllByText("Not in latest scan")).toHaveLength(2);
   });
 
@@ -516,7 +516,7 @@ describe("FindingDetail", () => {
       "The latest scans no longer find this agent.",
     );
     expect(screen.getByText("No longer found")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Found by 1 connection")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 1 connector")).toBeInTheDocument();
     expect(within(sidebar()).getByText("Not in latest scan")).toBeInTheDocument();
   });
 
@@ -534,7 +534,7 @@ describe("FindingDetail", () => {
     expect(within(sidebar()).getByText("Not in latest scan")).toBeInTheDocument();
     expect(within(sidebar()).getByText("Found")).toBeInTheDocument();
     expect(
-      within(sidebar()).getByText("Results from these connections were merged into one agent."),
+      within(sidebar()).getByText("Results from these connectors were merged into one agent."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/It is shown once/)).not.toBeInTheDocument();
   });
@@ -575,7 +575,7 @@ describe("FindingDetail", () => {
     renderDetail();
     expect(within(sidebar()).getByText("OpenAI audit")).toBeInTheDocument();
     expect(within(sidebar()).getByText("Not in latest scan")).toBeInTheDocument();
-    expect(within(sidebar()).getByText("Found by 2 connections")).toBeInTheDocument();
+    expect(within(sidebar()).getByText("Found by 2 connectors")).toBeInTheDocument();
     expect(within(summary()).getByText("Created by")).toBeInTheDocument();
     expect(within(summary()).getByText("alice@acme.com")).toBeInTheDocument();
     expect(within(summary()).getByText("From GET /v1/agents")).toBeInTheDocument();
@@ -747,7 +747,7 @@ describe("Onboarding a code agent", () => {
     openMenu();
     expect(deployItem()).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByLabelText("Could not load the platform's details. Try again later."),
+      screen.getByLabelText("Could not load the connector's details. Try again later."),
     ).toBeInTheDocument();
   });
 

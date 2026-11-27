@@ -229,7 +229,7 @@ export function ScanDetailsDrawer({
               <ScanStatusChip status={scan.status} />
               <Typography variant="body2" color="text.secondary">
                 {scan.connectionIds.length}{" "}
-                {scan.connectionIds.length === 1 ? "platform" : "platforms"} scanned
+                {scan.connectionIds.length === 1 ? "connector" : "connectors"} scanned
               </Typography>
             </Stack>
             {scan.status === "pending" && (onUpload || onCancel) && (
@@ -254,7 +254,7 @@ export function ScanDetailsDrawer({
               <Typography variant="body2" color="text.secondary">
                 {scan.status === "pending"
                   ? "The scan is waiting for the results of its scan command."
-                  : "The scan has not finished any connection yet."}
+                  : "The scan has not finished any connector yet."}
               </Typography>
             )}
             {scan.results.map((r) => (
@@ -315,12 +315,12 @@ export function ScanDetailsDrawer({
   );
 }
 
-/** The platforms a scan covered: their names once it ran, else how many. */
+/** The connectors a scan covered: their names once it ran, else how many. */
 function scannedLabel(s: ShadowScanResponse): string {
   const names = s.results.map((r) => r.connectionName).filter(Boolean);
   if (names.length > 0) return names.join(", ");
   const n = s.connectionIds.length;
-  return `${n} ${n === 1 ? "platform" : "platforms"}`;
+  return `${n} ${n === 1 ? "connector" : "connectors"}`;
 }
 
 /**
@@ -431,7 +431,7 @@ export function ScansTab({
         emptyState={{
           illustration: <History size={64} />,
           title: "No scans yet",
-          description: "Run a scan from the top of this page once a platform is added.",
+          description: "Run a scan from the top of this page once a source is added.",
         }}
       >
         <ListingTable>
@@ -439,7 +439,7 @@ export function ScansTab({
             <ListingTable.Row>
               <ListingTable.Cell>Started</ListingTable.Cell>
               <ListingTable.Cell>Status</ListingTable.Cell>
-              <ListingTable.Cell>Platforms scanned</ListingTable.Cell>
+              <ListingTable.Cell>Connectors scanned</ListingTable.Cell>
               <ListingTable.Cell>Agents found</ListingTable.Cell>
               <ListingTable.Cell align="right" />
             </ListingTable.Row>

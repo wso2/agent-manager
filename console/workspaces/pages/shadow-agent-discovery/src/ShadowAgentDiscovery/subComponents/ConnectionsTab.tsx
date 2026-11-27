@@ -145,7 +145,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
 
   const addButton = canManage ? (
     <Button variant="outlined" startIcon={<Plus size={16} />} onClick={onAdd}>
-      Add platform
+      Add source
     </Button>
   ) : undefined;
 
@@ -160,7 +160,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
       title: `Delete ${c.name}?`,
       description: SOURCE_HOSTS.includes(c.provider)
         ? "Every agent found in these repositories is deleted from Agent Manager. The repositories are not changed."
-        : "The stored credential and every agent this platform found are deleted from Agent Manager. The platform account is not changed.",
+        : "The stored credential and every agent this connector found are deleted from Agent Manager. The platform account is not changed.",
       confirmButtonText: "Delete",
       confirmButtonColor: "error",
       onConfirm: () => remove.mutate(c.id),
@@ -170,13 +170,13 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
     test.mutate(c.id, { onSuccess: (result) => setTestResult({ name: c.name, result }) });
 
   // The table of platforms a scan calls (AI platforms and Bring your own inventory):
-  // Scan, Test connection, Edit and Delete on each row.
+  // Scan, Test connector, Edit and Delete on each row.
   const cloudTable = (list: ShadowConnectionResponse[]) => (
       <ListingTable>
         <ListingTable.Head>
           <ListingTable.Row>
             <ListingTable.Cell>Name</ListingTable.Cell>
-            <ListingTable.Cell>Platform</ListingTable.Cell>
+            <ListingTable.Cell>Source</ListingTable.Cell>
             <ListingTable.Cell>Last test</ListingTable.Cell>
             <ListingTable.Cell>Created</ListingTable.Cell>
             <ListingTable.Cell align="right" />
@@ -239,7 +239,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                 {canManage && (
                   <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                     <Tooltip
-                      title={scanActive ? "A scan is running" : "Scan this platform"}
+                      title={scanActive ? "A scan is running" : "Scan this connector"}
                     >
                       <span>
                         <IconButton
@@ -252,7 +252,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <Tooltip title="Test connection">
+                    <Tooltip title="Test connector">
                       <span>
                         <IconButton
                           size="small"
@@ -295,7 +295,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
     <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
       <Box sx={{ width: { xs: "100%", sm: 400 } }}>
         <SearchBar
-          placeholder="Search platforms"
+          placeholder="Search connectors"
           size="small"
           fullWidth
           value={search}
@@ -317,7 +317,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
         toolbar={toolbar}
         error={
           error
-            ? new Error("Couldn't load the platforms. Reload the page to try again.")
+            ? new Error("Couldn't load the connectors. Reload the page to try again.")
             : undefined
         }
         isLoading={isLoading}
@@ -325,15 +325,15 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
         isSearchEmpty={!isLoading && connections.length > 0 && filtered.length === 0}
         emptyState={{
           illustration: <PlugZap size={64} />,
-          title: "No platforms added",
+          title: "No sources added",
           description:
             "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, your own agent inventory with Bring your own inventory, or a GitHub organization to scan its source code.",
           action: addButton,
         }}
         searchEmptyState={{
           illustration: <PlugZap size={64} />,
-          title: "No platforms match your search",
-          description: "Try another name or platform.",
+          title: "No connectors match your search",
+          description: "Try another name or source.",
         }}
       >
         <Stack spacing={4}>
@@ -356,7 +356,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                 <ListingTable.Head>
                   <ListingTable.Row>
                     <ListingTable.Cell>Name</ListingTable.Cell>
-                    <ListingTable.Cell>Host</ListingTable.Cell>
+                    <ListingTable.Cell>Source</ListingTable.Cell>
                     <ListingTable.Cell>What it scans</ListingTable.Cell>
                     <ListingTable.Cell>Created</ListingTable.Cell>
                     <ListingTable.Cell align="right" />

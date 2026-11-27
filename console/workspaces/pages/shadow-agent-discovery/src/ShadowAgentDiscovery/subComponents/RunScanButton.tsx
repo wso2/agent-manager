@@ -83,7 +83,7 @@ export function RunScanButton({ orgName }: { orgName: string | undefined }) {
         <DialogContent>
           <Stack spacing={1.5} sx={{ pt: 1 }}>
             <Typography variant="body2" color="text.secondary">
-              Lists the agents of each platform with read-only calls, in the background.
+              Lists the agents of each connector with read-only calls, in the background.
             </Typography>
             <RadioGroup
               value={scope}
@@ -92,9 +92,9 @@ export function RunScanButton({ orgName }: { orgName: string | undefined }) {
               <FormControlLabel
                 value="all"
                 control={<Radio />}
-                label={`All platforms (${all.length})`}
+                label={`All connectors (${all.length})`}
               />
-              <FormControlLabel value="selected" control={<Radio />} label="Choose platforms" />
+              <FormControlLabel value="selected" control={<Radio />} label="Choose connectors" />
             </RadioGroup>
             {scope === "selected" && (
               <Stack sx={{ pl: 4 }}>

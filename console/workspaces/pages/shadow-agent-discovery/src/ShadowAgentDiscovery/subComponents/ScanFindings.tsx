@@ -101,7 +101,7 @@ export function ScanFindings({
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
           <ScanStatusChip status={s.status} />
           <Typography variant="body2" color="text.secondary">
-            {s.connectionIds.length} {s.connectionIds.length === 1 ? "platform" : "platforms"}{" "}
+            {s.connectionIds.length} {s.connectionIds.length === 1 ? "connector" : "connectors"}{" "}
             scanned
           </Typography>
         </Stack>

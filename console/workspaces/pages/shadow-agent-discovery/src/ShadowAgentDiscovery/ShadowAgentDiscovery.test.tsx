@@ -306,7 +306,7 @@ describe("ShadowAgentDiscovery page", () => {
     page();
     expect(screen.getByRole("heading", { name: "Shadow Agent Discovery" })).toBeInTheDocument();
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-    expect(tabs).toEqual(["Overview", "Scans", "Platforms"]);
+    expect(tabs).toEqual(["Overview", "Scans", "Sources"]);
     expect(screen.queryByRole("tab", { name: "Connections" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Findings" })).not.toBeInTheDocument();
   });
@@ -318,7 +318,7 @@ describe("ShadowAgentDiscovery page", () => {
 
   it("switches tabs through the URL", () => {
     page();
-    fireEvent.click(screen.getByRole("tab", { name: "Platforms" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Sources" }));
     expect(screen.getByTestId("location")).toHaveTextContent("?tab=platforms");
     fireEvent.click(screen.getByRole("tab", { name: "Scans" }));
     expect(screen.getByTestId("location")).toHaveTextContent("?tab=scans");
@@ -338,16 +338,16 @@ describe("OverviewPanel", () => {
   it("asks to add a platform first, with the steps to follow", () => {
     hoisted.summary = { totalFindings: 0, byProvider: {}, onboarded: 0, connections: 0 };
     router(<OverviewPanel {...props} />);
-    expect(screen.getByText("Add a platform to start")).toBeInTheDocument();
+    expect(screen.getByText("Add a source to start")).toBeInTheDocument();
     for (const step of [
-      "Add a platform",
-      "Test the connection",
+      "Add a source",
+      "Test the connector",
       "Run a scan",
       "Onboard the unregistered agents",
     ]) {
       expect(screen.getAllByText(step).length).toBeGreaterThan(0);
     }
-    fireEvent.click(screen.getByRole("button", { name: "Add platform" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
     expect(props.onConnect).toHaveBeenCalled();
   });
 
@@ -356,7 +356,7 @@ describe("OverviewPanel", () => {
     router(<OverviewPanel {...props} />);
     expect(screen.getByText("No scan yet.")).toBeInTheDocument();
     expect(screen.getByText("Get started")).toBeInTheDocument();
-    expect(screen.queryByText("Agents by platform")).not.toBeInTheDocument();
+    expect(screen.queryByText("Agents by source")).not.toBeInTheDocument();
   });
 
   it("shows the agents found, by platform, and the latest scan, without scores", () => {
@@ -370,10 +370,10 @@ describe("OverviewPanel", () => {
     router(<OverviewPanel {...props} />);
     expect(screen.getByText("Unregistered agents")).toBeInTheDocument();
     expect(screen.getByText("Onboarded")).toBeInTheDocument();
-    expect(screen.getByText("Platforms connected")).toBeInTheDocument();
+    expect(screen.getByText("Connectors")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
-    expect(screen.getByText(/Latest scan .* 2 platforms/)).toBeInTheDocument();
+    expect(screen.getByText(/Latest scan .* 2 connectors/)).toBeInTheDocument();
     expect(screen.queryByText(/score/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/verdict/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Get started")).not.toBeInTheDocument();
@@ -415,7 +415,7 @@ describe("FindingsTab", () => {
     ];
     router(<FindingsTab orgName="acme" />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Agent", "Platform", "Source", "Last seen", "Onboarding status"]);
+    expect(headers).toEqual(["Agent", "Source", "Connector", "Last seen", "Onboarding status"]);
     expect(lastQuery()).toMatchObject({ onboarded: "false" });
     expect(screen.getByText("Support Bot")).toBeInTheDocument();
     // The second line is the type only; the scope, state and IDs are on the agent's page.
@@ -483,13 +483,13 @@ describe("FindingsTab", () => {
     router(<FindingsTab orgName="acme" canManage />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
     // The delete column has no title; each row keeps its delete button.
-    expect(headers).toEqual(["Agent", "Platform", "Source", "Last seen", "Onboarding status", ""]);
+    expect(headers).toEqual(["Agent", "Source", "Connector", "Last seen", "Onboarding status", ""]);
     fireEvent.click(screen.getByRole("button", { name: "Delete Support Bot" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/");
     expect(screen.getByTestId("location")).not.toHaveTextContent("/agents/");
     const opts = hoisted.addConfirmation.mock.calls[0][0];
     expect(opts.title).toBe("Delete Support Bot?");
-    expect(opts.description).toContain("for every platform that found it");
+    expect(opts.description).toContain("for every connector that found it");
     expect(opts.description).toContain("a later scan lists the agent again");
     expect(hoisted.deleteAgent).not.toHaveBeenCalled();
     opts.onConfirm();
@@ -502,9 +502,9 @@ describe("FindingsTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete all" }));
     const opts = hoisted.addConfirmation.mock.calls[0][0];
     expect(opts.title).toBe("Delete all unregistered agents?");
-    expect(opts.description).toContain("on every platform, whatever the filters show");
+    expect(opts.description).toContain("for every connector, whatever the filters show");
     expect(opts.description).toContain("including the agents their platforms no longer list");
-    expect(opts.description).toContain("Platforms and scan history are kept");
+    expect(opts.description).toContain("Connectors and scan history are kept");
     expect(opts.confirmButtonText).toBe("Delete all");
     expect(hoisted.deleteAll).not.toHaveBeenCalled();
     opts.onConfirm();
@@ -531,8 +531,8 @@ describe("FindingsTab", () => {
   it("filters by the agent platforms, the source hosts and onboarding", () => {
     hoisted.findings = [finding()];
     router(<FindingsTab orgName="acme" />);
-    expect(openSelect("Platform")).toEqual([
-      "All platforms",
+    expect(openSelect("Source")).toEqual([
+      "All sources",
       "OpenAI",
       "Anthropic",
       "Amazon Bedrock",
@@ -575,7 +575,7 @@ describe("RunScanButton", () => {
   it("scans every platform", () => {
     router(<RunScanButton orgName="acme" />);
     fireEvent.click(screen.getByRole("button", { name: "Run scan" }));
-    expect(screen.getByLabelText("All platforms (2)")).toBeChecked();
+    expect(screen.getByLabelText("All connectors (2)")).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "Start scan" }));
     expect(hoisted.start).toHaveBeenCalledWith({}, expect.anything());
   });
@@ -583,7 +583,7 @@ describe("RunScanButton", () => {
   it("scans only the platforms chosen", () => {
     router(<RunScanButton orgName="acme" />);
     fireEvent.click(screen.getByRole("button", { name: "Run scan" }));
-    fireEvent.click(screen.getByLabelText("Choose platforms"));
+    fireEvent.click(screen.getByLabelText("Choose connectors"));
     expect(screen.getByRole("button", { name: "Start scan" })).toBeDisabled();
     fireEvent.click(screen.getByLabelText("AWS prod · Amazon Bedrock"));
     fireEvent.click(screen.getByRole("button", { name: "Start scan" }));
@@ -628,20 +628,20 @@ describe("ConnectionsTab (Platforms)", () => {
       }),
     ];
     renderTab();
-    expect(screen.getByRole("button", { name: "Add platform" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add source" })).toBeInTheDocument();
     expect(screen.getByText("AI platforms")).toBeInTheDocument();
     expect(screen.getByText("Source code repositories")).toBeInTheDocument();
     const [ai, source] = screen.getAllByRole("table");
     expect(within(ai).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
       "Name",
-      "Platform",
+      "Source",
       "Last test",
       "Created",
       "",
     ]);
     expect(within(source).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
       "Name",
-      "Host",
+      "Source",
       "What it scans",
       "Created",
       "",
@@ -713,7 +713,7 @@ describe("ConnectionsTab (Platforms)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete OpenAI prod" }));
     expect(hoisted.addConfirmation).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        description: expect.stringContaining("every agent this platform found"),
+        description: expect.stringContaining("every agent this connector found"),
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Delete Repos" }));
@@ -747,7 +747,7 @@ describe("ScansTab", () => {
     hoisted.scans = [scan()];
     router(<ScansTab orgName="acme" canManage />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Started", "Status", "Platforms scanned", "Agents found", ""]);
+    expect(headers).toEqual(["Started", "Status", "Connectors scanned", "Agents found", ""]);
     expect(screen.queryByText(/History read|days of history/)).not.toBeInTheDocument();
     expect(screen.getAllByText("OpenAI prod").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /View agents of the scan/ }));
@@ -1065,42 +1065,17 @@ describe("GenerateCommandDialog", () => {
   });
   const spec = sourceHostSpec();
 
-  it("shows the LLM judge only with AI-enhanced detection, with no AI warning", () => {
+  it("offers AI-enhanced detection with no LLM judge and no AI warning", () => {
     render(
       <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
     );
-    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
-    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
-    fireEvent.click(ai);
-    const judge = screen.getByRole("switch", { name: /^LLM judge/ });
-    expect(judge).toBeEnabled();
-    expect(
-      screen.getByText("A second model must agree before an agent is published."),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch", { name: /^AI-enhanced detection/ }));
+    expect(screen.queryByRole("switch", { name: /LLM judge/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/second model/)).not.toBeInTheDocument();
     expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
-    fireEvent.click(judge);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: true, llmJudge: true, directUpload: false },
-      expect.anything(),
-    );
-  });
-
-  it("turns the LLM judge off when AI-enhanced detection is turned off", () => {
-    render(
-      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
-    );
-    const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
-    fireEvent.click(ai);
-    fireEvent.click(screen.getByRole("switch", { name: /^LLM judge/ }));
-    fireEvent.click(ai);
-    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
-    fireEvent.click(ai);
-    expect(screen.getByRole("switch", { name: /^LLM judge/ })).not.toBeChecked();
-    fireEvent.click(ai);
-    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
-    expect(hoisted.generate).toHaveBeenLastCalledWith(
-      { connectionId: "c2", aiReview: false, llmJudge: false, directUpload: false },
+      { connectionId: "c2", aiReview: true, llmJudge: false, directUpload: false },
       expect.anything(),
     );
   });
@@ -1294,23 +1269,18 @@ describe("ConnectionEditor (source code repositories)", () => {
     fireEvent.keyDown(card, { key: " " });
     fireEvent.keyUp(card, { key: " " });
     expect(screen.queryByRole("button", { name: "Connect OpenAI" })).not.toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: /Name/ })).toHaveValue("OpenAI connection");
+    expect(screen.getByRole("textbox", { name: /Name/ })).toHaveValue("OpenAI connector");
   });
 
-  it("hides the LLM judge until AI-enhanced detection is on, and resets it", () => {
+  it("adds --ai-review with AI-enhanced detection, and never offers the LLM judge", () => {
     openNew();
-    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
     const ai = screen.getByRole("switch", { name: /^AI-enhanced detection/ });
     fireEvent.click(ai);
-    fireEvent.click(screen.getByRole("switch", { name: /^LLM judge/ }));
     expect(commandText()).toContain("--ai-review");
-    expect(commandText()).toContain("--judge");
-    fireEvent.click(ai);
-    expect(screen.queryByRole("switch", { name: /^LLM judge/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: /LLM judge/ })).not.toBeInTheDocument();
     expect(commandText()).not.toContain("--judge");
     fireEvent.click(ai);
-    expect(screen.getByRole("switch", { name: /^LLM judge/ })).not.toBeChecked();
-    expect(commandText()).not.toContain("--judge");
+    expect(commandText()).not.toContain("--ai-review");
   });
 
   it("shows the scan command next to the form, following the organization field", () => {
@@ -1341,7 +1311,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
     fireEvent.click(screen.getByRole("switch", { name: /^AI-enhanced detection/ }));
     fireEvent.click(screen.getByRole("switch", { name: /^Upload results directly/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add source and get command" }));
     expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
     expect(hoisted.createConnection.mock.lastCall?.[0]).toMatchObject({
       provider: "github",
@@ -1366,7 +1336,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     expect(screen.getByText(/Shown once: copy it now/)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /Organization or user account/ })).toBeDisabled();
     expect(
-      screen.queryByRole("button", { name: "Add platform and get command" }),
+      screen.queryByRole("button", { name: "Add source and get command" }),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/list?tab=platforms");
@@ -1378,7 +1348,7 @@ describe("ConnectionEditor (source code repositories)", () => {
       target: { value: "acme" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add source and get command" }));
     const created = hoisted.createConnection.mock.lastCall?.[1] as {
       onSuccess: (c: { id: string; name: string }) => void;
     };
@@ -1405,7 +1375,7 @@ describe("ConnectionEditor (source code repositories)", () => {
     fireEvent.keyDown(repos, { key: "Enter" });
     // Removable while the form is open.
     expect(screen.getByRole("button", { name: "payments" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add source and get command" }));
     const created = hoisted.createConnection.mock.lastCall?.[1] as {
       onSuccess: (c: { id: string; name: string }) => void;
     };

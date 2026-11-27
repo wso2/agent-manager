@@ -39,7 +39,7 @@ import { IssuedNotice, ScanOptions } from "./ScanCommandPanel";
 
 /**
  * Generate command for a source code repository connection: choose
- * AI-enhanced detection (and the LLM judge) and direct upload, then copy the
+ * AI-enhanced detection and direct upload, then copy the
  * docker command that scans the repositories on the customer's machine. The
  * command is composed from the connection's saved settings and the issued
  * scan; with direct upload it holds a scan token, so it lives only in this
@@ -60,7 +60,6 @@ export function GenerateCommandDialog({
 }) {
   const { mutate, reset, isPending } = useCreateShadowRunnerScan(orgName);
   const [aiReview, setAiReview] = useState(false);
-  const [llmJudge, setLlmJudge] = useState(false);
   const [directUpload, setDirectUpload] = useState(false);
   const [result, setResult] = useState<ShadowRunnerScanResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +71,6 @@ export function GenerateCommandDialog({
     if (!targetId) return;
     reset();
     setAiReview(false);
-    setLlmJudge(false);
     setDirectUpload(false);
     setResult(null);
     setError(null);
@@ -82,7 +80,7 @@ export function GenerateCommandDialog({
     if (!target) return;
     setError(null);
     mutate(
-      { connectionId: target.id, aiReview, llmJudge: aiReview && llmJudge, directUpload },
+      { connectionId: target.id, aiReview, llmJudge: false, directUpload },
       {
         onSuccess: (r) => {
           setResult(r);
@@ -121,7 +119,7 @@ export function GenerateCommandDialog({
               code={buildScanCommand(
                 spec ?? { provider: target.provider, endpoints: [] },
                 target,
-                { aiReview, llmJudge: aiReview && llmJudge, directUpload },
+                { aiReview, directUpload },
                 result,
               )}
               language="bash"
@@ -142,11 +140,9 @@ export function GenerateCommandDialog({
             </Typography>
             <ScanOptions
               aiReview={aiReview}
-              llmJudge={llmJudge}
               directUpload={directUpload}
               onChange={(next) => {
                 setAiReview(next.aiReview);
-                setLlmJudge(next.llmJudge);
                 setDirectUpload(next.directUpload);
               }}
             />

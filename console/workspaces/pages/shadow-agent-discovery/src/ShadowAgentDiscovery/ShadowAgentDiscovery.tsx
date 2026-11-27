@@ -95,7 +95,7 @@ function ShadowOverview({
               >
                 <Tab value="overview" label="Overview" />
                 <Tab value="scans" label="Scans" />
-                <Tab value="platforms" label="Platforms" />
+                <Tab value="platforms" label="Sources" />
               </Tabs>
               {/* The open tab's actions, in line with the tabs (the Scans tab fills it). */}
               <Box ref={setTabActions} sx={{ flexShrink: 0 }} />
