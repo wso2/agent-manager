@@ -134,8 +134,10 @@ type webhookConfig struct {
 	SecretMaxVersions int
 }
 
-// webhookConfigFrom reads the module settings (amp.yaml modules[].config, or MODULE_AI_HUB_<KEY>).
-func webhookConfigFrom(get func(key string) string, log *slog.Logger) webhookConfig {
+// webhookConfigFrom reads the module settings (amp.yaml modules[].config, or MODULE_AI_HUB_<KEY>). A setting that
+// isn't set keeps its default; one that is set but invalid is an error, so the module doesn't activate with a
+// configuration the operator didn't ask for (a misspelt webhook_enabled, say, leaving the receiver on).
+func webhookConfigFrom(get func(key string) string) (webhookConfig, error) {
 	cfg := webhookConfig{
 		Secret:             strings.TrimSpace(get("webhook_secret")),
 		SignatureHeader:    DefaultWebhookSignatureHeader,
@@ -145,42 +147,58 @@ func webhookConfigFrom(get func(key string) string, log *slog.Logger) webhookCon
 		SecretMaxVersions:  DefaultWebhookSecretMaxVersions,
 		Enabled:            true,
 	}
+	var errs []error
+	invalid := func(key, value, want string) {
+		errs = append(errs, fmt.Errorf("%s: %q is not %s", key, value, want))
+	}
 	if v := strings.TrimSpace(get("webhook_source_name")); v != "" {
 		cfg.SourceName = v
-	}
-	if v := strings.TrimSpace(get("webhook_enabled")); v != "" {
-		if b, err := strconv.ParseBool(v); err == nil {
-			cfg.Enabled = b
-		} else {
-			log.Warn("ignoring an invalid webhook_enabled", "value", v)
-		}
-	}
-	if v := strings.TrimSpace(get("webhook_secret_max_versions")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			cfg.SecretMaxVersions = n
-		} else {
-			log.Warn("ignoring an invalid webhook_secret_max_versions", "value", v)
-		}
 	}
 	if v := strings.TrimSpace(get("webhook_signature_header")); v != "" {
 		cfg.SignatureHeader = v
 	}
-	if v := strings.TrimSpace(get("webhook_signature_tolerance")); v != "" {
-		if d, err := time.ParseDuration(v); err == nil && d > 0 {
-			cfg.SignatureTolerance = d
+	if v := strings.TrimSpace(get("webhook_enabled")); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			invalid("webhook_enabled", v, "true or false")
+		}
+		cfg.Enabled = b
+	}
+	if v := strings.TrimSpace(get("webhook_legacy_shared_secret")); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			invalid("webhook_legacy_shared_secret", v, "true or false")
+		}
+		cfg.LegacySharedSecret = b
+	}
+	if v := strings.TrimSpace(get("webhook_secret_max_versions")); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			invalid("webhook_secret_max_versions", v, "a whole number of at least 1")
 		} else {
-			log.Warn("ignoring an invalid webhook_signature_tolerance", "value", v)
+			cfg.SecretMaxVersions = n
+		}
+	}
+	if v := strings.TrimSpace(get("webhook_signature_tolerance")); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d <= 0 {
+			invalid("webhook_signature_tolerance", v, "a positive duration, such as 5m")
+		} else {
+			cfg.SignatureTolerance = d
 		}
 	}
 	if v := strings.TrimSpace(get("webhook_max_body_size")); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n < 1 {
+			invalid("webhook_max_body_size", v, "a positive number of bytes")
+		} else {
 			cfg.MaxBodyBytes = n
 		}
 	}
-	if v := strings.TrimSpace(get("webhook_legacy_shared_secret")); v != "" {
-		cfg.LegacySharedSecret, _ = strconv.ParseBool(v)
+	if err := errors.Join(errs...); err != nil {
+		return webhookConfig{}, fmt.Errorf("invalid %s module settings: %w", Name, err)
 	}
-	return cfg
+	return cfg, nil
 }
 
 // SecretHash returns the identifier a sender puts in the envelope's secret_hash: the lowercase

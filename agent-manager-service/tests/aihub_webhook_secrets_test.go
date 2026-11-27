@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -278,6 +279,16 @@ func TestWebhookSecretsLegacyAndBadRequests(t *testing.T) {
 		assert.Equal(t, http.StatusOK, code, string(plan))
 		code, _ = w.call(t, w.other, http.MethodGet, plansPath+"/legacy-by-ref-"+suffix, nil)
 		assert.Equal(t, http.StatusNotFound, code, "not the other organization")
+
+		// Another organization maps more secrets to this organization's id than a legacy delivery is tried
+		// against, all newer than this organization's own: its own secret is still tried first.
+		for i := 0; i < 33; i++ {
+			code, body := w.call(t, w.other, http.MethodPost, webhookSecretsPath,
+				map[string]any{"id": fmt.Sprintf("crowd-%d-%s", i, suffix), "orgRef": w.org})
+			require.Equal(t, http.StatusCreated, code, string(body))
+		}
+		code, body = send(t, w.internal, legacyDelivery(t, plain.Secret, w.org, "legacy-own-"+suffix))
+		require.Equal(t, http.StatusOK, code, "the organization's own secret isn't crowded out: "+body)
 
 		for name, req := range map[string]*http.Request{
 			"another organization's id": legacyDelivery(t, plain.Secret, w.otherOrg, "legacy-x-"+suffix),

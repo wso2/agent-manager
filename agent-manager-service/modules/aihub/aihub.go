@@ -69,6 +69,13 @@ const (
 // deletes a plan or a subscription.
 const ActionPortalSync = "portal-sync"
 
+// auditResourceWebhookSecret and auditDetailVersion name, in the audit records of webhook secret changes, the secret
+// and the version made or removed.
+const (
+	auditResourceWebhookSecret = "webhook-secret"
+	auditDetailVersion         = "version"
+)
+
 func init() { modkit.Register(Module()) }
 
 // Module returns the module, for tests that build their own host.
@@ -116,6 +123,20 @@ func (module) Manifest() modkit.Manifest {
 			// A plan made in a developer portal, copied in by a signed webhook delivery: a change to the
 			// organization's configuration, made on the internal server.
 			{Name: ActionPortalSync, Description: "Copy in a subscription plan or a subscription from a developer portal"},
+			// Webhook secrets are credentials: their records name the secret (AuditResource, by its handle) and the
+			// version made or removed, never its value or hash.
+			{
+				Name: PermWebhookSecretCreate, Class: "credential", Description: "Create a developer portal webhook secret",
+				Details: map[string]string{auditDetailVersion: "count"},
+			},
+			{
+				Name: PermWebhookSecretRotate, Class: "credential", Description: "Rotate a developer portal webhook secret",
+				Details: map[string]string{auditDetailVersion: "count"},
+			},
+			{
+				Name: PermWebhookSecretDelete, Class: "credential", Description: "Delete a developer portal webhook secret or one of its versions",
+				Details: map[string]string{auditDetailVersion: "count"},
+			},
 		},
 		// The console's Organization > Manage > Subscription Plans page (UI module "ai-hub").
 		UI: &modkit.UI{Pages: []modkit.Page{{ID: "ai-hub/subscription-plans", Permission: PermPlanRead}}},
@@ -163,7 +184,10 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		log: log.With("component", "subscriptions"), now: time.Now,
 	}
 	a := &planController{plans: plans, core: rt.Core, log: log}
-	cfg := webhookConfigFrom(rt.Config, log)
+	cfg, err := webhookConfigFrom(rt.Config)
+	if err != nil {
+		return err
+	}
 	secrets := &webhookSecretService{
 		db: rt.DB, secrets: rt.Secrets, maxVersions: cfg.SecretMaxVersions,
 		log: log.With("component", "webhook-secrets"), now: time.Now, generate: newWebhookSecretValue,

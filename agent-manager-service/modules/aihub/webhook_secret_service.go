@@ -191,6 +191,7 @@ func (s *webhookSecretService) create(ctx context.Context, orgID, actor string, 
 	if in.OrgRef != "" {
 		orgRef = &in.OrgRef
 	}
+	var created *webhookSecret
 	err = s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec(`INSERT INTO mod_ai_hub_webhook_secrets (`+webhookSecretColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			id.String(), orgID, in.Handle, in.DisplayName, orgRef, 1, nullable(actor), now, now).Error; err != nil {
@@ -199,16 +200,17 @@ func (s *webhookSecretService) create(ctx context.Context, orgID, actor string, 
 			}
 			return fmt.Errorf("insert webhook secret: %w", err)
 		}
-		return s.addVersion(ctx, tx, orgID, id.String(), 1, value, actor, now)
+		if err := s.addVersion(ctx, tx, orgID, id.String(), 1, value, actor, now); err != nil {
+			return err
+		}
+		// Read back in the transaction, so the value, shown only now, always comes with what was committed.
+		created, err = s.load(tx, orgID, in.Handle)
+		return err
 	})
 	if err != nil {
 		return nil, "", err
 	}
 	s.log.InfoContext(ctx, "webhook secret created", "orgId", orgID, "handle", in.Handle)
-	created, err := s.get(ctx, orgID, in.Handle)
-	if err != nil {
-		return nil, "", err
-	}
 	return created, value, nil
 }
 
@@ -231,6 +233,7 @@ func (s *webhookSecretService) rotate(ctx context.Context, orgID, actor, handle 
 	if err != nil {
 		return nil, "", err
 	}
+	var rotated *webhookSecret
 	err = s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row, err := s.find(tx, orgID, handle)
 		if err != nil {
@@ -256,16 +259,16 @@ func (s *webhookSecretService) rotate(ctx context.Context, orgID, actor, handle 
 		if int(count) >= s.maxVersions {
 			return fmt.Errorf("%w (%d): delete an old version first", errWebhookSecretVersionsFull, s.maxVersions)
 		}
-		return s.addVersion(ctx, tx, orgID, row.ID, next, value, actor, s.now().UTC())
+		if err := s.addVersion(ctx, tx, orgID, row.ID, next, value, actor, s.now().UTC()); err != nil {
+			return err
+		}
+		rotated, err = s.load(tx, orgID, handle)
+		return err
 	})
 	if err != nil {
 		return nil, "", err
 	}
 	s.log.InfoContext(ctx, "webhook secret rotated", "orgId", orgID, "handle", handle)
-	rotated, err := s.get(ctx, orgID, handle)
-	if err != nil {
-		return nil, "", err
-	}
 	return rotated, value, nil
 }
 
@@ -274,6 +277,9 @@ func (s *webhookSecretService) deleteVersion(ctx context.Context, orgID, handle 
 	return s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row, err := s.find(tx, orgID, handle)
 		if err != nil {
+			return err
+		}
+		if err := s.lock(tx, orgID, row.ID); err != nil {
 			return err
 		}
 		versions, err := s.versions(tx, orgID, row.ID)
@@ -309,6 +315,9 @@ func (s *webhookSecretService) delete(ctx context.Context, orgID, handle string)
 		if err != nil {
 			return err
 		}
+		if err := s.lock(tx, orgID, row.ID); err != nil {
+			return err
+		}
 		versions, err := s.versions(tx, orgID, row.ID)
 		if err != nil {
 			return err
@@ -333,7 +342,23 @@ func (s *webhookSecretService) delete(ctx context.Context, orgID, handle string)
 
 // get returns a secret with its versions (no values).
 func (s *webhookSecretService) get(ctx context.Context, orgID, handle string) (*webhookSecret, error) {
-	tx := s.db().WithContext(ctx)
+	return s.load(s.db().WithContext(ctx), orgID, handle)
+}
+
+// lock takes the secret's row for the rest of the transaction, as rotate does by taking the next version number:
+// a concurrent rotation or deletion of the same secret waits, then reads the committed versions. Without it, two
+// deletions of different versions could each see the other's version and leave the secret with none, and a
+// deletion could miss a version rotated in meanwhile and leave its value in the secret store.
+func (s *webhookSecretService) lock(tx *gorm.DB, orgID, secretID string) error {
+	if err := tx.Exec(`UPDATE mod_ai_hub_webhook_secrets SET updated_at = ? WHERE org_id = ? AND id = ?`,
+		s.now().UTC(), orgID, secretID).Error; err != nil {
+		return fmt.Errorf("lock the webhook secret: %w", err)
+	}
+	return nil
+}
+
+// load returns a secret with its versions (no values), read with tx.
+func (s *webhookSecretService) load(tx *gorm.DB, orgID, handle string) (*webhookSecret, error) {
 	row, err := s.find(tx, orgID, handle)
 	if err != nil {
 		return nil, err
@@ -419,18 +444,32 @@ func (s *webhookSecretService) signerByHash(ctx context.Context, hash string) (w
 	return signer, true, nil
 }
 
+// signersForRef returns, newest first and at most limit, the secrets a delivery with no secret_hash naming ref may be
+// signed with. When ref is an organization's id, that organization's own secrets come first, with the whole budget:
+// secrets other organizations map to the same reference (orgRef) only take what is left, so they can't crowd them out.
 func (s *webhookSecretService) signersForRef(ctx context.Context, ref string, limit int) ([]webhookSigner, error) {
+	const signerQuery = `SELECT v.org_id, w.org_ref, v.secret_id, v.version ` +
+		`FROM mod_ai_hub_webhook_secret_versions v JOIN mod_ai_hub_webhook_secrets w ON w.org_id = v.org_id AND w.id = v.secret_id `
+	db := s.db().WithContext(ctx)
 	var rows []signerRow
-	q := s.db().WithContext(ctx).Raw(`SELECT v.org_id, w.org_ref, v.secret_id, v.version `+
-		`FROM mod_ai_hub_webhook_secret_versions v JOIN mod_ai_hub_webhook_secrets w ON w.org_id = v.org_id AND w.id = v.secret_id `+
-		`WHERE w.org_ref = ? ORDER BY v.created_at DESC LIMIT ?`, ref, limit)
 	if validID(ref) {
-		q = s.db().WithContext(ctx).Raw(`SELECT v.org_id, w.org_ref, v.secret_id, v.version `+
-			`FROM mod_ai_hub_webhook_secret_versions v JOIN mod_ai_hub_webhook_secrets w ON w.org_id = v.org_id AND w.id = v.secret_id `+
-			`WHERE w.org_ref = ? OR v.org_id = ? ORDER BY v.created_at DESC LIMIT ?`, ref, ref, limit)
+		if err := db.Raw(signerQuery+`WHERE v.org_id = ? ORDER BY v.created_at DESC LIMIT ?`, ref, limit).
+			Scan(&rows).Error; err != nil {
+			return nil, fmt.Errorf("find the webhook secrets of %s: %w", ref, err)
+		}
 	}
-	if err := q.Scan(&rows).Error; err != nil {
-		return nil, fmt.Errorf("find the webhook secrets of %s: %w", ref, err)
+	if left := limit - len(rows); left > 0 {
+		// The organization's own secrets are already in rows; org_id is compared only with an id, which a
+		// uuid column on PostgreSQL requires.
+		q := db.Raw(signerQuery+`WHERE w.org_ref = ? ORDER BY v.created_at DESC LIMIT ?`, ref, left)
+		if validID(ref) {
+			q = db.Raw(signerQuery+`WHERE w.org_ref = ? AND v.org_id <> ? ORDER BY v.created_at DESC LIMIT ?`, ref, ref, left)
+		}
+		var mapped []signerRow
+		if err := q.Scan(&mapped).Error; err != nil {
+			return nil, fmt.Errorf("find the webhook secrets mapped to %s: %w", ref, err)
+		}
+		rows = append(rows, mapped...)
 	}
 	signers := make([]webhookSigner, 0, len(rows))
 	for _, r := range rows {

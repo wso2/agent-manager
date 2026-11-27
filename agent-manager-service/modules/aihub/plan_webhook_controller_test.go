@@ -289,8 +289,10 @@ func TestWebhookConditions(t *testing.T) {
 func TestWebhookConfigFrom(t *testing.T) {
 	settings := map[string]string{}
 	get := func(k string) string { return settings[k] }
-	cfg := webhookConfigFrom(get, slog.New(slog.DiscardHandler))
+	cfg, err := webhookConfigFrom(get)
+	require.NoError(t, err)
 	assert.True(t, cfg.Enabled, "on without a shared secret: organizations' webhook secrets still sign")
+	assert.False(t, cfg.LegacySharedSecret)
 	assert.Empty(t, cfg.Secret)
 	assert.Equal(t, DefaultWebhookSignatureHeader, cfg.SignatureHeader)
 	assert.Equal(t, 5*time.Minute, cfg.SignatureTolerance)
@@ -301,19 +303,34 @@ func TestWebhookConfigFrom(t *testing.T) {
 	settings["webhook_signature_tolerance"] = "90s"
 	settings["webhook_max_body_size"] = "2048"
 	settings["webhook_secret_max_versions"] = "5"
-	cfg = webhookConfigFrom(get, slog.New(slog.DiscardHandler))
+	settings["webhook_legacy_shared_secret"] = "true"
+	cfg, err = webhookConfigFrom(get)
+	require.NoError(t, err)
 	assert.True(t, cfg.Enabled)
+	assert.True(t, cfg.LegacySharedSecret)
 	assert.Equal(t, testSecret, cfg.Secret)
 	assert.Equal(t, 90*time.Second, cfg.SignatureTolerance)
 	assert.EqualValues(t, 2048, cfg.MaxBodyBytes)
 	assert.Equal(t, 5, cfg.SecretMaxVersions)
 
-	settings["webhook_secret_max_versions"] = "0"
-	assert.Equal(t, DefaultWebhookSecretMaxVersions, webhookConfigFrom(get, slog.New(slog.DiscardHandler)).SecretMaxVersions,
-		"an invalid value keeps the default")
-
 	settings["webhook_enabled"] = "false"
-	assert.False(t, webhookConfigFrom(get, slog.New(slog.DiscardHandler)).Enabled, "and can be switched off")
+	cfg, err = webhookConfigFrom(get)
+	require.NoError(t, err)
+	assert.False(t, cfg.Enabled, "and can be switched off")
+
+	// A setting that is set but invalid stops the module from activating, rather than leaving a default in place.
+	for key, value := range map[string]string{
+		"webhook_enabled":              "flase",
+		"webhook_legacy_shared_secret": "yes please",
+		"webhook_secret_max_versions":  "0",
+		"webhook_signature_tolerance":  "-1m",
+		"webhook_max_body_size":        "lots",
+	} {
+		bad := map[string]string{key: value}
+		_, err := webhookConfigFrom(func(k string) string { return bad[k] })
+		require.Error(t, err, key)
+		assert.Contains(t, err.Error(), key)
+	}
 }
 
 func TestReceiverRejectsAlike(t *testing.T) {
@@ -373,4 +390,45 @@ func TestReceiverAnswersOurFailuresWithServiceUnavailable(t *testing.T) {
 	assert.JSONEq(t, `{"status":"error","code":"SERVICE_UNAVAILABLE","message":"The delivery could not be processed. Retry later."}`,
 		rec.Body.String())
 	assert.True(t, isClientFault(errWebhookDisabled), "a disabled webhook stays a 401: a retry can't succeed")
+}
+
+// recordedAudit keeps what a request adds to its audit record.
+type recordedAudit struct {
+	resource []string
+	details  map[string]any
+}
+
+func (a *recordedAudit) AuditDetail(key string, value any) { a.details[key] = value }
+func (a *recordedAudit) AuditResource(kind, id, name string) {
+	a.resource = []string{kind, id, name}
+}
+func (a *recordedAudit) AuditEnvironment(string)                                    {}
+func (a *recordedAudit) AuditInternalCaller(context.Context, modkit.InternalCaller) {}
+
+// A webhook secret change names the secret by its handle and the version, and nothing of the value.
+func TestWebhookSecretAuditRecord(t *testing.T) {
+	rec := &recordedAudit{details: map[string]any{}}
+	ctx := modkit.WithAuditScope(context.Background(), rec)
+	secret := &webhookSecret{
+		Handle: "acme-portal", DisplayName: "Acme portal",
+		Versions: []webhookSecretVersion{{Version: 3}, {Version: 1}, {Version: 2}},
+	}
+
+	auditSecretVersion(ctx, secret.Handle, secret.DisplayName, newestVersion(secret))
+	assert.Equal(t, []string{auditResourceWebhookSecret, "acme-portal", "Acme portal"}, rec.resource)
+	assert.Equal(t, map[string]any{auditDetailVersion: 3}, rec.details)
+
+	rec.details = map[string]any{}
+	auditSecretVersion(ctx, "acme-portal", "acme-portal", 0)
+	assert.Empty(t, rec.details, "no version, no detail")
+
+	declared := map[string]bool{}
+	for _, a := range Module().Manifest().AuditActions {
+		if a.Class == "credential" {
+			declared[a.Name] = a.Details[auditDetailVersion] == "count"
+		}
+	}
+	assert.Equal(t, map[string]bool{
+		PermWebhookSecretCreate: true, PermWebhookSecretRotate: true, PermWebhookSecretDelete: true,
+	}, declared, "each change is a credential action that declares its version")
 }

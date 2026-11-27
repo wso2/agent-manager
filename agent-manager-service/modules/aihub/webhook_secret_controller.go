@@ -17,6 +17,7 @@
 package aihub
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -125,6 +126,7 @@ func (c *webhookSecretController) createSecret(w http.ResponseWriter, r *http.Re
 		c.fail(w, r, err)
 		return
 	}
+	auditSecretVersion(r.Context(), created.Handle, created.DisplayName, newestVersion(created))
 	w.Header().Set("Cache-Control", "no-store")
 	c.writeJSON(w, http.StatusCreated, webhookSecretResponseFor(created, value))
 }
@@ -170,6 +172,7 @@ func (c *webhookSecretController) rotateSecret(w http.ResponseWriter, r *http.Re
 		c.fail(w, r, err)
 		return
 	}
+	auditSecretVersion(r.Context(), rotated.Handle, rotated.DisplayName, newestVersion(rotated))
 	w.Header().Set("Cache-Control", "no-store")
 	c.writeJSON(w, http.StatusOK, webhookSecretResponseFor(rotated, value))
 }
@@ -179,10 +182,12 @@ func (c *webhookSecretController) deleteSecret(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	if err := c.secrets.delete(r.Context(), org, r.PathValue("webhookSecretId")); err != nil {
+	handle := r.PathValue("webhookSecretId")
+	if err := c.secrets.delete(r.Context(), org, handle); err != nil {
 		c.fail(w, r, err)
 		return
 	}
+	modkit.AuditResource(r.Context(), auditResourceWebhookSecret, handle, handle)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -196,11 +201,31 @@ func (c *webhookSecretController) deleteSecretVersion(w http.ResponseWriter, r *
 		c.writeError(w, http.StatusBadRequest, codeValidationFailed, "version must be a positive integer")
 		return
 	}
-	if err := c.secrets.deleteVersion(r.Context(), org, r.PathValue("webhookSecretId"), version); err != nil {
+	handle := r.PathValue("webhookSecretId")
+	if err := c.secrets.deleteVersion(r.Context(), org, handle, version); err != nil {
 		c.fail(w, r, err)
 		return
 	}
+	auditSecretVersion(r.Context(), handle, handle, version)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// auditSecretVersion names, in the request's audit record, the webhook secret by its handle and the version made or
+// removed. Never its value or hash.
+func auditSecretVersion(ctx context.Context, handle, name string, version int) {
+	modkit.AuditResource(ctx, auditResourceWebhookSecret, handle, name)
+	if version > 0 {
+		modkit.AuditDetail(ctx, auditDetailVersion, version)
+	}
+}
+
+// newestVersion is a secret's newest version number: the one create and rotate just made.
+func newestVersion(s *webhookSecret) int {
+	newest := 0
+	for _, v := range s.Versions {
+		newest = max(newest, v.Version)
+	}
+	return newest
 }
 
 // fail answers a service error: the caller's own mistakes with what they were, anything else as a 500 that is
