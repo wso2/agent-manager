@@ -59,7 +59,7 @@ func testListAndSpansAgree(t *testing.T, newStore NewStore) {
 	root := windowEnd.Add(-time.Minute)
 	s := newStore(t, []Seed{{
 		Scope: sc,
-		Trace: store.Trace{TraceID: "late", SpanCount: 2, RootSpanID: "root", StartTime: root},
+		Trace: store.Trace{TraceID: "late", RootSpanID: "root", StartTime: root},
 		Spans: []store.SpanDetails{
 			span("root", "", root),
 			span("after-window", "root", windowEnd.Add(time.Hour)),
@@ -88,6 +88,20 @@ func testListAndSpansAgree(t *testing.T, newStore NewStore) {
 	}
 	if got := spanIDs(byTrace["late"]); len(got) != 2 || got[0] != "root" || got[1] != "after-window" {
 		t.Errorf("QuerySpansByTrace = %v, want root and after-window", got)
+	}
+
+	// A window that ends later counts, and lists, the third span too.
+	laterEnd := windowEnd.Add(2 * time.Hour)
+	page, err = s.QueryTraces(ctx, sc, store.TraceQuery{StartTime: windowStart, EndTime: laterEnd, Limit: 10})
+	if err != nil {
+		t.Fatalf("QueryTraces, later window: %v", err)
+	}
+	spans, err = s.QueryTraceSpans(ctx, sc, "late", store.SpanQuery{StartTime: windowStart, EndTime: laterEnd, Limit: 10})
+	if err != nil {
+		t.Fatalf("QueryTraceSpans, later window: %v", err)
+	}
+	if len(page.Traces) != 1 || page.Traces[0].SpanCount != 3 || len(spans.Spans) != 3 {
+		t.Errorf("later window: list counts %+v, span list has %d; want 3 in both", page.Traces, len(spans.Spans))
 	}
 }
 

@@ -552,11 +552,15 @@ func (h *Host) commit(rt *runtime, v *view) error {
 // trial activates the module set next would produce and reports the first
 // of targets that would not activate, so a lifecycle change that leaves a
 // module recorded active but not running is refused instead of committed. It
-// leaves out the modules of left, as Reload does.
+// leaves out the modules of left, as Reload does; a target left out fails.
 func (h *Host) trial(ctx context.Context, next map[string]string, targets []string, left map[string]error) (*view, error) {
 	v, failed := h.buildView(ctx, without(next, left))
 	for _, name := range targets {
-		if err := failed[name]; err != nil {
+		err := failed[name]
+		if why, out := left[name]; out {
+			err = why
+		}
+		if err != nil {
 			re := &ResolveError{Msg: fmt.Sprintf("%s failed to activate: %v", name, err)}
 			if len(left) > 0 {
 				names := slices.Sorted(maps.Keys(left))

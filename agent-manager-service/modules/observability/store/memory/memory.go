@@ -78,7 +78,8 @@ func (m *Store) DeleteAgent(_ context.Context, orgID, agentID string) error {
 	return nil
 }
 
-// QueryTraces lists the Scope's traces in the window.
+// QueryTraces lists the Scope's traces in the window. A trace stored with
+// spans is counted within store.TraceBounds of the window, as its span list is.
 func (m *Store) QueryTraces(_ context.Context, s store.Scope, q store.TraceQuery) (*store.TracePage, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
@@ -90,7 +91,11 @@ func (m *Store) QueryTraces(_ context.Context, s store.Scope, q store.TraceQuery
 	traces := []store.Trace{}
 	for _, e := range m.entries {
 		if inScope(e.scope, s) && inWindow(e.trace.StartTime, q.StartTime, q.EndTime) {
-			traces = append(traces, e.trace)
+			tr := e.trace
+			if len(e.spans) > 0 {
+				tr.SpanCount = spansOf(e, store.SpanQuery{StartTime: q.StartTime, EndTime: q.EndTime}).Total
+			}
+			traces = append(traces, tr)
 		}
 	}
 	sort.SliceStable(traces, func(i, j int) bool {

@@ -82,16 +82,17 @@ func TestClickHouseMigrate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &modhost.ExternalResult{Store: "clickhouse", Total: len(files(t))}, res[0].External)
 
-	// A binary whose applied schema file was edited is refused.
+	// A binary whose applied schema file was edited is refused: reported in
+	// the result, not returned, so it fails no other module.
 	edited := fstest.MapFS{}
 	for _, f := range files(t) {
 		body, err := fs.ReadFile(clickhouse.Migrations(), f)
 		require.NoError(t, err)
 		edited[f] = &fstest.MapFile{Data: append(body, []byte("\n-- edited")...)}
 	}
-	_, err = observabilityHost(withFiles{Module: observability.New(nil), files: edited}).Migrate(ctx)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "module observability clickhouse schema 001_otel_traces changed after it was applied")
+	res, err = observabilityHost(withFiles{Module: observability.New(nil), files: edited}).Migrate(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, res[0].External.Error, "module observability clickhouse schema 001_otel_traces changed after it was applied")
 }
 
 // TestClickHouseMigrateWithoutTheMigratorLogin is the API server migrating on

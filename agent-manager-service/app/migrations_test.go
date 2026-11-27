@@ -35,7 +35,7 @@ func TestPrintMigrations(t *testing.T) {
 	want := "ai-gateway: applied 0 of 3 migration(s)\n" +
 		"observability: applied 1 of 1 clickhouse schema file(s)\n" +
 		"other: skipped its external schema: no store address\n" +
-		"down: external schema not applied, the module stays off until it is: connection refused\n"
+		"down: external schema not applied, replicas that have not loaded the module leave it out until it is: connection refused\n"
 	if b.String() != want {
 		t.Errorf("printMigrations wrote\n%s\nwant\n%s", b.String(), want)
 	}

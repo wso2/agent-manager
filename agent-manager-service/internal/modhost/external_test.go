@@ -418,8 +418,8 @@ func TestReloadLeavesOutAnUnreadableStore(t *testing.T) {
 	waitFor(t, "t-ext to load once its store is back", func() bool { return slices.Contains(h2.Active(), "t-ext") })
 }
 
-// A store that is down fails no other module: every module's migrations
-// run first, and the store's error is reported in its result.
+// A store that is down is skipped: the modules after it still migrate, and
+// the store's error is reported in its result.
 func TestExternalSchemaFailureFailsNoOtherModule(t *testing.T) {
 	ctx := context.Background()
 	d := databases(t)[0]

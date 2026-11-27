@@ -461,7 +461,7 @@ func printMigrations(w io.Writer, results []modhost.MigrationResult) {
 		switch e := r.External; {
 		case e == nil:
 		case e.Error != "":
-			_, _ = fmt.Fprintf(w, "%s: external schema not applied, the module stays off until it is: %s\n", r.Module, e.Error)
+			_, _ = fmt.Fprintf(w, "%s: external schema not applied, replicas that have not loaded the module leave it out until it is: %s\n", r.Module, e.Error)
 		case e.Skipped != "":
 			_, _ = fmt.Fprintf(w, "%s: skipped its external schema: %s\n", r.Module, e.Skipped)
 		default:
