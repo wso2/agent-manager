@@ -1,4 +1,4 @@
-import { request, type BrowserContext } from '@playwright/test';
+import { request } from '@playwright/test';
 import { idpClientId, idpClientSecret, thunderURL } from './env';
 
 // Every scope the API checks, requested in full: ThunderID puts only the
@@ -54,27 +54,4 @@ export async function idpToken(): Promise<string> {
   } finally {
     await ctx.dispose();
   }
-}
-
-/**
- * Drops the ThunderID SDK's stored refresh timer before each page loads. The
- * SDK keeps the timer's id in localStorage and clears a timer by that id after
- * the next load, where it may be one of the console's own, which then never
- * finishes loading. Pages a test reloads, or opens from a stored session, would
- * hang at random.
- */
-export async function dropStaleRefreshTimer(context: BrowserContext): Promise<void> {
-  await context.addInitScript(() => {
-    try {
-      for (const key of Object.keys(window.localStorage)) {
-        if (!key.startsWith('temporary_data-')) continue;
-        const data = JSON.parse(window.localStorage.getItem(key) ?? '{}');
-        if (!('refresh_token_timer' in data)) continue;
-        delete data.refresh_token_timer;
-        window.localStorage.setItem(key, JSON.stringify(data));
-      }
-    } catch {
-      // Nothing stored, or storage blocked: nothing to drop.
-    }
-  });
 }

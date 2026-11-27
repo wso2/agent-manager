@@ -415,3 +415,44 @@ describe("clearBrowserSignInSession", () => {
     expect(window.sessionStorage.length).toBe(own.length + others.length);
   });
 });
+
+describe("dropStaleRefreshTimer", () => {
+  const key = "temporary_data-instance_0-AGENT_MANAGER_CONSOLE";
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("removes only the stored refresh timer of this console's SDK data", async () => {
+    const { dropStaleRefreshTimer } = await load(bffAuthConfig());
+    window.localStorage.setItem(key, JSON.stringify({ op_config_initiated: true, refresh_token_timer: "7" }));
+    const other = "temporary_data-instance_0-WSO2_CLOUD_CONSOLE";
+    window.localStorage.setItem(other, JSON.stringify({ refresh_token_timer: "3" }));
+
+    dropStaleRefreshTimer("AGENT_MANAGER_CONSOLE");
+
+    expect(JSON.parse(window.localStorage.getItem(key)!)).toEqual({ op_config_initiated: true });
+    expect(JSON.parse(window.localStorage.getItem(other)!)).toEqual({ refresh_token_timer: "3" });
+  });
+
+  it("leaves data without a timer, or that is not JSON, as it is", async () => {
+    const { dropStaleRefreshTimer } = await load(bffAuthConfig());
+    window.localStorage.setItem(key, "not json");
+    const second = "temporary_data-instance_1-AGENT_MANAGER_CONSOLE";
+    window.localStorage.setItem(second, '{"op_config_initiated":true}');
+
+    dropStaleRefreshTimer("AGENT_MANAGER_CONSOLE");
+
+    expect(window.localStorage.getItem(key)).toBe("not json");
+    expect(window.localStorage.getItem(second)).toBe('{"op_config_initiated":true}');
+  });
+
+  it("does nothing without a client ID", async () => {
+    const { dropStaleRefreshTimer } = await load(bffAuthConfig());
+    window.localStorage.setItem(key, JSON.stringify({ refresh_token_timer: "7" }));
+
+    dropStaleRefreshTimer(undefined);
+
+    expect(JSON.parse(window.localStorage.getItem(key)!)).toEqual({ refresh_token_timer: "7" });
+  });
+});

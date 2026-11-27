@@ -158,4 +158,18 @@ describe("ThunderID AuthProvider in the browser", () => {
     await session.fetchWithBackendToken("/api/thing");
     expect(sentAuthorization()).toBeNull();
   });
+
+  it("drops the previous page's refresh timer before the SDK starts", async () => {
+    const tempKey = `temporary_data-instance_0-${CLIENT_ID}`;
+    window.localStorage.setItem(
+      tempKey,
+      JSON.stringify({ op_config_initiated: true, refresh_token_timer: "7" }),
+    );
+
+    await mount(browserAuthConfig);
+
+    expect(JSON.parse(window.localStorage.getItem(tempKey)!)).toEqual({
+      op_config_initiated: true,
+    });
+  });
 });

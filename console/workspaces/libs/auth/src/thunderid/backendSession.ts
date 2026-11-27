@@ -170,3 +170,38 @@ export function clearBrowserSignInSession(clientId: string | undefined): void {
     return;
   }
 }
+
+/**
+ * Drops the refresh timer the SDK stored on the previous page. The SDK keeps
+ * its auto-refresh `setTimeout` id in `temporary_data-instance_<n>-<clientId>`
+ * and clears a timer by that id once the next page signs in, but timer ids are
+ * per page: in the new page the id can belong to one of the console's own
+ * timers, which is then cancelled and the console never finishes loading. The
+ * SDK schedules a fresh refresh timer either way, so nothing is lost.
+ */
+export function dropStaleRefreshTimer(clientId: string | undefined): void {
+  if (!clientId) return;
+  const suffix = `-${clientId}`;
+  try {
+    const storage = window.localStorage;
+    Array.from({ length: storage.length }, (_, index) => storage.key(index))
+      .filter(
+        (key): key is string =>
+          key !== null &&
+          key.endsWith(suffix) &&
+          /^temporary_data-instance_\d+$/.test(key.slice(0, -suffix.length)),
+      )
+      .forEach((key) => {
+        try {
+          const data = JSON.parse(storage.getItem(key) ?? "null");
+          if (!data || typeof data !== "object" || !("refresh_token_timer" in data)) return;
+          delete data.refresh_token_timer;
+          storage.setItem(key, JSON.stringify(data));
+        } catch {
+          // Not the SDK's JSON: leave it to the SDK.
+        }
+      });
+  } catch {
+    return;
+  }
+}
