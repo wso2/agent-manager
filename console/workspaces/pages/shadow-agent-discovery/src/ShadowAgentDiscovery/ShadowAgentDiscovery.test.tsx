@@ -369,7 +369,7 @@ describe("OverviewPanel", () => {
     };
     router(<OverviewPanel {...props} />);
     expect(screen.getByText("Unmanaged agents")).toBeInTheDocument();
-    expect(screen.getByText("Onboarded")).toBeInTheDocument();
+    expect(screen.getByText("Managed")).toBeInTheDocument();
     expect(screen.getByText("Connectors")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
@@ -415,7 +415,7 @@ describe("FindingsTab", () => {
     ];
     router(<FindingsTab orgName="acme" />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Agent", "Source", "Connector", "Last seen", "Onboarding status"]);
+    expect(headers).toEqual(["Agent", "Source", "Connector", "Last seen", "Status"]);
     expect(lastQuery()).toMatchObject({ onboarded: "false" });
     expect(screen.getByText("Support Bot")).toBeInTheDocument();
     // The second line is the type only; the scope, state and IDs are on the agent's page.
@@ -424,9 +424,9 @@ describe("FindingsTab", () => {
     expect(screen.queryByText("READY")).not.toBeInTheDocument();
     expect(screen.getByText("Amazon Bedrock")).toBeInTheDocument();
     expect(screen.getByText("AWS prod, AWS audit")).toBeInTheDocument();
-    expect(screen.getByText("Onboarded")).toBeInTheDocument();
+    expect(screen.getByText("Managed")).toBeInTheDocument();
     // The default filter and the support bot's chip.
-    expect(screen.getAllByText("Not onboarded")).toHaveLength(2);
+    expect(screen.getAllByText("Unmanaged")).toHaveLength(2);
     expect(screen.queryByText(/Reviewed|Dismissed/)).not.toBeInTheDocument();
     expect(screen.queryByText("No longer listed")).not.toBeInTheDocument();
   });
@@ -483,7 +483,7 @@ describe("FindingsTab", () => {
     router(<FindingsTab orgName="acme" canManage />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
     // The delete column has no title; each row keeps its delete button.
-    expect(headers).toEqual(["Agent", "Source", "Connector", "Last seen", "Onboarding status", ""]);
+    expect(headers).toEqual(["Agent", "Source", "Connector", "Last seen", "Status", ""]);
     fireEvent.click(screen.getByRole("button", { name: "Delete Support Bot" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/");
     expect(screen.getByTestId("location")).not.toHaveTextContent("/agents/");
@@ -543,11 +543,11 @@ describe("FindingsTab", () => {
     ]);
     fireEvent.click(screen.getByRole("option", { name: "Microsoft Foundry" }));
     expect(lastQuery()).toMatchObject({ provider: "foundry", offset: 0, onboarded: "false" });
-    expect(openSelect("Onboarding status")).toEqual(["All agents", "Not onboarded", "Onboarded"]);
+    expect(openSelect("Management")).toEqual(["All agents", "Unmanaged", "Managed"]);
     fireEvent.click(screen.getByRole("option", { name: "All agents" }));
     expect(lastQuery()).toMatchObject({ provider: "foundry", onboarded: undefined });
-    openSelect("Onboarding status");
-    fireEvent.click(screen.getByRole("option", { name: "Onboarded" }));
+    openSelect("Management");
+    fireEvent.click(screen.getByRole("option", { name: "Managed" }));
     expect(lastQuery()).toMatchObject({ provider: "foundry", onboarded: "true" });
   });
 

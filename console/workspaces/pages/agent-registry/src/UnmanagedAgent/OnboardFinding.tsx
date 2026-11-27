@@ -158,7 +158,7 @@ export function OnboardFinding({
   const back = { backHref: returnTo, backLabel: "Back to the agent" };
   if (isLoading || !f) {
     return (
-      <PageLayout title="Onboard as external agent" disableIcon {...back}>
+      <PageLayout title="Manage as external agent" disableIcon {...back}>
         <Skeleton variant="rounded" height={360} />
       </PageLayout>
     );
@@ -248,14 +248,14 @@ export function OnboardFinding({
   if (linked) {
     return (
       <PageLayout
-        title={`Onboard ${f.displayName}`}
+        title={`Manage ${f.displayName}`}
         description="External agent"
         disableIcon
         {...back}
       >
         <Stack spacing={3}>
           <Alert severity="success" icon={<CircleCheck size={20} />}>
-            {f.displayName} is onboarded as the external agent {linked.project} / {linked.agent}.
+            {f.displayName} is managed as the external agent {linked.project} / {linked.agent}.
           </Alert>
           <Card variant="outlined">
             <CardContent>
@@ -286,7 +286,7 @@ export function OnboardFinding({
   const busy = createAgent.isPending || onboard.isPending;
   return (
     <PageLayout
-      title={`Onboard ${f.displayName}`}
+      title={`Manage ${f.displayName}`}
       description={`As an external agent · ${kindLabel(f.kind, f.provider)} on ${providerLabel(
         f.provider,
       )}`}
@@ -297,7 +297,7 @@ export function OnboardFinding({
         <Card variant="outlined">
           <CardContent>
             <Typography variant="subtitle1" gutterBottom>
-              What onboarding does
+              What managing it does
             </Typography>
             <Stack component="ul" spacing={0.75} sx={{ m: 0, pl: 2.5 }}>
               <Typography component="li" variant="body2">
@@ -312,7 +312,7 @@ export function OnboardFinding({
               </Typography>
               <Typography component="li" variant="body2">
                 Agent Manager gives it an agent identity, observability and governed model access,
-                and this page links to it as Onboarded.
+                and this page shows it as Managed.
               </Typography>
             </Stack>
           </CardContent>
@@ -385,7 +385,7 @@ export function OnboardFinding({
             )}
             <Stack direction="row" spacing={1.5} sx={{ mt: 2.5 }}>
               <Button variant="contained" disabled={busy} onClick={register}>
-                Register
+                Manage
               </Button>
               <Button variant="outlined" onClick={() => navigate(returnTo)}>
                 Cancel

@@ -152,7 +152,7 @@ export function kindLabel(k: string, provider?: string): string {
   );
 }
 
-/** Whether an agent is onboarded as an external agent. */
+/** Whether an agent is managed: onboarded into Agent Manager as an external agent. */
 export function OnboardingChip({ onboarded }: { onboarded: boolean }) {
   return onboarded ? (
     <Chip
@@ -160,10 +160,10 @@ export function OnboardingChip({ onboarded }: { onboarded: boolean }) {
       color="success"
       variant="outlined"
       icon={<CircleCheck size={14} />}
-      label="Onboarded"
+      label="Managed"
     />
   ) : (
-    <Chip size="small" variant="outlined" icon={<CircleDashed size={14} />} label="Not onboarded" />
+    <Chip size="small" variant="outlined" icon={<CircleDashed size={14} />} label="Unmanaged" />
   );
 }
 

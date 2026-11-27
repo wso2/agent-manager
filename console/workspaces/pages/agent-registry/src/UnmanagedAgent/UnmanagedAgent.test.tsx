@@ -295,7 +295,7 @@ describe("FindingDetail", () => {
     expect(screen.getByText("Agent on OpenAI")).toBeInTheDocument();
     expect(screen.getByText("proj_1")).toBeInTheDocument();
     expect(screen.queryByLabelText("Location in code")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Not onboarded").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Unmanaged").length).toBeGreaterThan(0);
     for (const section of ["Summary", "Why this is an agent", "What it uses", "Technical IDs"]) {
       expect(screen.getByText(section)).toBeInTheDocument();
     }
@@ -330,7 +330,7 @@ describe("FindingDetail", () => {
     expect(within(summary()).getByText("Last found")).toBeInTheDocument();
     expect(within(summary()).getByText("First found")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /from list|in list/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Onboard as external agent" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Manage as external agent" })).toHaveAttribute(
       "href",
       "/organizations/acme/agent-registry/unmanaged/f1/onboard",
     );
@@ -548,8 +548,8 @@ describe("FindingDetail", () => {
     });
     renderDetail();
     const heading = screen.getByRole("heading", { name: /^Support Bot/ });
-    expect(within(heading).getByText("Onboarded")).toBeInTheDocument();
-    expect(within(summary()).getByText("Onboarded as")).toBeInTheDocument();
+    expect(within(heading).getByText("Managed")).toBeInTheDocument();
+    expect(within(summary()).getByText("Managed as")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     const linked = within(summary()).getByRole("link", { name: "default / support-bot" });
     expect(linked).toHaveAttribute(
@@ -559,7 +559,7 @@ describe("FindingDetail", () => {
     expect(linked).toHaveClass("MuiLink-root");
     expect(screen.getByRole("link", { name: "Open managed agent" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "Onboard as external agent" }),
+      screen.queryByRole("link", { name: "Manage as external agent" }),
     ).not.toBeInTheDocument();
   });
 
@@ -616,7 +616,7 @@ describe("FindingDetail", () => {
     hoisted.detail = detail();
     renderDetail(false);
     expect(
-      screen.queryByRole("link", { name: "Onboard as external agent" }),
+      screen.queryByRole("link", { name: "Manage as external agent" }),
     ).not.toBeInTheDocument();
   });
 });
@@ -693,7 +693,7 @@ describe("Onboarding a code agent", () => {
       "/organizations/acme/agent-registry/unmanaged/f1",
     );
 
-  const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Onboard" }));
+  const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Manage" }));
   const deployItem = () =>
     screen.getByRole("menuitem", { name: /^Deploy as platform-hosted agent/ });
 
@@ -702,11 +702,11 @@ describe("Onboarding a code agent", () => {
     hoisted.connection = githubConnection();
     renderDetail();
     expect(
-      screen.queryByRole("link", { name: "Onboard as external agent" }),
+      screen.queryByRole("link", { name: "Manage as external agent" }),
     ).not.toBeInTheDocument();
     openMenu();
     expect(deployItem()).not.toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(screen.getByRole("menuitem", { name: /^Register as external agent/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Manage as external agent/ }));
     expect(screen.getByTestId("location")).toHaveTextContent(
       "/organizations/acme/agent-registry/unmanaged/f1/onboard",
     );
@@ -832,13 +832,13 @@ describe("OnboardFinding", () => {
   it("explains onboarding as an external agent, then registers and links it", () => {
     hoisted.detail = detail();
     renderOnboard();
-    expect(screen.getByRole("heading", { name: "Onboard Support Bot" })).toBeInTheDocument();
-    expect(screen.getByText("What onboarding does")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Manage Support Bot" })).toBeInTheDocument();
+    expect(screen.getByText("What managing it does")).toBeInTheDocument();
     expect(screen.getByText(/externally-hosted agent/)).toBeInTheDocument();
     expect(screen.getByText("After you register")).toBeInTheDocument();
     expect(screen.getByText("Set up the agent")).toBeInTheDocument();
     expect(screen.queryByText(/Platform-hosted|build.*from source/i)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
     expect(hoisted.createAgent).toHaveBeenCalledTimes(1);
     const [req, opts] = hoisted.createAgent.mock.calls[0];
     expect(req.params).toEqual({ orgName: "acme", projName: "default" });
@@ -864,7 +864,7 @@ describe("OnboardFinding", () => {
     hoisted.detail = detail();
     renderOnboard();
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: "9bad" } });
-    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage" }));
     expect(hoisted.createAgent).not.toHaveBeenCalled();
   });
 });

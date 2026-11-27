@@ -167,7 +167,7 @@ export function CodeAgentOnboardActions({
         aria-haspopup="true"
         aria-expanded={Boolean(anchor)}
       >
-        Onboard
+        Manage
       </Button>
       <Menu
         id="onboard-menu"
@@ -184,7 +184,7 @@ export function CodeAgentOnboardActions({
           }}
         >
           <ListItemText
-            primary="Register as external agent"
+            primary="Manage as external agent"
             secondary="It keeps running where it is. Agent Manager observes it."
           />
         </MenuItem>

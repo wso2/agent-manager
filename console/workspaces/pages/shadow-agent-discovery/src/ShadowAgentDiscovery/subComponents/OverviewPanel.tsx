@@ -285,7 +285,7 @@ export function OverviewPanel({
             }
           >
             <Stat label="Unmanaged agents" value={formatCount(unmanaged)} />
-            <Stat label="Onboarded" value={formatCount(onboarded)} />
+            <Stat label="Managed" value={formatCount(onboarded)} />
             <Stat label="Connectors" value={formatCount(s?.connections)} />
           </Stack>
         </CardContent>

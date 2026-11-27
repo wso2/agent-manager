@@ -596,7 +596,7 @@ function SummaryCard({ f, agentPath }: { f: ShadowFindingDetail; agentPath: stri
               </SummaryItem>
             )}
             {f.onboarded && (
-              <SummaryItem label="Onboarded as">
+              <SummaryItem label="Managed as">
                 <ValueText>
                   {agentPath ? (
                     <Link component={RouterLink} to={agentPath}>
@@ -929,7 +929,7 @@ export function FindingDetail({
               variant="contained"
               startIcon={<UserPlus size={16} />}
             >
-              Onboard as external agent
+              Manage as external agent
             </Button>
           )
         )}

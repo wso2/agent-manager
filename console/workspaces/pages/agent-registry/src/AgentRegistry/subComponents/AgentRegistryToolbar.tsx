@@ -90,7 +90,7 @@ function ManagementToggle({ value, counts, onChange }: ManagementToggleProps) {
       sx={{ "& .MuiToggleButton-root": { px: 1.75, textTransform: "none" } }}
     >
       <ToggleButton value="managed">Managed ({counts.managed})</ToggleButton>
-      <Tooltip title="Shadow agents: found outside Agent Manager and not onboarded yet">
+      <Tooltip title="Shadow agents: found outside Agent Manager and not managed by it yet">
         <ToggleButton value="unmanaged">Unmanaged ({counts.unmanaged})</ToggleButton>
       </Tooltip>
     </ToggleButtonGroup>

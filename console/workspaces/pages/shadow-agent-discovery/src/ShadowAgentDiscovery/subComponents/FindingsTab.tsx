@@ -194,7 +194,7 @@ export function FindingsTab({
       <Box sx={{ minWidth: 170 }}>
         <TextInput
           select
-          aria-label="Onboarding status"
+          aria-label="Management"
           value={onboarded}
           onChange={(e) => {
             setOnboarded(e.target.value as "" | "true" | "false");
@@ -202,12 +202,12 @@ export function FindingsTab({
           }}
           size="small"
           slotProps={{
-            select: { displayEmpty: true, inputProps: { "aria-label": "Onboarding status" } },
+            select: { displayEmpty: true, inputProps: { "aria-label": "Management" } },
           }}
         >
           <MenuItem value="">All agents</MenuItem>
-          <MenuItem value="false">Not onboarded</MenuItem>
-          <MenuItem value="true">Onboarded</MenuItem>
+          <MenuItem value="false">Unmanaged</MenuItem>
+          <MenuItem value="true">Managed</MenuItem>
         </TextInput>
       </Box>
       <Box sx={{ minWidth: 220 }}>
@@ -267,9 +267,9 @@ export function FindingsTab({
       }}
       searchEmptyState={{
         illustration: <ScanSearch size={64} />,
-        title: onlyNotOnboarded ? "Every agent is onboarded" : "No agents match your filters",
+        title: onlyNotOnboarded ? "Every agent is managed" : "No agents match your filters",
         description: onlyNotOnboarded
-          ? "No agent is waiting to be onboarded. Choose All agents to see the onboarded ones."
+          ? "No unmanaged agent is left. Choose All agents to see the managed ones."
           : "Try other search keywords or clear the filters.",
       }}
     >
@@ -280,7 +280,7 @@ export function FindingsTab({
             <ListingTable.Cell>Source</ListingTable.Cell>
             <ListingTable.Cell>Connector</ListingTable.Cell>
             <ListingTable.Cell>Last seen</ListingTable.Cell>
-            <ListingTable.Cell>Onboarding status</ListingTable.Cell>
+            <ListingTable.Cell>Status</ListingTable.Cell>
             {canDelete && <ListingTable.Cell align="right" aria-label="Delete" />}
           </ListingTable.Row>
         </ListingTable.Head>
