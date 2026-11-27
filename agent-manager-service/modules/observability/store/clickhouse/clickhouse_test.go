@@ -221,3 +221,27 @@ func TestConfiguredDatabase(t *testing.T) {
 		}
 	}
 }
+
+// A query that fails after its first rows is an error, not a short result.
+func TestQueryFailingMidStream(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"n":1}`+"\n"+`{"exception": "Code: 159. DB::Exception: Timeout exceeded"}`+"\n")
+	}))
+	defer srv.Close()
+	c, err := newClient(srv.URL, "", "amp_reader", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []string
+	err = c.query(context.Background(), "SELECT 1", nil, func(line []byte) error {
+		rows = append(rows, string(line))
+		return nil
+	})
+	var chErr *Error
+	if !errors.As(err, &chErr) || !strings.Contains(chErr.Message, "Timeout exceeded") {
+		t.Fatalf("query error = %v; want the streamed exception", err)
+	}
+	if len(rows) != 1 {
+		t.Errorf("rows = %q; want only the row before the exception", rows)
+	}
+}

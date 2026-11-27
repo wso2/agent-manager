@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -108,7 +109,9 @@ func (c *client) exec(ctx context.Context, sql string, params map[string]string)
 	return err
 }
 
-// query runs sql and hands each JSONEachRow line to row.
+// query runs sql and hands each JSONEachRow line to row. A query that fails
+// after its first rows ends with an {"exception": ...} line instead, under
+// status 200.
 func (c *client) query(ctx context.Context, sql string, params map[string]string, row func([]byte) error) error {
 	body, err := c.do(ctx, sql, params)
 	if err != nil {
@@ -122,11 +125,30 @@ func (c *client) query(ctx context.Context, sql string, params map[string]string
 		if len(line) == 0 {
 			continue
 		}
+		if msg, ok := streamException(line); ok {
+			return &Error{Status: http.StatusOK, Message: msg}
+		}
 		if err := row(line); err != nil {
 			return fmt.Errorf("clickhouse: decode row: %w", err)
 		}
 	}
 	return sc.Err()
+}
+
+// streamException returns the message of a line that is only an exception.
+func streamException(line []byte) (string, bool) {
+	if !bytes.Contains(line, []byte(`"exception"`)) {
+		return "", false
+	}
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(line, &obj) != nil || len(obj) != 1 {
+		return "", false
+	}
+	var msg string
+	if json.Unmarshal(obj["exception"], &msg) != nil {
+		return "", false
+	}
+	return msg, true
 }
 
 // Error is a statement ClickHouse refused.
