@@ -18,6 +18,8 @@ require (
 	github.com/oapi-codegen/runtime v1.1.2
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/stretchr/testify v1.12.1
+	github.com/wso2/api-platform/sdk/core v0.2.4
+	github.com/wso2/gateway-controllers/policies/mcp-authz v1.0.1
 	go.uber.org/automaxprocs v1.6.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/sync v0.24.0
