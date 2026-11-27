@@ -161,6 +161,9 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 	}
 
 	ctx := context.Background()
+	if err := requirePublicUpstreamOn(ctx, gateway, providerUpstreamURL(provider)); err != nil {
+		return nil, err
+	}
 	existing, err := s.deploymentRepo.PlacedGateways(ctx, ouID, provider.UUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the gateways the provider is placed on: %w", err)
@@ -172,8 +175,16 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 	var applied *reconcile.Applied
 	err = s.tx(ctx, func(tx *gorm.DB) error {
 		applied, err = s.core.Deploy(ctx, tx, providerPlacement(provider, ouID, gatewayUUID))
-		return err
+		if err != nil || applied.Deployment == nil {
+			return err
+		}
+		// The render read the provider again in this transaction, so check what it rendered: an update since the
+		// check above could have changed the upstream. A refusal rolls back the deploy and its gateway event.
+		return requirePublicRenderedUpstream(ctx, gateway, applied.Deployment.Content)
 	})
+	if errors.Is(err, utils.ErrInvalidURL) {
+		return nil, err
+	}
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to deploy", "providerID", utils.SanitizeForLog(providerID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
@@ -332,6 +343,16 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 	}
 
 	ctx := context.Background()
+	gateway, err := s.gatewayRepo.GetByUUID(deployment.GatewayUUID.String())
+	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && (gateway == nil || gateway.OUID != ouID)) {
+		return nil, utils.ErrGatewayNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gateway: %w", err)
+	}
+	if err := requirePublicRenderedUpstream(ctx, gateway, deployment.Content); err != nil {
+		return nil, err
+	}
 	placement := providerPlacement(provider, ouID, deployment.GatewayUUID)
 	current, err := s.deploymentRepo.GetStatusRecord(ctx, placement)
 	if err != nil {
