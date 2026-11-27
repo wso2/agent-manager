@@ -53,6 +53,15 @@ Only containers on the observability network can reach the collector, so only `a
 
 ## Quick setup: bundled ClickHouse
 
+Put these two lines in `.env` next to the compose files (copy `.env.example` if there is none):
+
+```bash
+COMPOSE_PROFILES=observability          # postgres,observability with PostgreSQL
+AMP_OBSERVABILITY_STORE_URL=http://clickhouse:8123
+```
+
+Every `docker compose` command, `make up` and `make dev-up` read them. With either observability profile on and no `AMP_OBSERVABILITY_STORE_URL`, the start stops at its first step (`service "observability-secrets" didn't complete successfully`); `docker compose logs observability-secrets` (or `observability-secrets-external`) names the missing line. `make up-observability` sets them for its own run only, so without them in `.env` a later restart, `make up`, or the rotation steps below bring `amp-api` back without the store address, serving traces from memory, and the profile's services are left out.
+
 From a source checkout:
 
 ```bash
@@ -62,12 +71,7 @@ make smoke-observability    # ports, network, schema, and a span stored under th
 
 `make dev-up-observability` does the same on the dev stack, with the API hot-reloading under air and the console on :3000; `make smoke-observability` checks it too.
 
-From a release bundle, or without make, set these in `.env` and start as usual:
-
-```bash
-COMPOSE_PROFILES=observability          # postgres,observability with PostgreSQL
-AMP_OBSERVABILITY_STORE_URL=http://clickhouse:8123
-```
+From a release bundle, or without make:
 
 ```bash
 docker compose up -d --wait
@@ -115,11 +119,11 @@ docker compose exec clickhouse sh -c 'clickhouse-client -u amp_reader --password
 
 To rotate one:
 
-- **Bundled:** delete its file and recreate what reads it; a new one is generated.
+- **Bundled:** with the two lines from [Quick setup](#quick-setup-bundled-clickhouse) in `.env`, delete its file and recreate what reads it; a new one is generated. Run these from `deployments/standalone`; on the dev stack (`make dev-up-observability`), add `-f docker-compose.yml -f docker-compose.dev.yml` after `docker compose`.
 
   ```bash
   docker compose run --rm --no-deps --entrypoint rm observability-secrets /out/all/read-password
-  docker compose up -d --wait --force-recreate observability-secrets clickhouse amp-api otel-collector
+  docker compose up -d --wait --no-deps --force-recreate observability-secrets clickhouse amp-api otel-collector
   ```
 
 - **Your own:** change it on ClickHouse and in `.env`, then `docker compose up -d --wait --force-recreate`.

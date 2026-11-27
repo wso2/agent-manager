@@ -128,7 +128,7 @@ make dev-up-observability   # the same on the dev stack (hot reload)
 make smoke-observability    # either one
 ```
 
-Without make, set `COMPOSE_PROFILES=observability` and `AMP_OBSERVABILITY_STORE_URL` in `.env` (the commented lines in `.env.example`), start the stack, then run `docker compose exec amp-api amp module install observability`. To use your own ClickHouse instead, or add observability to an existing install, see [docs/amp-lite/observability.md](../../docs/amp-lite/observability.md).
+Set `COMPOSE_PROFILES=observability` and `AMP_OBSERVABILITY_STORE_URL` in `.env` (the commented lines in `.env.example`): `make up-observability` sets them for its own run only, and later commands (a restart, `make up`, rotating a password) need them to keep `amp-api` on ClickHouse. Without make, start the stack, then run `docker compose exec amp-api amp module install observability`. To use your own ClickHouse instead, or add observability to an existing install, see [docs/amp-lite/observability.md](../../docs/amp-lite/observability.md).
 
 On macOS with Colima, keep this folder inside your home folder: Colima shares only that with its VM, and the bind mounts come up empty anywhere else.
 
