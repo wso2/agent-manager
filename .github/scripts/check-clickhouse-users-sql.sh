@@ -28,8 +28,16 @@ from_xml() {
 from_sql() {
   awk -v q="'" '
     /^[ \t]*(--|$)/ { next }
-    profile { if (/;[ \t]*$/) profile = 0; next }
-    /^CREATE SETTINGS PROFILE / { if (!/;[ \t]*$/) profile = 1; next }
+    # The profile ends at its first ";"; anything after it is unexpected.
+    profile || /^CREATE SETTINGS PROFILE / {
+      profile = 1
+      if (i = index($0, ";")) {
+        profile = 0
+        rest = substr($0, i + 1)
+        if (rest !~ /^[ \t]*(--.*)?$/) print "unexpected " rest
+      }
+      next
+    }
     /^CREATE USER / {
       user = $0; sub(/^CREATE USER (IF NOT EXISTS )?/, "", user); sub(/ .*/, "", user)
       hosts = $0
