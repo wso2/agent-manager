@@ -159,6 +159,13 @@ func (g guarded) QueryTraceSpans(ctx context.Context, s store.Scope, traceID str
 	return g.traces.QueryTraceSpans(ctx, s, traceID, q)
 }
 
+func (g guarded) QuerySpansByTrace(ctx context.Context, s store.Scope, traceIDs []string, q store.SpanQuery) (map[string]*store.SpanPage, error) {
+	if err := g.check(ctx, s); err != nil {
+		return nil, err
+	}
+	return g.traces.QuerySpansByTrace(ctx, s, traceIDs, q)
+}
+
 func (g guarded) GetSpanDetails(ctx context.Context, s store.Scope, traceID, spanID string) (*store.SpanDetails, error) {
 	if err := g.check(ctx, s); err != nil {
 		return nil, err

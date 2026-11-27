@@ -220,6 +220,9 @@ func TestExportTraces(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("exportTraces = %d %s, want 200", w.Code, w.Body.String())
 	}
+	if n := traces.Queries(); n != 2 {
+		t.Errorf("export ran %d store queries, want 2: the list and one for every trace's spans", n)
+	}
 	var got TraceExportResponse
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)

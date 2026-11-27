@@ -106,7 +106,8 @@ func (m *Store) QueryTraces(_ context.Context, s store.Scope, q store.TraceQuery
 	return &store.TracePage{Traces: traces, Total: total}, nil
 }
 
-// QueryTraceSpans lists one of the Scope's traces' spans.
+// QueryTraceSpans lists one of the Scope's traces' spans, within
+// store.TraceBounds of the window.
 func (m *Store) QueryTraceSpans(_ context.Context, s store.Scope, traceID string, q store.SpanQuery) (*store.SpanPage, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
@@ -119,9 +120,35 @@ func (m *Store) QueryTraceSpans(_ context.Context, s store.Scope, traceID string
 	if !ok {
 		return &store.SpanPage{Spans: []store.Span{}}, nil
 	}
+	return spansOf(e, q), nil
+}
+
+// QuerySpansByTrace lists several of the Scope's traces' spans in one lookup.
+func (m *Store) QuerySpansByTrace(_ context.Context, s store.Scope, traceIDs []string, q store.SpanQuery) (map[string]*store.SpanPage, error) {
+	if err := s.Validate(); err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.queries++
+
+	pages := map[string]*store.SpanPage{}
+	for _, id := range traceIDs {
+		if e, ok := m.find(s, id); ok {
+			if p := spansOf(e, q); len(p.Spans) > 0 {
+				pages[id] = p
+			}
+		}
+	}
+	return pages, nil
+}
+
+// spansOf is a trace's spans within store.TraceBounds of q's window.
+func spansOf(e entry, q store.SpanQuery) *store.SpanPage {
+	from, to := store.TraceBounds(q.StartTime, q.EndTime)
 	spans := make([]store.Span, 0, len(e.spans))
 	for _, d := range e.spans {
-		if !inWindow(d.StartTime, q.StartTime, q.EndTime) {
+		if !inWindow(d.StartTime, from, to) {
 			continue
 		}
 		sp := store.Span{
@@ -144,7 +171,7 @@ func (m *Store) QueryTraceSpans(_ context.Context, s store.Scope, traceID string
 	if q.Limit > 0 && len(spans) > q.Limit {
 		spans = spans[:q.Limit]
 	}
-	return &store.SpanPage{Spans: spans, Total: total}, nil
+	return &store.SpanPage{Spans: spans, Total: total}
 }
 
 // GetSpanDetails reads one span of the Scope's trace.

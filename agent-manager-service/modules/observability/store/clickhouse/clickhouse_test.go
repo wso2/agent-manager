@@ -141,20 +141,20 @@ func TestEmptyWindowRunsNoQuery(t *testing.T) {
 	}
 }
 
-// A trace's spans are read from clockSkew before the window to traceSpread
+// A trace's spans are read from a minute before the window to a day
 // after it; an open bound stays open.
 func TestTraceBounds(t *testing.T) {
 	from := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
 	to := from.Add(time.Hour)
-	if f, e := traceBounds(from, to); !f.Equal(from.Add(-time.Minute)) || !e.Equal(to.Add(24*time.Hour)) {
-		t.Errorf("traceBounds(%v, %v) = %v, %v; want a minute before and a day after", from, to, f, e)
+	if f, e := store.TraceBounds(from, to); !f.Equal(from.Add(-time.Minute)) || !e.Equal(to.Add(24*time.Hour)) {
+		t.Errorf("store.TraceBounds(%v, %v) = %v, %v; want a minute before and a day after", from, to, f, e)
 	}
-	if f, e := traceBounds(time.Time{}, time.Time{}); !f.IsZero() || !e.IsZero() {
+	if f, e := store.TraceBounds(time.Time{}, time.Time{}); !f.IsZero() || !e.IsZero() {
 		t.Errorf("traceBounds of an open window = %v, %v; want it open", f, e)
 	}
 	params := map[string]string{}
 	far := time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)
-	f, e := traceBounds(from, far)
+	f, e := store.TraceBounds(from, far)
 	if where, empty := timeFilter(f, e, "trace_from", "trace_to", params); empty || len(params) != 1 ||
 		params["trace_from"] != strconv.FormatInt(f.UnixNano(), 10) || where != " AND Timestamp >= fromUnixTimestamp64Nano({trace_from:Int64})" {
 		t.Errorf("timeFilter of a far end = %q, %v, %v; want only the start bound, as trace_from", where, empty, params)

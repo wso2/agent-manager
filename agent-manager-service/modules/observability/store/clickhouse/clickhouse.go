@@ -129,22 +129,30 @@ func timeFilter(from, to time.Time, fromKey, toKey string, params map[string]str
 	return where, false
 }
 
-// clockSkew is how far before its root a child span may be stamped.
-const clockSkew = time.Minute
-
-// traceSpread is how long after the window a listed trace's spans are counted.
-const traceSpread = 24 * time.Hour
-
-// traceBounds widens a window to where its traces' spans are read: clockSkew
-// before it and traceSpread after it. A zero bound stays open.
-func traceBounds(from, to time.Time) (time.Time, time.Time) {
-	if !from.IsZero() {
-		from = from.Add(-clockSkew)
+// spanWindow narrows to store.TraceBounds of a trace list's window, where the
+// list counts its traces' spans; empty reports a window no trace is listed in.
+func spanWindow(from, to time.Time, params map[string]string) (where string, empty bool) {
+	if _, empty := windowFilter(from, to, map[string]string{}); empty {
+		return "", true
 	}
-	if !to.IsZero() {
-		to = to.Add(traceSpread)
+	// Widening a window that is not empty never empties it.
+	from, to = store.TraceBounds(from, to)
+	return windowFilter(from, to, params)
+}
+
+// arrayParam is vs as an Array(String) query parameter.
+func arrayParam(vs []string) string {
+	quote := strings.NewReplacer(`\`, `\\`, `'`, `\'`)
+	var b strings.Builder
+	b.WriteByte('[')
+	for i, v := range vs {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString("'" + quote.Replace(v) + "'")
 	}
-	return from, to
+	b.WriteByte(']')
+	return b.String()
 }
 
 // limitClause bounds a list; zero or less lists everything.
@@ -167,8 +175,8 @@ func direction(sort, fallback string) string {
 }
 
 // QueryTraces lists the Scope's traces whose root span starts in the window,
-// each summarised from its spans in one query. Spans more than clockSkew
-// before the window or traceSpread after it are not counted.
+// each summarised from its spans in one query. Spans outside
+// store.TraceBounds of the window are not counted.
 func (s *Store) QueryTraces(ctx context.Context, sc store.Scope, q store.TraceQuery) (*store.TracePage, error) {
 	if err := sc.Validate(); err != nil {
 		return nil, err
@@ -180,7 +188,7 @@ func (s *Store) QueryTraces(ctx context.Context, sc store.Scope, q store.TraceQu
 		return &store.TracePage{Traces: []store.Trace{}}, nil
 	}
 	// Widening a window that is not empty never empties it.
-	traceFrom, traceTo := traceBounds(q.StartTime, q.EndTime)
+	traceFrom, traceTo := store.TraceBounds(q.StartTime, q.EndTime)
 	spread, _ := timeFilter(traceFrom, traceTo, "trace_from", "trace_to", params)
 	where := scope + spread + " AND TraceId IN (SELECT TraceId FROM " + Table + " WHERE " + scope +
 		" AND ParentSpanId = ''" + window + ")"
@@ -232,6 +240,7 @@ ORDER BY start_ns ` + dir + `, trace_id ` + dir + limitClause(q.Limit, params)
 
 // spanRow is one span as the queries below select it.
 type spanRow struct {
+	TraceID       string            `json:"TraceId"`
 	SpanID        string            `json:"SpanId"`
 	SpanName      string            `json:"SpanName"`
 	ParentSpanID  string            `json:"ParentSpanId"`
@@ -267,13 +276,14 @@ func (r spanRow) details() store.SpanDetails {
 const spanColumns = `SpanId, SpanName, ParentSpanId, toUnixTimestamp64Nano(Timestamp) AS start_ns,
   Duration, SpanKind, StatusCode, StatusMessage`
 
-// QueryTraceSpans lists one of the Scope's traces' spans.
+// QueryTraceSpans lists one of the Scope's traces' spans, within
+// store.TraceBounds of the window as QueryTraces counts them.
 func (s *Store) QueryTraceSpans(ctx context.Context, sc store.Scope, traceID string, q store.SpanQuery) (*store.SpanPage, error) {
 	if err := sc.Validate(); err != nil {
 		return nil, err
 	}
 	params := map[string]string{"trace": traceID}
-	window, empty := windowFilter(q.StartTime, q.EndTime, params)
+	window, empty := spanWindow(q.StartTime, q.EndTime, params)
 	if empty {
 		return &store.SpanPage{Spans: []store.Span{}}, nil
 	}
@@ -301,6 +311,54 @@ func (s *Store) QueryTraceSpans(ctx context.Context, sc store.Scope, traceID str
 		return nil, err
 	}
 	return page, nil
+}
+
+// QuerySpansByTrace lists several of the Scope's traces' spans in one query,
+// at most q.Limit each, within store.TraceBounds of the window.
+func (s *Store) QuerySpansByTrace(ctx context.Context, sc store.Scope, traceIDs []string, q store.SpanQuery) (map[string]*store.SpanPage, error) {
+	if err := sc.Validate(); err != nil {
+		return nil, err
+	}
+	pages := map[string]*store.SpanPage{}
+	if len(traceIDs) == 0 {
+		return pages, nil
+	}
+	params := map[string]string{"traces": arrayParam(traceIDs)}
+	window, empty := spanWindow(q.StartTime, q.EndTime, params)
+	if empty {
+		return pages, nil
+	}
+	where := scopeFilter(sc, params) + " AND TraceId IN {traces:Array(String)}" + window
+	cols := "TraceId, " + spanColumns
+	if q.IncludeAttributes {
+		cols += ", SpanAttributes, ResourceAttributes"
+	}
+	dir := direction(q.SortOrder, "asc")
+	limit := ""
+	if q.Limit > 0 {
+		params["limit"] = strconv.Itoa(q.Limit)
+		limit = " LIMIT {limit:UInt32} BY TraceId"
+	}
+	sql := "SELECT " + cols + ", count() OVER (PARTITION BY TraceId) AS total FROM " + Table +
+		" WHERE " + where + " ORDER BY TraceId, Timestamp " + dir + ", SpanId " + dir + limit
+
+	err := s.c.query(ctx, sql, params, func(line []byte) error {
+		var r spanRow
+		if err := json.Unmarshal(line, &r); err != nil {
+			return err
+		}
+		page := pages[r.TraceID]
+		if page == nil {
+			page = &store.SpanPage{Spans: []store.Span{}, Total: r.Total}
+			pages[r.TraceID] = page
+		}
+		page.Spans = append(page.Spans, store.Span(r.details()))
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return pages, nil
 }
 
 // GetSpanDetails reads one span of the Scope's trace.

@@ -41,6 +41,103 @@ func Run(t *testing.T, newStore NewStore) {
 	t.Run("OrgsWithCollidingIDsAreIsolated", func(t *testing.T) { testOrgIsolation(t, newStore) })
 	t.Run("EmptyOrgIsRejected", func(t *testing.T) { testEmptyOrgRejected(t, newStore) })
 	t.Run("ScopeIDsFilterWithoutNames", func(t *testing.T) { testScopeIDsFilter(t, newStore) })
+	t.Run("ListAndSpansAgreeOnATrace", func(t *testing.T) { testListAndSpansAgree(t, newStore) })
+	t.Run("SpansByTrace", func(t *testing.T) { testSpansByTrace(t, newStore) })
+}
+
+// span is a span of the given name starting at at.
+func span(id, parent string, at time.Time) store.SpanDetails {
+	return store.SpanDetails{SpanID: id, SpanName: id, ParentSpanID: parent, StartTime: at, EndTime: at.Add(time.Second), DurationNs: time.Second.Nanoseconds()}
+}
+
+// testListAndSpansAgree lists a trace that starts just before the window ends
+// and runs past it: its span list, by itself or with others, holds exactly
+// the spans the trace list counts.
+func testListAndSpansAgree(t *testing.T, newStore NewStore) {
+	ctx := context.Background()
+	sc := scopeFor("org-a", "acme")
+	root := windowEnd.Add(-time.Minute)
+	s := newStore(t, []Seed{{
+		Scope: sc,
+		Trace: store.Trace{TraceID: "late", SpanCount: 2, RootSpanID: "root", StartTime: root},
+		Spans: []store.SpanDetails{
+			span("root", "", root),
+			span("after-window", "root", windowEnd.Add(time.Hour)),
+			span("past-spread", "root", windowEnd.Add(store.TraceSpread+time.Hour)),
+		},
+	}})
+
+	page, err := s.QueryTraces(ctx, sc, store.TraceQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 10})
+	if err != nil {
+		t.Fatalf("QueryTraces: %v", err)
+	}
+	if len(page.Traces) != 1 {
+		t.Fatalf("QueryTraces = %+v, want the late trace", page)
+	}
+	q := store.SpanQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 10, SortOrder: "asc"}
+	spans, err := s.QueryTraceSpans(ctx, sc, "late", q)
+	if err != nil {
+		t.Fatalf("QueryTraceSpans: %v", err)
+	}
+	if got := spanIDs(spans); len(got) != page.Traces[0].SpanCount || len(got) != 2 || got[0] != "root" || got[1] != "after-window" {
+		t.Errorf("QueryTraceSpans = %v, list counts %d; want root and after-window", got, page.Traces[0].SpanCount)
+	}
+	byTrace, err := s.QuerySpansByTrace(ctx, sc, []string{"late"}, q)
+	if err != nil {
+		t.Fatalf("QuerySpansByTrace: %v", err)
+	}
+	if got := spanIDs(byTrace["late"]); len(got) != 2 || got[0] != "root" || got[1] != "after-window" {
+		t.Errorf("QuerySpansByTrace = %v, want root and after-window", got)
+	}
+}
+
+// testSpansByTrace reads several traces' spans at once: at most the limit of
+// each, with each trace's total, none of another org's, and none for a trace
+// that is not there.
+func testSpansByTrace(t *testing.T, newStore NewStore) {
+	ctx := context.Background()
+	orgA, orgB := scopeFor("org-a", "acme"), scopeFor("org-b", "globex")
+	at := windowStart.Add(time.Hour)
+	quoted := `trace-'q\`
+	s := newStore(t, []Seed{
+		{
+			Scope: orgA, Trace: store.Trace{TraceID: "trace-1", StartTime: at},
+			Spans: []store.SpanDetails{span("1a", "", at), span("1b", "1a", at.Add(time.Second))},
+		},
+		{Scope: orgA, Trace: store.Trace{TraceID: quoted, StartTime: at}, Spans: []store.SpanDetails{span("qa", "", at)}},
+		{Scope: orgB, Trace: store.Trace{TraceID: "trace-2", StartTime: at}, Spans: []store.SpanDetails{span("2a", "", at)}},
+	})
+
+	pages, err := s.QuerySpansByTrace(ctx, orgA, []string{"trace-1", quoted, "trace-2", "missing"},
+		store.SpanQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 1, SortOrder: "asc"})
+	if err != nil {
+		t.Fatalf("QuerySpansByTrace: %v", err)
+	}
+	if len(pages) != 2 || pages["trace-1"] == nil || pages[quoted] == nil {
+		t.Fatalf("QuerySpansByTrace = %v, want only org-a's trace-1 and %s", pages, quoted)
+	}
+	if got := spanIDs(pages["trace-1"]); len(got) != 1 || got[0] != "1a" || pages["trace-1"].Total != 2 {
+		t.Errorf("trace-1 = %v of %d, want the first of 2", got, pages["trace-1"].Total)
+	}
+	if got := spanIDs(pages[quoted]); len(got) != 1 || got[0] != "qa" {
+		t.Errorf("%s = %v, want qa", quoted, got)
+	}
+	noOrg := orgA
+	noOrg.Names.Org = ""
+	if _, err := s.QuerySpansByTrace(ctx, noOrg, []string{"trace-1"}, store.SpanQuery{}); !errors.Is(err, store.ErrMissingOrg) {
+		t.Errorf("QuerySpansByTrace with no org = %v, want ErrMissingOrg", err)
+	}
+}
+
+func spanIDs(p *store.SpanPage) []string {
+	if p == nil {
+		return nil
+	}
+	out := make([]string, 0, len(p.Spans))
+	for _, sp := range p.Spans {
+		out = append(out, sp.SpanID)
+	}
+	return out
 }
 
 var (
