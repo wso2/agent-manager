@@ -34,6 +34,11 @@ var GeneratedSecrets = map[string]string{
 	"AMP_ADMIN_PASSWORD":               "admin-password",
 	"MODULE_AI_GATEWAY_ADMIN_PASSWORD": "gateway-admin-password",
 	"DB_PASSWORD":                      "db-password",
+	// The observability store's logins, kept outside the secrets directory.
+	"MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD":          "read-password",
+	"MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD":  "delete-password",
+	"MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD": "setup-password",
+	"MODULE_OBSERVABILITY_CLICKHOUSE_INGEST_PASSWORD":   "write-password",
 }
 
 // GeneratedFile is the file a generated secret is kept in.

@@ -118,6 +118,10 @@ A value in `amp.yaml` can be a reference: `${env:NAME}` or `${file:/path}`, opti
 | `AMP_DATA_DIR` | `amp.data_dir` | `data (/var/lib/agent-manager in the image)` | Where state lives: the SQLite file, certificates and generated secrets. |
 | `AMP_SECRETS_DIR` | `amp.secrets_dir` | `<data dir>/secrets` | Where generated secrets are kept; `amp secret list` names them. |
 | `AMP_SHARED_SECRETS_DIR` | `amp.shared_secrets_dir` |  | amp init copies the secrets other containers read (the admin and PostgreSQL passwords) here, for a volume only those containers mount. |
+| `AMP_CLICKHOUSE_SECRETS_DIR` | `amp.clickhouse_secrets_dir` |  | amp init keeps the observability store's four passwords here, for ClickHouse, when the store URL is set; unset, it writes none. |
+| `AMP_CLICKHOUSE_API_SECRETS_DIR` | `amp.clickhouse_api_secrets_dir` |  | amp init copies the store's read and delete passwords here, for the server. |
+| `AMP_CLICKHOUSE_MIGRATE_SECRETS_DIR` | `amp.clickhouse_migrate_secrets_dir` |  | amp init copies the store's setup password here, for amp migrate. |
+| `AMP_CLICKHOUSE_COLLECTOR_SECRETS_DIR` | `amp.clickhouse_collector_secrets_dir` |  | amp init copies the store's write password here, for the OpenTelemetry collector. |
 | `ENCRYPTION_KEY` | `encryption.key` | `generated on first start` | AES-256 key (64 hex characters) stored secrets are sealed with. Losing it makes them unreadable. **Secret.** |
 | `ENCRYPTION_KEY_PREVIOUS` | `encryption.key_previous` |  | Earlier keys, comma-separated, kept after a rotation so older secrets stay readable. **Secret.** |
 | `SECRET_MANAGER_PROVIDER` | `secret.manager_provider` | `inhouse` | Where agent credentials are kept: inhouse (the database) or unsupported (refuses writes). |
@@ -300,10 +304,10 @@ modules:
 | `clickhouse.url` | `MODULE_OBSERVABILITY_CLICKHOUSE_URL` |  | ClickHouse HTTP URL traces are read from; unset, traces come from an empty in-memory store. |
 | `clickhouse.database` | `MODULE_OBSERVABILITY_CLICKHOUSE_DATABASE` | `otel` | The database the span table is in. users.xml grants on otel; edit its grants for another name. |
 | `clickhouse.user` | `MODULE_OBSERVABILITY_CLICKHOUSE_USER` |  | The reader login; required with url. |
-| `clickhouse.password` | `MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD` |  | The reader login's password. **Secret.** |
+| `clickhouse.password` | `MODULE_OBSERVABILITY_CLICKHOUSE_PASSWORD` |  | The reader login's password; amp init generates and keeps one when unset and the store URL is set. **Secret.** |
 | `clickhouse.cleaner-user` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_USER` |  | The login that deletes a deleted agent's spans; unset, they are kept until the TTL. |
-| `clickhouse.cleaner-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD` |  | The cleaner login's password. **Secret.** |
+| `clickhouse.cleaner-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_CLEANER_PASSWORD` |  | The cleaner login's password; amp init generates and keeps one when unset and the store URL is set. **Secret.** |
 | `clickhouse.migrator-user` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_USER` |  | The login that applies the schema; used only by `amp migrate`. |
-| `clickhouse.migrator-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD` |  | The migrator login's password. **Secret.** |
-| `clickhouse.ingest-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_INGEST_PASSWORD` |  | amp init: the collector's login's (amp_ingest) password; generated and kept when unset. **Secret.** |
+| `clickhouse.migrator-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_MIGRATOR_PASSWORD` |  | The migrator login's password; amp init generates and keeps one when unset and the store URL is set. **Secret.** |
+| `clickhouse.ingest-password` | `MODULE_OBSERVABILITY_CLICKHOUSE_INGEST_PASSWORD` |  | amp init: the collector's login's (amp_ingest) password; generated and kept when unset and the store URL is set. **Secret.** |
 | `clickhouse.ttl-days` | `MODULE_OBSERVABILITY_CLICKHOUSE_TTL_DAYS` | `30` | Days ClickHouse keeps spans; applied by `amp migrate`. A change applies only to spans written or merged after the next `amp migrate`. |
