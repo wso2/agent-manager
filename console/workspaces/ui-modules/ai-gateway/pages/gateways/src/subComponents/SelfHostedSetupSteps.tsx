@@ -35,8 +35,9 @@ import {
   reconfigureToken,
 } from "./selfHostedSetup";
 import {
+  beginGatewayTokenRequest,
   forgetRevokedGatewayToken,
-  keepNewGatewayToken,
+  keepRequestedGatewayToken,
   useNewGatewayToken,
 } from "./newGatewayToken";
 
@@ -176,6 +177,7 @@ export function SelfHostedSetupSteps({
   const handleReconfigure = async () => {
     setReconfiguring(true);
     setReconfigureError(null);
+    const ticket = beginGatewayTokenRequest(gatewayId);
     try {
       await reconfigureToken(
         async () => {
@@ -190,9 +192,11 @@ export function SelfHostedSetupSteps({
         },
         async () => {
           const { token: newToken, tokenId } = await createToken(params);
-          // Kept in the store, not in this component: if the user has left by now, the
-          // gateway's page can still show the token that replaced the revoked ones.
-          keepNewGatewayToken(gatewayId, newToken, tokenId);
+          // Kept in the store, not in this component: if the user moved on to another
+          // of the gateway's pages, that page can still show the token that replaced
+          // the revoked ones. Dropped if a newer reconfigure started meanwhile, or if no
+          // page for the gateway is open any more.
+          keepRequestedGatewayToken(gatewayId, ticket, newToken, tokenId);
           return newToken;
         },
       );

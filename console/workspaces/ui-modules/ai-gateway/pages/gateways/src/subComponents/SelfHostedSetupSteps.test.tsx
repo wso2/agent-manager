@@ -20,7 +20,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { FeatureManagementProvider } from "@agent-management-platform/feature-management";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
-import { forgetNewGatewayToken, keepNewGatewayToken } from "./newGatewayToken";
+import type { ReactNode } from "react";
+import {
+  forgetNewGatewayToken,
+  keepNewGatewayToken,
+  useForgetNewGatewayTokenOnLeave,
+} from "./newGatewayToken";
 
 const hoisted = vi.hoisted(() => ({
   refetch: vi.fn(),
@@ -50,12 +55,20 @@ vi.mock("@agent-management-platform/shared-component", () => ({
   copyToClipboard: hoisted.copy,
 }));
 
+// The page around the steps holds the gateway's token, as the setup and view pages do.
+function GatewayPage({ children }: { children: ReactNode }) {
+  useForgetNewGatewayTokenOnLeave("gw-1");
+  return <>{children}</>;
+}
+
 // The token the add page left for this gateway, as the steps read it from the store.
 const renderSteps = (initialToken: string | null = null, canManageTokens = true) => {
   if (initialToken) keepNewGatewayToken("gw-1", initialToken);
   return render(
     <FeatureManagementProvider featureAccess={{ gateway_token_write: canManageTokens }}>
-      <SelfHostedSetupSteps orgName="acme" gatewayId="gw-1" />
+      <GatewayPage>
+        <SelfHostedSetupSteps orgName="acme" gatewayId="gw-1" />
+      </GatewayPage>
     </FeatureManagementProvider>,
   );
 };

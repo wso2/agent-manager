@@ -18,9 +18,11 @@
 import { describe, expect, it } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import {
+  beginGatewayTokenRequest,
   forgetNewGatewayToken,
   forgetRevokedGatewayToken,
   keepNewGatewayToken,
+  keepRequestedGatewayToken,
   newGatewayToken,
   useForgetNewGatewayTokenOnLeave,
 } from "./newGatewayToken";
@@ -74,5 +76,51 @@ describe("newGatewayToken", () => {
     keepNewGatewayToken("gw-d", "late", "token-9");
     expect(newGatewayToken("gw-d")).toBe("late");
     forgetNewGatewayToken("gw-d");
+  });
+
+  it("keeps a requested token while a page for the gateway is open", async () => {
+    const { unmount } = render(<Page gatewayId="gw-e" />);
+    const ticket = beginGatewayTokenRequest("gw-e");
+
+    expect(keepRequestedGatewayToken("gw-e", ticket, "fresh", "token-1")).toBe(true);
+    expect(newGatewayToken("gw-e")).toBe("fresh");
+    unmount();
+    await waitFor(() => expect(newGatewayToken("gw-e")).toBeNull());
+  });
+
+  it("drops a requested token that a newer request superseded", async () => {
+    const { unmount } = render(<Page gatewayId="gw-f" />);
+    const first = beginGatewayTokenRequest("gw-f");
+    const second = beginGatewayTokenRequest("gw-f");
+
+    expect(keepRequestedGatewayToken("gw-f", second, "newer", "token-2")).toBe(true);
+    // The first request finishes late: it must not overwrite the newer token.
+    expect(keepRequestedGatewayToken("gw-f", first, "older", "token-1")).toBe(false);
+    expect(newGatewayToken("gw-f")).toBe("newer");
+    unmount();
+    await waitFor(() => expect(newGatewayToken("gw-f")).toBeNull());
+  });
+
+  it("drops a requested token that arrives after every page was left", async () => {
+    const { unmount } = render(<Page gatewayId="gw-g" />);
+    const ticket = beginGatewayTokenRequest("gw-g");
+    unmount();
+    await settle();
+
+    expect(keepRequestedGatewayToken("gw-g", ticket, "late", "token-1")).toBe(false);
+    expect(newGatewayToken("gw-g")).toBeNull();
+  });
+
+  it("keeps a requested token across a move from the setup page to the view page", async () => {
+    const setup = render(<Page gatewayId="gw-h" />);
+    const ticket = beginGatewayTokenRequest("gw-h");
+    const view = render(<Page gatewayId="gw-h" />);
+    setup.unmount();
+    await settle();
+
+    expect(keepRequestedGatewayToken("gw-h", ticket, "fresh", "token-1")).toBe(true);
+    expect(newGatewayToken("gw-h")).toBe("fresh");
+    view.unmount();
+    await waitFor(() => expect(newGatewayToken("gw-h")).toBeNull());
   });
 });

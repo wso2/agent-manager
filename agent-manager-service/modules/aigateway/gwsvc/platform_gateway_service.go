@@ -986,9 +986,9 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 		return nil, err
 	}
 	gwUUID := gw.UUID
-	providerType := gwmodels.IdentityProviderTypeCustom
-	if gwmodels.IsSystemIdentityProvider(name) {
-		providerType = gwmodels.IdentityProviderTypeSystem
+	providerType, err := s.identityProviderType(gwUUID.String(), name)
+	if err != nil {
+		return nil, err
 	}
 	if providerType == gwmodels.IdentityProviderTypeCustom && identityProviderMode(gw) == IdentityProviderModeUnsupported {
 		return nil, gwerr.ErrGatewayIdentityProviderUnsupported
@@ -1012,8 +1012,30 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 	return provider, nil
 }
 
+// identityProviderType classifies a provider by what is recorded, not by its name
+// alone: a fixed well-known name (ThunderKeyManager) is system, and so is a name the
+// platform already recorded as system on this gateway (an env-Thunder provider).
+// Anything else is custom, including a new name that looks like an env-Thunder one,
+// so a caller can neither skip the managed-gateway refusal nor record a provider
+// that can't be removed by picking its name.
+func (s *PlatformGatewayService) identityProviderType(gatewayUUID, name string) (string, error) {
+	if gwmodels.IsWellKnownSystemIdentityProvider(name) {
+		return gwmodels.IdentityProviderTypeSystem, nil
+	}
+	existing, err := s.gatewayRepo.ListIdentityProvidersByGateway(gatewayUUID)
+	if err != nil {
+		return "", fmt.Errorf("failed to list identity providers: %w", err)
+	}
+	for _, p := range existing {
+		if p.Name == name && p.Type == gwmodels.IdentityProviderTypeSystem {
+			return gwmodels.IdentityProviderTypeSystem, nil
+		}
+	}
+	return gwmodels.IdentityProviderTypeCustom, nil
+}
+
 // DeleteIdentityProvider removes an identity provider mirror row for a gateway.
-// System providers cannot be deleted (enforced in the repository).
+// System providers cannot be deleted (enforced in the repository, by recorded type).
 func (s *PlatformGatewayService) DeleteIdentityProvider(ctx context.Context, gatewayID, ouID, name string) error {
 	gw, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {

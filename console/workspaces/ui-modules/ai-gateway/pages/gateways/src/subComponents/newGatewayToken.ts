@@ -49,6 +49,39 @@ export function keepNewGatewayToken(gatewayId: string, token: string, tokenId?: 
   notify();
 }
 
+/** The latest token request started from a gateway page, per gateway. */
+const requests = new Map<string, number>();
+
+/**
+ * Starts a token request from one of the gateway's pages and returns its ticket for
+ * keepRequestedGatewayToken. A request started later supersedes it.
+ */
+export function beginGatewayTokenRequest(gatewayId: string): number {
+  const ticket = (requests.get(gatewayId) ?? 0) + 1;
+  requests.set(gatewayId, ticket);
+  return ticket;
+}
+
+/**
+ * Keeps the token a gateway page requested, unless:
+ * - a newer request for the gateway started meanwhile (two pages each reconfiguring):
+ *   the newer one's token must not be overwritten by this one finishing late; or
+ * - no page for the gateway is open any more: the leave check already ran, nothing
+ *   would forget the token, and a later visit must not offer it.
+ * Moving from the setup page to the view page keeps a page open, so the token
+ * survives that. Returns whether the token was kept.
+ */
+export function keepRequestedGatewayToken(
+  gatewayId: string,
+  ticket: number,
+  token: string,
+  tokenId?: string,
+): boolean {
+  if (requests.get(gatewayId) !== ticket || !holders.has(gatewayId)) return false;
+  keepNewGatewayToken(gatewayId, token, tokenId);
+  return true;
+}
+
 export function newGatewayToken(gatewayId: string): string | null {
   return tokens.get(gatewayId)?.token ?? null;
 }

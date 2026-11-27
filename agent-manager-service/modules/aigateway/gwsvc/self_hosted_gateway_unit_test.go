@@ -285,6 +285,9 @@ func TestIdentityProvider_SelfHostedRecordsMirror(t *testing.T) {
 	var deleted string
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
+		ListIdentityProvidersByGatewayFunc: func(string) ([]gwmodels.GatewayIdentityProvider, error) {
+			return nil, nil
+		},
 		UpsertIdentityProviderFunc: func(p *gwmodels.GatewayIdentityProvider) error {
 			upserted = p
 			return nil
@@ -301,6 +304,10 @@ func TestIdentityProvider_SelfHostedRecordsMirror(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, gw.UUID, provider.GatewayUUID)
 	require.Same(t, provider, upserted)
+	require.Equal(t, "idp", upserted.Name)
+	require.Equal(t, "https://issuer", upserted.Issuer)
+	require.Equal(t, "https://issuer/jwks", upserted.JWKSUri)
+	require.Equal(t, gwmodels.IdentityProviderTypeCustom, upserted.Type)
 
 	require.NoError(t, svc.DeleteIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp"))
 	require.Equal(t, gw.UUID.String()+"/idp", deleted)
@@ -328,10 +335,15 @@ func TestIdentityProvider_OtherOrgIsNotFound(t *testing.T) {
 // recorded, and a custom one can still be removed.
 func TestIdentityProvider_ManagedRefusesCustom(t *testing.T) {
 	gw := storedGateway(gwmodels.GatewayHostingManaged, "org")
+	// The platform seeded an env-Thunder provider on this gateway.
+	seeded := "amp-thunder-org-dev"
 	var upserted []string
 	var deleted string
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return gw, nil },
+		ListIdentityProvidersByGatewayFunc: func(string) ([]gwmodels.GatewayIdentityProvider, error) {
+			return []gwmodels.GatewayIdentityProvider{{Name: seeded, Type: gwmodels.IdentityProviderTypeSystem}}, nil
+		},
 		UpsertIdentityProviderFunc: func(p *gwmodels.GatewayIdentityProvider) error {
 			upserted = append(upserted, p.Name)
 			return nil
@@ -343,18 +355,23 @@ func TestIdentityProvider_ManagedRefusesCustom(t *testing.T) {
 	}
 	svc := NewPlatformGatewayService(repo)
 
-	_, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp",
-		"https://issuer", "https://issuer/jwks", "", false)
-	require.ErrorIs(t, err, gwerr.ErrGatewayIdentityProviderUnsupported)
+	// A custom provider is refused, also one named like an env-Thunder provider: the
+	// name alone doesn't make a provider system.
+	for _, name := range []string{"idp", "amp-thunder-org-other"} {
+		_, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", name,
+			"https://issuer", "https://issuer/jwks", "", false)
+		require.ErrorIs(t, err, gwerr.ErrGatewayIdentityProviderUnsupported, name)
+	}
 	require.Empty(t, upserted, "a refused provider is not recorded")
 
-	system := "ThunderKeyManager"
-	require.True(t, gwmodels.IsSystemIdentityProvider(system))
-	provider, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", system,
-		"https://thunder", "https://thunder/jwks", "", false)
-	require.NoError(t, err)
-	require.Equal(t, gwmodels.IdentityProviderTypeSystem, provider.Type)
-	require.Equal(t, []string{system}, upserted)
+	// The well-known provider, and one the platform recorded as system, are system.
+	for _, name := range []string{"ThunderKeyManager", seeded} {
+		provider, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", name,
+			"https://thunder", "https://thunder/jwks", "", false)
+		require.NoError(t, err, name)
+		require.Equal(t, gwmodels.IdentityProviderTypeSystem, provider.Type, name)
+	}
+	require.Equal(t, []string{"ThunderKeyManager", seeded}, upserted)
 
 	require.NoError(t, svc.DeleteIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp"))
 	require.Equal(t, gw.UUID.String()+"/idp", deleted)

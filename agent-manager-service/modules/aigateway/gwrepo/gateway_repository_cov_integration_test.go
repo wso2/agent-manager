@@ -294,7 +294,13 @@ func TestCovGatewayRepoIdentityProviders(t *testing.T) {
 	}
 
 	require.ErrorIs(t, repo.DeleteIdentityProvider(a.UUID.String(), gwmodels.ReservedIdentityProviderName), httpx.ErrInvalidInput)
-	require.ErrorIs(t, repo.DeleteIdentityProvider(a.UUID.String(), "amp-thunder-org-env"), httpx.ErrInvalidInput)
+	require.ErrorIs(t, repo.DeleteIdentityProvider(a.UUID.String(), "ThunderKeyManager"), httpx.ErrInvalidInput)
+	// A provider's recorded type protects it, not its name: an env-Thunder-style name
+	// recorded as system stays, one recorded as custom can be removed.
+	require.NoError(t, repo.UpsertIdentityProvider(idp(b.UUID, "amp-thunder-org-env", "https://t", gwmodels.IdentityProviderTypeSystem)))
+	require.ErrorIs(t, repo.DeleteIdentityProvider(b.UUID.String(), "amp-thunder-org-env"), httpx.ErrInvalidInput)
+	require.NoError(t, repo.UpsertIdentityProvider(idp(b.UUID, "amp-thunder-lookalike", "https://l", gwmodels.IdentityProviderTypeCustom)))
+	require.NoError(t, repo.DeleteIdentityProvider(b.UUID.String(), "amp-thunder-lookalike"))
 	require.ErrorIs(t, repo.DeleteIdentityProvider(a.UUID.String(), "platform"), httpx.ErrInvalidInput, "a system provider stays")
 	require.ErrorIs(t, repo.DeleteIdentityProvider(a.UUID.String(), "missing"), gorm.ErrRecordNotFound)
 	require.NoError(t, repo.DeleteIdentityProvider(a.UUID.String(), "corp"))
