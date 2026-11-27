@@ -250,8 +250,17 @@ func (s *monitorSchedulerService) triggerMonitor(ctx context.Context, monitor *m
 		return err
 	}
 
-	if err := s.executor.UpdateNextRunTime(ctx, monitor.ID, nextRunTime); err != nil {
+	// Advance the schedule only if it is still the one this cycle selected the monitor with.
+	// A user can stop (next_run_time NULL) or restart the monitor while the run above was
+	// being created; an unconditional write here would undo that and re-activate it.
+	advanced, err := s.executor.AdvanceNextRunTime(ctx, monitor.ID, *monitor.NextRunTime, nextRunTime)
+	if err != nil {
 		return fmt.Errorf("failed to update next_run_time for monitor %s: %w", monitor.Name, err)
+	}
+	if !advanced {
+		s.logger.Info("Monitor was stopped or restarted during its scheduled run; leaving its schedule as set",
+			"monitor", monitor.Name, "workflowRunName", result.Name)
+		return nil
 	}
 
 	s.logger.Info("Monitor triggered successfully",
@@ -276,9 +285,17 @@ func (s *monitorSchedulerService) backOff(ctx context.Context, monitor *models.M
 	}
 
 	retryAt := time.Now().Add(delay)
-	if err := s.executor.UpdateNextRunTime(ctx, monitor.ID, retryAt); err != nil {
+	// Compare-and-set for the same reason as the success path: a stop or restart made while
+	// this trigger was failing must not be overwritten by the backoff.
+	advanced, err := s.executor.AdvanceNextRunTime(ctx, monitor.ID, *monitor.NextRunTime, retryAt)
+	if err != nil {
 		s.logger.Error("Failed to back off failed monitor",
 			"monitor", monitor.Name, "error", err)
+		return
+	}
+	if !advanced {
+		s.logger.Info("Monitor was stopped or restarted while its trigger failed; leaving its schedule as set",
+			"monitor", monitor.Name)
 		return
 	}
 

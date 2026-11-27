@@ -62,8 +62,8 @@ import (
 // -----------------------------------------------------------------------------
 
 type fakeMonitorExecutor struct {
-	ExecuteMonitorRunFunc func(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error)
-	UpdateNextRunTimeFunc func(ctx context.Context, monitorID uuid.UUID, nextRunTime time.Time) error
+	ExecuteMonitorRunFunc  func(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error)
+	AdvanceNextRunTimeFunc func(ctx context.Context, monitorID uuid.UUID, from, to time.Time) (bool, error)
 }
 
 func (f *fakeMonitorExecutor) ExecuteMonitorRun(ctx context.Context, params ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
@@ -73,11 +73,11 @@ func (f *fakeMonitorExecutor) ExecuteMonitorRun(ctx context.Context, params Exec
 	return f.ExecuteMonitorRunFunc(ctx, params)
 }
 
-func (f *fakeMonitorExecutor) UpdateNextRunTime(ctx context.Context, monitorID uuid.UUID, nextRunTime time.Time) error {
-	if f.UpdateNextRunTimeFunc == nil {
-		panic("fakeMonitorExecutor.UpdateNextRunTimeFunc: method is nil but UpdateNextRunTime was just called")
+func (f *fakeMonitorExecutor) AdvanceNextRunTime(ctx context.Context, monitorID uuid.UUID, from, to time.Time) (bool, error) {
+	if f.AdvanceNextRunTimeFunc == nil {
+		panic("fakeMonitorExecutor.AdvanceNextRunTimeFunc: method is nil but AdvanceNextRunTime was just called")
 	}
-	return f.UpdateNextRunTimeFunc(ctx, monitorID, nextRunTime)
+	return f.AdvanceNextRunTimeFunc(ctx, monitorID, from, to)
 }
 
 type fakeProvisioner struct {
@@ -244,9 +244,9 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 		}
 		var retryAt time.Time
 		exec := &fakeMonitorExecutor{
-			UpdateNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, t time.Time) error {
+			AdvanceNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, _, t time.Time) (bool, error) {
 				retryAt = t
-				return nil
+				return true, nil
 			},
 		}
 		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
@@ -270,9 +270,9 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 			ExecuteMonitorRunFunc: func(_ context.Context, _ ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
 				return nil, boom
 			},
-			UpdateNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, t time.Time) error {
+			AdvanceNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, _, t time.Time) (bool, error) {
 				retryAt = t
-				return nil
+				return true, nil
 			},
 		}
 		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
@@ -296,7 +296,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 				gotOrg, hadOrg = orgctx.GetResolvedOrg(ctx)
 				return &ExecuteMonitorRunResult{Name: "run-1"}, nil
 			},
-			UpdateNextRunTimeFunc: func(context.Context, uuid.UUID, time.Time) error { return nil },
+			AdvanceNextRunTimeFunc: func(context.Context, uuid.UUID, time.Time, time.Time) (bool, error) { return true, nil },
 		}
 		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
 
@@ -317,9 +317,9 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 			ExecuteMonitorRunFunc: func(_ context.Context, _ ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
 				return nil, errors.New("transient")
 			},
-			UpdateNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, t time.Time) error {
+			AdvanceNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, _, t time.Time) (bool, error) {
 				retryAt = t
-				return nil
+				return true, nil
 			},
 		}
 		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
@@ -351,12 +351,13 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 				return &ExecuteMonitorRunResult{Name: "my-monitor-abcd1234"}, nil
 			},
 		}
-		var nextUpdated time.Time
+		var nextUpdated, updatedFrom time.Time
 		var updatedID uuid.UUID
-		exec.UpdateNextRunTimeFunc = func(_ context.Context, id uuid.UUID, t time.Time) error {
+		exec.AdvanceNextRunTimeFunc = func(_ context.Context, id uuid.UUID, from, t time.Time) (bool, error) {
 			updatedID = id
+			updatedFrom = from
 			nextUpdated = t
-			return nil
+			return true, nil
 		}
 
 		s := newScheduler(systemOC, prov, exec, &repomocks.MonitorRepositoryMock{})
@@ -377,8 +378,10 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 		assert.False(t, captured.EndTime.Before(before.Add(-safetyDelta)), "EndTime should be >= before-safetyDelta")
 		assert.False(t, captured.EndTime.After(after.Add(-safetyDelta)), "EndTime should be <= after-safetyDelta")
 
-		// nextRunTime passed to UpdateNextRunTime = EndTime + interval.
+		// nextRunTime passed to AdvanceNextRunTime = EndTime + interval, and it only moves
+		// the schedule from the value this cycle selected the monitor with.
 		assert.Equal(t, captured.EndTime.Add(time.Duration(interval)*time.Minute), nextUpdated)
+		assert.Equal(t, nextRun, updatedFrom)
 		assert.Equal(t, m.ID, updatedID)
 
 		// Non-Thunder mode injects the system OC client into the executor's context.
@@ -386,7 +389,7 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 		assert.Same(t, systemOC, injectedOC)
 	})
 
-	t.Run("propagates the UpdateNextRunTime error after a successful execute", func(t *testing.T) {
+	t.Run("propagates the AdvanceNextRunTime error after a successful execute", func(t *testing.T) {
 		boom := errors.New("db update failed")
 		m := futureMonitor(org, 10, time.Now())
 		prov := &fakeProvisioner{IsThunderModeFunc: func() bool { return false }}
@@ -394,8 +397,8 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 			ExecuteMonitorRunFunc: func(_ context.Context, _ ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
 				return &ExecuteMonitorRunResult{Name: "run-1"}, nil
 			},
-			UpdateNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, _ time.Time) error {
-				return boom
+			AdvanceNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, _, _ time.Time) (bool, error) {
+				return false, boom
 			},
 		}
 		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
@@ -404,6 +407,50 @@ func TestMonitorScheduler_triggerMonitor(t *testing.T) {
 
 		assert.ErrorIs(t, err, boom)
 		assert.Contains(t, err.Error(), "next_run_time")
+	})
+
+	t.Run("leaves the schedule alone when the monitor was stopped during the run", func(t *testing.T) {
+		selected := time.Now().Add(-time.Minute)
+		m := futureMonitor(org, 10, selected)
+		prov := &fakeProvisioner{IsThunderModeFunc: func() bool { return false }}
+		var from time.Time
+		exec := &fakeMonitorExecutor{
+			ExecuteMonitorRunFunc: func(_ context.Context, _ ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
+				return &ExecuteMonitorRunResult{Name: "run-1"}, nil
+			},
+			// The compare-and-set finds next_run_time changed (stopped) and moves nothing.
+			AdvanceNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, f, _ time.Time) (bool, error) {
+				from = f
+				return false, nil
+			},
+		}
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+
+		require.NoError(t, s.triggerMonitor(context.Background(), &m))
+		assert.Equal(t, selected, from, "the schedule may only move from the value the cycle selected")
+	})
+
+	t.Run("does not back off a monitor that was stopped while its trigger failed", func(t *testing.T) {
+		selected := time.Now().Add(-time.Minute)
+		m := futureMonitor(org, 10, selected)
+		prov := &fakeProvisioner{IsThunderModeFunc: func() bool { return false }}
+		boom := errors.New("workflow create failed")
+		var from time.Time
+		exec := &fakeMonitorExecutor{
+			ExecuteMonitorRunFunc: func(_ context.Context, _ ExecuteMonitorRunParams) (*ExecuteMonitorRunResult, error) {
+				return nil, boom
+			},
+			AdvanceNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, f, _ time.Time) (bool, error) {
+				from = f
+				return false, nil
+			},
+		}
+		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, &repomocks.MonitorRepositoryMock{})
+
+		err := s.triggerMonitor(context.Background(), &m)
+
+		assert.ErrorIs(t, err, boom)
+		assert.Equal(t, selected, from, "the backoff may only move the schedule from the value the cycle selected")
 	})
 }
 
@@ -459,7 +506,7 @@ func TestMonitorScheduler_triggerPendingMonitors(t *testing.T) {
 				executed++
 				return &ExecuteMonitorRunResult{Name: "run"}, nil
 			},
-			UpdateNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, _ time.Time) error { return nil },
+			AdvanceNextRunTimeFunc: func(_ context.Context, _ uuid.UUID, _, _ time.Time) (bool, error) { return true, nil },
 		}
 		s := newScheduler(&clientmocks.OpenChoreoClientMock{}, prov, exec, repo)
 
