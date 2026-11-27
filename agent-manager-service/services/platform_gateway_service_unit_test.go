@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"sync"
@@ -295,6 +296,65 @@ func TestVerifyToken_PropagatesContextToRepository(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, receivedCtx, "GetActiveTokenByPrefix must be reached with the caller's context, not a detached one")
 	assert.ErrorIs(t, receivedCtx.Err(), context.Canceled, "the repository must receive the caller's (cancelled) context, not context.Background()")
+}
+
+func TestVerifyToken_RejectsRevokedTokenAcrossServiceInstances(t *testing.T) {
+	ctx := context.Background()
+	gateway := gatewayFixture("edge")
+	plainToken, prefix, err := generateToken()
+	require.NoError(t, err)
+	salt, err := generateSalt()
+	require.NoError(t, err)
+	token := &models.GatewayToken{
+		UUID:        uuid.New(),
+		GatewayUUID: gateway.UUID,
+		TokenPrefix: prefix,
+		TokenHash:   hashToken(plainToken, salt),
+		Salt:        hex.EncodeToString(salt),
+	}
+
+	revoked := false
+	repo := &repomocks.GatewayRepositoryMock{
+		GetActiveTokenByPrefixFunc: func(_ context.Context, tokenPrefix string) (*models.GatewayToken, error) {
+			require.Equal(t, prefix, tokenPrefix)
+			if revoked {
+				return nil, gorm.ErrRecordNotFound
+			}
+			return token, nil
+		},
+		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+			require.Equal(t, gateway.UUID.String(), id)
+			return gateway, nil
+		},
+		GetTokenByUUIDFunc: func(id string) (*models.GatewayToken, error) {
+			require.Equal(t, token.UUID.String(), id)
+			return token, nil
+		},
+		RevokeTokenFunc: func(id string) error {
+			require.Equal(t, token.UUID.String(), id)
+			revoked = true
+			return nil
+		},
+	}
+	first := NewPlatformGatewayService(repo, nil)
+	second := NewPlatformGatewayService(repo, nil)
+
+	for _, service := range []*PlatformGatewayService{first, second, second} {
+		verified, verifyErr := service.VerifyToken(ctx, plainToken)
+		require.NoError(t, verifyErr)
+		require.Same(t, gateway, verified)
+	}
+	require.Len(t, repo.GetByUUIDCalls(), 2, "each service caches the gateway metadata")
+	require.Len(t, repo.GetActiveTokenByPrefixCalls(), 3, "a cached gateway still needs a fresh token lookup")
+
+	require.NoError(t, first.RevokeTokenByID(token.UUID.String(), gateway.UUID.String(), gateway.OUID))
+
+	for _, service := range []*PlatformGatewayService{first, second} {
+		verified, verifyErr := service.VerifyToken(ctx, plainToken)
+		require.Error(t, verifyErr)
+		require.Nil(t, verified)
+	}
+	require.Len(t, repo.GetActiveTokenByPrefixCalls(), 4, "the second service reads the revocation from the database")
 }
 
 func TestRotateToken_ThirdTokenIsLimitError(t *testing.T) {
