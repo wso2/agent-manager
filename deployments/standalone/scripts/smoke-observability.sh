@@ -141,7 +141,7 @@ stored "$T3" >/dev/null
 check no-org-not-stored 0 "$(ch "SELECT count() FROM otel.otel_traces WHERE TraceId = '$T2'")"
 
 WINDOW="startTime=$(jq -nr 'now - 3600 | todate')&endTime=$(jq -nr 'now + 3600 | todate')"
-BODY=$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $TOKEN" "$API/m/observability/api/v1/traces/$T1/spans?$WINDOW")
+BODY=$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $TOKEN" "$API/m/observability/traces/$T1/spans?$WINDOW")
 check trace-route 200 "$(tail -1 <<<"$BODY")"
 check trace-route-has-span yes "$(grep -q "$S1" <<<"$BODY" && echo yes || echo no)"
 
