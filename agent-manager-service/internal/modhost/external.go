@@ -213,11 +213,11 @@ func externalLockOwner() (string, error) {
 	return fmt.Sprintf("%s/%d/%s", host, os.Getpid(), hex.EncodeToString(suffix)), nil
 }
 
-// externalPlanReady runs externalReady for each module installing name would
-// activate, before the lifecycle transaction, so a slow store never holds the
-// generation lock. It returns the modules it checked, and the active modules
-// Reload would leave out for their store.
-func (h *Host) externalPlanReady(ctx context.Context, name string, withDeps bool) (map[string]bool, map[string]error, error) {
+// externalPlanReady runs externalReady, when check is set, for each module
+// installing name would activate, before the lifecycle transaction, so a slow
+// store never holds the generation lock. It returns the modules it planned,
+// and the active modules Reload would leave out for their store.
+func (h *Host) externalPlanReady(ctx context.Context, name string, withDeps, check bool) (map[string]bool, map[string]error, error) {
 	rows, err := loadRows(h.db.WithContext(ctx))
 	if err != nil {
 		return nil, nil, err
@@ -233,8 +233,10 @@ func (h *Host) externalPlanReady(ctx context.Context, name string, withDeps bool
 	}
 	checked := make(map[string]bool, len(steps))
 	for _, s := range steps {
-		if err := h.externalReady(ctx, s.Module); err != nil {
-			return nil, nil, err
+		if check {
+			if err := h.externalReady(ctx, s.Module); err != nil {
+				return nil, nil, err
+			}
 		}
 		checked[s.Module] = true
 	}

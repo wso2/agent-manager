@@ -55,7 +55,7 @@ func (h *Host) Reconcile(ctx context.Context, want []Desired) ([]Step, error) {
 		if !needed {
 			continue
 		}
-		s, err := h.Install(ctx, d.Name, true)
+		s, err := h.install(ctx, d.Name, true, false)
 		if err != nil && !h.settled(ctx, d.Name, func(st string) bool { return st == StateActive || (st == StateDisabled && !d.Enabled) }) {
 			return steps, fmt.Errorf("installing %s: %w", d.Name, err)
 		}
@@ -113,7 +113,7 @@ func (h *Host) InstallDefaults(ctx context.Context, names []string) ([]Step, err
 		if h.stateNow(name) != StateAvailable {
 			continue
 		}
-		s, err := h.Install(ctx, name, true)
+		s, err := h.install(ctx, name, true, false)
 		if err != nil && !h.settled(ctx, name, func(st string) bool { return st != StateAvailable }) {
 			return steps, fmt.Errorf("installing %s: %w", name, err)
 		}

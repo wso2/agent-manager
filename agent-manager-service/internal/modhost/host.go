@@ -636,7 +636,14 @@ func setState(tx *gorm.DB, name, version, state string) (bool, error) {
 // committed unless every installed module activates. A failed catch-up
 // (OnInstall) is returned with the steps: the modules stay installed.
 func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step, error) {
-	checked, left, err := h.externalPlanReady(ctx, name, withDeps)
+	return h.install(ctx, name, withDeps, true)
+}
+
+// install is Install. With checkStores false it does not check the external
+// stores of the modules it installs, as the installs at boot do: a module
+// whose store is not ready is then left out and retried, not refused.
+func (h *Host) install(ctx context.Context, name string, withDeps, checkStores bool) ([]Step, error) {
+	checked, left, err := h.externalPlanReady(ctx, name, withDeps, checkStores)
 	if err != nil {
 		return nil, err
 	}

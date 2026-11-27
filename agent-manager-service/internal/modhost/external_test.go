@@ -477,3 +477,49 @@ func TestInstallRefusesAModuleWhoseProviderIsLeftOut(t *testing.T) {
 	assert.Contains(t, re.Hint, "t-ext left out")
 	assert.Zero(t, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-consumer'`), "nothing is committed")
 }
+
+// The installs at boot, from a modules list or the defaults, do not refuse a
+// module whose store is down: it is installed, left out, and loads once the
+// store is back. An install by hand still refuses it.
+func TestBootInstallLeavesOutAnUnreadyStore(t *testing.T) {
+	for name, boot := range map[string]func(context.Context, *modhost.Host) error{
+		"modules list": func(ctx context.Context, h *modhost.Host) error {
+			_, err := h.Reconcile(ctx, []modhost.Desired{{Name: "t-ext", Enabled: true}})
+			return err
+		},
+		"defaults": func(ctx context.Context, h *modhost.Host) error {
+			_, err := h.InstallDefaults(ctx, []string{"t-ext"})
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			store := &fakeStore{records: map[string]string{}}
+			setDown := func(down bool) {
+				store.mu.Lock()
+				store.down = down
+				store.mu.Unlock()
+			}
+			// The replica migrates the store, which then goes down.
+			h, _ := replica(t, ctx, databases(t)[0], []modkit.Module{newExternal(store, externalFiles("001_spans.sql"), true, true)})
+			setDown(true)
+
+			_, err := h.Install(ctx, "t-ext", false)
+			require.Error(t, err, "an install by hand checks the store")
+
+			require.NoError(t, boot(ctx, h))
+			state := ""
+			for _, mi := range h.List() {
+				if mi.Name == "t-ext" {
+					state = mi.State
+				}
+			}
+			assert.Equal(t, modhost.StateActive, state, "installed")
+			assert.NotContains(t, h.Active(), "t-ext", "left out while its store is down")
+
+			setDown(false)
+			waitFor(t, "t-ext to load once its store is back", func() bool { return slices.Contains(h.Active(), "t-ext") })
+		})
+	}
+}
