@@ -103,7 +103,7 @@ describe("Protected", () => {
   it("shows a loader while auth is resolving", () => {
     mocks.auth = { ...mocks.auth, isLoadingIsAuthenticated: true };
     renderAt("/org/acme");
-    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.queryByText("protected content")).not.toBeInTheDocument();
   });
 
@@ -129,7 +129,7 @@ describe("Protected", () => {
   it("shows a loader while organizations load", () => {
     mocks.orgs = { isLoading: true };
     renderAt("/org/acme");
-    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("shows a recoverable error when organizations fail to load", () => {

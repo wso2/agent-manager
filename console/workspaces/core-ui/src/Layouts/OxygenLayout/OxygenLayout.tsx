@@ -29,7 +29,7 @@ import { generatePath, Outlet, useNavigate, useParams } from "react-router-dom";
 import { Boxes, LogOut, Settings } from "@wso2/oxygen-ui-icons-react";
 import { ProfileDrawer } from "./ProfileDrawer";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { Logo, useExternalComponentModules } from "@agent-management-platform/views";
+import { Logo, PageFooterProvider, useExternalComponentModules } from "@agent-management-platform/views";
 import { globalConfig, absoluteRouteMap } from "@agent-management-platform/types";
 import { LeftNavigation, combineNavItems, flattenWithChildren } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
@@ -107,6 +107,78 @@ export function OxygenLayout() {
   const handleLogout = async () => {
     await logout();
   };
+
+  // Rendered inside each page's PageContent (see PageLayout) rather than as an
+  // AppShell footer, so it sits at the bottom of short pages and scrolls with
+  // long ones.
+  // The row is as tall as the sidebar's footer (divider, padding and the 36px
+  // Collapse item set in LeftNavigation), so its top line lines up with the
+  // divider above "Collapse". The line is inset by the page padding, as in the
+  // Choreo console. Memoised so unrelated layout state (e.g. the profile
+  // drawer) does not re-render every page reading the footer context.
+  const footer = useMemo(() => (
+    <Box component="footer" sx={{ px: 3, width: "100%" }}>
+    <Box
+      sx={(theme) => ({
+        borderTop: `1px solid ${(theme.vars || theme).palette.divider}`,
+        boxSizing: "border-box",
+        minHeight: 61,
+        display: "flex",
+        flexDirection: { xs: "column", sm: "row" },
+        alignItems: { xs: "flex-start", sm: "center" },
+        justifyContent: "space-between",
+        gap: 2,
+        py: { xs: 1.5, sm: 0 },
+      })}
+    >
+      <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+      <Footer.Copyright>
+        © {new Date().getFullYear()} WSO2 LLC.
+      </Footer.Copyright>
+      {
+        globalConfig.ampVersion && [
+          <Footer.Divider key="footer-divider" />,
+          <Footer.Version key="footer-version">
+            {`${globalConfig.ampVersion}`}
+          </Footer.Version>,
+        ]
+      }
+      {
+        externalBottomLeftComponentModules?.map((module) => (
+          <div key={module.moduleName}>
+            <module.component />
+          </div>
+        ))
+      }
+      </Box>
+      <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+      {
+        externalBottomRightComponentModules?.map((module) => (
+          <div key={module.moduleName}>
+            <module.component />
+          </div>
+        ))
+      }
+      {globalConfig.docsUrl && (
+        <Footer.Link href={globalConfig.docsUrl + "/get-started/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
+      )}
+      {globalConfig.footerLinks?.supportUrl && (
+        <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>
+      )}
+      {globalConfig.footerLinks?.termsOfUseUrl && (
+        <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms of Use</Footer.Link>
+      )}
+      {globalConfig.footerLinks?.privacyPolicyUrl && (
+        <Footer.Link href={globalConfig.footerLinks.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
+      )}
+      </Box>
+    </Box>
+    </Box>
+  ), [
+    globalConfig,
+    externalBottomLeftComponentModules,
+    externalBottomRightComponentModules,
+  ]);
 
   return (
     <>
@@ -190,71 +262,11 @@ export function OxygenLayout() {
         </AppShell.Sidebar>
 
         <AppShell.Main>
-          <Outlet />
+          <PageFooterProvider value={footer}>
+            <Outlet />
+          </PageFooterProvider>
         </AppShell.Main>
 
-        <AppShell.Footer>
-          {/* Oxygen UI's Footer keeps only its own sub-components, so it would
-              drop the mounted panels; this lays the same pieces out itself. */}
-          <Box
-            component="footer"
-            sx={(theme) => ({
-              width: "100%",
-              py: 2,
-              px: 3,
-              mt: "auto",
-              borderTop: `1px solid ${(theme.vars || theme).palette.divider}`,
-              bgcolor: "background.paper",
-              display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              alignItems: { xs: "flex-start", sm: "center" },
-              justifyContent: "space-between",
-              gap: 2,
-            })}
-          >
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-            <Footer.Copyright>
-              © {new Date().getFullYear()} WSO2 LLC.
-            </Footer.Copyright>
-            {
-              globalConfig.ampVersion && [
-                <Footer.Divider key="footer-divider" />,
-                <Footer.Version key="footer-version">
-                  {`${globalConfig.ampVersion}`}
-                </Footer.Version>,
-              ]
-            }
-            {
-              externalBottomLeftComponentModules?.map((module) => (
-                <div key={module.moduleName}>
-                  <module.component />
-                </div>
-              ))
-            }
-            </Box>
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-            {
-              externalBottomRightComponentModules?.map((module) => (
-                <div key={module.moduleName}>
-                  <module.component />
-                </div>
-              ))
-            }
-            {globalConfig.docsUrl && (
-              <Footer.Link href={globalConfig.docsUrl + "/get-started/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
-            )}
-            {globalConfig.footerLinks?.supportUrl && (
-              <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>
-            )}
-            {globalConfig.footerLinks?.termsOfUseUrl && (
-              <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms of Use</Footer.Link>
-            )}
-            {globalConfig.footerLinks?.privacyPolicyUrl && (
-              <Footer.Link href={globalConfig.footerLinks.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
-            )}
-            </Box>
-          </Box>
-        </AppShell.Footer>
       </AppShell>
 
       <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />

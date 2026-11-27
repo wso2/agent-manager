@@ -22,7 +22,7 @@ let initialBaseTitle: string | null = null;
 
 export function useDocumentTitle(
   title?: string,
-  baseTitleFallback = 'Agent Manager Console'
+  baseTitleFallback = 'Choreo AI Control Plane'
 ) {
   const baseTitleRef = useRef<string | null>(null);
   const prevTitleRef = useRef<string | null>(null);

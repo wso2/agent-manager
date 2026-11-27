@@ -19,6 +19,7 @@
 import { PageContent } from '@wso2/oxygen-ui';
 import type { ReactNode } from 'react';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { usePageFooter } from '../PageFooterContext';
 import { PageErrorBoundary } from './PageErrorBoundary';
 import { PageHeader, type PageHeaderProps } from './PageHeader';
 
@@ -38,9 +39,10 @@ export function PageLayout({
 }: PageLayoutProps) {
   const { title, avatar, isLoading } = headerProps;
   useDocumentTitle(title);
+  const footer = usePageFooter();
 
   const content = (
-    <PageContent fullWidth noPadding={disablePadding}>
+    <PageContent fullWidth noPadding={disablePadding} footer={footer}>
       <PageHeader {...headerProps} avatar={disableIcon ? null : avatar} />
       {children}
     </PageContent>

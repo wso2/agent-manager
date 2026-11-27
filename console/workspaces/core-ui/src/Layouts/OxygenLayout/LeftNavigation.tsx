@@ -295,6 +295,9 @@ export function LeftNavigation({
         <Sidebar.Category>
           <Sidebar.Item
             id={COLLAPSE_TOGGLE_ID}
+            // Shorter than the 44px default so the sidebar footer's divider lines
+            // up with the page footer's top line.
+            sx={{ minHeight: 36 }}
             link={<NavigationTooltip tooltip={collapsed ? "Expand" : ""} expanded={!collapsed} />}
           >
             <Sidebar.ItemIcon>

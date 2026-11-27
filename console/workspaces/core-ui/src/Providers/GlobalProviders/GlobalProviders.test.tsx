@@ -99,7 +99,7 @@ describe("GlobalProviders", () => {
         <Probe />
       </GlobalProviders>,
     );
-    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.queryByTestId("probe")).not.toBeInTheDocument();
     expect(mocks.analytics).toEqual([]);
   });
@@ -160,7 +160,7 @@ describe("GlobalProviders", () => {
       </GlobalProviders>,
     );
     expect(screen.queryByTestId("probe")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Loading")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
 
     const denyGatewayWrite = () => ({ isLoading: false, featureAccess: { gateway_write: false } });
     rerender(
