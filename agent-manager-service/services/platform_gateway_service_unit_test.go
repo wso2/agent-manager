@@ -300,14 +300,40 @@ func TestVerifyToken_PropagatesContextToRepository(t *testing.T) {
 func TestRotateToken_ThirdTokenIsLimitError(t *testing.T) {
 	gateway := gatewayFixture("edge")
 	repo := &repomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:         func(string) (*models.Gateway, error) { return gateway, nil },
-		CountActiveTokensFunc: func(string) (int, error) { return 2, nil },
+		GetByUUIDFunc:              func(string) (*models.Gateway, error) { return gateway, nil },
+		CreateTokenWithinLimitFunc: func(*models.GatewayToken, int) error { return utils.ErrGatewayTokenLimitReached },
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 
 	_, err := svc.RotateToken(gateway.UUID.String(), gatewayTestOUID)
 
 	assert.ErrorIs(t, err, utils.ErrGatewayTokenLimitReached)
+}
+
+// The limit is enforced by the repository under its per-gateway lock; the service asks for
+// two active tokens and returns the new token's value once.
+func TestRotateToken_CreatesTokenWithinTheTwoTokenLimit(t *testing.T) {
+	gateway := gatewayFixture("edge")
+	var stored *models.GatewayToken
+	repo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+		CreateTokenWithinLimitFunc: func(token *models.GatewayToken, _ int) error {
+			stored = token
+			return nil
+		},
+	}
+	svc := NewPlatformGatewayService(repo, nil)
+
+	resp, err := svc.RotateToken(gateway.UUID.String(), gatewayTestOUID)
+
+	require.NoError(t, err)
+	require.Len(t, repo.CreateTokenWithinLimitCalls(), 1)
+	assert.Equal(t, 2, repo.CreateTokenWithinLimitCalls()[0].MaxActive)
+	assert.Equal(t, gateway.UUID, stored.GatewayUUID)
+	assert.Equal(t, "active", stored.Status)
+	assert.Equal(t, stored.UUID.String(), resp.ID)
+	assert.NotEmpty(t, resp.Token)
+	assert.NotContains(t, stored.TokenHash, resp.Token, "only the hash may be stored")
 }
 
 func TestRevokeToken_UnknownIsNotFound(t *testing.T) {

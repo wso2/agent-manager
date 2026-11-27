@@ -132,12 +132,13 @@ type GatewayRepository interface {
 	HasGatewayDeployments(gatewayID, ouID string) (bool, error)
 
 	// Token operations
-	CreateToken(token *models.GatewayToken) error
+	// CreateTokenWithinLimit inserts an active token unless its gateway already has maxActive
+	// active tokens, returning utils.ErrGatewayTokenLimitReached instead.
+	CreateTokenWithinLimit(token *models.GatewayToken, maxActive int) error
 	GetActiveTokensByGatewayUUID(gatewayId string) ([]*models.GatewayToken, error)
 	GetTokenByUUID(tokenId string) (*models.GatewayToken, error)
 	GetActiveTokenByPrefix(ctx context.Context, tokenPrefix string) (*models.GatewayToken, error)
 	RevokeToken(tokenId string) error
-	CountActiveTokens(gatewayId string) (int, error)
 
 	// Gateway-Environment mapping operations
 	CreateEnvironmentMapping(mapping *models.GatewayEnvironmentMapping) error
@@ -425,10 +426,30 @@ func (r *GatewayRepo) MarkDisconnected(ctx context.Context, gatewayID string, ac
 	return res.RowsAffected > 0, nil
 }
 
-// CreateToken inserts a new token
-func (r *GatewayRepo) CreateToken(token *models.GatewayToken) error {
-	token.CreatedAt = time.Now()
-	return r.db.Create(token).Error
+// CreateTokenWithinLimit inserts token as an active token of its gateway, unless the gateway
+// already has maxActive active tokens, in which case it returns utils.ErrGatewayTokenLimitReached.
+//
+// The count and the insert run in one transaction under a per-gateway advisory lock. Counting and
+// inserting as separate statements let concurrent rotations of one gateway each see room and all
+// insert, leaving it with more active tokens than the limit. The schema cannot hold the limit
+// itself: nothing but this path caps the active rows per gateway.
+func (r *GatewayRepo) CreateTokenWithinLimit(token *models.GatewayToken, maxActive int) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := advisoryXactLock(tx, gatewayTokenLockNamespace, token.GatewayUUID.String()); err != nil {
+			return fmt.Errorf("failed to lock gateway tokens: %w", err)
+		}
+		var active int64
+		if err := tx.Model(&models.GatewayToken{}).
+			Where("gateway_uuid = ? AND status = ?", token.GatewayUUID, "active").
+			Count(&active).Error; err != nil {
+			return fmt.Errorf("failed to count active tokens: %w", err)
+		}
+		if active >= int64(maxActive) {
+			return utils.ErrGatewayTokenLimitReached
+		}
+		token.CreatedAt = time.Now()
+		return tx.Create(token).Error
+	})
 }
 
 // GetActiveTokensByGatewayUUID retrieves all active tokens for a gateway
@@ -487,15 +508,6 @@ func (r *GatewayRepo) RevokeToken(tokenId string) error {
 		return gorm.ErrRecordNotFound
 	}
 	return nil
-}
-
-// CountActiveTokens counts the number of active tokens for a gateway
-func (r *GatewayRepo) CountActiveTokens(gatewayId string) (int, error) {
-	var count int64
-	err := r.db.Model(&models.GatewayToken{}).
-		Where("gateway_uuid = ? AND status = ?", gatewayId, "active").
-		Count(&count).Error
-	return int(count), err
 }
 
 // HasGatewayDeployments reports whether the gateway holds any artifact: a row that names a deployment and isn't
@@ -682,6 +694,7 @@ const (
 	llmProviderSyncLockNamespace     = 4717
 	orgCredentialLockNamespace       = 4718
 	eventDestinationLockNamespace    = 4719
+	gatewayTokenLockNamespace        = 4720
 )
 
 // advisoryXactLock takes a transaction-scoped advisory lock on key within namespace, released on
